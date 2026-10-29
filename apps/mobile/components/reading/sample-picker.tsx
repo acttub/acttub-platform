@@ -7,7 +7,7 @@ import { Chip } from '@/components/ui/chip';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
-import { loadExamples, localExamples, orderExamples, type ExampleEntry, type ExampleList } from '@/lib/reading/examples';
+import { loadExamples, localExamples, type ExampleEntry, type ExampleList } from '@/lib/reading/examples';
 import { isMonologue } from '@/lib/reading/monologue';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
@@ -22,8 +22,6 @@ type Options = {
   onNeedName: (target: { scriptId: string; characterId: string }) => void;
   /** 서버 예시를 못 받아 내장 예시를 고른 경우 — 그 글을 채운 대본 넣기로 잇는다. */
   onLocal?: (id: string) => void;
-  /** 입시 준비 배우의 첫 화면·실기 알림에서 왔으면 입시 예시를 맨 앞에 두고 첫 입시 예시를 골라 둔다(SOMA-864). */
-  exam?: boolean;
 };
 
 /**
@@ -31,7 +29,7 @@ type Options = {
  * 내 대본 올리기의 「대본 같이 만들기 · 예시 대본 고르기」(10/25, 화면 이동 없이 아래에 펼침)가 같이 쓴다.
  * 서버 예시는 내 대본으로 바로 복사(start)해 대본 상세로 가고, 내장 예시는 그 글이 채워진 대본 넣기로 간다.
  */
-export function useSamplePicker({ onNeedName, onLocal, exam = false }: Options) {
+export function useSamplePicker({ onNeedName, onLocal }: Options) {
   const router = useRouter();
   const firstReading = useFirstReading();
   const firstReadingRef = useRef<boolean | null>(null);
@@ -47,18 +45,14 @@ export function useSamplePicker({ onNeedName, onLocal, exam = false }: Options) 
 
   useEffect(() => {
     alive.current = true;
-    void loadExamples(() => api.listReadingExamples()).then((loaded) => {
+    void loadExamples(() => api.listReadingExamples()).then((next) => {
       if (!alive.current) return;
-      const next = { ...loaded, examples: orderExamples(loaded.examples, exam) };
       setList(next);
-      const firstExam = exam ? next.examples.find((e) => e.category === 'exam') : undefined;
-      setPickedId((id) => firstExam?.id ?? (next.examples.some((e) => e.id === id) ? id : next.examples[0].id));
+      setPickedId((id) => (next.examples.some((e) => e.id === id) ? id : next.examples[0].id));
     });
     return () => {
       alive.current = false;
     };
-    // 처음 한 번만 받는다 — exam 은 화면이 열릴 때 정해진다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const entry = list.examples.find((e) => e.id === pickedId) ?? list.examples[0];

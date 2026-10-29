@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,9 +24,7 @@ export default function SampleScriptPicker() {
   // 첫 리딩이면 이름을 받은 뒤 대본 상세 대신 배역 고르기로(10/29).
   const firstReading = useFirstReading();
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
-  // 입시 준비 배우의 가입 직후·실기 알림은 ?exam=1 로 온다(SOMA-864).
-  const exam = useLocalSearchParams<{ exam?: string }>().exam === '1';
-  const picker = useSamplePicker({ onNeedName: setNaming, exam });
+  const picker = useSamplePicker({ onNeedName: setNaming });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
