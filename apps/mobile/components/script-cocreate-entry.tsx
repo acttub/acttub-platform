@@ -38,8 +38,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 16,
-    // 흰 바탕에 한 단계 진한 2px 테두리(SOMA-923).
-    borderWidth: 2,
+    // 흰 바탕에 한 단계 진한 1px 테두리(SOMA-923, 디자인 시스템 「의도된 차이」).
+    borderWidth: 1,
     borderColor: palette.borderStrong,
     backgroundColor: palette.bg,
   },
