@@ -14,7 +14,8 @@
 
 - **탭바는 플랫폼마다 다르다.** iOS 는 화면 위에 뜬 글래스 알약(좌우 20, 높이 64), 글자 없는 아이콘 26, 고른 탭은 회색 반투명
   알약이 칸을 거의 채운다. 안드로이드는 바닥에 붙은 막대(위 1px `border`)이고, 고르지 않은 탭은 아이콘 22만 칸 가운데에 있다.
-  고르면 아이콘이 9 위로 올라가며 아래에 탭 이름(micro, `blue-deep`)이 0.18초 동안 나타난다(SOMA-923). 구현은
+  고르면 아이콘이 9 위로 올라가며 아래에 탭 이름(micro, `blue-deep`)이 0.18초 동안 나타난다(SOMA-923). 두 플랫폼 모두 고르지
+  않은 탭 아이콘은 `icon-faint`이고, 홈 아이콘은 pen 의 lucide `house`를 그림으로 옮겨 쓴다(SOMA-942). 구현은
   `components/ui/tab-bar.tsx` 의 `IOS` 분기다.
 - **첫 사용자 화면은 흐름이 다르다.** 첫 사용자는 탭바를 숨기고 탭 화면에 홈 꺾쇠·설정을 두며, 홈 구성·안내·예시·첫 완료 축하
   문구가 다르다(`lib/practice/first-time.ts`). 버튼·머리·목록 행·색·글자 같은 부품 모양은 단계와 상관없이 같다.
@@ -135,8 +136,10 @@
 - **단계 머리(StepHeader):** NavHeader 와 같은 높이·꺾쇠에 n/N(caption)과 아래 진행 막대. 뒤로만 있는 머리는 제목 없는 NavHeader.
 - **칩·스위치·고르기 카드:** 선택은 `blue-soft` 바탕 + 1.5px `blue` 테두리 + `blue-deep` 글자. 꺼짐은 흰 바탕 + 1px `border`.
   목록을 거르는 필터 칩도 같다. 스위치 켜짐은 `blue`, 꺼짐은 `text-disabled`.
-- **체크(Checkbox):** 동의·고르기 체크는 사각 상자 대신 원형 체크 아이콘 22 하나다. 켜짐은 `circle-check-big` `blue`, 꺼짐은
-  `circle` `text-disabled`. 되돌릴 수 없는 일(탈퇴 등)에 동의하는 체크만 켜짐을 `danger`로 둔다. 글자와는 위쪽을 맞춘다.
+- **체크(Checkbox):** 동의·고르기 체크는 사각 상자 대신 원 22 하나다. 켜짐은 `blue`로 채운 원 안에 흰 체크(11×8, 선 2.2,
+  끝 둥글게, 원 밖으로 나가지 않는 iOS 기본 모양), 꺼짐은 1.5px `text-disabled` 테두리 빈 원. 되돌릴 수 없는 일(탈퇴 등)에
+  동의하는 체크만 켜짐을 `danger`로 둔다. 글자와는 위쪽을 맞춘다.
+  앱 코드(`components/ui/checkbox.tsx`)는 아직 옛 Feather `check-circle`·`circle` 모양이다.
 - **화면 안 탭(Segmented):** 한 화면 안에서 아래 내용 전체를 바꾸는 탭(프로필의 연습 기록·참여작·저장됨). `bg-soft` 칸,
   r-md, 안쪽 4, 칸 사이 4. 칸 높이 36, r-sm. 고른 칸은 흰 바탕 + `text` body2-bold, 나머지는 `text-meta` body2-bold.
 - **채팅 입력칸(Chat/Composer):** 코치와 대화하는 화면 전용. `bg-soft` 알약(r-full), 테두리 없음, 최소 높이 44, 안쪽 좌우 16,
