@@ -56,7 +56,10 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   configureNotificationHandling,
   flushPendingPushTokenDeletions,
+  capturePushOpen,
   onPushTapped,
+  recordColdStartPushOpen,
+  setPushOpenSignedIn,
 } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
@@ -221,7 +224,8 @@ function RootNavigator() {
 
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
-    return onPushTapped((data) => {
+    return onPushTapped((data, identifier) => {
+      capturePushOpen(data, identifier);
       // analysis_complete·resume은 같은 회차, 다른 연습 알림은 알림이 말한 화면(SOMA-862), 못 정하면 홈이다.
       const opened = reminderOpenEvent(data);
       if (opened) void logEvent('reminder_open', opened);
@@ -233,6 +237,16 @@ function RootNavigator() {
       if (challengePushTarget(data)) router.push('/notifications');
     });
   }, [router]);
+
+  // 꺼진 앱을 푸시로 열었다면 리스너보다 탭이 먼저 지나갔을 수 있어 한 번 조회해 남긴다(측정만, 이동은 그대로).
+  useEffect(() => {
+    void recordColdStartPushOpen();
+  }, []);
+
+  // 푸시 탭이 로그인보다 먼저 와도 로그인한 회원이 생기면 그때 보낸다.
+  useEffect(() => {
+    setPushOpenSignedIn(status === 'signedIn' && !!user);
+  }, [status, user]);
 
   useEffect(() => {
     const bootstrap = resolveBootstrapStep({

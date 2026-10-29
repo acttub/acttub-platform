@@ -11,7 +11,10 @@ import {
   registrablePlatform,
   type NotificationSettings,
 } from './push-policy';
+import { createPushOpenRecorder, pushOpenRecord } from './push-open';
 import { createPushTokenLifecycle } from './push-token-lifecycle';
+
+export { pushOpenRecord };
 
 export * from './push-policy';
 
@@ -150,12 +153,60 @@ export function onPushReceived(listener: (data: unknown) => void): () => void {
  * 푸시를 눌러 앱이 열렸을 때. 잠금 화면 문구에는 이름·본문이 없고 알림 식별자만 있으므로
  * 그 자료로 어디를 열지 정한다(challenge.notification). 모듈이 없으면 구독하지 않는다.
  */
-export function onPushTapped(listener: (data: unknown) => void): () => void {
+export function onPushTapped(
+  listener: (data: unknown, identifier?: string) => void,
+): () => void {
   if (!notifications) return () => undefined;
   const subscription = notifications.addNotificationResponseReceivedListener((event) => {
-    listener(event?.notification?.request?.content?.data ?? null);
+    listener(
+      event?.notification?.request?.content?.data ?? null,
+      event?.notification?.request?.identifier,
+    );
   });
   return () => subscription.remove();
+}
+
+const pushOpens = createPushOpenRecorder({
+  send: (body) => api.recordPushOpen(body),
+  platform: () => registrablePlatform(Platform.OS),
+});
+
+/** 마지막으로 처리해 둔 콜드 스타트 탭의 알림 식별자. 같은 탭을 다음 실행에서 또 세지 않으려는 것이다. */
+const LAST_COLD_START_KEY = 'device.lastPushOpenId';
+
+/** 푸시를 눌러 연 것을 서버에 남긴다(측정). 기다리지 않고 실패는 삼키며 화면 이동에 영향이 없다. */
+export function capturePushOpen(data: unknown, identifier?: string | null): void {
+  try {
+    pushOpens.capture(identifier, data);
+    // 켜진 앱에서 센 탭도 적어 둔다. 다음 실행의 콜드 스타트 조회가 같은 탭을 또 세지 않게 한다.
+    if (identifier) void AsyncStorage.setItem(LAST_COLD_START_KEY, identifier).catch(() => undefined);
+  } catch {
+    // 측정이 앱을 막으면 안 된다.
+  }
+}
+
+/** 로그인한 회원이 생기면(또는 없어지면) 알린다. 켜지는 순간 로그인 전에 눌린 탭을 보낸다. */
+export function setPushOpenSignedIn(signedIn: boolean): void {
+  pushOpens.setSignedIn(signedIn);
+}
+
+
+/**
+ * 꺼진 앱을 푸시로 연 경우 리스너가 붙기 전에 탭이 지나갔을 수 있다. 앱을 처음 띄울 때 한 번 마지막 탭을
+ * 조회해 남긴다. 이미 남긴 식별자(저장해 둔 것)는 건너뛴다. 화면 이동은 건드리지 않는다.
+ */
+export async function recordColdStartPushOpen(): Promise<void> {
+  if (!notifications?.getLastNotificationResponseAsync) return;
+  try {
+    const last = await notifications.getLastNotificationResponseAsync();
+    const identifier = last?.notification?.request?.identifier;
+    if (!last || !identifier) return;
+    if ((await AsyncStorage.getItem(LAST_COLD_START_KEY).catch(() => null)) === identifier) return;
+    await AsyncStorage.setItem(LAST_COLD_START_KEY, identifier).catch(() => undefined);
+    capturePushOpen(last.notification.request.content?.data ?? null, identifier);
+  } catch {
+    // 조회 실패는 삼킨다.
+  }
 }
 
 /** 기기에 적어 둔 마지막 서버 값. 서버를 못 읽을 때(오프라인) 쓴다. */

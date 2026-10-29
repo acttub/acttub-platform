@@ -17,7 +17,7 @@ class PushServiceTest {
     private final RecordingRepository tokens = new RecordingRepository();
     private final RecordingSender sender = new RecordingSender();
     private final RecordingFailureReporter failures = new RecordingFailureReporter();
-    private final PushService service = new PushService(tokens, sender, failures);
+    private final PushService service = new PushService(tokens, (user, kind, reminderKind, templateId, platform, version) -> { }, sender, failures);
 
     @Test
     void analysisCompletionSendsToEveryDeviceOfTheSessionOwner() {

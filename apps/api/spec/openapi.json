@@ -2155,6 +2155,42 @@
         }
       }
     },
+    "/v2/push-opens" : {
+      "post" : {
+        "tags" : [ "v2-push" ],
+        "summary" : "Record Push Open",
+        "description" : "푸시 알림을 눌러 앱을 연 것을 기록한다. 보낸 기록과 이어 푸시로 돌아온 사람을 재는 데 쓴다.\n로그인한 회원이면 되고 동의가 남아 있어도 받는다. 게스트는 403 member_only. 한 회원이 분당\n60회까지다.",
+        "operationId" : "record_push_open_v2_push_opens_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RecordPushOpenRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/practices" : {
       "get" : {
         "tags" : [ "v2-practices" ],
@@ -8687,6 +8723,47 @@
         },
         "required" : [ "platform", "token" ],
         "title" : "RegisterPushTokenRequest"
+      },
+      "RecordPushOpenRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "maxLength" : 40,
+            "minLength" : 1,
+            "title" : "Kind"
+          },
+          "reminder_kind" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 40
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Reminder Kind"
+          },
+          "template_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 60
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Template Id"
+          },
+          "platform" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "ios", "android" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Platform"
+          }
+        },
+        "required" : [ "kind" ],
+        "title" : "RecordPushOpenRequest"
       },
       "PracticeBlockage" : {
         "type" : "object",

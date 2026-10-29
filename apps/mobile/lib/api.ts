@@ -956,6 +956,19 @@ export const api = {
     );
   },
 
+  /**
+   * 푸시를 눌러 앱을 연 것을 남긴다(측정). 204. 동의가 남은 회원도 받는다. 게스트는 403.
+   * 부르는 쪽(lib/push-open)이 기다리지 않고 실패를 삼킨다.
+   */
+  recordPushOpen(body: {
+    kind: string;
+    reminder_kind?: string;
+    template_id?: string;
+    platform?: 'ios' | 'android';
+  }): Promise<void> {
+    return request<void>('/v2/push-opens', jsonInit(body), { timeoutMs: 15_000 });
+  },
+
   // 코치의 기억 -----------------------------------------------------------------
   /**
    * 코치가 나에 대해 기억하는 것 전부. 빈 칸은 행이 없으므로 4개보다 적게 온다.

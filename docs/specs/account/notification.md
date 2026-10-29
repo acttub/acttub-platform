@@ -4,7 +4,7 @@
 
 - 도입: 0.1.0
 - 화면: A4 설정
-- 테이블: user_profiles, push_tokens, evening_reminder_sends, practice_reminder_sends
+- 테이블: user_profiles, push_tokens, evening_reminder_sends, practice_reminder_sends, push_opens
 
 ## 기능
 알림은 세 종류다. 서버가 보내는 푸시 셋(분석 완료, 챌린지 활동, 저녁 8시 연습 리마인드)이다.
@@ -25,6 +25,7 @@
 | `PATCH /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원), `NotificationSettingsPatch`: 바꿀 토글만 | `NotificationSettings` 200(토글 셋 전체: `analysis_done`·`challenge`·`evening_reminder`) | 게스트 `member_only` 403, 빈 본문·모르는 키·불리언 아닌 값 422 배열 |
 | `POST /v2/push-tokens` | 헤더 `Authorization`(게이트 통과 회원), `RegisterPushTokenRequest`: `token`·`platform` | 204. 알림 토글 셋이 다 꺼졌거나 다른 기기의 탈퇴와 겹치면 저장하지 않고 204 | 게스트 `member_only` 403, 422 배열 |
 | `DELETE /v2/push-tokens` | `UnregisterPushTokenRequest`: `token`. 로그인 없이 받는다(공통 규칙) | 204 | 422 배열, IP 한도 429 |
+| `POST /v2/push-opens` | 헤더 `Authorization`(로그인한 회원, 동의·프로필 게이트 밖), `RecordPushOpenRequest`: `kind`(1~40자)·`reminder_kind`(40자 이하)·`template_id`(60자 이하)·`platform`(ios/android), 뒤의 셋은 없어도 된다 | 204. push_opens 에 한 줄 | 게스트 `member_only` 403, 422 배열, 한 회원당 분당 60회 초과 429 |
 | `PushService#onAnalysisComplete` (분석 워커가 분석을 끝낼 때) | 분석 세션 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시 | 실패는 밖으로 내보내지 않고 보고한다. `DeviceNotRegistered` 토큰은 지운다 |
 | 챌린지 알림 발송 | 챌린지 사건 | 챌린지 토글이 켜진 회원에게 푸시 | 정본은 challenge.notification |
 | `EveningReminderScheduler` (매일 한국 시간 20시) | 저녁 리마인드 대상 회원(「규칙·제약」). `PRACTICE_REMINDER_ENABLED`가 꺼져 있을 때만 돈다 | 대상 회원의 토큰에 Expo 푸시, 한국 날짜마다 한 번 | 실패는 보고한다. `DeviceNotRegistered` 토큰은 지운다 |
@@ -42,6 +43,7 @@
 - 토큰 삭제는 로그인 없이 받는다. 푸시 토큰을 갖고 있다는 것이 본인 확인이다. 로그아웃하면 기기에
   액세스 토큰이 없어 다음 실행 때의 재시도가 인증을 통과할 수 없기 때문이다. 토큰은 추측할 수 없는
   값이고 남이 지워도 피해는 알림을 못 받는 것뿐이다. 삭제 요청은 IP별로 분당 60회까지다.
+- 푸시를 눌러 앱을 연 것은 서버에 한 줄 남긴다(push_opens: 회원, `kind`, 연습 알림이면 `reminder_kind`·`template_id`, 플랫폼, 앱 버전, 연 시각). `kind` 는 푸시 data 의 kind 그대로(evening_reminder·analysis_complete·entry_liked 등)이고 모르면 `unknown` 이다. 보낸 기록(practice_reminder_sends 의 template_id·kind, notifications.kind)과 이어 푸시로 돌아온 사람을 재려는 측정이다. 동의가 남은 회원이 눌러도 남기고, 앱이 꺼져 있다가 푸시로 열린 경우와 로그인보다 먼저 눌린 경우도 로그인 뒤에 보낸다. 앱은 기다리지 않고 실패는 한 번만 다시 보낸다. 탈퇴하면 이 기록도 지운다. 기존 `reminder_open` 분석 이벤트는 그대로다.
 - 토글 셋의 기본값은 모두 켜짐이다. 알림 권한을 허용한 사람은 설정을 건드리지 않아도 바로 받는다.
 - 토큰을 지우는 때: 로그아웃, 탈퇴, 알림 토글 셋을 다 끔, 발송 결과가 "등록되지 않은 기기"일 때.
   잘못된 토큰이 쌓이지 않게 한다. 토글 하나만 꺼져 있으면 토큰은 두고 서버가 보내기 전에 프로필의
