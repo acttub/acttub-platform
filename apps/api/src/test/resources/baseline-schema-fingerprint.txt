@@ -972,6 +972,7 @@ CONSTRAINT ads ads_id_not_null NOT NULL id
 CONSTRAINT ads ads_kind_not_null NOT NULL kind
 CONSTRAINT ads ads_pkey PRIMARY KEY (id)
 CONSTRAINT ads ads_priority_not_null NOT NULL priority
+CONSTRAINT ads ads_share_percent_not_null NOT NULL share_percent
 CONSTRAINT ads ads_slots_not_null NOT NULL slots
 CONSTRAINT ads ads_status_not_null NOT NULL status
 CONSTRAINT ads ads_updated_at_not_null NOT NULL updated_at
