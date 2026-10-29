@@ -342,6 +342,8 @@ export default function ReadingPlay() {
   const [monoResult, setMonoResult] = useState<ReturnType<typeof monologueResults> | null>(null);
   const monoItemY = useRef<Record<number, number>>({});
   const monoCardY = useRef(0);
+  /** 지금 펼친 독백 말풍선의 첫 줄 — 새 말풍선이 생겼는지 안다(SOMA-934). */
+  const monoShownStart = useRef<number | null>(null);
   // 대화 카드 위치 — 받아쓰기(인식 결과)가 늘어나 내용이 길어져도 맨 아래로 끌지 않고 지금 대사 카드 위쪽에 맞춘다(SOMA-913).
   const dialogueCardY = useRef(0);
 
@@ -1084,6 +1086,19 @@ export default function ReadingPlay() {
     if (idx[pos] !== undefined && idx[pos] !== cur.index) commit({ ...cur, index: idx[pos] });
   }, [commit]);
 
+  /** 독백 말풍선 아래 「다음 대사로」(SOMA-934) — 읽는 위치를 다음 말풍선의 첫 대사로 옮긴다. 녹음·받아쓰기는 끊지 않는다. */
+  const nextMonoChunk = useCallback(
+    (start: number) => {
+      const cur = runRef.current;
+      if (!cur || cur.status !== 'mine') return;
+      let i = start;
+      while (i <= cur.endIndex && cur.lines[i]?.type !== 'dialogue') i += 1;
+      if (i > cur.endIndex || i <= cur.index) return;
+      commit({ ...cur, index: i });
+    },
+    [commit],
+  );
+
   /** [끝내기] — 녹음을 거두고 받아쓴 글 전체를 문장별로 맞춰 결과를 낸다. 읽는 동안에는 판정하지 않았다. */
   const finishMonologue = useCallback(async () => {
     const cur = runRef.current;
@@ -1181,8 +1196,14 @@ export default function ReadingPlay() {
   }, [monologue, phase.kind, tipOpen, run?.status, attempt, monoSeq]);
 
   // 새 말풍선(10줄 묶음)이 생기면 그 카드가 자리를 잡은 뒤에야 문장 위치를 안다 — 자리를 잡을 때 다시 따라 내린다(SOMA-934).
-  const onMonoCardLayout = (e: LayoutChangeEvent) => {
+  const onMonoCardLayout = (start: number) => (e: LayoutChangeEvent) => {
     monoCardY.current = e.nativeEvent.layout.y;
+    // 말풍선이 새로 생겼으면 그 맨 위가 화면 위쪽에 오게 내린다. 같은 말풍선이면 읽는 문장을 따라간다.
+    if (monoShownStart.current !== start) {
+      monoShownStart.current = start;
+      scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current - 12), animated: true });
+      return;
+    }
     const index = runRef.current?.index;
     const y = index === undefined ? undefined : monoItemY.current[index];
     if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current + y - 160), animated: true });
@@ -2017,7 +2038,7 @@ export default function ReadingPlay() {
               <View
                 key={run.lineIds[c.start]}
                 style={[styles.card, styles.cardMine, !current && styles.cardPast]}
-                onLayout={current ? onMonoCardLayout : undefined}>
+                onLayout={current ? onMonoCardLayout(c.start) : undefined}>
                 {current && (
                 <View style={styles.cardHead}>
                   <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
@@ -2054,6 +2075,18 @@ export default function ReadingPlay() {
                     </View>
                   );
                 })}
+                {current && ci < monoChunks.length - 1 && hold !== 'tip' && run.status === 'mine' && (
+                  <Pressable
+                    style={({ pressed }) => [styles.monoNextBtn, pressed && styles.monoNextPressed]}
+                    onPress={() => nextMonoChunk(monoChunks[ci + 1].start)}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('reading.monologueNextChunk')}
+                    ph-label="reading_monologue_next_chunk">
+                    <Text style={styles.monoNextText}>{t('reading.monologueNextChunk')}</Text>
+                    <Feather name="chevron-down" size={16} color={palette.blueDeep} />
+                  </Pressable>
+                )}
                 {current && hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
                   <View style={styles.aidRow}>
                     <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
@@ -2357,6 +2390,22 @@ const styles = StyleSheet.create({
   readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
   readAgainOff: { opacity: 0.4 },
   cardPast: { opacity: 0.55 },
+  monoNextBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    alignSelf: 'center',
+    marginTop: 12,
+    paddingHorizontal: 16,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  monoNextPressed: { opacity: 0.6 },
+  monoNextText: { color: palette.blueDeep, fontSize: 15, fontWeight: '600' },
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
   wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },

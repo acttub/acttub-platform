@@ -1695,6 +1695,23 @@ test('SOMA-934: 독백은 대사 10줄씩 말풍선으로 끊어, 처음엔 첫 
   expect(screen.queryByText('독백 11번 줄이야.')).not.toBeOnTheScreen();
 });
 
+test('SOMA-934: 독백 말풍선 아래 「다음 대사로」를 누르면 다음 말풍선이 생기고 지나간 말풍선은 남는다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  const twelve = scriptDetail(Array.from({ length: 12 }, (_, i) => ['dialogue', '민지', `독백 ${i + 1}번 줄이야.`] as ['dialogue', string, string]));
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l12', my_character_ids: ['c1'], my_character_names: ['민지'] }, twelve);
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const abortsBefore = mockStt.abort.mock.calls.length;
+
+  await fireEvent.press(await screen.findByRole('button', { name: '다음 대사로' }));
+  expect(await screen.findByText('독백 11번 줄이야.')).toBeOnTheScreen();
+  expect(screen.getByText('독백 1번 줄이야.')).toBeOnTheScreen();
+  // 마지막 말풍선에는 없다 — 거기서는 「끝내기」.
+  expect(screen.queryByRole('button', { name: '다음 대사로' })).not.toBeOnTheScreen();
+  // 녹음·받아쓰기는 끊지 않고 이어진다.
+  expect(mockStt.abort.mock.calls.length).toBe(abortsBefore);
+});
+
 test('SOMA-597: 독백 시작 전에는 자동 넘김 대신 끝까지 읽고 끝내기를 누르는 안내를 보인다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay({ start_line_id: 'l1', end_line_id: 'l4', my_character_ids: ['c1'], my_character_names: ['민지'] }, MONO, { begin: false });

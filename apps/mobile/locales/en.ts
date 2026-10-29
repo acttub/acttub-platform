@@ -1927,6 +1927,7 @@ const en: DeepStringShape<typeof ko> = {
     monologueRecording: 'Recording',
     monologueProgress: '{{n}} / {{total}} sentences · {{time}}',
     monologueFinish: 'Finish',
+    monologueNextChunk: 'Next lines',
     monologueDoneTitle: 'You read it to the end',
     monologueMissed: 'You skipped {{count}} of {{total}} sentences.\nTry again from a skipped sentence?',
     monologueAllRead: 'You read all {{total}} sentences.',

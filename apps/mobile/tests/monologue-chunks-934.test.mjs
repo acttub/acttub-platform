@@ -44,3 +44,12 @@ test('구간 고르기 — 독백은 첫 연습이어도 처음 10줄로 줄이�
   const src = read('app/reading/range.tsx');
   assert.match(src, /const short = hasHistory \|\| isMonologue\(script\.characters\) \? null : firstPracticeRange\(lines, myTurnRoles\);/);
 });
+
+test('리딩 화면 — 지금 말풍선 뒤에 말풍선이 더 있으면 「다음 대사로」로 넘기고, 새 말풍선이 생기면 그 맨 위로 내린다', () => {
+  const src = read('app/reading/play.tsx');
+  assert.match(src, /const nextMonoChunk = useCallback\(/);
+  assert.match(src, /t\('reading\.monologueNextChunk'\)/);
+  assert.match(src, /monoShownStart\.current !== start/);
+  assert.match(read('locales/ko.ts'), /monologueNextChunk: '다음 대사로'/);
+  assert.match(read('locales/en.ts'), /monologueNextChunk: 'Next lines'/);
+});
