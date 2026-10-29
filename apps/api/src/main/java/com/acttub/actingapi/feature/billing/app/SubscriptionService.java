@@ -130,18 +130,6 @@ public class SubscriptionService {
         return cutoff == null || signedUp.isBefore(cutoff);
     }
 
-    /**
-     * 실제 유료 결제로 Pro 가 처음 열린 사람에게 창립 번호를 준다(SOMA-861). 번호 부여가 실패해도 결제 결과는 그대로 둔다 —
-     * 다음 결제·동기화 때 다시 시도한다.
-     */
-    void assignFounding(UUID userId, String provider) {
-        try {
-            repository.assignFoundingNumber(userId, provider, clock.instant());
-        } catch (RuntimeException failure) {
-            LoggerFactory.getLogger(SubscriptionService.class).warn("founding number not assigned provider={}", provider, failure);
-        }
-    }
-
     public boolean available() {
         return settings.usable();
     }
@@ -153,10 +141,8 @@ public class SubscriptionService {
         Instant now = clock.instant();
         Optional<Instant> grantEnd = grantEnd(userId, now);
         Optional<Subscription> found = repository.find(userId);
-        int remaining = repository.foundingRemaining();
         if (found.isEmpty()) {
-            return View.none(limitsEnforced(userId), grantEnd.orElse(null), settings.appEnabled(), remaining,
-                    repository.foundingNumber(userId).orElse(null));
+            return View.none(limitsEnforced(userId), grantEnd.orElse(null), settings.appEnabled());
         }
         Subscription sub = found.get();
         boolean pro = BillingRules.pro(sub.status(), sub.periodEnd(), now, sub.provider()) || grantEnd.isPresent();
@@ -168,8 +154,7 @@ public class SubscriptionService {
             case CANCELED, EXPIRED -> null;
         };
         return new View(status, pro, sub.amount(), sub.periodEnd(), nextBilling, sub.cardCompany(),
-                last4(sub.cardNumber()), sub.retryCount(), limitsEnforced(userId), sub.provider(), grantEnd.orElse(null), settings.appEnabled(),
-                remaining, repository.foundingNumber(userId).orElse(null));
+                last4(sub.cardNumber()), sub.retryCount(), limitsEnforced(userId), sub.provider(), grantEnd.orElse(null), settings.appEnabled());
     }
 
     /** Pro 인가 — 결제 기능이 꺼져 있으면 아무도 Pro 가 아니다(그때는 무료 한도도 걸리지 않는다). */
@@ -331,7 +316,6 @@ public class SubscriptionService {
         return switch (charge) {
             case DONE -> {
                 repository.activate(sub.id(), now, end, clock.instant());
-                assignFounding(sub.userId(), BillingRules.PROVIDER_TOSS);
                 yield Result.DONE;
             }
             case FAILED -> Result.FAILED;
@@ -562,14 +546,11 @@ public class SubscriptionService {
             boolean limitsEnforced,
             String provider,
             Instant grantEndsAt,
-            boolean appEnabled,
-            int foundingRemaining,
-            Integer foundingNumber) {
+            boolean appEnabled) {
 
-        static View none(boolean limitsEnforced, Instant grantEndsAt, boolean appEnabled, int foundingRemaining,
-                Integer foundingNumber) {
+        static View none(boolean limitsEnforced, Instant grantEndsAt, boolean appEnabled) {
             return new View("none", grantEndsAt != null, BillingRules.AMOUNT, null, null,
-                    null, null, 0, limitsEnforced, null, grantEndsAt, appEnabled, foundingRemaining, foundingNumber);
+                    null, null, 0, limitsEnforced, null, grantEndsAt, appEnabled);
         }
     }
 }

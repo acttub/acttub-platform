@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { SkeletonCards } from '@/components/ui/skeleton';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -140,7 +139,6 @@ function Tile({ entry, onPress }: { entry: EntryCard; onPress: () => void }) {
         <Text style={styles.tileName} numberOfLines={1}>
           {entry.author.name}
         </Text>
-        <FoundingBadge number={entry.author.founding_number} onDark />
         <Text style={styles.tileName}>♡ {entry.like_count}</Text>
       </View>
     </Pressable>

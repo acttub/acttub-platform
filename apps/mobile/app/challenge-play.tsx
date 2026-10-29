@@ -20,7 +20,6 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
-import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -427,7 +426,6 @@ export default function ChallengePlayScreen() {
                 <Text style={styles.avatarText}>{avatarLetter(item.author.name)}</Text>
               </View>
               <Text style={styles.authorName}>{item.author.name}</Text>
-              <FoundingBadge number={item.author.founding_number} onDark inline />
             </View>
             <View style={styles.topRight}>
               <Pressable

@@ -203,45 +203,6 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
-    public Optional<Integer> assignFoundingNumber(UUID userId, String provider, Instant now) {
-        return transaction.execute(tx -> {
-            // 번호 계산과 삽입을 한 줄로 세운다 — 동시에 두 결제가 와도 같은 번호를 계산하지 않는다. 락은 트랜잭션 끝에 풀린다.
-            entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(861100)").getSingleResult();
-            List<?> rows = entityManager.createNativeQuery("""
-                    INSERT INTO founding_members(number,user_id,provider,created_at)
-                    SELECT (SELECT coalesce(max(number),0)+1 FROM founding_members),:userId,:provider,CAST(:now AS timestamptz)
-                    WHERE EXISTS (SELECT 1 FROM users WHERE id=:userId AND status='active')
-                      AND NOT EXISTS (SELECT 1 FROM founding_members WHERE user_id=:userId)
-                      AND (SELECT count(*) FROM founding_members) < :limit
-                    RETURNING number
-                    """)
-                    .setParameter("userId", userId)
-                    .setParameter("provider", provider)
-                    .setParameter("now", at(now))
-                    .setParameter("limit", FOUNDING_LIMIT)
-                    .getResultList();
-            return rows.isEmpty() ? Optional.<Integer>empty() : Optional.of(((Number) rows.get(0)).intValue());
-        });
-    }
-
-    @Override
-    public Optional<Integer> foundingNumber(UUID userId) {
-        return transaction.execute(tx -> {
-            List<?> rows = entityManager.createNativeQuery("SELECT number FROM founding_members WHERE user_id=:userId")
-                    .setParameter("userId", userId)
-                    .getResultList();
-            return rows.isEmpty() ? Optional.<Integer>empty() : Optional.of(((Number) rows.get(0)).intValue());
-        });
-    }
-
-    @Override
-    public int foundingRemaining() {
-        Number used = transaction.execute(tx ->
-                (Number) entityManager.createNativeQuery("SELECT count(*) FROM founding_members").getSingleResult());
-        return Math.max(0, FOUNDING_LIMIT - used.intValue());
-    }
-
-    @Override
     public void activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now) {
         update("""
                 UPDATE billing_subscriptions SET status='active', current_period_start=CAST(:start AS timestamptz),

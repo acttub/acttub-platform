@@ -85,9 +85,7 @@ final class ProfileDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"member", "guest"})
             String accountType,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean profileComplete,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) ProfilePayload profile,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
-            Integer foundingNumber) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) ProfilePayload profile) {
     }
 
     /**

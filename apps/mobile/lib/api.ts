@@ -302,8 +302,6 @@ export type MeResponse = AuthUser & {
   account_type: 'member' | 'guest';
   profile_complete: boolean;
   profile: ServerProfile | null;
-  /** 창립 멤버 번호(1~100). 아니면 null (SOMA-861). */
-  founding_number?: number | null;
 };
 
 export type CloudVoiceResponse = { audio_url: string; cached: boolean; expires_in: number };

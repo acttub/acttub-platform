@@ -12,10 +12,9 @@ import { PrimaryButton } from '@/components/ds/ui/buttons';
 import { CtaBar } from '@/components/ds/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { useStorePurchase } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
-import { foundingRemaining, purchaseOpen, REFUND_URL, settingsTarget, TERMS_URL, type BillingMe } from '@/lib/billing';
+import { purchaseOpen, REFUND_URL, settingsTarget, TERMS_URL, type BillingMe } from '@/lib/billing';
 import { translate as t } from '@/lib/i18n';
 import type { StorePlan } from '@/lib/store-billing';
 
@@ -33,7 +32,6 @@ export default function ProScreen() {
   }, []);
   useEffect(reload, [reload]);
   const buyable = purchaseOpen(me);
-  const founding = foundingRemaining(me);
   const [plan, setPlan] = useState<StorePlan>('monthly');
   const purchase = useStorePurchase({
     enabled: buyable,
@@ -54,7 +52,6 @@ export default function ProScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader left={<NavIconButton icon="x" size={28} label={t('common.close')} phLabel="pro_close" onPress={() => router.back()} />} />
       <ScrollView contentContainerStyle={styles.body}>
-        {founding !== null && <Text style={styles.founding}>{t('pro.foundingRemaining', { count: founding })}</Text>}
         <Image source={MASCOT.cheer} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" />
         <ProBadge />
         <Text style={styles.title}>{t('pro.title')}</Text>
@@ -158,7 +155,6 @@ const styles = StyleSheet.create({
   planHint: { fontSize: 11, color: palette.textMeta, marginTop: 2 },
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 10 },
-  founding: { ...type.captionBold, color: palette.blueDeep, backgroundColor: palette.blueSoft, borderRadius: radius.full, alignSelf: 'center', paddingHorizontal: space[3], paddingVertical: space[1], overflow: 'hidden' },
   mascot: { ...MASCOT_SIZE.lg, marginBottom: 6 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   tagline: { fontSize: 15, color: palette.textSub, lineHeight: 22, marginBottom: 14 },

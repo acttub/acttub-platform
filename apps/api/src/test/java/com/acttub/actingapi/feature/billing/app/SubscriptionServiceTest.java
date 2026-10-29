@@ -428,18 +428,4 @@ class SubscriptionServiceTest {
         assertThat(BillingRules.pro(Status.PAST_DUE, end, T0)).isFalse();
         assertThat(BillingRules.pro(Status.EXPIRED, end, T0)).isFalse();
     }
-
-    @Test
-    @DisplayName("웹 토스 첫 결제가 성공하면 창립 번호를 받고, 무료 부여(grant)만 받은 사람은 받지 않는다")
-    void foundingNumberFromWebFirstPaymentOnly() {
-        UUID granted = UUID.randomUUID();
-        repository.grant(granted, clock.instant().minusSeconds(60), clock.instant().plusSeconds(86400));
-        assertThat(service.view(granted).foundingNumber()).isNull();
-        assertThat(service.view(granted).foundingRemaining()).isEqualTo(100);
-
-        subscribe();
-        SubscriptionService.View view = service.view(user);
-        assertThat(view.foundingNumber()).isEqualTo(1);
-        assertThat(view.foundingRemaining()).isEqualTo(99);
-    }
 }

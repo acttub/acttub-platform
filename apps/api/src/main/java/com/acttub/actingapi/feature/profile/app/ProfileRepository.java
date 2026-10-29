@@ -176,7 +176,4 @@ public interface ProfileRepository {
 
     record PhotoUpload(String objectKey, String mimeType, long sizeBytes, Instant expiresAt) {
     }
-
-    /** 창립 멤버 번호(SOMA-861). 아니면 비어 있다. */
-    java.util.Optional<Integer> foundingNumber(java.util.UUID userId);
 }
