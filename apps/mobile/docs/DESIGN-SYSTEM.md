@@ -1,8 +1,8 @@
 # 앱 디자인 시스템
 
 앱 화면의 색·글자·모서리·간격 토큰과 공통 부품 규칙입니다. 부품의 그림과 적용 예는 디자인 시스템 pen 파일
-([acttub/pen `app-design/acttub-design-system.pen`](https://github.com/acttub/pen/tree/main/app-design))에 있고, 이 문서는
-그 규칙을 글로 옮긴 것입니다. 화면별 디자인은 같은 폴더의 `acttub-app-screens.pen` 에 있습니다. pen 을 바꾸면 이 문서도
+([acttub/pen `acttub-design-system.pen`](https://github.com/acttub/pen/blob/main/acttub-design-system.pen))에 있고, 이 문서는
+그 규칙을 글로 옮긴 것입니다. 화면별 디자인은 같은 저장소의 `acttub-app-screens.pen` 에 있습니다. pen 을 바꾸면 이 문서도
 같이 바꿉니다.
 
 앱 코드는 이 기준으로 옮기는 중입니다. 새로 만들거나 고치는 화면은 이 문서의 값과 부품을 씁니다. 요청받은 화면 밖의
