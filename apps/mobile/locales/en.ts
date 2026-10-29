@@ -1183,6 +1183,8 @@ const en: DeepStringShape<typeof ko> = {
     titleLabel: 'Practice title',
     titlePh: 'e.g. Café breakup scene, take 2',
     titleTooLong: 'Titles can be up to 200 characters.',
+    titleHint: 'Leave it empty to use the first line of your note',
+    titleSkip: 'Skip',
     missingVideo: 'Please add a video',
     missingRights: 'Please check the rights confirmation',
     recordCta: 'Record',
