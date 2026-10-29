@@ -32,7 +32,7 @@ export function LaunchSplashScreen({ onShown }: { onShown: () => void }) {
     height: (h + CLOUD_PAD * 2) * s,
   });
   return (
-    <Animated.View exiting={FadeOut.duration(motion.standard)} style={StyleSheet.absoluteFill} onLayout={onShown}>
+    <Animated.View exiting={FadeOut.duration(motion.standard)} testID="launch-splash" style={StyleSheet.absoluteFill} onLayout={onShown}>
       <StatusBar style="light" />
       <BandGradient stops={STOPS} bands={64} />
       <Image source={require('@/assets/images/splash-cloud-1.png')} style={cloud(-110, 118, 290, 240)} />
