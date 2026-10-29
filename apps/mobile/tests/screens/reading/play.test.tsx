@@ -1684,6 +1684,21 @@ async function startMonologue() {
   return server;
 }
 
+test('첫 리딩 독백에서 아무것도 못 알아들은 채 그만 읽기를 누르면 끝 화면과 저장 위치 모두 0줄이다(10/29)', async () => {
+  setFirstReadingSession(sessionDetail({}).id);
+  try {
+    const server = await startMonologue();
+    await fireEvent.press(screen.getByText('그만 읽기'));
+
+    expect(await screen.findByText(/첫 리딩을 해 봤어요/)).toBeOnTheScreen();
+    expect(screen.getByText(/4줄 중 0줄/)).toBeOnTheScreen();
+    // 이어 읽기 카드(서버 K/N)도 0 — 첫 문장을 현재 줄로 남긴다.
+    await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l1', complete: false })));
+  } finally {
+    setFirstReadingSession(null);
+  }
+});
+
 test('SOMA-597: 독백 시작 전에는 자동 넘김 대신 끝까지 읽고 끝내기를 누르는 안내를 보인다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay({ start_line_id: 'l1', end_line_id: 'l4', my_character_ids: ['c1'], my_character_names: ['민지'] }, MONO, { begin: false });
