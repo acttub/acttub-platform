@@ -1926,7 +1926,6 @@ const ko = {
     monologueProgress: '{{n}} / {{total}}문장 · {{time}}',
     monologueFinish: '끝내기',
     monologueNextChunk: '다음 대사',
-    chunkLabel: '{{from}}–{{to}}번째 대사',
     monologueDoneTitle: '끝까지 읽었어요',
     monologueMissed: '{{total}}문장 중 {{count}}문장을 빠뜨렸어요.\n빠진 문장부터 다시 해 볼까요?',
     monologueAllRead: '{{total}}문장을 모두 읽었어요.',

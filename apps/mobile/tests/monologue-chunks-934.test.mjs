@@ -35,7 +35,7 @@ test('구간 안만 나누고, 10줄 이하면 말풍선 하나다', () => {
 
 test('리딩 화면 — 독백은 지금 읽는 줄이 든 말풍선까지만 그리고, 지나간 말풍선은 흐리게 남긴다', () => {
   const src = read('app/reading/play.tsx');
-  assert.match(src, /const monoChunks = monologue \? lineChunks : \[\];/);
+  assert.match(src, /const monoChunks = monologue \? monologueChunks\(run\.lines, run\.startIndex, run\.endIndex\) : \[\];/);
   assert.match(src, /monoChunks\.filter\(\(c\) => c\.start <= Math\.max\(run\.index, run\.startIndex\)\)/);
   assert.match(src, /styles\.cardPast/);
 });
@@ -45,13 +45,6 @@ test('구간 고르기 — 독백·일반 대본 모두 첫 연습이어도 처�
   assert.doesNotMatch(src, /firstPracticeRange\(/);
 });
 
-test('리딩 화면 — 일반 대본도 대사 10줄씩 묶어, 묶음이 바뀌는 자리에 「N–M번째 대사」를 두고 지난 묶음 줄은 흐리게 한다', () => {
-  const src = read('app/reading/play.tsx');
-  assert.match(src, /const lineChunks = monologueChunks\(run\.lines, run\.startIndex, run\.endIndex\);/);
-  assert.match(src, /t\('reading\.chunkLabel', \{ from: h\.from, to: h\.to \}\)/);
-  assert.match(src, /styles\.pastRowOld/);
-  assert.match(read('locales/ko.ts'), /chunkLabel: '\{\{from\}\}–\{\{to\}\}번째 대사'/);
-});
 
 test('리딩 화면 — 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」(마지막만 「끝내기」)이고, 스크롤은 읽는 문장을 늘 같은 높이에 둔다', () => {
   const src = read('app/reading/play.tsx');
@@ -72,4 +65,15 @@ test('리딩 화면 — 독백의 「방금 말한 것」은 스크롤 끝이 �
   const bar = src.indexOf('styles.monoSaidBar]');
   assert.ok(bar > scrollEnd, '독백 「방금 말한 것」은 스크롤 밖에 있어야 한다');
   assert.match(src, /numberOfLines=\{2\} ellipsizeMode="head"/);
+});
+
+test('일반 대본 — 같은 배역이 연달아 말하는 줄은 한 말풍선으로 묶되, 10줄을 넘으면 10줄씩 끊는다', async () => {
+  const { lineGroups } = await import('../lib/reading/line-groups.ts');
+  const lines = [...Array.from({ length: 11 }, () => d(0)), { id: 'u', type: 'dialogue', role: '우영', text: '안녕' }, ...Array.from({ length: 10 }, () => d(0))];
+  assert.deepEqual(lineGroups(lines, { monologue: false }), [
+    { start: 0, end: 9 },
+    { start: 10, end: 10 },
+    { start: 11, end: 11 },
+    { start: 12, end: 21 },
+  ]);
 });

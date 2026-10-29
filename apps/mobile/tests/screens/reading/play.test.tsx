@@ -1684,18 +1684,16 @@ async function startMonologue() {
   return server;
 }
 
-test('SOMA-934: 일반 대본도 10줄을 넘으면 11번째 대사부터 「11–12번째 대사」 구분이 붙는다', async () => {
-  const twelve = scriptDetail(Array.from({ length: 12 }, (_, i) => ['dialogue', i % 2 ? '서연' : '민재', `대화 ${i + 1}번 줄.`] as ['dialogue', string, string]));
-  await startPlay({ start_line_id: 'l1', end_line_id: 'l12', current_line_id: 'l11', progress_seq: 3 }, twelve);
+test('SOMA-934: 일반 대본도 같은 배역이 10줄 넘게 이어 말하면 10줄씩 말풍선을 끊는다', async () => {
+  const lines = [
+    ...Array.from({ length: 11 }, (_, i) => ['dialogue', '민재', `민재 ${i + 1}번 줄.`] as ['dialogue', string, string]),
+    ['dialogue', '서연', '서연 대답.'] as ['dialogue', string, string],
+  ];
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l12' }, scriptDetail(lines));
 
-  expect(await screen.findByText('11–12번째 대사')).toBeOnTheScreen();
-  expect(screen.queryByText('1–10번째 대사')).not.toBeOnTheScreen();
-});
-
-test('SOMA-934: 일반 대본이 10줄 이하면 묶음 구분이 없다', async () => {
-  await startPlay();
-  await screen.findByText('듣는 중');
-  expect(screen.queryByText(/번째 대사$/)).not.toBeOnTheScreen();
+  expect(await screen.findByText('민재 1번 줄.')).toBeOnTheScreen();
+  expect(screen.getByText('민재 10번 줄.')).toBeOnTheScreen();
+  expect(screen.queryByText('민재 11번 줄.')).not.toBeOnTheScreen();
 });
 
 test('SOMA-934: 독백은 대사 10줄씩 말풍선으로 끊어, 처음엔 첫 말풍선(1~10줄)만 보인다', async () => {

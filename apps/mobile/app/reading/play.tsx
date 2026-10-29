@@ -42,7 +42,7 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
-import { finishMonologueRun, isMonologue, livePosition, MONOLOGUE_CHUNK, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
+import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
@@ -1966,27 +1966,7 @@ export default function ReadingPlay() {
   const span = turnSpan(run);
   const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
   const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
-  // 대사 10줄씩 묶음(SOMA-934). 독백은 묶음마다 말풍선, 일반 대본은 묶음이 바뀌는 자리에 「N–M번째 대사」를 두고 지난 묶음은 흐리게.
-  const lineChunks = monologueChunks(run.lines, run.startIndex, run.endIndex);
-  const monoChunks = monologue ? lineChunks : [];
-  const chunkOf = (i: number) => {
-    const k = lineChunks.findIndex((c) => i <= c.end);
-    return k < 0 ? lineChunks.length - 1 : k;
-  };
-  const chunkNow = chunkOf(Math.max(run.index, run.startIndex));
-  const rangeDialogues = sentenceIndexes(run, run.startIndex).length;
-  const chunkHeads = !monologue && lineChunks.length > 1;
-  /** 묶음 k 의 머리 — 두 번째 묶음부터. 첫 묶음은 구분할 앞이 없다. */
-  const chunkHead = (k: number) => {
-    if (!chunkHeads || k < 1) return null;
-    const h = { from: k * MONOLOGUE_CHUNK + 1, to: Math.min((k + 1) * MONOLOGUE_CHUNK, rangeDialogues) };
-    return (
-      <Text key={`chunk-${k}`} style={[styles.chunkHead, k < chunkNow && styles.pastRowOld]}>
-        {t('reading.chunkLabel', { from: h.from, to: h.to })}
-      </Text>
-    );
-  };
-  const headedChunks = new Set<number>();
+  const monoChunks = monologue ? monologueChunks(run.lines, run.startIndex, run.endIndex) : [];
   // 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」, 마지막 말풍선에서만 「끝내기」다(SOMA-934).
   const monoNow = monoChunks.findIndex((c) => Math.max(run.index, run.startIndex) <= c.end);
   const monoNext = monoNow >= 0 ? (monoChunks[monoNow + 1] ?? null) : null;
@@ -2034,22 +2014,11 @@ export default function ReadingPlay() {
         {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
         {past.map(({ key, index, lines }) => {
           const l = lines[0].line;
-          const k = chunkOf(index);
-          const head = headedChunks.has(k) ? null : chunkHead(k);
-          headedChunks.add(k);
-          const old = k < chunkNow;
-          if (l.type !== 'dialogue')
-            return (
-              <Fragment key={key}>
-                {head}
-                <Text style={[styles.direction, old && styles.pastRowOld]}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>
-              </Fragment>
-            );
+          if (l.type !== 'dialogue') return <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
           return (
-            <Fragment key={key}>
-            {head}
             <Pressable
-              style={({ pressed }) => [styles.pastRow, old && styles.pastRowOld, pressed && styles.pastRowPressed]}
+              key={key}
+              style={({ pressed }) => [styles.pastRow, pressed && styles.pastRowPressed]}
               onPress={() => jumpBack(index)}
               accessibilityRole="button"
               ph-label="reading_play_jump">
@@ -2063,10 +2032,8 @@ export default function ReadingPlay() {
                 ),
               )}
             </Pressable>
-            </Fragment>
           );
         })}
-        {!headedChunks.has(chunkNow) && chunkHead(chunkNow)}
 
         {coachMark !== 'next' && coachElement}
 
@@ -2461,8 +2428,6 @@ const styles = StyleSheet.create({
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, gap: 18 },
   direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
   pastRow: { gap: 3, paddingHorizontal: 4 },
-  pastRowOld: { opacity: 0.45 },
-  chunkHead: { color: palette.textMeta, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8, marginBottom: 2 },
   pastRole: { color: palette.checkOff, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   pastText: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   pastRowPressed: { backgroundColor: palette.blueSoft, borderRadius: 12 },
