@@ -15,7 +15,9 @@ export type LineGroup = { start: number; end: number };
 export const MAX_GROUP_LINES = 10;
 
 /** 모든 줄을 순서대로 덮는 묶음 목록. */
-export function lineGroups(lines: ScriptLine[], opts: { monologue: boolean }): LineGroup[] {
+export function lineGroups(lines: ScriptLine[], opts: { monologue: boolean; maxLines?: number }): LineGroup[] {
+  // 묶음 상한은 회차 응답 chunk_lines(서버 설정, SOMA-938)를 받고, 없거나 이상하면 10.
+  const max = opts.maxLines && opts.maxLines >= 1 ? opts.maxLines : MAX_GROUP_LINES;
   const groups: LineGroup[] = [];
   lines.forEach((line, i) => {
     const prev = lines[i - 1];
@@ -23,7 +25,7 @@ export function lineGroups(lines: ScriptLine[], opts: { monologue: boolean }): L
     const joins =
       !opts.monologue &&
       last &&
-      last.end - last.start + 1 < MAX_GROUP_LINES &&
+      last.end - last.start + 1 < max &&
       line.type === 'dialogue' &&
       prev?.type === 'dialogue' &&
       !!line.role &&

@@ -8331,9 +8331,15 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "chunk_lines" : {
+            "type" : "integer",
+            "description" : "리딩 화면이 말풍선 하나에 담는 대사 수 — 독백 말풍선, 같은 배역 연속 대사 묶음의 상한(SOMA-938). 서버 설정 READING_CHUNK_LINES(기본 10)라 앱 출시 없이 바꾼다",
+            "exclusiveMinimum" : 1.0,
+            "title" : "Chunk Lines"
           }
         },
-        "required" : [ "advance", "current_line_id", "different_lines", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
+        "required" : [ "advance", "chunk_lines", "current_line_id", "different_lines", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
         "title" : "ReadingSession"
       },
       "ReadingSessionProgressCount" : {

@@ -149,6 +149,7 @@ final class SessionDtos {
      * @param currentLineId 다음에 할 대사 줄. completed 면 {@code null}
      * @param recordings 줄 순서의 녹음. 재생 주소는 녹음 기능이 채운다
      * @param myRating 이 사람이 이 회차에 남긴 평가(SOMA-661). 없으면 null
+     * @param chunkLines 말풍선 하나에 담는 대사 수(SOMA-938) — 서버 설정 READING_CHUNK_LINES
      */
     @Schema(name = "ReadingSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -179,7 +180,11 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<RecordingResponse> recordings,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<DifferentLineResponse> differentLines,
             @Schema(nullable = true, description = "이 사람이 이 회차에 남긴 평가. 없으면 null")
-            SessionRatingDtos.SessionRatingResponse myRating) {
+            SessionRatingDtos.SessionRatingResponse myRating,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1",
+                    description = "리딩 화면이 말풍선 하나에 담는 대사 수 — 독백 말풍선, 같은 배역 연속 대사 묶음의 상한(SOMA-938). "
+                            + "서버 설정 READING_CHUNK_LINES(기본 10)라 앱 출시 없이 바꾼다")
+            int chunkLines) {
     }
 
     /** 원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄, 줄 순서. 서버가 진행 저장의 said 로 비교한 결과다. */
