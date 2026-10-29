@@ -161,12 +161,17 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
 });
 
 test('늦게 온 이전 검색 결과는 버린다', async () => {
+  // 검색칸은 첫 목록을 받은 뒤에 보인다(SOMA-932) — 첫 목록을 받고, 느린 검색 뒤에 빠른 검색을 이어 친다.
   let resolveFirst: (v: unknown) => void = () => undefined;
   (listScripts as jest.Mock)
+    .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 })
     .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.changeText(await screen.findByPlaceholderText('작품명 또는 배역 검색'), '옥상');
+  await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
+  await waitFor(() => expect(listScripts).toHaveBeenCalledTimes(3));
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
   await act(async () => resolveFirst({ scripts: [rooftop], total_count: 1, in_progress_count: 1 }));
@@ -176,10 +181,14 @@ test('늦게 온 이전 검색 결과는 버린다', async () => {
 test('늦게 실패한 이전 요청은 오류로 덮지 않는다', async () => {
   let rejectFirst: (e: unknown) => void = () => undefined;
   (listScripts as jest.Mock)
+    .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 })
     .mockReturnValueOnce(new Promise((_, reject) => (rejectFirst = reject)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.changeText(await screen.findByPlaceholderText('작품명 또는 배역 검색'), '옥상');
+  await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
+  await waitFor(() => expect(listScripts).toHaveBeenCalledTimes(3));
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
   await act(async () => rejectFirst(new Error('down')));
