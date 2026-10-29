@@ -19,5 +19,7 @@ public record AppNotice(
         String imageAsset,
         String ctaLabel,
         String ctaAction,
-        String ctaTarget) {
+        String ctaTarget,
+        String footnote,
+        String imageBg) {
 }

@@ -104,7 +104,7 @@ public final class PosterService {
         Instant publishedAt = draft.startsAt() != null ? draft.startsAt() : poster.createdAt();
         return new AppNotice(draft.slug(), poster.revision(), live, publishedAt, draft.endsAt(), draft.badge(),
                 draft.title(), draft.body(), imageUrl, PosterRules.assetName(draft.image()), draft.ctaLabel(),
-                draft.ctaAction(), draft.ctaTarget());
+                draft.ctaAction(), draft.ctaTarget(), draft.footnote(), draft.imageBg());
     }
 
     private AppPoster toApp(Poster poster) {
@@ -115,7 +115,7 @@ public final class PosterService {
         return new AppPoster(draft.slug(), poster.revision(), draft.frequency(), draft.audience(),
                 draft.dismissible(), draft.badge(), draft.title(), draft.body(), imageUrl,
                 PosterRules.assetName(draft.image()), PosterRules.assetName(draft.audio()), draft.ctaLabel(),
-                draft.ctaAction(), draft.ctaTarget());
+                draft.ctaAction(), draft.ctaTarget(), draft.footnote(), draft.imageBg());
     }
 
     private static void requireValid(PosterDraft draft) {

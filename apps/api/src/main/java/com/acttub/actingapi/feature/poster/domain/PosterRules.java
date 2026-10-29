@@ -22,6 +22,10 @@ public final class PosterRules {
     public static final Set<String> AUDIENCES = Set.of("all", "cloud_voice_off");
     public static final Set<String> CTA_ACTIONS = Set.of("none", "cloud_voice_enable", "route", "url");
 
+    /** 각주 최대 글자 수. */
+    public static final int FOOTNOTE_MAX = 200;
+
+    private static final Pattern IMAGE_BG = Pattern.compile("#[0-9A-Fa-f]{6}");
     private static final Pattern SLUG = Pattern.compile("[a-z0-9][a-z0-9-]{0,63}");
     private static final Pattern LOCALE = Pattern.compile("[a-z]{2}");
     private static final Pattern VERSION = Pattern.compile("[0-9]+(?:\\.[0-9]+)*");
@@ -118,6 +122,12 @@ public final class PosterRules {
         }
         if (draft.audio() != null && assetName(draft.audio()) == null && !isObjectKey(draft.audio())) {
             return violation("audio", "audio must be asset:<name> or posters/<uuid>.<ext>", draft.audio());
+        }
+        if (draft.footnote() != null && draft.footnote().length() > FOOTNOTE_MAX) {
+            return violation("footnote", "footnote must be at most " + FOOTNOTE_MAX + " characters", draft.footnote());
+        }
+        if (draft.imageBg() != null && !IMAGE_BG.matcher(draft.imageBg()).matches()) {
+            return violation("image_bg", "image_bg must be #RRGGBB", draft.imageBg());
         }
         if (draft.ctaAction() == null || !CTA_ACTIONS.contains(draft.ctaAction())) {
             return violation("cta_action", "cta_action must be none, cloud_voice_enable, route or url",

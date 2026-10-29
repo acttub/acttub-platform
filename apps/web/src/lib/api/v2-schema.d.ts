@@ -5808,6 +5808,10 @@ export interface components {
             cta_action: "none" | "cloud_voice_enable" | "route" | "url";
             /** Cta Target */
             cta_target: string | null;
+            /** Footnote */
+            footnote: string | null;
+            /** Image Bg */
+            image_bg: string | null;
         };
         /** AppPosterList */
         AppPosterList: {

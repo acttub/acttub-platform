@@ -18,5 +18,7 @@ public record AppPoster(
         String audioAsset,
         String ctaLabel,
         String ctaAction,
-        String ctaTarget) {
+        String ctaTarget,
+        String footnote,
+        String imageBg) {
 }

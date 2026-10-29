@@ -118,6 +118,6 @@ class PosterRulesTest {
     private static PosterDraft draft() {
         return new PosterDraft("cloud-voice-launch", true, 10, null, null, List.of("ios", "android"), "ko", null,
                 "daily", "all", true, "배지", "제목", "본문", "asset:mascot-reading", "asset:cloud-voice-sample",
-                "켜기", "cloud_voice_enable", null);
+                "켜기", "cloud_voice_enable", null, null, null);
     }
 }

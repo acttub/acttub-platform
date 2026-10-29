@@ -53,12 +53,15 @@ final class PosterDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaLabel,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                     allowableValues = {"none", "cloud_voice_enable", "route", "url"}) String ctaAction,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaTarget) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaTarget,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "작은 각주") String footnote,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "이미지 배경색 #RRGGBB")
+            String imageBg) {
 
         static AppPosterItem of(AppPoster poster) {
             return new AppPosterItem(poster.slug(), poster.revision(), poster.frequency(), poster.audience(),
                     poster.dismissible(), poster.badge(), poster.title(), poster.body(), poster.imageUrl(),
-                    poster.imageAsset(), poster.audioAsset(), poster.ctaLabel(), poster.ctaAction(), poster.ctaTarget());
+                    poster.imageAsset(), poster.audioAsset(), poster.ctaLabel(), poster.ctaAction(), poster.ctaTarget(), poster.footnote(), poster.imageBg());
         }
     }
 
@@ -86,12 +89,15 @@ final class PosterDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaLabel,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                     allowableValues = {"none", "cloud_voice_enable", "route", "url"}) String ctaAction,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaTarget) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaTarget,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "작은 각주") String footnote,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "이미지 배경색 #RRGGBB")
+            String imageBg) {
 
         static AppNoticeItem of(AppNotice notice) {
             return new AppNoticeItem(notice.slug(), notice.revision(), notice.live(), notice.publishedAt(),
                     notice.endsAt(), notice.badge(), notice.title(), notice.body(), notice.imageUrl(),
-                    notice.imageAsset(), notice.ctaLabel(), notice.ctaAction(), notice.ctaTarget());
+                    notice.imageAsset(), notice.ctaLabel(), notice.ctaAction(), notice.ctaTarget(), notice.footnote(), notice.imageBg());
         }
     }
 
@@ -110,6 +116,7 @@ final class PosterDtos {
             @Schema(nullable = true) String badge, String title, @Schema(nullable = true) String body,
             @Schema(nullable = true) String image, @Schema(nullable = true) String audio,
             @Schema(nullable = true) String ctaLabel, String ctaAction, @Schema(nullable = true) String ctaTarget,
+            @Schema(nullable = true) String footnote, @Schema(nullable = true) String imageBg,
             Instant createdAt, Instant updatedAt) {
 
         static AdminPoster of(Poster poster) {
@@ -117,7 +124,7 @@ final class PosterDtos {
             return new AdminPoster(poster.id(), d.slug(), poster.revision(), d.active(), d.priority(), d.startsAt(),
                     d.endsAt(), d.platforms(), d.locale(), d.minAppVersion(), d.frequency(), d.audience(),
                     d.dismissible(), d.badge(), d.title(), d.body(), d.image(), d.audio(), d.ctaLabel(),
-                    d.ctaAction(), d.ctaTarget(), poster.createdAt(), poster.updatedAt());
+                    d.ctaAction(), d.ctaTarget(), d.footnote(), d.imageBg(), poster.createdAt(), poster.updatedAt());
         }
     }
 
@@ -146,12 +153,14 @@ final class PosterDtos {
             @Schema(nullable = true, description = "asset:<이름>") String audio,
             @Schema(nullable = true) String ctaLabel,
             @Schema(allowableValues = {"none", "cloud_voice_enable", "route", "url"}) String ctaAction,
-            @Schema(nullable = true) String ctaTarget) {
+            @Schema(nullable = true) String ctaTarget,
+            @Schema(nullable = true, description = "작은 각주") String footnote,
+            @Schema(nullable = true, description = "이미지 배경색 #RRGGBB") String imageBg) {
 
         static PosterFields of(PosterDraft d) {
             return new PosterFields(d.slug(), d.active(), d.priority(), text(d.startsAt()), text(d.endsAt()),
                     d.platforms(), d.locale(), d.minAppVersion(), d.frequency(), d.audience(), d.dismissible(),
-                    d.badge(), d.title(), d.body(), d.image(), d.audio(), d.ctaLabel(), d.ctaAction(), d.ctaTarget());
+                    d.badge(), d.title(), d.body(), d.image(), d.audio(), d.ctaLabel(), d.ctaAction(), d.ctaTarget(), d.footnote(), d.imageBg());
         }
 
         PosterDraft toDraft() {
@@ -160,7 +169,7 @@ final class PosterDtos {
                     platforms == null ? PosterRules.DEFAULT_PLATFORMS : platforms, locale, minAppVersion,
                     frequency == null ? "daily" : frequency, audience == null ? "all" : audience,
                     dismissible == null || dismissible, badge, title, body, image, audio, ctaLabel,
-                    ctaAction == null ? "none" : ctaAction, ctaTarget);
+                    ctaAction == null ? "none" : ctaAction, ctaTarget, footnote, imageBg);
         }
 
         private static String text(Instant value) {

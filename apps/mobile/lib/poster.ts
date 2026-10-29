@@ -25,6 +25,10 @@ export type Poster = {
   cta_label: string | null;
   cta_action: PosterCtaAction;
   cta_target: string | null;
+  /** 작은 각주(선택). */
+  footnote?: string | null;
+  /** 그림 칸 배경색 #RRGGBB(선택). */
+  image_bg?: string | null;
 };
 
 export type PostersResponse = { posters: Poster[] };
