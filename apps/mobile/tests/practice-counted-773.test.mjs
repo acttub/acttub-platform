@@ -6,8 +6,10 @@ import {
   countedPracticeDates,
   countedPractices,
   readingRunCompleted,
+  readingStopCounted,
   sessionHasRecognized,
 } from '../lib/practice/counted.ts';
+import { readMyDialogueCount } from '../lib/reading/session-results.ts';
 import { monthPracticeCounts } from '../lib/profile-month-stats.ts';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -80,14 +82,25 @@ test('홈·프로필·리딩이 이 기준 하나를 쓴다', () => {
   assert.match(read('app/reading/play.tsx'), /readingRunCompleted\(/);
 });
 
-test('리딩은 대본 끝까지 가야 센다 — 중간에 「그만하기」로 끝낸 회차는 완료로 보내지 않는다(10/29)', () => {
+test('리딩: 「그만하기」로 끝내도 내 대사를 한 줄이라도 읽었으면 센다 — 상대 대사만 지났으면 안 센다(10/29)', () => {
+  const lines = [
+    { type: 'dialogue', role: '상대', text: '왔어?' },
+    { type: 'direction', text: '문을 연다' },
+    { type: 'dialogue', role: '나', text: '응' },
+    { type: 'dialogue', role: '상대', text: '앉아' },
+  ];
+  assert.equal(readMyDialogueCount(lines, 0, 1, ['나']), 0);
+  assert.equal(readMyDialogueCount(lines, 0, 3, ['나']), 1);
+  assert.equal(readMyDialogueCount(lines, 0, -1, ['나']), 0);
+  assert.equal(readingStopCounted(0), false);
+  assert.equal(readingStopCounted(1), true);
+
   const play = read('app/reading/play.tsx');
   const stopHere = play.slice(play.indexOf('const stopHere = () =>'), play.indexOf('useWaitExit('));
   assert.match(stopHere, /stoppedEarlyRef\.current = true;/);
-  assert.doesNotMatch(stopHere, /readingRunCompleted\(/);
-  // 멈춘 위치만 저장한다 — 끝 화면이 센 마지막 읽은 줄 다음을 현재 줄로, complete 는 false(stoppedProgressPayload, 10/29).
-  assert.match(stopHere, /queueRef\.current\?\.push\(stoppedProgressPayload\(cur, next\)\)/);
-  // 완료 판정(진행 저장·별점·완료 화면)은 모두 그만하기 여부를 먼저 본다.
-  assert.equal((play.match(/!stoppedEarlyRef\.current && readingRunCompleted\(/g) ?? []).length, 2);
-  assert.doesNotMatch(play, /stopUncountedRef/);
+  assert.match(stopHere, /stopUncountedRef\.current = !readingStopCounted\(readMyDialogueCount\(/);
+  // 세지 않는 회차만 멈춘 위치를 저장한다(complete false). 세는 회차는 commit 이 완료로 보낸다.
+  assert.match(stopHere, /if \(stopUncountedRef\.current\) queueRef\.current\?\.push\(stoppedProgressPayload\(cur, next\)\)/);
+  // 완료 판정(진행 저장·별점·완료 화면)은 모두 같은 표시를 먼저 본다.
+  assert.equal((play.match(/!stopUncountedRef\.current && readingRunCompleted\(/g) ?? []).length, 2);
 });
