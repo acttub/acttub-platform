@@ -68,11 +68,11 @@ test('practice.list: 연습 기록 목록은 썸네일이 있으면 사진을, �
   }
 });
 
-test('practice.upload: 장면·연습 제목 칸 없음·업로드 중 버튼·처리 중 잠금', () => {
+test('practice.upload: 장면·연습 제목 칸 없음(제목은 가운데 팝업)·업로드 중 버튼·처리 중 잠금', () => {
   const src = read('app/upload.tsx');
-  // 연습 제목 칸은 없앴다(SOMA-771) — 제목은 연습 기록에서 바꾼다.
-  assert.doesNotMatch(src, /t\('upload\.titleLabel'\)/);
-  assert.doesNotMatch(src, /buildStartBody\(\{[^}]*title/);
+  // 화면 안 연습 제목 칸은 없앴다(SOMA-771). 제목은 영상을 고른 직후 가운데 팝업으로 한 번 묻는다(SOMA-928).
+  assert.match(src, /<RenameDialog[\s\S]*title=\{t\('upload\.titleLabel'\)\}/);
+  assert.match(src, /buildStartBody\(\{[^}]*title \}\)/);
   // 올리는 중이면 버튼 글자가 「업로드 중」이다.
   assert.match(src, /uploading \? t\('upload\.submitUploading'\)/);
   // 시작을 누른 뒤에는 영상 다시 선택·권리 체크가 잠긴다(적을 칸은 SOMA-778 에서 없앴다).
