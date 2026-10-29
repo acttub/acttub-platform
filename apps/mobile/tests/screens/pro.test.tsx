@@ -76,18 +76,16 @@ beforeEach(() => {
   Platform.OS = 'android';
 });
 
-test('Pro 안내(P0xJ9) — 앱 결제가 닫혀 있으면 비교 표와 가격만 있고 구매 버튼과 웹 결제 링크는 없다', async () => {
+test('Pro 안내 — 앱 결제가 닫혀 있으면 제목·혜택 세 줄만 있고 요금제·구매 버튼·웹 결제 링크는 없다', async () => {
   billingMe.mockResolvedValue({ ...none, app_enabled: false });
   await render(<ProScreen />);
 
-  expect(screen.getByText('ACTTUB Pro')).toBeOnTheScreen();
-  expect(screen.getByText('하루 3번')).toBeOnTheScreen();
-  expect(screen.getByText('3개')).toBeOnTheScreen();
-  // 코칭 고도화 세 줄(SOMA-818, 11/1 무료 한도 개정).
-  expect(screen.getByText('상위 모델')).toBeOnTheScreen();
-  expect(screen.getByText('반복되는 버릇을 짚어 줘요')).toBeOnTheScreen();
-  expect(screen.getByText('장면·대사별로 자세히')).toBeOnTheScreen();
-  expect(screen.getByText('월 3,900원 또는 연 32,500원 · 자동 결제 · 언제든 해지')).toBeOnTheScreen();
+  expect(screen.getByText('Pro로 제한 없이 연습해요')).toBeOnTheScreen();
+  expect(screen.getByText('코칭·대본 보관 제한 없이')).toBeOnTheScreen();
+  expect(screen.getByText('상위 AI 모델로 더 자세한 코칭')).toBeOnTheScreen();
+  expect(screen.getByText('발음 보고서 · 고품질 목소리 · 광고 없음')).toBeOnTheScreen();
+  await waitFor(() => expect(billingMe).toHaveBeenCalled());
+  expect(screen.queryByText('월 구독')).not.toBeOnTheScreen();
   expect(screen.queryByText('Pro 시작하기')).not.toBeOnTheScreen();
   expect(screen.queryByText(/acttub\.com\/pricing/)).not.toBeOnTheScreen();
   expect(mockRc.configure).not.toHaveBeenCalled();
@@ -101,7 +99,7 @@ const monthlyPkg = pkg('$rc_monthly', 'acttub_pro_monthly', '₩3,900');
 const annualPkg = pkg('$rc_annual', 'acttub_pro_yearly', '₩32,500');
 const offerings = (current: Record<string, unknown> | null) => ({ current, all: {} });
 
-test('스토어 구독(Android) — 상품명·현지화 가격·자동 갱신·해지 방법·약관이 보이고, 우리 user id 로 RevenueCat 을 열어 월 패키지를 산 뒤 서버 동기화로 완료 화면에 간다', async () => {
+test('스토어 구독(Android) — 요금제·현지화 가격·자동 갱신·해지 방법·약관이 보이고, 우리 user id 로 RevenueCat 을 열어 월 패키지를 산 뒤 서버 동기화로 완료 화면에 간다', async () => {
   billingMe.mockResolvedValue({ ...none, app_enabled: true });
   mockRc.getOfferings.mockResolvedValue(offerings({ monthly: monthlyPkg, annual: null, availablePackages: [monthlyPkg] }));
   let finishPurchase: () => void = () => undefined;
@@ -109,11 +107,14 @@ test('스토어 구독(Android) — 상품명·현지화 가격·자동 갱신·
   syncStorePurchases.mockResolvedValue({ ...active, provider: 'google' });
   await render(<ProScreen />);
 
-  expect(await screen.findByText('₩3,900 / 월')).toBeOnTheScreen();
+  expect(await screen.findByText('₩3,900')).toBeOnTheScreen();
   expect(mockRc.configure).toHaveBeenCalledWith({ apiKey: 'goog_test', appUserID: USER });
-  expect(screen.getByText('ACTTUB Pro 월 구독')).toBeOnTheScreen();
-  expect(screen.getByText(/1개월마다 자동으로 갱신돼요.*Play 스토어 > 결제 및 정기 결제/)).toBeOnTheScreen();
-  expect(screen.getByText('이용약관·개인정보 처리방침')).toBeOnTheScreen();
+  expect(screen.getByText('월 구독')).toBeOnTheScreen();
+  expect(screen.getByText('1개월')).toBeOnTheScreen();
+  expect(screen.getByText('매달 자동 갱신')).toBeOnTheScreen();
+  expect(screen.getByText('해지는 Play 스토어 > 결제 및 정기 결제에서 언제든 할 수 있어요.')).toBeOnTheScreen();
+  expect(screen.getByText('이용약관')).toBeOnTheScreen();
+  expect(screen.getByText('개인정보 처리방침')).toBeOnTheScreen();
   expect(screen.queryByText(/acttub\.com\/pricing/)).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('Pro 시작하기'));
@@ -131,9 +132,9 @@ test('스토어 구독(iOS) — 결제가 끝나도 서버가 Pro 라고 할 때
   mockRc.purchasePackage.mockResolvedValue({ customerInfo: {} });
   syncStorePurchases.mockRejectedValue(Object.assign(new Error('taken'), { status: 409, code: 'already_subscribed' }));
   await render(<ProScreen />);
-  expect(await screen.findByText('₩3,900 / 월')).toBeOnTheScreen();
+  expect(await screen.findByText('₩3,900')).toBeOnTheScreen();
   expect(mockRc.configure).toHaveBeenCalledWith({ apiKey: 'appl_test', appUserID: USER });
-  expect(screen.getByText(/Apple 계정/)).toBeOnTheScreen();
+  expect(screen.getByText('해지는 설정 > Apple 계정 > 구독에서 언제든 할 수 있어요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('Pro 시작하기'));
   expect(await screen.findByText('이미 Pro를 이용 중이에요.')).toBeOnTheScreen();
@@ -181,11 +182,13 @@ test('RevenueCat 키가 없는 빌드는 스토어에 연결하지 않고 구매
   expect(mockRc.purchasePackage).not.toHaveBeenCalled();
 });
 
-test('이미 Pro(웹 결제 등)이면 구매 버튼 대신 상태 문구만 보이고 스토어에 연결하지 않는다', async () => {
+test('이미 Pro(웹 결제 등)이면 요금제·구매 버튼 대신 상태 상자만 보이고 스토어에 연결하지 않는다', async () => {
   billingMe.mockResolvedValue({ ...active, app_enabled: true });
   await render(<ProScreen />);
   expect(await screen.findByText('이미 Pro를 이용 중이에요')).toBeOnTheScreen();
   expect(screen.queryByText('Pro 시작하기')).not.toBeOnTheScreen();
+  expect(screen.queryByText('월 구독')).not.toBeOnTheScreen();
+  expect(screen.queryByText('이용약관')).not.toBeOnTheScreen();
   expect(screen.queryByText('구매 복원')).not.toBeOnTheScreen();
   expect(mockRc.configure).not.toHaveBeenCalled();
 });
@@ -208,13 +211,13 @@ test('연 구독(30% 할인) — 연을 고르면 연 패키지·연 가격·1�
   mockRc.purchasePackage.mockResolvedValue({ customerInfo: {} });
   syncStorePurchases.mockResolvedValue({ ...active, provider: 'google' });
   await render(<ProScreen />);
-  expect(await screen.findByText('₩3,900 / 월')).toBeOnTheScreen();
+  expect(await screen.findByText('₩32,500')).toBeOnTheScreen();
   expect(screen.getByText('30% 할인')).toBeOnTheScreen();
+  expect(screen.getByText('1년')).toBeOnTheScreen();
+  expect(screen.getByText('월 2,708원꼴 · 매년 자동 갱신')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('연 구독'));
-  expect(await screen.findByText('₩32,500 / 년')).toBeOnTheScreen();
-  expect(screen.getByText('ACTTUB Pro 연 구독')).toBeOnTheScreen();
-  expect(screen.getByText(/1년마다 자동으로 갱신돼요/)).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: /연 구독/ })).toBeSelected();
 
   await fireEvent.press(screen.getByText('Pro 시작하기'));
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/pro-done'));
@@ -227,9 +230,10 @@ test('연 패키지가 오퍼링에 아직 없으면 연 구독은 고를 수 �
   mockRc.purchasePackage.mockResolvedValue({ customerInfo: {} });
   syncStorePurchases.mockResolvedValue({ ...active, provider: 'google' });
   await render(<ProScreen />);
-  expect(await screen.findByText('₩3,900 / 월')).toBeOnTheScreen();
+  expect(await screen.findByText('₩3,900')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('연 구독'));
-  expect(screen.getByText('₩3,900 / 월')).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: /월 구독/ })).toBeSelected();
+  expect(screen.getByRole('radio', { name: /연 구독/ })).toBeDisabled();
   await fireEvent.press(screen.getByText('Pro 시작하기'));
   await waitFor(() => expect(mockRc.purchasePackage).toHaveBeenCalledWith(monthlyPkg));
 });
@@ -285,16 +289,17 @@ test('설정 — 결제 기능이 닫혀 있으면(404) 줄이 없다', async ()
   expect(screen.queryByText('ACTTUB Pro')).not.toBeOnTheScreen();
 });
 
-test('코칭 시작이 무료 한도(free_daily_coaching_limit)에 걸리면 「오늘 무료 코칭을 다 썼어요」 시트(a5y1Qr)', async () => {
+test('코칭 시작이 무료 한도(free_daily_coaching_limit)에 걸리면 「오늘 무료 코칭 3회를 다 썼어요」 확인창이 뜨고 [Pro 알아보기]는 코칭 한도 안내로 간다', async () => {
   (api.createPractice as jest.Mock).mockRejectedValue(
     Object.assign(new Error('limit'), { status: 429, code: 'free_daily_coaching_limit' }),
   );
   await render(<TalkScreen />);
   await fireEvent.press(screen.getByText('고민 상담'));
   await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('오늘 무료 코칭을 다 썼어요')).toBeOnTheScreen();
+  expect(await screen.findByText('오늘 무료 코칭 3회를 다 썼어요')).toBeOnTheScreen();
+  expect(screen.getByText('내일 다시 무료로 받을 수 있어요. Pro는 제한 없이 코칭해요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('Pro 알아보기'));
-  expect(mockRouter.push).toHaveBeenCalledWith('/pro');
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/pro', params: { from: 'coaching' } });
 });
 
 test('창립 멤버(SOMA-861) — 결제 화면 맨 위에 「창립 멤버 n자리 남음」 한 줄이 보이고, 0이면 숨는다', async () => {
@@ -306,6 +311,101 @@ test('창립 멤버(SOMA-861) — 결제 화면 맨 위에 「창립 멤버 n자
 test('창립 멤버(SOMA-861) — 남은 자리가 0이면 줄이 없다', async () => {
   billingMe.mockResolvedValue({ ...none, app_enabled: false, founding_remaining: 0 });
   await render(<ProScreen />);
-  expect(screen.getByText('ACTTUB Pro')).toBeOnTheScreen();
+  await waitFor(() => expect(billingMe).toHaveBeenCalled());
+  expect(screen.getByText('Pro로 제한 없이 연습해요')).toBeOnTheScreen();
   expect(screen.queryByText(/창립 멤버/)).not.toBeOnTheScreen();
+});
+
+test('Pro 안내 — 요금제는 월 구독이 먼저이고 기본으로 골라져 있어 바로 월 패키지로 결제한다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockRc.getOfferings.mockResolvedValue(offerings({ monthly: monthlyPkg, annual: annualPkg }));
+  mockRc.purchasePackage.mockResolvedValue({ customerInfo: {} });
+  syncStorePurchases.mockResolvedValue({ ...active, provider: 'google' });
+  await render(<ProScreen />);
+  await screen.findByText('₩3,900');
+  const radios = screen.getAllByRole('radio');
+  expect(radios.map((r) => r.props.accessibilityState)).toEqual([
+    { selected: true, disabled: false },
+    { selected: false, disabled: false },
+  ]);
+  expect(screen.getByRole('radio', { name: /월 구독/ })).toBeSelected();
+  await fireEvent.press(screen.getByText('Pro 시작하기'));
+  await waitFor(() => expect(mockRc.purchasePackage).toHaveBeenCalledWith(monthlyPkg));
+});
+
+test('Pro 안내 — 코칭 한도에서 오면 위 상자에 오늘 한도를 말하고 코칭 제목·혜택을 보인다', async () => {
+  mockParams = { from: 'coaching' };
+  billingMe.mockResolvedValue({ ...none, app_enabled: false });
+  await render(<ProScreen />);
+  expect(screen.getByText('오늘 무료 코칭 3회를 다 썼어요')).toBeOnTheScreen();
+  expect(screen.getByText('내일 다시 무료로 받을 수 있어요.')).toBeOnTheScreen();
+  expect(screen.getByText('코칭을 제한 없이 받아요')).toBeOnTheScreen();
+  expect(screen.getByText('코칭 횟수 제한 없이')).toBeOnTheScreen();
+  expect(screen.getByText('반복되는 버릇을 기억해 짚어 줘요')).toBeOnTheScreen();
+  expect(screen.queryByText('Pro로 제한 없이 연습해요')).not.toBeOnTheScreen();
+  await waitFor(() => expect(billingMe).toHaveBeenCalled());
+});
+
+test('Pro 안내 — 대본 한도·발음 보고서에서 오면 그 제목을 보이고, 모르는 값은 기본 안내다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: false });
+  mockParams = { from: 'script' };
+  const { unmount } = await render(<ProScreen />);
+  expect(screen.getByText('무료는 대본 3개까지 보관해요')).toBeOnTheScreen();
+  expect(screen.getByText('대본을 제한 없이 보관해요')).toBeOnTheScreen();
+  expect(screen.getByText('리딩 대본 보관 제한 없이')).toBeOnTheScreen();
+  await unmount();
+
+  mockParams = { from: 'pron' };
+  const second = await render(<ProScreen />);
+  expect(screen.getByText('발음 보고서를 받아 보세요')).toBeOnTheScreen();
+  expect(screen.getByText('리딩이 끝나면 발음 보고서')).toBeOnTheScreen();
+  await second.unmount();
+
+  mockParams = { from: 'nope' };
+  await render(<ProScreen />);
+  expect(screen.getByText('Pro로 제한 없이 연습해요')).toBeOnTheScreen();
+  await waitFor(() => expect(billingMe).toHaveBeenCalledTimes(3));
+});
+
+test('Pro 안내 — 가격을 받는 동안은 가격 자리가 뼈대이고 [Pro 시작하기]는 눌리지 않는다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockRc.getOfferings.mockReturnValue(new Promise(() => undefined));
+  await render(<ProScreen />);
+  await waitFor(() => expect(mockRc.getOfferings).toHaveBeenCalled());
+  expect(screen.getByText('매달 자동 갱신')).toBeOnTheScreen();
+  expect(screen.getByText('매년 자동 갱신')).toBeOnTheScreen();
+  expect(screen.queryByText('1개월')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Pro 시작하기' })).toBeDisabled();
+});
+
+test('Pro 안내 — 스토어에서 가격을 못 받으면 요금제 대신 「가격을 불러오지 못했어요」 상자이고 버튼은 눌리지 않는다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockRc.getOfferings.mockRejectedValue(new Error('offline'));
+  await render(<ProScreen />);
+  expect(await screen.findByText('가격을 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByText('월 구독')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Pro 시작하기' })).toBeDisabled();
+  expect(screen.getByText('구매 복원')).toBeOnTheScreen();
+});
+
+test('Pro 안내 — 결제가 실패하면 버튼 바로 위에 한 줄로 알리고 다시 누를 수 있다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockRc.getOfferings.mockResolvedValue(offerings({ monthly: monthlyPkg }));
+  mockRc.purchasePackage.mockRejectedValueOnce(Object.assign(new Error('store'), { code: '2', userCancelled: false }));
+  await render(<ProScreen />);
+  await fireEvent.press(await screen.findByText('Pro 시작하기'));
+  expect(await screen.findByText('스토어에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Pro 시작하기' })).toBeEnabled();
+});
+
+test('Pro 안내 — 이용약관·개인정보 처리방침은 웹 문서를 열고, 뒤로 꺾쇠는 들어온 곳으로 간다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockRc.getOfferings.mockResolvedValue(offerings({ monthly: monthlyPkg }));
+  await render(<ProScreen />);
+  await fireEvent.press(await screen.findByText('개인정보 처리방침'));
+  expect(WebBrowser.openBrowserAsync).toHaveBeenLastCalledWith('https://acttub.com/privacy');
+  await fireEvent.press(screen.getByText('이용약관'));
+  expect(WebBrowser.openBrowserAsync).toHaveBeenLastCalledWith('https://acttub.com/terms');
+  await fireEvent.press(screen.getByLabelText('뒤로'));
+  expect(mockRouter.back).toHaveBeenCalled();
 });

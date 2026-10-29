@@ -80,7 +80,7 @@ test('발음 보고서 줄은 무료에게도 보이지만, 누르면 들어가�
   expect(mockRouter.push).not.toHaveBeenCalled();
 
   await fireEvent.press(screen.getByText('Pro 알아보기'));
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/pro');
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/pro', params: { from: 'pron' } });
 });
 
 test('구독 상태를 못 받으면 무료로 보고 안내를 띄운다', async () => {

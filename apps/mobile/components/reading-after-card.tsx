@@ -151,7 +151,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
       {wantReport && reportOn && proNote && (
         <View style={styles.proNote}>
           <Text style={styles.proNoteText}>{t('reading.pronReportProOnly')}</Text>
-          <Pressable onPress={() => router.push('/pro')} accessibilityRole="link" hitSlop={8} ph-label="reading_pron_report_pro">
+          <Pressable onPress={() => router.push({ pathname: '/pro', params: { from: 'pron' } })} accessibilityRole="link" hitSlop={8} ph-label="reading_pron_report_pro">
             <Text style={styles.proNoteLink}>{t('reading.pronReportProLink')}</Text>
           </Pressable>
         </View>
