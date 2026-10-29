@@ -118,8 +118,10 @@ test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, �
   assert.match(play, /t\(monologue \? 'reading\.monologueStartHint' : 'reading\.startHint'\)/);
   assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
-  assert.match(play, /<ReadingGuideOverlay onClose=\{closeGuide\} \/>/);
-  assert.match(play, /myTurnsBefore >= 1/);
+  // 첫 리딩 안내는 화면을 덮는 버튼 설명이 아니라, 지금 차례에 맞는 말풍선을 하나씩 띄운다(10/29 되살림).
+  assert.doesNotMatch(play, /ReadingGuideOverlay/);
+  assert.match(play, /coachMarkFor\(\{ done: coachDone/);
+  assert.match(play, /<ReadingCoachMark/);
 });
 
 test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 인물 칸에 채우고 원하는 것은 비운다(SOMA-772)', async () => {

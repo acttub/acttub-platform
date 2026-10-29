@@ -19,9 +19,9 @@ import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, m
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InfoBanner } from '@/components/ui/info-banner';
-import { ReadingGuideOverlay } from '@/components/ui/reading-guide-overlay';
+import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
 import { ReadingStatus } from '@/components/ui/reading-status';
-import { readingCoachScene, wrapUpProgress } from '@/lib/reading/redesign-748';
+import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
 import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
@@ -137,8 +137,8 @@ type Phase =
   | { kind: 'voice_failed'; failure: { kind: VoiceErrorKind; neededBytes?: number } }
   /** 앱 목소리를 못 쓰는 기기의 처음 한 번 안내(R9.7). */
   | { kind: 'voice_unsupported' }
-  /** hold 가 있으면 자동 넘김이 멈춘다 — tip 은 시작 팝업(첫 줄을 읽지 않음), mask_sheet 는 대사 보기 시트, guide 는 첫 리딩 버튼 안내 덮개. */
-  | { kind: 'running'; hold: 'tip' | 'mask_sheet' | 'guide' | null }
+  /** hold 가 있으면 자동 넘김이 멈춘다 — tip 은 시작 팝업(첫 줄을 읽지 않음), mask_sheet 는 대사 보기 시트. */
+  | { kind: 'running'; hold: 'tip' | 'mask_sheet' | null }
   | { kind: 'done' }
   | { kind: 'closed'; message: string };
 
@@ -179,6 +179,13 @@ const FIRST_DONE_POSE: MascotPose = 'jump';
 function pickPose(poses: readonly MascotPose[]): MascotPose {
   return poses[Math.floor(Math.random() * poses.length)] ?? poses[0];
 }
+
+const COACH_TEXT: Record<CoachMark, string> = {
+  partner: 'reading.coachPartner',
+  mine: 'reading.coachMine',
+  next: 'reading.coachNext',
+  alone: 'reading.coachAlone',
+};
 
 export default function ReadingPlay() {
   const router = useRouter();
@@ -273,7 +280,7 @@ export default function ReadingPlay() {
   const exampleRef = useRef<{ audio: ExampleAudio; text: Map<string, string> } | null>(null);
   const tipHiddenRef = useRef(true);
   const cloudFallbackNoticed = useRef(false);
-  const holdRef = useRef<'tip' | 'mask_sheet' | 'guide' | null>(null);
+  const holdRef = useRef<'tip' | 'mask_sheet' | null>(null);
   /** 자동 넘김이 멈춘 동안 일어난 넘김 — 시트를 닫으면 한다. */
   const deferredRef = useRef<Deferred>(null);
   const deferredTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -312,6 +319,8 @@ export default function ReadingPlay() {
   const [wrapUp, setWrapUp] = useState(false);
   /** 첫 리딩 안내 — 본 적이 없을 때만. done 은 이미 지나간 안내. */
   const [coachOn, setCoachOn] = useState(false);
+  const [coachDone, setCoachDone] = useState<ReadonlySet<CoachMark>>(() => new Set());
+  const coachShown = useRef<CoachMark | null>(null);
   const firstRunRef = useRef(false);
   /**
    * 독백(SOMA-597) — 배역이 하나뿐인 대본은 처음부터 끝까지 끊지 않고 한 번에 녹음한다. 인식기가 스스로 끝나거나(오래 쉼·시간 한도)
@@ -753,22 +762,34 @@ export default function ReadingPlay() {
     // 화면을 열 때 한 번만 정한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // pen 7-1: 두 번째 내 차례에서 한 번만, 대본 위를 어둡게 덮고 버튼 넷을 설명한다. 작은 힌트 말풍선은 더는 띄우지 않는다.
-  const myTurnsBefore = run
-    ? run.lines.slice(run.startIndex, run.index).filter((l, k, arr) => {
-        const mine = (x: ScriptLine | undefined) => !!x && x.type === 'dialogue' && run.myRoles.includes(x.role);
-        return mine(l) && !(k > 0 && mine(arr[k - 1]));
-      }).length
-    : 0;
-  // 안내가 떠 있는 동안은 자동 넘김을 멈춘다(hold 'guide') — 읽는 사이 줄이 넘어가지 않게. 「알겠어요」를 누르면 이어 간다.
-  const guideWanted = coachOn && phase.kind === 'running' && !!run && run.status === 'mine' && myTurnsBefore >= 1;
-  const guideOpen = guideWanted && phase.kind === 'running' && phase.hold === 'guide';
+  // 첫 리딩 안내(SOMA-748, 10/29 되살림) — 화면을 덮지 않고 진행 상태에 맞는 말풍선을 하나씩 띄운다.
+  // 상대 차례 → 내 차례 → 읽은 뒤 「다음」 → 가린 대사 순. 진행 규칙(자동 넘김·듣기)은 건드리지 않는다.
+  const coachLine = run ? run.lines[run.index] : undefined;
+  const coachHiddenMine =
+    !!run && !!coachLine && coachLine.type === 'dialogue' && run.myRoles.includes(coachLine.role) &&
+    isHidden({ maskMode, line: coachLine, isMine: true });
+  const coachMark =
+    coachOn && phase.kind === 'running' && !phase.hold && run
+      ? coachMarkFor({ done: coachDone, status: run.status, said: said.trim().length > 0, hiddenMine: coachHiddenMine })
+      : null;
+  const finishCoachMark = useCallback((mark: CoachMark) => {
+    setCoachDone((prev) => {
+      if (prev.has(mark)) return prev;
+      const next = new Set(prev);
+      next.add(mark);
+      if (next.size === COACH_MARKS.length) {
+        setCoachOn(false);
+        void markFirstReadingGuideSeen();
+      }
+      return next;
+    });
+  }, []);
+  // 띄웠던 안내는 그 때(상대 차례·내 차례)가 지나가면 본 것으로 친다.
   useEffect(() => {
-    if (guideWanted && phase.kind === 'running' && phase.hold === null) {
-      holdRef.current = 'guide';
-      setPhase({ kind: 'running', hold: 'guide' });
-    }
-  }, [guideWanted, phase]);
+    const prev = coachShown.current;
+    coachShown.current = coachMark;
+    if (prev && prev !== coachMark) finishCoachMark(prev);
+  }, [coachMark, finishCoachMark]);
   // 리딩을 끝까지 했으면 다 못 봤어도 다음부터는 띄우지 않는다.
   useEffect(() => {
     if (phase.kind === 'done' && coachOn) {
@@ -927,14 +948,6 @@ export default function ReadingPlay() {
     if (deferred.kind === 'advance') goNext(deferred.from);
     else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from), DEFAULT_VAD.silenceMs);
   }, [goNext]);
-  const closeGuide = useCallback(() => {
-    setCoachOn(false);
-    void markFirstReadingGuideSeen();
-    // 안내를 읽는 동안 흐른 침묵으로 내 차례가 끝나 버리지 않게, 미뤄 둔 넘김을 버리고 이 차례를 처음부터 다시 듣는다(10/26).
-    deferredRef.current = null;
-    releaseHold();
-    setAttempt((a) => a + 1);
-  }, [releaseHold]);
 
   useEffect(() => {
     if (monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
@@ -1880,6 +1893,14 @@ export default function ReadingPlay() {
   const saidOf = (lineId: string) => (sttMode?.kind === 'stt' ? run.said[lineId] : undefined);
   const masking = maskMode !== 'none';
 
+  const coachElement = coachMark ? (
+    <ReadingCoachMark
+      label={t('reading.coachLabel', { n: COACH_MARKS.indexOf(coachMark) + 1, total: COACH_MARKS.length })}
+      text={t(COACH_TEXT[coachMark])}
+      onClose={() => finishCoachMark(coachMark)}
+    />
+  ) : null;
+
   const hint = paused ? t(interrupted ? 'reading.interruptedBody' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
 
 
@@ -1954,6 +1975,8 @@ export default function ReadingPlay() {
             </Pressable>
           );
         })}
+
+        {coachMark !== 'next' && coachElement}
 
         {monologue && (
           // 독백 — 문장 목록을 보이고 읽는 문장만 진하게(pen c1MiZ). 상대역 목소리는 없고 녹음은 끝낼 때까지 이어진다.
@@ -2071,6 +2094,7 @@ export default function ReadingPlay() {
         </View>
       )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
+      {coachMark === 'next' && <View style={styles.coachAboveControls}>{coachElement}</View>}
 
       {/* 시작 전에는 아래 버튼 줄을 숨기되 자리는 남긴다 — 빼 버리면 대사 카드가 폰 아래 버튼 줄 밑으로 내려가 잘렸다(10/26). */}
       <>
@@ -2168,7 +2192,6 @@ export default function ReadingPlay() {
         />
         </>
       )}
-      {guideOpen && <ReadingGuideOverlay onClose={closeGuide} />}
       {dialog}
     </View>
   );
@@ -2339,6 +2362,7 @@ const styles = StyleSheet.create({
   saidLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   saidText: { color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20 },
   lineText: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 21, lineHeight: 31 },
+  coachAboveControls: { paddingHorizontal: 16, paddingBottom: 8 },
   firstWordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   firstWordRest: { flex: 1 },
   aidRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
