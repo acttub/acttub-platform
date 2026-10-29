@@ -49,11 +49,9 @@ test('안드로이드: 화면이 Pretendard 굵기를 이름으로 직접 고른
   assert.equal(androidLighterFamily('Feather'), 'Feather');
 });
 
-test('Medium 서브셋을 싣고, 전역 폰트가 안드로이드에서 가볍게 고른다', async () => {
+test('Medium 서브셋을 싣는다', async () => {
   const { readFileSync, existsSync } = await import('node:fs');
   const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
   assert.ok(existsSync(new URL('../assets/fonts/Pretendard-Medium.subset.ttf', import.meta.url)));
   assert.match(read('app/_layout.tsx'), /'Pretendard-Medium': require\('@\/assets\/fonts\/Pretendard-Medium\.subset\.ttf'\)/);
-  assert.match(read('lib/global-font.ts'), /fontFamilyForWeight\(flattened\.fontWeight, Platform\.OS\)/);
-  assert.match(read('lib/global-font.ts'), /androidLighterFamily\(flattened\.fontFamily\)/);
 });

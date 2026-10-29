@@ -1,0 +1,38 @@
+diff --git a/node_modules/react-native/Libraries/Components/TextInput/TextInput.js b/node_modules/react-native/Libraries/Components/TextInput/TextInput.js
+index 1e95eb6..8f32360 100644
+--- a/node_modules/react-native/Libraries/Components/TextInput/TextInput.js
++++ b/node_modules/react-native/Libraries/Components/TextInput/TextInput.js
+@@ -663,6 +663,11 @@ function InternalTextInput(props: TextInputProps): React.Node {
+       _style = [_style, overrides];
+     }
+   }
++  // acttub: 앱 기본 폰트(apps/mobile/lib/global-font.ts).
++  const fontStyle = global.__fontStyleFor?.(flattenedStyle);
++  if (fontStyle != null) {
++    _style = [_style, fontStyle];
++  }
+ 
+   if (Platform.OS === 'ios') {
+     const RCTTextInputView =
+diff --git a/node_modules/react-native/Libraries/Text/Text.js b/node_modules/react-native/Libraries/Text/Text.js
+index b08b8f3..0ad9313 100644
+--- a/node_modules/react-native/Libraries/Text/Text.js
++++ b/node_modules/react-native/Libraries/Text/Text.js
+@@ -170,6 +170,17 @@ const TextImpl: component(
+   const _nativeID = id ?? nativeID;
+ 
+   const hasTextAncestor = useContext(TextAncestorContext);
++  // acttub: 앱 기본 폰트(apps/mobile/lib/global-font.ts). 중첩 Text가 패밀리도 굵기도 없으면 부모 폰트를 물려받는다.
++  const fontStyleFor = global.__fontStyleFor;
++  if (
++    fontStyleFor != null &&
++    !(hasTextAncestor && processedStyle?.fontFamily == null && processedStyle?.fontWeight == null)
++  ) {
++    const fontStyle = fontStyleFor(processedStyle);
++    if (fontStyle != null) {
++      _style = [_style, fontStyle];
++    }
++  }
+   if (hasTextAncestor) {
+     if (isPressable) {
+       return (
