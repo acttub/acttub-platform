@@ -182,6 +182,37 @@ export function finishMonologueRun(run: RunState, said: Record<string, string>):
   return { ...run, said: { ...run.said, ...said }, index: run.endIndex + 1, status: 'done', resumeTo: null, leadInUntil: null };
 }
 
+/** 독백 말풍선 하나에 담는 대사 수(SOMA-934). */
+export const MONOLOGUE_CHUNK = 10;
+
+/**
+ * 독백 구간을 대사 size 줄씩 말풍선으로 끊는다(SOMA-934) — 줄 인덱스 [start, end] 묶음. 지문은 다음 대사가 든 말풍선에 붙고,
+ * 구간 끝의 지문은 마지막 말풍선에 남는다. 녹음·판정은 묶음과 상관없이 구간 전체로 한다.
+ */
+export function monologueChunks(
+  lines: readonly { type: string }[],
+  startIndex: number,
+  endIndex: number,
+  size: number = MONOLOGUE_CHUNK,
+): { start: number; end: number }[] {
+  const chunks: { start: number; end: number }[] = [];
+  let chunkStart = startIndex;
+  let count = 0;
+  let lastDialogue = -1;
+  for (let i = startIndex; i <= endIndex && i < lines.length; i++) {
+    if (lines[i].type !== 'dialogue') continue;
+    if (count === size) {
+      chunks.push({ start: chunkStart, end: lastDialogue });
+      chunkStart = lastDialogue + 1;
+      count = 0;
+    }
+    count += 1;
+    lastDialogue = i;
+  }
+  chunks.push({ start: chunkStart, end: Math.min(endIndex, lines.length - 1) });
+  return chunks;
+}
+
 /** 실행에서 맞춰 볼 문장(대사 줄)의 줄 인덱스 — from(처음 듣기 시작한 줄)부터 구간 끝까지. */
 export function sentenceIndexes(run: Pick<RunState, 'lines' | 'endIndex'>, from: number): number[] {
   const out: number[] = [];

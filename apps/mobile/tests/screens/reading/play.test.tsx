@@ -1684,6 +1684,17 @@ async function startMonologue() {
   return server;
 }
 
+test('SOMA-934: 독백은 대사 10줄씩 말풍선으로 끊어, 처음엔 첫 말풍선(1~10줄)만 보인다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  const twelve = scriptDetail(Array.from({ length: 12 }, (_, i) => ['dialogue', '민지', `독백 ${i + 1}번 줄이야.`] as ['dialogue', string, string]));
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l12', my_character_ids: ['c1'], my_character_names: ['민지'] }, twelve);
+
+  expect(await screen.findByText('독백 1번 줄이야.')).toBeOnTheScreen();
+  expect(screen.getByText('독백 10번 줄이야.')).toBeOnTheScreen();
+  expect(screen.queryByText('독백 11번 줄이야.')).not.toBeOnTheScreen();
+});
+
 test('SOMA-597: 독백 시작 전에는 자동 넘김 대신 끝까지 읽고 끝내기를 누르는 안내를 보인다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay({ start_line_id: 'l1', end_line_id: 'l4', my_character_ids: ['c1'], my_character_names: ['민지'] }, MONO, { begin: false });

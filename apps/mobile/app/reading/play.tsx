@@ -4,7 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -42,7 +42,7 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
-import { finishMonologueRun, isMonologue, livePosition, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
+import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
@@ -1180,6 +1180,14 @@ export default function ReadingPlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monologue, phase.kind, tipOpen, run?.status, attempt, monoSeq]);
 
+  // 새 말풍선(10줄 묶음)이 생기면 그 카드가 자리를 잡은 뒤에야 문장 위치를 안다 — 자리를 잡을 때 다시 따라 내린다(SOMA-934).
+  const onMonoCardLayout = (e: LayoutChangeEvent) => {
+    monoCardY.current = e.nativeEvent.layout.y;
+    const index = runRef.current?.index;
+    const y = index === undefined ? undefined : monoItemY.current[index];
+    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current + y - 160), animated: true });
+  };
+
   // 독백은 읽는 문장이 보이게 따라 내린다. 「원문 보기」는 그 문장에만 적용된다.
   useEffect(() => {
     if (!monologue || !run) return;
@@ -1932,6 +1940,7 @@ export default function ReadingPlay() {
   const span = turnSpan(run);
   const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
   const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
+  const monoChunks = monologue ? monologueChunks(run.lines, run.startIndex, run.endIndex) : [];
   const monoCounter = monologue
     ? t('reading.monologueProgress', { n: Math.max(0, monoIndexes.indexOf(run.index)) + 1, total: monoIndexes.length, time: mmss(run.elapsedMs) })
     : null;
@@ -1999,54 +2008,63 @@ export default function ReadingPlay() {
 
         {coachMark !== 'next' && coachElement}
 
-        {monologue && (
+        {monologue &&
           // 독백 — 문장 목록을 보이고 읽는 문장만 진하게(pen c1MiZ). 상대역 목소리는 없고 녹음은 끝낼 때까지 이어진다.
-          <View style={[styles.card, styles.cardMine]} onLayout={(e) => (monoCardY.current = e.nativeEvent.layout.y)}>
-            <View style={styles.cardHead}>
-              <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
-              <View style={styles.cardHeadRight}>
-                <View style={styles.chip}>
-                  {hold === 'tip' || paused || !listening ? (
-                    <Feather name={paused ? 'pause' : 'mic'} size={14} color={palette.blueDeep} />
-                  ) : (
-                    <ListeningBars />
-                  )}
-                  <Text style={[styles.chipText, styles.chipTextMine]}>
-                    {hold === 'tip' ? t('reading.chipBeforeStart') : paused ? t('reading.pause') : listening ? t('reading.monologueRecording') : t('reading.chipMicOpening')}
-                  </Text>
+          // 대사 10줄씩 말풍선으로 끊어 지금 읽는 말풍선까지만 그린다 — 다 읽으면 다음 말풍선이 아래에 생기고, 지나간 건 흐리게 남는다(SOMA-934).
+          monoChunks.filter((c) => c.start <= Math.max(run.index, run.startIndex)).map((c, ci, shown) => {
+            const current = ci === shown.length - 1;
+            return (
+              <View
+                key={run.lineIds[c.start]}
+                style={[styles.card, styles.cardMine, !current && styles.cardPast]}
+                onLayout={current ? onMonoCardLayout : undefined}>
+                {current && (
+                <View style={styles.cardHead}>
+                  <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
+                  <View style={styles.cardHeadRight}>
+                    <View style={styles.chip}>
+                      {hold === 'tip' || paused || !listening ? (
+                        <Feather name={paused ? 'pause' : 'mic'} size={14} color={palette.blueDeep} />
+                      ) : (
+                        <ListeningBars />
+                      )}
+                      <Text style={[styles.chipText, styles.chipTextMine]}>
+                        {hold === 'tip' ? t('reading.chipBeforeStart') : paused ? t('reading.pause') : listening ? t('reading.monologueRecording') : t('reading.chipMicOpening')}
+                      </Text>
+                    </View>
+                    {hold !== 'tip' && (
+                      <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
+                        <Feather name="edit-2" size={16} color={palette.blueDeep} />
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
-                {hold !== 'tip' && (
-                  <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
-                    <Feather name="edit-2" size={16} color={palette.blueDeep} />
-                  </Pressable>
+                )}
+                {run.lines.slice(c.start, c.end + 1).map((l, k) => {
+                  const i = c.start + k;
+                  if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
+                  const now = i === run.index;
+                  return (
+                    <View key={run.lineIds[i]} onLayout={(e) => (monoItemY.current[i] = e.nativeEvent.layout.y)}>
+                      {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
+                        <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
+                      ) : (
+                        <Text style={now ? styles.monoNow : styles.monoOther}>{l.text}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+                {current && hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
+                  <View style={styles.aidRow}>
+                    <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
+                      <Feather name="eye" size={14} color={palette.blueDeep} />
+                      <Text style={styles.aidText}>{t('reading.showOriginal')}</Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
-            </View>
-            {run.lines.slice(run.startIndex, run.endIndex + 1).map((l, k) => {
-              const i = run.startIndex + k;
-              if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
-              const now = i === run.index;
-              return (
-                <View key={run.lineIds[i]} onLayout={(e) => (monoItemY.current[i] = e.nativeEvent.layout.y)}>
-                  {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
-                    <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
-                  ) : (
-                    <Text style={now ? styles.monoNow : styles.monoOther}>{l.text}</Text>
-                  )}
-                </View>
-              );
-            })}
-            {hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
-              <View style={styles.aidRow}>
-                <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
-                  <Feather name="eye" size={14} color={palette.blueDeep} />
-                  <Text style={styles.aidText}>{t('reading.showOriginal')}</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        )}
-
+            );
+          })}
         {isDialogue && !monologue && (
           <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]} onLayout={(e) => (dialogueCardY.current = e.nativeEvent.layout.y)}>
             <View style={styles.cardHead}>
@@ -2338,6 +2356,7 @@ const styles = StyleSheet.create({
   wrapNext: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 23 },
   readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
   readAgainOff: { opacity: 0.4 },
+  cardPast: { opacity: 0.55 },
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
   wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },

@@ -8,6 +8,7 @@ import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { isMonologue } from '@/lib/reading/monologue';
 import { firstPracticeRange } from '@/lib/reading/redesign-748';
 import { useAppDialog } from '@/components/app-dialog';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -170,7 +171,8 @@ export default function ReadingRange() {
   // 내 차례로 읽는 배역 — 고른 배역과 그 배역이 든 함께 말하는 줄의 묶음 배역(play 와 같은 turnRoles, SOMA-709·785).
   const myTurnRoles = turnRoles(script.characters, pickedCast.map((c) => c.id));
   // 첫 연습이면 처음부터 대사 10줄을 짧은 구간으로 골라 둔다 — 기기에서만 정한다.
-  const short = hasHistory ? null : firstPracticeRange(lines, myTurnRoles);
+  // 독백은 리딩 화면이 10줄씩 말풍선으로 끊어 보이므로 줄이지 않고 전체를 기본으로 잡는다(SOMA-934).
+  const short = hasHistory || isMonologue(script.characters) ? null : firstPracticeRange(lines, myTurnRoles);
   const range = firstMode ? whole : (picked ?? recents[0]?.range ?? short ?? whole);
   const showRecent = hasHistory && (sessions === null || recents.length > 0);
   const tabs: Tab[] = showRecent ? ['recent', 'scene', 'line'] : short ? ['suggest', 'scene', 'line'] : ['scene', 'line'];
