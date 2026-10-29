@@ -166,7 +166,7 @@ class PosterEndpointIT {
         JsonNode stored = notices.get(0);
         assertThat(stored.fieldNames()).toIterable().containsExactly("slug", "revision", "live", "published_at",
                 "ends_at", "badge", "title", "body", "image_url", "image_asset", "cta_label", "cta_action",
-                "cta_target");
+                "cta_target", "footnote", "image_bg");
         assertThat(stored.path("image_url").textValue()).isEqualTo("signed:" + key + ":3600");
         assertThat(stored.path("image_asset").isNull()).isTrue();
         assertThat(stored.path("published_at").textValue()).isNotBlank();

@@ -169,7 +169,6 @@ class ValueCheckCatalogIT {
             "ck_app_posters_frequency",
             "ck_app_posters_audience",
             "ck_app_posters_cta_action",
-            "ck_app_posters_image_bg",
             // 오디션 공고(V36)의 출처·분야는 domain 의 AuditionRules 목록이 들고 저장소 native SQL 만 쓴다
             // (같은 선인지는 AuditionSchemaMigrationTest 가 본다).
             "ck_audition_postings_source",
