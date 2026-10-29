@@ -4,7 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -43,7 +43,7 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
-import { finishMonologueRun, isMonologue, livePosition, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
+import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
 import { beatMs, directionsBefore } from '@/lib/reading/direction-beat';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
@@ -171,6 +171,8 @@ const JUMP_PREVIEW = 15;
 const DONE_LOCK_MS = 800;
 /** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
 const MONO_POSITION_MS = 700;
+/** 독백에서 읽는 문장을 둘 높이 — 화면 위에서 이만큼 아래(SOMA-934). */
+const MONO_FOLLOW_TOP = 160;
 /**
  * 리딩 화면의 액티(10/22 20종). 예전엔 준비·마무리·결과가 모두 하트 눈 한 장이라 매번 같았다(10/25 피드백).
  * 준비 중은 기다리는 자세, 끝난 화면은 들어올 때마다 밝은 자세 하나, 세지 않은 회차는 민망한 자세.
@@ -342,6 +344,8 @@ export default function ReadingPlay() {
   const [monoResult, setMonoResult] = useState<ReturnType<typeof monologueResults> | null>(null);
   const monoItemY = useRef<Record<number, number>>({});
   const monoCardY = useRef(0);
+  /** 독백 따라 내리기가 마지막으로 보낸 위치 — 같은 자리로 거듭 내리지 않는다(SOMA-934). */
+  const monoScrolledTo = useRef<number | null>(null);
   // 대화 카드 위치 — 받아쓰기(인식 결과)가 늘어나 내용이 길어져도 맨 아래로 끌지 않고 지금 대사 카드 위쪽에 맞춘다(SOMA-913).
   const dialogueCardY = useRef(0);
 
@@ -1128,6 +1132,19 @@ export default function ReadingPlay() {
     if (idx[pos] !== undefined && idx[pos] !== cur.index) commit({ ...cur, index: idx[pos] });
   }, [commit]);
 
+  /** 독백 말풍선 아래 「다음 대사로」(SOMA-934) — 읽는 위치를 다음 말풍선의 첫 대사로 옮긴다. 녹음·받아쓰기는 끊지 않는다. */
+  const nextMonoChunk = useCallback(
+    (start: number) => {
+      const cur = runRef.current;
+      if (!cur || cur.status !== 'mine') return;
+      let i = start;
+      while (i <= cur.endIndex && cur.lines[i]?.type !== 'dialogue') i += 1;
+      if (i > cur.endIndex || i <= cur.index) return;
+      commit({ ...cur, index: i });
+    },
+    [commit],
+  );
+
   /** [끝내기] — 녹음을 거두고 받아쓴 글 전체를 문장별로 맞춰 결과를 낸다. 읽는 동안에는 판정하지 않았다. */
   const finishMonologue = useCallback(async () => {
     const cur = runRef.current;
@@ -1224,12 +1241,29 @@ export default function ReadingPlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monologue, phase.kind, tipOpen, run?.status, attempt, monoSeq]);
 
+  // 새 말풍선(10줄 묶음)이 생기면 그 카드가 자리를 잡은 뒤에야 문장 위치를 안다 — 자리를 잡을 때 다시 따라 내린다(SOMA-934).
+  // 스크롤 규칙은 하나다 — 읽는 문장을 늘 같은 높이(위에서 MONO_FOLLOW_TOP)에 둔다. 말풍선이 새로 생기면 그 카드·문장이 자리를 잡은
+  // 뒤에야 위치를 알므로, 자리를 잡을 때(카드·문장 onLayout)와 읽는 문장이 바뀔 때 같은 계산으로 맞춘다(SOMA-934).
+  const followMonoLine = () => {
+    const index = runRef.current?.index;
+    const y = index === undefined ? undefined : monoItemY.current[index];
+    if (y === undefined) return;
+    const target = Math.max(0, monoCardY.current + y - MONO_FOLLOW_TOP);
+    if (monoScrolledTo.current !== null && Math.abs(monoScrolledTo.current - target) < 2) return;
+    monoScrolledTo.current = target;
+    scrollRef.current?.scrollTo({ y: target, animated: true });
+  };
+  const onMonoCardLayout = (e: LayoutChangeEvent) => {
+    monoCardY.current = e.nativeEvent.layout.y;
+    followMonoLine();
+  };
+
   // 독백은 읽는 문장이 보이게 따라 내린다. 「원문 보기」는 그 문장에만 적용된다.
   useEffect(() => {
     if (!monologue || !run) return;
     setAid('none');
-    const y = monoItemY.current[run.index];
-    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current + y - 160), animated: true });
+    followMonoLine();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monologue, run?.index]);
 
   // ── 흐른 시간(일시정지 제외) ─────────────────────────────────────────────────
@@ -1899,6 +1933,10 @@ export default function ReadingPlay() {
   const span = turnSpan(run);
   const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
   const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
+  const monoChunks = monologue ? monologueChunks(run.lines, run.startIndex, run.endIndex) : [];
+  // 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」, 마지막 말풍선에서만 「끝내기」다(SOMA-934).
+  const monoNow = monoChunks.findIndex((c) => Math.max(run.index, run.startIndex) <= c.end);
+  const monoNext = monoNow >= 0 ? (monoChunks[monoNow + 1] ?? null) : null;
   const monoCounter = monologue
     ? t('reading.monologueProgress', { n: Math.max(0, monoIndexes.indexOf(run.index)) + 1, total: monoIndexes.length, time: mmss(run.elapsedMs) })
     : null;
@@ -1970,53 +2008,68 @@ export default function ReadingPlay() {
 
         {coachMark !== 'next' && coachElement}
 
-        {monologue && (
+        {monologue &&
           // 독백 — 문장 목록을 보이고 읽는 문장만 진하게(pen c1MiZ). 상대역 목소리는 없고 녹음은 끝낼 때까지 이어진다.
-          <View style={[styles.card, styles.cardMine]} onLayout={(e) => (monoCardY.current = e.nativeEvent.layout.y)}>
-            <View style={styles.cardHead}>
-              <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
-              <View style={styles.cardHeadRight}>
-                <View style={styles.chip}>
-                  {hold === 'tip' || paused || !listening ? (
-                    <Feather name={paused ? 'pause' : 'mic'} size={14} color={palette.blueDeep} />
-                  ) : (
-                    <ListeningBars />
-                  )}
-                  <Text style={[styles.chipText, styles.chipTextMine]}>
-                    {hold === 'tip' ? t('reading.chipBeforeStart') : paused ? t('reading.pause') : listening ? t('reading.monologueRecording') : t('reading.chipMicOpening')}
-                  </Text>
+          // 대사 10줄씩 말풍선으로 끊어 지금 읽는 말풍선까지만 그린다 — 다 읽으면 다음 말풍선이 아래에 생기고, 지나간 건 흐리게 남는다(SOMA-934).
+          monoChunks.filter((c) => c.start <= Math.max(run.index, run.startIndex)).map((c, ci, shown) => {
+            const current = ci === shown.length - 1;
+            return (
+              <View
+                key={run.lineIds[c.start]}
+                style={[styles.card, styles.cardMine, !current && styles.cardPast]}
+                onLayout={current ? onMonoCardLayout : undefined}>
+                {current && (
+                <View style={styles.cardHead}>
+                  <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
+                  <View style={styles.cardHeadRight}>
+                    <View style={styles.chip}>
+                      {hold === 'tip' || paused || !listening ? (
+                        <Feather name={paused ? 'pause' : 'mic'} size={14} color={palette.blueDeep} />
+                      ) : (
+                        <ListeningBars />
+                      )}
+                      <Text style={[styles.chipText, styles.chipTextMine]}>
+                        {hold === 'tip' ? t('reading.chipBeforeStart') : paused ? t('reading.pause') : listening ? t('reading.monologueRecording') : t('reading.chipMicOpening')}
+                      </Text>
+                    </View>
+                    {hold !== 'tip' && (
+                      <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
+                        <Feather name="edit-2" size={16} color={palette.blueDeep} />
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
-                {hold !== 'tip' && (
-                  <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
-                    <Feather name="edit-2" size={16} color={palette.blueDeep} />
-                  </Pressable>
+                )}
+                {run.lines.slice(c.start, c.end + 1).map((l, k) => {
+                  const i = c.start + k;
+                  if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
+                  const now = i === run.index;
+                  return (
+                    <View
+                      key={run.lineIds[i]}
+                      onLayout={(e) => {
+                        monoItemY.current[i] = e.nativeEvent.layout.y;
+                        if (current && i === runRef.current?.index) followMonoLine();
+                      }}>
+                      {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
+                        <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
+                      ) : (
+                        <Text style={now ? styles.monoNow : styles.monoOther}>{l.text}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+                {current && hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
+                  <View style={styles.aidRow}>
+                    <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
+                      <Feather name="eye" size={14} color={palette.blueDeep} />
+                      <Text style={styles.aidText}>{t('reading.showOriginal')}</Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
-            </View>
-            {run.lines.slice(run.startIndex, run.endIndex + 1).map((l, k) => {
-              const i = run.startIndex + k;
-              if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
-              const now = i === run.index;
-              return (
-                <View key={run.lineIds[i]} onLayout={(e) => (monoItemY.current[i] = e.nativeEvent.layout.y)}>
-                  {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
-                    <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
-                  ) : (
-                    <Text style={now ? styles.monoNow : styles.monoOther}>{l.text}</Text>
-                  )}
-                </View>
-              );
-            })}
-            {hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
-              <View style={styles.aidRow}>
-                <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
-                  <Feather name="eye" size={14} color={palette.blueDeep} />
-                  <Text style={styles.aidText}>{t('reading.showOriginal')}</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        )}
+            );
+          })}
 
         {beatOn && (
           // 지문 멈춤 카드(SOMA-937) — 읽을 줄이 아니라 상황이라 회색 카드에 지문 글을 그대로 보인다. [다음]으로 바로 넘어간다.
@@ -2088,13 +2141,23 @@ export default function ReadingPlay() {
           </View>
         )}
 
-        {isDialogue && myTurn && !beatOn && sttMode?.kind === 'stt' && (
+        {!monologue && isDialogue && myTurn && !beatOn && sttMode?.kind === 'stt' && (
           <View style={styles.saidBox}>
             <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
             <Text style={styles.saidText}>{said || t('reading.noSpeechYet')}</Text>
           </View>
         )}
       </ScrollView>
+
+      {/* 독백은 받아쓴 글이 끝까지 쌓여 스크롤 끝에 두면 길어지다 버튼 줄에 잘렸다 — 버튼 줄 바로 위에 고정하고 최근 두 줄만 보인다(SOMA-934). */}
+      {monologue && isDialogue && myTurn && sttMode?.kind === 'stt' && (
+        <View style={[styles.saidBox, styles.monoSaidBar]}>
+          <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
+          <Text style={styles.saidText} numberOfLines={2} ellipsizeMode="head">
+            {said || t('reading.noSpeechYet')}
+          </Text>
+        </View>
+      )}
 
       {notice?.kind === 'jump' && (
         <View style={[styles.toast, styles.jumpToast]}>
@@ -2162,12 +2225,13 @@ export default function ReadingPlay() {
             <Pressable
               style={[styles.ctrl, styles.ctrlPrimary]}
               onPress={() => {
-                if (monologue) void finishMonologue();
+                if (monoNext) nextMonoChunk(monoNext.start);
+                else if (monologue) void finishMonologue();
                 else if (beatOn) setBeatDoneAt(run.index);
                 else if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
               }}>
-              <Text style={styles.ctrlPrimaryText}>{t(monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
+              <Text style={styles.ctrlPrimaryText}>{t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
               <Feather name="arrow-right" size={16} color="#fff" />
             </Pressable>
           </>
@@ -2311,6 +2375,7 @@ const styles = StyleSheet.create({
   startTitle: { ...type.headline, color: palette.text },
   startHint: { ...type.body2, color: palette.textSub },
   startButton: { alignSelf: 'stretch', marginTop: space[2] },
+  cardPast: { opacity: 0.55 },
 
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   exitBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
@@ -2356,6 +2421,7 @@ const styles = StyleSheet.create({
   saidText: { ...type.body2, color: palette.text },
   lineText: { ...type.title2, color: palette.text },
   coachAboveControls: { paddingHorizontal: space[4], paddingBottom: space[2] },
+  monoSaidBar: { marginHorizontal: space[4], marginBottom: space[2] },
   firstWordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   firstWordRest: { flex: 1 },
   aidRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },

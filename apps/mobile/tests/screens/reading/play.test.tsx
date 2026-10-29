@@ -1753,6 +1753,47 @@ async function startMonologue() {
   return server;
 }
 
+test('SOMA-934: 일반 대본도 같은 배역이 10줄 넘게 이어 말하면 10줄씩 말풍선을 끊는다', async () => {
+  const lines = [
+    ...Array.from({ length: 11 }, (_, i) => ['dialogue', '민재', `민재 ${i + 1}번 줄.`] as ['dialogue', string, string]),
+    ['dialogue', '서연', '서연 대답.'] as ['dialogue', string, string],
+  ];
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l12' }, scriptDetail(lines));
+
+  expect(await screen.findByText('민재 1번 줄.')).toBeOnTheScreen();
+  expect(screen.getByText('민재 10번 줄.')).toBeOnTheScreen();
+  expect(screen.queryByText('민재 11번 줄.')).not.toBeOnTheScreen();
+});
+
+test('SOMA-934: 독백은 대사 10줄씩 말풍선으로 끊어, 처음엔 첫 말풍선(1~10줄)만 보인다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  const twelve = scriptDetail(Array.from({ length: 12 }, (_, i) => ['dialogue', '민지', `독백 ${i + 1}번 줄이야.`] as ['dialogue', string, string]));
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l12', my_character_ids: ['c1'], my_character_names: ['민지'] }, twelve);
+
+  expect(await screen.findByText('독백 1번 줄이야.')).toBeOnTheScreen();
+  expect(screen.getByText('독백 10번 줄이야.')).toBeOnTheScreen();
+  expect(screen.queryByText('독백 11번 줄이야.')).not.toBeOnTheScreen();
+});
+
+test('SOMA-934: 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」이고, 누르면 다음 말풍선이 생긴다 — 마지막 말풍선에서만 「끝내기」', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  const twelve = scriptDetail(Array.from({ length: 12 }, (_, i) => ['dialogue', '민지', `독백 ${i + 1}번 줄이야.`] as ['dialogue', string, string]));
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l12', my_character_ids: ['c1'], my_character_names: ['민지'] }, twelve);
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const abortsBefore = mockStt.abort.mock.calls.length;
+
+  expect(screen.queryByText('끝내기')).not.toBeOnTheScreen();
+  await fireEvent.press(await screen.findByText('다음 대사'));
+  expect(await screen.findByText('독백 11번 줄이야.')).toBeOnTheScreen();
+  expect(screen.getByText('독백 1번 줄이야.')).toBeOnTheScreen();
+  expect(screen.getByText('끝내기')).toBeOnTheScreen();
+  expect(screen.queryByText('다음 대사')).not.toBeOnTheScreen();
+  // 녹음·받아쓰기는 끊지 않고 이어진다.
+  expect(mockStt.abort.mock.calls.length).toBe(abortsBefore);
+});
+
 test('첫 리딩 독백에서 아무것도 못 알아들은 채 그만 읽기를 누르면 끝 화면과 저장 위치 모두 0줄이다(10/29)', async () => {
   setFirstReadingSession(sessionDetail({}).id);
   try {
