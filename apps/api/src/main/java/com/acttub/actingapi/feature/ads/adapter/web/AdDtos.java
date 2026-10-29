@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.ads.adapter.web;
 
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.ads.app.AdImages;
 import com.acttub.actingapi.feature.ads.domain.Ad;
 import com.acttub.actingapi.feature.ads.domain.AdPicker;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -25,15 +26,15 @@ final class AdDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int height,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) AdCreative ad) {
 
-        static AdSlotPick of(AdPicker.Pick pick) {
+        static AdSlotPick of(AdPicker.Pick pick, AdImages images) {
             var size = pick.slot().size();
             return new AdSlotPick(pick.kind().name(), pick.slot().key(), size.name(), size.width(), size.height(),
-                    pick.ad() == null ? null : AdCreative.of(pick.ad(), pick.slot().size()));
+                    pick.ad() == null ? null : AdCreative.of(pick.ad(), pick.slot().size(), images));
         }
     }
 
     @Schema(name = "AdCreative", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
-            description = "직접·자체 광고 한 건. DIRECT 는 image_url 이 늘 있고 누르면 광고 상세 화면으로, HOUSE 는 app_path 로 간다.")
+            description = "직접·자체 광고 한 건. DIRECT 는 image_url·link_url 이 늘 있고 누르면 link_url 을 앱 밖 브라우저로 연다. HOUSE 는 app_path 로 간다.")
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record AdCreative(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
@@ -43,38 +44,14 @@ final class AdDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String body,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "HOUSE 의 앱 안 경로")
             String appPath,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String advertiserName) {
-
-        static AdCreative of(Ad ad, com.acttub.actingapi.feature.ads.domain.AdSize size) {
-            return new AdCreative(ad.id(), ad.imageFor(size), ad.headline(), ad.body(),
-                    Ad.HOUSE.equals(ad.kind()) ? ad.appPath() : null, ad.advertiserName());
-        }
-    }
-
-    @Schema(name = "AdDetail", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
-            description = "학원 직접 광고의 상세 화면 정보. 학원 정보는 광고주가 낸 그대로 보인다.")
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record AdDetail(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String advertiserName,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "학원 등록번호")
-            String academyRegistrationNo,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "교습과정")
-            String courseName,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "교습비(추가 경비 포함)")
-            String tuition,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String headline,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String body,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "큰 이미지(300x250 → 320x100 → 320x50 순)")
-            String imageUrl,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "외부 링크")
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "DIRECT 의 광고주 링크(http/https)")
             String linkUrl) {
 
-        static AdDetail of(Ad ad) {
-            String image = ad.imageMediumRectangle() != null ? ad.imageMediumRectangle()
-                    : ad.imageLargeBanner() != null ? ad.imageLargeBanner() : ad.imageBanner();
-            return new AdDetail(ad.id(), ad.advertiserName(), ad.academyRegistrationNo(), ad.courseName(), ad.tuition(),
-                    ad.headline(), ad.body(), image, ad.linkUrl());
+        static AdCreative of(Ad ad, com.acttub.actingapi.feature.ads.domain.AdSize size, AdImages images) {
+            return new AdCreative(ad.id(), images.urlFor(ad.imageFor(size)), ad.headline(), ad.body(),
+                    Ad.HOUSE.equals(ad.kind()) ? ad.appPath() : null, ad.advertiserName(),
+                    Ad.DIRECT.equals(ad.kind()) ? ad.linkUrl() : null);
         }
     }
 

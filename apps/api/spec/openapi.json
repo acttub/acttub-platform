@@ -5441,7 +5441,7 @@
       "get" : {
         "tags" : [ "v2-ads" ],
         "summary" : "Pick Ad For Slot",
-        "description" : "칸 하나에 띄울 광고를 고른다. 학원 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,\n첫 연습을 끝내기 전이면 NONE 이다. 연습 중 칸은 Pro 면 NONE, 무료면 A/B 로 켠 사람만 받는다.",
+        "description" : "칸 하나에 띄울 광고를 고른다. 광고주 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,\n첫 연습을 끝내기 전이면 NONE 이다. 연습 중 칸은 Pro 면 NONE, 무료면 A/B 로 켠 사람만 받는다.",
         "operationId" : "pick_ad_v2_ads_get",
         "parameters" : [ {
           "name" : "slot",
@@ -5460,49 +5460,6 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdSlotPick"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/ads/{ad_id}" : {
-      "get" : {
-        "tags" : [ "v2-ads" ],
-        "summary" : "Get Direct Ad",
-        "description" : "학원 직접 광고의 상세 화면 정보. 없거나 자체 광고면 404 ad_not_found.",
-        "operationId" : "get_ad_v2_ads__ad_id__get",
-        "parameters" : [ {
-          "name" : "ad_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Ad Id"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/AdDetail"
                 }
               }
             }
@@ -13179,7 +13136,7 @@
       "AdCreative" : {
         "type" : "object",
         "additionalProperties" : false,
-        "description" : "직접·자체 광고 한 건. DIRECT 는 image_url 이 늘 있고 누르면 광고 상세 화면으로, HOUSE 는 app_path 로 간다.",
+        "description" : "직접·자체 광고 한 건. DIRECT 는 image_url·link_url 이 늘 있고 누르면 link_url 을 앱 밖 브라우저로 연다. HOUSE 는 app_path 로 간다.",
         "properties" : {
           "id" : {
             "type" : "string",
@@ -13227,9 +13184,18 @@
               "type" : "null"
             } ],
             "title" : "Advertiser Name"
+          },
+          "link_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "DIRECT 의 광고주 링크(http/https)"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Link Url"
           }
         },
-        "required" : [ "advertiser_name", "app_path", "body", "headline", "id", "image_url" ],
+        "required" : [ "advertiser_name", "app_path", "body", "headline", "id", "image_url", "link_url" ],
         "title" : "AdCreative"
       },
       "AdSlotPick" : {
@@ -13269,89 +13235,6 @@
         },
         "required" : [ "ad", "height", "kind", "size", "slot", "width" ],
         "title" : "AdSlotPick"
-      },
-      "AdDetail" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "description" : "학원 직접 광고의 상세 화면 정보. 학원 정보는 광고주가 낸 그대로 보인다.",
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "advertiser_name" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Advertiser Name"
-          },
-          "academy_registration_no" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "학원 등록번호"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Academy Registration No"
-          },
-          "course_name" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "교습과정"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Course Name"
-          },
-          "tuition" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "교습비(추가 경비 포함)"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Tuition"
-          },
-          "headline" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Headline"
-          },
-          "body" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Body"
-          },
-          "image_url" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "큰 이미지(300x250 → 320x100 → 320x50 순)"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Image Url"
-          },
-          "link_url" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "외부 링크"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Link Url"
-          }
-        },
-        "required" : [ "academy_registration_no", "advertiser_name", "body", "course_name", "headline", "id", "image_url", "link_url", "tuition" ],
-        "title" : "AdDetail"
       },
       "AdmissionNotice" : {
         "type" : "object",

@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 직접(학원)·자체(우리 앱) 광고 한 건(SOMA-876, 표 {@code ads}). 고를 때 쓰는 값과 광고 상세 화면이 보이는 학원 정보를 함께 든다.
+ * 직접(광고주)·자체(우리 앱) 광고 한 건(SOMA-876, 표 {@code ads}). 고를 때 쓰는 값이다. 광고주 정보는 광고주 쪽 페이지가 보이므로 앱은 link_url 만 연다.
  * 기간·상태는 저장소가 거른 뒤라 여기엔 없다.
  */
 public record Ad(
@@ -14,9 +14,6 @@ public record Ad(
         String audience,
         int priority,
         String advertiserName,
-        String academyRegistrationNo,
-        String courseName,
-        String tuition,
         String headline,
         String body,
         String imageLargeBanner,
@@ -46,7 +43,7 @@ public record Ad(
         return slots.contains(slot.key());
     }
 
-    static boolean blank(String value) {
+    public static boolean blank(String value) {
         return value == null || value.isBlank();
     }
 }
