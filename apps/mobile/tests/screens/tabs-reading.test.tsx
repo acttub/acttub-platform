@@ -129,7 +129,8 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(screen.queryByText('새 대본')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본 올리기'));
-  expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
+  // 같은 고르기를 한 번 더 보이지 않고 바로 파일 고르기 창을 연다(10/29).
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/reading/new', params: { pick: 'file' } });
   expect(screen.getByText('파일 · 글 붙여넣기')).toBeOnTheScreen();
   expect(screen.getByText('대본이 없어도 바로 해 볼 수 있어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('예시 대본으로 시작하기'));

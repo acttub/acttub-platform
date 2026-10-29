@@ -47,6 +47,7 @@ import { lineGroups } from '@/lib/reading/line-groups';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
 import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
+import { isFirstReadingSession, markReadingFinished } from '@/lib/reading/first-reading';
 import {
   advance,
   applyLineEdit,
@@ -198,6 +199,9 @@ export default function ReadingPlay() {
   /** 묶인 대사에서 고칠 줄 고르기(R9.31b) — 열려 있으면 고를 줄 글과 고른 뒤 할 일. */
   const script = getCurrent();
   const session = getCurrentSession();
+  /** 첫 리딩 모드로 시작한 회차(10/29) — 위에 「그만 읽기」를 두고, 멈춰도 첫 리딩 끝 화면으로 간다. */
+  const firstReading = isFirstReadingSession(session?.id);
+  const firstStoppedRef = useRef(false);
   const mic = useReadingMic();
   const stt = useReadingStt();
 
@@ -494,7 +498,10 @@ export default function ReadingPlay() {
       if (completed) void clearReachedEnd(session.id);
       else if (!stoppedEarlyRef.current) void markReachedEnd(session.id);
       // 마지막 줄까지 가 봤으면(인식된 대사가 없어도) 첫 사용자 화면은 졸업이다(SOMA-827). 중간에 멈춘 건 아니다.
-      if (!stoppedEarlyRef.current) void markFirstUseGraduated();
+      if (!stoppedEarlyRef.current) {
+        void markFirstUseGraduated();
+        void markReadingFinished();
+      }
       setPhase({ kind: 'done' });
       if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;
@@ -1412,6 +1419,14 @@ export default function ReadingPlay() {
     queueRef.current?.push(progressPayload(cur));
     commit(next);
   };
+  /** 첫 리딩의 「그만 읽기」 — 읽는 중이면 멈춘 뒤 여기까지로 끝내고 첫 리딩 끝 화면으로 간다(10/29). */
+  const firstStop = () => {
+    const cur = runRef.current;
+    if (!cur || cur.status === 'done') return;
+    if (cur.status !== 'paused') doPause();
+    firstStoppedRef.current = true;
+    stopHere();
+  };
 
   // 목소리를 내려받는(준비하는) 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 내려받기는 화면을 떠나도 이어진다.
   useWaitExit(phase.kind === 'preparing', '/reading');
@@ -1664,15 +1679,16 @@ export default function ReadingPlay() {
         <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
       </Pressable>
     );
-    if (completed && (firstRunRef.current || fromTutorialRef.current)) {
+    const firstStopped = firstReading && firstStoppedRef.current;
+    if ((completed && (firstRunRef.current || fromTutorialRef.current || firstReading)) || firstStopped) {
       // pen R9.51 첫 리딩 끝 — 액티 칭찬 아래 가운데에 큰 「홈으로 가기」, 그 밑에 「한 번 더 읽기」. 하단 버튼 영역은 없다.
       const total = wrapUpProgress(run.lines, run.endIndex).total;
       return (
         <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.firstDoneBar}>{t('reading.completeTitle')}</Text>
+          <Text style={styles.firstDoneBar}>{t(completed ? 'reading.completeTitle' : 'reading.firstStopBar')}</Text>
           <View style={styles.firstDoneBody}>
             <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
+            <Text style={styles.firstDoneTitle}>{t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')}</Text>
             <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
             <View style={styles.firstDoneActions}>
               {goHomeButton}
@@ -1931,7 +1947,15 @@ export default function ReadingPlay() {
           <Text style={styles.exitText}>{t('reading.exitLeave')}</Text>
         </Pressable>
         {notice?.kind === 'dropped' ? <Text style={styles.droppedText}>{t('reading.recordingDropped', { count: notice.count })}</Text> : <View />}
-        <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
+        <View style={styles.topRight}>
+          <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
+          {firstReading && phase.kind === 'running' && hold !== 'tip' && run.status !== 'done' && (
+            // 첫 리딩은 대본 전체를 읽는다 — 긴 대본도 언제든 여기서 끝내고 첫 리딩 끝 화면으로 간다(10/29).
+            <Pressable onPress={firstStop} hitSlop={8} accessibilityRole="button" ph-label="reading_first_stop">
+              <Text style={styles.firstStopText}>{t('reading.firstStop')}</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
       <View style={styles.progressTrack} onLayout={(e) => setTipTop(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
@@ -2329,6 +2353,8 @@ const styles = StyleSheet.create({
   exitText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   droppedText: { color: palette.danger, fontFamily: 'Pretendard-Bold', fontSize: 12 },
   counter: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  firstStopText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
   toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },

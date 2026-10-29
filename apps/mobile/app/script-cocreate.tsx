@@ -1,6 +1,8 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
+import { useFirstReading } from '@/hooks/use-first-reading';
+import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -63,6 +65,9 @@ const GENERATION_POLL_MS = 5_000;
 
 export default function ScriptCocreateScreen() {
   const router = useRouter();
+  const firstReading = useFirstReading();
+  const firstReadingRef = useRef<boolean | null>(null);
+  firstReadingRef.current = firstReading;
   // 만든 대본 상세는 대본 탭 바로 위에 하나만 둔다. 「내 대본 올리기」에서 열었을 때 replace 하면 그 화면이 상세 밑에 남아
   // 뒤로가기가 대본 올리기로 갔다.
   const toReadingDetail = () => {
@@ -209,6 +214,12 @@ export default function ScriptCocreateScreen() {
       if (readingMode) {
         const loaded = await loadIntoCurrent(saved.script_id);
         if (!loaded) throw new Error('saved_script_not_found');
+        if (firstReadingRef.current) {
+          // 첫 리딩이면 만든 대본의 상세·구간을 건너뛰고 배역 고르기로(10/29). 뒤로 가면 리딩 탭이다.
+          router.dismissTo('/reading');
+          router.push(FIRST_READING_HREF);
+          return;
+        }
         toReadingDetail();
         if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
       } else {

@@ -54,6 +54,8 @@ import { MonologueNameDialog } from '@/components/monologue-name-dialog';
 import { ProSheetCard } from '@/components/pro-ui';
 import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
 import { newRequestId } from '@/lib/request-id';
+import { useFirstReading } from '@/hooks/use-first-reading';
+import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -122,7 +124,11 @@ export default function ReadingNew() {
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
   // 대본 리딩 튜토리얼의 예시(SOMA-494) — 예시 대본을 채운 채 연다.
-  const sample = useLocalSearchParams<{ sample?: string }>().sample ?? '';
+  const { sample = '', pick } = useLocalSearchParams<{ sample?: string; pick?: string }>();
+  // 첫 리딩(리딩을 한 번도 끝내지 않은 계정)이면 나눈 뒤 목소리·대본 상세를 건너뛰고 배역 고르기로 간다(10/29). 확인 전이면 기존 흐름.
+  const firstReading = useFirstReading();
+  const firstReadingRef = useRef<boolean | null>(null);
+  firstReadingRef.current = firstReading;
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
@@ -211,6 +217,7 @@ export default function ReadingNew() {
     if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
     // 나눈 뒤 목소리 정하기(2단계)를 거친다(SOMA-923). 목소리는 자동으로 골라 둔 채 열리고, 저장하면 목소리 화면이
     // 대본 상세(튜토리얼이면 구간 고르기까지)로 넘긴다(lib/tutorial afterVoicesSaved).
+    if (firstReadingRef.current) return router.replace(FIRST_READING_HREF);
     router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
   };
 
@@ -243,6 +250,16 @@ export default function ReadingNew() {
       failWith(error);
     }
   };
+
+  // 리딩 탭 첫 화면의 「내 대본 올리기」로 왔으면 같은 고르기를 한 번 더 보이지 않고 바로 파일 고르기 창을 연다(10/29).
+  const pickedOnOpen = useRef(false);
+  useEffect(() => {
+    if (pick !== 'file' || pickedOnOpen.current) return;
+    pickedOnOpen.current = true;
+    void onPickFile();
+    // 들어올 때 한 번만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pick]);
 
   const retryFailed = async (resume: Resume) => {
     if (resume.kind === 'import') return split(resume.input, resume.flags);
@@ -449,7 +466,7 @@ export default function ReadingNew() {
         target={naming}
         onClose={() => {
           setNaming(null);
-          router.replace('/reading/detail');
+          router.replace(firstReadingRef.current ? FIRST_READING_HREF : '/reading/detail');
         }}
       />
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>

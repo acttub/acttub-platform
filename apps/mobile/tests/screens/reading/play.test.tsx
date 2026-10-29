@@ -12,6 +12,7 @@ import { currentNetworkType } from '@/lib/reading/network';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { getLastRunReview, resetReadingState, setCurrentSession, updateCurrent } from '@/lib/reading/store';
+import { setFirstReadingSession } from '@/lib/reading/first-reading';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
 import { missingModelBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { hasDeviceVoice, speakWithDevice } from '@/lib/reading/tts/device-voice';
@@ -1996,6 +1997,28 @@ test('첫 리딩 말풍선은 누르면 닫히고 같은 리딩에서 다시 뜨
   const mark = await screen.findByText(/이제 내 대사를 소리 내어 읽어 보세요/);
   await fireEvent.press(mark);
   expect(screen.queryByText(/이제 내 대사를 소리 내어 읽어 보세요/)).not.toBeOnTheScreen();
+});
+
+test('첫 리딩으로 시작한 회차는 위 「그만 읽기」로 언제든 끝내고 첫 리딩 끝 화면을 보인다(10/29)', async () => {
+  setFirstReadingSession(sessionDetail({}).id);
+  try {
+    await startPlay();
+    await screen.findByText('듣는 중');
+    await fireEvent.press(screen.getByText('그만 읽기'));
+
+    expect(await screen.findByText(/첫 리딩을 해 봤어요/)).toBeOnTheScreen();
+    expect(screen.getByText('첫 리딩 끝')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
+  } finally {
+    setFirstReadingSession(null);
+  }
+});
+
+test('첫 리딩이 아닌 회차에는 「그만 읽기」를 두지 않는다', async () => {
+  await startPlay();
+  await screen.findByText('듣는 중');
+  expect(screen.queryByText('그만 읽기')).not.toBeOnTheScreen();
 });
 
 test('다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)에게는 첫 리딩 말풍선 안내를 띄우지 않고 본 것으로 적는다(10/26)', async () => {
