@@ -82,6 +82,9 @@ jest.mock('@/lib/notifications', () => ({
   configureNotificationHandling: jest.fn(),
   flushPendingPushTokenDeletions: jest.fn(),
   onPushTapped: jest.fn(),
+  capturePushOpen: jest.fn(),
+  recordColdStartPushOpen: jest.fn(() => Promise.resolve()),
+  setPushOpenSignedIn: jest.fn(),
 }));
 jest.mock('@/lib/auth', () => ({ AuthProvider: ({ children }: { children: unknown }) => children, useAuth: jest.fn() }));
 jest.mock('@/components/app-header', () => ({ AppHeader: () => require('react').createElement(require('react-native').Text, null, '앱 머리') }));
