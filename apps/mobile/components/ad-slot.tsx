@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import {
@@ -11,6 +11,7 @@ import {
   AD_SLOTS,
   adRequestConfigFor,
   bannerUnitFor,
+  isHttpLink,
   renderableKind,
   shouldRequestSlot,
   type AdSlotKey,
@@ -117,7 +118,8 @@ export function AdSlot({ slot, style }: Props) {
   const onPress = () => {
     api.recordAdEvent(ad.id, slot, 'click').catch(() => undefined);
     if (kind === 'DIRECT') {
-      router.push({ pathname: '/ad/[id]', params: { id: ad.id } });
+      // 상세는 광고주 쪽 페이지다 — 앱 밖 브라우저로 바로 연다
+      if (isHttpLink(ad.link_url)) Linking.openURL(ad.link_url).catch(() => undefined);
     } else if (ad.app_path) {
       router.push(ad.app_path as Href);
     }

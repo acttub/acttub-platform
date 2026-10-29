@@ -12,6 +12,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.ads.domain.Ad;
+import com.acttub.actingapi.feature.ads.domain.AdDraft;
+import com.acttub.actingapi.feature.ads.domain.AdStats;
 import com.acttub.actingapi.feature.ads.domain.AdPicker;
 import com.acttub.actingapi.feature.ads.domain.AdSlot;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +40,31 @@ class AdServiceTest {
         }
 
         @Override
+        public List<AdStats.Stored> all() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<AdStats.Stored> findStored(UUID adId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public AdStats.Stored insert(AdDraft draft, Instant now) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<AdStats.Stored> update(UUID adId, AdDraft draft, Instant now) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<AdStats.Day> dailyEvents(UUID adId, LocalDate from, LocalDate to) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public boolean practiced(UUID userId) {
             return practiced;
         }
@@ -55,7 +82,7 @@ class AdServiceTest {
     }
 
     private static Ad direct() {
-        return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of("home_top"), "all", 0, "학원", null, null, null,
+        return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of("home_top"), "all", 0, "학원",
                 null, null, null, "b.png", null, "https://example.com", null);
     }
 
@@ -85,7 +112,7 @@ class AdServiceTest {
     }
 
     @Test
-    @DisplayName("기록은 한국 날짜로 남고, 없는 광고면 false · 상세는 직접 광고만")
+    @DisplayName("기록은 한국 날짜로 남고, 없는 광고면 false")
     void recordUsesSeoulDay() {
         FakeRepository repo = new FakeRepository();
         Ad ad = direct();
@@ -95,6 +122,5 @@ class AdServiceTest {
         assertThat(service.record(USER, ad.id(), AdSlot.HOME_TOP, AdService.Event.CLICK)).isTrue();
         assertThat(service.record(USER, UUID.randomUUID(), AdSlot.HOME_TOP, AdService.Event.CLICK)).isFalse();
         assertThat(repo.events).containsExactly("impression:home_top:2026-10-27", "click:home_top:2026-10-27");
-        assertThat(service.direct(ad.id())).contains(ad);
     }
 }

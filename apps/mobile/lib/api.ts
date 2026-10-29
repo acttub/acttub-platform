@@ -118,7 +118,7 @@ import type { ReadingVoiceCoaching } from '@/lib/reading/voice-coaching';
 import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
 import type { NoticesResponse } from '@/lib/notices';
 import type { PostersResponse } from '@/lib/poster';
-import type { AdDetail, AdSlotPick } from '@/lib/ads';
+import type { AdSlotPick } from '@/lib/ads';
 import { currentLanguage, translate } from './i18n.ts';
 
 import type { BillingMe } from '@/lib/billing';
@@ -430,11 +430,6 @@ export const api = {
   /** 광고 칸 하나에 띄울 것(app.ads, SOMA-876). DIRECT·HOUSE·NETWORK·NONE 중 서버가 고른다. */
   getAdSlot(slot: string): Promise<AdSlotPick> {
     return request(`/v2/ads?${new URLSearchParams({ slot }).toString()}`, {}, { auth: true, timeoutMs: 8_000 });
-  },
-
-  /** 학원 직접 광고 상세. */
-  getAd(adId: string): Promise<AdDetail> {
-    return request(`/v2/ads/${encodeURIComponent(adId)}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
   /** 직접·자체 광고 노출(한 사람·광고·하루 1회는 서버가 거른다)·클릭 기록. */

@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.ads.domain.Ad;
@@ -48,11 +47,6 @@ public class AdService {
         AdPicker.Viewer viewer = new AdPicker.Viewer(
                 userId, true, proStatus.pro(userId), AdPicker.practiceOn(userId, settings.practiceSlotPercent()));
         return AdPicker.pick(slot, viewer, repository.activeFor(slot.key(), now), today(now));
-    }
-
-    /** 광고 상세 화면 — 학원 직접 광고만. */
-    public Optional<Ad> direct(UUID adId) {
-        return repository.find(adId).filter(ad -> Ad.DIRECT.equals(ad.kind()));
     }
 
     /** @return 광고가 없으면 false */

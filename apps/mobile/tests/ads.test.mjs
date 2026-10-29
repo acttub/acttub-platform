@@ -7,13 +7,14 @@ import {
   adRequestConfigFor,
   TEST_BANNER_UNIT,
   bannerUnitFor,
+  isHttpLink,
   renderableKind,
   shouldRequestSlot,
   slotHeight,
 } from '../lib/ads.ts';
 
 const pick = (kind, ad = null) => ({ kind, slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad });
-const creative = (over) => ({ id: 'a', image_url: null, headline: null, body: null, app_path: null, advertiser_name: null, ...over });
+const creative = (over) => ({ id: 'a', image_url: null, headline: null, body: null, app_path: null, advertiser_name: null, link_url: null, ...over });
 
 test('dev·개발 빌드는 Google 테스트 단위, 운영 API 빌드만 실제 단위를 칸의 갈래대로 쓴다', () => {
   assert.equal(bannerUnitFor('home_top', 'ios', 'https://dev.acttub.com'), TEST_BANNER_UNIT.ios);
@@ -38,11 +39,19 @@ test('첫 사용자로 확인되면 서버에 묻지 않는다', () => {
 test('그릴 수 없는 응답은 비운다', () => {
   assert.equal(renderableKind(null), 'NONE');
   assert.equal(renderableKind(pick('NETWORK')), 'NETWORK');
-  assert.equal(renderableKind(pick('DIRECT', creative({ image_url: 'x.png' }))), 'DIRECT');
-  assert.equal(renderableKind(pick('DIRECT', creative({}))), 'NONE');
+  assert.equal(renderableKind(pick('DIRECT', creative({ image_url: 'x.png', link_url: 'https://example.com' }))), 'DIRECT');
+  assert.equal(renderableKind(pick('DIRECT', creative({ image_url: 'x.png' }))), 'NONE');
+  assert.equal(renderableKind(pick('DIRECT', creative({ image_url: 'x.png', link_url: 'javascript:alert(1)' }))), 'NONE');
+  assert.equal(renderableKind(pick('DIRECT', creative({ link_url: 'https://example.com' }))), 'NONE');
   assert.equal(renderableKind(pick('HOUSE', creative({ headline: '챌린지', app_path: '/challenges' }))), 'HOUSE');
   assert.equal(renderableKind(pick('HOUSE', creative({ headline: '챌린지', app_path: 'https://x' }))), 'NONE');
   assert.equal(renderableKind(pick('WHAT')), 'NONE');
+});
+
+test('앱 밖으로 여는 링크는 http(s)만', () => {
+  assert.equal(isHttpLink('https://example.com/a?b=1'), true);
+  assert.equal(isHttpLink('http://example.com'), true);
+  for (const bad of [null, undefined, '', 'ftp://x', 'javascript:alert(1)', 'example.com', 'https://a b']) assert.equal(isHttpLink(bad), false);
 });
 
 test('네이티브 모듈이 없으면(테스트·Expo Go) AdMob 초기화는 조용히 끝나고 배너 모듈은 없다', async () => {

@@ -2,6 +2,8 @@ package com.acttub.actingapi.feature.ads.adapter;
 
 import java.time.Clock;
 
+import com.acttub.actingapi.feature.ads.app.AdAdminService;
+import com.acttub.actingapi.feature.ads.app.AdImages;
 import com.acttub.actingapi.feature.ads.app.AdRepository;
 import com.acttub.actingapi.feature.ads.app.AdService;
 import com.acttub.actingapi.feature.ads.app.ProStatusReader;
@@ -23,5 +25,10 @@ class AdConfiguration {
             @Value("${ADS_PRACTICE_SLOT_PERCENT:50}") int practiceSlotPercent) {
         return new AdService(repository, proStatus.getIfAvailable(() -> ProStatusReader.ALWAYS_FREE),
                 new AdService.Settings(enabled, practiceSlotPercent), clock);
+    }
+
+    @Bean
+    AdAdminService adAdminService(AdRepository repository, AdImages images, Clock clock) {
+        return new AdAdminService(repository, images, clock);
     }
 }

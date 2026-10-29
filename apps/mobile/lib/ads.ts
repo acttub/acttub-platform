@@ -1,6 +1,6 @@
 /**
  * 광고 칸(SOMA-876) — 칸 목록·규격·AdMob 광고 단위·칸 높이 계산. 서버(GET /v2/ads)가 칸마다
- * DIRECT(학원)·HOUSE(우리 앱)·NETWORK(AdMob)·NONE 중 하나를 고르고, 앱은 그대로 그린다.
+ * DIRECT(광고주)·HOUSE(우리 앱)·NETWORK(AdMob)·NONE 중 하나를 고르고, 앱은 그대로 그린다.
  *
  * ⚠️ CI 가 `node --test` 로 이 파일을 그대로 import 한다 — react-native·expo 모듈을 최상위에서 import 하지 않는다.
  */
@@ -55,6 +55,8 @@ export type AdCreative = {
   body: string | null;
   app_path: string | null;
   advertiser_name: string | null;
+  /** DIRECT 의 광고주 링크(http/https). 누르면 앱 밖 브라우저로 연다. */
+  link_url: string | null;
 };
 
 export type AdSlotPick = {
@@ -64,18 +66,6 @@ export type AdSlotPick = {
   width: number;
   height: number;
   ad: AdCreative | null;
-};
-
-export type AdDetail = {
-  id: string;
-  advertiser_name: string | null;
-  academy_registration_no: string | null;
-  course_name: string | null;
-  tuition: string | null;
-  headline: string | null;
-  body: string | null;
-  image_url: string | null;
-  link_url: string | null;
 };
 
 /** 광고 칸 모서리·라벨 — 디자인 결정(SOMA-876). */
@@ -180,11 +170,16 @@ export function shouldRequestSlot(firstTime: 'unknown' | 'first' | 'practiced'):
   return firstTime !== 'first';
 }
 
+/** 앱 밖에서 열 수 있는 http(s) 주소인가. */
+export function isHttpLink(url: string | null | undefined): url is string {
+  return !!url && /^https?:\/\/\S+$/i.test(url);
+}
+
 /** 서버가 고른 결과가 그릴 수 있는 모양인가. 모르는 kind·이미지 없는 DIRECT 는 그리지 않는다. */
 export function renderableKind(pick: AdSlotPick | null): AdKind {
   if (!pick) return 'NONE';
   if (pick.kind === 'NETWORK') return 'NETWORK';
-  if (pick.kind === 'DIRECT') return pick.ad?.image_url ? 'DIRECT' : 'NONE';
+  if (pick.kind === 'DIRECT') return pick.ad?.image_url && isHttpLink(pick.ad.link_url) ? 'DIRECT' : 'NONE';
   if (pick.kind === 'HOUSE') {
     if (!pick.ad?.app_path?.startsWith('/')) return 'NONE';
     return pick.ad.image_url || pick.ad.headline ? 'HOUSE' : 'NONE';

@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.ads.adapter.web.AdDtos.AdDetail;
 import com.acttub.actingapi.feature.ads.adapter.web.AdDtos.AdEventRequest;
 import com.acttub.actingapi.feature.ads.adapter.web.AdDtos.AdSlotPick;
+import com.acttub.actingapi.feature.ads.app.AdImages;
 import com.acttub.actingapi.feature.ads.app.AdService;
 import com.acttub.actingapi.feature.ads.domain.AdSlot;
 import com.acttub.actingapi.platform.security.AccessGate;
@@ -35,16 +35,18 @@ import org.springframework.web.bind.annotation.RestController;
 class AdController {
     private final AdService ads;
     private final AccessGate auth;
+    private final AdImages images;
 
-    AdController(AdService ads, AccessGate auth) {
+    AdController(AdService ads, AccessGate auth, AdImages images) {
         this.ads = ads;
         this.auth = auth;
+        this.images = images;
     }
 
     @Operation(
             summary = "Pick Ad For Slot",
             description = """
-                    칸 하나에 띄울 광고를 고른다. 학원 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,
+                    칸 하나에 띄울 광고를 고른다. 광고주 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,
                     첫 연습을 끝내기 전이면 NONE 이다. 연습 중 칸은 Pro 면 NONE, 무료면 A/B 로 켠 사람만 받는다.""",
             operationId = "pick_ad_v2_ads_get",
             tags = "v2-ads",
@@ -65,29 +67,7 @@ class AdController {
             @RequestParam(name = "slot", required = false) String slot,
             HttpServletRequest request) {
         UUID userId = auth.gatedUser(request).id();
-        return AdSlotPick.of(ads.pick(userId, slotOf(slot, List.<Object>of("query", "slot"))));
-    }
-
-    @Operation(
-            summary = "Get Direct Ad",
-            description = "학원 직접 광고의 상세 화면 정보. 없거나 자체 광고면 404 ad_not_found.",
-            operationId = "get_ad_v2_ads__ad_id__get",
-            tags = "v2-ads",
-            security = @SecurityRequirement(name = "HTTPBearer"))
-    @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "Successful Response",
-                content = @Content(schema = @Schema(implementation = AdDetail.class))),
-        @ApiResponse(
-                responseCode = "422",
-                description = "Validation Error",
-                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
-    })
-    @GetMapping("/{ad_id}")
-    AdDetail detail(@PathVariable("ad_id") UUID adId, HttpServletRequest request) {
-        auth.gatedUser(request);
-        return ads.direct(adId).map(AdDetail::of).orElseThrow(() -> new ApiException(404, "ad_not_found"));
+        return AdSlotPick.of(ads.pick(userId, slotOf(slot, List.<Object>of("query", "slot"))), images);
     }
 
     @Operation(
