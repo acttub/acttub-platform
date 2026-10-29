@@ -150,7 +150,7 @@ export default function ProScreen() {
             loading={state.kind === 'busy'}
             loadingLabel={state.kind === 'busy' ? state.label : undefined}
             onPress={() => purchase.begin(plan)}
-            disabled={(state.kind !== 'ready' && state.kind !== 'failed') || !purchase.prices[plan]}
+            disabled={(state.kind !== 'ready' && state.kind !== 'failed' && state.kind !== 'busy') || !purchase.prices[plan]}
             phLabel={plan === 'yearly' ? 'pro_start_yearly' : 'pro_start'}
           />
         </CtaBar>
