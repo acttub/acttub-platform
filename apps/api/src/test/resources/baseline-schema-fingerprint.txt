@@ -62,6 +62,7 @@ COLUMN ads.image_medium_rectangle ord=15 type=text len=- null=YES default=-
 COLUMN ads.kind ord=2 type=text len=- null=NO default=-
 COLUMN ads.link_url ord=16 type=text len=- null=YES default=-
 COLUMN ads.priority ord=6 type=int4 len=- null=NO default=0
+COLUMN ads.share_percent ord=22 type=int4 len=- null=NO default=50
 COLUMN ads.slots ord=4 type=_text len=- null=NO default='{}'::text[]
 COLUMN ads.starts_at ord=18 type=timestamptz len=- null=YES default=-
 COLUMN ads.status ord=3 type=text len=- null=NO default='active'::text
