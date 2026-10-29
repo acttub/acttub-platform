@@ -56,6 +56,8 @@ export default function NoticeDetailScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <StatusScreen
+          kind="empty"
+          header={t('notices.title')}
           onBack={back}
           title={t('notices.notFound')}
           body={t('notices.notFoundBody')}
@@ -128,6 +130,6 @@ const styles = StyleSheet.create({
   statusLive: { color: palette.blueDeep },
   meta: { ...type.caption, color: palette.textMeta },
   text: { ...type.body1, color: palette.textSub },
-  footnote: { marginTop: 14, fontSize: 12, lineHeight: 17, color: palette.textFaint },
+  footnote: { marginTop: 14, fontSize: 12, lineHeight: 17, color: palette.textMeta },
   cta: { marginTop: space[3] },
 });

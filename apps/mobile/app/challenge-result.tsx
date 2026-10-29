@@ -4,13 +4,17 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ChallengeNotice } from '@/components/challenge-notice';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
-import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { browseFailure, browseFailureMessage, rankingNotice, ranksHidden } from '@/lib/challenge/browse';
+import { browseFailure, browseFailureMessage, canRetryBrowse, rankingNotice, ranksHidden, type BrowseFailure } from '@/lib/challenge/browse';
 import type { ChallengeDetail, EntryCard, MyEntryCard } from '@/lib/challenge/types';
 import { periodLabel, pickedEntries } from '@/lib/challenge/week-result';
 import { translate as t } from '@/lib/i18n';
@@ -27,11 +31,13 @@ export default function ChallengeResultScreen() {
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [picked, setPicked] = useState<EntryCard[] | null>(null);
   const [mine, setMine] = useState<MyEntryCard | null | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<BrowseFailure | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!id) return;
     let alive = true;
+    setError(null);
     void (async () => {
       try {
         const [detail, list] = await Promise.all([api.getChallenge(id), api.listChallengeEntries(id, { sort: 'likes' })]);
@@ -39,7 +45,7 @@ export default function ChallengeResultScreen() {
         setChallenge(detail);
         setPicked(ranksHidden(detail) ? [] : pickedEntries(list.entries));
       } catch (e) {
-        if (alive) setError(browseFailureMessage(browseFailure(e)));
+        if (alive) setError(browseFailure(e));
       }
       try {
         const my = await api.listMyChallengeEntries();
@@ -51,7 +57,7 @@ export default function ChallengeResultScreen() {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, reload]);
 
   const seeWeek = () => {
     void logEvent('challenge_result_see_week', {});
@@ -72,8 +78,11 @@ export default function ChallengeResultScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeResult.title') }} />
       <ScrollView contentContainerStyle={styles.content}>
-        {!challenge && !error && <SkeletonDetail lines={3} style={{ paddingHorizontal: 0 }} />}
-        {!!error && <Text style={styles.error}>{error}</Text>}
+        {!challenge && !error && <SkeletonDetail lines={3} style={styles.flush} />}
+        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && canRetryBrowse(error) && (
+          <InlineError message={browseFailureMessage(error)} onRetry={() => setReload((n) => n + 1)} />
+        )}
 
         {challenge && (
           <>
@@ -84,10 +93,12 @@ export default function ChallengeResultScreen() {
               <Text style={styles.line}>“{challenge.line}”</Text>
             </View>
 
-            <Text style={[styles.section, styles.sectionDim]}>{t('challengeResult.picked', { count: picked?.length ?? 0 })}</Text>
-            {!!notice && ranksHidden(challenge) && <Text style={styles.notice}>{notice}</Text>}
-            {picked === null && <SkeletonRows count={2} avatar card={false} style={{ paddingHorizontal: 0 }} />}
-            {picked?.length === 0 && !ranksHidden(challenge) && <Text style={styles.muted}>{t('challengeResult.noPicked')}</Text>}
+            <Text style={styles.section}>{t('challengeResult.picked', { count: picked?.length ?? 0 })}</Text>
+            {!!notice && ranksHidden(challenge) && <ChallengeNotice message={notice} />}
+            {picked === null && <SkeletonRows count={2} avatar card={false} style={styles.flush} />}
+            {picked?.length === 0 && !ranksHidden(challenge) && (
+              <InlineEmpty title={t('challengeResult.noPicked')} />
+            )}
             {picked?.map((entry) => (
               <Pressable
                 key={entry.id}
@@ -104,12 +115,12 @@ export default function ChallengeResultScreen() {
                     {t('challengeResult.pickedSub', { count: entry.final_like_count ?? entry.like_count })}
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={20} color={palette.checkOff} />
+                <Feather name="chevron-right" size={20} color={palette.iconFaint} />
               </Pressable>
             ))}
 
             <View style={styles.mine}>
-              <Text style={styles.mineLabel}>{t('challengeResult.mine')}</Text>
+              <Text style={styles.section}>{t('challengeResult.mine')}</Text>
               {mine === undefined ? (
                 <View />
               ) : mine ? (
@@ -117,18 +128,25 @@ export default function ChallengeResultScreen() {
                   style={styles.mineRow}
                   onPress={() => router.push('/challenge-entries')}
                   accessibilityRole="button">
-                  <Text style={styles.mineText}>{mineLabel}</Text>
-                  <Feather name="chevron-right" size={18} color={palette.textFaint} />
+                  <View style={styles.rowBody}>
+                    <Text style={styles.name}>{mineLabel}</Text>
+                    <Text style={styles.sub}>
+                      {[t('challengeResult.pickedSub', { count: mine.final_like_count ?? mine.like_count }), mine.rank ? t('challengeResult.rank', { rank: mine.rank }) : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color={palette.iconFaint} />
                 </Pressable>
               ) : (
-                <Text style={styles.mineText}>{t('challengeResult.mineNone')}</Text>
+                <Text style={styles.sub}>{t('challengeResult.mineNone')}</Text>
               )}
             </View>
           </>
         )}
       </ScrollView>
       <CtaBar safeBottom={false}>
-        {nextId ? <TextButton label={t('challengeResult.seeChallenges')} tone="accent" onPress={() => router.dismissTo('/challenges')} /> : null}
+        {nextId ? <TextButton label={t('challengeResult.seeChallenges')} onPress={() => router.dismissTo('/challenges')} /> : null}
         <PrimaryButton label={t(nextId ? 'challengeResult.seeWeek' : 'challengeResult.seeChallenges')} onPress={seeWeek} />
       </CtaBar>
     </SafeAreaView>
@@ -137,23 +155,18 @@ export default function ChallengeResultScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  pressed: { opacity: 0.85 },
-  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
-  error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  lineHead: { gap: 8, padding: 20, borderRadius: 20, backgroundColor: '#191F28' },
-  period: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.67)', lineHeight: 20 },
-  line: { fontSize: 19, fontWeight: '800', color: '#FFFFFF', lineHeight: 27 },
-  section: { fontSize: 15, fontWeight: '800', color: palette.text, marginTop: 8 },
-  sectionDim: { color: palette.textDim },
-  notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
-  muted: { fontSize: 14, color: palette.textMuted, lineHeight: 21 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 },
-  rank: { width: 24, fontSize: 16, fontWeight: '800', color: palette.blue, textAlign: 'center' },
-  rowBody: { flex: 1, minWidth: 0, gap: 6 },
-  name: { fontSize: 16, fontWeight: '800', color: palette.text },
-  sub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
-  mine: { paddingTop: 12, paddingBottom: 6, gap: 6 },
-  mineLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
-  mineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  mineText: { fontSize: 15, fontWeight: '700', color: palette.text },
+  flush: { paddingHorizontal: 0 },
+  pressed: { opacity: 0.7 },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[6], gap: space[3] },
+  lineHead: { gap: space[2], padding: space[5], borderRadius: radius.lg, backgroundColor: palette.text },
+  period: { ...type.caption, color: palette.onMediaSub },
+  line: { ...type.headline, fontWeight: '700', color: palette.onAccent },
+  section: { ...type.headline, color: palette.text, marginTop: space[2] },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
+  rank: { width: 24, ...type.headline, color: palette.blueDeep, textAlign: 'center' },
+  rowBody: { flex: 1, minWidth: 0, gap: space[1] },
+  name: { ...type.body1Bold, color: palette.text },
+  sub: { ...type.caption, color: palette.textMeta },
+  mine: { gap: space[3] },
+  mineRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
 });

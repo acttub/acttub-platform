@@ -154,7 +154,7 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '햄릿');
   expect(listScripts).toHaveBeenCalledTimes(1);
 
-  expect(await screen.findByText('검색 결과가 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('검색 결과가 없어요')).toBeOnTheScreen();
   expect(screen.getByText('작품명이나 배역 이름으로 찾아보세요')).toBeOnTheScreen();
   expect(listScripts).toHaveBeenLastCalledWith('햄릿');
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();

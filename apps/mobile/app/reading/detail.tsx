@@ -4,11 +4,12 @@ import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { leavingSavesSettled } from '@/lib/reading/progress-queue';
@@ -30,7 +31,6 @@ import { SkeletonRows } from '@/components/ui/skeleton';
  */
 export default function ReadingDetail() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { confirm, sheet, alert, dialog } = useAppDialog();
   const [script, setScript] = useState<SavedScript | null>(getCurrent());
   const [sessions, setSessions] = useState<SessionCard[] | null>(null);
@@ -90,7 +90,7 @@ export default function ReadingDetail() {
       title: script.title,
       actions: [
         { label: t('reading.editAction'), icon: 'edit-2', onPress: () => setEditingTitle(true) },
-        { label: t('reading.changeVoices'), onPress: () => router.push('/reading/roles') },
+        { label: t('reading.changeVoices'), icon: 'volume-2', onPress: () => router.push('/reading/roles') },
         { label: t('reading.deleteAction'), icon: 'trash-2', destructive: true, onPress: () => void removeScript() },
       ],
     });
@@ -118,13 +118,13 @@ export default function ReadingDetail() {
           title: '',
           headerShadowVisible: false,
           headerRight: () => (
-            <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_detail_more" onPress={more}>
+            <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_detail_more" onPress={more}>
               <Feather name="more-horizontal" size={22} color={palette.text} />
             </Pressable>
           ),
         }}
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.head}>
           <Text style={styles.title}>{script.title}</Text>
           <Text style={styles.meta}>{t('reading.dialogueTotal', { count: script.dialogueCount })}</Text>
@@ -139,11 +139,7 @@ export default function ReadingDetail() {
         {sessions === null ? (
           <SkeletonRows count={3} />
         ) : sessions.length === 0 ? (
-          <View style={styles.empty}>
-            <Feather name="mic" size={24} color={palette.textFaint} />
-            <Text style={styles.emptyTitle}>{t('reading.noSessions')}</Text>
-            <Text style={styles.emptyHint}>{t('reading.noSessionsHint')}</Text>
-          </View>
+          <InlineEmpty title={t('reading.noSessions')} description={t('reading.noSessionsHint')} />
         ) : (
           sessions.map((card) => (
             <SessionRow
@@ -156,13 +152,13 @@ export default function ReadingDetail() {
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+      <CtaBar>
         <PrimaryButton
           label={t('reading.practice')}
           icon={<Feather name="play" size={16} color={palette.onAccent} />}
           onPress={() => router.push('/reading/range')}
         />
-      </View>
+      </CtaBar>
       {dialog}
       <TitleEditDialog
         script={editingTitle ? script : null}
@@ -210,7 +206,7 @@ function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () 
         <View style={[styles.chip, { backgroundColor: tone.bg }]}>
           <Text style={[styles.chipText, { color: tone.color }]}>{chip.label}</Text>
         </View>
-        <Feather name="chevron-right" size={16} color={palette.textFaint} />
+        <Feather name="chevron-right" size={18} color={palette.iconFaint} />
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -218,37 +214,32 @@ function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 20, paddingTop: 4 },
-  head: { gap: 5, paddingBottom: 20 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
-  meta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
-  viewScript: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', paddingTop: 6 },
-  viewScriptText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
-  // pen 「SecHead」 — 위 칸과 옅은 선으로 나눈다.
-  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 18, paddingBottom: 4, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
-  loading: { paddingVertical: 40 },
-  empty: { alignItems: 'center', gap: 8, paddingVertical: 44 },
-  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14.5 },
-  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12.5, textAlign: 'center' },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[1], paddingBottom: space[6] },
+  moreBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  head: { gap: space[1], paddingBottom: space[5] },
+  title: { ...type.title1, color: palette.text },
+  meta: { ...type.caption, color: palette.textMeta },
+  viewScript: { flexDirection: 'row', alignItems: 'center', gap: space[1], alignSelf: 'flex-start', paddingTop: space[1] },
+  viewScriptText: { ...type.captionBold, color: palette.blueDeep },
+  sectionTitle: { ...type.headline, color: palette.text, paddingTop: space[4], paddingBottom: space[2], borderTopColor: palette.border, borderTopWidth: 1 },
   row: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
+    gap: space[3],
+    paddingVertical: space[3],
     backgroundColor: palette.bg,
     borderBottomColor: palette.border,
     borderBottomWidth: 1,
   },
-  rowLeft: { width: 62, gap: 2 },
-  rowOrdinal: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  rowBody: { flex: 1, gap: 2 },
-  rowRange: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  rowSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
-  chip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 11.5 },
-  swipeDelete: { width: 84, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: palette.danger },
-  swipeDeleteText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },
-  primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15, backgroundColor: palette.blue },
-  primaryText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 16 },
+  rowLeft: { width: 56, gap: space[1] },
+  rowOrdinal: { ...type.body2Bold, color: palette.text },
+  rowBody: { flex: 1, gap: space[1] },
+  rowRange: { ...type.body2Bold, color: palette.text },
+  rowSub: { ...type.caption, color: palette.textMeta },
+  chip: { borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: space[1] },
+  chipText: type.micro,
+  swipeDelete: { width: 84, alignItems: 'center', justifyContent: 'center', gap: space[1], backgroundColor: palette.danger },
+  swipeDeleteText: { ...type.captionBold, color: palette.onAccent },
 });

@@ -14,7 +14,9 @@ import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
-import { SkeletonBlock } from '@/components/ui/skeleton';
+import { radius, space, type } from '@/constants/tokens';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
@@ -109,6 +111,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
     });
     setCompletedDocumentIds(new Set(result.completedDocumentIds));
     if (result.kind === 'partial') {
+      setError(t('consent.partialFail'));
       setChoices((current) => {
         const next = { ...current };
         for (const failed of result.failedDocuments) delete next[failed.id];
@@ -132,24 +135,17 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
   const renderBody = () => {
     if (consentEntry.status === 'checking') {
       return (
-        <View style={styles.checking}>
-          <SkeletonBlock width="90%" height={14} />
-          <SkeletonBlock width="75%" height={14} />
-          <SkeletonBlock width="60%" height={14} />
-        </View>
+        <SkeletonGroup style={styles.checking}>
+          <SkeletonBlock width="100%" height={14} radius={radius.xs} />
+          <SkeletonBlock width={240} height={14} radius={radius.xs} />
+          <SkeletonBlock width={200} height={14} radius={radius.xs} />
+        </SkeletonGroup>
       );
     }
     if (consentEntry.status === 'error' && !verificationOnly) {
       return (
         <View style={styles.loadFailed}>
-          <Text style={styles.error}>
-            {errorMessage(consentEntry.error, t('consent.docFail'))}
-          </Text>
-          <SecondaryButton
-            label={t('consent.reload')}
-            onPress={() => void refreshConsentEntry().catch(() => undefined)}
-            style={styles.stretch}
-          />
+          <InlineError message={t('consent.docFail')} onRetry={() => void refreshConsentEntry().catch(() => undefined)} />
           {/* 다시 불러와도 풀리지 않는 경우(끊긴 세션 등)에도 로그인으로 나갈 길을 남긴다(SOMA-925). */}
           <TextButton label={t('settings.logout')} phLabel="reconsent_logout" onPress={() => void signOut()} />
         </View>
@@ -166,6 +162,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
               checked={choices[document.id] === 'granted'}
               locked={locked(document.id)}
               onToggle={() => toggleDocument(document)}
+              inPopup
               arrow={{
                 icon: 'chevron-right',
                 onPress: () => setOpenDocument(document),
@@ -175,8 +172,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
           ))}
         </ScrollView>
         <View style={styles.footer}>
-          {error && <Text style={styles.error}>{error}</Text>}
-          {/* pen S4R.1 CTA — 공통 Button/Primary(48·모서리 16). 필수를 다 고르기 전엔 Button/Disabled 모양. */}
+          {error && <InlineErrorLine message={error} />}
           <PrimaryButton
             label={
               verificationOnly
@@ -188,6 +184,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
             onPress={() => (verificationOnly ? verifyAgain() : void proceed())}
             disabled={ctaDisabled}
             loading={busy}
+            loadingLabel={t('consent.saving')}
           />
         </View>
       </>
@@ -201,7 +198,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
       animationType="fade"
       // 문서 시트만 닫는다. 팝업 자체는 결정해야만 사라진다.
       onRequestClose={() => setOpenDocument(null)}>
-      <View style={[styles.backdrop, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.backdrop, { paddingTop: insets.top + space[3], paddingBottom: insets.bottom + space[3] }]}>
         <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
@@ -233,45 +230,25 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  // pen S4R — 어두운 막 위 가운데 카드(폭 최대 358 · 모서리 22 · 안쪽 [24,20,16,20] · 칸 사이 16). 제목 19/800 · 설명 14/700 파랑.
-  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  card: {
-    width: '100%',
-    maxWidth: 358,
-    maxHeight: '100%',
-    gap: 16,
-    paddingTop: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderRadius: 22,
-    backgroundColor: palette.card,
-  },
-  head: { gap: 6 },
-  title: { fontSize: 19, fontWeight: '800', lineHeight: 26, color: palette.text },
-  reason: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMuted },
-  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.gutter },
+  card: { width: '100%', maxWidth: 362, maxHeight: '100%', gap: space[4], padding: space[6], borderRadius: radius.xl, backgroundColor: palette.bg },
+  head: { gap: space[1.5] },
+  loadFailed: { gap: space[2], alignItems: 'center' },
+  title: { ...type.headline, color: palette.text },
+  reason: { ...type.body2, color: palette.textSub },
+  subtitle: { ...type.captionBold, color: palette.blueDeep },
   list: { flexShrink: 1 },
-  checking: { paddingVertical: 24, alignItems: 'center', gap: 12 },
-  loadFailed: { alignItems: 'center', gap: 10 },
-  error: { fontSize: 14, color: palette.danger, textAlign: 'center' },
-  stretch: { alignSelf: 'stretch' },
-  footer: { gap: 12 },
+  checking: { paddingVertical: space[2], gap: space[3] },
+  footer: { gap: space[3] },
 
   sheetLayer: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: palette.scrim,
     // 하단 시트를 쓰지 않는다(10/24 규칙) — 문서 본문도 가운데 칸으로 띄운다.
     justifyContent: 'center',
-    padding: 16,
+    paddingHorizontal: space.gutter,
   },
-  sheet: {
-    backgroundColor: palette.card,
-    borderRadius: 22,
-    paddingBottom: 16,
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  sheetTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
+  sheet: { backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], gap: space[4] },
+  sheetTitle: { ...type.headline, color: palette.text },
   sheetBody: { flexGrow: 0, flexShrink: 1 },
 });

@@ -3,12 +3,15 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rou
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
@@ -42,7 +45,6 @@ type Tab = 'all' | 'mine';
  */
 export default function ReadingSession() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { confirm, sheet, alert, dialog } = useAppDialog();
   const script = getCurrent();
@@ -102,12 +104,10 @@ export default function ReadingSession() {
       );
     }
     return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.sessionLoadFailed')}</Text>
-        <Pressable style={styles.pill} onPress={() => void load()}>
-          <Text style={styles.pillText}>{t('common.retry')}</Text>
-        </Pressable>
-      </View>
+      <>
+        <Stack.Screen options={{ title: t('reading.sessionTitle') }} />
+        <StatusScreen title={t('reading.sessionLoadFailed')} body={t('reading.loadFailBody')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
+      </>
     );
   }
 
@@ -210,7 +210,7 @@ export default function ReadingSession() {
         ph-label="reading_session_play"
         onPress={() => void togglePlay(rec)}
       >
-        <Feather name={playing ? 'pause' : 'play'} size={14} color={playing ? palette.onAccent : palette.blue} />
+        <Feather name={playing ? 'pause' : 'play'} size={16} color={playing ? palette.onAccent : palette.blueDeep} />
       </Pressable>
     );
   };
@@ -271,7 +271,7 @@ export default function ReadingSession() {
           ),
         }}
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}>
+      <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.head}>
           <Text style={styles.title}>{rangeTitle(detail.range_name, t)}</Text>
           <View style={styles.metaRow}>
@@ -291,7 +291,7 @@ export default function ReadingSession() {
         <Text style={styles.sectionTitle}>{t('reading.sessionScript')}</Text>
         <View style={styles.tabs}>
           {(['all', 'mine'] as const).map((key) => (
-            <Pressable key={key} style={[styles.tab, tab === key && styles.tabOn]} onPress={() => setTab(key)}>
+            <Pressable key={key} style={[styles.tab, tab === key && styles.tabOn]} onPress={() => setTab(key)} accessibilityRole="tab" accessibilityState={{ selected: tab === key }}>
               <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>
                 {key === 'all' ? t('reading.rangeWhole') : t('reading.myRecordingsOnly')}
               </Text>
@@ -303,16 +303,14 @@ export default function ReadingSession() {
           rows.map(scriptRow)
         ) : recorded.length === 0 ? (
           <View style={styles.empty}>
-            <Feather name="mic-off" size={26} color={palette.textFaint} />
-            <Text style={styles.emptyTitle}>{t('reading.noRecordings')}</Text>
-            <Text style={styles.emptyHint}>{t('reading.noRecordingsHint')}</Text>
+            <InlineEmpty title={t('reading.noRecordings')} description={t('reading.noRecordingsHint')} />
           </View>
         ) : (
           recorded.map(recordingRow)
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+      <CtaBar>
         {progress ? (
           <PrimaryButton
             label={t('reading.resumeSession', progress)}
@@ -326,7 +324,7 @@ export default function ReadingSession() {
             onPress={() => router.push({ pathname: '/reading/range', params: practiceAgainParams(detail) })}
           />
         )}
-      </View>
+      </CtaBar>
       {dialog}
     </View>
   );
@@ -334,42 +332,33 @@ export default function ReadingSession() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { paddingHorizontal: 20, paddingTop: 4 },
-  head: { gap: 6, paddingTop: 4, paddingBottom: 18 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  meta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
-  chip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 11.5 },
-  listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4, borderRadius: 12, paddingVertical: 13, backgroundColor: palette.blueSoft },
-  listenAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 14.5 },
-  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 16, paddingBottom: 10 },
-  tabs: { flexDirection: 'row', padding: 3, borderRadius: 10, backgroundColor: palette.bgSoft, marginBottom: 6 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
-  tabOn: { backgroundColor: palette.card },
-  tabText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
-  tabTextOn: { color: palette.text, fontFamily: 'Pretendard-Bold' },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomColor: palette.borderSoft, borderBottomWidth: 1 },
-  lineBody: { flex: 1, gap: 2 },
-  roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  role: { color: palette.textMuted, fontFamily: 'Pretendard-Bold', fontSize: 12 },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[1], paddingBottom: space[6] },
+  head: { gap: space[1], paddingTop: space[1], paddingBottom: space[6] },
+  title: { ...type.title1, color: palette.text },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
+  meta: { ...type.caption, color: palette.textMeta },
+  chip: { borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2 },
+  chipText: type.micro,
+  listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], marginTop: space[2], borderRadius: radius.lg, height: 40, backgroundColor: palette.blueSoft },
+  listenAllText: { ...type.body2Bold, color: palette.blueDeep },
+  sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[3] },
+  tabs: { flexDirection: 'row', padding: space[1], gap: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft, marginBottom: space[2] },
+  tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  tabOn: { backgroundColor: palette.bg },
+  tabText: { ...type.body2Bold, color: palette.textMeta },
+  tabTextOn: { color: palette.text },
+  line: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
+  lineBody: { flex: 1, gap: space[1] },
+  roleRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  role: { ...type.captionBold, color: palette.textMeta },
   roleMine: { color: palette.blueDeep },
-  resumeTag: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: palette.blueSoft },
-  resumeTagText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
-  direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, paddingVertical: 14 },
-  scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, paddingVertical: 14 },
-  recLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
-  recLabelOn: { color: palette.blue },
-  playBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  resumeTag: { borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2, backgroundColor: palette.blueSoft },
+  resumeTagText: { ...type.micro, color: palette.blueDeep },
+  direction: { ...type.body2, color: palette.textMeta, paddingVertical: space[3] },
+  scene: { ...type.body2Bold, color: palette.textSub, paddingVertical: space[3] },
+  recLabel: { ...type.micro, color: palette.textMeta },
+  recLabelOn: { color: palette.blueDeep },
+  playBtn: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   playBtnOn: { backgroundColor: palette.blue },
-  empty: { alignItems: 'center', gap: 8, paddingVertical: 44 },
-  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },
-  primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15, backgroundColor: palette.blue },
-  primaryText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
-  pillText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  empty: { paddingTop: space[2] },
 });

@@ -15,7 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { easing, motion } from '@/constants/motion';
 import { MASCOT } from '@/components/ui/mascot';
+import { Button } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import {
   captionPlacement,
@@ -279,12 +281,7 @@ export function SpotlightHost() {
             <Text style={styles.title}>{t(`${step.text}Title`)}</Text>
             <Text style={styles.body}>{t(`${step.text}Body`)}</Text>
           </Animated.View>
-          <Pressable
-            style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
-            onPress={next}
-            accessibilityRole="button">
-            <Text style={styles.ctaText}>{t(last ? 'guide.gotIt' : 'guide.next')}</Text>
-          </Pressable>
+          <Button size="md" label={t(last ? 'guide.gotIt' : 'guide.next')} onPress={next} />
         </View>
       </View>
     </Animated.View>
@@ -303,15 +300,14 @@ const styles = StyleSheet.create({
   ring: { ...StyleSheet.absoluteFillObject, overflow: 'hidden', borderWidth: 3, borderColor: palette.blue },
   caption: {
     position: 'absolute',
-    left: 14,
-    right: 16,
+    left: space[3],
+    right: space[4],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space[1.5],
   },
-  // pen 「대본 탭 · 첫 안내 말풍선」 코치마크 — 액티 72×82, 흰 말풍선 모서리 20 · 안쪽 [15,15,13,14].
   mascot: { width: 72, height: 82 },
-  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 20, paddingTop: 15, paddingRight: 15, paddingBottom: 13, paddingLeft: 14, gap: 8 },
+  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.bg, borderRadius: radius.lg, padding: space[4], gap: space[3] },
   // 말꼬리 — 마스코트 쪽으로 돌린 작은 네모.
   tail: {
     position: 'absolute',
@@ -320,16 +316,13 @@ const styles = StyleSheet.create({
     marginTop: -7,
     width: 14,
     height: 14,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     transform: [{ rotate: '45deg' }],
   },
-  captionInner: { gap: 4 },
+  captionInner: { gap: space[1] },
   progress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  step: { fontSize: 13, fontWeight: '700', lineHeight: 18, color: palette.flameDeep },
-  title: { fontSize: 18, fontWeight: '700', color: palette.text, lineHeight: 23 },
-  body: { fontSize: 14, fontWeight: '400', color: palette.textDim, lineHeight: 18 },
-  skip: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
-  cta: { height: 38, borderRadius: 19, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.9 },
-  ctaText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
+  step: { ...type.captionBold, color: palette.blueDeep },
+  title: { ...type.headline, color: palette.text },
+  body: { ...type.body2, color: palette.textSub },
+  skip: { ...type.body2Bold, color: palette.textSub },
 });
