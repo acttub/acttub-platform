@@ -45,11 +45,14 @@ test('구간 고르기 — 독백은 첫 연습이어도 처음 10줄로 줄이�
   assert.match(src, /const short = hasHistory \|\| isMonologue\(script\.characters\) \? null : firstPracticeRange\(lines, myTurnRoles\);/);
 });
 
-test('리딩 화면 — 지금 말풍선 뒤에 말풍선이 더 있으면 「다음 대사로」로 넘기고, 새 말풍선이 생기면 그 맨 위로 내린다', () => {
+test('리딩 화면 — 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」(마지막만 「끝내기」)이고, 스크롤은 읽는 문장을 늘 같은 높이에 둔다', () => {
   const src = read('app/reading/play.tsx');
   assert.match(src, /const nextMonoChunk = useCallback\(/);
-  assert.match(src, /t\('reading\.monologueNextChunk'\)/);
-  assert.match(src, /monoShownStart\.current !== start/);
-  assert.match(read('locales/ko.ts'), /monologueNextChunk: '다음 대사로'/);
+  assert.match(src, /if \(monoNext\) nextMonoChunk\(monoNext\.start\);/);
+  assert.match(src, /t\(monoNext \? 'reading\.monologueNextChunk' : monologue \? 'reading\.monologueFinish' : 'reading\.next'\)/);
+  assert.match(src, /const target = Math\.max\(0, monoCardY\.current \+ y - MONO_FOLLOW_TOP\);/);
+  // 말풍선 안 버튼·새 말풍선 맨 위로 튀는 스크롤은 없앴다.
+  assert.doesNotMatch(src, /styles\.monoNextBtn|monoShownStart/);
+  assert.match(read('locales/ko.ts'), /monologueNextChunk: '다음 대사'/);
   assert.match(read('locales/en.ts'), /monologueNextChunk: 'Next lines'/);
 });

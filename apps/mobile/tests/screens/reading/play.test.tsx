@@ -1695,7 +1695,7 @@ test('SOMA-934: 독백은 대사 10줄씩 말풍선으로 끊어, 처음엔 첫 
   expect(screen.queryByText('독백 11번 줄이야.')).not.toBeOnTheScreen();
 });
 
-test('SOMA-934: 독백 말풍선 아래 「다음 대사로」를 누르면 다음 말풍선이 생기고 지나간 말풍선은 남는다', async () => {
+test('SOMA-934: 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」이고, 누르면 다음 말풍선이 생긴다 — 마지막 말풍선에서만 「끝내기」', async () => {
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   mockMic.stop.mockResolvedValue(null);
   const twelve = scriptDetail(Array.from({ length: 12 }, (_, i) => ['dialogue', '민지', `독백 ${i + 1}번 줄이야.`] as ['dialogue', string, string]));
@@ -1703,11 +1703,12 @@ test('SOMA-934: 독백 말풍선 아래 「다음 대사로」를 누르면 다�
   await waitFor(() => expect(recognizer).not.toBeNull());
   const abortsBefore = mockStt.abort.mock.calls.length;
 
-  await fireEvent.press(await screen.findByRole('button', { name: '다음 대사로' }));
+  expect(screen.queryByText('끝내기')).not.toBeOnTheScreen();
+  await fireEvent.press(await screen.findByText('다음 대사'));
   expect(await screen.findByText('독백 11번 줄이야.')).toBeOnTheScreen();
   expect(screen.getByText('독백 1번 줄이야.')).toBeOnTheScreen();
-  // 마지막 말풍선에는 없다 — 거기서는 「끝내기」.
-  expect(screen.queryByRole('button', { name: '다음 대사로' })).not.toBeOnTheScreen();
+  expect(screen.getByText('끝내기')).toBeOnTheScreen();
+  expect(screen.queryByText('다음 대사')).not.toBeOnTheScreen();
   // 녹음·받아쓰기는 끊지 않고 이어진다.
   expect(mockStt.abort.mock.calls.length).toBe(abortsBefore);
 });

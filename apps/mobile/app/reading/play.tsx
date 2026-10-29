@@ -167,6 +167,8 @@ const JUMP_PREVIEW = 15;
 const DONE_LOCK_MS = 800;
 /** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
 const MONO_POSITION_MS = 700;
+/** 독백에서 읽는 문장을 둘 높이 — 화면 위에서 이만큼 아래(SOMA-934). */
+const MONO_FOLLOW_TOP = 160;
 /**
  * 리딩 화면의 액티(10/22 20종). 예전엔 준비·마무리·결과가 모두 하트 눈 한 장이라 매번 같았다(10/25 피드백).
  * 준비 중은 기다리는 자세, 끝난 화면은 들어올 때마다 밝은 자세 하나, 세지 않은 회차는 민망한 자세.
@@ -342,8 +344,8 @@ export default function ReadingPlay() {
   const [monoResult, setMonoResult] = useState<ReturnType<typeof monologueResults> | null>(null);
   const monoItemY = useRef<Record<number, number>>({});
   const monoCardY = useRef(0);
-  /** 지금 펼친 독백 말풍선의 첫 줄 — 새 말풍선이 생겼는지 안다(SOMA-934). */
-  const monoShownStart = useRef<number | null>(null);
+  /** 독백 따라 내리기가 마지막으로 보낸 위치 — 같은 자리로 거듭 내리지 않는다(SOMA-934). */
+  const monoScrolledTo = useRef<number | null>(null);
   // 대화 카드 위치 — 받아쓰기(인식 결과)가 늘어나 내용이 길어져도 맨 아래로 끌지 않고 지금 대사 카드 위쪽에 맞춘다(SOMA-913).
   const dialogueCardY = useRef(0);
 
@@ -1196,25 +1198,28 @@ export default function ReadingPlay() {
   }, [monologue, phase.kind, tipOpen, run?.status, attempt, monoSeq]);
 
   // 새 말풍선(10줄 묶음)이 생기면 그 카드가 자리를 잡은 뒤에야 문장 위치를 안다 — 자리를 잡을 때 다시 따라 내린다(SOMA-934).
-  const onMonoCardLayout = (start: number) => (e: LayoutChangeEvent) => {
-    monoCardY.current = e.nativeEvent.layout.y;
-    // 말풍선이 새로 생겼으면 그 맨 위가 화면 위쪽에 오게 내린다. 같은 말풍선이면 읽는 문장을 따라간다.
-    if (monoShownStart.current !== start) {
-      monoShownStart.current = start;
-      scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current - 12), animated: true });
-      return;
-    }
+  // 스크롤 규칙은 하나다 — 읽는 문장을 늘 같은 높이(위에서 MONO_FOLLOW_TOP)에 둔다. 말풍선이 새로 생기면 그 카드·문장이 자리를 잡은
+  // 뒤에야 위치를 알므로, 자리를 잡을 때(카드·문장 onLayout)와 읽는 문장이 바뀔 때 같은 계산으로 맞춘다(SOMA-934).
+  const followMonoLine = () => {
     const index = runRef.current?.index;
     const y = index === undefined ? undefined : monoItemY.current[index];
-    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current + y - 160), animated: true });
+    if (y === undefined) return;
+    const target = Math.max(0, monoCardY.current + y - MONO_FOLLOW_TOP);
+    if (monoScrolledTo.current !== null && Math.abs(monoScrolledTo.current - target) < 2) return;
+    monoScrolledTo.current = target;
+    scrollRef.current?.scrollTo({ y: target, animated: true });
+  };
+  const onMonoCardLayout = (e: LayoutChangeEvent) => {
+    monoCardY.current = e.nativeEvent.layout.y;
+    followMonoLine();
   };
 
   // 독백은 읽는 문장이 보이게 따라 내린다. 「원문 보기」는 그 문장에만 적용된다.
   useEffect(() => {
     if (!monologue || !run) return;
     setAid('none');
-    const y = monoItemY.current[run.index];
-    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current + y - 160), animated: true });
+    followMonoLine();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monologue, run?.index]);
 
   // ── 흐른 시간(일시정지 제외) ─────────────────────────────────────────────────
@@ -1962,6 +1967,9 @@ export default function ReadingPlay() {
   const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
   const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
   const monoChunks = monologue ? monologueChunks(run.lines, run.startIndex, run.endIndex) : [];
+  // 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」, 마지막 말풍선에서만 「끝내기」다(SOMA-934).
+  const monoNow = monoChunks.findIndex((c) => Math.max(run.index, run.startIndex) <= c.end);
+  const monoNext = monoNow >= 0 ? (monoChunks[monoNow + 1] ?? null) : null;
   const monoCounter = monologue
     ? t('reading.monologueProgress', { n: Math.max(0, monoIndexes.indexOf(run.index)) + 1, total: monoIndexes.length, time: mmss(run.elapsedMs) })
     : null;
@@ -2038,7 +2046,7 @@ export default function ReadingPlay() {
               <View
                 key={run.lineIds[c.start]}
                 style={[styles.card, styles.cardMine, !current && styles.cardPast]}
-                onLayout={current ? onMonoCardLayout(c.start) : undefined}>
+                onLayout={current ? onMonoCardLayout : undefined}>
                 {current && (
                 <View style={styles.cardHead}>
                   <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
@@ -2066,7 +2074,12 @@ export default function ReadingPlay() {
                   if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
                   const now = i === run.index;
                   return (
-                    <View key={run.lineIds[i]} onLayout={(e) => (monoItemY.current[i] = e.nativeEvent.layout.y)}>
+                    <View
+                      key={run.lineIds[i]}
+                      onLayout={(e) => {
+                        monoItemY.current[i] = e.nativeEvent.layout.y;
+                        if (current && i === runRef.current?.index) followMonoLine();
+                      }}>
                       {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
                         <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
                       ) : (
@@ -2075,18 +2088,6 @@ export default function ReadingPlay() {
                     </View>
                   );
                 })}
-                {current && ci < monoChunks.length - 1 && hold !== 'tip' && run.status === 'mine' && (
-                  <Pressable
-                    style={({ pressed }) => [styles.monoNextBtn, pressed && styles.monoNextPressed]}
-                    onPress={() => nextMonoChunk(monoChunks[ci + 1].start)}
-                    hitSlop={6}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('reading.monologueNextChunk')}
-                    ph-label="reading_monologue_next_chunk">
-                    <Text style={styles.monoNextText}>{t('reading.monologueNextChunk')}</Text>
-                    <Feather name="chevron-down" size={16} color={palette.blueDeep} />
-                  </Pressable>
-                )}
                 {current && hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
                   <View style={styles.aidRow}>
                     <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
@@ -2225,11 +2226,12 @@ export default function ReadingPlay() {
             <Pressable
               style={[styles.ctrl, styles.ctrlPrimary]}
               onPress={() => {
-                if (monologue) void finishMonologue();
+                if (monoNext) nextMonoChunk(monoNext.start);
+                else if (monologue) void finishMonologue();
                 else if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
               }}>
-              <Text style={styles.ctrlPrimaryText}>{t(monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
+              <Text style={styles.ctrlPrimaryText}>{t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
               <Feather name="arrow-right" size={16} color="#fff" />
             </Pressable>
           </>
@@ -2390,22 +2392,6 @@ const styles = StyleSheet.create({
   readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
   readAgainOff: { opacity: 0.4 },
   cardPast: { opacity: 0.55 },
-  monoNextBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    alignSelf: 'center',
-    marginTop: 12,
-    paddingHorizontal: 16,
-    height: 40,
-    borderRadius: 999,
-    backgroundColor: palette.bg,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  monoNextPressed: { opacity: 0.6 },
-  monoNextText: { color: palette.blueDeep, fontSize: 15, fontWeight: '600' },
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
   wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },
