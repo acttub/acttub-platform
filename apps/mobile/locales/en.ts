@@ -2268,7 +2268,7 @@ const en: DeepStringShape<typeof ko> = {
     monologueStartHint: 'Read the monologue through, then tap “Finish”. Tap “Start” when you’re ready.',
     start: 'Start',
     startSkipNext: 'Start and hide this tip next time',
-    coachLabel: 'Acttub · {{n}}/{{total}}',
+    coachLabel: 'Acty',
     coachPartner: 'The app reads your partner’s lines. Listen first.',
     coachMine: 'Now read your line out loud. “Listening” means we hear you.',
     coachNext: 'Nice reading! Tap “Next” to go to the next line.',

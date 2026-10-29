@@ -1911,7 +1911,7 @@ export default function ReadingPlay() {
 
   const coachElement = coachMark ? (
     <ReadingCoachMark
-      label={t('reading.coachLabel', { n: COACH_MARKS.indexOf(coachMark) + 1, total: COACH_MARKS.length })}
+      label={t('reading.coachLabel')}
       text={t(COACH_TEXT[coachMark])}
       onClose={() => finishCoachMark(coachMark)}
     />

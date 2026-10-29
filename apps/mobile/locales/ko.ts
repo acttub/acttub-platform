@@ -2267,7 +2267,7 @@ const ko = {
     monologueStartHint: '독백은 끝까지 이어서 읽고 「끝내기」를 눌러요. 준비되면 「시작」을 누르세요.',
     start: '시작',
     startSkipNext: '시작하고 이 안내는 다음부터 숨기기',
-    coachLabel: '액티 · {{n}}/{{total}}',
+    coachLabel: '액티',
     coachPartner: '상대 대사는 앱이 읽어 줘요. 먼저 들어 보세요.',
     coachMine: '이제 내 대사를 소리 내어 읽어 보세요. 「듣는 중」이면 듣고 있어요.',
     coachNext: '잘 읽었어요! 「다음」을 눌러 다음 줄로 가 보세요.',
