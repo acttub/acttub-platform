@@ -19,6 +19,7 @@ import {
   resumeRun,
   shownText,
   stopRun,
+  stoppedProgressPayload,
   tickElapsed,
   turnOf,
 } from '../lib/reading/session-run.ts';
@@ -300,4 +301,27 @@ test('reading.session: 그만하기 — 첫 줄에서 멈추면 읽은 줄이 �
   assert.equal(stopped.endIndex, 0);
   assert.equal(stopped.status, 'done');
   assert.equal(stopRun(stopped), stopped);
+});
+
+// ── 그만하기 저장 위치(10/29) — 끝 화면의 「N줄」과 이어 읽기 카드의 「K/N줄」이 같아야 한다 ─────────────
+test('reading.session: 그만하기 저장 — 지금 차례에 말했으면 그다음 대사 줄을 현재 줄로 보내 카드도 그 차례까지 읽은 것으로 센다', () => {
+  const at3 = pause(recordSaid(advance(advance(run())), '삼')); // 윤서 '3'(l4)에서 말한 뒤 멈춤
+  const stopped = stopRun(at3);
+  const body = stoppedProgressPayload(at3, stopped);
+  assert.equal(body.current_line_id, 'l5', '말한 l4 다음 대사 l5');
+  assert.equal(body.complete, false);
+  assert.deepEqual(progressOf({ ...at3, index: 5 }).done, 3, '끝 화면처럼 대사 3개(1·2·3)를 읽은 것으로 센다');
+});
+
+test('reading.session: 그만하기 저장 — 지금 차례에 말한 게 없으면 그 차례를 현재 줄로 남긴다', () => {
+  const at3 = pause(advance(advance(run())));
+  const body = stoppedProgressPayload(at3, stopRun(at3));
+  assert.equal(body.current_line_id, 'l4');
+  assert.equal(body.complete, false);
+});
+
+test('reading.session: 그만하기 저장 — 첫 줄에서 아무것도 안 하고 멈추면 첫 줄 그대로(0줄)', () => {
+  const first = pause(run());
+  const body = stoppedProgressPayload(first, stopRun(first));
+  assert.equal(body.current_line_id, 'l1');
 });

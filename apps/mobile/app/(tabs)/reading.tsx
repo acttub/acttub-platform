@@ -8,12 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
-import { Button } from '@/components/ds/ui/buttons';
+import { Button } from '@/components/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { BlueSwitch } from '@/components/ds/ui/list-rows';
+import { BlueSwitch } from '@/components/ui/list-rows';
 import { SkeletonRows } from '@/components/ui/skeleton';
-import { BandGradient } from '@/components/ui/band-gradient';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
@@ -23,9 +22,9 @@ import { skipsReadingTabGuide } from '@/lib/returning-account';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
-import { useAppDialog } from '@/components/ds/app-dialog';
-import { TitleEditDialog } from '@/components/ds/title-edit-dialog';
-import { NavBackButton, NavHeader, NavIconButton } from '@/components/ds/ui/nav-header';
+import { useAppDialog } from '@/components/app-dialog';
+import { TitleEditDialog } from '@/components/title-edit-dialog';
+import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
@@ -36,7 +35,7 @@ import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/
 import { isKorean, translate as t } from '@/lib/i18n';
 import type { GestureResponderEvent } from 'react-native';
 
-import { pt } from '@/components/ds/ui/anchored-menu';
+import { pt } from '@/components/ui/anchored-menu';
 
 /**
  * 내 대본 목록(R00, reading.script). 서버 목록이 정본이다 — 최근 고친 순, 머리 "전체 N개 · 연습 중 M개",
@@ -59,8 +58,6 @@ const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
 
 /** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
 const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
-
-const HERO_WINDOW = require('@/assets/images/home/window-light.png');
 
 export default function ReadingList() {
   const tabBarSpace = useTabBarSpace();
@@ -244,12 +241,8 @@ export default function ReadingList() {
       style={styles.root}
       contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarSpace + 20 }]}
       keyboardShouldPersistTaps="handled">
-      {/* 요소·배치는 개편전(dev), 위 배경(파랑 띠·창문 빛)은 롤백 그대로(SOMA-923). */}
       {empty && (
-        <View style={[styles.emptyBg, { height: 300 + insets.top }]} pointerEvents="none">
-          <BandGradient stops={[[0, '#E4EEFC'], [0.72, '#E4EEFC'], [1, '#FBFDFF']]} />
-          <Image source={HERO_WINDOW} style={styles.emptyWindow} resizeMode="cover" accessibilityElementsHidden />
-        </View>
+        <View style={[styles.emptyBg, { height: 300 + insets.top }]} pointerEvents="none" />
       )}
       {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
@@ -466,8 +459,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { ...type.body1, lineHeight: undefined, flex: 1, color: palette.text, padding: 0 },
   entry: { gap: space[4] },
-  emptyBg: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
-  emptyWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
+  emptyBg: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: palette.blueSoft, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
   hero: { height: 188, flexDirection: 'row', alignItems: 'center' },
   heroText: { flex: 1, gap: space[3] },
   heroTitle: { ...type.display, color: palette.text },

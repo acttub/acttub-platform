@@ -45,7 +45,7 @@ function Wheel({
 }) {
   const ref = useRef<ScrollView>(null);
   const index = Math.max(0, values.indexOf(selected));
-  // 굵게 칠하는 줄은 마지막으로 고른 값이 아니라 지금 가운데 칸에 걸린 줄이다 — 스크롤하는 동안에도 따라간다(SOMA-923).
+  // 굵게 칠하는 줄은 마지막으로 고른 값이 아니라 지금 가운데 칸에 걸린 줄이다 — 스크롤하는 동안에도 따라간다.
   const [live, setLive] = useState(index);
   useEffect(() => setLive(index), [index]);
   const track = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     top: PAD,
     height: WHEEL_ITEM_HEIGHT,
     borderRadius: 12,
-    // 고르는 칸을 진하게 — 옅은 파랑 바탕에 파란 테두리(SOMA-923).
+    // 고르는 칸을 진하게 — 옅은 파랑 바탕에 파란 테두리(디자인 시스템 「의도된 차이」).
     borderWidth: 1.5,
     borderColor: palette.blue,
     backgroundColor: palette.blueSoft,
@@ -186,6 +186,6 @@ const styles = StyleSheet.create({
   item: { height: WHEEL_ITEM_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   itemText: { fontSize: 17, fontWeight: '600', color: palette.text },
   itemOn: { fontSize: 20, fontWeight: '800', color: palette.text },
-  itemNear: { color: palette.checkOff },
+  itemNear: { color: palette.textDisabled },
   itemFar: { color: palette.border },
 });

@@ -93,7 +93,7 @@ describe('LinePickScreen (C9.16)', () => {
     list.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ featured: null, challenges: [], next_cursor: null });
     await render(<LinePickScreen />);
     await fireEvent.press(await screen.findByRole('button', { name: '다시 시도' }));
-    expect(await screen.findByText('올릴 수 있는 대사가 없어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('올릴 수 있는 대사가 없어요')).toBeOnTheScreen();
     expect(list.mock.calls).toEqual([[{ tab: 'popular' }], [{ tab: 'popular' }]]);
   });
 });

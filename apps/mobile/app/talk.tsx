@@ -2,10 +2,10 @@ import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { CoachingLimitSheet } from '@/components/ds/pro-ui';
-import { CoachBubble } from '@/components/ds/ui/mascot-bubble';
-import { PrimaryButton } from '@/components/ds/ui/buttons';
-import { CtaBar } from '@/components/ds/ui/cta-bar';
+import { CoachingLimitSheet } from '@/components/pro-ui';
+import { CoachBubble } from '@/components/ui/mascot-bubble';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { SelectCard } from '@/components/ui/select-card';
 import { palette } from '@/constants/palette';

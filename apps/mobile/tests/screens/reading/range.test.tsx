@@ -99,7 +99,8 @@ test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
-  await fireEvent.press(screen.getByText('내 대사만 가리기'));
+  // 가리기는 「내 대사 가리기」 스위치 하나다(UX 가이드, 10/28).
+  await fireEvent(screen.getByLabelText('내 대사 가리기'), 'valueChange', true);
 
   await fireEvent.press(startButton(5));
 
@@ -310,12 +311,12 @@ test('SOMA-709: 고른 배역의 구간 안 대사가 2줄 이하면 처음 안�
   await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c2'] })));
 });
 
-test('SOMA-709: 짧은 구간 추천이 뜨는 첫 연습에서도 대사가 적은 배역을 고르면 노란 안내가 그 자리를 대신한다', async () => {
+test('SOMA-934: 대사가 10줄 넘는 대본도 첫 연습을 처음 10줄로 줄이지 않는다 — 리딩 화면이 10줄씩 끊어 보인다. 대사가 적은 배역은 노란 안내', async () => {
   const lines: Parameters<typeof scriptDetail>[0] = [];
   for (let i = 0; i < 12; i++) lines.push(['dialogue', i === 3 ? '서연' : '민재', `대사 ${i + 1}`]);
   await show(scriptDetail(lines));
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.getByText('처음 10줄 · 추천')).toBeOnTheScreen();
+  expect(screen.queryByText('처음 10줄 · 추천')).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));

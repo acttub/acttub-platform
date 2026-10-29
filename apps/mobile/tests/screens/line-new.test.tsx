@@ -28,7 +28,7 @@ beforeEach(() => {
   mockIds = 0;
 });
 
-const PH = '“여기에 대사를 적어주세요”';
+const PH = '여기에 대사를 적어 주세요';
 const fill = (text = '  나는   아직\n끝나지 않았어 ') => fireEvent.changeText(screen.getByPlaceholderText(PH), text);
 const cta = () => screen.getByRole('button', { name: '등록하기' });
 const next = () => screen.getByRole('button', { name: '다음' });

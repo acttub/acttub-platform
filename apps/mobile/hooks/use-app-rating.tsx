@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
     alignItems: 'center',
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 16,
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   },
   stars: { flexDirection: 'row', gap: 6 },
   title: { fontSize: 18, fontWeight: '900', color: palette.text, letterSpacing: -0.4, marginTop: 12, textAlign: 'center' },
-  body: { fontSize: 14, fontWeight: '600', color: palette.textMuted, lineHeight: 21, marginTop: 6, textAlign: 'center' },
+  body: { fontSize: 14, fontWeight: '600', color: palette.textMeta, lineHeight: 21, marginTop: 6, textAlign: 'center' },
   primary: {
     alignSelf: 'stretch',
     height: 50,
@@ -125,5 +125,5 @@ const styles = StyleSheet.create({
   },
   primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   ghost: { alignSelf: 'stretch', height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  ghostText: { color: palette.textMuted, fontSize: 14.5, fontWeight: '700' },
+  ghostText: { color: palette.textMeta, fontSize: 14.5, fontWeight: '700' },
 });

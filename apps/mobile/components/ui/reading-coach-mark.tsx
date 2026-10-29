@@ -3,10 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 
 /**
- * pen 「리딩 실행 · 처음 ①~⑤」(SOMA-748·770) — 왼쪽 액티(86×96), 오른쪽 흰 말풍선(모서리 18, 1px #E5E8EB 테두리,
- * 주황 소제목 12/800 + 설명 15/800 줄높이 1.45, 그림자).
+ * pen 「리딩 실행 · 처음 ①~⑤」(SOMA-748·770) — 왼쪽 액티(86×96), 오른쪽 흰 말풍선(r-lg, 1px border),
+ * 소제목 captionBold blue-deep + 설명 body1Bold.
  * 화면을 막지 않는다 — 누르면 닫힌다.
  */
 export function ReadingCoachMark({ label, text, onClose }: { label: string; text: string; onClose: () => void }) {
@@ -22,23 +23,18 @@ export function ReadingCoachMark({ label, text, onClose }: { label: string; text
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
+  row: { flexDirection: 'row', alignItems: 'flex-end', gap: space[1] },
   bubble: {
     flex: 1,
     minWidth: 0,
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: palette.card,
-    borderRadius: 18,
+    gap: space[1.5],
+    paddingVertical: space[3],
+    paddingHorizontal: space[4],
+    backgroundColor: palette.bg,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: palette.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
   },
-  label: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.flameDeep },
-  text: { fontSize: 15, fontWeight: '800', lineHeight: 22, color: palette.text },
+  label: { ...type.captionBold, color: palette.blueDeep },
+  text: { ...type.body1Bold, color: palette.text },
 });

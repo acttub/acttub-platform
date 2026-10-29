@@ -4,7 +4,7 @@ import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions, type Ges
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
+import { radius, shadowOverlay, space, type } from '@/constants/tokens';
 
 export type MenuAnchor = { x: number; y: number };
 
@@ -35,17 +35,18 @@ export function placeMenu(
   return { left, top, width };
 }
 
-/** 메뉴 항목 높이와 카드 안쪽 위아래 — 메뉴 높이를 어림할 때 쓴다(목소리 고르기 메뉴, SOMA-886). */
+/** 메뉴 항목 높이와 카드 안쪽 위아래 — 메뉴 높이를 어림할 때 쓴다. */
 export const MENU_ITEM_HEIGHT = 44;
 export const MENU_PAD = space[1.5];
 
 /**
- * 누른 자리 근처에 뜨는 작은 메뉴(아래 시트 대신). 어두운 배경 없이 투명 오버레이만 깔고, 바깥을 누르면 닫힌다.
+ * ⋯ 동작 목록 — 디자인 시스템 pen 「Menu」. 누른 자리 바로 아래에 뜨고 덮개가 없다(투명 오버레이, 바깥을 누르면 닫힌다).
+ * 폭 200, 1px `border`, r-md, 안쪽 위아래 6, shadow-overlay, clip 없음. 항목은 MenuItem 으로 그리고 삭제는 맨 아래에 둔다.
  * 높이는 항목 수로 어림해 자리를 잡는다(estimatedHeight).
  */
 export function AnchoredMenu({
   anchor,
-  width = 220,
+  width = 200,
   estimatedHeight,
   onClose,
   children,
@@ -61,19 +62,23 @@ export function AnchoredMenu({
   const pos = placeMenu(anchor, { width, height: estimatedHeight }, screen, insets);
   return (
     <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
+      {/* 덮개·카드가 접근성 요소가 되면 메뉴 항목이 하나로 묶여 따로 누를 수 없다. 닫기는 스크린리더 닫기 동작으로. */}
+      <Pressable style={styles.overlay} onPress={onClose} accessible={false}>
         <Pressable
           testID="anchored-menu"
+          accessible={false}
           style={[styles.card, { left: pos.left, top: pos.top, width: pos.width }]}
           onPress={(e) => e.stopPropagation()}>
-          <View accessibilityViewIsModal>{children}</View>
+          <View accessibilityViewIsModal onAccessibilityEscape={onClose}>
+            {children}
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
   );
 }
 
-/** 메뉴 항목 한 줄 — 높이 44, 좌우 16. `destructive`는 빨간 글자, `selected`는 진파랑 글자 + 오른쪽 체크. */
+/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘, `selected`(고른 값)는 blue-deep 글자 + 오른쪽 체크. */
 export function MenuItem({
   label,
   onPress,
@@ -111,14 +116,12 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'transparent' },
   card: {
     position: 'absolute',
-    backgroundColor: palette.card,
-    borderRadius: 14,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 10,
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.md,
+    paddingVertical: MENU_PAD,
+    ...shadowOverlay,
   },
   item: { minHeight: MENU_ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[4] },
   pressed: { backgroundColor: palette.bgSoft },
