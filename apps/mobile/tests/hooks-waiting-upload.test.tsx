@@ -80,6 +80,15 @@ test('다 올라가면 영상 id 를 기록하고 질문 받기로 새 연습을
   await waitFor(() => expect(result.current.card).toBeNull());
 });
 
+test('새 연습 팝업에서 적은 제목은 홈에서 시작할 때도 싣는다', async () => {
+  a.createPractice.mockResolvedValue({ id: 'pr1' });
+  await rememberWaitingUpload({ ...waiting, videoId: 'v1', title: '카페 이별 장면 2차' });
+  const { result } = await renderHook(() => useWaitingUpload());
+  await waitFor(() => expect(result.current.card?.state).toBe('ready'));
+  await act(async () => result.current.begin());
+  expect(a.createPractice).toHaveBeenCalledWith(expect.objectContaining({ video_id: 'v1', title: '카페 이별 장면 2차' }));
+});
+
 test('이어하기는 continuePractice 로 시작한다', async () => {
   a.continuePractice.mockResolvedValue({ id: 'pr2' });
   await rememberWaitingUpload({ ...waiting, videoId: 'v9', continueFrom: { rootId: 'g1', practiceId: 'pr0' } });

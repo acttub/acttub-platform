@@ -1178,6 +1178,8 @@ const ko = {
     titleLabel: '연습 제목',
     titlePh: '예: 카페 이별 장면 2차',
     titleTooLong: '제목은 200자까지 쓸 수 있어요.',
+    titleHint: '비워 두면 노트 첫 줄이 제목이 돼요',
+    titleSkip: '건너뛰기',
     missingVideo: '영상을 채워주세요',
     missingRights: '권리 확인에 체크해주세요',
     recordCta: '촬영하기',

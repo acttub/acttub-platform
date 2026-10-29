@@ -529,12 +529,28 @@ describe('보내기 전에 화면이 먼저 막는 길이', () => {
     expect(api.createPractice).not.toHaveBeenCalled();
   });
 
-  test('준비 화면에 장면·연습 제목 칸이 없고 시작 본문에 title 이 실리지 않는다', async () => {
+  test('준비 화면에 장면·연습 제목 칸이 없고, 영상을 고르면 가운데 팝업으로 연습 제목을 한 번 묻는다', async () => {
     await renderWithSavedVideo();
-    expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen();
     expect(screen.queryByText('상황')).not.toBeOnTheScreen();
     expect(screen.queryByText('원하는 것')).not.toBeOnTheScreen();
-    expect(screen.queryAllByPlaceholderText(/^예: /)).toHaveLength(0);
+    // 팝업은 촬영·사진 선택 창이 닫힌 뒤에 뜬다.
+    expect(await screen.findByText('연습 제목')).toBeOnTheScreen();
+    expect(screen.getByPlaceholderText('예: 카페 이별 장면 2차')).toBeOnTheScreen();
+    expect(screen.getByText('비워 두면 노트 첫 줄이 제목이 돼요')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByPlaceholderText('예: 카페 이별 장면 2차'), '  카페 이별 장면 2차 ');
+    await fireEvent.press(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen());
+    await checkRightsAndStart();
+
+    await waitFor(() => expect(api.createPractice).toHaveBeenCalled());
+    expect((api.createPractice as jest.Mock).mock.calls[0][0]).toMatchObject({ title: '카페 이별 장면 2차' });
+  });
+
+  test('제목 팝업을 건너뛰면 시작 본문에 title 이 실리지 않는다', async () => {
+    await renderWithSavedVideo();
+    expect(await screen.findByText('연습 제목')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '건너뛰기' }));
+    await waitFor(() => expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen());
     await checkRightsAndStart();
 
     await waitFor(() => expect(api.createPractice).toHaveBeenCalled());

@@ -26,6 +26,7 @@ import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/pract
 import { UploadWaitPanel } from '@/components/upload-wait-panel';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
+import { RenameDialog } from '@/components/ui/coach-rename-dialog';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { ChoiceCard, type ChoiceTint } from '@/components/choice-card';
@@ -58,6 +59,7 @@ import {
   emptyBlockageDraft,
   fingerprintOf,
   inProgressPracticeId,
+  PRACTICE_TITLE_MAX,
   sceneOverflow,
   startFailure,
   type BlockageDraft,
@@ -159,6 +161,17 @@ export default function UploadScreen() {
   // P3.26 올리기 옵션 — 고르면 시작 요청에 싣는다. 고르지 않으면 null(옵션 없이 올린다).
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
+  // 연습 제목(10/29) — 화면에 입력칸을 두지 않고, 새 연습에 영상을 처음 고른 직후 가운데 팝업으로 한 번 묻는다.
+  // 건너뛰거나 비우면 싣지 않아 지금처럼 노트 첫 줄이 제목이 된다. 다음 테이크는 묶음에 이미 제목이 있어 묻지 않는다.
+  const [title, setTitle] = useState('');
+  const [titleOpen, setTitleOpen] = useState(false);
+  const titleAskedRef = useRef(false);
+  const askTitleOnce = useCallback(() => {
+    if (sample || plan.continueFrom || titleAskedRef.current) return;
+    titleAskedRef.current = true;
+    // iOS 는 닫히는 화면(촬영·사진 선택) 위에 새 모달을 띄우지 못한다 — 닫힌 뒤에 연다.
+    setTimeout(() => setTitleOpen(true), Platform.OS === 'ios' ? 450 : 0);
+  }, [sample, plan.continueFrom]);
   // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
   const reasonBackRef = useRef<UploadStep>('purpose');
   // 뒤로 가기로 여는 망설임 페이지는 이 화면에서 한 번만 연다 — 매번 끼어들면 나가려는 사람이 뒤로를 세 번 눌러야 했다(10/26).
@@ -255,8 +268,9 @@ export default function UploadScreen() {
         setError(null);
         setStep('source');
         notePicked(next.source ?? 'library', next);
+        askTitleOnce();
       }
-    }, [notePicked]),
+    }, [notePicked, askTitleOnce]),
   );
 
   // 보관함 목록은 재생 주소를 주지 않는다(상세에서만 준다) — 목록에서 고른 영상은 상세로 받아 미리보기를 채운다.
@@ -346,6 +360,7 @@ export default function UploadScreen() {
           continueFrom: plan.continueFrom,
           scene,
           blockage,
+          title: title.trim() || undefined,
           savedAt: Date.now(),
         })
       : Promise.resolve();
@@ -390,6 +405,7 @@ export default function UploadScreen() {
     setPicked(next);
     setStep('source');
     notePicked('gallery', next);
+    askTitleOnce();
   };
 
   const start = async () => {
@@ -431,7 +447,7 @@ export default function UploadScreen() {
       const continueFrom = plan.continueFrom;
       const baseBody = continueFrom
         ? buildContinueBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage })
-        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage });
+        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage, title });
       // 얼굴 가리기는 켠 때만 싣는다 — 서버가 아직 모르면 무시하는 선택 필드다.
       const body = uploadOptions?.faceMosaic ? { ...baseBody, face_mosaic: true } : baseBody;
       const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
@@ -749,6 +765,19 @@ export default function UploadScreen() {
           onDone={(options) => { setUploadOptions(options); setFaceMosaicForUploads(options.faceMosaic); setOptionsOpen(false); setStep('source'); }}
         />
       )}
+      <RenameDialog
+        visible={titleOpen}
+        title={t('upload.titleLabel')}
+        initial={title}
+        placeholder={t('upload.titlePh')}
+        hint={t('upload.titleHint')}
+        failText={t('upload.titleTooLong')}
+        cancelLabel={t('upload.titleSkip')}
+        saveLabel={t('common.save')}
+        maxLength={PRACTICE_TITLE_MAX}
+        onSave={async (next) => setTitle(next)}
+        onClose={() => setTitleOpen(false)}
+      />
       {dialog}
       {tutorialGuide.element}
       <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />

@@ -18,6 +18,8 @@ export type WaitingUpload = {
   continueFrom: { rootId: string; practiceId: string } | null;
   scene: SceneDraft;
   blockage: BlockageDraft;
+  /** 새 연습 화면 팝업에서 적은 연습 제목. 비웠으면 없다(옛 기록에도 없다). */
+  title?: string;
   savedAt: number;
 };
 
