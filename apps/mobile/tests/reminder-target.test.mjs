@@ -21,7 +21,6 @@ test('연습 알림은 알림이 말한 대상을 연다(SOMA-862)',()=>{
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'unread_script',script_id:id2}),`/reminder-open?kind=unread_script&id=${id2}`);
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'first_practice'}),'/reading/sample');
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'first_nudge'}),'/reading/sample');
- assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'exam'}),'/reading/sample?exam=1');
 });
 test('대상 id가 없거나 이상하면 홈, 일반·연속 기록 알림도 홈이다',()=>{
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'homework'}),'/(tabs)');

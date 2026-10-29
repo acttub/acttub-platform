@@ -28,7 +28,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostgresReadingExampleRepository implements ReadingExampleRepository {
     private static final Logger log = LoggerFactory.getLogger(PostgresReadingExampleRepository.class);
 
-    private static final String SELECT = "SELECT id,title,summary,category,raw_text,CAST(draft AS text) AS draft,CAST(audio AS text) AS audio FROM reading_examples WHERE active";
+    private static final String SELECT = "SELECT id,title,summary,raw_text,CAST(draft AS text) AS draft,CAST(audio AS text) AS audio FROM reading_examples WHERE active";
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -96,7 +96,7 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
                 line.path("character").isIntegralNumber() ? line.path("character").intValue() : null,
                 line.path("text").textValue())));
         return new ReadingExample(row.get("id", String.class), row.get("title", String.class), row.get("summary", String.class),
-                row.get("raw_text", String.class), characters, lines, audio(row), row.get("category", String.class));
+                row.get("raw_text", String.class), characters, lines, audio(row));
     }
 
     /** 깨진 audio 칸은 음성이 없는 것으로 다룬다 — 목록·복사까지 막지 않고, 앱은 예전처럼 모델로 읽는다. */

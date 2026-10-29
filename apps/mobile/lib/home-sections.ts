@@ -18,19 +18,3 @@ export function homeDeadlineSections(
   if (!profile.birth_date) return { admissions: true, auditions: true };
   return { admissions: true, auditions: fullYearsOn(profile.birth_date, today) >= AUDITION_FROM_AGE };
 }
-
-/**
- * 입시생의 실기까지 남은 날(SOMA-864). 입시생이 아니거나, 날짜가 없거나, 지났거나, 400일 넘게 남았으면 null.
- * @param today 한국 날짜 YYYY-MM-DD.
- */
-export function examCountdown(
-  profile: Pick<ServerProfile, 'experience' | 'exam_date'> | null | undefined,
-  today: string,
-): number | null {
-  if (profile?.experience !== 'exam_prep' || !profile.exam_date) return null;
-  const exam = Date.parse(`${profile.exam_date}T00:00:00Z`);
-  const now = Date.parse(`${today}T00:00:00Z`);
-  if (!Number.isFinite(exam) || !Number.isFinite(now)) return null;
-  const days = Math.round((exam - now) / 86_400_000);
-  return days >= 0 && days <= 400 ? days : null;
-}

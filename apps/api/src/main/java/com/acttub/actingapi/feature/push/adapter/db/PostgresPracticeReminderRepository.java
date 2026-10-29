@@ -63,8 +63,7 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
                         UNION ALL SELECT user_id, updated_at, 'reading' FROM line_memorization
                     ),
                     eligible AS (
-                        SELECT u.id AS user_id, u.created_at AS signup_at,
-                               (profile.experience='exam_prep') AS exam_prep, profile.exam_date
+                        SELECT u.id AS user_id, u.created_at AS signup_at
                         FROM users u
                         JOIN user_profiles profile ON profile.user_id=u.id
                         WHERE u.status='active' AND profile.notify_evening_reminder
@@ -93,12 +92,12 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
                           AND NOT EXISTS (SELECT 1 FROM events e WHERE e.user_id=el.user_id)
                     ),
                     pick AS (SELECT * FROM practiced UNION ALL SELECT * FROM never)
-                    SELECT pick.user_id, el2.exam_prep, to_char(el2.exam_date,'YYYY-MM-DD') AS exam_date, to_char(pick.last_day,'YYYY-MM-DD') AS last_day, pick.first_at, pick.last_kind,
+                    SELECT pick.user_id, to_char(pick.last_day,'YYYY-MM-DD') AS last_day, pick.first_at, pick.last_kind,
                            (pick.last_kind IS NULL) AS never_practiced,
                            (pick.last_kind IS NOT NULL AND pick.last_day=CAST(:today AS date)) AS practiced_today,
                            COALESCE((SELECT string_agg(s.slot,',') FROM practice_reminder_sends s
                                      WHERE s.user_id=pick.user_id AND s.day=CAST(:today AS date)),'') AS sent_slots
-                    FROM pick JOIN eligible el2 ON el2.user_id=pick.user_id
+                    FROM pick
                     ORDER BY pick.user_id
                     """, Tuple.class)
                     .setParameter("windowStart", windowStart.atOffset(ZoneOffset.UTC))
@@ -128,9 +127,7 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
                 candidates.add(new Candidate(userId, List.copyOf(userTargets), row.get("first_at", Instant.class),
                         LocalDate.parse(row.get("last_day", String.class)),
                         row.get("never_practiced", Boolean.class), "reading".equals(row.get("last_kind", String.class)),
-                        row.get("practiced_today", Boolean.class), Set.copyOf(sent),
-                        Boolean.TRUE.equals(row.get("exam_prep", Boolean.class)),
-                        row.get("exam_date", String.class) == null ? null : LocalDate.parse(row.get("exam_date", String.class))));
+                        row.get("practiced_today", Boolean.class), Set.copyOf(sent)));
             }
             return List.copyOf(candidates);
         });

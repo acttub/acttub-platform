@@ -78,7 +78,6 @@
     받지 않는다. 보낼 때가 되면 보냈을 문구를 고른 뒤 `practice_reminder_sends`에 `template_id` 앞에 `holdout:`을 붙여 기록만 남긴다. 발송 수를 셀 때는
     `template_id LIKE 'holdout:%'` 행을 빼고, 알림 효과는 같은 때 보낼 차례였던 두 무리(발송·비교군)의 다음 연습을 비교한다.
   - **연습 권유의 내용**은 처음 맞는 것 하나다. 순서는 `resume`(k=1) → `pending_video` → `unread_script` → `first_practice` → `homework` → `reading` → `general`이다.
-    입시 준비 회원(`experience=exam_prep`)의 실기 날짜(`user_profiles.exam_date`)가 한국 날짜 기준 오늘~오늘+30일이면 `first_practice`·`reading`·`general`이 될 회원은 대신 `exam`을 보낸다(SOMA-864): 제목 "실기까지 D-n"(당일 "오늘 실기예요"), 본문은 "오늘 대사 한 번만 소리 내 읽어 봐요." 등 문구 3개(`exam.a`~`exam.c`, 영어 `exam.en.a`·`b`). `resume`·`pending_video`·`unread_script`·`homework`·`first_nudge`·`streak`은 그대로다. 실기 날짜는 `PUT /v2/me/exam-date`로만 바뀐다.
     (1) k=1이고 가장 최근 코칭 대화가 열려 있으며 마지막
     메시지가 코치의 질문이고 그 대화에 마저 하기 알림을 보낸 적이 없으면 `resume`: 제목 "아까 하던 코칭 마저 할까요?", 본문은 배우가 답한 적이 없으면 "코치 질문이 남아 있어요: …", 있으면
     "답한 건 저장돼 있어요. 코치가 물어본 것: …"이고 `conversation_id`·`practice_id`를 data에 싣는다. (2) `pending_video`: 이 회원이 직접 올린 영상(`videos.user_id`)이
@@ -99,9 +98,9 @@
   - **문구**는 `ReminderTemplates` 한 곳에 있다. 종류마다 5~10개이고 일반·숙제는 건너뛴 날 수(1 / 2~3 / 4~7)별로 따로 있으며 문구마다 고정 id가 있다. 최근 14일 안에
     이 회원에게 보낸 id는 피하고(모두 썼으면 가장 오래전에 쓴 것), 고르는 것은 회원·날짜·칸으로 정해진다. 한국어가 아닌 설정에는 최소한의 영어 문구를 쓴다.
     작품 제목·대사·이벤트·홍보는 넣지 않는다.
-  - **푸시 data**: `kind`는 `evening_reminder`로 둔다(지금 앱이 이 값일 때 누르면 홈으로 보내므로 앱 빌드 없이 동작 유지), 실제 종류는 `reminder_kind`(resume·pending_video·unread_script·homework·reading·general·first_practice·first_nudge·exam·streak), `skipped_days`, `template_id`, resume이면 `conversation_id`와
+  - **푸시 data**: `kind`는 `evening_reminder`로 둔다(지금 앱이 이 값일 때 누르면 홈으로 보내므로 앱 빌드 없이 동작 유지), 실제 종류는 `reminder_kind`(resume·pending_video·unread_script·homework·reading·general·first_practice·first_nudge·streak), `skipped_days`, `template_id`, resume이면 `conversation_id`와
     `practice_id`(새 앱은 해당 회차 코치 화면을 열고, 기존 앱은 홈), homework이면 `practice_id`, pending_video이면 `video_id`, unread_script이면 `script_id`. 앱 판 0.1.x의 탭 처리는 `evening_reminder`만 홈으로 보내므로 새 종류를 눌러도 앱이 열릴 뿐 특정 화면으로 가지 않는다.
-    1.1.0부터 앱은 알림이 말한 화면을 바로 연다(SOMA-862): resume은 그 코치 대화, homework는 그 묶음의 다음 테이크 준비 화면, pending_video는 그 영상을 얹은 새 연습 준비 화면, unread_script는 그 대본의 리딩 준비 화면, first_practice·first_nudge는 예시 대본 고르기(첫 예시가 골라져 있다), exam은 입시 예시가 앞에 온 예시 대본 고르기(SOMA-864). 대상 id가 없거나, 대상이 지워졌거나(영상 파일 파기 포함) 못 찾으면 홈이다. reading·general·streak은 홈이다.
+    1.1.0부터 앱은 알림이 말한 화면을 바로 연다(SOMA-862): resume은 그 코치 대화, homework는 그 묶음의 다음 테이크 준비 화면, pending_video는 그 영상을 얹은 새 연습 준비 화면, unread_script는 그 대본의 리딩 준비 화면, first_practice·first_nudge는 예시 대본 고르기(첫 예시가 골라져 있다). 대상 id가 없거나, 대상이 지워졌거나(영상 파일 파기 포함) 못 찾으면 홈이다. reading·general·streak은 홈이다.
     누르면 앱이 `reminder_open`(reminder_kind·template_id·target)을 남기고, 대상을 찾아 여는 세 종류는 `reminder_target`(reminder_kind·result=opened|home)을 한 번 더 남긴다.
   - 보낼 자리는 보내기 전에 `practice_reminder_sends`에 먼저 넣어 선점하고(`ON CONFLICT DO NOTHING`), 선점한 쪽만 보낸다. 탈퇴와 게스트 파기는 이 기록을 지운다.
 - 리마인드 토글을 끄면 서버 발송 대상에서 제외한다. 업데이트한 앱은 옛 판이 예약한 로컬 알람을 모두

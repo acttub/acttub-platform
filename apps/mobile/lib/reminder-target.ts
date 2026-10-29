@@ -41,9 +41,6 @@ export function reminderTarget(data: unknown): string | null {
     case 'first_practice':
     case 'first_nudge':
       return '/reading/sample';
-    case 'exam':
-      // 실기 D-day 기간의 입시생 알림(SOMA-864) — 입시 예시가 앞에 온 예시 대본 고르기.
-      return '/reading/sample?exam=1';
     default:
       return '/(tabs)';
   }

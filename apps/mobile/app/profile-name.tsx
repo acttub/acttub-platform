@@ -39,7 +39,6 @@ import {
   stepBefore,
   stepReady,
   type OnboardingStep,
-  examDateOk,
 } from '@/lib/onboarding-steps';
 import { takeProviderNameHint } from '@/lib/profile';
 import { DIRECTION_LABEL_KEYS, GENDER_LABEL_KEYS } from '@/lib/profile-labels';
@@ -57,7 +56,6 @@ import {
 } from '@/lib/profile-form';
 import { readAttributedChannel, recordSignupCompleted } from '@/lib/signup-attribution-runtime';
 import { SkeletonDetail } from '@/components/ui/skeleton';
-import { setSignupLanding, signupLandingFor } from '@/lib/signup-landing';
 
 
 type Screen = 'intro' | OnboardingStep | 'blocked';
@@ -96,18 +94,7 @@ export default function ProfileNameScreen() {
   const discoverySources = useMemo(() => discoveryOrder(), []);
   // Airbridge 가 이미 광고·추적 링크로 출처를 확인한 설치면 묻지 않는다(SOMA-733). 귀속을 읽기 전에는 묻는 쪽으로 둔다.
   const [askDiscovery, setAskDiscovery] = useState(true);
-  const steps = onboardingSteps(askDiscovery, form.experience === 'exam_prep');
-  // 실기 날짜(SOMA-864) — 프로필 여섯 항목과 따로 저장한다. 건너뛰면 null.
-  const [examDate, setExamDate] = useState<string | null>(null);
-  const examYears = useMemo(() => {
-    const year = new Date().getFullYear();
-    return [year, year + 1];
-  }, []);
-  const defaultExam = useMemo<BirthParts>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
-  }, []);
+  const steps = onboardingSteps(askDiscovery);
   const prefilled = useRef(false);
   const me = profile.me;
 
@@ -153,10 +140,7 @@ export default function ProfileNameScreen() {
     setError(null);
     try {
       const now = new Date();
-      // 저장이 끝나면 _layout 이 바로 화면을 옮기므로 가입 직후 열 화면은 저장 전에 얹는다(실패하면 지운다).
-      setSignupLanding(signupLandingFor(form.experience));
       await saveProfile(buildProfilePayload(form, now));
-      if (form.experience === 'exam_prep' && examDate) void api.saveExamDate(examDate).catch(() => {});
       void logEvent('profile_setup', {
         mediums: form.directions.join(',') || 'none',
         career: form.experience ?? 'none',
@@ -170,7 +154,6 @@ export default function ProfileNameScreen() {
       if (askDiscovery) void api.recordDiscoveryAnswer(buildDiscoveryPayload(answer)).catch(() => {});
       // 저장이 곧 게이트 통과라 _layout 이 화면을 옮긴다.
     } catch (cause) {
-      setSignupLanding(null);
       const failure = profileSaveFailure(cause);
       if (failure.kind === 'account_closed') {
         // 만 14세 미만. 서버가 계정을 닫았다 — 안내를 남기고 로그인으로 간다.
@@ -202,7 +185,7 @@ export default function ProfileNameScreen() {
         return;
       }
     }
-    const next = stepAfter(onboardingSteps(askDiscovery, nextForm.experience === 'exam_prep'), from);
+    const next = stepAfter(steps, from);
     if (next) setScreen(next);
     else void submit(answer);
   };
@@ -375,43 +358,6 @@ export default function ProfileNameScreen() {
         </View>
       );
       break;
-    case 'exam_date': {
-      const parts = (examDate ? parseBirthDate(examDate) : null) ?? defaultExam;
-      const value = formatBirthParts(parts);
-      const ok = examDateOk(value, new Date());
-      body = (
-        <>
-          <BirthWheel
-            value={parts}
-            years={examYears}
-            onTouchActive={setWheelTouch}
-            onChange={(next) => setExamDate(formatBirthParts(next))}
-          />
-          {!ok && (
-            <View style={styles.fieldError}>
-              <InlineErrorLine message={t('profileName.examDatePast')} />
-            </View>
-          )}
-        </>
-      );
-      footer = (
-        <>
-          <TextButton
-            label={t('profileName.examDateSkip')}
-            onPress={() => {
-              setExamDate(null);
-              advance('exam_date');
-            }}
-            disabled={busy}
-          />
-          {nextButton(() => {
-            setExamDate(value);
-            advance('exam_date');
-          }, ok)}
-        </>
-      );
-      break;
-    }
     case 'directions':
       body = (
         <View style={styles.options}>
@@ -550,7 +496,6 @@ const ASK_KEYS: Record<OnboardingStep, string> = {
   gender: 'profileName.askGender',
   goal: 'profileName.askGoal',
   career: 'profileName.askCareer',
-  exam_date: 'profileName.askExamDate',
   directions: 'profileName.askDirections',
   discovery: 'profileName.askDiscovery',
 };
