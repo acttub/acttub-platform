@@ -125,6 +125,37 @@ class AdEndpointIT {
     }
 
     @Test
+    @DisplayName("ad_slot_switches 에서 끈 칸은 광고가 있어도 NONE, 다시 켜면 돌아온다 — 다른 칸은 그대로")
+    void slotSwitch() throws Exception {
+        insertAd("direct", "{settings_top}", "all", "https://cdn/banner.png", null);
+        finishReading();
+        try {
+            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("DIRECT");
+            jdbc.update("UPDATE ad_slot_switches SET enabled=false WHERE slot_key='settings_top'");
+            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("NONE");
+            assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+            jdbc.update("UPDATE ad_slot_switches SET enabled=true WHERE slot_key='settings_top'");
+            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("DIRECT");
+        } finally {
+            jdbc.update("UPDATE ad_slot_switches SET enabled=true");
+        }
+    }
+
+    @Test
+    @DisplayName("상세는 학원 정보를 그대로 주고, 자체 광고·없는 광고는 404 ad_not_found")
+    void detail() throws Exception {
+        UUID direct = insertAd("direct", "{home_top}", "all", "https://cdn/b.png", null);
+        UUID house = insertAd("house", "{home_top}", "all", null, "/challenges");
+        JsonNode detail = json(get("/v2/ads/" + direct), 200);
+        assertThat(detail.path("advertiser_name").asText()).isEqualTo("한빛연기학원");
+        assertThat(detail.path("academy_registration_no").asText()).isEqualTo("제2026-1호");
+        assertThat(detail.path("tuition").asText()).isEqualTo("월 40만원(교재비 포함)");
+        assertThat(detail.path("link_url").asText()).isEqualTo("https://example.com");
+        assertThat(json(get("/v2/ads/" + house), 404).path("detail").asText()).isEqualTo("ad_not_found");
+        assertThat(json(get("/v2/ads/" + UUID.randomUUID()), 404).path("detail").asText()).isEqualTo("ad_not_found");
+    }
+
+    @Test
     @DisplayName("노출은 하루 한 번, 클릭은 누를 때마다 남는다. 없는 광고 404, 모르는 칸·사건 422")
     void events() throws Exception {
         UUID ad = insertAd("direct", "{home_top}", "all", "https://cdn/b.png", null);
