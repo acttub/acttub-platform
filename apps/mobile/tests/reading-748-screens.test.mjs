@@ -116,7 +116,9 @@ test('첫 리딩 안내는 기기에 한 번 본 것으로 남고, 못 읽으면
 test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, 첫 리딩 안내는 진행 상태로만 띄운다', () => {
   const play = src('app/reading/play.tsx');
   assert.match(play, /t\(monologue \? 'reading\.monologueStartHint' : 'reading\.startHint'\)/);
-  assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
+  assert.match(play, /onPress=\{\(\) => void closeTip\(\)\}/);
+  // 「시작하고 이 안내는 다음부터 숨기기」는 없다 — [시작]이 곧 다음부터 숨기기다(10/29).
+  assert.doesNotMatch(play, /startSkipNext/);
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
   // 첫 리딩 안내는 화면을 덮는 버튼 설명이 아니라, 지금 차례에 맞는 말풍선을 하나씩 띄운다(10/29 되살림).
   assert.doesNotMatch(play, /ReadingGuideOverlay/);
