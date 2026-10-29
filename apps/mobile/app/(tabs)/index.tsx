@@ -14,7 +14,7 @@ import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
-import { buildWeekActivity } from '@/lib/practice-activity';
+import { buildRecentActivity } from '@/lib/practice-activity';
 import { practiceStreak, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
@@ -289,7 +289,8 @@ export default function HomeScreen() {
   const sections = homeDeadlineSections(profile.me?.profile, kstDate());
 
 
-  const { days } = useMemo(() => buildWeekActivity(activityDays ?? []), [activityDays]);
+  // 오늘이 맨 오른쪽인 최근 7일.
+  const { days } = useMemo(() => buildRecentActivity(activityDays ?? []), [activityDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
   const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
   const activityLoaded = activityDays !== null;
@@ -1020,7 +1021,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
     paddingHorizontal: space.gutter,
-    paddingBottom: space[5],
+    paddingBottom: space[3],
     gap: space[2],
   },
   hero: { height: 180 },
@@ -1057,6 +1058,7 @@ const styles = StyleSheet.create({
   },
 
   weekCard: {
+    marginTop: space[3],
     backgroundColor: palette.bg,
     borderRadius: radius.lg,
     borderWidth: 1,

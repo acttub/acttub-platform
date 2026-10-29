@@ -9,6 +9,7 @@ import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { pt } from '@/components/ui/anchored-menu';
 import { SecondaryButton, TextButton } from '@/components/ui/buttons';
+import { SettingsProCard } from '@/components/settings-pro-card';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
@@ -73,15 +74,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         <AdSlot slot="settings_top" />
         {billing && proVisible(billing) && (
-          <>
-            <SectionTitle>{t('pro.settingsSection')}</SectionTitle>
-            <SettingsCard
-              icon="award"
-              title={t('pro.settingsTitle')}
-              sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)}
-              onPress={() => router.push(settingsTarget(billing))}
-            />
-          </>
+          <SettingsProCard sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)} onPress={() => router.push(settingsTarget(billing))} />
         )}
 
         <SectionTitle>{t('settings.profile')}</SectionTitle>

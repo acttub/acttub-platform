@@ -223,6 +223,7 @@ export default function ProfileNameScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
+        {/* 인사 묶음은 화면 맨 위와 시작하기 버튼 사이의 가운데에 둔다(디자인 시스템 「의도된 차이」). */}
         <View style={styles.introCenter}>
           <Image source={MASCOT.home} style={MASCOT_SIZE.intro} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
@@ -436,7 +437,7 @@ export default function ProfileNameScreen() {
         {/* 생년월일 휠을 만지는 동안은 화면이 같이 움직이지 않게 멈춘다(10/25). */}
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>
           {/* 하나 고르는 질문은 누르면 바로 넘어간다(SOMA-827) — 그 사실을 말풍선 아래 줄로 알린다. */}
-          <MascotBubble title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
+          <MascotBubble question title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
           <Animated.View
             key={step}
             entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
@@ -508,7 +509,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 
-  introCenter: { flex: 1, alignItems: 'center', gap: space[3], paddingTop: 96, paddingHorizontal: space.gutter },
+  introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space[3], paddingHorizontal: space.gutter },
   introTitle: { ...type.title1, color: palette.text, textAlign: 'center' },
   introBody: { maxWidth: 290, ...type.body1, color: palette.textSub, textAlign: 'center' },
   introBadge: {

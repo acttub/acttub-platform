@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
+import { space, type } from '@/constants/tokens';
 
 /**
  * pen 「온보딩 / 질문 말풍선」(파이프라인 반영버전 공통) — 왼쪽 액티(52×61, 아래 4 띄움), 13 띄워 회색 말풍선
@@ -15,21 +16,24 @@ export function MascotBubble({
   title,
   body,
   guide,
+  question = false,
 }: {
   source?: ImageSourcePropType;
   title: string;
   body?: string | null;
   guide?: string | null;
+  /** 가입 질문 말풍선 — 안쪽 사방 16, 제목 headline, 안내 body2(디자인 시스템 「의도된 차이」). */
+  question?: boolean;
 }) {
   return (
     <View style={styles.row}>
       <View style={styles.mascot}>
         <Image source={source} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       </View>
-      <View style={styles.bubble}>
-        <Text style={styles.title}>{title}</Text>
-        {guide ? <Text style={styles.guide}>{guide}</Text> : null}
-        {body ? <Text style={styles.body}>{body}</Text> : null}
+      <View style={[styles.bubble, question && styles.questionBubble]}>
+        <Text style={[styles.title, question && styles.questionTitle]}>{title}</Text>
+        {guide ? <Text style={[styles.guide, question && styles.questionSmall]}>{guide}</Text> : null}
+        {body ? <Text style={[styles.body, question && styles.questionSmall]}>{body}</Text> : null}
       </View>
     </View>
   );
@@ -53,7 +57,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgSoft,
     borderRadius: 16,
   },
+  questionBubble: { padding: space[4] },
   title: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
+  questionTitle: type.headline,
+  questionSmall: type.body2,
   guide: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.blueDeep },
   body: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMeta },
 });

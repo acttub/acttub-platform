@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
 
@@ -23,7 +24,6 @@ import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { radius, space, type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api } from '@/lib/api';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -211,9 +211,9 @@ export default function ReadingNew() {
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
     if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
     if (firstReadingRef.current) return router.replace(FIRST_READING_HREF);
-    // 목소리는 넣을 때 자동으로 정한다 — 바꾸기는 대본 상세 ⋯ 에서만(pen R2).
-    router.replace('/reading/detail');
-    if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
+    // 나눈 뒤 목소리 정하기(2단계)를 거친다. 목소리는 자동으로 골라 둔 채 열리고, 저장하면 목소리 화면이
+    // 대본 상세(튜토리얼이면 구간 고르기까지)로 넘긴다(lib/tutorial afterVoicesSaved).
+    router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
   };
 
   /** 올리고 읽힌 파일이면 [다음]이 보낼 입력을 돌려준다. 실패·읽기 자리 없음은 팝업을 띄우고 null. */
@@ -526,8 +526,10 @@ function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  // 아래 안내가 안드로이드 내비게이션 바에 가리지 않게 아래 안전 영역만큼 띄운다.
+  const bottomInset = useSafeAreaInsets().bottom;
   return (
-    <View style={[styles.root, styles.splitScreen]}>
+    <View style={[styles.root, styles.splitScreen, { paddingBottom: bottomInset }]}>
       <Image source={MASCOT} style={MASCOT_SIZE.empty} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
       <Text style={styles.splitSub}>{t('reading.splitSub')}</Text>

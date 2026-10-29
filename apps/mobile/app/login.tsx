@@ -38,8 +38,9 @@ const GOOGLE_TEXT = '#1F1F1F';
 // 카카오·네이버 로그인 버튼 규격 색(각 브랜드 가이드).
 const KAKAO_YELLOW = '#FEE500';
 const KAKAO_TEXT = '#191919';
-const KAKAO_SYMBOL = '#000000';
 const NAVER_GREEN = '#03C75A';
+// 넓은 로그인 버튼 높이 — 버튼 토큰(48)보다 크게(디자인 시스템 「의도된 차이」).
+const WIDE_HEIGHT = 62;
 
 type ProviderList =
   | { status: 'loading' }
@@ -146,8 +147,13 @@ export default function LoginScreen() {
         ) : (
           <Text style={styles.appleGlyph}></Text>
         ))}
-      {provider === 'kakao' && <KakaoSymbol />}
-      {provider === 'naver' && <Text style={styles.naverN}>N</Text>}
+      {/* 카카오·네이버 공식 로그인 리소스(카카오 디벨로퍼스 심볼, 네이버 로그인 BI 아이콘)를 그대로 쓴다. */}
+      {provider === 'kakao' && (
+        <Image source={require('@/assets/images/kakao-symbol.png')} style={size === 'wide' ? styles.kakaoLogoWide : styles.kakaoLogo} contentFit="contain" />
+      )}
+      {provider === 'naver' && (
+        <Image source={require('@/assets/images/naver-login-icon.png')} style={size === 'wide' ? styles.naverLogoWide : styles.naverLogo} contentFit="contain" />
+      )}
     </>
   );
   const renderWide = (provider: LoginProvider) => {
@@ -216,8 +222,8 @@ export default function LoginScreen() {
 
         {list.status === 'loading' ? (
           <SkeletonGroup style={styles.wideStack}>
-            <SkeletonBlock height={48} radius={radius.lg} />
-            <SkeletonBlock height={48} radius={radius.lg} />
+            <SkeletonBlock height={WIDE_HEIGHT} radius={radius.lg} />
+            <SkeletonBlock height={WIDE_HEIGHT} radius={radius.lg} />
           </SkeletonGroup>
         ) : list.status === 'error' ? (
           <InlineError message={t('login.providersFail')} onRetry={() => void loadProviders()} />
@@ -246,16 +252,6 @@ export default function LoginScreen() {
   );
 }
 
-/** 카카오 로그인 버튼 가이드의 심볼(검은 말풍선). 아이콘 글꼴에 같은 모양이 없어 도형으로 그린다. */
-function KakaoSymbol() {
-  return (
-    <View style={styles.kakaoSymbol}>
-      <View style={styles.kakaoBubble} />
-      <View style={styles.kakaoTail} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: space.gutter },
   hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: space[4] },
@@ -269,7 +265,7 @@ const styles = StyleSheet.create({
   circleRow: { flexDirection: 'row', justifyContent: 'center', gap: space[5] },
   providerBox: { gap: space[4] },
   wideStack: { gap: space[3] },
-  wide: { height: 48, borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2] },
+  wide: { height: WIDE_HEIGHT, paddingHorizontal: space[5], borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2] },
   wideLabel: type.headline,
   googleLogoWide: { width: 20, height: 20 },
   recentBadge: {
@@ -288,23 +284,10 @@ const styles = StyleSheet.create({
   dividerText: { ...type.caption, color: palette.textMeta },
   circle: { width: 56, height: 56, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   googleLogo: { width: 24, height: 24 },
-  naverN: { fontSize: 24, fontWeight: '800', color: palette.onAccent },
-  kakaoSymbol: { width: 26, height: 25 },
-  kakaoBubble: { width: 26, height: 21, borderRadius: 13, backgroundColor: KAKAO_SYMBOL },
-  kakaoTail: {
-    position: 'absolute',
-    left: 6,
-    top: 17,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: KAKAO_SYMBOL,
-    transform: [{ rotate: '25deg' }],
-  },
+  naverLogo: { width: 56, height: 56 },
+  naverLogoWide: { width: 28, height: 28 },
+  kakaoLogo: { width: 26, height: 26 },
+  kakaoLogoWide: { width: 22, height: 22 },
   pressed: { opacity: 0.7 },
   dim: { opacity: 0.5 },
   appleGlyph: { fontFamily: 'System', fontSize: 26, color: palette.onAccent },

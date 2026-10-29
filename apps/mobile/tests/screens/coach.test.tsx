@@ -81,7 +81,8 @@ jest.mock('@/components/mic-button', () => {
 });
 
 const SEND = '보내기';
-const PLACEHOLDER = '직접 써도 돼요';
+// 코치가 질문을 만드는 동안은 자리표시가 「코치가 질문을 만들고 있어요…」로 바뀐다.
+const PLACEHOLDER = /^(직접 써도 돼요|코치가 질문을 만들고 있어요…)$/;
 const LOADING = '코치가 첫 질문을 쓰고 있어요…';
 const LOADING_HINT = '보통 20~30초쯤 걸려요. 화면을 나가도 질문은 계속 만들어지고, 홈에서 「대화 이어 가기」를 누르면 이어서 볼 수 있어요.';
 const NOTE = { id: 'n1', title: '멈춤' } as PracticeNote;

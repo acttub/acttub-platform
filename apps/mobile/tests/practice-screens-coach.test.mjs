@@ -84,7 +84,7 @@ test('practice.library: 홈은 한국 시간 연속일과 이번 주 요일 점�
   const home = read('app/(tabs)/index.tsx');
 
   assert.match(home, /practiceStreak/);
-  assert.match(home, /buildWeekActivity/);
+  assert.match(home, /buildRecentActivity/);
   assert.doesNotMatch(home, /recentGroups\(/);
 });
 
