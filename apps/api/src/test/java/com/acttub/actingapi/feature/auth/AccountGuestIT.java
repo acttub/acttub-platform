@@ -408,6 +408,8 @@ class AccountGuestIT {
                 authorized(post("/v2/push-tokens").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"token\":\"ExponentPushToken[guest]\",\"platform\":\"ios\"}"), guest)
                         .andReturn().getResponse(),
+                authorized(post("/v2/push-opens").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"kind\":\"evening_reminder\"}"), guest).andReturn().getResponse(),
                 authorized(post("/v2/guest-transfers").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"123456\"}"), guest).andReturn().getResponse());
 
@@ -417,6 +419,7 @@ class AccountGuestIT {
                     .isEqualTo(mapper.readTree("{\"detail\":\"member_only\"}"));
         }
         assertThat(count("push_tokens")).isZero();
+        assertThat(count("push_opens")).isZero();
 
         var guestOnly = authorized(post("/v2/guest/transfer-code"), jwt.issueAccessToken(member()).value())
                 .andReturn().getResponse();
