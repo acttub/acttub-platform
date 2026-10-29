@@ -2116,6 +2116,7 @@ const ko = {
     recordingDropped: '녹음 {{count}}개 저장 못 함',
     chipReading: '읽는 중',
     chipTextOnly: '글로 보기',
+    directionCard: '지문',
     chipBeforeStart: '시작 전',
     chipMicOpening: '마이크 켜는 중',
     chipHold: '넘김 멈춤',

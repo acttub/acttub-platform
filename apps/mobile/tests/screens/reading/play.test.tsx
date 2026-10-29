@@ -42,6 +42,12 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: ()
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+// 지문 멈춤(SOMA-937)은 기본 0초로 두고 기존 흐름을 본다. 멈춤 자체는 아래 SOMA-937 테스트가 시간을 정해 본다.
+const mockBeatMs = { value: 0 };
+jest.mock('@/lib/reading/direction-beat', () => ({
+  ...jest.requireActual('@/lib/reading/direction-beat'),
+  beatMs: () => mockBeatMs.value,
+}));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn(), listReadingScripts: jest.fn() } }));
 const mockAskRating = jest.fn(async () => undefined);
 jest.mock('@/hooks/use-app-rating', () => ({ useAppRating: () => ({ after: mockAskRating, element: null }) }));
@@ -570,6 +576,7 @@ test('내 대사만 가리면 내 줄이 막대로 바뀌고, 첫 단어·원문
 const PARTNER_FIRST = { start_line_id: 'l4', end_line_id: 'l5' };
 
 test('고품질 목소리를 켰고 쓸 수 있으면 서버 음성으로 읽고, 못 받은 줄은 기기 목소리로 읽으며 한 번 알린다', async () => {
+  jest.mocked(tts.isReady).mockReturnValue(false); // 앱 목소리를 받아 두지 않은 기기 — 기기 목소리로 대신한다(SOMA-937)
   await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   queue.take.mockResolvedValue(null);
@@ -626,7 +633,73 @@ test('남은 하루 한도로 이번 회차 상대 대사를 다 못 읽으면 �
   expect(jest.mocked(tts.createQueueFor).mock.calls[0]).toEqual(['s1', expect.objectContaining({ cloud: false })]);
 });
 
+test('서버 음성을 못 받거나 틀지 못한 줄은 앱 목소리가 준비돼 있으면 같은 목소리로 읽고, 기기 목소리·안내 없이 기록만 남긴다(SOMA-937)', async () => {
+  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
+  jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
+  queue.take.mockResolvedValue(null);
+  queue.make.mockResolvedValue(null);
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.speak).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', expect.objectContaining({ scriptId: 's1' }));
+  expect(speakWithDevice).not.toHaveBeenCalled();
+  expect(screen.queryByText('고품질 목소리를 못 받아 기기 목소리로 읽어요')).not.toBeOnTheScreen();
+  expect(logEvent).toHaveBeenCalledWith('reading_line_voice_fallback', { engine: 'cloud', to: 'supertonic', reason: 'missing' });
+});
+
+test('받아 둔 서버 음성을 틀지 못해도 앱 목소리가 준비돼 있으면 그것으로 읽는다(SOMA-937)', async () => {
+  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
+  jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
+  queue.take.mockResolvedValue('file:///cache/broken.wav');
+  jest.mocked(tts.play).mockRejectedValueOnce(Object.assign(new Error('재생 실패: not_started'), { kind: 'playback' }));
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.discardSpeechFile).toHaveBeenCalledWith('file:///cache/broken.wav');
+  expect(tts.speak).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', expect.objectContaining({ scriptId: 's1' }));
+  expect(speakWithDevice).not.toHaveBeenCalled();
+  expect(logEvent).toHaveBeenCalledWith('reading_line_voice_fallback', { engine: 'cloud', to: 'supertonic', reason: 'play_failed' });
+});
+
+test('대사 바로 앞의 지문은 지문 카드로 띄워 멈추고 상대 읽기를 미뤘다가, 다음을 누르면 그 대사로 간다(SOMA-937)', async () => {
+  mockBeatMs.value = 60_000;
+  try {
+    await startPlay(PARTNER_FIRST);
+
+    expect(await screen.findByText('서연이 자리에 앉는다.')).toBeOnTheScreen();
+    expect(screen.getByText('지문')).toBeOnTheScreen();
+    expect(screen.queryByText('응, 늦어서 미안해.')).not.toBeOnTheScreen();
+    expect(tts.speak).not.toHaveBeenCalled();
+    expect(tts.play).not.toHaveBeenCalled();
+    expect(speakWithDevice).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByText('다음'));
+    expect(await screen.findByText(ME)).toBeOnTheScreen();
+    expect(screen.queryByText('지문')).not.toBeOnTheScreen();
+    expect(screen.getByText('(서연이 자리에 앉는다.)')).toBeOnTheScreen();
+  } finally {
+    mockBeatMs.value = 0;
+  }
+});
+
+test('첫 대사 앞의 장면 머리는 시작 전엔 기록 맨 위에 보이고, 시작하면 지문 카드로 띄운 뒤 시간이 지나면 넘어간다(SOMA-937)', async () => {
+  mockBeatMs.value = 300;
+  try {
+    await startPlay({ start_line_id: 'l2', end_line_id: 'l5' }, scriptDetail(TWO_ROLE_LINES), { begin: false });
+    expect(await screen.findByText('1장 카페')).toBeOnTheScreen();
+    expect(screen.queryByText('지문')).not.toBeOnTheScreen();
+
+    await begin();
+    expect(await screen.findByText('지문')).toBeOnTheScreen();
+    expect(await screen.findByText(ME, {}, { timeout: 3000 })).toBeOnTheScreen();
+    expect(screen.getByText('1장 카페')).toBeOnTheScreen();
+  } finally {
+    mockBeatMs.value = 0;
+  }
+});
+
 test('받아 둔 서버 음성을 틀지 못하면 그 파일을 지우고 이 줄은 기기 목소리로 읽은 뒤 넘어간다', async () => {
+  jest.mocked(tts.isReady).mockReturnValue(false); // 앱 목소리를 받아 두지 않은 기기 — 기기 목소리로 대신한다(SOMA-937)
   await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   queue.take.mockResolvedValue('file:///cache/broken.wav');
@@ -640,6 +713,7 @@ test('받아 둔 서버 음성을 틀지 못하면 그 파일을 지우고 이 �
 });
 
 test('서버 음성을 못 받았는데 기기 목소리도 없으면 글로 보이고 다음을 눌러 넘긴다', async () => {
+  jest.mocked(tts.isReady).mockReturnValue(false); // 앱 목소리를 받아 두지 않은 기기 — 기기 목소리로 대신한다(SOMA-937)
   await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   jest.mocked(hasDeviceVoice).mockResolvedValue(false);
@@ -1312,6 +1386,7 @@ test('앱 목소리도 기기 목소리도 없는 기기는 상대 대사를 글
 });
 
 test('서버 음성을 못 받은 안내는 회차에서 한 번만 띄운다', async () => {
+  jest.mocked(tts.isReady).mockReturnValue(false); // 앱 목소리를 받아 두지 않은 기기 — 기기 목소리로 대신한다(SOMA-937)
   await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   queue.take.mockResolvedValue(null);
@@ -1723,6 +1798,21 @@ test('SOMA-934: 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 
   expect(screen.queryByText('다음 대사')).not.toBeOnTheScreen();
   // 녹음·받아쓰기는 끊지 않고 이어진다.
   expect(mockStt.abort.mock.calls.length).toBe(abortsBefore);
+});
+
+test('첫 리딩 독백에서 아무것도 못 알아들은 채 그만 읽기를 누르면 끝 화면과 저장 위치 모두 0줄이다(10/29)', async () => {
+  setFirstReadingSession(sessionDetail({}).id);
+  try {
+    const server = await startMonologue();
+    await fireEvent.press(screen.getByText('그만 읽기'));
+
+    expect(await screen.findByText(/첫 리딩을 해 봤어요/)).toBeOnTheScreen();
+    expect(screen.getByText(/4줄 중 0줄/)).toBeOnTheScreen();
+    // 이어 읽기 카드(서버 K/N)도 0 — 첫 문장을 현재 줄로 남긴다.
+    await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l1', complete: false })));
+  } finally {
+    setFirstReadingSession(null);
+  }
 });
 
 test('SOMA-597: 독백 시작 전에는 자동 넘김 대신 끝까지 읽고 끝내기를 누르는 안내를 보인다', async () => {

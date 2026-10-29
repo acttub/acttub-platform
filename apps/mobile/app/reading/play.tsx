@@ -44,6 +44,7 @@ import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
+import { beatMs, directionsBefore } from '@/lib/reading/direction-beat';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
 import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
@@ -62,6 +63,7 @@ import {
   pause as pauseRun,
   progressOf,
   progressPayload,
+  stoppedProgressPayload,
   recordSaid,
   resume as resumeRun,
   resumeRun as resumeAt,
@@ -744,6 +746,28 @@ export default function ReadingPlay() {
 
   const tipOpen = phase.kind === 'running' && phase.hold === 'tip';
 
+  // ── 지문 멈춤(SOMA-937) — 다음 대사 바로 앞의 지문·장면을 지금 줄 자리에 띄우고 잠깐 멈춘다. 멈춘 동안은 상대 읽기·마이크를
+  // 열지 않는다. 렌더에서 바로 셈해야 상대 읽기가 한 번 시작됐다 끊기지 않는다. 같은 줄의 멈춤은 한 번만(멈춤·재개로 다시 뜨지 않는다).
+  const [beatDoneAt, setBeatDoneAt] = useState<number | null>(null);
+  const runEnded = !run || run.status === 'done';
+  const beatLines = useMemo(
+    () => (monologue || runEnded || !run || phase.kind !== 'running' || tipOpen || beatDoneAt === run.index ? [] : directionsBefore(run.lines, run.index)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [monologue, runEnded, run?.index, run?.lines, phase.kind, tipOpen, beatDoneAt],
+  );
+  const beatDuration = beatLines.length > 0 && run ? beatMs(beatLines.map((i) => run.lines[i].text)) : 0;
+  const beatOn = beatDuration > 0;
+  /** 시작 전 안내나 지문 멈춤 — 상대 읽기·내 차례 마이크를 열지 않는다. */
+  const turnGated = tipOpen || beatOn;
+  const runPaused = run?.status === 'paused';
+  useEffect(() => {
+    if (!beatOn || !run || runPaused) return;
+    const at = run.index;
+    const timer = setTimeout(() => setBeatDoneAt(at), beatDuration);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beatOn, run?.index, runPaused]);
+
   // ── 첫 리딩 안내(SOMA-748) — 진행 상태를 보고 띄울 뿐, 진행 규칙은 건드리지 않는다 ─────────────
   useEffect(() => {
     let alive = true;
@@ -811,7 +835,7 @@ export default function ReadingPlay() {
   // ── 상대 차례: 목소리로 읽고 넘어간다 ─────────────────────────────────────────
   useEffect(() => {
     const current = runRef.current;
-    if (phase.kind !== 'running' || tipOpen || !current || current.status !== 'partner') return;
+    if (phase.kind !== 'running' || turnGated || !current || current.status !== 'partner') return;
     const line = current.lines[current.index] as DialogueLine;
     const from = current.index;
     const span = turnSpan(current);
@@ -829,7 +853,7 @@ export default function ReadingPlay() {
     };
     // 저장해 둔 소리를 틀지 못하면(재생 실패·시작 안 됨) 그 파일을 지우고 이 줄은 기기 목소리로 읽는다(SOMA-906).
     // 지운 파일은 다음에 다시 받거나 만든다. 기기 목소리도 없으면 그대로 다음 줄로 넘어간다.
-    const playSaved = async (uri: string, readWithDevice: () => Promise<void>) => {
+    const playSaved = async (uri: string, readInstead: () => Promise<void>) => {
       try {
         await tts.play(uri);
         return;
@@ -837,9 +861,26 @@ export default function ReadingPlay() {
         void logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
         tts.discardSpeechFile(uri);
       }
-      if (cancelled || !mounted.current || !deviceVoiceRef.current) return;
+      if (cancelled || !mounted.current) return;
+      await readInstead();
+    };
+    const readWithDeviceVoice = async (read: () => Promise<void>) => {
+      if (!deviceVoiceRef.current) return;
       setLineEngine('device_voice');
-      await readWithDevice();
+      await read();
+    };
+    /**
+     * 서버 음성을 못 쓴 줄(받지 못함·틀지 못함) — 앱 목소리가 이미 준비돼 있으면 같은 프리셋으로 읽어 그 배역 목소리가 중간에
+     * 바뀌지 않게 한다(SOMA-937, Play 리뷰 「한 캐릭터를 중간중간 다른 성우가 읽음」). 준비돼 있지 않을 때만 기기 기본 목소리다.
+     * 어느 쪽으로 갔는지 남긴다. 앱 목소리로 읽었으면 true.
+     */
+    const readWithAppVoice = async (text: string, lang: string | undefined, reason: 'missing' | 'play_failed'): Promise<boolean> => {
+      const to = tts.isReady() ? 'supertonic' : deviceVoiceRef.current ? 'device_voice' : 'text_only';
+      void logEvent('reading_line_voice_fallback', { engine, to, reason });
+      if (to !== 'supertonic') return false;
+      setLineEngine('supertonic');
+      await tts.speak(text, preset, { scriptId: script?.id, lang });
+      return true;
     };
     void (async () => {
       try {
@@ -858,12 +899,14 @@ export default function ReadingPlay() {
             if (cancelled || !mounted.current) return;
             if (uri) {
               setLineEngine('example');
-              await playSaved(uri, async () => {
-                for (const part of speechParts(l)) {
-                  if (cancelled || !mounted.current) return;
-                  await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
-                }
-              });
+              await playSaved(uri, () =>
+                readWithDeviceVoice(async () => {
+                  for (const part of speechParts(l)) {
+                    if (cancelled || !mounted.current) return;
+                    await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
+                  }
+                }),
+              );
               continue;
             }
             if (!deviceVoiceRef.current) {
@@ -894,12 +937,18 @@ export default function ReadingPlay() {
           if (cancelled || !mounted.current) return;
           if (ready) {
             setLineEngine(engine);
-            await playSaved(ready, () => speakWithDevice(text, preset, { locale: speechLocaleFor(lang) }));
+            await playSaved(ready, async () => {
+              if (engine === 'cloud' && (await readWithAppVoice(text, lang, 'play_failed'))) return;
+              await readWithDeviceVoice(() => speakWithDevice(text, preset, { locale: speechLocaleFor(lang) }));
+            });
           } else if (engine === 'supertonic') {
             setLineEngine('supertonic');
             await tts.speak(text, preset, { scriptId: script?.id, lang });
           } else {
-            // 서버 음성을 못 받은 줄 — 기기 기본 목소리로 읽고 회차에서 처음일 때 알린다. 기기 음성이 없으면 글로 보기.
+            // 서버 음성을 못 받은 줄 — 앱 목소리가 준비돼 있으면 그것으로(SOMA-937), 아니면 기기 기본 목소리로 읽고 회차에서
+            // 처음일 때 알린다. 기기 음성도 없으면 글로 보기.
+            if (await readWithAppVoice(text, lang, 'missing')) continue;
+            if (cancelled || !mounted.current) return;
             if (!deviceVoiceRef.current) {
               setLineEngine('text_only');
               return;
@@ -924,7 +973,7 @@ export default function ReadingPlay() {
       tts.stop();
       stopDeviceVoice();
     };
-  }, [phase.kind, tipOpen, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash]);
+  }, [phase.kind, turnGated, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash]);
 
   // ── 내 차례: 마이크(침묵 감지)와 STT ─────────────────────────────────────────
   /** 내 차례를 끝낸다(침묵·[다음]) — 그때까지의 녹음을 거둔 뒤 넘긴다. */
@@ -960,7 +1009,7 @@ export default function ReadingPlay() {
   }, [goNext]);
 
   useEffect(() => {
-    if (monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
+    if (monologue || phase.kind !== 'running' || turnGated || !run || run.status !== 'mine' || !session) return;
     const from = run.index;
     const span = turnSpan(run);
     const turnText = run.lines.slice(span.start, span.end + 1).map((l) => l.text).join(' ');
@@ -1067,7 +1116,7 @@ export default function ReadingPlay() {
       setListening(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind, tipOpen, run?.index, run?.status, attempt]);
+  }, [phase.kind, turnGated, run?.index, run?.status, attempt]);
 
   // ── 독백: 끊지 않고 한 번에 듣는다(SOMA-597) ─────────────────────────────────────
   const monoHeard = () => [monoDone.current, monoPiece.current].filter(Boolean).join(' ');
@@ -1436,10 +1485,12 @@ export default function ReadingPlay() {
       const heard = monoHeard();
       monoDone.current = heard;
       monoPiece.current = '';
-      const idx = sentenceIndexes(cur, monoFrom.current ?? cur.index).filter((i) => i <= cur.index);
+      // 아무것도 못 알아들었으면 지금 문장도 읽지 않은 것으로 센다 — 끝 화면과 이어 읽기 카드가 같은 줄 수를 보이게(10/29).
+      const upTo = heard.trim() ? cur.index : cur.index - 1;
+      const idx = sentenceIndexes(cur, monoFrom.current ?? cur.index).filter((i) => i <= upTo);
       const result = monologueResults(idx.map((i) => cur.lineIds[i]), idx.map((i) => cur.lines[i].text), heard);
       setMonoResult(result);
-      const trimmed: RunState = { ...cur, endIndex: Math.max(cur.startIndex - 1, Math.min(cur.endIndex, cur.index)) };
+      const trimmed: RunState = { ...cur, endIndex: Math.max(cur.startIndex - 1, Math.min(cur.endIndex, upTo)) };
       next = finishMonologueRun(trimmed, sttModeRef.current?.kind === 'stt' ? result.said : {});
     } else {
       next = stopRun(cur);
@@ -1449,7 +1500,8 @@ export default function ReadingPlay() {
     stt.abort();
     void mic.stop();
     stoppedEarlyRef.current = true;
-    queueRef.current?.push(progressPayload(cur));
+    // 끝 화면이 센 마지막 읽은 줄 다음을 저장한다 — 이어 읽기 카드의 「K/N줄」이 끝 화면과 같아진다(10/29).
+    queueRef.current?.push(stoppedProgressPayload(cur, next));
     commit(next);
   };
   /** 첫 리딩의 「그만 읽기」 — 읽는 중이면 멈춘 뒤 여기까지로 끝내고 첫 리딩 끝 화면으로 간다(10/29). */
@@ -1956,12 +2008,14 @@ export default function ReadingPlay() {
   if (!monologue) {
     for (const g of lineGroups(run.lines, { monologue })) {
       const start = Math.max(g.start, run.startIndex);
-      const end = Math.min(g.end, run.index - 1, run.endIndex);
+      const end = Math.min(g.end, (beatOn ? beatLines[0] : run.index) - 1, run.endIndex);
       if (start > end) continue;
       const lines = run.lines.slice(start, end + 1).map((l, k) => ({ id: run.lineIds[start + k], line: l }));
       past.push({ key: run.lineIds[start], index: start, lines });
     }
   }
+  // 첫 대사 앞 지문(구간 밖, 무대·인물 소개) — 시작 멈춤 동안은 카드에 있고, 그 밖에는 기록 맨 위에 둔다(SOMA-937).
+  const leadLines = monologue ? [] : directionsBefore(run.lines, run.startIndex).filter((i) => !beatLines.includes(i));
   // 지금 차례의 나머지 줄 — 묶인 대사는 한 카드에 줄마다 이어 보인다. 「첫 단어」는 첫 줄에만, 「원문 보기」는 묶음 전체에 적용된다.
   const span = turnSpan(run);
   const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
@@ -2012,6 +2066,10 @@ export default function ReadingPlay() {
         contentContainerStyle={styles.flowContent}
         onContentSizeChange={() => !monologue && scrollRef.current?.scrollTo({ y: Math.max(0, dialogueCardY.current - 12), animated: true })}>
         {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
+        {leadLines.map((i) => {
+          const l = run.lines[i];
+          return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
+        })}
         {past.map(({ key, index, lines }) => {
           const l = lines[0].line;
           if (l.type !== 'dialogue') return <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
@@ -2099,7 +2157,25 @@ export default function ReadingPlay() {
               </View>
             );
           })}
-        {isDialogue && !monologue && (
+
+        {beatOn && (
+          // 지문 멈춤 카드(SOMA-937) — 읽을 줄이 아니라 상황이라 회색 카드에 지문 글을 그대로 보인다. [다음]으로 바로 넘어간다.
+          <View style={[styles.card, styles.cardOther]} accessibilityLiveRegion="polite">
+            <View style={styles.cardHead}>
+              <Text style={styles.cardRole}>{t('reading.directionCard')}</Text>
+            </View>
+            {beatLines.map((i) => {
+              const l = run.lines[i];
+              return (
+                <Text key={run.lineIds[i]} style={l.type === 'scene' ? styles.beatScene : styles.beatText}>
+                  {l.text}
+                </Text>
+              );
+            })}
+          </View>
+        )}
+
+        {isDialogue && !monologue && !beatOn && (
           <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]} onLayout={(e) => (dialogueCardY.current = e.nativeEvent.layout.y)}>
             <View style={styles.cardHead}>
               <Text style={[styles.cardRole, myTurn && styles.cardRoleMine]}>
@@ -2152,7 +2228,7 @@ export default function ReadingPlay() {
           </View>
         )}
 
-        {!monologue && isDialogue && myTurn && sttMode?.kind === 'stt' && (
+        {!monologue && isDialogue && myTurn && !beatOn && sttMode?.kind === 'stt' && (
           <View style={styles.saidBox}>
             <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
             <Text style={styles.saidText}>{said || t('reading.noSpeechYet')}</Text>
@@ -2238,6 +2314,7 @@ export default function ReadingPlay() {
               onPress={() => {
                 if (monoNext) nextMonoChunk(monoNext.start);
                 else if (monologue) void finishMonologue();
+                else if (beatOn) setBeatDoneAt(run.index);
                 else if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
               }}>
@@ -2426,7 +2503,10 @@ const styles = StyleSheet.create({
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, gap: 18 },
-  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
+  // 지나간 지문은 대사보다 한 단계 진하게 — 같은 연회색이라 지문인지 알아보기 어려웠다(SOMA-937).
+  direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20 },
+  beatText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 17, lineHeight: 26 },
+  beatScene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, lineHeight: 22 },
   pastRow: { gap: 3, paddingHorizontal: 4 },
   pastRole: { color: palette.checkOff, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   pastText: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },

@@ -2117,6 +2117,7 @@ const en: DeepStringShape<typeof ko> = {
     recordingDropped: '{{count}} recording(s) not saved',
     chipReading: 'Reading',
     chipTextOnly: 'Text only',
+    directionCard: 'Stage direction',
     chipBeforeStart: 'Not started',
     chipMicOpening: 'Turning mic on',
     chipHold: 'Advance paused',

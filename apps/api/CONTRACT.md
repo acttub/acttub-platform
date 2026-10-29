@@ -822,6 +822,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   앞서 준 값을 건너뛰고, 성별을 모르면 건너뛰는 순환이다(표는 reading.cast). 앱이 같은 규칙을 그대로 따라 한다.
   성별·나이대는 나누기 작업만 쓴다: `ScriptSplitWorker` 가 배역 목록 답(`SplitResponse.rosterTraits`)이나 한 조각 대본의 답 끝
   「배역」 블록(`SplitResponse.traits`)을 읽고 `SplitDraft` 가 이름을 맞춰 `ScriptDraft.characterTraits` 로 넘기면
+  (긴 대본은 그 뒤 성별을 모르는 배역만 `LateCastTraits` 대목으로 한 번 더 물어 빈 칸만 채운다, SOMA-937)
   `PostgresScriptRepository#create` 가 저장한다. 다른 경로의 대본은 NULL 이고 PATCH 로 고치는 칸은 없다.
 - OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`·`gender`·`age_band`(둘은 nullable), `ReadingSessionRangeName`·
   `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
@@ -895,7 +896,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
   나누기는 늘 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
-  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
+  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751)·`SCRIPT_CAST`(SOMA-937) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
   본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.

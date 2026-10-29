@@ -60,7 +60,7 @@ test('리딩 화면 — 뒤에 말풍선이 남았으면 아래 주 버튼이 �
 
 test('리딩 화면 — 독백의 「방금 말한 것」은 스크롤 끝이 아니라 버튼 줄 바로 위에 고정하고 최근 두 줄만 보인다', () => {
   const src = read('app/reading/play.tsx');
-  assert.match(src, /\{!monologue && isDialogue && myTurn && sttMode\?\.kind === 'stt' && \(/);
+  assert.match(src, /\{!monologue && isDialogue && myTurn && !beatOn && sttMode\?\.kind === 'stt' && \(/);
   const scrollEnd = src.indexOf('</ScrollView>', src.indexOf("{!monologue && isDialogue && myTurn"));
   const bar = src.indexOf('styles.monoSaidBar]');
   assert.ok(bar > scrollEnd, '독백 「방금 말한 것」은 스크롤 밖에 있어야 한다');
