@@ -51,39 +51,9 @@ export function monthDay(iso: string | null | undefined): string | null {
   return t('pro.monthDay', { month: at.getUTCMonth() + 1, day: at.getUTCDate() });
 }
 
-/** 「신한카드 ····1234」. 카드사 이름에 「카드」가 없으면 붙인다. */
-export function cardLabel(company: string | null | undefined, last4: string | null | undefined): string | null {
-  if (!company && !last4) return null;
-  const name = company ? (company.endsWith('카드') ? company : company + t('pro.cardSuffix')) : t('pro.card');
-  return last4 ? `${name} ····${last4}` : name;
-}
-
 /** 3,900 → 「3,900원」. */
 export function won(amount: number): string {
   return t('pro.won', { amount: amount.toLocaleString('en-US') });
-}
-
-/** 구독 관리 위 상자의 둘째 줄(pen GmTw6 「다음 결제 11월 23일 · 3,900원 · 신한카드 ····1234」). */
-export function planLine(me: BillingMe): string {
-  const card = cardLabel(me.card_company, me.card_last4);
-  switch (me.status) {
-    case 'active':
-      return [t('pro.nextBilling', { date: monthDay(me.next_billing_at) ?? '' }), won(me.amount), card].filter(Boolean).join(' · ');
-    case 'canceled':
-      return t('pro.canceledLine', { date: monthDay(me.period_end) ?? '' });
-    case 'none':
-      return me.pro && me.grant_ends_at ? t('pro.grantLine', { date: monthDay(me.grant_ends_at) ?? '' }) : t('pro.freeLine');
-    case 'past_due':
-      return t('pro.pastDueLine', { date: monthDay(me.next_billing_at) ?? '' });
-    default:
-      return t('pro.freeLine');
-  }
-}
-
-/** 구독 관리 위 상자의 제목. */
-export function planTitle(me: BillingMe): string {
-  if (me.status === 'past_due') return t('pro.pastDueTitle');
-  return me.pro ? t('pro.using') : t('pro.free');
 }
 
 /** 설정 「ACTTUB Pro」 줄의 아래 글. */
@@ -148,13 +118,6 @@ export async function loadBilling(deps: {
 export function storeSubscribed(me: BillingMe | null | undefined): boolean {
   if (!me || (me.provider !== 'apple' && me.provider !== 'google')) return false;
   return me.status === 'active' || me.status === 'past_due';
-}
-
-/** 구독 관리 아래 안내 — 어디서 결제한 구독인지만 말한다(링크 없음). */
-export function managedNote(me: BillingMe): string | null {
-  if (me.provider === 'toss') return t('pro.webManaged');
-  if (me.provider === 'apple' || me.provider === 'google') return t('pro.storeManaged');
-  return null;
 }
 
 /** 서버의 무료 한도 오류 → 띄울 시트. 플래그가 꺼져 있으면 서버가 이 코드를 보내지 않아 시트도 뜨지 않는다. */
