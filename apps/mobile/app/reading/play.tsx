@@ -103,7 +103,6 @@ import {
 } from '@/lib/reading/voice-capability';
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { LoadingText } from '@/components/ui/loading-text';
-import { ReadingCompareLink } from '@/components/reading/compare-link';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
@@ -1784,7 +1783,6 @@ export default function ReadingPlay() {
                 </>
               )}
             </Pressable>
-            <ReadingCompareLink scriptId={script.id} session={session} />
             {otherScriptRow}
             </View>
             {completed && !fromTutorialRef.current && (
@@ -1872,7 +1870,6 @@ export default function ReadingPlay() {
               </>
             )}
           </Pressable>
-          <ReadingCompareLink scriptId={script.id} session={session} />
           {otherScriptRow}
           </View>
 
