@@ -63,6 +63,11 @@ public record ScriptDraft(
         this(title, rawText, source, characterNames, lines, null, null);
     }
 
+    /** 배역 성별·나이대만 바꾼 같은 대본(SOMA-937, {@link LateCastTraits}). */
+    public ScriptDraft withTraits(List<CharacterTraits> traits) {
+        return new ScriptDraft(title, rawText, source, characterNames, lines, traits, characterMembers, unnamedCast);
+    }
+
     /** 줄마다 말과 소리 낼 글을 채운 같은 대본(SOMA-751). {@code languages} 는 줄의 ordinal → 답이고, 없는 줄은 그대로다. */
     public ScriptDraft withLanguages(java.util.Map<Integer, LineLanguage.Result> languages) {
         if (languages.isEmpty()) {

@@ -20,6 +20,7 @@ import java.util.function.UnaryOperator;
 
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Material;
 import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
+import com.acttub.actingapi.feature.reading.domain.LateCastTraits;
 import com.acttub.actingapi.feature.reading.domain.LineLanguage;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
@@ -304,7 +305,7 @@ public class ScriptSplitWorker {
         draft = Monologue.split(draft);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
-            return Split.of(languages(calls.jobId, calls, draft));
+            return Split.of(languages(calls.jobId, calls, chunks.size() > 1 ? lateTraits(calls.jobId, calls, draft) : draft));
         }
         return Split.failed(switch (rejection) {
             case NO_CHARACTERS -> ScriptImportFailure.NO_CHARACTERS;
@@ -421,6 +422,24 @@ public class ScriptSplitWorker {
             }
         });
         return LineSpacing.apply(lines, restored);
+    }
+
+    /**
+     * 긴 대본에서 성별을 모르는 배역만 그 배역의 대목으로 다시 묻는다 (SOMA-937). 짧은 대본은 첫 호출이 대본 전체를 보고 답했으므로 부르지
+     * 않는다. 작업을 실패시키지 않는다 — 못 받으면 지금처럼 모름으로 둔다.
+     */
+    private ScriptDraft lateTraits(UUID jobId, Calls calls, ScriptDraft draft) {
+        List<Integer> unknown = LateCastTraits.unknown(draft);
+        if (unknown.isEmpty()) {
+            return draft;
+        }
+        try {
+            String answer = calls.ask(ScriptSplitPrompt.lateTraits(), LateCastTraits.excerpt(draft, unknown), LlmStep.SCRIPT_CAST);
+            return LateCastTraits.fill(draft, unknown, SplitResponse.rosterTraits(answer));
+        } catch (RuntimeException failure) {
+            failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.lateTraits", jobId));
+            return draft;
+        }
     }
 
     /**
