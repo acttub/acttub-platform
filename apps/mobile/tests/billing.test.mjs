@@ -150,3 +150,84 @@ test('loadBilling: 스토어 구독이면 동기화 결과를 쓰고, 실패하�
   assert.equal(called, false);
   assert.equal(toss.synced, false);
 });
+
+test('billing: Pro 안내에 들어온 곳은 아는 값만 받고 나머지는 기본이다', async () => {
+  const { proFrom } = await import('../lib/billing.ts');
+  assert.equal(proFrom('coaching'), 'coaching');
+  assert.equal(proFrom('script'), 'script');
+  assert.equal(proFrom('pron'), 'pron');
+  assert.equal(proFrom(undefined), 'default');
+  assert.equal(proFrom(['coaching']), 'default');
+  assert.equal(proFrom('PRO'), 'default');
+});
+
+test('billing: Pro 안내 상태는 서버 구독과 스토어 구매 값에서 하나로 정해진다', async () => {
+  const { paywallState } = await import('../lib/billing.ts');
+  const open = me({ status: 'none', pro: false, app_enabled: true });
+  const idle = { busy: false, status: null, error: null, prices: { monthly: null, yearly: null } };
+  const priced = { ...idle, prices: { monthly: '₩3,900', yearly: null } };
+  assert.deepEqual(paywallState(null, idle), { kind: 'loading_me' });
+  assert.deepEqual(paywallState(me({ app_enabled: true }), priced), { kind: 'already_pro' });
+  assert.deepEqual(paywallState(me({ status: 'none', pro: false, app_enabled: false }), priced), { kind: 'closed' });
+  assert.deepEqual(paywallState(open, idle), { kind: 'prices_loading' });
+  assert.deepEqual(paywallState(open, { ...idle, error: '스토어에 연결하지 못했어요.' }), { kind: 'prices_failed' });
+  assert.deepEqual(paywallState(open, priced), { kind: 'ready' });
+  assert.deepEqual(paywallState(open, { ...priced, busy: true, status: '결제창을 여는 중이에요' }), { kind: 'busy', label: '결제창을 여는 중이에요' });
+  assert.deepEqual(paywallState(open, { ...priced, error: '결제를 확인하지 못했어요.' }), { kind: 'failed', message: '결제를 확인하지 못했어요.' });
+});
+
+test('billing: 구독 관리 — 무료·무료 Pro 기간은 요금제 상자와 환불·복원 줄, [Pro 알아보기]', async () => {
+  const { manageView } = await import('../lib/billing.ts');
+  const refund = { kind: 'refund', label: '환불 기준' };
+  const restore = { kind: 'restore', label: '구매 복원' };
+  const explore = { kind: 'explore', label: 'Pro 알아보기' };
+  assert.deepEqual(manageView(me({ status: 'expired', pro: false, provider: null, app_enabled: true }), 'ios'), {
+    tone: 'free', eyebrow: '지금 요금제', badge: false, title: '무료 이용 중', meta: '코칭 하루 3회 · 대본 3개 보관',
+    rows: [refund, restore], cta: explore,
+  });
+  assert.deepEqual(manageView(me({ status: 'none', pro: true, provider: null, grant_ends_at: '2026-11-30T14:59:00Z', app_enabled: true }), 'ios'), {
+    tone: 'grant', eyebrow: '무료 Pro', badge: false, title: '11월 30일까지', meta: '끝나도 자동 결제 없이 무료로 돌아가요',
+    rows: [refund, restore], cta: explore,
+  });
+  // 앱 결제가 닫혀 있으면 복원 줄이 없다(스토어에 연결하지 않는다).
+  assert.deepEqual(manageView(me({ status: 'none', pro: false, provider: null, app_enabled: false }), 'ios').rows, [refund]);
+});
+
+test('billing: 구독 관리 — 스토어 구독은 상태·기기 스토어에 따라 제목·줄·버튼이 바뀐다', async () => {
+  const { manageView } = await import('../lib/billing.ts');
+  const refund = { kind: 'refund', label: '환불 기준' };
+  const restore = { kind: 'restore', label: '구매 복원' };
+  const apple = (over) => me({ provider: 'apple', app_enabled: true, ...over });
+  assert.deepEqual(manageView(apple({}), 'ios'), {
+    tone: 'pro', eyebrow: null, badge: true, title: '월 구독 · 3,900원', meta: '다음 결제 11월 23일',
+    rows: [{ kind: 'store', label: 'App Store에서 구독 관리' }, refund, restore], cta: null,
+  });
+  assert.deepEqual(manageView(me({ provider: 'google', amount: 32500, app_enabled: true }), 'android'), {
+    tone: 'pro', eyebrow: null, badge: true, title: '연 구독 · 32,500원', meta: '다음 결제 11월 23일',
+    rows: [{ kind: 'store', label: 'Play 스토어에서 구독 관리' }, refund, restore], cta: null,
+  });
+  assert.deepEqual(manageView(apple({ status: 'canceled' }), 'ios'), {
+    tone: 'canceled', eyebrow: '자동 결제 해지됨', badge: false, title: '11월 23일까지 Pro', meta: '그 뒤에는 무료로 돌아가요',
+    rows: [{ kind: 'store', label: 'App Store에서 다시 구독' }, refund, restore], cta: null,
+  });
+  assert.deepEqual(manageView(apple({ status: 'past_due', pro: false }), 'ios'), {
+    tone: 'problem', eyebrow: '월 구독', badge: false, title: '결제하지 못했어요', meta: 'App Store에서 결제 수단을 확인해 주세요',
+    rows: [refund, restore], cta: { kind: 'store', label: '결제 수단 확인하기' },
+  });
+  // 다른 스토어에서 산 구독은 이 기기에서 관리·결제 수단 확인을 열지 않는다.
+  assert.deepEqual(manageView(me({ provider: 'google', status: 'past_due', pro: false, app_enabled: true }), 'ios').cta, null);
+  assert.deepEqual(manageView(me({ provider: 'google', app_enabled: true }), 'ios'), {
+    tone: 'pro', eyebrow: null, badge: true, title: 'Google Play에서 산 구독이에요', meta: '구독 관리는 그 기기의 Google Play에서 할 수 있어요',
+    rows: [refund, restore], cta: null,
+  });
+});
+
+test('billing: 구독 관리 — 웹(토스) 구독은 상태만 말하고 웹 결제로 가는 줄·버튼이 없다', async () => {
+  const { manageView } = await import('../lib/billing.ts');
+  const view = manageView(me({ provider: 'toss', app_enabled: true }), 'ios');
+  assert.deepEqual(view, {
+    tone: 'pro', eyebrow: null, badge: true, title: '웹에서 결제한 구독이에요', meta: '월 구독 · 다음 결제 11월 23일',
+    rows: [{ kind: 'refund', label: '환불 기준' }], cta: null,
+  });
+  assert.doesNotMatch(JSON.stringify(view), /acttub\.com|pricing|http/);
+});
