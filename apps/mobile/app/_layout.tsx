@@ -19,6 +19,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
 
+import { fontFamilyForWeight } from '@/lib/font-weight';
 import '@/lib/global-font';
 import { useStoreRecovery } from '@/hooks/use-store-recovery';
 import { logEvent, logScreenView } from '@/lib/analytics';
@@ -433,7 +434,8 @@ function RootNavigator() {
                 // 디자인 시스템 NavHeader — 가운데 제목 headline(17/600), 아래 줄 없음. iOS 의 AppHeader 와 모양을 맞춘다.
                 headerTitleAlign: 'center',
                 headerShadowVisible: false,
-                headerTitleStyle: { fontSize: 17, fontWeight: '600', color: palette.text },
+                // 네이티브 헤더 제목은 RN Text 를 거치지 않아 전역 폰트가 닿지 않는다 — 600 굵기 파일을 직접 고른다.
+                headerTitleStyle: { fontSize: 17, fontFamily: fontFamilyForWeight('600', 'android'), color: palette.text },
               }
         }>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
