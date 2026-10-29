@@ -499,7 +499,7 @@ test('나가기는 저장이 닿기를 기다리지 않고 바로 상세로 간�
   await act(async () => land());
 });
 
-test('멈춘 채 그만하기를 누르면 읽은 데까지로 끝내고 리딩 완료로 간다', async () => {
+test('대사를 읽고 나서라도 중간에 그만하기를 누르면 연습으로 세지 않고 멈춘 위치만 저장한다(10/29)', async () => {
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   mockMic.stop.mockResolvedValue(null);
   const server = await startPlay();
@@ -510,11 +510,10 @@ test('멈춘 채 그만하기를 누르면 읽은 데까지로 끝내고 리딩 
 
   await fireEvent.press(screen.getByText('일시정지'));
   await fireEvent.press(screen.getByText('그만하기'));
-  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
-  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({
-    complete: true,
-    line_results: [{ line_id: 'l2', said: '오늘 왔구나' }],
-  })));
+  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: false })));
+  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
+  expect(markFirstUseGraduated).not.toHaveBeenCalled();
 });
 
 test('알아들은 대사 없이 그만하기를 누르면 완료로 남기지 않고 멈춘 위치만 저장한다', async () => {
