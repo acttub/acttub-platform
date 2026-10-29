@@ -12,13 +12,9 @@ import java.util.List;
  * @param characters 배역 이름. 줄의 {@code character} 가 이 자리(0부터)를 가리킨다
  * @param lines 줄 순서대로. ordinal 은 자리 + 1 이다
  * @param audio 미리 만든 상대역 음성(V62). 없으면 {@code null}
- * @param category 분류(V71). {@code general}(기본) 또는 {@code exam}(입시 대사)
  */
 public record ReadingExample(String id, String title, String summary, String rawText, List<String> characters, List<Line> lines,
-        ReadingExampleAudio audio, String category) {
-
-    public static final String GENERAL = "general";
-    public static final String EXAM = "exam";
+        ReadingExampleAudio audio) {
 
     /** 목록 미리보기 줄 수. */
     public static final int PREVIEW_LINES = 5;
@@ -26,13 +22,6 @@ public record ReadingExample(String id, String title, String summary, String raw
     public ReadingExample {
         characters = List.copyOf(characters);
         lines = List.copyOf(lines);
-        if (category == null) category = GENERAL;
-    }
-
-    /** 분류가 기본({@code general})인 예시. */
-    public ReadingExample(String id, String title, String summary, String rawText, List<String> characters, List<Line> lines,
-            ReadingExampleAudio audio) {
-        this(id, title, summary, rawText, characters, lines, audio, GENERAL);
     }
 
     /** 미리 만든 음성이 없는 예시. */

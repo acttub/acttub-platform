@@ -499,11 +499,6 @@ export const api = {
     );
   },
 
-  /** 실기 날짜(SOMA-864). 프로필 저장과 따로다 — 옛 앱의 프로필 저장이 이 값을 지우지 않는다. null 이면 지운다. */
-  saveExamDate(examDate: string | null): Promise<{ exam_date: string | null }> {
-    return request<{ exam_date: string | null }>('/v2/me/exam-date', jsonInit({ exam_date: examDate }, 'PUT'), { timeoutMs: 15_000 });
-  },
-
   /** 프로필 사진을 올릴 주소. 앱이 줄인 JPEG 의 크기를 알린다(영상 업로드와 같은 방식). */
   createProfilePhotoIntent(input: {
     content_type: string;

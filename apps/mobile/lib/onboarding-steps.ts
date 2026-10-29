@@ -7,25 +7,11 @@ import { NAME_MAX_LENGTH, checkBirthDate, type ProfileFormState } from './profil
  * pen 의 「요즘 연습 방식」「이루고 싶은 것」, 출생연도만 받기·건너뛰기, 연기 목표·경력 값 바꾸기는 서버가 바뀌어야 해서
  * 넣지 않았다. pen 에 없는 「추구하는 방향」은 서버 필수 항목이라 남겼다.
  */
-export type OnboardingStep = 'name' | 'birth' | 'gender' | 'goal' | 'career' | 'exam_date' | 'directions' | 'discovery';
+export type OnboardingStep = 'name' | 'birth' | 'gender' | 'goal' | 'career' | 'directions' | 'discovery';
 
-export function onboardingSteps(askDiscovery: boolean, examPrep = false): OnboardingStep[] {
-  // 경력에서 「입시생」을 고르면 바로 뒤에 실기 날짜를 묻는다(SOMA-864). 선택 항목이라 건너뛸 수 있고 따로 저장한다.
-  const steps: OnboardingStep[] = examPrep
-    ? ['name', 'birth', 'gender', 'goal', 'career', 'exam_date', 'directions']
-    : ['name', 'birth', 'gender', 'goal', 'career', 'directions'];
+export function onboardingSteps(askDiscovery: boolean): OnboardingStep[] {
+  const steps: OnboardingStep[] = ['name', 'birth', 'gender', 'goal', 'career', 'directions'];
   return askDiscovery ? [...steps, 'discovery'] : steps;
-}
-
-/** 실기 날짜(YYYY-MM-DD)가 오늘(기기 날짜)부터 400일 안인지. 서버(PUT /v2/me/exam-date)와 같은 범위다. */
-export function examDateOk(value: string, now: Date): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!m) return false;
-  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  if (date.getMonth() !== Number(m[2]) - 1) return false;
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const days = Math.round((date.getTime() - today.getTime()) / 86_400_000);
-  return days >= 0 && days <= 400;
 }
 
 /** 다음 단계. 마지막이면 null(저장). */
@@ -57,8 +43,6 @@ export function stepReady(step: OnboardingStep, form: ProfileFormState, now: Dat
       return form.goal !== null;
     case 'career':
       return form.experience !== null;
-    case 'exam_date':
-      return true; // 선택 항목 — 날짜는 화면이 따로 들고 있다.
     case 'directions':
       return form.directions.length > 0;
     case 'discovery':

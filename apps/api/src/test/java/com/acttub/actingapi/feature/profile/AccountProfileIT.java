@@ -119,7 +119,7 @@ class AccountProfileIT {
                  "status":"active","account_type":"member","profile_complete":true,
                  "profile":{"name":"김배우","gender":"female","birth_date":"2001-03-14","age":25,
                             "directions":["media"],"experience":"exam_prep","goal":"professional",
-                            "photo_url":null,"bio":null,"exam_date":null},"founding_number":null}
+                            "photo_url":null,"bio":null},"founding_number":null}
                 """.formatted(userId)));
         // 사진과 소개 없이도 게이트를 지난다.
         assertThat(protectedApi().getStatus()).as("같은 토큰으로 허용된다").isEqualTo(200);
@@ -155,7 +155,7 @@ class AccountProfileIT {
         assertThat(me.path("profile_complete").booleanValue()).isFalse();
         assertThat(me.path("profile")).isEqualTo(mapper.readTree("""
                 {"name":"옛 닉네임","gender":null,"birth_date":null,"age":null,"directions":[],
-                 "experience":null,"goal":null,"photo_url":null,"bio":null,"exam_date":null}
+                 "experience":null,"goal":null,"photo_url":null,"bio":null}
                 """));
         assertThat(protectedApi().getStatus()).isEqualTo(403);
     }
@@ -301,7 +301,7 @@ class AccountProfileIT {
         assertThat(me().path("profile")).isEqualTo(mapper.readTree("""
                 {"name":"새 활동명","gender":"unspecified","birth_date":"1999-12-31","age":26,
                  "directions":["stage"],"experience":"over_5y","goal":"hobby",
-                 "photo_url":null,"bio":"무대에서 오래 버티는 배우","exam_date":null}
+                 "photo_url":null,"bio":"무대에서 오래 버티는 배우"}
                 """));
 
         for (String item : List.of("name", "gender", "birth_date", "directions", "experience", "goal")) {
@@ -453,54 +453,6 @@ class AccountProfileIT {
     }
 
     // ---- helpers ----
-
-    /** 한국 시간 2026-10-02 의 오늘부터 400일째는 2027-11-06 이다. */
-    @Test
-    void accountProfile_examDateIsSetOnlyByItsOwnEndpointAndKeptWhenTheProfileIsSaved() throws Exception {
-        assertThat(save(profile()).getStatus()).isEqualTo(200);
-        assertThat(me().path("profile").path("exam_date").isNull()).isTrue();
-
-        var set = putExamDate("{\"exam_date\":\"2026-12-05\"}");
-        assertThat(set.getStatus()).as(set.getContentAsString()).isEqualTo(200);
-        assertThat(mapper.readTree(set.getContentAsString())).isEqualTo(mapper.readTree("{\"exam_date\":\"2026-12-05\"}"));
-        assertThat(me().path("profile").path("exam_date").textValue()).isEqualTo("2026-12-05");
-
-        // 프로필 저장은 실기 날짜를 건드리지 않는다.
-        assertThat(save(profile()).getStatus()).isEqualTo(200);
-        assertThat(me().path("profile").path("exam_date").textValue()).isEqualTo("2026-12-05");
-
-        // 범위 양 끝(오늘, 오늘+400일)은 받는다.
-        assertThat(putExamDate("{\"exam_date\":\"2026-10-02\"}").getStatus()).isEqualTo(200);
-        assertThat(putExamDate("{\"exam_date\":\"2027-11-06\"}").getStatus()).isEqualTo(200);
-
-        // 그 밖과 형식 오류는 422 이고 값은 그대로다.
-        for (String bad : List.of("2026-10-01", "2027-11-07", "2026/12/05", "내일", "")) {
-            var rejected = putExamDate("{\"exam_date\":\"" + bad + "\"}");
-            assertThat(rejected.getStatus()).as(bad).isEqualTo(422);
-        }
-        assertThat(me().path("profile").path("exam_date").textValue()).isEqualTo("2027-11-06");
-
-        var cleared = putExamDate("{\"exam_date\":null}");
-        assertThat(cleared.getStatus()).isEqualTo(200);
-        assertThat(mapper.readTree(cleared.getContentAsString())).isEqualTo(mapper.readTree("{\"exam_date\":null}"));
-        assertThat(me().path("profile").path("exam_date").isNull()).isTrue();
-    }
-
-    @Test
-    void accountProfile_examDateNeedsLogin() throws Exception {
-        var response = mvc.perform(put("/v2/me/exam-date").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"exam_date\":\"2026-12-05\"}"))
-                .andReturn().getResponse();
-        assertThat(response.getStatus()).isEqualTo(401);
-    }
-
-    private MockHttpServletResponse putExamDate(String body) throws Exception {
-        return mvc.perform(put("/v2/me/exam-date")
-                        .header("Authorization", bearer())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andReturn().getResponse();
-    }
 
     private static Map<String, Object> profile() {
         Map<String, Object> body = new LinkedHashMap<>();

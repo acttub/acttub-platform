@@ -11,7 +11,6 @@ public enum ReminderKind {
     FIRST_PRACTICE("first_practice"),
     /** 가입 30분 뒤에도 첫 연습 전인 회원에게 한 번(SOMA-870). */
     FIRST_NUDGE("first_nudge"),
-    EXAM("exam"),
     STREAK("streak");
 
     private final String wire;

@@ -103,7 +103,6 @@ async function answerToDirections() {
   await fireEvent.press(radio('여성'));
   await fireEvent.press(radio('전문 배우'));
   await fireEvent.press(radio('입시생'));
-  await fireEvent.press(screen.getByRole('button', { name: '아직 몰라요' })); // 실기 날짜(SOMA-864)
   await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
   await fireEvent.press(checkbox('매체 (TV·영화)'));
 }
@@ -163,10 +162,6 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     for (const label of ['입문 전', '입시생', '1년 미만', '1–3년', '3–5년', '5년 이상']) expect(radio(label)).toBeOnTheScreen();
     await fireEvent.press(radio('입시생'));
 
-    // 입시생이면 실기 날짜를 묻는다(SOMA-864) — 선택 항목이라 건너뛸 수 있다
-    expect(screen.getByText('민지님, 실기 시험이 언제예요?')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '아직 몰라요' }));
-
     // 추구하는 방향 — 여러 개 고를 수 있다
     expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
     expect(next()).toBeDisabled();
@@ -199,7 +194,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(next());
 
     expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
-    expect(screen.getByText('8/8')).toBeOnTheScreen(); // 입시생이라 실기 날짜 단계가 하나 더 있다(SOMA-864)
+    expect(screen.getByText('7/7')).toBeOnTheScreen();
     await fireEvent.press(radio('기타'));
     expect(saveProfile).not.toHaveBeenCalled();
     expect(done()).toBeDisabled();

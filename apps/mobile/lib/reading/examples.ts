@@ -16,8 +16,6 @@ export type ReadingExampleListResponse = {
     dialogue_count: number;
     characters: string[];
     preview: ExamplePreviewLine[];
-    /** 입시용이면 'exam'(SOMA-864). 옛 서버는 주지 않는다 — 없으면 general. */
-    category?: string;
   }[];
 };
 
@@ -31,10 +29,7 @@ export type ExampleEntry = {
   dialogueCount: number;
   characters: string[];
   preview: ExamplePreviewLine[];
-  category: ExampleCategory;
 };
-
-export type ExampleCategory = 'general' | 'exam';
 
 export type ExampleSource = 'server' | 'local';
 export type ExampleList = { source: ExampleSource; examples: ExampleEntry[] };
@@ -69,19 +64,9 @@ export function normalizeExamples(body: unknown): ExampleEntry[] {
       dialogueCount: typeof count === 'number' && Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
       characters: Array.isArray(item.characters) ? item.characters.filter(nonEmpty) : [],
       preview: previewOf(item.preview),
-      category: item.category === 'exam' ? 'exam' : 'general',
     });
   }
   return out;
-}
-
-/**
- * 입시 준비 배우가 들어오면(SOMA-864) 입시 예시를 맨 앞에 둔다. 입시 예시가 없으면(옛 서버·내장 목록) 그대로다.
- * 다른 길로 들어오면 순서를 바꾸지 않는다.
- */
-export function orderExamples(examples: readonly ExampleEntry[], exam: boolean): ExampleEntry[] {
-  if (!exam) return [...examples];
-  return [...examples.filter((e) => e.category === 'exam'), ...examples.filter((e) => e.category !== 'exam')];
 }
 
 /** 앱에 내장된 예시 — 서버 목록을 못 받았을 때와 받는 동안 보여 준다. */
@@ -95,7 +80,6 @@ export function localExamples(): ExampleList {
       dialogueCount: dialogueCount(s),
       characters: [],
       preview: samplePreview(s, PREVIEW_MAX),
-      category: 'general' as const,
     })),
   };
 }
