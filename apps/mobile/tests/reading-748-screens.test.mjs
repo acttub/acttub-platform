@@ -145,7 +145,8 @@ test('리딩 3번: 첫 연습 구간의 내 대사는 내 배역이 든 함께 �
   const lines = [...Array.from({ length: 9 }, () => d('태오')), d('윤서, 태오'), d('윤서'), d('윤서')];
   assert.equal(firstPracticeRange(lines, ['윤서']), null, '이름 줄만 보면 내 대사가 없다');
   assert.deepEqual(firstPracticeRange(lines, ['윤서', '윤서, 태오'])?.myCount, 1);
-  assert.match(src('app/reading/range.tsx'), /firstPracticeRange\(lines, myTurnRoles\)/);
+  // 구간 고르기는 더 이상 처음 10줄을 추천하지 않는다 — 리딩 화면이 10줄씩 끊어 보인다(SOMA-934).
+  assert.doesNotMatch(src('app/reading/range.tsx'), /firstPracticeRange\(/);
   assert.match(src('app/reading/range.tsx'), /fewLines\(lines, myTurnRoles,/);
   assert.match(src('app/reading/range.tsx'), /roleLineCount\(c, lines, script\.characters\)/);
 });
