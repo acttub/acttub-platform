@@ -684,49 +684,6 @@
         } ]
       }
     },
-    "/v2/me/exam-date" : {
-      "put" : {
-        "tags" : [ "v2-me" ],
-        "summary" : "Update Exam Date",
-        "description" : "입시 준비 회원의 실기 날짜를 적는다(null 이면 지운다). 한국 날짜 기준 오늘~오늘+400일만 받고\n그 밖이나 형식이 틀리면 422 다. 프로필 저장(PUT /v2/me/profile)은 이 값을 바꾸지 않는다.",
-        "operationId" : "update_exam_date_v2_me_exam_date_put",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ExamDateRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "description" : "적은 실기 날짜",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ExamDate"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
     "/v2/me/discovery" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -6669,17 +6626,9 @@
             }, {
               "type" : "null"
             } ]
-          },
-          "founding_number" : {
-            "anyOf" : [ {
-              "type" : "integer"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Founding Number"
           }
         },
-        "required" : [ "account_type", "email", "founding_number", "id", "profile", "profile_complete", "status" ],
+        "required" : [ "account_type", "email", "id", "profile", "profile_complete", "status" ],
         "title" : "MeResponse"
       },
       "Profile" : {
@@ -6755,19 +6704,9 @@
               "type" : "null"
             } ],
             "title" : "Bio"
-          },
-          "exam_date" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "date",
-              "example" : "2026-12-05"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Exam Date"
           }
         },
-        "required" : [ "age", "bio", "birth_date", "directions", "exam_date", "experience", "gender", "goal", "name", "photo_url" ],
+        "required" : [ "age", "bio", "birth_date", "directions", "experience", "gender", "goal", "name", "photo_url" ],
         "title" : "Profile"
       },
       "UpdateActorMemoryRequest" : {
@@ -6818,41 +6757,6 @@
         },
         "required" : [ "field", "source_practice_id", "updated_at", "value", "written_by_actor" ],
         "title" : "ActorMemoryItem"
-      },
-      "ExamDateRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "exam_date" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "date",
-              "example" : "2026-12-05"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Exam Date"
-          }
-        },
-        "title" : "ExamDateRequest"
-      },
-      "ExamDate" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "exam_date" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "date",
-              "example" : "2026-12-05"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Exam Date"
-          }
-        },
-        "required" : [ "exam_date" ],
-        "title" : "ExamDate"
       },
       "DiscoveryAnswerRequest" : {
         "type" : "object",
@@ -9564,17 +9468,9 @@
           "name" : {
             "type" : "string",
             "title" : "Name"
-          },
-          "founding_number" : {
-            "anyOf" : [ {
-              "type" : "integer"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Founding Number"
           }
         },
-        "required" : [ "founding_number", "name", "user_id" ],
+        "required" : [ "name", "user_id" ],
         "title" : "ChallengeParticipant"
       },
       "EntryComment" : {
@@ -11917,11 +11813,6 @@
             "type" : "string",
             "title" : "Summary"
           },
-          "category" : {
-            "type" : "string",
-            "enum" : [ "general", "exam" ],
-            "title" : "Category"
-          },
           "dialogue_count" : {
             "type" : "integer",
             "title" : "Dialogue Count"
@@ -11941,7 +11832,7 @@
             "title" : "Preview"
           }
         },
-        "required" : [ "category", "characters", "dialogue_count", "id", "preview", "summary", "title" ],
+        "required" : [ "characters", "dialogue_count", "id", "preview", "summary", "title" ],
         "title" : "ReadingExample"
       },
       "ReadingExampleList" : {

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { palette } from '@/constants/palette';
+import { type } from '@/constants/tokens';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { translate as t } from '@/lib/i18n';
 
@@ -51,10 +52,10 @@ export function LinePage({
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: palette.card },
+  page: { flex: 1, backgroundColor: palette.bg },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, height: 52 },
   close: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 17, fontWeight: '800', color: palette.text },
+  title: { ...type.headline, color: palette.text },
   body: { flex: 1 },
   footer: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
 });

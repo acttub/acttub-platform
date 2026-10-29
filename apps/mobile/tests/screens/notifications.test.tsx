@@ -66,16 +66,20 @@ test('챌린지 알림을 꺼 두었으면 머리에 알린다', async () => {
   await render(<NotificationsScreen />);
 
   expect(await screen.findByText('챌린지 알림이 꺼져 있어요. 여기에는 계속 쌓여요.')).toBeOnTheScreen();
-  expect(screen.getByText('아직 알림이 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('아직 알림이 없어요')).toBeOnTheScreen();
 });
 
-test('목록을 못 불러오면 실패 문구만 보여 준다', async () => {
-  listNotifications.mockRejectedValue(new Error('down'));
+test('목록을 못 불러오면 실패 상자를 보이고, 다시 시도하면 다시 받는다', async () => {
+  listNotifications.mockRejectedValueOnce(new Error('down'));
   loadSettings.mockRejectedValue(new Error('down'));
   await render(<NotificationsScreen />);
 
-  expect(await screen.findByText('알림을 불러오지 못했어요.')).toBeOnTheScreen();
-  expect(screen.queryByText('아직 알림이 없어요.')).not.toBeOnTheScreen();
+  expect(await screen.findByText('알림을 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByText('아직 알림이 없어요')).not.toBeOnTheScreen();
+
+  listNotifications.mockResolvedValueOnce({ groups: [], next_cursor: null });
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('아직 알림이 없어요')).toBeOnTheScreen();
 });
 
 test.each([
@@ -113,7 +117,7 @@ test('대상을 볼 수 없으면 이동하지 않고 볼 수 없다고 알린�
 
   await fireEvent.press(await screen.findByText('댓글 1개가 달렸어요'));
 
-  expect(await screen.findByText('볼 수 없는 영상이에요.')).toBeOnTheScreen();
+  expect(await screen.findByText('볼 수 없는 영상이에요')).toBeOnTheScreen();
   expect(mockRouter.push).not.toHaveBeenCalled();
   expect(readNotifications).toHaveBeenCalledWith({ group_keys: ['k'] });
 });
@@ -128,7 +132,7 @@ test('내 참여작이 운영 확인 중이라 숨겨졌으면 그 이유로 알
 
   await fireEvent.press(await screen.findByText('1명이 좋아해요'));
 
-  expect(await screen.findByText('운영 확인 중이라 지금은 볼 수 없는 영상이에요.')).toBeOnTheScreen();
+  expect(await screen.findByText('운영 확인 중이라 지금은 볼 수 없는 영상이에요')).toBeOnTheScreen();
   expect(mockRouter.push).not.toHaveBeenCalled();
 });
 
@@ -148,11 +152,11 @@ test('모두 읽음은 가장 최신 묶음까지를 읽음으로 보낸다', as
 test('알림이 없으면 모두 읽음은 아무것도 보내지 않는다', async () => {
   listNotifications.mockResolvedValue({ groups: [], next_cursor: null });
   await render(<NotificationsScreen />);
-  await screen.findByText('아직 알림이 없어요.');
+  await screen.findByText('아직 알림이 없어요');
 
   await fireEvent.press(screen.getByRole('button', { name: '모두 읽음' }));
   expect(readNotifications).not.toHaveBeenCalled();
-  expect(screen.getByText('아직 알림이 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('아직 알림이 없어요')).toBeOnTheScreen();
 });
 
 test('끝까지 내리면 다음 묶음을 이어 붙이고, 더 없으면 묻지 않는다', async () => {
@@ -180,7 +184,7 @@ test('다음 묶음을 못 받으면 있던 목록을 그대로 둔다', async (
   await fireEvent(first, 'momentumScrollEnd');
   await waitFor(() => expect(listNotifications).toHaveBeenCalledTimes(2));
   expect(screen.getByText('3명이 좋아해요')).toBeOnTheScreen();
-  expect(screen.queryByText('알림을 불러오지 못했어요.')).not.toBeOnTheScreen();
+  expect(screen.queryByText('알림을 불러오지 못했어요')).not.toBeOnTheScreen();
 });
 
 test('뒤로 버튼은 이전 화면으로 돌아간다', async () => {
@@ -188,5 +192,5 @@ test('뒤로 버튼은 이전 화면으로 돌아간다', async () => {
   await render(<NotificationsScreen />);
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
-  await screen.findByText('아직 알림이 없어요.');
+  await screen.findByText('아직 알림이 없어요');
 });

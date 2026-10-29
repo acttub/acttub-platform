@@ -46,6 +46,11 @@ public final class ScriptSplitPrompt {
     private static final String CAST_BLOCK = """
             결과 줄을 다 쓴 뒤 맨 끝에 "배역" 한 줄을 쓰고, 그 아래에 대사가 있는 배역마다 한 줄씩 "이름<TAB>성별<TAB>나이대"를 쓴다. 이름은 결과 줄의 배역 표기와 같게 쓴다.""";
 
+    private static final String LATE_TRAITS = """
+            대본에서 배역마다 처음 나오기 직전 줄, 그 배역의 첫 대사들과 바로 앞 줄, 그 배역 이름이 든 지문을 「## 배역 이름」 아래 "줄번호<TAB>화자: 대사" 또는 "줄번호<TAB>[지문] 글"로 받는다.
+            받은 배역마다 한 줄씩 "이름<TAB>성별<TAB>나이대" 형식으로만 답한다. 이름은 「##」 뒤 표기 그대로 쓴다. 설명 없이 결과 줄만.
+            - 등장 지문(「남자 목소리」「노인이 들어온다」), 다른 인물이 그 배역을 부르는 말, 그 배역의 말투(「~구먼」「~하오」)를 근거로 삼는다.""";
+
     /** 배역 목록과 「배역」 블록이 함께 쓰는 성별·나이대 규칙. */
     private static final String TRAITS = """
             - 성별: m=남자, f=여자. 나이대: child=어린이, young=10대~20대, adult=30~50대, senior=노년.
@@ -100,6 +105,14 @@ public final class ScriptSplitPrompt {
             - 받은 줄 번호를 하나도 빠뜨리지 않는다.""";
 
     private ScriptSplitPrompt() {
+    }
+
+    /**
+     * 성별을 모르는 배역만 그 배역의 대목으로 다시 묻는다 (SOMA-937, {@link com.acttub.actingapi.feature.reading.domain.LateCastTraits}).
+     * 규칙은 배역 목록과 같은 {@link #TRAITS} 다.
+     */
+    public static String lateTraits() {
+        return LATE_TRAITS + "\n" + TRAITS;
     }
 
     public static String language() {

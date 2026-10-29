@@ -76,7 +76,7 @@ describe('Stepper', () => {
     await render(<Stepper current={1} />);
     expect(screen.queryByText('✓')).not.toBeOnTheScreen();
     expect(screen.getByText('1')).toBeOnTheScreen();
-    expect(screen.getByText('영상')).toHaveStyle({ color: '#8B95A1' });
+    expect(screen.getByText('영상')).toHaveStyle({ color: '#6B7684' });
   });
 });
 

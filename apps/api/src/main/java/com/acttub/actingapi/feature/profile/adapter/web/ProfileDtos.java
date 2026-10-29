@@ -85,9 +85,7 @@ final class ProfileDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"member", "guest"})
             String accountType,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean profileComplete,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) ProfilePayload profile,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
-            Integer foundingNumber) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) ProfilePayload profile) {
     }
 
     /**
@@ -109,22 +107,7 @@ final class ProfileDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, implementation = Goal.class)
             String goal,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String photoUrl,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String bio,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, format = "date", example = "2026-12-05")
-            String examDate) {
-    }
-
-    /** 실기 날짜. {@code null} 이면 지운다. 한국 날짜 기준 오늘~오늘+400일만 받는다. */
-    @Schema(name = "ExamDateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    record ExamDateRequest(
-            @JsonProperty("exam_date") @Schema(nullable = true, format = "date", example = "2026-12-05") String examDate) {
-    }
-
-    @Schema(name = "ExamDate", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record ExamDateResponse(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, format = "date", example = "2026-12-05")
-            String examDate) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String bio) {
     }
 
     /**

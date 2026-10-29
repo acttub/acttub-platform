@@ -1,109 +1,105 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { type ImageSourcePropType, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
-import { CtaBar } from '@/components/ui/cta-bar';
+import { Button } from '@/components/ui/buttons';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
-import { BackOnlyHeader } from '@/components/ui/step-header';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 
 export type StatusAction = { label: string; onPress: () => void; loading?: boolean };
 
 /**
- * 한 장짜리 상태 화면 공통 부품(SOMA-770) — pen 「카메라와 마이크가 필요해요」·「공고를 불러오지 못했어요」·「대본을 못 나눴어요」·
- * 「알림이 꺼져 있어요」·「가입할 수 없어요」가 같은 틀이다.
+ * 화면 전체가 오류·빈 상태·불러오는 중일 때의 틀 — 디자인 시스템 pen 「StatusScreen」.
  *
- * 본문 안쪽 [16,24,24,24] · 위 여백 90 · 액티 84×94 · 10 띄우고 제목 23/900(줄높이 1.42) · 22 띄우고 설명 15/500 #4E5968(줄높이 1.5).
- * 설명이 누를 곳을 알려 주는 말이면 `bodyTone="blue"`(15/700 #1B64DA). 아래 [주 버튼]·[보조 버튼](공통 Button).
- * `size="large"`는 「가입할 수 없어요」 — 위 여백 120 · 액티 120×132 · 제목 24/800 · 설명 16/500 #6B7684(줄높이 1.6), 가운데 정렬 묶음 간격 12.
+ * - error: 마스코트 120 · 제목 title1 · 설명 body2 `text-sub` · 버튼(Button md, 폭 200 가운데).
+ * - empty: 같은 틀에 마스코트 96 · 제목 title2. 오류 색을 쓰지 않는다.
+ * - loading: 행 뼈대 셋(막대 220 · 가득 · 160).
+ *
+ * 머리는 `header`(그 화면 이름)나 `onBack`이 있을 때 NavHeader 로 그린다. 버튼은 아래 고정 바가 아니라 문구 바로 아래 가운데다.
  */
 export function StatusScreen({
-  mascot = MASCOT.coach,
-  icon,
+  kind = 'error',
+  header,
+  onBack,
+  mascot = MASCOT.dizzy,
   title,
   body,
-  bodyTone = 'dim',
   note,
   primary,
   secondary,
-  actions,
-  onBack,
-  safeArea = false,
-  size = 'default',
   children,
+  safeArea = false,
 }: {
+  kind?: 'error' | 'empty' | 'loading';
+  header?: string;
+  onBack?: () => void;
   mascot?: ImageSourcePropType;
-  /** 액티 대신 보일 아이콘(파란 원 84). */
-  icon?: React.ComponentProps<typeof Feather>['name'];
-  title: string;
+  title?: string;
   body?: string | null;
-  bodyTone?: 'dim' | 'blue';
   /** 설명 아래 흐린 한 줄(원인 등). */
   note?: string | null;
   primary?: StatusAction;
   secondary?: StatusAction;
-  /** 버튼을 직접 줄 때(primary/secondary 대신). */
-  actions?: ReactNode;
-  /** 있으면 왼쪽 위 꺾쇠 머리(높이 52)를 그린다. */
-  onBack?: () => void;
+  /** 설명 아래, 버튼 위에 두는 한 줄(누른 일 실패의 InlineError/Line, 버튼 대신 굵은 안내 등). */
+  children?: ReactNode;
   /** 화면 전체를 이 부품이 차지할 때 위·아래 안전 영역을 띄운다. */
   safeArea?: boolean;
-  size?: 'default' | 'large';
-  children?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
-  const large = size === 'large';
-  const hasActions = !!(actions || primary || secondary);
+  const empty = kind === 'empty';
   return (
-    <View style={[styles.root, safeArea && { paddingTop: insets.top }]}>
-      {onBack ? <BackOnlyHeader onBack={onBack} /> : null}
-      <View style={[styles.body, large && styles.bodyLarge]}>
-        <View style={[styles.head, large && styles.headLarge]}>
-          {icon ? (
-            <View style={styles.iconCircle}>
-              <Feather name={icon} size={34} color={palette.blue} />
+    <View style={[styles.root, safeArea && { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {header || onBack ? <NavHeader title={header} left={onBack ? <NavBackButton onPress={onBack} /> : null} /> : null}
+      {kind === 'loading' ? (
+        <SkeletonGroup style={styles.loading}>
+          {[0, 1, 2].map((row) => (
+            <View key={row} style={styles.skeletonRow}>
+              {([220, '100%', 160] as const).map((width, bar) => (
+                <SkeletonBlock key={bar} width={width} height={14} radius={radius.xs} />
+              ))}
             </View>
-          ) : (
-            <Image
-              source={mascot}
-              style={large ? MASCOT_SIZE.xl : MASCOT_SIZE.lg}
-              contentFit="contain"
-              cachePolicy="memory-disk"
-              accessibilityIgnoresInvertColors
-            />
-          )}
-          <Text style={[styles.title, large && styles.titleLarge]}>{title}</Text>
-          {large && body ? <Text style={styles.bodyTextLarge}>{body}</Text> : null}
-        </View>
-        {!large && body ? <Text style={[styles.bodyText, bodyTone === 'blue' && styles.bodyBlue]}>{body}</Text> : null}
-        {note ? <Text style={styles.note}>{note}</Text> : null}
-        {children}
-      </View>
-      {hasActions ? (
-        <CtaBar safeBottom={safeArea}>
-          {actions}
-          {primary ? <PrimaryButton label={primary.label} onPress={primary.onPress} loading={primary.loading} /> : null}
-          {secondary ? <SecondaryButton label={secondary.label} onPress={secondary.onPress} loading={secondary.loading} /> : null}
-        </CtaBar>
-      ) : null}
+          ))}
+        </SkeletonGroup>
+      ) : (
+        // 작은 기기·큰 글자에서도 버튼까지 닿게 본문을 스크롤로 둔다.
+        <ScrollView contentContainerStyle={styles.body}>
+          <Image
+            source={mascot}
+            style={empty ? MASCOT_SIZE.empty : MASCOT_SIZE.xl}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            accessibilityIgnoresInvertColors
+          />
+          {title ? <Text style={[styles.title, empty && styles.titleEmpty]}>{title}</Text> : null}
+          {body ? <Text style={styles.text}>{body}</Text> : null}
+          {note ? <Text style={styles.note}>{note}</Text> : null}
+          {children}
+          {primary || secondary ? (
+            <View style={styles.actions}>
+              {primary ? <Button size="md" label={primary.label} onPress={primary.onPress} loading={primary.loading} /> : null}
+              {secondary ? (
+                <Button size="md" variant="secondary" label={secondary.label} onPress={secondary.onPress} loading={secondary.loading} />
+              ) : null}
+            </View>
+          ) : null}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  body: { flex: 1, paddingTop: 16 + 90 + 22, paddingHorizontal: 24, paddingBottom: 24, gap: 22, alignItems: 'center' },
-  bodyLarge: { paddingTop: 16 + 120, paddingHorizontal: 32 },
-  head: { alignItems: 'center', gap: 10, alignSelf: 'stretch' },
-  headLarge: { gap: 12 },
-  iconCircle: { width: 84, height: 84, borderRadius: 42, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 23, fontWeight: '900', lineHeight: 33, color: palette.text, textAlign: 'center' },
-  titleLarge: { fontSize: 24, fontWeight: '800', lineHeight: 34 },
-  bodyText: { fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette.textDim, textAlign: 'center', alignSelf: 'stretch' },
-  bodyBlue: { fontWeight: '700', color: palette.blueDeep },
-  bodyTextLarge: { fontSize: 16, fontWeight: '500', lineHeight: 26, color: palette.textMuted, textAlign: 'center' },
-  note: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textFaint, textAlign: 'center', marginTop: -10 },
+  body: { paddingTop: 96, paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3], alignItems: 'center' },
+  title: { ...type.title1, color: palette.text, textAlign: 'center' },
+  titleEmpty: type.title2,
+  text: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  note: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
+  actions: { width: 200, marginTop: space[1], gap: space[2] },
+  loading: { paddingVertical: space[4], paddingHorizontal: space.gutter, gap: space[6] },
+  skeletonRow: { paddingVertical: space[2], gap: space[3] },
 });

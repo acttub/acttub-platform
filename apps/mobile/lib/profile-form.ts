@@ -40,8 +40,6 @@ export type ServerProfile = {
   goal: Goal | null;
   photo_url?: string | null;
   bio?: string | null;
-  /** 입시생의 실기 날짜 YYYY-MM-DD(SOMA-864). 옛 서버는 주지 않는다. */
-  exam_date?: string | null;
 };
 
 export type ProfileFormState = {

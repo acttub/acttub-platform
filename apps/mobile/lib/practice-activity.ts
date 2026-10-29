@@ -1,6 +1,5 @@
 import { translateList } from './i18n.ts';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAY_LABELS = translateList('home.weekdays');
 
 export type ActivityDay = {
@@ -9,7 +8,7 @@ export type ActivityDay = {
   label: string;
   count: number;
   isToday: boolean;
-  /** 이번 주지만 아직 오지 않은 날. */
+  /** 아직 오지 않은 날(최근 7일에는 없다). */
   isFuture: boolean;
 };
 
@@ -29,39 +28,7 @@ function startOfDay(d: Date): Date {
 }
 
 /**
- * 홈 '연습 활동'에 쓸 이번 주(월요일 시작) 7일 스트립을 만든다.
- * 12주 히트맵이 너무 멀리 본다는 피드백에 따라 최근 1주만 보여준다.
- */
-export function buildWeekActivity(
-  records: readonly { created_at: string }[],
-  now: Date = new Date(),
-): WeekActivity {
-  const counts = new Map<string, number>();
-  for (const record of records) {
-    const at = new Date(record.created_at);
-    if (Number.isNaN(at.getTime())) continue; // 잘못된 날짜는 없는 셈 친다
-    const key = dayKey(at);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
-  const today = startOfDay(now);
-  const todayKey = dayKey(today);
-  const monday = new Date(today.getTime() - ((today.getDay() + 6) % 7) * DAY_MS);
-
-  const days: ActivityDay[] = [];
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(monday.getTime() + i * DAY_MS);
-    const key = dayKey(date);
-    const isFuture = date.getTime() > today.getTime();
-    const count = isFuture ? 0 : (counts.get(key) ?? 0);
-    days.push({ key, label: WEEKDAY_LABELS[i], count, isToday: key === todayKey, isFuture });
-  }
-
-  return { days };
-}
-
-/**
- * 홈 「이번 주 연습」에 쓸 최근 7일 — 오늘이 맨 오른쪽이고 앞 6일이 왼쪽으로 이어진다(SOMA-923). 요일 이름은 그 날짜의
+ * 홈 「이번 주 연습」에 쓸 최근 7일 — 오늘이 맨 오른쪽이고 앞 6일이 왼쪽으로 이어진다. 요일 이름은 그 날짜의
  * 요일이라 월~일 고정 순서가 아니다. 모두 오늘까지라 미래 칸은 없다.
  */
 export function buildRecentActivity(
@@ -71,7 +38,7 @@ export function buildRecentActivity(
   const counts = new Map<string, number>();
   for (const record of records) {
     const at = new Date(record.created_at);
-    if (Number.isNaN(at.getTime())) continue;
+    if (Number.isNaN(at.getTime())) continue; // 잘못된 날짜는 없는 셈 친다
     const key = dayKey(at);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }

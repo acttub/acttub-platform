@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ExamDateRequest;
-import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ExamDateResponse;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.AirbridgeDeviceRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.Direction;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.DiscoveryAnswerRequest;
@@ -296,32 +294,6 @@ class ProfileController {
     }
 
     @Operation(
-            summary = "Update Exam Date",
-            description = """
-                    입시 준비 회원의 실기 날짜를 적는다(null 이면 지운다). 한국 날짜 기준 오늘~오늘+400일만 받고
-                    그 밖이나 형식이 틀리면 422 다. 프로필 저장(PUT /v2/me/profile)은 이 값을 바꾸지 않는다.""",
-            operationId = "update_exam_date_v2_me_exam_date_put",
-            tags = "v2-me",
-            security = @SecurityRequirement(name = "HTTPBearer"))
-    @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "적은 실기 날짜",
-                content = @Content(schema = @Schema(implementation = ExamDateResponse.class))),
-        @ApiResponse(
-                responseCode = "422",
-                description = "Validation Error",
-                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
-    })
-    @PutMapping("/exam-date")
-    ExamDateResponse updateExamDate(@Valid @RequestBody ExamDateRequest body, HttpServletRequest request) {
-        var user = auth.gatedUser(request);
-        LocalDate examDate = ExamDateInput.parse(body.examDate(), profiles.today());
-        profiles.updateExamDate(user.id(), examDate);
-        return new ExamDateResponse(examDate == null ? null : examDate.toString());
-    }
-
-    @Operation(
             summary = "Get Notification Settings",
             description = "알림 토글 셋. 가입 직후에는 셋 다 켜져 있다. 프로필에 저장돼 폰을 바꿔도 유지된다.",
             operationId = "get_notification_settings_v2_me_notification_settings_get",
@@ -478,9 +450,7 @@ class ProfileController {
                         profile.experience(),
                         profile.goal(),
                         view.photoUrl(),
-                        profile.bio(),
-                        profile.examDate() == null ? null : profile.examDate().toString()),
-                view.foundingNumber());
+                        profile.bio()));
     }
 
     private static SignupAttribution signupAttribution(SignupAttributionRequest body) {

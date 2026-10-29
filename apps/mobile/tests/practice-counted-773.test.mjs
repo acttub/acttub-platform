@@ -85,7 +85,8 @@ test('리딩은 대본 끝까지 가야 센다 — 중간에 「그만하기」�
   const stopHere = play.slice(play.indexOf('const stopHere = () =>'), play.indexOf('useWaitExit('));
   assert.match(stopHere, /stoppedEarlyRef\.current = true;/);
   assert.doesNotMatch(stopHere, /readingRunCompleted\(/);
-  assert.match(stopHere, /queueRef\.current\?\.push\(progressPayload\(cur\)\)/);
+  // 멈춘 위치만 저장한다 — 끝 화면이 센 마지막 읽은 줄 다음을 현재 줄로, complete 는 false(stoppedProgressPayload, 10/29).
+  assert.match(stopHere, /queueRef\.current\?\.push\(stoppedProgressPayload\(cur, next\)\)/);
   // 완료 판정(진행 저장·별점·완료 화면)은 모두 그만하기 여부를 먼저 본다.
   assert.equal((play.match(/!stoppedEarlyRef\.current && readingRunCompleted\(/g) ?? []).length, 2);
   assert.doesNotMatch(play, /stopUncountedRef/);

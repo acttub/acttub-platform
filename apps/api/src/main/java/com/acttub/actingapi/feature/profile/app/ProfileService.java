@@ -139,19 +139,6 @@ public class ProfileService implements ProfileGate {
         return view(saved);
     }
 
-    /** 실기 날짜로 받는 가장 먼 날(오늘로부터 일수). */
-    public static final int EXAM_DATE_MAX_DAYS = 400;
-
-    /**
-     * 실기 날짜를 적는다. 값은 한국 날짜 기준 오늘~오늘+{@value #EXAM_DATE_MAX_DAYS}일만 받는다(범위 검사는 부르는 쪽).
-     * 적을 수 없는 계정은 다른 쓰기와 같이 거절한다.
-     */
-    public void updateExamDate(UUID userId, LocalDate examDate) {
-        if (!profiles.updateExamDate(userId, examDate)) {
-            throw refused(userId);
-        }
-    }
-
     public NotificationSettings notificationSettings(UUID userId) {
         NotificationSettings settings = profiles.notificationSettings(userId);
         if (settings == null) {
@@ -298,15 +285,13 @@ public class ProfileService implements ProfileGate {
 
     private AccountView view(Account account) {
         Profile profile = account.profile();
-        Integer founding = profiles.foundingNumber(account.id()).orElse(null);
         if (profile == null) {
-            return new AccountView(account, null, null, founding);
+            return new AccountView(account, null, null);
         }
         return new AccountView(
                 account,
                 profile.birthDate() == null ? null : KoreanAge.on(profile.birthDate(), today()),
-                profile.photoKey() == null ? null : photos.viewUrl(profile.photoKey(), PHOTO_VIEW_SECONDS),
-                founding);
+                profile.photoKey() == null ? null : photos.viewUrl(profile.photoKey(), PHOTO_VIEW_SECONDS));
     }
 
     private static Account require(Account account) {
@@ -337,12 +322,8 @@ public class ProfileService implements ProfileGate {
      *
      * @param age 생년월일이 없으면 {@code null}
      * @param photoUrl 사진이 없거나 스토리지가 설정돼 있지 않으면 {@code null}
-     * @param foundingNumber 창립 멤버 번호(SOMA-861), 아니면 {@code null}
      */
-    public record AccountView(Account account, Integer age, String photoUrl, Integer foundingNumber) {
-        public AccountView(Account account, Integer age, String photoUrl) {
-            this(account, age, photoUrl, null);
-        }
+    public record AccountView(Account account, Integer age, String photoUrl) {
     }
 
     public record NewPhotoUpload(String uploadUrl, Instant expiresAt) {

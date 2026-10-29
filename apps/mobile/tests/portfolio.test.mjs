@@ -14,7 +14,6 @@ import {
   emptyCreditDraft,
   creditDraftFrom,
   isIntroValid,
-  moveItem,
   normalizeIntro,
   orderPayload,
   portfolioFailure,
@@ -110,38 +109,8 @@ test('account.portfolio: 쉰한 번째 경력과 열한 번째 사진은 추가 
   assert.equal(canAddPhoto(portfolio({ photos })), false);
 });
 
-test('account.portfolio: 순서를 바꾸면 지금 있는 id를 원하는 순서로 전부 보낸다', () => {
-  const items = [credit('a'), credit('b'), credit('c')];
-
-  const movedUp = moveItem(items, 'b', 'up');
-  assert.deepEqual(movedUp.map((item) => item.id), ['b', 'a', 'c']);
-  assert.deepEqual(orderPayload(movedUp), { ids: ['b', 'a', 'c'] });
-
-  const movedDown = moveItem(items, 'b', 'down');
-  assert.deepEqual(orderPayload(movedDown), { ids: ['a', 'c', 'b'] });
-  // 원본은 그대로다(서버가 거절하면 되돌릴 수 있게).
-  assert.deepEqual(items.map((item) => item.id), ['a', 'b', 'c']);
-});
-
-test('account.portfolio: 맨 위를 위로, 맨 아래를 아래로, 없는 id를 옮기면 순서가 그대로라 요청을 보내지 않는다', () => {
-  const items = [credit('a'), credit('b'), credit('c')];
-
-  assert.equal(moveItem(items, 'a', 'up'), null);
-  assert.equal(moveItem(items, 'c', 'down'), null);
-  assert.equal(moveItem(items, 'zzz', 'up'), null);
-  assert.equal(moveItem([credit('only')], 'only', 'down'), null);
-});
-
-test('account.portfolio: 순서 페이로드에는 빠짐도 중복도 없다', () => {
-  const items = Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, url: `u${i}` }));
-  let current = items;
-  for (const [id, direction] of [['p9', 'up'], ['p0', 'down'], ['p5', 'up'], ['p5', 'up']]) {
-    current = moveItem(current, id, direction) ?? current;
-  }
-  const { ids } = orderPayload(current);
-
-  assert.equal(ids.length, 10);
-  assert.deepEqual([...ids].sort(), items.map((item) => item.id).sort());
+test('account.portfolio: 순서 페이로드는 지금 있는 id를 받은 순서대로 전부 보낸다', () => {
+  assert.deepEqual(orderPayload([credit('b'), credit('a'), credit('c')]), { ids: ['b', 'a', 'c'] });
 });
 
 test('account.portfolio: 볼 주소가 없는 사진(url null)도 순서 페이로드에 남는다', () => {
@@ -149,12 +118,11 @@ test('account.portfolio: 볼 주소가 없는 사진(url null)도 순서 페이�
   // 빼면 보낸 id 가 서버의 목록과 달라져 422 order_mismatch 가 된다.
   const photos = [
     { id: 'p0', url: 'https://cdn.example/0.jpg' },
-    { id: 'p1', url: null },
     { id: 'p2', url: null },
+    { id: 'p1', url: null },
   ];
-  const moved = moveItem(photos, 'p2', 'up');
 
-  assert.deepEqual(orderPayload(moved), { ids: ['p0', 'p2', 'p1'] });
+  assert.deepEqual(orderPayload(photos), { ids: ['p0', 'p2', 'p1'] });
 });
 
 const failure = (status, code, detail = code) => new ApiError(status, 'x', code, detail);

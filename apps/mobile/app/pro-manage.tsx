@@ -5,11 +5,11 @@ import { Fragment, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { NavBackButton, NavHeader } from '@/components/ds/app-header';
-import { ProBadge } from '@/components/ds/pro-ui';
-import { PrimaryButton } from '@/components/ds/ui/buttons';
-import { CtaBar } from '@/components/ds/ui/cta-bar';
-import { SkeletonBlock, SkeletonGroup } from '@/components/ds/ui/skeleton';
+import { NavBackButton, NavHeader } from '@/components/app-header';
+import { ProBadge } from '@/components/pro-ui';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';

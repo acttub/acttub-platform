@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton } from '@/components/ds/ui/buttons';
-import { CtaBar } from '@/components/ds/ui/cta-bar';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';

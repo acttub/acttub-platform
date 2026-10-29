@@ -4,10 +4,11 @@ import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
 import { LineEditSheet } from '@/components/line-edit-sheet';
@@ -16,12 +17,12 @@ import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/u
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, markFirstReadingGuideSeen } from '@/lib/reading/guide-flag';
-import { PrimaryButton } from '@/components/ui/buttons';
-import { CtaBar } from '@/components/ui/cta-bar';
+import { Button, PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { DoneScreen } from '@/components/ui/done-screen';
 import { InfoBanner } from '@/components/ui/info-banner';
-import { ReadingGuideOverlay } from '@/components/ui/reading-guide-overlay';
+import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
 import { ReadingStatus } from '@/components/ui/reading-status';
-import { readingCoachScene, wrapUpProgress } from '@/lib/reading/redesign-748';
+import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
 import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
@@ -42,11 +43,13 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
-import { finishMonologueRun, isMonologue, livePosition, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
+import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
+import { beatMs, directionsBefore } from '@/lib/reading/direction-beat';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
 import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
+import { isFirstReadingSession, markReadingFinished } from '@/lib/reading/first-reading';
 import {
   advance,
   applyLineEdit,
@@ -61,6 +64,7 @@ import {
   pause as pauseRun,
   progressOf,
   progressPayload,
+  stoppedProgressPayload,
   recordSaid,
   resume as resumeRun,
   resumeRun as resumeAt,
@@ -101,13 +105,12 @@ import {
   type PartnerVoiceEngine,
 } from '@/lib/reading/voice-capability';
 import { ReadingAfterCard } from '@/components/reading-after-card';
+import { ReadingNoScript } from '@/components/reading/no-script';
 import { LoadingText } from '@/components/ui/loading-text';
-import { ReadingCompareLink } from '@/components/reading/compare-link';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
-import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
-import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
+import { MASCOT as MASCOT_IMG, MASCOT_SIZE, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { skipsFirstReadingGuide } from '@/lib/returning-account';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
@@ -137,8 +140,8 @@ type Phase =
   | { kind: 'voice_failed'; failure: { kind: VoiceErrorKind; neededBytes?: number } }
   /** 앱 목소리를 못 쓰는 기기의 처음 한 번 안내(R9.7). */
   | { kind: 'voice_unsupported' }
-  /** hold 가 있으면 자동 넘김이 멈춘다 — tip 은 시작 팝업(첫 줄을 읽지 않음), mask_sheet 는 대사 보기 시트, guide 는 첫 리딩 버튼 안내 덮개. */
-  | { kind: 'running'; hold: 'tip' | 'mask_sheet' | 'guide' | null }
+  /** hold 가 있으면 자동 넘김이 멈춘다 — tip 은 시작 팝업(첫 줄을 읽지 않음), mask_sheet 는 대사 보기 시트. */
+  | { kind: 'running'; hold: 'tip' | 'mask_sheet' | null }
   | { kind: 'done' }
   | { kind: 'closed'; message: string };
 
@@ -155,7 +158,8 @@ function exampleLineSignature(line: ScriptLine | undefined): string {
   return line?.type === 'dialogue' ? `${line.role}\n${line.text}` : '';
 }
 
-const MASKS: { key: MaskMode; label: string; desc: string }[] = [
+// 그릴 때 번역한다 — 언어를 바꾸면 껐다 켜지 않고 바로 바뀌어야 한다(lib/i18n onLanguageChange).
+const masks = (): { key: MaskMode; label: string; desc: string }[] => [
   { key: 'none', label: t('reading.maskNone'), desc: t('reading.maskNoneDesc') },
   { key: 'mine', label: t('reading.maskMine'), desc: t('reading.maskMineDesc') },
   { key: 'all', label: t('reading.maskAll'), desc: t('reading.maskAllDesc') },
@@ -167,6 +171,8 @@ const JUMP_PREVIEW = 15;
 const DONE_LOCK_MS = 800;
 /** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
 const MONO_POSITION_MS = 700;
+/** 독백에서 읽는 문장을 둘 높이 — 화면 위에서 이만큼 아래(SOMA-934). */
+const MONO_FOLLOW_TOP = 160;
 /**
  * 리딩 화면의 액티(10/22 20종). 예전엔 준비·마무리·결과가 모두 하트 눈 한 장이라 매번 같았다(10/25 피드백).
  * 준비 중은 기다리는 자세, 끝난 화면은 들어올 때마다 밝은 자세 하나, 세지 않은 회차는 민망한 자세.
@@ -180,6 +186,13 @@ function pickPose(poses: readonly MascotPose[]): MascotPose {
   return poses[Math.floor(Math.random() * poses.length)] ?? poses[0];
 }
 
+const COACH_TEXT: Record<CoachMark, string> = {
+  partner: 'reading.coachPartner',
+  mine: 'reading.coachMine',
+  next: 'reading.coachNext',
+  alone: 'reading.coachAlone',
+};
+
 export default function ReadingPlay() {
   const router = useRouter();
   // 한 번 들어온 동안은 같은 자세 — 다시 그릴 때마다 바뀌면 깜빡여 보인다.
@@ -191,6 +204,9 @@ export default function ReadingPlay() {
   /** 묶인 대사에서 고칠 줄 고르기(R9.31b) — 열려 있으면 고를 줄 글과 고른 뒤 할 일. */
   const script = getCurrent();
   const session = getCurrentSession();
+  /** 첫 리딩 모드로 시작한 회차(10/29) — 위에 「그만 읽기」를 두고, 멈춰도 첫 리딩 끝 화면으로 간다. */
+  const firstReading = isFirstReadingSession(session?.id);
+  const firstStoppedRef = useRef(false);
   const mic = useReadingMic();
   const stt = useReadingStt();
 
@@ -273,7 +289,7 @@ export default function ReadingPlay() {
   const exampleRef = useRef<{ audio: ExampleAudio; text: Map<string, string> } | null>(null);
   const tipHiddenRef = useRef(true);
   const cloudFallbackNoticed = useRef(false);
-  const holdRef = useRef<'tip' | 'mask_sheet' | 'guide' | null>(null);
+  const holdRef = useRef<'tip' | 'mask_sheet' | null>(null);
   /** 자동 넘김이 멈춘 동안 일어난 넘김 — 시트를 닫으면 한다. */
   const deferredRef = useRef<Deferred>(null);
   const deferredTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -284,7 +300,6 @@ export default function ReadingPlay() {
   const scrollRef = useRef<ScrollView | null>(null);
   // 끝난 화면 — 「이번 리딩 어땠나요?」 한 줄 칸을 누르면 키보드 위로 올린다(10/26 폰: 키보드에 가렸다).
   const doneScrollRef = useRef<ScrollView | null>(null);
-  const keyboardHeight = useKeyboardHeight();
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
@@ -303,15 +318,14 @@ export default function ReadingPlay() {
   const readAgainRequestIds = useRef<Record<string, string>>({});
   const [restarting, setRestarting] = useState(false);
   /** 시작 전 [시작] 위에 자동 넘김 안내를 보일지 — 숨기지 않았고 자동 넘김 회차일 때만. */
-  const [startHint, setStartHint] = useState(false);
   /** 시작 팝업의 어두운 덮개가 시작하는 높이 — 진행 막대 아래부터 덮는다. */
-  const [tipTop, setTipTop] = useState(0);
   /** 완료 화면이 뜬 직후 잠깐은 버튼을 받지 않는다 — 실행 중 [다음]을 연타하다 새 연습이 바로 시작되지 않게(SOMA-772). */
   const [doneLocked, setDoneLocked] = useState(true);
   /** 완료 화면 [완료] 뒤의 리딩 마무리(pen 「새 · 리딩 마무리」). */
-  const [wrapUp, setWrapUp] = useState(false);
   /** 첫 리딩 안내 — 본 적이 없을 때만. done 은 이미 지나간 안내. */
   const [coachOn, setCoachOn] = useState(false);
+  const [coachDone, setCoachDone] = useState<ReadonlySet<CoachMark>>(() => new Set());
+  const coachShown = useRef<CoachMark | null>(null);
   const firstRunRef = useRef(false);
   /**
    * 독백(SOMA-597) — 배역이 하나뿐인 대본은 처음부터 끝까지 끊지 않고 한 번에 녹음한다. 인식기가 스스로 끝나거나(오래 쉼·시간 한도)
@@ -330,6 +344,8 @@ export default function ReadingPlay() {
   const [monoResult, setMonoResult] = useState<ReturnType<typeof monologueResults> | null>(null);
   const monoItemY = useRef<Record<number, number>>({});
   const monoCardY = useRef(0);
+  /** 독백 따라 내리기가 마지막으로 보낸 위치 — 같은 자리로 거듭 내리지 않는다(SOMA-934). */
+  const monoScrolledTo = useRef<number | null>(null);
   // 대화 카드 위치 — 받아쓰기(인식 결과)가 늘어나 내용이 길어져도 맨 아래로 끌지 않고 지금 대사 카드 위쪽에 맞춘다(SOMA-913).
   const dialogueCardY = useRef(0);
 
@@ -485,7 +501,10 @@ export default function ReadingPlay() {
       if (completed) void clearReachedEnd(session.id);
       else if (!stoppedEarlyRef.current) void markReachedEnd(session.id);
       // 마지막 줄까지 가 봤으면(인식된 대사가 없어도) 첫 사용자 화면은 졸업이다(SOMA-827). 중간에 멈춘 건 아니다.
-      if (!stoppedEarlyRef.current) void markFirstUseGraduated();
+      if (!stoppedEarlyRef.current) {
+        void markFirstUseGraduated();
+        void markReadingFinished();
+      }
       setPhase({ kind: 'done' });
       if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;
@@ -544,14 +563,11 @@ export default function ReadingPlay() {
     setEngine(next);
   }, []);
 
-  /**
-   * 준비가 끝나면 「리딩 시작 전」(pen GqB1I)에 멈춘다 — [시작]을 눌러야 첫 줄을 연다(SOMA-772). 안내를 숨겼거나
-   * 옛 회차(advance=manual)여도 바로 시작하지 않는다. 자동 넘김 안내 글만 그때 뺀다.
-   */
   const startRunning = useCallback(() => {
-    setStartHint(!tipHiddenRef.current && session?.advance === 'silence');
-    holdRef.current = 'tip';
-    setPhase({ kind: 'running', hold: 'tip' });
+    const hold = !tipHiddenRef.current && session?.advance === 'silence' ? 'tip' : null;
+    if (!hold) startedRef.current = true;
+    holdRef.current = hold;
+    setPhase({ kind: 'running', hold });
   }, [session?.advance]);
 
   // ── 목소리 준비 → 실행 ─────────────────────────────────────────────────────
@@ -725,6 +741,28 @@ export default function ReadingPlay() {
 
   const tipOpen = phase.kind === 'running' && phase.hold === 'tip';
 
+  // ── 지문 멈춤(SOMA-937) — 다음 대사 바로 앞의 지문·장면을 지금 줄 자리에 띄우고 잠깐 멈춘다. 멈춘 동안은 상대 읽기·마이크를
+  // 열지 않는다. 렌더에서 바로 셈해야 상대 읽기가 한 번 시작됐다 끊기지 않는다. 같은 줄의 멈춤은 한 번만(멈춤·재개로 다시 뜨지 않는다).
+  const [beatDoneAt, setBeatDoneAt] = useState<number | null>(null);
+  const runEnded = !run || run.status === 'done';
+  const beatLines = useMemo(
+    () => (monologue || runEnded || !run || phase.kind !== 'running' || tipOpen || beatDoneAt === run.index ? [] : directionsBefore(run.lines, run.index)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [monologue, runEnded, run?.index, run?.lines, phase.kind, tipOpen, beatDoneAt],
+  );
+  const beatDuration = beatLines.length > 0 && run ? beatMs(beatLines.map((i) => run.lines[i].text)) : 0;
+  const beatOn = beatDuration > 0;
+  /** 시작 전 안내나 지문 멈춤 — 상대 읽기·내 차례 마이크를 열지 않는다. */
+  const turnGated = tipOpen || beatOn;
+  const runPaused = run?.status === 'paused';
+  useEffect(() => {
+    if (!beatOn || !run || runPaused) return;
+    const at = run.index;
+    const timer = setTimeout(() => setBeatDoneAt(at), beatDuration);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beatOn, run?.index, runPaused]);
+
   // ── 첫 리딩 안내(SOMA-748) — 진행 상태를 보고 띄울 뿐, 진행 규칙은 건드리지 않는다 ─────────────
   useEffect(() => {
     let alive = true;
@@ -753,22 +791,34 @@ export default function ReadingPlay() {
     // 화면을 열 때 한 번만 정한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // pen 7-1: 두 번째 내 차례에서 한 번만, 대본 위를 어둡게 덮고 버튼 넷을 설명한다. 작은 힌트 말풍선은 더는 띄우지 않는다.
-  const myTurnsBefore = run
-    ? run.lines.slice(run.startIndex, run.index).filter((l, k, arr) => {
-        const mine = (x: ScriptLine | undefined) => !!x && x.type === 'dialogue' && run.myRoles.includes(x.role);
-        return mine(l) && !(k > 0 && mine(arr[k - 1]));
-      }).length
-    : 0;
-  // 안내가 떠 있는 동안은 자동 넘김을 멈춘다(hold 'guide') — 읽는 사이 줄이 넘어가지 않게. 「알겠어요」를 누르면 이어 간다.
-  const guideWanted = coachOn && phase.kind === 'running' && !!run && run.status === 'mine' && myTurnsBefore >= 1;
-  const guideOpen = guideWanted && phase.kind === 'running' && phase.hold === 'guide';
+  // 첫 리딩 안내(SOMA-748, 10/29 되살림) — 화면을 덮지 않고 진행 상태에 맞는 말풍선을 하나씩 띄운다.
+  // 상대 차례 → 내 차례 → 읽은 뒤 「다음」 → 가린 대사 순. 진행 규칙(자동 넘김·듣기)은 건드리지 않는다.
+  const coachLine = run ? run.lines[run.index] : undefined;
+  const coachHiddenMine =
+    !!run && !!coachLine && coachLine.type === 'dialogue' && run.myRoles.includes(coachLine.role) &&
+    isHidden({ maskMode, line: coachLine, isMine: true });
+  const coachMark =
+    coachOn && phase.kind === 'running' && !phase.hold && run
+      ? coachMarkFor({ done: coachDone, status: run.status, said: said.trim().length > 0, hiddenMine: coachHiddenMine })
+      : null;
+  const finishCoachMark = useCallback((mark: CoachMark) => {
+    setCoachDone((prev) => {
+      if (prev.has(mark)) return prev;
+      const next = new Set(prev);
+      next.add(mark);
+      if (next.size === COACH_MARKS.length) {
+        setCoachOn(false);
+        void markFirstReadingGuideSeen();
+      }
+      return next;
+    });
+  }, []);
+  // 띄웠던 안내는 그 때(상대 차례·내 차례)가 지나가면 본 것으로 친다.
   useEffect(() => {
-    if (guideWanted && phase.kind === 'running' && phase.hold === null) {
-      holdRef.current = 'guide';
-      setPhase({ kind: 'running', hold: 'guide' });
-    }
-  }, [guideWanted, phase]);
+    const prev = coachShown.current;
+    coachShown.current = coachMark;
+    if (prev && prev !== coachMark) finishCoachMark(prev);
+  }, [coachMark, finishCoachMark]);
   // 리딩을 끝까지 했으면 다 못 봤어도 다음부터는 띄우지 않는다.
   useEffect(() => {
     if (phase.kind === 'done' && coachOn) {
@@ -780,7 +830,7 @@ export default function ReadingPlay() {
   // ── 상대 차례: 목소리로 읽고 넘어간다 ─────────────────────────────────────────
   useEffect(() => {
     const current = runRef.current;
-    if (phase.kind !== 'running' || tipOpen || !current || current.status !== 'partner') return;
+    if (phase.kind !== 'running' || turnGated || !current || current.status !== 'partner') return;
     const line = current.lines[current.index] as DialogueLine;
     const from = current.index;
     const span = turnSpan(current);
@@ -798,7 +848,7 @@ export default function ReadingPlay() {
     };
     // 저장해 둔 소리를 틀지 못하면(재생 실패·시작 안 됨) 그 파일을 지우고 이 줄은 기기 목소리로 읽는다(SOMA-906).
     // 지운 파일은 다음에 다시 받거나 만든다. 기기 목소리도 없으면 그대로 다음 줄로 넘어간다.
-    const playSaved = async (uri: string, readWithDevice: () => Promise<void>) => {
+    const playSaved = async (uri: string, readInstead: () => Promise<void>) => {
       try {
         await tts.play(uri);
         return;
@@ -806,9 +856,26 @@ export default function ReadingPlay() {
         void logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
         tts.discardSpeechFile(uri);
       }
-      if (cancelled || !mounted.current || !deviceVoiceRef.current) return;
+      if (cancelled || !mounted.current) return;
+      await readInstead();
+    };
+    const readWithDeviceVoice = async (read: () => Promise<void>) => {
+      if (!deviceVoiceRef.current) return;
       setLineEngine('device_voice');
-      await readWithDevice();
+      await read();
+    };
+    /**
+     * 서버 음성을 못 쓴 줄(받지 못함·틀지 못함) — 앱 목소리가 이미 준비돼 있으면 같은 프리셋으로 읽어 그 배역 목소리가 중간에
+     * 바뀌지 않게 한다(SOMA-937, Play 리뷰 「한 캐릭터를 중간중간 다른 성우가 읽음」). 준비돼 있지 않을 때만 기기 기본 목소리다.
+     * 어느 쪽으로 갔는지 남긴다. 앱 목소리로 읽었으면 true.
+     */
+    const readWithAppVoice = async (text: string, lang: string | undefined, reason: 'missing' | 'play_failed'): Promise<boolean> => {
+      const to = tts.isReady() ? 'supertonic' : deviceVoiceRef.current ? 'device_voice' : 'text_only';
+      void logEvent('reading_line_voice_fallback', { engine, to, reason });
+      if (to !== 'supertonic') return false;
+      setLineEngine('supertonic');
+      await tts.speak(text, preset, { scriptId: script?.id, lang });
+      return true;
     };
     void (async () => {
       try {
@@ -827,12 +894,14 @@ export default function ReadingPlay() {
             if (cancelled || !mounted.current) return;
             if (uri) {
               setLineEngine('example');
-              await playSaved(uri, async () => {
-                for (const part of speechParts(l)) {
-                  if (cancelled || !mounted.current) return;
-                  await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
-                }
-              });
+              await playSaved(uri, () =>
+                readWithDeviceVoice(async () => {
+                  for (const part of speechParts(l)) {
+                    if (cancelled || !mounted.current) return;
+                    await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
+                  }
+                }),
+              );
               continue;
             }
             if (!deviceVoiceRef.current) {
@@ -863,12 +932,18 @@ export default function ReadingPlay() {
           if (cancelled || !mounted.current) return;
           if (ready) {
             setLineEngine(engine);
-            await playSaved(ready, () => speakWithDevice(text, preset, { locale: speechLocaleFor(lang) }));
+            await playSaved(ready, async () => {
+              if (engine === 'cloud' && (await readWithAppVoice(text, lang, 'play_failed'))) return;
+              await readWithDeviceVoice(() => speakWithDevice(text, preset, { locale: speechLocaleFor(lang) }));
+            });
           } else if (engine === 'supertonic') {
             setLineEngine('supertonic');
             await tts.speak(text, preset, { scriptId: script?.id, lang });
           } else {
-            // 서버 음성을 못 받은 줄 — 기기 기본 목소리로 읽고 회차에서 처음일 때 알린다. 기기 음성이 없으면 글로 보기.
+            // 서버 음성을 못 받은 줄 — 앱 목소리가 준비돼 있으면 그것으로(SOMA-937), 아니면 기기 기본 목소리로 읽고 회차에서
+            // 처음일 때 알린다. 기기 음성도 없으면 글로 보기.
+            if (await readWithAppVoice(text, lang, 'missing')) continue;
+            if (cancelled || !mounted.current) return;
             if (!deviceVoiceRef.current) {
               setLineEngine('text_only');
               return;
@@ -893,7 +968,7 @@ export default function ReadingPlay() {
       tts.stop();
       stopDeviceVoice();
     };
-  }, [phase.kind, tipOpen, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash]);
+  }, [phase.kind, turnGated, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash]);
 
   // ── 내 차례: 마이크(침묵 감지)와 STT ─────────────────────────────────────────
   /** 내 차례를 끝낸다(침묵·[다음]) — 그때까지의 녹음을 거둔 뒤 넘긴다. */
@@ -927,17 +1002,9 @@ export default function ReadingPlay() {
     if (deferred.kind === 'advance') goNext(deferred.from);
     else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from), DEFAULT_VAD.silenceMs);
   }, [goNext]);
-  const closeGuide = useCallback(() => {
-    setCoachOn(false);
-    void markFirstReadingGuideSeen();
-    // 안내를 읽는 동안 흐른 침묵으로 내 차례가 끝나 버리지 않게, 미뤄 둔 넘김을 버리고 이 차례를 처음부터 다시 듣는다(10/26).
-    deferredRef.current = null;
-    releaseHold();
-    setAttempt((a) => a + 1);
-  }, [releaseHold]);
 
   useEffect(() => {
-    if (monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
+    if (monologue || phase.kind !== 'running' || turnGated || !run || run.status !== 'mine' || !session) return;
     const from = run.index;
     const span = turnSpan(run);
     const turnText = run.lines.slice(span.start, span.end + 1).map((l) => l.text).join(' ');
@@ -1044,7 +1111,7 @@ export default function ReadingPlay() {
       setListening(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind, tipOpen, run?.index, run?.status, attempt]);
+  }, [phase.kind, turnGated, run?.index, run?.status, attempt]);
 
   // ── 독백: 끊지 않고 한 번에 듣는다(SOMA-597) ─────────────────────────────────────
   const monoHeard = () => [monoDone.current, monoPiece.current].filter(Boolean).join(' ');
@@ -1064,6 +1131,19 @@ export default function ReadingPlay() {
     const pos = livePosition(idx.map((i) => cur.lines[i].text), monoHeard(), Math.max(0, idx.indexOf(cur.index)));
     if (idx[pos] !== undefined && idx[pos] !== cur.index) commit({ ...cur, index: idx[pos] });
   }, [commit]);
+
+  /** 독백 말풍선 아래 「다음 대사로」(SOMA-934) — 읽는 위치를 다음 말풍선의 첫 대사로 옮긴다. 녹음·받아쓰기는 끊지 않는다. */
+  const nextMonoChunk = useCallback(
+    (start: number) => {
+      const cur = runRef.current;
+      if (!cur || cur.status !== 'mine') return;
+      let i = start;
+      while (i <= cur.endIndex && cur.lines[i]?.type !== 'dialogue') i += 1;
+      if (i > cur.endIndex || i <= cur.index) return;
+      commit({ ...cur, index: i });
+    },
+    [commit],
+  );
 
   /** [끝내기] — 녹음을 거두고 받아쓴 글 전체를 문장별로 맞춰 결과를 낸다. 읽는 동안에는 판정하지 않았다. */
   const finishMonologue = useCallback(async () => {
@@ -1161,12 +1241,29 @@ export default function ReadingPlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monologue, phase.kind, tipOpen, run?.status, attempt, monoSeq]);
 
+  // 새 말풍선(10줄 묶음)이 생기면 그 카드가 자리를 잡은 뒤에야 문장 위치를 안다 — 자리를 잡을 때 다시 따라 내린다(SOMA-934).
+  // 스크롤 규칙은 하나다 — 읽는 문장을 늘 같은 높이(위에서 MONO_FOLLOW_TOP)에 둔다. 말풍선이 새로 생기면 그 카드·문장이 자리를 잡은
+  // 뒤에야 위치를 알므로, 자리를 잡을 때(카드·문장 onLayout)와 읽는 문장이 바뀔 때 같은 계산으로 맞춘다(SOMA-934).
+  const followMonoLine = () => {
+    const index = runRef.current?.index;
+    const y = index === undefined ? undefined : monoItemY.current[index];
+    if (y === undefined) return;
+    const target = Math.max(0, monoCardY.current + y - MONO_FOLLOW_TOP);
+    if (monoScrolledTo.current !== null && Math.abs(monoScrolledTo.current - target) < 2) return;
+    monoScrolledTo.current = target;
+    scrollRef.current?.scrollTo({ y: target, animated: true });
+  };
+  const onMonoCardLayout = (e: LayoutChangeEvent) => {
+    monoCardY.current = e.nativeEvent.layout.y;
+    followMonoLine();
+  };
+
   // 독백은 읽는 문장이 보이게 따라 내린다. 「원문 보기」는 그 문장에만 적용된다.
   useEffect(() => {
     if (!monologue || !run) return;
     setAid('none');
-    const y = monoItemY.current[run.index];
-    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current + y - 160), animated: true });
+    followMonoLine();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monologue, run?.index]);
 
   // ── 흐른 시간(일시정지 제외) ─────────────────────────────────────────────────
@@ -1383,10 +1480,12 @@ export default function ReadingPlay() {
       const heard = monoHeard();
       monoDone.current = heard;
       monoPiece.current = '';
-      const idx = sentenceIndexes(cur, monoFrom.current ?? cur.index).filter((i) => i <= cur.index);
+      // 아무것도 못 알아들었으면 지금 문장도 읽지 않은 것으로 센다 — 끝 화면과 이어 읽기 카드가 같은 줄 수를 보이게(10/29).
+      const upTo = heard.trim() ? cur.index : cur.index - 1;
+      const idx = sentenceIndexes(cur, monoFrom.current ?? cur.index).filter((i) => i <= upTo);
       const result = monologueResults(idx.map((i) => cur.lineIds[i]), idx.map((i) => cur.lines[i].text), heard);
       setMonoResult(result);
-      const trimmed: RunState = { ...cur, endIndex: Math.max(cur.startIndex - 1, Math.min(cur.endIndex, cur.index)) };
+      const trimmed: RunState = { ...cur, endIndex: Math.max(cur.startIndex - 1, Math.min(cur.endIndex, upTo)) };
       next = finishMonologueRun(trimmed, sttModeRef.current?.kind === 'stt' ? result.said : {});
     } else {
       next = stopRun(cur);
@@ -1396,8 +1495,17 @@ export default function ReadingPlay() {
     stt.abort();
     void mic.stop();
     stoppedEarlyRef.current = true;
-    queueRef.current?.push(progressPayload(cur));
+    // 끝 화면이 센 마지막 읽은 줄 다음을 저장한다 — 이어 읽기 카드의 「K/N줄」이 끝 화면과 같아진다(10/29).
+    queueRef.current?.push(stoppedProgressPayload(cur, next));
     commit(next);
+  };
+  /** 첫 리딩의 「그만 읽기」 — 읽는 중이면 멈춘 뒤 여기까지로 끝내고 첫 리딩 끝 화면으로 간다(10/29). */
+  const firstStop = () => {
+    const cur = runRef.current;
+    if (!cur || cur.status === 'done') return;
+    if (cur.status !== 'paused') doPause();
+    firstStoppedRef.current = true;
+    stopHere();
   };
 
   // 목소리를 내려받는(준비하는) 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 내려받기는 화면을 떠나도 이어진다.
@@ -1494,20 +1602,12 @@ export default function ReadingPlay() {
 
   // ── 화면 ────────────────────────────────────────────────────────────────────
   if (!script || !session || !config || !run) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
-          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
-        </Pressable>
-      </View>
-    );
+    return <ReadingNoScript header={t('reading.tabTitle')} onBack={() => router.dismissTo('/reading')} />;
   }
 
   if (phase.kind === 'need_mic') {
     return (
       <ReadingStatus
-        icon="mic-off"
         title={t('reading.micNeededTitle')}
         body={t('reading.micNeededBody')}
         onBack={exitToDetail}
@@ -1581,7 +1681,6 @@ export default function ReadingPlay() {
   if (phase.kind === 'voice_unsupported') {
     return (
       <ReadingStatus
-        icon="smartphone"
         title={t('reading.voiceUnsupportedTitle')}
         body={t('reading.voiceUnsupportedBody')}
         onBack={exitToDetail}
@@ -1600,41 +1699,6 @@ export default function ReadingPlay() {
     return <ReadingStatus title={phase.message} onBack={exitToDetail} primary={{ label: t('reading.toDetail'), onPress: exitToDetail }} />;
   }
 
-  if (phase.kind === 'done' && wrapUp) {
-    const wrap = wrapUpProgress(run.lines, run.endIndex);
-    // pen 「새 · 리딩 마무리」. 이어 읽기 알림·「일정 붙여 두기」는 서버·알림 기능이 없어 숨긴다.
-    return (
-      <View style={[styles.root, { paddingTop: insets.top + 24 }]}>
-        <ScrollView contentContainerStyle={styles.wrapContent}>
-          <View style={styles.wrapBadge}>
-            <Feather name="check-circle" size={16} color={palette.green} />
-            <Text style={styles.wrapBadgeText}>{t('reading.wrapBadge')}</Text>
-          </View>
-          <View style={styles.wrapHead}>
-            <Image source={MASCOT_IMG[donePose]} style={styles.wrapMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.wrapHeading}>{t('reading.wrapHeading')}</Text>
-          </View>
-          <View style={styles.wrapCard}>
-            <Text style={styles.wrapMeta}>{t('reading.wrapMeta', { title: script.title, total: wrap.total })}</Text>
-            <Text style={styles.wrapNext}>
-              {wrap.next === null ? t('reading.wrapAll') : t('reading.wrapNext', { readTo: wrap.readTo, next: wrap.next })}
-            </Text>
-          </View>
-          <Pressable style={styles.wrapRow} onPress={toCoach} accessibilityRole="button">
-            <Feather name="video" size={18} color={palette.textDim} />
-            <Text style={styles.wrapRowText}>{t('reading.wrapCoach')}</Text>
-            <Feather name="chevron-right" size={18} color={palette.checkOff} />
-          </Pressable>
-        {ratingCard}
-        </ScrollView>
-        <CtaBar>
-          <PrimaryButton label={t('common.confirm')} onPress={exitToDetail} />
-        </CtaBar>
-        {dialog}
-      </View>
-    );
-  }
-
   if (phase.kind === 'done') {
     const completed = !stoppedEarlyRef.current && readingRunCompleted({
       reachedEnd: true,
@@ -1642,135 +1706,146 @@ export default function ReadingPlay() {
       priorRecognized: sessionHasRecognized(session),
       recognition: sttMode?.kind ?? null,
     });
-    // 완료 화면들이 함께 쓰는 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서,
-    // 이미 있는 탭까지 내려간다(SOMA-853).
-    const goHomeButton = <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />;
-    const otherScriptRow = (
-      <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
-        <Feather name="file-text" size={16} color={palette.textDim} />
-        <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
-      </Pressable>
+    const coaching = completed && !fromTutorialRef.current;
+    const busy = doneLocked || restarting;
+    const roles = config.myNames.join(', ');
+    // 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서, 이미 있는 탭까지 내려간다(SOMA-853).
+    const goHome = () => router.dismissTo('/(tabs)');
+    const links = (
+      <View style={styles.doneLinks}>
+        <Pressable
+          style={[styles.doneLink, busy && styles.doneLinkOff]}
+          onPress={() => void readAgain()}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={t('reading.readAgain')}
+          accessibilityState={{ disabled: busy }}>
+          {restarting ? (
+            <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
+          ) : (
+            <>
+              <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
+              <Text style={[styles.doneLinkText, styles.doneLinkAccent]}>{t('reading.readAgain')}</Text>
+            </>
+          )}
+        </Pressable>
+        <Pressable style={styles.doneLink} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
+          <Feather name="file-text" size={16} color={palette.textSub} />
+          <Text style={styles.doneLinkText}>{t('reading.otherScript')}</Text>
+        </Pressable>
+      </View>
     );
-    if (completed && (firstRunRef.current || fromTutorialRef.current)) {
-      // pen R9.51 첫 리딩 끝 — 액티 칭찬 아래 가운데에 큰 「홈으로 가기」, 그 밑에 「한 번 더 읽기」. 하단 버튼 영역은 없다.
+    const summary = (line: string) => (
+      <View style={styles.doneSummary}>
+        <Text style={styles.doneSummaryText}>{line}</Text>
+        {pendingUploads > 0 && <Text style={styles.doneMeta}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
+      </View>
+    );
+    const note = (text: string, icon?: 'info' | 'wifi-off') => (
+      <View style={styles.noteBox}>
+        {icon && <Feather name={icon} size={16} color={palette.iconFaint} />}
+        <Text style={styles.noteText}>{text}</Text>
+      </View>
+    );
+    const rating = coaching && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
+    const reportRow = coaching ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
+
+    const firstStopped = firstReading && firstStoppedRef.current;
+    if (!completed && !firstStopped) {
+      return (
+        <>
+          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
+            <View style={styles.doneBody}>
+              <View style={styles.doneHead}>
+                <Text style={styles.doneDesc}>{t('reading.notCountedBody')}</Text>
+                <Text style={styles.doneDesc}>{script.title}</Text>
+              </View>
+              {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
+              {links}
+              {ratingCard}
+            </View>
+          </DoneScreen>
+          {dialog}
+        </>
+      );
+    }
+    if (firstRunRef.current || fromTutorialRef.current || firstReading) {
       const total = wrapUpProgress(run.lines, run.endIndex).total;
       return (
-        <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.firstDoneBar}>{t('reading.completeTitle')}</Text>
-          <View style={styles.firstDoneBody}>
-            <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
-            <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
-            <View style={styles.firstDoneActions}>
-              {goHomeButton}
-              <Pressable
-                style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
-                onPress={() => void readAgain()}
-                disabled={doneLocked || restarting}
-                accessibilityRole="button"
-                accessibilityLabel={t('reading.firstDoneAgain')}
-                accessibilityState={{ disabled: doneLocked || restarting }}>
-                {restarting ? (
-                  <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-                ) : (
-                  <>
-                    <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-                    <Text style={styles.readAgainText}>{t('reading.firstDoneAgain')}</Text>
-                  </>
-                )}
-              </Pressable>
+        <>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked}>
+            <View style={styles.doneBody}>
+              {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
+              {links}
+              {ratingCard}
             </View>
-            {ratingCard}
-          </View>
+          </DoneScreen>
           {dialog}
-        </View>
+        </>
       );
     }
     if (monologue) {
-      // 독백 결과(pen T79rDt) — 끝난 뒤 녹음 전체를 문장별로 맞춘 결과. 「원문과 다르게 말한 대사」 칸은 두지 않는다.
       const compared = sttMode?.kind === 'stt' && !!monoResult;
       const total = monoResult?.rows.length ?? 0;
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
       return (
-        <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
-          <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-            <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
-            {!completed ? (
-              <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>
-            ) : compared ? (
-              <Text style={styles.dim}>
-                {monoResult!.missed > 0 ? t('reading.monologueMissed', { total, count: monoResult!.missed }) : t('reading.monologueAllRead', { total })}
-              </Text>
-            ) : null}
-            <Text style={styles.dim}>{script.title}</Text>
-            <View style={styles.doneStats}>
-            <Text style={styles.doneStat}>{config.myNames.join(', ')} · {mmss(run.elapsedMs)}</Text>
-            {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
-          </View>
-            {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
-            {completed && !fromTutorialRef.current && <><ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" /><PrimaryButton label={t('reading.recordForCoach')} onPress={toCoach} disabled={doneLocked} /></>}
-            {!compared ? (
-              <View style={styles.noteBox}>
-                <Feather name="info" size={16} color={palette.textMuted} />
-                <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
-              </View>
-            ) : (
-              <View style={styles.diffBox}>
-                {monoResult!.rows.map((r, k) =>
-                  r.status === 'missed' ? (
-                    <Pressable
-                      key={r.lineId}
-                      style={styles.monoRow}
-                      onPress={() => void readAgain(r.lineId)}
-                      disabled={doneLocked || restarting}
-                      accessibilityRole="button"
-                      ph-label="reading_monologue_retry_from">
-                      <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
-                      <Text style={styles.monoTagMissed}>{`${statusLabel.missed} · ${t('reading.monologueRetryFrom')}`}</Text>
-                    </Pressable>
-                  ) : (
-                    <View key={r.lineId} style={styles.monoRow}>
-                      <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
-                      <Text style={styles.monoTag}>{statusLabel[r.status]}</Text>
-                    </View>
-                  ),
+        <>
+          <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.monologueDoneTitle')} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+            <View style={styles.doneBody}>
+              <View style={styles.doneHead}>
+                {compared && (
+                  <Text style={styles.doneDesc}>
+                    {monoResult!.missed > 0 ? t('reading.monologueMissed', { total, count: monoResult!.missed }) : t('reading.monologueAllRead', { total })}
+                  </Text>
                 )}
+                <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
-            )}
-            <View style={styles.doneLinks}>
-            <Pressable
-              style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
-              onPress={() => void readAgain()}
-              disabled={doneLocked || restarting}
-              accessibilityRole="button"
-              accessibilityLabel={t('reading.readAgain')}
-              accessibilityState={{ disabled: doneLocked || restarting }}>
-              {restarting ? (
-                <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-              ) : (
+              {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
+              {coaching && (
                 <>
-                  <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-                  <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+                  <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
+                  <Button
+                    size="md"
+                    label={t('reading.recordForCoach')}
+                    icon={<Feather name="video" size={16} color={palette.onAccent} />}
+                    onPress={toCoach}
+                    disabled={doneLocked}
+                    style={styles.doneCoach}
+                  />
                 </>
               )}
-            </Pressable>
-            <ReadingCompareLink scriptId={script.id} session={session} />
-            {otherScriptRow}
+              {!compared ? (
+                note(t('reading.noSttNote'), 'info')
+              ) : (
+                <View style={styles.resultCard}>
+                  {monoResult!.rows.map((r, k) =>
+                    r.status === 'missed' ? (
+                      <Pressable
+                        key={r.lineId}
+                        style={styles.monoRow}
+                        onPress={() => void readAgain(r.lineId)}
+                        disabled={busy}
+                        accessibilityRole="button"
+                        ph-label="reading_monologue_retry_from">
+                        <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
+                        <Text style={styles.monoTagMissed}>{`${statusLabel.missed} · ${t('reading.monologueRetryFrom')}`}</Text>
+                      </Pressable>
+                    ) : (
+                      <View key={r.lineId} style={styles.monoRow}>
+                        <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
+                        <Text style={styles.monoTag}>{statusLabel[r.status]}</Text>
+                      </View>
+                    ),
+                  )}
+                </View>
+              )}
+              {links}
+              {rating}
+              {ratingCard}
             </View>
-            {completed && !fromTutorialRef.current && (
-              <View style={styles.ratingSlot}>
-                <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
-              </View>
-            )}
-          {ratingCard}
-          </ScrollView>
-          <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
-            {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            {goHomeButton}
-          </View>
+          </DoneScreen>
           {dialog}
-        </View>
+        </>
       );
     }
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
@@ -1778,90 +1853,40 @@ export default function ReadingPlay() {
     const compared = sttMode?.kind === 'stt';
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
-      <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
-        <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-          <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-          <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
-          {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
-          <Text style={styles.dim}>{script.title}</Text>
-          <View style={styles.doneStats}>
-            <Text style={styles.doneStat}>{completed ? t('reading.doneLineStats', { roles: config.myNames.join(', '), count: readCount, time: mmss(run.elapsedMs) }) : `${config.myNames.join(', ')} · ${mmss(run.elapsedMs)}`}</Text>
-            {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
-          </View>
-          {completed && !wholeScript && <Text style={styles.doneStatFaint}>{t('reading.donePartialNote')}</Text>}
-          {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
-          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
-
-          {!completed ? null : !compared ? (
-            <View style={styles.noteBox}>
-              <Feather name="info" size={16} color={palette.textMuted} />
-              <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
-            </View>
-          ) : different.kind === 'waiting' ? (
-            <View style={styles.noteBox}>
-              <Text style={styles.noteText}>{t('reading.differentWaiting')}</Text>
-            </View>
-          ) : different.kind === 'later' ? (
-            <View style={styles.noteBox}>
-              <Feather name="wifi-off" size={16} color={palette.textMuted} />
-              <Text style={styles.noteText}>{t('reading.differentLater')}</Text>
-            </View>
-          ) : different.kind === 'ready' && different.lines.length > 0 ? (
-            <View style={styles.diffBox}>
-              <View style={styles.diffHead}>
-                <Text style={styles.diffTitle}>{t('reading.differentTitle')}</Text>
-                <Text style={styles.diffCount}>{t('reading.differentCount', { count: different.lines.length })}</Text>
-              </View>
-              {different.lines.slice(0, 2).map((d) => (
-                <View key={d.line_id} style={styles.diffRow}>
-                  <Text style={styles.diffNo}>{t('reading.lineNo', { n: d.dialogue_no })}</Text>
-                  <DiffText text={textOf(d.line_id)} different={d} />
+      <>
+        <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.completeTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+          <View style={styles.doneBody}>
+            {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
+            {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
+            {coaching && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
+            {!compared ? (
+              note(t('reading.noSttNote'), 'info')
+            ) : different.kind === 'waiting' ? (
+              note(t('reading.differentWaiting'))
+            ) : different.kind === 'later' ? (
+              note(t('reading.differentLater'), 'wifi-off')
+            ) : different.kind === 'ready' && different.lines.length > 0 ? (
+              <View style={styles.resultCard}>
+                <View style={styles.diffHead}>
+                  <Text style={styles.diffTitle}>{t('reading.differentTitle')}</Text>
+                  <Text style={styles.diffCount}>{t('reading.differentCount', { count: different.lines.length })}</Text>
                 </View>
-              ))}
-              <Pressable style={styles.diffAll} onPress={() => router.push('/reading/diff')} hitSlop={6}>
-                <Text style={styles.diffAllText}>{t('reading.seeAll')}</Text>
-                <Feather name="chevron-right" size={16} color={palette.blueDeep} />
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* 다시 연습은 실행 중 [다음] 자리(아래 오른쪽)를 피해 본문에 둔다 — 연타로 새 연습이 바로 시작되지 않게(SOMA-772). */}
-          <View style={styles.doneLinks}>
-          <Pressable
-            style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
-            onPress={() => void readAgain()}
-            disabled={doneLocked || restarting}
-            accessibilityRole="button"
-            accessibilityLabel={t('reading.readAgain')}
-            accessibilityState={{ disabled: doneLocked || restarting }}>
-            {restarting ? (
-              <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-            ) : (
-              <>
-                <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-                <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
-              </>
-            )}
-          </Pressable>
-          <ReadingCompareLink scriptId={script.id} session={session} />
-          {otherScriptRow}
+                {different.lines.slice(0, 2).map((d) => (
+                  <View key={d.line_id} style={styles.diffRow}>
+                    <Text style={styles.doneMeta}>{t('reading.lineNo', { n: d.dialogue_no })}</Text>
+                    <DiffText text={textOf(d.line_id)} different={d} />
+                  </View>
+                ))}
+                <TextButton tone="accent" label={t('reading.seeAll')} onPress={() => router.push('/reading/diff')} />
+              </View>
+            ) : null}
+            {links}
+            {rating}
+            {ratingCard}
           </View>
-
-          {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
-          {completed && !fromTutorialRef.current && (
-            <View style={styles.ratingSlot}>
-              <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
-            </View>
-          )}
-
-        {ratingCard}
-        </ScrollView>
-        <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
-          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            {goHomeButton}
-        </View>
+        </DoneScreen>
         {dialog}
-      </View>
+      </>
     );
   }
 
@@ -1880,6 +1905,14 @@ export default function ReadingPlay() {
   const saidOf = (lineId: string) => (sttMode?.kind === 'stt' ? run.said[lineId] : undefined);
   const masking = maskMode !== 'none';
 
+  const coachElement = coachMark ? (
+    <ReadingCoachMark
+      label={t('reading.coachLabel')}
+      text={t(COACH_TEXT[coachMark])}
+      onClose={() => finishCoachMark(coachMark)}
+    />
+  ) : null;
+
   const hint = paused ? t(interrupted ? 'reading.interruptedBody' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
 
 
@@ -1888,16 +1921,22 @@ export default function ReadingPlay() {
   if (!monologue) {
     for (const g of lineGroups(run.lines, { monologue })) {
       const start = Math.max(g.start, run.startIndex);
-      const end = Math.min(g.end, run.index - 1, run.endIndex);
+      const end = Math.min(g.end, (beatOn ? beatLines[0] : run.index) - 1, run.endIndex);
       if (start > end) continue;
       const lines = run.lines.slice(start, end + 1).map((l, k) => ({ id: run.lineIds[start + k], line: l }));
       past.push({ key: run.lineIds[start], index: start, lines });
     }
   }
+  // 첫 대사 앞 지문(구간 밖, 무대·인물 소개) — 시작 멈춤 동안은 카드에 있고, 그 밖에는 기록 맨 위에 둔다(SOMA-937).
+  const leadLines = monologue ? [] : directionsBefore(run.lines, run.startIndex).filter((i) => !beatLines.includes(i));
   // 지금 차례의 나머지 줄 — 묶인 대사는 한 카드에 줄마다 이어 보인다. 「첫 단어」는 첫 줄에만, 「원문 보기」는 묶음 전체에 적용된다.
   const span = turnSpan(run);
   const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
   const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
+  const monoChunks = monologue ? monologueChunks(run.lines, run.startIndex, run.endIndex) : [];
+  // 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」, 마지막 말풍선에서만 「끝내기」다(SOMA-934).
+  const monoNow = monoChunks.findIndex((c) => Math.max(run.index, run.startIndex) <= c.end);
+  const monoNext = monoNow >= 0 ? (monoChunks[monoNow + 1] ?? null) : null;
   const monoCounter = monologue
     ? t('reading.monologueProgress', { n: Math.max(0, monoIndexes.indexOf(run.index)) + 1, total: monoIndexes.length, time: mmss(run.elapsedMs) })
     : null;
@@ -1906,13 +1945,21 @@ export default function ReadingPlay() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
         <Pressable style={styles.exitBtn} onPress={onExit} hitSlop={8}>
-          <Feather name="x" size={20} color={palette.textDim} />
+          <Feather name="x" size={20} color={palette.textSub} />
           <Text style={styles.exitText}>{t('reading.exitLeave')}</Text>
         </Pressable>
         {notice?.kind === 'dropped' ? <Text style={styles.droppedText}>{t('reading.recordingDropped', { count: notice.count })}</Text> : <View />}
-        <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
+        <View style={styles.topRight}>
+          <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
+          {firstReading && phase.kind === 'running' && hold !== 'tip' && run.status !== 'done' && (
+            // 첫 리딩은 대본 전체를 읽는다 — 긴 대본도 언제든 여기서 끝내고 첫 리딩 끝 화면으로 간다(10/29).
+            <Pressable onPress={firstStop} hitSlop={8} accessibilityRole="button" ph-label="reading_first_stop">
+              <Text style={styles.firstStopText}>{t('reading.firstStop')}</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
-      <View style={styles.progressTrack} onLayout={(e) => setTipTop(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
+      <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
       </View>
       {proVoiceHint && (
@@ -1932,6 +1979,10 @@ export default function ReadingPlay() {
         contentContainerStyle={styles.flowContent}
         onContentSizeChange={() => !monologue && scrollRef.current?.scrollTo({ y: Math.max(0, dialogueCardY.current - 12), animated: true })}>
         {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
+        {leadLines.map((i) => {
+          const l = run.lines[i];
+          return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
+        })}
         {past.map(({ key, index, lines }) => {
           const l = lines[0].line;
           if (l.type !== 'dialogue') return <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
@@ -1955,55 +2006,89 @@ export default function ReadingPlay() {
           );
         })}
 
-        {monologue && (
+        {coachMark !== 'next' && coachElement}
+
+        {monologue &&
           // 독백 — 문장 목록을 보이고 읽는 문장만 진하게(pen c1MiZ). 상대역 목소리는 없고 녹음은 끝낼 때까지 이어진다.
-          <View style={[styles.card, styles.cardMine]} onLayout={(e) => (monoCardY.current = e.nativeEvent.layout.y)}>
-            <View style={styles.cardHead}>
-              <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
-              <View style={styles.cardHeadRight}>
-                <View style={styles.chip}>
-                  {hold === 'tip' || paused || !listening ? (
-                    <Feather name={paused ? 'pause' : 'mic'} size={14} color={palette.blueDeep} />
-                  ) : (
-                    <ListeningBars />
-                  )}
-                  <Text style={[styles.chipText, styles.chipTextMine]}>
-                    {hold === 'tip' ? t('reading.chipBeforeStart') : paused ? t('reading.pause') : listening ? t('reading.monologueRecording') : t('reading.chipMicOpening')}
-                  </Text>
+          // 대사 10줄씩 말풍선으로 끊어 지금 읽는 말풍선까지만 그린다 — 다 읽으면 다음 말풍선이 아래에 생기고, 지나간 건 흐리게 남는다(SOMA-934).
+          monoChunks.filter((c) => c.start <= Math.max(run.index, run.startIndex)).map((c, ci, shown) => {
+            const current = ci === shown.length - 1;
+            return (
+              <View
+                key={run.lineIds[c.start]}
+                style={[styles.card, styles.cardMine, !current && styles.cardPast]}
+                onLayout={current ? onMonoCardLayout : undefined}>
+                {current && (
+                <View style={styles.cardHead}>
+                  <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
+                  <View style={styles.cardHeadRight}>
+                    <View style={styles.chip}>
+                      {hold === 'tip' || paused || !listening ? (
+                        <Feather name={paused ? 'pause' : 'mic'} size={14} color={palette.blueDeep} />
+                      ) : (
+                        <ListeningBars />
+                      )}
+                      <Text style={[styles.chipText, styles.chipTextMine]}>
+                        {hold === 'tip' ? t('reading.chipBeforeStart') : paused ? t('reading.pause') : listening ? t('reading.monologueRecording') : t('reading.chipMicOpening')}
+                      </Text>
+                    </View>
+                    {hold !== 'tip' && (
+                      <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
+                        <Feather name="edit-2" size={16} color={palette.blueDeep} />
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
-                {hold !== 'tip' && (
-                  <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
-                    <Feather name="edit-2" size={16} color={palette.blueDeep} />
-                  </Pressable>
+                )}
+                {run.lines.slice(c.start, c.end + 1).map((l, k) => {
+                  const i = c.start + k;
+                  if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
+                  const now = i === run.index;
+                  return (
+                    <View
+                      key={run.lineIds[i]}
+                      onLayout={(e) => {
+                        monoItemY.current[i] = e.nativeEvent.layout.y;
+                        if (current && i === runRef.current?.index) followMonoLine();
+                      }}>
+                      {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
+                        <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
+                      ) : (
+                        <Text style={now ? styles.monoNow : styles.monoOther}>{l.text}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+                {current && hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
+                  <View style={styles.aidRow}>
+                    <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
+                      <Feather name="eye" size={14} color={palette.blueDeep} />
+                      <Text style={styles.aidText}>{t('reading.showOriginal')}</Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
+            );
+          })}
+
+        {beatOn && (
+          // 지문 멈춤 카드(SOMA-937) — 읽을 줄이 아니라 상황이라 회색 카드에 지문 글을 그대로 보인다. [다음]으로 바로 넘어간다.
+          <View style={[styles.card, styles.cardOther]} accessibilityLiveRegion="polite">
+            <View style={styles.cardHead}>
+              <Text style={styles.cardRole}>{t('reading.directionCard')}</Text>
             </View>
-            {run.lines.slice(run.startIndex, run.endIndex + 1).map((l, k) => {
-              const i = run.startIndex + k;
-              if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
-              const now = i === run.index;
+            {beatLines.map((i) => {
+              const l = run.lines[i];
               return (
-                <View key={run.lineIds[i]} onLayout={(e) => (monoItemY.current[i] = e.nativeEvent.layout.y)}>
-                  {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
-                    <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
-                  ) : (
-                    <Text style={now ? styles.monoNow : styles.monoOther}>{l.text}</Text>
-                  )}
-                </View>
+                <Text key={run.lineIds[i]} style={l.type === 'scene' ? styles.beatScene : styles.beatText}>
+                  {l.text}
+                </Text>
               );
             })}
-            {hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
-              <View style={styles.aidRow}>
-                <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
-                  <Feather name="eye" size={14} color={palette.blueDeep} />
-                  <Text style={styles.aidText}>{t('reading.showOriginal')}</Text>
-                </Pressable>
-              </View>
-            )}
           </View>
         )}
 
-        {isDialogue && !monologue && (
+        {isDialogue && !monologue && !beatOn && (
           <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]} onLayout={(e) => (dialogueCardY.current = e.nativeEvent.layout.y)}>
             <View style={styles.cardHead}>
               <Text style={[styles.cardRole, myTurn && styles.cardRoleMine]}>
@@ -2012,12 +2097,12 @@ export default function ReadingPlay() {
               </Text>
               <View style={styles.cardHeadRight}>
                 <View style={styles.chip}>
-                  {chip.icon === 'bars' ? <ListeningBars /> : <Feather name={chip.icon} size={14} color={myTurn ? palette.blueDeep : palette.textMuted} />}
+                  {chip.icon === 'bars' ? <ListeningBars /> : <Feather name={chip.icon} size={14} color={myTurn ? palette.blueDeep : palette.textMeta} />}
                   <Text style={[styles.chipText, myTurn && styles.chipTextMine]}>{chip.label}</Text>
                 </View>
                 {hold !== 'tip' && (
                   <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
-                    <Feather name="edit-2" size={16} color={myTurn ? palette.blueDeep : palette.textMuted} />
+                    <Feather name="edit-2" size={16} color={myTurn ? palette.blueDeep : palette.textMeta} />
                   </Pressable>
                 )}
               </View>
@@ -2056,13 +2141,23 @@ export default function ReadingPlay() {
           </View>
         )}
 
-        {isDialogue && myTurn && sttMode?.kind === 'stt' && (
+        {!monologue && isDialogue && myTurn && !beatOn && sttMode?.kind === 'stt' && (
           <View style={styles.saidBox}>
             <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
             <Text style={styles.saidText}>{said || t('reading.noSpeechYet')}</Text>
           </View>
         )}
       </ScrollView>
+
+      {/* 독백은 받아쓴 글이 끝까지 쌓여 스크롤 끝에 두면 길어지다 버튼 줄에 잘렸다 — 버튼 줄 바로 위에 고정하고 최근 두 줄만 보인다(SOMA-934). */}
+      {monologue && isDialogue && myTurn && sttMode?.kind === 'stt' && (
+        <View style={[styles.saidBox, styles.monoSaidBar]}>
+          <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
+          <Text style={styles.saidText} numberOfLines={2} ellipsizeMode="head">
+            {said || t('reading.noSpeechYet')}
+          </Text>
+        </View>
+      )}
 
       {notice?.kind === 'jump' && (
         <View style={[styles.toast, styles.jumpToast]}>
@@ -2071,13 +2166,14 @@ export default function ReadingPlay() {
         </View>
       )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
+      {coachMark === 'next' && <View style={styles.coachAboveControls}>{coachElement}</View>}
 
       {/* 시작 전에는 아래 버튼 줄을 숨기되 자리는 남긴다 — 빼 버리면 대사 카드가 폰 아래 버튼 줄 밑으로 내려가 잘렸다(10/26). */}
       <>
       {hold === 'mask_sheet' && (
         // 대사 보기 고르기 — 시트 대신 컨트롤 바로 위에 세 칸으로 펼친다. 고르면 접히고, 펼친 동안은 자동 넘김이 멈춰 있다.
         <View style={styles.maskRow} accessibilityRole="radiogroup">
-          {MASKS.map((m) => {
+          {masks().map((m) => {
             const on = maskMode === m.key;
             return (
               <Pressable key={m.key} style={[styles.maskOpt, on && styles.maskOptOn]} onPress={() => changeMask(m.key)} accessibilityRole="radio" accessibilityState={{ checked: on }} ph-label="reading_play_mask_pick">
@@ -2093,13 +2189,13 @@ export default function ReadingPlay() {
         accessibilityElementsHidden={hold === 'tip'}
         importantForAccessibility={hold === 'tip' ? 'no-hide-descendants' : 'auto'}>
         <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('reading.maskSheetTitle')} ph-label="reading_play_mask">
-          <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textDim} />
+          <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textSub} />
           {masking && <View style={styles.eyeDot} />}
         </Pressable>
         {paused ? (
           <>
             <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={stopHere} accessibilityRole="button" ph-label="reading_play_stop">
-              <Feather name="square" size={16} color={palette.textDim} />
+              <Feather name="square" size={16} color={palette.textSub} />
               <Text style={styles.ctrlGhostText}>{t('reading.stopHere')}</Text>
             </Pressable>
             <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume}>
@@ -2119,21 +2215,23 @@ export default function ReadingPlay() {
                 accessibilityRole="button"
                 accessibilityLabel={t('reading.prev')}
                 ph-label="reading_play_prev">
-                <Feather name="skip-back" size={20} color={palette.textDim} />
+                <Feather name="skip-back" size={20} color={palette.textSub} />
               </Pressable>
             )}
             <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={doPause}>
-              <Feather name="pause" size={16} color={palette.textDim} />
+              <Feather name="pause" size={16} color={palette.textSub} />
               <Text style={styles.ctrlGhostText}>{t('reading.pause')}</Text>
             </Pressable>
             <Pressable
               style={[styles.ctrl, styles.ctrlPrimary]}
               onPress={() => {
-                if (monologue) void finishMonologue();
+                if (monoNext) nextMonoChunk(monoNext.start);
+                else if (monologue) void finishMonologue();
+                else if (beatOn) setBeatDoneAt(run.index);
                 else if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
               }}>
-              <Text style={styles.ctrlPrimaryText}>{t(monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
+              <Text style={styles.ctrlPrimaryText}>{t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
               <Feather name="arrow-right" size={16} color="#fff" />
             </Pressable>
           </>
@@ -2141,17 +2239,18 @@ export default function ReadingPlay() {
       </View>
       </>
       {hold === 'tip' && (
-        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
-        <View style={[styles.backdrop, { top: tipTop }]}>
-          <View style={styles.startCard}>
-            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
-            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
-            {startHint && (
-              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
-                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
-              </Pressable>
-            )}
+        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 아래 조작 자리에 둔다(SOMA-839). 예전엔 화면을 어둡게 덮는 가운데 팝업이었는데
+        // UX 가이드 「가운데 팝업은 되돌릴 수 없는 일에만」에 어긋나 화면 안 안내로 바꿨다(10/28). 대본 첫 줄이 가려지지 않는다.
+        <View style={[styles.startDock, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={styles.startRow}>
+            <Image source={MASCOT_IMG.reading} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+            <View style={styles.startText}>
+              <Text style={styles.startTitle} accessibilityRole="header">{t('reading.startTitle')}</Text>
+              <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>
+            </View>
           </View>
+          <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} style={styles.startButton} />
+          <TextButton label={t('reading.startSkipNext')} onPress={() => void closeTip(true)} />
         </View>
       )}
 
@@ -2168,7 +2267,6 @@ export default function ReadingPlay() {
         />
         </>
       )}
-      {guideOpen && <ReadingGuideOverlay onClose={closeGuide} />}
       {dialog}
     </View>
   );
@@ -2230,141 +2328,123 @@ function ListeningBars() {
 }
 
 const styles = StyleSheet.create({
+  doneBody: { gap: space[4] },
+  doneHead: { gap: space[2], marginTop: -space[1] },
+  doneDesc: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  doneMeta: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
+  doneSummary: { backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], gap: space[1], alignItems: 'center' },
+  doneSummaryText: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[6] },
+  doneLink: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], height: 40 },
+  doneLinkOff: { opacity: 0.4 },
+  doneLinkText: { ...type.body2Bold, color: palette.textSub },
+  doneLinkAccent: { color: palette.blueDeep },
+  doneCoach: { alignSelf: 'center' },
+  noteBox: { flexDirection: 'row', alignItems: 'center', gap: space[3], borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
+  noteText: { flex: 1, ...type.caption, color: palette.textSub },
+  resultCard: { borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: space[4], paddingVertical: space[2], gap: space[2] },
+  diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingVertical: space[2] },
+  diffTitle: { ...type.body2Bold, color: palette.text },
+  diffCount: { ...type.micro, color: palette.amber, backgroundColor: palette.amberSoft, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2, overflow: 'hidden' },
+  diffRow: { gap: space[1], alignItems: 'flex-start' },
+  monoRow: { gap: space[1], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
+  monoRowText: { ...type.body2Bold, color: palette.text },
+  monoTag: { ...type.caption, color: palette.textMeta },
+  monoTagMissed: { ...type.captionBold, color: palette.amber },
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15, textAlign: 'center', lineHeight: 22 },
-  downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: 999, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 8 },
-  downloadFill: { height: 8, borderRadius: 999, backgroundColor: palette.blue },
+  downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: radius.full, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 8 },
+  downloadFill: { height: 8, borderRadius: radius.full, backgroundColor: palette.blue },
   prepRoot: { paddingHorizontal: 24 },
   prepBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   prepMascot: { width: 84, height: 94, marginBottom: 8 },
-  prepTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 34, textAlign: 'center' },
-  prepProgress: { color: palette.blue, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  primaryWide: { alignSelf: 'stretch', backgroundColor: palette.blue, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 12 },
-  primaryWideText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  textButton: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 15, paddingVertical: 10 },
+  prepTitle: { ...type.title1, color: palette.text, textAlign: 'center' },
+  prepProgress: { ...type.body2Bold, color: palette.blue, textAlign: 'center' },
 
-  monoNow: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18, lineHeight: 27, marginTop: 6 },
-  monoOther: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23, marginTop: 6 },
-  monoRow: { alignSelf: 'stretch', gap: 2, paddingVertical: 8, borderBottomColor: palette.borderSoft, borderBottomWidth: 1 },
-  monoRowText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
-  monoTag: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
-  monoTagMissed: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  doneMascot: { width: 120, height: 120 },
-  doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
-  otherScript: { marginTop: 0 },
-  otherScriptText: { color: palette.textDim, fontSize: 15, fontWeight: '700' },
-  firstDoneBar: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center', paddingVertical: 12 },
-  firstDoneBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-  firstDoneTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 32, textAlign: 'center', marginTop: 12 },
-  firstDoneMeta: { color: palette.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center' },
-  firstDoneActions: { alignSelf: 'stretch', gap: 8, marginTop: 24 },
-  doneIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
-  doneTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 4, textAlign: 'center' },
-  doneContent: { alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingBottom: 24 },
-  doneStats: { alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6, alignItems: 'center' },
-  doneStat: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 21 },
-  doneStatFaint: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12 },
-  noteBox: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },
-  noteText: { flex: 1, color: palette.textDim, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
-  diffBox: { alignSelf: 'stretch', backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 12 },
-  diffHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', borderBottomColor: palette.borderSoft, borderBottomWidth: 1, paddingBottom: 10 },
-  diffTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  diffCount: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 13, backgroundColor: palette.amberSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
-  diffRow: { gap: 4 },
-  diffNo: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  diffAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2 },
-  diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  monoNow: { ...type.headline, color: palette.text, marginTop: 6 },
+  monoOther: { ...type.body2, color: palette.textMeta, marginTop: 6 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
-  maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.card },
-  maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.card },
+  maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.bg },
+  maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.bg },
   maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  maskOptText: { fontSize: 13, fontWeight: '600', textAlign: 'center', color: palette.textDim },
+  maskOptText: { ...type.captionBold, textAlign: 'center', color: palette.textSub },
   maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
-  ratingSlot: { alignSelf: 'stretch' },
-  doneBar: { paddingHorizontal: 24, paddingTop: 12, gap: 10, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
-  wrapContent: { paddingHorizontal: 24, paddingBottom: 24 },
-  wrapBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.greenSoft, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
-  wrapBadgeText: { color: palette.green, fontSize: 13, fontWeight: '800', lineHeight: 18 },
-  wrapHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  wrapMascot: { width: 52, height: 58 },
-  wrapHeading: { flex: 1, color: palette.text, fontSize: 22, fontWeight: '800', lineHeight: 29 },
-  wrapCard: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6, marginTop: 18 },
-  wrapMeta: { color: palette.textMuted, fontSize: 12, fontWeight: '800', lineHeight: 17 },
-  wrapNext: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 23 },
-  readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
-  readAgainOff: { opacity: 0.4 },
-  readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
-  wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
-  wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },
-  startCard: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, gap: 10 },
-  startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },
-  startSkip: { color: palette.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
+  // 화면 흐름 안에 둔다(겹쳐 덮지 않는다) — 위 대사 칸이 이 안내 위로 올라가 첫 줄이 가려지지 않는다.
+  startDock: { backgroundColor: palette.bg, paddingHorizontal: space.gutter, paddingTop: space[4], gap: space[2], borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+  startRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  startText: { flex: 1, gap: space[1] },
+  startTitle: { ...type.headline, color: palette.text },
+  startHint: { ...type.body2, color: palette.textSub },
+  startButton: { alignSelf: 'stretch', marginTop: space[2] },
+  cardPast: { opacity: 0.55 },
 
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   exitBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  exitText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  droppedText: { color: palette.danger, fontFamily: 'Pretendard-Bold', fontSize: 12 },
-  counter: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  exitText: { ...type.body2Bold, color: palette.textSub },
+  droppedText: { ...type.micro, color: palette.danger },
+  counter: { ...type.micro, color: palette.textMeta },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  firstStopText: { ...type.body2Bold, color: palette.blueDeep },
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
-  toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
+  toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: radius.lg, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
   proHint: { marginHorizontal: 16, marginTop: 10, paddingVertical: 8, alignItems: 'center' },
-  proHintText: { fontSize: 13, fontWeight: '700', color: palette.flameDeep, textDecorationLine: 'underline' },
-  toastText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  proHintText: { ...type.captionBold, color: palette.flame, textDecorationLine: 'underline' },
+  toastText: { ...type.captionBold, color: palette.onAccent },
   jumpToast: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, gap: 18 },
-  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
+  // 지나간 지문은 대사보다 한 단계 진하게 — 같은 연회색이라 지문인지 알아보기 어려웠다(SOMA-937).
+  direction: { ...type.caption, color: palette.textMeta },
+  beatText: { ...type.headline, color: palette.textSub },
+  beatScene: { ...type.body2Bold, color: palette.textSub },
   pastRow: { gap: 3, paddingHorizontal: 4 },
-  pastRole: { color: palette.checkOff, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  pastText: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  pastRole: { ...type.micro, color: palette.textDisabled },
+  pastText: { ...type.body2, color: palette.textDisabled },
   pastRowPressed: { backgroundColor: palette.blueSoft, borderRadius: 12 },
   spoken: { gap: 2 },
-  differs: { textDecorationLine: 'underline', textDecorationColor: palette.flame, color: palette.textMuted },
-  spokenSaid: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 18 },
-  spokenLabel: { fontFamily: 'Pretendard-SemiBold' },
-  card: { borderRadius: 16, paddingVertical: 16, paddingHorizontal: 18, gap: 10, borderWidth: 1.5 },
+  differs: { textDecorationLine: 'underline', textDecorationColor: palette.flame, color: palette.textMeta },
+  spokenSaid: { ...type.caption, color: palette.textMeta },
+  spokenLabel: { fontWeight: '600' },
+  card: { borderRadius: radius.lg, paddingVertical: 16, paddingHorizontal: 18, gap: 10, borderWidth: 1.5 },
   cardOther: { backgroundColor: palette.bgSoft, borderColor: palette.bgSoft },
   cardMine: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  cardRole: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 13, flexShrink: 1 },
+  cardRole: { ...type.captionBold, color: palette.text, flexShrink: 1 },
   cardRoleMine: { color: palette.blueDeep },
   cardHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  chipText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  chipText: { ...type.micro, color: palette.textMeta },
   chipTextMine: { color: palette.blueDeep },
-  saidBox: { backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12, gap: 4 },
-  saidLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
-  saidText: { color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20 },
-  lineText: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 21, lineHeight: 31 },
+  saidBox: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, padding: 12, gap: 4 },
+  saidLabel: { ...type.micro, color: palette.textMeta },
+  saidText: { ...type.body2, color: palette.text },
+  lineText: { ...type.title2, color: palette.text },
+  coachAboveControls: { paddingHorizontal: space[4], paddingBottom: space[2] },
+  monoSaidBar: { marginHorizontal: space[4], marginBottom: space[2] },
   firstWordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   firstWordRest: { flex: 1 },
   aidRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  aidText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bg, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 7 },
+  aidText: { ...type.captionBold, color: palette.blueDeep },
   bars: { gap: 8, justifyContent: 'center' },
   barPast: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
-  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blueLine },
+  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blue },
   listenBars: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
   listenBar: { width: 3, borderRadius: 2, backgroundColor: palette.blue },
-  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10, lineHeight: 19 },
+  hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10 },
 
-  controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
-  controlsHidden: { opacity: 0 },
-  eyeBtn: { width: 54, height: 52, borderRadius: 12, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
+  controls: { flexDirection: 'row', gap: space[2], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
+  // 시작 안내가 조작 자리를 대신하는 동안은 자리를 차지하지 않는다.
+  controlsHidden: { display: 'none' },
+  eyeBtn: { width: 48, height: 48, borderRadius: radius.lg, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },
   eyeDot: { position: 'absolute', top: 9, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: palette.blue },
-  ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15 },
+  ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], borderRadius: radius.lg, height: 48 },
   ctrlGhost: { backgroundColor: palette.bgSoft },
-  ctrlGhostText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 16 },
+  ctrlGhostText: { ...type.body1Bold, color: palette.textSub },
   ctrlPrimary: { backgroundColor: palette.blue },
-  ctrlOff: { backgroundColor: palette.checkOff },
-  ctrlPrimaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
-  pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  ctrlPrimaryText: { ...type.body1Bold, color: palette.onAccent },
 
-  backdrop: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
 });

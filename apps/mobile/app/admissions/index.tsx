@@ -13,10 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
-import { Chip } from '@/components/ds/ui/chip';
+import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { NavHeader, NavIconButton } from '@/components/ds/ui/nav-header';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -265,9 +265,8 @@ function UniversityCard({
           </Text>
         </View>
         {badge && (
-          // D-day 배지만 롤백 모양(검은 바탕·흰 글씨)이다(SOMA-923).
-          <View style={[styles.dday, badge.tone === 'muted' && styles.ddayMuted]}>
-            <Text style={[styles.ddayText, badge.tone === 'muted' && styles.ddayTextMuted]}>
+          <View style={[styles.dday, BADGE_TONE[badge.tone].box]}>
+            <Text style={[styles.ddayText, BADGE_TONE[badge.tone].text]}>
               {badge.label}
             </Text>
           </View>
@@ -356,12 +355,15 @@ const styles = StyleSheet.create({
   uniName: { ...type.body1Bold, color: palette.text },
   region: { ...type.caption, color: palette.textMeta },
   deptLine: { marginTop: space[1], ...type.caption, color: palette.textMeta },
-  dday: { paddingHorizontal: 11, height: 28, borderRadius: 14, backgroundColor: palette.navy, justifyContent: 'center' },
-  ddayText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
-  ddayMuted: { backgroundColor: palette.bgSoft },
-  ddayTextMuted: { color: palette.textFaint },
+  dday: { paddingHorizontal: space[2], height: 24, borderRadius: radius.full, justifyContent: 'center' },
+  ddayText: { ...type.micro },
   link: { ...type.body2Bold, color: palette.blueDeep },
   foot: { marginTop: space[4], ...type.caption, color: palette.textMeta },
 });
 
 /** 배지 tone → 색. 오늘 마감은 danger-soft, 다가오는 일정은 blue-soft, 그 밖은 bg-soft. */
+const BADGE_TONE = {
+  today: StyleSheet.create({ box: { backgroundColor: palette.dangerSoft }, text: { color: palette.danger } }),
+  live: StyleSheet.create({ box: { backgroundColor: palette.blueSoft }, text: { color: palette.blueDeep } }),
+  muted: StyleSheet.create({ box: { backgroundColor: palette.bgSoft }, text: { color: palette.textSub } }),
+};

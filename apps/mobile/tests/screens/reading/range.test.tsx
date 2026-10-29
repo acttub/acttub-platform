@@ -4,7 +4,8 @@ import { AppState, Linking } from 'react-native';
 import ReadingRange from '@/app/reading/range';
 import { micPermissionState, requestMicPermission } from '@/hooks/use-reading-mic';
 import { ApiError } from '@/lib/api-request';
-import { getCurrent, resetReadingState } from '@/lib/reading/store';
+import { getCurrent, getCurrentSession, resetReadingState } from '@/lib/reading/store';
+import { isFirstReadingSession } from '@/lib/reading/first-reading';
 import * as engine from '@/lib/reading/tts/engine';
 
 import { openFixtureScript, scriptDetail, sessionCard, TWO_ROLE_LINES } from './fixtures';
@@ -98,7 +99,8 @@ test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
-  await fireEvent.press(screen.getByText('내 대사만 가리기'));
+  // 가리기는 「내 대사 가리기」 스위치 하나다(UX 가이드, 10/28).
+  await fireEvent(screen.getByLabelText('내 대사 가리기'), 'valueChange', true);
 
   await fireEvent.press(startButton(5));
 
@@ -309,12 +311,12 @@ test('SOMA-709: 고른 배역의 구간 안 대사가 2줄 이하면 처음 안�
   await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c2'] })));
 });
 
-test('SOMA-709: 짧은 구간 추천이 뜨는 첫 연습에서도 대사가 적은 배역을 고르면 노란 안내가 그 자리를 대신한다', async () => {
+test('SOMA-934: 대사가 10줄 넘는 대본도 첫 연습을 처음 10줄로 줄이지 않는다 — 리딩 화면이 10줄씩 끊어 보인다. 대사가 적은 배역은 노란 안내', async () => {
   const lines: Parameters<typeof scriptDetail>[0] = [];
   for (let i = 0; i < 12; i++) lines.push(['dialogue', i === 3 ? '서연' : '민재', `대사 ${i + 1}`]);
   await show(scriptDetail(lines));
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.getByText('처음 10줄 · 추천')).toBeOnTheScreen();
+  expect(screen.queryByText('처음 10줄 · 추천')).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
@@ -385,4 +387,38 @@ test('SOMA-727: 대사가 한 줄뿐인 대본은 같은 안내 자리에 나눠
   expect(screen.getByText('대사가 한 줄뿐이라 한 번에 읽어요. 나눠 읽으려면 대본 보기에서 줄을 눌러 「나누기」를 고르세요.')).toBeOnTheScreen();
   expect(screen.queryByText('1문장 · 혼자 하는 대본')).not.toBeOnTheScreen();
   expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
+});
+
+// ── 첫 리딩 모드(10/29) — 배역만 묻고 대본 전체를 처음부터 ─────────────────────────────────────
+test('첫 리딩이면 배역만 묻고 대사 보기·구간은 보이지 않으며, 대본 전체를 처음부터 시작한다', async () => {
+  mockParams = { first: '1' };
+  const server = await show();
+
+  expect(screen.getByText('누구 대사를 읽을까요?')).toBeOnTheScreen();
+  expect(screen.queryByText('구간')).not.toBeOnTheScreen();
+  expect(screen.queryByText('내 대사만 가리기')).not.toBeOnTheScreen();
+  // 배역 카드에 대사 수와 그 배역의 첫 대사를 보인다.
+  expect(screen.getAllByText(/^대사 \d+개 · /).length).toBeGreaterThan(0);
+
+  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(screen.getByText('처음부터 읽기'));
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], start_line_id: 'l2', end_line_id: 'l8' }));
+  expect(isFirstReadingSession(getCurrentSession()?.id)).toBe(true);
+});
+
+test('첫 리딩이 아니면 시작한 회차를 첫 리딩으로 적지 않는다', async () => {
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(startButton(5));
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledTimes(1));
+  expect(isFirstReadingSession(getCurrentSession()?.id)).toBe(false);
+});
+
+test('첫 리딩의 독백은 배역을 묻지 않고 바로 시작한다', async () => {
+  mockParams = { first: '1' };
+  const server = await show(scriptDetail([['dialogue', '민재', '안녕.'], ['dialogue', '민재', '잘 가.']]));
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
 });

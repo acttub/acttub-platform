@@ -162,7 +162,7 @@ describe('캡션 고치기', () => {
     await fireEvent.press(screen.getByRole('button', { name: '저장' }));
 
     expect(updateEntry).toHaveBeenCalledWith('e1', { caption: '두 번째 테이크' });
-    expect(await screen.findByText('캡션을 고쳤어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('캡션을 저장했어요')).toBeOnTheScreen();
     expect(screen.queryByDisplayValue('  두 번째 테이크 ')).not.toBeOnTheScreen();
     expect(listMine).toHaveBeenCalledTimes(2);
   });

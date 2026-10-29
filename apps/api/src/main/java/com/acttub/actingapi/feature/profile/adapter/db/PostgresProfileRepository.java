@@ -92,15 +92,6 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
      * 없으면(LEFT JOIN 이 비면) 프로필은 {@code null} 이다.
      */
     @Override
-    public java.util.Optional<Integer> foundingNumber(UUID userId) {
-        List<?> rows = transaction.execute(tx -> entityManager
-                .createNativeQuery("SELECT number FROM founding_members WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .getResultList());
-        return rows.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(((Number) rows.get(0)).intValue());
-    }
-
-    @Override
     public Account find(UUID userId) {
         List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT users.id,users.email,users.status,
@@ -112,7 +103,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                        user_profiles.user_id AS profile_user_id,
                        user_profiles.name,user_profiles.gender,user_profiles.birth_date,
                        user_profiles.experience,user_profiles.goal,
-                       user_profiles.photo_key,user_profiles.bio,user_profiles.exam_date,
+                       user_profiles.photo_key,user_profiles.bio,
                        (SELECT string_agg(direction, ',' ORDER BY CASE direction
                                                                     WHEN 'media' THEN 1
                                                                     WHEN 'stage' THEN 2
@@ -467,20 +458,6 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
      * 없음"이 한 트랜잭션이어야 하기 때문이다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 탈퇴의 교차
      * 도메인 정리와 같은 형태로 명시적 native DML 로 남긴다.
      */
-    @Override
-    public boolean updateExamDate(UUID userId, LocalDate examDate) {
-        return Boolean.TRUE.equals(transaction.execute(status -> {
-            if (!lockActive(userId)) {
-                return false;
-            }
-            return entityManager.createNativeQuery(
-                            "UPDATE user_profiles SET exam_date=CAST(:examDate AS date),updated_at=now() WHERE user_id=:userId")
-                    .setParameter("examDate", examDate == null ? null : examDate.toString())
-                    .setParameter("userId", userId)
-                    .executeUpdate() == 1;
-        }));
-    }
-
     @Override
     public NotificationSettings updateNotificationSettings(
             UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder) {
@@ -1268,7 +1245,6 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     private static Profile profile(Tuple row) {
         String directions = row.get("directions", String.class);
         Date birthDate = row.get("birth_date", Date.class);
-        Date examDate = row.get("exam_date", Date.class);
         return new Profile(
                 row.get("name", String.class),
                 known(ProfileGender.class, row.get("gender", String.class)),
@@ -1281,7 +1257,6 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                 known(ActingExperience.class, row.get("experience", String.class)),
                 known(ActingGoal.class, row.get("goal", String.class)),
                 row.get("photo_key", String.class),
-                row.get("bio", String.class),
-                examDate == null ? null : examDate.toLocalDate());
+                row.get("bio", String.class));
     }
 }

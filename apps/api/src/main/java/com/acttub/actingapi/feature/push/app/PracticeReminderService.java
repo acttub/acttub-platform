@@ -80,7 +80,7 @@ public class PracticeReminderService {
                 Map<String, Integer> sentThisWeek = reminders.sentCountsByKind(c.userId(), today.minusDays(WEEK_DAYS - 1));
                 deliver(c, today, out, korean -> ReminderContent.practice(new ReminderContent.PracticeInput(
                         c.userId(), today, k, c.neverPracticed(), c.lastWasReading(), resume, homework, korean,
-                        pendingVideo, unreadScript, sentThisWeek, c.examPrep(), c.examDate()), recent));
+                        pendingVideo, unreadScript, sentThisWeek), recent));
             } else if (c.neverPracticed() && PracticeReminderPolicy.firstNudgeDue(now, c.firstPracticeAt())) {
                 Map<String, LocalDate> recent = reminders.recentTemplates(c.userId(), today.minusDays(ReminderContent.NO_REPEAT_DAYS));
                 deliver(c, today, out, korean -> ReminderContent.firstNudge(c.userId(), today, korean, recent));

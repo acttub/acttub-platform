@@ -352,20 +352,6 @@ test('코칭 시작이 무료 한도(free_daily_coaching_limit)에 걸리면 「
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/pro', params: { from: 'coaching' } });
 });
 
-test('창립 멤버(SOMA-861) — 결제 화면 맨 위에 「창립 멤버 n자리 남음」 한 줄이 보이고, 0이면 숨는다', async () => {
-  billingMe.mockResolvedValue({ ...none, app_enabled: false, founding_remaining: 63 });
-  await render(<ProScreen />);
-  expect(await screen.findByText('창립 멤버 63자리 남음')).toBeOnTheScreen();
-});
-
-test('창립 멤버(SOMA-861) — 남은 자리가 0이면 줄이 없다', async () => {
-  billingMe.mockResolvedValue({ ...none, app_enabled: false, founding_remaining: 0 });
-  await render(<ProScreen />);
-  await waitFor(() => expect(billingMe).toHaveBeenCalled());
-  expect(screen.getByText('Pro로 제한 없이 연습해요')).toBeOnTheScreen();
-  expect(screen.queryByText(/창립 멤버/)).not.toBeOnTheScreen();
-});
-
 test('Pro 안내 — 요금제는 월 구독이 먼저이고 기본으로 골라져 있어 바로 월 패키지로 결제한다', async () => {
   billingMe.mockResolvedValue({ ...none, app_enabled: true });
   mockRc.getOfferings.mockResolvedValue(offerings({ monthly: monthlyPkg, annual: annualPkg }));

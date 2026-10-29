@@ -129,7 +129,8 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(screen.queryByText('새 대본')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본 올리기'));
-  expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
+  // 같은 고르기를 한 번 더 보이지 않고 바로 파일 고르기 창을 연다(10/29).
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/reading/new', params: { pick: 'file' } });
   expect(screen.getByText('파일 · 글 붙여넣기')).toBeOnTheScreen();
   expect(screen.getByText('대본이 없어도 바로 해 볼 수 있어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('예시 대본으로 시작하기'));
@@ -153,7 +154,7 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '햄릿');
   expect(listScripts).toHaveBeenCalledTimes(1);
 
-  expect(await screen.findByText('검색 결과가 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('검색 결과가 없어요')).toBeOnTheScreen();
   expect(screen.getByText('작품명이나 배역 이름으로 찾아보세요')).toBeOnTheScreen();
   expect(listScripts).toHaveBeenLastCalledWith('햄릿');
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
@@ -161,12 +162,17 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
 });
 
 test('늦게 온 이전 검색 결과는 버린다', async () => {
+  // 검색칸은 첫 목록을 받은 뒤에 보인다(SOMA-932) — 첫 목록을 받고, 느린 검색 뒤에 빠른 검색을 이어 친다.
   let resolveFirst: (v: unknown) => void = () => undefined;
   (listScripts as jest.Mock)
+    .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 })
     .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.changeText(await screen.findByPlaceholderText('작품명 또는 배역 검색'), '옥상');
+  await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
+  await waitFor(() => expect(listScripts).toHaveBeenCalledTimes(3));
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
   await act(async () => resolveFirst({ scripts: [rooftop], total_count: 1, in_progress_count: 1 }));
@@ -176,10 +182,14 @@ test('늦게 온 이전 검색 결과는 버린다', async () => {
 test('늦게 실패한 이전 요청은 오류로 덮지 않는다', async () => {
   let rejectFirst: (e: unknown) => void = () => undefined;
   (listScripts as jest.Mock)
+    .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 })
     .mockReturnValueOnce(new Promise((_, reject) => (rejectFirst = reject)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.changeText(await screen.findByPlaceholderText('작품명 또는 배역 검색'), '옥상');
+  await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
+  await waitFor(() => expect(listScripts).toHaveBeenCalledTimes(3));
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
   await act(async () => rejectFirst(new Error('down')));

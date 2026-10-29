@@ -6,10 +6,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { NavBackButton, NavHeader } from '@/components/ds/app-header';
-import { PrimaryButton } from '@/components/ds/ui/buttons';
-import { CtaBar } from '@/components/ds/ui/cta-bar';
-import { SkeletonBlock } from '@/components/ds/ui/skeleton';
+import { NavBackButton, NavHeader } from '@/components/app-header';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { SkeletonBlock } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
@@ -18,7 +18,6 @@ import { radius, space, type } from '@/constants/tokens';
 import { useStorePurchase } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
 import {
-  foundingRemaining,
   paywallState,
   PRIVACY_URL,
   proFrom,
@@ -80,7 +79,6 @@ export default function ProScreen() {
     void api.billingMe().then(setMe).catch(() => undefined);
   }, []);
   useEffect(reload, [reload]);
-  const founding = foundingRemaining(me);
   const [plan, setPlan] = useState<StorePlan>('monthly');
   const purchase = useStorePurchase({
     enabled: purchaseOpen(me),
@@ -109,7 +107,6 @@ export default function ProScreen() {
           <Image source={state.kind === 'already_pro' ? MASCOT.jump : context.mascot} style={styles.mascot} contentFit="contain"
             cachePolicy="memory-disk" />
         )}
-        {founding !== null && <Text style={styles.founding}>{t('pro.foundingRemaining', { count: founding })}</Text>}
         <Text style={styles.title} accessibilityRole="header">{t(context.title)}</Text>
         <View style={styles.benefits}>
           {context.benefits.map((key) => (
@@ -237,16 +234,6 @@ const styles = StyleSheet.create({
   heroTitle: { ...type.body1Bold, color: palette.text },
   heroBody: { ...type.body2, color: palette.textSub },
   mascot: { ...MASCOT_SIZE.empty, alignSelf: 'center', marginTop: space[6] },
-  founding: {
-    ...type.captionBold,
-    color: palette.blueDeep,
-    backgroundColor: palette.blueSoft,
-    borderRadius: radius.full,
-    alignSelf: 'center',
-    paddingHorizontal: space[3],
-    paddingVertical: space[1],
-    overflow: 'hidden',
-  },
   title: { ...type.title1, color: palette.text, textAlign: 'center' },
   benefits: { alignSelf: 'center', gap: space[3] },
   benefit: { flexDirection: 'row', alignItems: 'center', gap: space[2] },

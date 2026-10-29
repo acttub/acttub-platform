@@ -1,20 +1,18 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { Checkbox } from '@/components/ui/checkbox';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { DialogButtons } from '@/components/ui/dialog';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import {
   DEFAULT_MEMORY_CHOICE,
@@ -100,99 +98,98 @@ export default function GuestTransferScreen() {
   const ready = isTransferCodeComplete(code);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: t('guestTransfer.title') }} />
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <NavHeader
+        title={t('guestTransfer.title')}
+        left={<NavBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings'))} />}
+      />
       {done ? (
-        // pen S7.7 — 가운데 완료 표시(96 동그라미)와 글, 아래에 「기록 보기」와 글자 버튼.
-        <View style={styles.doneContent}>
-          <View style={styles.doneHero}>
+        <>
+          <View style={styles.doneBody}>
             <View style={styles.doneIcon}>
-              <Feather name="check" size={44} color={palette.blue} />
+              <Feather name="check" size={36} color={palette.blue} />
             </View>
-            <Text style={[styles.doneHeading, styles.center]}>{t('guestTransfer.doneTitle')}</Text>
+            <Text style={[styles.heading, styles.center]}>{t('guestTransfer.doneTitle')}</Text>
             <Text style={[styles.body, styles.center]}>{t('guestTransfer.doneBody')}</Text>
           </View>
-          <View style={styles.doneActions}>
+          <CtaBar safeBottom={false}>
+            <TextButton label={t('guestTransfer.another')} onPress={enterAnother} />
             {/* 목록은 화면이 열릴 때마다 서버에서 다시 받는다. 기록으로 보내면 옮긴 연습이 보인다. */}
             <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.dismissTo('/(tabs)/history')} />
-            <TextButton size="large" label={t('guestTransfer.another')} onPress={enterAnother} />
-          </View>
-        </View>
+          </CtaBar>
+        </>
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
-          <Text style={styles.heading}>{t('guestTransfer.heading')}</Text>
-          <Text style={styles.body}>{t('guestTransfer.body')}</Text>
-          <TextInput
+          <View style={styles.titleBlock}>
+            <Text style={styles.heading}>{t('guestTransfer.heading')}</Text>
+            <Text style={styles.body}>{t('guestTransfer.body')}</Text>
+          </View>
+          <TextField
             style={styles.codeInput}
             value={code}
+            error={error}
             onChangeText={(text) => {
               setCode(formatTransferCodeInput(text));
               setError(null);
             }}
             placeholder={'0'.repeat(TRANSFER_CODE_LENGTH)}
-            placeholderTextColor={palette.checkOff}
+            placeholderTextColor={palette.textDisabled}
             keyboardType="number-pad"
             maxLength={TRANSFER_CODE_LENGTH}
             autoFocus
             accessibilityLabel={t('guestTransfer.codeLabel')}
           />
-          {error && <Text style={styles.error}>{error}</Text>}
           <PrimaryButton
             label={t('guestTransfer.cta')}
             onPress={() => void submit()}
             disabled={!ready || (busy && choosing)}
             loading={busy && !choosing}
-            style={styles.cta}
+            loadingLabel={t('guestTransfer.submitting')}
           />
           <Text style={styles.hint}>{t('guestTransfer.hint')}</Text>
         </KeyboardAwareScroll>
       )}
 
       {/* 기억 선택 팝업 — 기본은 회원 것이고 고른 쪽만 남는다. */}
-      <Modal visible={choosing} transparent animationType="fade" onRequestClose={dismissChoice}>
-        <Pressable style={styles.backdrop} onPress={dismissChoice} accessibilityRole="button" />
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{t('guestTransfer.memoryTitle')}</Text>
-          <Text style={styles.body}>{t('guestTransfer.memoryBody')}</Text>
-          <View accessibilityRole="radiogroup" style={styles.options}>
-            {(['member', 'guest'] as MemoryChoice[]).map((option) => {
-              const selected = choice === option;
-              return (
-                <Pressable
-                  key={option}
-                  style={[styles.option, selected && styles.optionOn]}
-                  onPress={() => setChoice(option)}
-                  disabled={busy}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected, disabled: busy }}>
-                  <Feather
-                    name={selected ? 'check-circle' : 'circle'}
-                    size={18}
-                    color={selected ? palette.blue : palette.checkOff}
-                  />
-                  <View style={styles.optionBody}>
-                    <Text style={styles.optionTitle}>
-                      {t(option === 'member' ? 'guestTransfer.memoryMember' : 'guestTransfer.memoryGuest')}
-                    </Text>
-                    <Text style={styles.hint}>
-                      {t(
-                        option === 'member'
-                          ? 'guestTransfer.memoryMemberSub'
-                          : 'guestTransfer.memoryGuestSub',
-                      )}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
+      <Modal visible={choosing} transparent statusBarTranslucent animationType="fade" onRequestClose={dismissChoice}>
+        <View style={styles.scrim}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={dismissChoice} accessibilityRole="button" />
+          <View style={styles.dialog}>
+            <Text style={styles.dialogTitle}>{t('guestTransfer.memoryTitle')}</Text>
+            <Text style={styles.body}>{t('guestTransfer.memoryBody')}</Text>
+            <View accessibilityRole="radiogroup" style={styles.options}>
+              {(['member', 'guest'] as MemoryChoice[]).map((option) => {
+                const selected = choice === option;
+                return (
+                  <Pressable
+                    key={option}
+                    style={[styles.option, selected && styles.optionOn]}
+                    onPress={() => setChoice(option)}
+                    disabled={busy}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected, disabled: busy }}>
+                    <Checkbox checked={selected} />
+                    <View style={styles.optionBody}>
+                      <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>
+                        {t(option === 'member' ? 'guestTransfer.memoryMember' : 'guestTransfer.memoryGuest')}
+                      </Text>
+                      <Text style={styles.hint}>
+                        {t(option === 'member' ? 'guestTransfer.memoryMemberSub' : 'guestTransfer.memoryGuestSub')}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <DialogButtons
+              cancelLabel={t('guestTransfer.memoryClose')}
+              onCancel={dismissChoice}
+              confirmLabel={t('guestTransfer.memoryConfirm')}
+              onConfirm={() => void confirmChoice()}
+              busy={busy}
+            />
           </View>
-          <DialogButtons
-            cancelLabel={t('guestTransfer.memoryClose')}
-            onCancel={dismissChoice}
-            confirmLabel={t('guestTransfer.memoryConfirm')}
-            onConfirm={() => void confirmChoice()}
-            busy={busy}
-          />
         </View>
       </Modal>
     </SafeAreaView>
@@ -201,64 +198,38 @@ export default function GuestTransferScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  // pen S7.1 — 안쪽 24, 줄 사이 14. 제목 22/800, 설명 14/1.5, 안내 12.5/1.44.
-  content: { flexGrow: 1, padding: 24, gap: 14 },
-  heading: { fontSize: 22, fontWeight: '800', color: palette.text, lineHeight: 30 },
-  body: { fontSize: 14, lineHeight: 21, color: palette.textDim },
-  hint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint },
+  content: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[6], gap: space[4] },
+  titleBlock: { gap: space[1.5] },
+  heading: { ...type.title2, color: palette.text },
+  body: { ...type.body2, color: palette.textSub },
+  hint: { ...type.caption, color: palette.textMeta },
   center: { textAlign: 'center' },
-  codeInput: {
-    marginTop: 8,
-    backgroundColor: palette.bgSoft,
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    color: palette.text,
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 8,
-    textAlign: 'center',
-  },
-  error: { color: palette.danger, fontSize: 13.5, textAlign: 'center' },
-  cta: { marginTop: 4 },
-  doneContent: { flex: 1, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 12 },
-  doneHero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 40 },
+  codeInput: { height: 64, ...type.title1, lineHeight: undefined, letterSpacing: 4, textAlign: 'center' },
+  doneBody: { flex: 1, alignItems: 'center', gap: space[3], paddingTop: 140, paddingHorizontal: space.gutter },
   doneIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 72,
+    height: 72,
+    borderRadius: radius.full,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
-  doneHeading: { fontSize: 24, fontWeight: '800', color: palette.text, lineHeight: 33 },
-  doneActions: { gap: 4 },
-
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  // pen S7.5 팝업 — 모서리 18, 안쪽 20, 줄 사이 12. 제목 17/800, 고르는 칸 모서리 14 · 안쪽 14.
-  modalCard: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    top: '22%',
-    backgroundColor: palette.card,
-    borderRadius: 18,
-    padding: 20,
-    gap: 12,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  options: { gap: 8 },
+  scrim: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
+  dialog: { width: '100%', maxWidth: 362, backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], gap: space[4] },
+  dialogTitle: { ...type.headline, color: palette.text },
+  options: { gap: space[2] },
   option: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-start',
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 14,
-    padding: 14,
+    backgroundColor: palette.bg,
   },
-  optionOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  optionBody: { flex: 1, gap: 2 },
-  optionTitle: { fontSize: 14.5, fontWeight: '800', color: palette.text },
+  optionOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, padding: space[4] - 0.5 },
+  optionBody: { flex: 1 },
+  optionTitle: { ...type.body1Bold, color: palette.text },
+  optionTitleOn: { color: palette.blueDeep },
 });

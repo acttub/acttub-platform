@@ -6,16 +6,16 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { LoadingText } from '@/components/ds/ui/loading-text';
-import { PrimaryButton } from '@/components/ds/ui/buttons';
+import { LoadingText } from '@/components/ui/loading-text';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Chip } from '@/components/ds/ui/chip';
-import { CtaBar } from '@/components/ds/ui/cta-bar';
+import { Chip } from '@/components/ui/chip';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { defaultAvatarColor } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonRows } from '@/components/ui/skeleton';
-import { NavIconButton } from '@/components/ds/ui/nav-header';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -85,6 +85,10 @@ export default function ChallengesScreen() {
   const [browsed, setBrowsed] = useState(false);
   /** 첫 고르기 화면을 띄울지 기기·서버 기록으로 다 따져 봤는가. 따지기 전에는 띄우지 않는다. */
   const [firstPickChecked, setFirstPickChecked] = useState(false);
+  /** 첫 고르기 여부를 한 번이라도 정했는가. 다시 들어와 기록을 새로 따지는 동안에도 이미 정한 화면을 그대로 둔다. */
+  const [pickDecided, setPickDecided] = useState(false);
+  /** 첫 목록(오늘의 챌린지 포함)을 한 번이라도 받았는가. 탭을 바꿔 다시 받을 때는 뼈대로 돌아가지 않는다. */
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
   const unread = useUnreadNotifications();
   /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 첫 항목을 미리 골라 두고(UX 가이드 5절, 10/23) 「다음」을 눌러야 넘어간다. */
   const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>('perform');
@@ -183,6 +187,13 @@ export default function ChallengesScreen() {
     }, []),
   );
 
+  useEffect(() => {
+    if (firstPickChecked) setPickDecided(true);
+  }, [firstPickChecked]);
+  useEffect(() => {
+    if (challenges !== null || error) setFirstLoadDone(true);
+  }, [challenges, error]);
+
   const featuredId = featured?.id ?? null;
   const exampleUrl = useExampleUrl(featuredId);
 
@@ -202,7 +213,10 @@ export default function ChallengesScreen() {
   const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
 
   /** 첫 챌린지 참여를 끝내기 전에는 이번 주 대사 하나만 보여 주고 둘 중 하나를 고르게 한다. */
-  const selectMode = firstPickChecked && showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
+  const selectMode = pickDecided && showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
+
+  // 첫 고르기를 띄울지 정하기 전에는 기본 챌린지 홈을 그리지 않는다 — 첫 사용자에게 홈이 먼저 보였다가 고르기로 바뀌었다(SOMA-932).
+  const deciding = !pickDecided || !firstLoadDone;
 
   const emptyText =
     tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');
@@ -215,7 +229,7 @@ export default function ChallengesScreen() {
           <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
         )}
         <Text style={[styles.title, styles.titleGrow]}>{t('challenges.title')}</Text>
-        {!selectMode && (
+        {!selectMode && !deciding && (
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -250,7 +264,9 @@ export default function ChallengesScreen() {
         )}
       </View>
 
-      {selectMode && featured ? (
+      {deciding ? (
+        <SkeletonRows count={4} avatar={false} style={styles.flush} />
+      ) : selectMode && featured ? (
         <>
           <ScrollView contentContainerStyle={styles.body}>
             <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => openDetail(featured)} />

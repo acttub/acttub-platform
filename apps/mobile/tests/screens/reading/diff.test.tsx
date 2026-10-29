@@ -11,7 +11,7 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
   return { __esModule: true, default: storage };
 });
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { replace: jest.fn(), dismissTo: jest.fn() };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
 jest.mock('@/lib/reading/recording-runner', () => ({ onRecordingQueueChange: jest.fn() }));
 type Player = { uri: string; play: jest.Mock; pause: jest.Mock; release: jest.Mock; finish: () => void };
@@ -69,12 +69,13 @@ async function show(recordings: SessionRecording[] = [REC]) {
   return server;
 }
 
-test('완료 화면의 결과가 없으면 상세로 돌아가는 길을 보여 준다', async () => {
+test('완료 화면의 결과가 없으면 대본이 없다고 알리고 내 대본으로 돌아가는 길을 보여 준다', async () => {
   resetReadingState();
   await render(<ReadingDiff />);
 
-  await fireEvent.press(screen.getByText('상세로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('내 대본으로'));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test('구간 대본을 순서대로 보이고, 다르게 말한 내 줄에는 말한 것과 내 녹음을 붙인다', async () => {

@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { DialogButtons, DialogCard } from '@/components/ds/ui/dialog';
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
