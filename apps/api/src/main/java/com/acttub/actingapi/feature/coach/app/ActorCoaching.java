@@ -133,9 +133,8 @@ public record ActorCoaching(
             out.add("- 첫 응답의 <설계>에서 '첫 질문 모양' 칸에는 위 목록의 모양 대신 이 배우의 모양 \"" + firstQuestion
                     + "\"을 그대로 쓴다. <코치>는 반드시 그 모양으로 묻는다.");
         }
-        if (closing != null) {
-            out.add("- 마지막 정리는 위 정리 모양 대신 이 모양으로 말한다(맨 첫 줄의 숨은 <다음 테이크> 줄은 그대로 쓴다): " + closing);
-        }
+        // 정리 틀(closing)은 붙이지 않는다. 운영 10/26~30: 틀이 붙은 대화 64건 중 43건이 매 회차 같은
+        // "처음엔 ~, '대사'부터는 ~" 정리로 끝났고, 배우가 "이미 나눠서 했다", "저번이랑 똑같네요"라고 했다.
         if (!neverSay.isEmpty()) {
             out.add("- 이 배우에게는 다음 말을 한 번도 쓰지 않는다: " + quoted(neverSay) + ".");
         }
@@ -213,7 +212,6 @@ public record ActorCoaching(
     static final String COMMON_LET_GO = "같은 걸 물어야 하면 상대가 할 행동으로 바꿔 묻는다. 둘 중 고르게 묻지 않는다.";
     static final String COMMON_TURN_CHOICE = "- 둘 중 고르게 하는 질문(\"~할래요, ~할래요?\", \"~예요, ~예요?\")을 쓰지 않는다. 배우 답이 짧거나 막히면 코치가 하나를 이유와 함께 제안한다.";
     static final String TURN_CHOICE_ALLOWED = "- 이 배우에게는 답이 짧거나 막히면 둘 중 고르는 질문을 해도 된다. 보기는 인물이 상대에게 하는 일로 쓴다.";
-    private static final String WRAP_SHAPE_PREFIX = "- 장면 전체를 꿰는 행동 하나와 그게 되는지 확인할 대사 하나로 말한다.";
 
     /**
      * 할 일 파일(단계 지시)을 이 배우용으로 바꾼다. 바꿀 칸이 없으면 받은 그대로 돌려준다(바이트 단위로 같다).
@@ -231,9 +229,6 @@ public record ActorCoaching(
             out = out.replace(COMMON_FIND,
                     "- 배우가 막힐 것 같아도 둘 중 고르게 묻지 않는다. 대사 하나로 데려가는 쉬운 열린 질문으로 묻는다.");
         }
-        if (closing != null && PracticeLoopRouter.WRAP_UP.equals(doing)) {
-            out = withClosing(out);
-        }
         if (Boolean.TRUE.equals(answerDirectly) && "답하기".equals(doing)) {
             out = afterHelpHeader(out, "- 이 배우에게는 이유·방법을 물으면 첫 문장에서 바로 답한다. 끝 질문은 붙이지 않는다.");
         }
@@ -248,16 +243,6 @@ public record ActorCoaching(
         return out;
     }
 
-    /** 정리 모양을 이 배우의 틀로 바꾼다. 공통 모양 줄과 좋은 예를 빼고 틀 한 줄을 넣는다. */
-    private String withClosing(String task) {
-        List<String> kept = new ArrayList<>();
-        for (String line : task.split("\n", -1)) {
-            if (line.startsWith(WRAP_SHAPE_PREFIX) || line.startsWith("좋은 예")) continue;
-            kept.add(line);
-        }
-        return afterHelpHeader(String.join("\n", kept),
-                "- 이 배우에게는 정리를 이 모양으로 말한다(자리표시는 이번 대화의 행동과 실제 대사로 채운다): " + closing);
-    }
 
     /**
      * 첫 응답 지시(연습 루프 프롬프트)를 이 배우용으로 바꾼다 — 첫 질문 모양을 틀로 고정하고, 짚지 않을 것을 피할 말에 넣는다.
