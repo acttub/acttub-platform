@@ -43,6 +43,14 @@ COLUMN ad_events.event ord=5 type=text len=- null=NO default=-
 COLUMN ad_events.id ord=1 type=uuid len=- null=NO default=-
 COLUMN ad_events.slot ord=4 type=text len=- null=NO default=-
 COLUMN ad_events.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN ad_serves.id ord=1 type=uuid len=- null=NO default=-
+COLUMN ad_serves.served_at ord=3 type=timestamptz len=- null=NO default=now()
+COLUMN ad_serves.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN ad_settings.first_day_cap ord=4 type=int4 len=- null=NO default=3
+COLUMN ad_settings.id ord=1 type=int4 len=- null=NO default=1
+COLUMN ad_settings.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN ad_settings.window_cap ord=3 type=int4 len=- null=NO default=5
+COLUMN ad_settings.window_minutes ord=2 type=int4 len=- null=NO default=10
 COLUMN ad_slot_switches.enabled ord=2 type=bool len=- null=NO default=true
 COLUMN ad_slot_switches.slot_key ord=1 type=text len=- null=NO default=-
 COLUMN ad_slot_switches.updated_at ord=3 type=timestamptz len=- null=NO default=now()
@@ -962,6 +970,17 @@ CONSTRAINT ad_events ad_events_pkey PRIMARY KEY (id)
 CONSTRAINT ad_events ad_events_slot_not_null NOT NULL slot
 CONSTRAINT ad_events ad_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT ad_events ad_events_user_id_not_null NOT NULL user_id
+CONSTRAINT ad_serves ad_serves_id_not_null NOT NULL id
+CONSTRAINT ad_serves ad_serves_pkey PRIMARY KEY (id)
+CONSTRAINT ad_serves ad_serves_served_at_not_null NOT NULL served_at
+CONSTRAINT ad_serves ad_serves_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT ad_serves ad_serves_user_id_not_null NOT NULL user_id
+CONSTRAINT ad_settings ad_settings_first_day_cap_not_null NOT NULL first_day_cap
+CONSTRAINT ad_settings ad_settings_id_not_null NOT NULL id
+CONSTRAINT ad_settings ad_settings_pkey PRIMARY KEY (id)
+CONSTRAINT ad_settings ad_settings_updated_at_not_null NOT NULL updated_at
+CONSTRAINT ad_settings ad_settings_window_cap_not_null NOT NULL window_cap
+CONSTRAINT ad_settings ad_settings_window_minutes_not_null NOT NULL window_minutes
 CONSTRAINT ad_slot_switches ad_slot_switches_enabled_not_null NOT NULL enabled
 CONSTRAINT ad_slot_switches ad_slot_switches_pkey PRIMARY KEY (slot_key)
 CONSTRAINT ad_slot_switches ad_slot_switches_slot_key_not_null NOT NULL slot_key
@@ -2088,6 +2107,7 @@ INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btre
 INDEX CREATE INDEX idx_videos_user_created ON public.videos USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_actor_journals_user ON public.actor_journals USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_ad_events_ad_day ON public.ad_events USING btree (ad_id, event, day)
+INDEX CREATE INDEX ix_ad_serves_user_served ON public.ad_serves USING btree (user_id, served_at)
 INDEX CREATE INDEX ix_ads_kind_status ON public.ads USING btree (kind, status)
 INDEX CREATE INDEX ix_billing_checkouts_user ON public.billing_checkouts USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_billing_payments_subscription ON public.billing_payments USING btree (subscription_id, period_start, attempt)
@@ -2121,6 +2141,8 @@ INDEX CREATE UNIQUE INDEX actor_journals_pkey ON public.actor_journals USING btr
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX ad_events_pkey ON public.ad_events USING btree (id)
+INDEX CREATE UNIQUE INDEX ad_serves_pkey ON public.ad_serves USING btree (id)
+INDEX CREATE UNIQUE INDEX ad_settings_pkey ON public.ad_settings USING btree (id)
 INDEX CREATE UNIQUE INDEX ad_slot_switches_pkey ON public.ad_slot_switches USING btree (slot_key)
 INDEX CREATE UNIQUE INDEX ads_pkey ON public.ads USING btree (id)
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
@@ -2291,6 +2313,8 @@ TABLE actor_journals
 TABLE actor_memories
 TABLE actor_memory_entries
 TABLE ad_events
+TABLE ad_serves
+TABLE ad_settings
 TABLE ad_slot_switches
 TABLE ads
 TABLE ai_jobs

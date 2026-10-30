@@ -54,7 +54,7 @@ class PracticeRollbackCompatibilityTest {
             "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups",
             "practice_reminder_sends", "reading_pronunciation_reports",
             "script_cocreations", "actor_journals", "reading_examples", "support_inquiries", "billing_subscriptions",
-            "billing_checkouts", "billing_payments", "billing_pro_grants", "ads", "ad_events",
+            "billing_checkouts", "billing_payments", "billing_pro_grants", "ads", "ad_events", "ad_serves", "ad_settings",
             "push_opens", "ad_slot_switches");
 
     @Test

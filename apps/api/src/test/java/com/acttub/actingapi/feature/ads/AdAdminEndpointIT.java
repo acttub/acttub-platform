@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -69,6 +70,8 @@ class AdAdminEndpointIT {
                     """, UUID.randomUUID(), type, type, type, !"retention".equals(type),
                     java.time.OffsetDateTime.of(2026, 9, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC));
         }
+        // 빈도 상한(V78)에 걸리지 않게 넉넉히 둔다 — 이 테스트는 고르는 순서를 본다. 상한은 AdFrequencyIT·AdServiceTest 가 본다.
+        jdbc.update("UPDATE ad_settings SET window_minutes=10,window_cap=100,first_day_cap=100");
         user = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
         AccountFixtures.passGate(jdbc, user);
@@ -93,6 +96,34 @@ class AdAdminEndpointIT {
             assertThat(json(request.get().header("Authorization", bearer), 401)).isEqualTo(unauthorized);
         }
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ads", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("광고 빈도 설정은 읽고(기본 10분 5개·첫날 3개) 보낸 값만 바꾸며, 범위 밖·정수가 아니면 422")
+    void adSettings() throws Exception {
+        jdbc.update("UPDATE ad_settings SET window_minutes=10,window_cap=5,first_day_cap=3");
+        try {
+            JsonNode now = json(admin(get("/v2/admin/ad-settings"), null), 200);
+            assertThat(now.path("window_minutes").intValue()).isEqualTo(10);
+            assertThat(now.path("window_cap").intValue()).isEqualTo(5);
+            assertThat(now.path("first_day_cap").intValue()).isEqualTo(3);
+
+            JsonNode changed = json(admin(put("/v2/admin/ad-settings"), "{\"window_minutes\":30,\"first_day_cap\":0}"), 200);
+            assertThat(changed.path("window_minutes").intValue()).isEqualTo(30);
+            assertThat(changed.path("window_cap").intValue()).isEqualTo(5);
+            assertThat(changed.path("first_day_cap").intValue()).isZero();
+            assertThat(json(admin(get("/v2/admin/ad-settings"), null), 200)).isEqualTo(changed);
+
+            for (String bad : List.of("{\"window_minutes\":0}", "{\"window_minutes\":1441}", "{\"window_cap\":-1}",
+                    "{\"window_cap\":101}", "{\"first_day_cap\":1.5}", "{\"first_day_cap\":\"3\"}", "{\"nope\":1}", "[]")) {
+                json(admin(put("/v2/admin/ad-settings"), bad), 422);
+            }
+            assertThat(json(admin(get("/v2/admin/ad-settings"), null), 200)).isEqualTo(changed);
+            json(put("/v2/admin/ad-settings").contentType(MediaType.APPLICATION_JSON).content("{}"), 401);
+            json(get("/v2/admin/ad-settings").header("Authorization", bearer), 401);
+        } finally {
+            jdbc.update("UPDATE ad_settings SET window_minutes=10,window_cap=100,first_day_cap=100");
+        }
     }
 
     @Test

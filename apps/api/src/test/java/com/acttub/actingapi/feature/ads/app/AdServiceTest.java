@@ -123,6 +123,117 @@ class AdServiceTest {
         assertThat(all.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NETWORK);
     }
 
+    static final class FakeFrequency implements AdFrequency {
+        Limits limits = new Limits(10, 5, 3);
+        Instant signedUp = Instant.parse("2026-01-01T00:00:00Z");
+        final List<Instant> serves = new ArrayList<>();
+
+        @Override
+        public Limits limits() {
+            return limits;
+        }
+
+        @Override
+        public Limits update(Limits next, Instant now) {
+            limits = next;
+            return next;
+        }
+
+        @Override
+        public int servedSince(UUID userId, Instant since) {
+            return (int) serves.stream().filter(at -> at.isAfter(since)).count();
+        }
+
+        @Override
+        public Optional<Instant> signedUpAt(UUID userId) {
+            return Optional.ofNullable(signedUp);
+        }
+
+        @Override
+        public void recordServe(UUID userId, Instant at) {
+            serves.add(at);
+        }
+
+        @Override
+        public int purgeBefore(Instant before) {
+            return 0;
+        }
+    }
+
+    private static AdService limited(FakeRepository repo, FakeFrequency frequency, Clock clock) {
+        return new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 100),
+                AdSlotSwitches.ALWAYS_ON, frequency, clock);
+    }
+
+    @Test
+    @DisplayName("10분에 5개를 내보냈으면 그 뒤는 NONE, 창이 지나면 다시 나온다")
+    void windowCap() {
+        FakeRepository repo = new FakeRepository();
+        FakeFrequency frequency = new FakeFrequency();
+        for (int i = 0; i < 5; i++) {
+            assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        }
+        assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+        assertThat(frequency.serves).hasSize(5);
+        Clock later = Clock.fixed(CLOCK.instant().plusSeconds(10 * 60 + 1), ZoneOffset.UTC);
+        assertThat(limited(repo, frequency, later).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+    }
+
+    @Test
+    @DisplayName("직접·자체 광고도 센다, NONE 은 세지 않는다")
+    void countsEveryKindButNone() {
+        FakeRepository repo = new FakeRepository();
+        repo.ads.add(direct());
+        FakeFrequency frequency = new FakeFrequency();
+        var service = limited(repo, frequency, CLOCK);
+        assertThat(service.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.DIRECT);
+        assertThat(frequency.serves).hasSize(1);
+        repo.practiced = false;
+        for (int i = 0; i < 10; i++) {
+            assertThat(service.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+        }
+        assertThat(frequency.serves).hasSize(1);
+        repo.practiced = true;
+        for (int i = 0; i < 4; i++) {
+            service.pick(USER, AdSlot.HOME_TOP);
+        }
+        assertThat(frequency.serves).hasSize(5);
+        assertThat(service.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+    }
+
+    @Test
+    @DisplayName("가입 24시간 이내는 첫날 상한(3개), 24시간이 지나면 보통 상한")
+    void firstDayCap() {
+        FakeRepository repo = new FakeRepository();
+        FakeFrequency frequency = new FakeFrequency();
+        frequency.signedUp = CLOCK.instant().minusSeconds(23 * 3600);
+        for (int i = 0; i < 3; i++) {
+            assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        }
+        assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+        frequency.serves.clear();
+        frequency.signedUp = CLOCK.instant().minusSeconds(25 * 3600);
+        for (int i = 0; i < 5; i++) {
+            assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        }
+        assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+    }
+
+    @Test
+    @DisplayName("상한을 0 으로 두면 늘 NONE, 설정을 바꾸면 바로 따른다")
+    void settingsApply() {
+        FakeRepository repo = new FakeRepository();
+        FakeFrequency frequency = new FakeFrequency();
+        frequency.limits = new AdFrequency.Limits(10, 0, 0);
+        assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+        frequency.limits = new AdFrequency.Limits(10, 1, 1);
+        assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+        assertThat(new AdFrequency.Limits(0, 5, 3).valid()).isFalse();
+        assertThat(new AdFrequency.Limits(1440, 100, 0).valid()).isTrue();
+        assertThat(new AdFrequency.Limits(10, 101, 3).valid()).isFalse();
+    }
+
     @Test
     @DisplayName("기록은 한국 날짜로 남고, 없는 광고면 false")
     void recordUsesSeoulDay() {
