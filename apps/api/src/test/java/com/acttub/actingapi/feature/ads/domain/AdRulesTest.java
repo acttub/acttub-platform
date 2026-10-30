@@ -13,7 +13,13 @@ class AdRulesTest {
 
     private static AdDraft direct(List<String> slots, String banner, String link) {
         return new AdDraft(Ad.DIRECT, "active", slots, "all", 0, "한빛연기학원", null, null, null, banner, null, link, null,
-                null, null);
+                null, null, 50);
+    }
+
+    private static AdDraft withShare(AdDraft d, int share) {
+        return new AdDraft(d.kind(), d.status(), d.slots(), d.audience(), d.priority(), d.advertiserName(), d.headline(),
+                d.body(), d.imageLargeBanner(), d.imageBanner(), d.imageMediumRectangle(), d.linkUrl(), d.appPath(),
+                d.startsAt(), d.endsAt(), share);
     }
 
     @Test
@@ -41,18 +47,23 @@ class AdRulesTest {
     @DisplayName("자체 광고는 /로 시작하는 앱 경로와 이미지나 문구, 기간은 끝이 시작 뒤")
     void houseAndPeriod() {
         AdDraft house = new AdDraft(Ad.HOUSE, "paused", List.of("home_top"), "free", 3, null, "Pro 를 써 보세요", null, null,
-                null, null, null, "/pro", null, null);
+                null, null, null, "/pro", null, null, 50);
         assertThat(AdRules.check(house)).isEmpty();
         assertThat(AdRules.check(new AdDraft(Ad.HOUSE, "paused", List.of(), "free", 3, null, "문구", null, null, null,
-                null, null, "pro", null, null)).orElseThrow().field()).isEqualTo("app_path");
+                null, null, "pro", null, null, 50)).orElseThrow().field()).isEqualTo("app_path");
         assertThat(AdRules.check(new AdDraft(Ad.HOUSE, "paused", List.of(), "free", 3, null, null, null, null, null,
-                null, null, "/pro", null, null)).orElseThrow().field()).isEqualTo("headline");
+                null, null, "/pro", null, null, 50)).orElseThrow().field()).isEqualTo("headline");
         Instant t = Instant.parse("2026-11-01T00:00:00Z");
         assertThat(AdRules.check(new AdDraft(Ad.HOUSE, "active", List.of(), "all", 0, null, "문구", null, null, null, null,
-                null, "/pro", t, t)).orElseThrow().field()).isEqualTo("ends_at");
+                null, "/pro", t, t, 50)).orElseThrow().field()).isEqualTo("ends_at");
         assertThat(AdRules.check(new AdDraft("x", "active", List.of(), "all", 0, null, null, null, null, null, null, null,
-                null, null, null)).orElseThrow().field()).isEqualTo("kind");
+                null, null, null, 50)).orElseThrow().field()).isEqualTo("kind");
+        AdDraft base = house;
+        assertThat(AdRules.check(withShare(base, 0))).isEmpty();
+        assertThat(AdRules.check(withShare(base, 100))).isEmpty();
+        assertThat(AdRules.check(withShare(base, -1)).orElseThrow().field()).isEqualTo("share_percent");
+        assertThat(AdRules.check(withShare(base, 101)).orElseThrow().field()).isEqualTo("share_percent");
         assertThat(AdRules.check(new AdDraft(Ad.HOUSE, "gone", List.of(), "all", 0, null, "문구", null, null, null, null,
-                null, "/pro", null, null)).orElseThrow().field()).isEqualTo("status");
+                null, "/pro", null, null, 50)).orElseThrow().field()).isEqualTo("status");
     }
 }

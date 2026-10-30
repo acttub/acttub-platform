@@ -7,6 +7,8 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.IntSupplier;
 
 /**
  * 칸 하나에 무엇을 띄울지 고른다(SOMA-876).
@@ -19,6 +21,8 @@ import java.util.UUID;
  *   <li>없으면 AdMob 으로 채운다(NETWORK).</li>
  * </ol>
  * 같은 단계 후보가 여럿이면 priority 가 가장 큰 것들 중에서 사람·날마다 하나로 돌린다.
+ * 우리 앱 광고는 그렇게 고른 광고의 노출 비율(share_percent, 0~100)만큼의 확률로 나가고, 아니면 AdMob(NETWORK)이다 —
+ * 칸을 열 때마다 난수 0~99 를 뽑아 비율보다 작으면 우리 광고다. 직접 광고는 비율 없이 늘 먼저 나간다.
  */
 public final class AdPicker {
 
@@ -43,6 +47,11 @@ public final class AdPicker {
     }
 
     public static Pick pick(AdSlot slot, Viewer viewer, List<Ad> candidates, LocalDate day) {
+        return pick(slot, viewer, candidates, day, () -> ThreadLocalRandom.current().nextInt(100));
+    }
+
+    /** @param roll 우리 앱 광고 비율을 가를 난수(0~99)를 돌려준다 — 테스트에서 고정한다. 우리 광고를 고를 때만 한 번 부른다. */
+    public static Pick pick(AdSlot slot, Viewer viewer, List<Ad> candidates, LocalDate day, IntSupplier roll) {
         if (!viewer.practiced()) {
             return Pick.none(slot);
         }
@@ -61,7 +70,8 @@ public final class AdPicker {
                         && hasPath(ad) && (ad.imageFor(slot.size()) != null || !Ad.blank(ad.headline())))
                 .toList();
         if (!house.isEmpty()) {
-            return new Pick(Kind.HOUSE, slot, rotate(house, viewer.userId(), slot, day));
+            Ad chosen = rotate(house, viewer.userId(), slot, day);
+            return roll.getAsInt() < chosen.sharePercent() ? new Pick(Kind.HOUSE, slot, chosen) : new Pick(Kind.NETWORK, slot, null);
         }
         return new Pick(Kind.NETWORK, slot, null);
     }

@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.ads.domain.Ad;
 import com.acttub.actingapi.feature.ads.domain.AdDraft;
 import com.acttub.actingapi.feature.ads.domain.AdStats;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -28,6 +29,8 @@ final class AdAdminDtos {
             List<String> slots,
             String audience,
             Integer priority,
+            @Schema(description = "우리 앱 광고(house)의 노출 비율 0~100 %. 비면 50. 나머지는 AdMob. direct 는 무시.")
+            Integer sharePercent,
             String advertiserName,
             String headline,
             String body,
@@ -41,13 +44,14 @@ final class AdAdminDtos {
 
         AdDraft toDraft() {
             return new AdDraft(kind, status, slots, audience, priority == null ? 0 : priority, advertiserName,
-                    headline, body, imageLargeBanner, imageBanner, imageMediumRectangle, linkUrl, appPath, startsAt, endsAt);
+                    headline, body, imageLargeBanner, imageBanner, imageMediumRectangle, linkUrl, appPath, startsAt, endsAt,
+                    Ad.HOUSE.equals(kind) && sharePercent != null ? sharePercent : AdDraft.DEFAULT_SHARE_PERCENT);
         }
 
         static AdFields of(AdDraft d) {
-            return new AdFields(d.kind(), d.status(), d.slots(), d.audience(), d.priority(), d.advertiserName(),
-                    d.headline(), d.body(), d.imageLargeBanner(), d.imageBanner(), d.imageMediumRectangle(), d.linkUrl(),
-                    d.appPath(), d.startsAt(), d.endsAt());
+            return new AdFields(d.kind(), d.status(), d.slots(), d.audience(), d.priority(), d.sharePercent(),
+                    d.advertiserName(), d.headline(), d.body(), d.imageLargeBanner(), d.imageBanner(), d.imageMediumRectangle(),
+                    d.linkUrl(), d.appPath(), d.startsAt(), d.endsAt());
         }
     }
 
@@ -66,6 +70,7 @@ final class AdAdminDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> slots,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String audience,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int priority,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "우리 앱 광고(house)의 노출 비율 0~100 %, 나머지는 AdMob. direct 는 쓰지 않는다(50).") int sharePercent,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String advertiserName,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String headline,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String body,
@@ -87,7 +92,7 @@ final class AdAdminDtos {
         static AdminAd of(AdStats.Stored stored, java.util.function.Function<String, String> viewUrl) {
             AdDraft d = stored.draft();
             return new AdminAd(stored.id(), d.kind(), d.status(), d.slots(), d.audience(), d.priority(),
-                    d.advertiserName(), d.headline(), d.body(), d.imageLargeBanner(), d.imageBanner(),
+                    d.sharePercent(), d.advertiserName(), d.headline(), d.body(), d.imageLargeBanner(), d.imageBanner(),
                     d.imageMediumRectangle(), viewUrl.apply(d.imageLargeBanner()), viewUrl.apply(d.imageBanner()),
                     viewUrl.apply(d.imageMediumRectangle()), d.linkUrl(), d.appPath(), d.startsAt(), d.endsAt(),
                     stored.createdAt(), stored.updatedAt(), stored.impressions(), stored.clicks());

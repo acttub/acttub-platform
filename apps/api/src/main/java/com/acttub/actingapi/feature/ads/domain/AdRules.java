@@ -16,6 +16,7 @@ public final class AdRules {
     public static final Set<String> AUDIENCES = Set.of("all", "free", "pro");
     public static final int LINK_MAX = 2000;
     public static final int PRIORITY_MAX = 1000;
+    public static final int SHARE_PERCENT_MAX = 100;
 
     private static final Pattern OBJECT_KEY = Pattern.compile(
             "ads/(large_banner|banner|medium_rectangle)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:png|jpg|webp)");
@@ -99,6 +100,9 @@ public final class AdRules {
     }
 
     private static Optional<Violation> checkHouse(AdDraft draft) {
+        if (draft.sharePercent() < 0 || draft.sharePercent() > SHARE_PERCENT_MAX) {
+            return violation("share_percent", "share_percent must be 0-" + SHARE_PERCENT_MAX, draft.sharePercent());
+        }
         if (draft.appPath() == null || !draft.appPath().startsWith("/") || draft.appPath().length() > LINK_MAX) {
             return violation("app_path", "app_path must start with /", draft.appPath());
         }

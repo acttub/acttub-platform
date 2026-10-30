@@ -23,7 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Repository
 class PostgresAdRepository implements AdRepository {
     private static final String COLUMNS = """
-            id,kind,array_to_string(slots,',') AS slots,audience,priority,advertiser_name,headline,body,image_large_banner,image_banner,image_medium_rectangle,link_url,app_path
+            id,kind,array_to_string(slots,',') AS slots,audience,priority,advertiser_name,headline,body,image_large_banner,image_banner,image_medium_rectangle,link_url,app_path,share_percent
             """;
 
     private final EntityManager entityManager;
@@ -109,7 +109,7 @@ class PostgresAdRepository implements AdRepository {
 
     private static final String STORED = """
             SELECT a.id,a.kind,a.status,array_to_string(a.slots,',') AS slots,a.audience,a.priority,a.advertiser_name,
-                   a.headline,a.body,a.image_large_banner,a.image_banner,a.image_medium_rectangle,a.link_url,a.app_path,
+                   a.headline,a.body,a.image_large_banner,a.image_banner,a.image_medium_rectangle,a.link_url,a.app_path,a.share_percent,
                    a.starts_at,a.ends_at,a.created_at,a.updated_at,
                    (SELECT count(*) FROM ad_events e WHERE e.ad_id=a.id AND e.event='impression') AS impressions,
                    (SELECT count(*) FROM ad_events e WHERE e.ad_id=a.id AND e.event='click') AS clicks
@@ -134,10 +134,10 @@ class PostgresAdRepository implements AdRepository {
         UUID id = UUID.randomUUID();
         transaction.executeWithoutResult(tx -> bind(entityManager.createNativeQuery("""
                 INSERT INTO ads(id,kind,status,slots,audience,priority,advertiser_name,headline,body,image_large_banner,
-                                image_banner,image_medium_rectangle,link_url,app_path,starts_at,ends_at,created_at,updated_at)
+                                image_banner,image_medium_rectangle,link_url,app_path,share_percent,starts_at,ends_at,created_at,updated_at)
                 VALUES (:id,:kind,:status,CAST(:slots AS text[]),:audience,:priority,CAST(:advertiserName AS text),
                         CAST(:headline AS text),CAST(:body AS text),CAST(:imageLarge AS text),CAST(:imageBanner AS text),
-                        CAST(:imageMedium AS text),CAST(:linkUrl AS text),CAST(:appPath AS text),
+                        CAST(:imageMedium AS text),CAST(:linkUrl AS text),CAST(:appPath AS text),:sharePercent,
                         CAST(:startsAt AS timestamptz),CAST(:endsAt AS timestamptz),:now,:now)
                 """), draft, now).setParameter("id", id).executeUpdate());
         return findStored(id).orElseThrow();
@@ -151,7 +151,7 @@ class PostgresAdRepository implements AdRepository {
                     advertiser_name=CAST(:advertiserName AS text),headline=CAST(:headline AS text),body=CAST(:body AS text),
                     image_large_banner=CAST(:imageLarge AS text),image_banner=CAST(:imageBanner AS text),
                     image_medium_rectangle=CAST(:imageMedium AS text),link_url=CAST(:linkUrl AS text),
-                    app_path=CAST(:appPath AS text),starts_at=CAST(:startsAt AS timestamptz),
+                    app_path=CAST(:appPath AS text),share_percent=:sharePercent,starts_at=CAST(:startsAt AS timestamptz),
                     ends_at=CAST(:endsAt AS timestamptz),updated_at=:now
                 WHERE id=:id
                 """), draft, now).setParameter("id", adId).executeUpdate());
@@ -192,6 +192,7 @@ class PostgresAdRepository implements AdRepository {
                 .setParameter("imageMedium", draft.imageMediumRectangle())
                 .setParameter("linkUrl", draft.linkUrl())
                 .setParameter("appPath", draft.appPath())
+                .setParameter("sharePercent", draft.sharePercent())
                 .setParameter("startsAt", draft.startsAt() == null ? null : draft.startsAt().atOffset(ZoneOffset.UTC))
                 .setParameter("endsAt", draft.endsAt() == null ? null : draft.endsAt().atOffset(ZoneOffset.UTC))
                 .setParameter("now", now.atOffset(ZoneOffset.UTC));
@@ -214,7 +215,8 @@ class PostgresAdRepository implements AdRepository {
                 row.get("link_url", String.class),
                 row.get("app_path", String.class),
                 instant(row.get("starts_at")),
-                instant(row.get("ends_at")));
+                instant(row.get("ends_at")),
+                row.get("share_percent", Integer.class));
         return new AdStats.Stored(row.get("id", UUID.class), draft, instant(row.get("created_at")),
                 instant(row.get("updated_at")), ((Number) row.get("impressions")).longValue(),
                 ((Number) row.get("clicks")).longValue());
@@ -251,6 +253,7 @@ class PostgresAdRepository implements AdRepository {
                 row.get("image_banner", String.class),
                 row.get("image_medium_rectangle", String.class),
                 row.get("link_url", String.class),
-                row.get("app_path", String.class));
+                row.get("app_path", String.class),
+                row.get("share_percent", Integer.class));
     }
 }

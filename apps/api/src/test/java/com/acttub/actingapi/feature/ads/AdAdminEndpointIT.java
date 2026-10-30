@@ -189,13 +189,18 @@ class AdAdminEndpointIT {
     @DisplayName("자체 광고는 app_path 로 등록하고 audience 가 맞는 쪽에만 간다")
     void houseAd() throws Exception {
         JsonNode created = json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"Pro 를 써 보세요\","
-                + "\"slots\":[\"home_top\"],\"audience\":\"free\",\"app_path\":\"/pro\"}"), 201);
+                + "\"slots\":[\"home_top\"],\"audience\":\"free\",\"app_path\":\"/pro\",\"share_percent\":100}"), 201);
         assertThat(created.path("kind").textValue()).isEqualTo("house");
+        assertThat(created.path("share_percent").intValue()).isEqualTo(100);
         finishReading();
         JsonNode pick = app(get("/v2/ads").param("slot", "home_top"));
         assertThat(pick.path("kind").textValue()).isEqualTo("HOUSE");
         assertThat(pick.path("ad").path("app_path").textValue()).isEqualTo("/pro");
         json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"x\",\"app_path\":\"pro\"}"), 422);
+        json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"x\",\"app_path\":\"/pro\",\"share_percent\":101}"), 422);
+        // 비율을 안 보내면 기본 50
+        JsonNode plain = json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"y\",\"app_path\":\"/pro\",\"status\":\"paused\"}"), 201);
+        assertThat(plain.path("share_percent").intValue()).isEqualTo(50);
     }
 
     private void finishReading() {
