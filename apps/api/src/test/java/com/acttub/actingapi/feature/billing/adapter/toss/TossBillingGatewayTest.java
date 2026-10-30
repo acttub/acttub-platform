@@ -78,6 +78,24 @@ class TossBillingGatewayTest {
     }
 
     @Test
+    void webBillingGatewaySendsWithALiveKeyButStillRefusesMalformedOnes() {
+        String live = "live_sk_abcdefgh12345678";
+        String basicLive = "Basic " + java.util.Base64.getEncoder()
+                .encodeToString((live + ":").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        issueServer.expect(requestTo("https://api.tosspayments.com/v1/billing/authorizations/issue"))
+                .andExpect(header("Authorization", basicLive))
+                .andRespond(withSuccess("{\"billingKey\":\"BK-L\",\"customerKey\":\"acttub_c\"}", MediaType.APPLICATION_JSON));
+        TossBillingGateway liveGateway = new TossBillingGateway(() -> live, issueBuilder.build(), approveBuilder.build(), true);
+        assertThat(liveGateway.issueBillingKey("AK", "acttub_c")).isEqualTo("BK-L");
+        issueServer.verify();
+        for (String key : new String[] {"", null, "live_ck_abcdefgh12345678", "live_sk_short"}) {
+            TossBillingGateway gateway = new TossBillingGateway(() -> key, issueBuilder.build(), approveBuilder.build(), true);
+            assertThatThrownBy(() -> gateway.issueBillingKey("AK", "c")).isInstanceOf(GatewayException.class)
+                    .extracting(e -> ((GatewayException) e).code()).isEqualTo("secret_key_not_test");
+        }
+    }
+
+    @Test
     void tossRejectionKeepsTheTossCodeOnlyAndCarriesNoSecret() {
         issueServer.expect(requestTo("https://api.tosspayments.com/v1/billing/authorizations/issue"))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
