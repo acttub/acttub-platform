@@ -22,7 +22,11 @@ public record AdDraft(
         String linkUrl,
         String appPath,
         Instant startsAt,
-        Instant endsAt) {
+        Instant endsAt,
+        int sharePercent) {
+
+    /** 우리 앱 광고 노출 비율 기본값(%) — 나머지는 AdMob. */
+    public static final int DEFAULT_SHARE_PERCENT = 50;
 
     public AdDraft {
         slots = slots == null ? List.of() : List.copyOf(slots);
@@ -31,6 +35,6 @@ public record AdDraft(
     /** 처음 만들 때의 빈 값 — 켜진 채로 만든다. */
     public static AdDraft blank() {
         return new AdDraft(Ad.DIRECT, "active", List.of(), "all", 0, null, null, null, null, null, null, null, null,
-                null, null);
+                null, null, DEFAULT_SHARE_PERCENT);
     }
 }

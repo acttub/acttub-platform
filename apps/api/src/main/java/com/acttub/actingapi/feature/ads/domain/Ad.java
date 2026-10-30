@@ -20,7 +20,8 @@ public record Ad(
         String imageBanner,
         String imageMediumRectangle,
         String linkUrl,
-        String appPath) {
+        String appPath,
+        int sharePercent) {
 
     public static final String DIRECT = "direct";
     public static final String HOUSE = "house";

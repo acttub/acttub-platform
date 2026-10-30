@@ -1,6 +1,6 @@
 import { Platform, type TextStyle } from 'react-native';
 
-import { androidLighterFamily, fontFamilyForWeight, PRETENDARD_REGULAR } from '@/lib/font-weight';
+import { fontFamilyForWeight, PRETENDARD_REGULAR } from '@/lib/font-weight';
 
 /**
  * 앱 전역 기본 폰트를 Pretendard로 강제한다.
@@ -24,10 +24,10 @@ export function fontStyleFor(style: TextStyle | null | undefined): TextStyle | n
   const family = style?.fontFamily;
   // 안드로이드는 글자 위아래에 폰트 여백을 더해 같은 글자도 iOS 보다 상자가 높다. Pretendard 글자만 빼서 iOS 와 높이를 맞춘다.
   const padding = android && style?.includeFontPadding == null ? { includeFontPadding: false } : null;
-  // 패밀리를 직접 지정한 건 그대로 둔다(아이콘 폰트 등). 단 안드로이드에서 Pretendard 굵기를 이름으로 고른 것은 한 단계 가볍게.
+  // 패밀리를 직접 지정한 건 그대로 둔다(아이콘 폰트·이름으로 고른 Pretendard 굵기). 안드로이드 Pretendard 는 여백만 맞춘다.
   if (family) {
     if (!android || !family.startsWith(PRETENDARD_REGULAR)) return null;
-    return { fontFamily: androidLighterFamily(family), ...padding };
+    return padding;
   }
   return {
     fontFamily: fontFamilyForWeight(style?.fontWeight, Platform.OS),

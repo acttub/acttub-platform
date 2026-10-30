@@ -83,7 +83,7 @@ class AdServiceTest {
 
     private static Ad direct() {
         return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of("home_top"), "all", 0, "학원",
-                null, null, null, "b.png", null, "https://example.com", null);
+                null, null, null, "b.png", null, "https://example.com", null, 50);
     }
 
     @Test
