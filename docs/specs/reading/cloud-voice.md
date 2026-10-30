@@ -24,8 +24,8 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원), 선택 쿼리 `session_id`(리딩 회차) 또는 `script_id`(대본). 둘 다 있으면 회차가 먼저 | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 왜 쓸 수 있는지(`reason`: `free_period`·`pro`·`first_reading`, 못 쓰면 null), 설정·한도는 괜찮은데 Pro 전용이라 못 쓰는지(`pro_only`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 오늘 한도와 쓴 양 | 게스트 `member_only` 403 |
-| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5), 선택 `session_id`(리딩 회차) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
+| `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원), 선택 쿼리 `session_id`(리딩 회차) 또는 `script_id`(대본). 둘 다 있으면 회차가 먼저 | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 왜 쓸 수 있는지(`reason`: `free_period`·`pro`·`first_reading`, 못 쓰면 null), 설정·한도는 괜찮은데 Pro 전용이라 못 쓰는지(`pro_only`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 호환 필드 daily_limit·daily_used(일반은 오늘, Pro는 이번 달)의 한도·사용량 | 게스트 `member_only` 403 |
+| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5), 선택 `session_id`(리딩 회차) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_monthly_limit` 429, `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
 
 ## 상태
 없음. 캐시는 문장마다 한 번 만들고 사용량은 회원·한국 날짜마다 센 줄 수다.
@@ -45,8 +45,16 @@
   나눠 Gemini에 동시에 보내고 하나의 WAV로 이어 준다. 조각이 짧아야 긴 줄도 앱의 요청 제한 시간(30초) 안에 온다. 화면의 줄은 나누지 않고, 캐시·사용량은 줄 하나로 본다.
 - 서버는 같은 모델·목소리·문장의 음성을 캐시한다. 적중하면 새로 만들지 않고 세지 않으며, 하루 한도를 넘은 뒤에도 준다.
   캐시는 사용자와 연결하지 않는다.
-- 사용자당 하루(한국 날짜) 새 합성 300줄, 서비스 전체 한 달 75,000줄. 넘으면 429 cloud_voice_daily_limit /
-  503 cloud_voice_unavailable이고 앱은 그 회차의 남은 줄을 「예외」의 대체 순서로 기기에서 읽는다.
+- Pro는 **계정당 한국 달력 월 새 합성 10,000줄**이다(SOMA-949, 10/30 결정). 별도 일일 제한은 없고 서비스 전체 월 75,000줄로 차단하지 않는다.
+  월은 Asia/Seoul 기준 매월 1일 00:00에 바뀐다. 결제 주기나 최근 30일 기준이 아니다. 같은 계정의 이번 달 성공 사용량을 합산하므로
+  Pro 전환 전 이번 달 사용량도 포함한다. 10,000번째 줄은 허용하고 다음 새 합성은 429 cloud_voice_monthly_limit이다.
+- 일반 계정의 무료 기간·대본별 첫 리딩에는 기존 일 300줄과 서비스 전체 월 75,000줄 제한을 유지한다. 무료·첫 리딩 정책 자체는 바꾸지 않는다.
+- 구버전 호환: status의 daily_limit·daily_used 이름과 타입은 유지하되 Pro에게는 월 한도·월 사용량을 담는다. 기존 앱은 두 숫자로만
+  사용 가능 여부·회차 잔여량을 계산하므로 앱 교체 없이 새 한도를 적용한다. Pro에게 이 값을 '오늘' 수치로 표시해서는 안 된다.
+- 새 합성의 최종 기록은 계정별 짧은 DB 잠금 안에서 한도를 다시 확인한다. 모델 호출·업로드는 트랜잭션 밖이다. 동시 요청의 성공 차감도
+  10,000줄을 넘지 않는다. 다만 한도 끝에서 이미 진행 중인 외부 합성 호출 자체를 취소하거나 비용 발생을 사전에 막는 예약 방식은 아니다.
+- 위 한도 거절 시 앱은 그 회차의 남은 줄을 「예외」의 대체 순서로 기기에서 읽는다. 서버에 이미 있는 음성은 직접 API 재요청 시 한도를 넘었어도
+  차감 없이 반환한다. 앱은 상태 응답 잔여량으로 엔진을 선택하므로 한도 소진 후 회차 전체가 고품질로 시작함을 보장하는 것은 아니다.
 - 무료 기간이 끝나면 status.available=false가 되어 대본 탭의 목소리 줄과 팝업이 사라지고 모두 기기 음성으로 돌아간다. 끝나는 것은
   서버 공지 포스터([app.poster](../app/poster.md))로 한 번 알린다(시작 2026-10-31, 한 번만, 대상 모두). 켰던 사람만 고를
   수는 없고, 앱 수정 없이 운영 작업으로 한다.
@@ -64,7 +72,7 @@
 - 서버가 판정한다. `session_id`가 내 회차가 아니거나 없는 회차면(남의 대본·없는 대본 포함) 무료가 아니다. 모르는 형식의 값은 없는 것으로 본다.
   `POST /v2/reading/voice`도 같은 `session_id`로 다시 판정한다(상태 응답을 믿지 않는다).
 - 회차를 만들기 전(동의를 받는 시점)에는 `script_id`로 묻는다. 내 대본이고 그 대본의 회차가 아직 하나도 없으면 `first_reading`이다.
-- 우선순위: 무료 기간(`free_period`) → Pro(`pro`) → 첫 리딩(`first_reading`). 모델·저장소 설정, 월 한도, 하루 300줄, 동의 규칙은 그대로다.
+- 우선순위: 무료 기간(`free_period`) → Pro(`pro`) → 첫 리딩(`first_reading`). 모델·저장소 설정·동의는 공통이며 Pro는 계정별 월 10,000줄, 일반 계정만 기존 일·전체 월 한도를 적용한다.
 - `session_id`·`script_id`를 안 보내는 옛 앱 요청은 예전과 똑같다(무료 기간 또는 Pro만). 응답에 늘어난 `reason`·`pro_only`는 옛 앱이 무시한다.
 - 앱: 대본의 첫 리딩이면 [시작하기] 직후 회차를 만들기 전에 `cloud_voice` 동의가 undecided일 때만 기존 동의 창(가운데 카드 모달, 바텀시트 아님)을 띄운다.
   동의하면 첫 리딩부터 고품질이고, 거절하면 기기 목소리로 그대로 시작한다. 거절(denied)한 사람과 스위치를 꺼 둔 사람에게는 다시 묻지 않는다. 무료 기간·Pro에는 이 창을 띄우지 않는다.
@@ -85,7 +93,7 @@
 - text가 비었거나 5,000자 초과, 모르는 voice: 400 invalid_voice_request. 앱은 그 회차에서 그 줄을 서버에 다시 보내지 않고
   네트워크 실패와 같은 대체 순서로 읽는다.
 - TTS 모델 설정(GEMINI_TTS_MODEL)이 비어 있으면 status.available=false.
-- 설정 없음·무료 기간 종료(Pro 아님)·월 상한·Gemini 또는 저장소 실패: 모두 503 cloud_voice_unavailable이다.
+- 설정 없음·무료 기간 종료(Pro 아님, 첫 리딩 아님)·일반 계정의 전체 월 상한·Gemini 또는 저장소 실패: 모두 503 cloud_voice_unavailable이다.
 
 ## 검증 방법
 - 동의 없이 POST /v2/reading/voice: 403 cloud_voice_consent_required.
@@ -104,3 +112,9 @@
 ## 범위 밖
 - 웹 리딩. (ADR-033)
 - 무료 기간 뒤의 유료화. iOS 인앱 결제가 필요하고 별도 결정이다. (ADR-033)
+
+## Pro 월 한도 추가 검증(SOMA-949)
+- Pro의 당일 사용량 300줄·서비스 전체 월 75,000줄 초과 상태에서도 본인 월 사용량이 10,000 미만이면 합성한다.
+- Pro 월 9,999줄 → 새 한 줄 200 → 월 10,000줄 → 다른 새 문장 429 cloud_voice_monthly_limit. 캐시 재요청은 차감하지 않는다.
+- 다른 계정과 전월·다음 달의 사용량은 합산하지 않는다. 10/31 15:00 UTC부터 한국 11월로 계산한다.
+- 남은 한 줄을 동시에 요청해도 월 사용량은 10,000을 넘지 않는다.
