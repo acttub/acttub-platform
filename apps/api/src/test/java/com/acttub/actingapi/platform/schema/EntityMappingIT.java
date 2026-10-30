@@ -127,6 +127,8 @@ class EntityMappingIT {
             "user_signup_attributions",
             // 발음 보고서(V49)는 발음 보고서 저장소의 native SQL(작업 점유·결과 저장)만 읽고 쓴다.
             "reading_pronunciation_reports",
+            // 리딩 녹음 서버 다시 받아쓰기(V79)는 다시 받아쓰기 저장소의 native SQL(줄 세우기·작업 점유·결과 저장)만 읽고 쓴다.
+            "reading_recording_retranscripts",
             // 앱이 넘긴 Airbridge 기기 ID 임시 보관(V43, SOMA-643)은 프로필 저장소·재조회 저장소의 native SQL 만 쓴다.
             "user_airbridge_device_lookups",
             // 가입 직후 유입 경로 자기 응답(V38)도 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
@@ -151,7 +153,7 @@ class EntityMappingIT {
             // ACTTUB Pro 정기결제(V64, SOMA-818)는 결제 저장소의 native SQL(조건부 갱신·점유·멱등 기록)만 쓴다.
             "billing_subscriptions", "billing_checkouts", "billing_payments", "billing_pro_grants",
             // 앱 광고 칸(V66, SOMA-876)은 광고 저장소의 native SQL(고르기·노출 upsert·클릭)만 쓴다.
-            "ads", "ad_events",
+            "ads", "ad_events", "ad_serves", "ad_settings",
             // 화면별 광고 칸 스위치(V76, SOMA-876)는 광고 칸 스위치 저장소의 native SELECT 만 쓴다.
             "ad_slot_switches",
             // 푸시 탭 기록(V72, SOMA-926)은 푸시 탭 저장소의 native INSERT 와 탈퇴 파기만 쓴다.

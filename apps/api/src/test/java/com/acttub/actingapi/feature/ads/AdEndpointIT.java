@@ -58,6 +58,8 @@ class AdEndpointIT {
                     """, UUID.randomUUID(), type, type, type, !"retention".equals(type),
                     OffsetDateTime.of(2026, 9, 1, 0, 0, 0, 0, ZoneOffset.UTC));
         }
+        // 빈도 상한(V78)에 걸리지 않게 넉넉히 둔다 — 이 테스트는 고르는 순서를 본다. 상한은 AdFrequencyIT·AdServiceTest 가 본다.
+        jdbc.update("UPDATE ad_settings SET window_minutes=10,window_cap=100,first_day_cap=100");
         user = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
         AccountFixtures.passGate(jdbc, user);
@@ -162,5 +164,33 @@ class AdEndpointIT {
                 .content("{\"slot\":\"home_top\",\"event\":\"view\"}"), 422);
         json(get("/v2/ads").param("slot", "nope"), 422);
         json(get("/v2/ads"), 422);
+    }
+
+    @Test
+    @DisplayName("10분에 5개까지만 내보내고 그 뒤는 NONE, NONE 은 기록하지 않으며, 창이 지나면 다시 나온다")
+    void frequencyCap() throws Exception {
+        jdbc.update("UPDATE ad_settings SET window_cap=5,first_day_cap=3");
+        jdbc.update("UPDATE users SET created_at=now() - interval '3 days' WHERE id=?", user);
+        finishReading();
+        for (int i = 0; i < 5; i++) {
+            assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+        }
+        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NONE");
+        assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("NONE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ad_serves WHERE user_id=?", Integer.class, user)).isEqualTo(5);
+        jdbc.update("UPDATE ad_serves SET served_at = now() - interval '11 minutes' WHERE user_id=?", user);
+        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+    }
+
+    @Test
+    @DisplayName("가입 24시간 이내는 첫날 상한(3개)을 쓴다")
+    void firstDayCap() throws Exception {
+        jdbc.update("UPDATE ad_settings SET window_cap=5,first_day_cap=3");
+        jdbc.update("UPDATE users SET created_at=now() - interval '2 hours' WHERE id=?", user);
+        finishReading();
+        for (int i = 0; i < 3; i++) {
+            assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+        }
+        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NONE");
     }
 }

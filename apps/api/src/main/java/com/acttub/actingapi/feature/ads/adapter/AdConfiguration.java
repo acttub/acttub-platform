@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.ads.adapter;
 import java.time.Clock;
 
 import com.acttub.actingapi.feature.ads.app.AdAdminService;
+import com.acttub.actingapi.feature.ads.app.AdFrequency;
 import com.acttub.actingapi.feature.ads.app.AdImages;
 import com.acttub.actingapi.feature.ads.app.AdRepository;
 import com.acttub.actingapi.feature.ads.app.AdService;
@@ -21,12 +22,13 @@ class AdConfiguration {
     AdService adService(
             AdRepository repository,
             AdSlotSwitches switches,
+            AdFrequency frequency,
             ObjectProvider<ProStatusReader> proStatus,
             Clock clock,
             @Value("${ADS_ENABLED:true}") boolean enabled,
             @Value("${ADS_PRACTICE_SLOT_PERCENT:50}") int practiceSlotPercent) {
         return new AdService(repository, proStatus.getIfAvailable(() -> ProStatusReader.ALWAYS_FREE),
-                new AdService.Settings(enabled, practiceSlotPercent), switches, clock);
+                new AdService.Settings(enabled, practiceSlotPercent), switches, frequency, clock);
     }
 
     @Bean

@@ -43,6 +43,14 @@ COLUMN ad_events.event ord=5 type=text len=- null=NO default=-
 COLUMN ad_events.id ord=1 type=uuid len=- null=NO default=-
 COLUMN ad_events.slot ord=4 type=text len=- null=NO default=-
 COLUMN ad_events.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN ad_serves.id ord=1 type=uuid len=- null=NO default=-
+COLUMN ad_serves.served_at ord=3 type=timestamptz len=- null=NO default=now()
+COLUMN ad_serves.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN ad_settings.first_day_cap ord=4 type=int4 len=- null=NO default=3
+COLUMN ad_settings.id ord=1 type=int4 len=- null=NO default=1
+COLUMN ad_settings.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN ad_settings.window_cap ord=3 type=int4 len=- null=NO default=5
+COLUMN ad_settings.window_minutes ord=2 type=int4 len=- null=NO default=10
 COLUMN ad_slot_switches.enabled ord=2 type=bool len=- null=NO default=true
 COLUMN ad_slot_switches.slot_key ord=1 type=text len=- null=NO default=-
 COLUMN ad_slot_switches.updated_at ord=3 type=timestamptz len=- null=NO default=now()
@@ -614,6 +622,18 @@ COLUMN reading_pronunciation_reports.result ord=9 type=jsonb len=- null=YES defa
 COLUMN reading_pronunciation_reports.status ord=4 type=text len=- null=NO default=-
 COLUMN reading_pronunciation_reports.updated_at ord=12 type=timestamptz len=- null=NO default=now()
 COLUMN reading_pronunciation_reports.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN reading_recording_retranscripts.attempt_count ord=4 type=int4 len=- null=NO default=0
+COLUMN reading_recording_retranscripts.created_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN reading_recording_retranscripts.failure ord=10 type=text len=- null=YES default=-
+COLUMN reading_recording_retranscripts.lease_token ord=5 type=uuid len=- null=YES default=-
+COLUMN reading_recording_retranscripts.lease_until ord=6 type=timestamptz len=- null=YES default=-
+COLUMN reading_recording_retranscripts.object_key ord=2 type=text len=- null=NO default=-
+COLUMN reading_recording_retranscripts.peak_db ord=7 type=float8 len=- null=YES default=-
+COLUMN reading_recording_retranscripts.recording_id ord=1 type=uuid len=- null=NO default=-
+COLUMN reading_recording_retranscripts.status ord=3 type=text len=- null=NO default=-
+COLUMN reading_recording_retranscripts.transcribed_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN reading_recording_retranscripts.transcript ord=8 type=text len=- null=YES default=-
+COLUMN reading_recording_retranscripts.updated_at ord=12 type=timestamptz len=- null=NO default=now()
 COLUMN reading_recordings.attempt_no ord=6 type=int4 len=- null=NO default=-
 COLUMN reading_recordings.byte_size ord=9 type=int8 len=- null=NO default=-
 COLUMN reading_recordings.content_type ord=8 type=text len=- null=NO default=-
@@ -962,6 +982,17 @@ CONSTRAINT ad_events ad_events_pkey PRIMARY KEY (id)
 CONSTRAINT ad_events ad_events_slot_not_null NOT NULL slot
 CONSTRAINT ad_events ad_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT ad_events ad_events_user_id_not_null NOT NULL user_id
+CONSTRAINT ad_serves ad_serves_id_not_null NOT NULL id
+CONSTRAINT ad_serves ad_serves_pkey PRIMARY KEY (id)
+CONSTRAINT ad_serves ad_serves_served_at_not_null NOT NULL served_at
+CONSTRAINT ad_serves ad_serves_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT ad_serves ad_serves_user_id_not_null NOT NULL user_id
+CONSTRAINT ad_settings ad_settings_first_day_cap_not_null NOT NULL first_day_cap
+CONSTRAINT ad_settings ad_settings_id_not_null NOT NULL id
+CONSTRAINT ad_settings ad_settings_pkey PRIMARY KEY (id)
+CONSTRAINT ad_settings ad_settings_updated_at_not_null NOT NULL updated_at
+CONSTRAINT ad_settings ad_settings_window_cap_not_null NOT NULL window_cap
+CONSTRAINT ad_settings ad_settings_window_minutes_not_null NOT NULL window_minutes
 CONSTRAINT ad_slot_switches ad_slot_switches_enabled_not_null NOT NULL enabled
 CONSTRAINT ad_slot_switches ad_slot_switches_pkey PRIMARY KEY (slot_key)
 CONSTRAINT ad_slot_switches ad_slot_switches_slot_key_not_null NOT NULL slot_key
@@ -1682,6 +1713,14 @@ CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_status_no
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_updated_at_not_null NOT NULL updated_at
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_user_id_not_null NOT NULL user_id
 CONSTRAINT reading_pronunciation_reports uq_reading_pronunciation_reports_session UNIQUE (reading_session_id)
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_attempt_count_not_null NOT NULL attempt_count
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_object_key_not_null NOT NULL object_key
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_pkey PRIMARY KEY (recording_id)
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES reading_recordings(id) ON DELETE CASCADE
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_recording_id_not_null NOT NULL recording_id
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_status_not_null NOT NULL status
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_updated_at_not_null NOT NULL updated_at
 CONSTRAINT reading_recordings ck_reading_recordings_attempt_no CHECK ((attempt_no >= 1))
 CONSTRAINT reading_recordings ck_reading_recordings_transcript_source CHECK ((transcript_source = ANY (ARRAY['stt'::text, 'none'::text])))
 CONSTRAINT reading_recordings reading_recordings_attempt_no_not_null NOT NULL attempt_no
@@ -2062,6 +2101,8 @@ INDEX CREATE INDEX idx_push_opens_opened ON public.push_opens USING btree (opene
 INDEX CREATE INDEX idx_push_opens_user_opened ON public.push_opens USING btree (user_id, opened_at)
 INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id)
 INDEX CREATE INDEX idx_reading_pronunciation_reports_queue ON public.reading_pronunciation_reports USING btree (status, lease_until) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text]))
+INDEX CREATE INDEX idx_reading_recording_retranscripts_queue ON public.reading_recording_retranscripts USING btree (status, lease_until) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text]))
+INDEX CREATE INDEX idx_reading_recording_retranscripts_transcribed ON public.reading_recording_retranscripts USING btree (transcribed_at) WHERE (transcribed_at IS NOT NULL)
 INDEX CREATE INDEX idx_reading_recordings_user ON public.reading_recordings USING btree (user_id)
 INDEX CREATE INDEX idx_reading_session_ratings_user ON public.reading_session_ratings USING btree (user_id)
 INDEX CREATE INDEX idx_reading_sessions_script_started ON public.reading_sessions USING btree (script_id, started_at DESC)
@@ -2088,6 +2129,7 @@ INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btre
 INDEX CREATE INDEX idx_videos_user_created ON public.videos USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_actor_journals_user ON public.actor_journals USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_ad_events_ad_day ON public.ad_events USING btree (ad_id, event, day)
+INDEX CREATE INDEX ix_ad_serves_user_served ON public.ad_serves USING btree (user_id, served_at)
 INDEX CREATE INDEX ix_ads_kind_status ON public.ads USING btree (kind, status)
 INDEX CREATE INDEX ix_billing_checkouts_user ON public.billing_checkouts USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_billing_payments_subscription ON public.billing_payments USING btree (subscription_id, period_start, attempt)
@@ -2121,6 +2163,8 @@ INDEX CREATE UNIQUE INDEX actor_journals_pkey ON public.actor_journals USING btr
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX ad_events_pkey ON public.ad_events USING btree (id)
+INDEX CREATE UNIQUE INDEX ad_serves_pkey ON public.ad_serves USING btree (id)
+INDEX CREATE UNIQUE INDEX ad_settings_pkey ON public.ad_settings USING btree (id)
 INDEX CREATE UNIQUE INDEX ad_slot_switches_pkey ON public.ad_slot_switches USING btree (slot_key)
 INDEX CREATE UNIQUE INDEX ads_pkey ON public.ads USING btree (id)
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
@@ -2180,6 +2224,7 @@ INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
 INDEX CREATE UNIQUE INDEX reading_examples_pkey ON public.reading_examples USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_pronunciation_reports_pkey ON public.reading_pronunciation_reports USING btree (id)
+INDEX CREATE UNIQUE INDEX reading_recording_retranscripts_pkey ON public.reading_recording_retranscripts USING btree (recording_id)
 INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_session_ratings_pkey ON public.reading_session_ratings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_sessions_pkey ON public.reading_sessions USING btree (id)
@@ -2291,6 +2336,8 @@ TABLE actor_journals
 TABLE actor_memories
 TABLE actor_memory_entries
 TABLE ad_events
+TABLE ad_serves
+TABLE ad_settings
 TABLE ad_slot_switches
 TABLE ads
 TABLE ai_jobs
@@ -2346,6 +2393,7 @@ TABLE push_opens
 TABLE push_tokens
 TABLE reading_examples
 TABLE reading_pronunciation_reports
+TABLE reading_recording_retranscripts
 TABLE reading_recordings
 TABLE reading_session_ratings
 TABLE reading_sessions
