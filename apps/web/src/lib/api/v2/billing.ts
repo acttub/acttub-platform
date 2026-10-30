@@ -44,3 +44,16 @@ export async function startBillingCheckout(options: { signal?: AbortSignal } = {
   });
   return data;
 }
+
+/** 다음 자동결제를 멈춘다. 이번 결제기간이 끝날 때까지 Pro 는 그대로다. 해지된 구독을 다시 불러도 같은 상태가 온다. */
+export async function cancelBillingSubscription(options: { signal?: AbortSignal } = {}): Promise<BillingMe> {
+  const { data } = await apiFetch<BillingMe>("/v2/billing/subscription/cancel", {
+    method: "POST",
+    body: {},
+    auth: true,
+    startGuest: false,
+    consentPrompt: false,
+    signal: options.signal,
+  });
+  return data;
+}

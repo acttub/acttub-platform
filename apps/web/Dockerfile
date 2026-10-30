@@ -48,6 +48,9 @@ ARG NEXT_PUBLIC_SENTRY_DSN=
 ARG NEXT_PUBLIC_SENTRY_ENV=
 ARG NEXT_PUBLIC_POSTHOG_KEY=
 ARG NEXT_PUBLIC_APP_COMMIT=
+# 웹 Pro 결제(SOMA-818). "true" 면 /pricing 의 구독 버튼이 토스 정기결제로, 내 계정에 구독 상태·해지가 보인다.
+# 서버 BILLING_WEB_ENABLED 가 꺼져 있으면 버튼은 "준비 중" 안내만 낸다.
+ARG NEXT_PUBLIC_BILLING_WEB_ENABLED=
 # 소스맵 업로드 대상(공개값). 토큰은 아래 --mount=type=secret 으로만 들어온다.
 ARG SENTRY_ORG=
 ARG SENTRY_PROJECT=

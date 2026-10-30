@@ -26,7 +26,12 @@ export function SubscribeButton({ className, children }: { className: string; ch
       }
       window.location.assign(url);
     } catch (error) {
-      setMessage(startMessage(startOutcomeOf(error)));
+      const outcome = startOutcomeOf(error);
+      if (outcome.kind === "login_required") {
+        window.location.assign("/login?next=/pricing");
+        return;
+      }
+      setMessage(startMessage(outcome));
     } finally {
       setBusy(false);
     }
