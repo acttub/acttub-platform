@@ -148,10 +148,13 @@ public class DirectVideoConfiguration {
                         : com.acttub.actingapi.feature.coach.app.CoachOpenings.NONE);
     }
 
-    /** 첫 코칭 첫 말 비교를 켤지. 설정값이 있으면 그것, 없으면(빈 값) dev 와 운영에서 켠다(2026-10-27 흐름 비교를 A 로 끝내고 시작). */
+    /**
+     * 첫 코칭 첫 말 비교를 켤지. 설정값이 있으면 그것, 없으면(빈 값) 끈다 — 모두 A(질문 한 줄)다.
+     * 2026-10-30 A 로 정리: 첫 코칭 A 34건·B 37건에서 첫 질문 무응답 1 대 8, 평균 답 4.4 대 3.4, 다시 코칭 10 대 10.
+     */
     static boolean openingAb(String configured, String siteUrl) {
         if (configured != null && !configured.isBlank()) return Boolean.parseBoolean(configured.strip());
-        return "https://dev.acttub.com".equals(siteUrl) || "https://acttub.com".equals(siteUrl);
+        return false;
     }
 
     /** "이미 그렇게 했다" 비교의 실험 쪽 비율. 설정값이 있으면 그것, 없으면(음수) dev 만 50 이다. */
