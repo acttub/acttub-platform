@@ -79,11 +79,12 @@ class AdEndpointIT {
                 """, UUID.randomUUID(), script, user, UUID.randomUUID(), "{" + role + "}", line, line, line);
     }
 
+    // 우리 앱 광고 노출 비율은 100% 로 고정한다 — 이 테스트는 고르는 순서만 본다(비율 확률은 AdPickerTest).
     private UUID insertAd(String kind, String slots, String audience, String banner, String path) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO ads(id,kind,slots,audience,advertiser_name,headline,image_banner,link_url,app_path)
-                VALUES (?,?,CAST(? AS text[]),?,'한빛연기학원','문구',?,'https://example.com',?)
+                INSERT INTO ads(id,kind,slots,audience,advertiser_name,headline,image_banner,link_url,app_path,share_percent)
+                VALUES (?,?,CAST(? AS text[]),?,'한빛연기학원','문구',?,'https://example.com',?,100)
                 """, id, kind, slots, audience, banner, path);
         return id;
     }
