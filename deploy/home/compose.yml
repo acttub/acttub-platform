@@ -91,6 +91,11 @@ services:
       # 첫 질문 미리 쓰기(SOMA-780). 첫 질문이 저장되기 전에는 연습 상세·목록이 대화를 내주지 않아 스토어 앱 0.1.5도
       # 시작 요청을 보내고, 시작 요청이 쓰는 중인 첫 질문을 기다려 받는다. 문제가 생기면 false 로 끈다(끄면 앱의 시작 요청 때 쓴다).
       ACTTUB_COACH_FIRST_QUESTION_PREWRITE: ${ACTTUB_COACH_FIRST_QUESTION_PREWRITE:-true}
+      # 리딩 녹음 서버 다시 받아쓰기. 기기 음성 인식이 빈 결과를 낸 줄 녹음 가운데 소리가 있는 것만 뒤에서 받아쓰기 모델로
+      # 다시 받아써 전사·대조를 채운다(배우는 기다리지 않는다). 하루 모델 호출 한도로 비용을 막는다. 문제가 생기면 false 로 끈다.
+      READING_RETRANSCRIBE_ENABLED: ${READING_RETRANSCRIBE_ENABLED:-true}
+      READING_RETRANSCRIBE_DAILY_LIMIT: ${READING_RETRANSCRIBE_DAILY_LIMIT:-400}
+      READING_RETRANSCRIBE_MIN_PEAK_DB: ${READING_RETRANSCRIBE_MIN_PEAK_DB:--30}
       # PG 심사 전용 테스트 빌링(SOMA-620). dev에서만 명시적으로 켜며 기본은 꺼짐이다.
       # 실제 결제 키는 API가 거부한다. 웹 컨테이너에는 이 값을 전달하지 않는다.
       # 리딩 발음 보고서(SOMA-606, 실험). dev .env 에서만 켠다 — 기본은 꺼짐이고 허용 사용자 목록이 비면 아무도 받지 않는다.

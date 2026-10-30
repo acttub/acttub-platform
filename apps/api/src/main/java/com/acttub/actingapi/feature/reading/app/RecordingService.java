@@ -28,6 +28,8 @@ import com.acttub.actingapi.platform.web.ApiException;
  * 503 {@code audio_conversion_failed}.
  */
 public class RecordingService {
+    private static final java.util.logging.Logger LOGGER =
+            java.util.logging.Logger.getLogger(RecordingService.class.getName());
 
     private final RecordingRepository recordings;
     private final RecordingStorage storage;
@@ -35,6 +37,8 @@ public class RecordingService {
     private final RecordingPlayback playback;
     private final ReadingRecordingCleanup cleanup;
     private final Clock clock;
+    private final RetranscribeRepository retranscribe;
+    private final RetranscribeSettings retranscribeSettings;
 
     public RecordingService(
             RecordingRepository recordings,
@@ -43,12 +47,30 @@ public class RecordingService {
             RecordingPlayback playback,
             ReadingRecordingCleanup cleanup,
             Clock clock) {
+        this(recordings, storage, transcoder, playback, cleanup, clock, null, null);
+    }
+
+    /**
+     * @param retranscribe 기기 음성 인식이 빈 결과를 낸 녹음을 서버가 뒤에서 다시 받아쓰는 큐. {@code null} 이거나 꺼져
+     *        있으면 줄 세우지 않는다
+     */
+    public RecordingService(
+            RecordingRepository recordings,
+            RecordingStorage storage,
+            AudioTranscoder transcoder,
+            RecordingPlayback playback,
+            ReadingRecordingCleanup cleanup,
+            Clock clock,
+            RetranscribeRepository retranscribe,
+            RetranscribeSettings retranscribeSettings) {
         this.recordings = recordings;
         this.storage = storage;
         this.transcoder = transcoder;
         this.playback = playback;
         this.cleanup = cleanup;
         this.clock = clock;
+        this.retranscribe = retranscribe;
+        this.retranscribeSettings = retranscribeSettings;
     }
 
     /**
@@ -96,7 +118,10 @@ public class RecordingService {
                 case INVALID_LINE -> throw invalidLine();
                 case QUOTA -> throw new ApiException(422, "recording_quota");
                 case REPLAYED, IGNORED -> new Uploaded(playback.decorate(result.recording()), false);
-                case CREATED, REPLACED -> new Uploaded(playback.decorate(result.recording()), true);
+                case CREATED, REPLACED -> {
+                    enqueueRetranscribe(result.recording());
+                    yield new Uploaded(playback.decorate(result.recording()), true);
+                }
             };
         } catch (IOException failure) {
             throw new IllegalStateException("could not read the transcoded recording", failure);
@@ -108,6 +133,26 @@ public class RecordingService {
                     // 임시 파일은 다음 기동의 정리에 맡긴다.
                 }
             }
+        }
+    }
+
+    /**
+     * 기기가 음성 인식을 켰는데(stt) 받아쓴 글이 없으면 서버가 뒤에서 다시 받아쓰게 줄 세운다. 응답은 기다리지 않는다 —
+     * 줄 세우기가 실패해도 녹음 저장은 그대로 성공이다. 인식을 쓰지 않은 녹음(none)은 전사가 NULL 이어야 해서 건드리지 않는다.
+     */
+    private void enqueueRetranscribe(RecordingView recording) {
+        if (retranscribe == null || retranscribeSettings == null || !retranscribeSettings.enabled() || recording == null) {
+            return;
+        }
+        if (!"stt".equals(recording.transcriptSource())
+                || (recording.transcript() != null && !recording.transcript().isBlank())) {
+            return;
+        }
+        try {
+            retranscribe.enqueue(recording.id(), recording.objectKey(), clock.instant());
+        } catch (RuntimeException failure) {
+            LOGGER.warning("reading retranscribe enqueue failed: recording=" + recording.id() + " cause="
+                    + failure.getClass().getSimpleName());
         }
     }
 

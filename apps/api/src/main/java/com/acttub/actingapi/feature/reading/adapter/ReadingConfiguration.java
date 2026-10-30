@@ -4,6 +4,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 
+import com.acttub.actingapi.feature.reading.app.RetranscribeRepository;
+import com.acttub.actingapi.feature.reading.app.RetranscribeSettings;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceSettings;
@@ -167,7 +169,10 @@ class ReadingConfiguration {
             AudioTranscoder transcoder,
             RecordingPlayback playback,
             ReadingRecordingCleanup cleanup,
-            Clock clock) {
-        return new RecordingService(recordings, storage, transcoder, playback, cleanup, clock);
+            Clock clock,
+            RetranscribeRepository retranscribe,
+            RetranscribeSettings retranscribeSettings) {
+        return new RecordingService(recordings, storage, transcoder, playback, cleanup, clock, retranscribe,
+                retranscribeSettings);
     }
 }

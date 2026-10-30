@@ -622,6 +622,18 @@ COLUMN reading_pronunciation_reports.result ord=9 type=jsonb len=- null=YES defa
 COLUMN reading_pronunciation_reports.status ord=4 type=text len=- null=NO default=-
 COLUMN reading_pronunciation_reports.updated_at ord=12 type=timestamptz len=- null=NO default=now()
 COLUMN reading_pronunciation_reports.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN reading_recording_retranscripts.attempt_count ord=4 type=int4 len=- null=NO default=0
+COLUMN reading_recording_retranscripts.created_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN reading_recording_retranscripts.failure ord=10 type=text len=- null=YES default=-
+COLUMN reading_recording_retranscripts.lease_token ord=5 type=uuid len=- null=YES default=-
+COLUMN reading_recording_retranscripts.lease_until ord=6 type=timestamptz len=- null=YES default=-
+COLUMN reading_recording_retranscripts.object_key ord=2 type=text len=- null=NO default=-
+COLUMN reading_recording_retranscripts.peak_db ord=7 type=float8 len=- null=YES default=-
+COLUMN reading_recording_retranscripts.recording_id ord=1 type=uuid len=- null=NO default=-
+COLUMN reading_recording_retranscripts.status ord=3 type=text len=- null=NO default=-
+COLUMN reading_recording_retranscripts.transcribed_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN reading_recording_retranscripts.transcript ord=8 type=text len=- null=YES default=-
+COLUMN reading_recording_retranscripts.updated_at ord=12 type=timestamptz len=- null=NO default=now()
 COLUMN reading_recordings.attempt_no ord=6 type=int4 len=- null=NO default=-
 COLUMN reading_recordings.byte_size ord=9 type=int8 len=- null=NO default=-
 COLUMN reading_recordings.content_type ord=8 type=text len=- null=NO default=-
@@ -1701,6 +1713,14 @@ CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_status_no
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_updated_at_not_null NOT NULL updated_at
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_user_id_not_null NOT NULL user_id
 CONSTRAINT reading_pronunciation_reports uq_reading_pronunciation_reports_session UNIQUE (reading_session_id)
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_attempt_count_not_null NOT NULL attempt_count
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_object_key_not_null NOT NULL object_key
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_pkey PRIMARY KEY (recording_id)
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES reading_recordings(id) ON DELETE CASCADE
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_recording_id_not_null NOT NULL recording_id
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_status_not_null NOT NULL status
+CONSTRAINT reading_recording_retranscripts reading_recording_retranscripts_updated_at_not_null NOT NULL updated_at
 CONSTRAINT reading_recordings ck_reading_recordings_attempt_no CHECK ((attempt_no >= 1))
 CONSTRAINT reading_recordings ck_reading_recordings_transcript_source CHECK ((transcript_source = ANY (ARRAY['stt'::text, 'none'::text])))
 CONSTRAINT reading_recordings reading_recordings_attempt_no_not_null NOT NULL attempt_no
@@ -2081,6 +2101,8 @@ INDEX CREATE INDEX idx_push_opens_opened ON public.push_opens USING btree (opene
 INDEX CREATE INDEX idx_push_opens_user_opened ON public.push_opens USING btree (user_id, opened_at)
 INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id)
 INDEX CREATE INDEX idx_reading_pronunciation_reports_queue ON public.reading_pronunciation_reports USING btree (status, lease_until) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text]))
+INDEX CREATE INDEX idx_reading_recording_retranscripts_queue ON public.reading_recording_retranscripts USING btree (status, lease_until) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text]))
+INDEX CREATE INDEX idx_reading_recording_retranscripts_transcribed ON public.reading_recording_retranscripts USING btree (transcribed_at) WHERE (transcribed_at IS NOT NULL)
 INDEX CREATE INDEX idx_reading_recordings_user ON public.reading_recordings USING btree (user_id)
 INDEX CREATE INDEX idx_reading_session_ratings_user ON public.reading_session_ratings USING btree (user_id)
 INDEX CREATE INDEX idx_reading_sessions_script_started ON public.reading_sessions USING btree (script_id, started_at DESC)
@@ -2202,6 +2224,7 @@ INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
 INDEX CREATE UNIQUE INDEX reading_examples_pkey ON public.reading_examples USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_pronunciation_reports_pkey ON public.reading_pronunciation_reports USING btree (id)
+INDEX CREATE UNIQUE INDEX reading_recording_retranscripts_pkey ON public.reading_recording_retranscripts USING btree (recording_id)
 INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_session_ratings_pkey ON public.reading_session_ratings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_sessions_pkey ON public.reading_sessions USING btree (id)
@@ -2370,6 +2393,7 @@ TABLE push_opens
 TABLE push_tokens
 TABLE reading_examples
 TABLE reading_pronunciation_reports
+TABLE reading_recording_retranscripts
 TABLE reading_recordings
 TABLE reading_session_ratings
 TABLE reading_sessions
