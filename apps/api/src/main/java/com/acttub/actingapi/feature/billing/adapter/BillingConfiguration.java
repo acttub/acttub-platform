@@ -60,11 +60,11 @@ class BillingConfiguration {
         return new AccountSecretsBillingKeyCipher(secrets);
     }
 
-    /** 토스 테스트 키로만 부르는 실물. 테스트는 이 빈을 가짜로 바꾼다. */
+    /** 토스 실물. 운영은 라이브 키, dev 는 테스트 키다(키 종류는 BillingSettings 가 맞춰 본다). 테스트는 이 빈을 가짜로 바꾼다. */
     @Bean
     @ConditionalOnMissingBean(AppBillingGateway.class)
     AppBillingGateway appBillingGateway(BillingSettings settings) {
-        TossBillingGateway toss = new TossBillingGateway(settings::secretKey);
+        TossBillingGateway toss = TossBillingGateway.allowingLive(settings::secretKey);
         return new AppBillingGateway() {
             @Override
             public PgReviewGateway.IssuedKey issue(String authKey, String customerKey) {

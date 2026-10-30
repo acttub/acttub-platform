@@ -294,7 +294,8 @@ public class SubscriptionService {
         try {
             issued = gateway.issue(authKey, checkout.customerKey());
         } catch (GatewayException e) {
-            // 빌링키를 못 받았으니 승인은 시도하지 않았다 — 돈이 움직일 수 없다.
+            // 빌링키를 못 받았으니 승인은 시도하지 않았다 — 돈이 움직일 수 없다. 코드만 남긴다(키·authKey 는 싣지 않는다).
+            LOG.warn("billing key issue failed checkout={} code={}", checkout.id(), e.code());
             return Result.FAILED;
         }
         UUID subscriptionId = repository.saveCard(checkout.userId(), checkout.customerKey(),
