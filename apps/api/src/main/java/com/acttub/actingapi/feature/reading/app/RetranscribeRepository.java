@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
-/** 리딩 녹음 서버 다시 받아쓰기 큐(V78). */
+/** 리딩 녹음 서버 다시 받아쓰기 큐(V79). */
 public interface RetranscribeRepository {
 
     /** 녹음을 줄 세운다. 같은 녹음이 이미 있으면 새 object_key 로 처음부터 다시 줄 세운다. */

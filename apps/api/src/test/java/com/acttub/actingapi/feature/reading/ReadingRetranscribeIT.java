@@ -44,7 +44,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 리딩 녹음 서버 다시 받아쓰기(V78) — 기기 전사가 빈 줄 녹음을 줄 세우고, 일꾼이 소리가 있는 것만 받아써 녹음의 전사·대조를
+ * 리딩 녹음 서버 다시 받아쓰기(V79) — 기기 전사가 빈 줄 녹음을 줄 세우고, 일꾼이 소리가 있는 것만 받아써 녹음의 전사·대조를
  * 채우는 것을 실제 Postgres 로 본다. 스토리지·소리 재기·받아쓰기 모델은 가짜다. 예약 일꾼은 테스트가 직접 돌린다.
  */
 @SpringBootTest(properties = {

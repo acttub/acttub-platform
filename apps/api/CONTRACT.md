@@ -791,7 +791,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   옮긴 것)로 판정하고, 말한 것은 `reading_sessions.line_said`(V32, `{line_id: said}`)에 둔다. `line_results` 원소에 넣지
   않는 것은 전역 `fail-on-unknown-properties`(§6-3) 때문이다 — 옛 이미지로 되돌리면 모르는 키가 든 회차를 읽지 못해 500 이다.
   원문과 다르게 말한 대사(`domain/DifferentLine`, 어절은 `domain/WordDiff`)는 저장하지 않고 상세 조회·진행 저장마다
-  구간의 대사 줄 원문으로 계산한다. 대사 번호는 표시값과 같은 `ReadingLayout#dialogueNo` 가 센다. 녹음의 `matched` 는 최종 저장 트랜잭션이 그 줄 원문으로 정한다(`RecordingRules#matched`). 기기가 음성 인식을 켰는데(`stt`) 받아쓴 글이 없던 녹음은 서버가 뒤에서 다시 받아써(`reading_recording_retranscripts`, V78) `transcript`·`matched` 를 나중에 채울 수 있다 — 소리가 기준보다 작으면 보내지 않고, 그사이 녹음이 바뀌었으면 건드리지 않는다. `transcript_source` 는 `stt` 그대로다.
+  구간의 대사 줄 원문으로 계산한다. 대사 번호는 표시값과 같은 `ReadingLayout#dialogueNo` 가 센다. 녹음의 `matched` 는 최종 저장 트랜잭션이 그 줄 원문으로 정한다(`RecordingRules#matched`). 기기가 음성 인식을 켰는데(`stt`) 받아쓴 글이 없던 녹음은 서버가 뒤에서 다시 받아써(`reading_recording_retranscripts`, V79) `transcript`·`matched` 를 나중에 채울 수 있다 — 소리가 기준보다 작으면 보내지 않고, 그사이 녹음이 바뀌었으면 건드리지 않는다. `transcript_source` 는 `stt` 그대로다.
 - **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
 - 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
 - **회차 평가**(`reading_session_ratings`, V40, SOMA-661) — 노트 평가(§6-15 `note_ratings`)와 같은 모양이다(행동은

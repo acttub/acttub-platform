@@ -16,7 +16,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 리딩 녹음 서버 다시 받아쓰기 큐(V78). 표는 이 저장소의 native SQL 만 읽고 쓴다. */
+/** 리딩 녹음 서버 다시 받아쓰기 큐(V79). 표는 이 저장소의 native SQL 만 읽고 쓴다. */
 @Repository
 class PostgresRetranscribeRepository implements RetranscribeRepository {
     private final EntityManager entityManager;

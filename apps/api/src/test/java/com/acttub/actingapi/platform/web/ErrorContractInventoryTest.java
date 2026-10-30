@@ -280,6 +280,8 @@ class ErrorContractInventoryTest {
             // 앱 광고(app.ads) 운영 경로도 같은 토큰 검사를 진다.
             covered("feature.ads.adapter.web.AdAdminController|401|Unauthorized", 1,
                     "feature.ads.AdAdminEndpointIT"),
+            covered("feature.ads.adapter.web.AdSettingsAdminController|401|Unauthorized", 1,
+                    "feature.ads.AdAdminEndpointIT"),
             covered("feature.ads.app.AdAdminService|404|ad_not_found", 1,
                     "feature.ads.AdAdminEndpointIT"),
             covered("feature.ads.app.AdAdminService|413|upload_too_large", 1,
