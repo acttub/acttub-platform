@@ -113,8 +113,9 @@ class ActorCoachingTest {
         assertThat(first).contains("- 이 배우의 첫 질문 모양을 그대로 쓴다.").doesNotContain("- 위의 모양을 그대로 쓴다.");
 
         String wrap = shaped.stepTask(PracticeLoopRouter.WRAP_UP, DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WRAP_UP, null));
-        assertThat(wrap).contains("- 이 배우에게는 정리를 이 모양으로 말한다").contains("처음엔 [행동1]")
-                .doesNotContain("좋은 예").doesNotContain("- 장면 전체를 꿰는 행동 하나와 그게 되는지 확인할 대사 하나로 말한다.")
+        assertThat(wrap).as("정리 틀은 붙이지 않는다 — 매 회차 같은 정리가 되풀이됐다")
+                .doesNotContain("- 이 배우에게는 정리를 이 모양으로 말한다").doesNotContain("처음엔 [행동1]")
+                .contains("- 장면 전체를 꿰는 행동 하나와 그게 되는지 확인할 대사 하나로 말한다.")
                 .contains("모양: 맨 첫 줄에 숨은 줄 <다음 테이크>");
     }
 
