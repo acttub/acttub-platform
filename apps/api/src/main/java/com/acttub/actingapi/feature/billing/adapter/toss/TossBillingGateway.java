@@ -20,8 +20,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * 토스페이먼츠 자동결제(빌링) API 의 실물. 개별 연동 <b>테스트</b> 시크릿 키({@code test_sk_})만 쓰고, 호출 직전에도
- * 다시 검사한다. 일반 결제 승인({@code /v1/payments/confirm})은 쓰지 않는다.
+ * 토스페이먼츠 자동결제(빌링) API 의 실물. 기본은 개별 연동 <b>테스트</b> 시크릿 키({@code test_sk_})만 쓰고, 호출 직전에도
+ * 다시 검사한다(PG 심사용). ACTTUB Pro 웹 결제(SOMA-818)만 {@link #allowingLive} 로 라이브 키({@code live_sk_})도 쓴다 —
+ * 그 경우에도 키 모양은 호출 직전에 다시 본다. 일반 결제 승인({@code /v1/payments/confirm})은 쓰지 않는다.
  *
  * <p><b>비밀 값 규칙</b>: authKey·billingKey·시크릿 키는 예외 메시지·로그에 싣지 않는다. 승인 URL 에 빌링키가 들어
  * 있어 {@link RestClientException} 의 메시지가 URL 을 싣기 때문에, 그 예외는 원인을 붙이지 않고 코드만 가진
@@ -43,19 +44,34 @@ public class TossBillingGateway implements PgReviewGateway {
             "PROVIDER_ERROR",
             "IDEMPOTENT_REQUEST_PROCESSING");
 
+    private static final Pattern LIVE_SECRET = Pattern.compile("live_sk_[A-Za-z0-9_-]{8,}");
+
     private final Supplier<String> secretKey;
     private final RestClient issueHttp;
     private final RestClient approveHttp;
+    private final boolean liveAllowed;
 
+    /** 테스트 키만 쓰는 실물(PG 심사용). */
     public TossBillingGateway(Supplier<String> secretKey) {
-        this(secretKey, client(BASE_URL, ISSUE_TIMEOUT), client(BASE_URL, APPROVE_TIMEOUT));
+        this(secretKey, client(BASE_URL, ISSUE_TIMEOUT), client(BASE_URL, APPROVE_TIMEOUT), false);
+    }
+
+    /** 라이브 키도 쓰는 실물(ACTTUB Pro 웹 결제). 키 종류는 {@code BillingSettings} 가 이미 맞춰 본 값이다. */
+    public static TossBillingGateway allowingLive(Supplier<String> secretKey) {
+        return new TossBillingGateway(secretKey, client(BASE_URL, ISSUE_TIMEOUT), client(BASE_URL, APPROVE_TIMEOUT), true);
+    }
+
+    /** 테스트가 가짜 서버가 묶인 클라이언트를 끼운다(테스트 키만). */
+    public TossBillingGateway(Supplier<String> secretKey, RestClient issueHttp, RestClient approveHttp) {
+        this(secretKey, issueHttp, approveHttp, false);
     }
 
     /** 테스트가 가짜 서버가 묶인 클라이언트를 끼운다. */
-    public TossBillingGateway(Supplier<String> secretKey, RestClient issueHttp, RestClient approveHttp) {
+    public TossBillingGateway(Supplier<String> secretKey, RestClient issueHttp, RestClient approveHttp, boolean liveAllowed) {
         this.secretKey = secretKey;
         this.issueHttp = issueHttp;
         this.approveHttp = approveHttp;
+        this.liveAllowed = liveAllowed;
     }
 
     private static RestClient client(String baseUrl, Duration read) {
@@ -123,8 +139,9 @@ public class TossBillingGateway implements PgReviewGateway {
 
     private String authorization() {
         String key = secretKey.get();
-        // 설정 검사를 통과했더라도 호출 직전에 다시 본다 — 라이브 키로는 어떤 요청도 보내지 않는다.
-        if (!PgReviewSettings.isTestSecretKey(key)) {
+        // 설정 검사를 통과했더라도 호출 직전에 다시 본다 — 라이브를 허락하지 않은 실물은 라이브 키로 어떤 요청도 보내지 않는다.
+        boolean live = liveAllowed && key != null && LIVE_SECRET.matcher(key).matches();
+        if (!live && !PgReviewSettings.isTestSecretKey(key)) {
             throw new GatewayException(GatewayException.Outcome.REJECTED, "secret_key_not_test");
         }
         return "Basic " + Base64.getEncoder().encodeToString((key + ":").getBytes(StandardCharsets.UTF_8));
