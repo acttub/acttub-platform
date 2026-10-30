@@ -77,7 +77,7 @@ export function resultViewOf(status: ReturnStatus | null, pro: boolean): ResultV
 export function startMessage(outcome: StartOutcome): string | null {
   switch (outcome.kind) {
     case "login_required":
-      return "결제하려면 ACTTUB 회원 로그인이 필요해요. 웹 로그인은 준비 중이에요.";
+      return "결제하려면 앱 계정으로 로그인해 주세요.";
     case "unavailable":
       return "결제를 준비하고 있어요. 시작하면 따로 안내해요.";
     case "already_subscribed":
@@ -89,4 +89,95 @@ export function startMessage(outcome: StartOutcome): string | null {
     default:
       return null;
   }
+}
+
+/** 내 계정 「구독」 칸에 보일 내용. 서버 /v2/billing/me 그대로를 화면 문장으로만 바꾼다. */
+export type SubscriptionView = {
+  title: string;
+  lines: string[];
+  /** 웹(토스) 구독을 여기서 해지할 수 있는가 */
+  cancelable: boolean;
+  /** 요금 안내·구독 시작으로 보낼 링크를 보일까 */
+  showPricing: boolean;
+};
+
+type MeLike = {
+  status: string;
+  pro: boolean;
+  amount: number;
+  period_end: string | null;
+  next_billing_at: string | null;
+  card_company: string | null;
+  card_last4: string | null;
+  provider?: string | null;
+  grant_ends_at?: string | null;
+};
+
+/** ISO 시각을 한국 날짜로. 읽지 못하면 null. */
+export function koreanDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric" }).format(date);
+  return parts;
+}
+
+function won(amount: number): string {
+  return `${amount.toLocaleString("ko-KR")}원`;
+}
+
+export function subscriptionViewOf(me: MeLike): SubscriptionView {
+  const until = koreanDate(me.period_end);
+  const next = koreanDate(me.next_billing_at);
+  if (me.provider === "apple" || me.provider === "google") {
+    const store = me.provider === "apple" ? "App Store" : "Google Play";
+    return {
+      title: "Pro 이용 중",
+      lines: [`${store}에서 구독하고 있어요. 해지와 결제 수단 변경은 ${store}의 구독 관리에서 해요.`],
+      cancelable: false,
+      showPricing: false,
+    };
+  }
+  if (me.provider === "toss") {
+    const card = me.card_last4 ? `${me.card_company ?? "카드"} 끝자리 ${me.card_last4}` : null;
+    switch (me.status) {
+      case "active":
+        return {
+          title: "Pro 이용 중",
+          lines: [`월 ${won(me.amount)} 자동결제`, next ? `다음 결제일 ${next}` : null, card].filter((l): l is string => !!l),
+          cancelable: true,
+          showPricing: false,
+        };
+      case "canceled":
+        return {
+          title: "해지 예정",
+          lines: [until ? `${until}까지 Pro를 쓰고, 그 뒤로는 결제되지 않아요.` : "다음 자동결제는 되지 않아요."],
+          cancelable: false,
+          showPricing: false,
+        };
+      case "past_due":
+        return {
+          title: "결제가 안 됐어요",
+          lines: [
+            "카드 한도나 유효기간을 확인해 주세요. 정해진 날짜에 다시 결제를 시도해요.",
+            until ? `${until}까지는 Pro를 그대로 써요.` : null,
+          ].filter((l): l is string => !!l),
+          cancelable: true,
+          showPricing: false,
+        };
+      case "expired":
+        return { title: "구독이 끝났어요", lines: ["다시 구독하면 바로 Pro를 쓸 수 있어요."], cancelable: false, showPricing: true };
+    }
+  }
+  const grant = koreanDate(me.grant_ends_at);
+  if (me.pro && grant) {
+    return { title: "Pro 무료 이용 중", lines: [`${grant}까지 Pro를 무료로 써요. 카드는 등록되지 않아요.`], cancelable: false, showPricing: true };
+  }
+  return { title: "무료로 쓰고 있어요", lines: [`Pro는 월 ${won(me.amount)}예요.`], cancelable: false, showPricing: true };
+}
+
+/** 해지 결과 문장. */
+export function cancelDoneMessage(me: MeLike): string {
+  const until = koreanDate(me.period_end);
+  return until ? `해지했어요. ${until}까지 Pro를 쓸 수 있어요.` : "해지했어요. 다음 자동결제는 되지 않아요.";
 }
