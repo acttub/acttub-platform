@@ -71,9 +71,10 @@ class ReadingConfiguration {
             @Value("${GEMINI_API_KEY:}") String legacyKey,
             @Value("${READING_VOICE_FREE_UNTIL:2026-10-31T23:59:59+09:00}") String freeUntil,
             @Value("${READING_VOICE_DAILY_LINE_CAP:300}") int dailyCap,
-            @Value("${READING_VOICE_MONTHLY_LINE_CAP:75000}") int monthlyCap) {
+            @Value("${READING_VOICE_MONTHLY_LINE_CAP:75000}") int monthlyCap,
+            @Value("${READING_VOICE_PRO_MONTHLY_LINE_CAP:10000}") int proMonthlyCap) {
         return new CloudVoiceSettings(model, com.acttub.actingapi.integration.llm.ApiKeys.firstNonBlank(ttsKey, legacyKey),
-                freeUntil == null || freeUntil.isBlank() ? null : OffsetDateTime.parse(freeUntil), dailyCap, monthlyCap);
+                freeUntil == null || freeUntil.isBlank() ? null : OffsetDateTime.parse(freeUntil), dailyCap, monthlyCap, proMonthlyCap);
     }
 
     /** 리딩 기기 목소리 모델 fp16 묶음 위치(SOMA-747). 비우면 앱은 원본 fp32 를 받는다. */

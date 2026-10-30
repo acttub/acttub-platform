@@ -4,12 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceStorage;
+import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
+import com.acttub.actingapi.feature.reading.app.VoicePlan;
 import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -49,11 +55,14 @@ class CloudVoiceIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtService jwt;
     @Autowired ObjectMapper mapper;
+    @Autowired TestVoicePlan plans;
+    @Autowired CloudVoiceRepository voices;
     String bearer;
     UUID user;
 
     @BeforeEach
     void setUp() {
+        plans.proUsers.clear();
         jdbc.execute("TRUNCATE TABLE users,consent_documents,reading_voice_cache RESTART IDENTITY CASCADE");
         for (String type : List.of("terms", "privacy", "ai_analysis", "retention", "cloud_voice")) {
             jdbc.update("""
@@ -180,8 +189,71 @@ class CloudVoiceIT {
         assertThat(consent()).isEqualTo("granted");
     }
 
+    @Test
+    void proStatusAndSynthesisUseOnlyThisAccountsKoreanCalendarMonth() throws Exception {
+        plans.proUsers.add(user);
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        YearMonth month = YearMonth.from(today);
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,300)", user, today);
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, month.atDay(1).minusDays(1));
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, month.plusMonths(1).atDay(1));
+        UUID other = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,80000)", other, today);
+        var response = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
+        JsonNode body = mapper.readTree(response.getContentAsString());
+        assertThat(body.path("available").booleanValue()).isTrue();
+        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
+        assertThat(body.path("daily_used").intValue()).isEqualTo(300);
+        assertThat(synthesize("{\"text\":\"Pro 새 대사\",\"voice\":\"F1\"}").getStatus()).isEqualTo(200);
+        assertThat(voices.monthlyUsage(user, month)).isEqualTo(301);
+    }
+
+    @Test
+    void proTenThousandthLineIsAllowedAndTheNextNewLineIs429ButCacheStillWorks() throws Exception {
+        plans.proUsers.add(user);
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, today);
+        String body = "{\"text\":\"이번 달 마지막 줄\",\"voice\":\"F1\"}";
+        assertThat(synthesize(body).getStatus()).isEqualTo(200);
+        var blocked = synthesize("{\"text\":\"한도 다음 줄\",\"voice\":\"F1\"}");
+        assertThat(blocked.getStatus()).isEqualTo(429);
+        assertThat(blocked.getContentAsString()).contains("cloud_voice_monthly_limit");
+        assertThat(mapper.readTree(synthesize(body).getContentAsString()).path("cached").booleanValue()).isTrue();
+        assertThat(voices.monthlyUsage(user, YearMonth.from(today))).isEqualTo(10_000);
+    }
+
+    @Test
+    void concurrentFinalRecordsDoNotExceedTheAccountsMonthlyCap() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, today);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<Boolean>>();
+            for (String hash : List.of("a".repeat(64), "b".repeat(64))) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return voices.recordSuccessWithinMonthlyCap(user, today,
+                            new CloudVoiceRepository.CacheEntry(hash, "reading-voice/" + hash + ".wav"),
+                            "test-model", "Kore", 40, Instant.now(), 10_000);
+                }));
+            }
+            start.countDown();
+            int accepted = 0;
+            for (var result : futures) if (result.get()) accepted++;
+            assertThat(accepted).isEqualTo(1);
+        }
+        assertThat(voices.monthlyUsage(user, YearMonth.from(today))).isEqualTo(10_000);
+    }
+
+    static class TestVoicePlan implements VoicePlan {
+        final java.util.Set<UUID> proUsers = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        public boolean pro(UUID userId) { return proUsers.contains(userId); }
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class Fakes {
+        @Bean @Primary TestVoicePlan fakeVoicePlan() { return new TestVoicePlan(); }
         @Bean @Primary VoiceModelStorage fakeVoiceModelStorage() {
             return new VoiceModelStorage() {
                 public boolean configured() { return true; }

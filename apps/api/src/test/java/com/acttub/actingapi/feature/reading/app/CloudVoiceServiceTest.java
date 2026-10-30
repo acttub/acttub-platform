@@ -118,8 +118,8 @@ class CloudVoiceServiceTest {
     @Test
     void unavailableWhenModelMissingFreePeriodEndedOrMonthlyCapReached() {
         repository.consent = "granted";
-        assertDetail(service(new CloudVoiceSettings("", "key", OffsetDateTime.parse("2026-11-30T23:59:59+09:00"), 300, 75_000)), 503, "cloud_voice_unavailable");
-        assertDetail(service(new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000)), 503, "cloud_voice_unavailable");
+        assertDetail(service(new CloudVoiceSettings("", "key", OffsetDateTime.parse("2026-11-30T23:59:59+09:00"), 300, 75_000, 10_000)), 503, "cloud_voice_unavailable");
+        assertDetail(service(new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000)), 503, "cloud_voice_unavailable");
         repository.monthly = 75_000;
         assertDetail(service(settings()), 503, "cloud_voice_unavailable");
     }
@@ -127,7 +127,7 @@ class CloudVoiceServiceTest {
     @Test
     void afterFreePeriodOnlyProCanUseAndStatusHidesFreeDate() {
         repository.consent = "granted";
-        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
         CloudVoiceService free = new CloudVoiceService(repository, storage, synthesizer, ended,
                 Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
         assertThat(free.status(USER).available()).isFalse();
@@ -150,16 +150,71 @@ class CloudVoiceServiceTest {
     }
 
     @Test
-    void proStillRespectsMonthlyCap() {
+    void proIsNotBlockedByServiceWideMonthlyCap() {
         repository.monthly = 75_000;
-        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
         CloudVoiceService pro = new CloudVoiceService(repository, storage, synthesizer, ended,
                 Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
-        assertThat(pro.status(USER).available()).isFalse();
+        assertThat(pro.status(USER).available()).isTrue();
+    }
+
+    private CloudVoiceService pro() {
+        return new CloudVoiceService(repository, storage, synthesizer, settings(),
+                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), id -> true);
+    }
+
+    @Test
+    void proUsesAccountMonthEvenDuringFreePeriodAndIgnoresDailyAndGlobalCaps() {
+        repository.consent = "granted";
+        repository.daily = 300;
+        repository.monthly = 90_000;
+        repository.accountMonthly = 1_234;
+        var status = pro().status(USER);
+        assertThat(status.available()).isTrue();
+        assertThat(status.dailyLimit()).isEqualTo(10_000);
+        assertThat(status.dailyUsed()).isEqualTo(1_234);
+        assertThat(pro().synthesize(USER, "새 대사", "F1").cached()).isFalse();
+        assertThat(repository.accountMonthly).isEqualTo(1_235);
+    }
+
+    @Test
+    void proAllowsTenThousandthLineButRejectsTheNextOne() {
+        repository.consent = "granted";
+        repository.accountMonthly = 9_999;
+        assertThat(pro().synthesize(USER, "마지막 한 줄", "F1").cached()).isFalse();
+        assertThat(repository.accountMonthly).isEqualTo(10_000);
+        assertDetail(pro(), 429, "cloud_voice_monthly_limit");
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void proCacheHitDoesNotChargeEvenAtMonthlyCap() {
+        repository.consent = "granted";
+        repository.accountMonthly = 10_000;
+        repository.cached = true;
+        assertThat(pro().synthesize(USER, "이미 만든 줄", "F1").cached()).isTrue();
+        assertThat(calls).hasValue(0);
+        assertThat(repository.increments).isZero();
+    }
+
+    @Test
+    void proMonthlyRaceAtFinalRecordReturns429Not503() {
+        repository.consent = "granted";
+        repository.loseMonthlyRace = true;
+        assertDetail(pro(), 429, "cloud_voice_monthly_limit");
+        assertThat(repository.increments).isZero();
+    }
+
+    @Test
+    void proMonthStartsAtKoreanMidnightOnTheFirst() {
+        var target = new CloudVoiceService(repository, storage, synthesizer, settings(),
+                Clock.fixed(Instant.parse("2026-10-31T15:00:00Z"), ZoneId.of("UTC")), id -> true);
+        target.status(USER);
+        assertThat(repository.queriedMonth).isEqualTo(java.time.YearMonth.of(2026, 11));
     }
 
     private CloudVoiceService endedFree() {
-        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
         return new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
     }
 
@@ -217,7 +272,7 @@ class CloudVoiceServiceTest {
 
     @Test
     void reasonIsProOrFreePeriod() {
-        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
         var pro = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
         assertThat(pro.status(USER).reason()).isEqualTo("pro");
         assertThat(pro.status(USER).proOnly()).isFalse();
@@ -232,7 +287,7 @@ class CloudVoiceServiceTest {
     }
 
     private CloudVoiceSettings settings() {
-        return new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-11-30T23:59:59+09:00"), 300, 75_000);
+        return new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-11-30T23:59:59+09:00"), 300, 75_000, 10_000);
     }
 
     private CloudVoiceService service(CloudVoiceSettings settings) {
@@ -252,6 +307,9 @@ class CloudVoiceServiceTest {
         String consent = "undecided";
         int daily;
         int monthly;
+        int accountMonthly;
+        boolean loseMonthlyRace;
+        java.time.YearMonth queriedMonth;
         boolean cached;
         int increments;
         final Map<String, CacheEntry> rows = new HashMap<>();
@@ -262,6 +320,11 @@ class CloudVoiceServiceTest {
         public String consent(UUID userId) { return consent; }
         public int dailyUsage(UUID userId, java.time.LocalDate day) { return daily; }
         public int monthlyUsage(java.time.YearMonth month) { return monthly; }
+        public int monthlyUsage(UUID userId, java.time.YearMonth month) { queriedMonth = month; return accountMonthly; }
+        public boolean recordSuccessWithinMonthlyCap(UUID userId, java.time.LocalDate day, CacheEntry entry, String model, String voice, int byteSize, Instant now, int cap) {
+            if (loseMonthlyRace || accountMonthly >= cap) return false;
+            recordSuccess(userId, day, entry, model, voice, byteSize, now); accountMonthly++; return true;
+        }
         public CacheEntry findCache(String hash) { return cached ? new CacheEntry(hash, "reading-voice/" + hash + ".wav") : rows.get(hash); }
         public void recordSuccess(UUID userId, java.time.LocalDate day, CacheEntry entry, String model, String voice, int byteSize, Instant now) { rows.put(entry.hash(), entry); increments++; }
     }
