@@ -5,7 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { fetchMe, logout, withdraw, type Me } from "@/lib/api/v2/auth";
 import { errorMessage } from "@/lib/api/v2/errors";
 import { memberProvider, subscribeAuthChange } from "@/lib/auth/token-store";
-import { PAYMENT_START_NOTICE } from "@/features/help/help-content";
+import { SubscriptionCard } from "@/features/billing/subscription-card";
 import { hasPendingCarry, redeemGuestCarry, takeCarryStatus, type CarryOutcome } from "./carry-guest";
 
 const PROVIDER_NAME: Record<string, string> = { google: "구글", naver: "네이버", kakao: "카카오", apple: "애플" };
@@ -148,11 +148,7 @@ export function AccountPanel() {
         </button>
       </section>
 
-      <section className={card}>
-        <h2 className="text-xl font-black">구독</h2>
-        <p className="mt-2 text-sm leading-6 text-[#4e5968]">{PAYMENT_START_NOTICE}</p>
-        <Link href="/pricing" className="mt-3 inline-block text-sm font-semibold text-[#3182f6]">요금 안내 보기</Link>
-      </section>
+      <SubscriptionCard />
 
       <section className={card}>
         <h2 className="text-xl font-black">회원 탈퇴</h2>

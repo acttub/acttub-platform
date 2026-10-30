@@ -206,6 +206,9 @@ jobs:
           # 키가 비면 계측이 꺼진 번들이 나갑니다. dev와 운영에 서로 다른 프로젝트 키를 넣어
           # 통계를 나눕니다. 개인정보처리방침에 PostHog 위탁이 발행되기 전에는 비워 둡니다(위 게이트).
           NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.POSTHOG_KEY_WEB }}
+          # 웹 Pro 결제 화면(SOMA-818). dev·운영 모두 켠다. 실제 결제는 서버 BILLING_WEB_ENABLED 가 따로 연다 —
+          # 서버가 닫혀 있으면 구독 버튼은 "준비 중" 안내만 내고 결제 창을 열지 않는다.
+          NEXT_PUBLIC_BILLING_WEB_ENABLED: 'true'
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_WEB }}
           # secret 이 없으면 빈 값이 들어가고 Dockerfile 이 소스맵 업로드를 건너뜁니다(실측: --secret 의
@@ -219,6 +222,7 @@ jobs:
             --build-arg NEXT_PUBLIC_SENTRY_DSN="$NEXT_PUBLIC_SENTRY_DSN" \
             --build-arg NEXT_PUBLIC_SENTRY_ENV="$NEXT_PUBLIC_SENTRY_ENV" \
             --build-arg NEXT_PUBLIC_POSTHOG_KEY="$NEXT_PUBLIC_POSTHOG_KEY" \
+            --build-arg NEXT_PUBLIC_BILLING_WEB_ENABLED="$NEXT_PUBLIC_BILLING_WEB_ENABLED" \
             --build-arg NEXT_PUBLIC_APP_COMMIT="$GITHUB_SHA" \
             --build-arg SENTRY_ORG="$SENTRY_ORG" \
             --build-arg SENTRY_PROJECT="$SENTRY_PROJECT" \
