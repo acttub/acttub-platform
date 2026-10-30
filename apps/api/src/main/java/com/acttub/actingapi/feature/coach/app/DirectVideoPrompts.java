@@ -183,6 +183,34 @@ final class DirectVideoPrompts {
         return CoachOpenings.B.equals(opening) && korean ? "\n\n" + resource("openings/b") : "";
     }
 
+    /** 이 장면에서 배우가 아니라고 한 진단이 이만큼 쌓이면 첫 응답에서 그 진단을 피하라고 맨 끝에 붙인다. */
+    static final int REJECTED_MIN = 2;
+
+    /**
+     * 배우가 여러 번 아니라고 한 진단을 첫 응답 지시 맨 끝에 붙인다. 운영 10/26~29: 한 배우가 같은 장면 40회 동안
+     * "설득보다 내 감정·답답함·설명"을 말만 바꿔 계속 들었다(공통 지시의 "다시 고르지 않는다" 한 줄은 지켜지지 않았다).
+     */
+    static String rejectedBlock(PriorContext prior, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (!korean || prior == null) return "";
+        String avoid = prior.memory().get("avoid");
+        if (avoid == null || avoid.isBlank()) return "";
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        int count = 0;
+        for (String line : avoid.split("\\R")) {
+            String t = line.strip();
+            if (!t.startsWith("-")) continue;
+            count++;
+            int colon = t.indexOf(':');
+            String key = (colon > 0 ? t.substring(1, colon) : t.substring(1)).strip();
+            if (!key.isEmpty()) keys.add(key);
+        }
+        if (count < REJECTED_MIN) return "";
+        StringBuilder list = new StringBuilder();
+        keys.stream().limit(6).forEach(k -> list.append("- ").append(k).append('\n'));
+        return "\n\n" + resource("openings/rejected").replace("{{count}}", String.valueOf(count)).replace("{{list}}", list.toString().strip());
+    }
+
     /** 첫 코칭 첫 말 B 대화의 둘째 응답부터의 지시. 연습 루프 턴 조립 맨 끝에 붙는다. */
     static String openingTurnBlock(String opening, java.util.Locale language) {
         boolean korean = language == null || "ko".equals(language.getLanguage());

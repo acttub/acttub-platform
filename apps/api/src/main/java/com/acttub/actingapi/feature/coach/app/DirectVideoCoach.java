@@ -472,7 +472,8 @@ public final class DirectVideoCoach {
                     first = coaching.withoutNeverSay(coaching.firstTask(first));
                 }
                 task = first + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language)
-                        + DirectVideoPrompts.openingBlock(opening, language);
+                        + DirectVideoPrompts.openingBlock(opening, language)
+                        + DirectVideoPrompts.rejectedBlock(session.priorForModel(), language);
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
