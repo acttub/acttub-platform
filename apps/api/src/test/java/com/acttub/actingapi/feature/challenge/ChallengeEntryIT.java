@@ -494,6 +494,39 @@ class ChallengeEntryIT {
         assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", "not-a-cursor"), 422)).isNotNull();
     }
 
+    @Test void challengeBrowse_likesOrderSlotsBarelySeenNewEntriesIntoEveryThirdPlaceWithoutARank() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        var byRank = new ArrayList<String>();
+        for (int i = 0; i < 12; i++) byRank.add(seeded(challenge, member("배우 " + i), i, 30 - i).toString());
+        String oldest = seeded(challenge, member("덜 본 하나"), 20, 0, 4).toString();
+        String middle = seeded(challenge, member("덜 본 둘"), 21, 0, 0).toString();
+        String newest = seeded(challenge, member("덜 본 셋"), 22, 0, 0).toString();
+        String crowded = seeded(challenge, member("많이 본"), 23, 0, 5).toString();
+        String already = seeded(challenge, member("이미 본"), 24, 0, 0).toString();
+        jdbc.update("INSERT INTO entry_view_events(event_id,entry_id,user_id,created_at) VALUES (?,?::uuid,?,?)",
+                UUID.randomUUID(), already, user, java.sql.Timestamp.from(NOW));
+        String mine = seeded(challenge, user, 25, 0, 0).toString();
+        JsonNode likes = response(get("/v2/challenges/{id}/entries", challenge), 200);
+        var expected = new ArrayList<String>(byRank);
+        expected.add(2, newest);
+        expected.add(5, middle);
+        expected.add(8, oldest);
+        expected.add(crowded);
+        expected.add(already);
+        expected.add(mine);
+        assertThat(ids(likes)).containsExactlyElementsOf(expected);
+        assertThat(likes.at("/entries/2/rank").isNull()).isTrue();
+        assertThat(likes.at("/entries/5/rank").isNull()).isTrue();
+        assertThat(likes.at("/entries/8/rank").isNull()).isTrue();
+        assertThat(likes.at("/entries/3/rank").asInt()).isEqualTo(3);
+        assertThat(likes.at("/entries/14/rank").asInt()).isEqualTo(12);
+        assertThat(likes.at("/entries/15/rank").asInt()).isEqualTo(13);
+        JsonNode fromNewest = response(get("/v2/challenges/{id}/entries", challenge).param("from_entry", newest), 200);
+        assertThat(ids(fromNewest)).containsExactlyElementsOf(expected.subList(2, expected.size()));
+        assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200)).getFirst())
+                .isEqualTo(mine);
+    }
+
     @Test void challengeBrowse_heldOrderSurvivesOvertakingButRechecksVisibilityAndExpiresWhenTheBasisChanges() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofHours(1)));
         var byRank = new ArrayList<UUID>();
@@ -701,16 +734,23 @@ class ChallengeEntryIT {
         return id;
     }
 
-    /** 다른 배우의 공개 참여작. 공개 시각은 NOW 뒤 {@code order} 분이다. */
+    /**
+     * 다른 배우의 공개 참여작. 공개 시각은 NOW 뒤 {@code order} 분이다. 조회수는 기본 10이라 덜 본 참여작 끼우기
+     * (SOMA-957) 대상이 아니다 — 끼우기를 보는 테스트만 조회수를 직접 정한다.
+     */
     private UUID seeded(UUID challenge, UUID owner, int order, int likeCount) {
+        return seeded(challenge, owner, order, likeCount, 10);
+    }
+
+    private UUID seeded(UUID challenge, UUID owner, int order, int likeCount, int views) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,visibility,status,request_id,request_fingerprint,
-                                              published_at,created_at)
-                VALUES (?,?,?,?,'public','visible',?,?,?,?)
+                                              published_at,created_at,view_count)
+                VALUES (?,?,?,?,'public','visible',?,?,?,?,?)
                 """, id, challenge, owner, video(owner, 30_000), UUID.randomUUID(), "0".repeat(64),
                 java.sql.Timestamp.from(NOW.minus(Duration.ofHours(1)).plus(Duration.ofMinutes(order))),
-                java.sql.Timestamp.from(NOW.minus(Duration.ofHours(1))));
+                java.sql.Timestamp.from(NOW.minus(Duration.ofHours(1))), views);
         likes(id, likeCount);
         return id;
     }
