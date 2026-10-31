@@ -407,6 +407,8 @@ public final class DirectVideoCoach {
             String task;
             // 이어서 찍은 회차의 같은 장면 판단(받아 적기)과 지난 시도 첫 답을 기본 첫 답과 함께 돌린다(아래).
             String continuationBlock = null;
+            // 화면이 한국어이고 배우가 아직 아무 글도 안 쓴 첫 응답이면, 보일 말의 언어를 영상 대사에 맞추게 한다(아래 firstQuestionLanguage).
+            boolean languageOpen = false;
             PriorContext continuationPrior = null;
             java.util.concurrent.CompletableFuture<String> heardFuture = null;
             if (purposeTurn != null) {
@@ -468,12 +470,19 @@ public final class DirectVideoCoach {
                     }, SIDE_CALLS);
                 }
                 String first = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language);
+                // 2026-10-25 02:42·10-31 01:46 운영: 영어 대사 영상인데 배우가 쓴 글이 없어 첫 질문이 한국어로 나갔다.
+                // 배우는 "I can't read that language"라고 하거나 영어로 답했다. 대사가 한국어가 아니면 그 말로 첫 질문을 쓰게 한다.
+                // 개인 프롬프트·첫 말 칸이 맨 뒤에 오도록 첫 응답 지시 바로 뒤에 붙인다.
+                languageOpen = language == null && DirectVideoPracticeLoop.languageUndecided(session, actorText);
                 if (coaching != null && (language == null || "ko".equals(language.getLanguage()))) {
                     first = coaching.withoutNeverSay(coaching.firstTask(first));
                 }
+                if (languageOpen) first = first + "\n\n" + DirectVideoPrompts.firstQuestionLanguage();
                 task = first + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language)
                         + DirectVideoPrompts.openingBlock(opening, language)
                         + DirectVideoPrompts.rejectedBlock(session.priorForModel(), language);
+                // 2026-10-25 02:42·10-31 01:46 운영: 영어 대사 영상인데 배우가 쓴 글이 없어 첫 질문이 한국어로 나갔다.
+                // 배우는 "I can't read that language"라고 하거나 영어로 답했다. 대사가 한국어가 아니면 그 말로 첫 질문을 쓰게 한다.
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
@@ -531,6 +540,10 @@ public final class DirectVideoCoach {
             // 연습 루프에서 배우에게 보일 말이 비었으면(빈 응답, 숨은 메모만 쓴 응답) 한 번 다시 쓰게 한다.
             boolean emptyRetry = false;
             boolean lightRetry = false;
+            if (languageOpen && message != null) {
+                java.util.Locale written0 = DirectVideoPracticeLoop.writtenLanguage(DirectVideoPracticeLoop.parse(message).message());
+                if (written0 != null) replyLanguage = written0;
+            }
             if (loop && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
                 emptyRetry = true;
                 ExternalOperationExecution.externalCall("model");
@@ -596,7 +609,7 @@ public final class DirectVideoCoach {
                 ExternalOperationExecution.externalCall("model");
                 // 다시 쓴 답이 비거나 한도에 걸려 끊기면 처음 답을 쓰고 시간만 걷어낸다.
                 String again = replyOrNull(speaker, uploaded, history, prompt + "\n\n"
-                        + DirectVideoPracticeLoop.timestampRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)), loop, trace);
+                        + DirectVideoPracticeLoop.timestampRetryNote(replyLanguage), loop, trace);
                 if (again != null && !again.isBlank() && !DirectVideoPracticeLoop.parse(again).message().isBlank()) {
                     try {
                         DirectVideoDialogueEvidence.requireGrounded(uploaded, again, written);
@@ -631,10 +644,11 @@ public final class DirectVideoCoach {
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
             }
             // 배우에게는 코치 본문만 저장한다. 숨은 칸(<설계>·<상태>)은 아래에서 상태에 둔다.
-            String shown = loop ? parsed.message() : message.strip();
+            // 첫 질문 모양의 자리표시([상대]·[인물])를 모델이 그대로 두면 배우 화면에 괄호째 보인다(10/31 15:14 운영).
+            String shown = DirectVideoPracticeLoop.withoutPlaceholders(loop ? parsed.message() : message.strip());
             // 첫 응답에서 모델이 연기 영상이 아니라고 분류했으면 그 코치 문장은 버리고 끊는다.
             boolean cut = loop && !talk && !listen && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
-            if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
+            if (cut) shown = DirectVideoPracticeLoop.notActingMessage(replyLanguage);
             // 첫 응답은 질문 한 문장이다. 앞에 붙인 인사·작품 설명 같은 군말은 걷어낸다.
             // 첫 코칭 첫 말 B는 본 것·다음 테이크·질문까지 여러 줄이 한 덩어리라 질문 줄만 남기지 않는다.
             if (loop && !cut && !streaming && session.turns().isEmpty() && !(openingB && purpose == null)
@@ -713,7 +727,7 @@ public final class DirectVideoCoach {
             }
             // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 상한(공용 60자)을 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
             // 자문위원 프롬프트는 사람마다 길이 상한을 따로 둔다(SOMA-622). 없으면 공용 상한 60자다.
-            int replyLimit = loop ? DirectVideoPrompts.personaReplyLimit(persona, DirectVideoPracticeLoop.replyLanguage(session, actorText), profile)
+            int replyLimit = loop ? DirectVideoPrompts.personaReplyLimit(persona, replyLanguage, profile)
                     : DirectVideoPracticeLoop.LONG_REPLY;
             int shortened = 0;
             long repliedNanos = System.nanoTime();
@@ -728,7 +742,7 @@ public final class DirectVideoCoach {
             // 첫 코칭 첫 말 B의 첫 응답은 200자 안쪽 여러 줄이 목표다. 줄이기는 40~60자 질문 한 줄로 만들어 버리므로 건너뛴다.
             if (openingB && session.turns().isEmpty()) limit = Integer.MAX_VALUE;
             while (loop && !cut && !streaming && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > limit) {
-                String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, profile, uploaded, written, operationId);
+                String shorter = shorten(shown, replyLanguage, persona, profile, uploaded, written, operationId);
                 shortened++;
                 if (shorter == null) break;
                 shown = shorter;

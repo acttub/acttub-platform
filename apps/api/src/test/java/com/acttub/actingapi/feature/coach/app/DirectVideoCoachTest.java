@@ -21,6 +21,9 @@ import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import org.junit.jupiter.api.Test;
 
 class DirectVideoCoachTest {
+    /** 배우 글이 없는 첫 응답에 붙는 보일 말 언어 지시. */
+    static final String OPEN_LANGUAGE = "\n\n" + DirectVideoPrompts.firstQuestionLanguage();
+
     final DirectVideoModel model = mock(DirectVideoModel.class);
     final CoachVideoSource videos = mock(CoachVideoSource.class);
     final ObjectStorage storage = mock(ObjectStorage.class);
@@ -352,7 +355,7 @@ class DirectVideoCoachTest {
         verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
         String persona = DirectVideoPrompts.persona("b1", null);
         assertThat(persona).startsWith("[이 코치의 성격: 무뚝뚝한 현장 연출가]");
-        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + AnswerExamples.INSTRUCTION + "\n\n" + persona);
+        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + OPEN_LANGUAGE + AnswerExamples.INSTRUCTION + "\n\n" + persona);
         assertThat(prompts.getAllValues().get(1)).startsWith(DirectVideoPrompts.practiceLoopTurn()).endsWith(persona);
         assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
                 .allSatisfy(call -> assertThat(call.metadata()).containsEntry("persona", "b1"));
@@ -372,7 +375,7 @@ class DirectVideoCoachTest {
         verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
         String own = DirectVideoPrompts.persona("park-seunga", null);
         assertThat(own).startsWith("[이 배우에게 맞춘 코칭]").doesNotContain("[길이]");
-        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + AnswerExamples.INSTRUCTION + "\n\n" + own);
+        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + OPEN_LANGUAGE + AnswerExamples.INSTRUCTION + "\n\n" + own);
         assertThat(prompts.getAllValues().get(1)).startsWith(DirectVideoPrompts.practiceLoopTurn()).endsWith(own);
         assertThat(second.reply().message()).isEqualTo(reply);
         assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
@@ -548,7 +551,7 @@ class DirectVideoCoachTest {
         var advisor = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> CoachPersonas.DEFAULT))).start(session(), UUID.randomUUID());
         assertThat(advisor.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("a");
-        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.practiceLoop(advisor.session().practiceSessionId()) + AnswerExamples.INSTRUCTION));
+        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.practiceLoop(advisor.session().practiceSessionId()) + OPEN_LANGUAGE + AnswerExamples.INSTRUCTION));
         var other = practiceLoopEngine().start(session(), UUID.randomUUID());
         assertThat(other.session().coachingState().path("practice_loop").has("persona")).isFalse();
         assertThat(DirectVideoPrompts.persona("b1", Locale.ENGLISH)).as("성격 글은 한국어 대화에만 붙는다").isEmpty();
@@ -599,7 +602,7 @@ class DirectVideoCoachTest {
                 new DirectVideoModel.Message("user", "붙잡길 바랐던 것 같아요"),
                 new DirectVideoModel.Message("model", "붙잡히고 싶은 마음이 먼저였군요.\n그 마음은 어느 대사에서 가장 커요?"),
                 new DirectVideoModel.Message("user", "상대가 떠나면 안 되니까요"));
-        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + AnswerExamples.INSTRUCTION);
+        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + OPEN_LANGUAGE + AnswerExamples.INSTRUCTION);
         assertThat(prompts.getAllValues().get(1)).startsWith(DirectVideoPrompts.practiceLoopTurn())
                 .contains("[이번 응답]\n지금 단계: 2/4 보여 주기와 어긋남", "재료", "- 배우가 말한 첫 답: 붙잡길 바랐던 것 같아요",
                         "- 배우가 방금 한 말: 붙잡길 바랐던 것 같아요")
