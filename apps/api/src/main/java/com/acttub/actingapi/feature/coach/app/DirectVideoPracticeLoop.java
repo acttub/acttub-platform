@@ -422,43 +422,7 @@ final class DirectVideoPracticeLoop {
             java.util.Locale found = languageOf(text);
             if (found != UNDECIDED) return found;
         }
-        // 배우 글로 정해지지 않으면 코치 첫 말의 언어를 따른다. 첫 말은 영상 대사에 맞춰 영어로 나갈 수 있다(firstQuestionLanguage).
-        String firstCoach = firstCoachText(session);
-        if (firstCoach != null) {
-            java.util.Locale found = languageOf(firstCoach);
-            if (found != UNDECIDED) return found;
-        }
         return null;
-    }
-
-    private static String firstCoachText(CoachSessionSnapshot session) {
-        if (session == null) return null;
-        for (CoachTurnSnapshot turn : session.turns()) if ("ai".equals(turn.role())) return turn.text();
-        return null;
-    }
-
-    /**
-     * 첫 응답에서 답할 말을 아직 정할 수 없는지. 화면이 한국어이고, 대화가 없고, 이번 배우 글·연습 메모에서 말이 판단되지 않을 때다.
-     * 이때 첫 질문은 영상 대사의 말을 따르게 한다(한국어 대사면 한국어 그대로).
-     */
-    static boolean languageUndecided(CoachSessionSnapshot session, String actorText) {
-        if (!OutputLanguage.isKorean() || session == null || !session.turns().isEmpty()) return false;
-        var candidates = new ArrayList<String>();
-        if (actorText != null) candidates.add(actorText);
-        candidates.add(String.join(" ", java.util.stream.Stream.of(session.situation(), session.characterContext(),
-                session.goal(), session.blockageDetail()).filter(v -> v != null && !blank(v)).toList()));
-        for (String text : candidates) {
-            if (text == null || text.isBlank() || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
-            if (languageOf(text) != UNDECIDED) return false;
-        }
-        return true;
-    }
-
-    /** 코치가 쓴 보일 말의 언어. 한국어이거나 판단되지 않으면 {@code null}. */
-    static java.util.Locale writtenLanguage(String text) {
-        if (text == null || text.isBlank()) return null;
-        java.util.Locale found = languageOf(text);
-        return found == UNDECIDED ? null : found;
     }
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\[(상대|인물)\\]");
