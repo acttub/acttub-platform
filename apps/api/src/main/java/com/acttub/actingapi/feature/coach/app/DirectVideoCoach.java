@@ -631,7 +631,8 @@ public final class DirectVideoCoach {
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
             }
             // 배우에게는 코치 본문만 저장한다. 숨은 칸(<설계>·<상태>)은 아래에서 상태에 둔다.
-            String shown = loop ? parsed.message() : message.strip();
+            // 첫 질문 모양의 자리표시([상대]·[인물])를 모델이 그대로 두면 배우 화면에 괄호째 보인다(10/31 15:14 운영).
+            String shown = DirectVideoPracticeLoop.withoutPlaceholders(loop ? parsed.message() : message.strip());
             // 첫 응답에서 모델이 연기 영상이 아니라고 분류했으면 그 코치 문장은 버리고 끊는다.
             boolean cut = loop && !talk && !listen && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
             if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
