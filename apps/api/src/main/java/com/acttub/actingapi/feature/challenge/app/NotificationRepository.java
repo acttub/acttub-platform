@@ -28,6 +28,12 @@ public interface NotificationRepository {
     /** "등록되지 않은 기기"로 답이 온 토큰을 지운다. */
     void forgetTokens(List<String> tokens);
 
+    /**
+     * 하루 조회 요약(SOMA-958): 지난 24시간에 남이 내 참여작을 본 서로 다른 사람 수를 사람마다 한 번 보낼 메시지로 만든다.
+     * 같은 한국 날짜에는 다시 만들지 않는다. 밤(21시~09시)이면 아무것도 만들지 않는다.
+     */
+    List<Outgoing> viewDigest(Instant now, int recipients);
+
     record Outgoing(String token, String title, String body, Map<String, String> data) { }
 
     @Schema(name = "ChallengeNotificationGroup", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
