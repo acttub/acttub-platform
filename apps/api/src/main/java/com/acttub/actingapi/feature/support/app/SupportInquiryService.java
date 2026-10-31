@@ -58,6 +58,11 @@ public class SupportInquiryService {
         return new Accepted(id, now);
     }
 
+    /** 로그인한 계정이 보낸 문의, 새것부터 {@link SupportInquiryRules#MINE_LIMIT} 건. */
+    public List<Inquiry> mine(UUID userId) {
+        return store.listByUser(userId, SupportInquiryRules.MINE_LIMIT);
+    }
+
     public List<Inquiry> list(String status, int limit) {
         return store.list(status, limit);
     }

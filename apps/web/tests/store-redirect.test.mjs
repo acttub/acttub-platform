@@ -1,16 +1,14 @@
 // /go/<os>/<surface>[/<source>]: 배지 클릭을 Cloudflare 가 센 뒤 스토어로 넘기는 중간 페이지. JS 가 안 돌아도
-// 막다른 길이 되지 않게 "바로 이동하기" 링크가 같은 스토어 주소를 갖는다. 옛 /practice 주소는 /home 으로 옮긴다.
+// 막다른 길이 되지 않게 "바로 이동하기" 링크가 같은 스토어 주소를 갖는다.
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
 import "./ts-module-loader.mjs";
-import { react, window } from "./mount-probe.mjs";
-import { navigation, resetNavigation } from "./fixtures/features-next-shims.mjs";
+import "./mount-probe.mjs";
 
 const { cleanup, render, screen } = await import("@testing-library/react");
 const goPage = await import("../src/app/go/[os]/[surface]/page.tsx");
 const goSourcePage = await import("../src/app/go/[os]/[surface]/[source]/page.tsx");
-const { default: LegacyPracticePage } = await import("../src/app/practice/page.tsx");
 
 afterEach(() => {
   cleanup();
@@ -57,13 +55,4 @@ test("정적 생성 주소는 두 기기 × 여덟 자리, 출처 칸이 붙으�
   assert.deepEqual(withSource[1], { os: "ios", surface: "landing_header", source: "naver_ad" });
   assert.equal(goPage.dynamicParams, false);
   assert.equal(goSourcePage.dynamicParams, false);
-});
-
-test("옛 /practice 주소는 UTM 을 실은 채 /home 으로 옮긴다", () => {
-  resetNavigation("/practice");
-  window.history.replaceState(null, "", "/practice?utm_source=naver&utm_medium=cpc&session=x");
-
-  render(react.createElement(LegacyPracticePage));
-
-  assert.deepEqual(navigation.pushed, ["/home?utm_source=naver&utm_medium=cpc"]);
 });

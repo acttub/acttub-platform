@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
@@ -13,13 +13,10 @@ import { useScrollSettle } from "@/features/site/scroll-settle";
 import { LandingHeroB } from "@/features/site/landing-hero-b";
 import { DEFAULT_HERO_MEDIA, type HeroMedia } from "@/features/site/landing-hero-media";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
-import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import {
   trackLandingDownloadClick,
   trackLandingVariantView,
-  trackLandingWebTryClick,
 } from "@/lib/analytics/ga";
-import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
 import { APP_DOWNLOAD_ATTR, APP_DOWNLOAD_STORE_ATTR } from "@/lib/app-download/store-links";
 import type { LandingVariant } from "@/lib/landing-variant";
 
@@ -66,7 +63,6 @@ type Feature = {
   body: string;
   bullets: string[];
   appLabel: string;
-  web?: { href: string; label: string };
   shot: string;
   shotAlt: string;
 };
@@ -81,15 +77,8 @@ export default function LandingClient({
 }) {
   const isB = variant === "b";
   const campaignSearch = useCampaignSearch();
-  const practiceHref = preserveWebAttributionFromSearch("/practice/new", campaignSearch);
-  const readingHref = preserveWebAttributionFromSearch("/reading", campaignSearch);
-  const homeHref = preserveWebAttributionFromSearch("/home", campaignSearch);
   const appHref = useAppDownloadHref("landing_hero");
   const appSectionHref = useAppDownloadHref("landing_app_section");
-  // 이 브라우저에서 연습하던 게스트도 홈(/)을 그대로 본다. 예전에는 /home 으로 바로 넘겨서
-  // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
-  // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
-  const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
   // 데스크톱: 스크롤을 멈췄을 때 구간(data-snap) 윗부분이 머리 근처에 걸쳐 있으면 그 구간에 맞춘다.
   useScrollSettle();
   // 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
@@ -133,8 +122,6 @@ export default function LandingClient({
         );
         return;
       }
-      const web = target.closest("[data-landing-web]");
-      if (web) trackLandingWebTryClick(variant, web.getAttribute("data-landing-web") ?? "unknown");
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
@@ -148,7 +135,6 @@ export default function LandingClient({
       body: "찍어 둔 연기 영상을 올리면 코치가 장면을 보고 질문해요. 답하다 보면 막힌 곳이 보이고, 대화가 끝나면 연습 노트가 남아요.",
       bullets: ["영상 없이 말로 고민을 털어놔도 돼요", "다음 테이크에서 해 볼 것 하나를 정해 줘요"],
       appLabel: "앱에서 코칭 받기",
-      web: { href: practiceHref, label: "웹에서 해 보기" },
       shot: "/site/shot-note.jpg",
       shotAlt: "앱의 연습 노트 화면",
     },
@@ -159,7 +145,6 @@ export default function LandingClient({
       body: "대본을 넣고 내 배역을 고르면 상대역 대사를 AI가 소리 내 읽어 줘요. 내 대사는 가리고 호흡을 맞춰 봐요.",
       bullets: ["TXT·DOCX·PDF·HWP 파일이나 붙여넣기로 넣어요", "예시 대본으로 바로 시작할 수도 있어요"],
       appLabel: "앱에서 리딩하기",
-      web: { href: readingHref, label: "웹에서 해 보기" },
       shot: "/site/shot-reading.jpg",
       shotAlt: "앱의 대본 리딩 화면",
     },
@@ -186,8 +171,6 @@ export default function LandingClient({
           {isB ? (
             <LandingHeroB
               appHref={appHref}
-              webHref={returningGuest ? homeHref : practiceHref}
-              returningGuest={returningGuest}
               campaignSearch={campaignSearch}
               media={heroMedia}
             />
@@ -225,13 +208,9 @@ export default function LandingClient({
                 </div>
 
                 <p className="mt-4 text-center text-[15px] font-semibold text-[#4e5968] lg:mt-5 lg:text-left lg:text-base">
-                  {returningGuest ? "이 브라우저에서 하던 연습이 있어요 " : "설치 전에 "}
-                  <Link
-                    href={returningGuest ? homeHref : practiceHref}
-                    data-landing-web="landing_hero"
-                    className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
-                  >
-                    {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
+                  계정이 있나요?{" "}
+                  <Link href="/login" className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
+                    로그인
                   </Link>
                 </p>
               </div>
@@ -294,15 +273,6 @@ export default function LandingClient({
                   >
                     {f.appLabel}
                   </a>
-                  {f.web ? (
-                    <Link
-                      href={f.web.href}
-                      data-landing-web={`landing_${f.id}`}
-                      className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
-                    >
-                      {f.web.label}
-                    </Link>
-                  ) : null}
                 </div>
               </div>
               <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:w-[280px]" />

@@ -1,7 +1,7 @@
 import type { KeywordPageContent } from "../../types";
 
 export const ACTING_SELF_STUDY_ROUTINE: KeywordPageContent = {
-  path: "/guide/acting-self-study-routine",
+  path: "/blog/acting-self-study-routine",
   title: "연기 독학 루틴 — 학원 없이 매일 30분으로 굴러가는 연습 계획",
   description:
     "연기 학원에 다니지 않아도, 수업과 수업 사이에도 굴러가는 연기 독학 루틴이에요. 하루 30분 구성, 주간 계획, 독학이 막히는 세 지점과 그 대처법을 정리했어요.",
@@ -115,9 +115,9 @@ export const ACTING_SELF_STUDY_ROUTINE: KeywordPageContent = {
     },
   ],
   related: [
-    { href: "/guide/monologue-practice", label: "독백 연습 혼자 하는 법" },
-    { href: "/guide/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
-    { href: "/guide/how-to-choose-acting-academy", label: "연기학원 고르는 법" },
+    { href: "/blog/monologue-practice", label: "독백 연습 혼자 하는 법" },
+    { href: "/blog/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
+    { href: "/blog/how-to-choose-acting-academy", label: "연기학원 고르는 법" },
     { href: "/acting-coaching", label: "연기 코칭을 받는 다섯 가지 방법" },
     { href: "/ai-acting-coaching", label: "AI 연기 코칭이 뭔가요?" },
   ],

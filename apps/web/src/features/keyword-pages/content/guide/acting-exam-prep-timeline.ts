@@ -2,7 +2,7 @@ import type { KeywordPageContent } from "../../types";
 
 // 학교별 날짜·배수·시간은 적지 않는다 — 해마다 바뀌고 정본은 /admissions 와 각 대학 입학처다.
 export const ACTING_EXAM_PREP_TIMELINE: KeywordPageContent = {
-  path: "/guide/acting-exam-prep-timeline",
+  path: "/blog/acting-exam-prep-timeline",
   title: "연극영화과 입시 준비 — 언제 무엇을 해야 하는지 한눈에",
   description:
     "연극영화과·연기 전공 입시를 준비하는 순서예요. 실기의 종류(자유연기·지정연기·특기·면접), 학교 고르기, 1년 전·6개월 전·3개월 전·한 달 전·시험 주간에 할 일, 흔한 실수를 정리했어요.",
@@ -150,9 +150,9 @@ export const ACTING_EXAM_PREP_TIMELINE: KeywordPageContent = {
   ],
   related: [
     { href: "/admissions", label: "연극영화과 입시 정보 (대학별 요강·실기·일정)" },
-    { href: "/guide/choosing-free-acting-piece", label: "자유연기 작품 고르는 법" },
-    { href: "/guide/monologue-practice", label: "독백 연습 혼자 하는 법" },
-    { href: "/guide/how-to-choose-acting-academy", label: "연기학원 고르는 법" },
+    { href: "/blog/choosing-free-acting-piece", label: "자유연기 작품 고르는 법" },
+    { href: "/blog/monologue-practice", label: "독백 연습 혼자 하는 법" },
+    { href: "/blog/how-to-choose-acting-academy", label: "연기학원 고르는 법" },
     { href: "/ai-acting-coaching", label: "AI 연기 코칭이 뭔가요?" },
   ],
 };

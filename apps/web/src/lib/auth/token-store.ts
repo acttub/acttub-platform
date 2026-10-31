@@ -2,6 +2,8 @@ export type AuthUser = {
   id: string;
   email: string | null;
   status: "active" | "deactivated";
+  /** 프로필 이름. 로그인 직후 /v2/me 로 채우며, 상단 메뉴의 「<이름> 님」이 읽는다. */
+  name?: string | null;
 };
 
 export type TokenPair = {
@@ -104,6 +106,12 @@ export function clearTokens(): void {
 export function setMemberTokens(pair: TokenPair, user: AuthUser, provider: string): void {
   storage()?.setItem(MEMBER_KEY, provider);
   setTokens(pair, user);
+}
+
+/** 상단 메뉴에 보일 이름. 회원이 아니거나 아직 모르면 빈 문자열(useSyncExternalStore 가 값을 비교하므로 문자열로 준다). */
+export function memberName(): string {
+  if (!isMemberSession()) return "";
+  return getStoredUser()?.name?.trim() ?? "";
 }
 
 /** 로그인한 제공자(google·naver…). 회원 세션이 아니면 null. */

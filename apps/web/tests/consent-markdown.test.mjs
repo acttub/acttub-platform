@@ -7,7 +7,7 @@ import "./ts-module-loader.mjs";
 import { react } from "./mount-probe.mjs";
 
 const { cleanup, render, screen, within } = await import("@testing-library/react");
-const { ConsentMarkdown } = await import("../src/features/practice/consent-markdown.tsx");
+const { ConsentMarkdown } = await import("../src/features/consent/consent-markdown.tsx");
 
 afterEach(cleanup);
 

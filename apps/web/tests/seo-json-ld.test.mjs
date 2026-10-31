@@ -8,7 +8,6 @@ const {
   buildAdmissionsWebPageJsonLd,
   buildBreadcrumbJsonLd,
   buildFaqPageJsonLd,
-  buildGuideItemListJsonLd,
   buildKeywordArticleJsonLd,
   buildMobileApplicationJsonLd,
   buildOrganizationJsonLd,
@@ -168,8 +167,8 @@ test("키워드 Article과 Breadcrumb는 페이지와 Organization을 잇는다"
 test("가이드 Breadcrumb는 목차를 거치는 세 단계다", () => {
   const guide = GUIDES[0];
   const breadcrumb = buildBreadcrumbJsonLd(guide, siteUrl, {
-    path: "/guide",
-    name: "연기 연습 가이드",
+    path: "/blog",
+    name: "블로그",
   });
 
   assert.deepEqual(breadcrumb.itemListElement, [
@@ -177,8 +176,8 @@ test("가이드 Breadcrumb는 목차를 거치는 세 단계다", () => {
     {
       "@type": "ListItem",
       position: 2,
-      name: "연기 연습 가이드",
-      item: `${siteUrl}/guide`,
+      name: "블로그",
+      item: `${siteUrl}/blog`,
     },
     {
       "@type": "ListItem",
@@ -187,20 +186,6 @@ test("가이드 Breadcrumb는 목차를 거치는 세 단계다", () => {
       item: `${siteUrl}${guide.path}`,
     },
   ]);
-});
-
-test("가이드 목차 ItemList는 글 순서와 주소를 보존한다", () => {
-  const itemList = buildGuideItemListJsonLd(GUIDES, siteUrl);
-
-  assert.equal(itemList["@type"], "ItemList");
-  assert.equal(itemList["@id"], `${siteUrl}/guide#list`);
-  assert.deepEqual(itemList.itemListElement[0], {
-    "@type": "ListItem",
-    position: 1,
-    url: `${siteUrl}${GUIDES[0].path}`,
-    name: GUIDES[0].h1,
-  });
-  assert.equal(itemList.itemListElement.length, GUIDES.length);
 });
 
 test("JSON-LD 결과는 undefined 없이 직렬화된다", () => {

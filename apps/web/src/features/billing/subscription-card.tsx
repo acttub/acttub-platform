@@ -5,24 +5,22 @@ import { useEffect, useState } from "react";
 
 import { PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { cancelBillingSubscription, fetchBillingMe, type BillingMe } from "@/lib/api/v2/billing";
-import { WEB_BILLING_ENABLED, cancelDoneMessage, subscriptionViewOf } from "./billing-flow";
-
-const card = "rounded-[28px] bg-white p-6 ring-1 ring-[#e5e8eb] sm:p-8";
+import { cancelDoneMessage, subscriptionViewOf } from "./billing-flow";
 
 type State = { kind: "loading" } | { kind: "closed" } | { kind: "error" } | { kind: "ready"; me: BillingMe };
 
 /**
- * 내 계정의 「구독」 칸 (SOMA-818). 웹(토스) 구독은 여기서 상태를 보고 해지한다. 앱 스토어 구독은 해지할 곳만 안내한다.
- * 웹 결제를 열지 않은 빌드이거나 서버가 결제를 닫아 두면(404) 예전처럼 결제 시작 안내만 보인다.
+ * 내 계정의 「구독」 칸 (SOMA-818, SOMA-834). 이 화면에서 상자로 묶는 곳은 여기 하나뿐이다.
+ * 웹(토스) 구독은 상태를 보고 여기서 해지한다. 앱 스토어 구독은 그 스토어에서 바꾸고 해지하는 길만 안내한다.
+ * 서버가 결제를 닫아 두면(404) 결제 시작 안내만 보인다. 웹 결제를 연 빌드가 아니어도 스토어 구독은 읽는다.
  */
 export function SubscriptionCard() {
-  const [state, setState] = useState<State>(WEB_BILLING_ENABLED ? { kind: "loading" } : { kind: "closed" });
+  const [state, setState] = useState<State>({ kind: "loading" });
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!WEB_BILLING_ENABLED) return;
     const controller = new AbortController();
     fetchBillingMe({ signal: controller.signal })
       .then((me) => setState({ kind: "ready", me }))
@@ -49,37 +47,46 @@ export function SubscriptionCard() {
     }
   }
 
+  const frame = (children: React.ReactNode, busy = false) => (
+    <section aria-labelledby="account-subscription" aria-busy={busy}>
+      <h2 id="account-subscription" className="text-xl font-black">구독</h2>
+      <div className="mt-5 rounded-[28px] bg-[#f2f4f6] p-6 sm:p-8">{children}</div>
+    </section>
+  );
+
   if (state.kind === "loading") {
-    return (
-      <section className={card} aria-busy="true">
-        <h2 className="text-xl font-black">구독</h2>
-        <div className="mt-4 h-4 w-40 animate-pulse rounded bg-[#f2f4f6]" />
-        <div className="mt-3 h-4 w-56 animate-pulse rounded bg-[#f2f4f6]" />
-      </section>
+    return frame(
+      <>
+        <div className="h-6 w-24 animate-pulse rounded bg-[#e5e8eb]" />
+        <div className="mt-4 h-4 w-56 animate-pulse rounded bg-[#e5e8eb]" />
+      </>,
+      true,
     );
   }
 
   if (state.kind === "closed" || state.kind === "error") {
-    return (
-      <section className={card}>
-        <h2 className="text-xl font-black">구독</h2>
-        <p className="mt-2 text-sm leading-6 text-[#4e5968]">
+    return frame(
+      <>
+        <p className="text-base leading-7 text-[#4e5968]">
           {state.kind === "error" ? "구독 정보를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요." : PAYMENT_START_NOTICE}
         </p>
         <Link href="/pricing" className="mt-3 inline-block text-sm font-semibold text-[#3182f6]">요금 안내 보기</Link>
-      </section>
+      </>,
     );
   }
 
   const view = subscriptionViewOf(state.me);
-  return (
-    <section className={card}>
-      <h2 className="text-xl font-black">구독</h2>
-      <p className="mt-3 text-base font-bold">{view.title}</p>
-      <ul className="mt-2 space-y-1 text-sm leading-6 text-[#4e5968]">
+  return frame(
+    <>
+      <p className="flex flex-wrap items-center gap-2.5">
+        <span className="text-xl font-black text-[#191f28]">{view.title}</span>
+        {view.badge ? <span className="rounded-lg bg-white px-2.5 py-1 text-[13px] font-bold text-[#4e5968]">{view.badge}</span> : null}
+      </p>
+      {view.summary ? <p className="mt-3 text-base leading-7 text-[#191f28]">{view.summary}</p> : null}
+      <ul className="mt-3 space-y-1 text-[15px] leading-7 text-[#4e5968]">
         {view.lines.map((line) => <li key={line}>{line}</li>)}
       </ul>
-      {notice ? <p role="status" className="mt-3 rounded-2xl bg-[#e8f3ff] p-4 text-sm leading-6 text-[#1b64da]">{notice}</p> : null}
+      {notice ? <p role="status" className="mt-4 rounded-2xl bg-[#e8f3ff] p-4 text-sm leading-6 text-[#1b64da]">{notice}</p> : null}
       {view.showPricing ? (
         <Link href="/pricing" className="mt-4 inline-block text-sm font-semibold text-[#3182f6]">요금 안내·Pro 구독하기</Link>
       ) : null}
@@ -105,6 +112,6 @@ export function SubscriptionCard() {
           </div>
         )
       ) : null}
-    </section>
+    </>,
   );
 }

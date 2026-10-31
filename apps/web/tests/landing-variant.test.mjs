@@ -230,7 +230,7 @@ test("B 첫 화면: 같은 제목, 짧은 설명, 주 버튼 하나, 작은 웹 
     [...hero.querySelectorAll("a[data-app-download-store]")].map((a) => a.textContent),
     ["App Store", "Google Play"],
   );
-  assert.ok(within(hero).getByRole("link", { name: "웹에서 먼저 해 보기 →" }));
+  assert.equal(within(hero).getByRole("link", { name: "로그인" }).getAttribute("href"), "/login");
   assert.ok(!hero.textContent.includes("혼자 연습하는 배우를 위한 AI 코치"));
   // 영상이 아직 없으면 기존 코칭 화면 한 장만 보이고 video 는 만들지 않는다.
   const shots = [...hero.querySelectorAll('img[src*="shot-"]')];
@@ -295,7 +295,7 @@ test("태그가 아직 없어도 오류 없이 지나가고 아무것도 바로 
   assert.equal(events.length, 0);
 });
 
-test("앱 다운로드 버튼·스토어 배지·웹 체험 클릭에 안 이름과 자리가 실린다", () => {
+test("앱 다운로드 버튼·스토어 배지 클릭에 안 이름과 자리가 실린다", () => {
   const { container } = render(react.createElement(LandingClient, { variant: "b" }));
   events.length = 0;
 
@@ -303,15 +303,11 @@ test("앱 다운로드 버튼·스토어 배지·웹 체험 클릭에 안 이름
   const heroBadge = container.querySelector('a[data-app-download="landing_hero"][data-app-download-store="app_store"]');
   fireEvent.click(heroBadge);
   fireEvent.click(container.querySelector('a[data-app-download="landing_cta"][data-app-download-store="google_play"]'));
-  fireEvent.click(screen.getByRole("link", { name: "웹에서 먼저 해 보기 →" }));
-  fireEvent.click(within(window.document.getElementById("reading")).getByRole("link", { name: "웹에서 해 보기" }));
 
   const rows = events.map(([, name, p]) => [name, p.landing_variant, p.surface, p.store ?? null]);
   assert.deepEqual(rows, [
     ["app_download_click", "b", "landing_hero", "auto"],
     ["app_download_click", "b", "landing_hero", "app_store"],
     ["app_download_click", "b", "landing_cta", "google_play"],
-    ["web_try_click", "b", "landing_hero", null],
-    ["web_try_click", "b", "landing_reading", null],
   ]);
 });

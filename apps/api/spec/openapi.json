@@ -4335,6 +4335,29 @@
         } ]
       }
     },
+    "/v2/support/inquiries/mine" : {
+      "get" : {
+        "tags" : [ "v2-support" ],
+        "summary" : "List My Support Inquiries",
+        "description" : "로그인한 회원이 보낸 문의를 새것부터 20건. 상태는 표의 open/closed 그대로다.",
+        "operationId" : "list_my_support_inquiries_v2_support_inquiries_mine_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MySupportInquiryList"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/sample-scripts/{sample_script_id}" : {
       "get" : {
         "tags" : [ "v2-sample-scripts" ],
@@ -5282,6 +5305,118 @@
         "security" : [ {
           "HTTPBearer" : [ ]
         } ]
+      }
+    },
+    "/v2/blog/posts" : {
+      "get" : {
+        "tags" : [ "v2-blog" ],
+        "summary" : "List Blog Posts",
+        "description" : "게시된 글만 새것부터. category 로 거르고 limit(1~50, 기본 20)까지.",
+        "operationId" : "list_blog_posts_v2_blog_posts_get",
+        "parameters" : [ {
+          "name" : "category",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "practice", "admissions", "audition", "news" ],
+            "title" : "Category"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "default" : 20,
+            "maximum" : 50,
+            "minimum" : 1,
+            "title" : "Limit"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BlogPostList"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/blog/posts/{slug}" : {
+      "get" : {
+        "tags" : [ "v2-blog" ],
+        "summary" : "Get Blog Post",
+        "description" : "게시된 글 한 편. 없거나 초안이면 404 post_not_found.",
+        "operationId" : "get_blog_post_v2_blog_posts__slug__get",
+        "parameters" : [ {
+          "name" : "slug",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "title" : "Slug"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BlogPostDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not Found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BlogPostDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/blog/images/{name}" : {
+      "get" : {
+        "tags" : [ "v2-blog" ],
+        "summary" : "Get Blog Image",
+        "description" : "운영자가 올린 이미지. 한시적 스토리지 주소로 302 넘긴다. 없으면 404 image_not_found.",
+        "operationId" : "get_blog_image_v2_blog_images__name__get",
+        "parameters" : [ {
+          "name" : "name",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "title" : "Name"
+          }
+        } ],
+        "responses" : {
+          "302" : {
+            "description" : "Found"
+          }
+        }
       }
     },
     "/v2/auth/providers" : {
@@ -11423,6 +11558,54 @@
         "required" : [ "videos" ],
         "title" : "VideoList"
       },
+      "MySupportInquiry" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "category" : {
+            "type" : "string",
+            "title" : "Category"
+          },
+          "summary" : {
+            "type" : "string",
+            "description" : "본문 앞 40자.",
+            "title" : "Summary"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "표에 있는 값 그대로다. 답변 상태는 따로 저장하지 않는다.",
+            "enum" : [ "open", "closed" ],
+            "title" : "Status"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "category", "created_at", "id", "status", "summary" ],
+        "title" : "MySupportInquiry"
+      },
+      "MySupportInquiryList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MySupportInquiry"
+            },
+            "title" : "Items"
+          }
+        },
+        "required" : [ "items" ],
+        "title" : "MySupportInquiryList"
+      },
       "StatusResponse" : {
         "type" : "object",
         "properties" : {
@@ -12774,6 +12957,118 @@
         },
         "required" : [ "entries", "next_cursor", "ranking_state" ],
         "title" : "ChallengeEntryPage"
+      },
+      "BlogPostList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BlogPostSummary"
+            },
+            "title" : "Items"
+          }
+        },
+        "required" : [ "items" ],
+        "title" : "BlogPostList"
+      },
+      "BlogPostSummary" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "title" : "Slug"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "summary" : {
+            "type" : "string",
+            "title" : "Summary"
+          },
+          "category" : {
+            "type" : "string",
+            "enum" : [ "practice", "admissions", "audition", "news" ],
+            "title" : "Category"
+          },
+          "cover_image_url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cover Image Url"
+          },
+          "published_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Published At"
+          },
+          "reading_minutes" : {
+            "type" : "integer",
+            "title" : "Reading Minutes"
+          }
+        },
+        "required" : [ "category", "cover_image_url", "published_at", "reading_minutes", "slug", "summary", "title" ],
+        "title" : "BlogPostSummary"
+      },
+      "BlogPostDetail" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "title" : "Slug"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "summary" : {
+            "type" : "string",
+            "title" : "Summary"
+          },
+          "category" : {
+            "type" : "string",
+            "enum" : [ "practice", "admissions", "audition", "news" ],
+            "title" : "Category"
+          },
+          "cover_image_url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cover Image Url"
+          },
+          "published_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Published At"
+          },
+          "reading_minutes" : {
+            "type" : "integer",
+            "title" : "Reading Minutes"
+          },
+          "author_name" : {
+            "type" : "string",
+            "title" : "Author Name"
+          },
+          "body_markdown" : {
+            "type" : "string",
+            "title" : "Body Markdown"
+          },
+          "app_cta" : {
+            "type" : "string",
+            "enum" : [ "coaching", "reading", "challenge", "none" ],
+            "title" : "App Cta"
+          }
+        },
+        "required" : [ "app_cta", "author_name", "body_markdown", "category", "cover_image_url", "published_at", "reading_minutes", "slug", "summary", "title" ],
+        "title" : "BlogPostDetail"
       },
       "AuthProvidersResponse" : {
         "type" : "object",

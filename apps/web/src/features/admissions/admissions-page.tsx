@@ -21,7 +21,7 @@ import {
   type AdmissionsResponse,
 } from "@/lib/api/v2/admissions";
 import { useResource } from "@/lib/react/use-resource";
-import { RailLayout } from "@/features/nav/app-rail";
+import { SiteLayout } from "@/features/site/site-chrome";
 
 import { answeredAdmissions } from "./answered";
 import {
@@ -97,7 +97,7 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
     .slice(0, 3);
 
   return (
-    <RailLayout>
+    <SiteLayout>
       <main className="h-full">
       <div className="mx-auto w-full max-w-[760px] px-5 py-10">
         <h1 className="text-[26px] font-black tracking-[-0.03em] text-[#191f28]">
@@ -138,14 +138,14 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
           <p>
             입시를 언제부터 어떻게 준비할지는{" "}
             <Link
-              href="/guide/acting-exam-prep-timeline"
+              href="/blog/acting-exam-prep-timeline"
               className="underline underline-offset-4 hover:text-[#191f28]"
             >
               연극영화과 입시 준비 순서
             </Link>
             에, 자유연기 작품을 고르는 기준은{" "}
             <Link
-              href="/guide/choosing-free-acting-piece"
+              href="/blog/choosing-free-acting-piece"
               className="underline underline-offset-4 hover:text-[#191f28]"
             >
               자유연기 작품 고르는 법
@@ -353,7 +353,7 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
 
         </div>
       </main>
-    </RailLayout>
+    </SiteLayout>
   );
 }
 
