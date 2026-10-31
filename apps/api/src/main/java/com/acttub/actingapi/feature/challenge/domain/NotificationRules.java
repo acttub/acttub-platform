@@ -49,6 +49,22 @@ public final class NotificationRules {
         return (time.isBefore(MORNING) ? morning : morning.plusDays(1)).toInstant();
     }
 
+    /** 하루 조회 요약 푸시의 data.kind(알림함 행은 만들지 않는다, SOMA-958). */
+    public static final String VIEW_DIGEST_KIND = "entry_views_daily";
+    /** 조회 요약은 지난 24시간의 서로 다른 시청자를 센다. */
+    public static final Duration VIEW_DIGEST_SPAN = Duration.ofDays(1);
+
+    /** 하루 조회 요약의 같은 날 중복을 막는 키 — 한국 날짜 기준. */
+    public static String viewDigestKey(UUID recipient, Instant at) {
+        return "views|" + recipient + "|" + at.atZone(SEOUL).toLocalDate();
+    }
+
+    /** 조회 요약 문구. 누가 봤는지는 넣지 않고 사람 수만 쓴다. */
+    public static String viewDigestBody(long viewers, boolean korean) {
+        if (korean) return "오늘 내 연기를 " + viewers + "명이 봤어요";
+        return viewers == 1 ? "1 person watched your acting today" : viewers + " people watched your acting today";
+    }
+
     public static String pushTitle(boolean korean) {
         return korean ? "액트텁" : "Acttub";
     }

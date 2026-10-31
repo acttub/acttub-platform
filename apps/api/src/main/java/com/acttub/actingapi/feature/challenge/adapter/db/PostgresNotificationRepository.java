@@ -193,6 +193,43 @@ class PostgresNotificationRepository implements NotificationRepository {
     }
 
     @Override @Transactional
+    public List<Outgoing> viewDigest(Instant now, int recipients) {
+        if (!NotificationRules.outsideNight(now).equals(now)) return List.of();
+        var viewed = NativeTuples.list(em.createNativeQuery("""
+                SELECT e.user_id AS owner,count(DISTINCT seen.user_id) AS viewers
+                FROM entry_view_events seen JOIN challenge_entries e ON e.id=seen.entry_id
+                WHERE seen.created_at>:since AND seen.created_at<=:now AND seen.user_id<>e.user_id AND e.status<>'deleted'
+                GROUP BY e.user_id ORDER BY e.user_id LIMIT :limit
+                """, Tuple.class).setParameter("since", now.minus(NotificationRules.VIEW_DIGEST_SPAN).atOffset(ZoneOffset.UTC))
+                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("limit", recipients));
+        var outgoing = new ArrayList<Outgoing>();
+        for (Tuple row : viewed) {
+            UUID owner = row.get("owner", UUID.class);
+            long viewers = ((Number) row.get("viewers")).longValue();
+            var tokens = NativeTuples.list(em.createNativeQuery("""
+                    SELECT t.token,t.locale FROM push_tokens t JOIN users u ON u.id=t.user_id JOIN user_profiles p ON p.user_id=t.user_id
+                    WHERE t.user_id=:user AND u.status='active' AND p.notify_challenge
+                    ORDER BY t.token
+                    """, Tuple.class).setParameter("user", owner)).stream()
+                    .map(token -> new PushTarget(token.get("token", String.class), token.get("locale", String.class))).toList();
+            if (tokens.isEmpty()) continue;
+            String key = NotificationRules.viewDigestKey(owner, now);
+            boolean claimed = em.createNativeQuery("""
+                    INSERT INTO notification_pushes(id,group_key,stage,user_id,created_at) VALUES (:id,:group,'first',:user,:now)
+                    ON CONFLICT (group_key,stage) DO NOTHING
+                    """).setParameter("id", UUID.randomUUID()).setParameter("group", key).setParameter("user", owner)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate() == 1;
+            if (!claimed) continue;
+            // type 을 challenge_notification 으로 두지 않는다 — 지금 앱은 그 푸시를 알림함으로 보내는데 알림함 행이 없다.
+            var data = java.util.Map.of("type", NotificationRules.VIEW_DIGEST_KIND, "kind", NotificationRules.VIEW_DIGEST_KIND,
+                    "viewers", Long.toString(viewers));
+            tokens.forEach(target -> outgoing.add(new Outgoing(target.token(), NotificationRules.pushTitle(target.korean()),
+                    NotificationRules.viewDigestBody(viewers, target.korean()), data)));
+        }
+        return outgoing;
+    }
+
+    @Override @Transactional
     public void forgetTokens(List<String> tokens) {
         if (tokens.isEmpty()) return;
         em.createNativeQuery("DELETE FROM push_tokens WHERE token IN (:tokens)").setParameter("tokens", tokens).executeUpdate();
