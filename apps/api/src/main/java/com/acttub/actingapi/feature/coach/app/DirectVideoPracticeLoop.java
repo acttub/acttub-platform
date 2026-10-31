@@ -610,6 +610,16 @@ final class DirectVideoPracticeLoop {
         return state == null ? "" : state.path(STATE_KEY).path("already_ab").asText("");
     }
 
+    /** 이 대화의 근거·방법 비교 쪽(SOMA-955). "on"은 실험, "off"는 지금처럼. 없으면 빈 문자열(배포 전 대화). */
+    static String storedEvidence(JsonNode state) {
+        return state == null ? "" : state.path(STATE_KEY).path("evidence_ab").asText("");
+    }
+
+    static void rememberEvidence(ObjectNode state, String arm) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        if (loop.path("evidence_ab").asText("").isEmpty()) loop.put("evidence_ab", arm);
+    }
+
     static void rememberAlready(ObjectNode state, String arm) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
         if (loop.path("already_ab").asText("").isEmpty()) loop.put("already_ab", arm);

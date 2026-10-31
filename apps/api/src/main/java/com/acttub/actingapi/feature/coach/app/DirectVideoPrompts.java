@@ -117,6 +117,24 @@ final class DirectVideoPrompts {
 
     static String practiceLoopTurnEnglish() { return resource("practice-loop-turn.en"); }
 
+    /** 근거·방법 비교(SOMA-955) 실험 쪽의 한국어 파일이 있는 할 일. 나머지 할 일과 영어는 지금 파일을 쓴다. */
+    private static final java.util.Set<String> EVIDENCE_TASKS = java.util.Set.of("answer", "gap", "point-out", "wrap-up");
+
+    /** 실험 쪽(SOMA-955) 한국어 대화는 {@code evidence/practice-loop-turn}을 쓴다. */
+    static String practiceLoopTurn(java.util.Locale language, boolean evidence) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return evidence && korean ? resource("evidence/practice-loop-turn") : practiceLoopTurn(language);
+    }
+
+    /** 실험 쪽(SOMA-955) 한국어 대화의 답하기·어긋남 보기·짚어주기·정리하기는 {@code evidence/tasks/ko}를 쓴다. B 흐름의 tell 은 그대로다. */
+    static String practiceLoopTask(String doing, java.util.Locale language, String flow, boolean evidence) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        String id = TASK_FILES.get(doing);
+        boolean tell = CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(doing);
+        if (evidence && korean && !tell && id != null && EVIDENCE_TASKS.contains(id)) return resource("evidence/tasks/ko/" + id);
+        return practiceLoopTask(doing, language, flow);
+    }
+
     /** 답할 말에 맞는 둘째 응답부터의 공통 지시. 말을 고르는 규칙은 {@link #practiceLoop(UUID, java.util.Locale)}와 같다. */
     static String practiceLoopTurn(java.util.Locale language) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
