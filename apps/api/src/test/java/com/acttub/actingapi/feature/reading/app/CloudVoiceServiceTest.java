@@ -339,6 +339,79 @@ class CloudVoiceServiceTest {
         assertThat(repository.increments).isEqualTo(1);
     }
 
+    @Test
+    void waitingRequestGetsUnavailableWhenTheSharedSynthesisFails() throws Exception {
+        repository.consent = "granted";
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        VoiceSynthesizer failing = (text, voice) -> {
+            entered.countDown();
+            try { release.await(5, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            throw new IllegalStateException("gemini down");
+        };
+        var service = new CloudVoiceService(repository, storage, failing, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+        try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var a = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            assertThat(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var b = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            Thread.sleep(100);
+            release.countDown();
+            for (var f : List.of(a, b)) {
+                assertThatThrownBy(f::get).hasCauseInstanceOf(ApiException.class)
+                        .satisfies(e -> assertThat(((ApiException) e.getCause()).status()).isEqualTo(503));
+            }
+        }
+        assertThat(repository.increments).isZero();
+    }
+
+    @Test
+    void lookaheadIgnoresLinesItCannotSpeak() {
+        repository.consent = "granted";
+        var service = withUpcoming((u, s, text, preset, count) -> List.of(
+                new UpcomingVoiceLines.Line("  ", "M1"), new UpcomingVoiceLines.Line("둘", "X9"),
+                new UpcomingVoiceLines.Line(null, "M1"), new UpcomingVoiceLines.Line("셋", null)), Runnable::run);
+        service.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        assertThat(asked).containsExactly("하나");
+    }
+
+    @Test
+    void failedLookaheadLineIsLeftForTheApp() {
+        repository.consent = "granted";
+        VoiceSynthesizer picky = (text, voice) -> {
+            if (text.equals("둘")) throw new IllegalStateException("gemini down");
+            asked.add(text);
+            return new byte[] {1, 2, 3, 4};
+        };
+        var service = new CloudVoiceService(repository, storage, picky, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")),
+                VoicePlan.NONE, (u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1"),
+                        new UpcomingVoiceLines.Line("셋", "M1")), Runnable::run);
+        service.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        assertThat(asked).containsExactly("하나", "셋");
+    }
+
+    @Test
+    void closedExecutorDoesNotBreakTheRequest() {
+        repository.consent = "granted";
+        var service = withUpcoming((u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1")),
+                command -> { throw new java.util.concurrent.RejectedExecutionException("shutting down"); });
+        assertThat(service.synthesize(USER, "하나", "F1", UUID.randomUUID()).cached()).isFalse();
+        assertThat(asked).containsExactly("하나");
+    }
+
+    @Test
+    void defaultBackgroundRunsLookaheadOffTheRequestThread() throws Exception {
+        repository.consent = "granted";
+        java.util.concurrent.CountDownLatch prepared = new java.util.concurrent.CountDownLatch(1);
+        VoiceSynthesizer counting = (text, voice) -> {
+            if (text.equals("둘")) prepared.countDown();
+            return new byte[] {1, 2, 3, 4};
+        };
+        var service = new CloudVoiceService(repository, storage, counting, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")),
+                VoicePlan.NONE, (u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1")), null);
+        service.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        assertThat(prepared.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+    }
+
     private CloudVoiceSettings settings() {
         return new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-11-30T23:59:59+09:00"), 300, 75_000);
     }
