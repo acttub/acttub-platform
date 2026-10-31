@@ -9,9 +9,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository.CacheEntry;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -41,6 +46,19 @@ public final class CloudVoiceService {
     private final CloudVoiceSettings settings;
     private final Clock clock;
     private final VoicePlan plan;
+    private final UpcomingVoiceLines upcoming;
+    private final Executor background;
+    /**
+     * 지금 만들고 있는 음성(캐시 열쇠 → 결과). 같은 줄을 앱과 미리 만들기가 동시에 요청해도 Gemini 는 한 번만 부른다(SOMA-949).
+     * 서버 한 대 안에서만 막는다 — 배포 중 두 대가 겹치는 잠깐은 같은 줄을 두 번 만들 수 있다.
+     */
+    private final Map<String, CompletableFuture<CacheEntry>> making = new ConcurrentHashMap<>();
+    /**
+     * 오늘 고품질 목소리를 받은 회차(회차 → 날짜). 이미 시작한 리딩은 하루 한도를 넘어도 끝까지 같은 목소리로 읽는다(SOMA-949) —
+     * 도중에 429를 받으면 앱이 남은 줄을 기기 목소리로 읽어 배역 목소리가 바뀐다. 새 회차는 한도를 그대로 지킨다. 서버를 다시
+     * 띄우면 잊는다(그 뒤 첫 요청만 한도를 다시 본다). 월 한도는 이와 상관없이 지킨다.
+     */
+    private final Map<UUID, LocalDate> voicedSessions = new ConcurrentHashMap<>();
 
     public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
             VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock) {
@@ -49,8 +67,20 @@ public final class CloudVoiceService {
 
     public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
             VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, VoicePlan plan) {
+        this(repository, storage, synthesizer, settings, clock, plan, UpcomingVoiceLines.NONE, null);
+    }
+
+    /**
+     * @param upcoming 회차에서 방금 요청한 줄 뒤의 상대 대사를 찾는다 — 그 줄들을 미리 만들어 둔다(SOMA-949)
+     * @param background 미리 만들기를 돌릴 곳. {@code null} 이면 가상 스레드
+     */
+    public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
+            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, VoicePlan plan,
+            UpcomingVoiceLines upcoming, Executor background) {
         this.repository = repository; this.storage = storage; this.synthesizer = synthesizer;
         this.settings = settings; this.clock = clock; this.plan = plan == null ? VoicePlan.NONE : plan;
+        this.upcoming = upcoming == null ? UpcomingVoiceLines.NONE : upcoming;
+        this.background = background == null ? Executors.newVirtualThreadPerTaskExecutor() : background;
     }
 
     public Status status(UUID userId) {
@@ -80,23 +110,115 @@ public final class CloudVoiceService {
         if (!"granted".equals(repository.consent(userId))) throw new ApiException(403, "cloud_voice_consent_required");
         String hash = hash(settings.model(), voice, text);
         CacheEntry cached = repository.findCache(hash);
+        Result result;
         if (cached != null) {
             try {
-                return result(cached.objectKey(), true);
+                result = result(cached.objectKey(), true);
             } catch (RuntimeException error) {
                 throw unavailable(error);
             }
+        } else {
+            CompletableFuture<CacheEntry> other = making.get(hash);
+            // 미리 만들기가 이미 이 줄을 만드는 중이면 기다렸다 그것을 준다 — 사용량은 그쪽이 이미 셌다.
+            if (other != null) {
+                result = result(await(other).objectKey(), true);
+            } else {
+                if (overDailyCap(userId, sessionId)) throw new ApiException(429, "cloud_voice_daily_limit");
+                Made made = make(userId, hash, text, voice);
+                result = result(made.entry().objectKey(), !made.mine());
+            }
         }
+        markVoiced(sessionId);
+        prepareNext(userId, sessionId, text, preset);
+        return result;
+    }
+
+    /** 하루 한도를 넘었는가 — 오늘 이미 고품질 목소리로 읽기 시작한 회차는 넘지 않은 것으로 본다. */
+    private boolean overDailyCap(UUID userId, UUID sessionId) {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
-        if (repository.dailyUsage(userId, today) >= settings.dailyLineCap()) throw new ApiException(429, "cloud_voice_daily_limit");
+        if (sessionId != null && today.equals(voicedSessions.get(sessionId))) return false;
+        return repository.dailyUsage(userId, today) >= settings.dailyLineCap();
+    }
+
+    private void markVoiced(UUID sessionId) {
+        if (sessionId == null) return;
+        LocalDate today = LocalDate.now(clock.withZone(SEOUL));
+        if (voicedSessions.put(sessionId, today) == null) voicedSessions.values().removeIf(day -> !day.equals(today));
+    }
+
+    /** 만든 음성과, 이 요청이 직접 만들었는지(아니면 다른 요청이 만든 것을 받았는지). */
+    private record Made(CacheEntry entry, boolean mine) {}
+
+    /** 이 줄을 만든다. 같은 줄을 누가 이미 만들고 있으면 새로 만들지 않고 그 결과를 기다린다. */
+    private Made make(UUID userId, String hash, String text, String voice) {
+        CompletableFuture<CacheEntry> mine = new CompletableFuture<>();
+        CompletableFuture<CacheEntry> other = making.putIfAbsent(hash, mine);
+        if (other != null) return new Made(await(other), false);
         try {
             byte[] wav = synthesizeChunks(text, voice);
             CacheEntry entry = new CacheEntry(hash, "reading-voice/" + hash + ".wav");
             storage.upload(entry.objectKey(), wav);
-            repository.recordSuccess(userId, today, entry, settings.model(), voice, wav.length, clock.instant());
-            return result(entry.objectKey(), false);
+            repository.recordSuccess(userId, LocalDate.now(clock.withZone(SEOUL)), entry, settings.model(), voice, wav.length, clock.instant());
+            mine.complete(entry);
+            return new Made(entry, true);
         } catch (RuntimeException error) {
+            mine.completeExceptionally(error);
             throw unavailable(error);
+        } finally {
+            making.remove(hash, mine);
+        }
+    }
+
+    /** 앱 요청 제한(30초)보다 조금 짧게 기다린다. */
+    private static CacheEntry await(CompletableFuture<CacheEntry> other) {
+        try {
+            return other.get(25, TimeUnit.SECONDS);
+        } catch (ExecutionException error) {
+            throw unavailable(error.getCause());
+        } catch (TimeoutException error) {
+            throw unavailable(error);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw unavailable(error);
+        }
+    }
+
+    /** 방금 요청한 줄 뒤로 미리 만들어 둘 상대 대사 수(SOMA-949). */
+    static final int LOOKAHEAD_LINES = 3;
+
+    /**
+     * 회차에서 이 줄 다음에 나올 상대 대사 {@link #LOOKAHEAD_LINES}줄을 뒤에서 동시에 만들어 둔다(SOMA-949). 1.1.0 앱은 한 줄씩
+     * 차례로 요청해서 상대 대사가 이어지거나 빨리 넘기면 준비가 늦었다 — 서버가 앞서 만들어 두면 다음 요청은 저장본을 바로 받는다.
+     * 응답을 늦추지 않고, 실패해도 아무 영향이 없다(그 줄은 앱이 요청할 때 평소처럼 만든다). 사용 조건·하루 한도는 앱 요청과 같다.
+     */
+    private void prepareNext(UUID userId, UUID sessionId, String text, String preset) {
+        if (sessionId == null || upcoming == UpcomingVoiceLines.NONE) return;
+        try {
+            background.execute(() -> {
+                try {
+                    List<UpcomingVoiceLines.Line> next = upcoming.after(userId, sessionId, text, preset, LOOKAHEAD_LINES);
+                    if (next.isEmpty() || !access(userId, null, sessionId).available()) return;
+                    for (UpcomingVoiceLines.Line line : next) background.execute(() -> prepare(userId, sessionId, line));
+                } catch (RuntimeException ignored) {
+                    // 미리 만들기는 덤이다 — 앱 요청이 평소처럼 만든다.
+                }
+            });
+        } catch (RuntimeException ignored) {
+            // 실행기가 닫혔으면(종료 중) 미리 만들지 않는다.
+        }
+    }
+
+    private void prepare(UUID userId, UUID sessionId, UpcomingVoiceLines.Line line) {
+        try {
+            String text = line.text() == null ? "" : line.text().trim();
+            String voice = line.preset() == null ? null : VOICES.get(line.preset());
+            if (text.isEmpty() || text.length() > MAX_CHARS || voice == null) return;
+            String hash = hash(settings.model(), voice, text);
+            if (making.containsKey(hash) || repository.findCache(hash) != null) return;
+            if (overDailyCap(userId, sessionId)) return;
+            make(userId, hash, text, voice);
+        } catch (RuntimeException ignored) {
+            // 실패한 줄은 앱이 요청할 때 다시 만든다.
         }
     }
 
