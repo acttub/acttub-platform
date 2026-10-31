@@ -49,6 +49,9 @@ final class DirectVideoPrompts {
     /** 영어판 연습 루프. 숨은 칸 이름·할 일 이름은 한국어판과 같다(서버가 읽는다). */
     static String practiceLoopEnglish() { return resource("practice-loop.en"); }
 
+    /** 화면이 한국어인데 배우가 아직 아무 글도 안 쓴 첫 응답에 붙인다. 보일 말을 영상 대사의 말로 쓰게 한다. */
+    static String firstQuestionLanguage() { return resource("first-question-language"); }
+
     /**
      * 답할 말에 맞는 연습 루프 프롬프트. 말은 분류(코드)가 정하고 프롬프트는 그 말로 쓰인 것을 고른다.
      * 한국어(null 포함)는 한국어판 그대로, 그 밖의 말은 영어판을 쓴다. 영어가 아닌 말(일본어 등)은
