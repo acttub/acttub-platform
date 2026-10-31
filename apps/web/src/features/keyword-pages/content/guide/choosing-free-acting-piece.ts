@@ -1,7 +1,7 @@
 import type { KeywordPageContent } from "../../types";
 
 export const CHOOSING_FREE_ACTING_PIECE: KeywordPageContent = {
-  path: "/guide/choosing-free-acting-piece",
+  path: "/blog/choosing-free-acting-piece",
   title: "자유연기 작품 고르는 법 — 입시 독백을 고를 때 보는 다섯 가지",
   description:
     "연극영화과 입시 자유연기 작품을 고를 때 무엇을 봐야 하는지 정리했어요. 나이와 상황, 목표의 선명함, 시작과 끝의 변화, 제한 시간, 심사위원이 이미 아는 작품인지까지 다섯 기준과 흔한 실수예요.",
@@ -151,9 +151,9 @@ export const CHOOSING_FREE_ACTING_PIECE: KeywordPageContent = {
     },
   ],
   related: [
-    { href: "/guide/monologue-practice", label: "독백 연습 혼자 하는 법" },
-    { href: "/guide/acting-exam-prep-timeline", label: "연극영화과 입시, 언제 무엇을 준비할까요" },
-    { href: "/guide/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
+    { href: "/blog/monologue-practice", label: "독백 연습 혼자 하는 법" },
+    { href: "/blog/acting-exam-prep-timeline", label: "연극영화과 입시, 언제 무엇을 준비할까요" },
+    { href: "/blog/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
     { href: "/admissions", label: "연극영화과 입시 정보 (대학별 요강)" },
   ],
 };

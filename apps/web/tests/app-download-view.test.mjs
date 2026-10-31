@@ -116,14 +116,14 @@ function demo() {
   return within(screen.getByLabelText("대본 리딩 시연"));
 }
 
-test("첫 화면은 제목과 두 스토어 배지, 설치 없이 웹에서 연습하는 길을 보여 준다", () => {
+test("첫 화면은 제목과 두 스토어 배지, 로그인 링크를 보여 준다", () => {
   render(react.createElement(AppDownloadView));
 
   assert.equal(screen.getByRole("heading", { level: 1 }).textContent, "혼자여도,대사는 오가요.");
   assert.equal(screen.getByRole("link", { name: "Acttub 홈" }).getAttribute("href"), "/");
   assert.equal(
-    screen.getByRole("link", { name: "웹에서 바로 연습 ↗" }).getAttribute("href"),
-    "/practice/new",
+    screen.getByRole("link", { name: "로그인" }).getAttribute("href"),
+    "/login",
   );
   assert.deepEqual(
     screen
@@ -137,10 +137,7 @@ test("첫 화면은 제목과 두 스토어 배지, 설치 없이 웹에서 연�
       .map((link) => link.getAttribute("href")),
     ["/go/android/app_page", "/go/android/app_page"],
   );
-  assert.equal(
-    screen.getByRole("link", { name: "웹에서 연습해 보세요." }).getAttribute("href"),
-    "/practice/new",
-  );
+  assert.equal(screen.queryByRole("link", { name: /웹에서/ }), null);
   assert.deepEqual(
     screen.getAllByRole("link", { name: "안전 약속" }).map((link) => link.getAttribute("href")),
     ["/terms", "/terms"],

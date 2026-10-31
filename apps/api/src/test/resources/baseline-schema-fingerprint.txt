@@ -203,6 +203,19 @@ COLUMN billing_subscriptions.store_product_id ord=6 type=text len=- null=YES def
 COLUMN billing_subscriptions.store_transaction_id ord=7 type=text len=- null=YES default=-
 COLUMN billing_subscriptions.updated_at ord=19 type=timestamptz len=- null=NO default=now()
 COLUMN billing_subscriptions.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN blog_posts.app_cta ord=8 type=text len=- null=NO default='none'::text
+COLUMN blog_posts.author_name ord=10 type=text len=- null=NO default='액터브 팀'::text
+COLUMN blog_posts.body_markdown ord=6 type=text len=- null=NO default=-
+COLUMN blog_posts.category ord=5 type=text len=- null=NO default=-
+COLUMN blog_posts.cover_image_url ord=7 type=text len=- null=YES default=-
+COLUMN blog_posts.created_at ord=12 type=timestamptz len=- null=NO default=now()
+COLUMN blog_posts.id ord=1 type=uuid len=- null=NO default=-
+COLUMN blog_posts.published_at ord=11 type=timestamptz len=- null=YES default=-
+COLUMN blog_posts.slug ord=2 type=text len=- null=NO default=-
+COLUMN blog_posts.status ord=9 type=text len=- null=NO default='draft'::text
+COLUMN blog_posts.summary ord=4 type=text len=- null=NO default=-
+COLUMN blog_posts.title ord=3 type=text len=- null=NO default=-
+COLUMN blog_posts.updated_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
 COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
@@ -1145,6 +1158,22 @@ CONSTRAINT billing_subscriptions billing_subscriptions_user_id_fkey FOREIGN KEY 
 CONSTRAINT billing_subscriptions billing_subscriptions_user_id_not_null NOT NULL user_id
 CONSTRAINT billing_subscriptions uq_billing_subscriptions_customer_key UNIQUE (customer_key)
 CONSTRAINT billing_subscriptions uq_billing_subscriptions_user UNIQUE (user_id)
+CONSTRAINT blog_posts blog_posts_app_cta_not_null NOT NULL app_cta
+CONSTRAINT blog_posts blog_posts_author_name_not_null NOT NULL author_name
+CONSTRAINT blog_posts blog_posts_body_markdown_not_null NOT NULL body_markdown
+CONSTRAINT blog_posts blog_posts_category_not_null NOT NULL category
+CONSTRAINT blog_posts blog_posts_created_at_not_null NOT NULL created_at
+CONSTRAINT blog_posts blog_posts_id_not_null NOT NULL id
+CONSTRAINT blog_posts blog_posts_pkey PRIMARY KEY (id)
+CONSTRAINT blog_posts blog_posts_slug_not_null NOT NULL slug
+CONSTRAINT blog_posts blog_posts_status_not_null NOT NULL status
+CONSTRAINT blog_posts blog_posts_summary_not_null NOT NULL summary
+CONSTRAINT blog_posts blog_posts_title_not_null NOT NULL title
+CONSTRAINT blog_posts blog_posts_updated_at_not_null NOT NULL updated_at
+CONSTRAINT blog_posts ck_blog_posts_app_cta CHECK ((app_cta = ANY (ARRAY['coaching'::text, 'reading'::text, 'challenge'::text, 'none'::text])))
+CONSTRAINT blog_posts ck_blog_posts_category CHECK ((category = ANY (ARRAY['practice'::text, 'admissions'::text, 'audition'::text, 'news'::text])))
+CONSTRAINT blog_posts ck_blog_posts_status CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text])))
+CONSTRAINT blog_posts uq_blog_posts_slug UNIQUE (slug)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
 CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL content_version
@@ -2065,6 +2094,7 @@ INDEX CREATE INDEX idx_ai_jobs_target ON public.ai_jobs USING btree (target_id, 
 INDEX CREATE INDEX idx_anomalies_summary ON public.anomalies USING btree (summary_id, sort_order)
 INDEX CREATE INDEX idx_audition_postings_apply_end ON public.audition_postings USING btree (apply_end) WHERE (apply_end IS NOT NULL)
 INDEX CREATE INDEX idx_audition_postings_posted_on_without_end ON public.audition_postings USING btree (posted_on) WHERE (apply_end IS NULL)
+INDEX CREATE INDEX idx_blog_posts_status_published ON public.blog_posts USING btree (status, published_at DESC)
 INDEX CREATE INDEX idx_coach_sessions_practice ON public.coach_sessions USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_coaching_handoffs_practice_created ON public.coaching_handoffs USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_coaching_handoffs_session_created ON public.coaching_handoffs USING btree (coach_session_id, created_at)
@@ -2176,6 +2206,7 @@ INDEX CREATE UNIQUE INDEX billing_checkouts_pkey ON public.billing_checkouts USI
 INDEX CREATE UNIQUE INDEX billing_payments_pkey ON public.billing_payments USING btree (id)
 INDEX CREATE UNIQUE INDEX billing_pro_grants_pkey ON public.billing_pro_grants USING btree (id)
 INDEX CREATE UNIQUE INDEX billing_subscriptions_pkey ON public.billing_subscriptions USING btree (id)
+INDEX CREATE UNIQUE INDEX blog_posts_pkey ON public.blog_posts USING btree (id)
 INDEX CREATE UNIQUE INDEX challenge_entries_pkey ON public.challenge_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX challenges_pkey ON public.challenges USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_conversations_pkey ON public.coach_conversations USING btree (id)
@@ -2258,6 +2289,7 @@ INDEX CREATE UNIQUE INDEX uq_billing_checkouts_state ON public.billing_checkouts
 INDEX CREATE UNIQUE INDEX uq_billing_payments_order ON public.billing_payments USING btree (order_id)
 INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_customer_key ON public.billing_subscriptions USING btree (customer_key)
 INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_user ON public.billing_subscriptions USING btree (user_id)
+INDEX CREATE UNIQUE INDEX uq_blog_posts_slug ON public.blog_posts USING btree (slug)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_video ON public.challenge_entries USING btree (challenge_id, video_id) WHERE (status <> 'deleted'::text)
@@ -2349,6 +2381,7 @@ TABLE billing_checkouts
 TABLE billing_payments
 TABLE billing_pro_grants
 TABLE billing_subscriptions
+TABLE blog_posts
 TABLE challenge_entries
 TABLE challenges
 TABLE coach_conversations

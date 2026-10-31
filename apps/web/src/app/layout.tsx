@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Analytics } from "@/features/analytics/analytics";
 import { ConsentSheetHost } from "@/features/consent/consent-sheet";
 import { LoginExpiredNoticeHost } from "@/features/auth/login-expired";
-import { TransferredNoticeHost } from "@/features/transfer/transferred-notice";
 import { buildTeamBeaconGuardScript } from "@/lib/analytics/team-beacon-guard";
 import { buildRootMetadata } from "@/lib/seo/site-metadata";
 import { PretendardStylesheet } from "./pretendard-stylesheet";
@@ -49,8 +48,6 @@ export default function RootLayout({
         <Analytics />
         {/* 게스트의 기능별 동의 시트. 평소에는 아무것도 그리지 않는다(consent-sheet.tsx). */}
         <ConsentSheetHost />
-        {/* 앱으로 옮겨진 게스트의 "옮겼어요" 안내. 평소에는 아무것도 그리지 않는다. */}
-        <TransferredNoticeHost />
         {/* 웹 회원 로그인이 풀렸을 때만 위에 한 줄 안내를 띄운다(SOMA-834). */}
         <LoginExpiredNoticeHost />
         {children}

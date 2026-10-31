@@ -18,7 +18,6 @@ import "./app-download.css";
 // 움직임은 제품이 어떻게 돌아가는지 보여 주는 데만 쓰고, 움직임 줄이기 설정이면 멈춘다.
 //
 // 연습 화면은 로그인 없이 누구에게나 바로 열린다(account.guest). 로그인은 선택이다(SOMA-834).
-const practiceHref = "/practice/new";
 
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
 
@@ -362,8 +361,8 @@ export default function AppDownloadView() {
         <Link href="/" aria-label="Acttub 홈" className="shrink-0">
           <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto" />
         </Link>
-        <Link href={practiceHref} prefetch={false}>
-          웹에서 바로 연습 ↗
+        <Link href="/login" prefetch={false}>
+          로그인
         </Link>
       </header>
 
@@ -402,9 +401,6 @@ export default function AppDownloadView() {
                 <br />
                 막히면 내 대사를 펼쳐 볼 수 있어요.
               </p>
-              <Link href={practiceHref} prefetch={false} className="adl-web-link">
-                설치·가입 없이 직접 연습해요 ↗
-              </Link>
             </div>
             <div>
               <ReadingReel />
@@ -502,15 +498,6 @@ export default function AppDownloadView() {
               <p>네, 무료로 연습할 수 있어요. iOS와 Android 앱이 있어요.</p>
             </details>
             <details>
-              <summary>설치하지 않고도 쓸 수 있나요?</summary>
-              <p>
-                네, 웹에서는 설치·가입 없이 바로 연습할 수 있어요.{" "}
-                <Link href={practiceHref} prefetch={false}>
-                  웹에서 연습해 보세요.
-                </Link>
-              </p>
-            </details>
-            <details>
               <summary>올린 영상은 어떻게 쓰이나요?</summary>
               <p>
                 영상 관련 안내는 <Link href="/terms">안전 약속</Link>에서 확인할 수 있어요.
@@ -528,9 +515,6 @@ export default function AppDownloadView() {
               꺼내 볼까요?
             </h2>
             <StoreBadges surface="app_page" size="md" className="justify-center" />
-            <Link href={practiceHref} prefetch={false} className="adl-web-link">
-              설치·가입 없이 웹에서 연습해요 ↗
-            </Link>
           </div>
         </section>
       </main>
@@ -549,7 +533,7 @@ export default function AppDownloadView() {
           <Link href="/acting-coaching" className="transition hover:text-[#191f28]">
             연기 코칭 안내
           </Link>
-          <Link href="/guide" className="transition hover:text-[#191f28]">
+          <Link href="/blog" className="transition hover:text-[#191f28]">
             연기 연습 가이드
           </Link>
           <a

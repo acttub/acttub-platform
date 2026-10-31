@@ -16,9 +16,6 @@ const { GUEST_TRANSFERRED_MESSAGE, errorMessage, toApiError } = await import(
 const { requestTransferCode } = await import("../src/lib/api/v2/guest-transfer.ts");
 const { postIdempotent } = await import("../src/lib/api/v2/idempotency.ts");
 const { clearTokens, setTokens } = await import("../src/lib/auth/token-store.ts");
-const { describeStartFailure } = await import(
-  "../src/features/workspace/practice-start.ts"
-);
 
 const FALLBACK = "코드를 받지 못했어요. 다시 시도해 주세요.";
 const CONNECTION_COPY = "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.";
@@ -83,8 +80,8 @@ test("account.guest: 게스트 시작이 연결에서 끊기면 연습 화면은
   );
 
   assert.equal(failure.name, "NetworkError");
-  // 연습 화면은 이 실패를 describeStartFailure 의 message 로 그린다.
-  const shown = describeStartFailure("intent", failure).message;
+  // 화면은 이 실패를 errorMessage 로 그린다.
+  const shown = errorMessage(failure, FALLBACK);
   assert.equal(shown, CONNECTION_COPY);
   assertScreenCopy(shown);
 });

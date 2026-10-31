@@ -3,13 +3,15 @@ import { ACTING_COACHING } from "../features/keyword-pages/content/acting-coachi
 import { AI_ACTING_COACHING } from "../features/keyword-pages/content/ai-acting-coaching";
 import { GUIDES } from "../features/keyword-pages/content/guide/index";
 import { resolveSiteUrl } from "../lib/seo/site-metadata";
+import { loadBlogSummaries } from "../lib/api/v2/blog";
 import { loadAdmissionsStatic } from "../features/admissions/admissions-static";
 
-export const dynamic = "force-static";
+export const revalidate = 300;
 
 // 색인되는 공개 페이지는 랜딩, 앱 다운로드, 고객센터, 개인정보 처리방침, 키워드 안내, 입시 정보, 가이드다. 나머지는 전부 noindex다
 // (`tests/seo-noindex-guard.test.mjs`가 지킨다).
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const blogPosts = await loadBlogSummaries();
   const baseUrl = resolveSiteUrl();
   const admissions = loadAdmissionsStatic();
   const latestGuideDate = GUIDES.reduce(
@@ -35,10 +37,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${baseUrl}/admissions/${id}`,
       lastModified: admissions.updated_at,
     })),
-    { url: `${baseUrl}/guide`, lastModified: latestGuideDate },
-    ...GUIDES.map((guide) => ({
-      url: `${baseUrl}${guide.path}`,
-      lastModified: guide.updatedAt,
+    { url: `${baseUrl}/blog`, lastModified: blogPosts[0]?.publishedAt ?? latestGuideDate },
+    ...blogPosts.map((post) => ({
+      url: `${baseUrl}/blog/${post.slug}`,
+      lastModified: post.publishedAt,
     })),
   ];
 }

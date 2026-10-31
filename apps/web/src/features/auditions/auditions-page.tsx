@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 
-import { RailLayout } from "@/features/nav/app-rail";
+import { SiteLayout } from "@/features/site/site-chrome";
 import { getAuditions } from "@/lib/api/v2/auditions";
 import { useResource } from "@/lib/react/use-resource";
 
@@ -38,7 +38,7 @@ export function AuditionsPage() {
   };
 
   return (
-    <RailLayout>
+    <SiteLayout>
       <main className="h-full">
         <AuditionsBody
           status={auditions.state === "idle" ? "loading" : auditions.state}
@@ -56,6 +56,6 @@ export function AuditionsPage() {
           onRetry={() => setAttempt((was) => was + 1)}
         />
       </main>
-    </RailLayout>
+    </SiteLayout>
   );
 }

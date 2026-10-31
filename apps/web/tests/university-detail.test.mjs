@@ -191,7 +191,7 @@ test("대학 머리와 한눈에 보기는 응답 전에도 프리렌더 본문�
   assert.equal(screen.getByText("안산").textContent, "안산");
   assert.equal(screen.getByText("전문대").textContent, "전문대");
   assert.equal(
-    within(screen.getByRole("banner")).getByRole("link", { name: "입학처 원문 ↗" }).getAttribute("href"),
+    within(screen.getAllByRole("banner").at(-1)).getByRole("link", { name: "입학처 원문 ↗" }).getAttribute("href"),
     "https://admission.example.ac.kr",
   );
   assert.deepEqual(
@@ -333,7 +333,7 @@ test("후기는 응시 학년도별로, 참고 영상은 출처를 밝혀 싣고
   );
   assert.equal(
     screen.getByRole("link", { name: "대본 장면 분석 기본" }).getAttribute("href"),
-    "/guide/scene-analysis-basics",
+    "/blog/scene-analysis-basics",
   );
 });
 

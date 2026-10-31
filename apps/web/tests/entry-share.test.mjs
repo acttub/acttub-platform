@@ -203,7 +203,7 @@ test("challenge.share: 스토어 주소는 기존 정본에서 표면 이름만 
   );
 });
 
-test("challenge.share: sitemap 에 공유 주소(/e)가 없다", () => {
-  const paths = sitemap().map(({ url }) => new URL(url).pathname);
+test("challenge.share: sitemap 에 공유 주소(/e)가 없다", async () => {
+  const paths = (await sitemap()).map(({ url }) => new URL(url).pathname);
   assert.deepEqual(paths.filter((path) => path === "/e" || path.startsWith("/e/")), []);
 });

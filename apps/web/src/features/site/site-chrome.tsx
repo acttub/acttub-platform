@@ -19,9 +19,10 @@ export const SITE_NAV = [
   { href: "/?intro=1#reading", label: "대본 리딩" },
   { href: "/?intro=1#challenge", label: "챌린지" },
   { href: "/pricing", label: "요금" },
+  { href: "/blog", label: "블로그" },
 ] as const;
 
-type NavKey = "home" | "help" | "pricing";
+type NavKey = "home" | "help" | "pricing" | "blog";
 
 const FOCUS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4880ee]";
@@ -42,7 +43,7 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
             <Link
               key={item.href}
               href={item.href}
-              aria-current={current === "pricing" && item.href === "/pricing" ? "page" : undefined}
+              aria-current={(current === "pricing" && item.href === "/pricing") || (current === "blog" && item.href === "/blog") ? "page" : undefined}
               className={`rounded transition hover:text-[#191f28] aria-[current=page]:text-[#191f28] ${FOCUS}`}
             >
               {item.label}
@@ -58,14 +59,15 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
             고객센터
           </Link>
           <AccountLink
-            className={`shrink-0 rounded-[11px] bg-[#f2f4f6] px-3 py-2 text-sm font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] lg:bg-transparent lg:px-0 lg:text-[15px] lg:font-semibold lg:text-[#4e5968] lg:hover:bg-transparent lg:hover:text-[#191f28] ${FOCUS}`}
+            className={`shrink-0 rounded text-sm font-semibold text-[#4e5968] transition hover:text-[#191f28] lg:text-[15px] ${FOCUS}`}
+            memberClassName={`hidden shrink-0 rounded text-[15px] font-bold text-[#191f28] lg:inline ${FOCUS}`}
           />
           <a
             href={appHref}
             data-app-download="landing_header"
-            className={`hidden h-11 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] lg:inline-flex ${FOCUS}`}
+            className={`hidden h-11 items-center rounded-[14px] bg-[#e8f3ff] px-[18px] text-[15px] font-bold text-[#1b64da] transition hover:bg-[#d9eaff] lg:inline-flex ${FOCUS}`}
           >
-            앱에서 시작하기
+            앱 받기
           </a>
           <button
             type="button"
@@ -84,7 +86,7 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
       {open ? (
         <nav id="site-menu" aria-label="전체 메뉴" className="border-t border-[#edf0f3] bg-white px-5 pb-5 pt-2 lg:hidden">
           <ul className="divide-y divide-[#f2f4f6] text-base font-semibold text-[#333d4b]">
-            {[...SITE_NAV, { href: "/help", label: "고객센터" }].map((item) => (
+            {[...SITE_NAV, { href: "/help", label: "고객센터" }, { href: "/account", label: "내 계정" }].map((item) => (
               <li key={item.href}>
                 <Link href={item.href} onClick={() => setOpen(false)} className={`block py-3.5 ${FOCUS}`}>
                   {item.label}
@@ -95,9 +97,9 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
           <a
             href={appHref}
             data-app-download="landing_header"
-            className={`mt-3 flex h-12 items-center justify-center rounded-[14px] bg-[#4880ee] text-base font-bold text-white ${FOCUS}`}
+            className={`mt-3 flex h-12 items-center justify-center rounded-[14px] bg-[#e8f3ff] text-base font-bold text-[#1b64da] ${FOCUS}`}
           >
-            앱에서 시작하기
+            앱 받기
           </a>
         </nav>
       ) : null}
@@ -121,7 +123,7 @@ const FOOTER_GROUPS = [
       { href: "/pricing", label: "요금" },
       { href: "/refund", label: "해지·환불 정책" },
       { href: "/account", label: "내 계정" },
-      { href: "/home", label: "웹에서 해 보기" },
+      { href: "/signup", label: "회원가입" },
     ],
   },
   {
@@ -138,7 +140,7 @@ const FOOTER_GROUPS = [
     links: [
       { href: "/terms", label: "이용약관" },
       { href: "/privacy", label: "개인정보 처리방침" },
-      { href: "/guide", label: "연기 연습 가이드" },
+      { href: "/blog", label: "블로그" },
     ],
   },
 ] as const;
@@ -175,5 +177,16 @@ export function SiteFooter({ showBadges = true }: { showBadges?: boolean }) {
         </div>
       </div>
     </footer>
+  );
+}
+
+/** 상단 메뉴 + 본문 + 바닥을 세로로 쌓는 껍데기. 입시·오디션처럼 앱 탭 없이 공개 사이트 메뉴를 쓰는 화면이 쓴다. */
+export function SiteLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-dvh flex-col bg-[#f8fbff]">
+      <SiteHeader current="home" />
+      <div className="min-w-0 flex-1">{children}</div>
+      <SiteFooter showBadges={false} />
+    </div>
   );
 }

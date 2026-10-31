@@ -175,7 +175,11 @@ class ValueCheckCatalogIT {
             "ck_audition_postings_category",
             // 웹 문의(V63)의 분류·상태 값 목록은 app 의 SupportInquiryRules 상수가 들고 저장소 native SQL 만 쓴다.
             "ck_support_inquiries_category",
-            "ck_support_inquiries_status");
+            "ck_support_inquiries_status",
+            // 블로그 글(V80)의 값 목록은 domain 의 BlogRules 상수가 들고 저장소 native SQL 만 쓴다.
+            "ck_blog_posts_category",
+            "ck_blog_posts_app_cta",
+            "ck_blog_posts_status");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");

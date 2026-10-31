@@ -151,6 +151,46 @@ class SupportInquiryIT {
         admin("/v2/admin/support/inquiries?status=weird", 422);
     }
 
+    @Test
+    @DisplayName("내 문의 — 로그인 필요, 내 문의만 새것부터, 요약은 앞 40자, 상태는 표 값 그대로")
+    void myInquiries() throws Exception {
+        jdbc.execute("TRUNCATE TABLE consent_documents CASCADE");
+        for (String type : java.util.List.of("terms", "privacy", "ai_analysis", "retention")) {
+            jdbc.update("""
+                    INSERT INTO consent_documents(id,type,version,locale,title,body,required,published_at)
+                    VALUES (?,?,'v1','ko',?,?,?,now())
+                    """, UUID.randomUUID(), type, type, type, !"retention".equals(type));
+        }
+        UUID me = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        for (UUID user : java.util.List.of(me, other)) {
+            jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
+            AccountFixtures.passGate(jdbc, user);
+        }
+        String mine = "Bearer " + jwt.issueAccessToken(me).value();
+        send(inquiry("billing", "a@b.co", "결제가 두 번 된 것 같아요. 확인해 주세요. 그리고 영수증도 필요해요 자세히 알려 주세요"), mine, ip(), 201);
+        send(inquiry("bug", "a@b.co", "앱이 자꾸 멈춰요, 확인 부탁드려요"), mine, ip(), 201);
+        send(inquiry("bug", "a@b.co", "다른 사람의 문의입니다, 보이면 안 돼요"), "Bearer " + jwt.issueAccessToken(other).value(), ip(), 201);
+        send(inquiry("other", "a@b.co", "로그인하지 않고 보낸 문의입니다"), null, ip(), 201);
+        jdbc.update("UPDATE support_inquiries SET status='closed' WHERE category='billing'");
+
+        JsonNode list = getJson("/v2/support/inquiries/mine", mine, 200).path("items");
+        assertThat(list).hasSize(2);
+        assertThat(list.get(0).path("category").textValue()).isEqualTo("bug");
+        assertThat(list.get(0).path("status").textValue()).isEqualTo("open");
+        assertThat(list.get(1).path("status").textValue()).isEqualTo("closed");
+        assertThat(list.get(1).path("summary").textValue()).hasSize(41).endsWith("…");
+        assertThat(list.get(0).fieldNames()).toIterable()
+                .containsExactlyInAnyOrder("id", "category", "summary", "status", "created_at");
+        assertThat(mvc.perform(get("/v2/support/inquiries/mine")).andReturn().getResponse().getStatus()).isEqualTo(401);
+    }
+
+    private JsonNode getJson(String path, String bearer, int status) throws Exception {
+        MockHttpServletResponse response = mvc.perform(get(path).header("Authorization", bearer)).andReturn().getResponse();
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
+        return mapper.readTree(response.getContentAsString());
+    }
+
     private JsonNode admin(String path, int status) throws Exception {
         MockHttpServletResponse response = mvc.perform(get(path).header("Authorization", "Bearer admin-secret"))
                 .andReturn().getResponse();

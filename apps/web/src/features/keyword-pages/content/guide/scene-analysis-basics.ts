@@ -1,7 +1,7 @@
 import type { KeywordPageContent } from "../../types";
 
 export const SCENE_ANALYSIS_BASICS: KeywordPageContent = {
-  path: "/guide/scene-analysis-basics",
+  path: "/blog/scene-analysis-basics",
   title: "대본 장면 분석 기본 — 상황·상대·목표·장애물 네 줄로 시작하기",
   description:
     "연기 대본을 분석하는 가장 작은 단위인 네 줄(상황·상대·목표·장애물)을 설명해요. 왜 외우기 전에 적어야 하는지, 각 줄을 어떻게 채우는지, 비트 나누기와 속뜻까지 예시와 함께 정리했어요.",
@@ -161,9 +161,9 @@ export const SCENE_ANALYSIS_BASICS: KeywordPageContent = {
     },
   ],
   related: [
-    { href: "/guide/monologue-practice", label: "독백 연습 혼자 하는 법" },
-    { href: "/guide/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
-    { href: "/guide/choosing-free-acting-piece", label: "자유연기 작품 고르는 법" },
+    { href: "/blog/monologue-practice", label: "독백 연습 혼자 하는 법" },
+    { href: "/blog/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
+    { href: "/blog/choosing-free-acting-piece", label: "자유연기 작품 고르는 법" },
     { href: "/ai-acting-coaching", label: "AI 연기 코칭이 뭔가요?" },
   ],
 };

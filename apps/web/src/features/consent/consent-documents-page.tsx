@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { ConsentMarkdown } from "@/features/practice/consent-markdown";
+import { ConsentMarkdown } from "@/features/consent/consent-markdown";
 import type { ConsentDocument, ConsentNotice } from "@/lib/api/v2/types";
 import { useResource } from "@/lib/react/use-resource";
 

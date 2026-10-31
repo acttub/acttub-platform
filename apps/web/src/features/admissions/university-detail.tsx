@@ -17,7 +17,7 @@ import {
   type AdmissionsResponse,
 } from "@/lib/api/v2/admissions";
 import { useResource } from "@/lib/react/use-resource";
-import { RailLayout } from "@/features/nav/app-rail";
+import { SiteLayout } from "@/features/site/site-chrome";
 
 import { ADMISSIONS_GUIDE_LINKS } from "@/features/keyword-pages/guide-links";
 import { answeredAdmissions } from "./answered";
@@ -56,7 +56,7 @@ export function UniversityDetailPage({
   const university = payload.universities[0] ?? null;
 
   return (
-    <RailLayout>
+    <SiteLayout>
       <main className="h-full">
         <div className="mx-auto w-full max-w-[760px] px-5 py-10">
           <Link
@@ -130,7 +130,7 @@ export function UniversityDetailPage({
           )}
         </div>
       </main>
-    </RailLayout>
+    </SiteLayout>
   );
 }
 

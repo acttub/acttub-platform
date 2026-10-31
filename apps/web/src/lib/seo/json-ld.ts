@@ -91,25 +91,6 @@ export function buildBreadcrumbJsonLd(
   };
 }
 
-export function buildGuideItemListJsonLd(
-  guides: readonly Pick<KeywordPageContent, "path" | "h1">[],
-  siteUrl?: string,
-) {
-  const baseUrl = resolveSiteUrl(siteUrl);
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "@id": `${baseUrl}/guide#list`,
-    itemListElement: guides.map((guide, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
-      url: `${baseUrl}${guide.path}`,
-      name: guide.h1,
-    })),
-  };
-}
-
 export function buildOrganizationJsonLd(siteUrl?: string) {
   const { homepageUrl, organizationId } = resolveSchemaUrls(siteUrl);
 
@@ -252,5 +233,55 @@ export function buildAdmissionsWebPageJsonLd(
     url: pageUrl,
     isPartOf: { "@id": `${baseUrl}/#website` },
     publisher: { "@id": `${baseUrl}/#org` },
+  };
+}
+
+export function buildBlogArticleJsonLd(
+  post: {
+    slug: string;
+    title: string;
+    summary: string;
+    publishedAt: string;
+    authorName: string;
+    coverImageUrl: string | null;
+  },
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+  const { organizationId } = resolveSchemaUrls(siteUrl);
+  const pageUrl = `${baseUrl}/blog/${post.slug}`;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": `${pageUrl}#article`,
+    headline: post.title,
+    description: post.summary,
+    inLanguage: "ko",
+    datePublished: post.publishedAt,
+    dateModified: post.publishedAt,
+    mainEntityOfPage: pageUrl,
+    ...(post.coverImageUrl ? { image: post.coverImageUrl } : {}),
+    author: { "@type": "Person", name: post.authorName },
+    publisher: { "@id": organizationId },
+  };
+}
+
+export function buildBlogItemListJsonLd(
+  posts: readonly { slug: string; title: string }[],
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "@id": `${baseUrl}/blog#list`,
+    itemListElement: posts.map((post, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${baseUrl}/blog/${post.slug}`,
+      name: post.title,
+    })),
   };
 }

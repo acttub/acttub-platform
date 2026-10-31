@@ -110,21 +110,6 @@ export function buildKeywordPageMetadata(
   return buildPageMetadata({ ...content, type: "article" }, siteUrl);
 }
 
-// 검색 결과 문구. 이 페이지로 노출되는 검색어가 "연기 연습"이라(서치콘솔 2026-09-24) 그 말로
-// 시작하고, 글 목록을 늘어놓는 대신 무엇을 따라 할 수 있는지 적는다 — 목록형 설명일 때
-// 노출 14회에 클릭이 1회였다. 모바일 결과에서 잘리지 않게 100자 안쪽으로 둔다.
-const GUIDE_INDEX_TITLE =
-  "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비";
-const GUIDE_INDEX_DESCRIPTION =
-  "학원 없이 혼자 하는 연기 연습을 순서대로 정리했어요. 독백 6단계, 폰으로 찍는 셀프테이프, 자유연기 작품 고르기, 매일 30분 독학 루틴까지 따라 해 보세요.";
-
-export function buildGuideIndexMetadata(siteUrl?: string): Metadata {
-  return buildPageMetadata(
-    { path: "/guide", title: GUIDE_INDEX_TITLE, description: GUIDE_INDEX_DESCRIPTION },
-    siteUrl,
-  );
-}
-
 export function buildLandingMetadata(siteUrl?: string): Metadata {
   return buildPageMetadata({ path: "/" }, siteUrl);
 }
@@ -224,6 +209,32 @@ export function buildUniversityAdmissionsMetadata(
     : `${university.name} 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`;
   return buildPageMetadata(
     { path: `/admissions/${university.id}`, title, description },
+    siteUrl,
+  );
+}
+
+const BLOG_INDEX_TITLE = "블로그 — 연기 연습법, 입시, 오디션 이야기";
+const BLOG_INDEX_DESCRIPTION =
+  "혼자 하는 연기 연습법, 연극영화과 입시, 오디션 준비와 액터브 소식을 정리했어요.";
+
+export function buildBlogIndexMetadata(siteUrl?: string): Metadata {
+  return buildPageMetadata(
+    { path: "/blog", title: BLOG_INDEX_TITLE, description: BLOG_INDEX_DESCRIPTION },
+    siteUrl,
+  );
+}
+
+export function buildBlogPostMetadata(
+  post: { slug: string; title: string; summary: string },
+  siteUrl?: string,
+): Metadata {
+  return buildPageMetadata(
+    {
+      path: `/blog/${post.slug}`,
+      title: post.title,
+      description: post.summary,
+      type: "article",
+    },
     siteUrl,
   );
 }
