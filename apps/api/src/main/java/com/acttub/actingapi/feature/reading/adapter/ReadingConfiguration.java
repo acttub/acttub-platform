@@ -35,6 +35,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.feature.reading.app.SessionRatingService;
 import com.acttub.actingapi.feature.reading.app.SessionRatingStore;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
+import com.acttub.actingapi.feature.reading.adapter.voice.SessionUpcomingVoiceLines;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceModelService;
 import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
@@ -90,9 +91,11 @@ class ReadingConfiguration {
 
     @Bean
     CloudVoiceService cloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
-            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, ObjectProvider<VoicePlan> plan) {
+            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, ObjectProvider<VoicePlan> plan,
+            SessionRepository sessions, ScriptRepository scripts) {
+        // 회차의 다음 상대 대사를 미리 만든다(SOMA-949).
         return new CloudVoiceService(repository, storage, synthesizer, settings, clock,
-                plan.getIfAvailable(() -> VoicePlan.NONE));
+                plan.getIfAvailable(() -> VoicePlan.NONE), new SessionUpcomingVoiceLines(sessions, scripts), null);
     }
 
     @Bean
