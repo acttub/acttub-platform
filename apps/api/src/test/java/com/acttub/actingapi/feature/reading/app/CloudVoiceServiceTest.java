@@ -7,7 +7,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -231,6 +230,115 @@ class CloudVoiceServiceTest {
                 "F1", "Kore", "F2", "Aoede", "F3", "Leda", "F4", "Zephyr", "F5", "Callirrhoe"));
     }
 
+    // ── SOMA-949: 회차의 다음 상대 대사를 서버가 미리 만들고, 같은 줄은 한 번만 만든다 ──
+
+    private CloudVoiceService withUpcoming(UpcomingVoiceLines upcoming, java.util.concurrent.Executor executor) {
+        return new CloudVoiceService(repository, storage, synthesizer, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")),
+                VoicePlan.NONE, upcoming, executor);
+    }
+
+    @Test
+    void requestWithSessionPreparesNextThreeLinesInBackground() {
+        repository.consent = "granted";
+        UUID session = UUID.randomUUID();
+        List<UpcomingVoiceLines.Line> next = List.of(new UpcomingVoiceLines.Line("둘", "M1"),
+                new UpcomingVoiceLines.Line("셋", "F1"), new UpcomingVoiceLines.Line("넷", "M1"));
+        List<Integer> counts = new CopyOnWriteArrayList<>();
+        var service = withUpcoming((u, s, text, preset, count) -> { counts.add(count); return text.equals("하나") ? next : List.of(); }, Runnable::run);
+
+        var first = service.synthesize(USER, "하나", "F1", session);
+
+        assertThat(first.cached()).isFalse();
+        assertThat(counts).containsExactly(CloudVoiceService.LOOKAHEAD_LINES);
+        assertThat(asked).containsExactly("하나", "둘", "셋", "넷");
+        assertThat(repository.increments).isEqualTo(4);
+        // 앱이 다음 줄을 요청하면 미리 만든 것을 바로 준다 — 다시 만들지도, 사용량을 다시 세지도 않는다.
+        var second = service.synthesize(USER, "둘", "M1", session);
+        assertThat(second.cached()).isTrue();
+        assertThat(calls).hasValue(4);
+        assertThat(repository.increments).isEqualTo(4);
+    }
+
+    @Test
+    void cachedLinesAreNotPreparedAgain() {
+        repository.consent = "granted";
+        UUID session = UUID.randomUUID();
+        var service = withUpcoming((u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1")), Runnable::run);
+        service.synthesize(USER, "하나", "F1", session);
+        service.synthesize(USER, "하나", "F1", session);
+        assertThat(asked).containsExactly("하나", "둘");
+    }
+
+    @Test
+    void requestsWithoutSessionDoNotLookAhead() {
+        repository.consent = "granted";
+        List<String> looked = new CopyOnWriteArrayList<>();
+        var service = withUpcoming((u, s, text, preset, count) -> { looked.add(text); return List.of(); }, Runnable::run);
+        service.synthesize(USER, "하나", "F1");
+        assertThat(looked).isEmpty();
+    }
+
+    @Test
+    void lookaheadStopsAtDailyLimit() {
+        repository.consent = "granted";
+        UUID session = UUID.randomUUID();
+        String hash = CloudVoiceService.hash("tts-model", "Kore", "하나");
+        repository.rows.put(hash, new CloudVoiceRepository.CacheEntry(hash, "reading-voice/" + hash + ".wav"));
+        repository.daily = 300;
+        var service = withUpcoming((u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1")), Runnable::run);
+        assertThat(service.synthesize(USER, "하나", "F1", session).cached()).isTrue();
+        assertThat(calls).hasValue(0);
+    }
+
+    @Test
+    void lookaheadFollowsTheSameAccessAsTheRequest() {
+        repository.consent = "granted";
+        repository.monthly = 0;
+        UUID first = UUID.randomUUID();
+        repository.firstSessions.add(first);
+        // 무료 기간이 끝났고 Pro 가 아니어도 첫 리딩 회차는 쓴다 — 미리 만들기도 같은 조건을 따른다.
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        var service = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")),
+                VoicePlan.NONE, (u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1")), Runnable::run);
+        service.synthesize(USER, "하나", "F1", first);
+        assertThat(asked).containsExactly("하나", "둘");
+    }
+
+    @Test
+    void lookaheadFailureDoesNotAffectTheRequest() {
+        repository.consent = "granted";
+        var service = withUpcoming((u, s, text, preset, count) -> { throw new IllegalStateException("db down"); }, Runnable::run);
+        assertThat(service.synthesize(USER, "하나", "F1", UUID.randomUUID()).cached()).isFalse();
+        assertThat(asked).containsExactly("하나");
+    }
+
+    @Test
+    void sameLineRequestedTwiceAtOnceIsSynthesizedOnce() throws Exception {
+        repository.consent = "granted";
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        AtomicInteger made = new AtomicInteger();
+        VoiceSynthesizer slow = (text, voice) -> {
+            made.incrementAndGet();
+            entered.countDown();
+            try { release.await(5, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            return new byte[] {1, 2, 3, 4};
+        };
+        var service = new CloudVoiceService(repository, storage, slow, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+        try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var a = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            assertThat(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var b = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            Thread.sleep(100);
+            release.countDown();
+            assertThat(a.get().audioUrl()).isEqualTo(b.get().audioUrl());
+            assertThat(a.get().cached()).isFalse();
+            assertThat(b.get().cached()).isTrue();
+        }
+        assertThat(made).hasValue(1);
+        assertThat(repository.increments).isEqualTo(1);
+    }
+
     private CloudVoiceSettings settings() {
         return new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-11-30T23:59:59+09:00"), 300, 75_000);
     }
@@ -254,7 +362,7 @@ class CloudVoiceServiceTest {
         int monthly;
         boolean cached;
         int increments;
-        final Map<String, CacheEntry> rows = new HashMap<>();
+        final Map<String, CacheEntry> rows = new java.util.concurrent.ConcurrentHashMap<>();
         final java.util.Set<UUID> firstSessions = new java.util.HashSet<>();
         final java.util.Set<UUID> freshScripts = new java.util.HashSet<>();
         public boolean firstReadingSession(UUID userId, UUID sessionId) { return firstSessions.contains(sessionId); }
@@ -263,7 +371,7 @@ class CloudVoiceServiceTest {
         public int dailyUsage(UUID userId, java.time.LocalDate day) { return daily; }
         public int monthlyUsage(java.time.YearMonth month) { return monthly; }
         public CacheEntry findCache(String hash) { return cached ? new CacheEntry(hash, "reading-voice/" + hash + ".wav") : rows.get(hash); }
-        public void recordSuccess(UUID userId, java.time.LocalDate day, CacheEntry entry, String model, String voice, int byteSize, Instant now) { rows.put(entry.hash(), entry); increments++; }
+        public synchronized void recordSuccess(UUID userId, java.time.LocalDate day, CacheEntry entry, String model, String voice, int byteSize, Instant now) { rows.put(entry.hash(), entry); increments++; }
     }
 
     private static final class FakeStorage implements CloudVoiceStorage {
