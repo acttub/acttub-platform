@@ -279,15 +279,39 @@ class CloudVoiceServiceTest {
     }
 
     @Test
-    void lookaheadStopsAtDailyLimit() {
+    void startedSessionKeepsItsVoicePastTheDailyLimitButNewSessionsDoNot() {
+        repository.consent = "granted";
+        UUID started = UUID.randomUUID();
+        var service = withUpcoming((u, s, text, preset, count) -> text.equals("하나") ? List.of(new UpcomingVoiceLines.Line("둘", "M1")) : List.of(), Runnable::run);
+        service.synthesize(USER, "하나", "F1", started);
+        // 리딩 도중 하루 한도에 닿아도 이 회차는 끝까지 고품질 목소리다 — 미리 만들기도, 다음 요청도.
+        repository.daily = 300;
+        assertThat(asked).containsExactly("하나", "둘");
+        assertThat(service.synthesize(USER, "셋", "M1", started).cached()).isFalse();
+        assertThat(asked).containsExactly("하나", "둘", "셋");
+        // 새 회차·회차 없는 요청은 한도를 지킨다.
+        assertThatThrownBy(() -> service.synthesize(USER, "넷", "M1", UUID.randomUUID()))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(429));
+        assertThatThrownBy(() -> service.synthesize(USER, "넷", "M1"))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(429));
+    }
+
+    @Test
+    void sessionStartedYesterdayChecksTheLimitAgainToday() {
         repository.consent = "granted";
         UUID session = UUID.randomUUID();
-        String hash = CloudVoiceService.hash("tts-model", "Kore", "하나");
-        repository.rows.put(hash, new CloudVoiceRepository.CacheEntry(hash, "reading-voice/" + hash + ".wav"));
+        java.util.concurrent.atomic.AtomicReference<Instant> now = new java.util.concurrent.atomic.AtomicReference<>(NOW);
+        Clock moving = new Clock() {
+            public ZoneId getZone() { return ZoneId.of("Asia/Seoul"); }
+            public Clock withZone(ZoneId zone) { return this; }
+            public Instant instant() { return now.get(); }
+        };
+        var service = new CloudVoiceService(repository, storage, synthesizer, settings(), moving);
+        service.synthesize(USER, "하나", "F1", session);
+        now.set(NOW.plus(java.time.Duration.ofDays(1)));
         repository.daily = 300;
-        var service = withUpcoming((u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1")), Runnable::run);
-        assertThat(service.synthesize(USER, "하나", "F1", session).cached()).isTrue();
-        assertThat(calls).hasValue(0);
+        assertThatThrownBy(() -> service.synthesize(USER, "둘", "F1", session))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(429));
     }
 
     @Test

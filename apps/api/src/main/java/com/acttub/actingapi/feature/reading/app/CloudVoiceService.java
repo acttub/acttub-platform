@@ -53,6 +53,12 @@ public final class CloudVoiceService {
      * 서버 한 대 안에서만 막는다 — 배포 중 두 대가 겹치는 잠깐은 같은 줄을 두 번 만들 수 있다.
      */
     private final Map<String, CompletableFuture<CacheEntry>> making = new ConcurrentHashMap<>();
+    /**
+     * 오늘 고품질 목소리를 받은 회차(회차 → 날짜). 이미 시작한 리딩은 하루 한도를 넘어도 끝까지 같은 목소리로 읽는다(SOMA-949) —
+     * 도중에 429를 받으면 앱이 남은 줄을 기기 목소리로 읽어 배역 목소리가 바뀐다. 새 회차는 한도를 그대로 지킨다. 서버를 다시
+     * 띄우면 잊는다(그 뒤 첫 요청만 한도를 다시 본다). 월 한도는 이와 상관없이 지킨다.
+     */
+    private final Map<UUID, LocalDate> voicedSessions = new ConcurrentHashMap<>();
 
     public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
             VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock) {
@@ -117,14 +123,27 @@ public final class CloudVoiceService {
             if (other != null) {
                 result = result(await(other).objectKey(), true);
             } else {
-                LocalDate today = LocalDate.now(clock.withZone(SEOUL));
-                if (repository.dailyUsage(userId, today) >= settings.dailyLineCap()) throw new ApiException(429, "cloud_voice_daily_limit");
+                if (overDailyCap(userId, sessionId)) throw new ApiException(429, "cloud_voice_daily_limit");
                 Made made = make(userId, hash, text, voice);
                 result = result(made.entry().objectKey(), !made.mine());
             }
         }
+        markVoiced(sessionId);
         prepareNext(userId, sessionId, text, preset);
         return result;
+    }
+
+    /** 하루 한도를 넘었는가 — 오늘 이미 고품질 목소리로 읽기 시작한 회차는 넘지 않은 것으로 본다. */
+    private boolean overDailyCap(UUID userId, UUID sessionId) {
+        LocalDate today = LocalDate.now(clock.withZone(SEOUL));
+        if (sessionId != null && today.equals(voicedSessions.get(sessionId))) return false;
+        return repository.dailyUsage(userId, today) >= settings.dailyLineCap();
+    }
+
+    private void markVoiced(UUID sessionId) {
+        if (sessionId == null) return;
+        LocalDate today = LocalDate.now(clock.withZone(SEOUL));
+        if (voicedSessions.put(sessionId, today) == null) voicedSessions.values().removeIf(day -> !day.equals(today));
     }
 
     /** 만든 음성과, 이 요청이 직접 만들었는지(아니면 다른 요청이 만든 것을 받았는지). */
@@ -179,7 +198,7 @@ public final class CloudVoiceService {
                 try {
                     List<UpcomingVoiceLines.Line> next = upcoming.after(userId, sessionId, text, preset, LOOKAHEAD_LINES);
                     if (next.isEmpty() || !access(userId, null, sessionId).available()) return;
-                    for (UpcomingVoiceLines.Line line : next) background.execute(() -> prepare(userId, line));
+                    for (UpcomingVoiceLines.Line line : next) background.execute(() -> prepare(userId, sessionId, line));
                 } catch (RuntimeException ignored) {
                     // 미리 만들기는 덤이다 — 앱 요청이 평소처럼 만든다.
                 }
@@ -189,14 +208,14 @@ public final class CloudVoiceService {
         }
     }
 
-    private void prepare(UUID userId, UpcomingVoiceLines.Line line) {
+    private void prepare(UUID userId, UUID sessionId, UpcomingVoiceLines.Line line) {
         try {
             String text = line.text() == null ? "" : line.text().trim();
             String voice = line.preset() == null ? null : VOICES.get(line.preset());
             if (text.isEmpty() || text.length() > MAX_CHARS || voice == null) return;
             String hash = hash(settings.model(), voice, text);
             if (making.containsKey(hash) || repository.findCache(hash) != null) return;
-            if (repository.dailyUsage(userId, LocalDate.now(clock.withZone(SEOUL))) >= settings.dailyLineCap()) return;
+            if (overDailyCap(userId, sessionId)) return;
             make(userId, hash, text, voice);
         } catch (RuntimeException ignored) {
             // 실패한 줄은 앱이 요청할 때 다시 만든다.
