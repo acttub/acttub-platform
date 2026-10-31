@@ -30,6 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -39,6 +40,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
 @AutoConfigureMockMvc
 @Import(BlogEndpointIT.StorageFixture.class)
+// 이 클래스만 쓰는 컨텍스트(전용 DB)라 끝나면 닫는다. 캐시에 남으면 테스트 JVM(1g) 힙이 모자랐다.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class BlogEndpointIT {
     private static final String ADMIN = "Bearer admin-secret";
     private static final AtomicInteger IP = new AtomicInteger(10);
