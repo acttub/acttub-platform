@@ -127,7 +127,7 @@ test("practice.resume: 웹의 이어하기 버튼 문구는 영상을 다시 쓰
 });
 
 test("practice.start·resume: 게스트는 시작 전에 하루 3회 한도를 안내받고, 한도는 한국 시간 하루로 센다", () => {
-  assert.equal(GUEST_DAILY_LIMIT, 3);
+  assert.equal(GUEST_DAILY_LIMIT, 1);
   assert.equal(kstDate(new Date("2026-09-21T14:59:00Z")), "2026-09-21");
   assert.equal(kstDate(new Date("2026-09-21T15:00:00Z")), "2026-09-22");
   const store = new Map();
@@ -137,8 +137,8 @@ test("practice.start·resume: 게스트는 시작 전에 하루 3회 한도를 �
   recordGuestAnalysis(storage, day);
   recordGuestAnalysis(storage, day);
   assert.equal(guestAnalysisUsed(storage, day), 2);
-  assert.equal(guestAnalysisNotice(2), "게스트는 하루 3번까지 분석할 수 있어요. 오늘 1번 남았어요.");
-  assert.equal(guestAnalysisNotice(3), "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요.");
+  assert.equal(guestAnalysisNotice(0), "가입 없이 하루 1번 받아 볼 수 있어요. 오늘 1번 남았어요.");
+  assert.equal(guestAnalysisNotice(1), "가입 없이는 하루 한 번 받아 볼 수 있어요. 앱에서 이어서 하세요.");
   // 자정(한국 시간)을 넘기면 다시 센다.
   assert.equal(guestAnalysisUsed(storage, new Date("2026-09-22T00:01:00+09:00")), 0);
 });

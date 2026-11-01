@@ -20,7 +20,7 @@ test("가이드 레지스트리는 여덟 글의 경로와 필수 내용을 보�
   assert.equal(new Set(slugs).size, GUIDES.length);
 
   for (const guide of GUIDES) {
-    assert.match(guide.path, /^\/guide\//);
+    assert.match(guide.path, /^\/blog\//);
     assert.match(guide.updatedAt, /^\d{4}-\d{2}-\d{2}$/);
     assert.notEqual(guide.faq.length, 0);
     assert.equal(findGuide(guideSlug(guide)), guide);
@@ -37,7 +37,7 @@ test("필러와 가이드의 관련 링크는 실제 공개 경로만 가리킨�
     "/admissions",
     "/ai-acting-coaching",
     "/acting-coaching",
-    "/guide",
+    "/blog",
     ...GUIDES.map((guide) => guide.path),
   ]);
 

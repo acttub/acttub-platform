@@ -23,7 +23,7 @@ import { adoptScript } from "@/features/reading/script-save";
 
 export type ScriptImportDeps = ImportDeps & { getScript: typeof getScript };
 
-const apiDeps: ScriptImportDeps = {
+export const apiDeps: ScriptImportDeps = {
   createUpload,
   putUpload,
   completeUpload,

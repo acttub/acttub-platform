@@ -59,6 +59,13 @@ const nextConfig: NextConfig = {
   // 사이트 전체에 걸면 Google/Apple 로그인 팝업이 opener 를 잃어서였다(SOMA-447). 웹 로그인은
   // 0.1.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
   // 덜 부딪힌다. credentialless 라 외부 CSS·모델(HF CDN)은 CORP 헤더 없이도 자격증명 없이 받아진다.
+  // /guide 는 블로그로 합쳤다(SOMA-834). 검색 노출을 이어받도록 영구(308) 이동이다.
+  async redirects() {
+    return [
+      { source: "/guide", destination: "/blog", permanent: true },
+      { source: "/guide/:slug", destination: "/blog/:slug", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

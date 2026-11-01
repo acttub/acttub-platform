@@ -1,5 +1,5 @@
 // 웹에서 쓸 수 있는 로그인 제공자(SOMA-834). 서버가 켜 둔 제공자 중 웹 설정이 있는 것만 그린다.
-// 카카오·애플은 웹 흐름(카카오 JS SDK, 애플 Services ID)이 아직 없어 웹에는 없다.
+// 카카오·애플은 웹 흐름이 아직 없어 웹에는 없다. 아래 TODO 자리에 붙인다.
 
 /** 구글 웹 OAuth 클라이언트. 서버(GOOGLE_OAUTH_CLIENT_ID)가 이 값을 audience 로 검증한다. */
 export const GOOGLE_WEB_CLIENT_ID =
@@ -13,6 +13,14 @@ export const NAVER_WEB_CALLBACK_PATH = "/auth/naver/web";
 export const NAVER_AUTHORIZE_URL = "https://nid.naver.com/oauth2/authorize";
 
 export type WebProvider = "google" | "naver";
+
+// TODO(SOMA-834 후속): 카카오·애플 웹 로그인. 지금 서버 POST /v2/auth/login 은 카카오를 "앱 키가 audience 인 id_token" 으로만
+// 검증하고(KakaoProviderVerifier, KAKAO_OAUTH_CLIENT_ID 는 네이티브 앱 키), 웹용 카카오 REST/JS 키로 받은 토큰이나 인가 코드는
+// 받지 않는다. 웹에서 켜려면 (1) 서버가 웹 키를 audience 로 받거나 authorization_code 교환을 지원하고 (2) 공개 키
+// NEXT_PUBLIC_KAKAO_CLIENT_ID 를 주고 (3) 아래 상수를 true 로 바꿔 auth-flow.tsx 의 startKakao 자리를 채운다.
+// 애플은 Services ID 와 리다이렉트 등록이 필요하다. 그때까지 두 버튼은 그리지 않는다.
+export const KAKAO_WEB_ENABLED = false;
+export const APPLE_WEB_ENABLED = false;
 
 /** 서버 순서를 따르되(앱 로그인 화면과 같은 순서) 웹에서 쓸 수 있는 것만 남긴다. */
 export function webProviders(server: string[], env = { google: GOOGLE_WEB_CLIENT_ID, naver: NAVER_WEB_CLIENT_ID }): WebProvider[] {

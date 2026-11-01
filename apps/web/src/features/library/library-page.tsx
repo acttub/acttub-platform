@@ -6,7 +6,7 @@
  */
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 import { useGuestSession } from "@/features/consent/use-guest-session";
 import { errorMessage } from "@/lib/api/v2/errors";
 import { deleteVideo, getVideo, listVideos, purgeVideoFile, setVideoFavorite } from "@/lib/api/v2/videos";
@@ -24,13 +24,13 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-white text-[#191f28]">
       <header className="flex h-14 items-center gap-3 border-b border-[#edf0f3] px-4 sm:px-5">
-        <Link href="/practice/new" className="text-[13px] font-black text-[#4e5968]">
+        <SiteLink href="/practice/new" className="text-[13px] font-black text-[#4e5968]">
           연습
-        </Link>
+        </SiteLink>
         <span className="text-[13px] font-black text-[#3182f6]">보관함</span>
-        <Link href="/reading" className="text-[13px] font-black text-[#8b95a1]">
+        <SiteLink href="/reading" className="text-[13px] font-black text-[#8b95a1]">
           리딩
-        </Link>
+        </SiteLink>
       </header>
       {children}
     </div>

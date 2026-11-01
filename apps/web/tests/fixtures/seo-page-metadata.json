@@ -24,31 +24,6 @@
       "canonical": "/ai-acting-coaching"
     }
   },
-  "guideIndex": {
-    "metadataBase": "https://example.com/",
-    "title": "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비",
-    "description": "학원 없이 혼자 하는 연기 연습을 순서대로 정리했어요. 독백 6단계, 폰으로 찍는 셀프테이프, 자유연기 작품 고르기, 매일 30분 독학 루틴까지 따라 해 보세요.",
-    "openGraph": {
-      "siteName": "Acttub",
-      "locale": "ko_KR",
-      "type": "website",
-      "url": "https://example.com/guide",
-      "title": "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비 | Acttub",
-      "description": "학원 없이 혼자 하는 연기 연습을 순서대로 정리했어요. 독백 6단계, 폰으로 찍는 셀프테이프, 자유연기 작품 고르기, 매일 30분 독학 루틴까지 따라 해 보세요."
-    },
-    "twitter": {
-      "card": "summary_large_image"
-    },
-    "verification": {
-      "google": "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
-      "other": {
-        "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563"
-      }
-    },
-    "alternates": {
-      "canonical": "/guide"
-    }
-  },
   "landing": {
     "metadataBase": "https://example.com/",
     "title": {

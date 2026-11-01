@@ -495,6 +495,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/support/inquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Support Inquiry
+         * @description 웹 문의하기를 접수한다. <b>로그인 없이 받는다</b> — 유효한 액세스 토큰이 붙어 있으면 계정을 함께
+         *     남기고, 없거나 만료·잘못된 토큰이면 비로그인 문의로 받는다. 한 IP 에서 10분에 5건까지다.
+         *     메일은 보내지 않는다.
+         */
+        post: operations["submit_support_inquiry_v2_support_inquiries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/sample-scripts": {
         parameters: {
             query?: never;
@@ -1532,6 +1554,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/ads/{ad_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Ad Event
+         * @description 직접·자체 광고의 노출(impression)·클릭(click)을 남긴다. 노출은 한 사람·광고·한국 날짜에 한 번만 남고,
+         *     클릭은 누를 때마다 남는다. 없는 광고는 404 ad_not_found.
+         */
+        post: operations["record_ad_event_v2_ads__ad_id__events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/videos/{video_id}": {
         parameters: {
             query?: never;
@@ -1761,6 +1804,26 @@ export interface paths {
          *     아직 만들지 않았거나 파기된 영상은 null 이다.
          */
         get: operations["list_videos_v2_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/support/inquiries/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Support Inquiries
+         * @description 로그인한 회원이 보낸 문의를 새것부터 20건. 상태는 표의 open/closed 그대로다.
+         */
+        get: operations["list_my_support_inquiries_v2_support_inquiries_mine_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2377,6 +2440,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/blog/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Blog Posts
+         * @description 게시된 글만 새것부터. category 로 거르고 limit(1~50, 기본 20)까지.
+         */
+        get: operations["list_blog_posts_v2_blog_posts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/blog/posts/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Blog Post
+         * @description 게시된 글 한 편. 없거나 초안이면 404 post_not_found.
+         */
+        get: operations["get_blog_post_v2_blog_posts__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/blog/images/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Blog Image
+         * @description 운영자가 올린 이미지. 한시적 스토리지 주소로 302 넘긴다. 없으면 404 image_not_found.
+         */
+        get: operations["get_blog_image_v2_blog_images__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/auth/providers": {
         parameters: {
             query?: never;
@@ -2435,6 +2558,71 @@ export interface paths {
          *     대상(audience)의 판정은 앱이 기기 상태로 한다.
          */
         get: operations["list_posters_v2_app_posters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/app/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Notices
+         * @description 앱 공지사항 화면용. 팝업으로 떠 있는 공지와 이미 끝난(꺼졌거나 기간이 지난) 공지를 공지한 날(시작일,
+         *     없으면 만든 날) 늦은 순으로 최대 50건. 아직 시작 전인 것은 빠지고 플랫폼이 맞고 언어가 없거나 같은
+         *     것만 낸다. live 는 지금 팝업 대상인지다.
+         */
+        get: operations["list_notices_v2_app_notices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/app/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Config
+         * @description 앱 출시 없이 바꾸는 운영 값 — 평가 요청 빈도, 리딩 자동 넘김·독백 판정 기준, 대본 같이 만들기 칩, 홈 오늘의 팁,
+         *     챌린지 영상 길이·기간. 서버 설정 APP_CONFIG_FILE 로 바꾸고 api 를 다시 띄우면 바뀐다. 앱은 못 받으면
+         *     마지막으로 받은 값(없으면 앱에 든 값)을 쓴다.
+         */
+        get: operations["get_app_config_v2_app_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/ads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pick Ad For Slot
+         * @description 칸 하나에 띄울 광고를 고른다. 광고주 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,
+         *     첫 연습을 끝내기 전이면 NONE 이다. 연습 중 칸은 Pro 면 NONE, 무료면 A/B 로 켠 사람만 받는다.
+         */
+        get: operations["pick_ad_v2_ads_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3118,6 +3306,37 @@ export interface components {
             /** Face Mosaic */
             face_mosaic?: boolean | null;
         };
+        /** SupportInquiryRequest */
+        SupportInquiryRequest: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "account" | "billing" | "refund" | "usage" | "bug" | "report" | "other";
+            /**
+             * Email
+             * @description 공백을 걷어 낸 뒤 254자 이하의 이메일 주소.
+             */
+            email: string;
+            /**
+             * Body
+             * @description 공백을 걷어 낸 뒤 10~3000 유니코드 코드 포인트.
+             */
+            body: string;
+        };
+        /** SupportInquiryResponse */
+        SupportInquiryResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** SampleScriptCreateRequest */
         SampleScriptCreateRequest: {
             /**
@@ -3766,6 +3985,11 @@ export interface components {
             /** Different Lines */
             different_lines: components["schemas"]["ReadingDifferentLine"][];
             my_rating?: components["schemas"]["ReadingSessionRating"] | null;
+            /**
+             * Chunk Lines
+             * @description 리딩 화면이 말풍선 하나에 담는 대사 수 — 독백 말풍선, 같은 배역 연속 대사 묶음의 상한(SOMA-938). 서버 설정 READING_CHUNK_LINES(기본 10)라 앱 출시 없이 바꾼다
+             */
+            chunk_lines: number;
         };
         /** ReadingSessionProgressCount */
         ReadingSessionProgressCount: {
@@ -3922,11 +4146,7 @@ export interface components {
             session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
             /** Face Mosaic */
             face_mosaic?: boolean | null;
-            /**
-             * Reading Session Id
-             * Format: uuid
-             * @description 리딩 녹음으로 시작(SOMA-791). 내 리딩 회차 id. 보내면 video_id·session_purpose 는 빼고, 서버가 목적을 reading 으로 둔다. 그 회차의 소리 든 내 대사 녹음이 3줄 미만이면 422 reading_voice_not_enough_audio, 남의·없는 회차면 404 session_not_found. 같은 리딩 회차로 이미 시작했으면 그 회차를 돌려준다.
-             */
+            /** Reading Session Id */
             reading_session_id?: string | null;
         };
         /** PracticeScene */
@@ -4480,6 +4700,11 @@ export interface components {
              */
             created_at: string;
             my_rating?: components["schemas"]["NoteRating"] | null;
+            /**
+             * Line Notes
+             * @description Pro 의 대사별로 본 것. 없으면 빈 배열
+             */
+            line_notes?: components["schemas"]["CoachNoteLine"][];
         };
         /** CoachNoteQuote */
         CoachNoteQuote: {
@@ -4555,6 +4780,15 @@ export interface components {
             /** Message */
             message: string;
             note?: components["schemas"]["CoachNote"] | null;
+        };
+        /** CoachNoteLine */
+        CoachNoteLine: {
+            /** Line */
+            line: string;
+            /** Seen */
+            seen: string;
+            /** Try */
+            try: string;
         };
         /** CoachReplyRequest */
         CoachReplyRequest: {
@@ -4944,6 +5178,19 @@ export interface components {
              */
             account_type: "guest";
         };
+        /** AdEventRequest */
+        AdEventRequest: {
+            /**
+             * Slot
+             * @description 광고가 보인 칸 키
+             */
+            slot: string;
+            /**
+             * Event
+             * @enum {string}
+             */
+            event: "impression" | "click";
+        };
         /** VideoPatch */
         VideoPatch: {
             /** Favorite */
@@ -5095,6 +5342,37 @@ export interface components {
             videos: components["schemas"]["Video"][];
             /** Next Cursor */
             next_cursor?: string | null;
+        };
+        /** MySupportInquiry */
+        MySupportInquiry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Category */
+            category: string;
+            /**
+             * Summary
+             * @description 본문 앞 40자.
+             */
+            summary: string;
+            /**
+             * Status
+             * @description 표에 있는 값 그대로다. 답변 상태는 따로 저장하지 않는다.
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** MySupportInquiryList */
+        MySupportInquiryList: {
+            /** Items */
+            items: components["schemas"]["MySupportInquiry"][];
         };
         /** StatusResponse */
         StatusResponse: {
@@ -5696,6 +5974,66 @@ export interface components {
             /** Ranking State */
             ranking_state: ("pending" | "final") | null;
         };
+        /** BlogPostList */
+        BlogPostList: {
+            /** Items */
+            items: components["schemas"]["BlogPostSummary"][];
+        };
+        /** BlogPostSummary */
+        BlogPostSummary: {
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "practice" | "admissions" | "audition" | "news";
+            /** Cover Image Url */
+            cover_image_url: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /** Reading Minutes */
+            reading_minutes: number;
+        };
+        /** BlogPostDetail */
+        BlogPostDetail: {
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "practice" | "admissions" | "audition" | "news";
+            /** Cover Image Url */
+            cover_image_url: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /** Reading Minutes */
+            reading_minutes: number;
+            /** Author Name */
+            author_name: string;
+            /** Body Markdown */
+            body_markdown: string;
+            /**
+             * App Cta
+             * @enum {string}
+             */
+            app_cta: "coaching" | "reading" | "challenge" | "none";
+        };
         /** AuthProvidersResponse */
         AuthProvidersResponse: {
             /** Providers */
@@ -5817,6 +6155,179 @@ export interface components {
         AppPosterList: {
             /** Posters */
             posters: components["schemas"]["AppPoster"][];
+        };
+        /**
+         * AppNotice
+         * @description 앱 공지사항 한 건. 팝업 포스터와 같은 제목·본문·이미지. image_url 과 image_asset 은 많아야 하나가 차 있다.
+         */
+        AppNotice: {
+            /** Slug */
+            slug: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Live
+             * @description 지금 팝업으로 떠 있는 공지인가
+             */
+            live: boolean;
+            /**
+             * Published At
+             * Format: date-time
+             * @description 공지한 날(시작일, 없으면 만든 날)
+             */
+            published_at: string;
+            /** Ends At */
+            ends_at: string | null;
+            /** Badge */
+            badge: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string | null;
+            /** Image Url */
+            image_url: string | null;
+            /** Image Asset */
+            image_asset: string | null;
+            /** Cta Label */
+            cta_label: string | null;
+            /**
+             * Cta Action
+             * @enum {string}
+             */
+            cta_action: "none" | "cloud_voice_enable" | "route" | "url";
+            /** Cta Target */
+            cta_target: string | null;
+            /** Footnote */
+            footnote: string | null;
+            /** Image Bg */
+            image_bg: string | null;
+        };
+        /** AppNoticeList */
+        AppNoticeList: {
+            /** Notices */
+            notices: components["schemas"]["AppNotice"][];
+        };
+        /** AppConfig */
+        AppConfig: {
+            rating: components["schemas"]["AppConfigRating"];
+            reading: components["schemas"]["AppConfigReading"];
+            cocreate: components["schemas"]["AppConfigCocreate"];
+            /**
+             * Home Tips
+             * @description 언어(ko·en)별 홈 「오늘의 연기 팁」
+             */
+            home_tips: {
+                [key: string]: string[];
+            };
+            challenge: components["schemas"]["AppConfigChallenge"];
+        };
+        /**
+         * AppConfigChallenge
+         * @description 챌린지 참여 영상 길이(초)와 기간(일). 최대 길이·기간은 서버 규칙과 같은 값
+         */
+        AppConfigChallenge: {
+            /** Entry Min Seconds */
+            entry_min_seconds: number;
+            /** Entry Max Seconds */
+            entry_max_seconds: number;
+            /** Durations Days */
+            durations_days: number[];
+        };
+        /**
+         * AppConfigCocreate
+         * @description 대본 같이 만들기 칩. 감정은 서버가 받는 목록 안의 값만, 보이는 순서대로
+         */
+        AppConfigCocreate: {
+            /** Emotions */
+            emotions: string[];
+            /** Situations */
+            situations: string[];
+        };
+        /**
+         * AppConfigRating
+         * @description 앱 평가 요청 — 코칭·리딩 몇 번마다 묻는지, 최소 간격(일), 최대 횟수
+         */
+        AppConfigRating: {
+            /** Coach Every */
+            coach_every: number;
+            /** Reading Every */
+            reading_every: number;
+            /** Min Gap Days */
+            min_gap_days: number;
+            /** Max Asks */
+            max_asks: number;
+        };
+        /**
+         * AppConfigReading
+         * @description 리딩 자동 넘김(침묵 감지·말 끝 여유·말한 비율)과 독백 판정. monologue_pass 는 서버 판정과 같은 값
+         */
+        AppConfigReading: {
+            /** Vad Threshold */
+            vad_threshold: number;
+            /** Silence Ms */
+            silence_ms: number;
+            /** Min Speech Ms */
+            min_speech_ms: number;
+            /** Max Listen Ms */
+            max_listen_ms: number;
+            /** Speech End Grace Ms */
+            speech_end_grace_ms: number;
+            /** Advance Coverage */
+            advance_coverage: number;
+            /** Monologue Pass */
+            monologue_pass: number;
+            /** Monologue Missed Below */
+            monologue_missed_below: number;
+            /** Monologue Next At */
+            monologue_next_at: number;
+            /** Monologue Touch Min */
+            monologue_touch_min: number;
+        };
+        /**
+         * AdCreative
+         * @description 직접·자체 광고 한 건. DIRECT 는 image_url·link_url 이 늘 있고 누르면 link_url 을 앱 밖 브라우저로 연다. HOUSE 는 app_path 로 간다.
+         */
+        AdCreative: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Url */
+            image_url: string | null;
+            /** Headline */
+            headline: string | null;
+            /** Body */
+            body: string | null;
+            /** App Path */
+            app_path: string | null;
+            /** Advertiser Name */
+            advertiser_name: string | null;
+            /** Link Url */
+            link_url: string | null;
+        };
+        /**
+         * AdSlotPick
+         * @description 칸 하나에 띄울 것. kind 가 DIRECT·HOUSE 일 때만 ad 가 있다. NETWORK 면 앱이 AdMob 으로 채우고, NONE 이면 칸을 비운다.
+         */
+        AdSlotPick: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "DIRECT" | "HOUSE" | "NETWORK" | "NONE";
+            /** Slot */
+            slot: string;
+            /**
+             * Size
+             * @enum {string}
+             */
+            size: "LARGE_BANNER" | "BANNER" | "MEDIUM_RECTANGLE";
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            ad: components["schemas"]["AdCreative"] | null;
         };
         /** AdmissionNotice */
         AdmissionNotice: {
@@ -7252,6 +7763,39 @@ export interface operations {
             };
         };
     };
+    submit_support_inquiry_v2_support_inquiries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportInquiryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportInquiryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_sample_script_v2_sample_scripts_post: {
         parameters: {
             query?: never;
@@ -7829,37 +8373,6 @@ export interface operations {
             };
         };
     };
-    record_push_open_v2_push_opens_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecordPushOpenRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     register_push_token_v2_push_tokens_post: {
         parameters: {
             query?: never;
@@ -7901,6 +8414,37 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UnregisterPushTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_push_open_v2_push_opens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordPushOpenRequest"];
             };
         };
         responses: {
@@ -8978,6 +9522,39 @@ export interface operations {
             };
         };
     };
+    record_ad_event_v2_ads__ad_id__events_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ad_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_video_v2_videos__video_id__get: {
         parameters: {
             query?: never;
@@ -9456,6 +10033,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VideoList"];
+                };
+            };
+        };
+    };
+    list_my_support_inquiries_v2_support_inquiries_mine_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySupportInquiryList"];
                 };
             };
         };
@@ -10192,6 +10789,89 @@ export interface operations {
             };
         };
     };
+    list_blog_posts_v2_blog_posts_get: {
+        parameters: {
+            query?: {
+                category?: "practice" | "admissions" | "audition" | "news";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlogPostList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_blog_post_v2_blog_posts__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlogPostDetail"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlogPostDetail"];
+                };
+            };
+        };
+    };
+    get_blog_image_v2_blog_images__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Found */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     providers_v2_auth_providers_get: {
         parameters: {
             query?: never;
@@ -10254,6 +10934,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppPosterList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notices_v2_app_notices_get: {
+        parameters: {
+            query: {
+                platform: "ios" | "android";
+                /** @description 앱 표시 언어(두 글자). 없으면 언어 없는 공지만 */
+                locale?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppNoticeList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_app_config_v2_app_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfig"];
+                };
+            };
+        };
+    };
+    pick_ad_v2_ads_get: {
+        parameters: {
+            query: {
+                /** @description 칸 키(예: home_top) */
+                slot: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSlotPick"];
                 };
             };
             /** @description Validation Error */

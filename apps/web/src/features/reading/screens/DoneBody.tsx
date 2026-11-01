@@ -9,7 +9,10 @@
 import { quizSummaryLabel, reviewFor } from "@/lib/reading/session/results";
 import type { RunStats, StoredScript } from "@/lib/reading/storage";
 import { clockLabel } from "@/features/reading/session-copy";
+import { SessionRecordings } from "@/features/reading/screens/SessionRecordings";
 import { Button, Icon } from "@/features/reading/ui";
+import { AppHandoff } from "@/features/trial/app-handoff";
+import { useTrialGuest } from "@/features/trial/use-trial-guest";
 
 export const REVIEW_HEADING = (n: number) => `암기 필요 ${n}`;
 
@@ -28,6 +31,7 @@ export function DoneBody({
   onNewScript,
   onDetail,
   onReview,
+  recordingsSessionId = null,
 }: {
   script: StoredScript;
   stats: RunStats;
@@ -42,7 +46,10 @@ export function DoneBody({
   onDetail: () => void;
   /** 다시 볼 대사 전체보기 → 암기 화면(그 회차의 배역과 다시 볼 줄) */
   onReview?: () => void;
+  /** 이 회차의 내 녹음을 다시 들어 보는 목록을 보일 회차 id. 녹음을 켠 회차에서만 준다. 체험(게스트)에게만 그린다. */
+  recordingsSessionId?: string | null;
 }) {
+  const guest = useTrialGuest();
   const review = reviewFor(script, stats);
   const items: [string, string][] = [
     [stats.myCharacterNames.join(", ") || "배역 미선택", "내 배역"],
@@ -50,7 +57,9 @@ export function DoneBody({
     [clockLabel(stats.elapsedMs), "걸린 시간"],
   ];
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-4 md:gap-[18px] px-5 py-8 md:max-w-[560px] md:mx-auto w-full">
+    <div className={`flex-1 flex items-center justify-center w-full px-5 py-8 md:mx-auto ${guest ? "lg:max-w-[1040px]" : "md:max-w-[560px]"}`}>
+    <div className={`w-full flex flex-col gap-6 ${guest ? "lg:grid lg:grid-cols-[minmax(0,540px)_minmax(0,1fr)] lg:items-center lg:gap-12" : ""}`}>
+    <div className="flex flex-col items-center justify-center gap-4 md:gap-[18px] md:max-w-[560px] md:mx-auto w-full">
       <span className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full bg-blue-soft flex items-center justify-center">
         <Icon name="check" size={32} className="text-blue" />
       </span>
@@ -73,6 +82,13 @@ export function DoneBody({
           </div>
         ))}
       </div>
+
+      {guest && recordingsSessionId && (
+        <section className="w-full bg-surface border border-line rounded-[18px] p-4 flex flex-col gap-2">
+          <h2 className="text-[13px] font-black text-ink-3">내 녹음</h2>
+          <SessionRecordings script={script} sessionId={recordingsSessionId} onChanged={() => {}} />
+        </section>
+      )}
 
       {stats.mode === "quiz" && (
         <div className="w-full bg-warn-bg rounded-[18px] p-4">
@@ -136,6 +152,10 @@ export function DoneBody({
           회차 목록 보기
         </button>
       </div>
+    </div>
+    {/* 가입 없이 체험한 사람에게만 — 앱에서 이어서 하는 길(SOMA-834 3차). 회원에게는 그리지 않는다. */}
+    <AppHandoff feature="reading" continueHref="/reading" />
+    </div>
     </div>
   );
 }

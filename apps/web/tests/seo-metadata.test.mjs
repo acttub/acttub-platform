@@ -10,7 +10,6 @@ delete process.env.NEXT_PUBLIC_SITE_URL;
 const {
   buildAdmissionsIndexMetadata,
   buildAppDownloadMetadata,
-  buildGuideIndexMetadata,
   buildKeywordPageMetadata,
   buildLandingMetadata,
   buildNoindexMetadata,
@@ -96,21 +95,6 @@ test("키워드 metadata는 canonical과 Article 공유 정보를 본문에서 �
   });
 });
 
-test("가이드 목차 metadata는 canonical과 website 공유 정보를 담는다", () => {
-  const metadata = buildGuideIndexMetadata("https://example.com/");
-
-  assert.equal(
-    metadata.title,
-    "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비",
-  );
-  // 모바일 검색 결과에서 잘리지 않는 길이 — 구글은 한글 설명을 대략 100자 안팎에서 자른다.
-  assert.ok(metadata.description.length <= 100, `${metadata.description.length}자`);
-  assert.match(metadata.description, /연기 연습/);
-  assert.equal(metadata.alternates.canonical, "/guide");
-  assert.equal(metadata.openGraph.type, "website");
-  assert.equal(metadata.openGraph.url, "https://example.com/guide");
-});
-
 test("앱 다운로드 metadata는 무엇을 하는 앱인지와 무료임을 검색 결과에 보인다", () => {
   const metadata = buildAppDownloadMetadata("https://example.com/");
 
@@ -186,11 +170,10 @@ test("공고가 없는 대학 상세 metadata는 중립 설명을 쓴다", () =>
   );
 });
 
-test("공개 페이지 metadata 빌더 여섯의 결과를 글자 그대로 고정한다", () => {
+test("공개 페이지 metadata 빌더 다섯의 결과를 글자 그대로 고정한다", () => {
   const site = "https://example.com/";
   const actual = {
     keyword: buildKeywordPageMetadata(AI_ACTING_COACHING, site),
-    guideIndex: buildGuideIndexMetadata(site),
     landing: buildLandingMetadata(site),
     appDownload: buildAppDownloadMetadata(site),
     admissionsIndex: buildAdmissionsIndexMetadata(site),
