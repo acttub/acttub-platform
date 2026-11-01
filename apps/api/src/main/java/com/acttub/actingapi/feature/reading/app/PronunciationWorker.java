@@ -67,6 +67,8 @@ public class PronunciationWorker {
                     model = scored.modelVersion();
                     scoredLines += 1;
                     inputs.add(new LineInput(line.lineNo(), line.text(), line.transcript(), scored.line()));
+                } catch (PronunciationScorer.TooLong tooLong) {
+                    inputs.add(new LineInput(line.lineNo(), line.text(), null, null));
                 } catch (RuntimeException | IOException failure) {
                     lastFailure = failure;
                     LOGGER.warning("pronunciation line skipped: report=" + claimed.reportId() + " line=" + line.lineNo()
