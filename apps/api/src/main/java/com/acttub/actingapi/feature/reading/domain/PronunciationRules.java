@@ -99,7 +99,10 @@ public final class PronunciationRules {
     }
 
     /** 줄 안에서 색을 칠할 어절(10/22 시안 v6 — 주황). {@code index}는 채점 어절 순서다. */
-    public record Mark(int index, String word, double lpr, Integer startMs, Integer endMs) {
+    public record Mark(int index, String word, double lpr, Integer startMs, Integer endMs, PronunciationAdvice.Detail detail) {
+        public Mark(int index, String word, double lpr, Integer startMs, Integer endMs) {
+            this(index, word, lpr, startMs, endMs, null);
+        }
     }
 
     /** 대본대로 읽은 줄과 그 줄에서 칠할 어절(최대 {@link #MAX_MARKS_PER_LINE}개, lpr 낮은 순). */
@@ -151,11 +154,13 @@ public final class PronunciationRules {
                     }
                 }
                 if (worst != null && worst.lpr() <= MARK_MAX_LPR) {
-                    Mark mark = new Mark(word.index(), clean(word.word()), worst.lpr(), wordStart(word), wordEnd(word));
+                    Heard heard = heard(word, worst);
+                    PronunciationAdvice.Detail detail = heard == null ? null : PronunciationAdvice.of(clean(word.word()),
+                            heard.word(), heard.slot(), worst.expected(), worst.heard(), heard.syllable(), heard.open());
+                    Mark mark = new Mark(word.index(), clean(word.word()), worst.lpr(), wordStart(word), wordEnd(word), detail);
                     marks.add(mark);
-                    String heardWord = heardWord(word, worst);
-                    if (heardWord != null) {
-                        heardOf.put(mark, heardWord);
+                    if (heard != null) {
+                        heardOf.put(mark, detail != null ? detail.sentence() : "'" + heard.word() + "'처럼 들렸어요");
                     }
                 }
                 if (worst != null && worst.lpr() <= HABIT_MAX_LPR) {
@@ -320,11 +325,21 @@ public final class PronunciationRules {
     private static final String VOWELS = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ";
     private static final String CODAS = "ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ";
 
+    /** 들린 대로 읽은 말과 짚은 소리가 든 음절(소리 나는 대로), 그 음절의 받침 뺀 소리, 소리 자리. */
+    record Heard(String word, String syllable, String open, PronunciationAdvice.Slot slot) {
+    }
+
+    /** {@link #heard} 의 들린 말만. */
+    static String heardWord(Word word, Phone target) {
+        Heard heard = heard(word, target);
+        return heard == null ? null : heard.word();
+    }
+
     /**
-     * 어절을 소리 나는 대로 읽되 {@code target} 소리만 들린 소리로 바꾼 말(예: 안녕의 둘째 첫소리 ㄴ이 ㅇ으로 들렸으면 "안영").
+     * 어절을 소리 나는 대로 읽되 {@code target} 소리만 들린 소리로 바꾼 말(예: 안녕의 둘째 첫소리 ㄴ이 ㅁ으로 들렸으면 "안명").
      * 채점 소리는 음절마다 [첫소리] 모음 [받침] 순이다. 음절 자리가 없거나 바꾼 소리가 그 자리에 올 수 없으면 {@code null}.
      */
-    static String heardWord(Word word, Phone target) {
+    static Heard heard(Word word, Phone target) {
         if (target.heard() == null || target.heard().isBlank() || target.heard().equals(target.expected())) {
             return null;
         }
@@ -336,7 +351,9 @@ public final class PronunciationRules {
             bySyllable.computeIfAbsent(phone.syllable(), k -> new ArrayList<>()).add(phone);
         }
         StringBuilder out = new StringBuilder();
-        boolean replaced = false;
+        String syllableText = null;
+        String openText = null;
+        PronunciationAdvice.Slot slot = null;
         for (List<Phone> syllable : bySyllable.values()) {
             int v = -1;
             for (int i = 0; i < syllable.size(); i += 1) {
@@ -348,19 +365,39 @@ public final class PronunciationRules {
             if (v < 0 || v > 1 || syllable.size() - v > 2) {
                 return null;
             }
-            String onset = v == 1 ? sound(syllable.get(0), target) : "ㅇ";
-            String vowel = sound(syllable.get(v), target);
-            String coda = syllable.size() - v == 2 ? sound(syllable.get(v + 1), target) : "";
-            replaced |= syllable.contains(target);
-            int o = ONSETS.indexOf(onset);
-            int m = VOWELS.indexOf(vowel);
-            int c = coda.isEmpty() ? 0 : CODAS.indexOf(coda) + 1;
-            if (onset.length() != 1 || vowel.length() != 1 || coda.length() > 1 || o < 0 || m < 0 || (!coda.isEmpty() && c == 0)) {
+            Phone onsetPhone = v == 1 ? syllable.get(0) : null;
+            Phone vowelPhone = syllable.get(v);
+            Phone codaPhone = syllable.size() - v == 2 ? syllable.get(v + 1) : null;
+            Character heardChar = compose(onsetPhone == null ? "ㅇ" : sound(onsetPhone, target), sound(vowelPhone, target),
+                    codaPhone == null ? "" : sound(codaPhone, target));
+            if (heardChar == null) {
                 return null;
             }
-            out.append((char) (0xAC00 + o * 588 + m * 28 + c));
+            out.append(heardChar);
+            if (syllable.contains(target)) {
+                String onset = onsetPhone == null ? "ㅇ" : onsetPhone.expected();
+                Character full = compose(onset, vowelPhone.expected(), codaPhone == null ? "" : codaPhone.expected());
+                Character open = compose(onset, vowelPhone.expected(), "");
+                if (full == null || open == null) {
+                    return null;
+                }
+                syllableText = String.valueOf(full);
+                openText = String.valueOf(open);
+                slot = target == onsetPhone ? PronunciationAdvice.Slot.ONSET
+                        : target == vowelPhone ? PronunciationAdvice.Slot.VOWEL : PronunciationAdvice.Slot.CODA;
+            }
         }
-        return replaced ? out.toString() : null;
+        return slot == null ? null : new Heard(out.toString(), syllableText, openText, slot);
+    }
+
+    private static Character compose(String onset, String vowel, String coda) {
+        int o = ONSETS.indexOf(onset);
+        int m = VOWELS.indexOf(vowel);
+        int c = coda.isEmpty() ? 0 : CODAS.indexOf(coda) + 1;
+        if (onset.length() != 1 || vowel.length() != 1 || coda.length() > 1 || o < 0 || m < 0 || (!coda.isEmpty() && c == 0)) {
+            return null;
+        }
+        return (char) (0xAC00 + o * 588 + m * 28 + c);
     }
 
     private static String sound(Phone phone, Phone target) {
