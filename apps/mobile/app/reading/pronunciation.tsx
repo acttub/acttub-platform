@@ -13,8 +13,10 @@ import { api } from '@/lib/api';
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { translate as t } from '@/lib/i18n';
 import {
+  detailedMarks,
   markSegments,
   markedLineCount,
+  misheardRows,
   pronunciationSettled,
   type PronunciationLine,
   type PronunciationMark,
@@ -45,6 +47,15 @@ export default function PronunciationReportScreen() {
   const [attempt, setAttempt] = useState(0);
   const [recordings, setRecordings] = useState<SessionRecording[]>([]);
   const [playing, setPlaying] = useState<string | null>(null);
+  /** 「상세 보고서」를 펼친 줄. 팝업 없이 줄 밑에 펼친다(10/24 팝업 규칙). */
+  const [openLines, setOpenLines] = useState<ReadonlySet<number>>(new Set());
+  const toggleLine = (lineNo: number) =>
+    setOpenLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(lineNo)) next.delete(lineNo);
+      else next.add(lineNo);
+      return next;
+    });
   const playerRef = useRef<AudioPlayer | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
@@ -162,6 +173,7 @@ export default function PronunciationReportScreen() {
   const report = state.report;
   const lines = report.lines ?? [];
   const markedCount = markedLineCount(report);
+  const misheard = misheardRows(report);
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{markedCount > 0 ? t('pronReport.titleSome', { count: markedCount }) : t('pronReport.titleNone')}</Text>
@@ -177,6 +189,8 @@ export default function PronunciationReportScreen() {
         const lineId = lineIdOf(line);
         const hasAudio = !!lineId && !!latest.get(lineId)?.playback_url;
         const lineKey = `line-${line.lineNo}`;
+        const details = detailedMarks(line);
+        const open = openLines.has(line.lineNo);
         return (
           <View key={line.lineNo} style={styles.line}>
             <Text style={styles.lineText}>
@@ -186,9 +200,9 @@ export default function PronunciationReportScreen() {
                 </Text>
               ))}
             </Text>
-            {hasAudio && (
+            {(hasAudio || details.length > 0) && (
               <View style={styles.actions}>
-                {line.marks.map((mark) => {
+                {hasAudio && line.marks.map((mark) => {
                   const key = `${lineKey}-${mark.index}`;
                   return (
                     <Pressable key={key} onPress={() => void play(key, lineId!, mark)} hitSlop={8} accessibilityRole="button" style={styles.chip}>
@@ -197,20 +211,57 @@ export default function PronunciationReportScreen() {
                     </Pressable>
                   );
                 })}
-                <Pressable onPress={() => void play(lineKey, lineId!)} hitSlop={6} accessibilityRole="button" style={styles.chip}>
-                  <Feather name={playing === lineKey ? 'square' : 'play'} size={14} color={palette.blueDeep} />
-                  <Text style={styles.chipText}>{t('pronReport.playLine')}</Text>
-                </Pressable>
+                {hasAudio && (
+                  <Pressable onPress={() => void play(lineKey, lineId!)} hitSlop={6} accessibilityRole="button" style={styles.chip}>
+                    <Feather name={playing === lineKey ? 'square' : 'play'} size={14} color={palette.blueDeep} />
+                    <Text style={styles.chipText}>{t('pronReport.playLine')}</Text>
+                  </Pressable>
+                )}
+                {details.length > 0 && (
+                  <Pressable
+                    onPress={() => toggleLine(line.lineNo)}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: open }}
+                    style={[styles.chip, styles.chipDetail]}
+                  >
+                    <Text style={styles.chipMarked}>{t('pronReport.detail')}</Text>
+                    <Feather name={open ? 'chevron-up' : 'chevron-down'} size={14} color={palette.amber} />
+                  </Pressable>
+                )}
               </View>
             )}
+            {open &&
+              details.map((mark) => (
+                <View key={`detail-${mark.index}`} style={styles.detail}>
+                  <Text style={styles.detailHeard}>
+                    <Text style={styles.detailWord}>{mark.word} → </Text>
+                    {mark.detail.heard}
+                  </Text>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailKey}>{t('pronReport.detailWhere')}</Text>
+                    <Text style={styles.detailValue}>
+                      {mark.detail.where} · {mark.detail.kind}
+                    </Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailKey}>{t('pronReport.detailDiff')}</Text>
+                    <Text style={styles.detailValue}>{mark.detail.diff}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailKey}>{t('pronReport.detailPractice')}</Text>
+                    <Text style={styles.detailValue}>{mark.detail.practice}</Text>
+                  </View>
+                </View>
+              ))}
           </View>
         );
       })}
 
-      {report.misheard.length > 0 && (
+      {misheard.length > 0 && (
         <View style={styles.misheard}>
           <Text style={styles.sectionTitle}>{t('pronReport.misheardTitle')}</Text>
-          {report.misheard.map((m, i) => (
+          {misheard.map((m, i) => (
             <Text key={i} style={styles.misheardRow}>{t('pronReport.misheardRow', { word: m.word, heard: m.heard })}</Text>
           ))}
         </View>
@@ -238,6 +289,13 @@ const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: space[1], height: 32, backgroundColor: palette.bgSoft, borderRadius: radius.md, paddingHorizontal: space[3] },
   chipText: { ...type.body2Bold, color: palette.blueDeep },
   chipMarked: { ...type.body2Bold, color: palette.text },
+  chipDetail: { backgroundColor: palette.amberSoft },
+  detail: { gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], marginTop: space[1] },
+  detailHeard: { ...type.body1Bold, color: palette.text },
+  detailWord: { ...type.body2Bold, color: palette.textMeta },
+  detailItem: { gap: 2 },
+  detailKey: { ...type.caption, color: palette.textMeta },
+  detailValue: { ...type.body2, color: palette.text },
   misheard: { gap: space[2] },
   sectionTitle: { ...type.captionBold, color: palette.textMeta },
   misheardRow: { ...type.body2, color: palette.text },

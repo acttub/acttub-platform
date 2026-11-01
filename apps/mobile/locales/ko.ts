@@ -1864,6 +1864,10 @@ const ko = {
     misheardTitle: '다른 말로 알아들을 수 있는 곳',
     misheardRow: '{{word}} → {{heard}}',
     note: '자동으로 들은 결과라 틀릴 수 있어요.',
+    detail: '상세 보고서',
+    detailWhere: '어디가',
+    detailDiff: '두 소리 차이',
+    detailPractice: '해 볼 연습',
   },
   reading: {
     entryCocreate: '대본 같이 만들기',

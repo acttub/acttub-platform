@@ -1866,6 +1866,10 @@ const en: DeepStringShape<typeof ko> = {
     misheardTitle: 'Might be heard as another word',
     misheardRow: '{{word}} → {{heard}}',
     note: 'This is an automatic check and can be wrong.',
+    detail: 'Details',
+    detailWhere: 'Where',
+    detailDiff: 'How the sounds differ',
+    detailPractice: 'Try this',
   },
   reading: {
     entryCocreate: 'Create a script together',

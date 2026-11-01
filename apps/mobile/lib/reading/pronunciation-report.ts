@@ -10,7 +10,16 @@
  */
 export type PronunciationStatus = 'queued' | 'running' | 'done' | 'skipped' | 'failed';
 
-export type PronunciationMark = { index: number; word: string; lpr: number; startMs: number | null; endMs: number | null };
+/** 칠한 어절의 상세 분석(11/1) — 어떻게 들렸나 · 어디가 · 두 소리 차이 · 해 볼 연습. 옛 보고서·설명할 수 없는 소리면 없다. */
+export type PronunciationDetail = { heard: string; where: string; kind: string; diff: string; practice: string };
+export type PronunciationMark = {
+  index: number;
+  word: string;
+  lpr: number;
+  startMs: number | null;
+  endMs: number | null;
+  detail?: PronunciationDetail | null;
+};
 export type PronunciationLine = { lineNo: number; text: string; marks: PronunciationMark[] };
 export type PronunciationHabit = {
   habit: 'ONSET' | 'CODA' | 'VOWEL';
@@ -73,4 +82,19 @@ export function markSegments(text: string, marks: readonly PronunciationMark[]):
 /** 칠한 어절이 있는 줄 수. 보고서 첫 줄 요약에 쓴다. */
 export function markedLineCount(report: PronunciationReport): number {
   return (report.lines ?? []).filter((l) => l.marks.length > 0).length;
+}
+
+/** 상세 분석이 있는 칠한 어절. 「상세 보고서」 칸에 그린다. */
+export function detailedMarks(line: PronunciationLine): (PronunciationMark & { detail: PronunciationDetail })[] {
+  return line.marks.filter((m): m is PronunciationMark & { detail: PronunciationDetail } => !!m.detail);
+}
+
+/**
+ * 「다른 말로 알아들을 수 있는 곳」에 남길 줄. 서버는 1.1.0 앱을 위해 상세 분석을 이 목록에도 문장으로 넣는다 —
+ * 줄 밑 「상세 보고서」로 이미 보이는 같은 줄·같은 어절은 뺀다.
+ */
+export function misheardRows(report: PronunciationReport): PronunciationReport['misheard'] {
+  const shown = new Set<string>();
+  for (const line of report.lines ?? []) for (const m of detailedMarks(line)) shown.add(`${line.lineNo}:${clean(m.word)}`);
+  return report.misheard.filter((r) => !shown.has(`${r.lineNo}:${clean(r.word)}`));
 }
