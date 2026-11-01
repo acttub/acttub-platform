@@ -9,14 +9,15 @@ import { AccountLink } from "@/features/auth/account-link";
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { BusinessInfo } from "@/features/business-info/business-info";
+import { COACHING_TRIAL_PATH, READING_TRIAL_PATH } from "@/features/trial/trial-paths";
 
 /**
  * 공개 페이지(홈·고객센터·요금)가 함께 쓰는 머리와 바닥(SOMA-834 웹 개편).
- * 웹은 앱 탭을 옮기지 않는다 — 소개(코칭·리딩·챌린지), 요금, 고객센터, 계정, 앱 받기만 둔다.
+ * 웹은 앱 탭을 옮기지 않는다 — 가입 없이 해 보는 체험(리딩·코칭), 챌린지 소개, 요금, 고객센터, 계정, 앱 받기만 둔다.
  */
 export const SITE_NAV = [
-  { href: "/?intro=1#coaching", label: "연기 코칭" },
-  { href: "/?intro=1#reading", label: "대본 리딩" },
+  { href: `${READING_TRIAL_PATH}?from=nav`, label: "대본 리딩" },
+  { href: `${COACHING_TRIAL_PATH}?from=nav`, label: "연기 코칭" },
   { href: "/?intro=1#challenge", label: "챌린지" },
   { href: "/pricing", label: "요금" },
   { href: "/blog", label: "블로그" },
@@ -111,8 +112,8 @@ const FOOTER_GROUPS = [
   {
     title: "서비스",
     links: [
-      { href: "/?intro=1#coaching", label: "연기 코칭" },
-      { href: "/?intro=1#reading", label: "대본 리딩" },
+      { href: `${READING_TRIAL_PATH}?from=nav`, label: "대본 리딩" },
+      { href: `${COACHING_TRIAL_PATH}?from=nav`, label: "연기 코칭" },
       { href: "/?intro=1#challenge", label: "챌린지" },
       { href: "/admissions", label: "입시·오디션 정보" },
     ],

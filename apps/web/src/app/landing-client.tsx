@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
+import { HomeTrialCards } from "@/features/trial/home-trial-cards";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
-import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { useScrollSettle } from "@/features/site/scroll-settle";
 import { LandingHeroB } from "@/features/site/landing-hero-b";
@@ -76,8 +76,6 @@ export default function LandingClient({
   heroMedia?: HeroMedia;
 }) {
   const isB = variant === "b";
-  const campaignSearch = useCampaignSearch();
-  const appHref = useAppDownloadHref("landing_hero");
   const appSectionHref = useAppDownloadHref("landing_app_section");
   // 데스크톱: 스크롤을 멈췄을 때 구간(data-snap) 윗부분이 머리 근처에 걸쳐 있으면 그 구간에 맞춘다.
   useScrollSettle();
@@ -169,11 +167,7 @@ export default function LandingClient({
         {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
         <div data-snap className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
           {isB ? (
-            <LandingHeroB
-              appHref={appHref}
-              campaignSearch={campaignSearch}
-              media={heroMedia}
-            />
+            <LandingHeroB media={heroMedia} />
           ) : (
           <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff] lg:flex lg:flex-1 lg:items-center">
             <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
@@ -185,29 +179,11 @@ export default function LandingClient({
                   내 연기를 같이 봐 줄<br className="hidden sm:block" /> 사람이 없을 때,{" "}
                   <span className="text-[#4880ee]">액터브</span>
                 </h1>
-                <p className="mt-5 text-base leading-[1.6] text-[#4e5968] sm:text-xl">
-                  연기 영상을 올리면 코치가 장면을 보고 질문해요.
-                  <br className="hidden sm:block" /> 대본을 넣으면 상대역 대사를 소리 내 읽어 줘요.
-                </p>
+                <p className="mt-5 text-base leading-[1.6] text-[#4e5968] sm:text-xl">설치 없이 지금 여기서 해 보세요.</p>
 
-                <a
-                  href={appHref}
-                  data-app-download="landing_hero"
-                  className={`mt-7 flex h-14 w-full items-center justify-center rounded-[14px] bg-[#4880ee] text-[17px] font-bold text-white lg:hidden ${FOCUS}`}
-                >
-                  앱 열기 · 무료로 설치
-                </a>
+                <HomeTrialCards />
 
-                <div className="mt-9 hidden w-fit items-center gap-5 rounded-[22px] border border-[#edf0f3] bg-white p-[18px] pr-6 shadow-[0_6px_24px_rgba(72,128,238,0.08)] lg:flex">
-                  <Qr size={112} />
-                  <div>
-                    <p className="text-[17px] font-extrabold">휴대폰 카메라로 찍으면 설치 화면으로 가요</p>
-                    <p className="mt-1 text-sm text-[#6b7684]">iPhone · Android 무료</p>
-                    <StoreBadges surface="landing_hero" className="mt-3" />
-                  </div>
-                </div>
-
-                <p className="mt-4 text-center text-[15px] font-semibold text-[#4e5968] lg:mt-5 lg:text-left lg:text-base">
+                <p className="mt-5 text-center text-[15px] font-semibold text-[#4e5968] lg:text-left lg:text-base">
                   계정이 있나요?{" "}
                   <Link href="/login" className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
                     로그인

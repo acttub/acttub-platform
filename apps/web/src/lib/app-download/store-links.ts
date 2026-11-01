@@ -25,6 +25,10 @@ export const STORE_LINK_SURFACES = [
   "keyword_page",
   /** 참여작 공유 페이지(/e/<id>)의 "앱에서 보기". */
   "entry_share",
+  /** 웹 체험(SOMA-834 3차) 중 위쪽 띠의 「앱 받기」. */
+  "trial_bar",
+  /** 웹 체험이 끝난 화면의 「앱에서 이어서 하기」·QR. */
+  "trial_done",
 ] as const;
 export type StoreLinkSurface = (typeof STORE_LINK_SURFACES)[number];
 
