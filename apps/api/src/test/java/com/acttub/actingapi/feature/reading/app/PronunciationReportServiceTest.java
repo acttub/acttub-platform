@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class PronunciationReportServiceTest {
     private static final UUID ALLOWED = UUID.randomUUID();
+    private static final UUID PRO = UUID.randomUUID();
     private static final UUID SESSION = UUID.randomUUID();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-21T00:00:00Z"), ZoneOffset.UTC);
 
@@ -48,7 +49,7 @@ class PronunciationReportServiceTest {
             }
         };
         return new PronunciationReportService(repo,
-                new PronunciationSettings(enabled, Set.of(ALLOWED), url, Duration.ofMinutes(10), 3), CLOCK);
+                new PronunciationSettings(enabled, Set.of(ALLOWED), url, Duration.ofMinutes(10), 3), PRO::equals, CLOCK);
     }
 
     @Test
@@ -72,5 +73,20 @@ class PronunciationReportServiceTest {
     void 허용_사용자는_상태를_받는다() {
         var state = new PronunciationReportRepository.ReportState("queued", null);
         assertThat(service(true, "http://pron:8000", state).find(ALLOWED, SESSION).status()).isEqualTo("queued");
+    }
+
+    @Test
+    void Pro_회원은_허용_목록에_없어도_받는다() {
+        var state = new PronunciationReportRepository.ReportState("queued", null);
+        assertThat(service(true, "http://pron:8000", state).find(PRO, SESSION).status()).isEqualTo("queued");
+    }
+
+    @Test
+    void Pro_회원도_꺼져_있거나_채점_주소가_없으면_404() {
+        var state = new PronunciationReportRepository.ReportState("queued", null);
+        assertThatThrownBy(() -> service(false, "http://pron:8000", state).find(PRO, SESSION))
+                .isInstanceOf(ApiException.class).hasMessageContaining("pronunciation_not_available");
+        assertThatThrownBy(() -> service(true, "", state).find(PRO, SESSION))
+                .isInstanceOf(ApiException.class).hasMessageContaining("pronunciation_not_available");
     }
 }
