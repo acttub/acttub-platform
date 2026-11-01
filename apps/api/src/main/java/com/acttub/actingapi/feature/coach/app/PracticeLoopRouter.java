@@ -178,6 +178,18 @@ final class PracticeLoopRouter {
         return new Classified(asked, c.keep(), c.by()).with(c.want(), c.lineFix()).withAlready(c.already());
     }
 
+    /**
+     * 정리 바로 뒤의 짧은 "잘 모르겠어요"는 맞장구가 아니라 방법을 모르겠다는 말이다. 닫지 않고 방법 요청으로 보고 한 번 답한 뒤,
+     * 그다음 말에서 닫는다. 이미 한 번 받아 준 뒤(다음에 닫기)면 그대로 둔다 — 같은 말이 또 오면 닫는다(스무고개 막기).
+     * 2026-10-31~11-01 운영(14f8348d, 9e1f84ed): 정리 뒤 「잘 모르겠어요」에 "오늘은 여기까지 해요"로 닫혔고,
+     * 배우는 닫힌 뒤에도 "표정 변화를 어떻게 해야할지 잘 모르겠어요"라고 다시 물었다.
+     */
+    static Classified unsureAfterWrap(Classified c, Before b, String actorText) {
+        if (c.kind() != Kind.SHORT || b.closeNext() || !b.lastDoing().startsWith(WRAP_UP)) return c;
+        if (!com.acttub.actingapi.feature.coach.domain.CoachHelpIntent.isUnsure(actorText == null ? "" : actorText)) return c;
+        return new Classified(Kind.METHOD, c.keep(), "code").with(c.want(), c.lineFix()).withAlready(c.already());
+    }
+
     /** 지금까지 코치가 한 일의 횟수. */
     record Tally(int habitQuestions, int pointOuts, int methods) {
         Tally after(String doing) {

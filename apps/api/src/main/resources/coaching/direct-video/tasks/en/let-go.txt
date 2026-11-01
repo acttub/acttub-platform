@@ -3,3 +3,4 @@ Line 1: write only "Then I read that wrong." If the actor says they did it becau
 Line 2: state one thing clearly alive, with an actual passage, from a different row than the habit's (if the habit was 몸·시선·표정, one of 감정의 변화, 상대와 주고받기, 원하는 것과 행동). Never write a body part or gesture listed in 피할 것 (head, eyes, hands…).
 Line 3: ask what the character was trying to do to the partner in this scene, as one open question. Do not give two options to choose from. Do not ask about the partner's reaction.
 From then on, deal with the habit only in areas other than 피할 것.
+Exception: if the actor did not dispute your observation and only said the partner was not there when filming (self tape, no reader, voice over), do not write "Then I read that wrong." Line 1 is a short "Got it, you filmed it alone." If they asked for feedback on their own acting, line 3 is not a question about the partner: answer with one thing you saw them do and one thing to try, and do not ask a question.
