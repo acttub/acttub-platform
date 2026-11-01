@@ -198,6 +198,15 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName("토스 승인 시각을 못 읽으면 서버 시각을 결제 일시로 쓴다")
+    void unreadableApprovalTimeFallsBackToTheServerClock() {
+        repository.emails.put(user, "actor@example.com");
+        gateway.approvedAt = "not-a-time";
+        subscribe();
+        assertThat(mails.get(0).paidAt()).isEqualTo(clock.instant());
+    }
+
+    @Test
     @DisplayName("메일 주소가 없으면 구독 메일은 건너뛰고, 메일 쪽이 터져도 결제는 끝난다")
     void mailProblemsNeverBreakThePayment() {
         assertThat(subscribe().status()).isEqualTo(Status.ACTIVE);

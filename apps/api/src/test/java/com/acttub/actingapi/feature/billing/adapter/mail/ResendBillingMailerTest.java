@@ -44,6 +44,20 @@ class ResendBillingMailerTest {
     }
 
     @Test
+    @DisplayName("Resend 가 거절(4xx)해도, 실행기가 일을 받지 못해도 예외를 밖으로 던지지 않는다")
+    void swallowsRejectionsAndQueueFailures() {
+        server.expect(requestTo("https://api.resend.com/emails"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withStatus(
+                        org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY));
+        mailer.paymentDone(mail);
+        server.verify();
+        new ResendBillingMailer("re_test_key", "f", builder.build(), task -> {
+            throw new java.util.concurrent.RejectedExecutionException("full");
+        }).paymentDone(mail);
+        new ResendBillingMailer("re_test_key", "ACTTUB <no-reply@acttub.com>");
+    }
+
+    @Test
     @DisplayName("Resend 가 실패해도 예외를 밖으로 던지지 않는다")
     void swallowsFailures() {
         server.expect(requestTo("https://api.resend.com/emails")).andRespond(withServerError());
