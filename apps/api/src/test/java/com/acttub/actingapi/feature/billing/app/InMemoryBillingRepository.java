@@ -71,7 +71,7 @@ class InMemoryBillingRepository implements BillingRepository {
     }
 
     @Override
-    public Optional<String> nickname(UUID userId) {
+    public Optional<String> displayName(UUID userId) {
         return Optional.ofNullable(nicknames.get(userId));
     }
 
