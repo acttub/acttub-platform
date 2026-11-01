@@ -67,7 +67,7 @@ export default function ReadingRange() {
   const router = useRouter();
   const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string; first?: string }>();
   /**
-   * 첫 리딩 모드(10/29) — 리딩을 한 번도 끝내지 않은 계정이 대본을 막 넣고 왔다. 「누구 대사를 읽을까요?」 하나만 묻고
+   * 첫 리딩 모드(10/29) — 리딩을 한 번도 끝내지 않은 계정이 대본을 막 넣고 왔다. 「어떤 배역을 읽으실 건가요?」 하나만 묻고
    * 대사 보기·구간은 고르지 않는다(대본 전체를 처음부터, 대사는 다 보인다). 독백이면 배역도 묻지 않고 바로 시작한다.
    */
   const firstMode = params.first === '1';

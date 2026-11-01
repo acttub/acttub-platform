@@ -2184,7 +2184,7 @@ const en: DeepStringShape<typeof ko> = {
     firstDoneTitle: 'Your first read-through, all the way.\nWell done!',
     firstDoneMeta: '{{roles}} · {{count}} of {{total}} lines',
     recordForCoach: 'Film this script for coaching',
-    firstPickTitle: 'Whose lines will you read?',
+    firstPickTitle: 'Which role will you read?',
     firstPickSub: 'We’ll start from the top. Tap “Stop” at the top whenever you want to finish.',
     firstPickStart: 'Read from the start',
     firstStop: 'Stop',
