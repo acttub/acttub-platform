@@ -1500,6 +1500,18 @@ export const api = {
     });
   },
 
+  /**
+   * 앱 안 의견 보내기(SOMA-953). 웹 문의 접수(POST /v2/support/inquiries)에 category 'feedback' 으로 보낸다.
+   * 한 IP 10분 5건을 넘으면 429 다.
+   */
+  sendFeedback(body: { email: string; body: string }): Promise<{ id: string; created_at: string }> {
+    return request<{ id: string; created_at: string }>(
+      '/v2/support/inquiries',
+      jsonInit({ category: 'feedback', email: body.email, body: body.body }),
+      { auth: true, timeoutMs: 15_000 },
+    );
+  },
+
   /** 사람 차단 켜기·끄기. 멱등이고 자기 자신은 422 self_block 이다. 상대에게 알리지 않는다. */
   blockUser(userId: string, blocked: boolean): Promise<void> {
     return request<void>(
