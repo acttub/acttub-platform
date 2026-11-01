@@ -743,6 +743,7 @@ COLUMN script_imports.done_lines ord=13 type=int4 len=- null=NO default=0
 COLUMN script_imports.failure ord=11 type=text len=- null=YES default=-
 COLUMN script_imports.id ord=1 type=uuid len=- null=NO default=-
 COLUMN script_imports.job_id ord=9 type=uuid len=- null=YES default=-
+COLUMN script_imports.progress_percent ord=18 type=int4 len=- null=NO default=0
 COLUMN script_imports.raw_hash ord=8 type=bpchar len=64 null=NO default=-
 COLUMN script_imports.raw_text ord=7 type=text len=- null=NO default=-
 COLUMN script_imports.request_fingerprint ord=4 type=bpchar len=64 null=NO default=-
@@ -1874,12 +1875,14 @@ CONSTRAINT script_cocreations uq_script_cocreations_request UNIQUE (user_id, req
 CONSTRAINT script_imports ck_script_imports_failure CHECK ((failure = ANY (ARRAY['not_script'::text, 'no_characters'::text, 'script_too_long'::text, 'script_limit'::text, 'failed'::text])))
 CONSTRAINT script_imports ck_script_imports_outcome CHECK (((script_id IS NULL) OR (failure IS NULL)))
 CONSTRAINT script_imports ck_script_imports_progress CHECK (((done_lines >= 0) AND (total_lines >= 0) AND (done_lines <= total_lines)))
+CONSTRAINT script_imports ck_script_imports_progress_percent CHECK (((progress_percent >= 0) AND (progress_percent <= 100)))
 CONSTRAINT script_imports ck_script_imports_source CHECK ((source = ANY (ARRAY['file'::text, 'paste'::text, 'typed'::text, 'sample'::text])))
 CONSTRAINT script_imports script_imports_created_at_not_null NOT NULL created_at
 CONSTRAINT script_imports script_imports_done_lines_not_null NOT NULL done_lines
 CONSTRAINT script_imports script_imports_id_not_null NOT NULL id
 CONSTRAINT script_imports script_imports_job_id_fkey FOREIGN KEY (job_id) REFERENCES ai_jobs(id)
 CONSTRAINT script_imports script_imports_pkey PRIMARY KEY (id)
+CONSTRAINT script_imports script_imports_progress_percent_not_null NOT NULL progress_percent
 CONSTRAINT script_imports script_imports_raw_hash_not_null NOT NULL raw_hash
 CONSTRAINT script_imports script_imports_raw_text_not_null NOT NULL raw_text
 CONSTRAINT script_imports script_imports_request_fingerprint_not_null NOT NULL request_fingerprint

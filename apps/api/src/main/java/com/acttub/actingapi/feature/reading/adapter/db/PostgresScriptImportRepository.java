@@ -180,7 +180,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     @Override
     public ImportView find(UUID userId, UUID importId) {
         var rows = list(em.createNativeQuery("""
-                SELECT i.id,i.done_lines,i.total_lines,i.script_id,i.failure,j.status AS job_status
+                SELECT i.id,i.done_lines,i.total_lines,i.progress_percent,i.script_id,i.failure,j.status AS job_status
                 FROM script_imports i LEFT JOIN ai_jobs j ON j.id=i.job_id
                 WHERE i.id=:id AND i.user_id=:userId
                 """, Tuple.class).setParameter("id", importId).setParameter("userId", userId));
@@ -199,8 +199,9 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
         } else {
             status = "running".equals(jobStatus) ? "running" : "pending";
         }
+        int percent = scriptId != null ? 100 : ((Number) row.get("progress_percent")).intValue();
         return new ImportView(row.get("id", UUID.class), status, ((Number) row.get("done_lines")).intValue(),
-                ((Number) row.get("total_lines")).intValue(), scriptId, failure == null ? null : failureOf(failure));
+                ((Number) row.get("total_lines")).intValue(), percent, scriptId, failure == null ? null : failureOf(failure));
     }
 
     @Override
@@ -225,6 +226,14 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                 UPDATE script_imports SET done_lines=:done,total_lines=:total,updated_at=now()
                 WHERE id=:id AND script_id IS NULL AND failure IS NULL
                 """).setParameter("done", doneLines).setParameter("total", totalLines).setParameter("id", importId).executeUpdate());
+    }
+
+    @Override
+    public void percent(UUID importId, int percent) {
+        transaction.executeWithoutResult(status -> em.createNativeQuery("""
+                UPDATE script_imports SET progress_percent=:percent,updated_at=now()
+                WHERE id=:id AND script_id IS NULL AND failure IS NULL AND progress_percent<:percent
+                """).setParameter("percent", Math.clamp(percent, 0, 99)).setParameter("id", importId).executeUpdate());
     }
 
     @Override

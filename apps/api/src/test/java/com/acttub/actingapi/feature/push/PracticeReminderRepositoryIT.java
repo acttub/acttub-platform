@@ -380,6 +380,7 @@ class PracticeReminderRepositoryIT {
             @Override public void register(UUID userId, String token, String platform, String appVersion) { throw new AssertionError(); }
             @Override public void unregister(String token) { }
             @Override public List<com.acttub.actingapi.feature.push.app.PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
+            @Override public List<com.acttub.actingapi.feature.push.app.PushTarget> scriptSplitTargets(UUID userId) { return List.of(); }
         };
         Clock at1930 = Clock.fixed(LocalDateTime.parse("2026-10-21T19:30").atZone(PracticeReminderPolicy.SEOUL).toInstant(), ZoneOffset.UTC);
         PracticeReminderService service = new PracticeReminderService(reminders, tokens,

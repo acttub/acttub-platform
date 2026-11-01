@@ -72,7 +72,8 @@ export type ScriptImportFailure = 'not_script' | 'no_characters' | 'script_too_l
 export type ScriptImport = {
   id: string;
   status: 'pending' | 'running' | 'succeeded' | 'failed';
-  progress: { done_lines: number; total_lines: number };
+  /** percent 는 줄을 다 나눈 뒤 단계(빠진 줄·줄 검토·마무리)까지 센 화면 진행률이다(SOMA-960). 옛 서버는 보내지 않는다. */
+  progress: { done_lines: number; total_lines: number; percent?: number };
   script_id: string | null;
   failure: ScriptImportFailure | null;
 };
