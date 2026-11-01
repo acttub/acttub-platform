@@ -358,3 +358,12 @@ test("태그가 아직 없으면(동의 흐름 전) 오류 없이 지나가고 �
   });
   assert.deepEqual(events, []);
 });
+
+test("리딩으로 가는 사이트 링크는 일반 문서 이동으로 열어 교차 출처 격리를 받는다", async () => {
+  const { needsDocumentNavigation } = await import("../src/features/site/site-link.tsx");
+  assert.equal(needsDocumentNavigation("/reading/try?from=nav"), true);
+  assert.equal(needsDocumentNavigation("/reading"), true);
+  assert.equal(needsDocumentNavigation({ pathname: "/reading/run" }), true);
+  assert.equal(needsDocumentNavigation("/practice/new?from=nav"), false);
+  assert.equal(needsDocumentNavigation("/readings"), false);
+});

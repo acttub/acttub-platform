@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { READING_TRIAL_PATH, trialHref } from "./trial-paths";
@@ -66,9 +66,9 @@ export function NoVideoReadingLink() {
   return (
     <p className="text-[14px] text-[#4e5968]">
       {COACHING_INTRO_COPY.noVideo}{" "}
-      <Link href={trialHref(READING_TRIAL_PATH, "coaching_link", search)} className="font-bold text-[#191f28] underline underline-offset-2">
+      <SiteLink href={trialHref(READING_TRIAL_PATH, "coaching_link", search)} className="font-bold text-[#191f28] underline underline-offset-2">
         {COACHING_INTRO_COPY.readingLink}
-      </Link>
+      </SiteLink>
     </p>
   );
 }
