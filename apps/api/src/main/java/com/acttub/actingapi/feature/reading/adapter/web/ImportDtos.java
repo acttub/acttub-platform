@@ -87,6 +87,9 @@ final class ImportDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record ProgressResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int doneLines,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int totalLines) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int totalLines,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "화면 진행률(0~100%). 줄을 다 나눈 뒤의 단계(빠진 줄·줄 검토·마무리)까지 센다. 성공한 작업만 100 이다.")
+            int percent) {
     }
 }

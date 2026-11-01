@@ -29,7 +29,7 @@
 | `POST /v2/reading/uploads` | `ReadingUploadRequest`(file_name·byte_size) | `ReadingUpload` 201 `{upload_id, upload_url, content_type, expires_at}` — 기기는 `upload_url`에 `Content-Type: content_type`(언제나 `application/octet-stream`)으로 파일을 PUT 한다(15분, 크기는 서명에 묶임) | `script_file_too_large`(50,000,000바이트 초과)·`script_file_unreadable`(확장자가 txt·docx·pdf·hwp·hwpx 밖) 422, `script_split_consent_required` 403, 형태 오류 422 배열(빈 파일 포함), `storage_not_configured` 503 |
 | `POST /v2/reading/uploads/{upload_id}/complete` | `upload_id` | 204 — 서버가 올라온 파일을 받아 글자를 뽑아 둔다. 다시 불러도·대본에 연결된 뒤에도 204(다시 받지 않는다) | `script_upload_not_ready`(아직 다 안 올라옴)·`script_file_unreadable`(글자를 못 뽑음, 받기와 뽑기 45초 초과 포함)·`script_too_long`(뽑은 글 100,000자 초과) 422, `script_upload_busy`(읽기 자리가 10초 안에 안 남) 429, `script_upload_not_found` 404 |
 | `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·source·allow_duplicate?·skip_script_check?와 raw_text·upload_id 가운데 하나) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch`·`script_upload_not_ready`(읽기 전)·`script_upload_used`(이미 대본이 된 원본으로 `allow_duplicate`) 422, `script_upload_not_found` 404, `script_split_daily_limit` 429, 형태 오류 422 배열(raw_text·upload_id 둘 다 또는 둘 다 없음 포함), `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
-| `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
+| `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines,percent}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
 | `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines). 옛 앱의 기기 나누기 결과 저장, D1에서 걷는다 | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
 | `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200 | `script_not_found` 404 |
@@ -54,7 +54,11 @@
 **나누기 작업**
 - 글을 `POST /v2/reading/imports`로 보내면 서버가 작업을 접수하고 워커가 뒤에서 나눈다. 앱·웹은 `GET /v2/reading/imports/{id}`를
   1초 간격으로 물어 succeeded면 `script_id`로 목소리 정하기(R3)로 가고, failed면 `failure`에 맞는 팝업을 띄운다. 나누는 동안
-  R2.11 「나누는 중」 팝업에 `progress`의 N / M줄을 보인다. [취소]는 없다. 앱은 아래에 「화면을 나가도 나누기는 계속돼요 · 다 되면
+  R2.11 「나누는 중」 팝업에 `progress.percent`로 진행 막대와 %를, 줄을 나누는 동안은 N / M줄을 보인다. [취소]는 없다.
+  `percent`(0~100)는 줄을 다 나눈 뒤 단계까지 센다 — 줄 수만 세면 줄 검토 동안 100%에 1분 가까이 멈춰 있었다(SOMA-960).
+  구간은 준비(띄어쓰기·배역 목록) 0~8, 줄 나누기 8~30, 빠진 줄 30~35, 줄 검토 35~88(답마다), 마무리 88~99이고 저장이 끝난
+  작업만 100이다(2026-11-01 dev 실측 시간 비율, `ScriptSplitProgress`). 줄어들지 않는다. 앱은 줄을 다 나눴는데 아직 끝나지 않았으면
+  줄 수 대신 「N% · 나눈 줄을 확인하고 있어요」를 보인다. `percent`가 없는 옛 서버면 줄 수로 센다. 앱은 아래에 「화면을 나가도 나누기는 계속돼요 · 다 되면
   리딩 탭 대본 목록에 생겨요.」를 두고, 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27). 앱은 묻기만 멈추고 작업은 서버에서 끝까지
   돌아 대본 목록에 생긴다. 파일 원본 읽기를 기다리는 사이에 나가도 나누기는 접수한다. 파일을 올리는 중(나누기 전)에는 떠나지 못한다.
 - 예시 대본이 아닌 글은 나누기 동의가 있어야 한다 — 개인정보 수집·이용 동의 v9 이상에 동의했거나(SOMA-726, 그 판부터 이 처리가

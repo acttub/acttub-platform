@@ -2030,6 +2030,7 @@ const ko = {
     sampleCardSub: '대본이 없어도 바로 연습할 수 있어요.',
     splitTitle: '배역과 대사를 찾고 있어요',
     splitProgress: '{{pct}}% · {{done}} / {{total}}줄',
+    splitChecking: '{{pct}}% · 나눈 줄을 확인하고 있어요',
     splitSub: '대본 길이에 따라 1분쯤 걸려요.',
     splitLeaveTitle: '화면을 나가도 나누기는 계속돼요',
     splitLeaveBody: '다 되면 리딩 탭 대본 목록에 생겨요.',

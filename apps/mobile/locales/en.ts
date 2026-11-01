@@ -2032,6 +2032,7 @@ const en: DeepStringShape<typeof ko> = {
     sampleCardSub: 'No script? You can start practicing right away.',
     splitTitle: 'Finding the roles and lines',
     splitProgress: '{{pct}}% · {{done}} / {{total}} lines',
+    splitChecking: '{{pct}}% · Checking the lines',
     splitSub: 'Takes about a minute, depending on the script length.',
     splitLeaveTitle: 'Splitting keeps going if you leave',
     splitLeaveBody: "It'll show up in your scripts on the Reading tab.",

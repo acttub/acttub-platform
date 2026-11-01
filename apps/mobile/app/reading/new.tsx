@@ -33,6 +33,7 @@ import {
   retryFlags,
   runScriptImport,
   TITLE_MAX,
+  splitProgressView,
   uploadScriptFile,
   type ImportFlags,
   type ImportInput,
@@ -525,7 +526,7 @@ export default function ReadingNew() {
 function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
-  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const { pct, checking } = progress ? splitProgressView(progress) : { pct: 0, checking: false };
   // 아래 안내가 안드로이드 내비게이션 바에 가리지 않게 아래 안전 영역만큼 띄운다.
   const bottomInset = useSafeAreaInsets().bottom;
   return (
@@ -538,7 +539,7 @@ function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
           <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
-          <Text style={styles.splitCount}>{t('reading.splitProgress', { pct, done, total })}</Text>
+          <Text style={styles.splitCount}>{t(checking ? 'reading.splitChecking' : 'reading.splitProgress', { pct, done, total })}</Text>
         </View>
       )}
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}
