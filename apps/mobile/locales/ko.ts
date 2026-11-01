@@ -1860,7 +1860,7 @@ const ko = {
     sub: '표시된 말은 이번 녹음에서 대본과 다르게 들린 곳이에요. 눌러서 그 부분만 들어 보세요.',
     habitKind: '자주 보인 것',
     playWord: "'{{word}}' 듣기",
-    playLine: '줄 전체',
+    playLine: '다시 듣기',
     misheardTitle: '다른 말로 알아들을 수 있는 곳',
     misheardRow: '{{word}} → {{heard}}',
     note: '자동으로 들은 결과라 틀릴 수 있어요.',

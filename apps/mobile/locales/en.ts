@@ -1862,7 +1862,7 @@ const en: DeepStringShape<typeof ko> = {
     sub: 'Marked words sounded different from the script in this recording. Tap to hear just that part.',
     habitKind: 'Seen often',
     playWord: "Play '{{word}}'",
-    playLine: 'Whole line',
+    playLine: 'Play again',
     misheardTitle: 'Might be heard as another word',
     misheardRow: '{{word}} → {{heard}}',
     note: 'This is an automatic check and can be wrong.',
