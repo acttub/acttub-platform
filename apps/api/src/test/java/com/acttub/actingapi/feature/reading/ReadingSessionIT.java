@@ -244,7 +244,7 @@ class ReadingSessionIT {
         jdbc.execute("DROP TRIGGER fail_session_insert ON reading_sessions");
 
         Script other = saveScript("Bearer " + jwt.issueAccessToken(member()).value());
-        for (List<UUID> characters : List.of(List.<UUID>of(), List.of(other.nina), List.of(script.nina, other.nina),
+        for (List<UUID> characters : List.of(List.of(other.nina), List.of(script.nina, other.nina),
                 List.of(script.nina, script.nina), List.of(UUID.randomUUID()))) {
             JsonNode rejected = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                     start(UUID.randomUUID(), characters, "read", script.dialogue(1), script.dialogue(8), "manual", false).toString()), 422);
@@ -334,6 +334,25 @@ class ReadingSessionIT {
         JsonNode closed = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(3, script.dialogue(2), 300, null)), 409);
         assertThat(closed).isEqualTo(mapper.readTree("{\"detail\":\"session_closed\"}"));
         assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq").longValue()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("reading.session: 내 배역 없이 시작하면 「전체 듣기」 회차다 — 남의 대사뿐인 구간도 201, 배역은 빈 배열. 핸즈프리(advance timed)도 201. 시작 줄이 끝 줄 뒤면 여전히 422 empty_range")
+    void readingSession_listenAllAndTimedAdvanceStart() throws Exception {
+        JsonNode listen = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
+                start(UUID.randomUUID(), List.of(), "read", script.dialogue(5), script.dialogue(6), "manual", false).toString()), 201);
+        UUID listenId = UUID.fromString(listen.path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT cardinality(my_character_ids) FROM reading_sessions WHERE id=?", Integer.class, listenId))
+                .isZero();
+
+        JsonNode timed = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
+                start(UUID.randomUUID(), List.of(script.nina), "read", script.dialogue(1), script.dialogue(8), "timed", false).toString()), 201);
+        assertThat(jdbc.queryForObject("SELECT advance FROM reading_sessions WHERE id=?", String.class,
+                UUID.fromString(timed.path("id").textValue()))).isEqualTo("timed");
+
+        assertThat(json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
+                start(UUID.randomUUID(), List.of(), "read", script.dialogue(4), script.dialogue(2), "manual", false).toString()), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"empty_range\"}"));
     }
 
     @Test
