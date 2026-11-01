@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 import { useState } from "react";
 
 import wordmark from "@/assets/acttub-wordmark.png";
@@ -36,29 +36,29 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[#edf0f3] bg-white">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-10 px-5 sm:h-[72px] sm:px-8">
-        <Link href="/?intro=1" aria-label="ACTTUB 홈" className={`shrink-0 rounded ${FOCUS}`}>
+        <SiteLink href="/?intro=1" aria-label="ACTTUB 홈" className={`shrink-0 rounded ${FOCUS}`}>
           <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto sm:h-7" />
-        </Link>
+        </SiteLink>
         <nav aria-label="주요 메뉴" className="hidden items-center gap-7 text-[15px] font-semibold text-[#4e5968] lg:flex">
           {SITE_NAV.map((item) => (
-            <Link
+            <SiteLink
               key={item.href}
               href={item.href}
               aria-current={(current === "pricing" && item.href === "/pricing") || (current === "blog" && item.href === "/blog") ? "page" : undefined}
               className={`rounded transition hover:text-[#191f28] aria-[current=page]:text-[#191f28] ${FOCUS}`}
             >
               {item.label}
-            </Link>
+            </SiteLink>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2 sm:gap-5">
-          <Link
+          <SiteLink
             href="/help"
             aria-current={current === "help" ? "page" : undefined}
             className={`hidden rounded text-[15px] font-semibold text-[#4e5968] transition hover:text-[#191f28] aria-[current=page]:text-[#191f28] lg:inline ${FOCUS}`}
           >
             고객센터
-          </Link>
+          </SiteLink>
           <AccountLink
             className={`shrink-0 rounded text-sm font-semibold text-[#4e5968] transition hover:text-[#191f28] lg:text-[15px] ${FOCUS}`}
             memberClassName={`hidden shrink-0 rounded text-[15px] font-bold text-[#191f28] lg:inline ${FOCUS}`}
@@ -89,9 +89,9 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
           <ul className="divide-y divide-[#f2f4f6] text-base font-semibold text-[#333d4b]">
             {[...SITE_NAV, { href: "/help", label: "고객센터" }, { href: "/account", label: "내 계정" }].map((item) => (
               <li key={item.href}>
-                <Link href={item.href} onClick={() => setOpen(false)} className={`block py-3.5 ${FOCUS}`}>
+                <SiteLink href={item.href} onClick={() => setOpen(false)} className={`block py-3.5 ${FOCUS}`}>
                   {item.label}
-                </Link>
+                </SiteLink>
               </li>
             ))}
           </ul>
@@ -163,9 +163,9 @@ export function SiteFooter({ showBadges = true }: { showBadges?: boolean }) {
                 <ul className="mt-3 space-y-2.5">
                   {group.links.map((link) => (
                     <li key={link.href}>
-                      <Link href={link.href} className={`rounded text-sm text-[#6b7684] transition hover:text-[#191f28] ${FOCUS}`}>
+                      <SiteLink href={link.href} className={`rounded text-sm text-[#6b7684] transition hover:text-[#191f28] ${FOCUS}`}>
                         {link.label}
-                      </Link>
+                      </SiteLink>
                     </li>
                   ))}
                 </ul>

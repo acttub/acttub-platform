@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
@@ -44,23 +44,23 @@ export function HomeTrialCards() {
           <p className="text-[13px] font-bold text-[#9ec5ff]">{reading.kicker}</p>
           <h2 className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] sm:text-2xl">{reading.title}</h2>
           <p className="mt-2 text-[15px] leading-[1.6] text-[#d1d6db]">{reading.body}</p>
-          <Link
+          <SiteLink
             href={trialHref(READING_TRIAL_PATH, "home_card", search)}
             className={`mt-6 inline-flex h-12 w-fit items-center rounded-[14px] bg-[#3182f6] px-6 text-[15px] font-bold text-white transition hover:bg-[#1b64da] ${FOCUS}`}
           >
             {reading.button}
-          </Link>
+          </SiteLink>
         </div>
         <div className="flex flex-col rounded-[28px] bg-[#f2f4f6] p-6 sm:p-7">
           <p className="text-[13px] font-bold text-[#6b7684]">{coaching.kicker}</p>
           <h2 className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] sm:text-2xl">{coaching.title}</h2>
           <p className="mt-2 text-[15px] leading-[1.6] text-[#4e5968]">{coaching.body}</p>
-          <Link
+          <SiteLink
             href={trialHref(COACHING_TRIAL_PATH, "home_card", search)}
             className={`mt-6 inline-flex h-12 w-fit items-center rounded-[14px] border border-[#e5e8eb] bg-white px-6 text-[15px] font-bold text-[#191f28] transition hover:bg-[#f9fafb] ${FOCUS}`}
           >
             {coaching.button}
-          </Link>
+          </SiteLink>
         </div>
       </div>
 
