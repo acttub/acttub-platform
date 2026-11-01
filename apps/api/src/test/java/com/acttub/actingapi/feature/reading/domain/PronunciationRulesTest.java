@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Phone;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Report;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.ScoredLine;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
+import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Misheard;
 import org.junit.jupiter.api.Test;
 
 class PronunciationRulesTest {
@@ -118,7 +119,11 @@ class PronunciationRulesTest {
         Report heard = PronunciationRules.build(List.of(new LineInput(4, "오디션 떨어진 거", "김", new ScoredLine("오디션 떨어진 거", words, 0.86))));
         assertThat(heard.skippedLines()).isEmpty();
         assertThat(heard.summary().linesUsed()).isEqualTo(1);
-        assertThat(heard.misheard()).isEmpty();
+        // 받아쓰기('김')로 고른 말은 없고, 칠한 어절의 들린 소리만 남는다.
+        assertThat(heard.misheard()).singleElement().satisfies(m -> {
+            assertThat(m.word()).isEqualTo("오디션");
+            assertThat(m.heard()).startsWith("'어'처럼 들렸어요");
+        });
 
         Report half = PronunciationRules.build(List.of(new LineInput(4, "오디션 떨어진 거", "김", new ScoredLine("오디션 떨어진 거", words, 0.42))));
         assertThat(half.skippedLines()).containsExactly(4);
@@ -156,5 +161,51 @@ class PronunciationRulesTest {
         assertThat(habit.habit()).isEqualTo(Habit.VOWEL);
         assertThat(habit.count()).isEqualTo(2);
         assertThat(habit.examples()).extracting(e -> e.expected() + e.heard()).containsOnly("ㅓㅗ");
+    }
+
+    @Test
+    void 칠한_어절마다_그_소리를_들린_소리로_바꿔_읽은_말을_붙인다() {
+        // 안녕 = [ㅏ ㄴ][ㄴ ㅕ ㅇ] — 둘째 음절 첫소리 ㄴ이 ㅁ으로 들렸다(11/1 운영 녹음과 같은 결과).
+        Word annyeong = word(0, "안녕", ok("ㅏ", true, 0), ok("ㄴ", false, 0),
+                bad("ㄴ", "ㅁ", -5.1, false, 1), ok("ㅕ", true, 1), ok("ㅇ", false, 1));
+        // 앉아는 소리대로 [ㅏ ㄴ][ㅈ ㅏ] — ㅈ이 ㅊ으로 들렸다.
+        Word anja = word(1, "앉아", ok("ㅏ", true, 0), ok("ㄴ", false, 0), bad("ㅈ", "ㅊ", -4, false, 1), ok("ㅏ", true, 1));
+        // 받침이 다르게 들린 것: 밥 [ㅂ ㅏ ㅂ] 의 받침 ㅂ → ㄱ
+        Word bap = word(2, "밥", ok("ㅂ", false, 0), ok("ㅏ", true, 0), bad("ㅂ", "ㄱ", -6, false, 0));
+        Report report = PronunciationRules.build(List.of(
+                new LineInput(8, "안녕.", "안녕", new ScoredLine("안녕", List.of(annyeong))),
+                new LineInput(3, "앉아 밥", "앉아 밥", new ScoredLine("앉아 밥", List.of(anja, bap)))));
+        assertThat(report.misheard()).extracting(m -> m.lineNo() + ":" + m.word() + "→" + m.heard().split("처럼")[0])
+                .containsExactly("3:앉아→'안차'", "3:밥→'박'", "8:안녕→'안명'");
+        assertThat(report.misheard().get(2).heard()).isEqualTo("'안명'처럼 들렸어요. '녕'의 첫소리 ㄴ이 ㅁ에 가까웠어요(자음이 바뀜). "
+                + "둘 다 콧소리예요. ㄴ은 혀끝을 윗잇몸에 대고, ㅁ은 두 입술을 닫아요. 입술은 뗀 채 혀끝을 윗잇몸에 대고 '녀-녀-녕', 그다음 '안녕'.");
+        assertThat(report.lines()).filteredOn(l -> l.lineNo() == 8).singleElement()
+                .satisfies(l -> assertThat(l.marks().get(0).detail().where()).isEqualTo("'녕'의 첫소리 ㄴ이 ㅁ에 가까웠어요"));
+        for (Misheard m : report.misheard()) {
+            System.out.println("PREVIEW " + m.word() + " → " + m.heard());
+        }
+    }
+
+    @Test
+    void 음절_자리가_없거나_그_자리에_올_수_없는_소리면_들린_말을_만들지_않는다() {
+        Word noSyllable = new Word(0, "다리", false, List.of(new Phone("ㄹ", "ㄴ", -5, false, null, 0, 100, true)));
+        assertThat(PronunciationRules.heardWord(noSyllable, noSyllable.phones().get(0))).isNull();
+        Phone toTense = bad("ㅂ", "ㄸ", -5, false, 0);
+        Word coda = word(0, "밥", ok("ㅂ", false, 0), ok("ㅏ", true, 0), toTense);
+        assertThat(PronunciationRules.heardWord(coda, toTense)).as("ㄸ은 받침에 올 수 없다").isNull();
+    }
+
+    @Test
+    void 받아쓰기로_고른_말은_같은_어절의_들린_소리가_있으면_빼고_세_개까지만_더한다() {
+        // 전액은 소리대로 [ㅈ ㅓ][ㄴ ㅐ ㄱ] — 받침 ㄱ이 ㄷ으로 들렸다.
+        Word jeonaek = word(1, "전액", ok("ㅈ", false, 0), ok("ㅓ", true, 0), ok("ㄴ", false, 1),
+                ok("ㅐ", true, 1), bad("ㄱ", "ㄷ", -4, false, 1));
+        ScoredLine line = new ScoredLine("육백억이요 전액 캐쉬", List.of(word(0, "육백억이요", ok("ㅠ", true, 0)), jeonaek,
+                word(2, "캐쉬", ok("ㅋ", false, 0))));
+        Report report = PronunciationRules.build(List.of(new LineInput(11, "육백억이요. 전액 캐쉬.", "육백억이요 전에 캐쉬", line)));
+        assertThat(report.misheard()).singleElement().satisfies(m -> {
+            assertThat(m.word()).isEqualTo("전액");
+            assertThat(m.heard()).startsWith("'저낻'처럼 들렸어요");
+        });
     }
 }
