@@ -440,7 +440,8 @@ export default function ReadingRange() {
                 maxLength={4}
                 selectTextOnFocus
                 accessibilityLabel={t('reading.pauseLabel')}
-                style={styles.pauseField}
+                // 아래 안내 줄은 키보드에 가려진다 — 틀린 값이면 칸 테두리부터 빨갛게(11/1 폰 확인).
+                style={[styles.pauseField, pauseInvalid && styles.pauseFieldError]}
               />
               <Text style={styles.maskLabel}>{t('reading.pauseUnit')}</Text>
             </View>
@@ -595,6 +596,7 @@ const styles = StyleSheet.create({
   rateRow: { flexDirection: 'row', gap: space[1.5] },
   pauseInput: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   pauseField: { width: 72, minHeight: 40, textAlign: 'center' },
+  pauseFieldError: { borderWidth: 1.5, borderColor: palette.danger },
   rateChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
   rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 36, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },

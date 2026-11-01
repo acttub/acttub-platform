@@ -2309,6 +2309,13 @@ test('자동 넘김(SOMA-954): 마이크 권한이 없어도 시작하고, 내 �
   expect(mockMic.start).not.toHaveBeenCalled();
 });
 
+test('전체 듣기·자동 넘김 회차는 녹음·음성 인식 권한을 묻지 않는다(11/1 폰에서 권한 창이 세 번 떴다)', async () => {
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+  expect(hasMicPermission).not.toHaveBeenCalled();
+  expect(detectSttPolicy).not.toHaveBeenCalled();
+});
+
 test('전체 듣기(1.1.1): 내 배역이 없는 회차는 마이크 없이 첫 대사부터 앱이 읽는다', async () => {
   jest.mocked(hasMicPermission).mockResolvedValue(false);
   await startPlay({ my_character_ids: [], my_character_names: [], advance: 'manual', record: false }, undefined, { begin: false });
