@@ -28,6 +28,9 @@ public interface BillingRepository {
     /** 결제내역 메일을 받을 주소(users.email). 없으면 비어 있다. */
     Optional<String> email(UUID userId);
 
+    /** 메일 인사에 쓰는 닉네임(users.nickname). 없으면 비어 있다. */
+    Optional<String> nickname(UUID userId);
+
     /** 약관 v2(type=terms, version=v2, locale=ko)의 발행 시각 — consent_documents.published_at. 아직 없으면 비어 있다. */
     Optional<Instant> termsV2PublishedAt();
 

@@ -59,6 +59,7 @@ class InMemoryBillingRepository implements BillingRepository {
 
     final Map<UUID, Instant> signups = new LinkedHashMap<>();
     final Map<UUID, String> emails = new LinkedHashMap<>();
+    final Map<UUID, String> nicknames = new LinkedHashMap<>();
     int signupReads;
     Instant termsV2;
     int termsReads;
@@ -67,6 +68,11 @@ class InMemoryBillingRepository implements BillingRepository {
     public Optional<Instant> termsV2PublishedAt() {
         termsReads++;
         return Optional.ofNullable(termsV2);
+    }
+
+    @Override
+    public Optional<String> nickname(UUID userId) {
+        return Optional.ofNullable(nicknames.get(userId));
     }
 
     @Override

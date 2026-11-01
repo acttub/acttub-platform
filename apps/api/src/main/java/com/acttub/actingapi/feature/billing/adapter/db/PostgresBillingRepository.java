@@ -60,6 +60,19 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
+    public Optional<String> nickname(UUID userId) {
+        return transaction.execute(tx -> {
+            var rows = entityManager.createNativeQuery("SELECT nickname FROM users WHERE id=:userId")
+                    .setParameter("userId", userId)
+                    .getResultList();
+            if (rows.isEmpty() || rows.get(0) == null || rows.get(0).toString().isBlank()) {
+                return Optional.<String>empty();
+            }
+            return Optional.of(rows.get(0).toString().strip());
+        });
+    }
+
+    @Override
     public Optional<String> email(UUID userId) {
         return transaction.execute(tx -> {
             var rows = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:userId")
