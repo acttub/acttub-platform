@@ -1,4 +1,5 @@
 import { requireOptionalNativeModule, type NativeModule } from 'expo';
+import { AppRegistry, Platform } from 'react-native';
 
 import type { LiveState } from '@/lib/reading/live';
 
@@ -7,8 +8,9 @@ import type { LiveState } from '@/lib/reading/live';
  *
  * - iOS: Live Activity(잠금 화면·다이내믹 아일랜드)를 띄우고, 오디오 세션 끊김(전화 등)을 알린다. 배경 소리·녹음은
  *   Info.plist 의 UIBackgroundModes audio 가 맡는다.
- * - Android: 지금은 연결하지 않는다(expo-module.config.json platforms 에서 뺌). 재생·마이크 포그라운드 서비스는
- *   Play 선언(사용 장면 동영상)이 필요해 1.0.0 에서 내렸다. android/ 코드는 다시 켤 때를 위해 남긴다.
+ * - Android: 재생(mediaPlayback) 포그라운드 서비스만 띄운다(앱 1.1.1). 배경에서 마이크는 열지 않으므로 keepsRunning 은
+ *   false — 말하기 회차는 배경으로 가면 멈추고, 전체 듣기·자동 넘김만 계속 돈다. 배경에서 JS 타이머가 멈추지 않게
+ *   서비스가 떠 있는 동안 헤드리스 작업(ReadingKeepAlive)을 하나 잡아 둔다.
  *
  * 모듈이 없는 실행(Expo Go·테스트)에서는 아무것도 하지 않고 keepsRunning 은 false 다 — 화면은 예전처럼 배경에서 멈춘다.
  */
@@ -27,6 +29,11 @@ declare class ReadingLiveNative extends NativeModule<Events> {
 }
 
 const native = requireOptionalNativeModule<ReadingLiveNative>('ReadingLive');
+
+// 안드로이드 리딩 서비스가 잡아 두는 헤드리스 작업 — 끝나지 않는 약속만 돌려준다. 네이티브가 서비스를 내릴 때 작업을 끝낸다.
+if (Platform.OS === 'android' && native) {
+  AppRegistry.registerHeadlessTask('ReadingKeepAlive', () => () => new Promise<void>(() => {}));
+}
 
 export function startReadingLive(state: LiveState, channelName: string): void {
   native?.start(state, channelName);

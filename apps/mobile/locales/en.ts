@@ -2122,6 +2122,7 @@ const en: DeepStringShape<typeof ko> = {
     jumpToast: 'Reading again from “{{text}}”',
     listening: 'Listening',
     showOriginal: 'Show the text',
+    pausedBodyListen: 'Tap Continue to redo this line from the start.',
     pausedBody: 'Tap Continue to redo this line from the start. The microphone turns on then.',
     interruptedChip: 'Stopped',
     interruptedBody: 'A call came in while you were in another app, so reading stopped. Tap Continue to redo this line from the start.',
