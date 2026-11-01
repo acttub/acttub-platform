@@ -36,9 +36,11 @@ class SubscriptionServiceTest {
     };
     final UUID user = UUID.randomUUID();
 
+    final java.util.List<BillingMailer.PaidMail> mails = new java.util.ArrayList<>();
+
     SubscriptionService service(boolean enabled, boolean limits) {
         return new SubscriptionService(new BillingSettings(enabled, false, limits, "https://dev.acttub.com",
-                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock);
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock, mails::add);
     }
 
     final SubscriptionService service = service(true, false);
@@ -160,6 +162,55 @@ class SubscriptionServiceTest {
         repository.emails.put(user, "actor@example.com");
         subscribe();
         assertThat(gateway.customerEmails).containsExactly("actor@example.com");
+    }
+
+    @Test
+    @DisplayName("첫 결제가 승인되면 가입 메일로 구독 메일을 한 통 보낸다 — 금액·카드·이용 기간·다음 결제일을 싣는다")
+    void mailsTheSubscriptionOnTheFirstPayment() {
+        repository.emails.put(user, "actor@example.com");
+        repository.nicknames.put(user, "QAtest");
+        Subscription sub = subscribe();
+        assertThat(mails).hasSize(1);
+        BillingMailer.PaidMail mail = mails.get(0);
+        assertThat(mail.to()).isEqualTo("actor@example.com");
+        assertThat(mail.name()).isEqualTo("QAtest");
+        assertThat(mail.first()).isTrue();
+        assertThat(mail.amount()).isEqualTo(3900);
+        assertThat(mail.cardCompany()).isEqualTo("신한");
+        assertThat(mail.periodEnd()).isEqualTo(sub.periodEnd());
+        assertThat(mail.orderId()).isEqualTo(gateway.approvedOrders.get(0));
+        assertThat(mail.paidAt()).isEqualTo(Instant.parse("2026-10-23T01:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("매달 자동결제가 승인되면 갱신 메일을 보낸다. 결제가 거절되면 보내지 않는다")
+    void mailsRenewalsButNotFailures() {
+        repository.emails.put(user, "actor@example.com");
+        Subscription sub = subscribe();
+        clock.set(sub.periodEnd().plusSeconds(60));
+        gateway.nextFailures.push(FakeGateway.rejected());
+        worker.runOnce();
+        assertThat(mails).hasSize(1);
+        service.retry(user);
+        assertThat(mails).hasSize(2);
+        assertThat(mails.get(1).first()).isFalse();
+        assertThat(mails.get(1).periodStart()).isEqualTo(sub.periodEnd());
+    }
+
+    @Test
+    @DisplayName("메일 주소가 없으면 구독 메일은 건너뛰고, 메일 쪽이 터져도 결제는 끝난다")
+    void mailProblemsNeverBreakThePayment() {
+        assertThat(subscribe().status()).isEqualTo(Status.ACTIVE);
+        assertThat(mails).isEmpty();
+
+        UUID other = UUID.randomUUID();
+        repository.emails.put(other, "other@example.com");
+        SubscriptionService exploding = new SubscriptionService(new BillingSettings(true, false, false, "https://dev.acttub.com",
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock,
+                mail -> { throw new IllegalStateException("mail down"); });
+        String state = stateOf(exploding.startCheckout(other, false, "subscribe"));
+        String customerKey = exploding.page(state).orElseThrow().customerKey();
+        assertThat(exploding.complete(state, customerKey, "auth_2")).isEqualTo(Result.DONE);
     }
 
     @Test
