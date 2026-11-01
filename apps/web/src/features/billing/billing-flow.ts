@@ -140,7 +140,7 @@ export function subscriptionViewOf(me: MeLike): SubscriptionView {
       title: "Pro",
       badge: `${store}에서 결제`,
       summary: [`월 ${won(me.amount)}`, next ? `다음 결제일 ${next}` : null].filter((l): l is string => !!l).join(" · "),
-      lines: [`${store}에서 결제한 구독은 ${store}의 구독 관리(${where})에서 바꾸거나 해지할 수 있어요.`],
+      lines: [`${store}에서 결제한 구독은 ${store}의 구독 관리(${where})에서 바꾸거나 해지할 수 있어요.`, "앱을 지워도 구독은 해지되지 않아요."],
       cancelable: false,
       showPricing: false,
     };

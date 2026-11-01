@@ -19,7 +19,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class GuestAnalysisQuotaTest {
     @ParameterizedTest
-    @CsvSource({"default,true,3", "true,true,3", "false,true,0", "default,false,0"})
+    @CsvSource({"default,true,1", "true,true,1", "false,true,0", "default,false,0"})
     void environmentControlsCreationContinuationAndReanalysis(String enabled, boolean guest, int expectedLimit) {
         var practices = mock(PracticeRepository.class, invocation -> {
             if (invocation.getMethod().getReturnType() == PracticeRepository.Started.class) {
@@ -55,7 +55,7 @@ class GuestAnalysisQuotaTest {
                 var quota = (PracticeRepository.Quota) arguments[arguments.length - 2];
                 if (expectedLimit == 0) assertThat(quota).isNull();
                 else {
-                    assertThat(quota.limit()).isEqualTo(3);
+                    assertThat(quota.limit()).isEqualTo(expectedLimit);
                     assertThat(quota.since()).isEqualTo(Instant.parse("2026-09-20T15:00:00Z"));
                 }
             }

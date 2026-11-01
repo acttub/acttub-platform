@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { ClosingCta, KeywordShell } from "@/features/keyword-pages/keyword-shell";
+import { COACHING_TRIAL_PATH, READING_TRIAL_PATH } from "@/features/trial/trial-paths";
 import type {
   KeywordBlock,
   KeywordPageContent,
@@ -40,6 +41,21 @@ function Block({ block }: { block: KeywordBlock }) {
 function StartLinks({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-col items-start ${className}`}>
+      {/* 주 버튼은 가입 없이 해 보는 체험이다. 앱 받기는 그 아래에 둔다. */}
+      <Link
+        href={`${COACHING_TRIAL_PATH}?from=keyword_page`}
+        prefetch={false}
+        className="inline-flex h-14 items-center rounded-[14px] bg-[#3182f6] px-7 text-base font-black text-white transition hover:bg-[#1b64da]"
+      >
+        영상 올리고 질문 받아 보기
+      </Link>
+      <Link
+        href={`${READING_TRIAL_PATH}?from=keyword_page`}
+        prefetch={false}
+        className="mb-6 mt-3 font-black text-[#3182f6] underline decoration-2 underline-offset-4"
+      >
+        영상이 없으면 상대역 리딩부터 →
+      </Link>
       <StoreBadges surface="keyword_page" />
       <Link
         href="/signup"

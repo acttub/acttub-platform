@@ -11,6 +11,7 @@ import { fetchMe, fetchProviders, login, signup, type LoginInput } from "@/lib/a
 import { errorMessage } from "@/lib/api/v2/errors";
 import type { ConsentDocument } from "@/lib/api/v2/types";
 import { clearLoginExpired } from "@/lib/auth/login-expired";
+import { backupGuestBeforeLogin, redeemGuestCarry } from "./carry-guest";
 import { setMemberTokens, type TokenPair } from "@/lib/auth/token-store";
 
 import {
@@ -96,10 +97,13 @@ export function AuthFlow({ mode, naverCallback = false }: { mode: Mode; naverCal
 
   /** 토큰을 저장하고(앱 로그인과 같은 자리) 이름을 채운다. */
   const storeSession = useCallback(async (pair: TokenPair, provider: WebProvider) => {
+    // 회원 토큰이 게스트 자리를 덮기 전에 게스트 토큰을 따로 둔다. 웹에서 체험한 연습은 로그인 뒤 회원 계정으로 옮긴다.
+    backupGuestBeforeLogin();
     clearLoginExpired();
     setMemberTokens(pair, { id: "", email: null, status: "active" }, provider);
     const me = await fetchMe().catch(() => null);
     if (me) setMemberTokens(pair, { id: me.id, email: me.email, status: me.status, name: me.profile?.name ?? null }, provider);
+    await redeemGuestCarry();
   }, []);
 
   const handle = useCallback(
