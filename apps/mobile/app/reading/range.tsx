@@ -43,7 +43,7 @@ import { newRequestId } from '@/lib/request-id';
 import { relativeDay } from '@/lib/reading/script-cards';
 import { translate as t } from '@/lib/i18n';
 import { logEvent } from '@/lib/analytics';
-import { DEFAULT_LISTEN_PREFS, READING_RATES, loadListenPrefs, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
+import { DEFAULT_LISTEN_PREFS, PAUSE_SECONDS, READING_RATES, loadListenPrefs, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
 
 /**
  * 새 연습(R8, reading.cast · reading.session). 연습마다 ① 내 배역(여러 명, 나머지는 앱이 읽음) ② 구간(최근 구간 ·
@@ -253,7 +253,7 @@ export default function ReadingRange() {
           record: needsMic,
         }),
       );
-      void logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate });
+      void logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate, pause_sec: handsFree ? listen.pauseSec : 0 });
       await updateCurrent({ maskMode: mask });
       setFirstReadingSession(firstMode ? (getCurrentSession()?.id ?? null) : null);
       router.replace('/reading/play');
@@ -400,7 +400,7 @@ export default function ReadingRange() {
             />
           </View>
         )}
-        {/* 핸즈프리(SOMA-954) — 걸으면서 듣게. 내 차례에 마이크를 열지 않고 대사 길이만큼 쉬고 넘어간다. 팝업 없이 스위치 한 줄. */}
+        {/* 자동 넘김(SOMA-954) — 걸으면서 듣게. 내 차례에 마이크를 열지 않고 고른 시간만큼 쉬고 넘어간다. 팝업 없이 스위치 한 줄. */}
         {!listenAll && cast.length > 1 && (
           <View style={styles.maskRow}>
             <View style={styles.rowBody}>
@@ -412,6 +412,28 @@ export default function ReadingRange() {
               onValueChange={(on) => updateListen({ handsFree: on })}
               accessibilityLabel={t('reading.handsFreeSwitch')}
             />
+          </View>
+        )}
+        {/* 자동 넘김을 켜면 쉬는 시간을 고른다(기본 2초, 11/1 사용자 결정). 속도 칸과 같은 알약 모양. */}
+        {handsFree && (
+          <View style={styles.maskRow}>
+            <Text style={styles.maskLabel}>{t('reading.pauseLabel')}</Text>
+            <View style={styles.rateRow}>
+              {PAUSE_SECONDS.map((sec) => {
+                const on = listen.pauseSec === sec;
+                return (
+                  <Pressable
+                    key={sec}
+                    style={[styles.rateChip, on && styles.rateChipOn]}
+                    onPress={() => updateListen({ pauseSec: sec })}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={t('reading.pauseA11y', { sec })}>
+                    <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{t('reading.pauseValue', { sec })}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         )}
         {/* 읽는 속도(SOMA-952) — 앱이 읽는 모든 목소리에 같이 든다. */}

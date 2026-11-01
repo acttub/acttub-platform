@@ -81,12 +81,12 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
   expect(screen.getByText('구간')).toBeOnTheScreen();
   expect(screen.getByText('전체 듣기 · 5줄')).toBeOnTheScreen();
   expect(screen.queryByLabelText('내 대사 가리기')).not.toBeOnTheScreen();
-  expect(screen.queryByLabelText('핸즈프리')).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText('자동 넘김')).not.toBeOnTheScreen();
   expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText('전체 듣기 · 5줄')).not.toBeOnTheScreen();
-  expect(screen.getByLabelText('핸즈프리')).toBeOnTheScreen();
+  expect(screen.getByLabelText('자동 넘김')).toBeOnTheScreen();
   expect(startButton(5)).toBeOnTheScreen();
 });
 
@@ -100,11 +100,15 @@ test('전체 듣기: 내 배역 없이 마이크를 묻지 않고 녹음 없는 
   expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: [], advance: 'manual', record: false }));
 });
 
-test('핸즈프리·읽는 속도: 고른 값을 기억하고, 핸즈프리 회차는 마이크 없이 timed 로 시작한다', async () => {
+test('자동 넘김·쉬는 시간·읽는 속도: 고른 값을 기억하고, 자동 넘김 회차는 마이크 없이 timed 로 시작한다', async () => {
   jest.mocked(micPermissionState).mockResolvedValue('ask');
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
-  await fireEvent(screen.getByLabelText('핸즈프리'), 'valueChange', true);
+  expect(screen.queryByLabelText('쉬는 시간 2초')).not.toBeOnTheScreen();
+  await fireEvent(screen.getByLabelText('자동 넘김'), 'valueChange', true);
+  // 켜면 쉬는 시간이 보이고 기본은 2초다.
+  expect(screen.getByLabelText('쉬는 시간 2초')).toBeSelected();
+  await fireEvent.press(screen.getByLabelText('쉬는 시간 3초'));
   await fireEvent.press(screen.getByLabelText('읽는 속도 1.2배'));
   expect(screen.getByLabelText('읽는 속도 1.2배')).toBeSelected();
 
@@ -113,7 +117,7 @@ test('핸즈프리·읽는 속도: 고른 값을 기억하고, 핸즈프리 회�
   expect(requestMicPermission).not.toHaveBeenCalled();
   expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], advance: 'timed', record: false }));
   const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual({ handsFree: true, rate: 1.2 });
+  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual({ handsFree: true, rate: 1.2, pauseSec: 3 });
 });
 
 test('시작하기 전에 대본의 첫 리딩 고품질 목소리 동의를 먼저 확인한다(SOMA-917)', async () => {

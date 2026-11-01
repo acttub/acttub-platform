@@ -119,7 +119,7 @@ import { exampleVoicesMatch, type ExampleAudio } from '@/lib/reading/example-aud
 import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
 import { newRequestId } from '@/lib/request-id';
 import { loadListenPrefs, pauseMsFor } from '@/lib/reading/listen-prefs';
-import { readingPlaybackRate, setReadingPlaybackRate } from '@/lib/reading/tts/playback-rate';
+import { setReadingPlaybackRate } from '@/lib/reading/tts/playback-rate';
 
 /**
  * 연습 실행(R9, reading.session). R8 시작·회차 상세 [이어서 연습]·완료의 [다시 연습]으로 들어온다.
@@ -213,6 +213,8 @@ export default function ReadingPlay() {
   const listenAll = !!session && session.my_character_ids.length === 0;
   /** 핸즈프리(SOMA-954) — 내 차례에 마이크를 열지 않고 대사 길이만큼 쉬고 넘어간다. */
   const handsFree = session?.advance === 'timed';
+  /** 자동 넘김의 쉬는 시간(초) — 배역 고르기에서 고른 값. 기본 2초. */
+  const pauseSecRef = useRef(2);
   const mic = useReadingMic();
   const stt = useReadingStt();
 
@@ -715,6 +717,7 @@ export default function ReadingPlay() {
       tipHiddenRef.current = tipHidden;
       // 읽는 속도(SOMA-952)는 배역 고르기에서 고른 값 — 이 회차의 모든 목소리에 든다.
       setReadingPlaybackRate(listenPrefs.rate);
+      pauseSecRef.current = listenPrefs.pauseSec;
       // 전체 듣기·핸즈프리는 마이크를 열지 않으므로 권한이 없어도 시작한다.
       if (!micOk && !listenAll && !handsFree) {
         setPhase({ kind: 'need_mic' });
@@ -1078,7 +1081,7 @@ export default function ReadingPlay() {
     turnClosing.current = false;
     turnStartedAt.current = Date.now();
     if (handsFree) {
-      // 핸즈프리(SOMA-954): 마이크를 열지 않고 내 대사 길이만큼 쉰 뒤 넘긴다. 속도를 올렸으면 그만큼 짧게 쉰다.
+      // 자동 넘김(SOMA-954): 마이크를 열지 않고 고른 시간(기본 2초)만큼 쉰 뒤 넘긴다.
       // 멈춤·나가기·[다음]으로 차례가 바뀌면 아래 정리가 타이머를 끊는다. 시트를 연 동안이면 닫을 때 넘긴다.
       const pauseTimer = setTimeout(() => {
         const cur = runRef.current;
@@ -1086,7 +1089,7 @@ export default function ReadingPlay() {
         setTurnDone(true);
         if (holdRef.current) deferredRef.current = { kind: 'advance', from };
         else goNext(from);
-      }, pauseMsFor(turnText, readingPlaybackRate()));
+      }, pauseMsFor(pauseSecRef.current));
       return () => {
         cancelled = true;
         clearTimeout(pauseTimer);
