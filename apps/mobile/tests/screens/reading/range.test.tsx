@@ -20,7 +20,7 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchPar
 jest.mock('@/hooks/use-reading-mic', () => ({ micPermissionState: jest.fn(), requestMicPermission: jest.fn() }));
 const mockAskFirstReading = jest.fn(async (_scriptId: string) => undefined);
 jest.mock('@/hooks/use-cloud-voice', () => ({ useCloudVoice: () => ({ askFirstReading: mockAskFirstReading, consentSheet: null }) }));
-jest.mock('@/lib/reading/tts/engine', () => ({ prefetchIfWifi: jest.fn(async () => undefined) }));
+jest.mock('@/lib/reading/tts/engine', () => ({ prepareInBackground: jest.fn(async () => undefined) }));
 
 const TWO_SCENES = scriptDetail(
   [...TWO_ROLE_LINES, ['scene', '2장 거리'], ['dialogue', '서연', '어디 가?'], ['dialogue', '민재', '집에.']],
@@ -82,7 +82,7 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
   expect(screen.getByText('전체 듣기 · 5줄')).toBeOnTheScreen();
   expect(screen.queryByLabelText('내 대사 가리기')).not.toBeOnTheScreen();
   expect(screen.queryByLabelText('핸즈프리')).not.toBeOnTheScreen();
-  expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
+  expect(engine.prepareInBackground).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText('전체 듣기 · 5줄')).not.toBeOnTheScreen();
@@ -409,7 +409,7 @@ test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않�
   await show({ ...TWO_SCENES, source: 'sample' });
 
   expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
-  expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
+  expect(engine.prepareInBackground).not.toHaveBeenCalled();
 });
 
 test('SOMA-727: 대사가 한 줄뿐인 대본은 같은 안내 자리에 나눠 읽는 길을 알린다(팝업 없음)', async () => {
