@@ -18,10 +18,14 @@ export type FirstTimeState = 'unknown' | 'first' | 'practiced';
 /**
  * 홈이 받은 기록으로 정한다. `loaded`가 false 면(묶음·대본·연습한 날 중 아직 못 받은 게 있으면) 모른다.
  * 묶음을 못 받았으면(네트워크 실패 등) 나머지가 다 0이어도 첫 사용자로 보지 않는다 — 시작한 사람의 탭바를 감추는 쪽이 더 이상하다.
+ * 대본 목록·리딩 회차·참여작 중 하나라도 못 받았을 때(`recordsFailed`)도 같다(11/2 — 리딩만 해 본 사람이 대본 목록을 못 받아
+ * 첫 사용자 홈으로 바뀌었다).
  */
 export function firstTimeStateFrom(input: {
   loaded: boolean;
   groupsFailed: boolean;
+  /** 대본 목록·리딩 회차·참여작 중 못 받은 것이 있다. */
+  recordsFailed?: boolean;
   groups: Parameters<typeof isFirstUser>[0]['groups'];
   scripts: Parameters<typeof isFirstUser>[0]['scripts'];
   practicedDays: number;
@@ -31,7 +35,17 @@ export function firstTimeStateFrom(input: {
   if (!input.loaded) return 'unknown';
   if (input.graduated) return 'practiced';
   if (!isFirstUser(input)) return 'practiced';
-  return input.groupsFailed ? 'unknown' : 'first';
+  return input.groupsFailed || input.recordsFailed ? 'unknown' : 'first';
+}
+
+/**
+ * 첫 사용자를 벗어났다고 이 기기에 남길지(11/2). 홈은 올 때마다 기록을 새로 받아 다시 따지는데, 서버 기록은 바뀐다 —
+ * 끝낸 대본을 다시 읽기 시작하면 그 대본은 「연습 중」이 되고, 홈은 최근 14일 안에 읽은 대본의 회차만 받는다.
+ * 그래서 기존 사용자 홈을 보던 사람이 리딩을 하고 돌아오면 첫 사용자 홈으로 바뀌었다. 한 번 기록으로 벗어났으면 졸업 표시를
+ * 남겨 다시 돌아가지 않게 한다. 이미 표시가 있거나 아직 다 못 받았으면(unknown) 남기지 않는다.
+ */
+export function shouldRememberGraduation(state: FirstTimeState, graduated: boolean | null): boolean {
+  return state === 'practiced' && graduated === false;
 }
 
 let state: FirstTimeState = 'unknown';

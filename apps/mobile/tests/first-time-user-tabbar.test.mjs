@@ -6,6 +6,7 @@ import {
   firstTimeStateFrom,
   getFirstTimeState,
   setFirstTimeState,
+  shouldRememberGraduation,
   subscribeFirstTimeState,
 } from '../lib/practice/first-time.ts';
 
@@ -75,4 +76,29 @@ test('탭바가 숨는 동안 코칭·대본 첫 화면에서 설정으로 갈 �
   const reading = read('app/(tabs)/reading.tsx');
   assert.match(reading, /phLabel="reading_first_settings"/);
   assert.match(reading, /router\.push\('\/settings'\)/);
+});
+
+test('대본 목록·리딩 회차·참여작을 못 받았으면 첫 사용자로 보지 않는다(11/2)', () => {
+  assert.equal(firstTimeStateFrom({ ...base, recordsFailed: true }), 'unknown');
+  // 받은 것만으로도 끝낸 연습이 보이면 그대로 기존 사용자다.
+  assert.equal(firstTimeStateFrom({ ...base, recordsFailed: true, practicedDays: 2 }), 'practiced');
+});
+
+test('기록으로 첫 사용자를 벗어나면 졸업 표시를 남긴다 — 다시 읽기 시작해도 첫 홈으로 돌아가지 않게(11/2)', () => {
+  assert.equal(shouldRememberGraduation('practiced', false), true);
+  // 이미 남겼거나 아직 표시를 못 읽었으면(null) 남기지 않는다.
+  assert.equal(shouldRememberGraduation('practiced', true), false);
+  assert.equal(shouldRememberGraduation('practiced', null), false);
+  assert.equal(shouldRememberGraduation('first', false), false);
+  assert.equal(shouldRememberGraduation('unknown', false), false);
+  // 졸업 표시가 있으면 서버 기록이 「연습 중」 대본뿐이어도 기존 사용자다.
+  assert.equal(firstTimeStateFrom({ ...base, scripts: [{ id: 's1', status: 'reading' }], graduated: true }), 'practiced');
+});
+
+test('홈은 첫 사용자 판정을 기기에 남기고, 오래전에 읽은 대본과 못 받은 목록도 따진다(11/2)', () => {
+  const src = read('app/(tabs)/index.tsx');
+  assert.match(src, /shouldRememberGraduation\(firstTime, graduated\)/);
+  assert.match(src, /olderPracticedScripts\(scriptList\)/);
+  assert.match(src, /setRecordsFailed\(readFailed\)/);
+  assert.match(src, /recordsFailed,\n\s+groups,/);
 });
