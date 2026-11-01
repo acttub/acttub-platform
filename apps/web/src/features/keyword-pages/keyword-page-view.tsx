@@ -7,7 +7,6 @@ import type {
   KeywordPageContent,
 } from "@/features/keyword-pages/types";
 
-const practiceHref = "/practice/new";
 
 function Block({ block }: { block: KeywordBlock }) {
   if (block.kind === "p") return <p>{block.text}</p>;
@@ -43,11 +42,11 @@ function StartLinks({ className = "" }: { className?: string }) {
     <div className={`flex flex-col items-start ${className}`}>
       <StoreBadges surface="keyword_page" />
       <Link
-        href={practiceHref}
+        href="/signup"
         prefetch={false}
         className="mt-4 font-black text-[#3182f6] underline decoration-2 underline-offset-4"
       >
-        앱 없이 웹으로 시작하기 →
+        무료로 가입하기 →
       </Link>
     </div>
   );
@@ -72,7 +71,7 @@ export function KeywordPageView({ content }: { content: KeywordPageContent }) {
           <p className="font-black">목차</p>
           <ol className="mt-4 space-y-3 text-[#4e5968]">
             <li>
-              <Link href="/guide" className="font-bold hover:text-[#3182f6]">
+              <Link href="/blog" className="font-bold hover:text-[#3182f6]">
                 연기 연습 가이드
               </Link>
             </li>

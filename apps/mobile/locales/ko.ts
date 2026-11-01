@@ -1137,6 +1137,7 @@ const ko = {
     next: '다음',
     chooseGuide: '하나 고르고 「다음」을 누르세요.',
     sourceChooseGuide: '하나 고르고 「질문 받기」를 누르세요.',
+    privateNote: '코칭 영상은 나만 볼 수 있어요. 다른 배우는 챌린지에 공개로 올린 영상만 봐요.',
     titleNew: '새 연습',
     repick: '영상 다시 선택',
     dropHint: 'MP4 · MOV · 5분 이내',

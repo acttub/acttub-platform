@@ -25,3 +25,27 @@ export async function submitInquiry(
   });
   return data;
 }
+
+export type InquiryStatus = "open" | "answered" | "closed";
+
+export type MyInquiry = {
+  id: string;
+  category: string;
+  summary: string;
+  status: InquiryStatus | string;
+  created_at: string;
+};
+
+/**
+ * 내 문의 목록(GET /v2/support/inquiries/mine, 최근 20건). 회원만 부른다.
+ * 서버가 아직 이 경로를 모르면 404 가 오므로 부르는 쪽이 「목록 없음」으로 다루고 문의하기 링크만 보인다.
+ */
+export async function fetchMyInquiries(options: { signal?: AbortSignal } = {}): Promise<MyInquiry[]> {
+  const { data } = await apiFetch<{ items?: MyInquiry[] }>("/v2/support/inquiries/mine", {
+    auth: true,
+    startGuest: false,
+    consentPrompt: false,
+    signal: options.signal,
+  });
+  return Array.isArray(data?.items) ? data.items : [];
+}

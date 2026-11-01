@@ -41,7 +41,7 @@ import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } fro
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
-import { saidEnough } from '@/lib/reading/line-coverage';
+import { isWordless, saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
@@ -366,7 +366,9 @@ export default function ReadingPlay() {
     });
     const upcoming = config.lines.slice(from, config.endIndex + 1)
       .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role))
-      .flatMap((line) => speechParts(line).map((part) => ({ text: speakableText(part.text), preset: presetFor(line.role), lang: part.lang })));
+      .flatMap((line) => speechParts(line).map((part) => ({ text: speakableText(part.text), preset: presetFor(line.role), lang: part.lang })))
+      // 「...」처럼 소리 낼 글자가 없는 줄은 목소리를 만들지 않는다(SOMA-962).
+      .filter((part) => !isWordless(part.text));
     speechQueue.current.prime(upcoming);
     return speechQueue.current;
   }, [script, config, presetFor, session?.id]);
@@ -851,6 +853,15 @@ export default function ReadingPlay() {
       if (holdRef.current) deferredRef.current = { kind: 'advance', from };
       else goNext(from);
     };
+    // 「...」처럼 소리 낼 글자가 없는 상대 줄은 목소리 없이 잠깐 쉬었다 넘긴다(SOMA-962). 글로 보기는 그대로 버튼을 기다리고,
+    // 예시 대본은 줄마다 녹음된 소리가 있어 그대로 튼다.
+    if (engine !== 'text_only' && engine !== 'example' && parts.every((part) => isWordless(part.text))) {
+      const pause = setTimeout(finish, beatMs(parts.map((part) => part.text)));
+      return () => {
+        cancelled = true;
+        clearTimeout(pause);
+      };
+    }
     // 저장해 둔 소리를 틀지 못하면(재생 실패·시작 안 됨) 그 파일을 지우고 이 줄은 기기 목소리로 읽는다(SOMA-906).
     // 지운 파일은 다음에 다시 받거나 만든다. 기기 목소리도 없으면 그대로 다음 줄로 넘어간다.
     const playSaved = async (uri: string, readInstead: () => Promise<void>) => {
@@ -1018,6 +1029,18 @@ export default function ReadingPlay() {
     saidRef.current = '';
     setTurnNote(null);
     setTurnDone(false);
+    // 「...」처럼 소리 낼 글자가 없는 내 줄은 쉬는 줄이다(SOMA-962, 리딩 평가 「...만 있으면 지문으로 인식했으면」).
+    // 침묵을 재려면 먼저 소리가 나야 해서, 말없이 있으면 줄이 넘어가지 않았다. 마이크·받아쓰기를 켜지 않고 잠깐 보여 준 뒤
+    // 넘긴다. [다음]으로 넘기는 회차는 지금처럼 버튼을 기다린다.
+    if (session.advance === 'silence' && isWordless(turnText)) {
+      turnClosing.current = false;
+      recordingClosed.current = true;
+      const pause = setTimeout(() => {
+        if (holdRef.current) deferredRef.current = { kind: 'advance', from };
+        else goNext(from);
+      }, beatMs([turnText]));
+      return () => clearTimeout(pause);
+    }
     let cancelled = false;
     // 인식기가 스스로 멈춘 뒤에는 받아쓴 글이 더 늘지 않는다 — 90% 대조를 기다리면 줄이 멈추므로 침묵만으로 넘긴다.
     let sttStopped = false;

@@ -42,6 +42,31 @@ class PostgresSupportInquiryStore implements SupportInquiryStore {
     }
 
     @Override
+    public List<Inquiry> listByUser(UUID userId, int limit) {
+        return NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT id,category,email,body,user_id,client,status,created_at
+                FROM support_inquiries
+                WHERE user_id=:userId
+                ORDER BY created_at DESC,id DESC
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("limit", limit)).stream().map(PostgresSupportInquiryStore::map).toList();
+    }
+
+    private static Inquiry map(Tuple row) {
+        return new Inquiry(
+                row.get("id", UUID.class),
+                row.get("category", String.class),
+                row.get("email", String.class),
+                row.get("body", String.class),
+                row.get("user_id", UUID.class),
+                row.get("client", String.class),
+                row.get("status", String.class),
+                row.get("created_at", Instant.class));
+    }
+
+    @Override
     public List<Inquiry> list(String status, int limit) {
         return NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT id,category,email,body,user_id,client,status,created_at

@@ -1,7 +1,7 @@
 import type { KeywordPageContent } from "../../types";
 
 export const MONOLOGUE_PRACTICE: KeywordPageContent = {
-  path: "/guide/monologue-practice",
+  path: "/blog/monologue-practice",
   title: "독백 연습 혼자 하는 법 — 외우기부터 촬영·복기까지 6단계",
   description:
     "입시 자유연기든 오디션 독백이든, 혼자서도 굴러가는 독백 연습 순서를 정리했어요. 대사 외우기, 장면 분석, 한 테이크 촬영, 다시 보기, 다음 테이크 문장까지 6단계예요.",
@@ -182,9 +182,9 @@ export const MONOLOGUE_PRACTICE: KeywordPageContent = {
     },
   ],
   related: [
-    { href: "/guide/choosing-free-acting-piece", label: "자유연기 작품 고르는 법" },
-    { href: "/guide/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
-    { href: "/guide/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
+    { href: "/blog/choosing-free-acting-piece", label: "자유연기 작품 고르는 법" },
+    { href: "/blog/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
+    { href: "/blog/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
     { href: "/ai-acting-coaching", label: "AI 연기 코칭이 뭔가요?" },
     { href: "/admissions", label: "연극영화과 입시 정보" },
   ],

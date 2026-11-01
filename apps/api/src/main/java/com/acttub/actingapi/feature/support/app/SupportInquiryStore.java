@@ -9,6 +9,9 @@ public interface SupportInquiryStore {
 
     void insert(NewInquiry inquiry, Instant now);
 
+    /** 한 계정이 보낸 문의, 새것부터. */
+    List<Inquiry> listByUser(UUID userId, int limit);
+
     /** 새것부터. {@code status} 가 {@code null} 이면 전체. */
     List<Inquiry> list(String status, int limit);
 

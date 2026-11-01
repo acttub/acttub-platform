@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { ConsentMarkdown } from "@/features/practice/consent-markdown";
+import { ConsentMarkdown } from "@/features/consent/consent-markdown";
 import { useResource } from "@/lib/react/use-resource";
 
 import { loadPrivacyPolicy } from "./privacy-policy";

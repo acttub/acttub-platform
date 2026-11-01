@@ -326,7 +326,7 @@ test("/auditions는 sitemap에 없다", async () => {
   delete process.env.NEXT_PUBLIC_SITE_URL;
   const { default: sitemap } = await import("../src/app/sitemap.ts");
   assert.equal(
-    sitemap().some(({ url }) => new URL(url).pathname.startsWith("/auditions")),
+    (await sitemap()).some(({ url }) => new URL(url).pathname.startsWith("/auditions")),
     false,
   );
 });
