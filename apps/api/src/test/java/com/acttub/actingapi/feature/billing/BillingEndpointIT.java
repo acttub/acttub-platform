@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -114,7 +115,7 @@ class BillingEndpointIT {
         // doAnswer 꼴로 건다 — when(...) 꼴은 앞서 건 thenThrow 를 실제로 불러 버린다.
         doAnswer(call -> new PgReviewGateway.Approval("DONE", call.getArgument(2), call.getArgument(3),
                 "2026-10-23T10:00:00+09:00"))
-                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
     }
 
     @Test
@@ -163,7 +164,7 @@ class BillingEndpointIT {
 
         clock.set(Instant.parse("2026-12-23T01:00:01Z"));
         doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"))
-                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
         assertThat(worker.runOnce()).isTrue();
         JsonNode pastDue = me();
         assertThat(pastDue.path("status").textValue()).isEqualTo("past_due");
@@ -176,7 +177,7 @@ class BillingEndpointIT {
 
         clock.set(Instant.parse("2027-01-23T01:00:01Z"));
         doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"))
-                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
         assertThat(worker.runOnce()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments WHERE status='unknown'", Integer.class)).isEqualTo(1);
         assertThat(worker.runOnce()).isFalse();
