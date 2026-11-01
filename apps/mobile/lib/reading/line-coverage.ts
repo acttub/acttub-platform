@@ -25,6 +25,20 @@ function lineChars(target: string): number {
   return count;
 }
 
+/**
+ * 소리 낼 글자가 하나도 없는 줄(「...」「…」「—」, 괄호 지문뿐)인가(SOMA-962). 이런 줄은 쉬는 줄이라 마이크를 켜지 않고
+ * 잠깐 보여 준 뒤 넘긴다. 「ㅋㅋㅋ」 같은 낱자모는 배우가 내는 소리라 글자로 친다.
+ */
+export function isWordless(text: string): boolean {
+  let depth = 0;
+  for (const c of text) {
+    if (OPEN.test(c)) depth += 1;
+    else if (CLOSE.test(c)) depth = Math.max(0, depth - 1);
+    else if (depth === 0 && COMPARABLE.test(c)) return false;
+  }
+  return true;
+}
+
 /** 말한 글자 수 ÷ 대본 글자 수(최대 1). 셀 글자가 없는 줄은 1. */
 export function spokenCoverage(target: string, said: string): number {
   const total = lineChars(target);

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
+import { PrivateVideoNote } from '@/components/private-video-note';
 import { pt } from '@/components/ui/anchored-menu';
 import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
@@ -185,6 +186,8 @@ export default function HistoryScreen() {
             <Chip key={key} label={t(label)} selected={filter === key} role="radio" onPress={() => setFilter(key)} />
           ))}
         </View>
+
+        <PrivateVideoNote />
 
         <AdSlot slot="archive_top" />
 

@@ -1142,6 +1142,7 @@ const en: DeepStringShape<typeof ko> = {
     next: 'Next',
     chooseGuide: 'Pick one, then tap “Next”.',
     sourceChooseGuide: 'Pick one, then tap “Get questions”.',
+    privateNote: 'Only you can see coaching videos. Others only see challenge videos you post publicly.',
     titleNew: 'New practice',
     repick: 'Choose another video',
     dropHint: 'MP4 · MOV · under 5 minutes',
