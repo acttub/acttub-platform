@@ -65,6 +65,27 @@ class TossBillingGatewayTest {
     }
 
     @Test
+    void sendsCustomerEmailSoTossMailsTheReceipt() {
+        approveServer.expect(requestTo("https://api.tosspayments.com/v1/billing/BK-1"))
+                .andExpect(content().json(
+                        "{\"customerKey\":\"pgr_c\",\"amount\":3900,\"orderId\":\"o-1\",\"orderName\":\"ACTTUB Pro\","
+                                + "\"customerEmail\":\"actor@example.com\"}", true))
+                .andRespond(withSuccess("{\"status\":\"DONE\",\"orderId\":\"o-1\",\"totalAmount\":3900}",
+                        MediaType.APPLICATION_JSON));
+        gateway(SECRET).approve("BK-1", "pgr_c", "o-1", 3900, "ACTTUB Pro", " actor@example.com ", "idem-1");
+        approveServer.verify();
+    }
+
+    @Test
+    void dropsMissingOrMalformedCustomerEmail() {
+        assertThat(TossBillingGateway.receiptEmail(null)).isNull();
+        assertThat(TossBillingGateway.receiptEmail("  ")).isNull();
+        assertThat(TossBillingGateway.receiptEmail("not-an-email")).isNull();
+        assertThat(TossBillingGateway.receiptEmail("a".repeat(95) + "@b.com")).isNull();
+        assertThat(TossBillingGateway.receiptEmail("x@y.kr")).isEqualTo("x@y.kr");
+    }
+
+    @Test
     void liveOrMalformedSecretNeverSendsAnyRequest() {
         for (String key : new String[] {"live_sk_abcdefgh12345678", "", null, "test_ck_abcdefgh12345678"}) {
             TossBillingGateway gateway = gateway(key);

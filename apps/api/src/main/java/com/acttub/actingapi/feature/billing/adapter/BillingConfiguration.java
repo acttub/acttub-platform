@@ -73,8 +73,8 @@ class BillingConfiguration {
 
             @Override
             public PgReviewGateway.Approval approve(String billingKey, String customerKey, String orderId, long amount,
-                    String orderName, String idempotencyKey) {
-                return toss.approve(billingKey, customerKey, orderId, amount, orderName, idempotencyKey);
+                    String orderName, String customerEmail, String idempotencyKey) {
+                return toss.approve(billingKey, customerKey, orderId, amount, orderName, customerEmail, idempotencyKey);
             }
         };
     }

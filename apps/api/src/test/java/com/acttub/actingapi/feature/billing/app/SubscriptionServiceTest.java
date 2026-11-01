@@ -155,6 +155,21 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName("결제 승인에 가입 메일을 넘겨 토스가 결제내역 메일을 보내게 한다")
+    void passesSignupEmailForTheReceiptMail() {
+        repository.emails.put(user, "actor@example.com");
+        subscribe();
+        assertThat(gateway.customerEmails).containsExactly("actor@example.com");
+    }
+
+    @Test
+    @DisplayName("메일 주소가 없어도 결제는 그대로 된다")
+    void chargesWithoutEmail() {
+        assertThat(subscribe().status()).isEqualTo(Status.ACTIVE);
+        assertThat(gateway.customerEmails).containsExactly((String) null);
+    }
+
+    @Test
     @DisplayName("카드 등록 → 빌링키(암호문) → 3,900원 첫 결제 → active, 다음 결제일은 한 달 뒤")
     void firstSubscription() {
         Subscription sub = subscribe();
