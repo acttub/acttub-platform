@@ -18,7 +18,14 @@ import { translate as t } from '@/lib/i18n';
 /** 서버 SupportInquiryRules 와 같은 한도(본문 10~3000자, 메일 형식). */
 export const FEEDBACK_MIN = 10;
 export const FEEDBACK_MAX = 3000;
-const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+/** 메일 모양인가 — 공백 없이 @ 하나, @ 뒤에 점. 되돌아가며 맞추는 정규식은 쓰지 않는다(SonarCloud S8786). */
+function looksLikeEmail(value: string): boolean {
+  if (value.length > 254 || /\s/.test(value)) return false;
+  const at = value.indexOf('@');
+  if (at <= 0 || at !== value.lastIndexOf('@')) return false;
+  const dot = value.lastIndexOf('.');
+  return dot > at + 1 && dot < value.length - 1;
+}
 /**
  * 메일 칸은 두지 않는다(11/1 사용자 결정) — 로그인한 계정으로 받으므로 서버가 계정(user_id)을 같이 남긴다. 서버가 메일을 필수로
  * 받으므로 계정 메일을 그대로 싣고, 계정에 메일이 없으면(카카오 미동의 등) 답장 없는 자리표시 주소를 싣는다.
@@ -26,7 +33,7 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const NO_REPLY_EMAIL = 'no-reply@acttub.com';
 export function feedbackEmail(account: string | null | undefined): string {
   const value = (account ?? '').trim();
-  return EMAIL_PATTERN.test(value) && value.length <= 254 ? value : NO_REPLY_EMAIL;
+  return looksLikeEmail(value) ? value : NO_REPLY_EMAIL;
 }
 
 /**
