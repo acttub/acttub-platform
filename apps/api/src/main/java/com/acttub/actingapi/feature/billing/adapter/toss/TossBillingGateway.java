@@ -115,12 +115,25 @@ public class TossBillingGateway implements PgReviewGateway {
     @Override
     public Approval approve(String billingKey, String customerKey, String orderId, long amount, String orderName,
             String idempotencyKey) {
+        return approve(billingKey, customerKey, orderId, amount, orderName, null, idempotencyKey);
+    }
+
+    /**
+     * {@code customerEmail} 을 넣으면 토스가 결제 승인·취소 때 그 주소로 결제내역 메일을 보낸다(전자상거래법 제13조 제2항의
+     * 계약내용 전자문서 교부). 비었거나 토스 한도(100자)를 넘거나 메일 모양이 아니면 보내지 않고 결제만 진행한다.
+     */
+    public Approval approve(String billingKey, String customerKey, String orderId, long amount, String orderName,
+            String customerEmail, String idempotencyKey) {
         String authorization = authorization();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("customerKey", customerKey);
         body.put("amount", amount);
         body.put("orderId", orderId);
         body.put("orderName", orderName);
+        String email = receiptEmail(customerEmail);
+        if (email != null) {
+            body.put("customerEmail", email);
+        }
         Reply reply = send(approveHttp, "/v1/billing/" + billingKey, authorization, body, idempotencyKey);
         if (reply.status() / 100 == 5) {
             throw new GatewayException(GatewayException.Outcome.UNKNOWN, "gateway_server_error");
@@ -182,6 +195,17 @@ public class TossBillingGateway implements PgReviewGateway {
         GatewayException.Outcome outcome =
                 UNKNOWN_CODES.contains(code) ? GatewayException.Outcome.UNKNOWN : GatewayException.Outcome.REJECTED;
         return new GatewayException(outcome, code);
+    }
+
+    static String receiptEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        String trimmed = email.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 100 || !trimmed.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
+            return null;
+        }
+        return trimmed;
     }
 
     private record Reply(int status, String body) {
