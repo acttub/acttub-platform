@@ -1783,9 +1783,8 @@ CONSTRAINT reading_session_ratings reading_session_ratings_updated_at_not_null N
 CONSTRAINT reading_session_ratings reading_session_ratings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT reading_session_ratings reading_session_ratings_user_id_not_null NOT NULL user_id
 CONSTRAINT reading_session_ratings uq_reading_session_ratings_session_user UNIQUE (session_id, user_id)
-CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text, 'timed'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_mode CHECK ((mode = ANY (ARRAY['read'::text, 'quiz'::text])))
-CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK ((cardinality(my_character_ids) >= 1))
 CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text])))
 CONSTRAINT reading_sessions reading_sessions_advance_not_null NOT NULL advance
 CONSTRAINT reading_sessions reading_sessions_current_line_id_fkey FOREIGN KEY (current_line_id) REFERENCES script_lines(id)

@@ -3834,7 +3834,7 @@ export interface components {
          * ReadingAdvanceInput
          * @enum {string}
          */
-        ReadingAdvanceInput: "silence" | "manual";
+        ReadingAdvanceInput: "silence" | "manual" | "timed";
         /**
          * ReadingModeInput
          * @enum {string}
@@ -3868,7 +3868,7 @@ export interface components {
          * ReadingAdvance
          * @enum {string}
          */
-        ReadingAdvance: "silence" | "manual";
+        ReadingAdvance: "silence" | "manual" | "timed";
         /**
          * ReadingDifferentLine
          * @description 원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다
