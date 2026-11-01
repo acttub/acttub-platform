@@ -418,6 +418,15 @@ test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배�
   expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
+test('자동 넘김 회차는 마이크 서비스를 못 띄우는 기기여도 화면을 끄거나 다른 앱으로 가도 멈추지 않는다(11/1 폰 확인)', async () => {
+  mockLive.keepsRunning.mockReturnValue(false);
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+
+  await act(async () => appStateListeners.forEach((l) => l('background')));
+  expect(screen.queryByText('이어서')).toBeNull();
+});
+
 test('잠금 화면·알림의 일시정지를 누르면 화면의 일시정지와 같이 멈춘다', async () => {
   const server = await startPlay();
   await screen.findByText('듣는 중');
@@ -1243,6 +1252,17 @@ test('완료 화면의 다시 연습은 같은 설정으로 새 회차를 시작
     advance: 'silence',
     record: true,
   }));
+});
+
+test('자동 넘김 회차의 다시 읽기는 자동 넘김·녹음 없음 그대로 새 회차를 시작한다(11/1 폰 확인)', async () => {
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5', advance: 'timed', record: false }, undefined, { begin: false });
+  server.startSession.mockResolvedValue(sessionDetail({ id: 'r2', advance: 'timed', record: false }));
+  // 내 줄 하나 — 기본 2초 쉬고 끝난다.
+  expect(await screen.findByText('리딩 완료', {}, { timeout: 5000 })).toBeOnTheScreen();
+
+  await pressWhenReady('다시 읽기');
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ advance: 'timed', record: false }));
 });
 
 test('다시 연습을 시작하지 못하면 이유를 알린다', async () => {
