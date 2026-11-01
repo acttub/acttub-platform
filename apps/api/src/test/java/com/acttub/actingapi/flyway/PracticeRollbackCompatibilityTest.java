@@ -164,6 +164,16 @@ class PracticeRollbackCompatibilityTest {
                     + "(ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, "
                     + "'reading_recording_delete'::text, 'revenuecat_delete'::text])))");
         }
+        // V82 가 리딩 회차의 넘김 방식에 timed(핸즈프리)를 더하고, 내 배역 1개 이상 CHECK 를 없앴다(전체 듣기, 앱 1.1.1).
+        // 넓히기만 했으므로 옛 서버가 쓰는 값은 그대로 통한다.
+        String readingAdvanceBefore = "CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY "
+                + "(ARRAY['silence'::text, 'manual'::text])))";
+        if (expected.remove(readingAdvanceBefore)) {
+            expected.add("CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY "
+                    + "(ARRAY['silence'::text, 'manual'::text, 'timed'::text])))");
+        }
+        expected.remove("CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK "
+                + "((cardinality(my_character_ids) >= 1))");
         expected.remove("INDEX CREATE UNIQUE INDEX uq_reading_sessions_open_script ON public.reading_sessions "
                 + "USING btree (script_id) WHERE (status = 'in_progress'::text)");
         expected.addAll(List.of(
