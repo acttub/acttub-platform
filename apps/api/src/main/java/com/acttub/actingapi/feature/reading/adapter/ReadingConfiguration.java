@@ -29,6 +29,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptPlan;
 import com.acttub.actingapi.feature.reading.app.VoicePlan;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
+import com.acttub.actingapi.feature.reading.app.ScriptSplitListener;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
@@ -129,13 +130,14 @@ class ReadingConfiguration {
     ScriptSplitWorker scriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, OpenAiTextGenerators generators,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock, ObjectMapper json,
             @Value("${OPENROUTER_SCRIPT_REVIEW_API_KEY:}") String reviewKey,
-            @Value("${SCRIPT_REVIEW_MODEL:" + ScriptSplitRules.REVIEW_MODEL + "}") String reviewModel) {
+            @Value("${SCRIPT_REVIEW_MODEL:" + ScriptSplitRules.REVIEW_MODEL + "}") String reviewModel,
+            ObjectProvider<ScriptSplitListener> listener) {
         LineDecider decider = reviewKey.isBlank() ? null
                 : new OpenRouterLineDecider(json,
                 reviewModel.isBlank() ? ScriptSplitRules.REVIEW_MODEL : reviewModel.strip(), reviewKey.strip(), Duration.ofSeconds(20),
                 ScriptSplitRules.REVIEW_IN_FLIGHT);
         return new ScriptSplitWorker(ledger, imports, generators.scriptSplit(), telemetry, failures, clock, decider,
-                ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN);
+                ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN, listener.getIfAvailable());
     }
 
     @Bean

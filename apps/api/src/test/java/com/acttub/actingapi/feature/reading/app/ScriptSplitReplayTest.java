@@ -552,6 +552,7 @@ class ScriptSplitReplayTest {
             return new Material(USER, false, UUID.randomUUID(), "f".repeat(64), null, rawText, "paste", false, null);
         }
         @Override public void progress(UUID importId, int doneLines, int totalLines) { }
+        @Override public void percent(UUID importId, int percent) { }
         @Override public Completion complete(UUID jobId, UUID leaseToken, UUID importId, ScriptDraft draft, Instant now) {
             saved = draft;
             return Completion.SAVED;

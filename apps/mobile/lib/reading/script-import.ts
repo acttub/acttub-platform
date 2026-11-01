@@ -107,7 +107,17 @@ export type ImportDeps = {
   sleep: (ms: number) => Promise<void>;
 };
 
-export type ImportProgress = { done: number; total: number };
+export type ImportProgress = { done: number; total: number; percent: number | null };
+
+/**
+ * 나누는 중 화면(R2.11)에 보일 진행률과 문구 단계. 서버가 percent 를 주면 그것을 쓴다 — 줄 수만 세면 줄을 다 나눈 뒤
+ * 줄 검토 동안 100% 에 멈춰 있었다(SOMA-960). 줄을 다 나눴는데 아직 끝나지 않았으면 줄 수 대신 「확인 중」을 보인다.
+ */
+export function splitProgressView(progress: ImportProgress): { pct: number; checking: boolean } {
+  const byLines = progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
+  const pct = Math.min(100, Math.max(0, Math.round(progress.percent ?? byLines)));
+  return { pct, checking: progress.percent != null && progress.total > 0 && progress.done >= progress.total && pct < 100 };
+}
 
 /**
  * 접수하고 끝날 때까지 기다린다. 첫 물음은 접수 바로 뒤다 — 예시 대본·같은 글은 곧 끝나 팝업이 바로 닫힌다.
@@ -133,7 +143,7 @@ export async function runImport(
   while (true) {
     try {
       const job = await deps.get(importId);
-      onProgress({ done: job.progress.done_lines, total: job.progress.total_lines });
+      onProgress({ done: job.progress.done_lines, total: job.progress.total_lines, percent: job.progress.percent ?? null });
       if (job.status === 'succeeded' && job.script_id) return { kind: 'saved', scriptId: job.script_id };
       if (job.status === 'failed') return STOP_BY_FAILURE[job.failure ?? 'failed']();
     } catch (error) {

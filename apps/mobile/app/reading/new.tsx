@@ -33,6 +33,7 @@ import {
   retryFlags,
   runScriptImport,
   TITLE_MAX,
+  splitProgressView,
   uploadScriptFile,
   type ImportFlags,
   type ImportInput,
@@ -50,6 +51,7 @@ import {
 } from '@/lib/reading/script-input';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
+import { hideForegroundPush } from '@/lib/notifications';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
 import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
@@ -282,6 +284,8 @@ export default function ReadingNew() {
   // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 다 되면 대본 목록에 생긴다.
   const splitting = popup?.kind === 'splitting';
   useWaitExit(splitting, '/reading');
+  // 나누는 중 화면을 보고 있으면 완료 푸시를 배너로 띄우지 않는다 — 이 화면이 끝나면 바로 다음으로 넘어간다(SOMA-960).
+  useEffect(() => (splitting ? hideForegroundPush(isScriptSplitPush) : undefined), [splitting]);
   // 파일을 올리는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일이 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
   const working = input.file.kind === 'reading' && !splitting;
@@ -522,10 +526,15 @@ export default function ReadingNew() {
 }
 
 /** pen F4. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 퍼센트 없이 제목만 보인다. */
+/** 대본 나누기 완료 푸시(서버 PushService.onScriptSplit). */
+function isScriptSplitPush(data: unknown): boolean {
+  return !!data && typeof data === 'object' && (data as { kind?: unknown }).kind === 'script_split_complete';
+}
+
 function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
-  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const { pct, checking } = progress ? splitProgressView(progress) : { pct: 0, checking: false };
   // 아래 안내가 안드로이드 내비게이션 바에 가리지 않게 아래 안전 영역만큼 띄운다.
   const bottomInset = useSafeAreaInsets().bottom;
   return (
@@ -538,7 +547,7 @@ function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
           <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
-          <Text style={styles.splitCount}>{t('reading.splitProgress', { pct, done, total })}</Text>
+          <Text style={styles.splitCount}>{t(checking ? 'reading.splitChecking' : 'reading.splitProgress', { pct, done, total })}</Text>
         </View>
       )}
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}

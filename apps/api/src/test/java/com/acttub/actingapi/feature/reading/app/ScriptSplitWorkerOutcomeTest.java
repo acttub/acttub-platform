@@ -102,4 +102,32 @@ class ScriptSplitWorkerOutcomeTest {
         assertThat(failures.contexts().get(0)).startsWith("ScriptSplitWorker.run");
         assertThat(failures.contexts().get(1)).startsWith("ScriptSplitWorker.release");
     }
+
+    @Test void aSavedScriptIsAnnouncedOnceAndAFailingAnnouncementOnlyReports() {
+        List<String> heard = new ArrayList<>();
+        UUID script = UUID.randomUUID();
+        ScriptSplitListener listener = (userId, scriptId) -> heard.add(userId + "|" + scriptId);
+        var announcing = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null, listener);
+        claimed(SHORT);
+        answers.add(SHORT_ANSWER);
+        when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SAVED);
+        when(imports.find(user, importId)).thenReturn(new ScriptImportRepository.ImportView(importId, "succeeded", 2, 2, 100, script, null));
+        assertThat(announcing.runOnce()).isTrue();
+        assertThat(heard).containsExactly(user + "|" + script);
+
+        // 저장하지 못한 작업은 알리지 않는다.
+        answers.add(SHORT_ANSWER);
+        when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SCRIPT_LIMIT);
+        announcing.runOnce();
+        assertThat(heard).hasSize(1);
+
+        // 알림이 실패해도 나누기는 성공이고 실패를 닫지 않는다 — 보고만 한다.
+        var broken = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null,
+                (userId, scriptId) -> { throw new IllegalStateException("push is down"); });
+        answers.add(SHORT_ANSWER);
+        when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SAVED);
+        assertThat(broken.runOnce()).isTrue();
+        assertThat(failures.contexts()).singleElement().asString().startsWith("ScriptSplitWorker.notify");
+        verify(imports, never()).fail(eq(job), any(), eq(importId), eq(ScriptImportFailure.FAILED), anyBoolean(), any());
+    }
 }

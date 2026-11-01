@@ -8,6 +8,7 @@ import {
   retryFlags,
   runImport,
   runScriptImport,
+  splitProgressView,
   uploadScriptFile,
 } from '../lib/reading/script-import.ts';
 
@@ -42,6 +43,32 @@ function fakeServer({ ticket = { import_id: 'imp-1', duplicate_script_id: null }
 }
 
 const running = (done, total) => ({ status: 'running', progress: { done_lines: done, total_lines: total } });
+
+test('SOMA-960 R2.11: 서버 진행률(percent)을 그대로 넘기고, 옛 서버(percent 없음)는 null 이다', async () => {
+  const seen = [];
+  const { deps } = fakeServer({
+    jobs: [
+      { status: 'running', progress: { done_lines: 61, total_lines: 61, percent: 52 } },
+      { status: 'running', progress: { done_lines: 24, total_lines: 61 } },
+      { status: 'succeeded', progress: { done_lines: 61, total_lines: 61, percent: 100 }, script_id: 'sc-p' },
+    ],
+  });
+  await runImport(importBody(TEXT, {}, 'rid-p'), deps, (p) => seen.push(p));
+  assert.deepEqual(seen, [
+    { done: 61, total: 61, percent: 52 },
+    { done: 24, total: 61, percent: null },
+    { done: 61, total: 61, percent: 100 },
+  ]);
+});
+
+test('SOMA-960 R2.11: 진행률은 percent 를 쓰고, 줄을 다 나눴는데 안 끝났으면 「확인 중」, 옛 서버는 줄 수로 센다', () => {
+  assert.deepEqual(splitProgressView({ done: 300, total: 1786, percent: 11 }), { pct: 11, checking: false });
+  assert.deepEqual(splitProgressView({ done: 1786, total: 1786, percent: 61 }), { pct: 61, checking: true });
+  assert.deepEqual(splitProgressView({ done: 1786, total: 1786, percent: 100 }), { pct: 100, checking: false });
+  assert.deepEqual(splitProgressView({ done: 24, total: 61, percent: null }), { pct: 39, checking: false });
+  assert.deepEqual(splitProgressView({ done: 61, total: 61, percent: null }), { pct: 100, checking: false });
+  assert.deepEqual(splitProgressView({ done: 0, total: 0, percent: 5 }), { pct: 5, checking: false });
+});
 
 test('reading.script(R2.11): 글을 보내고 1초마다 물어 진행 줄 수를 보이다가 저장된 대본 id로 끝난다', async () => {
   const { state, deps, onProgress } = fakeServer({
