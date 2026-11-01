@@ -61,7 +61,7 @@ test('채점이 끝나면 다르게 들린 어절을 칠한 줄·습관·다른 
   await fireEvent.press(await screen.findByText("'힘들면' 듣기"));
   expect(mockPlayer.seekTo).toHaveBeenCalledWith(0.25);
   expect(mockPlayer.play).toHaveBeenCalled();
-  await fireEvent.press(screen.getByText('줄 전체'));
+  await fireEvent.press(screen.getByText('다시 듣기'));
   expect(mockPlayer.play).toHaveBeenCalledTimes(2);
 });
 
@@ -131,8 +131,12 @@ test('칠한 어절에 상세 분석이 있으면 줄 밑 「상세 보고서」
   expect(screen.queryByText(/힘들면 → '힘들먼'처럼 들렸어요\. /)).toBeNull();
   expect(screen.getByText('어떡해 → 어떻게')).toBeOnTheScreen();
 
+  expect(screen.queryByText("'힘들면' 듣기")).toBeNull(); // 분석이 있는 어절의 단어 듣기는 펼친 칸 안에 있다
+  expect(screen.getByText('다시 듣기')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('상세 보고서'));
   expect(screen.getByText(`${detail.where} · ${detail.kind}`)).toBeOnTheScreen();
+  await fireEvent.press(await screen.findByText("'힘들면' 듣기"));
+  expect(mockPlayer.seekTo).toHaveBeenCalledWith(0.25);
   expect(screen.getByText(detail.diff)).toBeOnTheScreen();
   expect(screen.getByText(detail.practice)).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('상세 보고서'));

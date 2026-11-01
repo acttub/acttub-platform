@@ -202,7 +202,8 @@ export default function PronunciationReportScreen() {
             </Text>
             {(hasAudio || details.length > 0) && (
               <View style={styles.actions}>
-                {hasAudio && line.marks.map((mark) => {
+                {/* 상세 분석이 있는 어절은 단어 듣기를 펼친 칸 안에 둔다(11/1 사용자). 분석이 없는 어절만 여기 남긴다. */}
+                {hasAudio && line.marks.filter((mark) => !mark.detail).map((mark) => {
                   const key = `${lineKey}-${mark.index}`;
                   return (
                     <Pressable key={key} onPress={() => void play(key, lineId!, mark)} hitSlop={8} accessibilityRole="button" style={styles.chip}>
@@ -234,10 +235,23 @@ export default function PronunciationReportScreen() {
             {open &&
               details.map((mark) => (
                 <View key={`detail-${mark.index}`} style={styles.detail}>
-                  <Text style={styles.detailHeard}>
-                    <Text style={styles.detailWord}>{mark.word} → </Text>
-                    {mark.detail.heard}
-                  </Text>
+                  <View style={styles.detailTop}>
+                    <Text style={[styles.detailHeard, styles.detailHeardText]}>
+                      <Text style={styles.detailWord}>{mark.word} → </Text>
+                      {mark.detail.heard}
+                    </Text>
+                    {hasAudio && (
+                      <Pressable
+                        onPress={() => void play(`${lineKey}-${mark.index}`, lineId!, mark)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        style={[styles.chip, styles.chipInCard]}
+                      >
+                        <Feather name={playing === `${lineKey}-${mark.index}` ? 'square' : 'play'} size={14} color={palette.amber} />
+                        <Text style={styles.chipMarked}>{t('pronReport.playWord', { word: mark.word })}</Text>
+                      </Pressable>
+                    )}
+                  </View>
                   <View style={styles.detailItem}>
                     <Text style={styles.detailKey}>{t('pronReport.detailWhere')}</Text>
                     <Text style={styles.detailValue}>
@@ -291,7 +305,10 @@ const styles = StyleSheet.create({
   chipMarked: { ...type.body2Bold, color: palette.text },
   chipDetail: { backgroundColor: palette.amberSoft },
   detail: { gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], marginTop: space[1] },
+  detailTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] },
   detailHeard: { ...type.body1Bold, color: palette.text },
+  detailHeardText: { flexShrink: 1 },
+  chipInCard: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   detailWord: { ...type.body2Bold, color: palette.textMeta },
   detailItem: { gap: 2 },
   detailKey: { ...type.caption, color: palette.textMeta },
