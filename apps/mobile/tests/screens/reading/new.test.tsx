@@ -327,8 +327,17 @@ test('파일을 고르면 올려 두고 이름과 크기를 보인 뒤, 다음�
   expect(screen.getByText('대본.txt')).toBeOnTheScreen();
   expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   expect(usePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+  // 읽는 동안 다음 버튼은 막혀 있고 왜 막혔는지 「읽는 중…」으로 알린다(SOMA-975).
+  expect(screen.getByRole('button', { name: '읽는 중…' })).toBeDisabled();
+  expect(screen.queryByText('다음')).not.toBeOnTheScreen();
+  // 붙여넣기 탭의 버튼은 파일과 상관없이 [다음]이다.
+  await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
+  expect(screen.getByText('다음')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('tab', { name: /파일 업로드/ }));
+  expect(screen.getByRole('button', { name: '읽는 중…' })).toBeDisabled();
   await act(async () => uploaded({ kind: 'uploaded' }));
   await act(async () => picking);
+  expect(screen.queryByRole('button', { name: '읽는 중…' })).not.toBeOnTheScreen();
 
   expect(screen.getByText('대본.txt')).toBeOnTheScreen();
   expect(screen.getByText('2KB')).toBeOnTheScreen();
