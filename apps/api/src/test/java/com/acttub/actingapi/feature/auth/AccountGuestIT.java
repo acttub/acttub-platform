@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.auth;
 
+import com.acttub.actingapi.feature.practice.domain.PracticeRules;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -313,7 +314,7 @@ class AccountGuestIT {
     }
 
     @Test
-    @DisplayName("account.guest: 분석 두 번을 쓴 게스트가 서로 다른 회차 둘을 겹쳐 시작해도 그날의 분석은 세 번이다 — 하나는 429")
+    @DisplayName("account.guest: 한도 하나 전까지 쓴 게스트가 서로 다른 회차 둘을 겹쳐 시작해도 그날의 분석은 한도를 넘지 않는다 — 하나는 429")
     void accountGuest_overlappingAnalysesCannotSlipPastTheDailyLimit() throws Exception {
         JsonNode guest = mapper.readTree(createGuest().getContentAsString());
         String token = guest.path("access_token").textValue();
@@ -321,7 +322,7 @@ class AccountGuestIT {
         consent(token, "terms", true);
         consent(token, "privacy", null);
         consent(token, "ai_analysis", null);
-        for (int analysis = 0; analysis < 2; analysis++) {
+        for (int analysis = 0; analysis < PracticeRules.GUEST_DAILY_ANALYSES - 1; analysis++) {
             startPractice(token, video(guestId), 201);
         }
         List<UUID> videos = List.of(video(guestId), video(guestId));
@@ -357,7 +358,7 @@ class AccountGuestIT {
             assertThat(List.of(racing.get(0).get(), racing.get(1).get())).containsExactlyInAnyOrder(201, 429);
             assertThat(jdbc.queryForObject(
                     "SELECT count(*) FROM ai_jobs WHERE user_id=? AND kind='analyze'", Integer.class, guestId))
-                    .as("그날의 분석 요청은 세 번이다").isEqualTo(3);
+                    .as("그날의 분석 요청은 한도만큼이다").isEqualTo(PracticeRules.GUEST_DAILY_ANALYSES);
         } finally {
             pool.shutdownNow();
             jdbc.execute("DROP TRIGGER IF EXISTS hold_analysis_insert ON ai_jobs");
@@ -373,7 +374,7 @@ class AccountGuestIT {
         consent(token, "terms", true);
         consent(token, "privacy", null);
         consent(token, "ai_analysis", null);
-        for (int analysis = 0; analysis < 2; analysis++) {
+        for (int analysis = 0; analysis < PracticeRules.GUEST_DAILY_ANALYSES - 1; analysis++) {
             startPractice(token, video(guestId), 201);
         }
         UUID videoId = video(guestId);
