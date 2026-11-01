@@ -68,7 +68,11 @@ jest.mock('@/lib/guide-state', () => ({
   markReadingTutorialSeen: jest.fn(async () => undefined),
 }));
 jest.mock('@/lib/practice-days', () => ({ rememberPracticeDays: jest.fn() }));
-jest.mock('@/lib/practice/first-use-graduation', () => ({ hasGraduatedFirstUse: jest.fn(async () => false), currentFirstUseOwner: jest.fn(() => 'u1') }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({
+  hasGraduatedFirstUse: jest.fn(async () => false),
+  markFirstUseGraduated: jest.fn(async () => undefined),
+  currentFirstUseOwner: jest.fn(() => 'u1'),
+}));
 jest.mock('@/lib/streak-celebration', () => ({
   ...jest.requireActual('@/lib/streak-celebration'),
   readLastSeenStreak: jest.fn(),
@@ -257,6 +261,35 @@ describe('첫 사용자', () => {
     expect(await screen.findByText('의견 보내기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('의견 보내기'));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/feedback');
+  });
+
+  test('기록으로 첫 사용자를 벗어나면 졸업 표시를 남긴다 — 다시 읽기 시작해 대본이 「연습 중」이 돼도 첫 홈으로 돌아가지 않게(11/2)', async () => {
+    const { markFirstUseGraduated } = jest.requireMock('@/lib/practice/first-use-graduation');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막', status: 'completed' })] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    await waitFor(() => expect(markFirstUseGraduated).toHaveBeenCalledWith('u1'));
+  });
+
+  test('14일보다 전에 끝까지 읽은 대본만 있는 사람도 첫 사용자가 아니다(11/2)', async () => {
+    const { markFirstUseGraduated } = jest.requireMock('@/lib/practice/first-use-graduation');
+    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막', status: 'reading', last_practiced_at: old })] });
+    (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'completed', started_at: old, progress: { total: 10, done: 10 } }] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
+    expect(markFirstUseGraduated).toHaveBeenCalledWith('u1');
+  });
+
+  test('대본 목록을 못 받으면 첫 사용자로 보지 않는다(11/2)', async () => {
+    listReadingScripts.mockRejectedValue(new Error('network'));
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
   });
 
   test('대본만 넣고 끝까지 안 읽은 사람은 아직 첫 사용자다 — 선택지를 본다(SOMA-827)', async () => {
