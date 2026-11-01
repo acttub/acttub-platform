@@ -43,7 +43,8 @@ import { newRequestId } from '@/lib/request-id';
 import { relativeDay } from '@/lib/reading/script-cards';
 import { translate as t } from '@/lib/i18n';
 import { logEvent } from '@/lib/analytics';
-import { DEFAULT_LISTEN_PREFS, READING_RATES, loadListenPrefs, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
+import { DEFAULT_LISTEN_PREFS, PAUSE_MAX_SEC, PAUSE_MIN_SEC, READING_RATES, loadListenPrefs, parsePause, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
+import { TextField } from '@/components/ui/text-field';
 
 /**
  * 새 연습(R8, reading.cast · reading.session). 연습마다 ① 내 배역(여러 명, 나머지는 앱이 읽음) ② 구간(최근 구간 ·
@@ -102,9 +103,16 @@ export default function ReadingRange() {
   const [busy, setBusy] = useState(false);
   /** 핸즈프리·읽는 속도(SOMA-952·954) — 이 기기에 남긴 마지막 선택. */
   const [listen, setListen] = useState<ListenPrefs>(DEFAULT_LISTEN_PREFS);
+  /** 쉬는 시간 입력칸의 글 — 바른 값일 때만 설정에 넣는다. */
+  const [pauseText, setPauseText] = useState(String(DEFAULT_LISTEN_PREFS.pauseSec));
+  const pauseInvalid = parsePause(pauseText) === null;
   useEffect(() => {
     let alive = true;
-    void loadListenPrefs().then((p) => alive && setListen(p));
+    void loadListenPrefs().then((p) => {
+      if (!alive) return;
+      setListen(p);
+      setPauseText(String(p.pauseSec));
+    });
     return () => {
       alive = false;
     };
@@ -253,7 +261,7 @@ export default function ReadingRange() {
           record: needsMic,
         }),
       );
-      void logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate });
+      void logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate, pause_sec: handsFree ? listen.pauseSec : 0 });
       await updateCurrent({ maskMode: mask });
       setFirstReadingSession(firstMode ? (getCurrentSession()?.id ?? null) : null);
       router.replace('/reading/play');
@@ -400,7 +408,7 @@ export default function ReadingRange() {
             />
           </View>
         )}
-        {/* 핸즈프리(SOMA-954) — 걸으면서 듣게. 내 차례에 마이크를 열지 않고 대사 길이만큼 쉬고 넘어간다. 팝업 없이 스위치 한 줄. */}
+        {/* 자동 넘김(SOMA-954) — 걸으면서 듣게. 내 차례에 마이크를 열지 않고 고른 시간만큼 쉬고 넘어간다. 팝업 없이 스위치 한 줄. */}
         {!listenAll && cast.length > 1 && (
           <View style={styles.maskRow}>
             <View style={styles.rowBody}>
@@ -414,6 +422,31 @@ export default function ReadingRange() {
             />
           </View>
         )}
+        {/* 자동 넘김을 켜면 쉬는 시간을 적는다(기본 2초, 0.5~30초, 11/1 사용자 결정: 버튼 말고 입력). */}
+        {handsFree && (
+          <View style={styles.maskRow}>
+            <Text style={styles.maskLabel}>{t('reading.pauseLabel')}</Text>
+            <View style={styles.pauseInput}>
+              <TextField
+                value={pauseText}
+                onChangeText={(text) => {
+                  setPauseText(text);
+                  const sec = parsePause(text);
+                  if (sec !== null) updateListen({ pauseSec: sec });
+                }}
+                // 틀린 채로 칸을 떠나면 마지막 바른 값으로 되돌린다.
+                onBlur={() => pauseInvalid && setPauseText(String(listen.pauseSec))}
+                keyboardType="decimal-pad"
+                maxLength={4}
+                selectTextOnFocus
+                accessibilityLabel={t('reading.pauseLabel')}
+                style={styles.pauseField}
+              />
+              <Text style={styles.maskLabel}>{t('reading.pauseUnit')}</Text>
+            </View>
+          </View>
+        )}
+        {handsFree && pauseInvalid && <Text style={styles.hint}>{t('reading.pauseRange', { min: PAUSE_MIN_SEC, max: PAUSE_MAX_SEC })}</Text>}
         {/* 읽는 속도(SOMA-952) — 앱이 읽는 모든 목소리에 같이 든다. */}
         <View style={styles.maskRow}>
           <Text style={styles.maskLabel}>{t('reading.rateLabel')}</Text>
@@ -560,6 +593,8 @@ const styles = StyleSheet.create({
   maskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 },
   maskLabel: { ...type.body1, color: palette.text },
   rateRow: { flexDirection: 'row', gap: space[1.5] },
+  pauseInput: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  pauseField: { width: 72, minHeight: 40, textAlign: 'center' },
   rateChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
   rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 36, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },
