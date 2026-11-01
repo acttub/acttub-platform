@@ -18,7 +18,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/support/inquiries` | 헤더 `X-Acttub-Client`(필수), 선택 `Authorization: Bearer`. 본문 `SupportInquiryRequest`: `category`(`account`·`billing`·`refund`·`usage`·`bug`·`report`·`other`), `email`, `body` | `SupportInquiryResponse` 201: `{id, created_at}` | 칸 규칙 위반·모르는 칸 422(배열), 한 IP 10분 5건 초과 429 `rate limit exceeded` |
+| `POST /v2/support/inquiries` | 헤더 `X-Acttub-Client`(필수), 선택 `Authorization: Bearer`. 본문 `SupportInquiryRequest`: `category`(`account`·`billing`·`refund`·`usage`·`bug`·`report`·`other`·`feedback`), `email`, `body` | `SupportInquiryResponse` 201: `{id, created_at}` | 칸 규칙 위반·모르는 칸 422(배열), 한 IP 10분 5건 초과 429 `rate limit exceeded` |
 | `GET /v2/admin/support/inquiries` | 헤더 `Authorization: Bearer $ADMIN_OPS_TOKEN`, 질의 `status`(`open`·`closed`, 선택), `limit`(1~200, 기본 50) | `{inquiries: [{id, category, email, body, user_id, client, status, created_at}]}` 200, 새것부터 | 토큰 없음·틀림 401 `Unauthorized`, 질의 값 위반 422(배열) |
 
 ## 상태

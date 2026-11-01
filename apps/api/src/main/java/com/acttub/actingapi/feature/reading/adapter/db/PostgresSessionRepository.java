@@ -111,8 +111,9 @@ class PostgresSessionRepository implements SessionRepository {
                     .setParameter("scriptId", scriptId)
                     .setParameter("sep", SEPARATOR));
             Set<UUID> characters = new HashSet<>(characterRows.stream().map(row -> row.get("id", UUID.class)).toList());
-            if (plan.myCharacterIds().isEmpty()
-                    || new HashSet<>(plan.myCharacterIds()).size() != plan.myCharacterIds().size()
+            // 내 배역이 비어 있으면 「전체 듣기」 회차다 — 모든 대사를 앱이 읽으므로 구간에 내 대사가 없어도 된다(앱 1.1.1).
+            boolean listenAll = plan.myCharacterIds().isEmpty();
+            if (new HashSet<>(plan.myCharacterIds()).size() != plan.myCharacterIds().size()
                     || !characters.containsAll(plan.myCharacterIds())) {
                 return new Start(null, StartOutcome.INVALID_CHARACTERS);
             }
@@ -137,11 +138,11 @@ class PostgresSessionRepository implements SessionRepository {
             }
             int from = start.get("ordinal", Integer.class);
             int to = end.get("ordinal", Integer.class);
-            boolean mine = from <= to && lines.values().stream().anyMatch(line -> {
+            boolean mine = from <= to && (listenAll || lines.values().stream().anyMatch(line -> {
                 int ordinal = line.get("ordinal", Integer.class);
                 return ordinal >= from && ordinal <= to && dialogue(line)
                         && turns.contains(line.get("character_id", UUID.class));
-            });
+            }));
             if (!mine) {
                 return new Start(null, StartOutcome.EMPTY_RANGE);
             }

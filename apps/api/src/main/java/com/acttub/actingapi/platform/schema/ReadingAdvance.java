@@ -11,7 +11,9 @@ public enum ReadingAdvance implements PgEnum {
     /** 침묵 감지 — 말한 뒤 1.8초 침묵이면 넘어간다. */
     SILENCE("silence"),
     /** 버튼. */
-    MANUAL("manual");
+    MANUAL("manual"),
+    /** 핸즈프리 — 내 차례에 말하지 않아도 대사 길이만큼 쉬고 넘어간다. 마이크를 열지 않는다(앱 1.1.1). */
+    TIMED("timed");
 
     private final String dbValue;
 

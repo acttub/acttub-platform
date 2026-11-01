@@ -117,6 +117,8 @@ class EntityMappingIT {
             "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
             // 웹 문의(V63, SOMA-834)는 문의 저장소의 native SQL(접수·운영 조회)만 쓴다.
             "support_inquiries",
+            // 블로그 글(V80)은 블로그 저장소의 native SQL(공개 읽기·운영 쓰기)만 쓴다.
+            "blog_posts",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
             // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.

@@ -7033,8 +7033,8 @@
         "properties" : {
           "category" : {
             "type" : "string",
-            "enum" : [ "account", "billing", "refund", "usage", "bug", "report", "other" ],
-            "pattern" : "account|billing|refund|usage|bug|report|other",
+            "enum" : [ "account", "billing", "refund", "usage", "bug", "report", "other", "feedback" ],
+            "pattern" : "account|billing|refund|usage|bug|report|other|feedback",
             "title" : "Category"
           },
           "email" : {
@@ -8079,7 +8079,7 @@
       },
       "ReadingAdvanceInput" : {
         "type" : "string",
-        "enum" : [ "silence", "manual" ],
+        "enum" : [ "silence", "manual", "timed" ],
         "title" : "ReadingAdvanceInput"
       },
       "ReadingModeInput" : {
@@ -8130,7 +8130,7 @@
       },
       "ReadingAdvance" : {
         "type" : "string",
-        "enum" : [ "silence", "manual" ],
+        "enum" : [ "silence", "manual", "timed" ],
         "title" : "ReadingAdvance"
       },
       "ReadingDifferentLine" : {

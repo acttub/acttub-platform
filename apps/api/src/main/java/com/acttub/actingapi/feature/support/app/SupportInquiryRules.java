@@ -9,7 +9,7 @@ public final class SupportInquiryRules {
     }
 
     public static final List<String> CATEGORIES =
-            List.of("account", "billing", "refund", "usage", "bug", "report", "other");
+            List.of("account", "billing", "refund", "usage", "bug", "report", "other", "feedback");
     public static final Set<String> STATUSES = Set.of("open", "closed");
     public static final int EMAIL_MAX_CHARS = 254;
     public static final int BODY_MIN_CHARS = 10;
