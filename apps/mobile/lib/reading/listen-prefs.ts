@@ -10,11 +10,11 @@ export const LISTEN_PREFS_KEY = 'acttub.reading.listenPrefs';
 export const READING_RATES = [0.8, 1, 1.2, 1.5] as const;
 export type ReadingRate = (typeof READING_RATES)[number];
 
-/** 자동 넘김에서 내 차례에 쉬는 시간(초). */
-export const PAUSE_SECONDS = [1, 2, 3, 5] as const;
-export type PauseSeconds = (typeof PAUSE_SECONDS)[number];
+/** 자동 넘김에서 내 차례에 쉬는 시간(초) — 배우가 직접 적는다. 이 범위 밖은 받지 않는다. */
+export const PAUSE_MIN_SEC = 0.5;
+export const PAUSE_MAX_SEC = 30;
 
-export type ListenPrefs = { handsFree: boolean; rate: ReadingRate; pauseSec: PauseSeconds };
+export type ListenPrefs = { handsFree: boolean; rate: ReadingRate; pauseSec: number };
 export const DEFAULT_LISTEN_PREFS: ListenPrefs = { handsFree: false, rate: 1, pauseSec: 2 };
 
 type Storage = {
@@ -31,8 +31,16 @@ export function normalizeRate(value: unknown): ReadingRate {
   return (READING_RATES as readonly number[]).includes(value as number) ? (value as ReadingRate) : 1;
 }
 
-export function normalizePause(value: unknown): PauseSeconds {
-  return (PAUSE_SECONDS as readonly number[]).includes(value as number) ? (value as PauseSeconds) : DEFAULT_LISTEN_PREFS.pauseSec;
+/** 적은 글을 쉬는 시간(초)으로 — 소수 한 자리까지, 쉼표도 소수점으로 본다. 숫자가 아니거나 범위 밖이면 null. */
+export function parsePause(text: string): number | null {
+  const raw = (text ?? '').trim().replace(',', '.');
+  if (!/^\d+(\.\d*)?$|^\.\d+$/.test(raw)) return null;
+  const n = Math.round(Number(raw) * 10) / 10;
+  return Number.isFinite(n) && n >= PAUSE_MIN_SEC && n <= PAUSE_MAX_SEC ? n : null;
+}
+
+export function normalizePause(value: unknown): number {
+  return typeof value === 'number' && parsePause(String(value)) !== null ? (parsePause(String(value)) as number) : DEFAULT_LISTEN_PREFS.pauseSec;
 }
 
 export async function loadListenPrefs(storage: Storage = defaultStorage()): Promise<ListenPrefs> {

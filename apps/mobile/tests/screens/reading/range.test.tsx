@@ -104,11 +104,14 @@ test('자동 넘김·쉬는 시간·읽는 속도: 고른 값을 기억하고, �
   jest.mocked(micPermissionState).mockResolvedValue('ask');
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.queryByLabelText('쉬는 시간 2초')).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText('쉬는 시간')).not.toBeOnTheScreen();
   await fireEvent(screen.getByLabelText('자동 넘김'), 'valueChange', true);
-  // 켜면 쉬는 시간이 보이고 기본은 2초다.
-  expect(screen.getByLabelText('쉬는 시간 2초')).toBeSelected();
-  await fireEvent.press(screen.getByLabelText('쉬는 시간 3초'));
+  // 켜면 쉬는 시간 입력칸이 보이고 기본은 2초다. 범위 밖은 안내만 하고 받지 않는다.
+  expect(screen.getByLabelText('쉬는 시간')).toHaveDisplayValue('2');
+  await fireEvent.changeText(screen.getByLabelText('쉬는 시간'), '40');
+  expect(screen.getByText('0.5~30초 사이로 적어 주세요')).toBeOnTheScreen();
+  await fireEvent.changeText(screen.getByLabelText('쉬는 시간'), '3.5');
+  expect(screen.queryByText('0.5~30초 사이로 적어 주세요')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText('읽는 속도 1.2배'));
   expect(screen.getByLabelText('읽는 속도 1.2배')).toBeSelected();
 
@@ -117,7 +120,7 @@ test('자동 넘김·쉬는 시간·읽는 속도: 고른 값을 기억하고, �
   expect(requestMicPermission).not.toHaveBeenCalled();
   expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], advance: 'timed', record: false }));
   const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual({ handsFree: true, rate: 1.2, pauseSec: 3 });
+  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual({ handsFree: true, rate: 1.2, pauseSec: 3.5 });
 });
 
 test('시작하기 전에 대본의 첫 리딩 고품질 목소리 동의를 먼저 확인한다(SOMA-917)', async () => {
