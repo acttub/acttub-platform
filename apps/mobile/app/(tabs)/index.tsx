@@ -28,8 +28,8 @@ import { currentTutorial } from '@/lib/tutorial';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
 import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
-import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
-import { currentFirstUseOwner, hasGraduatedFirstUse } from '@/lib/practice/first-use-graduation';
+import { firstTimeStateFrom, setFirstTimeState, shouldRememberGraduation } from '@/lib/practice/first-time';
+import { currentFirstUseOwner, hasGraduatedFirstUse, markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
@@ -86,6 +86,18 @@ function recentlyPracticedScripts(scripts: readonly ScriptCard[], now = Date.now
   });
 }
 
+/** 첫 사용자인지 따질 때만 더 보는 대본 — 14일보다 전에 읽은 것, 최근에 읽은 순으로 몇 개만(11/2). */
+const OLDER_READING_CHECK_LIMIT = 10;
+function olderPracticedScripts(scripts: readonly ScriptCard[], now = Date.now()): ScriptCard[] {
+  return scripts
+    .filter((s) => {
+      const at = Date.parse(s.last_practiced_at ?? '');
+      return Number.isFinite(at) && now - at > READING_LOOKBACK_MS;
+    })
+    .sort((a, b) => Date.parse(b.last_practiced_at ?? '') - Date.parse(a.last_practiced_at ?? ''))
+    .slice(0, OLDER_READING_CHECK_LIMIT);
+}
+
 /**
  * A1. 홈(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
  * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 인사 + 오늘 할 것 카드 하나 + 하던 거 한 줄 +
@@ -113,6 +125,8 @@ export default function HomeScreen() {
   // 묶음을 한 번이라도 받아 봤는지(실패도 받은 셈) — 받기 전엔 첫 사용자 화면을 함부로 띄우지 않는다.
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [groupsFailed, setGroupsFailed] = useState(false);
+  // 대본 목록·리딩 회차·참여작 중 못 받은 것이 있다 — 그러면 첫 사용자로 보지 않는다(11/2).
+  const [recordsFailed, setRecordsFailed] = useState(false);
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
   const [readingProgress, setReadingProgress] = useState<{ scriptId: string; progress: SessionProgress; perLine: number } | null>(null);
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
@@ -209,6 +223,7 @@ export default function HomeScreen() {
           return [] as PracticeGroup[];
         });
       // 오늘 할 것의 리딩 후보 — 이어 읽을 대본. 실패하면 리딩 후보만 빠진다.
+      let readFailed = false;
       const scriptsRead = Promise.resolve()
         .then(() => api.listReadingScripts())
         .then((r) => {
@@ -216,26 +231,54 @@ export default function HomeScreen() {
           return r.scripts;
         })
         .catch(() => {
+          readFailed = true;
           if (!cancelled) setScripts([]);
           return [] as ScriptCard[];
         });
+      const sessionsOf = (s: ScriptCard) =>
+        api
+          .listReadingSessions(s.id)
+          .then((x) => x.sessions)
+          .catch(() => {
+            readFailed = true;
+            return [];
+          });
       // 연속일·주간 원·「첫 연습 끝!」은 「연습 1회」 기준 하나로 센다(SOMA-773) — 노트가 생긴 코칭 회차, 끝까지 읽은
       // 리딩 회차, 올린 참여작. 리딩 회차는 대본별로만 받으므로 최근에 연습한 대본만 읽는다(지난 날은 기기에 쌓여 있다).
       const readingRead = scriptsRead
-        .then((list) => Promise.all(recentlyPracticedScripts(list).map((s) => api.listReadingSessions(s.id).then((x) => x.sessions).catch(() => []))))
+        .then((list) => Promise.all(recentlyPracticedScripts(list).map(sessionsOf)))
         .then((lists) => lists.flat())
         .catch(() => []);
       const entriesRead = Promise.resolve()
         .then(() => api.listMyChallengeEntries())
         .then((r) => r.entries)
-        .catch(() => []);
-      void Promise.all([groupsRead, readingRead, entriesRead]).then(([groupList, readingSessions, entries]) => {
+        .catch(() => {
+          readFailed = true;
+          return [];
+        });
+      void Promise.all([groupsRead, scriptsRead, readingRead, entriesRead]).then(async ([groupList, scriptList, readingSessions, entries]) => {
         // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
         if (cancelled) return;
         // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
         const counted = countedPractices({ groups: groupList, readingSessions, entries });
         setEnteredChallengeIds(new Set(entries.flatMap((entry) => (entry.challenge?.id ? [entry.challenge.id] : []))));
         setPractices(counted);
+        // 최근 연습이 하나도 안 보이면 14일보다 전에 읽은 대본도 본다 — 오래전에 끝까지 읽은 사람을 첫 사용자로 보지 않게(11/2).
+        // 찾으면 졸업 표시를 남겨 다음부터는 다시 따지지 않는다. 불꽃·주간 원은 그대로 최근 기록만 쓴다.
+        if (counted.length === 0) {
+          const older = olderPracticedScripts(scriptList);
+          if (older.length > 0) {
+            const olderSessions = (await Promise.all(older.map(sessionsOf))).flat();
+            if (cancelled) return;
+            if (countedPractices({ readingSessions: olderSessions }).length > 0) {
+              const owner = currentFirstUseOwner();
+              await markFirstUseGraduated(owner);
+              if (cancelled) return;
+              if (owner) setGraduated(true);
+            }
+          }
+        }
+        setRecordsFailed(readFailed);
         return rememberPracticeDays(counted.map((p) => ({ created_at: p.at })), currentFirstUseOwner()).then((days) => {
           if (!cancelled) setActivityDays(days);
         });
@@ -322,6 +365,7 @@ export default function HomeScreen() {
   const firstTime = firstTimeStateFrom({
     loaded,
     groupsFailed,
+    recordsFailed,
     groups,
     scripts: scripts ?? [],
     practicedDays: activityDays?.length ?? 0,
@@ -334,6 +378,14 @@ export default function HomeScreen() {
   useEffect(() => {
     setFirstTimeState(firstTime);
   }, [firstTime]);
+
+  // 기록으로 첫 사용자를 벗어났으면 이 기기에 남긴다 — 다음에 서버 기록이 달라 보여도(다시 읽기 시작한 대본, 14일 지난 회차,
+  // 못 받은 목록) 첫 사용자 홈으로 되돌아가지 않는다(11/2, 리딩하고 돌아오니 기존 홈이 첫 홈으로 바뀌었다).
+  useEffect(() => {
+    if (!meId || !shouldRememberGraduation(firstTime, graduated)) return;
+    void markFirstUseGraduated(meId);
+    setGraduated(true);
+  }, [meId, firstTime, graduated]);
 
   const waitingUpload = useWaitingUpload();
   const today = useMemo(
