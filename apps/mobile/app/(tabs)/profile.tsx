@@ -10,7 +10,6 @@ import { AdSlot } from '@/components/ad-slot';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { SettingsCard } from '@/components/ui/settings-card';
 import { SkeletonCards } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -171,9 +170,6 @@ export default function ProfileScreen() {
         </View>
 
         <AdSlot slot="profile_top" />
-
-        {/* 앱 안 의견 보내기(SOMA-953) */}
-        <SettingsCard icon="message-circle" title={t('feedback.row')} sub={t('feedback.rowSub')} onPress={() => router.push('/feedback')} />
 
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month}>

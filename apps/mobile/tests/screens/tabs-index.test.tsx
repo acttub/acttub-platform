@@ -248,6 +248,17 @@ describe('첫 사용자', () => {
     expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
   });
 
+  test('기본 홈의 「이것도 해 볼까요?」 맨 끝에 의견 보내기가 있고, 누르면 의견 화면으로 간다(SOMA-953)', async () => {
+    const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
+    hasGraduatedFirstUse.mockImplementation(async (id: string) => id === 'u1');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('의견 보내기')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('의견 보내기'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith('/feedback');
+  });
+
   test('대본만 넣고 끝까지 안 읽은 사람은 아직 첫 사용자다 — 선택지를 본다(SOMA-827)', async () => {
     listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
     await render(<HomeScreen />);

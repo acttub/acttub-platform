@@ -498,11 +498,21 @@ export default function HomeScreen() {
     phLabel: 'home_row_watch',
     onPress: () => router.push('/challenges'),
   };
+  const rowFeedback: HomeRowData = {
+    key: 'feedback',
+    icon: 'message-circle',
+    title: t('feedback.row'),
+    sub: t('feedback.rowSub'),
+    phLabel: 'home_row_feedback',
+    onPress: () => router.push('/feedback'),
+  };
   const homeRows: HomeRowData[] = [
     ...(mainKind === 'coaching' ? [rowReading, rowChallenge] : []),
     ...(mainKind === 'reading' ? [rowCoaching, rowChallenge] : []),
     ...(mainKind === 'challenge' ? [rowWatch, rowReading] : []),
     ...(mainKind === 'start' ? [rowReading, rowChallenge] : []),
+    // 의견 보내기(SOMA-953) — 목록 맨 끝에 같은 모양으로. 프로필보다 자주 보는 홈에 둔다(11/1 사용자 결정).
+    rowFeedback,
   ];
   // 올리는 중에는 코칭 줄을 빼는데(위 coaching 메인 줄 목록에 코칭이 없다) 업로드 카드 아래에서도 같은 세 줄이다.
 
