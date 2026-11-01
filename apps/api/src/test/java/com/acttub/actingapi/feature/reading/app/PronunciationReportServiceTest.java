@@ -17,10 +17,16 @@ import org.junit.jupiter.api.Test;
 
 class PronunciationReportServiceTest {
     private static final UUID ALLOWED = UUID.randomUUID();
+    private static final UUID PRO = UUID.randomUUID();
     private static final UUID SESSION = UUID.randomUUID();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-21T00:00:00Z"), ZoneOffset.UTC);
 
     private static PronunciationReportService service(boolean enabled, String url, PronunciationReportRepository.ReportState state) {
+        return service(enabled, url, state, PronunciationPlan.NONE);
+    }
+
+    private static PronunciationReportService service(boolean enabled, String url, PronunciationReportRepository.ReportState state,
+            PronunciationPlan plan) {
         PronunciationReportRepository repo = new PronunciationReportRepository() {
             @Override
             public ReportState findOrEnqueue(UUID userId, UUID sessionId, Instant now) {
@@ -48,7 +54,7 @@ class PronunciationReportServiceTest {
             }
         };
         return new PronunciationReportService(repo,
-                new PronunciationSettings(enabled, Set.of(ALLOWED), url, Duration.ofMinutes(10), 3), CLOCK);
+                new PronunciationSettings(enabled, Set.of(ALLOWED), url, Duration.ofMinutes(10), 3), plan, CLOCK);
     }
 
     @Test
@@ -72,5 +78,25 @@ class PronunciationReportServiceTest {
     void 허용_사용자는_상태를_받는다() {
         var state = new PronunciationReportRepository.ReportState("queued", null);
         assertThat(service(true, "http://pron:8000", state).find(ALLOWED, SESSION).status()).isEqualTo("queued");
+    }
+
+    @Test
+    void 허용_목록_밖이어도_Pro_면_상태를_받는다() {
+        var state = new PronunciationReportRepository.ReportState("queued", null);
+        PronunciationPlan plan = userId -> userId.equals(PRO);
+        assertThat(service(true, "http://pron:8000", state, plan).find(PRO, SESSION).status()).isEqualTo("queued");
+        assertThatThrownBy(() -> service(true, "http://pron:8000", state, plan).find(UUID.randomUUID(), SESSION))
+                .as("Pro 도 허용 목록도 아니면 받지 않는다")
+                .isInstanceOf(ApiException.class).hasMessageContaining("pronunciation_not_available");
+    }
+
+    @Test
+    void Pro_여도_꺼져_있거나_채점_주소가_없으면_404() {
+        var state = new PronunciationReportRepository.ReportState("queued", null);
+        PronunciationPlan everyone = userId -> true;
+        assertThatThrownBy(() -> service(false, "http://pron:8000", state, everyone).find(PRO, SESSION))
+                .isInstanceOf(ApiException.class).hasMessageContaining("pronunciation_not_available");
+        assertThatThrownBy(() -> service(true, "", state, everyone).find(PRO, SESSION))
+                .isInstanceOf(ApiException.class).hasMessageContaining("pronunciation_not_available");
     }
 }
