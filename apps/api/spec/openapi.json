@@ -7168,8 +7168,8 @@
         "properties" : {
           "category" : {
             "type" : "string",
-            "enum" : [ "account", "billing", "refund", "usage", "bug", "report", "other" ],
-            "pattern" : "account|billing|refund|usage|bug|report|other",
+            "enum" : [ "account", "billing", "refund", "usage", "bug", "report", "other", "feedback" ],
+            "pattern" : "account|billing|refund|usage|bug|report|other|feedback",
             "title" : "Category"
           },
           "email" : {
