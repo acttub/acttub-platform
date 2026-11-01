@@ -1618,6 +1618,9 @@ export default function ReadingPlay() {
           myCharacterIds: session.my_character_ids,
           startLineId: from,
           endLineId: session.end_line_id,
+          // 다시 읽기도 같은 방식으로 — 자동 넘김(timed)·전체 듣기 회차가 말하기 회차로 바뀌어 마이크를 묻지 않게(11/1 폰 확인).
+          advance: session.advance,
+          record: session.record,
         }),
       );
       setCurrentSession(next);

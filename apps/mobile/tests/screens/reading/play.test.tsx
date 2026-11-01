@@ -1245,6 +1245,17 @@ test('완료 화면의 다시 연습은 같은 설정으로 새 회차를 시작
   }));
 });
 
+test('자동 넘김 회차의 다시 읽기는 자동 넘김·녹음 없음 그대로 새 회차를 시작한다(11/1 폰 확인)', async () => {
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5', advance: 'timed', record: false }, undefined, { begin: false });
+  server.startSession.mockResolvedValue(sessionDetail({ id: 'r2', advance: 'timed', record: false }));
+  // 내 줄 하나 — 기본 2초 쉬고 끝난다.
+  expect(await screen.findByText('리딩 완료', {}, { timeout: 5000 })).toBeOnTheScreen();
+
+  await pressWhenReady('다시 읽기');
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ advance: 'timed', record: false }));
+});
+
 test('다시 연습을 시작하지 못하면 이유를 알린다', async () => {
   const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   server.startSession.mockRejectedValue(new ApiError(422, 'bad', 'invalid_characters'));
