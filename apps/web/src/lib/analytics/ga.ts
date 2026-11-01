@@ -334,8 +334,8 @@ export function trackLandingWebTryClick(variant: LandingVariantParam, surface: s
 // 가입 없이 쓰는 방문자가 어디까지 가는지만 센다. 대본·대사·영상·회차 id 는 싣지 않는다.
 // 랜딩 이벤트와 같은 보관 큐를 써서 동의 흐름 뒤에 태그가 오르기 전 이벤트도 잃지 않는다.
 export type TrialFeature = "reading" | "coaching";
-/** 체험에 들어온 길. 광고·검색 링크는 quick_start, 홈 카드는 home_card, 헤더 메뉴는 nav, 키워드 소개 페이지는 keyword_page, 코칭 화면의 안내 링크는 coaching_link. */
-export type TrialEntry = "quick_start" | "home_card" | "nav" | "keyword_page" | "coaching_link" | "direct";
+/** 체험에 들어온 길. 광고·검색 링크는 quick_start, 홈 카드는 home_card, 헤더 메뉴는 nav, 키워드 소개 페이지는 keyword_page, 코칭 화면의 안내 링크는 coaching_link, /app 페이지는 app_page. */
+export type TrialEntry = "quick_start" | "home_card" | "nav" | "keyword_page" | "coaching_link" | "app_page" | "direct";
 /** 앱 받기 버튼이 놓인 자리. */
 export type TrialSurface = "done" | "bar" | "home";
 

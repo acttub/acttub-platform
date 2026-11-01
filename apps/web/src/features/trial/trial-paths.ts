@@ -11,7 +11,7 @@ export const READING_TRIAL_PATH = "/reading/try";
 /** 연기 코칭 시작(영상 올리기) 화면. */
 export const COACHING_TRIAL_PATH = "/practice/new";
 
-const FROM_VALUES: readonly TrialEntry[] = ["home_card", "nav", "keyword_page", "coaching_link"];
+const FROM_VALUES: readonly TrialEntry[] = ["home_card", "nav", "keyword_page", "coaching_link", "app_page"];
 
 /** 사이트 안에서 눌렀을 때 붙는 `from` 값. 모르는 값이면 광고·검색으로 곧장 들어온 것으로 본다. */
 export function trialEntryFromSearch(search: string): TrialEntry {
