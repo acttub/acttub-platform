@@ -87,6 +87,7 @@ public class ScriptSplitWorker {
     private final LineDecider decider;
     private final LineReview.Settings review;
     private final Double sameSpeaker;
+    private final ScriptSplitListener listener;
 
     public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
@@ -103,6 +104,14 @@ public class ScriptSplitWorker {
     public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
             Double sameSpeaker) {
+        this(ledger, imports, generator, telemetry, failures, clock, decider, review, sameSpeaker, null);
+    }
+
+    /** @param listener 대본을 저장한 뒤 알릴 곳(SOMA-960). {@code null} 이면 알리지 않는다 */
+    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
+            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
+            Double sameSpeaker, ScriptSplitListener listener) {
+        this.listener = listener;
         this.decider = decider;
         this.review = review;
         this.sameSpeaker = sameSpeaker;
@@ -145,7 +154,8 @@ public class ScriptSplitWorker {
                 // 같은 request_id 로 다른 대본을 이미 저장해 둔 기기다 — 저장할 수 없으니 실패로 닫는다. 파일 탓이 아니라 원본은 두지 않는다.
                 case FINGERPRINT_MISMATCH ->
                         imports.fail(claimed.id(), token, importId, ScriptImportFailure.FAILED, false, clock.instant());
-                case SAVED, CANCELLED -> { }
+                case SAVED -> notifySaved(claimed.id(), material.userId(), importId);
+                case CANCELLED -> { }
             }
         } catch (LeaseOwnershipException lost) {
             failures.report(lost, new FailureContext("ScriptSplitWorker.complete", claimed.id()));
@@ -159,6 +169,21 @@ public class ScriptSplitWorker {
             }
         }
         return true;
+    }
+
+    /** 저장한 대본을 알린다. 알림이 실패해도 나누기는 성공이다 — 보고만 한다. */
+    private void notifySaved(UUID jobId, UUID userId, UUID importId) {
+        if (listener == null) {
+            return;
+        }
+        try {
+            ScriptImportRepository.ImportView view = imports.find(userId, importId);
+            if (view != null && view.scriptId() != null) {
+                listener.onScriptSplit(userId, view.scriptId());
+            }
+        } catch (RuntimeException failure) {
+            failures.report(failure, new FailureContext("ScriptSplitWorker.notify", jobId));
+        }
     }
 
     /** 집은 워커가 죽은 뒤 lease 와 시도 수를 다 쓴 작업을 실패로 닫는다. 스케줄러가 돌 때마다 부른다. */

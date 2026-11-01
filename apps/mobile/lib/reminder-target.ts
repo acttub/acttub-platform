@@ -1,7 +1,7 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** 연습 알림 가운데 앱이 대상 화면을 찾아 여는 종류(SOMA-862). 찾지 못하면 /reminder-open 이 홈으로 보낸다. */
-export type ReminderOpenKind = 'homework' | 'pending_video' | 'unread_script';
+export type ReminderOpenKind = 'homework' | 'pending_video' | 'unread_script' | 'script_ready';
 
 function uuid(value: unknown): string | null {
   return typeof value === 'string' && UUID.test(value) ? value : null;
@@ -24,6 +24,11 @@ export function reminderTarget(data: unknown): string | null {
   const practiceId = uuid(d.practice_id);
   const practice = practiceId ? '/coach?practiceId=' + encodeURIComponent(practiceId) : null;
   if (d.kind === 'analysis_complete') return practice;
+  // 대본 나누기 완료(SOMA-960) — 나누는 중 화면을 떠났어도 그 대본의 목소리 정하기로 이어 간다.
+  if (d.kind === 'script_split_complete') {
+    const scriptId = uuid(d.script_id);
+    return scriptId ? openPath('script_ready', scriptId) : '/reading';
+  }
   if (d.kind !== 'evening_reminder') return null;
   switch (d.reminder_kind) {
     case 'resume':
@@ -60,5 +65,5 @@ export function reminderOpenEvent(data: unknown): Record<string, string> | null 
 }
 
 export function isReminderOpenKind(value: unknown): value is ReminderOpenKind {
-  return value === 'homework' || value === 'pending_video' || value === 'unread_script';
+  return value === 'homework' || value === 'pending_video' || value === 'unread_script' || value === 'script_ready';
 }

@@ -98,6 +98,7 @@ class PracticeReminderServiceTest {
             @Override public void register(UUID userId, String token, String platform, String appVersion) { throw new AssertionError(); }
             @Override public void unregister(String token) { }
             @Override public List<PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
+            @Override public List<PushTarget> scriptSplitTargets(UUID userId) { return List.of(); }
         };
     }
 
@@ -108,6 +109,7 @@ class PracticeReminderServiceTest {
             @Override public void register(UUID userId, String token, String platform, String appVersion) { throw new AssertionError(); }
             @Override public void unregister(String token) { unregistered.add(token); }
             @Override public List<PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
+            @Override public List<PushTarget> scriptSplitTargets(UUID userId) { return List.of(); }
         };
         new PracticeReminderService(repo, tokens, sender, failures, clock, "0.1.2", holdoutPercent).sendDue();
     }

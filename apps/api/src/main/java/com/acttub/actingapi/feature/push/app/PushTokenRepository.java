@@ -26,4 +26,10 @@ public interface PushTokenRepository {
      * 분석 완료 알림을 꺼 두었으면 빈 목록이다(프로필의 토글을 읽어 거른다). 세션이 없으면 빈 목록.
      */
     List<PushTarget> analysisDoneTargets(UUID sessionId);
+
+    /**
+     * 대본 나누기가 끝난 것을 알릴 단말 — 그 회원의 토큰 전부와 각 단말이 쓰는 말(SOMA-960). 오래 기다리는 작업이 끝났다는 알림이라
+     * 분석 완료와 같은 토글을 따른다. 꺼 두었으면 빈 목록이다.
+     */
+    List<PushTarget> scriptSplitTargets(UUID userId);
 }
