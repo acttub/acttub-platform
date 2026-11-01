@@ -5,8 +5,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 리딩 발음 보고서(SOMA-606, 실험)를 켜는 조건. 허용 사용자 목록에 있거나 Pro 인 배우가 받는다(Pro 판정은
- * {@link PronunciationPlan}, SOMA-967). 채점 서비스 주소가 없으면 꺼진 것과 같다(운영 compose 에는 채점 서비스가 없다).
+ * 리딩 발음 보고서(SOMA-606, 실험)를 켜는 조건. Pro 판별이 아직 없어 허용 사용자 목록으로만 연다 — 목록이 비면 아무도
+ * 받지 않는다. 채점 서비스 주소가 없으면 꺼진 것과 같다(운영 compose 에는 채점 서비스가 없다).
  *
  * @param scorerUrl 채점 서비스(apps/pron) 주소. 예: {@code http://pron:8000}
  */

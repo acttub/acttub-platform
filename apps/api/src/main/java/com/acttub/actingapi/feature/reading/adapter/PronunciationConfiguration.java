@@ -9,22 +9,19 @@ import java.util.stream.Collectors;
 
 import com.acttub.actingapi.feature.reading.adapter.pron.HttpPronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationAudio;
-import com.acttub.actingapi.feature.reading.app.PronunciationPlan;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportService;
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationSettings;
 import com.acttub.actingapi.feature.reading.app.PronunciationWorker;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * 리딩 발음 보고서(SOMA-606) 조립. 켜는 값은 셋이다 — {@code PRON_REPORT_ENABLED}(기본 false),
- * {@code PRON_REPORT_ALLOWED_USERS}(쉼표로 이은 사용자 id), {@code PRON_SCORER_URL}(채점 서비스 주소). 켜져 있으면 허용 목록과
- * Pro 배우(결제 도메인의 {@link PronunciationPlan})가 받는다(SOMA-967).
+ * {@code PRON_REPORT_ALLOWED_USERS}(쉼표로 이은 사용자 id, 비면 아무도), {@code PRON_SCORER_URL}(채점 서비스 주소).
  */
 @Configuration
 class PronunciationConfiguration {
@@ -46,8 +43,8 @@ class PronunciationConfiguration {
 
     @Bean
     PronunciationReportService pronunciationReportService(PronunciationReportRepository reports, PronunciationSettings settings,
-            ObjectProvider<PronunciationPlan> plan, Clock clock) {
-        return new PronunciationReportService(reports, settings, plan.getIfAvailable(() -> PronunciationPlan.NONE), clock);
+            Clock clock) {
+        return new PronunciationReportService(reports, settings, clock);
     }
 
     @Bean

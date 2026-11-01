@@ -6,13 +6,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.reading.app.PronunciationPlan;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository;
 import com.acttub.actingapi.feature.reading.app.PronunciationSettings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.ObjectProvider;
 
 /** 발음 보고서 켜는 값 읽기: 비면 아무도, 쉼표·공백을 견디고, 주소가 없으면 꺼진 것과 같다(SOMA-606). */
 class PronunciationConfigurationTest {
@@ -49,9 +47,7 @@ class PronunciationConfigurationTest {
         PronunciationReportRepository reports = Mockito.mock(PronunciationReportRepository.class);
         var scorer = configuration.pronunciationScorer(settings, new ObjectMapper());
         assertThat(scorer).isNotNull();
-        @SuppressWarnings("unchecked")
-        ObjectProvider<PronunciationPlan> noPlan = Mockito.mock(ObjectProvider.class);
-        assertThat(configuration.pronunciationReportService(reports, settings, noPlan, Clock.systemUTC())).isNotNull();
+        assertThat(configuration.pronunciationReportService(reports, settings, Clock.systemUTC())).isNotNull();
         assertThat(configuration.pronunciationWorker(reports, scorer, (key, path) -> { }, settings, Clock.systemUTC())).isNotNull();
     }
 }
