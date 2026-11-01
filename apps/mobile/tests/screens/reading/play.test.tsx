@@ -2258,3 +2258,41 @@ test('예시가 아닌 대본(서버 404 → null)은 지금처럼 모델로 읽
   expect(tts.ensureReady).toHaveBeenCalled();
   expect(exampleLineUri).not.toHaveBeenCalled();
 });
+
+test('「……」뿐인 상대 줄은 목소리 없이 잠깐 쉬었다가 내 차례로 넘어가고, 미리 만들 목록에도 넣지 않는다(SOMA-962)', async () => {
+  const detail = scriptDetail([
+    ['scene', '1장 카페'],
+    ['dialogue', '민재', '오늘 왔구나.'],
+    ['dialogue', '서연', '……'],
+    ['dialogue', '민재', '괜찮아.'],
+  ]);
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l4' }, detail);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.speak).not.toHaveBeenCalled();
+  expect(tts.play).not.toHaveBeenCalled();
+  expect(speakWithDevice).not.toHaveBeenCalled();
+  for (const [items] of queue.prime.mock.calls) {
+    expect((items as { text: string }[]).map((i) => i.text)).not.toContain('……');
+  }
+});
+
+test('「...」뿐인 내 줄은 마이크를 켜지 않고 잠깐 보여 준 뒤 다음 상대 줄로 넘어간다(SOMA-962)', async () => {
+  const detail = scriptDetail([
+    ['scene', '1장 카페'],
+    ['dialogue', '서연', '왜 말이 없어?'],
+    ['dialogue', '민재', '...'],
+    ['dialogue', '서연', '대답 좀 해.'],
+  ]);
+  // 자동 넘김 안내를 이미 본 배우 — [시작] 없이 바로 돈다.
+  await AsyncStorage.setItem('acttub.reading.autoAdvanceTipHidden', '1');
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l4' }, detail, { begin: false });
+
+  expect(await screen.findByText('리딩 완료', {}, { timeout: 3000 })).toBeOnTheScreen();
+  expect(mockMic.start).not.toHaveBeenCalled();
+  // 다음 상대 줄은 미리 만든 소리로 읽는다. 「...」는 소리를 만들거나 읽지 않는다.
+  const taken = queue.take.mock.calls.map(([item]) => (item as { text: string }).text);
+  expect(taken).toEqual(['대답 좀 해.']);
+  expect(tts.play).toHaveBeenCalledTimes(1);
+  expect(speakWithDevice).not.toHaveBeenCalled();
+});
