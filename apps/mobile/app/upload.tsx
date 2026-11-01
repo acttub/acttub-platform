@@ -23,6 +23,7 @@ import { InlineErrorLine } from '@/components/ui/inline-error';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
+import { PrivateVideoNote } from '@/components/private-video-note';
 import { UploadPrepareFailed } from '@/components/upload-prepare-failed';
 import { scheduleUploadLaterReminder } from '@/lib/notifications';
 import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/practice/upload-options';
@@ -712,6 +713,8 @@ export default function UploadScreen() {
                 />
               </View>
             )}
+
+            {!sample && <PrivateVideoNote />}
 
             {/* 질문 받기를 누른 뒤 — 보내는 중이라는 걸 바로 보인다(SOMA-671). */}
             {locked && (
