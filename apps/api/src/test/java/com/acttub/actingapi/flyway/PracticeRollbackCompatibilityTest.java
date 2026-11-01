@@ -55,7 +55,7 @@ class PracticeRollbackCompatibilityTest {
             "practice_reminder_sends", "reading_pronunciation_reports",
             "script_cocreations", "actor_journals", "reading_examples", "support_inquiries", "billing_subscriptions",
             "billing_checkouts", "billing_payments", "billing_pro_grants", "ads", "ad_events", "ad_serves", "ad_settings",
-            "push_opens", "ad_slot_switches", "reading_recording_retranscripts");
+            "push_opens", "ad_slot_switches", "reading_recording_retranscripts", "blog_posts");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
@@ -106,8 +106,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V79 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 66;
+    /** V14~V80 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)·웹 블로그 글(V80, SOMA-834)이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 67;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(

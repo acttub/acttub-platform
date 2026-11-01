@@ -94,6 +94,10 @@ export function startMessage(outcome: StartOutcome): string | null {
 /** 내 계정 「구독」 칸에 보일 내용. 서버 /v2/billing/me 그대로를 화면 문장으로만 바꾼다. */
 export type SubscriptionView = {
   title: string;
+  /** 어디서 결제했는지(제목 옆 표시). 모르면 null. */
+  badge: string | null;
+  /** 금액·다음 결제일 한 줄. 모르면 null. */
+  summary: string | null;
   lines: string[];
   /** 웹(토스) 구독을 여기서 해지할 수 있는가 */
   cancelable: boolean;
@@ -131,9 +135,12 @@ export function subscriptionViewOf(me: MeLike): SubscriptionView {
   const next = koreanDate(me.next_billing_at);
   if (me.provider === "apple" || me.provider === "google") {
     const store = me.provider === "apple" ? "App Store" : "Google Play";
+    const where = me.provider === "apple" ? "아이폰 설정 › Apple 계정 › 구독" : "Google Play 앱 › 프로필 › 결제 및 정기 결제 › 정기 결제";
     return {
-      title: "Pro 이용 중",
-      lines: [`${store}에서 구독하고 있어요. 해지와 결제 수단 변경은 ${store}의 구독 관리에서 해요.`],
+      title: "Pro",
+      badge: `${store}에서 결제`,
+      summary: [`월 ${won(me.amount)}`, next ? `다음 결제일 ${next}` : null].filter((l): l is string => !!l).join(" · "),
+      lines: [`${store}에서 결제한 구독은 ${store}의 구독 관리(${where})에서 바꾸거나 해지할 수 있어요.`],
       cancelable: false,
       showPricing: false,
     };
@@ -144,6 +151,8 @@ export function subscriptionViewOf(me: MeLike): SubscriptionView {
       case "active":
         return {
           title: "Pro 이용 중",
+          badge: "웹에서 결제",
+          summary: null,
           lines: [`월 ${won(me.amount)} 자동결제`, next ? `다음 결제일 ${next}` : null, card].filter((l): l is string => !!l),
           cancelable: true,
           showPricing: false,
@@ -151,6 +160,8 @@ export function subscriptionViewOf(me: MeLike): SubscriptionView {
       case "canceled":
         return {
           title: "해지 예정",
+          badge: "웹에서 결제",
+          summary: null,
           lines: [until ? `${until}까지 Pro를 쓰고, 그 뒤로는 결제되지 않아요.` : "다음 자동결제는 되지 않아요."],
           cancelable: false,
           showPricing: false,
@@ -158,6 +169,8 @@ export function subscriptionViewOf(me: MeLike): SubscriptionView {
       case "past_due":
         return {
           title: "결제가 안 됐어요",
+          badge: "웹에서 결제",
+          summary: null,
           lines: [
             "카드 한도나 유효기간을 확인해 주세요. 정해진 날짜에 다시 결제를 시도해요.",
             until ? `${until}까지는 Pro를 그대로 써요.` : null,
@@ -166,14 +179,14 @@ export function subscriptionViewOf(me: MeLike): SubscriptionView {
           showPricing: false,
         };
       case "expired":
-        return { title: "구독이 끝났어요", lines: ["다시 구독하면 바로 Pro를 쓸 수 있어요."], cancelable: false, showPricing: true };
+        return { title: "구독이 끝났어요", badge: "웹에서 결제", summary: null, lines: ["다시 구독하면 바로 Pro를 쓸 수 있어요."], cancelable: false, showPricing: true };
     }
   }
   const grant = koreanDate(me.grant_ends_at);
   if (me.pro && grant) {
-    return { title: "Pro 무료 이용 중", lines: [`${grant}까지 Pro를 무료로 써요. 카드는 등록되지 않아요.`], cancelable: false, showPricing: true };
+    return { title: "Pro 무료 이용 중", badge: null, summary: null, lines: [`${grant}까지 Pro를 무료로 써요. 카드는 등록되지 않아요.`], cancelable: false, showPricing: true };
   }
-  return { title: "무료로 쓰고 있어요", lines: [`Pro는 월 ${won(me.amount)}예요.`], cancelable: false, showPricing: true };
+  return { title: "무료로 쓰고 있어요", badge: null, summary: null, lines: [`Pro는 월 ${won(me.amount)}예요.`], cancelable: false, showPricing: true };
 }
 
 /** 해지 결과 문장. */

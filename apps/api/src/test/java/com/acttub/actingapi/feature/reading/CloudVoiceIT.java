@@ -32,7 +32,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
         "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model",
-        "READING_VOICE_MODEL_PREFIX=reading-model/supertonic3-fp16-v1"})
+        "READING_VOICE_MODEL_PREFIX=reading-model/supertonic3-fp16-v1",
+        // 무료 기간(기본 2026-10-31 KST)이 지나면 이 클래스의 무료 기간 계약이 날짜 때문에 깨진다. 무료 기간 안으로 고정한다.
+        "READING_VOICE_FREE_UNTIL=2099-12-31T23:59:59+09:00"})
 @AutoConfigureMockMvc
 @Import(CloudVoiceIT.Fakes.class)
 class CloudVoiceIT {

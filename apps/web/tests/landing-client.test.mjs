@@ -58,21 +58,17 @@ afterEach(() => {
   delete globalThis.IntersectionObserver;
 });
 
-test("처음 온 사람은 홈에 머물고, 웹 체험 링크와 앱 받기 링크와 운영 창구를 본다", () => {
+test("처음 온 사람은 홈에 머물고, 로그인과 앱 받기 링크와 운영 창구를 본다", () => {
   render(react.createElement(LandingClient));
 
   assert.deepEqual(navigation.pushed, []);
-  assert.equal(
-    screen.getByRole("link", { name: "웹에서 먼저 해 보기 →" }).getAttribute("href"),
-    "/practice/new",
-  );
-  // 코칭은 영상 코칭 체험으로, 리딩은 웹 리딩으로, 바닥은 웹 연습 홈으로. 챌린지는 웹 목록이 없어 앱으로만 보낸다.
-  assert.deepEqual(
-    screen.getAllByRole("link", { name: "웹에서 해 보기" }).map((a) => a.getAttribute("href")),
-    ["/practice/new", "/reading", "/home"],
-  );
+  // 웹에는 연습 화면이 없다. 첫 화면에는 「계정이 있나요? 로그인」만 있다.
+  assert.equal(screen.queryByRole("link", { name: "웹에서 먼저 해 보기 →" }), null);
+  assert.equal(screen.queryAllByRole("link", { name: "웹에서 해 보기" }).length, 0);
+  const hero = window.document.getElementById("hero");
+  assert.equal(within(hero).getByRole("link", { name: "로그인" }).getAttribute("href"), "/login");
   // 데스크톱 브라우저라 기기를 못 가린다. 두 스토어를 다 보여 주는 /app 으로 보낸다.
-  assert.equal(screen.getByRole("link", { name: "앱에서 시작하기" }).getAttribute("href"), "/app");
+  assert.equal(screen.getByRole("link", { name: "앱 받기", hidden: true }).getAttribute("href"), "/app");
   assert.equal(screen.getByRole("link", { name: "앱 열기 · 무료로 설치" }).getAttribute("href"), "/app");
   assert.deepEqual(
     ["앱에서 코칭 받기", "앱에서 리딩하기", "앱에서 참여하기"].map((name) =>
@@ -92,30 +88,6 @@ test("처음 온 사람은 홈에 머물고, 웹 체험 링크와 앱 받기 링
     screen.getAllByRole("link", { name: "acttub0527@gmail.com" })[0].getAttribute("href"),
     "mailto:acttub0527@gmail.com",
   );
-});
-
-test("광고로 들어온 UTM 은 웹 체험으로 가는 링크에 그대로 실리고, 추적 식별자는 버린다", () => {
-  visit("?utm_source=instagram&utm_medium=paid_social&utm_campaign=launch&fbclid=abc");
-  render(react.createElement(LandingClient));
-
-  assert.equal(
-    screen.getByRole("link", { name: "웹에서 먼저 해 보기 →" }).getAttribute("href"),
-    "/practice/new?utm_source=instagram&utm_medium=paid_social&utm_campaign=launch",
-  );
-});
-
-test("이 브라우저에 게스트가 있어도 홈에 머물고, 첫 화면 링크가 UTM 을 실은 「이어서 연습하기」가 된다", () => {
-  setTokens({ access_token: "guest-access", refresh_token: "guest-refresh" });
-  visit("?utm_source=naver&utm_medium=cpc");
-
-  render(react.createElement(LandingClient));
-
-  assert.deepEqual(navigation.pushed, []);
-  assert.equal(
-    screen.getByRole("link", { name: "이어서 연습하기 →" }).getAttribute("href"),
-    "/home?utm_source=naver&utm_medium=cpc",
-  );
-  assert.equal(screen.queryByRole("link", { name: "웹에서 먼저 해 보기 →" }), null);
 });
 
 test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈을 그대로 보여 준다", () => {

@@ -26,14 +26,10 @@ const STORE_NAME: Record<AppStore, string> = { app_store: "App Store", google_pl
 
 export function LandingHeroB({
   appHref,
-  webHref,
-  returningGuest,
   campaignSearch,
   media,
 }: {
   appHref: string;
-  webHref: string;
-  returningGuest: boolean;
   campaignSearch: string;
   media: HeroMedia;
 }) {
@@ -60,13 +56,9 @@ export function LandingHeroB({
               앱 열기 · 무료로 설치
             </a>
             <p className="text-center text-[15px] text-[#4e5968] lg:text-left">
-              {returningGuest ? "하던 연습이 있어요 " : "설치 전에 "}
-              <Link
-                href={webHref}
-                data-landing-web="landing_hero"
-                className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
-              >
-                {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
+              계정이 있나요?{" "}
+              <Link href="/login" className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
+                로그인
               </Link>
             </p>
           </div>
