@@ -106,19 +106,18 @@ test("app.audition: 공용 상단 바 아래에서 공고를 로그인 없이 �
   assert.deepEqual(
     within(nav).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href"), link.getAttribute("aria-current")]),
     [
-      ["홈", "/practice/new", null],
-      ["리딩", "/reading", null],
-      ["입시", "/admissions", null],
-      ["오디션", "/auditions", "page"],
-      ["앱", "/app", null],
-      ["로그인", "/login", null],
+      ["연기 코칭", "/?intro=1#coaching", null],
+      ["대본 리딩", "/?intro=1#reading", null],
+      ["챌린지", "/?intro=1#challenge", null],
+      ["요금", "/pricing", null],
+      ["블로그", "/blog", null],
     ],
   );
 
   await screen.findByText("지원 가능 3건 · 3시간 전 수집");
   assert.deepEqual(calls, [{ route: "GET /v2/auditions", authorization: null }]);
   assert.deepEqual(
-    screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
+    within(screen.getByRole("main")).getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
     ["이번 주 마감 · 1", "2주 안 · 1", "마감일은 원문 확인 · 1"],
   );
   assert.deepEqual(cardTitles(), ["낭독극 배우 모집 원문 열기", "단편영화 주연 원문 열기", "뮤지컬 앙상블 원문 열기"]);

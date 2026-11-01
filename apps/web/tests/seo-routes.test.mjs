@@ -29,12 +29,12 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
   });
 });
 
-test("sitemap은 공개 페이지(고객센터·개인정보 처리방침 포함), 입시 목록·대학 상세, 가이드를 순서대로 반환한다", () => {
+test("sitemap은 공개 페이지(고객센터·개인정보 처리방침 포함), 입시 목록·대학 상세, 가이드를 순서대로 반환한다", async () => {
   const latestGuideDate = GUIDES.reduce(
     (latest, guide) => guide.updatedAt > latest ? guide.updatedAt : latest,
     GUIDES[0].updatedAt,
   );
-  const entries = sitemap();
+  const entries = await sitemap();
 
   assert.deepEqual(entries.slice(0, 6), [
     { url: "https://acttub.com/" },
@@ -52,12 +52,14 @@ test("sitemap은 공개 페이지(고객센터·개인정보 처리방침 포함
     },
   ]);
   assert.ok(entries.some(({ url }) => url === "https://acttub.com/admissions"));
+  assert.ok(entries.some(({ url }) => url === "https://acttub.com/blog"));
+  assert.ok(entries.some(({ url }) => url === "https://acttub.com/blog/self-tape"));
   assert.equal(
     entries.filter(({ url }) => url.startsWith("https://acttub.com/admissions/")).length,
     66,
   );
   assert.deepEqual(entries.slice(-(GUIDES.length + 1)), [
-    { url: "https://acttub.com/guide", lastModified: latestGuideDate },
+    { url: "https://acttub.com/blog", lastModified: latestGuideDate },
     ...GUIDES.map((guide) => ({
       url: `https://acttub.com${guide.path}`,
       lastModified: guide.updatedAt,
@@ -69,8 +71,8 @@ test("sitemap은 공개 페이지(고객센터·개인정보 처리방침 포함
 // 결정 I-8: 포트폴리오 공개 페이지는 링크를 아는 사람만 본다. 검색 엔진에 길을 알려 주지 않는다 —
 // sitemap 에 싣지 않고, robots 의 disallow 에도 적지 않는다(적으면 그 경로가 있다는 것부터 알린다).
 // 색인을 막는 것은 페이지의 noindex 메타다(tests/seo-noindex-guard).
-test("account.portfolio: sitemap 과 robots 어디에도 포트폴리오 공개 주소(/p)와 이관 화면이 없다", () => {
-  const urls = sitemap().map(({ url }) => new URL(url).pathname);
+test("account.portfolio: sitemap 과 robots 어디에도 포트폴리오 공개 주소(/p)와 이관 화면이 없다", async () => {
+  const urls = (await sitemap()).map(({ url }) => new URL(url).pathname);
   assert.deepEqual(
     urls.filter((path) => path === "/p" || path.startsWith("/p/") || path === "/transfer"),
     [],

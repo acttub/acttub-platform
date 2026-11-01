@@ -31,6 +31,21 @@ final class SupportInquiryDtos {
             String body) {
     }
 
+    @Schema(name = "MySupportInquiryList", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record MySupportInquiryList(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) java.util.List<MySupportInquiry> items) {
+    }
+
+    @Schema(name = "MySupportInquiry", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record MySupportInquiry(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Id") UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Category") String category,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Summary", description = "본문 앞 40자.") String summary,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Status", allowableValues = {"open", "closed"},
+                    description = "표에 있는 값 그대로다. 답변 상태는 따로 저장하지 않는다.") String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Created At")
+            @JsonProperty("created_at") Instant createdAt) {
+    }
+
     @Schema(name = "SupportInquiryResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record SupportInquiryResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Id") UUID id,

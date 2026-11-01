@@ -8,6 +8,9 @@ import com.acttub.actingapi.feature.support.adapter.web.SupportInquiryDtos.Suppo
 import com.acttub.actingapi.feature.support.app.SupportInquiryRules;
 import com.acttub.actingapi.feature.support.app.SupportInquiryService;
 import com.acttub.actingapi.feature.support.app.SupportInquiryService.Accepted;
+import com.acttub.actingapi.feature.support.adapter.web.SupportInquiryDtos.MySupportInquiry;
+import com.acttub.actingapi.feature.support.adapter.web.SupportInquiryDtos.MySupportInquiryList;
+import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.ClientAddress;
 import com.acttub.actingapi.platform.security.ClientVersionFilter;
 import com.acttub.actingapi.platform.security.CurrentUserService;
@@ -18,10 +21,12 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,12 +42,15 @@ class SupportInquiryController {
     private final CurrentUserService users;
     private final FixedWindowRateLimiter limiter;
     private final ClientAddress addresses;
+    private final AccessGate auth;
 
     SupportInquiryController(
             SupportInquiryService inquiries,
             CurrentUserService users,
             FixedWindowRateLimiter limiter,
-            ClientAddress addresses) {
+            ClientAddress addresses,
+            AccessGate auth) {
+        this.auth = auth;
         this.inquiries = inquiries;
         this.users = users;
         this.limiter = limiter;
@@ -81,6 +89,25 @@ class SupportInquiryController {
                 request.getHeader(ClientVersionFilter.HEADER));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new SupportInquiryResponse(accepted.id(), accepted.createdAt()));
+    }
+
+    @Operation(
+            summary = "List My Support Inquiries",
+            description = "로그인한 회원이 보낸 문의를 새것부터 20건. 상태는 표의 open/closed 그대로다.",
+            operationId = "list_my_support_inquiries_v2_support_inquiries_mine_get",
+            tags = "v2-support",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = MySupportInquiryList.class)))
+    @GetMapping("/v2/support/inquiries/mine")
+    MySupportInquiryList mine(HttpServletRequest request) {
+        UUID userId = auth.gatedUser(request).id();
+        return new MySupportInquiryList(inquiries.mine(userId).stream()
+                .map(row -> new MySupportInquiry(row.id(), row.category(), SupportInquiryRules.summarize(row.body()),
+                        row.status(), row.createdAt()))
+                .toList());
     }
 
     /** 유효한 토큰이면 그 계정, 아니면 비로그인이다. 어떤 실패도 접수를 막지 않는다. */

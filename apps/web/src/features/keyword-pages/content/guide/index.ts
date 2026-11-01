@@ -20,7 +20,7 @@ export const GUIDES: readonly KeywordPageContent[] = [
 ];
 
 export function guideSlug(content: KeywordPageContent): string {
-  return content.path.slice("/guide/".length);
+  return content.path.replace(/^\/(guide|blog)\//, "");
 }
 
 export function findGuide(slug: string): KeywordPageContent | null {
