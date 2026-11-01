@@ -13,7 +13,7 @@ const read = (rel) => readFileSync(path.join(appRoot, rel), 'utf8');
 test('reading.session: 실행 화면은 마이크 권한이 없으면 목소리 준비로 가지 않고 마이크 안내를 띄운다', () => {
   const play = read('app/reading/play.tsx');
   assert.match(play, /\{ kind: 'need_mic' \}/);
-  assert.match(play, /if \(!micOk\) \{\s*setPhase\(\{ kind: 'need_mic' \}\);\s*return;\s*\}/);
+  assert.match(play, /if \(!micOk && !listenAll && !handsFree\) \{\s*setPhase\(\{ kind: 'need_mic' \}\);\s*return;\s*\}/);
 });
 
 test('reading.session: 마이크 안내는 설정 열기와 나가기를 주고, 설정에서 켜고 돌아오면 이어서 준비한다', () => {

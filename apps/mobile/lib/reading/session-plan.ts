@@ -55,6 +55,10 @@ export function buildStartBody(input: {
   myCharacterIds: string[];
   startLineId: string;
   endLineId: string;
+  /** 내 차례를 넘기는 방식. 핸즈프리는 timed, 전체 듣기는 manual(내 차례가 없다). 기본은 침묵 감지. */
+  advance?: StartSessionBody['advance'];
+  /** 내 줄을 녹음할지. 전체 듣기·핸즈프리는 마이크를 열지 않으니 false. 기본 true. */
+  record?: boolean;
 }): StartSessionBody {
   return {
     request_id: input.requestId,
@@ -62,8 +66,8 @@ export function buildStartBody(input: {
     mode: 'read',
     start_line_id: input.startLineId,
     end_line_id: input.endLineId,
-    advance: 'silence',
-    record: true,
+    advance: input.advance ?? 'silence',
+    record: input.record ?? true,
   };
 }
 

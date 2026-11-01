@@ -205,7 +205,8 @@ export type ScriptErrorCode = (typeof SCRIPT_ERROR_CODES)[number];
 // ─── 리딩 회차(reading.cast · reading.session) ──────────────────────────────
 
 export type ReadingMode = 'read' | 'quiz';
-export type ReadingAdvance = 'silence' | 'manual';
+/** timed: 핸즈프리 — 내 차례에 말하지 않아도 대사 길이만큼 쉬고 넘어간다(1.1.1). */
+export type ReadingAdvance = 'silence' | 'manual' | 'timed';
 
 /** 진행 저장에 싣는 내 줄 하나의 말한 것(기기 음성 인식 결과). 원문과의 비교·통과 판정은 서버가 한다. */
 export type LineSaid = { line_id: string; said: string };
