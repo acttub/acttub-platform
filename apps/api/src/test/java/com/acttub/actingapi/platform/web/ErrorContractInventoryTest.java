@@ -297,6 +297,9 @@ class ErrorContractInventoryTest {
                     "feature.ads.AdAdminEndpointIT"),
             covered("feature.ads.adapter.web.AdSettingsAdminController|401|Unauthorized", 1,
                     "feature.ads.AdAdminEndpointIT"),
+            // ops 구독 화면(SOMA-963) 운영 경로도 같은 토큰 검사를 진다.
+            covered("feature.billing.adapter.web.BillingAdminController|401|Unauthorized", 1,
+                    "feature.billing.BillingAdminEndpointIT"),
             covered("feature.ads.app.AdAdminService|404|ad_not_found", 1,
                     "feature.ads.AdAdminEndpointIT"),
             covered("feature.ads.app.AdAdminService|413|upload_too_large", 1,
