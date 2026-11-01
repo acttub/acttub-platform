@@ -1939,7 +1939,7 @@ CONSTRAINT summaries summaries_session_id_key UNIQUE (session_id)
 CONSTRAINT summaries summaries_session_id_not_null NOT NULL session_id
 CONSTRAINT summaries summaries_uncertainties_json_not_null NOT NULL uncertainties_json
 CONSTRAINT summaries summaries_was_compressed_not_null NOT NULL was_compressed
-CONSTRAINT support_inquiries ck_support_inquiries_category CHECK ((category = ANY (ARRAY['account'::text, 'billing'::text, 'refund'::text, 'usage'::text, 'bug'::text, 'report'::text, 'other'::text])))
+CONSTRAINT support_inquiries ck_support_inquiries_category CHECK ((category = ANY (ARRAY['account'::text, 'billing'::text, 'refund'::text, 'usage'::text, 'bug'::text, 'report'::text, 'other'::text, 'feedback'::text])))
 CONSTRAINT support_inquiries ck_support_inquiries_status CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
 CONSTRAINT support_inquiries support_inquiries_body_not_null NOT NULL body
 CONSTRAINT support_inquiries support_inquiries_category_not_null NOT NULL category

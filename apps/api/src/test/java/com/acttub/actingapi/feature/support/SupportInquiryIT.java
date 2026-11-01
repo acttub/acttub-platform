@@ -83,6 +83,14 @@ class SupportInquiryIT {
     }
 
     @Test
+    @DisplayName("앱 안 의견(feedback) 분류도 201 로 접수되고 그대로 저장된다")
+    void feedbackCategoryIsAccepted() throws Exception {
+        send(inquiry("feedback", "a@b.co", "이런 기능이 있으면 좋겠어요, 꼭 봐 주세요"), null, ip(), 201);
+
+        assertThat(jdbc.queryForObject("SELECT category FROM support_inquiries", String.class)).isEqualTo("feedback");
+    }
+
+    @Test
     @DisplayName("유효한 액세스 토큰이 붙어 있으면 user_id 를 남기고, 만료·잘못된 토큰이면 비로그인으로 받는다")
     void tokenIsOptional() throws Exception {
         UUID user = UUID.randomUUID();

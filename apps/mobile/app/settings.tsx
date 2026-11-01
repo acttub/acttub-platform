@@ -99,6 +99,8 @@ export default function SettingsScreen() {
         <SettingsCard icon="star" title={t('settings.storeReviewTitle')} sub={t('settings.storeReviewSub')} onPress={() => void openStoreReviewPage()} />
         {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
         <SettingsCard icon="slash" title={t('block.settingsLink')} sub={t('settings.blockedSub')} onPress={() => router.push('/blocked-users')} />
+        {/* 앱 안 의견 보내기 (SOMA-953) */}
+        <SettingsCard icon="message-circle" title={t('feedback.row')} sub={t('feedback.rowSub')} onPress={() => router.push('/feedback')} />
         {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
         <SettingsCard icon="mail" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => void openContactMail()} />
 
