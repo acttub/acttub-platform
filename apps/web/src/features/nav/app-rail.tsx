@@ -10,7 +10,7 @@
 // 세션 API 를 부르지 않는다 — 입시 정보만 보는 방문자에게는 게스트 계정도 생기지 않는다(account.guest).
 // 오른쪽 끝 계정 자리는 브라우저 저장소만 보고 로그인·내 계정을 고른다(SOMA-834).
 
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 import { AccountLink } from "@/features/auth/account-link";
 import { usePathname } from "next/navigation";
 
@@ -55,7 +55,7 @@ export function AppRail() {
 
 function RailLink({ item, active }: { item: Item; active: boolean }) {
   return (
-    <Link
+    <SiteLink
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={`flex h-9 items-center gap-1.5 rounded-[12px] px-2.5 transition ${
@@ -66,7 +66,7 @@ function RailLink({ item, active }: { item: Item; active: boolean }) {
     >
       <RailIcon name={item.icon} />
       <span className="text-[13px] font-black leading-none">{item.label}</span>
-    </Link>
+    </SiteLink>
   );
 }
 

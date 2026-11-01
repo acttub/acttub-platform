@@ -7,7 +7,7 @@ import { CoachComposer } from "./coach-composer";
 // 설계 정본은 새 UI 디자인 캔버스(2026-07-27)의 D1~D10 · M1~M9 화면.
 
 import Image from "next/image";
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 import { AccountLink } from "@/features/auth/account-link";
 import { isMemberSession, subscribeAuthChange } from "@/lib/auth/token-store";
 import { AppHandoff } from "@/features/trial/app-handoff";
@@ -1466,42 +1466,42 @@ function WorkspaceInner() {
                 activeId ? "hidden sm:flex" : "flex"
               }`}
             >
-              <Link
+              <SiteLink
                 href="/library"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 보관함
-              </Link>
-              <Link
+              </SiteLink>
+              <SiteLink
                 href="/reading"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 리딩
-              </Link>
-              <Link
+              </SiteLink>
+              <SiteLink
                 href="/admissions"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 입시
-              </Link>
+              </SiteLink>
               {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한
                   자리라 숨기지 않는다. */}
-              <Link
+              <SiteLink
                 href="/memory"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 기억
-              </Link>
+              </SiteLink>
               {/* 앱은 폰에서 받는 것이라, 이 줄이 폰에서 숨는 상황(연습이 열려 있을 때)은
                   드로어 하단이 대신 받는다. 옆 항목들과 달리 파란 글씨인 이유는 갓 나온
                   길이라 눈에 걸려야 해서다. */}
-              <Link
+              <SiteLink
                 href="/app"
                 {...{ [APP_DOWNLOAD_ATTR]: "app_page" }}
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#3182f6] transition hover:bg-[#e8f3ff]"
               >
                 앱
-              </Link>
+              </SiteLink>
               <AccountLink className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]" />
             </nav>
           </div>
@@ -1739,9 +1739,9 @@ const SessionRail = memo(function SessionRail({
     >
       <div className={`flex h-14 items-center ${open ? "justify-between px-4" : "justify-center"}`}>
         {open ? (
-          <Link href={LANDING_INTRO_HREF} aria-label="Acttub 소개 보기" className="shrink-0">
+          <SiteLink href={LANDING_INTRO_HREF} aria-label="Acttub 소개 보기" className="shrink-0">
             <Image src={wordmark} alt="Acttub" priority className="h-5 w-auto" />
-          </Link>
+          </SiteLink>
         ) : null}
         <button
           type="button"
@@ -1893,15 +1893,15 @@ const SessionRail = memo(function SessionRail({
           통째로 숨어서(375px에 제목 자리가 안 남는다) 앱으로 가는 길이 사라진다.
           데스크톱 레일에는 넣지 않는다. 헤더가 이미 보이는 자리라 두 군데가 된다. */}
       {drawer ? (
-        <Link
+        <SiteLink
           href="/library"
           className="mt-auto flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3 text-[13px] font-black text-[#191f28] transition hover:bg-[#eef2f6]"
         >
           영상 보관함
-        </Link>
+        </SiteLink>
       ) : null}
       {drawer ? (
-        <Link
+        <SiteLink
           href="/app"
           {...{ [APP_DOWNLOAD_ATTR]: "app_page" }}
           className="flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3.5 transition hover:bg-[#eef2f6]"
@@ -1918,7 +1918,7 @@ const SessionRail = memo(function SessionRail({
               iOS · Android
             </span>
           </span>
-        </Link>
+        </SiteLink>
       ) : null}
 
       {/* 계정 자리는 상단 메뉴 끝에 있다(SOMA-834). 로그인하지 않은 게스트의 자료는 이 브라우저에만
@@ -1932,12 +1932,12 @@ const SessionRail = memo(function SessionRail({
             {GUEST_BROWSER_ONLY_NOTICE}
           </p>
           {canTransfer ? (
-            <Link
+            <SiteLink
               href="/transfer"
               className="mt-1.5 inline-block text-[12.5px] font-black text-[#3182f6] transition hover:text-[#1b64da]"
             >
               앱으로 옮기기
-            </Link>
+            </SiteLink>
           ) : null}
         </div>
       ) : null}
@@ -2280,9 +2280,9 @@ function IntroLine() {
   return (
     <p className="text-center text-xs font-semibold leading-5 text-[#8b95a1]">
       <span aria-hidden="true">🔒</span> 업로드한 영상은 분석 후 안전하게 처리돼요{" "}
-      <Link href="/terms" className="font-black text-[#4e5968] underline-offset-2 hover:underline">
+      <SiteLink href="/terms" className="font-black text-[#4e5968] underline-offset-2 hover:underline">
         안전 약속 보기
-      </Link>
+      </SiteLink>
     </p>
   );
 }
