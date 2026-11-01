@@ -712,18 +712,24 @@ export default function ReadingPlay() {
     fromTutorialRef.current = fromTutorial;
     if (fromTutorial) finishTutorial('done');
     void (async () => {
-      const [micOk, tipHidden, listenPrefs] = await Promise.all([hasMicPermission(), isAutoAdvanceTipHidden(), loadListenPrefs()]);
+      // 전체 듣기·자동 넘김은 마이크를 열지 않는다 — 녹음·음성 인식 권한을 묻지 않는다(11/1 폰 확인: 권한 창이 세 번 떴다).
+      const listenOnly = listenAll || handsFree;
+      const [micOk, tipHidden, listenPrefs] = await Promise.all([
+        listenOnly ? Promise.resolve(true) : hasMicPermission(),
+        isAutoAdvanceTipHidden(),
+        loadListenPrefs(),
+      ]);
       if (!mounted.current) return;
       tipHiddenRef.current = tipHidden;
       // 읽는 속도(SOMA-952)는 배역 고르기에서 고른 값 — 이 회차의 모든 목소리에 든다.
       setReadingPlaybackRate(listenPrefs.rate);
       pauseSecRef.current = listenPrefs.pauseSec;
       // 전체 듣기·핸즈프리는 마이크를 열지 않으므로 권한이 없어도 시작한다.
-      if (!micOk && !listenAll && !handsFree) {
+      if (!micOk) {
         setPhase({ kind: 'need_mic' });
         return;
       }
-      setSttMode(await detectSttPolicy());
+      setSttMode(listenOnly ? { kind: 'typing', reason: 'unavailable' } : await detectSttPolicy());
       void prepare();
     })();
     return () => {
