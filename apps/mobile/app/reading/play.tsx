@@ -171,6 +171,8 @@ const NOTICE_MS = 4000;
 const JUMP_PREVIEW = 15;
 /** 완료 화면이 뜬 뒤 버튼을 받지 않는 시간. */
 const DONE_LOCK_MS = 800;
+/** 아래 버튼 줄이 일시정지·이어서로 바뀐 뒤 누름을 받지 않는 시간. */
+const CONTROLS_SWAP_LOCK_MS = 500;
 /** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
 const MONO_POSITION_MS = 700;
 /** 독백에서 읽는 문장을 둘 높이 — 화면 위에서 이만큼 아래(SOMA-934). */
@@ -215,6 +217,11 @@ export default function ReadingPlay() {
   const handsFree = session?.advance === 'timed';
   /** 자동 넘김의 쉬는 시간(초) — 배역 고르기에서 고른 값. 기본 2초. */
   const pauseSecRef = useRef(2);
+  /**
+   * 일시정지·이어서로 아래 버튼 줄이 바뀐 직후 잠깐 누름을 받지 않는다(11/1 폰 확인). 일시정지를 두 번 빠르게 누르면 같은 자리에
+   * 새로 생긴 「그만하기」가 눌려 확인 없이 리딩이 끝났다. 끝 화면 버튼의 잠금(DONE_LOCK_MS)과 같은 방식이다.
+   */
+  const [controlsLocked, setControlsLocked] = useState(false);
   const mic = useReadingMic();
   const stt = useReadingStt();
 
@@ -1677,6 +1684,20 @@ export default function ReadingPlay() {
     if (liveOn && liveJson) updateReadingLive(JSON.parse(liveJson));
   }, [liveOn, liveJson]);
 
+  // 버튼 줄이 바뀐 순간(일시정지 ↔ 이어서)부터 잠깐 잠근다. 첫 그림(멈춘 채 들어온 이어 하기)은 잠그지 않는다.
+  const pausedNow = run?.status === 'paused';
+  const pausedSeen = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (pausedSeen.current === null || pausedSeen.current === pausedNow) {
+      pausedSeen.current = pausedNow;
+      return;
+    }
+    pausedSeen.current = pausedNow;
+    setControlsLocked(true);
+    const timer = setTimeout(() => setControlsLocked(false), CONTROLS_SWAP_LOCK_MS);
+    return () => clearTimeout(timer);
+  }, [pausedNow]);
+
   // ── 화면 ────────────────────────────────────────────────────────────────────
   if (!script || !session || !config || !run) {
     return <ReadingNoScript header={t('reading.tabTitle')} onBack={() => router.dismissTo('/reading')} />;
@@ -1994,7 +2015,7 @@ export default function ReadingPlay() {
     />
   ) : null;
 
-  const hint = paused ? t(interrupted ? 'reading.interruptedBody' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
+  const hint = paused ? t(interrupted ? 'reading.interruptedBody' : handsFree || listenAll ? 'reading.pausedBodyListen' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
 
 
   // 지나간 줄은 같은 배역 묶음(SOMA-806)마다 하나로 쌓는다. 독백은 문장 목록이 지금 카드 안에 다 있어 위로 쌓지 않는다(pen c1MiZ).
@@ -2266,7 +2287,7 @@ export default function ReadingPlay() {
       )}
       <View
         style={[styles.controls, { paddingBottom: insets.bottom + 12 }, hold === 'tip' && styles.controlsHidden]}
-        pointerEvents={hold === 'tip' ? 'none' : 'auto'}
+        pointerEvents={hold === 'tip' || controlsLocked ? 'none' : 'auto'}
         accessibilityElementsHidden={hold === 'tip'}
         importantForAccessibility={hold === 'tip' ? 'no-hide-descendants' : 'auto'}>
         <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('reading.maskSheetTitle')} ph-label="reading_play_mask">
@@ -2275,11 +2296,18 @@ export default function ReadingPlay() {
         </Pressable>
         {paused ? (
           <>
-            <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={stopHere} accessibilityRole="button" ph-label="reading_play_stop">
+            <Pressable
+              key="stop"
+              style={[styles.ctrl, styles.ctrlGhost]}
+              onPress={stopHere}
+              accessibilityRole="button"
+              // 이름표를 직접 단다 — 안 달면 같은 자리에 있던 [이전]의 「이전 대사」가 남아 화면 낭독기가 잘못 읽었다.
+              accessibilityLabel={t('reading.stopHere')}
+              ph-label="reading_play_stop">
               <Feather name="square" size={16} color={palette.textSub} />
               <Text style={styles.ctrlGhostText}>{t('reading.stopHere')}</Text>
             </Pressable>
-            <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume}>
+            <Pressable key="resume" style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume} accessibilityRole="button" accessibilityLabel={t('reading.resume')}>
               <Feather name="play" size={16} color="#fff" />
               <Text style={styles.ctrlPrimaryText}>{t('reading.resume')}</Text>
             </Pressable>
@@ -2289,6 +2317,7 @@ export default function ReadingPlay() {
             {/* 독백에는 [이전]이 없다 — 한 호흡으로 끝까지 읽고 끝난 뒤 문장부터 다시 한다. */}
             {!monologue && (
               <Pressable
+                key="prev"
                 style={[styles.eyeBtn, !canGoBack(run) && styles.backBtnOff]}
                 onPress={goBack}
                 disabled={!canGoBack(run)}

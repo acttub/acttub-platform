@@ -2119,6 +2119,7 @@ const ko = {
     jumpToast: '「{{text}}」부터 다시 읽어요',
     listening: '듣는 중',
     showOriginal: '원문 보기',
+    pausedBodyListen: '이어서를 누르면 이 줄을 처음부터 다시 해요.',
     pausedBody: '이어서를 누르면 이 줄을 처음부터 다시 해요. 마이크는 그때 켜져요.',
     // 리딩 중 다른 앱에 있다가 전화 등으로 끊긴 뒤 돌아옴(R9.18 변형, SOMA-802)
     interruptedChip: '멈춤',
