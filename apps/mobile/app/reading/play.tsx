@@ -1361,12 +1361,15 @@ export default function ReadingPlay() {
     queueRef.current?.push(progressPayload(next));
   }, []);
   // 배경에서도 리딩이 도는 기기(SOMA-802)는 배경으로 가도 멈추지 않는다. 못 도는 기기(안드로이드에서 마이크 서비스를 못 띄움)만 예전처럼 멈춘다.
+  // 단, 마이크를 안 쓰는 듣기 회차는 어느 기기든 멈추지 않는다.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' && phase.kind === 'running' && !readingKeepsRunning()) doPause();
+      // 전체 듣기·자동 넘김은 마이크를 쓰지 않는다 — 마이크 서비스를 못 띄워도(마이크 권한 거절 등) 재생 서비스로 계속 돈다.
+      // 예전엔 마이크 종류 서비스만 「배경에서 돈다」로 쳐서, 마이크 권한이 없으면 화면을 끄는 순간 멈췄다(11/1 폰 확인).
+      if (state !== 'active' && phase.kind === 'running' && !readingKeepsRunning() && !listenAll && !handsFree) doPause();
     });
     return () => sub.remove();
-  }, [phase.kind, doPause]);
+  }, [phase.kind, doPause, listenAll, handsFree]);
   // 잠금 화면·알림의 [일시정지], 그리고 전화 등으로 소리가 실제로 끊긴 때.
   useEffect(() => {
     const offPause = onReadingLiveEvent('onPause', doPause);

@@ -418,6 +418,15 @@ test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배�
   expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
+test('자동 넘김 회차는 마이크 서비스를 못 띄우는 기기여도 화면을 끄거나 다른 앱으로 가도 멈추지 않는다(11/1 폰 확인)', async () => {
+  mockLive.keepsRunning.mockReturnValue(false);
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+
+  await act(async () => appStateListeners.forEach((l) => l('background')));
+  expect(screen.queryByText('이어서')).toBeNull();
+});
+
 test('잠금 화면·알림의 일시정지를 누르면 화면의 일시정지와 같이 멈춘다', async () => {
   const server = await startPlay();
   await screen.findByText('듣는 중');
