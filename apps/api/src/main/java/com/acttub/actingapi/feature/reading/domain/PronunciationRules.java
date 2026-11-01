@@ -122,6 +122,7 @@ public final class PronunciationRules {
         int clear = 0;
         List<Integer> skipped = new ArrayList<>();
         List<Misheard> misheard = new ArrayList<>();
+        List<Misheard> soundHeard = new ArrayList<>();
         Map<String, List<Example>> habits = new LinkedHashMap<>();
         Map<String, Habit> habitKinds = new LinkedHashMap<>();
         int used = 0;
@@ -134,6 +135,7 @@ public final class PronunciationRules {
             }
             used += 1;
             List<Mark> marks = new ArrayList<>();
+            Map<Mark, String> heardOf = new LinkedHashMap<>();
             for (Word word : line.scored().words()) {
                 if (excluded(word)) {
                     continue;
@@ -149,7 +151,12 @@ public final class PronunciationRules {
                     }
                 }
                 if (worst != null && worst.lpr() <= MARK_MAX_LPR) {
-                    marks.add(new Mark(word.index(), clean(word.word()), worst.lpr(), wordStart(word), wordEnd(word)));
+                    Mark mark = new Mark(word.index(), clean(word.word()), worst.lpr(), wordStart(word), wordEnd(word));
+                    marks.add(mark);
+                    String heardWord = heardWord(word, worst);
+                    if (heardWord != null) {
+                        heardOf.put(mark, heardWord);
+                    }
                 }
                 if (worst != null && worst.lpr() <= HABIT_MAX_LPR) {
                     String pair = worst.expected() + "→" + worst.heard();
@@ -159,11 +166,19 @@ public final class PronunciationRules {
                             wordStart(word), wordEnd(word)));
                 }
             }
-            marked.add(new MarkedLine(line.lineNo(), line.scriptText(), marks.stream()
+            List<Mark> shown = marks.stream()
                     .sorted(Comparator.comparingDouble(Mark::lpr))
                     .limit(MAX_MARKS_PER_LINE)
                     .sorted(Comparator.comparingInt(Mark::index))
-                    .toList()));
+                    .toList();
+            marked.add(new MarkedLine(line.lineNo(), line.scriptText(), shown));
+            // 칠한 어절마다 그 소리를 들린 소리로 바꿔 읽은 말을 붙인다 — 어절 안 어느 소리가 어떻게 들렸는지 보이게.
+            for (Mark mark : shown) {
+                String heardWord = heardOf.get(mark);
+                if (heardWord != null) {
+                    soundHeard.add(new Misheard(line.lineNo(), mark.word(), heardWord, mark.startMs(), mark.endMs()));
+                }
+            }
             if (use == Use.TRANSCRIPT) {
                 // 받아쓰기가 잘린 줄은 받아쓰기와 대본의 차이가 발음 때문이 아니다.
                 misheard.addAll(misheard(line));
@@ -177,7 +192,7 @@ public final class PronunciationRules {
                 .orElse(null);
         double ratio = sounds == 0 ? 0 : Math.round(clear * 1000.0 / sounds) / 1000.0;
         return new Report(new Summary(sounds, clear, ratio, used, skipped.size()),
-                misheard.stream().limit(MAX_MISHEARD).toList(), habit, skipped, marked);
+                mergeHeard(soundHeard, misheard), habit, skipped, marked);
     }
 
     /** 줄을 쓰는 근거. {@code TRANSCRIPT}: 받아쓰기가 대본과 닮음. {@code AUDIO}: 받아쓰기는 다르지만 들은 소리가 대본과 같음. */
@@ -285,6 +300,71 @@ public final class PronunciationRules {
             }
         }
         return out;
+    }
+
+    /**
+     * 「다르게 들릴 수 있는 말」 목록. 칠한 어절의 들린 소리(줄마다 최대 {@link #MAX_MARKS_PER_LINE}개)를 먼저 모두 넣고,
+     * 받아쓰기가 다른 말로 적은 어절은 같은 줄·같은 어절이 아니면 {@link #MAX_MISHEARD}개까지 더한다. 줄 순서로 둔다.
+     */
+    static List<Misheard> mergeHeard(List<Misheard> sound, List<Misheard> transcript) {
+        List<Misheard> out = new ArrayList<>(sound);
+        transcript.stream()
+                .filter(t -> sound.stream().noneMatch(s -> s.lineNo() == t.lineNo() && s.word().equals(t.word())))
+                .limit(MAX_MISHEARD)
+                .forEach(out::add);
+        out.sort(Comparator.comparingInt(Misheard::lineNo));
+        return List.copyOf(out);
+    }
+
+    private static final String ONSETS = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+    private static final String VOWELS = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ";
+    private static final String CODAS = "ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ";
+
+    /**
+     * 어절을 소리 나는 대로 읽되 {@code target} 소리만 들린 소리로 바꾼 말(예: 안녕의 둘째 첫소리 ㄴ이 ㅇ으로 들렸으면 "안영").
+     * 채점 소리는 음절마다 [첫소리] 모음 [받침] 순이다. 음절 자리가 없거나 바꾼 소리가 그 자리에 올 수 없으면 {@code null}.
+     */
+    static String heardWord(Word word, Phone target) {
+        if (target.heard() == null || target.heard().isBlank() || target.heard().equals(target.expected())) {
+            return null;
+        }
+        Map<Integer, List<Phone>> bySyllable = new LinkedHashMap<>();
+        for (Phone phone : word.phones()) {
+            if (phone.syllable() == null) {
+                return null;
+            }
+            bySyllable.computeIfAbsent(phone.syllable(), k -> new ArrayList<>()).add(phone);
+        }
+        StringBuilder out = new StringBuilder();
+        boolean replaced = false;
+        for (List<Phone> syllable : bySyllable.values()) {
+            int v = -1;
+            for (int i = 0; i < syllable.size(); i += 1) {
+                if (syllable.get(i).vowel()) {
+                    v = i;
+                    break;
+                }
+            }
+            if (v < 0 || v > 1 || syllable.size() - v > 2) {
+                return null;
+            }
+            String onset = v == 1 ? sound(syllable.get(0), target) : "ㅇ";
+            String vowel = sound(syllable.get(v), target);
+            String coda = syllable.size() - v == 2 ? sound(syllable.get(v + 1), target) : "";
+            replaced |= syllable.contains(target);
+            int o = ONSETS.indexOf(onset);
+            int m = VOWELS.indexOf(vowel);
+            int c = coda.isEmpty() ? 0 : CODAS.indexOf(coda) + 1;
+            if (onset.length() != 1 || vowel.length() != 1 || coda.length() > 1 || o < 0 || m < 0 || (!coda.isEmpty() && c == 0)) {
+                return null;
+            }
+            out.append((char) (0xAC00 + o * 588 + m * 28 + c));
+        }
+        return replaced ? out.toString() : null;
+    }
+
+    private static String sound(Phone phone, Phone target) {
+        return phone == target ? target.heard() : phone.expected();
     }
 
     static Integer wordStart(Word word) {
