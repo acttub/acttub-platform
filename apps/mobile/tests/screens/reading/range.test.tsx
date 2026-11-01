@@ -432,7 +432,7 @@ test('첫 리딩이면 배역만 묻고 대사 보기·구간은 보이지 않�
   mockParams = { first: '1' };
   const server = await show();
 
-  expect(screen.getByText('누구 대사를 읽을까요?')).toBeOnTheScreen();
+  expect(screen.getByText('어떤 배역을 읽으실 건가요?')).toBeOnTheScreen();
   expect(screen.queryByText('구간')).not.toBeOnTheScreen();
   expect(screen.queryByText('내 대사만 가리기')).not.toBeOnTheScreen();
   // 배역 카드에 대사 수와 그 배역의 첫 대사를 보인다.

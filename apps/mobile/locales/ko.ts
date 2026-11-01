@@ -2183,7 +2183,7 @@ const ko = {
     firstDoneTitle: '처음인데 끝까지 읽었어요.\n정말 잘했어요!',
     firstDoneMeta: '{{roles}} · {{total}}줄 중 {{count}}줄',
     recordForCoach: '이 대본으로 찍어서 코칭받기',
-    firstPickTitle: '누구 대사를 읽을까요?',
+    firstPickTitle: '어떤 배역을 읽으실 건가요?',
     firstPickSub: '고르면 처음부터 읽어요. 그만 읽고 싶으면 위 「그만 읽기」를 누르면 돼요.',
     firstPickStart: '처음부터 읽기',
     firstStop: '그만 읽기',
