@@ -14,7 +14,8 @@ const modules = {
     export function createAudioPlayer(source){
       const p={source,duration:0,playing:false,removed:false,listener:null,
         addListener(event,listener){this.listener=listener;return {remove:()=>{this.listener=null;}};},
-        play(){this.playing=true;},remove(){this.removed=true;}};
+        play(){this.playing=true;},remove(){this.removed=true;},
+        setPlaybackRate(rate,quality){this.rate=rate;this.quality=quality;}};
       s.players.push(p);return p;
     }`,
   '../../i18n.ts': `export const currentLanguage=()=> 'ko'; export const translate=k=>k;`,
@@ -58,6 +59,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const engine = await import('../lib/reading/tts/engine.ts');
+const playbackRate = await import('../lib/reading/tts/playback-rate.ts');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
 beforeEach(async () => {
@@ -257,4 +259,33 @@ test('재생이 시작됐는데 끝 사건이 오지 않으면 소리 길이와 
   } finally {
     mock.timers.reset();
   }
+});
+
+test('읽는 속도(SOMA-952): 정한 속도로 높낮이를 지키며 틀고, 끝 사건이 없으면 빨라진 길이만큼만 기다린다', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  playbackRate.setReadingPlaybackRate(1.5);
+  try {
+    let finished = false;
+    const playback = engine.play('file:///fast.wav').then(() => { finished = true; });
+    const player = state.players.at(-1);
+    assert.deepEqual([player.rate, player.quality, player.shouldCorrectPitch], [1.5, 'high', true]);
+    player.listener({ isLoaded: true, didJustFinish: false, playing: true, currentTime: 0, duration: 3 });
+    mock.timers.tick(2000 + engine.PLAYBACK_END_MARGIN_MS - 1);
+    await flush();
+    assert.equal(finished, false);
+    mock.timers.tick(1);
+    await playback;
+    assert.equal(finished, true);
+  } finally {
+    playbackRate.setReadingPlaybackRate(1);
+    mock.timers.reset();
+  }
+});
+
+test('보통 속도면 재생기 속도를 건드리지 않는다', async () => {
+  const playback = engine.play('file:///normal.wav');
+  const player = state.players.at(-1);
+  assert.equal(player.rate, undefined);
+  player.listener({ isLoaded: true, didJustFinish: true, duration: 1 });
+  await playback;
 });

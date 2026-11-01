@@ -8214,7 +8214,7 @@
       },
       "ReadingAdvanceInput" : {
         "type" : "string",
-        "enum" : [ "silence", "manual" ],
+        "enum" : [ "silence", "manual", "timed" ],
         "title" : "ReadingAdvanceInput"
       },
       "ReadingModeInput" : {
@@ -8265,7 +8265,7 @@
       },
       "ReadingAdvance" : {
         "type" : "string",
-        "enum" : [ "silence", "manual" ],
+        "enum" : [ "silence", "manual", "timed" ],
         "title" : "ReadingAdvance"
       },
       "ReadingDifferentLine" : {

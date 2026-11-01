@@ -2296,3 +2296,24 @@ test('「...」뿐인 내 줄은 마이크를 켜지 않고 잠깐 보여 준 �
   expect(tts.play).toHaveBeenCalledTimes(1);
   expect(speakWithDevice).not.toHaveBeenCalled();
 });
+
+test('핸즈프리(SOMA-954): 마이크 권한이 없어도 시작하고, 내 차례에는 마이크 없이 대사 길이만큼 쉰 뒤 상대 대사로 넘어간다', async () => {
+  jest.mocked(hasMicPermission).mockResolvedValue(false);
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+  expect(screen.queryByText('마이크 권한이 필요해요')).not.toBeOnTheScreen();
+  expect(mockMic.start).not.toHaveBeenCalled();
+  // 「오늘 왔구나.」 다섯 글자 — 1초 + 5×0.16초 쉬고 넘어간다.
+  await waitFor(() => expect(queue.take).toHaveBeenCalledWith(expect.objectContaining({ text: '응, 늦어서 미안해.' })), { timeout: 4000 });
+  expect(mockMic.start).not.toHaveBeenCalled();
+});
+
+test('전체 듣기(1.1.1): 내 배역이 없는 회차는 마이크 없이 첫 대사부터 앱이 읽는다', async () => {
+  jest.mocked(hasMicPermission).mockResolvedValue(false);
+  await startPlay({ my_character_ids: [], my_character_names: [], advance: 'manual', record: false }, undefined, { begin: false });
+
+  await waitFor(() => expect(queue.take).toHaveBeenCalledWith(expect.objectContaining({ text: '오늘 왔구나.' })));
+  expect(screen.queryByText('마이크 권한이 필요해요')).not.toBeOnTheScreen();
+  expect(mockMic.start).not.toHaveBeenCalled();
+});

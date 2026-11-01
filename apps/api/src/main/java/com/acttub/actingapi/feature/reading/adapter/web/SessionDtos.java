@@ -20,7 +20,7 @@ final class SessionDtos {
     private SessionDtos() {
     }
 
-    /** 회차의 속성은 시작할 때 정하고 뒤에 바꾸지 않는다. 내 배역은 하나 이상이어야 하고(규칙, 422 invalid_characters) 그 대본의 배역이다. */
+    /** 회차의 속성은 시작할 때 정하고 뒤에 바꾸지 않는다. 내 배역은 그 대본의 배역이어야 한다(422 invalid_characters). 비어 있으면 「전체 듣기」 — 앱이 모든 대사를 읽는다(앱 1.1.1). */
     @Schema(name = "ReadingSessionCreateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record CreateRequest(
             @NotNull @JsonProperty("request_id") UUID requestId,
@@ -43,7 +43,8 @@ final class SessionDtos {
     @Schema(name = "ReadingAdvanceInput")
     enum AdvanceInput {
         silence,
-        manual
+        manual,
+        timed
     }
 
     /**

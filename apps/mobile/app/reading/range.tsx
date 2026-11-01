@@ -42,6 +42,8 @@ import type { ScriptLine, SessionCard } from '@/lib/reading/types';
 import { newRequestId } from '@/lib/request-id';
 import { relativeDay } from '@/lib/reading/script-cards';
 import { translate as t } from '@/lib/i18n';
+import { logEvent } from '@/lib/analytics';
+import { DEFAULT_LISTEN_PREFS, READING_RATES, loadListenPrefs, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
 
 /**
  * 새 연습(R8, reading.cast · reading.session). 연습마다 ① 내 배역(여러 명, 나머지는 앱이 읽음) ② 구간(최근 구간 ·
@@ -98,6 +100,15 @@ export default function ReadingRange() {
   /** null 은 확인 중. 묻는 건 [시작]을 누를 때다(SOMA-772). */
   const [mic, setMic] = useState<MicPermission | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 핸즈프리·읽는 속도(SOMA-952·954) — 이 기기에 남긴 마지막 선택. */
+  const [listen, setListen] = useState<ListenPrefs>(DEFAULT_LISTEN_PREFS);
+  useEffect(() => {
+    let alive = true;
+    void loadListenPrefs().then((p) => alive && setListen(p));
+    return () => {
+      alive = false;
+    };
+  }, []);
   // 회차 시작의 요청 id — 이 화면에서 한 번 정해 재시도에도 같은 회차 하나가 된다.
   const requestId = useRef(newRequestId());
   const rangePickTarget = useSpotlightTarget(TARGET.readingRangePick);
@@ -170,7 +181,23 @@ export default function ReadingRange() {
   // 고른 배역의 대사가 구간 안에 거의 없으면 처음 안내 대신 알린다 — 시작은 막지 않는다(SOMA-709).
   const few = fewLines(lines, myTurnRoles, range.startIndex, range.endIndex);
   const loadingDefault = !firstMode && picked === null && sessions === null;
-  const gate = startGate({ roleCount: selected.length, micGranted: mic === null ? null : true, loading: loadingDefault });
+  // 내 배역을 하나도 고르지 않으면 「전체 듣기」 — 앱이 모든 대사를 읽는다(1.1.1). 첫 리딩은 지금처럼 배역을 고른다.
+  const listenAll = !firstMode && selected.length === 0;
+  // 핸즈프리는 상대 대사가 있는 대본에서만 — 독백은 내 대사뿐이라 쉬기만 하게 된다.
+  const handsFree = !firstMode && !listenAll && cast.length > 1 && listen.handsFree;
+  // 전체 듣기·핸즈프리는 마이크를 열지 않는다 — 권한을 묻지 않는다.
+  const needsMic = !listenAll && !handsFree;
+  const gate = startGate({
+    roleCount: listenAll ? 1 : selected.length,
+    micGranted: !needsMic ? true : mic === null ? null : true,
+    loading: loadingDefault,
+  });
+  const updateListen = (next: Partial<ListenPrefs>) =>
+    setListen((prev) => {
+      const merged = { ...prev, ...next };
+      void saveListenPrefs(merged);
+      return merged;
+    });
 
   const toggleRole = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -193,11 +220,11 @@ export default function ReadingRange() {
   const onStart = async () => {
     if (gate !== 'ready' || busy) return;
     const myRoles = pickedCast.map((c) => c.name);
-    if (rangeError(lines, myRoles, range.startIndex, range.endIndex)) {
+    if (!listenAll && rangeError(lines, myRoles, range.startIndex, range.endIndex)) {
       void alert({ title: t('reading.startFailed'), message: t('reading.errorEmptyRange') });
       return;
     }
-    if (mic !== 'granted') {
+    if (needsMic && mic !== 'granted') {
       setBusy(true);
       const asked = await requestMicPermission().finally(() => setBusy(false));
       if (asked === 'blocked') {
@@ -221,8 +248,12 @@ export default function ReadingRange() {
           myCharacterIds: selected,
           startLineId: script.lineIds[range.startIndex],
           endLineId: script.lineIds[range.endIndex],
+          // 전체 듣기·핸즈프리는 말하지 않으니 녹음도 하지 않는다. 핸즈프리는 대사 길이만큼 쉬고 넘어간다(timed).
+          advance: listenAll ? 'manual' : handsFree ? 'timed' : 'silence',
+          record: needsMic,
         }),
       );
+      void logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate });
       await updateCurrent({ maskMode: mask });
       setFirstReadingSession(firstMode ? (getCurrentSession()?.id ?? null) : null);
       router.replace('/reading/play');
@@ -243,13 +274,15 @@ export default function ReadingRange() {
   startRef.current = () => void onStart();
   const mono = cast.length === 1;
   const firstRun = !hasHistory;
-  const micAsk = mic !== 'granted';
+  const micAsk = needsMic && mic !== 'granted';
   const mainLabel = busy
     ? t('reading.startingSession')
     : firstMode
       ? t('reading.firstPickStart')
       : gate === 'pickRole'
       ? t('reading.startNeedsRole')
+      : listenAll
+        ? t('reading.startListenAll', { count: dlgIn })
       : micAsk
         ? t('reading.startWithMic')
         : t('reading.startSession', { count: dlgIn });
@@ -346,7 +379,9 @@ export default function ReadingRange() {
         </View>
         {/* 대사가 한 줄뿐인 대본은 한 번에 읽게 된다 — 나눠 읽는 길을 같은 안내 자리에 알린다(SOMA-727, 팝업 없음). */}
         <Text style={styles.hint}>
-          {dialogues.length === 1
+          {listenAll && !mono
+            ? t('reading.listenAllNote')
+            : dialogues.length === 1
             ? t('reading.rangeSingleLineNote')
             : mono
               ? t('reading.monologueCard', { count: script.dialogueCount })
@@ -355,13 +390,49 @@ export default function ReadingRange() {
 
         {/* 가리기는 「내 대사 가리기」 스위치 하나다(UX 가이드 10절 리딩, 10/23). 칩 셋이 오른쪽에서 잘렸다(10/28 폰 확인).
             「모두 가리기」는 리딩 화면의 눈 버튼으로 바꿀 수 있다. */}
+        {!listenAll && (
+          <View style={styles.maskRow}>
+            <Text style={styles.maskLabel}>{t('reading.maskMineSwitch')}</Text>
+            <BlueSwitch
+              value={mask !== 'none'}
+              onValueChange={(on) => setMask(on ? 'mine' : 'none')}
+              accessibilityLabel={t('reading.maskMineSwitch')}
+            />
+          </View>
+        )}
+        {/* 핸즈프리(SOMA-954) — 걸으면서 듣게. 내 차례에 마이크를 열지 않고 대사 길이만큼 쉬고 넘어간다. 팝업 없이 스위치 한 줄. */}
+        {!listenAll && cast.length > 1 && (
+          <View style={styles.maskRow}>
+            <View style={styles.rowBody}>
+              <Text style={styles.maskLabel}>{t('reading.handsFreeSwitch')}</Text>
+              <Text style={styles.hint}>{t('reading.handsFreeDesc')}</Text>
+            </View>
+            <BlueSwitch
+              value={listen.handsFree}
+              onValueChange={(on) => updateListen({ handsFree: on })}
+              accessibilityLabel={t('reading.handsFreeSwitch')}
+            />
+          </View>
+        )}
+        {/* 읽는 속도(SOMA-952) — 앱이 읽는 모든 목소리에 같이 든다. */}
         <View style={styles.maskRow}>
-          <Text style={styles.maskLabel}>{t('reading.maskMineSwitch')}</Text>
-          <BlueSwitch
-            value={mask !== 'none'}
-            onValueChange={(on) => setMask(on ? 'mine' : 'none')}
-            accessibilityLabel={t('reading.maskMineSwitch')}
-          />
+          <Text style={styles.maskLabel}>{t('reading.rateLabel')}</Text>
+          <View style={styles.rateRow}>
+            {READING_RATES.map((r) => {
+              const on = listen.rate === r;
+              return (
+                <Pressable
+                  key={r}
+                  style={[styles.rateChip, on && styles.rateChipOn]}
+                  onPress={() => updateListen({ rate: r })}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={t('reading.rateA11y', { rate: t('reading.rateValue', { rate: rateLabel(r) }) })}>
+                  <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{t('reading.rateValue', { rate: rateLabel(r) })}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <Text style={[styles.section, styles.sectionRange]}>{t('reading.rangeSection')}</Text>
@@ -488,6 +559,9 @@ const styles = StyleSheet.create({
   bleed: { marginHorizontal: -space.gutter },
   maskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 },
   maskLabel: { ...type.body1, color: palette.text },
+  rateRow: { flexDirection: 'row', gap: space[1.5] },
+  rateChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
+  rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 36, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },
   roleChip: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 40, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[4] },
   roleChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },
