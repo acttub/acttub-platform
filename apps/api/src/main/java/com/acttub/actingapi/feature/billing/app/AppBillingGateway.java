@@ -8,6 +8,7 @@ package com.acttub.actingapi.feature.billing.app;
 public interface AppBillingGateway {
     PgReviewGateway.IssuedKey issue(String authKey, String customerKey);
 
+    /** {@code customerEmail} 은 비어도 된다. 있으면 토스가 결제내역 메일을 보낸다. */
     PgReviewGateway.Approval approve(String billingKey, String customerKey, String orderId, long amount, String orderName,
-            String idempotencyKey);
+            String customerEmail, String idempotencyKey);
 }

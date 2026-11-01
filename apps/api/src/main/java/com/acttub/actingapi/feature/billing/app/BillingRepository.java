@@ -25,6 +25,9 @@ public interface BillingRepository {
     /** 회원(게스트 포함) 가입 시각 — users.created_at. 없는 사용자면 비어 있다. 기존 회원 무료 한도 유예 판정용. */
     Optional<Instant> signedUpAt(UUID userId);
 
+    /** 결제내역 메일을 받을 주소(users.email). 없으면 비어 있다. */
+    Optional<String> email(UUID userId);
+
     /** 약관 v2(type=terms, version=v2, locale=ko)의 발행 시각 — consent_documents.published_at. 아직 없으면 비어 있다. */
     Optional<Instant> termsV2PublishedAt();
 

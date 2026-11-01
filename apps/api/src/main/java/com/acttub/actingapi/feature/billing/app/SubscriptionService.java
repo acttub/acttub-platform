@@ -421,6 +421,16 @@ public class SubscriptionService {
         return ask(sub, orderId, now);
     }
 
+    /** 결제내역 메일 주소. 못 읽어도 결제는 막지 않는다. */
+    private String receiptEmail(UUID userId) {
+        try {
+            return repository.email(userId).orElse(null);
+        } catch (RuntimeException e) {
+            LOG.warn("billing_receipt_email_lookup_failed");
+            return null;
+        }
+    }
+
     /** 같은 주문 ID(=멱등 키)로 승인을 요청하고 결과를 기록한다. */
     Charge ask(Subscription sub, String orderId, Instant now) {
         if (sub.sealedBillingKey() == null) {
@@ -430,7 +440,7 @@ public class SubscriptionService {
         PgReviewGateway.Approval approval;
         try {
             approval = gateway.approve(cipher.open(sub.sealedBillingKey()), sub.customerKey(), orderId, sub.amount(),
-                    BillingRules.ORDER_NAME, orderId);
+                    BillingRules.ORDER_NAME, receiptEmail(sub.userId()), orderId);
         } catch (GatewayException e) {
             String code = e.code() != null && GATEWAY_CODE.matcher(e.code()).matches() ? e.code() : "gateway_error";
             if (e.outcome() == GatewayException.Outcome.UNKNOWN) {
