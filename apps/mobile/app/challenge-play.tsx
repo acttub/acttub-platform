@@ -49,6 +49,7 @@ import {
 } from '@/lib/challenge/react';
 import type { ChallengeDetail, EntryCard, ReportReason, ReportTarget } from '@/lib/challenge/types';
 import { createViewTracker, VIEW_THRESHOLD_MS } from '@/lib/challenge/views';
+import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { newRequestId } from '@/lib/request-id';
@@ -78,6 +79,8 @@ export default function ChallengePlayScreen() {
   const { user } = useAuth();
   const { id, entryId } = useLocalSearchParams<{ id?: string; entryId?: string }>();
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  // 이미 참여했으면(나만 보기 포함) 빈 화면에서 「첫 번째로 참여해 보세요」를 띄우지 않고 버튼도 「한 번 더 찍기」로 둔다(SOMA-995).
+  const [entered, setEntered] = useState(false);
   const [entries, setEntries] = useState<EntryCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
@@ -124,6 +127,18 @@ export default function ChallengePlayScreen() {
       newEventId: newRequestId,
     }),
   ).current;
+
+  useEffect(() => {
+    const cid = challenge?.id;
+    if (!cid) return;
+    let live = true;
+    void enteredChallengeIds().then((ids) => {
+      if (live) setEntered(ids.has(cid));
+    });
+    return () => {
+      live = false;
+    };
+  }, [challenge?.id]);
 
   useEffect(() => {
     if (!id && !entryId) return;
@@ -568,7 +583,7 @@ export default function ChallengePlayScreen() {
                 onPress={perform}
                 accessibilityRole="button">
                 <Feather name="video" size={16} color={palette.onAccent} />
-                <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+                <Text style={styles.performText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
               </Pressable>
             )}
           </View>
@@ -615,11 +630,11 @@ export default function ChallengePlayScreen() {
             <Feather name="x" size={24} color={palette.onAccent} />
           </Pressable>
           <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
-          <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
+          <Text style={styles.empty}>{t(entered ? 'challenges.emptyOthers' : 'challenges.emptyEntries')}</Text>
           {challenge && !isEnded(challenge) && (
             <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
               <Feather name="video" size={16} color={palette.onAccent} />
-              <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+              <Text style={styles.performText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
             </Pressable>
           )}
         </View>
