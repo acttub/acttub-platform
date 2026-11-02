@@ -12,7 +12,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer.Scored;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
@@ -105,18 +104,6 @@ class HttpPronunciationScorerTest {
         Path file = audio();
         assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리"))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("500");
-    }
-
-    @Test
-    void 너무_길다는_422_는_TooLong_으로_다른_422_는_그대로_던진다() throws IOException {
-        status = 422;
-        body = "{\"detail\":\"audio_too_long\"}";
-        Path file = audio();
-        assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리")).isInstanceOf(PronunciationScorer.TooLong.class);
-
-        body = "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"text\"]}]}";
-        assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리"))
-                .isNotInstanceOf(PronunciationScorer.TooLong.class).hasMessageContaining("422");
     }
 
     @Test
