@@ -2240,6 +2240,8 @@ const en: DeepStringShape<typeof ko> = {
     firstDoneMeta: '{{roles}} · {{count}} of {{total}} lines',
     recordForCoach: 'Film this script for coaching',
     firstPickTitle: 'Which role will you read?',
+    firstPickBelow: 'Your role',
+    firstPreviewA11y: 'Script preview',
     firstPickSub: 'We’ll start from the top. Tap “Stop” at the top whenever you want to finish.',
     firstPickStart: 'Read from the start',
     firstStop: 'Stop',

@@ -2239,6 +2239,8 @@ const ko = {
     firstDoneMeta: '{{roles}} · {{total}}줄 중 {{count}}줄',
     recordForCoach: '이 대본으로 찍어서 코칭받기',
     firstPickTitle: '어떤 배역을 읽으실 건가요?',
+    firstPickBelow: '읽을 배역',
+    firstPreviewA11y: '대본 미리 보기',
     firstPickSub: '고르면 처음부터 읽어요. 그만 읽고 싶으면 위 「그만 읽기」를 누르면 돼요.',
     firstPickStart: '처음부터 읽기',
     firstStop: '그만 읽기',
