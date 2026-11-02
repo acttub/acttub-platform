@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { BACK_WINDOW_MS, SAME_TARGET_WINDOW_MS, installNavigationGuard } from '../lib/navigation-guard.ts';
+import { BACK_WINDOW_MS, DISMISS_BACK_WINDOW_MS, SAME_TARGET_WINDOW_MS, installNavigationGuard } from '../lib/navigation-guard.ts';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -111,7 +111,7 @@ test('dismissTo 로 나간 직후의 뒤로 가기는 연타로 보고 막고, �
   router.dismissTo('/reading/detail');
   tick(150);
   router.back();
-  tick(BACK_WINDOW_MS + 1);
+  tick(DISMISS_BACK_WINDOW_MS);
   router.back();
   assert.deepEqual(calls.map((c) => c[0]), ['dismissTo', 'back']);
 });

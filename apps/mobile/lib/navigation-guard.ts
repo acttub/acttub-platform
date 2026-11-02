@@ -8,6 +8,8 @@
  */
 export const SAME_TARGET_WINDOW_MS = 800;
 export const BACK_WINDOW_MS = 400;
+/** dismiss 계열로 나간 직후 뒤로 가기를 막는 시간. 나가는 화면이 닫히고 다음 화면이 뜨는 동안의 연타를 덮는다. */
+export const DISMISS_BACK_WINDOW_MS = 800;
 
 type AnyFn = (...args: any[]) => any;
 type GuardableRouter = {
@@ -49,10 +51,11 @@ export function installNavigationGuard(router: GuardableRouter, now: () => numbe
   }
 
   let lastBack = -Infinity;
+  let lastDismiss = -Infinity;
   const back = router.back;
   router.back = (...args: unknown[]) => {
     const at = now();
-    if (at - lastBack < BACK_WINDOW_MS) return;
+    if (at - lastBack < BACK_WINDOW_MS || at - lastDismiss < DISMISS_BACK_WINDOW_MS) return;
     lastBack = at;
     return back(...args);
   };
@@ -63,7 +66,7 @@ export function installNavigationGuard(router: GuardableRouter, now: () => numbe
     const original = router[method];
     if (typeof original !== 'function') continue;
     router[method] = (...args: unknown[]) => {
-      lastBack = now();
+      lastDismiss = now();
       return original(...args);
     };
   }
