@@ -31,6 +31,7 @@ import {
   type CommunityCategory,
   type CommunityPost,
 } from '@/lib/community';
+import { seedCommunityPost } from '@/lib/community-post-seed';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -134,6 +135,7 @@ export function CommunityBoard({
   };
 
   const openPost = (post: CommunityPost) => {
+    seedCommunityPost(post);
     router.push({ pathname: '/community-post', params: { id: post.id } });
   };
 

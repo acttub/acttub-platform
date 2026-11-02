@@ -39,6 +39,7 @@ import {
   type CommunityPost,
   type CommunityReportReason,
 } from '@/lib/community';
+import { communityPostSeed } from '@/lib/community-post-seed';
 import { translate as t } from '@/lib/i18n';
 
 type Target = { type: 'post' | 'comment'; id: string; authorId: string | null };
@@ -54,8 +55,10 @@ export default function CommunityPostScreen() {
   const { user } = useAuth();
   const { confirm, alert, sheet, dialog } = useAppDialog();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [post, setPost] = useState<CommunityPost | null>(null);
+  // 목록에서 들고 온 글을 먼저 그린다 — 서버 답(글·댓글)을 기다리지 않는다(lib/community-post-seed).
+  const [post, setPost] = useState<CommunityPost | null>(() => communityPostSeed(id));
   const [comments, setComments] = useState<CommunityComment[]>([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentCursor, setCommentCursor] = useState<string | null>(null);
   const [failed, setFailed] = useState<'gone' | 'error' | 'member_only' | 'deactivated' | null>(null);
   const [draft, setDraft] = useState('');
@@ -84,6 +87,7 @@ export default function CommunityPostScreen() {
       }
       setPost(detail);
       setComments(list.comments);
+      setCommentsLoaded(true);
       setCommentCursor(list.next_cursor ?? null);
     } catch (e) {
       const status = errorStatus(e);
@@ -331,7 +335,7 @@ export default function CommunityPostScreen() {
           </View>
           <View style={styles.divider} />
 
-          {comments.length === 0 ? <Text style={styles.noComment}>{t('communityPost.firstComment')}</Text> : null}
+          {commentsLoaded && comments.length === 0 ? <Text style={styles.noComment}>{t('communityPost.firstComment')}</Text> : null}
           {comments.map((comment) => {
             const mine = isMine(comment);
             return (

@@ -565,8 +565,8 @@ class CommunityEndpointIT {
         JsonNode categories = json(mvc.perform(get("/v2/community/categories")
                         .header("Authorization", bearer(VIEWER)))
                 .andReturn().getResponse().getContentAsString()).path("categories");
-        assertThat(values(categories, "slug")).containsExactly("question", "audition", "partner", "free");
-        assertThat(values(categories, "name")).containsExactly("질문", "오디션 정보", "상대역 구함", "자유");
+        assertThat(values(categories, "slug")).containsExactly("free", "question", "promo");
+        assertThat(values(categories, "name")).containsExactly("자유", "질문", "홍보");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM community_categories WHERE slug IN ('admission','info')", Long.class)).isZero();
     }
@@ -581,7 +581,7 @@ class CommunityEndpointIT {
                         .header("Authorization", bearer(VIEWER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"category_slug":"partner","title":"상대역 구해요","body":"주말에 같이 맞춰 봐요"}
+                                {"category_slug":"promo","title":"상대역 구해요","body":"주말에 같이 맞춰 봐요"}
                                 """))
                 .andReturn().getResponse();
         assertThat(created.getStatus()).isEqualTo(201);
@@ -593,8 +593,8 @@ class CommunityEndpointIT {
         assertThat(mine.path("is_mine").asBoolean()).isTrue();
         assertThat(mine.path("mine").asBoolean()).isTrue();
         assertThat(mine.path("status").asText()).isEqualTo("visible");
-        assertThat(mine.path("category_slug").asText()).isEqualTo("partner");
-        assertThat(mine.path("category_name").asText()).isEqualTo("상대역 구함");
+        assertThat(mine.path("category_slug").asText()).isEqualTo("promo");
+        assertThat(mine.path("category_name").asText()).isEqualTo("홍보");
         String postId = mine.path("id").asText();
 
         JsonNode seen = json(mvc.perform(get("/v2/community/posts/{post_id}", postId)

@@ -153,7 +153,9 @@ function RootNavigator() {
   // 앱을 처음 켤 때의 판정 대기에는 열리지 않는다.
   const reconsentEligible = status === 'signedIn' && !updateRequired && !signupPending;
   // 결제는 됐는데 Pro 가 안 켜진 스토어 구매를 앱을 켜거나 앞으로 가져올 때 다시 확인받는다(SOMA-818 2단계).
-  useStoreRecovery(reconsentEligible && consentEntry.status === 'allowed');
+  // 프로필을 다 채우기 전에는 묻지 않는다 — 가입 직후 billing/me 가 403 profile_required 를 받아 프로필을 다시 읽으면서
+  // 「뭐라고 불러드릴까요」 화면이 로딩으로 바뀌었다 돌아왔다(새로고침처럼 보임, 11/2 폰 QA).
+  useStoreRecovery(reconsentEligible && consentEntry.status === 'allowed' && profileStatus === 'complete');
   const [reconsentOpen, setReconsentOpen] = useState(false);
   useEffect(() => {
     if (!reconsentEligible || consentEntry.status === 'allowed') setReconsentOpen(false);

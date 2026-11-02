@@ -218,6 +218,10 @@ const en: DeepStringShape<typeof ko> = {
     linkTalk: 'Talk, no video',
     linkScript: 'Write lines together',
     otherWays: 'Other ways to get coaching',
+    otherWaysTile: 'Other ways\nto get coaching',
+    otherWaysSub: 'Talk · My script · Write a line',
+    historyLink: 'Details',
+    historyLinkA11y: 'Look back at past coaching',
     firstTitle: 'First time with coaching?',
     firstBody: 'Show a video and the coach asks questions\nto find one thing to fix together.',
     exampleLabel: 'How coaching works',
@@ -2357,7 +2361,7 @@ const en: DeepStringShape<typeof ko> = {
     write: 'Write',
     all: 'All',
     actorFallback: 'Actor',
-    category: { question: 'Questions', audition: 'Auditions', partner: 'Scene partners', free: 'Free talk' },
+    category: { free: 'Free talk', question: 'Questions', promo: 'Promotion', audition: 'Auditions', partner: 'Scene partners' },
     noticeBadge: 'Notice',
     rulesTitle: 'Board rules',
     rulesBody:
@@ -2406,7 +2410,6 @@ const en: DeepStringShape<typeof ko> = {
   communityNew: {
     title: 'Write',
     editTitle: 'Edit post',
-    categoryLabel: 'What kind of post?',
     categoryFail: 'Couldn’t load categories',
     loadFail: 'Couldn’t load the post',
     titleLabel: 'Title',

@@ -67,10 +67,15 @@ export default function ProfileScreen() {
       void getUserName().then((n) => alive && setName(n?.trim() || null));
       void (async () => {
         const now = new Date();
+        // 받는 대로 바로 그린다 — 전에는 셋(리딩은 대본별 회차까지)을 다 받은 뒤에 한꺼번에 그려 프로필이 늦게 떴다(11/2 폰 QA).
+        // 이번 달 연습 수만 셋이 다 온 뒤에 센다.
         const [groupList, entryList, readingSessions] = await Promise.all([
           api
             .listPracticeGroups('all')
-            .then((r) => r.groups)
+            .then((r) => {
+              if (alive) setGroups(r.groups);
+              return r.groups;
+            })
             .catch(() => [] as PracticeGroupDetail[]),
           // 내 참여작은 20개씩이다. 끝까지 읽어 이번 달 챌린지 수와 카드를 같이 만든다(비공개 참여 포함, challenge.browse).
           (async () => {
@@ -79,6 +84,7 @@ export default function ProfileScreen() {
             while (alive) {
               const r = await api.listMyChallengeEntries(undefined, cursor);
               all.push(...r.entries);
+              if (alive) setEntries([...all]);
               if (!r.next_cursor) break;
               cursor = r.next_cursor;
             }

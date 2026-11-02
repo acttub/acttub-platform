@@ -147,12 +147,15 @@ export default function ChallengePlayScreen() {
     // 저장한 영상·내 영상에서는 챌린지 id 없이 참여작 id 만 넘어온다 — 참여작에서 챌린지를 알아낸다.
     // 내 비공개 참여작은 피드(공개 목록)에 없어 404 가 되므로 그 참여작 한 개만 보여 준다(SOMA-738).
     void (async () => {
-      const own = entryId ? await api.getEntry(entryId).catch(() => null) : null;
-      const challengeId = id ?? own?.challenge_id;
+      // 챌린지 id 를 알면 참여작·챌린지·목록을 한꺼번에 묻는다 — 전에는 셋을 차례로 받아 영상이 늦게 떴다(11/2 폰 QA).
+      const ownRead = entryId ? api.getEntry(entryId).catch(() => null) : Promise.resolve(null);
+      const challengeId = id ?? (await ownRead)?.challenge_id;
       if (!challengeId) throw Object.assign(new Error('not_found'), { status: 404 });
-      const detail = await api.getChallenge(challengeId);
+      const listRead = api.listChallengeEntries(challengeId, { sort: 'likes', fromEntry: entryId });
+      listRead.catch(() => undefined);
+      const [detail, own] = await Promise.all([api.getChallenge(challengeId), ownRead]);
       try {
-        const list = await api.listChallengeEntries(challengeId, { sort: 'likes', fromEntry: entryId });
+        const list = await listRead;
         return { detail, list: rankEntries(list.entries, 'likes'), next: list.next_cursor };
       } catch (e) {
         if (own && browseFailure(e).kind === 'not_found') return { detail, list: [own as EntryCard], next: null };

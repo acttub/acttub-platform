@@ -229,30 +229,28 @@ export default function CoachingTab() {
 
           <View style={styles.tiles}>
             <Tile icon="video" title={t('coachingTab.newVideo')} sub={t('coachingTab.newVideoSub')} accent phLabel="coaching_new_video" onPress={startNew} />
+            {/* 「지난 코칭 다시 보기」 큰 버튼 자리에 「다른 방법으로 코칭 받기」를 같은 모양으로 둔다(11/2 폰 QA). 지난 코칭은 아래 「최근 코칭」의 상세보기로 간다. */}
             <Tile
-              icon="clock"
-              title={t('coachingTab.history')}
-              sub={t('coachingTab.historyCount', { count: visible.length })}
-              phLabel="coaching_history"
-              onPress={() => router.push('/history')}
+              icon="message-circle"
+              title={t('coachingTab.otherWaysTile')}
+              sub={t('coachingTab.otherWaysSub')}
+              phLabel="coaching_other_ways"
+              onPress={() => router.push('/coach-other')}
             />
           </View>
 
-          {/* 말로 코칭 · 내 대본 · 대사 같이 만들기는 한 줄로 모아 선택 화면에서 고른다(SOMA-984 B안). */}
-          <Pressable
-            onPress={() => router.push('/coach-other')}
-            accessibilityRole="button"
-            accessibilityLabel={t('coachingTab.otherWays')}
-            ph-label="coaching_other_ways"
-            style={({ pressed }) => [styles.otherWays, pressed && styles.pressed]}>
-            <Feather name="message-circle" size={15} color={palette.textSub} />
-            <Text style={styles.otherWaysText}>{t('coachingTab.otherWays')}</Text>
-            <Feather name="chevron-right" size={15} color={palette.textSub} />
-          </Pressable>
-
           <View style={styles.sectionHead}>
-            {/* 「전체 보기」는 위 「지난 코칭 다시 보기」와 같은 화면이라 뺐다(11/2 QA). */}
             <Text style={styles.sectionTitle}>{t('coachingTab.recentTitle')}</Text>
+            <Pressable
+              onPress={() => router.push('/history')}
+              accessibilityRole="button"
+              accessibilityLabel={t('coachingTab.historyLinkA11y')}
+              ph-label="coaching_history"
+              hitSlop={8}
+              style={({ pressed }) => [styles.historyPill, pressed && styles.pressed]}>
+              <Text style={styles.historyPillText}>{t('coachingTab.historyLink')}</Text>
+              <Feather name="chevron-right" size={14} color={palette.textSub} />
+            </Pressable>
           </View>
           <View style={styles.recent}>
             {visible.slice(0, RECENT_COUNT).map((g) => {
@@ -329,9 +327,6 @@ function CoachingNextSkeleton({ rows, bottomSpace }: { rows: number; bottomSpace
         <View style={styles.tiles}>
           <SkeletonBlock height={125} radius={radius.lg} style={styles.flex} />
           <SkeletonBlock height={125} radius={radius.lg} style={styles.flex} />
-        </View>
-        <View style={styles.otherWays}>
-          <SkeletonLine size={type.body2Bold} width={170} />
         </View>
         <View style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>{t('coachingTab.recentTitle')}</Text>
@@ -460,8 +455,8 @@ const styles = StyleSheet.create({
   link: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5] },
   linkText: { ...type.body2Bold, color: palette.textSub },
   // 예전 「영상 없이 말로 코칭 받기」 보조 버튼(talk-entry-button)과 같은 모양.
-  otherWays: { height: 44, marginTop: space[2], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  otherWaysText: { fontSize: 15, fontWeight: '600', color: palette.textSub },
+  historyPill: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: space[3], paddingRight: space[2], height: 28, borderRadius: radius.full, backgroundColor: palette.bgSoft },
+  historyPillText: { ...type.captionBold, color: palette.textSub },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[6] },
   sectionTitle: { ...type.body1Bold, color: palette.text },
   recent: { paddingTop: space[3], gap: space[3] },

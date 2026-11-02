@@ -36,10 +36,9 @@ const picker = require('@/lib/community-image-picker') as {
 };
 const createPost = api.createCommunityPost as jest.Mock;
 const CATEGORIES = [
-  { slug: 'question', name: '질문' },
-  { slug: 'audition', name: '오디션 정보' },
-  { slug: 'partner', name: '상대역 구함' },
   { slug: 'free', name: '자유' },
+  { slug: 'question', name: '질문' },
+  { slug: 'promo', name: '홍보' },
 ];
 
 beforeEach(() => {
@@ -60,8 +59,10 @@ test('분류·제목·내용을 다 채워야 올리기가 켜지고, 올리면 
   await render(<CommunityNewScreen />);
 
   expect(screen.getByText('글쓰기')).toBeOnTheScreen();
-  expect(screen.getByText('어떤 글인가요?')).toBeOnTheScreen();
-  expect(await screen.findByRole('radio', { name: '상대역 구함' })).toBeOnTheScreen();
+  // 「어떤 글인가요?」 줄은 없고, 분류는 자유·질문·홍보 셋이며 자유가 골라진 채로 연다(11/2 폰 QA).
+  expect(screen.queryByText('어떤 글인가요?')).not.toBeOnTheScreen();
+  expect(await screen.findByRole('radio', { name: '홍보' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '자유', selected: true })).toBeOnTheScreen();
   expect(screen.getByText('전화번호·카톡 ID 같은 연락처는 올릴 수 없어요')).toBeOnTheScreen();
   expect(screen.getByText('0 / 2,000')).toBeOnTheScreen();
   expect(submit()).toBeDisabled();

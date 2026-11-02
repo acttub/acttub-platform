@@ -95,14 +95,27 @@ export default function ReadingList() {
   // 첫 사용자는 고르기 화면(「대사를 같이 맞춰 읽어 볼까요?」)이 안내를 대신한다 — 예전 「대본을 넣어 보세요」를 겹쳐 띄우지 않는다.
   const firstTimeRef = useRef(firstTime);
   firstTimeRef.current = firstTime;
+  // 대본을 이미 올린 계정(앱을 다시 깐 기존 사용자, 첫 리딩을 마친 사람)에게는 「대본을 넣어 보세요」를 띄우지 않고 본 것으로 남긴다(10/26).
+  const listLoaded = list !== null;
+  const hasScripts = !!list && skipsReadingTabGuide(Math.max(list.total_count, list.scripts.length));
+  const listStateRef = useRef({ loaded: listLoaded, hasScripts });
+  listStateRef.current = { loaded: listLoaded, hasScripts };
+  // 목록을 받은 뒤에만 연다 — 받기 전에 열었다가 대본이 있어 닫으면 안내가 잠깐 떴다 사라졌다(첫 리딩 뒤 리딩 탭, 11/2 폰 QA).
   const openReadingGuideIfNew = useCallback(() => {
+    const { loaded, hasScripts: scripts } = listStateRef.current;
+    if (!loaded) return;
     void hasSeenSpotlight('reading').then((seen) => {
-      if (!seen && guideFocused.current && !firstTimeRef.current) setGuideOpen(true);
+      if (seen) return;
+      if (scripts) {
+        void markSpotlightSeen('reading');
+        return;
+      }
+      if (guideFocused.current && !firstTimeRef.current) setGuideOpen(true);
     });
   }, []);
-
-  // 대본을 이미 올린 계정(앱을 다시 깐 기존 사용자)에게는 「대본을 넣어 보세요」를 띄우지 않고 본 것으로 남긴다(10/26).
-  const hasScripts = !!list && skipsReadingTabGuide(Math.max(list.total_count, list.scripts.length));
+  useEffect(() => {
+    if (listLoaded) openReadingGuideIfNew();
+  }, [listLoaded, hasScripts, openReadingGuideIfNew]);
   useEffect(() => {
     if (!guideOpen || !hasScripts) return;
     setGuideOpen(false);

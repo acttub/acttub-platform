@@ -215,7 +215,7 @@ class CommunityErrorContractIT {
 
         assertError(authed(post("/v2/community/posts"), AUTHOR)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"category_slug\":\"partner\",\"title\":\"상대역 구해요\","
+                        .content("{\"category_slug\":\"promo\",\"title\":\"상대역 구해요\","
                                 + "\"body\":\"연락은 010-1234-5678 로 주세요\"}"),
                 422, "community_contact_info");
         assertError(authed(post("/v2/community/posts"), AUTHOR)
