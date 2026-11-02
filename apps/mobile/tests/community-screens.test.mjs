@@ -35,13 +35,22 @@ test('게시판 화면들은 서버 /v2/community 를 읽고 아래 시트를 �
   }
 });
 
+test('게시판 공지는 분류 칩(전체) 위에 둔다', () => {
+  const board = read('components/community/community-board.tsx');
+  assert.ok(board.indexOf('ph-label="community_rules"') < board.indexOf('categoryChips(categories)'));
+});
+
 test('목록 행에는 좋아요 수를 두지 않는다(좋아요는 글 상세에만)', () => {
   const board = read('components/community/community-board.tsx');
   assert.doesNotMatch(board, /like_count|heart/);
 });
 
-test('게시판 광고는 서버에 이미 있는 community_list_top 칸을 쓴다', () => {
-  assert.match(read('components/community/community-board.tsx'), /<AdSlot slot="community_list_top" \/>/);
+test('게시판 광고는 서버에 이미 있는 community_list_top 칸을 목록 아래 얇은 배너(320×50)로 쓴다', () => {
+  const board = read('components/community/community-board.tsx');
+  assert.match(board, /<AdSlot slot="community_list_top" style=\{styles\.adBanner\} \/>/);
+  // 광고는 FlatList 뒤(목록 아래, 탭바 위)에 둔다
+  assert.ok(board.indexOf('<AdSlot slot="community_list_top"') > board.indexOf('<FlatList'));
+  assert.match(read('lib/ads.ts'), /community_list_top: \{ size: 'BANNER'/);
 });
 
 test('게시판 행동마다 기록 이벤트를 남긴다', () => {

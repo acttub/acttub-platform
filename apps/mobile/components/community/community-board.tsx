@@ -6,16 +6,19 @@ import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View
 
 import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
+import { Button } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
-import { InlineEmpty } from '@/components/ui/inline-empty';
+import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { LoadingText } from '@/components/ui/loading-text';
+import { MASCOT } from '@/components/ui/mascot';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
+  avatarSeed,
   boardFailure,
   boardFailureMessage,
   bodyPreview,
@@ -31,10 +34,12 @@ import {
 import { translate as t } from '@/lib/i18n';
 
 /**
- * 커뮤니티 · 게시판(pen community.board) — 분류 칩 → 광고(community_list_top) → 공지 카드 → 글 목록.
- * 목록 행은 분류 · 제목 · 미리보기 · `이름 · 시간` · 댓글 수만 둔다(좋아요 수는 글 상세에만). 사진이 있으면 오른쪽에 첫 장 64 썸네일,
- * 2장 이상이면 썸네일 오른쪽 아래에 장수 배지. 게스트(403 member_only)·탈퇴 계정은 챌린지 목록처럼 다시 시도 없이 한 줄로 알린다.
- * 네 상태: 불러오는 중 Skeleton 행, 비었음 InlineEmpty + 「첫 글 쓰기」, 실패 InlineError, 채움. 당겨서 새로고침, 끝에서 이어 받기.
+ * 커뮤니티 · 게시판(pen community.board, 11/2 재디자인) — 공지 한 줄 → 분류 칩(sm) → 글 목록, 광고는 목록 아래 탭바 위에 고정한
+ * 얇은 배너(community_list_top, 320×50)다. 광고가 없으면(Pro·NONE) 그 자리도 사라진다.
+ * 목록 행은 분류 배지 · 제목 · 미리보기 · 기본 얼굴 + `이름 · 시간` · 댓글 수만 둔다(좋아요 수는 글 상세에만). 사진이 있으면 오른쪽에
+ * 첫 장 64 썸네일, 2장 이상이면 썸네일 오른쪽 아래에 장수 배지. 게스트(403 member_only)·탈퇴 계정은 챌린지 목록처럼 다시 시도 없이
+ * 한 줄로 알린다. 네 상태: 불러오는 중 Skeleton 행, 비었음 액티 96 + title2 + 「첫 글 쓰기」, 실패 InlineError, 채움.
+ * 당겨서 새로고침, 끝에서 이어 받기.
  * `onSeen` 은 첫 쪽을 받을 때마다 가장 최근 글 시각을 알린다(「게시판」 빨간 점 끄기).
  */
 export function CommunityBoard({
@@ -139,19 +144,6 @@ export function CommunityBoard({
 
   const header = (
     <View style={styles.head}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipScroll}>
-        {categoryChips(categories).map((c) => (
-          <Chip
-            key={c.slug || 'all'}
-            label={c.name}
-            role="radio"
-            selected={category === c.slug}
-            phLabel={`community_category_${c.slug || 'all'}`}
-            onPress={() => pickCategory(c.slug)}
-          />
-        ))}
-      </ScrollView>
-      <AdSlot slot="community_list_top" />
       <Pressable
         style={({ pressed }) => [styles.notice, pressed && styles.pressed]}
         onPress={showRules}
@@ -162,31 +154,45 @@ export function CommunityBoard({
         <Text style={styles.noticeText} numberOfLines={1}>
           {t('community.rulesTitle')}
         </Text>
-        <Feather name="chevron-right" size={20} color={palette.iconFaint} />
+        <Feather name="chevron-right" size={16} color={palette.iconFaint} />
       </Pressable>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipScroll}>
+        {categoryChips(categories).map((c) => (
+          <Chip
+            key={c.slug || 'all'}
+            label={c.name}
+            size="sm"
+            role="radio"
+            selected={category === c.slug}
+            phLabel={`community_category_${c.slug || 'all'}`}
+            onPress={() => pickCategory(c.slug)}
+          />
+        ))}
+      </ScrollView>
       {error === 'other' ? <InlineError message={boardFailureMessage(error)} onRetry={() => void load(category)} /> : null}
       {error && error !== 'other' ? <InlineErrorLine message={boardFailureMessage(error)} /> : null}
       {posts === null && !error ? <BoardSkeleton /> : null}
       {posts !== null && posts.length === 0 ? (
         <View style={styles.empty}>
-          <InlineEmpty title={t('community.empty')} />
-          <Pressable
-            style={({ pressed }) => [styles.softBtn, pressed && styles.pressed]}
+          <Image source={MASCOT.shy} style={styles.emptyMascot} contentFit="contain" cachePolicy="memory-disk" />
+          <Text style={styles.emptyTitle}>{t('community.empty')}</Text>
+          <Button
+            variant="secondary"
+            size="md"
+            label={t('community.firstPost')}
+            icon={<Feather name="plus" size={16} color={palette.text} />}
+            phLabel="community_empty_write"
             onPress={onWrite}
-            accessibilityRole="button"
-            accessibilityLabel={t('community.firstPost')}
-            ph-label="community_empty_write">
-            <Feather name="plus" size={16} color={palette.blueDeep} />
-            <Text style={styles.softText}>{t('community.firstPost')}</Text>
-          </Pressable>
+          />
         </View>
       ) : null}
     </View>
   );
 
   return (
-    <>
+    <View style={styles.wrap}>
       <FlatList
+        style={styles.wrap}
         data={posts ?? []}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={header}
@@ -201,10 +207,14 @@ export function CommunityBoard({
         onEndReached={() => void loadMore()}
         onEndReachedThreshold={0.4}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.iconFaint} />}
-        contentContainerStyle={[styles.list, { paddingBottom: bottomSpace + space[5] }]}
+        contentContainerStyle={styles.list}
       />
+      {/* 광고는 목록 아래 탭바 바로 위에 붙인 얇은 배너 — 칸이 비면 여백까지 사라져 목록이 탭바 위까지 내려온다. */}
+      <View style={[styles.adDock, { marginBottom: Math.max(bottomSpace - space[3], 0) }]}>
+        <AdSlot slot="community_list_top" style={styles.adBanner} />
+      </View>
       {dialog}
-    </>
+    </View>
   );
 }
 
@@ -225,6 +235,7 @@ export function PostRow({ post, first, onPress }: { post: CommunityPost; first?:
           {bodyPreview(post.body)}
         </Text>
         <View style={styles.meta}>
+          <DefaultAvatar size={18} radius={9} seed={avatarSeed(post)} />
           <Text style={styles.metaText} numberOfLines={1}>
             {metaLine(post)}
           </Text>
@@ -256,10 +267,13 @@ function BoardSkeleton() {
     <SkeletonGroup style={styles.skeleton}>
       {[0, 1, 2, 3].map((i) => (
         <View key={i} style={[styles.skeletonRow, i > 0 && styles.rowDivider]}>
-          <SkeletonLine size={type.micro} width={48} />
+          <SkeletonBlock width={44} height={20} radius={radius.xs} />
           <SkeletonLine size={type.body1Bold} width="72%" />
           <SkeletonLine size={type.body2} width="88%" />
-          <SkeletonBlock width={120} height={14} radius={radius.xs} />
+          <View style={styles.meta}>
+            <SkeletonBlock width={18} height={18} radius={9} />
+            <SkeletonBlock width={120} height={14} radius={radius.xs} />
+          </View>
         </View>
       ))}
     </SkeletonGroup>
@@ -267,22 +281,20 @@ function BoardSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: space.gutter, paddingTop: space[4] },
-  head: { gap: space[4] },
+  wrap: { flex: 1 },
+  list: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[5] },
+  head: { gap: space[3] },
   chipScroll: { marginHorizontal: -space.gutter, flexGrow: 0 },
   chips: { gap: space[2], paddingHorizontal: space.gutter },
   pressed: { opacity: 0.7 },
   notice: {
-    height: 56,
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[2],
-    paddingLeft: space[4],
-    paddingRight: space[3],
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
+    paddingHorizontal: space[3],
+    borderRadius: radius.md,
+    backgroundColor: palette.bgSoft,
   },
   noticeBadge: {
     ...type.micro,
@@ -294,17 +306,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   noticeText: { ...type.body2, flex: 1, color: palette.text },
-  empty: { gap: space[3] },
-  softBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[1.5],
-    backgroundColor: palette.blueSoft,
-    borderRadius: radius.md,
-    paddingVertical: space[3],
-  },
-  softText: { ...type.body2Bold, color: palette.blueDeep },
+  empty: { alignItems: 'center', gap: space[3], paddingTop: space[8], paddingBottom: space[6] },
+  emptyMascot: { width: 96, height: 96 },
+  emptyTitle: { ...type.title2, color: palette.text, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[4] },
   rowText: { flex: 1, minWidth: 0, gap: space[1] },
   thumb: { width: 64, height: 64 },
@@ -323,13 +327,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[1.5],
   },
   rowDivider: { borderTopWidth: 1, borderTopColor: palette.border },
-  category: { ...type.micro, color: palette.blueDeep },
+  category: {
+    ...type.micro,
+    alignSelf: 'flex-start',
+    color: palette.textSub,
+    backgroundColor: palette.bgSoft,
+    borderRadius: radius.xs,
+    overflow: 'hidden',
+    paddingHorizontal: space[1.5],
+    paddingVertical: 2,
+    marginBottom: space[1],
+  },
   title: { ...type.body1Bold, color: palette.text },
   preview: { ...type.body2, color: palette.textSub },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1] },
   metaText: { ...type.caption, color: palette.textMeta, flexShrink: 1 },
-  count: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  count: { flexDirection: 'row', alignItems: 'center', gap: space[1], marginLeft: space[1.5] },
   more: { alignItems: 'center', paddingVertical: space[3] },
+  adDock: { paddingHorizontal: space.gutter },
+  adBanner: { marginVertical: space[2] },
   skeleton: { gap: 0 },
   skeletonRow: { paddingVertical: space[4], gap: space[2] },
 });
