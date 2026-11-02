@@ -35,8 +35,13 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   /** AdMob 배너를 기다리는 시간(ms). 테스트에서만 줄인다. */
   fillTimeoutMs?: number;
-  /** 칸 높이를 규격 높이(예: 50) 그대로 둔다. 폭에 맞춰 비율로 키우지 않는다 — 게시판 아래 얇은 배너. */
+  /** 칸 높이를 규격 높이(예: 50) 그대로 둔다. 폭에 맞춰 비율로 키우지 않는다. */
   exactHeight?: boolean;
+  /**
+   * 화면 아래 탭바 위에 붙이는 고정 배너(게시판). 좌우 끝까지 채운다 — AdMob 은 폭에 맞춘 적응형 배너(ANCHORED_ADAPTIVE_BANNER),
+   * 학원·우리 앱 이미지는 모서리 없이 규격 비율로 꽉 채운다. 받기 전 자리는 높이 50.
+   */
+  anchored?: boolean;
 };
 
 /**
@@ -50,7 +55,7 @@ type Props = {
 /** AdMob 배너가 이 시간 안에 안 채워지면 칸을 접는다. */
 export const NETWORK_FILL_TIMEOUT_MS = 6000;
 
-export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, exactHeight = false }: Props) {
+export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, exactHeight = false, anchored = false }: Props) {
   const router = useRouter();
   const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
@@ -99,6 +104,9 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
   const box = [styles.box, exactHeight ? { height: spec.height } : { aspectRatio: spec.width / spec.height }];
 
   if (!loaded) {
+    if (anchored) {
+      return <View style={[styles.box, { height: spec.height }, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
+    }
     return <View style={[box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
   }
 
@@ -110,10 +118,10 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
     if (!banner) return null;
     const { BannerAd, BannerAdSize } = banner;
     return (
-      <View style={[box, styles.network, style]} ph-no-capture>
+      <View style={[anchored ? [styles.box, { minHeight: spec.height }] : box, styles.network, style]} ph-no-capture>
         <BannerAd
           unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
-          size={BannerAdSize[size]}
+          size={anchored ? BannerAdSize.ANCHORED_ADAPTIVE_BANNER : BannerAdSize[size]}
           requestOptions={{
             requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
               .requestNonPersonalizedAdsOnly,
@@ -146,7 +154,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
 
   return (
     <Pressable
-      style={[box, styles.creative, style]}
+      style={[box, styles.creative, anchored && styles.flush, style]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`광고 ${ad.advertiser_name ?? ad.headline ?? ''}`.trim()}
@@ -187,6 +195,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  flush: { borderRadius: 0 },
   creative: {
     borderRadius: AD_RADIUS,
     overflow: 'hidden',

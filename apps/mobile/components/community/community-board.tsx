@@ -34,8 +34,8 @@ import {
 import { translate as t } from '@/lib/i18n';
 
 /**
- * 커뮤니티 · 게시판(pen community.board, 11/2 재디자인) — 공지 한 줄 → 분류 칩(sm) → 글 목록, 광고는 목록 아래 탭바 위에 고정한
- * 얇은 배너(community_list_top, 320×50)다. 광고가 없으면(Pro·NONE) 그 자리도 사라진다.
+ * 커뮤니티 · 게시판(pen community.board, 11/2 재디자인) — 공지 한 줄 → 분류 칩(sm) → 글 목록, 광고는 탭바 바로 위에 좌우 끝까지
+ * 붙인 고정 배너(community_list_top, AdMob 적응형)다. 탭바 안 위 여백(안드 8)과 위 구분선이 광고와 탭 버튼을 떼어 놓는다. 광고가 없으면(Pro·NONE) 그 자리도 사라진다.
  * 목록 행은 분류 배지 · 제목 · 미리보기 · 기본 얼굴 + `이름 · 시간` · 댓글 수만 둔다(좋아요 수는 글 상세에만). 사진이 있으면 오른쪽에
  * 첫 장 64 썸네일, 2장 이상이면 썸네일 오른쪽 아래에 장수 배지. 게스트(403 member_only)·탈퇴 계정은 챌린지 목록처럼 다시 시도 없이
  * 한 줄로 알린다. 네 상태: 불러오는 중 Skeleton 행, 비었음 액티 96 + title2 + 「첫 글 쓰기」, 실패 InlineError, 채움.
@@ -209,9 +209,9 @@ export function CommunityBoard({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.iconFaint} />}
         contentContainerStyle={styles.list}
       />
-      {/* 광고는 목록 아래 탭바 바로 위에 붙인 얇은 배너 — 칸이 비면 여백까지 사라져 목록이 탭바 위까지 내려온다. */}
-      <View style={[styles.adDock, { marginBottom: Math.max(bottomSpace - space[3], 0) }]}>
-        <AdSlot slot="community_list_top" exactHeight style={styles.adBanner} />
+      {/* 광고는 탭바 바로 위에 좌우 끝까지 붙인 고정 배너 — 칸이 비면 위 구분선까지 사라져 목록이 탭바 위까지 내려온다. */}
+      <View style={{ marginBottom: Math.max(bottomSpace - space[3], 0) }}>
+        <AdSlot slot="community_list_top" anchored style={styles.adBanner} />
       </View>
       {dialog}
     </View>
@@ -344,8 +344,7 @@ const styles = StyleSheet.create({
   metaText: { ...type.caption, color: palette.textMeta, flexShrink: 1 },
   count: { flexDirection: 'row', alignItems: 'center', gap: space[1], marginLeft: space[1.5] },
   more: { alignItems: 'center', paddingVertical: space[3] },
-  adDock: { paddingHorizontal: space.gutter },
-  adBanner: { marginVertical: space[1] },
+  adBanner: { borderTopWidth: 1, borderTopColor: palette.border },
   skeleton: { gap: 0 },
   skeletonRow: { paddingVertical: space[4], gap: space[2] },
 });

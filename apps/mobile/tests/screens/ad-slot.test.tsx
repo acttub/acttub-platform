@@ -18,7 +18,7 @@ jest.mock('@/lib/ads-native', () => ({
     const { View } = jest.requireActual('react-native');
     return {
       BannerAd: (props: Record<string, unknown>) => <View testID="admob-banner" {...props} />,
-      BannerAdSize: { BANNER: 'BANNER', LARGE_BANNER: 'LARGE_BANNER', MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE' },
+      BannerAdSize: { BANNER: 'BANNER', LARGE_BANNER: 'LARGE_BANNER', MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE', ANCHORED_ADAPTIVE_BANNER: 'ANCHORED_ADAPTIVE_BANNER' },
     };
   },
 }));
@@ -77,6 +77,13 @@ test('exactHeight 면 칸을 폭 비율로 키우지 않고 규격 높이(50) �
   const flat = [banner.parent?.props.style].flat(3).reduce((a: Record<string, unknown>, x: unknown) => ({ ...a, ...(x as object) }), {});
   expect(flat.height).toBe(50);
   expect(flat.aspectRatio).toBeUndefined();
+});
+
+test('anchored 면 AdMob 은 좌우를 채우는 적응형 배너로 그린다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'BANNER', width: 320, height: 50, ad: null });
+  await render(<AdSlot slot="community_list_top" anchored />);
+  const banner = await screen.findByTestId('admob-banner');
+  expect(banner.props.size).toBe('ANCHORED_ADAPTIVE_BANNER');
 });
 
 test('직접 광고는 「광고」 라벨과 함께 그리고, 이미지가 뜨면 노출·누르면 클릭을 남기고 광고주 링크를 앱 밖으로 연다', async () => {
