@@ -14,7 +14,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { defaultAvatarColor } from '@/components/ui/default-avatar';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -27,7 +27,6 @@ import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
-  avatarLetter,
   browseFailure,
   browseFailureMessage,
   canPerform,
@@ -405,8 +404,8 @@ function Avatars({ participants, border }: { participants: ChallengeCard['partic
   return (
     <View style={styles.avatars}>
       {participants.slice(0, 3).map((p, i) => (
-        <View key={`${p.name}-${i}`} style={[styles.avatar, { backgroundColor: defaultAvatarColor(p.name), borderColor: border }]}>
-          <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
+        <View key={`${p.user_id}-${i}`} style={[styles.avatar, { borderColor: border }]}>
+          <UserAvatar size={20} radius={10} seed={p.user_id} photoUrl={p.photo_url} />
         </View>
       ))}
     </View>
@@ -671,12 +670,10 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     marginRight: -space[1.5],
     borderWidth: 1,
   },
-  avatarText: { ...type.micro, color: palette.text },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

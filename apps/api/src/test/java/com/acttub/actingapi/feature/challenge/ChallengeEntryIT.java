@@ -441,7 +441,19 @@ class ChallengeEntryIT {
         assertThat(ranks(likes)).containsExactly("1", "2", "2");
         assertThat(likes.at("/entries/0/like_count").asInt()).isEqualTo(5);
         assertThat(likes.at("/entries/0/author/name").asText()).isEqualTo("다섯");
-        assertThat(likes.at("/entries/0/author").has("photo_url")).isFalse();
+        // 작성자 사진: 없으면 null, 있으면 짧은 주소. 얼굴 가림을 켠 참여작은 목록·참여자 어디에도 사진을 싣지 않는다.
+        assertThat(likes.at("/entries/0/author/photo_url").isNull()).isTrue();
+        String photo = "users/five/profile/photo.jpg";
+        jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=(SELECT user_id FROM challenge_entries WHERE id=?)", photo, five);
+        assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url").asText())
+                .isEqualTo("https://play.test/" + photo);
+        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
+                .contains("https://play.test/" + photo);
+        jdbc.update("UPDATE challenge_entries SET face_mosaic=true,mosaic_status='ready',mosaic_key='videos/five.mosaic.mp4' WHERE id=?", five);
+        assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url").isNull()).isTrue();
+        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
+                .doesNotContain("https://play.test/" + photo);
+        jdbc.update("UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,mosaic_key=NULL WHERE id=?", five);
         JsonNode latest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200);
         assertThat(ids(latest)).containsExactly(threeLate.toString(), threeEarly.toString(), five.toString());
         assertThat(latest.path("entries").findValues("rank")).allMatch(JsonNode::isNull);

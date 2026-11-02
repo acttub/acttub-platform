@@ -13,6 +13,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -23,7 +24,6 @@ import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
-  avatarLetter,
   browseFailure,
   browseFailureMessage,
   canPerform,
@@ -283,9 +283,7 @@ export default function ChallengeDetailScreen() {
                   {!hideRanks && entry.displayRank !== null ? (
                     <Text style={styles.rank}>{entry.displayRank}</Text>
                   ) : (
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarText}>{avatarLetter(entry.author.name)}</Text>
-                    </View>
+                    <UserAvatar size={40} radius={20} seed={entry.author.user_id} photoUrl={entry.author.photo_url} />
                   )}
                 </View>
                 <View style={styles.entryBody}>
@@ -363,8 +361,6 @@ const styles = StyleSheet.create({
   entry: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[4] },
   rankCell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   rank: { ...type.title2, color: palette.blueDeep },
-  avatar: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...type.body2Bold, color: palette.blueDeep },
   entryBody: { flex: 1, minWidth: 0, gap: space[1] },
   entryHead: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   author: { ...type.body1Bold, flexShrink: 1, color: palette.text },

@@ -17,12 +17,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * 참여작 카드 조립. 누가 무엇을 볼 수 있는지는 부르는 쪽이 정하고 여기서는 이미 고른 id 의 모양만 만든다. 좋아요 수는
- * 연결 행을 다시 세고(CONTRACT §7), 댓글 수는 보는 사람에게 보이는 댓글만 센다. 사진·소개는 싣지 않는다.
+ * 연결 행을 다시 세고(CONTRACT §7), 댓글 수는 보는 사람에게 보이는 댓글만 센다. 작성자는 이름과
+ * 프로필 사진(얼굴 가림을 켠 참여작은 빼고)만 싣고 소개·경력은 싣지 않는다.
  */
 @Component
 class EntryCards {
     private static final String CARD = """
-            SELECT e.id,e.challenge_id,e.user_id,coalesce(ep.name,'배우') AS author_name,e.caption,e.content_version,
+            SELECT e.id,e.challenge_id,e.user_id,coalesce(ep.name,'배우') AS author_name,ep.photo_key AS author_photo_key,e.caption,e.content_version,
                    (SELECT count(*) FROM entry_likes l WHERE l.entry_id=e.id) AS like_count,
                    (SELECT count(*) FROM entry_comments cm WHERE cm.entry_id=e.id AND cm.status='visible'
                       AND cm.deleted_at IS NULL AND %s) AS comment_count,
@@ -91,8 +92,19 @@ class EntryCards {
         return key == null || row.get("purged_at", Instant.class) != null ? null : media.playbackUrl(key);
     }
 
-    private static Participant author(Tuple row) {
-        return new Participant(row.get("user_id", UUID.class), row.get("author_name", String.class));
+    /** 작성자. 얼굴 가림을 켠 참여작은 프로필 사진을 싣지 않는다 — 가린 얼굴이 사진으로 드러나면 안 된다. */
+    private Participant author(Tuple row) {
+        boolean hidden = Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class));
+        return new Participant(row.get("user_id", UUID.class), row.get("author_name", String.class),
+                hidden ? null : photoUrl(row.get("author_photo_key", String.class)));
+    }
+
+    /**
+     * 프로필 사진을 볼 짧은 주소(영상과 같은 저장소다). 사진이 없거나 저장소가 없으면 null.
+     * 챌린지 목록·댓글도 이것으로 같은 주소를 만든다.
+     */
+    String photoUrl(String photoKey) {
+        return photoKey == null ? null : media.playbackUrl(photoKey);
     }
 
     /** 확정된 순위만. 집계 중이거나 순위 밖이면 null. */

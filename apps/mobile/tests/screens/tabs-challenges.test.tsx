@@ -170,9 +170,9 @@ describe('인기 탭 첫 화면', () => {
     expect(screen.getByText('사용자 챌린지 · 참여작 3 · D-3')).toBeOnTheScreen();
     expect(screen.getByText('윤서 · 태오 +2')).toBeOnTheScreen();
     expect(screen.getByText('좋아요 5')).toBeOnTheScreen();
-    // 첫 글자 아바타는 이번 주 대사 카드와 줄 카드에 하나씩(둘 다 같은 참여자).
-    expect(screen.getAllByText('윤')).toHaveLength(2);
-    expect(screen.getAllByText('태')).toHaveLength(2);
+    // 참여자 얼굴은 프로필과 같은 기본 얼굴이다 — 이번 주 대사 카드와 줄 카드에 둘씩(첫 글자는 쓰지 않는다).
+    expect(screen.getAllByTestId('default-avatar')).toHaveLength(4);
+    expect(screen.queryByText('윤')).not.toBeOnTheScreen();
 
     expect(screen.getByText('“끝난 대사”')).toBeOnTheScreen();
     expect(screen.getByText('Acttub 공식 대사 · 참여작 7 · 종료')).toBeOnTheScreen();

@@ -35,7 +35,8 @@ class PostgresChallengeBrowse {
             """.formatted(ChallengeVisibility.ENTRY_FROM, ChallengeVisibility.PUBLIC_ENTRY);
     private static final String VISIBLE = "c.deleted_at IS NULL AND c.moderation='visible' AND c.starts_at<=:now ";
     private final EntityManager em;
-    PostgresChallengeBrowse(EntityManager em) { this.em = em; }
+    private final EntryCards cards;
+    PostgresChallengeBrowse(EntityManager em, EntryCards cards) { this.em = em; this.cards = cards; }
 
     Card card(UUID id, UUID viewer) {
         var rows = NativeTuples.list(em.createNativeQuery(SELECT + " WHERE c.id=:id", Tuple.class).setParameter("id", id));
@@ -103,19 +104,21 @@ class PostgresChallengeBrowse {
         var counts = new HashMap<UUID, Long>();
         var ids = rows.stream().map(row -> row.get("id", UUID.class)).toList();
         String participants = """
-                SELECT challenge_id,user_id,actor_name,actor_count FROM (
+                SELECT challenge_id,user_id,actor_name,actor_photo_key,actor_count FROM (
                   SELECT e.challenge_id,e.user_id,coalesce(ep.name,'배우') AS actor_name,
+                         CASE WHEN bool_or(e.face_mosaic) THEN NULL ELSE ep.photo_key END AS actor_photo_key,
                          count(*) OVER(PARTITION BY e.challenge_id) AS actor_count,
                          row_number() OVER(PARTITION BY e.challenge_id ORDER BY max(e.published_at) DESC,e.user_id) AS position
                   %s WHERE e.challenge_id IN (:ids) AND %s AND %s
-                  GROUP BY e.challenge_id,e.user_id,ep.name
+                  GROUP BY e.challenge_id,e.user_id,ep.name,ep.photo_key
                 ) people WHERE position<=3 ORDER BY challenge_id,position
                 """.formatted(ChallengeVisibility.ENTRY_FROM, ChallengeVisibility.PUBLIC_ENTRY, ChallengeVisibility.UNBLOCKED);
         NativeTuples.list(em.createNativeQuery(participants, Tuple.class).setParameter("ids", ids).setParameter("viewer", viewer))
                 .forEach(row -> {
                     UUID id = row.get("challenge_id", UUID.class);
                     people.computeIfAbsent(id, ignored -> new ArrayList<>()).add(
-                            new Participant(row.get("user_id", UUID.class), row.get("actor_name", String.class)));
+                            new Participant(row.get("user_id", UUID.class), row.get("actor_name", String.class),
+                                    cards.photoUrl(row.get("actor_photo_key", String.class))));
                     counts.put(id, ((Number) row.get("actor_count")).longValue());
                 });
         return rows.stream().map(row -> {

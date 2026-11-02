@@ -205,7 +205,8 @@ class PostgresReactionRepository implements ReactionRepository {
     }
 
     private static final String COMMENT = """
-            SELECT cm.id,cm.user_id,cm.body,cm.status,cm.created_at,cu.status AS author_status,coalesce(cp.name,'배우') AS author_name
+            SELECT cm.id,cm.user_id,cm.body,cm.status,cm.created_at,cu.status AS author_status,coalesce(cp.name,'배우') AS author_name,
+                   cp.photo_key AS author_photo_key
             FROM entry_comments cm JOIN users cu ON cu.id=cm.user_id LEFT JOIN user_profiles cp ON cp.user_id=cm.user_id
             """;
 
@@ -214,11 +215,12 @@ class PostgresReactionRepository implements ReactionRepository {
                 .getFirst(), viewer);
     }
 
-    /** 작성자 이름은 지금의 프로필 이름이고, 탈퇴했으면 이름만 바뀐다. 이름 말고 프로필 정보는 싣지 않는다. */
-    private static Comment comment(Tuple row, UUID viewer) {
+    /** 작성자 이름·사진은 지금의 프로필 것이고, 탈퇴했으면 이름이 바뀌고 사진은 싣지 않는다. 그 밖의 프로필 정보는 싣지 않는다. */
+    private Comment comment(Tuple row, UUID viewer) {
         boolean withdrawn = !"active".equals(row.get("author_status", String.class));
         UUID author = row.get("user_id", UUID.class);
-        return new Comment(row.get("id", UUID.class), new Participant(author, withdrawn ? WITHDRAWN : row.get("author_name", String.class)),
+        return new Comment(row.get("id", UUID.class), new Participant(author, withdrawn ? WITHDRAWN : row.get("author_name", String.class),
+                withdrawn ? null : cards.photoUrl(row.get("author_photo_key", String.class))),
                 row.get("body", String.class), row.get("created_at", Instant.class), viewer.equals(author), withdrawn,
                 row.get("status", String.class));
     }
