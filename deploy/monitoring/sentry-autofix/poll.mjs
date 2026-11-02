@@ -2,7 +2,7 @@
 // 운영 알림은 main 대상 hotfix로 고치고, 머지되면 main → dev 역병합 PR을 연다. dev 알림은 dev로 고친다.
 // 알림 목록은 Slack 중계 Worker의 KV에서 가져온다. Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,6 +14,7 @@ const REPO = join(HOME, "acttub-autofix/repo");
 const SENTRY = "https://us.sentry.io/api/0/organizations/acttub";
 const GH_REPO = "acttub/acttub-platform";
 const RUN_TIMEOUT_MS = 90 * 60_000; // CI 결과 기다림까지
+const STALE_LOCK_MS = 3 * 60 * 60_000;
 // Mac mini의 RTK 훅이 명령을 `rtk <명령>`으로 바꾸므로 두 모양을 다 허용한다.
 const TOOLS = [
   "Read", "Grep", "Glob", "Edit", "Write",
@@ -214,14 +215,43 @@ async function backmerge(statePath, state) {
   await slack(`[자동 수정] ${keys} 운영 머지됨 → <${url}|dev 역병합 PR>. Merge commit으로 합쳐 주세요`);
 }
 
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+};
+
+// 잠금 폴더에 실행 중인 pid를 적는다. 강제 종료로 남은 잠금은 그 pid가 죽었으면 풀고 다시 잡는다.
+// 그러지 않으면 이후 실행이 모두 "이전 실행이 아직 돈다"로 조용히 끝난다.
+export function takeLock(lock, isAlive = alive) {
+  for (let i = 0; i < 2; i++) {
+    try {
+      mkdirSync(lock);
+      writeFileSync(join(lock, "pid"), String(process.pid));
+      return true;
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+    }
+    let pid = NaN;
+    try {
+      pid = Number(readFileSync(join(lock, "pid"), "utf8"));
+    } catch {}
+    // pid가 없으면 막 잡은 참이거나 pid를 적지 않던 옛 판의 잠금이다. 예약 작업 실행 한도(2시간 30분)보다 오래됐으면 남은 잠금으로 본다.
+    const stale = Number.isInteger(pid) && pid > 0 ? !isAlive(pid) : Date.now() - statSync(lock).mtimeMs > STALE_LOCK_MS;
+    if (!stale) return false;
+    console.log(`남은 잠금을 푼다(pid ${pid})`);
+    rmSync(lock, { recursive: true, force: true });
+  }
+  return false;
+}
+
 async function main() {
   mkdirSync(STATE_DIR, { recursive: true });
   const lock = join(STATE_DIR, "lock");
-  try {
-    mkdirSync(lock);
-  } catch {
-    return console.log("이전 실행이 아직 돈다");
-  }
+  if (!takeLock(lock)) return console.log("이전 실행이 아직 돈다");
   try {
     const statePath = join(STATE_DIR, "state.json");
     let state = { handled: {} };
