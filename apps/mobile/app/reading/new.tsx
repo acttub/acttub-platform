@@ -447,7 +447,7 @@ export default function ReadingNew() {
             />
           ) : (
             <PrimaryButton
-              label={t('reading.next')}
+              label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
               onPress={() => pending && void split(pending, { title })}
               disabled={!pending || !!popup}
             />
