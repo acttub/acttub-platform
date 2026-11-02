@@ -225,7 +225,7 @@ class PostgresPracticeGroupErasure implements PracticeGroupErasure {
                     FROM deleted_practice_videos d
                     JOIN videos v ON v.id=d.video_id
                     WHERE d.deleted_at<:cutoff
-                       OR NOT """ + RetentionDecisions.GRANTED_SQL.formatted("d.user_id") + """
+                    """ + "   OR NOT " + RetentionDecisions.GRANTED_SQL.formatted("d.user_id") + """
                     ORDER BY d.deleted_at,d.video_id
                     LIMIT 500
                     FOR UPDATE OF d,v

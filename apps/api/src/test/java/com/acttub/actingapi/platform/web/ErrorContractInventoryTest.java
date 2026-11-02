@@ -605,6 +605,8 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingVoiceCoachingIT"),
             covered("feature.practice.app.PracticeService|422|reading_voice_not_enough_audio", 1,
                     "feature.reading.ReadingVoiceCoachingIT"),
+            covered("feature.practice.app.PracticeService|403|member_only", 1,
+                    "feature.practice.PracticeLifecycleIT"),
             covered("feature.practice.app.PracticeService|404|practice_not_found", 1,
                     "feature.practice.PracticeLifecycleIT"),
             covered("feature.practice.app.PracticeService|409|analysis_already_finished", 1,

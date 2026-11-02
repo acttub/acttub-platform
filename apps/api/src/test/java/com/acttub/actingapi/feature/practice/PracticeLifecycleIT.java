@@ -745,7 +745,7 @@ class PracticeLifecycleIT {
         assertThat(jdbc.queryForMap("SELECT user_id,purged_at FROM videos WHERE id=?", video))
                 .containsEntry("user_id", DELETED_OWNER)
                 .extractingByKey("purged_at").isNotNull();
-        assertThat(count("account_cleanup_operations")).as("파일은 장부가 지운다").isEqualTo(1);
+        assertThat(count("account_cleanup_operations")).as("장부에 올린 파일 삭제는 커밋 뒤 바로 시도돼 남지 않는다").isZero();
         assertThat(count("deleted_practice_videos")).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_deletion_marks WHERE user_id=?", Integer.class, member))
                 .isEqualTo(2);
