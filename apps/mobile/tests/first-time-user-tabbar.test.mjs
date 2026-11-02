@@ -66,7 +66,9 @@ test('첫 사용자 판단은 홈의 isFirstUser 를 그대로 쓴다', () => {
 
 test('탭 레이아웃은 첫 사용자면 모든 탭에서 탭바를 숨긴다', () => {
   const layout = read('app/(tabs)/_layout.tsx');
-  assert.match(layout, /tabBarStyle: firstTime \? TAB_BAR_HIDDEN : tabBarStyle/);
+  // 홈이 첫 사용자 뼈대를 그리는 동안에도 숨긴다(lib/skeleton-hint) — 판단은 lib/practice/first-time 한 곳.
+  assert.match(layout, /const tabBarHidden = useFirstTimeTabBarHidden\(\);/);
+  assert.match(layout, /tabBarStyle: tabBarHidden \? TAB_BAR_HIDDEN : tabBarStyle/);
 });
 
 test('탭바가 숨는 동안 코칭·대본 첫 화면에서 설정으로 갈 수 있다 — 로그아웃·탈퇴가 막히면 안 된다', () => {

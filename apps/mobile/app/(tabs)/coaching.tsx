@@ -1,11 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useCallback, useMemo, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SkeletonDetail } from '@/components/ui/skeleton';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
@@ -21,6 +21,7 @@ import { groupPoster, groupRowTarget, recentGroups, sceneTitle } from '@/lib/pra
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeGroup } from '@/lib/practice/types';
+import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
 
 /** 「최근 코칭」에 보이는 묶음 수(pen P13.3). */
 const RECENT_COUNT = 2;
@@ -47,6 +48,8 @@ export default function CoachingTab() {
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const [entry, setEntry] = useState<CoachingEntry | null>(null);
+  // 묶음을 못 받아 처음 화면으로 넘어간 경우 — 뼈대 기억(lib/skeleton-hint)에 적지 않는다.
+  const [entryFailed, setEntryFailed] = useState(false);
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
@@ -61,9 +64,12 @@ export default function CoachingTab() {
           if (cancelled) return;
           setGroups(list);
           setEntry(coachingEntry(list));
+          setEntryFailed(false);
         })
         .catch(() => {
-          if (!cancelled) setEntry({ kind: 'first' });
+          if (cancelled) return;
+          setEntry({ kind: 'first' });
+          setEntryFailed(true);
         });
       return () => {
         cancelled = true;
@@ -71,7 +77,18 @@ export default function CoachingTab() {
     }, []),
   );
 
-  const first = entry?.kind === 'first';
+  // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 모양(lib/skeleton-hint)을 따른다.
+  // - 처음 화면이었으면(또는 이 탭 기억은 없지만 홈이 첫 사용자로 확인했으면) 실제 처음 화면을 바로 그린다. 고정 화면이라 받을 것이 없다.
+  // - 다음 연습 화면이었으면 같은 틀에 받는 칸만 회색인 뼈대를 그린다. 아무 기억도 없을 때만 처음 모양 회색 뼈대다.
+  const skeletonHints = useSkeletonHints();
+  const firstHint = skeletonHints.coaching === 'first' || (!skeletonHints.coaching && firstTime);
+  const first = entry ? entry.kind === 'first' : firstHint;
+  useEffect(() => {
+    if (!entry || entryFailed) return;
+    rememberSkeletonHints(
+      entry.kind === 'first' ? { coaching: 'first' } : { coaching: 'next', coachingRows: Math.min(RECENT_COUNT, visible.length) },
+    );
+  }, [entry, entryFailed, visible.length]);
   // 새 연습은 세션 목적 → 영상 고르기 순서다(app/upload).
   const startNew = () => router.push('/upload');
   // 첫 코칭은 목적을 묻지 않고 영상 고르기부터 한다(SOMA-984).
@@ -116,9 +133,13 @@ export default function CoachingTab() {
           ) : undefined
         }
       />
-      {!entry ? (
-        <SkeletonDetail media lines={5} />
-      ) : entry.kind === 'first' ? (
+      {!entry && !first ? (
+        skeletonHints.coaching === 'next' ? (
+          <CoachingNextSkeleton rows={skeletonHints.coachingRows ?? RECENT_COUNT} bottomSpace={tabBarSpace + space[5]} />
+        ) : (
+          <CoachingFirstSkeleton bottomSpace={space[2] + tabBarSpace} />
+        )
+      ) : first || !entry || entry.kind === 'first' ? (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstBody}>
             <View style={styles.introRow}>
@@ -258,6 +279,80 @@ export default function CoachingTab() {
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+/**
+ * 처음 화면 뼈대(기억이 없을 때만) — 액티 말풍선과 「코칭은 이렇게 해요」는 고정 글이라 그대로, 예시 대화·아래 링크·버튼 자리는 회색.
+ */
+function CoachingFirstSkeleton({ bottomSpace }: { bottomSpace: number }) {
+  return (
+    <SkeletonGroup style={styles.flex}>
+      <View style={[styles.flex, styles.firstBody]}>
+        <View style={styles.introRow}>
+          <Image source={MASCOT.slate} style={styles.introMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+          <View style={styles.introBubble}>
+            <Text style={styles.introTitle}>{t('coachingTab.firstTitle')}</Text>
+            <Text style={styles.introBody}>{t('coachingTab.firstBody')}</Text>
+          </View>
+        </View>
+        <Text style={styles.exampleLabel}>{t('coachingTab.exampleLabel')}</Text>
+        <SkeletonBlock height={266} radius={radius.lg} />
+        <SkeletonLine size={type.caption} width="72%" style={{ marginTop: space[3] }} />
+      </View>
+      <View style={[styles.firstFooter, { paddingBottom: bottomSpace }]}>
+        <View style={styles.link}>
+          <SkeletonLine size={type.body2Bold} width={200} />
+        </View>
+        <SkeletonBlock height={48} radius={radius.lg} />
+      </View>
+    </SkeletonGroup>
+  );
+}
+
+/** 다음 연습 화면 뼈대 — 메모 카드·타일 둘·「다른 방법」 줄·최근 코칭 순서와 높이를 실제와 같게 둔다. */
+function CoachingNextSkeleton({ rows, bottomSpace }: { rows: number; bottomSpace: number }) {
+  return (
+    <SkeletonGroup style={styles.flex}>
+      <ScrollView contentContainerStyle={[styles.nextBody, { paddingBottom: bottomSpace }]} scrollEnabled={false}>
+        <View style={styles.memo}>
+          <View style={styles.memoHead}>
+            <View style={styles.memoAvatar}>
+              <Image source={MASCOT.coach} style={styles.memoMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+            </View>
+            <View style={styles.flex}>
+              <SkeletonLine size={type.body2Bold} width="34%" />
+              <SkeletonLine size={type.caption} width="46%" />
+            </View>
+          </View>
+          <View style={styles.memoFooter}>
+            <SkeletonLine size={type.body2Bold} width={88} />
+          </View>
+        </View>
+        <View style={styles.tiles}>
+          <SkeletonBlock height={125} radius={radius.lg} style={styles.flex} />
+          <SkeletonBlock height={125} radius={radius.lg} style={styles.flex} />
+        </View>
+        <View style={styles.otherWays}>
+          <SkeletonLine size={type.body2Bold} width={170} />
+        </View>
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>{t('coachingTab.recentTitle')}</Text>
+          <SkeletonLine size={type.caption} width={52} />
+        </View>
+        <View style={styles.recent}>
+          {Array.from({ length: rows }, (_, i) => (
+            <View key={i} style={styles.recentRow}>
+              <SkeletonBlock width={44} height={44} radius={radius.sm} />
+              <View style={styles.flex}>
+                <SkeletonLine size={type.body2Bold} width={i === 0 ? '36%' : '44%'} />
+                <SkeletonLine size={type.caption} width="22%" style={{ marginTop: 2 }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SkeletonGroup>
   );
 }
 

@@ -61,6 +61,24 @@ export function setFirstTimeState(next: FirstTimeState): void {
   listeners.forEach((listener) => listener());
 }
 
+/**
+ * 홈이 첫 사용자 모양 뼈대를 그리는 동안(지난번이 첫 사용자 홈이었을 때) 탭바도 미리 숨긴다.
+ * 뼈대와 실제 첫 사용자 홈의 아래쪽이 같게 하려는 것이다. 홈만 켜고 끄며, 홈을 받거나 떠나면 끈다.
+ * 판단(getFirstTimeState)에는 섞지 않는다 — 탭바 모양에만 쓴다.
+ */
+let provisionalFirst = false;
+
+export function setFirstTimeProvisional(next: boolean): void {
+  if (provisionalFirst === next) return;
+  provisionalFirst = next;
+  listeners.forEach((listener) => listener());
+}
+
+/** 탭바를 숨기는가 — 첫 사용자로 확인됐거나, 아직 모르는데 홈이 첫 사용자 뼈대를 그리는 중이다. */
+export function getFirstTimeTabBarHidden(): boolean {
+  return state === 'first' || (state === 'unknown' && provisionalFirst);
+}
+
 export function subscribeFirstTimeState(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
