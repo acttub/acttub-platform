@@ -39,7 +39,7 @@ const modules = {
   '../voice-capability.ts': `const s=globalThis.__readingEngineTest;
     export async function readAppVoiceSupport(){return s.unsupported ? {unsupported:true,noticed:false} : {unsupported:false};}`,
   './helper.native.js': `const s=globalThis.__readingEngineTest;
-    export const loadOnnx=async()=>{ if(s.loadFails) throw new Error('bad model'); return {}; };
+    export const loadOnnx=async()=>{ s.loads=(s.loads??0)+1; if(s.loadFails) throw new Error('bad model'); return {}; };
     export const loadVoiceStyleFromObjects=styles=>styles[0];
     export const writeWavFile=samples=>new Uint8Array(samples);
     export class UnicodeProcessor{}
@@ -177,45 +177,62 @@ test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 �
 test('미리 받기: Wi-Fi 에서만 받고, 진행 중인 준비와 한 번의 받기를 나눠 쓴다', async () => {
   engine._reset(); state.downloads=0;
   state.network='cellular';
-  await engine.prefetchIfWifi();
+  await engine.prepareInBackground();
   assert.equal(state.downloads,0);
   assert.equal(engine.isReady(),false);
 
   state.network='unknown';
-  await engine.prefetchIfWifi();
+  await engine.prepareInBackground();
   assert.equal(state.downloads,0);
 
   state.network='wifi';
   let release;
   state.downloadGate=new Promise(resolve=>{release=resolve;});
-  const prefetch=engine.prefetchIfWifi();
+  const prefetch=engine.prepareInBackground();
   await flush(); await flush();
   const screen=engine.ensureReady();
-  const again=engine.prefetchIfWifi();
+  const again=engine.prepareInBackground();
   release();
   await Promise.all([prefetch,screen,again]);
   assert.equal(state.downloads,1);
   assert.equal(engine.isReady(),true);
 });
 
-test('미리 받기: 이미 받아 둔 모델은 미리 불러오지 않고 실패는 삼킨다', async () => {
-  engine._reset(); state.downloads=0;
+test('미리 준비: 이미 받아 둔 모델은 Wi-Fi 가 아니어도 메모리에 올리고, 첫 미리 듣기와 한 번의 로드를 나눠 쓴다(SOMA-973)', async () => {
+  engine._reset(); state.downloads=0; state.loads=0;
   state.present=true;
-  await engine.prefetchIfWifi();
-  assert.equal(state.downloads,0);
-  assert.equal(engine.isReady(),false);
+  state.network='cellular';
+  await engine.prepareInBackground();
+  assert.equal(engine.isReady(),true); // 첫 탭 전에 이미 올라가 있다
+  assert.equal(state.loads,1); // 가짜 assets 의 MODEL_KINDS 는 1개다
 
-  state.present=false;
+  // 로드가 끝나기 전에 첫 미리 듣기를 눌러도(roles.tsx 의 ensureReady) 두 번 올리지 않는다
+  engine._reset(); state.loads=0;
+  let release;
+  state.downloadGate=new Promise(resolve=>{release=resolve;});
+  const prefetch=engine.prepareInBackground();
+  await flush(); await flush();
+  const firstTap=engine.ensureReady();
+  release();
+  await Promise.all([prefetch,firstTap]);
+  assert.equal(engine.isReady(),true);
+  assert.equal(state.loads,1);
+});
+
+test('미리 받기: 받을 때 실패는 삼킨다', async () => {
+  engine._reset(); state.downloads=0;
   state.downloadError=new Error('offline');
-  await engine.prefetchIfWifi(); // 던지지 않는다
+  await engine.prepareInBackground(); // 던지지 않는다
   assert.equal(engine.isReady(),false);
 });
 
-test('미리 받기: 앱 목소리를 못 쓰는 기기로 표시됐으면 Wi-Fi 여도 받지 않는다', async () => {
+test('미리 받기: 앱 목소리를 못 쓰는 기기로 표시됐으면 Wi-Fi 여도 받지 않고, 받아 둔 모델도 올리지 않는다', async () => {
   engine._reset(); state.downloads=0;
   state.unsupported=true;
-  await engine.prefetchIfWifi();
+  await engine.prepareInBackground();
   assert.equal(state.downloads,0);
+  state.present=true;
+  await engine.prepareInBackground();
   assert.equal(engine.isReady(),false);
 });
 

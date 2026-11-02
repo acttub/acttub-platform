@@ -8,7 +8,7 @@
  * synthesize(text): 한 문장을 만들어 파일로 남기고 그 자리를 돌려준다. 소리는 내지 않는다.
  * play(uri):        만들어 둔 파일을 틀고, 끝날 즈음 resolve 한다.
  * speak(text):      위 둘을 이어서 한다(만들어 둔 것이 없을 때 쓰는 길).
- * prefetchIfWifi(): Wi-Fi 면 화면을 막지 않고 미리 받아 둔다(SOMA-494). ensureReady 와 같은 준비를 나눠 쓴다.
+ * prepareInBackground(): 화면을 막지 않고 미리 준비한다 — 받아 둔 모델은 바로 올리고, 없으면 Wi-Fi 에서만 받는다. ensureReady 와 같은 준비를 나눠 쓴다.
  * stop():           재생만 멈춘다. 만들던 것은 건드리지 않는다.
  *
  * 만들기와 재생을 나눈 이유는 미리 만들어 두기 위해서다 (SOMA-547) — 읽는 동안 다음 줄을
@@ -141,16 +141,16 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
 }
 
 /**
- * Wi-Fi 에서 모델을 미리 받아 둔다(배역 화면·대본 저장 뒤). 화면을 막지 않고 실패도 알리지 않는다 — 실패하면
- * 실행 화면이 평소처럼 받거나 묻는다. 이미 받아 뒀으면 아무것도 하지 않는다(메모리 로드는 쓸 때 한다).
- * 진행 중인 준비가 있으면 그것을 나눠 쓴다. 앱 목소리를 못 쓰는 기기(voice-capability)는 받지 않는다.
+ * 화면을 막지 않고 기기 목소리를 미리 준비한다(배역·범위 화면, 대본 저장 뒤). 받아 둔 모델은 네트워크와 상관없이
+ * 메모리에 올리고(SOMA-973 — 첫 미리 듣기가 로드까지 기다리지 않게), 없으면 Wi-Fi 에서만 받는다(SOMA-494).
+ * 실패도 알리지 않는다 — 실패하면 쓰는 화면이 평소처럼 받거나 묻는다. 진행 중인 준비가 있으면 그것을 나눠 쓴다.
+ * 앱 목소리를 못 쓰는 기기(voice-capability)는 받지도 올리지도 않는다.
  */
-export async function prefetchIfWifi(): Promise<void> {
+export async function prepareInBackground(): Promise<void> {
   try {
     if (tts || readyPromise) return;
-    if (assetsPresent(activeVariant(), cfg.preset)) return;
     if ((await readAppVoiceSupport()).unsupported) return;
-    if ((await currentNetworkType()) !== 'wifi') return;
+    if (!assetsPresent(activeVariant(), cfg.preset) && (await currentNetworkType()) !== 'wifi') return;
     if (tts || readyPromise) return;
     await ensureReady();
   } catch {}
