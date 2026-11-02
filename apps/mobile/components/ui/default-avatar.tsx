@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 /**
@@ -70,6 +71,35 @@ export function DefaultAvatar({
           },
         ]}
       />
+    </View>
+  );
+}
+
+/**
+ * 사람 얼굴 하나 — 프로필 사진이 있으면 사진, 없으면 같은 seed 의 기본 얼굴. 챌린지·댓글처럼 다른 사람이 보이는 곳은 이것을 쓴다.
+ * 사진을 못 불러오면 기본 얼굴이 비쳐 보이도록 기본 얼굴 위에 사진을 얹는다.
+ */
+export function UserAvatar({
+  photoUrl,
+  size = 84,
+  radius,
+  seed,
+  color,
+  style,
+}: {
+  photoUrl?: string | null;
+  size?: number;
+  radius?: number;
+  seed?: string | null;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  if (!photoUrl) return <DefaultAvatar size={size} radius={radius} seed={seed} color={color} style={style} />;
+  const corner = radius ?? 32 * (size / 84);
+  return (
+    <View style={[{ width: size, height: size, borderRadius: corner, overflow: 'hidden' }, style]}>
+      <DefaultAvatar size={size} radius={corner} seed={seed} color={color} />
+      <Image testID="user-avatar-photo" source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
     </View>
   );
 }

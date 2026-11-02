@@ -13,7 +13,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { DefaultAvatar } from '@/components/ui/default-avatar';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -283,7 +283,7 @@ export default function ChallengeDetailScreen() {
                   {!hideRanks && entry.displayRank !== null ? (
                     <Text style={styles.rank}>{entry.displayRank}</Text>
                   ) : (
-                    <DefaultAvatar size={40} radius={20} seed={entry.author.user_id} />
+                    <UserAvatar size={40} radius={20} seed={entry.author.user_id} photoUrl={entry.author.photo_url} />
                   )}
                 </View>
                 <View style={styles.entryBody}>

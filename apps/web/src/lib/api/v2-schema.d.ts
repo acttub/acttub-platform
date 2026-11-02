@@ -4453,6 +4453,8 @@ export interface components {
             user_id: string;
             /** Name */
             name: string;
+            /** Photo Url */
+            photo_url: string | null;
         };
         /** EntryComment */
         EntryComment: {

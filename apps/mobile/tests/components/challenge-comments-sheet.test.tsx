@@ -78,7 +78,7 @@ describe('목록', () => {
     listComments.mockResolvedValue({
       comments: [
         comment('c1', { author: { name: '나', user_id: 'me' }, body: '첫 촬영 응원해요', is_mine: true }),
-        comment('c2', { author: { name: '태오', user_id: 'u2' }, body: '좋아요!' }),
+        comment('c2', { author: { name: '태오', user_id: 'u2', photo_url: 'https://photo.test/u2.jpg' }, body: '좋아요!' }),
       ],
       next_cursor: null,
     });
@@ -88,8 +88,10 @@ describe('목록', () => {
     expect(listComments.mock.calls).toEqual([['e1']]);
     expect(screen.getByText('첫 촬영 응원해요')).toBeOnTheScreen();
     expect(screen.getByText('좋아요!')).toBeOnTheScreen();
-    // 댓글 얼굴은 프로필과 같은 기본 얼굴이다(첫 글자는 쓰지 않는다).
+    // 댓글 얼굴: 프로필 사진이 있으면 사진(밑에 기본 얼굴이 깔린다), 없으면 기본 얼굴. 첫 글자는 쓰지 않는다.
     expect(screen.getAllByTestId('default-avatar')).toHaveLength(2);
+    expect(screen.getAllByTestId('user-avatar-photo')).toHaveLength(1);
+    expect(screen.getByTestId('user-avatar-photo').props.source).toEqual([{ uri: 'https://photo.test/u2.jpg' }]);
     expect(screen.queryByText('태')).not.toBeOnTheScreen();
     expect(screen.getAllByText('5분 전', { exact: false })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: '삭제' })).toHaveLength(1);
@@ -100,7 +102,7 @@ describe('목록', () => {
     listComments.mockResolvedValue({
       comments: [
         comment('c1', { body: '원래 글', status: 'hidden', is_mine: true }),
-        comment('c2', { author: { name: '민재', user_id: 'u2' }, author_withdrawn: true }),
+        comment('c2', { author: { name: '민재', user_id: 'u2', photo_url: 'https://photo.test/u2.jpg' }, author_withdrawn: true }),
       ],
       next_cursor: null,
     });
@@ -110,6 +112,8 @@ describe('목록', () => {
     expect(screen.queryByText('원래 글')).not.toBeOnTheScreen();
     expect(screen.getByText('탈퇴한 사용자')).toBeOnTheScreen();
     expect(screen.queryByText('민재')).not.toBeOnTheScreen();
+    // 탈퇴한 작성자는 주소가 와도 사진 없이 회색 기본 얼굴이다.
+    expect(screen.queryByTestId('user-avatar-photo')).not.toBeOnTheScreen();
   });
 
   test('댓글이 없으면 첫 댓글을 권한다', async () => {

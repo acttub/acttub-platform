@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DEFAULT_AVATAR_GONE, DefaultAvatar } from '@/components/ui/default-avatar';
+import { DEFAULT_AVATAR_GONE, UserAvatar } from '@/components/ui/default-avatar';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -172,7 +172,8 @@ export function ChallengeCommentsSheet({
             }
             renderItem={({ item }) => (
               <View style={styles.row}>
-                <DefaultAvatar
+                <UserAvatar
+                  photoUrl={item.author_withdrawn ? null : item.author.photo_url}
                   size={32}
                   radius={16}
                   seed={item.author.user_id}

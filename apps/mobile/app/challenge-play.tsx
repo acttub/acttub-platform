@@ -25,7 +25,7 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
-import { DefaultAvatar } from '@/components/ui/default-avatar';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
 import { ScrimGradient } from '@/components/ui/band-gradient';
@@ -477,7 +477,7 @@ export default function ChallengePlayScreen() {
               <Feather name="x" size={24} color={palette.onAccent} />
             </Pressable>
             <View style={styles.author}>
-              <DefaultAvatar size={24} radius={12} seed={item.author.user_id} />
+              <UserAvatar size={24} radius={12} seed={item.author.user_id} photoUrl={item.author.photo_url} />
               <Text style={styles.authorName}>{item.author.name}</Text>
             </View>
             <View style={styles.topRight}>

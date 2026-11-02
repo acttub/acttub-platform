@@ -25,7 +25,7 @@ At sign-up, the user is asked to enter the following six items once. All of them
 Other than the name, these items are visible only to the user. However, if the user turns on a portfolio share link, the name, profile photo, gender, and age are displayed together on that public page.
 
 ## 3. Optional Information
-- Profile photo, short bio — collected only when the user personally enters them in Settings.
+- Profile photo, short bio — collected only when the user personally enters them in Settings. In the app, the profile photo is shown to other members together with the author name on challenge submissions the user posts publicly and on comments the user writes. It is not shown on submissions posted with face blur turned on.
 - Portfolio (introduction, career history, photos) — collected only when the user personally enters them.
 
 There is no restriction on using the Service even if the user does not provide this optional information.

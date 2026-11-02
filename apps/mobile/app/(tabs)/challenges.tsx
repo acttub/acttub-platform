@@ -14,7 +14,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { DefaultAvatar } from '@/components/ui/default-avatar';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -405,7 +405,7 @@ function Avatars({ participants, border }: { participants: ChallengeCard['partic
     <View style={styles.avatars}>
       {participants.slice(0, 3).map((p, i) => (
         <View key={`${p.user_id}-${i}`} style={[styles.avatar, { borderColor: border }]}>
-          <DefaultAvatar size={20} radius={10} seed={p.user_id} />
+          <UserAvatar size={20} radius={10} seed={p.user_id} photoUrl={p.photo_url} />
         </View>
       ))}
     </View>

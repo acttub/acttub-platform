@@ -36,17 +36,15 @@ test('challenge.browse: 대사 목록은 네 탭이고 오늘의 챌린지는 �
   assert.match(list, /challenges\.featuredLabel/);
 });
 
-test('challenge.browse: 카드에 참여작 수·좋아요 합·참여자 셋과 기본 얼굴이 있다', () => {
+test('challenge.browse: 카드에 참여작 수·좋아요 합·참여자 셋과 얼굴(사진 또는 기본 얼굴)이 있다', () => {
   const list = read('app/(tabs)/challenges.tsx');
 
   assert.match(list, /challenges\.entryCount/);
   assert.match(list, /challenges\.likeSum/);
   assert.match(list, /participantsLabel/);
-  // 참여자 얼굴은 프로필과 같은 기본 얼굴(8색)을 user_id 로 고른다 — 이름 첫 글자를 쓰지 않는다.
-  assert.match(list, /<DefaultAvatar[^>]*seed=\{p\.user_id\}/);
+  // 참여자 얼굴은 프로필 사진(있으면) 또는 프로필과 같은 기본 얼굴(8색, user_id 로 고름)이다 — 이름 첫 글자를 쓰지 않는다(SOMA-997).
+  assert.match(list, /<UserAvatar[^>]*seed=\{p\.user_id\}[^>]*photoUrl=\{p\.photo_url\}/);
   assert.doesNotMatch(list, /avatarLetter/);
-  // 사진은 쓰지 않는다 — 챌린지에는 이름만 보인다.
-  assert.doesNotMatch(list, /photo/);
 });
 
 test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 직접 등록으로 잇는다', () => {
