@@ -378,11 +378,11 @@ export default function ChallengesScreen() {
           <ChallengeOthersRow
             challenge={featured}
             onOpenAll={() => {
-              logEvent('challenge_others_row_all', { id: featured.id });
+              void logEvent('challenge_others_row_all', { id: featured.id });
               openDetail(featured);
             }}
             onOpenEntry={(entry) => {
-              logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
+              void logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
               router.push({ pathname: '/challenge-play', params: { id: featured.id, entryId: entry.id } });
             }}
           />

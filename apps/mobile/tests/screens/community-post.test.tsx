@@ -189,3 +189,60 @@ test('지워진 글은 상태 화면과 목록으로 버튼을 보인다', async
   await fireEvent.press(screen.getByRole('button', { name: '목록으로' }));
   expect(mockRouter.back).toHaveBeenCalled();
 });
+
+test('내 댓글 ⋯ 은 삭제 하나이고, 확인하면 지우고 댓글 수를 줄인다', async () => {
+  communityPost.mockResolvedValue(post());
+  communityComments.mockResolvedValue({ comments: [comment({ id: 'mine', body: '제 댓글', is_mine: true })], next_cursor: null });
+  (api.deleteCommunityComment as jest.Mock).mockResolvedValue(undefined);
+  await render(<CommunityPostScreen />);
+  await fireEvent.press(await screen.findByRole('button', { name: '댓글 메뉴' }));
+
+  expect(menuLabels()).toEqual(['삭제']);
+  await fireEvent.press(screen.getByRole('button', { name: '삭제' }));
+  expect(await screen.findByText('이 댓글을 삭제할까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getAllByRole('button', { name: '삭제' }).at(-1)!);
+
+  await waitFor(() => expect(api.deleteCommunityComment).toHaveBeenCalledWith('mine'));
+  expect(screen.queryByText('제 댓글')).not.toBeOnTheScreen();
+  expect(screen.getByText('댓글 1')).toBeOnTheScreen();
+});
+
+test('남의 댓글을 기타 사유와 설명으로 신고하고, 이미 신고했으면 그렇게 알린다', async () => {
+  communityPost.mockResolvedValue(post());
+  (api.reportCommunityContent as jest.Mock).mockRejectedValue(Object.assign(new Error('dup'), { status: 409 }));
+  await render(<CommunityPostScreen />);
+  await fireEvent.press((await screen.findAllByRole('button', { name: '댓글 메뉴' }))[0]);
+  expect(menuLabels()).toEqual(['신고하기', '이 사람 차단하기']);
+  await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
+
+  expect(await screen.findByText('이 댓글을 신고할까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('radio', { name: '기타' }));
+  await fireEvent.changeText(screen.getByLabelText('무엇이 문제인지 알려 주세요 (선택)'), '  반복 도배  ');
+  expect(screen.getByText('9 / 500')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
+
+  await waitFor(() =>
+    expect(api.reportCommunityContent).toHaveBeenCalledWith({ target_type: 'comment', target_id: 'c1', reason: 'other', detail: '반복 도배' }),
+  );
+  expect(await screen.findByText('이미 신고했어요.')).toBeOnTheScreen();
+});
+
+test('못 불러오면 다시 시도로 다시 받는다', async () => {
+  communityPost.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(post());
+  await render(<CommunityPostScreen />);
+  expect(await screen.findByText('글을 불러오지 못했어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('독백 2분 넘으면 감점인가요?')).toBeOnTheScreen();
+});
+
+test('댓글이 더 있으면 더 보기로 이어 받는다', async () => {
+  communityPost.mockResolvedValue(post());
+  communityComments
+    .mockResolvedValueOnce({ comments: [comment()], next_cursor: 'n1' })
+    .mockResolvedValueOnce({ comments: [comment({ id: 'c9', body: '다음 쪽 댓글' })], next_cursor: null });
+  await render(<CommunityPostScreen />);
+  await fireEvent.press(await screen.findByRole('button', { name: '댓글 더 보기' }));
+  expect(await screen.findByText('다음 쪽 댓글')).toBeOnTheScreen();
+  expect(communityComments).toHaveBeenLastCalledWith('p1', 'n1');
+  expect(screen.queryByRole('button', { name: '댓글 더 보기' })).not.toBeOnTheScreen();
+});
