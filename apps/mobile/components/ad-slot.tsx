@@ -35,6 +35,8 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   /** AdMob 배너를 기다리는 시간(ms). 테스트에서만 줄인다. */
   fillTimeoutMs?: number;
+  /** 칸 높이를 규격 높이(예: 50) 그대로 둔다. 폭에 맞춰 비율로 키우지 않는다 — 게시판 아래 얇은 배너. */
+  exactHeight?: boolean;
 };
 
 /**
@@ -48,7 +50,7 @@ type Props = {
 /** AdMob 배너가 이 시간 안에 안 채워지면 칸을 접는다. */
 export const NETWORK_FILL_TIMEOUT_MS = 6000;
 
-export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS }: Props) {
+export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, exactHeight = false }: Props) {
   const router = useRouter();
   const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
@@ -94,7 +96,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS }:
 
   const size = pick?.size ?? AD_SLOTS[slot].size;
   const spec = AD_SIZES[size];
-  const box = [styles.box, { aspectRatio: spec.width / spec.height }];
+  const box = [styles.box, exactHeight ? { height: spec.height } : { aspectRatio: spec.width / spec.height }];
 
   if (!loaded) {
     return <View style={[box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;

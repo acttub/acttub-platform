@@ -211,7 +211,7 @@ export function CommunityBoard({
       />
       {/* 광고는 목록 아래 탭바 바로 위에 붙인 얇은 배너 — 칸이 비면 여백까지 사라져 목록이 탭바 위까지 내려온다. */}
       <View style={[styles.adDock, { marginBottom: Math.max(bottomSpace - space[3], 0) }]}>
-        <AdSlot slot="community_list_top" style={styles.adBanner} />
+        <AdSlot slot="community_list_top" exactHeight style={styles.adBanner} />
       </View>
       {dialog}
     </View>
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   count: { flexDirection: 'row', alignItems: 'center', gap: space[1], marginLeft: space[1.5] },
   more: { alignItems: 'center', paddingVertical: space[3] },
   adDock: { paddingHorizontal: space.gutter },
-  adBanner: { marginVertical: space[2] },
+  adBanner: { marginVertical: space[1] },
   skeleton: { gap: 0 },
   skeletonRow: { paddingVertical: space[4], gap: space[2] },
 });
