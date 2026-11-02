@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import Animated, {
   cancelAnimation,
   Easing,
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -80,10 +79,12 @@ export function SpotlightGuide({
  *
  * <p>덮는 방식은 {@code lib/guide-spotlight} 에 적어 뒀다(마스크 없이 사각형 넷).
  *
- * <p>움직임(SOMA-494): 다음 단계로 가면 구멍이 새 자리로 미끄러져 간다 — 뚝 끊겨 옮겨 가면
- * 어디가 바뀌었는지 눈이 못 따라간다. 덮개 넷과 테두리가 같은 값을 따라가고, 설명 카드는
- * 단계마다 아래에서 살짝 떠오른다. 처음 뜰 때는 구멍을 제자리에 바로 두고 전체가 페이드로
- * 들어온다. 기기에서 "동작 줄이기"를 켜 두면 reanimated 가 움직임 없이 끝 상태로 옮긴다.
+ * <p>움직임: 다음 단계로 가면 구멍은 새 자리에 바로 놓이고, 파란 테두리와 설명 글만 짧게
+ * 페이드로 들어온다. 예전(SOMA-494)에는 구멍이 새 자리로 미끄러져 갔는데, 덮개의 자리·크기·
+ * 테두리 두께·둥글기를 매 프레임 바꾸면 새 구조(Fabric)에서 앱 화면 전체 배치를 매 프레임 다시
+ * 계산해 iOS 에서 넘길 때마다 크게 버벅였다(11/2 실기기, SOMA-924). 설명 카드가 아래에서 떠오르던
+ * 움직임(entering)도 같은 까닭으로 뺐다 — 투명도만 바꾼다. 처음 뜰 때는 전체가 페이드로 들어온다.
+ * 기기에서 "동작 줄이기"를 켜 두면 reanimated 가 움직임 없이 끝 상태로 옮긴다.
  *
  * <p>루트 레이아웃이 화면들 위에 하나만 둔다. 화면 안이 아니라 여기 있어야 탭바의 촬영
  * 버튼까지 덮을 수 있고, 앱과 같은 창이라 좌표를 보정할 일이 없다.
@@ -107,8 +108,8 @@ export function SpotlightHost() {
   const hr = useSharedValue(0);
   const shown = useSharedValue(0);
   const pulse = useSharedValue(0);
-  // 방금 연 참이면 구멍을 미끄러뜨리지 않고 제자리에 둔다 — 화면 구석에서 날아오면 어지럽다.
-  const placed = useRef(false);
+  // 단계가 바뀔 때 테두리·설명 글을 0 → 1 로 들인다. 투명도만이라 배치를 다시 재지 않는다.
+  const stepShown = useSharedValue(1);
 
   useEffect(() => onSpotlightChanged(refresh), []);
   useEffect(() => onTargetsChanged(refresh), []);
@@ -117,7 +118,7 @@ export function SpotlightHost() {
   const open = request !== null;
 
   // 띄우는 순간 자리를 다시 잰다 — 첫 배치 때 잰 값은 제자리가 아닐 수 있다.
-  // 떠 있는 동안에도 조금씩 다시 잰다 — 목록이 늦게 차서 아래로 밀리면 처음 잰 자리가 어긋난다(대본 탭).
+  // 뜬 뒤 처음 몇 초는 조금씩 다시 잰다 — 목록이 늦게 차서 아래로 밀리면 처음 잰 자리가 어긋난다(대본 탭).
   // 같은 자리면 알리지 않아서 다시 그리지 않는다.
   useEffect(() => {
     if (!open) return;
@@ -128,13 +129,22 @@ export function SpotlightHost() {
       clearInterval(keep);
       clearTimeout(stop);
     };
-  }, [open, index]);
+  }, [open]);
+
+  // 다음 단계로 넘어갈 때는 한 번만 잰다 — 넘길 때마다 3초씩 다시 재기를 새로 돌리면 넘기는 순간과 겹쳐 무거웠다(SOMA-924).
+  // 첫 단계는 위에서 이미 쟀다.
+  useEffect(() => {
+    if (!open || index === 0) return;
+    remeasureTargets();
+    stepShown.value = 0;
+    stepShown.value = withTiming(1, { duration: motion.standard, easing: easing.enter });
+  }, [open, index, stepShown]);
 
   useEffect(() => {
     if (!open) {
       setIndex(0);
-      placed.current = false;
       shown.value = 0;
+      stepShown.value = 1;
       cancelAnimation(pulse);
       pulse.value = 0;
       return;
@@ -145,31 +155,26 @@ export function SpotlightHost() {
       PULSE_TIMES,
       true,
     );
-  }, [open, pulse, shown]);
+  }, [open, pulse, shown, stepShown]);
 
   const steps = request?.steps ?? [];
   const step = steps.length > 0 ? steps[Math.min(index, steps.length - 1)] : null;
   const hole = step ? holeOf(relativeTo(targetRect(step.target), origin), screen) : null;
-  // 카드는 미끄러뜨리지 않는다 — 단계마다 새로 떠오르고(FadeInDown), 구멍 쪽 모서리에 붙는다.
+  // 카드는 구멍 쪽 모서리에 붙는다. 단계가 바뀌면 글만 페이드로 바뀐다.
   const placement = captionPlacement(hole, screen, captionHeight, insets.bottom);
   const radius = hole ? (step?.round ? hole.height / 2 : 18) : 0;
 
   // 구멍이 갈 자리. 그림(렌더)이 아니라 효과에서 옮긴다 — 렌더 중에 공유값을 쓰면 안 된다.
+  // 미끄러뜨리지 않고 바로 놓는다 — 자리·크기를 애니메이션하면 매 프레임 앱 전체 배치를 다시 잰다(SOMA-924).
   const holeKey = hole ? `${hole.x}|${hole.y}|${hole.width}|${hole.height}|${radius}` : 'none';
   useEffect(() => {
     if (!open) return;
-    const go = (value: typeof hx, to: number) => {
-      value.value = placed.current
-        ? withTiming(to, { duration: motion.slow, easing: easing.standard })
-        : to;
-    };
     if (hole) {
-      go(hx, hole.x);
-      go(hy, hole.y);
-      go(hw, hole.width);
-      go(hh, hole.height);
-      go(hr, radius);
-      placed.current = true;
+      hx.value = hole.x;
+      hy.value = hole.y;
+      hw.value = hole.width;
+      hh.value = hole.height;
+      hr.value = radius;
     }
     // holeKey 가 hole·radius 를 대신한다 — 매 렌더 새 객체라 그대로 넣으면 계속 돈다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,9 +208,10 @@ export function SpotlightHost() {
     borderRadius: hr.value,
   }));
   // 맥박은 투명도·크기만 바꾼다 — 자리·크기를 같은 스타일에 두면 끝없이 도는 동안 매 프레임 레이아웃을 다시 잰다(SOMA-847).
+  const stepTextStyle = useAnimatedStyle(() => ({ opacity: stepShown.value }));
   const pulseStyle = useAnimatedStyle(() => ({
     borderRadius: hr.value,
-    opacity: 0.95 - pulse.value * 0.6,
+    opacity: (0.95 - pulse.value * 0.6) * stepShown.value,
     transform: [{ scale: 1 + pulse.value * 0.06 }],
   }));
 
@@ -266,10 +272,7 @@ export function SpotlightHost() {
         <Image source={MASCOT[step.mascot ?? 'home']} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
         <View style={styles.bubble}>
           <View style={styles.tail} />
-          <Animated.View
-            key={index}
-            style={styles.captionInner}
-            entering={FadeInDown.duration(motion.standard).easing(easing.enter)}>
+          <Animated.View style={[styles.captionInner, stepTextStyle]}>
             <View style={styles.progress}>
               <Text style={styles.step}>
                 {t('guide.speakerStep', { at: index + 1, total: steps.length })}
