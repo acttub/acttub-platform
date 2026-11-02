@@ -32,6 +32,13 @@ public interface ConversationRepository {
     Loaded loadByConversation(UUID userId, UUID conversationId);
 
     /**
+     * 회차를 만든 요청의 말(Accept-Language 의 언어, 예: {@code ko}, {@code en}). 첫 질문을 미리 쓸 때 쓴다(SOMA-946).
+     *
+     * @return 회차가 없거나 남의 것이거나 말을 저장하기 전에 만든 회차면 {@code null}
+     */
+    String practiceLanguage(UUID userId, UUID practiceId);
+
+    /**
      * @param stage 회차의 진행. 코치는 {@code conversing} 에서만 시작한다
      */
     record Loaded(
