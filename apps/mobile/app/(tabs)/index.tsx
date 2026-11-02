@@ -34,7 +34,7 @@ import { currentFirstUseOwner, hasGraduatedFirstUse, markFirstUseGraduated } fro
 import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
-import { loadIntoCurrent } from '@/lib/reading/store';
+import { openResume } from '@/lib/reading/resume-open';
 import { DEFAULT_SEC_PER_LINE, displayProgress, hasReachedEnd, remainingMinutes, secPerLine } from '@/lib/reading/progress-display';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
@@ -498,10 +498,17 @@ export default function HomeScreen() {
     router.push('/upload');
   };
 
+  // 홈 「이어 읽기」는 리딩 탭 「이어서 읽기」와 같은 길로 멈춘 회차를 잇는다(SOMA-994). 이을 회차가 없을 때만 대본 상세다.
+  const openingReading = useRef(false);
   const openReading = async (script: ScriptCard) => {
-    const opened = await loadIntoCurrent(script.id);
-    if (opened) router.push('/reading/detail');
-    else router.push('/reading');
+    if (openingReading.current) return;
+    openingReading.current = true;
+    try {
+      const where = await openResume(script.id);
+      router.push(where === 'play' ? '/reading/play' : where === 'detail' ? '/reading/detail' : '/reading');
+    } finally {
+      openingReading.current = false;
+    }
   };
 
   const openItem = (item: TodayItem) => {
