@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sanitizeInput } from '@/lib/practice/readable-text';
@@ -68,6 +68,8 @@ export default function ReadingList() {
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const insets = useSafeAreaInsets();
+  // iOS 당기기 표시는 스크롤 맨 위(상태 표시줄·다이내믹 아일랜드 밑)에 뜬다 — 위 여백을 contentInset 으로 줘야 그 아래에 보인다(SOMA-964).
+  const iosTopInset = Platform.OS === 'ios' ? insets.top : 0;
   const cloudVoice = useCloudVoice();
   const refreshVoice = cloudVoice.refresh;
   const voiceFreeUntil = cloudVoice.status?.free_until
@@ -81,6 +83,7 @@ export default function ReadingList() {
   /** 「이전에 하던 데부터」 카드 — 연습 중 대본의 진행 중 회차(pen 「새 · 내 대본」). */
   const [resume, setResume] = useState<{ script: ScriptCard; session: SessionCard } | null>(null);
   const [resuming, setResuming] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const generation = useRef(0);
   // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
   const [guideOpen, setGuideOpen] = useState(false);
@@ -123,6 +126,14 @@ export default function ReadingList() {
       if (mine === generation.current) setError(scriptErrorMessage(e));
     }
   }, []);
+
+  // 맨 위에서 당기면 지금 검색어로 목록을 다시 받는다 — 나누기가 끝났는지 탭을 나갔다 오지 않고 본다(SOMA-964).
+  // load 는 실패를 안에서 잡아 오류 줄로 보이므로, 성공·실패 모두 끝나면 표시를 끈다.
+  const refresh = async () => {
+    setRefreshing(true);
+    await load(q);
+    setRefreshing(false);
+  };
 
   const splitJobs = useSplitJobs(() => load(q));
 
@@ -258,11 +269,16 @@ export default function ReadingList() {
 
   return (
     <ScrollView
-      style={styles.root}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarSpace + 20 }]}
-      keyboardShouldPersistTaps="handled">
+      // 빈 화면의 파란 머리는 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
+      style={[styles.root, (showEntry || entrySkeleton) && styles.rootEmpty]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 }]}
+      contentInset={{ top: iosTopInset }}
+      contentOffset={{ x: 0, y: -iosTopInset }}
+      automaticallyAdjustContentInsets={false}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
       {(showEntry || entrySkeleton) && (
-        <View style={[styles.emptyBg, { height: 300 + insets.top }]} pointerEvents="none" />
+        <View style={[styles.emptyBg, { height: 300 + insets.top - iosTopInset }]} pointerEvents="none" />
       )}
       {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
@@ -518,7 +534,8 @@ function ReadingListSkeleton({ rows }: { rows: number }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: space.gutter, gap: space[3] },
+  rootEmpty: { backgroundColor: palette.blueSoft },
+  content: { flexGrow: 1, backgroundColor: palette.bg, paddingHorizontal: space.gutter, gap: space[3] },
   listSkeleton: { gap: space[3] },
   headWrap: { marginHorizontal: -space.gutter },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
