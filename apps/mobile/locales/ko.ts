@@ -2135,7 +2135,7 @@ const ko = {
     ratePh: '한 줄 더 남겨주실래요? (선택)',
     rateThanks: '고마워요! 다음 리딩에 반영할게요.',
     // 연습 실행(R9.4·R9.7·R9.8~R9.20·R9.23·R9.26)
-    deviceVoiceStart: '기기 목소리로 시작',
+    downloadLater: '나중에',
     voiceUnsupportedTitle: '이 기기에서는\n앱 목소리를 쓸 수 없어요',
     voiceUnsupportedBody: '상대 대사는 기기 기본 목소리로 읽어 드릴게요. 다음부터는 묻지 않고 바로 시작해요.',
     continueAnyway: '계속하기',
