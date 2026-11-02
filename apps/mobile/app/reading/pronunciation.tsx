@@ -14,6 +14,8 @@ import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { translate as t } from '@/lib/i18n';
 import {
   detailedMarks,
+  lineScore,
+  markScore,
   markSegments,
   markedLineCount,
   misheardRows,
@@ -190,6 +192,7 @@ export default function PronunciationReportScreen() {
         const hasAudio = !!lineId && !!latest.get(lineId)?.playback_url;
         const lineKey = `line-${line.lineNo}`;
         const details = detailedMarks(line);
+        const score = lineScore(line);
         const open = openLines.has(line.lineNo);
         return (
           <View key={line.lineNo} style={styles.line}>
@@ -200,6 +203,7 @@ export default function PronunciationReportScreen() {
                 </Text>
               ))}
             </Text>
+            {score && <Text style={styles.lineScore}>{t('pronReport.lineScore', score)}</Text>}
             {(hasAudio || details.length > 0) && (
               <View style={styles.actions}>
                 {/* 상세 분석이 있는 어절은 단어 듣기를 펼친 칸 안에 둔다(11/1 사용자). 분석이 없는 어절만 여기 남긴다. */}
@@ -253,6 +257,10 @@ export default function PronunciationReportScreen() {
                     )}
                   </View>
                   <View style={styles.detailItem}>
+                    <Text style={styles.detailKey}>{t('pronReport.detailScore')}</Text>
+                    <Text style={styles.detailValue}>{t('pronReport.detailScoreValue', { score: markScore(mark.lpr) })}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
                     <Text style={styles.detailKey}>{t('pronReport.detailWhere')}</Text>
                     <Text style={styles.detailValue}>
                       {mark.detail.where} · {mark.detail.kind}
@@ -298,6 +306,7 @@ const styles = StyleSheet.create({
   habitText: { ...type.body1Bold, color: palette.text },
   line: { gap: space[2] },
   lineText: { ...type.body1, color: palette.text },
+  lineScore: { ...type.caption, color: palette.textMeta },
   marked: { ...type.body1Bold, color: palette.amber, backgroundColor: palette.amberSoft },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   chip: { flexDirection: 'row', alignItems: 'center', gap: space[1], height: 32, backgroundColor: palette.bgSoft, borderRadius: radius.md, paddingHorizontal: space[3] },
