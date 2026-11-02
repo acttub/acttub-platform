@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 
+import com.acttub.actingapi.feature.reading.app.DeciderTally;
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
@@ -29,6 +30,7 @@ public class OpenRouterLineDecider implements LineDecider {
     private static final URI URL = URI.create("https://openrouter.ai/api/alpha/decisions");
     private static final int RETRIES = 3;
 
+    private final URI url;
     private final ObjectMapper json;
     private final HttpClient http;
     private final String model;
@@ -44,6 +46,11 @@ public class OpenRouterLineDecider implements LineDecider {
             new LineReview.Choice("other", "말이 아닌 글", "이야기를 서술로 들려주는 소설·동화, 기사, 설명문·교육 자료·논문, 목록·레시피·회의록, 노래 가사·시, 글자가 깨져 읽을 수 없는 글."));
 
     public OpenRouterLineDecider(ObjectMapper json, String model, String key, Duration timeout, int maxInFlight) {
+        this(URL, json, model, key, timeout, maxInFlight);
+    }
+
+    OpenRouterLineDecider(URI url, ObjectMapper json, String model, String key, Duration timeout, int maxInFlight) {
+        this.url = url;
         this.inFlight = new Semaphore(maxInFlight);
         this.json = json;
         this.http = HttpClient.newBuilder().connectTimeout(timeout).build();
@@ -52,23 +59,24 @@ public class OpenRouterLineDecider implements LineDecider {
         this.timeout = timeout;
     }
 
+    @Override
     public String model() {
         return model;
     }
 
     @Override
-    public LineReview.Decision decide(LineReview.Question question) {
-        return parse(send(body(question)));
+    public LineReview.Decision decide(LineReview.Question question, DeciderTally tally) {
+        return parse(send(body(question), tally));
     }
 
     @Override
-    public double speech(String text) {
-        return speechConfidence(send(speechBody(text)));
+    public double speech(String text, DeciderTally tally) {
+        return speechConfidence(send(speechBody(text), tally));
     }
 
     @Override
-    public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed) {
-        return roleProbabilities(send(roleBody(candidate, reversed)));
+    public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed, DeciderTally tally) {
+        return roleProbabilities(send(roleBody(candidate, reversed), tally));
     }
 
     /** 배역 후보 질문 — 보기에 배역 정책(내레이션·가족·한 배우의 다른 역은 독립 배역)을 넣는다. */
@@ -127,31 +135,37 @@ public class OpenRouterLineDecider implements LineDecider {
         }
     }
 
-    public JsonNode send(ObjectNode body) {
+    public JsonNode send(ObjectNode body, DeciderTally tally) {
         RuntimeException last = null;
+        boolean rateLimited = false;
         for (int attempt = 0; attempt <= RETRIES; attempt++) {
             if (attempt > 0) {
+                tally.retried(rateLimited);
                 pause(Duration.ofSeconds(1L << (attempt - 1)));
             }
             try {
                 HttpResponse<String> response;
                 inFlight.acquire();
                 try {
-                    response = http.send(HttpRequest.newBuilder(URL).timeout(timeout)
+                    response = http.send(HttpRequest.newBuilder(url).timeout(timeout)
                             .header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
                             .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body), StandardCharsets.UTF_8)).build(),
                             HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
                 } finally {
                     inFlight.release();
                 }
+                rateLimited = response.statusCode() == 429;
                 if (response.statusCode() == 200) {
-                    return json.readTree(response.body());
+                    JsonNode answer = json.readTree(response.body());
+                    used(answer.path("usage"), tally);
+                    return answer;
                 }
                 last = new IllegalStateException("decision HTTP " + response.statusCode());
                 if (response.statusCode() != 429 && response.statusCode() < 500) {
                     throw last;
                 }
             } catch (IOException failure) {
+                rateLimited = false;
                 last = new IllegalStateException("decision call failed: " + failure.getClass().getSimpleName(), failure);
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
@@ -159,6 +173,13 @@ public class OpenRouterLineDecider implements LineDecider {
             }
         }
         throw last;
+    }
+
+    private static void used(JsonNode usage, DeciderTally tally) {
+        if (usage.isObject()) {
+            tally.used(usage.path("input_tokens").asInt(0), usage.path("output_tokens").asInt(0),
+                    usage.hasNonNull("cost") ? usage.get("cost").asDouble() : null);
+        }
     }
 
     public static LineReview.Decision parse(JsonNode response) {

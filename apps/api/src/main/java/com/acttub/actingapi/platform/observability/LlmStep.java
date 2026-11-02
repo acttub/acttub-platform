@@ -32,7 +32,14 @@ public enum LlmStep {
     /** 나눈 뒤 외국 글자가 든 대사의 말과 소리 낼 글을 받는다 (reading.script 「줄별 말」, SOMA-751). 묶는 열쇠는 작업 id 다. */
     SCRIPT_LANGUAGE("script.language"),
     /** 나눈 뒤 성별을 모르는 배역만 그 배역의 대목으로 다시 묻는다 (reading.cast, SOMA-937). 묶는 열쇠는 작업 id 다. */
-    SCRIPT_CAST("script.cast");
+    SCRIPT_CAST("script.cast"),
+    /**
+     * 줄마다 Jev 에 종류·화자를 묻는 두 번째 의견과 「말하는 글인가」 문지기 (reading.script, SOMA-1019). 줄마다가 아니라 작업당 한 건으로 합쳐 남긴다.
+     * 묶는 열쇠는 작업 id 다.
+     */
+    SCRIPT_REVIEW("script.review"),
+    /** 배역 후보가 기존 역할인지 Jev 에 묻는다 (reading.script, SOMA-1019). 작업당 한 건이고 묶는 열쇠는 작업 id 다. */
+    SCRIPT_SAME_SPEAKER("script.same-speaker");
 
     private final String spanName;
 

@@ -33,7 +33,9 @@ public record LlmCall(
         /** 코치 세션·응답 번호·막힘 갈래처럼 걸러 볼 때 쓰는 것들. */
         Map<String, String> metadata,
         /** 이 호출이 쓴 정적 프롬프트 템플릿. 모르면 null 이고, 그러면 버전 연결을 하지 않는다. */
-        LlmPrompt prompt) {
+        LlmPrompt prompt,
+        /** 제공자가 응답으로 알려 준 비용(달러). 모르면 null 이고, 그러면 Langfuse 가 등록된 단가로 계산한다. */
+        Double cost) {
 
     public LlmCall {
         Objects.requireNonNull(step, "step");
@@ -50,12 +52,17 @@ public record LlmCall(
             String output, LlmTokens tokens, Instant startedAt, Duration took, String errorMessage,
             Map<String, String> metadata) {
         this(step, practiceSessionId, userId, model, input, output, tokens, startedAt, took, errorMessage,
-                metadata, null);
+                metadata, null, null);
     }
 
     public LlmCall withPrompt(LlmPrompt value) {
         return new LlmCall(step, practiceSessionId, userId, model, input, output, tokens, startedAt, took,
-                errorMessage, metadata, value);
+                errorMessage, metadata, value, cost);
+    }
+
+    public LlmCall withCost(Double value) {
+        return new LlmCall(step, practiceSessionId, userId, model, input, output, tokens, startedAt, took,
+                errorMessage, metadata, prompt, value);
     }
 
     public boolean failed() {

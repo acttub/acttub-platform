@@ -26,6 +26,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.reading.app.DeciderTally;
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
@@ -743,16 +744,20 @@ class ReadingImportIT {
     void percentKeepsMovingThroughReview() throws Exception {
         List<Integer> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
         LineDecider decider = new LineDecider() {
-            @Override public LineReview.Decision decide(LineReview.Question question) {
+            @Override public String model() {
+                return "test-jev";
+            }
+
+            @Override public LineReview.Decision decide(LineReview.Question question, DeciderTally tally) {
                 seen.add(jdbc.queryForObject("SELECT progress_percent FROM script_imports", Integer.class));
                 return new LineReview.Decision(null, null);
             }
 
-            @Override public double speech(String ignored) {
+            @Override public double speech(String ignored, DeciderTally tally) {
                 return 1.0;
             }
 
-            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed) {
+            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed, DeciderTally tally) {
                 return Map.of();
             }
         };
@@ -784,15 +789,19 @@ class ReadingImportIT {
     /** 문지기만 붙인 워커로 하나 나누고 상태(실패면 failure)를 돌려준다. */
     private String gated(java.util.function.DoubleSupplier speech, String text) throws Exception {
         LineDecider decider = new LineDecider() {
-            @Override public LineReview.Decision decide(LineReview.Question question) {
+            @Override public String model() {
+                return "test-jev";
+            }
+
+            @Override public LineReview.Decision decide(LineReview.Question question, DeciderTally tally) {
                 throw new AssertionError("줄 두 번째 의견은 꺼져 있다");
             }
 
-            @Override public double speech(String ignored) {
+            @Override public double speech(String ignored, DeciderTally tally) {
                 return speech.getAsDouble();
             }
 
-            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed) {
+            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed, DeciderTally tally) {
                 throw new AssertionError("같은 사람 판단은 꺼져 있다");
             }
         };
