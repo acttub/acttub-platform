@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.push.app;
 import java.math.BigInteger;
 
 public final class AppVersion {
-    /** 정규식 앞의 길이 상한 — 점으로 이은 숫자 수천 자면 정규식이 StackOverflowError 를 낸다. */
+    /** 앱 판의 길이 상한. 유효한 판보다 넉넉한 값이다. */
     private static final int MAX_LENGTH = 64;
 
     private AppVersion() {}
@@ -23,7 +23,7 @@ public final class AppVersion {
 
     /** {@code 1.2.3} 처럼 점으로 이은 숫자인가. */
     public static boolean valid(String value) {
-        return value != null && value.length() <= MAX_LENGTH && value.matches("[0-9]+(?:\\.[0-9]+)*");
+        return value != null && value.length() <= MAX_LENGTH && value.matches("[0-9]++(?:\\.[0-9]++)*+");
     }
 
     private static BigInteger[] parse(String value) {

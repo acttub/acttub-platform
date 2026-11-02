@@ -25,13 +25,13 @@ public final class PosterRules {
     /** 각주 최대 글자 수. */
     public static final int FOOTNOTE_MAX = 200;
 
-    /** 앱 판의 길이 상한 — 점으로 이은 숫자 수천 자면 {@link #VERSION} 이 StackOverflowError 를 낸다. */
+    /** 앱 판의 길이 상한. 유효한 판보다 넉넉한 값이다. */
     private static final int VERSION_MAX = 64;
 
     private static final Pattern IMAGE_BG = Pattern.compile("#[0-9A-Fa-f]{6}");
     private static final Pattern SLUG = Pattern.compile("[a-z0-9][a-z0-9-]{0,63}");
     private static final Pattern LOCALE = Pattern.compile("[a-z]{2}");
-    private static final Pattern VERSION = Pattern.compile("[0-9]+(?:\\.[0-9]+)*");
+    private static final Pattern VERSION = Pattern.compile("[0-9]++(?:\\.[0-9]++)*+");
     private static final Pattern ASSET = Pattern.compile("asset:[a-z0-9-]+");
     private static final Pattern OBJECT_KEY = Pattern.compile(
             "posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:png|jpg|webp)");
