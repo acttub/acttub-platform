@@ -53,3 +53,51 @@ export function BandGradient({
     </View>
   );
 }
+
+/**
+ * 영상 위에 까는 반투명 막 — 한 색의 진하기(알파)만 위에서 아래로 바꾼다(SOMA 챌린지 재생 화면).
+ * 반투명 띠는 겹치면 겹친 줄이 진하게 보이므로 BandGradient 와 달리 겹치지 않게, 정수 px 높이로 쌓는다.
+ * alphas: [위치(0~1), 진하기(0~1)] 목록. 위치 0 이 맨 위다.
+ */
+export function ScrimGradient({
+  color,
+  alphas,
+  height,
+  bands = 30,
+  style,
+}: {
+  color: string;
+  alphas: readonly (readonly [number, number])[];
+  height: number;
+  bands?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [r, g, b] = hex(color);
+  const alphaAt = (p: number) => {
+    if (p <= alphas[0][0]) return alphas[0][1];
+    for (let i = 1; i < alphas.length; i++) {
+      const [p1, a1] = alphas[i];
+      const [p0, a0] = alphas[i - 1];
+      if (p <= p1) return p1 === p0 ? a1 : a0 + ((a1 - a0) * (p - p0)) / (p1 - p0);
+    }
+    return alphas[alphas.length - 1][1];
+  };
+  const edges = Array.from({ length: bands + 1 }, (_, i) => Math.round((i * height) / bands));
+  return (
+    <View pointerEvents="none" style={[{ position: 'absolute', left: 0, right: 0, height }, style]}>
+      {edges.slice(0, -1).map((top, i) => (
+        <View
+          key={i}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top,
+            height: edges[i + 1] - top,
+            backgroundColor: `rgba(${r},${g},${b},${alphaAt((i + 0.5) / bands).toFixed(3)})`,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
