@@ -714,6 +714,10 @@ const ko = {
     home: '홈으로 가기',
   },
   home: {
+    planPro: 'PRO',
+    planFree: 'FREE',
+    planProA11y: '지금 Pro 이용 중 · 구독 관리',
+    planFreeA11y: '지금 무료 이용 중 · Pro 알아보기',
     heroTitle: '오늘도\n연기하는 하루,\n멋져요!',
     heroSub: '꾸준히 연습하는 모습이\n벌써 달라지고 있어요.',
     weekTitle: '이번 주 연습',
