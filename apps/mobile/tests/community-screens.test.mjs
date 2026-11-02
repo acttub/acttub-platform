@@ -24,14 +24,13 @@ test('커뮤니티 탭 머리는 큰 제목 없이 챌린지·게시판 밑줄 �
   assert.match(tab, /<CommunityBoard/);
 });
 
-test('게시판 화면들은 서버 /v2/community 를 읽고 사진 올리기·아래 시트를 쓰지 않는다', () => {
+test('게시판 화면들은 서버 /v2/community 를 읽고 아래 시트를 쓰지 않는다', () => {
   const api = read('lib/api.ts');
-  for (const route of ['/v2/community/categories', '/v2/community/posts', '/v2/community/comments/', '/v2/community/reports', '/v2/community/blocks']) {
+  for (const route of ['/v2/community/categories', '/v2/community/posts', '/v2/community/comments/', '/v2/community/reports', '/v2/community/blocks', '/v2/community/images']) {
     assert.ok(api.includes(route), `${route} 가 없다`);
   }
-  for (const file of ['components/community/community-board.tsx', 'app/community-post.tsx', 'app/community-new.tsx']) {
+  for (const file of ['components/community/community-board.tsx', 'app/community-post.tsx', 'app/community-new.tsx', 'components/community/post-images.tsx']) {
     const src = read(file);
-    assert.doesNotMatch(src, /ImagePicker|expo-image-picker|camera/i, `${file} 에 사진 올리기가 있다`);
     assert.doesNotMatch(src, /BottomSheet|presentation: 'formSheet'/, `${file} 에 아래 시트가 있다`);
   }
 });
@@ -46,8 +45,16 @@ test('게시판 광고는 서버에 이미 있는 community_list_top 칸을 쓴�
 });
 
 test('게시판 행동마다 기록 이벤트를 남긴다', () => {
-  const src = ['components/community/community-board.tsx', 'app/community-post.tsx', 'app/community-new.tsx'].map(read).join('\n');
-  for (const name of ['community_board_open', 'community_post_open', 'community_post_create', 'community_comment_create', 'community_report', 'community_block']) {
+  const src = ['components/community/community-board.tsx', 'app/community-post.tsx', 'app/community-new.tsx', 'hooks/use-community-images.ts', 'components/community/post-images.tsx'].map(read).join('\n');
+  for (const name of ['community_board_open', 'community_post_open', 'community_post_create', 'community_comment_create', 'community_report', 'community_block', 'community_image_add', 'community_image_view']) {
     assert.ok(src.includes(`'${name}'`), `${name} 이벤트가 없다`);
   }
+});
+
+test('게시판 사진은 포트폴리오 사진과 같은 줄이기 모듈로 긴 변 1600 JPEG 로 줄이고 여러 장 한 번에 고른다', () => {
+  const picker = read('lib/community-image-picker.ts');
+  assert.match(picker, /require\('react-native-compressor'\)/);
+  assert.match(picker, /allowsMultipleSelection: true/);
+  assert.match(picker, /requestMediaLibraryPermissionsAsync/);
+  assert.match(read('app/community-new.tsx'), /Linking\.openSettings\(\)/);
 });

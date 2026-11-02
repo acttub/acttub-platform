@@ -30,8 +30,10 @@ const CASES = [
   ['전체 글 목록', () => api.communityPosts(), { method: 'GET', path: '/v2/community/posts', body: null }],
   ['분류·커서 글 목록', () => api.communityPosts({ category: 'audition', cursor: 'abc' }), { method: 'GET', path: '/v2/community/posts?category=audition&cursor=abc', body: null }],
   ['글 상세', () => api.communityPost(P), { method: 'GET', path: `/v2/community/posts/${P}`, body: null }],
-  ['글 올리기', () => api.createCommunityPost({ category_slug: 'free', title: '제목', body: '내용' }), { method: 'POST', path: '/v2/community/posts', body: { category_slug: 'free', title: '제목', body: '내용' } }],
-  ['글 고치기(제목·내용만)', () => api.updateCommunityPost(P, { title: '제목', body: '내용' }), { method: 'PATCH', path: `/v2/community/posts/${P}`, body: { title: '제목', body: '내용' } }],
+  ['글 올리기(사진 id 순서대로)', () => api.createCommunityPost({ category_slug: 'free', title: '제목', body: '내용', image_ids: [id(7), id(8)] }), { method: 'POST', path: '/v2/community/posts', body: { category_slug: 'free', title: '제목', body: '내용', image_ids: [id(7), id(8)] } }],
+  ['글 고치기(제목·내용·사진)', () => api.updateCommunityPost(P, { title: '제목', body: '내용', image_ids: [] }), { method: 'PATCH', path: `/v2/community/posts/${P}`, body: { title: '제목', body: '내용', image_ids: [] } }],
+  ['사진 올릴 주소', () => api.createCommunityImageIntent({ mime_type: 'image/jpeg', size_bytes: 1234 }), { method: 'POST', path: '/v2/community/images', body: { mime_type: 'image/jpeg', size_bytes: 1234 } }],
+  ['사진 올리기 끝', () => api.completeCommunityImage(id(7)), { method: 'POST', path: `/v2/community/images/${id(7)}/complete`, body: null }],
   ['글 지우기', () => api.deleteCommunityPost(P), { method: 'DELETE', path: `/v2/community/posts/${P}`, body: null }],
   ['좋아요', () => api.likeCommunityPost(P, true), { method: 'POST', path: `/v2/community/posts/${P}/likes`, body: null }],
   ['좋아요 취소', () => api.likeCommunityPost(P, false), { method: 'DELETE', path: `/v2/community/posts/${P}/likes`, body: null }],
@@ -51,11 +53,26 @@ for (const [name, call, expected] of CASES) {
   });
 }
 
-test('community api: 연락처 422 는 사유 코드를 그대로 담은 오류다', async (t) => {
-  capture(t, { code: 'community_contact_info', detail: 'community_contact_info' }, 422);
-  await assert.rejects(api.createCommunityPost({ category_slug: 'free', title: '연락 주세요', body: '010-0000-0000' }), (e) => {
+test('community api: 연락처 422 {"detail":"community_contact_info"} 는 사유 코드를 담은 오류다', async (t) => {
+  capture(t, { detail: 'community_contact_info' }, 422);
+  await assert.rejects(api.createCommunityPost({ category_slug: 'free', title: '연락 주세요', body: '010-0000-0000', image_ids: [] }), (e) => {
     assert.equal(e.status, 422);
     assert.equal(e.code, 'community_contact_info');
+    assert.equal(e.detail, 'community_contact_info');
     return true;
   });
+});
+
+test('community api: 사진 수 초과 400 too_many_images', async (t) => {
+  capture(t, { detail: 'too_many_images' }, 400);
+  await assert.rejects(api.createCommunityPost({ category_slug: 'free', title: '제목', body: '내용', image_ids: [1, 2, 3, 4, 5, 6].map(id) }), (e) => {
+    assert.equal(e.status, 400);
+    assert.equal(e.code, 'too_many_images');
+    return true;
+  });
+});
+
+test('community api: 게스트 403 member_only', async (t) => {
+  capture(t, { detail: 'member_only' }, 403);
+  await assert.rejects(api.communityPosts(), (e) => e.status === 403 && e.code === 'member_only');
 });

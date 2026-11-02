@@ -7,17 +7,25 @@ import {
   COMMUNITY_REPORT_REASONS,
   authorId,
   avatarSeed,
+  MAX_IMAGES,
+  boardFailure,
   bodyCounter,
   bodyPreview,
   canSubmitPost,
   categoryChips,
   displayName,
+  draftsFromPost,
   hasNewSince,
+  imageIdsOf,
+  imagesState,
   isHiddenPost,
   isMine,
   isPostAuthor,
+  listThumb,
   metaLine,
   postWriteFailure,
+  remainingSlots,
+  takeAllowed,
 } from '../lib/community.ts';
 
 /**
@@ -118,10 +126,63 @@ test('글자 수는 n / 2,000 으로 보인다', () => {
   assert.equal(bodyCounter('가'.repeat(1234)), '1,234 / 2,000');
 });
 
-test('422 community_contact_info 만 연락처 실패로 본다', () => {
-  assert.equal(postWriteFailure(new ApiError(422, 'x', 'community_contact_info')), 'contact');
-  assert.equal(postWriteFailure(new ApiError(422, 'x', 'validation')), 'other');
+// 서버는 연락처를 422 {"detail":"community_contact_info"} 로 준다 — 다른 422 사유와 같이 detail 글자다.
+const apiError = (status, detail) => new ApiError(status, 'x', typeof detail === 'string' ? detail : 'validation_error', detail);
+
+test('422 detail community_contact_info 만 연락처 실패로 본다', () => {
+  assert.equal(postWriteFailure(apiError(422, 'community_contact_info')), 'contact');
+  assert.equal(postWriteFailure(apiError(422, [{ loc: ['body', 'title'] }])), 'other');
+  assert.equal(postWriteFailure(apiError(422, 'validation')), 'other');
   assert.equal(postWriteFailure(new Error('offline')), 'other');
+});
+
+test('사진 수·사진 오류(400)와 회원 전용(403)을 가른다', () => {
+  assert.equal(postWriteFailure(apiError(400, 'too_many_images')), 'too_many_images');
+  assert.equal(postWriteFailure(apiError(400, 'invalid_image')), 'invalid_image');
+  assert.equal(postWriteFailure(apiError(403, 'member_only')), 'member_only');
+  assert.equal(postWriteFailure(apiError(403, 'account_deactivated')), 'other');
+});
+
+test('게시판을 못 읽은 까닭 — 게스트는 회원 전용, 탈퇴 계정은 따로, 그 밖은 다시 시도', () => {
+  assert.equal(boardFailure(apiError(403, 'member_only')), 'member_only');
+  assert.equal(boardFailure(apiError(403, 'account_deactivated')), 'deactivated');
+  assert.equal(boardFailure(apiError(500, 'boom')), 'other');
+  assert.equal(boardFailure(new Error('offline')), 'other');
+});
+
+test('목록 썸네일은 첫 사진과 장수다', () => {
+  assert.equal(listThumb({ images: [] }), null);
+  assert.equal(listThumb({}), null);
+  assert.deepEqual(listThumb({ images: [{ id: 'i1', url: 'u1' }, { id: 'i2', url: 'u2' }] }), { url: 'u1', count: 2 });
+});
+
+const draft = (n, status = 'done') => ({ key: `k${n}`, uri: `file:///p${n}.jpg`, imageId: status === 'done' ? `img${n}` : null, status });
+
+test('사진은 5장까지 — 여러 장 고르면 남은 자리만큼 앞에서 자른다', () => {
+  assert.equal(MAX_IMAGES, 5);
+  assert.equal(remainingSlots([]), 5);
+  assert.equal(remainingSlots([draft(1), draft(2)]), 3);
+  assert.deepEqual(takeAllowed(['a', 'b', 'c', 'd', 'e', 'f', 'g'], []), ['a', 'b', 'c', 'd', 'e']);
+  assert.deepEqual(takeAllowed(['a', 'b', 'c'], [draft(1), draft(2), draft(3), draft(4)]), ['a']);
+  assert.deepEqual(takeAllowed(['a'], [1, 2, 3, 4, 5].map((n) => draft(n))), []);
+});
+
+test('글에 싣는 사진 id 는 보이는 순서대로, 다 올라간 것만', () => {
+  assert.deepEqual(imageIdsOf([draft(2), draft(9, 'uploading'), draft(1), draft(3, 'failed')]), ['img2', 'img1']);
+});
+
+test('올리는 중이 하나라도 있으면 uploading, 실패가 있으면 failed', () => {
+  assert.equal(imagesState([]), 'ready');
+  assert.equal(imagesState([draft(1), draft(2, 'failed'), draft(3, 'uploading')]), 'uploading');
+  assert.equal(imagesState([draft(1), draft(2, 'failed')]), 'failed');
+  assert.equal(imagesState([draft(1)]), 'ready');
+});
+
+test('고치는 글의 기존 사진은 다 올라간 사진으로 줄에 들어온다', () => {
+  assert.deepEqual(draftsFromPost({ images: [{ id: 'i1', url: 'https://cdn/1.jpg' }] }), [
+    { key: 'server-i1', uri: 'https://cdn/1.jpg', imageId: 'i1', status: 'done' },
+  ]);
+  assert.deepEqual(draftsFromPost({}), []);
 });
 
 test('신고 사유는 게시판 서버 계약 다섯 가지다', () => {

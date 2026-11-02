@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog, type DialogAction } from '@/components/app-dialog';
 import { CommunityReportPage } from '@/components/community/community-report-page';
+import { PostImages } from '@/components/community/post-images';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { pt } from '@/components/ui/anchored-menu';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
@@ -25,6 +26,8 @@ import {
   COMMENT_MAX,
   authorId,
   avatarSeed,
+  boardFailure,
+  boardFailureMessage,
   displayName,
   isHiddenPost,
   isMine,
@@ -53,7 +56,7 @@ export default function CommunityPostScreen() {
   const [post, setPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<CommunityComment[]>([]);
   const [commentCursor, setCommentCursor] = useState<string | null>(null);
-  const [failed, setFailed] = useState<'gone' | 'error' | null>(null);
+  const [failed, setFailed] = useState<'gone' | 'error' | 'member_only' | 'deactivated' | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -82,7 +85,8 @@ export default function CommunityPostScreen() {
       setComments(list.comments);
       setCommentCursor(list.next_cursor ?? null);
     } catch (e) {
-      setFailed(errorStatus(e) === 404 ? 'gone' : 'error');
+      const status = errorStatus(e);
+      setFailed(status === 404 ? 'gone' : status === 403 ? (boardFailure(e) === 'deactivated' ? 'deactivated' : 'member_only') : 'error');
     }
   }, [id]);
 
@@ -229,6 +233,20 @@ export default function CommunityPostScreen() {
 
   const back = () => router.back();
 
+  if (failed === 'member_only' || failed === 'deactivated') {
+    // 게스트·탈퇴 계정 — 다시 불러와도 같아 다시 시도 없이 알리고 목록으로 돌려보낸다(챌린지 회원 전용과 같은 처리).
+    return (
+      <StatusScreen
+        safeArea
+        kind="empty"
+        header={t('communityPost.headerTitle')}
+        onBack={back}
+        title={boardFailureMessage(failed)}
+        primary={{ label: t('communityPost.backToList'), onPress: back }}
+      />
+    );
+  }
+
   if (failed) {
     return (
       <StatusScreen
@@ -287,7 +305,8 @@ export default function CommunityPostScreen() {
           <Text style={styles.content} selectable>
             {post.body}
           </Text>
-          <View style={styles.divider} />
+          <PostImages images={post.images ?? []} />
+          <View style={[styles.divider, (post.images?.length ?? 0) > 0 && styles.dividerAfterImages]} />
           <View style={styles.reactions}>
             <Pressable
               style={({ pressed }) => [styles.reaction, pressed && styles.pressed]}
@@ -414,6 +433,7 @@ const styles = StyleSheet.create({
   time: { ...type.caption, color: palette.textMeta },
   content: { ...type.body1, color: palette.text, marginTop: space[2], marginBottom: space[2] },
   divider: { height: 1, backgroundColor: palette.border },
+  dividerAfterImages: { marginTop: space[2] },
   reactions: { flexDirection: 'row', gap: space[4], paddingVertical: space[1] },
   reaction: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 32 },
   reactionText: { ...type.body2Bold, color: palette.textSub },

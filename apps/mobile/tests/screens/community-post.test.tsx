@@ -246,3 +246,34 @@ test('댓글이 더 있으면 더 보기로 이어 받는다', async () => {
   expect(communityComments).toHaveBeenLastCalledWith('p1', 'n1');
   expect(screen.queryByRole('button', { name: '댓글 더 보기' })).not.toBeOnTheScreen();
 });
+
+test('사진은 본문 아래에 차례대로 놓이고, 누르면 전체 화면으로 본다', async () => {
+  communityPost.mockResolvedValue(
+    post({
+      images: [
+        { id: 'i1', url: 'https://cdn.test/1.jpg' },
+        { id: 'i2', url: 'https://cdn.test/2.jpg' },
+      ],
+    }),
+  );
+  await render(<CommunityPostScreen />);
+  expect(await screen.findAllByTestId('post-image')).toHaveLength(2);
+  expect(screen.queryByTestId('viewer-image')).not.toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByRole('imagebutton', { name: '사진 2, 크게 보기' }));
+  // 누른 사진부터 연다.
+  const shown = await screen.findAllByTestId('viewer-image');
+  expect(shown[0].props.source).toEqual([{ uri: 'https://cdn.test/2.jpg' }]);
+  expect(logEvent).toHaveBeenCalledWith('community_image_view', { index: 1 });
+  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+  await waitFor(() => expect(screen.queryByTestId('viewer-image')).not.toBeOnTheScreen());
+});
+
+test('게스트(403 member_only)는 회원 전용 안내와 목록으로 버튼을 본다', async () => {
+  communityPost.mockRejectedValue(Object.assign(new Error('member'), { status: 403, code: 'member_only' }));
+  await render(<CommunityPostScreen />);
+  expect(await screen.findByText('게시판은 회원만 이용할 수 있어요.')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '목록으로' }));
+  expect(mockRouter.back).toHaveBeenCalled();
+});

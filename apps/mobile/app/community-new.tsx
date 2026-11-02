@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { CommunityImageRow } from '@/components/community/community-image-row';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
@@ -14,6 +15,7 @@ import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
+import { useCommunityImages } from '@/hooks/use-community-images';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
@@ -22,20 +24,29 @@ import {
   bodyCounter,
   canSubmitPost,
   charCount,
+  draftsFromPost,
+  imageIdsOf,
+  imagesState,
   postWriteFailure,
+  remainingSlots,
   type CommunityCategory,
+  type PostWriteFailure,
 } from '@/lib/community';
+import { pickCommunityImages } from '@/lib/community-image-picker';
 import { translate as t } from '@/lib/i18n';
 
 /**
  * 게시판 글쓰기·글 수정(pen community-new.writing · contact-blocked). `id` 가 있으면 내 글을 고친다(분류는 그대로).
  * 「어떤 글인가요?」 분류 칩 → 제목 TextField → 내용(높이 140, `n / 2,000`) → 아래 고정 바: 연락처 안내 caption + 「올리기」.
- * 사진은 없다(서버에 이미지 칸이 없다). 연락처가 든 글(422 community_contact_info)은 내용 칸을 1.5px danger 로 두고 바로 아래 한 줄,
- * 그 밖의 실패는 버튼 바로 위 한 줄이다.
+ * 내용 아래 사진 줄(5장까지): 고르는 즉시 뒤에서 올리고, 올리는 중이면 「올리기」가 「사진 올리는 중…」으로 꺼진다. 실패한 사진은
+ * 빨간 테두리 — 누르면 다시 올리고 x 로 뺀다. 고치는 글은 기존 사진을 보여 주고 빼거나 더할 수 있다.
+ * 연락처가 든 글(422 community_contact_info)은 내용 칸을 1.5px danger 로 두고 바로 아래 한 줄, 그 밖의 실패는 버튼 바로 위 한 줄이다.
  */
 export default function CommunityNewScreen() {
   const router = useRouter();
-  const { confirm, dialog } = useAppDialog();
+  const { confirm, alert, dialog } = useAppDialog();
+  const images = useCommunityImages();
+  const resetImages = images.reset;
   const { id, category: initialCategory } = useLocalSearchParams<{ id?: string; category?: string }>();
   const editing = !!id;
   const [categories, setCategories] = useState<CommunityCategory[] | null>(null);
@@ -45,7 +56,7 @@ export default function CommunityNewScreen() {
   const [body, setBody] = useState('');
   const [loadingPost, setLoadingPost] = useState(editing);
   const [submitting, setSubmitting] = useState(false);
-  const [failure, setFailure] = useState<'contact' | 'other' | null>(null);
+  const [failure, setFailure] = useState<PostWriteFailure | null>(null);
 
   const loadCategories = useCallback(async () => {
     setCategoriesFailed(false);
@@ -71,12 +82,13 @@ export default function CommunityNewScreen() {
       setCategory(post.category_slug);
       setTitle(post.title);
       setBody(post.body);
+      resetImages(draftsFromPost(post));
     } catch {
       setPostFailed(true);
     } finally {
       setLoadingPost(false);
     }
-  }, [id]);
+  }, [id, resetImages]);
 
   useEffect(() => {
     void loadPost();
@@ -91,7 +103,29 @@ export default function CommunityNewScreen() {
     if (failure) setFailure(null);
   };
 
-  const ready = canSubmitPost({ category, title, body }) && !loadingPost && !postFailed;
+  const photos = imagesState(images.drafts);
+  const ready = canSubmitPost({ category, title, body }) && !loadingPost && !postFailed && photos === 'ready';
+
+  const addImages = async () => {
+    const result = await pickCommunityImages(remainingSlots(images.drafts));
+    if (result.kind === 'blocked') {
+      const open = await confirm({
+        title: t('communityNew.photoBlockedTitle'),
+        message: t('communityNew.photoBlockedBody'),
+        confirmLabel: t('communityNew.photoOpenSettings'),
+      });
+      if (open) void Linking.openSettings();
+      return;
+    }
+    if (result.kind === 'denied') {
+      await alert({ title: t('communityNew.photoDeniedTitle'), message: t('communityNew.photoDeniedBody') });
+      return;
+    }
+    if (result.kind === 'picked') {
+      images.add(result.uris);
+      if (failure === 'too_many_images' || failure === 'invalid_image') setFailure(null);
+    }
+  };
 
   const submit = async () => {
     if (!ready || submitting || !category) return;
@@ -99,12 +133,13 @@ export default function CommunityNewScreen() {
     setFailure(null);
     try {
       if (editing && id) {
-        await api.updateCommunityPost(id, { title: title.trim(), body: body.trim() });
+        await api.updateCommunityPost(id, { title: title.trim(), body: body.trim(), image_ids: imageIdsOf(images.drafts) });
         void logEvent('community_post_update', { id });
         router.back();
       } else {
-        const created = await api.createCommunityPost({ category_slug: category, title: title.trim(), body: body.trim() });
-        void logEvent('community_post_create', { category });
+        const imageIds = imageIdsOf(images.drafts);
+        const created = await api.createCommunityPost({ category_slug: category, title: title.trim(), body: body.trim(), image_ids: imageIds });
+        void logEvent('community_post_create', { category, images: imageIds.length });
         router.replace({ pathname: '/community-post', params: { id: created.id } });
       }
     } catch (e) {
@@ -115,7 +150,7 @@ export default function CommunityNewScreen() {
   };
 
   const back = async () => {
-    const dirty = !editing && (title.trim().length > 0 || body.trim().length > 0);
+    const dirty = !editing && (title.trim().length > 0 || body.trim().length > 0 || images.drafts.length > 0);
     if (dirty) {
       const ok = await confirm({
         title: t('communityNew.discardTitle'),
@@ -187,12 +222,22 @@ export default function CommunityNewScreen() {
             style={styles.bodyInput}
           />
           <Text style={[styles.counter, charCount(body) > BODY_MAX && styles.counterOver]}>{bodyCounter(body)}</Text>
+          <CommunityImageRow
+            drafts={images.drafts}
+            onAdd={() => void addImages()}
+            onRemove={(key) => {
+              images.remove(key);
+              if (failure === 'too_many_images' || failure === 'invalid_image') setFailure(null);
+            }}
+            onRetry={images.retry}
+          />
+          {photos === 'failed' ? <InlineErrorLine message={t('communityNew.imageFailedLine')} /> : null}
         </ScrollView>
         <CtaBar safeBottom={false}>
-          {failure === 'other' ? <InlineErrorLine message={t('communityNew.submitFail')} /> : null}
+          {failure && failure !== 'contact' ? <InlineErrorLine message={submitFailMessage(failure)} /> : null}
           <Text style={styles.hint}>{t('communityNew.contactHint')}</Text>
           <PrimaryButton
-            label={editing ? t('communityNew.save') : t('communityNew.submit')}
+            label={photos === 'uploading' ? t('communityNew.imagesUploading') : editing ? t('communityNew.save') : t('communityNew.submit')}
             loading={submitting}
             loadingLabel={editing ? t('loadingText.saving') : t('loadingText.uploading')}
             disabled={!ready}
@@ -204,6 +249,19 @@ export default function CommunityNewScreen() {
       {dialog}
     </SafeAreaView>
   );
+}
+
+function submitFailMessage(failure: Exclude<PostWriteFailure, 'contact'>): string {
+  switch (failure) {
+    case 'too_many_images':
+      return t('communityNew.tooManyImages');
+    case 'invalid_image':
+      return t('communityNew.invalidImage');
+    case 'member_only':
+      return t('community.memberOnly');
+    default:
+      return t('communityNew.submitFail');
+  }
 }
 
 const styles = StyleSheet.create({

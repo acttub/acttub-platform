@@ -118,3 +118,26 @@ test('밑줄 탭은 고른 탭을 알리고, 새 글이 있으면 게시판 옆�
   expect(screen.queryByTestId('community-board-dot')).not.toBeOnTheScreen();
   expect(screen.getByRole('tab', { name: '게시판', selected: true })).toBeOnTheScreen();
 });
+
+test('사진이 있는 글은 오른쪽에 첫 장 썸네일, 2장 이상이면 장수 배지를 단다', async () => {
+  communityPosts.mockResolvedValue({
+    posts: [
+      post({ id: 'one', title: '한 장', images: [{ id: 'i1', url: 'https://cdn.test/1.jpg' }] }),
+      post({ id: 'three', title: '세 장', images: [1, 2, 3].map((n) => ({ id: `j${n}`, url: `https://cdn.test/j${n}.jpg` })) }),
+      post({ id: 'none', title: '사진 없음' }),
+    ],
+    next_cursor: null,
+  });
+  await renderBoard();
+  expect(await screen.findByText('세 장')).toBeOnTheScreen();
+  expect(screen.getAllByTestId('post-row-thumb')).toHaveLength(2);
+  expect(screen.getByLabelText('사진 3장')).toBeOnTheScreen();
+  expect(screen.queryByLabelText('사진 1장')).not.toBeOnTheScreen();
+});
+
+test('게스트(403 member_only)는 다시 시도 없이 회원 전용 한 줄을 본다', async () => {
+  communityPosts.mockRejectedValue(Object.assign(new Error('member'), { status: 403, code: 'member_only' }));
+  await renderBoard();
+  expect(await screen.findByText('게시판은 회원만 이용할 수 있어요.')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
+});

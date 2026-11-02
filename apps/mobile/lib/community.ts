@@ -2,13 +2,14 @@
  * 배우 게시판(SOMA-873) — 서버 모양과 화면 규칙.
  *
  * 서버는 예전 `/v2/community` 계약(80932a582 이전)을 되살리고 칸 몇 개를 더한다: 글·댓글의 `author_name`(없으면 null),
- * `is_mine`, 글의 `status`(신고로 가려진 글은 "hidden" 이고 쓴 사람에게만 보인다), 연락처가 든 글의 422
- * `community_contact_info`. 되살린 첫 판은 `mine`·`author.nickname` 만 줄 수 있어 둘 다 읽는다.
+ * `is_mine`, 글의 `status`(visible|hidden — 신고로 가려진 글은 쓴 사람에게만 보인다), 연락처가 든 글의 422
+ * `{"detail":"community_contact_info"}`, 사진 `images: [{id, url}]`(0~5장). 서버는 `mine`·`is_mine` 을 둘 다 준다.
+ * 회원 전용이라 게스트는 403 `member_only`, 탈퇴 계정은 403 `account_deactivated` 다.
  *
  * 화면이 쓰는 값은 여기서 한 번에 고른다 — 이름·내 글 여부·작성자 id·미리보기·상대 시각·새 글 점·글쓰기 검사.
  */
 
-import { errorCode, errorStatus } from './api-request.ts';
+import { classifyUnprocessable, errorCode, errorStatus } from './api-request.ts';
 import { translate } from './i18n.ts';
 import { postedAtLabel } from './time-label.ts';
 
@@ -25,6 +26,9 @@ type Authored = {
   mine?: boolean | null;
 };
 
+/** 글에 붙은 사진. 목록 글은 최소 첫 장, 상세 글은 전부(순서대로). */
+export type CommunityImage = { id: string; url: string };
+
 export type CommunityPost = Authored & {
   id: string;
   category_slug: string;
@@ -36,6 +40,7 @@ export type CommunityPost = Authored & {
   liked_by_me: boolean;
   /** 보통 "visible". 신고가 쌓여 가려지면 "hidden" — 쓴 사람만 받는다. */
   status?: string | null;
+  images?: CommunityImage[] | null;
   created_at: string;
   updated_at?: string | null;
 };
@@ -55,8 +60,18 @@ export type PostListResponse = { posts: CommunityPost[]; next_cursor?: string | 
 export type CommentListResponse = { comments: CommunityComment[]; next_cursor?: string | null };
 export type LikeResponse = { like_count: number; liked_by_me: boolean };
 
-export type PostWriteBody = { category_slug: string; title: string; body: string };
-export type PostUpdateBody = { title: string; body: string };
+/** 글 만들기. `image_ids` 는 올려 둔 사진 id 0~5개, 보이는 순서대로. */
+export type PostWriteBody = { category_slug: string; title: string; body: string; image_ids: string[] };
+/** 글 고치기 — 제목·내용·사진(남길 것 + 새로 올린 것, 순서대로)을 통째로 보낸다. 분류는 그대로다. */
+export type PostUpdateBody = { title: string; body: string; image_ids: string[] };
+
+/** 사진 올릴 주소(POST /v2/community/images). `upload_headers` 를 그대로 붙여 PUT 한다. */
+export type CommunityImageIntent = {
+  image_id: string;
+  upload_url: string;
+  upload_headers?: Record<string, string> | null;
+  expires_at: string;
+};
 
 /** 서버 신고 사유(예전 ReportRequest.reason). 순서가 화면 순서다. */
 export const COMMUNITY_REPORT_REASONS = ['spam', 'abuse', 'sexual', 'privacy', 'other'] as const;
@@ -72,6 +87,7 @@ export const TITLE_MAX = 100;
 export const BODY_MAX = 2000;
 export const COMMENT_MAX = 1000;
 export const REPORT_DETAIL_MAX = 500;
+export const MAX_IMAGES = 5;
 
 /** 화면에 쓸 이름 — 서버가 준 `author_name`, 없으면 「배우」. */
 export function displayName(item: Authored): string {
@@ -161,9 +177,82 @@ export function bodyCounter(body: string): string {
   return `${fmt(charCount(body))} / ${fmt(BODY_MAX)}`;
 }
 
-/** 글 올리기·고치기 실패 — 연락처가 들어간 글(422 community_contact_info)만 따로 알린다. */
-export type PostWriteFailure = 'contact' | 'other';
+/** 목록 행 썸네일 — 첫 사진과 장수. 사진이 없으면 null. */
+export function listThumb(post: Pick<CommunityPost, 'images'>): { url: string; count: number } | null {
+  const images = post.images ?? [];
+  return images[0] ? { url: images[0].url, count: images.length } : null;
+}
+
+/**
+ * 글 올리기·고치기 실패. 연락처(422 `{"detail":"community_contact_info"}` — 다른 422 사유와 같이 detail 글자로 온다)는
+ * 내용 칸에, 사진 수·사진 오류(400 too_many_images · invalid_image)와 그 밖은 버튼 위에 알린다.
+ */
+export type PostWriteFailure = 'contact' | 'too_many_images' | 'invalid_image' | 'member_only' | 'other';
 
 export function postWriteFailure(error: unknown): PostWriteFailure {
-  return errorStatus(error) === 422 && errorCode(error) === 'community_contact_info' ? 'contact' : 'other';
+  const unprocessable = classifyUnprocessable(error);
+  if (unprocessable?.kind === 'reason' && unprocessable.code === 'community_contact_info') return 'contact';
+  const code = errorCode(error);
+  if (errorStatus(error) === 400 && code === 'too_many_images') return 'too_many_images';
+  if (errorStatus(error) === 400 && code === 'invalid_image') return 'invalid_image';
+  if (errorStatus(error) === 403 && code !== 'account_deactivated') return 'member_only';
+  return 'other';
+}
+
+/**
+ * 게시판을 읽지 못한 까닭 — 회원 전용(게스트 403 member_only)과 탈퇴 계정(403 account_deactivated)은 다시 시도해도 같아
+ * 챌린지 목록처럼 한 줄로만 알리고, 그 밖은 「다시 시도」를 단다.
+ */
+export type BoardFailure = 'member_only' | 'deactivated' | 'other';
+
+export function boardFailure(error: unknown): BoardFailure {
+  if (errorStatus(error) !== 403) return 'other';
+  return errorCode(error) === 'account_deactivated' ? 'deactivated' : 'member_only';
+}
+
+/** 실패 까닭의 문장. */
+export function boardFailureMessage(failure: BoardFailure): string {
+  if (failure === 'member_only') return translate('community.memberOnly');
+  if (failure === 'deactivated') return translate('errors.withdrawn');
+  return translate('community.loadFail');
+}
+
+// ─── 글쓰기 사진 ────────────────────────────────────────────────────────────────
+
+/** 글쓰기 화면의 사진 한 장. 고른 사진은 바로 올리기 시작하고, 고치는 글의 기존 사진은 처음부터 `done` 이다. */
+export type DraftImage = {
+  /** 화면 안에서만 쓰는 열쇠. */
+  key: string;
+  /** 썸네일로 보일 주소 — 기기 파일(고른 사진) 또는 서버 주소(기존 사진). */
+  uri: string;
+  /** 서버 사진 id. 올리기가 끝나야 생긴다. */
+  imageId: string | null;
+  status: 'uploading' | 'done' | 'failed';
+};
+
+/** 지금 몇 장 더 고를 수 있나. */
+export function remainingSlots(drafts: DraftImage[]): number {
+  return Math.max(0, MAX_IMAGES - drafts.length);
+}
+
+/** 한 번에 여러 장 골랐을 때 남은 자리만큼 앞에서부터 자른다. */
+export function takeAllowed<T>(picked: T[], drafts: DraftImage[]): T[] {
+  return picked.slice(0, remainingSlots(drafts));
+}
+
+/** 글에 실어 보낼 사진 id — 보이는 순서대로, 다 올라간 것만. */
+export function imageIdsOf(drafts: DraftImage[]): string[] {
+  return drafts.filter((d) => d.status === 'done' && d.imageId).map((d) => d.imageId as string);
+}
+
+/** 사진 상태 요약 — 올리는 중이면 「올리기」를 끄고 「사진 올리는 중…」, 실패한 사진이 있으면 끄고 다시 시도·빼기를 기다린다. */
+export function imagesState(drafts: DraftImage[]): 'ready' | 'uploading' | 'failed' {
+  if (drafts.some((d) => d.status === 'uploading')) return 'uploading';
+  if (drafts.some((d) => d.status === 'failed')) return 'failed';
+  return 'ready';
+}
+
+/** 고치는 글의 기존 사진을 글쓰기 사진 줄로 옮긴다. */
+export function draftsFromPost(post: Pick<CommunityPost, 'images'>): DraftImage[] {
+  return (post.images ?? []).map((image) => ({ key: `server-${image.id}`, uri: image.url, imageId: image.id, status: 'done' as const }));
 }
