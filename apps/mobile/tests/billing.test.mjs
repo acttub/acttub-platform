@@ -41,7 +41,7 @@ test('billing: 날짜·금액 표시', () => {
 });
 
 test('billing: 설정 줄 — 구독이 있으면 구독 관리, 없으면 Pro 안내', () => {
-  assert.equal(settingsSub(me({ status: 'none', pro: false })), '무료 이용 중 · Pro 알아보기');
+  assert.equal(settingsSub(me({ status: 'none', pro: false })), 'Pro로 제한 없이 연습해요');
   assert.equal(settingsSub(me()), 'Pro 이용 중');
   assert.match(settingsSub(me({ status: 'past_due', pro: false })), /결제하지 못했어요/);
   assert.equal(settingsTarget(me({ status: 'none', pro: false })), '/pro');

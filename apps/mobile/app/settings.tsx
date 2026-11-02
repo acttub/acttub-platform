@@ -74,7 +74,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         <AdSlot slot="settings_top" />
         {billing && proVisible(billing) && (
-          <SettingsProCard sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)} onPress={() => router.push(settingsTarget(billing))} />
+          <SettingsProCard sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)} free={!billing.pro} onPress={() => router.push(settingsTarget(billing))} />
         )}
 
         <SectionTitle>{t('settings.profile')}</SectionTitle>
