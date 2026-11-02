@@ -4848,6 +4848,29 @@
         } ]
       }
     },
+    "/v2/practices/days" : {
+      "get" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "List Practice Days",
+        "description" : "연습한 날짜(한국 시간 YYYY-MM-DD, 오래된 순). 노트가 생긴 코칭 회차·끝까지 읽은 리딩 회차·올린 참여작을 센다. 숨긴 기록도 센다. 홈의 연속일·주간 원·누적 연습일이 쓴다(SOMA-1003).",
+        "operationId" : "list_practice_days_v2_practices_days_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeDays"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/portfolio" : {
       "get" : {
         "tags" : [ "v2-portfolio" ],
@@ -12399,6 +12422,21 @@
         },
         "required" : [ "duration_ms", "limitations", "missing_ranges", "observed_scene", "processed_ranges", "record_id", "record_version", "schema_version", "spoken_content", "status" ],
         "title" : "VideoRecordSummaryResponse"
+      },
+      "PracticeDays" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "days" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Days"
+          }
+        },
+        "required" : [ "days" ],
+        "title" : "PracticeDays"
       },
       "ChallengeEntry" : {
         "type" : "object",

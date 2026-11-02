@@ -1128,6 +1128,14 @@ export const api = {
   },
 
   /** 묶음 목록. 진행 중 회차 id 가 있으면 그 회차로 복귀시킨다. */
+  /**
+   * 연습한 날짜(한국 시간 YYYY-MM-DD, 오래된 순, SOMA-1003). 「연습 1회」 기준으로 서버가 센다 — 리딩은 앱이 최근 대본만
+   * 받으므로, 재설치·새 로그인 뒤에도 지난 날이 빠지지 않게 이걸 함께 쓴다.
+   */
+  practiceDays(options: ApiCallOptions = {}): Promise<{ days: string[] }> {
+    return request<{ days: string[] }>('/v2/practices/days', {}, { signal: options.signal });
+  },
+
   async listPracticeGroups(
     filter: PracticeGroupFilter = 'all',
     options: ApiCallOptions = {},
