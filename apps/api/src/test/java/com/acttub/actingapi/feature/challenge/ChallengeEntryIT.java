@@ -449,11 +449,11 @@ class ChallengeEntryIT {
                 .isEqualTo("https://play.test/" + photo);
         assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
                 .contains("https://play.test/" + photo);
-        jdbc.update("UPDATE challenge_entries SET face_mosaic=true,mosaic_status='ready' WHERE id=?", five);
+        jdbc.update("UPDATE challenge_entries SET face_mosaic=true,mosaic_status='ready',mosaic_key='videos/five.mosaic.mp4' WHERE id=?", five);
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url").isNull()).isTrue();
         assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
                 .doesNotContain("https://play.test/" + photo);
-        jdbc.update("UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL WHERE id=?", five);
+        jdbc.update("UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,mosaic_key=NULL WHERE id=?", five);
         JsonNode latest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200);
         assertThat(ids(latest)).containsExactly(threeLate.toString(), threeEarly.toString(), five.toString());
         assertThat(latest.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
