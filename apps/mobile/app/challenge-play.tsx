@@ -1,11 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Pressable,
   StyleSheet,
@@ -34,7 +36,17 @@ import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded,
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { commentCountAfter } from '@/lib/challenge/entry';
 import { playMenuItems, type PlayMenuItem } from '@/lib/challenge/menu';
-import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
+import {
+  canReact,
+  DOUBLE_TAP_MS,
+  doubleTapAction,
+  isDoubleTap,
+  optimisticLike,
+  optimisticSave,
+  reactFailure,
+  reactFailureMessage,
+  type LastTap,
+} from '@/lib/challenge/react';
 import type { ChallengeDetail, EntryCard, ReportReason, ReportTarget } from '@/lib/challenge/types';
 import { createViewTracker, VIEW_THRESHOLD_MS } from '@/lib/challenge/views';
 import { useAuth } from '@/lib/auth';
@@ -53,6 +65,9 @@ import { limitVideoBuffer } from '@/lib/video-memory';
  * 반응(challenge.react): 좋아요는 먼저 표시를 바꾸고 서버가 실패하면 되돌려 알린다. 저장·댓글도
  * 같은 자리에 있고 자기 참여작에는 좋아요·저장을 하지 않는다. 신고(A15.4)는 사유 다섯에 기타
  * 메모이고, 차단하면 그 사람의 참여작이 이 화면에서 바로 사라진다(상대에게 알리지 않는다).
+ *
+ * 영상을 두 번 누르면 인스타처럼 누른 자리에 하트가 뜨고 좋아요가 된다(이미 눌렀으면 취소하지
+ * 않고 하트만). 한 번 누르기(재생·멈춤)는 두 번 누르기와 구분하려고 DOUBLE_TAP_MS 만큼 늦게 반응한다.
  */
 export default function ChallengePlayScreen() {
   const router = useRouter();
@@ -268,6 +283,25 @@ export default function ChallengePlayScreen() {
     else player.play();
     setPlaying((v) => !v);
   };
+  // 한 번 누르기는 잠깐 기다렸다가 처리하므로 그때의 최신 재생 상태로 바꾸게 한다.
+  const togglePlayRef = useRef(togglePlay);
+  togglePlayRef.current = togglePlay;
+
+  const lastTap = useRef<LastTap | null>(null);
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 두 번 누른 자리에 띄울 하트. key 가 바뀌면 애니메이션을 처음부터 다시 한다. */
+  const [burst, setBurst] = useState<{ key: number; x: number; y: number; tilt: number } | null>(null);
+  const cancelSingleTap = () => {
+    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = null;
+  };
+  // 다른 참여작으로 넘기거나 화면을 닫으면 기다리던 한 번 누르기와 하트를 버린다.
+  useEffect(() => {
+    cancelSingleTap();
+    lastTap.current = null;
+    setBurst(null);
+  }, [active]);
+  useEffect(() => cancelSingleTap, []);
 
   const perform = () => {
     if (!challenge || !canPerform(challenge)) return;
@@ -304,6 +338,37 @@ export default function ChallengePlayScreen() {
       void alert({ title: t('react.likeFailTitle'), message: reactFailureMessage(reactFailure(e)) });
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** 영상 누르기 — 한 번은 재생·멈춤, 같은 참여작을 빠르게 두 번 누르면 좋아요(인스타식). */
+  const onVideoPress = (entry: EntryCard, e: GestureResponderEvent) => {
+    const now = Date.now();
+    if (!isDoubleTap(lastTap.current, now, entry.id)) {
+      lastTap.current = { at: now, entryId: entry.id };
+      cancelSingleTap();
+      singleTapTimer.current = setTimeout(() => {
+        singleTapTimer.current = null;
+        togglePlayRef.current();
+      }, DOUBLE_TAP_MS);
+      return;
+    }
+    // 계속 빠르게 누르면 하트만 더 띄우고 재생·멈춤은 건드리지 않는다.
+    lastTap.current = { at: now, entryId: entry.id };
+    cancelSingleTap();
+    const action = doubleTapAction(entry);
+    if (action === 'none') return;
+    const x = e?.nativeEvent?.locationX ?? width / 2;
+    const y = e?.nativeEvent?.locationY ?? height / 2;
+    setBurst({ key: now, x, y, tilt: Math.round(Math.random() * 30 - 15) });
+    try {
+      void Promise.resolve(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)).catch(() => {});
+    } catch {
+      // 진동이 안 되는 기기에서도 좋아요는 그대로 한다.
+    }
+    if (action === 'like') {
+      logEvent('challenge_double_tap_like', { id: entry.id });
+      void toggleLike(entry);
     }
   };
 
@@ -387,13 +452,20 @@ export default function ChallengePlayScreen() {
         {isActive && sourceOf(item, originalFor) && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         )}
-        <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button" ph-label="challenge_play_toggle">
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={(e) => onVideoPress(item, e)}
+          accessibilityRole="button"
+          ph-label="challenge_play_toggle">
           {isActive && !playing && (
             <View style={styles.pauseCenter}>
               <Feather name="play" size={40} color={palette.onAccent} />
             </View>
           )}
         </Pressable>
+        {isActive && burst && (
+          <LikeBurst key={burst.key} x={burst.x} y={burst.y} tilt={burst.tilt} onDone={() => setBurst(null)} />
+        )}
         {/* 위·아래 막은 가장자리만 진하고 영상 쪽으로 갈수록 투명해진다 — 아래 절반을 같은 진하기로 덮던 박스를 바꿨다. */}
         <ScrimGradient color={SCRIM_COLOR} alphas={SCRIM_TOP} height={130} style={styles.scrimTop} />
         <ScrimGradient color={SCRIM_COLOR} alphas={SCRIM_BOTTOM} height={330} style={styles.scrimBottom} />
@@ -597,6 +669,39 @@ export default function ChallengePlayScreen() {
   );
 }
 
+const BURST_SIZE = 96;
+
+/** 두 번 누른 자리에 떠오르는 하트 — 튀어 커졌다가 잠깐 머문 뒤 살짝 커지며 사라진다. 누르기를 막지 않는다. */
+function LikeBurst({ x, y, tilt, onDone }: { x: number; y: number; tilt: number; onDone: () => void }) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.sequence([
+      Animated.spring(scale, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }),
+      Animated.delay(250),
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.25, duration: 220, useNativeDriver: true }),
+      ]),
+    ]);
+    anim.start(({ finished }) => finished && onDone());
+    return () => anim.stop();
+    // 한 번 뜬 하트는 끝까지 같은 애니메이션을 한다(새로 누르면 key 가 바뀌어 새 하트가 된다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      testID="like-burst"
+      style={[
+        styles.burst,
+        { left: x - BURST_SIZE / 2, top: y - BURST_SIZE / 2, opacity, transform: [{ rotate: `${tilt}deg` }, { scale }] },
+      ]}>
+      <MaterialCommunityIcons name="heart" size={BURST_SIZE} color={palette.danger} />
+    </Animated.View>
+  );
+}
+
 /** 재생할 주소. 원본 보기를 켠 내 참여작이고 원본 주소가 있을 때만 원본이다. */
 function sourceOf(entry: EntryCard, originalFor: string | null): string | null {
   return originalFor === entry.id && entry.original_playback_url ? entry.original_playback_url : entry.playback_url;
@@ -623,6 +728,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.text },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  burst: { position: 'absolute', width: BURST_SIZE, height: BURST_SIZE, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
   scrimTop: { top: 0 },
   scrimBottom: { bottom: 0 },
   overlay: { flex: 1, justifyContent: 'space-between' },

@@ -18,6 +18,27 @@ export function optimisticLike(state: LikeState): LikeState {
     : { liked: true, likeCount: state.likeCount + 1 };
 }
 
+/**
+ * 영상 두 번 누르기(인스타처럼). 같은 참여작을 이 간격 안에 다시 누르면 두 번 누르기다. 한 번
+ * 누르기(재생·멈춤)는 두 번 누르기와 구분하려고 이만큼 늦게 반응한다.
+ */
+export const DOUBLE_TAP_MS = 250;
+
+export type LastTap = { at: number; entryId: string };
+
+export function isDoubleTap(prev: LastTap | null, now: number, entryId: string): boolean {
+  return prev !== null && prev.entryId === entryId && now - prev.at >= 0 && now - prev.at <= DOUBLE_TAP_MS;
+}
+
+/**
+ * 두 번 누르기는 좋아요만 한다 — 이미 누른 참여작이면 취소하지 않고 하트만 다시 띄운다. 취소는
+ * 오른쪽 하트 버튼으로만 한다. 자기 참여작에는 하트도 띄우지 않는다.
+ */
+export function doubleTapAction(entry: { liked: boolean; is_mine?: boolean }): 'none' | 'heart' | 'like' {
+  if (!canReact(entry)) return 'none';
+  return entry.liked ? 'heart' : 'like';
+}
+
 /** 자기 참여작에는 좋아요·저장을 할 수 없다. 버튼은 보이되 눌러도 보내지 않는다. */
 export function canReact(entry: { is_mine?: boolean }): boolean {
   return !entry.is_mine;
