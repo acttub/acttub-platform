@@ -15,6 +15,7 @@ import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
@@ -149,7 +150,7 @@ public class ActorMemoryUpdateWorker {
         Map<String, String> written = new LinkedHashMap<>(extractor.extract(
                 material,
                 updates.current(material.userId(), claimed.practiceId()),
-                (system, user) -> recorded(material, system, user, claimed.jobId(), "fields"),
+                (system, user) -> recorded(material, system, user, claimed.jobId(), "fields", MemoryExtractor.TEMPLATE),
                 claimed.jobId()));
         profile(claimed, material).ifPresent(text -> written.put(ActorMemoryFields.COACHING_PROFILE, text));
         return written;
@@ -164,7 +165,7 @@ public class ActorMemoryUpdateWorker {
             ProfileMaterial profile = updates.profileMaterial(material.userId(), clock.instant());
             if (profile == null) return Optional.empty();
             return profileWriter.write(profile,
-                    (system, user) -> recorded(material, system, user, claimed.jobId(), "coaching_profile"));
+                    (system, user) -> recorded(material, system, user, claimed.jobId(), "coaching_profile", CoachingProfileWriter.TEMPLATE));
         } catch (RuntimeException failure) {
             LOG.warn("맞춤 코칭 갱신 실패: {}", claimed.jobId(), failure);
             failureReporter.report(
@@ -174,7 +175,7 @@ public class ActorMemoryUpdateWorker {
     }
 
     /** 기억을 뽑는 호출 한 번을 남긴다 — 람다가 이미 이음매라 추출기는 문자열만 안다. */
-    private String recorded(MemoryUpdateMaterial material, String system, String user, UUID jobId, String part) {
+    private String recorded(MemoryUpdateMaterial material, String system, String user, UUID jobId, String part, LlmPrompt template) {
         Instant startedAt = Instant.now();
         try {
             var generated = generator.generate(system, user);
@@ -193,7 +194,8 @@ public class ActorMemoryUpdateWorker {
                     Duration.between(startedAt, Instant.now()),
                     null,
                     LlmCall.metadata("blockage_kind", material.blockageKind(), "operation_id", jobId.toString(),
-                            "memory_part", part)));
+                            "memory_part", part))
+                    .withPrompt(template));
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(
@@ -208,7 +210,8 @@ public class ActorMemoryUpdateWorker {
                     Duration.between(startedAt, Instant.now()),
                     failure.getClass().getSimpleName(),
                     LlmCall.metadata("blockage_kind", material.blockageKind(), "operation_id", jobId.toString(),
-                            "memory_part", part)));
+                            "memory_part", part))
+                    .withPrompt(template));
             throw failure;
         }
     }

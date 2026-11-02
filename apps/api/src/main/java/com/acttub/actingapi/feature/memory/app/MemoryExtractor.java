@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -106,6 +107,8 @@ public final class MemoryExtractor {
 
             {"goal": "...", "blockage": "...", "wants": "...", "habits": "...", "tone": "..."}
             """;
+
+    static final LlmPrompt TEMPLATE = new LlmPrompt("memory.extraction", SYSTEM_PROMPT);
 
     private final FailureReporter failureReporter;
 

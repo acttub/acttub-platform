@@ -48,6 +48,27 @@ class ScriptSplitWorkerOutcomeTest {
                 : new ScriptImportRepository.Material(user, false, UUID.randomUUID(), "fp", "제목", rawText, "paste", false, null));
     }
 
+    @Test void everyRecordedPromptIsTheSameFixedTemplateWhateverTheScriptSays() {
+        var telemetry = new RecordingLlmTelemetry();
+        var recording = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock);
+        List<java.util.Set<com.acttub.actingapi.platform.observability.LlmPrompt>> runs = new ArrayList<>();
+        for (String cast : List.of("김비밀", "박비밀")) {
+            telemetry.clear();
+            StringBuilder text = new StringBuilder();
+            for (int i = 0; i < 160; i++) text.append(cast).append(": 대사 ").append(i).append(" 번째\n");
+            claimed(text.toString());
+            answers.clear();
+            answers.add("대본\t예\n" + cast + "\tm\tadult");
+            recording.runOnce();
+            assertThat(telemetry.calls()).isNotEmpty().allSatisfy(call -> assertThat(call.input()).contains(cast));
+            assertThat(telemetry.calls()).extracting(call -> call.prompt()).doesNotContainNull()
+                    .allSatisfy(prompt -> assertThat(prompt.name() + prompt.text()).doesNotContain("비밀"));
+            runs.add(telemetry.calls().stream().map(call -> call.prompt()).collect(java.util.stream.Collectors.toSet()));
+        }
+        assertThat(runs.getFirst()).isEqualTo(runs.getLast());
+        assertThat(runs.getFirst()).extracting(prompt -> prompt.name()).contains("script.split.roster.judge", "script.split.rows.known-cast");
+    }
+
     @Test void nothingToClaimMeansNoWork() {
         assertThat(worker.runOnce()).isFalse();
     }

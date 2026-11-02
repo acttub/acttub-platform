@@ -29,8 +29,6 @@ public final class ScriptSplitRules {
     /** 호출 하나의 재시도 횟수(연결 실패·429·5xx·미완료). 소진하면 작업이 {@code failed} 다. */
     public static final int CALL_RETRIES = 2;
 
-    /** 시험·결정의 모델. 코치의 기본 모델({@code OpenAiResponsesClient})과 다르고 호출마다 넘긴다. */
-    public static final String MODEL = "gpt-6-luna";
     public static final String REASONING_EFFORT = "low";
     public static final int MAX_OUTPUT_TOKENS = 128_000;
 

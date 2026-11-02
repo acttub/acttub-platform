@@ -92,6 +92,7 @@ class ActorMemoryUpdateWorkerTest {
             assertThat(call.tokens()).isEqualTo(LlmTokens.unknown());
             assertThat(call.model()).isEqualTo("test-model");
             assertThat(call.metadata()).containsEntry("operation_id", JOB.toString());
+            assertThat(call.prompt()).isEqualTo(MemoryExtractor.TEMPLATE);
         });
     }
 

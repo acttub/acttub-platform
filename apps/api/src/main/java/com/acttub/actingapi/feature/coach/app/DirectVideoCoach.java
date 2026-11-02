@@ -20,7 +20,6 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
-import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -468,11 +467,12 @@ public final class DirectVideoCoach {
                     continuationPrior = prior;
                     continuationBlock = DirectVideoPrompts.continuation(prior, language);
                     final DirectVideoModel.Video heardVideo = uploaded;
+                    final ReplyTrace heardTrace = replyTrace.sibling(false);
                     Runnable heardCall = ExternalOperationExecution.observeCall("model");
                     heardFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
                         heardCall.run();
                         try {
-                            return model.reply(heardVideo, java.util.List.of(), ContinuedTake.heardLinesPrompt());
+                            return heardTrace.run(() -> model.reply(heardVideo, java.util.List.of(), ContinuedTake.heardLinesPrompt()));
                         } catch (RuntimeException transcriptionFailed) {
                             return null;
                         }
@@ -518,11 +518,12 @@ public final class DirectVideoCoach {
                 final DirectVideoModel.Video continuedVideo = uploaded;
                 final java.util.List<DirectVideoModel.Message> continuedHistory = java.util.List.copyOf(history);
                 final boolean loopFinal = loop;
+                final ReplyTrace continuedTrace = replyTrace.sibling(false);
                 Runnable continuedCall = ExternalOperationExecution.observeCall("model");
                 continuedFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
                     continuedCall.run();
                     try {
-                        return replyOrNull(speakerFinal, continuedVideo, continuedHistory, continuedPrompt, loopFinal, new ReplyTrace(false));
+                        return replyOrNull(speakerFinal, continuedVideo, continuedHistory, continuedPrompt, loopFinal, continuedTrace);
                     } catch (RuntimeException continuedFailed) {
                         return null;
                     }
@@ -534,7 +535,7 @@ public final class DirectVideoCoach {
             java.util.Locale replyLanguage = DirectVideoPracticeLoop.replyLanguage(session, actorText);
             final VisibleCoachText visible = streaming ? new VisibleCoachText(session.turns().isEmpty(), replyLanguage, stream::delta) : null;
             // 답장(첫 질문이 아닌 턴)은 생각을 최소로 쓴다(SOMA-780). 첫 질문·분류·정리 노트는 그대로 LOW 다.
-            final ReplyTrace trace = new ReplyTrace(followUpMinimalThinking && !session.turns().isEmpty());
+            final ReplyTrace trace = replyTrace.sibling(followUpMinimalThinking && !session.turns().isEmpty());
             replyTrace = trace;
             ExternalOperationExecution.externalCall("model");
             String message = streaming ? streamOrNull(speaker, uploaded, history, prompt, visible, trace)
@@ -710,7 +711,7 @@ public final class DirectVideoCoach {
                 String repeated = DirectVideoPracticeLoop.repeatedQuestion(shown, earlier);
                 java.util.List<String> said = DirectVideoPracticeLoop.repeatedLines(shown, earlier);
                 if (!figures.isEmpty() || !repeated.isEmpty() || !said.isEmpty()) {
-                    String better = polish(shown, figures, repeated, said, earlier, actorWords, replyLanguage, uploaded, written, operationId);
+                    String better = polish(shown, figures, repeated, said, earlier, actorWords, replyLanguage, uploaded, written, operationId, trace);
                     polished = 1;
                     if (better != null) {
                         // 다듬기가 질문을 하나 더 붙이기도 한다(재생). 정리와 정리 뒤 답은 질문 없이, 그 밖은 첫 질문까지만 남긴다.
@@ -742,13 +743,13 @@ public final class DirectVideoCoach {
             // 첫 코칭 첫 말 B의 첫 응답은 200자 안쪽 여러 줄이 목표다. 줄이기는 40~60자 질문 한 줄로 만들어 버리므로 건너뛴다.
             if (openingB && session.turns().isEmpty()) limit = Integer.MAX_VALUE;
             while (loop && !cut && !streaming && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > limit) {
-                String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, profile, uploaded, written, operationId);
+                String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, profile, uploaded, written, operationId, trace);
                 shortened++;
                 if (shorter == null) break;
                 shown = shorter;
             }
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
-                    speaker.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    speaker.model(), input, message, replyTrace.tokens(speaker.model()), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
@@ -762,6 +763,7 @@ public final class DirectVideoCoach {
                             "thinking", replyTrace.thinking(),
                             "thoughts_tokens", Integer.toString(replyTrace.thoughtsTokens()),
                             "candidates_tokens", Integer.toString(replyTrace.candidatesTokens()),
+                            "other_model_tokens", replyTrace.otherModels(speaker.model()),
                             "reply_ms", Long.toString(millis(videoNanos, repliedNanos)),
                             "shorten_ms", Long.toString(millis(repliedNanos, System.nanoTime()))))
                     .withPrompt(template));
@@ -791,12 +793,13 @@ public final class DirectVideoCoach {
             failures.report(failure, inspecting ? FailureKind.UNEXPECTED : FailureKind.EXTERNAL,
                     new FailureContext(inspecting ? "DirectVideoCoach.inspect" : "DirectVideoCoach.turn", operationId));
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
-                    speaker.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    speaker.model(), input, "", replyTrace.tokens(speaker.model()), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow,
                             "video_omitted", Boolean.toString(videoOmitted), "thinking", replyTrace.thinking(),
                             "thoughts_tokens", Integer.toString(replyTrace.thoughtsTokens()),
-                            "candidates_tokens", Integer.toString(replyTrace.candidatesTokens()))).withPrompt(template));
+                            "candidates_tokens", Integer.toString(replyTrace.candidatesTokens()),
+                            "other_model_tokens", replyTrace.otherModels(speaker.model()))).withPrompt(template));
             LOG.info("coach turn timing practice={} first={} arm={} failed={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} video_omitted={} thinking={} thoughts_tokens={}",
                     shortId(session.practiceSessionId()), session.turns().isEmpty(), arm, failure.getClass().getSimpleName(),
                     millis(startedNanos, System.nanoTime()), millis(startedNanos, classifiedNanos),
@@ -1186,7 +1189,7 @@ public final class DirectVideoCoach {
      */
     private String polish(String text, java.util.List<String> figures, String repeated, java.util.List<String> said,
             java.util.List<String> earlier, String actorWords,
-            java.util.Locale language, DirectVideoModel.Video video, String written, UUID operationId) {
+            java.util.Locale language, DirectVideoModel.Video video, String written, UUID operationId, ReplyTrace turn) {
         if (DirectVideoPracticeLoop.looksBroken(text, language)) return null;
         var notes = new StringBuilder();
         if (!figures.isEmpty()) notes.append("\n- 고칠 비유: ").append(String.join(", ", figures));
@@ -1200,8 +1203,8 @@ public final class DirectVideoCoach {
         }
         try {
             ExternalOperationExecution.externalCall("model");
-            String raw = model.replyLight(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
-                    DirectVideoPrompts.practiceLoopPolish(language) + notes);
+            String raw = turn.sibling(false).run(() -> model.replyLight(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
+                    DirectVideoPrompts.practiceLoopPolish(language) + notes));
             if (raw == null || raw.isBlank()) return null;
             String better = DirectVideoPracticeLoop.parse(raw).message();
             if (DirectVideoPracticeLoop.hasTimestamp(better)) better = DirectVideoPracticeLoop.stripTimestamps(better);
@@ -1224,14 +1227,14 @@ public final class DirectVideoCoach {
      * 긴 코치 말을 줄이기만 하는 호출(영상 없음). 뜻과 마지막 질문은 그대로 두고 50자 안쪽으로 다시 쓰게 한다.
      * 줄지 않았거나 비었거나 근거 검사를 못 넘으면 {@code null} — 부르는 쪽이 원래 말을 그대로 쓴다.
      */
-    private String shorten(String text, java.util.Locale language, String persona, String profile, DirectVideoModel.Video video, String written, UUID operationId) {
+    private String shorten(String text, java.util.Locale language, String persona, String profile, DirectVideoModel.Video video, String written, UUID operationId, ReplyTrace turn) {
         // 코치 말로 보이지 않는 글은 줄이지 않는다. 줄이면 엉뚱한 글이 그럴듯한 한국어 한 줄이 되어 버린다.
         if (DirectVideoPracticeLoop.looksBroken(text, language)) return null;
         try {
             ExternalOperationExecution.externalCall("model");
             // 줄이기는 생각을 거의 하지 않게 부른다(SOMA-780, 10/21 실측 6.0초 → 1.3초).
-            String raw = model.replyLight(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
-                    DirectVideoPrompts.practiceLoopShorten(language) + DirectVideoPrompts.personaShortenNote(persona, language, profile));
+            String raw = turn.sibling(false).run(() -> model.replyLight(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
+                    DirectVideoPrompts.practiceLoopShorten(language) + DirectVideoPrompts.personaShortenNote(persona, language, profile)));
             if (raw == null || raw.isBlank()) return null;
             String shorter = DirectVideoPracticeLoop.parse(raw).message();
             if (DirectVideoPracticeLoop.hasTimestamp(shorter)) shorter = DirectVideoPracticeLoop.stripTimestamps(shorter);
@@ -1433,10 +1436,11 @@ public final class DirectVideoCoach {
         Instant started = Instant.now();
         String output = "";
         String error = null;
+        ReplyTrace usage = new ReplyTrace(false);
         ExternalOperationExecution.externalCall("model");
         try {
-            output = model.classify(java.util.List.copyOf(transcript), DirectVideoPrompts.practiceLoopClassifier(),
-                    PracticeLoopRouter.SIGNALS);
+            output = usage.run(() -> model.classify(java.util.List.copyOf(transcript), DirectVideoPrompts.practiceLoopClassifier(),
+                    PracticeLoopRouter.SIGNALS));
             return PracticeLoopRouter.parse(output);
         } catch (RuntimeException failure) {
             error = failure.getClass().getSimpleName();
@@ -1446,7 +1450,7 @@ public final class DirectVideoCoach {
         } finally {
             telemetry.record(new LlmCall(LlmStep.COACH_ROUTE, session.practiceSessionId(), session.userId(), model.model(),
                     DirectVideoPrompts.practiceLoopClassifier() + "\n" + transcript, output == null ? "" : output,
-                    LlmTokens.unknown(), started, Duration.between(started, Instant.now()), error,
+                    usage.tokens(model.model()), started, Duration.between(started, Instant.now()), error,
                     LlmCall.metadata("transport", "gemini_text_routing", "route", "practice_loop_classify"))
                     .withPrompt(new LlmPrompt("coach.practice-loop.classify", DirectVideoPrompts.practiceLoopClassifier())));
         }

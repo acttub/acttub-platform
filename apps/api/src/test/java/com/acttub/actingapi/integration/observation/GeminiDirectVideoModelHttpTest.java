@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
@@ -197,6 +198,51 @@ class GeminiDirectVideoModelHttpTest {
         assertThat(bodies).extracting(body -> body.path("generationConfig").path("thinkingConfig").path("thinkingLevel").asText())
                 .containsExactly("MINIMAL", "LOW", "LOW", "LOW");
         assertThat(GeminiDirectVideoModel.minimalThinking(null)).isFalse();
+    }
+
+    @Test
+    void aTurnAddsEveryCallsTokensAndCountsAStreamOnce() {
+        GeminiDirectVideoModel flash = new GeminiDirectVideoModel(client, "gemini-3-flash-preview");
+        var history = List.of(new DirectVideoModel.Message("user", "배우의 답"));
+        ReplyTrace turn = new ReplyTrace(false);
+        respond(usage(chunk("답", "STOP"), 100, 20, 7, 127));
+        turn.run(() -> flash.reply(VIDEO, history, "지침"));
+        // 조각마다 누적값이 온다. 마지막 조각만 더해야 비용이 맞다.
+        stream(usage(chunk("스트", null), 50, 1, 2, 53), usage(chunk("리밍", "STOP"), 50, 9, 2, 61));
+        turn.run(() -> flash.replyStream(VIDEO, history, "지침", piece -> { }));
+        respond(usage(chunk("짧게", "STOP"), 10, 3, 0, 13));
+        turn.sibling(false).run(() -> flash.replyLight(null, history, "줄이기"));
+
+        assertThat(turn.tokens("gemini-3-flash-preview")).isEqualTo(LlmTokens.of(160, 41, 201));
+        assertThat(turn.otherModels("gemini-3-flash-preview")).isEmpty();
+        assertThat(turn.otherModels("gemini-3.8-flash")).isEqualTo("gemini-3-flash-preview:160/41/201");
+        // 줄이기의 토큰은 합에만 들어가고, 답의 생각 칸은 그대로다.
+        assertThat(turn.candidatesTokens()).isEqualTo(9);
+    }
+
+    @Test
+    void aClassificationReportsItsTokensWithoutTouchingTheThinkingFields() {
+        ReplyTrace usage = new ReplyTrace(false);
+        respond(usage(chunk("{\"signals\":[\"answer\"]}", "STOP"), 30, 4, 1, 35));
+        usage.run(() -> new GeminiDirectVideoModel(client, "gemini-3-flash-preview")
+                .classify(List.of(new DirectVideoModel.Message("user", "답")), "분류", List.of("answer")));
+        assertThat(usage.tokens("gemini-3-flash-preview")).isEqualTo(LlmTokens.of(30, 5, 35));
+        assertThat(usage.thinking()).isEmpty();
+        assertThat(usage.candidatesTokens()).isEqualTo(-1);
+    }
+
+    @Test
+    void aFailedCallOrAnAnswerWithoutUsageLeavesTheTokensUnknown() {
+        ReplyTrace turn = new ReplyTrace(false);
+        respond(chunk("답", "STOP"));
+        turn.run(() -> new GeminiDirectVideoModel(client, "gemini-3-flash-preview").reply(VIDEO, List.of(), "지침"));
+        assertThat(turn.tokens("gemini-3-flash-preview")).isEqualTo(LlmTokens.unknown());
+        assertThat(turn.tokens(null)).isEqualTo(LlmTokens.unknown());
+    }
+
+    private static String usage(String chunk, int prompt, int candidates, int thoughts, int total) {
+        return chunk.replace("}]}", "}],\"usageMetadata\":{\"promptTokenCount\":" + prompt + ",\"candidatesTokenCount\":" + candidates
+                + ",\"thoughtsTokenCount\":" + thoughts + ",\"totalTokenCount\":" + total + "}}");
     }
 
     @Test

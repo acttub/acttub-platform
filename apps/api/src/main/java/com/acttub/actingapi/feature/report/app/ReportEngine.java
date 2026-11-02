@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.report.domain.ReportBranch;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
@@ -138,7 +139,8 @@ public class ReportEngine {
         String systemPrompt = OutputLanguage.apply(ReportPrompt.select(reportType)
                 + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION));
         String userPrompt = serializeInput(modelInput);
-        String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId, actorProfile != null);
+        String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId, actorProfile != null,
+                ReportPrompt.template(reportType));
         if (practiceSessionId != null) {
             telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked", false));
         }
@@ -153,7 +155,8 @@ public class ReportEngine {
                 OutputLanguage.apply(DialogueNote.PROMPT)
                         + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION),
                 noteModelInput(input, actorProfile),
-                "practice_note", practiceSessionId, userId, actorProfile != null),
+                "practice_note", practiceSessionId, userId, actorProfile != null,
+                new LlmPrompt("report.practice_note", DialogueNote.PROMPT)),
                 failure -> copyFailed[0] = true);
         if (practiceSessionId != null) {
             // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
@@ -167,6 +170,7 @@ public class ReportEngine {
      *
      * @param carriesProfile 입력 최상위에 {@code actor_profile} 이 실렸다. 모델에는 그대로 보내고, 바깥으로
      *        나가는 기록에서만 이름을 가린다 (apps/api/CONTRACT.md §7-2)
+     * @param template 언어·프로필 지시를 붙이기 전의 고정 본문
      */
     private String recorded(
             String systemPrompt,
@@ -174,7 +178,8 @@ public class ReportEngine {
             String reportType,
             UUID practiceSessionId,
             UUID userId,
-            boolean carriesProfile) {
+            boolean carriesProfile,
+            LlmPrompt template) {
         String recordedInput = systemPrompt + "\n\n"
                 + (carriesProfile ? ActorNameRedaction.inJson(userPrompt) : userPrompt);
         Instant startedAt = Instant.now();
@@ -190,7 +195,7 @@ public class ReportEngine {
                                 generated.usage().completion(),
                                 generated.usage().total()),
                         startedAt, Duration.between(startedAt, Instant.now()), null,
-                        LlmCall.metadata("report_type", reportType)));
+                        LlmCall.metadata("report_type", reportType)).withPrompt(template));
             }
             return generated.text();
         } catch (RuntimeException failure) {
@@ -200,7 +205,7 @@ public class ReportEngine {
                         recordedInput, "", LlmTokens.unknown(),
                         startedAt, Duration.between(startedAt, Instant.now()),
                         failure.getClass().getSimpleName(),
-                        LlmCall.metadata("report_type", reportType)));
+                        LlmCall.metadata("report_type", reportType)).withPrompt(template));
             }
             throw failure;
         }

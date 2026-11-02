@@ -86,6 +86,8 @@ class JournalServiceTest {
         assertThat(view.conversationId()).isEqualTo(conversationId);
         assertThat(calls).hasSize(1);
         assertThat(calls.getFirst().input()).contains("떠나지 말고 제 얘기를");
+        assertThat(calls.getFirst().prompt().name()).isEqualTo("report.actor_journal");
+        assertThat(calls.getFirst().prompt().text()).isEqualTo(JournalService.PROMPT).doesNotContain("떠나지 말고 제 얘기를");
     }
 
     @Test
