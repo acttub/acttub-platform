@@ -20,7 +20,11 @@ test('홈 머리 액티는 하루 동안 같은 자세이고 날마다 돌아간
   assert.equal(dailyIndex(6, tomorrow), (dailyIndex(6, morning) + 1) % 6);
   assert.equal(dailyIndex(0, morning), 0);
   // 홈은 pen 히어로(책 위에서 읽는 액티)로 바뀌었다(SOMA-821) — 날마다 바뀌는 포즈는 쓰지 않는다.
-  assert.match(read('app/(tabs)/index.tsx'), /hero-acty-book\.png/);
+  // 원래 한 장을 액티·책 두 겹으로 나눠 액티만 움직인다.
+  assert.match(read('app/(tabs)/index.tsx'), /<HomeHeroActy\b/);
+  const hero = read('components/home-hero-acty.tsx');
+  assert.match(hero, /hero-acty\.png/);
+  assert.match(hero, /hero-book\.png/);
 });
 
 test('액티 그림은 메모리 캐시를 쓴다 — 기본(disk)이면 뜰 때마다 PNG 를 다시 읽고 풀어 늦게 뜬다(SOMA-847)', async () => {
