@@ -58,11 +58,7 @@ class LegacyStorageCompatibilityIT {
                     """);
             jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
-            // 커뮤니티는 0.1.0 에서 코드를 내리고 테이블만 남겼다. 한 문장이라 서로의 FK 가 막지 않는다.
-            jdbc.execute("""
-                    DROP TABLE community_reports, community_post_likes, community_anonymous_aliases,
-                        community_comments, community_blocks, community_posts, community_categories
-                    """);
+            // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
 
         try (var context = new SpringApplicationBuilder(ActingApiApplication.class).run(

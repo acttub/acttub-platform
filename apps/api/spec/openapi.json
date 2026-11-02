@@ -3029,6 +3029,473 @@
         } ]
       }
     },
+    "/v2/community/reports" : {
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Create Report",
+        "operationId" : "create_report_v2_community_reports_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/posts" : {
+      "get" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "List Posts",
+        "operationId" : "list_posts_v2_community_posts_get",
+        "parameters" : [ {
+          "name" : "category",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Category"
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cursor"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "maximum" : 50,
+              "minimum" : 1
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Limit"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostListResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Create Post",
+        "operationId" : "create_post_v2_community_posts_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PostWriteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostPayload"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/posts/{post_id}/likes" : {
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Like Post",
+        "operationId" : "like_post_v2_community_posts__post_id__likes_post",
+        "parameters" : [ {
+          "name" : "post_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LikeResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Unlike Post",
+        "operationId" : "unlike_post_v2_community_posts__post_id__likes_delete",
+        "parameters" : [ {
+          "name" : "post_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LikeResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/posts/{post_id}/comments" : {
+      "get" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "List Comments",
+        "operationId" : "list_comments_v2_community_posts__post_id__comments_get",
+        "parameters" : [ {
+          "name" : "post_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cursor"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "maximum" : 50,
+              "minimum" : 1
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Limit"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommentListResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Create Comment",
+        "operationId" : "create_comment_v2_community_posts__post_id__comments_post",
+        "parameters" : [ {
+          "name" : "post_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CommentWriteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommentPayload"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/images" : {
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Begin Community Image Upload",
+        "description" : "글에 붙일 사진 한 장을 올릴 자리. 받은 upload_url 로 upload_headers 를 실어 PUT 한 뒤 글 쓰기·고치기의 image_ids 에 넣는다. JPEG·PNG·WebP·HEIC 만(아니면 415 unsupported_media_type), 10MB 까지(넘으면 413 upload_too_large). 글에 붙지 않은 올리기가 20장이면 429 too_many_pending_images. 붙지 않은 채 24시간이 지나면 지워진다.",
+        "operationId" : "begin_community_image_v2_community_images_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CommunityImageUploadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommunityImageUploadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/images/{image_id}/complete" : {
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Complete Community Image Upload",
+        "description" : "올라온 것을 확인한다(포트폴리오 사진과 같은 단계). 건너뛰어도 글에 붙일 때 서버가 확인한다. 다시 불러도 같다. 없는 사진 404 community_image_not_found, 시한 지남 409 upload_intent_expired, 아직 안 올라옴 409 upload_not_found, 크기 다름 409 upload_size_mismatch.",
+        "operationId" : "complete_community_image_v2_community_images__image_id__complete_post",
+        "parameters" : [ {
+          "name" : "image_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Image Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommunityPostImage"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/blocks" : {
+      "get" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "List Blocks",
+        "operationId" : "list_blocks_v2_community_blocks_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BlockListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Block User",
+        "operationId" : "block_user_v2_community_blocks_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BlockRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/coach/start" : {
       "post" : {
         "tags" : [ "v2-coach" ],
@@ -4318,6 +4785,216 @@
         } ]
       }
     },
+    "/v2/community/posts/{post_id}" : {
+      "get" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Get Post",
+        "operationId" : "get_post_v2_community_posts__post_id__get",
+        "parameters" : [ {
+          "name" : "post_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostPayload"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Delete Post",
+        "operationId" : "delete_post_v2_community_posts__post_id__delete",
+        "parameters" : [ {
+          "name" : "post_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Update Post",
+        "operationId" : "update_post_v2_community_posts__post_id__patch",
+        "parameters" : [ {
+          "name" : "post_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PostUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostPayload"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/comments/{comment_id}" : {
+      "delete" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Delete Comment",
+        "operationId" : "delete_comment_v2_community_comments__comment_id__delete",
+        "parameters" : [ {
+          "name" : "comment_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Comment Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Update Comment",
+        "operationId" : "update_comment_v2_community_comments__comment_id__patch",
+        "parameters" : [ {
+          "name" : "comment_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Comment Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CommentWriteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommentPayload"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/videos" : {
       "get" : {
         "tags" : [ "v2-videos" ],
@@ -5243,6 +5920,28 @@
         }
       }
     },
+    "/v2/community/categories" : {
+      "get" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "List Categories",
+        "operationId" : "list_categories_v2_community_categories_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/coach/conversations/{conversation_id}" : {
       "get" : {
         "tags" : [ "v2-coach" ],
@@ -5779,6 +6478,41 @@
         "responses" : {
           "204" : {
             "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/blocks/{blocked_id}" : {
+      "delete" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Unblock User",
+        "operationId" : "unblock_user_v2_community_blocks__blocked_id__delete",
+        "parameters" : [ {
+          "name" : "blocked_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Blocked Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         },
         "security" : [ {
@@ -9841,6 +10575,387 @@
         "required" : [ "detail" ],
         "title" : "ConsentDocumentOutdatedError"
       },
+      "ReportRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "target_type" : {
+            "type" : "string",
+            "enum" : [ "post", "comment" ],
+            "title" : "Target Type"
+          },
+          "target_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Target Id"
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "copyright", "inappropriate", "spam", "duplicate", "other", "abuse", "sexual", "privacy" ],
+            "title" : "Reason"
+          },
+          "detail" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 500
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Detail"
+          }
+        },
+        "required" : [ "reason", "target_id", "target_type" ],
+        "title" : "ReportRequest"
+      },
+      "PostWriteRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "category_slug" : {
+            "type" : "string",
+            "minLength" : 1,
+            "title" : "Category Slug"
+          },
+          "title" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 1,
+            "title" : "Title"
+          },
+          "body" : {
+            "type" : "string",
+            "maxLength" : 5000,
+            "minLength" : 1,
+            "title" : "Body"
+          },
+          "anonymous" : {
+            "type" : "boolean",
+            "default" : false,
+            "title" : "Anonymous"
+          },
+          "image_ids" : {
+            "type" : "array",
+            "description" : "붙일 사진 id(POST /v2/community/images 로 받은 것). 순서 = 보여 줄 순서, 0~5장. 6장 이상은 400 too_many_images, 남의 것·없는 것·다른 글에 붙은 것·올라오지 않은 것은 400 invalid_image",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "Image Ids"
+          }
+        },
+        "required" : [ "body", "category_slug", "title" ],
+        "title" : "PostWriteRequest"
+      },
+      "AuthorPayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.\n\n익명 글에 실제 user id 를 실어 보내면 화면에 \"익명\" 이라 적혀 있어도 클라이언트가\n같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다.",
+        "properties" : {
+          "id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Id"
+          },
+          "nickname" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Nickname"
+          },
+          "alias" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Alias"
+          }
+        },
+        "required" : [ "alias", "id", "nickname" ],
+        "title" : "AuthorPayload"
+      },
+      "CommunityPostImage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "서명한 보기 주소(1시간). 스토리지가 없는 기동에서는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Url"
+          }
+        },
+        "required" : [ "id", "url" ],
+        "title" : "CommunityPostImage"
+      },
+      "PostPayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "anonymous" : {
+            "type" : "boolean",
+            "title" : "Anonymous"
+          },
+          "category_slug" : {
+            "type" : "string",
+            "title" : "Category Slug"
+          },
+          "category_name" : {
+            "type" : "string",
+            "title" : "Category Name"
+          },
+          "author" : {
+            "$ref" : "#/components/schemas/AuthorPayload"
+          },
+          "author_name" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "화면에 적을 작성자 이름. 프로필의 공개 이름(챌린지와 같다, 없으면 \"배우\"), 탈퇴했으면 \"탈퇴한 사용자\", 익명 글이면 \"익명\""
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Author Name"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "hidden 은 신고·운영으로 가려진 내 글이다. 남에게는 아예 오지 않는다",
+            "enum" : [ "visible", "hidden" ],
+            "title" : "Status"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "body" : {
+            "type" : "string",
+            "title" : "Body"
+          },
+          "like_count" : {
+            "type" : "integer",
+            "title" : "Like Count"
+          },
+          "comment_count" : {
+            "type" : "integer",
+            "title" : "Comment Count"
+          },
+          "view_count" : {
+            "type" : "integer",
+            "title" : "View Count"
+          },
+          "liked_by_me" : {
+            "type" : "boolean",
+            "title" : "Liked By Me"
+          },
+          "mine" : {
+            "type" : "boolean",
+            "title" : "Mine"
+          },
+          "is_mine" : {
+            "type" : "boolean",
+            "description" : "mine 과 같다",
+            "title" : "Is Mine"
+          },
+          "images" : {
+            "type" : "array",
+            "description" : "붙은 사진(보여 줄 순서, 0~5장). 목록의 각 글에도 전부 온다",
+            "items" : {
+              "$ref" : "#/components/schemas/CommunityPostImage"
+            },
+            "title" : "Images"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          }
+        },
+        "required" : [ "anonymous", "author", "author_name", "body", "category_name", "category_slug", "comment_count", "created_at", "id", "images", "is_mine", "like_count", "liked_by_me", "mine", "status", "title", "updated_at", "view_count" ],
+        "title" : "PostPayload"
+      },
+      "LikeResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "like_count" : {
+            "type" : "integer",
+            "title" : "Like Count"
+          },
+          "liked_by_me" : {
+            "type" : "boolean",
+            "title" : "Liked By Me"
+          }
+        },
+        "required" : [ "like_count", "liked_by_me" ],
+        "title" : "LikeResponse"
+      },
+      "CommentWriteRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "body" : {
+            "type" : "string",
+            "maxLength" : 1000,
+            "minLength" : 1,
+            "title" : "Body"
+          },
+          "anonymous" : {
+            "type" : "boolean",
+            "default" : false,
+            "title" : "Anonymous"
+          }
+        },
+        "required" : [ "body" ],
+        "title" : "CommentWriteRequest"
+      },
+      "CommentPayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "post_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Post Id"
+          },
+          "anonymous" : {
+            "type" : "boolean",
+            "title" : "Anonymous"
+          },
+          "author" : {
+            "$ref" : "#/components/schemas/AuthorPayload"
+          },
+          "author_name" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "화면에 적을 작성자 이름. 공개 이름, 탈퇴했으면 \"탈퇴한 사용자\", 익명 댓글이면 별칭(\"글쓴이\"·\"익명N\")"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Author Name"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "hidden 은 신고·운영으로 가려진 내 댓글이다. 남에게는 오지 않는다",
+            "enum" : [ "visible", "hidden" ],
+            "title" : "Status"
+          },
+          "body" : {
+            "type" : "string",
+            "title" : "Body"
+          },
+          "mine" : {
+            "type" : "boolean",
+            "title" : "Mine"
+          },
+          "is_mine" : {
+            "type" : "boolean",
+            "description" : "mine 과 같다",
+            "title" : "Is Mine"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          }
+        },
+        "required" : [ "anonymous", "author", "author_name", "body", "created_at", "id", "is_mine", "mine", "post_id", "status", "updated_at" ],
+        "title" : "CommentPayload"
+      },
+      "CommunityImageUploadRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "mime_type" : {
+            "type" : "string",
+            "enum" : [ "image/jpeg", "image/png", "image/webp", "image/heic" ],
+            "title" : "Mime Type"
+          },
+          "size_bytes" : {
+            "type" : "integer",
+            "description" : "바이트. 10MB(10485760)까지",
+            "title" : "Size Bytes"
+          }
+        },
+        "required" : [ "mime_type", "size_bytes" ],
+        "title" : "CommunityImageUploadRequest"
+      },
+      "CommunityImageUploadResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "image_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Image Id"
+          },
+          "upload_url" : {
+            "type" : "string",
+            "description" : "이 주소로 PUT 한다(30분)",
+            "title" : "Upload Url"
+          },
+          "upload_headers" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "PUT 에 그대로 실을 헤더. 지금은 Content-Type 하나다",
+            "title" : "Upload Headers"
+          },
+          "expires_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Expires At"
+          }
+        },
+        "required" : [ "expires_at", "image_id", "upload_headers", "upload_url" ],
+        "title" : "CommunityImageUploadResponse"
+      },
+      "BlockRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          }
+        },
+        "required" : [ "user_id" ],
+        "title" : "BlockRequest"
+      },
       "CoachStartRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -11568,6 +12683,35 @@
         },
         "title" : "ChallengeEntryPatchRequest"
       },
+      "PostUpdateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "title" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 1,
+            "title" : "Title"
+          },
+          "body" : {
+            "type" : "string",
+            "maxLength" : 5000,
+            "minLength" : 1,
+            "title" : "Body"
+          },
+          "image_ids" : {
+            "type" : "array",
+            "description" : "보내면 글의 사진을 이 목록(순서 = 보여 줄 순서, 0~5장)으로 바꾼다. 빠진 사진은 떼고 지운다. 칸을 빼면 사진은 그대로다",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "Image Ids"
+          }
+        },
+        "required" : [ "body", "title" ],
+        "title" : "PostUpdateRequest"
+      },
       "VideoList" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -12933,6 +14077,127 @@
         "type" : "string",
         "enum" : [ "allowed", "decision_required" ],
         "title" : "ConsentEntryStatus"
+      },
+      "PostListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "posts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PostPayload"
+            },
+            "title" : "Posts"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "next_cursor", "posts" ],
+        "title" : "PostListResponse"
+      },
+      "CommentListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "comments" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CommentPayload"
+            },
+            "title" : "Comments"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "comments", "next_cursor" ],
+        "title" : "CommentListResponse"
+      },
+      "CategoryListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "categories" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryPayload"
+            },
+            "title" : "Categories"
+          }
+        },
+        "required" : [ "categories" ],
+        "title" : "CategoryListResponse"
+      },
+      "CategoryPayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "title" : "Slug"
+          },
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          },
+          "description" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Description"
+          }
+        },
+        "required" : [ "description", "name", "slug" ],
+        "title" : "CategoryPayload"
+      },
+      "BlockListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "blocks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BlockPayload"
+            },
+            "title" : "Blocks"
+          }
+        },
+        "required" : [ "blocks" ],
+        "title" : "BlockListResponse"
+      },
+      "BlockPayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          },
+          "nickname" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Nickname"
+          }
+        },
+        "required" : [ "nickname", "user_id" ],
+        "title" : "BlockPayload"
       },
       "ChallengeList" : {
         "type" : "object",
