@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ScriptCocreateScreen from '@/app/script-cocreate';
-import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { setContinueOrigin } from '@/lib/practice/session-state';
@@ -232,13 +231,6 @@ test('확정이 실패하면 결과 화면에 이유를 보인다', async () => 
   await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
   expect(await screen.findByText('내 대본이 가득 찼어요. 리딩에서 안 쓰는 대본을 지운 뒤 다시 확정해 주세요.')).toBeOnTheScreen();
 });
-
-test('코칭 탭의 입구 줄은 대사 같이 만들기 화면으로 간다', async () => {
-  await render(<ScriptCocreateEntry />);
-  await fireEvent.press(screen.getByRole('button', { name: '찍을 대사부터 같이 만들기' }));
-  expect(mockRouter.push).toHaveBeenCalledWith('/script-cocreate');
-});
-
 
 test('생성 응답 유실 뒤 같은 입력 재시도는 request_id 유지, 입력 변경은 새 id', async () => {
   createSampleScript.mockRejectedValue(new Error('network'));

@@ -199,7 +199,16 @@ const ko = {
     failed: '코칭을 시작하지 못했어요. 다시 눌러 주세요.',
     inProgressMissing: '진행 중인 코칭을 찾지 못했어요. 다시 눌러 주세요.',
   },
+  coachOther: {
+    title: '다른 방법으로 코칭',
+    bubble: '어떻게 코칭 받을래요?',
+    guide: '하나 고르고 「다음」을 누르세요.',
+    next: '다음',
+  },
   coachingTab: {
+    linkTalk: '영상 없이 말로',
+    linkScript: '대사부터 같이 만들기',
+    otherWays: '다른 방법으로 코칭 받기',
     firstTitle: '코칭이 처음이죠?',
     firstBody: '영상을 보여 주면 코치가 질문하며\n고칠 점 하나를 같이 찾아요.',
     exampleLabel: '코칭은 이렇게 해요',

@@ -207,7 +207,16 @@ const en: DeepStringShape<typeof ko> = {
     failed: "Couldn't start coaching. Please tap again.",
     inProgressMissing: "Couldn't find your coaching in progress. Please tap again.",
   },
+  coachOther: {
+    title: 'Other ways',
+    bubble: 'How would you like coaching?',
+    guide: 'Pick one, then tap “Next”.',
+    next: 'Next',
+  },
   coachingTab: {
+    linkTalk: 'Talk, no video',
+    linkScript: 'Write lines together',
+    otherWays: 'Other ways to get coaching',
     firstTitle: 'First time with coaching?',
     firstBody: 'Show a video and the coach asks questions\nto find one thing to fix together.',
     exampleLabel: 'How coaching works',
