@@ -71,6 +71,11 @@ beforeEach(async () => {
   } as never);
 });
 
+/** 화면 머리 뒤로·안드로이드 뒤로·iOS 밀기는 모두 usePreventRemove 콜백으로 들어온다. */
+async function pressStackBack() {
+  await act(async () => jest.mocked(usePreventRemove).mock.calls.at(-1)![1]({ data: { action: { type: 'GO_BACK' } } } as never));
+}
+
 async function paste(text = PASTED) {
   await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
   await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), text);
@@ -313,16 +318,23 @@ test('대본이 아닌 것 같다면 그래도 나누거나 다시 고를 수 �
   expect(jest.mocked(api.importScript).mock.calls.at(-1)![0]).toEqual(expect.objectContaining({ skip_script_check: true }));
 });
 
-test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유를 보이고, 뒤로 가면 닫는다', async () => {
+test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유를 보이고, 자기 뒤로 버튼 없이 화면 머리 뒤로로 닫혀 입력 화면이 다시 보인다', async () => {
   jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'no_characters', script_id: null }));
   await render(<ReadingNew />);
+  expect(jest.mocked(usePreventRemove).mock.calls.at(-1)![0]).toBe(false);
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('대본을 못 나눴어요')).toBeOnTheScreen();
   expect(screen.getByText('대본에 말하는 사람 이름이 있는지 확인하고 다시 넣어 주세요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByLabelText('뒤로'));
+  expect(screen.queryByLabelText('뒤로')).not.toBeOnTheScreen();
+  expect(jest.mocked(usePreventRemove).mock.calls.at(-1)![0]).toBe(true);
+
+  await pressStackBack();
   expect(screen.queryByText('대본을 못 나눴어요')).not.toBeOnTheScreen();
+  expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
+  expect(screen.queryByText('붙여넣은 대본이 사라져요')).not.toBeOnTheScreen();
+  expect(mockNavDispatch).not.toHaveBeenCalled();
   expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 
@@ -492,7 +504,7 @@ test('올리는 중에 끊기면 연결 문구를 띄우고 파일을 비운다'
 
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
   expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByLabelText('뒤로'));
+  await pressStackBack();
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
@@ -504,7 +516,7 @@ test('나누다 원본을 읽을 수 없다고 하면 파일 칸을 비운다', 
 
   await fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('대본을 못 나눴어요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByLabelText('뒤로'));
+  await pressStackBack();
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
@@ -570,6 +582,20 @@ test('무료 대본 한도(free_script_limit)에서 보관 대본이 하나면 �
   await waitFor(() => expect(server.remove).toHaveBeenCalledWith('old'));
   await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
   expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ raw_text: PASTED }));
+});
+
+test('바꾸려던 대본을 지우지 못하면 「지우지 못했어요」로 알리고 다시 나누지 않는다', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
+  server.list.mockResolvedValue({ scripts: [{ id: 'old', title: '옥상, 밤' }], total_count: 1, in_progress_count: 0 } as never);
+  server.remove.mockRejectedValueOnce(new ApiError(500, '서버 오류'));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
+  await fireEvent.press(await screen.findByText('지우고 넣기'));
+
+  expect(await screen.findByText('지우지 못했어요')).toBeOnTheScreen();
+  expect(api.importScript).toHaveBeenCalledTimes(1);
 });
 
 test('무료 대본 3개가 차 있으면 지울 대본을 고르고, 고른 대본만 지운 뒤 다시 나눈다 (SOMA-818)', async () => {
