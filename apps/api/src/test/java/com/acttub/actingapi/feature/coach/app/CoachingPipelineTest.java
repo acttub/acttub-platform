@@ -44,7 +44,7 @@ class CoachingPipelineTest {
                 JsonNode input = StructuredJson.parse(text);
                 if ("coaching_route".equals(options.schemaName())) {
                     stages.add("classify");
-                    assertThat(options.model()).isEqualTo("gpt-5.6-luna");
+                    assertThat(options.model()).isEqualTo(com.acttub.actingapi.integration.llm.OpenAiModels.CHAT);
                     assertThat(options.schema().path("properties").path("route").path("enum"))
                             .extracting(JsonNode::asText).containsExactly("advance", "scaffold", "repair", "respond");
                     assertThat(input.path("coaching_state").path("revision").asLong()).isZero();

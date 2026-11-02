@@ -274,8 +274,7 @@ revision, reply_link, flow는 코드가 조립한다.
 
 ### 설정과 관측
 - `acttub.coaching.routed-enabled`: 기본 true. false로 이전 2층으로 복귀할 수 있다.
-- 분류 모델: `gpt-5.6-luna`, reasoning low. 분류는 엄격한 JSON Schema 출력이다.
-- 생성 모델: 기존 `OPENAI_CHAT_MODEL` 설정을 사용한다(미설정 시 Luna).
+- 분류·생성 모델: 코드의 `OpenAiModels.CHAT` 하나를 쓴다. 환경변수로 바꾸지 않는다. 분류는 reasoning low의 엄격한 JSON Schema 출력이다.
 - 관측 단계: `coach.route`, `coach.turn`, `coach.regeneration`. 과거 `coach.polish` 기록은 남지만 새 편집 호출은 없다.
 - 모델 호출 메타데이터에 `contract=dialogue_actions_v2`와 선택된 route를 남긴다. 사용자 화면에는 노출하지 않는다.
 - 기존 `acttub.coach_handoff.v2`로 3층에 연결한다.
@@ -287,7 +286,7 @@ revision, reply_link, flow는 코드가 조립한다.
 합성 데이터 실모델 테스트는 기본 비활성이다. API 키가 제공된 환경에서만 명시적으로 실행한다:
 
 ```sh
-ACTTUB_ROUTE_LIVE_TEST=1 OPENAI_CHAT_MODEL=gpt-5.6-luna ./gradlew test --tests '*CoachingPipelineLiveTest'
+ACTTUB_ROUTE_LIVE_TEST=1 ./gradlew test --tests '*CoachingPipelineLiveTest'
 ```
 
 합성 대화 결과는 `apps/api/build/route-eval/`에 남는다. 성공 여부와 코칭 품질은 별도로 검토한다.

@@ -26,14 +26,6 @@ public class OpenAiResponsesClient implements TextGenerator {
             URI.create("https://api.openai.com/v1/responses");
     private static final int ATTEMPTS = 4;
     private static final Set<Integer> RETRY_STATUSES = Set.of(429, 503);
-    /**
-     * 환경변수가 비었을 때 쓰는 모델. 코치가 보는 것이 관찰 팩 전문이 된 뒤로(SOMA-490)
-     * 긴 근거를 읽고 한 가지를 골라 묻는 일이 이 층의 전부라, terra 대신 luna 를 기본으로 둔다.
-     *
-     * <p>⚠ 두 서버의 {@code api.env} 는 {@code OPENAI_CHAT_MODEL} 을 직접 적어 두고 있고
-     * 환경변수가 이 기본값을 이긴다 — 배포만으로는 모델이 바뀌지 않는다.
-     */
-    private static final String DEFAULT_MODEL = "gpt-5.6-luna";
 
     /** 옵션 호출의 기본 응답 대기. 코치의 분류·답은 이 안에 든다. */
     static final Duration BOUNDED_TIMEOUT = Duration.ofSeconds(20);
@@ -112,8 +104,8 @@ public class OpenAiResponsesClient implements TextGenerator {
 
     @Override
     public GeneratedText generate(String instructions, String input, GenerationOptions options) {
-        Configuration configuration = requiredConfiguration();
-        String model = options != null && options.model() != null ? options.model() : configuration.model();
+        String apiKey = requiredApiKey();
+        String model = options != null && options.model() != null ? options.model() : OpenAiModels.CHAT;
         ObjectNode body = objectMapper.createObjectNode();
         body.put("model", model);
         body.put("instructions", instructions);
@@ -130,7 +122,7 @@ public class OpenAiResponsesClient implements TextGenerator {
         }
 
         Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("Authorization", "Bearer " + configuration.apiKey());
+        headers.put("Authorization", "Bearer " + apiKey);
         headers.put("Content-Type", "application/json");
         OpenAiHttpRequest request = new OpenAiHttpRequest(RESPONSES_URI, headers, body);
         OpenAiHttpResponse response;
@@ -208,14 +200,13 @@ public class OpenAiResponsesClient implements TextGenerator {
         throw new IllegalStateException("OpenAI 요청을 완료하지 못했습니다.");
     }
 
-    private Configuration requiredConfiguration() {
+    private String requiredApiKey() {
         String key = ApiKeys.firstNonBlank(value(featureKeyName), value(LEGACY_KEY));
         if (key.isEmpty()) {
             throw new IllegalStateException(
                     "OpenAI 호출에는 " + featureKeyName + " 또는 " + LEGACY_KEY + " 환경변수가 필요합니다.");
         }
-        String configuredModel = value("OPENAI_CHAT_MODEL");
-        return new Configuration(key, configuredModel.isEmpty() ? DEFAULT_MODEL : configuredModel);
+        return key;
     }
 
     private String value(String name) {
@@ -263,9 +254,6 @@ public class OpenAiResponsesClient implements TextGenerator {
         }
         JsonNode value = parent.get(field);
         return value != null && value.isIntegralNumber() ? value.intValue() : 0;
-    }
-
-    private record Configuration(String apiKey, String model) {
     }
 
     @FunctionalInterface

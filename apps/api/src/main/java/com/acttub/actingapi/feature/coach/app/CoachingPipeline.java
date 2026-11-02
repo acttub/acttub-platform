@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 
 import com.acttub.actingapi.integration.llm.GenerationOptions;
+import com.acttub.actingapi.integration.llm.OpenAiModels;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
@@ -20,7 +21,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** Luna selects the next conversational action; Java dispatches one generation prompt. */
 final class CoachingPipeline {
-    static final String CLASSIFIER_MODEL = "gpt-5.6-luna";
     private static final String CLASSIFIER = resource("classifier");
     private static final String COMMON = resource("common");
     private static final String CONTRACT = resource("contract") + "\n" + draftSchema();
@@ -45,7 +45,7 @@ final class CoachingPipeline {
         request.set("coaching_state", input.path("coaching_state"));
         request.set("last_exchange", input.path("last_exchange"));
         JsonNode result = StructuredJson.parse(call(session, LlmStep.COACH_ROUTE, CLASSIFIER, request,
-                new GenerationOptions(CLASSIFIER_MODEL, "low", 512, "coaching_route", ROUTE_SCHEMA), null,
+                new GenerationOptions(OpenAiModels.CHAT, "low", 512, "coaching_route", ROUTE_SCHEMA), null,
                 new LlmPrompt("coach.pipeline.classifier", CLASSIFIER)));
         if (result.size() != 1 || !result.path("route").isTextual()) {
             throw new IllegalArgumentException("invalid coaching route response");

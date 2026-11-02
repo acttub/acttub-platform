@@ -196,8 +196,10 @@ class MemoryUpdateWorkerPayloadTest {
         worker.runOnce();
 
         assertThat(queue.payload.path("updated_fields").toString()).isEqualTo("[\"goal\"]");
-        assertThat(telemetry.calls()).singleElement().satisfies(call -> assertThat(call.tokens())
-                .isEqualTo(com.acttub.actingapi.platform.observability.LlmTokens.unknown()));
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+            assertThat(call.tokens()).isEqualTo(com.acttub.actingapi.platform.observability.LlmTokens.unknown());
+            assertThat(call.prompt()).isEqualTo(MemoryExtractor.TEMPLATE);
+        });
     }
 
     private static MemoryUpdateWorker worker(RecordingQueue queue, String extracted) {

@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
+import com.acttub.actingapi.platform.observability.LlmPrompt;
+
 public final class ReportPrompt {
 
     private static final String ANALYSIS = load("/report/report-analysis-prompt.txt");
@@ -14,6 +16,12 @@ public final class ReportPrompt {
 
     public static String select(String reportType) {
         return "expression".equals(reportType) ? EXPRESSION : ANALYSIS;
+    }
+
+    /** 기록에 잇는 고정 본문. 이름은 프롬프트 갈래로만 정해 바깥에서 온 값이 프롬프트 이름을 늘리지 못하게 한다. */
+    static LlmPrompt template(String reportType) {
+        return "expression".equals(reportType)
+                ? new LlmPrompt("report.expression", EXPRESSION) : new LlmPrompt("report.analysis", ANALYSIS);
     }
 
     private static String load(String resource) {

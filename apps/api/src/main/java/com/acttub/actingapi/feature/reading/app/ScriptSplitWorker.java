@@ -36,6 +36,7 @@ import com.acttub.actingapi.feature.reading.domain.SplitResponse;
 import com.acttub.actingapi.feature.reading.domain.SpeakerGroups;
 import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
 import com.acttub.actingapi.integration.llm.GeneratedText;
+import com.acttub.actingapi.integration.llm.OpenAiModels;
 import com.acttub.actingapi.integration.llm.GenerationOptions;
 import com.acttub.actingapi.integration.llm.OpenAiStatusException;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -75,7 +76,7 @@ public class ScriptSplitWorker {
     static final Duration LEASE = Duration.ofMinutes(30);
     /** 나누기 호출의 응답 대기. 실측 전체 벽시계 최대 57초(조각 동시)보다 조각 하나는 짧다. */
     static final Duration CALL_TIMEOUT = Duration.ofSeconds(90);
-    private static final GenerationOptions OPTIONS = new GenerationOptions(ScriptSplitRules.MODEL,
+    private static final GenerationOptions OPTIONS = new GenerationOptions(OpenAiModels.CHAT,
             ScriptSplitRules.REASONING_EFFORT, ScriptSplitRules.MAX_OUTPUT_TOKENS, null, null, CALL_TIMEOUT);
 
     private final AiJobLedger ledger;
@@ -586,7 +587,7 @@ public class ScriptSplitWorker {
                 RuntimeException failure) {
             Duration took = Duration.between(startedAt, clock.instant());
             LOG.info("script split call job={} step={} model={} input_tokens={} output_tokens={} took_ms={} error={}", jobId, step.spanName(),
-                    generated == null ? ScriptSplitRules.MODEL : generated.model(),
+                    generated == null ? OpenAiModels.CHAT : generated.model(),
                     generated == null || generated.usage() == null ? "-" : generated.usage().prompt(),
                     generated == null || generated.usage() == null ? "-" : generated.usage().completion(),
                     took.toMillis(), failure == null ? "-" : failure.getClass().getSimpleName());
@@ -594,7 +595,7 @@ public class ScriptSplitWorker {
                     step,
                     jobId,
                     userId,
-                    generated == null ? ScriptSplitRules.MODEL : generated.model(),
+                    generated == null ? OpenAiModels.CHAT : generated.model(),
                     instructions + "\n\n" + input,
                     generated == null ? "" : generated.text(),
                     generated == null || generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
@@ -602,7 +603,8 @@ public class ScriptSplitWorker {
                     startedAt,
                     took,
                     failure == null ? null : failure.getClass().getSimpleName(),
-                    LlmCall.metadata("operation_id", jobId.toString())));
+                    LlmCall.metadata("operation_id", jobId.toString()))
+                    .withPrompt(ScriptSplitPrompt.template(step, instructions)));
         }
     }
 

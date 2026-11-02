@@ -63,6 +63,19 @@ class LangfuseTelemetryTest {
     }
 
     @Test
+    @DisplayName("Gemini 코치 호출의 토큰도 값이 계산되는 OpenAI 호출과 같은 usage_details 로 나간다")
+    void geminiCoachTokensUseThePricedUsageKeys() throws Exception {
+        LlmCall coach = new LlmCall(LlmStep.COACH_TURN, PRACTICE, USER, "gemini-3-flash-preview", "입력", "답",
+                LlmTokens.of(190, 30, 220), STARTED, Duration.ofSeconds(2), null, Map.of());
+        JsonNode span = telemetry(enabledEnvironment()).tracePayload(coach)
+                .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
+        Map<String, String> attributes = attributes(span);
+        assertThat(attributes).containsEntry("langfuse.observation.model.name", "gemini-3-flash-preview");
+        assertThat(MAPPER.readTree(attributes.get("langfuse.observation.usage_details")))
+                .isEqualTo(MAPPER.readTree("{\"input\":190,\"output\":30,\"total\":220}"));
+    }
+
+    @Test
     @DisplayName("호출 하나가 OTLP 한 건으로 조립된다")
     void callBecomesOneOtlpSpan() throws Exception {
         JsonNode payload = telemetry(Map.of(

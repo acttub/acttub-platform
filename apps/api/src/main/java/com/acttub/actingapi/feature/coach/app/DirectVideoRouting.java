@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.integration.observation.ReplyTrace;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
@@ -17,7 +18,6 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
-import com.acttub.actingapi.platform.observability.LlmTokens;
 
 /** Classifies actor messages separately, then selects prompts in code. Model labels never close a session. */
 final class DirectVideoRouting {
@@ -45,10 +45,11 @@ final class DirectVideoRouting {
         Instant started = Instant.now();
         String output = "";
         String error = null;
+        ReplyTrace usage = new ReplyTrace(false);
         // A lost operation lease must not fall back to another model call.
         ExternalOperationExecution.externalCall("model");
         try {
-            output = model.classify(List.copyOf(history), DirectVideoPrompts.classifier(), CATEGORIES);
+            output = usage.run(() -> model.classify(List.copyOf(history), DirectVideoPrompts.classifier(), CATEGORIES));
             return new Selection(parse(output), false);
         } catch (RuntimeException failure) {
             error = failure.getClass().getSimpleName();
@@ -58,7 +59,7 @@ final class DirectVideoRouting {
         } finally {
             record.accept(new LlmCall(LlmStep.COACH_ROUTE, practiceId, userId, model.model(),
                     DirectVideoPrompts.classifier() + "\n" + history, output == null ? "" : output,
-                    LlmTokens.unknown(), started, Duration.between(started, Instant.now()), error,
+                    usage.tokens(model.model()), started, Duration.between(started, Instant.now()), error,
                     LlmCall.metadata("transport", "gemini_text_routing"))
                     .withPrompt(new LlmPrompt("coach.direct.classifier", DirectVideoPrompts.classifier())));
         }

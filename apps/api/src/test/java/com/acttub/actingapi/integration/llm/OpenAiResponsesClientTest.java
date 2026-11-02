@@ -31,7 +31,7 @@ class OpenAiResponsesClientTest {
         GeneratedText generated = client.generate("시스템", "입력 문자열");
 
         assertThat(generated).isEqualTo(
-                new GeneratedText("답변", new TokenUsage(11, 7, 18), "gpt-5.6-luna"));
+                new GeneratedText("답변", new TokenUsage(11, 7, 18), OpenAiModels.CHAT));
         OpenAiHttpRequest request = transport.requests.getFirst();
         assertThat(request.uri()).isEqualTo(URI.create("https://api.openai.com/v1/responses"));
         assertThat(request.headers()).containsExactly(
@@ -40,7 +40,7 @@ class OpenAiResponsesClientTest {
         assertThat(request.body().fieldNames()).toIterable()
                 .containsExactly("model", "instructions", "input");
         assertThat(request.body()).isEqualTo(OBJECT_MAPPER.readTree("""
-                {"model":"gpt-5.6-luna","instructions":"시스템","input":"입력 문자열"}
+                {"model":"gpt-6-luna","instructions":"시스템","input":"입력 문자열"}
                 """));
         assertThat(OpenAiResponsesClient.REQUEST_TIMEOUT).isEqualTo(Duration.ofSeconds(120));
     }
@@ -122,22 +122,20 @@ class OpenAiResponsesClientTest {
     }
 
     @Test
-    void keyAndModelAreResolvedWhenGenerateIsCalled() {
+    void keyIsResolvedWhenGenerateIsCalled() {
         StubTransport transport = new StubTransport(response(200, "{\"output_text\":\"ok\"}"));
         AtomicReference<String> key = new AtomicReference<>();
-        AtomicReference<String> model = new AtomicReference<>();
         OpenAiResponsesClient client = new OpenAiResponsesClient(
                 OBJECT_MAPPER,
                 transport,
                 duration -> {},
-                name -> "OPENAI_API_KEY".equals(name) ? key.get() : model.get());
+                name -> "OPENAI_API_KEY".equals(name) ? key.get() : "ignored-model");
         key.set("late-key");
-        model.set("custom-model");
 
         client.generate("s", "p");
 
         assertThat(transport.requests.getFirst().body().path("model").asText())
-                .isEqualTo("custom-model");
+                .isEqualTo(OpenAiModels.CHAT);
     }
 
     private static OpenAiResponsesClient client(
@@ -150,7 +148,7 @@ class OpenAiResponsesClientTest {
     void stageOptionsPinLunaAndUseStrictRouteSchemaWithoutChangingDefaultModel() {
         StubTransport transport = new StubTransport(response(200, "{\"status\":\"completed\",\"output_text\":\"{}\"}"),
                 response(200, "{\"output_text\":\"regular\"}"));
-        var client = client(transport, Map.of("OPENAI_API_KEY", "secret", "OPENAI_CHAT_MODEL", "configured-model"));
+        var client = client(transport, Map.of("OPENAI_API_KEY", "secret", "OPENAI_CHAT_MODEL", "ignored-model"));
         var schema = StructuredJson.parse("{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{},\"required\":[]}");
         var routed = client.generate("classifier", "data", new GenerationOptions("gpt-5.6-luna", "low", 512, "route", schema));
         client.generate("regular", "data");
@@ -161,7 +159,7 @@ class OpenAiResponsesClientTest {
         assertThat(body.path("reasoning").path("effort").asText()).isEqualTo("low");
         assertThat(body.path("text").path("format").path("strict").asBoolean()).isTrue();
         assertThat(body.path("text").path("format").path("schema")).isEqualTo(schema);
-        assertThat(transport.requests.getLast().body().path("model").asText()).isEqualTo("configured-model");
+        assertThat(transport.requests.getLast().body().path("model").asText()).isEqualTo(OpenAiModels.CHAT);
     }
 
     @Test

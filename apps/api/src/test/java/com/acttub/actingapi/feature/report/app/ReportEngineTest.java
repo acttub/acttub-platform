@@ -182,6 +182,8 @@ class ReportEngineTest {
             assertThat(call.output()).isEqualTo(analysisReport());
             assertThat(call.tokens()).isEqualTo(
                     com.acttub.actingapi.platform.observability.LlmTokens.of(10, 20, 30));
+            assertThat(call.prompt()).isEqualTo(ReportPrompt.template("analysis"));
+            assertThat(call.prompt().text()).isEqualTo(ReportPrompt.select("analysis"));
         });
         assertThat(telemetry.scores()).singleElement().satisfies(score -> {
             assertThat(score.name()).isEqualTo("coach.report_blocked");
