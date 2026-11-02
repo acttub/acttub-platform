@@ -333,10 +333,15 @@ function CoachTalk() {
   };
 
   // 예시 튜토리얼 대화 중에 뒤로가기로 나가면 튜토리얼을 '나감'으로 끝낸다.
-  usePreventRemove(sample && !leaveAllowed, ({ data }) => {
+  usePreventRemove(Platform.OS !== 'ios' && sample && !leaveAllowed, ({ data }) => {
     finishTutorial('left');
     leaveThen(() => navigation.dispatch(data.action));
   });
+  // iOS 는 밀어서 나가기를 막지 않고 내려가면서 끝낸다(SOMA-966).
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !sample || leaveAllowed) return;
+    return navigation.addListener('beforeRemove', () => finishTutorial('left'));
+  }, [navigation, sample, leaveAllowed]);
 
   useEffect(() => {
     mountedRef.current = true;

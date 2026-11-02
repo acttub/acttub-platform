@@ -3,7 +3,7 @@ import { usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -62,8 +62,9 @@ import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * 대본 넣기(R2, reading.script). 「파일로 넣기 | 글로 붙여넣기」 탭 하나를 골라 [다음]을 누르면 서버가 나눠 바로
- * 저장하고, 그동안 R2.11 팝업에 진행 줄 수를 보인다. 파일은 고르는 순간 서버에 올려 글자를 뽑게 한다(R2.2).
+ * 대본 넣기(R2, reading.script). 「파일로 넣기 | 글로 붙여넣기」 탭 하나를 골라 [다음]을 누르면 입력 화면 버튼에
+ * 「확인하는 중…」을 보이고, 나누기가 진행 중이라고 확인된 때만 R2.11 대기 화면으로 간다(SOMA-996). 서버가 나눠 바로
+ * 저장한다. 파일은 고르는 순간 서버에 올려 글자를 뽑게 한다(R2.2).
  */
 const MASCOT = require('@/assets/images/mascot-reading.png');
 /** pen R2 「대본 읽는 액티」·「예시 대본 카드」 그림. */
@@ -105,6 +106,11 @@ type Resume = { kind: 'import'; input: ImportInput; flags: ImportFlags } | { kin
 
 /** R2 위 팝업 하나. iOS 는 닫히는 모달 위에 새 모달을 띄우지 못해 모든 장을 한 모달에 그린다. */
 type Popup =
+  /**
+   * 접수·첫 물음을 기다리는 동안. 입력 화면에 남아 버튼이 「확인하는 중…」이다. 팝업에서 다시 보냈으면 keepModal 로 모달을 연 채
+   * 둔다 — iOS 는 닫히는 모달을 곧바로 다시 띄우지 못하는데, 이 확인은 0.1초쯤이라 다음 팝업이 닫힘 애니메이션과 겹친다.
+   */
+  | { kind: 'checking'; keepModal: boolean }
   | { kind: 'splitting'; progress: ImportProgress | null } // R2.11
   | { kind: 'alert'; title: string; message: string } // R2.4·R2.12·R2.13·R2.15
   /** pen 「대본을 못 나눴어요」 — 화면 전체로 보이고 [다시 시도]·[직접 붙여 넣기]를 준다. */
@@ -189,7 +195,8 @@ export default function ReadingNew() {
 
   const split = async (next: ImportInput, flags: ImportFlags) => {
     const signal = life.current?.signal;
-    setPopup({ kind: 'splitting', progress: null });
+    // 「대본을 못 나눴어요」는 모달 없이 전체 화면이라 거기서 다시 시도하면 열어 둘 모달이 없다.
+    setPopup((prev) => ({ kind: 'checking', keepModal: !!prev && prev.kind !== 'failed' }));
     let input = next;
     // 접수되면 바로 기기에 적는다(SOMA-976). 떠나는 순간에는 아직 접수 전일 수 있고(파일 읽기), 앱이 꺼져도 리딩 탭에 남아야 한다.
     const accepted: { importId?: string } = {};
@@ -299,12 +306,15 @@ export default function ReadingNew() {
     setMakeOpen(false);
     dispatch({ type: 'tab', tab });
   };
-  const closable = popup !== null && popup.kind !== 'splitting';
-  // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
+  const checking = popup?.kind === 'checking';
+  // 안드로이드는 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
+  // iOS 는 막지 않고 아래 화면으로 그대로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
   const splitting = popup?.kind === 'splitting';
-  useWaitExit(splitting, '/reading');
+  useWaitExit(splitting && Platform.OS !== 'ios', '/reading');
   // 나누는 중 화면을 보고 있으면 완료 푸시를 배너로 띄우지 않는다 — 이 화면이 끝나면 바로 다음으로 넘어간다(SOMA-960).
-  useEffect(() => (splitting ? hideForegroundPush(isScriptSplitPush) : undefined), [splitting]);
+  // 확인 중에도 같다. 예시 대본은 대기 화면 없이 여기서 끝난다.
+  const hidePush = splitting || checking;
+  useEffect(() => (hidePush ? hideForegroundPush(isScriptSplitPush) : undefined), [hidePush]);
   // 파일을 올리는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일이 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
   const working = input.file.kind === 'reading' && !splitting;
@@ -337,7 +347,8 @@ export default function ReadingNew() {
   return (
     <KeyboardLift style={styles.root}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {/* 확인 중에 탭·파일을 바꾸면 보낸 입력과 어긋난다. */}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" pointerEvents={checking ? 'none' : 'auto'}>
         <View style={styles.hero}>
           <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.heroText}>
@@ -449,7 +460,9 @@ export default function ReadingNew() {
             <PrimaryButton
               label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
               onPress={() => pending && void split(pending, { title })}
-              disabled={!pending || !!popup}
+              loading={checking}
+              loadingLabel={t('loadingText.checking')}
+              disabled={!pending || (!!popup && !checking)}
             />
           )}
         </View>
@@ -463,7 +476,7 @@ export default function ReadingNew() {
           router.replace(firstReadingRef.current ? FIRST_READING_HREF : '/reading/detail');
         }}
       />
-      <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
+      <Modal transparent statusBarTranslucent visible={!!popup && (popup.kind !== 'checking' || popup.keepModal)} animationType="fade" onRequestClose={() => !checking && setPopup(null)}>
         <View style={styles.backdrop}>
           {popup?.kind === 'alert' && (
             <DialogCard title={popup.title} message={popup.message}>
@@ -597,9 +610,11 @@ const styles = StyleSheet.create({
   heroSub: { ...type.body2, color: palette.textSub },
   segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1] },
+  // 아이콘을 위, 글자를 아래에 쌓아 글자가 탭 폭을 다 쓴다(「대본 같이 만들기」가 한 줄에 들어간다). 높이는 못 박지 않는다 —
+  // 더 좁은 폰에서 두 줄로 꺾여도 탭 줄이 함께 늘어난다.
+  segmentTab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1], paddingVertical: space[2] },
   segmentTabOn: { backgroundColor: palette.bg },
-  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1 },
+  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1, textAlign: 'center' },
   segmentTextOn: { color: palette.text },
   makeArea: { gap: space[3] },
   dropzone: {

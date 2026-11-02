@@ -43,6 +43,8 @@ jest.mock('@/lib/api', () => ({
     unreadNotificationCount: jest.fn(),
     listMyChallengeEntries: jest.fn(),
     listPracticeGroups: jest.fn(),
+    communityCategories: jest.fn(() => Promise.resolve({ categories: [{ slug: 'question', name: '질문' }] })),
+    communityPosts: jest.fn(() => Promise.resolve({ posts: [], next_cursor: null })),
   },
 }));
 jest.mock('expo-video', () => {
@@ -170,9 +172,9 @@ describe('인기 탭 첫 화면', () => {
     expect(screen.getByText('사용자 챌린지 · 참여작 3 · D-3')).toBeOnTheScreen();
     expect(screen.getByText('윤서 · 태오 +2')).toBeOnTheScreen();
     expect(screen.getByText('좋아요 5')).toBeOnTheScreen();
-    // 첫 글자 아바타는 이번 주 대사 카드와 줄 카드에 하나씩(둘 다 같은 참여자).
-    expect(screen.getAllByText('윤')).toHaveLength(2);
-    expect(screen.getAllByText('태')).toHaveLength(2);
+    // 참여자 얼굴은 프로필과 같은 기본 얼굴이다 — 이번 주 대사 카드와 줄 카드에 둘씩(첫 글자는 쓰지 않는다).
+    expect(screen.getAllByTestId('default-avatar')).toHaveLength(4);
+    expect(screen.queryByText('윤')).not.toBeOnTheScreen();
 
     expect(screen.getByText('“끝난 대사”')).toBeOnTheScreen();
     expect(screen.getByText('Acttub 공식 대사 · 참여작 7 · 종료')).toBeOnTheScreen();
@@ -306,6 +308,26 @@ describe('탭', () => {
     expect(await screen.findByText('“돌아와 보니 바뀐 대사”')).toBeOnTheScreen();
     expect(listChallenges.mock.calls.filter(([arg]: [{ tab: string }]) => arg.tab === 'popular')).toHaveLength(2);
   });
+});
+
+// 당기기 제스처는 ScrollView 의 refreshControl 이 받는다. 테스트 렌더러에는 제스처가 없어 그 요소를 꺼내 직접 다룬다.
+const listRefresh = () =>
+  screen.container.queryAll((node) => node.props.refreshControl !== undefined)[0].props.refreshControl;
+
+test('맨 위에서 당기면 지금 탭을 처음부터 다시 읽고 표시가 사라진다', async () => {
+  await render(<ChallengesScreen />);
+  await screen.findByText('“나는 아직 여기 있어”');
+  expect(listRefresh().props.refreshing).toBe(false);
+
+  let resolve: (v: unknown) => void = () => undefined;
+  listChallenges.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  await act(async () => listRefresh().props.onRefresh());
+  expect(listRefresh().props.refreshing).toBe(true);
+  expect(listChallenges).toHaveBeenLastCalledWith({ tab: 'popular' });
+
+  await act(async () => resolve(page([card({ line: '당겨서 받은 대사' })], { featured: today() })));
+  expect(listRefresh().props.refreshing).toBe(false);
+  expect(screen.getByText('“당겨서 받은 대사”')).toBeOnTheScreen();
 });
 
 describe('목록을 못 불러오면', () => {
@@ -534,4 +556,22 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     await act(async () => setFirstTimeState('unknown'));
     expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
   });
+});
+
+
+// SOMA-873 — 챌린지 탭은 커뮤니티 탭이다. 큰 제목 대신 밑줄 탭이고, 게시판으로 바꾸면 글쓰기 버튼과 게시판이 나온다.
+test('커뮤니티 탭은 챌린지가 기본이고 게시판으로 바꾸면 글쓰기·게시판이 보인다', async () => {
+  listChallenges.mockResolvedValue(page([card()]));
+  await markFirstChallengeFinished();
+  await render(<ChallengesScreen />);
+
+  expect(await screen.findByRole('tab', { name: '챌린지', selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '대사 검색' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('tab', { name: '게시판' }));
+
+  expect(await screen.findByText('아직 글이 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '대사 검색' })).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '글쓰기' }));
+  expect(mockRouter.push).toHaveBeenCalledWith('/community-new');
+  expect(logEvent).toHaveBeenCalledWith('community_section', { section: 'board' });
 });

@@ -56,11 +56,15 @@ class AdPickerTest {
     }
 
     @Test
-    @DisplayName("Pro 에게 Pro 권유(대상 free)는 안 가고 AdMob 으로 채운다 — 둘러보기 칸은 Pro 도 본다")
-    void proSkipsFreeOnlyHouseButStillSeesNetwork() {
+    @DisplayName("Pro 는 어느 칸이든 광고가 없다 — 학원 직접 광고·우리 앱 광고·AdMob 모두")
+    void proSeesNoAds() {
         Ad upsell = house("profile_top", "free", "Pro 로 더 연습하기", "/pro");
-        var pro = AdPicker.pick(AdSlot.PROFILE_TOP, viewer(true, true, false), List.of(upsell), DAY);
-        assertThat(pro.kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        Ad forPro = house("profile_top", "pro", "이번 주 챌린지", "/challenges");
+        Ad academy = direct("profile_top", null, "b.png", 0);
+        for (List<Ad> candidates : List.of(List.<Ad>of(), List.of(upsell), List.of(forPro), List.of(academy))) {
+            assertThat(AdPicker.pick(AdSlot.PROFILE_TOP, viewer(true, true, false), candidates, DAY, () -> 0).kind())
+                    .isEqualTo(AdPicker.Kind.NONE);
+        }
         var free = AdPicker.pick(AdSlot.PROFILE_TOP, viewer(true, false, false), List.of(upsell), DAY);
         assertThat(free.kind()).isEqualTo(AdPicker.Kind.HOUSE);
     }

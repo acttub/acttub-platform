@@ -58,7 +58,8 @@ test('account.notification: 연습 알림을 누르면 알림이 말한 화면�
   assert.match(root, /reminderOpenEvent\(data\)/);
   assert.match(root, /logEvent\('reminder_open'/);
   assert.match(root, /reminderTarget\(data\)/);
-  assert.match(root, /router\.replace\(reminder/);
+  // 홈을 아래에 깔고 그 위에 연다 — 뒤로가기가 앱을 닫지 않는다(11/2 폰 QA, lib/push-open-nav).
+  assert.match(root, /openPushTarget\(router as unknown as PushOpenRouter, reminder\)/);
   const target = read('lib/reminder-target.ts');
   assert.match(target, /evening_reminder/);
   assert.match(target, /return '\/\(tabs\)';/);

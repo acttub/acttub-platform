@@ -143,7 +143,9 @@ test('종료 뒤 집계 중이면 순위와 배지를 감추고 촬영 버튼을
   expect(screen.getByText('Acttub 공식 대사 · 종료')).toBeOnTheScreen();
   expect(screen.getByText('햄릿')).toBeOnTheScreen();
   expect(screen.getByText('참여작 2 · 좋아요 7')).toBeOnTheScreen();
-  expect(screen.getByText('윤')).toBeOnTheScreen();
+  // 순위를 감추면 순위 대신 프로필과 같은 기본 얼굴이 보인다(첫 글자는 쓰지 않는다).
+  expect(screen.getAllByTestId('default-avatar')).toHaveLength(2);
+  expect(screen.queryByText('윤')).not.toBeOnTheScreen();
   expect(screen.queryByText('1')).not.toBeOnTheScreen();
   expect(screen.queryByText(/1위/)).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '나도 이 대사 연기하기' })).not.toBeOnTheScreen();

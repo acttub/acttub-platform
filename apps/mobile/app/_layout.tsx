@@ -55,6 +55,7 @@ import { sweepDeviceFiles } from '@/lib/account-files';
 import { LaunchSplashScreen } from '@/components/launch-splash-screen';
 import { MarketingNoticeHost } from '@/components/marketing-notice-dialog';
 import { ReconsentPopup } from '@/components/reconsent-popup';
+import { openPushTarget, type PushOpenRouter } from '@/lib/push-open-nav';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import {
@@ -237,8 +238,9 @@ function RootNavigator() {
   const openPush = useCallback(
     (data: unknown) => {
       // analysis_complete·resume은 같은 회차, 다른 연습 알림은 알림이 말한 화면(SOMA-862), 못 정하면 홈이다.
+      // 화면 아래에 홈을 깔아 뒤로가기가 앱을 닫지 않게 한다(lib/push-open-nav).
       const reminder = reminderTarget(data);
-      if (reminder) router.replace(reminder as Parameters<typeof router.replace>[0]);
+      if (reminder) openPushTarget(router as unknown as PushOpenRouter, reminder);
       else if (challengePushTarget(data)) router.push('/notifications');
     },
     [router],
@@ -510,6 +512,9 @@ function RootNavigator() {
         <Stack.Screen name="challenge-others" options={{ title: t('challenges.sameLineTitle') }} />
         <Stack.Screen name="line-search" options={{ headerShown: false }} />
         <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
+        {/* 배우 게시판(SOMA-873) — 머리는 화면이 NavHeader 로 그린다. */}
+        <Stack.Screen name="community-post" options={{ headerShown: false }} />
+        <Stack.Screen name="community-new" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
         <Stack.Screen name="reading/session" options={{ title: '' }} />

@@ -273,7 +273,8 @@ class ChallengeIT {
         assertThat(detail.path("like_sum").asLong()).isEqualTo(7);
         assertThat(detail.path("participants").findValuesAsText("name")).containsExactly("니나");
         assertThat(detail.path("more_count").asLong()).isZero();
-        assertThat(detail.toString()).doesNotContain("photo", "bio");
+        assertThat(detail.at("/participants/0/photo_url").isNull()).isTrue();
+        assertThat(detail.toString()).doesNotContain("bio");
         assertThat(response(get("/v2/challenges").param("tab", "popular"), 200).at("/featured/id").asText())
                 .isEqualTo(challenge.toString());
         assertThat(response(get("/v2/challenges").param("q", "니나"), 200).path("challenges").findValuesAsText("id"))

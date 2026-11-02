@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
-import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
+import { BackHandler, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -15,11 +15,11 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { buildRecentActivity } from '@/lib/practice-activity';
-import { practiceStreak, sceneTitle } from '@/lib/practice/groups';
+import { practiceDayTotal, practiceStreak, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
-import { rememberPracticeDays } from '@/lib/practice-days';
+import { rememberPracticeDays, serverPracticeDayRecords } from '@/lib/practice-days';
 import { dDayLabel } from '@/lib/challenge/browse';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { skipsHomeGuide } from '@/lib/returning-account';
@@ -34,7 +34,8 @@ import { currentFirstUseOwner, hasGraduatedFirstUse, markFirstUseGraduated } fro
 import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
-import { loadIntoCurrent } from '@/lib/reading/store';
+import { openResume } from '@/lib/reading/resume-open';
+import { resumeSessionOf } from '@/lib/reading/redesign-748';
 import { DEFAULT_SEC_PER_LINE, displayProgress, hasReachedEnd, remainingMinutes, secPerLine } from '@/lib/reading/progress-display';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
@@ -58,6 +59,8 @@ import {
   readLastSeenStreak,
   celebrationDots,
   streakCelebrationStep,
+  kstToday,
+  readLastSeenStreakDay,
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
@@ -133,7 +136,10 @@ export default function HomeScreen() {
   // 대본 목록·리딩 회차·참여작 중 못 받은 것이 있다 — 그러면 첫 사용자로 보지 않는다(11/2).
   const [recordsFailed, setRecordsFailed] = useState(false);
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
-  const [readingProgress, setReadingProgress] = useState<{ scriptId: string; progress: SessionProgress; perLine: number } | null>(null);
+  const [readingProgress, setReadingProgress] = useState<{ scriptId: string; sessionId: string; progress: SessionProgress; perLine: number } | null>(null);
+  // 홈에 올 때마다 이어 읽기 진행을 새로 받는다 — 리딩을 하고 돌아와도 예전 회차의 줄 수가 남아 있었다(11/2 QA).
+  const [readingTick, setReadingTick] = useState(0);
+  useFocusEffect(useCallback(() => setReadingTick((n) => n + 1), []));
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
@@ -192,6 +198,107 @@ export default function HomeScreen() {
     });
   }, []);
 
+  // 기록(연습 묶음·대본·리딩 회차·참여작)을 읽는다. 화면에 들어올 때와 맨 위에서 당길 때 같이 쓴다 —
+  // 당길 때는 첫 안내·튜토리얼을 다시 띄우지 않도록 이 부분만 다시 부른다.
+  const loadRecords = useCallback((isCancelled: () => boolean) => {
+    const groupsRead = api
+      .listPracticeGroups('all')
+      .then((r) => {
+        if (isCancelled()) return r.groups;
+        setGroups(r.groups);
+        setGroupsFailed(false);
+        setGroupsLoaded(true);
+        return r.groups;
+      })
+      .catch(() => {
+        if (!isCancelled()) {
+          setGroups([]);
+          setGroupsFailed(true);
+          setGroupsLoaded(true);
+        }
+        return [] as PracticeGroup[];
+      });
+    // 오늘 할 것의 리딩 후보 — 이어 읽을 대본. 실패하면 리딩 후보만 빠진다.
+    let readFailed = false;
+    const scriptsRead = Promise.resolve()
+      .then(() => api.listReadingScripts())
+      .then((r) => {
+        if (!isCancelled()) setScripts(r.scripts);
+        return r.scripts;
+      })
+      .catch(() => {
+        readFailed = true;
+        if (!isCancelled()) setScripts([]);
+        return [] as ScriptCard[];
+      });
+    const sessionsOf = (s: ScriptCard) =>
+      api
+        .listReadingSessions(s.id)
+        .then((x) => x.sessions)
+        .catch(() => {
+          readFailed = true;
+          return [];
+        });
+    // 연속일·주간 원·「첫 연습 끝!」은 「연습 1회」 기준 하나로 센다(SOMA-773) — 노트가 생긴 코칭 회차, 끝까지 읽은
+    // 리딩 회차, 올린 참여작. 리딩 회차는 대본별로만 받으므로 최근에 연습한 대본만 읽는다(지난 날은 기기에 쌓여 있다).
+    const readingRead = scriptsRead
+      .then((list) => Promise.all(recentlyPracticedScripts(list).map(sessionsOf)))
+      .then((lists) => lists.flat())
+      .catch(() => []);
+    const entriesRead = Promise.resolve()
+      .then(() => api.listMyChallengeEntries())
+      .then((r) => r.entries)
+      .catch(() => {
+        readFailed = true;
+        return [];
+      });
+    // 서버가 센 연습일 전체(SOMA-1003) — 리딩은 위에서 최근 대본만 읽으니, 재설치·새 로그인 뒤에도 지난 날이 빠지지 않게
+    // 함께 쓴다. 실패하면 지금처럼 위 기록과 기기 누적분만 쓴다(구역을 비우지 않는다).
+    const serverDaysRead = Promise.resolve()
+      .then(() => api.practiceDays())
+      .then((r) => r.days)
+      .catch(() => [] as string[]);
+    return Promise.all([groupsRead, scriptsRead, readingRead, entriesRead, serverDaysRead]).then(async ([groupList, scriptList, readingSessions, entries, serverDays]) => {
+      // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
+      if (isCancelled()) return;
+      // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
+      const counted = countedPractices({ groups: groupList, readingSessions, entries });
+      setEnteredChallengeIds(new Set(entries.flatMap((entry) => (entry.challenge?.id ? [entry.challenge.id] : []))));
+      setPractices(counted);
+      // 최근 연습이 하나도 안 보이면 14일보다 전에 읽은 대본도 본다 — 오래전에 끝까지 읽은 사람을 첫 사용자로 보지 않게(11/2).
+      // 찾으면 졸업 표시를 남겨 다음부터는 다시 따지지 않는다. 불꽃·주간 원은 그대로 최근 기록만 쓴다.
+      if (counted.length === 0) {
+        const older = olderPracticedScripts(scriptList);
+        if (older.length > 0) {
+          const olderSessions = (await Promise.all(older.map(sessionsOf))).flat();
+          if (isCancelled()) return;
+          if (countedPractices({ readingSessions: olderSessions }).length > 0) {
+            const owner = currentFirstUseOwner();
+            await markFirstUseGraduated(owner);
+            if (isCancelled()) return;
+            if (owner) setGraduated(true);
+          }
+        }
+      }
+      setRecordsFailed(readFailed);
+      const records = [...counted.map((p) => ({ created_at: p.at })), ...serverPracticeDayRecords(serverDays)];
+      return rememberPracticeDays(records, currentFirstUseOwner()).then((days) => {
+        if (!isCancelled()) setActivityDays(days);
+      });
+    });
+  }, []);
+  const homeFocused = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshRecords = useCallback(async () => {
+    setRefreshing(true);
+    setGraduationCheck((n) => n + 1);
+    try {
+      await loadRecords(() => !homeFocused.current);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadRecords]);
+
   useFocusEffect(
     useCallback(() => {
       // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
@@ -210,92 +317,27 @@ export default function HomeScreen() {
         openHomeGuideIfNew();
       });
       let cancelled = false;
-      const groupsRead = api
-        .listPracticeGroups('all')
-        .then((r) => {
-          if (cancelled) return r.groups;
-          setGroups(r.groups);
-          setGroupsFailed(false);
-          setGroupsLoaded(true);
-          return r.groups;
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setGroups([]);
-            setGroupsFailed(true);
-            setGroupsLoaded(true);
-          }
-          return [] as PracticeGroup[];
-        });
-      // 오늘 할 것의 리딩 후보 — 이어 읽을 대본. 실패하면 리딩 후보만 빠진다.
-      let readFailed = false;
-      const scriptsRead = Promise.resolve()
-        .then(() => api.listReadingScripts())
-        .then((r) => {
-          if (!cancelled) setScripts(r.scripts);
-          return r.scripts;
-        })
-        .catch(() => {
-          readFailed = true;
-          if (!cancelled) setScripts([]);
-          return [] as ScriptCard[];
-        });
-      const sessionsOf = (s: ScriptCard) =>
-        api
-          .listReadingSessions(s.id)
-          .then((x) => x.sessions)
-          .catch(() => {
-            readFailed = true;
-            return [];
-          });
-      // 연속일·주간 원·「첫 연습 끝!」은 「연습 1회」 기준 하나로 센다(SOMA-773) — 노트가 생긴 코칭 회차, 끝까지 읽은
-      // 리딩 회차, 올린 참여작. 리딩 회차는 대본별로만 받으므로 최근에 연습한 대본만 읽는다(지난 날은 기기에 쌓여 있다).
-      const readingRead = scriptsRead
-        .then((list) => Promise.all(recentlyPracticedScripts(list).map(sessionsOf)))
-        .then((lists) => lists.flat())
-        .catch(() => []);
-      const entriesRead = Promise.resolve()
-        .then(() => api.listMyChallengeEntries())
-        .then((r) => r.entries)
-        .catch(() => {
-          readFailed = true;
-          return [];
-        });
-      void Promise.all([groupsRead, scriptsRead, readingRead, entriesRead]).then(async ([groupList, scriptList, readingSessions, entries]) => {
-        // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
-        if (cancelled) return;
-        // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
-        const counted = countedPractices({ groups: groupList, readingSessions, entries });
-        setEnteredChallengeIds(new Set(entries.flatMap((entry) => (entry.challenge?.id ? [entry.challenge.id] : []))));
-        setPractices(counted);
-        // 최근 연습이 하나도 안 보이면 14일보다 전에 읽은 대본도 본다 — 오래전에 끝까지 읽은 사람을 첫 사용자로 보지 않게(11/2).
-        // 찾으면 졸업 표시를 남겨 다음부터는 다시 따지지 않는다. 불꽃·주간 원은 그대로 최근 기록만 쓴다.
-        if (counted.length === 0) {
-          const older = olderPracticedScripts(scriptList);
-          if (older.length > 0) {
-            const olderSessions = (await Promise.all(older.map(sessionsOf))).flat();
-            if (cancelled) return;
-            if (countedPractices({ readingSessions: olderSessions }).length > 0) {
-              const owner = currentFirstUseOwner();
-              await markFirstUseGraduated(owner);
-              if (cancelled) return;
-              if (owner) setGraduated(true);
-            }
-          }
-        }
-        setRecordsFailed(readFailed);
-        return rememberPracticeDays(counted.map((p) => ({ created_at: p.at })), currentFirstUseOwner()).then((days) => {
-          if (!cancelled) setActivityDays(days);
-        });
-      });
+      homeFocused.current = true;
+      void loadRecords(() => cancelled);
       return () => {
         cancelled = true;
+        homeFocused.current = false;
         // 떠나면 닫는다 — 설정에 다녀오면 다시 묻고 연다.
         guideFocused.current = false;
         setGuideOpen(false);
       };
-    }, [router, openHomeGuideIfNew]),
+    }, [openHomeGuideIfNew, loadRecords]),
   );
+
+  // 오프라인으로 켜면 홈이 동의 팝업 뒤에서 기록을 먼저 읽고 실패한 채 남는다. 동의·프로필을 다시 읽어 게이트가
+  // 열리는 순간 홈에 있으면 기록을 한 번 더 읽는다 — 이번 주 칸·이어 읽기·참여 표시가 비어 있던 것(11/2 폰 QA).
+  const gateOpen = consentAllowed && profile.status === 'complete';
+  const gateWasOpen = useRef(gateOpen);
+  useEffect(() => {
+    const opened = gateOpen && !gateWasOpen.current;
+    gateWasOpen.current = gateOpen;
+    if (opened && homeFocused.current) void loadRecords(() => !homeFocused.current);
+  }, [gateOpen, loadRecords]);
 
   useEffect(() => {
     // 한국어를 안 쓰는 사람에겐 보여줄 자리가 없으니 받아오지도 않는다 (SOMA-544).
@@ -341,6 +383,8 @@ export default function HomeScreen() {
   const { days } = useMemo(() => buildRecentActivity(activityDays ?? []), [activityDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
   const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
+  // 누적 연습일(SOMA-1003) — 연속이 끊겨도 줄지 않는 숫자. 같은 날 여러 번 해도 하루다.
+  const totalDays = useMemo(() => practiceDayTotal((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
   const activityLoaded = activityDays !== null;
   // 「첫 연습 끝!」 안내는 연습 1회(노트 생긴 코칭·끝낸 리딩·올린 참여작)를 한 뒤에만 띄운다(SOMA-773).
   const practiced = (activityDays?.length ?? 0) > 0;
@@ -351,16 +395,24 @@ export default function HomeScreen() {
   const practicedToday = days.some((d) => d.isToday && d.count > 0);
   useEffect(() => {
     let cancelled = false;
-    void readLastSeenStreak().then((lastSeen) => {
+    void Promise.all([readLastSeenStreak(), readLastSeenStreakDay()]).then(([lastSeen, lastSeenDay]) => {
       if (cancelled) return;
-      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak, practicedToday });
+      const step = streakCelebrationStep({
+        loaded: activityLoaded,
+        lastSeen,
+        current: streak,
+        practicedToday,
+        failed: recordsFailed,
+        lastSeenDay,
+        today: kstToday(),
+      });
       if (step.celebrate) setCelebrateStreak(streak);
       if (step.remember !== null) void writeLastSeenStreak(step.remember);
     });
     return () => {
       cancelled = true;
     };
-  }, [activityLoaded, streak, practicedToday]);
+  }, [activityLoaded, streak, practicedToday, recordsFailed]);
 
   const loaded = groupsLoaded && scripts !== null && activityLoaded && graduated !== null;
   // 첫 사용자 화면(뭐부터 해 볼까요?)과 탭바 숨김은 같은 판단 하나다(lib/practice/first-time) — 묶음·대본·연습한 날이 모두 없는 사람.
@@ -470,12 +522,13 @@ export default function HomeScreen() {
     api
       .listReadingSessions(readingScriptId)
       .then(async ({ sessions }) => {
-        const open = sessions.find((s) => s.status === 'in_progress' && s.progress);
+        // 「이어 읽기」가 여는 회차와 같은 규칙으로 고른다(resumeSessionOf) — 보이는 줄 수와 열리는 회차가 같게.
+        const open = resumeSessionOf(sessions);
         const reached = open?.id ? await hasReachedEnd(open.id) : false;
         if (cancelled) return;
         setReadingProgress(
           open?.progress
-            ? { scriptId: readingScriptId, progress: displayProgress(open.progress, reached), perLine: secPerLine(sessions) }
+            ? { scriptId: readingScriptId, sessionId: open.id, progress: displayProgress(open.progress, reached), perLine: secPerLine(sessions) }
             : null,
         );
       })
@@ -485,7 +538,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [readingScriptId]);
+  }, [readingScriptId, readingTick]);
 
   const openCoaching = (group: PracticeGroup) => {
     const action = continueActionFor(group);
@@ -498,10 +551,18 @@ export default function HomeScreen() {
     router.push('/upload');
   };
 
+  // 홈 「이어 읽기」는 리딩 탭 「이어서 읽기」와 같은 길로 멈춘 회차를 잇는다(SOMA-994). 이을 회차가 없을 때만 대본 상세다.
+  const openingReading = useRef(false);
   const openReading = async (script: ScriptCard) => {
-    const opened = await loadIntoCurrent(script.id);
-    if (opened) router.push('/reading/detail');
-    else router.push('/reading');
+    if (openingReading.current) return;
+    openingReading.current = true;
+    try {
+      // 카드에 보인 그 회차를 연다.
+      const where = await openResume(script.id, readingProgress?.scriptId === script.id ? readingProgress.sessionId : undefined);
+      router.push(where === 'play' ? '/reading/play' : where === 'detail' ? '/reading/detail' : '/reading');
+    } finally {
+      openingReading.current = false;
+    }
   };
 
   const openItem = (item: TodayItem) => {
@@ -661,10 +722,22 @@ export default function HomeScreen() {
       <View style={styles.weekCard} testID="home-week">
         <View style={styles.weekHead}>
           <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
-          {!weekLoading && streak > 0 && (
-            <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
-              <Ionicons name="flame-outline" size={16} color={palette.flame} />
-              <Text style={styles.streakText}>{t('home.streakDaysRow', { n: streak })}</Text>
+          {/* 연속이 있으면 「🔥 3일째! · 누적 12일」, 끊겼으면 「누적 12일」만 — 연속이 0 이어도 쌓인 날은 보인다(SOMA-1003). */}
+          {!weekLoading && totalDays > 0 && (
+            <View
+              style={styles.streakPill}
+              testID="home-streak"
+              accessibilityLabel={
+                streak > 0
+                  ? `${t('home.streakA11y', { n: streak })}, ${t('home.totalDaysA11y', { n: totalDays })}`
+                  : t('home.totalDaysA11y', { n: totalDays })
+              }>
+              {streak > 0 && <Ionicons name="flame-outline" size={16} color={palette.flame} />}
+              <Text style={styles.streakText}>
+                {streak > 0
+                  ? `${t('home.streakDaysRow', { n: streak })} · ${t('home.totalDays', { n: totalDays })}`
+                  : t('home.totalDays', { n: totalDays })}
+              </Text>
             </View>
           )}
         </View>
@@ -709,7 +782,7 @@ export default function HomeScreen() {
         // 첫 사용자 홈(pen P1.12 「뭐부터 해 볼까요?」) — 액티 말풍선 아래에서 하나를 고르면(회색 → 옅은 파랑) 아래 「다음」으로 그 탭에 들어간다.
         // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
         <View style={styles.flex}>
-          <ScrollView contentContainerStyle={styles.firstContainer}>
+          <ScrollView contentContainerStyle={styles.firstContainer} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshRecords()} tintColor={palette.blue} />}>
             {planBadge(styles.firstPlan)}
             <MascotBubble
               source={MASCOT.coach}
@@ -755,7 +828,11 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : (
-        <ScrollView style={styles.scrollBg} contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scrollBg}
+          contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshRecords()} tintColor={palette.blue} />}>
           {/* 히어로(pen 「홈」) — 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
           {/* 요소·배치는 개편본, 배경(위에서 옅어지는 파랑 띠·창문 빛·연한 바탕)은 예전 것(SOMA-923). */}
           {heroBand(false)}

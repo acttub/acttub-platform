@@ -661,6 +661,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                          OR EXISTS (SELECT 1 FROM community_posts WHERE author_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_comments WHERE author_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_post_likes WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM community_post_images WHERE uploader_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_anonymous_aliases WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_reports WHERE reporter_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_blocks
@@ -773,6 +774,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                 cleanups.addAll(deletedPractices.purgeAllOf(userId, now));
             }
             eraseChallenge(userId, now);
+            // 게시판 글 사진은 객체를 위에서 장부에 올렸다. 행도 지워 글에서 사진이 빠지게 한다(글·댓글 행은 남는다).
+            entityManager.createNativeQuery("DELETE FROM community_post_images WHERE uploader_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
@@ -899,7 +904,11 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
         }
     }
 
-    /** 프로필 사진(대기 중인 올리기 포함)과 포트폴리오 사진의 객체 키. 사진은 보관 동의와 무관하게 지운다. */
+    /**
+     * 프로필 사진(대기 중인 올리기 포함)과 포트폴리오 사진, 게시판 글 사진(SOMA-873, 붙지 않은 올리기 포함)의 객체 키.
+     * 사진은 보관 동의와 무관하게 지운다. 게시판 글은 남아 "탈퇴한 사용자"로 보이고 사진 행은 {@link #eraseChallenge} 뒤에
+     * 지운다.
+     */
     private List<String> photoKeys(UUID userId) {
         return list(entityManager.createNativeQuery("""
                 SELECT photo_key AS object_key FROM user_profiles
@@ -910,6 +919,9 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                 UNION ALL
                 SELECT object_key FROM portfolio_photos
                 WHERE user_id=:userId
+                UNION ALL
+                SELECT object_key FROM community_post_images
+                WHERE uploader_id=:userId
                 """, Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))

@@ -20,7 +20,8 @@ export type PronunciationMark = {
   endMs: number | null;
   detail?: PronunciationDetail | null;
 };
-export type PronunciationLine = { lineNo: number; text: string; marks: PronunciationMark[] };
+/** sounds·clearSounds: 이 줄에서 센 소리와 그중 또렷한 소리(11/2 추가 — 이전 보고서엔 없다). */
+export type PronunciationLine = { lineNo: number; text: string; marks: PronunciationMark[]; sounds?: number; clearSounds?: number };
 export type PronunciationHabit = {
   habit: 'ONSET' | 'CODA' | 'VOWEL';
   label: string;
@@ -85,6 +86,20 @@ export function markedLineCount(report: PronunciationReport): number {
 }
 
 /** 상세 분석이 있는 칠한 어절. 「상세 보고서」 칸에 그린다. */
+/** 줄 점수(또렷한 소리 수/센 소리 수). 이전 보고서이거나 센 소리가 없으면 null. */
+export function lineScore(line: PronunciationLine): { clear: number; total: number; percent: number } | null {
+  const total = line.sounds ?? 0;
+  if (total <= 0 || line.clearSounds == null) return null;
+  const clear = Math.min(Math.max(line.clearSounds, 0), total);
+  return { clear, total, percent: Math.round((clear * 100) / total) };
+}
+
+/** 어절 점수 — 모델의 lpr 원래 값(음수, 10/20 사용자 선택)을 소수 한 자리로. 마이너스는 '−'로 적는다. */
+export function markScore(lpr: number): string {
+  const v = Math.round(lpr * 10) / 10;
+  return v < 0 ? `−${Math.abs(v).toFixed(1)}` : v.toFixed(1);
+}
+
 export function detailedMarks(line: PronunciationLine): (PronunciationMark & { detail: PronunciationDetail })[] {
   return line.marks.filter((m): m is PronunciationMark & { detail: PronunciationDetail } => !!m.detail);
 }

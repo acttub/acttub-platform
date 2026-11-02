@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  avatarLetter,
   canDelete,
   browseFailure,
   dDayLabel,
@@ -140,11 +139,9 @@ test('challenge.browse: 검색은 2자 이상일 때만 찾는다', () => {
   assert.equal(searchable('니나'), true);
 });
 
-test('challenge.browse: 참여자는 이름 셋과 +N 으로 보이고 아바타는 첫 글자다', () => {
+test('challenge.browse: 참여자는 이름 셋과 +N 으로 보인다', () => {
   assert.equal(participantsLabel([{ name: '윤서' }, { name: '태오' }, { name: '민재' }], 12), '윤서 · 태오 · 민재 +12');
   assert.equal(participantsLabel([{ name: '윤서' }], 0), '윤서');
-  assert.equal(avatarLetter('윤서'), '윤');
-  assert.equal(avatarLetter(' 태오 '), '태');
   // 참여자가 없으면 없다고 말한다.
   assert.notEqual(participantsLabel([], 0), '');
 });

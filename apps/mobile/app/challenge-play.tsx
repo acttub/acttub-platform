@@ -25,6 +25,7 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
 import { ScrimGradient } from '@/components/ui/band-gradient';
@@ -32,7 +33,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
+import { browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { commentCountAfter } from '@/lib/challenge/entry';
 import { playMenuItems, type PlayMenuItem } from '@/lib/challenge/menu';
@@ -491,9 +492,7 @@ export default function ChallengePlayScreen() {
               <Feather name="x" size={24} color={palette.onAccent} />
             </Pressable>
             <View style={styles.author}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{avatarLetter(item.author.name)}</Text>
-              </View>
+              <UserAvatar size={24} radius={12} seed={item.author.user_id} photoUrl={item.author.photo_url} />
               <Text style={styles.authorName}>{item.author.name}</Text>
             </View>
             <View style={styles.topRight}>
@@ -626,7 +625,14 @@ export default function ChallengePlayScreen() {
       )}
       {entries !== null && entries.length === 0 && !error && (
         <View style={[styles.emptyWrap, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
-          <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close" style={styles.emptyClose}>
+          {/* 감싼 칸의 paddingTop 은 absolute 자식에 안 먹는다 — 상태바 높이를 직접 더해야 X가 상태바 아래에서 눌린다(SOMA-993). */}
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            ph-label="challenge_play_close"
+            style={[styles.emptyClose, { top: insets.top + space[2] }]}>
             <Feather name="x" size={24} color={palette.onAccent} />
           </Pressable>
           <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
@@ -750,8 +756,6 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[4], paddingTop: space[2] },
   author: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   authorName: { ...type.body2Bold, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
-  avatar: { width: 24, height: 24, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...type.micro, color: palette.textSub },
   bottom: { paddingHorizontal: space.gutter, paddingBottom: space[4], gap: space[2] },
   storyLabel: { ...type.micro, color: palette.onMediaSub, ...MEDIA_TEXT_SHADOW },
   originalToggle: {

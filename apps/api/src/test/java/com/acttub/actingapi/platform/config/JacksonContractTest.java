@@ -113,4 +113,16 @@ class JacksonContractTest {
 
         assertThat(parsed.value()).isEqualTo("a");
     }
+
+    @Test
+    @DisplayName("요청 본문의 Instant 를 읽는다 — 광고 starts_at·ends_at 같은 칸이 422 가 되지 않는다")
+    void instantIsReadFromRequestBody() throws Exception {
+        HasInstant utc = objectMapper.readValue("{\"at\":\"2026-11-02T05:33:41Z\"}", HasInstant.class);
+        HasInstant micros = objectMapper.readValue("{\"at\":\"2026-11-02T05:33:41.123456Z\"}", HasInstant.class);
+        HasInstant kst = objectMapper.readValue("{\"at\":\"2026-11-02T14:33:41+09:00\"}", HasInstant.class);
+
+        assertThat(utc.at()).isEqualTo(Instant.parse("2026-11-02T05:33:41Z"));
+        assertThat(micros.at()).isEqualTo(Instant.parse("2026-11-02T05:33:41.123456Z"));
+        assertThat(kst.at()).isEqualTo(Instant.parse("2026-11-02T05:33:41Z"));
+    }
 }

@@ -55,11 +55,13 @@ jest.mock('@/lib/api', () => ({
     getPracticeNote: jest.fn(),
     admissions: jest.fn(),
     auditions: jest.fn(),
+    practiceDays: jest.fn(),
   },
 }));
 jest.mock('@/hooks/use-unread-notifications', () => ({ useUnreadNotifications: () => ({ count: 0, badge: null }) }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 jest.mock('@/lib/reading/store', () => ({ loadIntoCurrent: jest.fn(async () => null) }));
+jest.mock('@/lib/reading/resume-open', () => ({ openResume: jest.fn(async () => 'missing') }));
 jest.mock('@/lib/guide-state', () => ({
   hasSeenSpotlight: jest.fn(),
   hasSeenTutorial: jest.fn(),
@@ -67,7 +69,10 @@ jest.mock('@/lib/guide-state', () => ({
   markTutorialSeen: jest.fn(async () => undefined),
   markReadingTutorialSeen: jest.fn(async () => undefined),
 }));
-jest.mock('@/lib/practice-days', () => ({ rememberPracticeDays: jest.fn() }));
+jest.mock('@/lib/practice-days', () => ({
+  rememberPracticeDays: jest.fn(),
+  serverPracticeDayRecords: jest.requireActual('@/lib/practice-days').serverPracticeDayRecords,
+}));
 jest.mock('@/lib/practice/first-use-graduation', () => ({
   hasGraduatedFirstUse: jest.fn(async () => false),
   markFirstUseGraduated: jest.fn(async () => undefined),
@@ -201,6 +206,7 @@ beforeEach(() => {
   getPracticeNote.mockResolvedValue({ next_take: null, report: null });
   (api.admissions as jest.Mock).mockResolvedValue(admissionsPayload);
   (api.auditions as jest.Mock).mockResolvedValue(auditionsPayload);
+  (api.practiceDays as jest.Mock).mockResolvedValue({ days: [] });
   (hasSeenTutorial as jest.Mock).mockResolvedValue(true);
   (hasSeenSpotlight as jest.Mock).mockResolvedValue(true);
   (rememberPracticeDays as jest.Mock).mockImplementation(async (records: { created_at: string }[]) => records);
@@ -321,6 +327,53 @@ describe('첫 사용자', () => {
     expect(screen.queryByText('이어 읽기')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '리딩 시작하기' }));
     await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading'));
+  });
+
+  test('이어 읽을 회차가 있으면 홈 「이어 읽기」는 리딩 화면으로 바로 잇고, 없으면 대본 상세다 (SOMA-994)', async () => {
+    const openResume = jest.requireMock('@/lib/reading/resume-open').openResume as jest.Mock;
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
+    listReadingScripts.mockResolvedValue({ scripts: [script({ id: 'sc1', title: '갈매기 2막' })] });
+    openResume.mockResolvedValueOnce('play');
+    await render(<HomeScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: '리딩 시작하기' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/play'));
+    // 진행 중 회차가 없으면 회차를 정하지 않고 연다.
+    expect(openResume).toHaveBeenLastCalledWith('sc1', undefined);
+
+    openResume.mockResolvedValueOnce('detail');
+    await fireEvent.press(screen.getByRole('button', { name: '리딩 시작하기' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/detail'));
+  });
+
+  test('홈 「이어 읽기」는 카드에 줄 수를 보인 그 회차를 연다 (11/2 QA)', async () => {
+    const openResume = jest.requireMock('@/lib/reading/resume-open').openResume as jest.Mock;
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
+    listReadingScripts.mockResolvedValue({ scripts: [script({ id: 'sc1', title: '갈매기 2막', status: 'reading', last_practiced_at: isoDaysAgo(1) })] });
+    (api.listReadingSessions as jest.Mock).mockResolvedValue({
+      sessions: [{ id: 's-14', status: 'in_progress', progress: { total: 21, done: 8 } }],
+    });
+    openResume.mockResolvedValueOnce('play');
+    await render(<HomeScreen />);
+    await waitFor(() => expect(api.listReadingSessions).toHaveBeenCalledWith('sc1'));
+    expect(await screen.findByText(/^8\/21줄/)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: /읽기/ }));
+    await waitFor(() => expect(openResume).toHaveBeenLastCalledWith('sc1', 's-14'));
+  });
+
+  test('홈 리딩 카드를 연타해도 한 번만 연다 (SOMA-994)', async () => {
+    const openResume = jest.requireMock('@/lib/reading/resume-open').openResume as jest.Mock;
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    let finish: (v: string) => void = () => undefined;
+    openResume.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await render(<HomeScreen />);
+    const card = await screen.findByRole('button', { name: '리딩 시작하기' });
+    const before = openResume.mock.calls.length;
+    await fireEvent.press(card);
+    await fireEvent.press(card);
+    expect(openResume.mock.calls.length - before).toBe(1);
+    await act(async () => finish('play'));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/play'));
   });
 
   test('묶음을 못 받으면 첫 사용자로 보지 않는다', async () => {
@@ -660,12 +713,56 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     expect(screen.getByRole('button', { name: '이어 읽기' })).toBeOnTheScreen();
   });
 
+  test('서버가 센 지난 연습일까지 누적 일수에 넣는다 (SOMA-1003)', async () => {
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    const kstDay = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000 + 9 * 3_600_000).toISOString().slice(0, 10);
+    // 오늘(기기 기록과 겹침) + 30일·40일 전(앱이 따로 안 읽는 오래된 날).
+    (api.practiceDays as jest.Mock).mockResolvedValue({ days: [kstDay(40), kstDay(30), kstDay(0)] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('1일째! · 누적 3일')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1일 연속 연습, 지금까지 3일 연습')).toBeOnTheScreen();
+  });
+
+  test('연속이 끊겼어도 누적 일수는 보인다 (SOMA-1003)', async () => {
+    const kstDay = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000 + 9 * 3_600_000).toISOString().slice(0, 10);
+    (api.practiceDays as jest.Mock).mockResolvedValue({ days: [kstDay(20), kstDay(10), kstDay(5)] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('누적 3일')).toBeOnTheScreen();
+    expect(screen.queryByText(/일째!/)).not.toBeOnTheScreen();
+  });
+
+  // 11/2 폰 QA — 오프라인으로 켜면 홈이 팝업 뒤에서 기록 읽기에 실패한 채 남았다. 게이트가 열리면 다시 읽는다.
+  test('동의·프로필 게이트가 열리는 순간 홈에 있으면 기록을 다시 읽는다', async () => {
+    mockAuth.consentEntry = { status: 'error' };
+    (mockAuth.profile as { status?: string }).status = 'error';
+    listPracticeGroups.mockRejectedValueOnce(new Error('offline'));
+    const view = await render(<HomeScreen />);
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(1));
+
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    mockAuth.consentEntry = { status: 'allowed' };
+    (mockAuth.profile as { status?: string }).status = 'complete';
+    await view.rerender(<HomeScreen />);
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+  });
+
+  test('연습일 목록을 못 받아도 홈은 그대로 연다 (SOMA-1003)', async () => {
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    (api.practiceDays as jest.Mock).mockRejectedValue(new Error('down'));
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+  });
+
   test('연속 일수와 이번 주 요일 점 일곱 개를 보이고, 연습한 날은 체크로 채운다', async () => {
     listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
     (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e1', created_at: isoDaysAgo(0) }], next_cursor: null });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('1일째!')).toBeOnTheScreen();
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
     expect(screen.getByText('오늘')).toBeOnTheScreen();
     expect(screen.getAllByTestId(/^home-week-/)).toHaveLength(7);
     expect(screen.getAllByTestId('home-week-done').length).toBeGreaterThanOrEqual(1);
@@ -832,4 +929,31 @@ test('다시 포커스되면 기록을 다시 읽는다', async () => {
   await act(async () => void mockFocusEffect());
   await waitFor(() => expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen());
   expect(listReadingScripts.mock.calls.length).toBeGreaterThanOrEqual(2);
+});
+
+// 당기기 제스처는 ScrollView 의 refreshControl 이 받는다. 테스트 렌더러에는 제스처가 없어 그 요소를 꺼내 직접 다룬다.
+const homeRefresh = () =>
+  screen.container.queryAll((node) => node.props.refreshControl !== undefined)[0].props.refreshControl;
+
+test('기본 홈 맨 위에서 당기면 기록만 다시 읽고 표시가 사라지며, 첫 안내는 다시 묻지 않는다', async () => {
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ root_id: 'r1', title: '카페 장면', practices: [round('p1', '2026-08-15T03:00:00Z', true)] })],
+  });
+  await render(<HomeScreen />);
+  expect(await screen.findByText('2번째 테이크')).toBeOnTheScreen();
+  expect(homeRefresh().props.refreshing).toBe(false);
+  const tutorialAsks = (hasSeenTutorial as jest.Mock).mock.calls.length;
+
+  let resolve: (v: unknown) => void = () => undefined;
+  listPracticeGroups.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  await act(async () => homeRefresh().props.onRefresh());
+  expect(homeRefresh().props.refreshing).toBe(true);
+  expect(listPracticeGroups).toHaveBeenCalledTimes(2);
+
+  await act(async () =>
+    resolve({ groups: [group({ root_id: 'r2', title: '바다 장면', practices: [round('p2', '2026-08-16T03:00:00Z', true)] })] }),
+  );
+  await waitFor(() => expect(homeRefresh().props.refreshing).toBe(false));
+  expect(screen.getAllByText('바다 장면').length).toBeGreaterThan(0);
+  expect((hasSeenTutorial as jest.Mock).mock.calls.length).toBe(tutorialAsks);
 });

@@ -252,6 +252,9 @@ describe('목록을 못 불러왔을 때', () => {
 
     expect(screen.getByText('동의 문서를 불러오지 못했어요')).toBeOnTheScreen();
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    // 못 읽은 것은 문서가 바뀐 것이 아니다 — 「바뀌었어요」 대신 연결 안내를 보인다(11/2 폰 QA).
+    expect(screen.getByText('인터넷 연결을 확인해 주세요')).toBeOnTheScreen();
+    expect(screen.queryByText('동의 문서가 바뀌었어요')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
 

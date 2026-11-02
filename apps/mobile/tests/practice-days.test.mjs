@@ -90,3 +90,11 @@ test('계정을 아직 모르면 기기에 적지 않고 서버 기록만 돌려
   assert.deepEqual(await rememberPracticeDays([{ created_at: at(2026, 10, 2) }], null), [{ created_at: at(2026, 10, 2) }]);
   assert.equal(storage.values.size, 0);
 });
+
+test('서버 연습일은 한국 시간 한낮 시각으로 바꾸고, 모양이 틀린 값은 버린다 (SOMA-1003)', async () => {
+  const { serverPracticeDayRecords } = await import('../lib/practice-days.ts');
+  assert.deepEqual(serverPracticeDayRecords(['2026-10-03', 'oops', '2026-10-5', '2026-11-02']), [
+    { created_at: '2026-10-03T12:00:00+09:00' },
+    { created_at: '2026-11-02T12:00:00+09:00' },
+  ]);
+});
