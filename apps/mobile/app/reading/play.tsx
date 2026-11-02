@@ -1503,7 +1503,16 @@ export default function ReadingPlay() {
   }, [ownSession, shouldDiscard]);
 
   // 버튼이 아닌 길(안드로이드 뒤로 가기·스와이프)로 [시작] 전에 내려가도 회차를 남기지 않는다.
-  useEffect(() => navigation.addListener('beforeRemove', () => void discardIfUnstarted()), [navigation, discardIfUnstarted]);
+  // iOS 는 밀어서 나가기를 막지 않으므로 여기서 읽은 데까지 저장한다(SOMA-966).
+  const saveOnLeaveRef = useRef<() => void>(() => undefined);
+  useEffect(
+    () =>
+      navigation.addListener('beforeRemove', () => {
+        if (Platform.OS === 'ios') saveOnLeaveRef.current();
+        void discardIfUnstarted();
+      }),
+    [navigation, discardIfUnstarted],
+  );
 
   // 새 연습(R8)은 실행 화면으로 바뀌어 있어 replace 하면 상세가 하나 더 쌓인다 — 이미 있는 상세까지 내려간다.
   const exitToDetail = () => {
@@ -1517,8 +1526,8 @@ export default function ReadingPlay() {
   const onExit = () => leaveReading();
   // 저장은 기다리지 않는다 — 큐에 넣고 바로 넘어가면 화면을 떠난 뒤에도 마저 보낸다(leavingRef). 예전에는 저장이 닿을 때까지
   // 최대 3초를 아무 표시 없이 기다려 버퍼링처럼 보였다.
-  const leaveReading = () => {
-    if (leavingRef.current) return;
+  const saveOnLeave = () => {
+    if (leavingRef.current) return false;
     leavingRef.current = true;
     const cur = runRef.current;
     if (cur && cur.status !== 'done') {
@@ -1537,8 +1546,12 @@ export default function ReadingPlay() {
         }
       }
     }
+    return true;
+  };
+  saveOnLeaveRef.current = saveOnLeave;
+  const leaveReading = () => {
     // 막아 둔 뒤로 가기(usePreventRemove)가 풀린 다음 그림에서 넘어간다.
-    setExiting(true);
+    if (saveOnLeave()) setExiting(true);
   };
   useEffect(() => {
     if (exiting) exitToDetail();
@@ -1591,10 +1604,11 @@ export default function ReadingPlay() {
     stopHere();
   };
 
-  // 목소리를 내려받는(준비하는) 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 내려받기는 화면을 떠나도 이어진다.
-  useWaitExit(phase.kind === 'preparing', '/reading');
-  // 안드로이드 뒤로 가기·스와이프도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다.
-  usePreventRemove(phase.kind === 'running' && !exiting && run?.status !== 'done', () => leaveReading());
+  // 목소리를 내려받는(준비하는) 중에 뒤로 가면 안드로이드는 리딩 탭 첫 화면으로 간다(10-27 정함). 내려받기는 화면을 떠나도 이어진다.
+  // iOS 는 막지 않고 아래 화면으로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
+  useWaitExit(phase.kind === 'preparing' && Platform.OS !== 'ios', '/reading');
+  // 안드로이드 뒤로 가기도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다. iOS 는 위 beforeRemove 가 저장한다.
+  usePreventRemove(Platform.OS !== 'ios' && phase.kind === 'running' && !exiting && run?.status !== 'done', () => leaveReading());
 
   // 완료 화면이 뜨면 잠깐(DONE_LOCK_MS) 버튼을 막는다.
   useEffect(() => {

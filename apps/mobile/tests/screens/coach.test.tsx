@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { useVideoPlayer } from 'expo-video';
-import { ScrollView, TextInput } from 'react-native';
+import { Platform, ScrollView, TextInput } from 'react-native';
 
 import CoachScreen from '@/app/coach';
 import { logEvent } from '@/lib/analytics';
@@ -12,7 +12,14 @@ import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutorial-sample';
 
 const mockRouter = { replace: jest.fn(), dismissAll: jest.fn(), dismissTo: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
-const mockNavigation = { dispatch: jest.fn() };
+const mockRemoveListeners: (() => void)[] = [];
+const mockNavigation = {
+  dispatch: jest.fn(),
+  addListener: jest.fn((event: string, fn: () => void) => {
+    if (event === 'beforeRemove') mockRemoveListeners.push(fn);
+    return () => undefined;
+  }),
+};
 let mockKeyboardHeight = 0;
 let mockPreventRemove: { enabled: boolean; callback: (e: { data: { action: unknown } }) => void } | null = null;
 const mockLoop = {
@@ -829,7 +836,19 @@ describe('튜토리얼 예시', () => {
     expect(getPractice()?.note?.actor_words).toEqual(['컵을 내려놓으면서 더는 미루지 않겠다고 마음먹었어요.']);
   });
 
-  test('대화 중에 뒤로 가면 튜토리얼을 나감으로 끝내고 그 이동을 이어 간다', async () => {
+  test('iOS 는 대화 중 밀어서 나가기를 막지 않고, 내려갈 때 튜토리얼을 나감으로 끝낸다', async () => {
+    jest.useFakeTimers();
+    beginSample();
+    await render(<CoachScreen />);
+    expect(mockPreventRemove?.enabled).toBe(false);
+
+    await act(async () => mockRemoveListeners.at(-1)!());
+    expect(currentTutorial()).toBeNull();
+    expect(logged('tutorial_finish')).toEqual([{ mode: 'sample', track: 'practice', how: 'left' }]);
+  });
+
+  test('안드로이드는 대화 중에 뒤로 가면 튜토리얼을 나감으로 끝내고 그 이동을 이어 간다', async () => {
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
     jest.useFakeTimers();
     beginSample();
     await render(<CoachScreen />);
@@ -843,6 +862,7 @@ describe('튜토리얼 예시', () => {
 
     await act(async () => jest.advanceTimersByTime(0));
     expect(mockNavigation.dispatch).toHaveBeenCalledWith(action);
+    os.restore();
   });
 
   test('실제 회차에서는 뒤로 가기를 막지 않는다', async () => {
