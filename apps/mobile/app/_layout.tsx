@@ -510,6 +510,9 @@ function RootNavigator() {
         <Stack.Screen name="challenge-others" options={{ title: t('challenges.sameLineTitle') }} />
         <Stack.Screen name="line-search" options={{ headerShown: false }} />
         <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
+        {/* 배우 게시판(SOMA-873) — 머리는 화면이 NavHeader 로 그린다. */}
+        <Stack.Screen name="community-post" options={{ headerShown: false }} />
+        <Stack.Screen name="community-new" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
         <Stack.Screen name="reading/session" options={{ title: '' }} />

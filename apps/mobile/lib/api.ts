@@ -64,6 +64,17 @@ import type {
   MyEntriesResponse,
   MyEntryCard,
 } from '@/lib/challenge/types';
+import type {
+  CategoryListResponse,
+  CommentListResponse,
+  CommunityComment,
+  CommunityPost,
+  CommunityReportBody,
+  LikeResponse,
+  PostListResponse,
+  PostUpdateBody,
+  PostWriteBody,
+} from '@/lib/community';
 import type { ReadingExampleListResponse, ReadingExampleStart } from '@/lib/reading/examples';
 import type { ExampleAudioResponse } from '@/lib/reading/example-audio';
 import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
@@ -1536,6 +1547,76 @@ export const api = {
 
   listBlocks(): Promise<{ users: BlockedUser[] }> {
     return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
+  },
+
+  // 배우 게시판(SOMA-873, /v2/community) ----------------------------------------------
+  /** 분류 목록. 화면은 서버가 준 분류를 그대로 칩으로 그린다. */
+  communityCategories(): Promise<CategoryListResponse> {
+    return request<CategoryListResponse>('/v2/community/categories', {}, { timeoutMs: 15_000 });
+  },
+
+  /** 글 목록 — 최신순 커서. `category` 가 비면 전체다. 차단한 사람의 글은 서버가 뺀다. */
+  communityPosts(params: { category?: string; cursor?: string | null } = {}): Promise<PostListResponse> {
+    const query = new URLSearchParams();
+    if (params.category) query.set('category', params.category);
+    if (params.cursor) query.set('cursor', params.cursor);
+    const qs = query.toString();
+    return request<PostListResponse>(`/v2/community/posts${qs ? `?${qs}` : ''}`, {}, { timeoutMs: 20_000 });
+  },
+
+  communityPost(postId: string): Promise<CommunityPost> {
+    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 글 올리기. 제목·내용에 전화번호·메신저 ID 가 있으면 422 community_contact_info 다. */
+  createCommunityPost(body: PostWriteBody): Promise<CommunityPost> {
+    return request<CommunityPost>('/v2/community/posts', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 내 글 고치기 — 제목·내용만 바꾼다(분류는 그대로). */
+  updateCommunityPost(postId: string, body: PostUpdateBody): Promise<CommunityPost> {
+    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, jsonInit(body, 'PATCH'), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  deleteCommunityPost(postId: string): Promise<void> {
+    return request<void>(`/v2/community/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
+  /** 좋아요 켜기·끄기. 응답의 수와 내 상태로 화면을 맞춘다. */
+  likeCommunityPost(postId: string, liked: boolean): Promise<LikeResponse> {
+    return request<LikeResponse>(
+      `/v2/community/posts/${encodeURIComponent(postId)}/likes`,
+      { method: liked ? 'POST' : 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  communityComments(postId: string, cursor?: string | null): Promise<CommentListResponse> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<CommentListResponse>(`/v2/community/posts/${encodeURIComponent(postId)}/comments${query}`, {}, {
+      timeoutMs: 20_000,
+    });
+  },
+
+  createCommunityComment(postId: string, body: { body: string }): Promise<CommunityComment> {
+    return request<CommunityComment>(`/v2/community/posts/${encodeURIComponent(postId)}/comments`, jsonInit(body), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  deleteCommunityComment(commentId: string): Promise<void> {
+    return request<void>(`/v2/community/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
+  reportCommunityContent(body: CommunityReportBody): Promise<void> {
+    return request<void>('/v2/community/reports', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 게시판 차단 — 그 사람의 글·댓글이 내 목록에서 빠진다. */
+  blockCommunityUser(userId: string): Promise<void> {
+    return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), { timeoutMs: 15_000 });
   },
 
   // 알림함(challenge.notification) -------------------------------------------------

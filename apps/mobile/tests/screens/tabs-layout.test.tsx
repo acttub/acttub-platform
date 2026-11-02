@@ -57,14 +57,14 @@ jest.mock('@expo/vector-icons/Ionicons', () => ({ name }: { name: string }) => {
 jest.mock('@/lib/api', () => ({ api: { unreadNotificationCount: jest.fn() } }));
 
 const unreadCount = api.unreadNotificationCount as jest.Mock;
-const TAB_NAMES = ['홈', '코칭', '리딩', '챌린지', '프로필'];
+const TAB_NAMES = ['홈', '코칭', '리딩', '커뮤니티', '프로필'];
 
 beforeEach(() => {
   jest.clearAllMocks();
   unreadCount.mockResolvedValue({ count: 0 });
 });
 
-test('홈·코칭·리딩·챌린지·프로필 탭을 두고 기록·예전 촬영 자리는 탭바에서 뺀다', async () => {
+test('홈·코칭·리딩·커뮤니티·프로필 탭을 두고 기록·예전 촬영 자리는 탭바에서 뺀다', async () => {
   await render(<TabLayout />);
 
   expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(TAB_NAMES);
@@ -103,7 +103,7 @@ test('첫 사용자로 확인되면 모든 탭에서 탭바를 숨기고, 첫 �
 
   await act(async () => setFirstTimeState('first'));
   expect(screen.getByText('탭바 숨김')).toBeOnTheScreen();
-  for (const name of ['코칭', '리딩', '챌린지', '프로필', '홈']) {
+  for (const name of ['코칭', '리딩', '커뮤니티', '프로필', '홈']) {
     await fireEvent.press(screen.getByRole('tab', { name }));
     expect(screen.getByText('탭바 숨김')).toBeOnTheScreen();
   }
@@ -118,17 +118,17 @@ test('첫 사용자로 확인되면 모든 탭에서 탭바를 숨기고, 첫 �
 
 test('첫 사용자인지 아직 모르면(홈을 거치지 않고 다른 탭으로 바로 들어온 경우) 탭바를 보인다', async () => {
   await render(<TabLayout />);
-  await fireEvent.press(screen.getByRole('tab', { name: '챌린지' }));
+  await fireEvent.press(screen.getByRole('tab', { name: '커뮤니티' }));
 
   expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
 });
 
-test('읽지 않은 알림 묶음이 있으면 챌린지 탭에 그 수를 단다', async () => {
+test('읽지 않은 알림 묶음이 있으면 커뮤니티(옛 챌린지) 탭에 그 수를 단다', async () => {
   unreadCount.mockResolvedValue({ count: 120 });
 
   await render(<TabLayout />);
 
-  expect(await within(screen.getByRole('tab', { name: '챌린지' })).findByText('99+')).toBeOnTheScreen();
+  expect(await within(screen.getByRole('tab', { name: '커뮤니티' })).findByText('99+')).toBeOnTheScreen();
 });
 
 test('읽지 않은 알림이 없거나 못 읽으면 배지를 달지 않는다', async () => {
@@ -139,7 +139,7 @@ test('읽지 않은 알림이 없거나 못 읽으면 배지를 달지 않는다
 
   expect(unreadCount).toHaveBeenCalledTimes(1);
   expect(screen.queryByText(/^\d+\+?$/)).not.toBeOnTheScreen();
-  expect(screen.getByRole('tab', { name: '챌린지' })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '커뮤니티' })).toBeOnTheScreen();
 });
 
 test('안드로이드는 아이콘 아래에 탭 이름을 두고, 고른 탭 이름만 blue-deep 이다', async () => {
