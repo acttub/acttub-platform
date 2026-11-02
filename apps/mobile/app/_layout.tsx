@@ -68,6 +68,7 @@ import {
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
 import { onLanguageChange, translate as t } from '@/lib/i18n';
+import { loadSkeletonHints } from '@/lib/skeleton-hint';
 
 // 아이콘 폰트가 로드되기 전에 UI가 그려지면 탭바 아이콘이 빈칸으로 뜬다.
 // 로드가 끝날 때까지 스플래시를 유지해 아이콘 누락(회귀)을 막는다.
@@ -87,6 +88,8 @@ installNavigationGuard(router);
 setVoiceModelSource(() => api.getVoiceModel());
 // 운영이 바꾸는 값(평가 요청 주기·리딩 감지·칩 목록 등)을 서버에서 받는다(SOMA-939). 기다리지 않는다 — 받기 전엔 기본값이다.
 void loadAppConfig();
+// 뼈대 화면이 지난번 실제 화면 모양(첫 사용자·기존 사용자)을 따르도록 기억을 먼저 읽는다(lib/skeleton-hint).
+void loadSkeletonHints();
 
 export const unstable_settings = {
   anchor: '(tabs)',
