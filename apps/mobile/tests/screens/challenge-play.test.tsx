@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import ChallengePlayScreen from '@/app/challenge-play';
 import { logEvent } from '@/lib/analytics';
@@ -299,6 +300,21 @@ describe('참여작이 없을 때', () => {
 
     const buttons = screen.getAllByRole('button');
     await fireEvent.press(buttons[0]);
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('닫기(X)는 이름이 있고 상태바 높이만큼 내려와 눌린다 (SOMA-993)', async () => {
+    mocked.listChallengeEntries.mockResolvedValue(entriesPage([]));
+    const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 40, left: 0, right: 0, bottom: 20 } };
+    await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <ChallengePlayScreen />
+      </SafeAreaProvider>,
+    );
+    await screen.findByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.');
+    const close = screen.getByRole('button', { name: '닫기' });
+    expect(StyleSheet.flatten(close.props.style)).toEqual(expect.objectContaining({ position: 'absolute', top: 48 }));
+    await fireEvent.press(close);
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
