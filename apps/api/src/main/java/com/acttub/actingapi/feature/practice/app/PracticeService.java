@@ -215,6 +215,11 @@ public class PracticeService {
         return groups.stream().map(this::posters).toList();
     }
 
+    /** 연습한 날(한국 시간). 홈의 연속일·주간 원·누적 연습일이 쓴다 — 기기를 바꿔도 줄지 않게(SOMA-1003). */
+    public List<LocalDate> practiceDays(UUID userId) {
+        return practices.practiceDays(userId);
+    }
+
     /** "그만두기". 화면 이탈은 취소가 아니다 — 그쪽은 조회만 멈춘다. */
     public StatusView cancel(UUID userId, UUID practiceId) {
         Cancelled cancelled = practices.cancel(userId, practiceId, clock.instant());

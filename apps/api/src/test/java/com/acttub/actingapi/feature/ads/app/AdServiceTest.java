@@ -111,12 +111,12 @@ class AdServiceTest {
     }
 
     @Test
-    @DisplayName("Pro 판정을 결제 도메인에 묻고, 연습 중 칸 비율 0% 면 무료도 NONE, 100% 면 채운다")
+    @DisplayName("Pro 판정을 결제 도메인에 묻고 Pro 면 어느 칸이든 NONE, 연습 중 칸 비율 0% 면 무료도 NONE, 100% 면 채운다")
     void proAndPercent() {
         FakeRepository repo = new FakeRepository();
         var pro = new AdService(repo, userId -> true, new AdService.Settings(true, 100), CLOCK);
         assertThat(pro.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NONE);
-        assertThat(pro.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(pro.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
         var none = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 0), CLOCK);
         assertThat(none.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NONE);
         var all = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 100), CLOCK);

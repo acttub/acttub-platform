@@ -15,11 +15,11 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { buildRecentActivity } from '@/lib/practice-activity';
-import { practiceStreak, sceneTitle } from '@/lib/practice/groups';
+import { practiceDayTotal, practiceStreak, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
-import { rememberPracticeDays } from '@/lib/practice-days';
+import { rememberPracticeDays, serverPracticeDayRecords } from '@/lib/practice-days';
 import { dDayLabel } from '@/lib/challenge/browse';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { skipsHomeGuide } from '@/lib/returning-account';
@@ -246,7 +246,13 @@ export default function HomeScreen() {
         readFailed = true;
         return [];
       });
-    return Promise.all([groupsRead, scriptsRead, readingRead, entriesRead]).then(async ([groupList, scriptList, readingSessions, entries]) => {
+    // 서버가 센 연습일 전체(SOMA-1003) — 리딩은 위에서 최근 대본만 읽으니, 재설치·새 로그인 뒤에도 지난 날이 빠지지 않게
+    // 함께 쓴다. 실패하면 지금처럼 위 기록과 기기 누적분만 쓴다(구역을 비우지 않는다).
+    const serverDaysRead = Promise.resolve()
+      .then(() => api.practiceDays())
+      .then((r) => r.days)
+      .catch(() => [] as string[]);
+    return Promise.all([groupsRead, scriptsRead, readingRead, entriesRead, serverDaysRead]).then(async ([groupList, scriptList, readingSessions, entries, serverDays]) => {
       // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
       if (isCancelled()) return;
       // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
@@ -269,7 +275,8 @@ export default function HomeScreen() {
         }
       }
       setRecordsFailed(readFailed);
-      return rememberPracticeDays(counted.map((p) => ({ created_at: p.at })), currentFirstUseOwner()).then((days) => {
+      const records = [...counted.map((p) => ({ created_at: p.at })), ...serverPracticeDayRecords(serverDays)];
+      return rememberPracticeDays(records, currentFirstUseOwner()).then((days) => {
         if (!isCancelled()) setActivityDays(days);
       });
     });
@@ -313,7 +320,7 @@ export default function HomeScreen() {
         guideFocused.current = false;
         setGuideOpen(false);
       };
-    }, [router, openHomeGuideIfNew, loadRecords]),
+    }, [openHomeGuideIfNew, loadRecords]),
   );
 
   useEffect(() => {
@@ -360,6 +367,8 @@ export default function HomeScreen() {
   const { days } = useMemo(() => buildRecentActivity(activityDays ?? []), [activityDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
   const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
+  // 누적 연습일(SOMA-1003) — 연속이 끊겨도 줄지 않는 숫자. 같은 날 여러 번 해도 하루다.
+  const totalDays = useMemo(() => practiceDayTotal((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
   const activityLoaded = activityDays !== null;
   // 「첫 연습 끝!」 안내는 연습 1회(노트 생긴 코칭·끝낸 리딩·올린 참여작)를 한 뒤에만 띄운다(SOMA-773).
   const practiced = (activityDays?.length ?? 0) > 0;
@@ -680,10 +689,22 @@ export default function HomeScreen() {
       <View style={styles.weekCard} testID="home-week">
         <View style={styles.weekHead}>
           <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
-          {!weekLoading && streak > 0 && (
-            <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
-              <Ionicons name="flame-outline" size={16} color={palette.flame} />
-              <Text style={styles.streakText}>{t('home.streakDaysRow', { n: streak })}</Text>
+          {/* 연속이 있으면 「🔥 3일째! · 누적 12일」, 끊겼으면 「누적 12일」만 — 연속이 0 이어도 쌓인 날은 보인다(SOMA-1003). */}
+          {!weekLoading && totalDays > 0 && (
+            <View
+              style={styles.streakPill}
+              testID="home-streak"
+              accessibilityLabel={
+                streak > 0
+                  ? `${t('home.streakA11y', { n: streak })}, ${t('home.totalDaysA11y', { n: totalDays })}`
+                  : t('home.totalDaysA11y', { n: totalDays })
+              }>
+              {streak > 0 && <Ionicons name="flame-outline" size={16} color={palette.flame} />}
+              <Text style={styles.streakText}>
+                {streak > 0
+                  ? `${t('home.streakDaysRow', { n: streak })} · ${t('home.totalDays', { n: totalDays })}`
+                  : t('home.totalDays', { n: totalDays })}
+              </Text>
             </View>
           )}
         </View>

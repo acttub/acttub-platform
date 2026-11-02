@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.practice.adapter.db;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -289,6 +290,32 @@ class PostgresPracticeRepository implements PracticeRepository {
         return view == null
                 ? null
                 : new StatusView(view.stage(), view.closeReason(), view.analysisStatus(), view.job());
+    }
+
+    @Override
+    public List<LocalDate> practiceDays(UUID userId) {
+        @SuppressWarnings("unchecked")
+        List<String> days = entityManager.createNativeQuery("""
+                SELECT DISTINCT to_char(a.at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD') AS day
+                FROM (
+                    SELECT p.created_at AS at
+                    FROM practices p
+                    JOIN coach_conversations c ON c.practice_id=p.id
+                    JOIN coach_notes n ON n.conversation_id=c.id
+                    WHERE p.user_id=:userId
+                    UNION ALL
+                    SELECT ps.created_at
+                    FROM practice_sessions ps
+                    WHERE ps.user_id=:userId
+                      AND EXISTS (SELECT 1 FROM practice_reports r WHERE r.practice_session_id=ps.id)
+                    UNION ALL
+                    SELECT started_at FROM reading_sessions WHERE user_id=:userId AND status='completed'
+                    UNION ALL
+                    SELECT created_at FROM challenge_entries WHERE user_id=:userId
+                ) a
+                ORDER BY day
+                """).setParameter("userId", userId).getResultList();
+        return days.stream().map(LocalDate::parse).toList();
     }
 
     @Override
