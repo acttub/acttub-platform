@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Linking, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import {
@@ -35,8 +35,6 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   /** AdMob 배너를 기다리는 시간(ms). 테스트에서만 줄인다. */
   fillTimeoutMs?: number;
-  /** 칸 높이를 규격 높이(예: 50) 그대로 둔다. 폭에 맞춰 비율로 키우지 않는다. */
-  exactHeight?: boolean;
   /**
    * 화면 아래 탭바 위에 붙이는 고정 배너(게시판). 좌우 끝까지 채운다 — AdMob 은 폭에 맞춘 적응형 배너(ANCHORED_ADAPTIVE_BANNER),
    * 학원·우리 앱 이미지는 모서리 없이 규격 비율로 꽉 채운다. 받기 전 자리는 높이 50.
@@ -55,7 +53,7 @@ type Props = {
 /** AdMob 배너가 이 시간 안에 안 채워지면 칸을 접는다. */
 export const NETWORK_FILL_TIMEOUT_MS = 6000;
 
-export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, exactHeight = false, anchored = false }: Props) {
+export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, anchored = false }: Props) {
   const router = useRouter();
   const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
@@ -101,11 +99,17 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
 
   const size = pick?.size ?? AD_SLOTS[slot].size;
   const spec = AD_SIZES[size];
-  const box = [styles.box, exactHeight ? { height: spec.height } : { aspectRatio: spec.width / spec.height }];
+  // 배너(320×50·320×100)는 화면 좌우 끝까지 붙인다(11/2 사용자 「배너 광고 다 양옆에 붙여」). 300×250 은 그대로 가운데.
+  const bleed = anchored || AD_SLOTS[slot].size !== 'MEDIUM_RECTANGLE';
+  const box = [styles.box, { aspectRatio: spec.width / spec.height }];
 
   if (!loaded) {
-    if (anchored) {
-      return <View style={[styles.box, { height: spec.height }, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
+    if (bleed) {
+      return (
+        <FullBleed>
+          <View style={[styles.box, { height: spec.height }, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+        </FullBleed>
+      );
     }
     return <View style={[box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
   }
@@ -117,11 +121,16 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
     const banner = loadBannerModule();
     if (!banner) return null;
     const { BannerAd, BannerAdSize } = banner;
+    // 좌우를 채우는 칸은 AdMob 적응형 배너를 쓴다 — 고정 규격(320)은 넓은 폰에서 양옆이 빈다.
+    // 탭바 위 고정 칸은 ANCHORED, 화면 안 칸은 INLINE(규격 높이까지만).
+    const bannerSize = anchored ? BannerAdSize.ANCHORED_ADAPTIVE_BANNER : bleed ? BannerAdSize.INLINE_ADAPTIVE_BANNER : BannerAdSize[size];
     return (
-      <View style={[anchored ? [styles.box, { minHeight: spec.height }] : box, styles.network, style]} ph-no-capture>
-        <BannerAd
-          unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
-          size={anchored ? BannerAdSize.ANCHORED_ADAPTIVE_BANNER : BannerAdSize[size]}
+      <FullBleed on={bleed}>
+        <View style={[bleed ? [styles.box, anchored && { minHeight: spec.height }] : box, styles.network, style]} ph-no-capture>
+          <BannerAd
+            unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
+            size={bannerSize}
+            maxHeight={bleed && !anchored ? spec.height : undefined}
           requestOptions={{
             requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
               .requestNonPersonalizedAdsOnly,
@@ -130,9 +139,10 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
             setNetworkFilled(true);
             void logEvent('ad_network_loaded', { slot });
           }}
-          onAdFailedToLoad={() => setFailed(true)}
-        />
-      </View>
+            onAdFailedToLoad={() => setFailed(true)}
+          />
+        </View>
+      </FullBleed>
     );
   }
 
@@ -153,8 +163,9 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
   };
 
   return (
+    <FullBleed on={bleed}>
     <Pressable
-      style={[box, styles.creative, anchored && styles.flush, style]}
+      style={[box, styles.creative, bleed && styles.flush, style]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`광고 ${ad.advertiser_name ?? ad.headline ?? ''}`.trim()}
@@ -184,6 +195,23 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, e
         <Text style={styles.labelText}>{AD_LABEL.text}</Text>
       </View>
     </Pressable>
+    </FullBleed>
+  );
+}
+
+/**
+ * 안의 칸을 화면 좌우 끝까지 넓힌다. 바깥 칸은 부모 폭 그대로 두고 화면에서의 왼쪽 위치를 재서, 안쪽을 그만큼 왼쪽으로 당기고
+ * 화면 폭으로 늘린다(부모 좌우 여백이 화면마다 달라도 같은 결과). 바깥 칸은 움직이지 않아 다시 재도 값이 같다.
+ */
+function FullBleed({ on = true, children }: { on?: boolean; children: ReactNode }) {
+  const ref = useRef<View>(null);
+  const { width } = useWindowDimensions();
+  const [left, setLeft] = useState<number | null>(null);
+  if (!on) return <>{children}</>;
+  return (
+    <View ref={ref} onLayout={() => ref.current?.measureInWindow((x) => setLeft(Math.round(x)))}>
+      <View style={left === null ? undefined : { marginLeft: -left, width }}>{children}</View>
+    </View>
   );
 }
 
