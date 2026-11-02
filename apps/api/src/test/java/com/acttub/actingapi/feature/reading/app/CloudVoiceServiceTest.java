@@ -376,7 +376,7 @@ class CloudVoiceServiceTest {
         UUID first = UUID.randomUUID();
         repository.firstSessions.add(first);
         // 무료 기간이 끝났고 Pro 가 아니어도 첫 리딩 회차는 쓴다 — 미리 만들기도 같은 조건을 따른다.
-        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
         var service = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")),
                 VoicePlan.NONE, (u, s, text, preset, count) -> List.of(new UpcomingVoiceLines.Line("둘", "M1")), Runnable::run);
         service.synthesize(USER, "하나", "F1", first);

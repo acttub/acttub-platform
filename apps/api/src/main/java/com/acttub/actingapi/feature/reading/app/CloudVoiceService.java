@@ -128,7 +128,8 @@ public final class CloudVoiceService {
                 result = result(await(other).objectKey(), true);
             } else {
                 String over = overCap(userId, sessionId, pro);
-                if (over != null) throw new ApiException(429, over);
+                if ("cloud_voice_monthly_limit".equals(over)) throw new ApiException(429, "cloud_voice_monthly_limit");
+                if (over != null) throw new ApiException(429, "cloud_voice_daily_limit");
                 Made made = make(userId, hash, text, voice, pro);
                 result = result(made.entry().objectKey(), !made.mine());
             }
@@ -148,7 +149,7 @@ public final class CloudVoiceService {
             return repository.monthlyUsage(userId, YearMonth.from(today)) >= settings.proMonthlyLineCap()
                     ? "cloud_voice_monthly_limit" : null;
         }
-        if (sessionId != null && today.equals(voicedSessions.get(sessionId))) return false;
+        if (sessionId != null && today.equals(voicedSessions.get(sessionId))) return null;
         return repository.dailyUsage(userId, today) >= settings.dailyLineCap() ? "cloud_voice_daily_limit" : null;
     }
 
