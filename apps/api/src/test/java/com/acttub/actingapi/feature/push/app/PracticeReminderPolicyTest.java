@@ -75,6 +75,20 @@ class PracticeReminderPolicyTest {
     }
 
     @Test
+    @DisplayName("쉰 지 1·2·3·7일째에만 보내고 4·5·6일째는 건너뛴다(SOMA-987)")
+    void sendsOnlyOnDaysOneTwoThreeAndSeven() {
+        Instant first = kst("2026-10-20T20:00");
+        LocalDate lastDay = LocalDate.of(2026, 10, 20);
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-21T19:30"), first, lastDay)).contains(1);
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-22T19:30"), first, lastDay)).contains(2);
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-23T19:30"), first, lastDay)).contains(3);
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-24T19:30"), first, lastDay)).isEmpty();
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-25T22:00"), first, lastDay)).isEmpty();
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-26T22:00"), first, lastDay)).isEmpty();
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-27T19:30"), first, lastDay)).contains(7);
+    }
+
+    @Test
     @DisplayName("7일이 지나면 다시 연습할 때까지 보내지 않는다")
     void nothingAfterSeventhDay() {
         Instant first = kst("2026-10-20T20:00");
@@ -113,7 +127,7 @@ class PracticeReminderPolicyTest {
     }
 
     @Test
-    @DisplayName("F 가 23:30 이후라 보낼 시각이 하루 밀리면 밀린 날짜에 보낸다 — 매일 한 번, 7일 안에서")
+    @DisplayName("F 가 23:30 이후라 보낼 시각이 하루 밀리면 밀린 날짜에 보낸다 — 2·3·7일째, 7일 안에서")
     void lateNightFirstPracticeStillGetsOneReminderPerDay() {
         Instant first = kst("2026-10-20T23:40");
         LocalDate lastDay = LocalDate.of(2026, 10, 20);
@@ -124,6 +138,8 @@ class PracticeReminderPolicyTest {
         assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-22T08:59"), first, lastDay)).isEmpty();
         assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-22T09:00"), first, lastDay)).contains(2);
         assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-23T09:00"), first, lastDay)).contains(3);
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-24T09:00"), first, lastDay)).isEmpty();
+        assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-26T09:00"), first, lastDay)).isEmpty();
         assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-27T09:00"), first, lastDay)).contains(7);
         assertThat(PracticeReminderPolicy.practiceDue(kst("2026-10-28T09:00"), first, lastDay)).isEmpty();
     }
