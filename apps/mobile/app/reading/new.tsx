@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { usePreventRemove } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
@@ -136,6 +136,10 @@ export default function ReadingNew() {
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
+  // 붙여넣은 대본 나가기 확인(11/2 QA) — 물어본 이동과, 떠나도 된다는 표시.
+  const navigation = useNavigation();
+  const [leaveAsk, setLeaveAsk] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
+  const [leaveOk, setLeaveOk] = useState(false);
   const title = input.title[input.tab];
   const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
   const nextTarget = useSpotlightTarget(TARGET.readingNext);
@@ -233,6 +237,7 @@ export default function ReadingNew() {
     const saved = await loadIntoCurrent(result.scriptId);
     if (signal?.aborted) return;
     if (!saved) return failToOpen();
+    setLeaveOk(true); // 대본이 저장됐다 — 이제 떠나도 사라질 게 없다.
     setPopup(null);
     // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
@@ -318,7 +323,18 @@ export default function ReadingNew() {
   // 파일을 올리는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일이 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
   const working = input.file.kind === 'reading' && !splitting;
-  usePreventRemove(working, () => undefined);
+  // 붙여넣던 대본이 있으면 나가기 전에 묻는다 — 뒤로 한 번에 다 사라졌다(11/2 QA). 나누기를 시작한 뒤에는 묻지 않는다.
+  const pasteDirty = !leaveOk && !makeOpen && naming === null && input.paste.text.trim().length > 0 && popup === null;
+  usePreventRemove(working || pasteDirty, ({ data }) => {
+    if (working) return;
+    setLeaveAsk(data.action);
+  });
+  useEffect(() => {
+    if (leaveOk && leaveAsk) {
+      navigation.dispatch(leaveAsk);
+      setLeaveAsk(null);
+    }
+  }, [leaveOk, leaveAsk, navigation]);
 
   if (popup?.kind === 'failed') {
     return (
@@ -364,7 +380,7 @@ export default function ReadingNew() {
             <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={!makeOpen && input.tab === 'paste'} onPress={() => setTab('paste')} />
           </View>
           {/* 세 번째 선택지 — 대본이 없으면 같이 만들기. 예시 대본도 여기서 고른다(10/25). */}
-          <SegmentTab icon="message-circle" label={t('reading.entryCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
+          <SegmentTab icon="message-circle" label={t('reading.tabCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
         </View>
 
         {makeOpen && (
@@ -476,6 +492,19 @@ export default function ReadingNew() {
           router.replace(firstReadingRef.current ? FIRST_READING_HREF : '/reading/detail');
         }}
       />
+      <Modal transparent statusBarTranslucent visible={!!leaveAsk && !leaveOk} animationType="fade" onRequestClose={() => setLeaveAsk(null)}>
+        <View style={styles.backdrop}>
+          <DialogCard title={t('reading.pasteLeaveTitle')} message={t('reading.pasteLeaveBody')}>
+            <DialogButtons
+              cancelLabel={t('reading.pasteLeaveStay')}
+              onCancel={() => setLeaveAsk(null)}
+              confirmLabel={t('reading.pasteLeaveGo')}
+              destructive
+              onConfirm={() => setLeaveOk(true)}
+            />
+          </DialogCard>
+        </View>
+      </Modal>
       <Modal transparent statusBarTranslucent visible={!!popup && (popup.kind !== 'checking' || popup.keepModal)} animationType="fade" onRequestClose={() => !checking && setPopup(null)}>
         <View style={styles.backdrop}>
           {popup?.kind === 'alert' && (

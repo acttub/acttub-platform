@@ -11,7 +11,10 @@ test('홈 안내는 첫 연습을 끝낸 뒤 카드·대본·챌린지·프로�
   assert.deepEqual(targets, ['homeStart', 'tabReading', 'tabChallenge', 'tabProfile']);
   // 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않고, 「연습 1회」(SOMA-773)를 한 뒤에만 띄운다.
   // 연습이 쌓인 계정(앱을 다시 깐 기존 사용자)에게는 띄우지 않는다(10/26, lib/returning-account).
-  assert.match(home, /visible=\{guideOpen && overlaysReady && loaded && !firstUser && practiced && !skipsHomeGuide\(practices\.length\)\}/);
+  assert.match(home, /guideOpen && overlaysReady && loaded && !firstUser && practiced && !skipsHomeGuide\(practices\.length\)/);
+  // 불꽃 축하를 따져 본 뒤·축하가 끝난 뒤에만 띄운다(11/2 QA).
+  assert.match(home, /streakCheckedFor === streak && celebrateStreak === null/);
+  assert.match(home, /visible=\{guideVisible\}/);
   assert.match(home, /const practiced = \(activityDays\?\.length \?\? 0\) > 0;/);
 
   const layout = src('app/(tabs)/_layout.tsx');

@@ -105,3 +105,30 @@ test('뒤로 가기가 아닌 이동(다 끝나서 넘어가는 replace)은 막�
   expect(view.getPathname()).toBe('/reading/roles');
   expect(prevented).toEqual([false, true]);
 });
+
+// 11/2 QA: 프로필·홈에서 하던 코칭을 바로 열었다가 뒤로 가면 코칭 탭이 아니라 들어온 탭으로 돌아간다(backToTabBelow).
+function CoachWaitingLike() {
+  useWaitExit(true, '/coaching', undefined, { backToTabBelow: true });
+  return <Text>코치 기다리는 중</Text>;
+}
+
+test('backToTabBelow: 바로 아래가 탭이면 들어온 탭으로 돌아간다', async () => {
+  const view = renderRouter(
+    {
+      _layout: () => <Stack />,
+      '(tabs)/_layout': () => <Tabs backBehavior="history" />,
+      '(tabs)/index': () => <Text>홈</Text>,
+      '(tabs)/profile': () => <Text>프로필</Text>,
+      '(tabs)/coaching': () => <Text>코칭 탭</Text>,
+      coach: CoachWaitingLike,
+    },
+    { initialUrl: '/profile' },
+  );
+  await view;
+  await act(async () => router.push('/coach'));
+  await settle();
+  expect(screen.getByText('코치 기다리는 중')).toBeTruthy();
+  await act(async () => router.back());
+  await settle();
+  expect(view.getPathname()).toBe('/profile');
+});

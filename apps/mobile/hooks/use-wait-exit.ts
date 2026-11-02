@@ -14,19 +14,38 @@ export type WaitTab = '/reading' | '/coaching';
  * 안드로이드에 닿으면 react-native-screens 가 "ScreenStackFragment added into a non-stack container" 로 앱을 끈다.
  * 막힌 이동은 `data.action` 을 다시 보내면 막기를 지나간다(React Navigation 의 usePreventRemove 사용법).
  */
-export function useWaitExit(waiting: boolean, tab: WaitTab, confirmLeave?: () => Promise<boolean>): () => void {
+export function useWaitExit(
+  waiting: boolean,
+  tab: WaitTab,
+  confirmLeave?: () => Promise<boolean>,
+  /** 바로 아래가 탭 화면이면 그 탭으로 돌아간다(하던 코칭을 프로필·홈에서 바로 연 경우, 11/2 QA). 기본은 일을 시작한 탭. */
+  options?: { backToTabBelow?: boolean },
+): () => void {
   const router = useRouter();
   const navigation = useNavigation();
   usePreventRemove(waiting, ({ data }) => {
     const back = data.action.type === 'GO_BACK' || data.action.type === 'POP';
-    if (back) leaveToTab();
+    if (back) leaveToTab(() => navigation.dispatch(data.action));
     else navigation.dispatch(data.action);
   });
-  function leaveToTab() {
+  // backToTabBelow 이고 바로 아래가 탭 화면이면(프로필·홈에서 하던 코칭을 바로 연 경우) 그 탭으로 그냥 돌아간다 — 코칭 탭으로
+  // 보내면 들어온 곳이 아닌 데로 가 어색했다(11/2 QA). 중간 화면(올리기 등)을 거쳐 왔으면 일을 시작한 탭으로 보낸다.
+  function belowIsTabs(): boolean {
+    if (!options?.backToTabBelow) return false;
+    const state = typeof navigation.getState === 'function' ? navigation.getState() : undefined;
+    if (!state) return false;
+    return state.routes[state.index - 1]?.name === '(tabs)';
+  }
+  function leaveToTab(goBack?: () => void) {
     void (async () => {
       if (confirmLeave && !(await confirmLeave())) return;
+      if (belowIsTabs()) {
+        if (goBack) goBack();
+        else router.back();
+        return;
+      }
       router.dismissTo(tab);
     })();
   }
-  return leaveToTab;
+  return () => leaveToTab();
 }

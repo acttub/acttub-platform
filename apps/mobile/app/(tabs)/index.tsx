@@ -30,7 +30,7 @@ import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
 import { firstTimeStateFrom, setFirstTimeProvisional, setFirstTimeState, shouldRememberGraduation } from '@/lib/practice/first-time';
 import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
-import { currentFirstUseOwner, hasGraduatedFirstUse, markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
+import { currentFirstUseOwner, graduatedInMemory, hasGraduatedFirstUse, markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
@@ -153,6 +153,8 @@ export default function HomeScreen() {
   const [auditions, setAuditions] = useState<AuditionPostingList | null>(null);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
+  // 불꽃 축하를 따져 본 연속일 — 따지기 전에는 「첫 연습 끝!」 안내를 띄우지 않는다(11/2 QA: 안내가 먼저 떠 축하가 다음 방문으로 밀렸다).
+  const [streakCheckedFor, setStreakCheckedFor] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
   // 안내는 앱 맨 바깥에 그려져 다른 화면 위에도 덮인다 — 홈이 보일 때만 연다.
@@ -408,13 +410,16 @@ export default function HomeScreen() {
       });
       if (step.celebrate) setCelebrateStreak(streak);
       if (step.remember !== null) void writeLastSeenStreak(step.remember);
+      if (activityLoaded) setStreakCheckedFor(streak);
     });
     return () => {
       cancelled = true;
     };
   }, [activityLoaded, streak, practicedToday, recordsFailed]);
 
-  const loaded = groupsLoaded && scripts !== null && activityLoaded && graduated !== null;
+  // 방금 끝낸 연습으로 졸업했으면 저장값을 다시 읽기 전에도 안다 — 첫 사용자 홈이 잠깐 보이지 않게(11/2 QA).
+  const graduatedNow = graduated === true || graduatedInMemory(meId);
+  const loaded = groupsLoaded && scripts !== null && activityLoaded && (graduated !== null || graduatedNow);
   // 첫 사용자 화면(뭐부터 해 볼까요?)과 탭바 숨김은 같은 판단 하나다(lib/practice/first-time) — 묶음·대본·연습한 날이 모두 없는 사람.
   // 묶음을 못 받았으면 첫 사용자로 보지 않는다 — 시작한 사람에게 첫 화면을 보이는 쪽이 더 이상하다.
   const firstTime = firstTimeStateFrom({
@@ -424,7 +429,7 @@ export default function HomeScreen() {
     groups,
     scripts: scripts ?? [],
     practicedDays: activityDays?.length ?? 0,
-    graduated: !!graduated,
+    graduated: graduatedNow,
   });
   const firstUser = firstTime === 'first';
 
@@ -440,7 +445,7 @@ export default function HomeScreen() {
   // - 기억이 없으면(새로 깔았거나 로그아웃한 뒤) 짐작하지 않는다. 앱을 켤 때는 로고가 확인이 끝날 때까지 덮고,
   //   그보다 오래 걸릴 때만 첫 사용자 모양 뼈대가 보인다.
   const skeletonHints = useSkeletonHints();
-  const showFirstHome = loaded ? firstUser : skeletonHints.home === 'first';
+  const showFirstHome = loaded ? firstUser : skeletonHints.home === 'first' && !graduatedNow;
   const firstSkeleton = !loaded && skeletonHints.home !== 'returning';
   // 첫 데이터를 다 받았거나 첫 사용자 홈을 바로 그릴 수 있으면 앱을 켤 때 붙잡아 둔 로고를 닫게 한다.
   useEffect(() => {
@@ -761,9 +766,12 @@ export default function HomeScreen() {
     </View>
   );
 
+  // 불꽃 축하가 먼저, 「첫 연습 끝!」 안내는 그다음 — 축하를 따져 보기 전·축하 중에는 안내를 띄우지 않는다(11/2 QA).
+  const guideVisible =
+    guideOpen && overlaysReady && loaded && !firstUser && practiced && !skipsHomeGuide(practices.length) && streakCheckedFor === streak && celebrateStreak === null;
   return (
     <SafeAreaView style={[styles.safe, (loaded ? !firstUser : skeletonHints.home === 'returning') && styles.safeHero]} edges={['top']}>
-      {celebrateStreak !== null && overlaysReady && !guideOpen && !guideShownThisVisit && (
+      {celebrateStreak !== null && overlaysReady && !guideVisible && (
         <StreakCelebrationScreen
           streak={celebrateStreak}
           dots={celebrationDots(days)}
@@ -783,7 +791,8 @@ export default function HomeScreen() {
         // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstContainer} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshRecords()} tintColor={palette.blue} />}>
-            {planBadge(styles.firstPlan)}
+            {/* 처음 온 사람에게 FREE·「Pro 알아보기」는 이르다(11/2 QA) — Pro 를 받은 사람만 PRO 를 보인다. */}
+            {plan === 'pro' && planBadge(styles.firstPlan)}
             <MascotBubble
               source={MASCOT.coach}
               title={firstName ? t('home.firstHello', { name: firstName }) : t('home.firstHelloNoName')}
@@ -925,7 +934,7 @@ export default function HomeScreen() {
       )}
 
       <SpotlightGuide
-        visible={guideOpen && overlaysReady && loaded && !firstUser && practiced && !skipsHomeGuide(practices.length)}
+        visible={guideVisible}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {

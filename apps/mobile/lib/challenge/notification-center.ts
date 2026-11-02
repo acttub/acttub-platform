@@ -4,20 +4,38 @@ import type { NotificationGroup } from './types.ts';
 /**
  * 알림함(challenge.notification) — 한 줄은 묶음 하나다.
  *
- * 같은 10분 구간의 좋아요·댓글은 한 줄로 묶여 "N명이 좋아해요"·"N개의 댓글"로 보인다. 목록은
+ * 같은 10분 구간의 좋아요·댓글은 한 줄로 묶여 「윤서님 외 N명이 좋아요를 눌렀어요」처럼 보인다. 목록은
  * 묶음의 최신 사건 시각·id 역순이고 20개씩 받는다. 묶음을 누르면 포함된 사건 전부가 읽음이 되고
  * 대상으로 간다 — 대상이 보이지 않으면 "볼 수 없는 영상"만 알린다.
  * 읽지 않은 **묶음** 수가 탭 배지다. 토글을 꺼도 알림함에는 쌓인다.
  */
 
-/** 묶음 한 줄의 문구. 이름·본문은 조회 때 조립된 것만 쓴다. */
-export function groupLabel(group: Pick<NotificationGroup, 'kind' | 'actor_count' | 'actor_name'>): string {
+/** 서버가 탈퇴한 행동자에게 붙이는 이름 — 이름처럼 쓰지 않는다. */
+const WITHDRAWN_NAME = '탈퇴한 사용자';
+
+/**
+ * 묶음 한 줄의 문구 — 인스타처럼 누가 했는지 말한다(11/2 QA). 「윤서님이 좋아요를 눌렀어요」,
+ * 여러 명이면 「윤서님 외 2명이…」. 이름을 모르거나 탈퇴한 사람이면 「누군가」·「N명이」로 쓴다.
+ * 댓글이면 최신 댓글 앞부분을 뒤에 붙인다(서버가 볼 수 있을 때만 준다).
+ */
+export function groupLabel(
+  group: Pick<NotificationGroup, 'kind' | 'actor_count' | 'actor_name'> & { comment_excerpt?: string | null },
+): string {
   const count = Math.max(1, group.actor_count);
+  const name = group.actor_name?.trim();
+  const named = !!name && name !== WITHDRAWN_NAME;
+  const others = count - 1;
   switch (group.kind) {
     case 'entry_liked':
-      return translate('notifications.liked', { count });
-    case 'entry_commented':
-      return translate('notifications.commented', { count });
+      if (!named) return others > 0 ? translate('notifications.liked', { count }) : translate('notifications.someoneLiked');
+      return others > 0 ? translate('notifications.likedByMany', { name, count: others }) : translate('notifications.likedBy', { name });
+    case 'entry_commented': {
+      let head: string;
+      if (!named) head = others > 0 ? translate('notifications.commented', { count }) : translate('notifications.someoneCommented');
+      else head = others > 0 ? translate('notifications.commentedByMany', { name, count: others }) : translate('notifications.commentedBy', { name });
+      const excerpt = group.comment_excerpt?.trim();
+      return excerpt ? `${head}: ${excerpt}` : head;
+    }
     case 'challenge_ended':
       return translate('notifications.challengeEnded');
     default:

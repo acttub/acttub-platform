@@ -251,11 +251,8 @@ export default function CoachingTab() {
           </Pressable>
 
           <View style={styles.sectionHead}>
+            {/* 「전체 보기」는 위 「지난 코칭 다시 보기」와 같은 화면이라 뺐다(11/2 QA). */}
             <Text style={styles.sectionTitle}>{t('coachingTab.recentTitle')}</Text>
-            <Pressable onPress={() => router.push('/history')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('coachingTab.viewAll')} ph-label="coaching_recent_all" style={styles.more}>
-              <Text style={styles.moreText}>{t('coachingTab.viewAll')}</Text>
-              <Feather name="chevron-right" size={14} color={palette.iconFaint} />
-            </Pressable>
           </View>
           <View style={styles.recent}>
             {visible.slice(0, RECENT_COUNT).map((g) => {
@@ -467,8 +464,6 @@ const styles = StyleSheet.create({
   otherWaysText: { fontSize: 15, fontWeight: '600', color: palette.textSub },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[6] },
   sectionTitle: { ...type.body1Bold, color: palette.text },
-  more: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  moreText: { ...type.captionBold, color: palette.textSub },
   recent: { paddingTop: space[3], gap: space[3] },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   thumb: { width: 44, height: 44, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },

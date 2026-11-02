@@ -8,8 +8,13 @@ function sources() {
 }
 
 describe('ActyMotion', () => {
-  it('완료 축하는 「깜짝 놀람」을 먼저 깔고 그 화면 자세로 바뀐다', async () => {
+  it('완료 축하는 놀란 자세 없이 그 화면 자세로 바로 시작한다', async () => {
     await render(<ActyMotion testID="m" source={MASCOT.jump} size={MASCOT_SIZE.xl} kind="celebrate" />);
+    expect(sources()).toEqual([MASCOT.jump]);
+  });
+
+  it('intro 를 넘기면 그 자세를 먼저 깔고 화면 자세로 바뀐다', async () => {
+    await render(<ActyMotion testID="m" source={MASCOT.jump} size={MASCOT_SIZE.xl} kind="celebrate" intro={MASCOT.surprised} />);
     expect(sources()).toEqual([MASCOT.surprised, MASCOT.jump]);
   });
 

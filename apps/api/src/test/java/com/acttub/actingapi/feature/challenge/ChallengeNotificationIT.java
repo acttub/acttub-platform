@@ -125,8 +125,8 @@ class ChallengeNotificationIT {
         response(put("/v2/entries/{id}/like", mine), 200, first);
         assertThat(count("notifications")).isEqualTo(1);
         assertThat(pushes.runOnce(clock.instant())).isEqualTo(1);
-        assertThat(Fakes.SENT.getFirst().body()).isEqualTo("내 참여작에 새 반응이 있어요");
-        assertThat(Fakes.SENT.getFirst().body()).doesNotContain("첫 팬");
+        assertThat(Fakes.SENT.getFirst().title()).isEqualTo("Acttub");
+        assertThat(Fakes.SENT.getFirst().body()).isEqualTo("첫 팬님이 좋아요를 눌렀어요");
         assertThat(jdbc.queryForObject("SELECT stage FROM notification_pushes", String.class)).isEqualTo("first");
         for (int i = 0; i < 29; i++) {
             clock.advance(Duration.ofSeconds(10));
@@ -243,7 +243,7 @@ class ChallengeNotificationIT {
         assertThat(Fakes.SENT).singleElement().satisfies(message -> {
             assertThat(message.to()).isEqualTo("ExponentPushToken[me-1]");
             assertThat(message.title()).isEqualTo("Acttub");
-            assertThat(message.body()).isEqualTo("New reactions on your entry");
+            assertThat(message.body()).isEqualTo("낮 팬 liked your entry");
         });
 
         clock.advance(Duration.ofHours(1));

@@ -25,6 +25,7 @@ import { ReadingStatus } from '@/components/ui/reading-status';
 import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
+import { MIC_STOP_MAX_MS, settleWithin, STT_FINISH_MAX_MS } from '@/lib/reading/turn-close';
 import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { Image } from 'expo-image';
@@ -1024,8 +1025,9 @@ export default function ReadingPlay() {
       if (!cur || !session || cur.index !== from || cur.status !== 'mine' || turnClosing.current) return;
       turnClosing.current = true;
       setTurnDone(true);
-      const text = sttActive.current ? await stt.finish() : '';
-      await endTurnRecording(cur.lineIds[cur.index], text);
+      // 받아쓰기 마무리·마이크 정지가 늦거나 실패해도 [다음]은 정한 시간 안에 넘어간다(11/2 QA). 녹음 올리기는 원래 뒤에서 한다.
+      const text = sttActive.current ? await settleWithin(stt.finish(), STT_FINISH_MAX_MS, '') : '';
+      await settleWithin(endTurnRecording(cur.lineIds[cur.index], text), MIC_STOP_MAX_MS, null);
       sttActive.current = false;
       setListening(false);
       const now = runRef.current;
@@ -1156,8 +1158,8 @@ export default function ReadingPlay() {
           turnClosing.current = true;
           setTurnDone(true);
           void (async () => {
-            const text = sttActive.current ? await stt.finish() : '';
-            await endTurnRecording(cur.lineIds[cur.index], text);
+            const text = sttActive.current ? await settleWithin(stt.finish(), STT_FINISH_MAX_MS, '') : '';
+            await settleWithin(endTurnRecording(cur.lineIds[cur.index], text), MIC_STOP_MAX_MS, null);
             recordingClosed.current = true;
             sttActive.current = false;
             setListening(false);
@@ -1228,9 +1230,9 @@ export default function ReadingPlay() {
     turnClosing.current = true;
     setTurnDone(true);
     if (monoPosTimer.current) clearTimeout(monoPosTimer.current);
-    const text = sttActive.current ? await stt.finish() : '';
+    const text = sttActive.current ? await settleWithin(stt.finish(), STT_FINISH_MAX_MS, '') : '';
     if (text) monoPiece.current = text;
-    await endTurnRecording(cur.lineIds[monoPieceAt.current], monoPiece.current);
+    await settleWithin(endTurnRecording(cur.lineIds[monoPieceAt.current], monoPiece.current), MIC_STOP_MAX_MS, null);
     sttActive.current = false;
     setListening(false);
     const heard = monoHeard();
@@ -1263,9 +1265,9 @@ export default function ReadingPlay() {
     const rotate = async () => {
       if (cancelled || turnClosing.current) return;
       turnClosing.current = true;
-      const text = sttActive.current ? await stt.finish() : '';
+      const text = sttActive.current ? await settleWithin(stt.finish(), STT_FINISH_MAX_MS, '') : '';
       if (text) monoPiece.current = text;
-      await endTurnRecording(runRef.current?.lineIds[monoPieceAt.current] ?? '', monoPiece.current);
+      await settleWithin(endTurnRecording(runRef.current?.lineIds[monoPieceAt.current] ?? '', monoPiece.current), MIC_STOP_MAX_MS, null);
       monoDone.current = monoHeard();
       monoPiece.current = '';
       sttActive.current = false;
@@ -1863,7 +1865,9 @@ export default function ReadingPlay() {
       </View>
     );
     const rating = coaching && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
-    const reportRow = coaching ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
+    // 발음 보고서는 녹음한 회차에만 — 자동 넘김·듣기만은 녹음이 없어 「읽은 줄이 없어요」만 나온다(11/2 QA).
+    const recorded = !listenAll && !handsFree && session.record !== false;
+    const reportRow = coaching && recorded ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
 
     const firstStopped = firstReading && firstStoppedRef.current;
     if (!completed && !firstStopped) {

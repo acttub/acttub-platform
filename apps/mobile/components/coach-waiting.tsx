@@ -91,7 +91,8 @@ export function CoachWaiting({
   const sample = isSamplePracticeId(practiceId);
   // 영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 분석은 서버에서 계속되고 끝나면 완료 푸시가 온다.
   // iOS 밀어서 나가기는 막지 않고 아래 화면으로 내려간다(SOMA-966). 화면 안 버튼은 그대로 코칭 탭으로 간다.
-  const leave = useWaitExit(!sample && !error && Platform.OS !== 'ios', '/coaching');
+  // 프로필·홈에서 바로 연 하던 코칭이면 들어온 탭으로 돌아간다(SOMA-1002).
+  const leave = useWaitExit(!sample && !error && Platform.OS !== 'ios', '/coaching', undefined, { backToTabBelow: true });
   const [sampleReady, setSampleReady] = useState(false);
   const [guideDone, setGuideDone] = useState(false);
   const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);

@@ -13,12 +13,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { MASCOT } from '@/components/ui/mascot';
 import { easing, motion } from '@/constants/motion';
 
 /**
  * 움직이는 액티.
- * - celebrate: 완료 화면. 「깜짝 놀람」(20종 09)으로 튀어나왔다가 그 화면 자세로 바뀌며 두 번 폴짝 뛰고(착지 때 살짝 눌림),
+ * - celebrate: 완료 화면. 그 화면 자세로 바로 튀어나와 두 번 폴짝 뛰고(착지 때 살짝 눌림),
+ *   놀란 자세를 먼저 보이지 않는다(11/2 QA — 「경악하다가 웃는」 게 어색하다). intro 를 넘길 때만 그 자세를 먼저 깐다.
  *   그 뒤로는 천천히 숨 쉬듯 떠 있다.
  * - think: 코치가 답을 생각하는 동안. 갸웃 자세가 좌우로 고개를 기울이며 살짝 떠 있다.
  * - none: 멈춘 그림(예: 「연습으로 안 셌어요」처럼 축하할 일이 아닌 완료).
@@ -26,7 +26,7 @@ import { easing, motion } from '@/constants/motion';
  */
 export type ActyMotionKind = 'celebrate' | 'think' | 'none';
 
-/** 「깜짝 놀람」을 보여 주는 시간 — 그 뒤 화면 자세로 바뀐다. */
+/** intro 자세를 보여 주는 시간 — 그 뒤 화면 자세로 바뀐다(intro 를 넘길 때만). */
 export const ACTY_INTRO_MS = 420;
 const HOP_UP = 170;
 const HOP_DOWN = 170;
@@ -38,19 +38,20 @@ export function ActyMotion({
   source,
   size,
   kind,
-  intro = MASCOT.surprised,
+  intro,
   testID,
 }: {
   source: ImageSourcePropType;
   size: { width: number; height: number };
   kind: ActyMotionKind;
-  /** celebrate 가 처음 잠깐 보여 주는 자세. */
+  /** celebrate 가 처음 잠깐 보여 주는 자세. 기본은 없음 — 화면 자세로 바로 시작한다. */
   intro?: ImageSourcePropType;
   testID?: string;
 }) {
   const reduceMotion = useReducedMotion();
   const animate = kind !== 'none' && !reduceMotion;
-  const withIntro = animate && kind === 'celebrate';
+  const withIntro = animate && kind === 'celebrate' && intro != null;
+  const introMs = withIntro ? ACTY_INTRO_MS : 0;
 
   const lift = useSharedValue(0);
   const squashY = useSharedValue(1);
@@ -73,9 +74,9 @@ export function ActyMotion({
         withTiming(0, { duration: HOP_DOWN, easing: easing.exit }),
       ];
       pop.value = withSpring(1, { damping: 10, stiffness: 260 });
-      introShown.value = withDelay(ACTY_INTRO_MS, withTiming(0, { duration: SWAP_MS }));
+      if (withIntro) introShown.value = withDelay(introMs, withTiming(0, { duration: SWAP_MS }));
       lift.value = withDelay(
-        ACTY_INTRO_MS,
+        introMs,
         withSequence(
           ...hop(size.height * 0.16),
           withTiming(0, { duration: HOP_GAP }),
@@ -84,7 +85,7 @@ export function ActyMotion({
         ),
       );
       // 착지할 때 아래로 눌렸다가 돌아온다 — 첫 착지가 더 세다.
-      const firstLand = ACTY_INTRO_MS + HOP_UP + HOP_DOWN;
+      const firstLand = introMs + HOP_UP + HOP_DOWN;
       const secondGap = HOP_GAP + HOP_UP + HOP_DOWN - 70 - 130;
       squashY.value = withDelay(
         firstLand,
@@ -106,7 +107,7 @@ export function ActyMotion({
     return () => {
       [lift, squashY, squashX, tilt, pop, introShown].forEach((v) => cancelAnimation(v));
     };
-  }, [animate, kind, size.height, lift, squashY, squashX, tilt, pop, introShown]);
+  }, [animate, kind, withIntro, introMs, size.height, lift, squashY, squashX, tilt, pop, introShown]);
 
   const bodyStyle = useAnimatedStyle(() => ({
     transform: [

@@ -267,7 +267,8 @@ export default function ReadingList() {
   );
 
   return (
-    <ScrollView
+    <View style={styles.root}>
+      <ScrollView
       // 빈 화면의 파란 머리는 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
       style={[styles.root, (showEntry || entrySkeleton) && styles.rootEmpty]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 }]}
@@ -464,7 +465,10 @@ export default function ReadingList() {
           void markSpotlightSeen('reading');
         }}
       />
-    </ScrollView>
+      </ScrollView>
+      {/* 내리면 내용이 상태 표시줄 밑으로 비쳐 겹쳐 보였다(11/2 QA) — 상태 표시줄 자리를 바탕색으로 덮는다. */}
+      <View pointerEvents="none" style={[styles.statusCover, { height: insets.top }, (showEntry || entrySkeleton) && styles.statusCoverEmpty]} />
+    </View>
   );
 }
 
@@ -534,6 +538,8 @@ function ReadingListSkeleton({ rows }: { rows: number }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   rootEmpty: { backgroundColor: palette.blueSoft },
+  statusCover: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: palette.bg },
+  statusCoverEmpty: { backgroundColor: palette.blueSoft },
   content: { flexGrow: 1, backgroundColor: palette.bg, paddingHorizontal: space.gutter, gap: space[3] },
   listSkeleton: { gap: space[3] },
   headWrap: { marginHorizontal: -space.gutter },

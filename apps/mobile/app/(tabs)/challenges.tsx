@@ -35,7 +35,6 @@ import {
   canRetryBrowse,
   dDayLabel,
   participantsLabel,
-  pinsFeatured,
   type BrowseFailure,
 } from '@/lib/challenge/browse';
 import {
@@ -84,6 +83,8 @@ export default function ChallengesScreen() {
   const boardDot = useBoardNewDot();
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
+  /** 마지막으로 고정한 오늘의 챌린지 — 인기 말고 다른 칩을 받을 때 그대로 둔다. */
+  const featuredRef = useRef<ChallengeCard | null>(null);
   // 내가 참여한 챌린지(나만 보기 포함) — 오늘의 챌린지 버튼을 「한 번 더 찍기」로 바꾼다(SOMA-995).
   const [enteredIds, setEnteredIds] = useState<ReadonlySet<string>>(() => new Set());
   useFocusEffect(
@@ -129,12 +130,16 @@ export default function ChallengesScreen() {
       // 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
       const openTeam = (c: ChallengeCard) => c.origin === 'team' && Date.parse(c.ends_at) > Date.now();
       const teamFirst = [...result.challenges].sort((a, b) => Number(openTeam(b)) - Number(openTeam(a)));
-      setChallenges(teamFirst);
       setCursor(result.next_cursor);
-      // 오늘의 챌린지는 인기·최신 탭에만 고정한다(pinsFeatured(next) ? result.featured : null 이 기본).
+      // 오늘의 챌린지는 칩과 상관없이 늘 맨 위에 둔다(11/2 QA — 칩을 바꾸면 위 카드가 사라졌다). 서버는 인기 탭에만 featured 를
+      // 주므로, 다른 칩에서는 앞서 받은 것을 그대로 두고 처음부터 다른 칩이면 진행 중인 공식 챌린지를 올린다.
       // 서버가 고른 게 회원 챌린지인데 진행 중인 공식 챌린지가 있으면 공식을 올린다.
       const officialPick = result.featured && !openTeam(result.featured) ? (teamFirst.find(openTeam) ?? result.featured) : result.featured;
-      setFeatured(pinsFeatured(next) ? officialPick : null);
+      const pinned = officialPick ?? featuredRef.current ?? teamFirst.find(openTeam) ?? null;
+      featuredRef.current = pinned;
+      setFeatured(pinned);
+      // 맨 위에 고정한 챌린지는 아래 목록에서 뺀다 — 두 번 보이지 않게.
+      setChallenges(pinned ? teamFirst.filter((c) => c.id !== pinned.id) : teamFirst);
     } catch (e) {
       setChallenges([]);
       setFeatured(null);
@@ -162,7 +167,7 @@ export default function ChallengesScreen() {
       const asked = tab;
       const result = await api.listChallenges({ tab: asked, cursor });
       if (shownTab.current !== asked) return;
-      setChallenges((prev) => [...(prev ?? []), ...result.challenges]);
+      setChallenges((prev) => [...(prev ?? []), ...result.challenges.filter((c) => c.id !== featuredRef.current?.id)]);
       setCursor(result.next_cursor);
     } catch (e) {
       // 순위가 바뀌어 커서가 만료되면 처음부터 다시 읽는다(상세와 같다).
@@ -455,7 +460,8 @@ export default function ChallengesScreen() {
           </Pressable>
         )}
 
-        {challenges !== null && challenges.length === 0 && !featured && !error && (
+        {/* 종료·내 챌린지는 위에 오늘의 챌린지가 있어도 그 칩의 목록이 비었다고 알린다. */}
+        {challenges !== null && challenges.length === 0 && (!featured || tab === 'ended' || tab === 'mine') && !error && (
           <InlineEmpty title={emptyText} />
         )}
 
