@@ -342,18 +342,20 @@ export default function HomeScreen() {
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
   // 기록을 받기 전엔 판단하지 않는다 — 그 판정은 streakCelebrationStep 이 한다(SOMA-494).
+  // 오늘 연습이 없으면 축하하지 않는다 — 앱을 새로 깔아 저장값이 0 이 돼도 어제까지의 연속일로 다시 뜨지 않게.
+  const practicedToday = days.some((d) => d.isToday && d.count > 0);
   useEffect(() => {
     let cancelled = false;
     void readLastSeenStreak().then((lastSeen) => {
       if (cancelled) return;
-      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak });
+      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak, practicedToday });
       if (step.celebrate) setCelebrateStreak(streak);
       if (step.remember !== null) void writeLastSeenStreak(step.remember);
     });
     return () => {
       cancelled = true;
     };
-  }, [activityLoaded, streak]);
+  }, [activityLoaded, streak, practicedToday]);
 
   const loaded = groupsLoaded && scripts !== null && activityLoaded && graduated !== null;
   // 첫 데이터를 다 받으면 앱을 켤 때 붙잡아 둔 로고를 닫게 한다.
