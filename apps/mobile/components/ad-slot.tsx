@@ -36,7 +36,7 @@ type Props = {
   /** AdMob 배너를 기다리는 시간(ms). 테스트에서만 줄인다. */
   fillTimeoutMs?: number;
   /**
-   * 화면 아래 탭바 위에 붙이는 고정 배너(게시판). 좌우 끝까지 채운다 — AdMob 은 폭에 맞춘 적응형 배너(ANCHORED_ADAPTIVE_BANNER),
+   * 화면 아래 탭바 위에 붙이는 고정 배너(게시판). 좌우 끝까지 채운다 — AdMob 은 폭에 맞춘 앵커 적응형 배너(ANCHORED_ADAPTIVE_BANNER),
    * 학원·우리 앱 이미지는 모서리 없이 규격 비율로 꽉 채운다. 받기 전 자리는 높이 50.
    */
   anchored?: boolean;
@@ -121,16 +121,15 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     const banner = loadBannerModule();
     if (!banner) return null;
     const { BannerAd, BannerAdSize } = banner;
-    // 좌우를 채우는 칸은 AdMob 적응형 배너를 쓴다 — 고정 규격(320)은 넓은 폰에서 양옆이 빈다.
-    // 탭바 위 고정 칸은 ANCHORED, 화면 안 칸은 INLINE(규격 높이까지만).
-    const bannerSize = anchored ? BannerAdSize.ANCHORED_ADAPTIVE_BANNER : bleed ? BannerAdSize.INLINE_ADAPTIVE_BANNER : BannerAdSize[size];
+    // 좌우를 채우는 칸은 AdMob 앵커 적응형 배너를 쓴다 — 고정 규격(320)은 넓은 폰에서 양옆이 빈다.
+    // 인라인 적응형(maxHeight)은 높이를 AdMob 이 정해 홈에서 32 짜리 가는 띠로 왔다(11/3 폰). 앵커형은 폭마다 높이가 정해져(폰 약 50~62) 칸마다 같다.
+    const bannerSize = bleed ? BannerAdSize.ANCHORED_ADAPTIVE_BANNER : BannerAdSize[size];
     return (
       <FullBleed on={bleed}>
-        <View style={[bleed ? [styles.box, anchored && { minHeight: spec.height }] : box, styles.network, style]} ph-no-capture>
+        <View style={[bleed ? [styles.box, { minHeight: AD_SIZES.BANNER.height }] : box, styles.network, style]} ph-no-capture>
           <BannerAd
             unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
             size={bannerSize}
-            maxHeight={bleed && !anchored ? spec.height : undefined}
           requestOptions={{
             requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
               .requestNonPersonalizedAdsOnly,

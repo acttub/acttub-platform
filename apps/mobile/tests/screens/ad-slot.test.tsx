@@ -62,12 +62,12 @@ test('받기 전에는 자리를 잡고, NONE 이면 비운다', async () => {
   await waitFor(() => expect(view.toJSON()).toBeNull());
 });
 
-test('NETWORK 배너 칸은 좌우를 채우는 인라인 적응형 AdMob 배너(규격 높이까지, 테스트 단위)를 그린다', async () => {
+test('NETWORK 배너 칸은 좌우를 채우는 앵커 적응형 AdMob 배너(테스트 단위)를 그린다 — 인라인형은 높이가 들쭉날쭉해 쓰지 않는다', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
   await render(<AdSlot slot="home_top" />);
   const banner = await screen.findByTestId('admob-banner');
-  expect(banner.props.size).toBe('INLINE_ADAPTIVE_BANNER');
-  expect(banner.props.maxHeight).toBe(50);
+  expect(banner.props.size).toBe('ANCHORED_ADAPTIVE_BANNER');
+  expect(banner.props.maxHeight).toBeUndefined();
   expect(banner.props.unitId).toMatch(/^ca-app-pub-3940256099942544\//);
 });
 
