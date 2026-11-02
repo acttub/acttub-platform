@@ -192,19 +192,6 @@ class PronunciationWorkerTest {
     }
 
     @Test
-    void 채점_서비스가_너무_길다고_거절한_줄만_있으면_실패가_아니라_skipped_로_닫는다() {
-        scorerFailure = new PronunciationScorer.TooLong();
-        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
-        reports.lines = List.of(line(1, "다리", "다리", 45_000));
-
-        assertThat(worker(3).runOnce()).isTrue();
-
-        assertThat(reports.failure).isNull();
-        assertThat(reports.completedStatus).isEqualTo("skipped");
-        assertThat(reports.completedReport.skippedLines()).containsExactly(1);
-    }
-
-    @Test
     void 줄_하나가_실패해도_나머지로_보고서를_만든다() {
         scorerFailure = new IllegalStateException("pronunciation scorer failed");
         failOnlyText = "머리";

@@ -11,11 +11,4 @@ public interface PronunciationScorer {
 
     record Scored(ScoredLine line, String modelVersion) {
     }
-
-    /** 채점 서비스가 녹음이 너무 길다고 거절했다(422 audio_too_long). 다시 보내도 같으니 실패가 아니라 빠진 줄이다. */
-    final class TooLong extends RuntimeException {
-        public TooLong() {
-            super("pronunciation scorer rejected audio_too_long");
-        }
-    }
 }
