@@ -235,7 +235,8 @@ describe('기다리는 동안', () => {
     const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
     await act(async () => back({ data: { action: { type: 'POP' } } }));
     expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
-    expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+    // 나가는 동안 막기를 풀지 않는다 — 풀면 안드로이드에서 머리 갱신이 화면 제거와 겹쳐 앱이 꺼진다(SOMA-972).
+    expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   });
 
   test('영상 보는 중에도 뒤로 가기가 아닌 이동(다른 회차로 replace 등)은 막지 않고 그대로 보낸다', async () => {

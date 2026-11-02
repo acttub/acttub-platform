@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Ref } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,8 +28,9 @@ import { currentTutorial } from '@/lib/tutorial';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
 import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
-import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
-import { currentFirstUseOwner, hasGraduatedFirstUse } from '@/lib/practice/first-use-graduation';
+import { firstTimeStateFrom, setFirstTimeProvisional, setFirstTimeState, shouldRememberGraduation } from '@/lib/practice/first-time';
+import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
+import { currentFirstUseOwner, hasGraduatedFirstUse, markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
@@ -39,12 +40,16 @@ import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
+import { HomeHeroActy } from '@/components/home-hero-acty';
 import { HomeUploadCard } from '@/components/home-upload-card';
+import { HomePlanBadge } from '@/components/home-plan-badge';
+import { useBillingMe } from '@/hooks/use-billing-me';
+import { homePlan, settingsTarget } from '@/lib/billing';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
 import { markHomeReady } from '@/lib/launch-splash';
-import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
@@ -86,6 +91,18 @@ function recentlyPracticedScripts(scripts: readonly ScriptCard[], now = Date.now
   });
 }
 
+/** 첫 사용자인지 따질 때만 더 보는 대본 — 14일보다 전에 읽은 것, 최근에 읽은 순으로 몇 개만(11/2). */
+const OLDER_READING_CHECK_LIMIT = 10;
+function olderPracticedScripts(scripts: readonly ScriptCard[], now = Date.now()): ScriptCard[] {
+  return scripts
+    .filter((s) => {
+      const at = Date.parse(s.last_practiced_at ?? '');
+      return Number.isFinite(at) && now - at > READING_LOOKBACK_MS;
+    })
+    .sort((a, b) => Date.parse(b.last_practiced_at ?? '') - Date.parse(a.last_practiced_at ?? ''))
+    .slice(0, OLDER_READING_CHECK_LIMIT);
+}
+
 /**
  * A1. 홈(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
  * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 인사 + 오늘 할 것 카드 하나 + 하던 거 한 줄 +
@@ -113,6 +130,8 @@ export default function HomeScreen() {
   // 묶음을 한 번이라도 받아 봤는지(실패도 받은 셈) — 받기 전엔 첫 사용자 화면을 함부로 띄우지 않는다.
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [groupsFailed, setGroupsFailed] = useState(false);
+  // 대본 목록·리딩 회차·참여작 중 못 받은 것이 있다 — 그러면 첫 사용자로 보지 않는다(11/2).
+  const [recordsFailed, setRecordsFailed] = useState(false);
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
   const [readingProgress, setReadingProgress] = useState<{ scriptId: string; progress: SessionProgress; perLine: number } | null>(null);
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
@@ -209,6 +228,7 @@ export default function HomeScreen() {
           return [] as PracticeGroup[];
         });
       // 오늘 할 것의 리딩 후보 — 이어 읽을 대본. 실패하면 리딩 후보만 빠진다.
+      let readFailed = false;
       const scriptsRead = Promise.resolve()
         .then(() => api.listReadingScripts())
         .then((r) => {
@@ -216,26 +236,54 @@ export default function HomeScreen() {
           return r.scripts;
         })
         .catch(() => {
+          readFailed = true;
           if (!cancelled) setScripts([]);
           return [] as ScriptCard[];
         });
+      const sessionsOf = (s: ScriptCard) =>
+        api
+          .listReadingSessions(s.id)
+          .then((x) => x.sessions)
+          .catch(() => {
+            readFailed = true;
+            return [];
+          });
       // 연속일·주간 원·「첫 연습 끝!」은 「연습 1회」 기준 하나로 센다(SOMA-773) — 노트가 생긴 코칭 회차, 끝까지 읽은
       // 리딩 회차, 올린 참여작. 리딩 회차는 대본별로만 받으므로 최근에 연습한 대본만 읽는다(지난 날은 기기에 쌓여 있다).
       const readingRead = scriptsRead
-        .then((list) => Promise.all(recentlyPracticedScripts(list).map((s) => api.listReadingSessions(s.id).then((x) => x.sessions).catch(() => []))))
+        .then((list) => Promise.all(recentlyPracticedScripts(list).map(sessionsOf)))
         .then((lists) => lists.flat())
         .catch(() => []);
       const entriesRead = Promise.resolve()
         .then(() => api.listMyChallengeEntries())
         .then((r) => r.entries)
-        .catch(() => []);
-      void Promise.all([groupsRead, readingRead, entriesRead]).then(([groupList, readingSessions, entries]) => {
+        .catch(() => {
+          readFailed = true;
+          return [];
+        });
+      void Promise.all([groupsRead, scriptsRead, readingRead, entriesRead]).then(async ([groupList, scriptList, readingSessions, entries]) => {
         // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
         if (cancelled) return;
         // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
         const counted = countedPractices({ groups: groupList, readingSessions, entries });
         setEnteredChallengeIds(new Set(entries.flatMap((entry) => (entry.challenge?.id ? [entry.challenge.id] : []))));
         setPractices(counted);
+        // 최근 연습이 하나도 안 보이면 14일보다 전에 읽은 대본도 본다 — 오래전에 끝까지 읽은 사람을 첫 사용자로 보지 않게(11/2).
+        // 찾으면 졸업 표시를 남겨 다음부터는 다시 따지지 않는다. 불꽃·주간 원은 그대로 최근 기록만 쓴다.
+        if (counted.length === 0) {
+          const older = olderPracticedScripts(scriptList);
+          if (older.length > 0) {
+            const olderSessions = (await Promise.all(older.map(sessionsOf))).flat();
+            if (cancelled) return;
+            if (countedPractices({ readingSessions: olderSessions }).length > 0) {
+              const owner = currentFirstUseOwner();
+              await markFirstUseGraduated(owner);
+              if (cancelled) return;
+              if (owner) setGraduated(true);
+            }
+          }
+        }
+        setRecordsFailed(readFailed);
         return rememberPracticeDays(counted.map((p) => ({ created_at: p.at })), currentFirstUseOwner()).then((days) => {
           if (!cancelled) setActivityDays(days);
         });
@@ -299,29 +347,28 @@ export default function HomeScreen() {
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
   // 기록을 받기 전엔 판단하지 않는다 — 그 판정은 streakCelebrationStep 이 한다(SOMA-494).
+  // 오늘 연습이 없으면 축하하지 않는다 — 앱을 새로 깔아 저장값이 0 이 돼도 어제까지의 연속일로 다시 뜨지 않게.
+  const practicedToday = days.some((d) => d.isToday && d.count > 0);
   useEffect(() => {
     let cancelled = false;
     void readLastSeenStreak().then((lastSeen) => {
       if (cancelled) return;
-      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak });
+      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak, practicedToday });
       if (step.celebrate) setCelebrateStreak(streak);
       if (step.remember !== null) void writeLastSeenStreak(step.remember);
     });
     return () => {
       cancelled = true;
     };
-  }, [activityLoaded, streak]);
+  }, [activityLoaded, streak, practicedToday]);
 
   const loaded = groupsLoaded && scripts !== null && activityLoaded && graduated !== null;
-  // 첫 데이터를 다 받으면 앱을 켤 때 붙잡아 둔 로고를 닫게 한다.
-  useEffect(() => {
-    if (loaded) markHomeReady();
-  }, [loaded]);
   // 첫 사용자 화면(뭐부터 해 볼까요?)과 탭바 숨김은 같은 판단 하나다(lib/practice/first-time) — 묶음·대본·연습한 날이 모두 없는 사람.
   // 묶음을 못 받았으면 첫 사용자로 보지 않는다 — 시작한 사람에게 첫 화면을 보이는 쪽이 더 이상하다.
   const firstTime = firstTimeStateFrom({
     loaded,
     groupsFailed,
+    recordsFailed,
     groups,
     scripts: scripts ?? [],
     practicedDays: activityDays?.length ?? 0,
@@ -334,6 +381,36 @@ export default function HomeScreen() {
   useEffect(() => {
     setFirstTimeState(firstTime);
   }, [firstTime]);
+
+  // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 홈(lib/skeleton-hint)을 따른다.
+  // - 첫 사용자 홈이었으면 기다리지 않고 실제 첫 사용자 홈을 바로 그린다. 고정 글뿐이라 받을 것이 없다.
+  // - 기존 사용자 홈이었으면 같은 틀에 받는 칸만 회색인 뼈대를 그린다.
+  // - 기억이 없으면(새로 깔았거나 로그아웃한 뒤) 짐작하지 않는다. 앱을 켤 때는 로고가 확인이 끝날 때까지 덮고,
+  //   그보다 오래 걸릴 때만 첫 사용자 모양 뼈대가 보인다.
+  const skeletonHints = useSkeletonHints();
+  const showFirstHome = loaded ? firstUser : skeletonHints.home === 'first';
+  const firstSkeleton = !loaded && skeletonHints.home !== 'returning';
+  // 첫 데이터를 다 받았거나 첫 사용자 홈을 바로 그릴 수 있으면 앱을 켤 때 붙잡아 둔 로고를 닫게 한다.
+  useEffect(() => {
+    if (loaded || showFirstHome) markHomeReady();
+  }, [loaded, showFirstHome]);
+  useEffect(() => {
+    if (firstTime === 'first') rememberSkeletonHints({ home: 'first' });
+    else if (firstTime === 'practiced') rememberSkeletonHints({ home: 'returning' });
+  }, [firstTime]);
+  // 첫 사용자 뼈대를 그리는 동안은 실제 첫 사용자 홈처럼 탭바를 숨긴다. 받거나 홈을 떠나면 끈다.
+  useEffect(() => {
+    setFirstTimeProvisional(firstSkeleton);
+    return () => setFirstTimeProvisional(false);
+  }, [firstSkeleton]);
+
+  // 기록으로 첫 사용자를 벗어났으면 이 기기에 남긴다 — 다음에 서버 기록이 달라 보여도(다시 읽기 시작한 대본, 14일 지난 회차,
+  // 못 받은 목록) 첫 사용자 홈으로 되돌아가지 않는다(11/2, 리딩하고 돌아오니 기존 홈이 첫 홈으로 바뀌었다).
+  useEffect(() => {
+    if (!meId || !shouldRememberGraduation(firstTime, graduated)) return;
+    void markFirstUseGraduated(meId);
+    setGraduated(true);
+  }, [meId, firstTime, graduated]);
 
   const waitingUpload = useWaitingUpload();
   const today = useMemo(
@@ -498,11 +575,21 @@ export default function HomeScreen() {
     phLabel: 'home_row_watch',
     onPress: () => router.push('/challenges'),
   };
+  const rowFeedback: HomeRowData = {
+    key: 'feedback',
+    icon: 'message-circle',
+    title: t('feedback.row'),
+    sub: t('feedback.rowSub'),
+    phLabel: 'home_row_feedback',
+    onPress: () => router.push('/feedback'),
+  };
   const homeRows: HomeRowData[] = [
     ...(mainKind === 'coaching' ? [rowReading, rowChallenge] : []),
     ...(mainKind === 'reading' ? [rowCoaching, rowChallenge] : []),
     ...(mainKind === 'challenge' ? [rowWatch, rowReading] : []),
     ...(mainKind === 'start' ? [rowReading, rowChallenge] : []),
+    // 의견 보내기(SOMA-953) — 목록 맨 끝에 같은 모양으로. 프로필보다 자주 보는 홈에 둔다(11/1 사용자 결정).
+    rowFeedback,
   ];
   // 올리는 중에는 코칭 줄을 빼는데(위 coaching 메인 줄 목록에 코칭이 없다) 업로드 카드 아래에서도 같은 세 줄이다.
 
@@ -531,6 +618,12 @@ export default function HomeScreen() {
   }
 
 
+  // 지금 플랜(SOMA-981). 다시 받는 동안은 지난 값을 그대로 두고, 처음 받기 전·실패면 그리지 않는다.
+  const billing = useBillingMe();
+  const plan = homePlan(billing.me);
+  const planBadge = (style: typeof styles.heroPlan) =>
+    plan && billing.me ? <HomePlanBadge plan={plan} style={style} onPress={() => billing.me && router.push(settingsTarget(billing.me))} /> : null;
+
   const bell = (
     <Pressable
       onPress={() => router.push('/notifications')}
@@ -544,8 +637,59 @@ export default function HomeScreen() {
     </Pressable>
   );
 
+  // 기존 사용자 홈 위 띠(인사·액티·이번 주 연습). 뼈대 화면도 같은 띠를 그리고 이번 주 칸만 회색으로 둔다.
+  const heroBand = (weekLoading: boolean) => (
+    <View style={styles.heroBand}>
+      {/* iOS 에서 위로 당기면(바운스) 히어로 위가 비어 스크롤 바탕색이 띠처럼 보였다 — 히어로 첫 색을 위로 길게 깐다(SOMA-924). */}
+      <View style={styles.overscrollFill} pointerEvents="none" />
+      <View style={styles.heroBg} pointerEvents="none">
+        {HERO_FADE.map((c, i) => (
+          <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
+        ))}
+      </View>
+      <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
+      <View style={styles.hero}>
+        <View style={styles.heroText}>
+          <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
+          <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
+        </View>
+        {/* 책은 두고 액티만 폴짝 뛰고 숨 쉰다 — 누르면 다시 뛴다(components/home-hero-acty). */}
+        <HomeHeroActy style={styles.heroActy} height={styles.heroActy.height} />
+        {planBadge(styles.heroPlan)}
+        {bell}
+      </View>
+      <View style={styles.weekCard} testID="home-week">
+        <View style={styles.weekHead}>
+          <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
+          {!weekLoading && streak > 0 && (
+            <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
+              <Ionicons name="flame-outline" size={16} color={palette.flame} />
+              <Text style={styles.streakText}>{t('home.streakDaysRow', { n: streak })}</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.week}>
+          {days.map((d) => (
+            <View key={d.key} style={styles.weekCol}>
+              {weekLoading ? (
+                <SkeletonBlock width={36} height={36} radius={radius.full} />
+              ) : (
+                <View
+                  testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
+                  style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
+                  {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
+                </View>
+              )}
+              <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={[styles.safe, loaded && !firstUser && styles.safeHero]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, (loaded ? !firstUser : skeletonHints.home === 'returning') && styles.safeHero]} edges={['top']}>
       {celebrateStreak !== null && overlaysReady && !guideOpen && !guideShownThisVisit && (
         <StreakCelebrationScreen
           streak={celebrateStreak}
@@ -553,14 +697,20 @@ export default function HomeScreen() {
           onDone={() => setCelebrateStreak(null)}
         />
       )}
-      {!loaded ? (
+      {!showFirstHome && !loaded ? (
         // 앱을 켤 때는 로고가 이 자리를 덮고 있다(lib/launch-splash.ts). 서버가 느려 로고가 먼저 닫히면 뼈대 화면이 보인다(SOMA-828).
-        <HomeSkeleton />
-      ) : firstUser ? (
+        <HomeSkeleton
+          variant={skeletonHints.home === 'returning' ? 'returning' : 'first'}
+          cardHeight={skeletonHints.homeCardHeight}
+          heroBand={heroBand(true)}
+          footerSpace={tabBarSpace}
+        />
+      ) : showFirstHome ? (
         // 첫 사용자 홈(pen P1.12 「뭐부터 해 볼까요?」) — 액티 말풍선 아래에서 하나를 고르면(회색 → 옅은 파랑) 아래 「다음」으로 그 탭에 들어간다.
         // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstContainer}>
+            {planBadge(styles.firstPlan)}
             <MascotBubble
               source={MASCOT.coach}
               title={firstName ? t('home.firstHello', { name: firstName }) : t('home.firstHelloNoName')}
@@ -608,68 +758,31 @@ export default function HomeScreen() {
         <ScrollView style={styles.scrollBg} contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }} showsVerticalScrollIndicator={false}>
           {/* 히어로(pen 「홈」) — 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
           {/* 요소·배치는 개편본, 배경(위에서 옅어지는 파랑 띠·창문 빛·연한 바탕)은 예전 것(SOMA-923). */}
-          <View style={styles.heroBand}>
-            {/* iOS 에서 위로 당기면(바운스) 히어로 위가 비어 스크롤 바탕색이 띠처럼 보였다 — 히어로 첫 색을 위로 길게 깐다(SOMA-924). */}
-            <View style={styles.overscrollFill} pointerEvents="none" />
-            <View style={styles.heroBg} pointerEvents="none">
-              {HERO_FADE.map((c, i) => (
-                <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
-              ))}
-            </View>
-            <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
-            <View style={styles.hero}>
-              <View style={styles.heroText}>
-                <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
-                <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
-              </View>
-              <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-              {bell}
-            </View>
-            <View style={styles.weekCard} testID="home-week">
-              <View style={styles.weekHead}>
-                <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
-                {streak > 0 && (
-                  <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
-                    <Ionicons name="flame-outline" size={16} color={palette.flame} />
-                    <Text style={styles.streakText}>{t('home.streakDaysRow', { n: streak })}</Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.week}>
-                {days.map((d) => (
-                  <View key={d.key} style={styles.weekCol}>
-                    <View
-                      testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
-                      style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
-                      {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
-                    </View>
-                    <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
+          {heroBand(false)}
 
           <View style={styles.body}>
           <AdSlot slot="home_top" />
           {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
           {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
           {!waitingUpload.card && (
-              <TodayCardBody
-                // 첫 가이드가 비추는 자리 — 카드(TodayCardBody 안 Pressable)에 준다.
-                cardRef={startTarget.ref}
-                onCardLayout={startTarget.onLayout}
-                onPress={() => openItem(today.main)}
-                item={today.main}
-                challengeEntered={today.main.kind === 'challenge' && enteredChallengeIds.has(today.main.challenge.id)}
-                progress={
-                  today.main.kind === 'reading' && readingProgress?.scriptId === today.main.script.id
-                    ? readingProgress.progress
-                    : null
-                }
-                perLine={today.main.kind === 'reading' && readingProgress ? readingProgress.perLine : undefined}
-                nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
-              />
+            // 높이를 적어 두면 다음 뼈대의 오늘 카드가 같은 높이로 그려진다(lib/skeleton-hint).
+            <View onLayout={(e) => rememberSkeletonHints({ homeCardHeight: Math.round(e.nativeEvent.layout.height) })}>
+                <TodayCardBody
+                  // 첫 가이드가 비추는 자리 — 카드(TodayCardBody 안 Pressable)에 준다.
+                  cardRef={startTarget.ref}
+                  onCardLayout={startTarget.onLayout}
+                  onPress={() => openItem(today.main)}
+                  item={today.main}
+                  challengeEntered={today.main.kind === 'challenge' && enteredChallengeIds.has(today.main.challenge.id)}
+                  progress={
+                    today.main.kind === 'reading' && readingProgress?.scriptId === today.main.script.id
+                      ? readingProgress.progress
+                      : null
+                  }
+                  perLine={today.main.kind === 'reading' && readingProgress ? readingProgress.perLine : undefined}
+                  nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
+                />
+            </View>
           )}
 
           {/* 이것도 해 볼까요? — 카드 줄(pen P1.1). */}
@@ -959,30 +1072,100 @@ function FirstChoice({
   );
 }
 
-/** 홈 뼈대(SOMA-828) — 인사말, 이번 주 연습 칸, 추천 카드, 아래 목록 순서로 실제 홈 배치를 따른다. */
-function HomeSkeleton() {
-  return (
-    <SkeletonGroup style={styles.skeleton}>
-      <View style={styles.skeletonHero}>
-        <SkeletonBlock width="58%" height={28} radius={radius.sm} />
-        <SkeletonBlock width="44%" height={28} radius={radius.sm} />
-        <SkeletonBlock width="50%" height={13} style={styles.skeletonGap} />
-      </View>
-      <View style={styles.skeletonCard}>
-        <SkeletonBlock width="36%" height={16} />
-        <View style={styles.week}>
-          {Array.from({ length: 7 }, (_, i) => (
-            <SkeletonBlock key={i} width={36} height={36} radius={radius.full} />
-          ))}
+/**
+ * 홈 뼈대(SOMA-828). 실제 홈과 같은 틀을 그리고 서버에서 받는 칸만 회색으로 둔다.
+ * - first: 첫 사용자 홈 「뭐부터 해 볼까요?」 — 액티 말풍선·질문은 고정 글이라 그대로, 고르는 카드 둘과 아래 버튼만 회색.
+ * - returning: 기존 사용자 홈 — 위 띠(인사·액티·이번 주 연습 칸 회색)는 실제와 같고, 오늘 카드와 아래 줄만 회색.
+ */
+function HomeSkeleton({
+  variant,
+  cardHeight = TODAY_CARD_SKELETON_HEIGHT,
+  heroBand,
+  footerSpace,
+}: {
+  variant: 'first' | 'returning';
+  cardHeight?: number;
+  heroBand: ReactNode;
+  footerSpace: number;
+}) {
+  if (variant === 'first') {
+    return (
+      <SkeletonGroup style={styles.flex}>
+        <View style={[styles.flex, styles.firstContainer]}>
+          <MascotBubble source={MASCOT.coach} title={t('home.firstHelloNoName')} guide={t('home.firstIntro')} />
+          <View style={styles.firstQuestion}>
+            <Text style={styles.firstQuestionTitle}>{t('home.firstQuestion')}</Text>
+            <Text style={styles.firstQuestionSub}>{t('home.firstPickSub')}</Text>
+          </View>
+          <View style={styles.firstChoices}>
+            <SkeletonChoice steps={3} />
+            <SkeletonChoice />
+          </View>
         </View>
-      </View>
-      <SkeletonBlock height={164} radius={radius.lg} />
-      <SkeletonBlock width="40%" height={16} style={styles.skeletonGap} />
-      <SkeletonBlock height={75} radius={radius.lg} />
-      <SkeletonBlock height={75} radius={radius.lg} />
+        <View style={[styles.firstFooter, { paddingBottom: space[3] + footerSpace }]}>
+          <SkeletonBlock height={48} radius={radius.lg} />
+        </View>
+      </SkeletonGroup>
+    );
+  }
+  return (
+    <SkeletonGroup style={styles.flex}>
+      <ScrollView style={styles.scrollBg} contentContainerStyle={{ paddingBottom: footerSpace + space[5] }} scrollEnabled={false} showsVerticalScrollIndicator={false}>
+        {heroBand}
+        <View style={styles.body}>
+          <SkeletonBlock height={cardHeight} radius={radius.lg} />
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>{t('home.moreTitle')}</Text>
+          </View>
+          <View style={styles.rowList}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={styles.listRow}>
+                <SkeletonBlock width={40} height={40} radius={radius.md} />
+                <View style={styles.flex}>
+                  <SkeletonLine size={type.body1Bold} width={i % 2 === 0 ? '52%' : '44%'} />
+                  <SkeletonLine size={type.caption} width={i % 2 === 0 ? '38%' : '46%'} style={{ marginTop: space[1] / 2 }} />
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
     </SkeletonGroup>
   );
 }
+
+/** 첫 사용자 홈 고르는 카드(FirstChoice) 자리 — 같은 틀(styles.choice)에 글만 회색. steps 가 있으면 펼친 카드다. */
+function SkeletonChoice({ steps = 0 }: { steps?: number }) {
+  return (
+    <View style={styles.choice}>
+      <View style={styles.choiceTop}>
+        <SkeletonBlock width={40} height={40} radius={radius.full} />
+        <View style={styles.flex}>
+          <SkeletonLine size={type.body1Bold} width="62%" />
+          <View style={{ marginTop: space[1] }}>
+            <SkeletonLine size={type.body2} width="92%" />
+            <SkeletonLine size={type.body2} width="48%" />
+          </View>
+        </View>
+        <SkeletonBlock width={22} height={22} radius={radius.full} />
+      </View>
+      {steps > 0 && (
+        <View style={styles.steps}>
+          <SkeletonLine size={type.captionBold} width="30%" />
+          {Array.from({ length: steps }, (_, i) => (
+            <View key={i} style={styles.stepRow}>
+              <SkeletonBlock width={20} height={20} radius={radius.full} />
+              <SkeletonLine size={type.body2} width={i === 1 ? '58%' : '68%'} style={styles.flex} />
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** 오늘 카드(TodayCardBody) 높이를 아직 모를 때 — 제목 한 줄짜리 카드(이어 읽기) 높이. */
+const TODAY_CARD_SKELETON_HEIGHT = 140;
 
 /** 홈 위 배경 — 위에서 아래로 옅어지는 파랑(예전 배경, SOMA-923). */
 const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
@@ -1058,6 +1241,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 종(오른쪽 -8, 지름 44) 바로 왼쪽, 세로 가운데.
+  heroPlan: { position: 'absolute', top: 8, right: 44 },
+  firstPlan: { position: 'absolute', top: space[3], right: space.gutter },
   bellDot: {
     position: 'absolute',
     top: 10,

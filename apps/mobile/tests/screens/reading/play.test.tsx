@@ -205,6 +205,11 @@ async function pressWhenReady(label: string) {
   await fireEvent.press(screen.getByRole('button', { name: label }));
 }
 
+/** 일시정지·이어서로 버튼 줄이 바뀐 뒤 잠깐 누름을 받지 않는다(CONTROLS_SWAP_LOCK_MS) — 그 뒤에 누른다. */
+async function afterControlsSwap() {
+  await act(async () => new Promise((r) => setTimeout(r, 550)));
+}
+
 async function startPlay(over: Partial<SessionDetail> = {}, detail = scriptDetail(TWO_ROLE_LINES), options: { begin?: boolean } = {}) {
   const { server } = await openFixtureScript(detail);
   setCurrentSession(sessionDetail({ advance: 'silence', record: true, ...over }));
@@ -392,6 +397,7 @@ test('일시정지하면 위치를 저장하고, 이어서를 누르면 그 줄�
   await screen.findByText('듣는 중');
 
   await fireEvent.press(screen.getByText('일시정지'));
+  await afterControlsSwap();
   expect(screen.getByText('이어서를 누르면 이 줄을 처음부터 다시 해요. 마이크는 그때 켜져요.')).toBeOnTheScreen();
   await waitFor(() => expect(server.saveProgress).toHaveBeenCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false })));
 
@@ -418,11 +424,37 @@ test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배�
   expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
+test('자동 넘김 회차는 마이크 서비스를 못 띄우는 기기여도 화면을 끄거나 다른 앱으로 가도 멈추지 않는다(11/1 폰 확인)', async () => {
+  mockLive.keepsRunning.mockReturnValue(false);
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+
+  await act(async () => appStateListeners.forEach((l) => l('background')));
+  expect(screen.queryByText('이어서')).toBeNull();
+});
+
+test('일시정지를 두 번 빠르게 눌러도 같은 자리에 생긴 「그만하기」가 바로 눌리지 않는다(11/1 폰 확인)', async () => {
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByText('일시정지'));
+  await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
+  expect(screen.queryByText('리딩 완료')).toBeNull();
+  expect(screen.queryByText('연습으로 세지 않았어요')).toBeNull();
+  expect(screen.getByText('이어서를 누르면 이 줄을 처음부터 다시 해요.')).toBeOnTheScreen();
+
+  // 잠깐 뒤에는 그대로 눌린다.
+  await act(async () => new Promise((r) => setTimeout(r, 600)));
+  await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
+  expect((await screen.findAllByText(/연습으로 세지 않았어요|리딩 완료/)).length).toBeGreaterThan(0);
+});
+
 test('잠금 화면·알림의 일시정지를 누르면 화면의 일시정지와 같이 멈춘다', async () => {
   const server = await startPlay();
   await screen.findByText('듣는 중');
 
   await act(async () => mockLive.listeners.onPause());
+  await afterControlsSwap();
   expect(screen.getByText('이어서를 누르면 이 줄을 처음부터 다시 해요. 마이크는 그때 켜져요.')).toBeOnTheScreen();
   await waitFor(() => expect(server.saveProgress).toHaveBeenCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false })));
   await waitFor(() => expect(mockLive.update).toHaveBeenLastCalledWith(expect.objectContaining({ status: '민재 · 내 차례 · 일시정지', paused: true })));
@@ -436,6 +468,7 @@ test('다른 앱에 있는 동안 전화로 끊기면 멈추고, 돌아온 화�
   const original = state.currentState;
   state.currentState = 'background';
   await act(async () => mockLive.listeners.onInterrupt());
+  await afterControlsSwap();
   state.currentState = original;
   expect(screen.getByText('멈춤')).toBeOnTheScreen();
   expect(screen.getByText('다른 앱에 있는 동안 전화가 와서 멈췄어요. 이어서를 누르면 이 줄을 처음부터 다시 해요.')).toBeOnTheScreen();
@@ -450,6 +483,7 @@ test('화면에 있을 때 소리가 끊기면 보통 일시정지 안내로 멈
   await screen.findByText('듣는 중');
 
   await act(async () => mockLive.listeners.onInterrupt());
+  await afterControlsSwap();
   expect(screen.getByText('이어서를 누르면 이 줄을 처음부터 다시 해요. 마이크는 그때 켜져요.')).toBeOnTheScreen();
 });
 
@@ -515,6 +549,7 @@ test('내 대사를 한 줄 읽고 그만하기를 누르면 읽은 데까지로
   await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 
   await fireEvent.press(screen.getByText('일시정지'));
+  await afterControlsSwap();
   await fireEvent.press(screen.getByText('그만하기'));
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
@@ -531,6 +566,7 @@ test('알아들은 대사 없이 그만하기를 누르면 완료로 남기지 �
   await screen.findByText('듣는 중');
 
   await fireEvent.press(screen.getByText('일시정지'));
+  await afterControlsSwap();
   await fireEvent.press(screen.getByText('그만하기'));
   expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
   expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false }));
@@ -766,7 +802,7 @@ test('목소리가 없고 Wi-Fi 가 아니면 용량을 묻고, 받지 않으면
 
   expect(await screen.findByText('상대역 목소리를 내려받을까요?')).toBeOnTheScreen();
   expect(screen.getByText('Wi-Fi가 아니에요. 약 400.0MB를 한 번 내려받아요. 지금 받지 않으면 상대 대사를 기기 기본 목소리로 읽어요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('기기 목소리로 시작'));
+  await fireEvent.press(screen.getByText('나중에'));
   await begin();
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
@@ -1123,6 +1159,7 @@ test('멈춘 채 줄 고치기를 열었다 닫으면 멈춘 채로 둔다', asy
   await startPlay();
   await screen.findByText('듣는 중');
   await fireEvent.press(screen.getByText('일시정지'));
+  await afterControlsSwap();
 
   await fireEvent.press(screen.getByLabelText('줄 고치기'));
   await fireEvent.press(screen.getByText('취소'));
@@ -1243,6 +1280,17 @@ test('완료 화면의 다시 연습은 같은 설정으로 새 회차를 시작
     advance: 'silence',
     record: true,
   }));
+});
+
+test('자동 넘김 회차의 다시 읽기는 자동 넘김·녹음 없음 그대로 새 회차를 시작한다(11/1 폰 확인)', async () => {
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5', advance: 'timed', record: false }, undefined, { begin: false });
+  server.startSession.mockResolvedValue(sessionDetail({ id: 'r2', advance: 'timed', record: false }));
+  // 내 줄 하나 — 기본 2초 쉬고 끝난다.
+  expect(await screen.findByText('리딩 완료', {}, { timeout: 5000 })).toBeOnTheScreen();
+
+  await pressWhenReady('다시 읽기');
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ advance: 'timed', record: false }));
 });
 
 test('다시 연습을 시작하지 못하면 이유를 알린다', async () => {
@@ -1418,6 +1466,7 @@ test('줄이 끝나기 전에 멈추면 그 줄의 녹음 조각을 지운다', 
   await screen.findByText('듣는 중');
 
   await fireEvent.press(screen.getByText('일시정지'));
+  await afterControlsSwap();
   await waitFor(() => expect(jest.mocked(deleteDeviceFile).mock.calls).toEqual(expect.arrayContaining([['file:///left.wav'], ['file:///turn.m4a']])));
   expect(enqueueLineRecording).not.toHaveBeenCalled();
 });
@@ -1450,6 +1499,7 @@ test('멈춘 채 나가면 다시 멈추지 않고 그 위치를 저장한다', 
   const server = await startPlay();
   await screen.findByText('듣는 중');
   await fireEvent.press(screen.getByText('일시정지'));
+  await afterControlsSwap();
 
   await fireEvent.press(screen.getByText('나가기'));
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
@@ -2295,4 +2345,32 @@ test('「...」뿐인 내 줄은 마이크를 켜지 않고 잠깐 보여 준 �
   expect(taken).toEqual(['대답 좀 해.']);
   expect(tts.play).toHaveBeenCalledTimes(1);
   expect(speakWithDevice).not.toHaveBeenCalled();
+});
+
+test('자동 넘김(SOMA-954): 마이크 권한이 없어도 시작하고, 내 차례에는 마이크 없이 기본 2초 쉰 뒤 상대 대사로 넘어간다', async () => {
+  jest.mocked(hasMicPermission).mockResolvedValue(false);
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+  expect(screen.queryByText('마이크 권한이 필요해요')).not.toBeOnTheScreen();
+  expect(mockMic.start).not.toHaveBeenCalled();
+  // 쉬는 시간을 고르지 않았으면 기본 2초 쉬고 넘어간다.
+  await waitFor(() => expect(queue.take).toHaveBeenCalledWith(expect.objectContaining({ text: '응, 늦어서 미안해.' })), { timeout: 4000 });
+  expect(mockMic.start).not.toHaveBeenCalled();
+});
+
+test('전체 듣기·자동 넘김 회차는 녹음·음성 인식 권한을 묻지 않는다(11/1 폰에서 권한 창이 세 번 떴다)', async () => {
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+  expect(hasMicPermission).not.toHaveBeenCalled();
+  expect(detectSttPolicy).not.toHaveBeenCalled();
+});
+
+test('전체 듣기(1.1.1): 내 배역이 없는 회차는 마이크 없이 첫 대사부터 앱이 읽는다', async () => {
+  jest.mocked(hasMicPermission).mockResolvedValue(false);
+  await startPlay({ my_character_ids: [], my_character_names: [], advance: 'manual', record: false }, undefined, { begin: false });
+
+  await waitFor(() => expect(queue.take).toHaveBeenCalledWith(expect.objectContaining({ text: '오늘 왔구나.' })));
+  expect(screen.queryByText('마이크 권한이 필요해요')).not.toBeOnTheScreen();
+  expect(mockMic.start).not.toHaveBeenCalled();
 });

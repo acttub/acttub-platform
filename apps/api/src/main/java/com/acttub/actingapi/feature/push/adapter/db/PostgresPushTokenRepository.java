@@ -120,4 +120,20 @@ class PostgresPushTokenRepository implements PushTokenRepository {
                         row.get("locale", String.class)))
                 .toList();
     }
+
+    @Override
+    public List<PushTarget> scriptSplitTargets(UUID userId) {
+        return list(entityManager.createNativeQuery("""
+                SELECT push.token, push.locale
+                FROM push_tokens push
+                LEFT JOIN user_profiles profile ON profile.user_id=push.user_id
+                WHERE push.user_id=:userId AND COALESCE(profile.notify_analysis_done,true)
+                ORDER BY push.created_at
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> new PushTarget(
+                        row.get("token", String.class),
+                        row.get("locale", String.class)))
+                .toList();
+    }
 }

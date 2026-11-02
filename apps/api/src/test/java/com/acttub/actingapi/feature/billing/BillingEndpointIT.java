@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -18,6 +19,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
+import com.acttub.actingapi.feature.billing.app.BillingMailer;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -88,6 +90,9 @@ class BillingEndpointIT {
     @MockitoBean
     AppBillingGateway gateway;
 
+    @MockitoBean
+    BillingMailer mailer;
+
     private String bearer;
 
     @BeforeEach
@@ -100,7 +105,7 @@ class BillingEndpointIT {
                     """, UUID.randomUUID(), type, type + " 제목", type + " 본문", !"retention".equals(type), PUBLISHED);
         }
         clock.set(Instant.parse("2026-10-23T01:00:00Z"));
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER);
+        jdbc.update("INSERT INTO users(id,status,email) VALUES (?,'active','actor@example.com')", USER);
         jdbc.update("INSERT INTO user_identities(id,user_id,provider,provider_uid) VALUES (?,?,'google',?)",
                 UUID.randomUUID(), USER, "g-" + USER);
         AccountFixtures.passGate(jdbc, USER);
@@ -114,7 +119,7 @@ class BillingEndpointIT {
         // doAnswer 꼴로 건다 — when(...) 꼴은 앞서 건 thenThrow 를 실제로 불러 버린다.
         doAnswer(call -> new PgReviewGateway.Approval("DONE", call.getArgument(2), call.getArgument(3),
                 "2026-10-23T10:00:00+09:00"))
-                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
     }
 
     @Test
@@ -150,6 +155,9 @@ class BillingEndpointIT {
         assertThat(worker.runOnce()).isFalse();
         assertThat(me().path("status").textValue()).isEqualTo("expired");
         assertThat(jdbc.queryForObject("SELECT billing_key FROM billing_subscriptions", String.class)).isNull();
+        // 첫 결제가 승인되면 가입 메일·프로필 이름으로 구독 메일을 한 번 부른다(SOMA-961).
+        org.mockito.Mockito.verify(mailer, org.mockito.Mockito.atLeastOnce()).paymentDone(org.mockito.ArgumentMatchers.argThat(
+                mail -> mail.first() && "actor@example.com".equals(mail.to()) && "테스트 배우".equals(mail.name())));
     }
 
     @Test
@@ -163,7 +171,7 @@ class BillingEndpointIT {
 
         clock.set(Instant.parse("2026-12-23T01:00:01Z"));
         doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"))
-                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
         assertThat(worker.runOnce()).isTrue();
         JsonNode pastDue = me();
         assertThat(pastDue.path("status").textValue()).isEqualTo("past_due");
@@ -176,7 +184,7 @@ class BillingEndpointIT {
 
         clock.set(Instant.parse("2027-01-23T01:00:01Z"));
         doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"))
-                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
         assertThat(worker.runOnce()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments WHERE status='unknown'", Integer.class)).isEqualTo(1);
         assertThat(worker.runOnce()).isFalse();

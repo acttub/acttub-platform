@@ -24,6 +24,7 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+jest.mock('@/lib/api', () => ({ api: { getScriptImport: jest.fn() } }));
 jest.mock('@/lib/reading/store', () => ({
   listScripts: jest.fn(),
   deleteScript: jest.fn(),

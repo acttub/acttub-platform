@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 import { useState } from "react";
 
 import wordmark from "@/assets/acttub-wordmark.png";
@@ -9,14 +9,15 @@ import { AccountLink } from "@/features/auth/account-link";
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { BusinessInfo } from "@/features/business-info/business-info";
+import { COACHING_TRIAL_PATH, READING_TRIAL_PATH } from "@/features/trial/trial-paths";
 
 /**
  * 공개 페이지(홈·고객센터·요금)가 함께 쓰는 머리와 바닥(SOMA-834 웹 개편).
- * 웹은 앱 탭을 옮기지 않는다 — 소개(코칭·리딩·챌린지), 요금, 고객센터, 계정, 앱 받기만 둔다.
+ * 웹은 앱 탭을 옮기지 않는다 — 가입 없이 해 보는 체험(리딩·코칭), 챌린지 소개, 요금, 고객센터, 계정, 앱 받기만 둔다.
  */
 export const SITE_NAV = [
-  { href: "/?intro=1#coaching", label: "연기 코칭" },
-  { href: "/?intro=1#reading", label: "대본 리딩" },
+  { href: `${READING_TRIAL_PATH}?from=nav`, label: "대본 리딩" },
+  { href: `${COACHING_TRIAL_PATH}?from=nav`, label: "연기 코칭" },
   { href: "/?intro=1#challenge", label: "챌린지" },
   { href: "/pricing", label: "요금" },
   { href: "/blog", label: "블로그" },
@@ -35,29 +36,29 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[#edf0f3] bg-white">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-10 px-5 sm:h-[72px] sm:px-8">
-        <Link href="/?intro=1" aria-label="ACTTUB 홈" className={`shrink-0 rounded ${FOCUS}`}>
+        <SiteLink href="/?intro=1" aria-label="ACTTUB 홈" className={`shrink-0 rounded ${FOCUS}`}>
           <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto sm:h-7" />
-        </Link>
+        </SiteLink>
         <nav aria-label="주요 메뉴" className="hidden items-center gap-7 text-[15px] font-semibold text-[#4e5968] lg:flex">
           {SITE_NAV.map((item) => (
-            <Link
+            <SiteLink
               key={item.href}
               href={item.href}
               aria-current={(current === "pricing" && item.href === "/pricing") || (current === "blog" && item.href === "/blog") ? "page" : undefined}
               className={`rounded transition hover:text-[#191f28] aria-[current=page]:text-[#191f28] ${FOCUS}`}
             >
               {item.label}
-            </Link>
+            </SiteLink>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2 sm:gap-5">
-          <Link
+          <SiteLink
             href="/help"
             aria-current={current === "help" ? "page" : undefined}
             className={`hidden rounded text-[15px] font-semibold text-[#4e5968] transition hover:text-[#191f28] aria-[current=page]:text-[#191f28] lg:inline ${FOCUS}`}
           >
             고객센터
-          </Link>
+          </SiteLink>
           <AccountLink
             className={`shrink-0 rounded text-sm font-semibold text-[#4e5968] transition hover:text-[#191f28] lg:text-[15px] ${FOCUS}`}
             memberClassName={`hidden shrink-0 rounded text-[15px] font-bold text-[#191f28] lg:inline ${FOCUS}`}
@@ -88,9 +89,9 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
           <ul className="divide-y divide-[#f2f4f6] text-base font-semibold text-[#333d4b]">
             {[...SITE_NAV, { href: "/help", label: "고객센터" }, { href: "/account", label: "내 계정" }].map((item) => (
               <li key={item.href}>
-                <Link href={item.href} onClick={() => setOpen(false)} className={`block py-3.5 ${FOCUS}`}>
+                <SiteLink href={item.href} onClick={() => setOpen(false)} className={`block py-3.5 ${FOCUS}`}>
                   {item.label}
-                </Link>
+                </SiteLink>
               </li>
             ))}
           </ul>
@@ -111,8 +112,8 @@ const FOOTER_GROUPS = [
   {
     title: "서비스",
     links: [
-      { href: "/?intro=1#coaching", label: "연기 코칭" },
-      { href: "/?intro=1#reading", label: "대본 리딩" },
+      { href: `${READING_TRIAL_PATH}?from=nav`, label: "대본 리딩" },
+      { href: `${COACHING_TRIAL_PATH}?from=nav`, label: "연기 코칭" },
       { href: "/?intro=1#challenge", label: "챌린지" },
       { href: "/admissions", label: "입시·오디션 정보" },
     ],
@@ -162,9 +163,9 @@ export function SiteFooter({ showBadges = true }: { showBadges?: boolean }) {
                 <ul className="mt-3 space-y-2.5">
                   {group.links.map((link) => (
                     <li key={link.href}>
-                      <Link href={link.href} className={`rounded text-sm text-[#6b7684] transition hover:text-[#191f28] ${FOCUS}`}>
+                      <SiteLink href={link.href} className={`rounded text-sm text-[#6b7684] transition hover:text-[#191f28] ${FOCUS}`}>
                         {link.label}
-                      </Link>
+                      </SiteLink>
                     </li>
                   ))}
                 </ul>

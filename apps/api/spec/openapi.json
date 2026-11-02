@@ -7168,8 +7168,8 @@
         "properties" : {
           "category" : {
             "type" : "string",
-            "enum" : [ "account", "billing", "refund", "usage", "bug", "report", "other" ],
-            "pattern" : "account|billing|refund|usage|bug|report|other",
+            "enum" : [ "account", "billing", "refund", "usage", "bug", "report", "other", "feedback" ],
+            "pattern" : "account|billing|refund|usage|bug|report|other|feedback",
             "title" : "Category"
           },
           "email" : {
@@ -8214,7 +8214,7 @@
       },
       "ReadingAdvanceInput" : {
         "type" : "string",
-        "enum" : [ "silence", "manual" ],
+        "enum" : [ "silence", "manual", "timed" ],
         "title" : "ReadingAdvanceInput"
       },
       "ReadingModeInput" : {
@@ -8265,7 +8265,7 @@
       },
       "ReadingAdvance" : {
         "type" : "string",
-        "enum" : [ "silence", "manual" ],
+        "enum" : [ "silence", "manual", "timed" ],
         "title" : "ReadingAdvance"
       },
       "ReadingDifferentLine" : {
@@ -11953,9 +11953,14 @@
           "total_lines" : {
             "type" : "integer",
             "title" : "Total Lines"
+          },
+          "percent" : {
+            "type" : "integer",
+            "description" : "화면 진행률(0~100%). 줄을 다 나눈 뒤의 단계(빠진 줄·줄 검토·마무리)까지 센다. 성공한 작업만 100 이다.",
+            "title" : "Percent"
           }
         },
-        "required" : [ "done_lines", "total_lines" ],
+        "required" : [ "done_lines", "percent", "total_lines" ],
         "title" : "ReadingImportProgress"
       },
       "ScriptImportFailure" : {

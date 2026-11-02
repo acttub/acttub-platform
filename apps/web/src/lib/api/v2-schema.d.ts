@@ -3312,7 +3312,7 @@ export interface components {
              * Category
              * @enum {string}
              */
-            category: "account" | "billing" | "refund" | "usage" | "bug" | "report" | "other";
+            category: "account" | "billing" | "refund" | "usage" | "bug" | "report" | "other" | "feedback";
             /**
              * Email
              * @description 공백을 걷어 낸 뒤 254자 이하의 이메일 주소.
@@ -3834,7 +3834,7 @@ export interface components {
          * ReadingAdvanceInput
          * @enum {string}
          */
-        ReadingAdvanceInput: "silence" | "manual";
+        ReadingAdvanceInput: "silence" | "manual" | "timed";
         /**
          * ReadingModeInput
          * @enum {string}
@@ -3868,7 +3868,7 @@ export interface components {
          * ReadingAdvance
          * @enum {string}
          */
-        ReadingAdvance: "silence" | "manual";
+        ReadingAdvance: "silence" | "manual" | "timed";
         /**
          * ReadingDifferentLine
          * @description 원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다
@@ -5543,6 +5543,11 @@ export interface components {
             done_lines: number;
             /** Total Lines */
             total_lines: number;
+            /**
+             * Percent
+             * @description 화면 진행률(0~100%). 줄을 다 나눈 뒤의 단계(빠진 줄·줄 검토·마무리)까지 센다. 성공한 작업만 100 이다.
+             */
+            percent: number;
         };
         /**
          * ScriptImportFailure

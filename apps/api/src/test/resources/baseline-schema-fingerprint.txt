@@ -582,6 +582,7 @@ COLUMN practices.favorite ord=19 type=bool len=- null=NO default=false
 COLUMN practices.goal ord=13 type=text len=- null=NO default=''::text
 COLUMN practices.hidden_at ord=20 type=timestamptz len=- null=YES default=-
 COLUMN practices.id ord=1 type=uuid len=- null=NO default=-
+COLUMN practices.language ord=27 type=text len=- null=YES default=-
 COLUMN practices.legacy_hidden_at ord=21 type=timestamptz len=- null=YES default=-
 COLUMN practices.ordinal ord=5 type=int4 len=- null=NO default=-
 COLUMN practices.reading_session_id ord=26 type=uuid len=- null=YES default=-
@@ -743,6 +744,7 @@ COLUMN script_imports.done_lines ord=13 type=int4 len=- null=NO default=0
 COLUMN script_imports.failure ord=11 type=text len=- null=YES default=-
 COLUMN script_imports.id ord=1 type=uuid len=- null=NO default=-
 COLUMN script_imports.job_id ord=9 type=uuid len=- null=YES default=-
+COLUMN script_imports.progress_percent ord=18 type=int4 len=- null=NO default=0
 COLUMN script_imports.raw_hash ord=8 type=bpchar len=64 null=NO default=-
 COLUMN script_imports.raw_text ord=7 type=text len=- null=NO default=-
 COLUMN script_imports.request_fingerprint ord=4 type=bpchar len=64 null=NO default=-
@@ -1783,9 +1785,8 @@ CONSTRAINT reading_session_ratings reading_session_ratings_updated_at_not_null N
 CONSTRAINT reading_session_ratings reading_session_ratings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT reading_session_ratings reading_session_ratings_user_id_not_null NOT NULL user_id
 CONSTRAINT reading_session_ratings uq_reading_session_ratings_session_user UNIQUE (session_id, user_id)
-CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text, 'timed'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_mode CHECK ((mode = ANY (ARRAY['read'::text, 'quiz'::text])))
-CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK ((cardinality(my_character_ids) >= 1))
 CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text])))
 CONSTRAINT reading_sessions reading_sessions_advance_not_null NOT NULL advance
 CONSTRAINT reading_sessions reading_sessions_current_line_id_fkey FOREIGN KEY (current_line_id) REFERENCES script_lines(id)
@@ -1875,12 +1876,14 @@ CONSTRAINT script_cocreations uq_script_cocreations_request UNIQUE (user_id, req
 CONSTRAINT script_imports ck_script_imports_failure CHECK ((failure = ANY (ARRAY['not_script'::text, 'no_characters'::text, 'script_too_long'::text, 'script_limit'::text, 'failed'::text])))
 CONSTRAINT script_imports ck_script_imports_outcome CHECK (((script_id IS NULL) OR (failure IS NULL)))
 CONSTRAINT script_imports ck_script_imports_progress CHECK (((done_lines >= 0) AND (total_lines >= 0) AND (done_lines <= total_lines)))
+CONSTRAINT script_imports ck_script_imports_progress_percent CHECK (((progress_percent >= 0) AND (progress_percent <= 100)))
 CONSTRAINT script_imports ck_script_imports_source CHECK ((source = ANY (ARRAY['file'::text, 'paste'::text, 'typed'::text, 'sample'::text])))
 CONSTRAINT script_imports script_imports_created_at_not_null NOT NULL created_at
 CONSTRAINT script_imports script_imports_done_lines_not_null NOT NULL done_lines
 CONSTRAINT script_imports script_imports_id_not_null NOT NULL id
 CONSTRAINT script_imports script_imports_job_id_fkey FOREIGN KEY (job_id) REFERENCES ai_jobs(id)
 CONSTRAINT script_imports script_imports_pkey PRIMARY KEY (id)
+CONSTRAINT script_imports script_imports_progress_percent_not_null NOT NULL progress_percent
 CONSTRAINT script_imports script_imports_raw_hash_not_null NOT NULL raw_hash
 CONSTRAINT script_imports script_imports_raw_text_not_null NOT NULL raw_text
 CONSTRAINT script_imports script_imports_request_fingerprint_not_null NOT NULL request_fingerprint
@@ -1939,7 +1942,7 @@ CONSTRAINT summaries summaries_session_id_key UNIQUE (session_id)
 CONSTRAINT summaries summaries_session_id_not_null NOT NULL session_id
 CONSTRAINT summaries summaries_uncertainties_json_not_null NOT NULL uncertainties_json
 CONSTRAINT summaries summaries_was_compressed_not_null NOT NULL was_compressed
-CONSTRAINT support_inquiries ck_support_inquiries_category CHECK ((category = ANY (ARRAY['account'::text, 'billing'::text, 'refund'::text, 'usage'::text, 'bug'::text, 'report'::text, 'other'::text])))
+CONSTRAINT support_inquiries ck_support_inquiries_category CHECK ((category = ANY (ARRAY['account'::text, 'billing'::text, 'refund'::text, 'usage'::text, 'bug'::text, 'report'::text, 'other'::text, 'feedback'::text])))
 CONSTRAINT support_inquiries ck_support_inquiries_status CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
 CONSTRAINT support_inquiries support_inquiries_body_not_null NOT NULL body
 CONSTRAINT support_inquiries support_inquiries_category_not_null NOT NULL category

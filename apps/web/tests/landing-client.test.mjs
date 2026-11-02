@@ -69,7 +69,12 @@ test("처음 온 사람은 홈에 머물고, 로그인과 앱 받기 링크와 �
   assert.equal(within(hero).getByRole("link", { name: "로그인" }).getAttribute("href"), "/login");
   // 데스크톱 브라우저라 기기를 못 가린다. 두 스토어를 다 보여 주는 /app 으로 보낸다.
   assert.equal(screen.getByRole("link", { name: "앱 받기", hidden: true }).getAttribute("href"), "/app");
-  assert.equal(screen.getByRole("link", { name: "앱 열기 · 무료로 설치" }).getAttribute("href"), "/app");
+  // 첫 화면 주 버튼은 설치가 아니라 가입 없이 해 보는 체험 카드 둘이다(SOMA-834 3차).
+  assert.equal(within(hero).getByRole("link", { name: "바로 시작" }).getAttribute("href"), "/reading/try?from=home_card");
+  assert.equal(within(hero).getByRole("link", { name: "영상 올리기" }).getAttribute("href"), "/practice/new?from=home_card");
+  assert.ok(within(hero).getByText("상대역 리딩 해 보기"));
+  assert.ok(within(hero).getByText("연기 질문 받아 보기"));
+  assert.equal(within(hero).queryByRole("link", { name: "앱 열기 · 무료로 설치" }), null);
   assert.deepEqual(
     ["앱에서 코칭 받기", "앱에서 리딩하기", "앱에서 참여하기"].map((name) =>
       screen.getByRole("link", { name }).getAttribute("href"),

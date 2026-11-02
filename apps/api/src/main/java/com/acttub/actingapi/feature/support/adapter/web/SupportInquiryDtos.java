@@ -17,9 +17,9 @@ final class SupportInquiryDtos {
 
     @Schema(name = "SupportInquiryRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record SupportInquiryRequest(
-            @NotNull @Pattern(regexp = "account|billing|refund|usage|bug|report|other")
+            @NotNull @Pattern(regexp = "account|billing|refund|usage|bug|report|other|feedback")
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Category",
-                    allowableValues = {"account", "billing", "refund", "usage", "bug", "report", "other"})
+                    allowableValues = {"account", "billing", "refund", "usage", "bug", "report", "other", "feedback"})
             String category,
             @NotNull @Size(max = SupportInquiryRules.EMAIL_MAX_CHARS + 200)
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Email",

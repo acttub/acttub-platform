@@ -118,6 +118,8 @@ import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
 import { exampleVoicesMatch, type ExampleAudio } from '@/lib/reading/example-audio';
 import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
 import { newRequestId } from '@/lib/request-id';
+import { loadListenPrefs, pauseMsFor } from '@/lib/reading/listen-prefs';
+import { setReadingPlaybackRate } from '@/lib/reading/tts/playback-rate';
 
 /**
  * 연습 실행(R9, reading.session). R8 시작·회차 상세 [이어서 연습]·완료의 [다시 연습]으로 들어온다.
@@ -169,6 +171,8 @@ const NOTICE_MS = 4000;
 const JUMP_PREVIEW = 15;
 /** 완료 화면이 뜬 뒤 버튼을 받지 않는 시간. */
 const DONE_LOCK_MS = 800;
+/** 아래 버튼 줄이 일시정지·이어서로 바뀐 뒤 누름을 받지 않는 시간. */
+const CONTROLS_SWAP_LOCK_MS = 500;
 /** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
 const MONO_POSITION_MS = 700;
 /** 독백에서 읽는 문장을 둘 높이 — 화면 위에서 이만큼 아래(SOMA-934). */
@@ -207,6 +211,17 @@ export default function ReadingPlay() {
   /** 첫 리딩 모드로 시작한 회차(10/29) — 위에 「그만 읽기」를 두고, 멈춰도 첫 리딩 끝 화면으로 간다. */
   const firstReading = isFirstReadingSession(session?.id);
   const firstStoppedRef = useRef(false);
+  /** 전체 듣기(1.1.1) — 내 배역 없이 시작한 회차. 모든 대사를 앱이 읽고 마이크를 열지 않는다. */
+  const listenAll = !!session && session.my_character_ids.length === 0;
+  /** 핸즈프리(SOMA-954) — 내 차례에 마이크를 열지 않고 대사 길이만큼 쉬고 넘어간다. */
+  const handsFree = session?.advance === 'timed';
+  /** 자동 넘김의 쉬는 시간(초) — 배역 고르기에서 고른 값. 기본 2초. */
+  const pauseSecRef = useRef(2);
+  /**
+   * 일시정지·이어서로 아래 버튼 줄이 바뀐 직후 잠깐 누름을 받지 않는다(11/1 폰 확인). 일시정지를 두 번 빠르게 누르면 같은 자리에
+   * 새로 생긴 「그만하기」가 눌려 확인 없이 리딩이 끝났다. 끝 화면 버튼의 잠금(DONE_LOCK_MS)과 같은 방식이다.
+   */
+  const [controlsLocked, setControlsLocked] = useState(false);
   const mic = useReadingMic();
   const stt = useReadingStt();
 
@@ -225,7 +240,8 @@ export default function ReadingPlay() {
       startIndex,
       endIndex,
       // 같은 배역 연속 대사는 한 차례로 묶는다(SOMA-806). 독백은 문장마다 따로 맞춘다.
-      monologue: isMonologue(script.characters),
+      // 전체 듣기는 내 차례가 없다 — 독백 대본도 앱이 대사처럼 읽는다.
+      monologue: isMonologue(script.characters) && session.my_character_ids.length > 0,
       // 말풍선 줄 수는 서버가 정한다(SOMA-938) — 바꿀 때 앱을 다시 내지 않는다.
       chunkLines: session.chunk_lines ?? undefined,
     };
@@ -335,7 +351,7 @@ export default function ReadingPlay() {
    * 독백(SOMA-597) — 배역이 하나뿐인 대본은 처음부터 끝까지 끊지 않고 한 번에 녹음한다. 인식기가 스스로 끝나거나(오래 쉼·시간 한도)
    * 녹음이 3분에 이르면 그 조각만 거두고 곧바로 지금 문장에서 새 조각을 연다. 받아쓴 글은 조각을 넘어 이어 붙이고, 끝낸 뒤 문장별로 맞춘다.
    */
-  const monologue = useMemo(() => !!script && isMonologue(script.characters), [script]);
+  const monologue = useMemo(() => !!script && isMonologue(script.characters) && !listenAll, [script, listenAll]);
   const monoDone = useRef('');
   const monoPiece = useRef('');
   /** 지금 조각을 연 줄 — 조각 녹음은 이 줄에 올린다. */
@@ -652,7 +668,7 @@ export default function ReadingPlay() {
           title: t('reading.downloadAskTitle'),
           message: t('reading.downloadAskBody', { size: prompt.sizeLabel }),
           confirmLabel: t('reading.downloadNow'),
-          cancelLabel: t('reading.deviceVoiceStart'),
+          cancelLabel: t('reading.downloadLater'),
         });
         if (!ok) {
           // 받지 않으면 이 회차는 기기 기본 목소리로 읽고, 다음에 다시 물어본다(플래그를 남기지 않는다).
@@ -703,18 +719,29 @@ export default function ReadingPlay() {
     fromTutorialRef.current = fromTutorial;
     if (fromTutorial) finishTutorial('done');
     void (async () => {
-      const [micOk, tipHidden] = await Promise.all([hasMicPermission(), isAutoAdvanceTipHidden()]);
+      // 전체 듣기·자동 넘김은 마이크를 열지 않는다 — 녹음·음성 인식 권한을 묻지 않는다(11/1 폰 확인: 권한 창이 세 번 떴다).
+      const listenOnly = listenAll || handsFree;
+      const [micOk, tipHidden, listenPrefs] = await Promise.all([
+        listenOnly ? Promise.resolve(true) : hasMicPermission(),
+        isAutoAdvanceTipHidden(),
+        loadListenPrefs(),
+      ]);
       if (!mounted.current) return;
       tipHiddenRef.current = tipHidden;
+      // 읽는 속도(SOMA-952)는 배역 고르기에서 고른 값 — 이 회차의 모든 목소리에 든다.
+      setReadingPlaybackRate(listenPrefs.rate);
+      pauseSecRef.current = listenPrefs.pauseSec;
+      // 전체 듣기·핸즈프리는 마이크를 열지 않으므로 권한이 없어도 시작한다.
       if (!micOk) {
         setPhase({ kind: 'need_mic' });
         return;
       }
-      setSttMode(await detectSttPolicy());
+      setSttMode(listenOnly ? { kind: 'typing', reason: 'unavailable' } : await detectSttPolicy());
       void prepare();
     })();
     return () => {
       mounted.current = false;
+      setReadingPlaybackRate(1);
       speechQueue.current?.cancel();
       speechQueue.current = null;
       tts.stop();
@@ -1066,6 +1093,24 @@ export default function ReadingPlay() {
     recordingClosed.current = false;
     turnClosing.current = false;
     turnStartedAt.current = Date.now();
+    if (handsFree) {
+      // 자동 넘김(SOMA-954): 마이크를 열지 않고 고른 시간(기본 2초)만큼 쉰 뒤 넘긴다.
+      // 멈춤·나가기·[다음]으로 차례가 바뀌면 아래 정리가 타이머를 끊는다. 시트를 연 동안이면 닫을 때 넘긴다.
+      const pauseTimer = setTimeout(() => {
+        const cur = runRef.current;
+        if (cancelled || !cur || cur.index !== from || cur.status !== 'mine') return;
+        setTurnDone(true);
+        if (holdRef.current) deferredRef.current = { kind: 'advance', from };
+        else goNext(from);
+      }, pauseMsFor(pauseSecRef.current));
+      return () => {
+        cancelled = true;
+        clearTimeout(pauseTimer);
+        if (deferredTimer.current) clearTimeout(deferredTimer.current);
+        deferredTimer.current = null;
+        deferredRef.current = null;
+      };
+    }
     let limitTimer: ReturnType<typeof setTimeout> | null = null;
     void (async () => {
       let opened = false;
@@ -1323,12 +1368,15 @@ export default function ReadingPlay() {
     queueRef.current?.push(progressPayload(next));
   }, []);
   // 배경에서도 리딩이 도는 기기(SOMA-802)는 배경으로 가도 멈추지 않는다. 못 도는 기기(안드로이드에서 마이크 서비스를 못 띄움)만 예전처럼 멈춘다.
+  // 단, 마이크를 안 쓰는 듣기 회차는 어느 기기든 멈추지 않는다.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' && phase.kind === 'running' && !readingKeepsRunning()) doPause();
+      // 전체 듣기·자동 넘김은 마이크를 쓰지 않는다 — 마이크 서비스를 못 띄워도(마이크 권한 거절 등) 재생 서비스로 계속 돈다.
+      // 예전엔 마이크 종류 서비스만 「배경에서 돈다」로 쳐서, 마이크 권한이 없으면 화면을 끄는 순간 멈췄다(11/1 폰 확인).
+      if (state !== 'active' && phase.kind === 'running' && !readingKeepsRunning() && !listenAll && !handsFree) doPause();
     });
     return () => sub.remove();
-  }, [phase.kind, doPause]);
+  }, [phase.kind, doPause, listenAll, handsFree]);
   // 잠금 화면·알림의 [일시정지], 그리고 전화 등으로 소리가 실제로 끊긴 때.
   useEffect(() => {
     const offPause = onReadingLiveEvent('onPause', doPause);
@@ -1522,7 +1570,10 @@ export default function ReadingPlay() {
     stt.abort();
     void mic.stop();
     stoppedEarlyRef.current = true;
-    stopUncountedRef.current = !readingStopCounted(readMyDialogueCount(next.lines, next.startIndex, next.endIndex, next.myRoles));
+    // 전체 듣기는 내 배역이 없다 — 들은 대사 줄로 센다.
+    stopUncountedRef.current = !readingStopCounted(
+      listenAll ? readDialogueCount(next.lines, next.startIndex, next.endIndex) : readMyDialogueCount(next.lines, next.startIndex, next.endIndex, next.myRoles),
+    );
     // 세지 않는 회차는 끝 화면이 센 마지막 읽은 줄 다음을 저장한다 — 이어 읽기 카드의 「K/N줄」이 끝 화면과 같아진다(10/29).
     // 세는 회차는 commit 이 완료(complete)로 보낸다.
     if (stopUncountedRef.current) queueRef.current?.push(stoppedProgressPayload(cur, next));
@@ -1577,6 +1628,9 @@ export default function ReadingPlay() {
           myCharacterIds: session.my_character_ids,
           startLineId: from,
           endLineId: session.end_line_id,
+          // 다시 읽기도 같은 방식으로 — 자동 넘김(timed)·전체 듣기 회차가 말하기 회차로 바뀌어 마이크를 묻지 않게(11/1 폰 확인).
+          advance: session.advance,
+          record: session.record,
         }),
       );
       setCurrentSession(next);
@@ -1600,6 +1654,7 @@ export default function ReadingPlay() {
     turnDone,
     turnNote,
     listening,
+    handsFree,
   });
   // 1초마다 바뀌는 시간은 싣지 않으므로 글이 같으면 네이티브를 다시 부르지 않는다.
   const liveJson = useMemo(() => {
@@ -1628,6 +1683,20 @@ export default function ReadingPlay() {
   useEffect(() => {
     if (liveOn && liveJson) updateReadingLive(JSON.parse(liveJson));
   }, [liveOn, liveJson]);
+
+  // 버튼 줄이 바뀐 순간(일시정지 ↔ 이어서)부터 잠깐 잠근다. 첫 그림(멈춘 채 들어온 이어 하기)은 잠그지 않는다.
+  const pausedNow = run?.status === 'paused';
+  const pausedSeen = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (pausedSeen.current === null || pausedSeen.current === pausedNow) {
+      pausedSeen.current = pausedNow;
+      return;
+    }
+    pausedSeen.current = pausedNow;
+    setControlsLocked(true);
+    const timer = setTimeout(() => setControlsLocked(false), CONTROLS_SWAP_LOCK_MS);
+    return () => clearTimeout(timer);
+  }, [pausedNow]);
 
   // ── 화면 ────────────────────────────────────────────────────────────────────
   if (!script || !session || !config || !run) {
@@ -1737,7 +1806,7 @@ export default function ReadingPlay() {
     });
     const coaching = completed && !fromTutorialRef.current;
     const busy = doneLocked || restarting;
-    const roles = config.myNames.join(', ');
+    const roles = listenAll ? t('reading.listenAllRole') : config.myNames.join(', ');
     // 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서, 이미 있는 탭까지 내려간다(SOMA-853).
     const goHome = () => router.dismissTo('/(tabs)');
     const links = (
@@ -1783,7 +1852,7 @@ export default function ReadingPlay() {
     if (!completed && !firstStopped) {
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} mascotMotion="none" title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
             <View style={styles.doneBody}>
               <View style={styles.doneHead}>
                 <Text style={styles.doneDesc}>{t('reading.notCountedBody')}</Text>
@@ -1802,7 +1871,7 @@ export default function ReadingPlay() {
       const total = wrapUpProgress(run.lines, run.endIndex).total;
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked}>
             <View style={styles.doneBody}>
               {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
               {links}
@@ -1879,7 +1948,9 @@ export default function ReadingPlay() {
     }
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
     const wholeScript = run.startIndex <= run.lines.findIndex((l) => l.type === 'dialogue') && run.endIndex >= run.lines.length - 1;
-    const compared = sttMode?.kind === 'stt';
+    // 전체 듣기·핸즈프리는 말하지 않았으니 비교하지 않는다.
+    const listened = listenAll || handsFree;
+    const compared = sttMode?.kind === 'stt' && !listened;
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
       <>
@@ -1887,8 +1958,10 @@ export default function ReadingPlay() {
           <View style={styles.doneBody}>
             {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
-            {coaching && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
-            {!compared ? (
+            {coaching && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
+            {listened ? (
+              note(t('reading.listenDoneNote'), 'info')
+            ) : !compared ? (
               note(t('reading.noSttNote'), 'info')
             ) : different.kind === 'waiting' ? (
               note(t('reading.differentWaiting'))
@@ -1942,7 +2015,7 @@ export default function ReadingPlay() {
     />
   ) : null;
 
-  const hint = paused ? t(interrupted ? 'reading.interruptedBody' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
+  const hint = paused ? t(interrupted ? 'reading.interruptedBody' : handsFree || listenAll ? 'reading.pausedBodyListen' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
 
 
   // 지나간 줄은 같은 배역 묶음(SOMA-806)마다 하나로 쌓는다. 독백은 문장 목록이 지금 카드 안에 다 있어 위로 쌓지 않는다(pen c1MiZ).
@@ -2170,7 +2243,7 @@ export default function ReadingPlay() {
           </View>
         )}
 
-        {!monologue && isDialogue && myTurn && !beatOn && sttMode?.kind === 'stt' && (
+        {!monologue && isDialogue && myTurn && !beatOn && !handsFree && sttMode?.kind === 'stt' && (
           <View style={styles.saidBox}>
             <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
             <Text style={styles.saidText}>{said || t('reading.noSpeechYet')}</Text>
@@ -2214,7 +2287,7 @@ export default function ReadingPlay() {
       )}
       <View
         style={[styles.controls, { paddingBottom: insets.bottom + 12 }, hold === 'tip' && styles.controlsHidden]}
-        pointerEvents={hold === 'tip' ? 'none' : 'auto'}
+        pointerEvents={hold === 'tip' || controlsLocked ? 'none' : 'auto'}
         accessibilityElementsHidden={hold === 'tip'}
         importantForAccessibility={hold === 'tip' ? 'no-hide-descendants' : 'auto'}>
         <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('reading.maskSheetTitle')} ph-label="reading_play_mask">
@@ -2223,11 +2296,18 @@ export default function ReadingPlay() {
         </Pressable>
         {paused ? (
           <>
-            <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={stopHere} accessibilityRole="button" ph-label="reading_play_stop">
+            <Pressable
+              key="stop"
+              style={[styles.ctrl, styles.ctrlGhost]}
+              onPress={stopHere}
+              accessibilityRole="button"
+              // 이름표를 직접 단다 — 안 달면 같은 자리에 있던 [이전]의 「이전 대사」가 남아 화면 낭독기가 잘못 읽었다.
+              accessibilityLabel={t('reading.stopHere')}
+              ph-label="reading_play_stop">
               <Feather name="square" size={16} color={palette.textSub} />
               <Text style={styles.ctrlGhostText}>{t('reading.stopHere')}</Text>
             </Pressable>
-            <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume}>
+            <Pressable key="resume" style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume} accessibilityRole="button" accessibilityLabel={t('reading.resume')}>
               <Feather name="play" size={16} color="#fff" />
               <Text style={styles.ctrlPrimaryText}>{t('reading.resume')}</Text>
             </Pressable>
@@ -2237,6 +2317,7 @@ export default function ReadingPlay() {
             {/* 독백에는 [이전]이 없다 — 한 호흡으로 끝까지 읽고 끝난 뒤 문장부터 다시 한다. */}
             {!monologue && (
               <Pressable
+                key="prev"
                 style={[styles.eyeBtn, !canGoBack(run) && styles.backBtnOff]}
                 onPress={goBack}
                 disabled={!canGoBack(run)}

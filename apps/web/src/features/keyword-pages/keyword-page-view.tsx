@@ -1,7 +1,8 @@
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { ClosingCta, KeywordShell } from "@/features/keyword-pages/keyword-shell";
+import { COACHING_TRIAL_PATH, READING_TRIAL_PATH } from "@/features/trial/trial-paths";
 import type {
   KeywordBlock,
   KeywordPageContent,
@@ -40,14 +41,29 @@ function Block({ block }: { block: KeywordBlock }) {
 function StartLinks({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-col items-start ${className}`}>
+      {/* 주 버튼은 가입 없이 해 보는 체험이다. 앱 받기는 그 아래에 둔다. */}
+      <SiteLink
+        href={`${COACHING_TRIAL_PATH}?from=keyword_page`}
+        prefetch={false}
+        className="inline-flex h-14 items-center rounded-[14px] bg-[#3182f6] px-7 text-base font-black text-white transition hover:bg-[#1b64da]"
+      >
+        영상 올리고 질문 받아 보기
+      </SiteLink>
+      <SiteLink
+        href={`${READING_TRIAL_PATH}?from=keyword_page`}
+        prefetch={false}
+        className="mb-6 mt-3 font-black text-[#3182f6] underline decoration-2 underline-offset-4"
+      >
+        영상이 없으면 상대역 리딩부터 →
+      </SiteLink>
       <StoreBadges surface="keyword_page" />
-      <Link
+      <SiteLink
         href="/signup"
         prefetch={false}
         className="mt-4 font-black text-[#3182f6] underline decoration-2 underline-offset-4"
       >
         무료로 가입하기 →
-      </Link>
+      </SiteLink>
     </div>
   );
 }
@@ -71,9 +87,9 @@ export function KeywordPageView({ content }: { content: KeywordPageContent }) {
           <p className="font-black">목차</p>
           <ol className="mt-4 space-y-3 text-[#4e5968]">
             <li>
-              <Link href="/blog" className="font-bold hover:text-[#3182f6]">
+              <SiteLink href="/blog" className="font-bold hover:text-[#3182f6]">
                 연기 연습 가이드
-              </Link>
+              </SiteLink>
             </li>
             {content.sections.map((section) => (
               <li key={section.id}>
@@ -122,9 +138,9 @@ export function KeywordPageView({ content }: { content: KeywordPageContent }) {
           <ul className="mt-4 space-y-3">
             {content.related.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className="font-bold text-[#3182f6] hover:underline">
+                <SiteLink href={link.href} className="font-bold text-[#3182f6] hover:underline">
                   {link.label} →
-                </Link>
+                </SiteLink>
               </li>
             ))}
           </ul>

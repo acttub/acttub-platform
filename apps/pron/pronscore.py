@@ -3,8 +3,11 @@
 방법(CTC-GOP):
   1) 대본 → 표준 발음(연음·비음화·유음화·경음화·격음화·구개음화·ㅎ 약화 규칙) → 음소열(MFA 표기)
   2) 음소 인식 모델 slplab/wav2vec2-xls-r-300m_phone-mfa_korean (Apache-2.0)로 녹음의 음소 확률을 구한다
-  3) 음소마다 "대본대로" vs "그 음소를 다른 음소로 바꾼 것" 중 어느 쪽이 녹음 전체를 더 잘 설명하는지 CTC 확률로 비교
+  3) 음소마다 "대본대로" vs "그 음소를 다른 음소로 바꾼 것" 중 어느 쪽이 녹음을 더 잘 설명하는지 CTC 확률로 비교
      lpr = log P(대본) − max log P(바꾼 것). 음수일수록 다른 소리로 들린 것
+     비교 범위(SOMA-967): 강제 정렬로 그 음소가 난 프레임을 찾고, 앞뒤 GOP_WINDOW 개 음소가 난 구간 안에서만 비교한다.
+     문장 전체로 비교하면 음소 수 × 바꿔 볼 소리 수 × 녹음 길이만큼 계산·메모리가 커져 24초 줄이 26초·21GB 를 썼다.
+     구간으로 바꾸면 같은 줄이 1.2초·2.7GB(대부분 모델 자체), 평가 세트 169개에서 짚은 어절은 168개가 같았다.
   4) 짚는 규칙: lpr < THRESHOLD, 모음↔모음·자음↔자음으로 바뀐 것만, 같은 계열(ㄱ/ㅋ/ㄲ 등)과 자연스러운 변이는 제외
 """
 import os
@@ -21,7 +24,9 @@ import torchaudio
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
 MODEL = os.environ.get("PRON_MODEL", "slplab/wav2vec2-xls-r-300m_phone-mfa_korean")
-MODEL_VERSION = MODEL.rsplit("/", 1)[-1] + "+ctc-gop-1"
+# 0 이면 예전처럼 문장 전체로 비교한다(되돌리기용).
+GOP_WINDOW = int(os.environ.get("PRON_GOP_WINDOW", "2"))
+MODEL_VERSION = MODEL.rsplit("/", 1)[-1] + ("+ctc-gop-2" if GOP_WINDOW > 0 else "+ctc-gop-1")
 THRESHOLD = -3.0   # 낮출수록(-4, -5) 덜 짚고 더 확실한 것만
 
 # ── 표준 발음 → 음소 ────────────────────────────────────────────────────────
@@ -181,7 +186,8 @@ def flagged(p, threshold=THRESHOLD):
 
 # ── 채점 ─────────────────────────────────────────────────────────────────────
 # 줄 녹음은 대사를 못 하고 기다린 소리까지 담길 수 있다(앱이 말이 끝날 때까지 녹음한다). 소리 없는 앞뒤를 잘라 내고,
-# 그래도 길면 채점하지 않는다 — GOP 는 녹음 길이 × 음소 수 × 바꿔 볼 소리 수만큼 정렬을 돌려 긴 녹음에서 몇 분씩 걸린다.
+# 그래도 길면 채점하지 않는다 — 문장 전체 GOP(PRON_GOP_WINDOW=0)는 녹음 길이 × 음소 수 × 바꿔 볼 소리 수만큼 정렬을 돌려
+# 긴 녹음에서 몇 분씩 걸린다. 구간 GOP 는 줄 길이에 거의 비례한다.
 MAX_SECONDS = float(os.environ.get("PRON_MAX_SECONDS", "30"))
 _HOP = 320  # 20ms
 _PAD_SECONDS = 0.3
@@ -235,39 +241,85 @@ def gop(path, text, logp=None):
         return {"words": [], "phones": []}
     if logp is None:
         logp = log_probs(path)
-    T = logp.shape[0]
-    variants, meta = [seq], [None]
-    for j, tok in enumerate(seq):
-        if owner[j] is None:
-            continue
-        p = inv[tok]
-        for q in phones:
-            if q == p or fam(q) == fam(p):
-                continue
-            v = seq.copy(); v[j] = vocab[q]
-            variants.append(v); meta.append((j, q))
-    lens = torch.tensor([len(v) for v in variants])
-    tgt = torch.full((len(variants), int(lens.max())), blank, dtype=torch.long)
-    for i, v in enumerate(variants):
-        tgt[i, :len(v)] = torch.tensor(v)
-    with torch.no_grad():
-        nll = F.ctc_loss(logp.unsqueeze(1).expand(T, len(variants), logp.shape[-1]), tgt,
-                         torch.full((len(variants),), T, dtype=torch.long), lens, blank=blank, reduction="none", zero_infinity=True)
-    base = -float(nll[0])
-    best = {}
-    for i in range(1, len(variants)):
-        j, q = meta[i]
-        s = -float(nll[i])
-        if s > best.get(j, (-1e9, ""))[0]:
-            best[j] = (s, q)
+    alts = lambda p: [q for q in phones if q != p and fam(q) != fam(p)]
+    spans = None
+    if GOP_WINDOW > 0:
+        try:
+            spans = _align(logp, seq, blank)
+        except Exception:  # 녹음이 음소열보다 짧으면 정렬이 안 된다 — 문장 전체로 비교한다
+            spans = None
+    lprs = (_gop_windowed(logp, seq, owner, inv, vocab, blank, alts, spans) if spans
+            else _gop_sentence(logp, seq, owner, inv, vocab, blank, alts))
     out = []
     for j, tok in enumerate(seq):
         if owner[j] is None:
             continue
         p = inv[tok]
         weak = p == "H" and j > 0 and seq[j - 1] != vocab["|"] and inv[seq[j - 1]] in SONOR
-        out.append({"w": owner[j], "ph": p, "lpr": round(base - best[j][0], 2), "alt": best[j][1], "weak": weak})
+        lpr, alt = lprs[j]
+        out.append({"w": owner[j], "ph": p, "lpr": round(lpr, 2), "alt": alt, "weak": weak})
     return {"words": [w for w, _ in words], "phones": out}
+
+
+def _ctc_scores(logp, variants, blank, zero_infinity):
+    """같은 프레임 logp 에 대해 음소열 여러 개의 log P. 못 맞추는 열은 -inf(zero_infinity=False 일 때)."""
+    T = logp.shape[0]
+    lens = torch.tensor([len(v) for v in variants])
+    tgt = torch.full((len(variants), int(lens.max())), blank, dtype=torch.long)
+    for i, v in enumerate(variants):
+        tgt[i, :len(v)] = torch.tensor(v)
+    with torch.no_grad():
+        nll = F.ctc_loss(logp.unsqueeze(1).expand(T, len(variants), logp.shape[-1]), tgt,
+                         torch.full((len(variants),), T, dtype=torch.long), lens, blank=blank, reduction="none",
+                         zero_infinity=zero_infinity)
+    return [-float(x) for x in nll]
+
+
+def _gop_sentence(logp, seq, owner, inv, vocab, blank, alts):
+    """음소마다 (lpr, 가장 그럴듯한 다른 음소) — 녹음 전체와 문장 전체로 비교한다(PRON_GOP_WINDOW=0·정렬 실패)."""
+    variants, meta = [seq], [None]
+    for j, tok in enumerate(seq):
+        if owner[j] is None:
+            continue
+        for q in alts(inv[tok]):
+            v = seq.copy(); v[j] = vocab[q]
+            variants.append(v); meta.append((j, q))
+    scores = _ctc_scores(logp, variants, blank, zero_infinity=True)
+    best = {}
+    for i in range(1, len(variants)):
+        j, q = meta[i]
+        if scores[i] > best.get(j, (-1e9, ""))[0]:
+            best[j] = (scores[i], q)
+    return {j: (scores[0] - s, q) for j, (s, q) in best.items()}
+
+
+def _window(spans, j, frames, width=None):
+    """음소 j 를 비교할 범위 (음소 a:b, 프레임 f0:f1 포함). 앞뒤 width 개 음소와, 그 바깥 음소 사이의 빈 프레임까지 넣는다."""
+    width = GOP_WINDOW if width is None else width
+    a, b = max(0, j - width), min(len(spans), j + width + 1)
+    f0 = spans[a - 1][1] + 1 if a > 0 else 0
+    f1 = spans[b][0] - 1 if b < len(spans) else frames - 1
+    return a, b, f0, f1
+
+
+def _gop_windowed(logp, seq, owner, inv, vocab, blank, alts, spans):
+    """음소마다 (lpr, 가장 그럴듯한 다른 음소) — 그 음소 앞뒤 구간 안에서만 비교한다."""
+    out = {}
+    for j, tok in enumerate(seq):
+        if owner[j] is None:
+            continue
+        a, b, f0, f1 = _window(spans, j, logp.shape[0])
+        base_seq = seq[a:b]
+        qs = alts(inv[tok])
+        variants = [base_seq]
+        for q in qs:
+            v = base_seq.copy(); v[j - a] = vocab[q]
+            variants.append(v)
+        scores = _ctc_scores(logp[f0:f1 + 1], variants, blank, zero_infinity=False)
+        best_s, best_q = max(((s, q) for s, q in zip(scores[1:], qs) if s != float("-inf")),
+                             default=(float("-inf"), qs[0] if qs else inv[tok]))
+        out[j] = (scores[0] - best_s if best_s != float("-inf") else 0.0, best_q)
+    return out
 
 
 def score(path, text, threshold=THRESHOLD):

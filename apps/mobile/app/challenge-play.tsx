@@ -25,6 +25,7 @@ import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
+import { ScrimGradient } from '@/components/ui/band-gradient';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -393,8 +394,9 @@ export default function ChallengePlayScreen() {
             </View>
           )}
         </Pressable>
-        <View style={styles.scrimTop} pointerEvents="none" />
-        <View style={styles.scrimBottom} pointerEvents="none" />
+        {/* 위·아래 막은 가장자리만 진하고 영상 쪽으로 갈수록 투명해진다 — 아래 절반을 같은 진하기로 덮던 박스를 바꿨다. */}
+        <ScrimGradient color={SCRIM_COLOR} alphas={SCRIM_TOP} height={130} style={styles.scrimTop} />
+        <ScrimGradient color={SCRIM_COLOR} alphas={SCRIM_BOTTOM} height={330} style={styles.scrimBottom} />
 
         <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
           <View style={styles.top}>
@@ -603,6 +605,13 @@ function sourceOf(entry: EntryCard, originalFor: string | null): string | null {
 /** 아래 행동 줄(좋아요·저장·댓글·공유) 높이 — 토스트를 그 위에 띄운다. */
 const ACTION_ROW = 32;
 
+// 막 색은 palette.scrim(#0F141E)과 같다. 진하기: 아래 끝 55%, 위 끝 35%, 영상 쪽 끝은 0%.
+const SCRIM_COLOR = '#0F141E';
+const SCRIM_TOP = [[0, 0.35], [1, 0]] as const;
+const SCRIM_BOTTOM = [[0, 0], [0.35, 0.15], [1, 0.55]] as const;
+// 막이 옅어진 만큼 밝은 영상 위 흰 글자가 묻히지 않게 옅은 그림자를 준다.
+const MEDIA_TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 };
+
 const styles = StyleSheet.create({
   playFail: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
   error: { position: 'absolute', left: 0, right: 0, paddingHorizontal: space.gutter },
@@ -614,16 +623,16 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.text },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 160, backgroundColor: palette.scrim },
-  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 420, backgroundColor: palette.scrim },
+  scrimTop: { top: 0 },
+  scrimBottom: { bottom: 0 },
   overlay: { flex: 1, justifyContent: 'space-between' },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[4], paddingTop: space[2] },
   author: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  authorName: { ...type.body2Bold, color: palette.onAccent },
+  authorName: { ...type.body2Bold, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
   avatar: { width: 24, height: 24, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { ...type.micro, color: palette.textSub },
   bottom: { paddingHorizontal: space.gutter, paddingBottom: space[4], gap: space[2] },
-  storyLabel: { ...type.micro, color: palette.onMediaSub },
+  storyLabel: { ...type.micro, color: palette.onMediaSub, ...MEDIA_TEXT_SHADOW },
   originalToggle: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -636,13 +645,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.scrim,
   },
   originalToggleText: { ...type.captionBold, color: palette.onAccent },
-  line: { ...type.title2, color: palette.onAccent },
-  work: { ...type.caption, color: palette.onMediaSub },
+  line: { ...type.title2, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
+  work: { ...type.caption, color: palette.onMediaSub, ...MEDIA_TEXT_SHADOW },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[5], height: ACTION_ROW, marginTop: space[1] },
   topRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   action: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   actionOff: { opacity: 0.4 },
-  actionText: { ...type.body2Bold, color: palette.onAccent },
+  actionText: { ...type.body2Bold, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
   performBtn: {
     flexDirection: 'row',
     alignItems: 'center',

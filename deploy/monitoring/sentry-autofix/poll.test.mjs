@@ -1,8 +1,10 @@
 // 실행: node --test deploy/monitoring/sentry-autofix/poll.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
-import { DAILY_RULE, PROMPT, merged, pick, renderPrompt, summarize, verdictOf } from "./poll.mjs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DAILY_RULE, PROMPT, merged, pick, renderPrompt, summarize, takeLock, verdictOf } from "./poll.mjs";
 
 const alert = (issueId, at, rule = "운영 처음 남") => ({ issueId, at, rule });
 const at = (iso) => ({ at: Date.parse(iso) });
@@ -114,4 +116,24 @@ test("지시문은 환경별 작업 기준·브랜치·PR 대상으로 빈자리
   assert.match(dev, /--base dev /);
   assert.match(dev, /git switch -c Fiddich-Dev\/soma-<번호>-sentry-/);
   assert.doesNotMatch(dev, /역병합|출시 대기/);
+});
+
+test("잠금은 살아 있는 실행이 잡고 있으면 못 잡고, 죽은 실행이 남긴 잠금은 풀고 잡는다", () => {
+  const lock = join(mkdtempSync(join(tmpdir(), "autofix-lock-")), "lock");
+  assert.equal(takeLock(lock), true);
+  assert.equal(readFileSync(join(lock, "pid"), "utf8"), String(process.pid));
+  assert.equal(takeLock(lock, () => true), false); // 앞 실행이 아직 돈다
+  writeFileSync(join(lock, "pid"), "999999");
+  assert.equal(takeLock(lock, () => false), true); // 강제 종료로 남은 잠금
+  assert.equal(readFileSync(join(lock, "pid"), "utf8"), String(process.pid));
+});
+
+test("pid 없는 옛 잠금은 실행 한도보다 오래됐을 때만 푼다", () => {
+  const lock = join(mkdtempSync(join(tmpdir(), "autofix-lock-")), "lock");
+  mkdirSync(lock);
+  assert.equal(takeLock(lock), false);
+  const old = new Date(Date.now() - 4 * 60 * 60_000);
+  utimesSync(lock, old, old);
+  assert.equal(takeLock(lock), true);
+  assert.equal(existsSync(join(lock, "pid")), true);
 });

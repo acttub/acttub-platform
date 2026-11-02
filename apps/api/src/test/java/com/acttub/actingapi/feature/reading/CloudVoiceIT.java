@@ -33,8 +33,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
         "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model",
         "READING_VOICE_MODEL_PREFIX=reading-model/supertonic3-fp16-v1",
-        // 무료 기간(기본 2026-10-31 KST)이 지나면 이 클래스의 무료 기간 계약이 날짜 때문에 깨진다. 무료 기간 안으로 고정한다.
-        "READING_VOICE_FREE_UNTIL=2099-12-31T23:59:59+09:00"})
+        // 무료 기간은 설정하지 않는다(기본 없음). Pro 판정은 결제 도메인이 하고, 결제 기능이 열려 있어야 Pro 를 본다.
+        "BILLING_APP_ENABLED=true"})
 @AutoConfigureMockMvc
 @Import(CloudVoiceIT.Fakes.class)
 class CloudVoiceIT {
@@ -67,6 +67,11 @@ class CloudVoiceIT {
         user = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
         AccountFixtures.passGate(jdbc, user);
+        // 합성·캐시·동의를 보는 테스트는 서버가 준 Pro 기간 안의 회원으로 한다(지금 시각 기준이라 날짜가 지나도 깨지지 않는다).
+        jdbc.update("""
+                INSERT INTO billing_pro_grants(id,user_id,starts_at,ends_at,reason)
+                VALUES (?,?,now() - interval '1 day',now() + interval '30 days','test')
+                """, UUID.randomUUID(), user);
         bearer = "Bearer " + jwt.issueAccessToken(user).value();
     }
 
@@ -78,9 +83,29 @@ class CloudVoiceIT {
         assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "available", "free_until", "consent", "daily_limit", "daily_used", "reason", "pro_only");
         assertThat(body.path("available").booleanValue()).isTrue();
+        assertThat(body.path("reason").textValue()).isEqualTo("pro");
+        assertThat(body.path("pro_only").booleanValue()).isFalse();
+        assertThat(body.path("free_until").isNull()).isTrue();
         assertThat(body.path("consent").textValue()).isEqualTo("granted");
         assertThat(body.path("daily_limit").intValue()).isEqualTo(300);
         assertThat(body.path("daily_used").intValue()).isZero();
+    }
+
+    @Test
+    void reading_cloudVoice_aMemberWithoutProIsRefusedOutsideTheFreePeriod() throws Exception {
+        jdbc.update("DELETE FROM billing_pro_grants WHERE user_id=?", user);
+        var status = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
+        assertThat(status.getStatus()).isEqualTo(200);
+        JsonNode body = mapper.readTree(status.getContentAsString());
+        assertThat(body.path("available").booleanValue()).isFalse();
+        assertThat(body.path("reason").isNull()).isTrue();
+        assertThat(body.path("pro_only").booleanValue()).isTrue();
+        assertThat(body.path("free_until").isNull()).isTrue();
+
+        var refused = synthesize("{\"text\":\"가지 마\",\"voice\":\"F1\"}");
+        assertThat(refused.getStatus()).isEqualTo(503);
+        assertThat(mapper.readTree(refused.getContentAsString()).path("detail").textValue()).isEqualTo("cloud_voice_unavailable");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_voice_cache", Long.class)).isZero();
     }
 
     @Test

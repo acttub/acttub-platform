@@ -58,6 +58,16 @@ class PostgresConversationRepository implements ConversationRepository {
         return load(userId, "c.id=:id", conversationId);
     }
 
+    @Override
+    public String practiceLanguage(UUID userId, UUID practiceId) {
+        List<?> rows = entityManager.createNativeQuery(
+                        "SELECT language FROM practices WHERE id=:id AND user_id=:userId")
+                .setParameter("id", practiceId)
+                .setParameter("userId", userId)
+                .getResultList();
+        return rows.isEmpty() ? null : (String) rows.getFirst();
+    }
+
     private Loaded load(UUID userId, String where, UUID id) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT p.id AS practice_id,p.user_id,p.stage,p.situation,p.character_context,p.goal,

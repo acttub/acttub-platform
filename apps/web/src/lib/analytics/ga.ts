@@ -329,3 +329,32 @@ export function trackLandingDownloadClick(
 export function trackLandingWebTryClick(variant: LandingVariantParam, surface: string): void {
   sendLandingEvent("web_try_click", { landing_variant: variant, surface });
 }
+
+// ── 웹 체험 퍼널(SOMA-834 3차) ────────────────────────────────────────────────
+// 가입 없이 쓰는 방문자가 어디까지 가는지만 센다. 대본·대사·영상·회차 id 는 싣지 않는다.
+// 랜딩 이벤트와 같은 보관 큐를 써서 동의 흐름 뒤에 태그가 오르기 전 이벤트도 잃지 않는다.
+export type TrialFeature = "reading" | "coaching";
+/** 체험에 들어온 길. 광고·검색 링크는 quick_start, 홈 카드는 home_card, 헤더 메뉴는 nav, 키워드 소개 페이지는 keyword_page, 코칭 화면의 안내 링크는 coaching_link, /app 페이지는 app_page. */
+export type TrialEntry = "quick_start" | "home_card" | "nav" | "keyword_page" | "coaching_link" | "app_page" | "direct";
+/** 앱 받기 버튼이 놓인 자리. */
+export type TrialSurface = "done" | "bar" | "home";
+
+/** 체험을 시작한 시점. 리딩은 빠른 시작 화면에 들어온 때, 코칭은 영상을 올려 분석을 시작한 때. */
+export function trackTrialStart(feature: TrialFeature, entry: TrialEntry): void {
+  sendLandingEvent("trial_start", { feature, entry });
+}
+
+/** 리딩에서 상대역(AI) 대사가 처음 재생된 시점. 한 번의 체험에 한 번만 부른다. */
+export function trackTrialFirstPartnerLine(): void {
+  sendLandingEvent("trial_first_partner_line", { feature: "reading" });
+}
+
+/** 체험이 끝까지 간 시점. 리딩은 완료 화면, 코칭은 연습 노트가 올라온 때. */
+export function trackTrialComplete(feature: TrialFeature): void {
+  sendLandingEvent("trial_complete", { feature });
+}
+
+/** 체험 중 「앱 받기」·「앱에서 이어서 하기」를 누른 시점. */
+export function trackTrialAppClick(feature: TrialFeature, surface: TrialSurface): void {
+  sendLandingEvent("trial_app_click", { feature, surface });
+}

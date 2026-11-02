@@ -386,4 +386,32 @@ class PracticeLoopRouterTest {
         assertThat(DirectVideoPrompts.flowBlock(CoachFlows.A, null)).isEmpty();
         assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, java.util.Locale.ENGLISH)).isEmpty();
     }
+
+    // 2026-10-31~11-01 운영(14f8348d, 9e1f84ed): 정리 뒤 「잘 모르겠어요」에 바로 닫혔다. 이제 한 번은 방법으로 답하고 다음 말에서 닫는다.
+    @Test void unsureRightAfterWrapIsAnsweredOnceAsAMethodRequest() {
+        var afterWrap = at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER);
+        var shortReply = new Classified(Kind.SHORT, false, "model");
+        var c = PracticeLoopRouter.unsureAfterWrap(shortReply, afterWrap, "잘 모르겠어요");
+        assertThat(c.kind()).isEqualTo(Kind.METHOD);
+        assertThat(PracticeLoopRouter.route(c, afterWrap, 0)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(c, afterWrap)).as("답한 다음 말에서 닫는다").isTrue();
+        assertThat(PracticeLoopRouter.unsureAfterWrap(shortReply, afterWrap, "I'm not sure").kind()).isEqualTo(Kind.METHOD);
+
+        var answeredOnce = new Before(7, "답하기", Kind.METHOD, new Tally(0, 0, 0), List.of(), false, false, false, true, 4);
+        var again = PracticeLoopRouter.unsureAfterWrap(shortReply, answeredOnce, "잘 모르겠어요");
+        assertThat(again.kind()).as("한 번 받아 준 뒤 또 모르겠다면 그대로 닫는다").isEqualTo(Kind.SHORT);
+        assertThat(PracticeLoopRouter.route(again, answeredOnce, 0)).isEqualTo(PracticeLoopRouter.END);
+    }
+
+    @Test void plainAcknowledgementsAfterWrapStillClose() {
+        var afterWrap = at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER);
+        var shortReply = new Classified(Kind.SHORT, false, "model");
+        for (String text : List.of("네", "아하", "다시 해볼게요")) {
+            var c = PracticeLoopRouter.unsureAfterWrap(shortReply, afterWrap, text);
+            assertThat(PracticeLoopRouter.route(c, afterWrap, 0)).as(text).isEqualTo(PracticeLoopRouter.END);
+        }
+        var midway = at(3, 3, PracticeLoopRouter.FIND, Kind.ANSWER);
+        assertThat(PracticeLoopRouter.unsureAfterWrap(shortReply, midway, "잘 모르겠어요").kind())
+                .as("정리 전 단계의 모르겠다는 기존 흐름(쉽게 묻기·제안)을 따른다").isEqualTo(Kind.SHORT);
+    }
 }

@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { ChallengeOthersRow } from '@/components/challenge-others-row';
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -327,6 +328,20 @@ export default function ChallengesScreen() {
           />
         )}
 
+        {featured && (
+          <ChallengeOthersRow
+            challenge={featured}
+            onOpenAll={() => {
+              logEvent('challenge_others_row_all', { id: featured.id });
+              openDetail(featured);
+            }}
+            onOpenEntry={(entry) => {
+              logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
+              router.push({ pathname: '/challenge-play', params: { id: featured.id, entryId: entry.id } });
+            }}
+          />
+        )}
+
         <AdSlot slot="challenges_tab_top" />
 
         <View style={styles.tabRow}>
@@ -426,7 +441,7 @@ function WeekHero({
             {`${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
           </Text>
         </View>
-        <Text style={styles.weekLine} numberOfLines={4}>
+        <Text style={styles.weekLine} numberOfLines={3}>
           “{challenge.line}”
         </Text>
         {!!meta && (
@@ -449,7 +464,7 @@ function WeekHero({
           accessibilityRole="button"
           accessibilityLabel={t('challenges.performCta')}>
           {/* 흰 알약 버튼(10/29 시안). */}
-          <Feather name="video" size={18} color={heroCard.ctaNavy} />
+          <Feather name="video" size={16} color={heroCard.ctaNavy} />
           <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
         </Pressable>
       )}
@@ -589,9 +604,10 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { ...type.body2Bold, color: palette.text },
   bannerSub: { ...type.caption, color: palette.textMeta, marginTop: space[1] },
-  weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[5], gap: space[3], overflow: 'hidden' },
-  weekHeroTop: { gap: space[2], maxWidth: '68%' },
-  weekActy: { position: 'absolute', right: -space[2], bottom: space[1], width: 140, height: 130 },
+  // 아래에 「다른 배우 영상」 줄이 붙어도 다른 챌린지가 첫 화면에 보이게 한 단계씩 줄였다(SOMA-986, 11/2 시안).
+  weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[4], gap: space[2], overflow: 'hidden' },
+  weekHeroTop: { gap: space[2], maxWidth: '72%' },
+  weekActy: { position: 'absolute', right: -space[1.5], bottom: 2, width: 104, height: 96 },
   weekChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -602,7 +618,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3],
     paddingVertical: space[1.5],
   },
-  weekLine: { ...type.title1, color: palette.onAccent, marginTop: space[1] },
+  weekLine: { ...type.title2, color: palette.onAccent },
   names: { ...type.caption, color: palette.textMeta, flexShrink: 1 },
   likes: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   hero: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], minHeight: 300, gap: space[3], justifyContent: 'flex-end', overflow: 'hidden' },
@@ -610,8 +626,8 @@ const styles = StyleSheet.create({
   heroGuide: { ...type.body2Bold, color: palette.onMediaSub },
   heroMeta: { ...type.caption, color: palette.onMediaSub },
   heroStat: { ...type.caption, color: palette.onMediaSub },
-  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[2], height: 48, borderRadius: radius.full, paddingHorizontal: space[5], backgroundColor: palette.bg },
-  heroPerformText: { ...type.body1Bold, color: heroCard.ctaNavy },
+  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[2], height: 40, borderRadius: radius.full, paddingHorizontal: space[4], marginTop: 2, backgroundColor: palette.bg },
+  heroPerformText: { ...type.body2Bold, color: heroCard.ctaNavy },
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },

@@ -68,7 +68,11 @@ jest.mock('@/lib/guide-state', () => ({
   markReadingTutorialSeen: jest.fn(async () => undefined),
 }));
 jest.mock('@/lib/practice-days', () => ({ rememberPracticeDays: jest.fn() }));
-jest.mock('@/lib/practice/first-use-graduation', () => ({ hasGraduatedFirstUse: jest.fn(async () => false), currentFirstUseOwner: jest.fn(() => 'u1') }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({
+  hasGraduatedFirstUse: jest.fn(async () => false),
+  markFirstUseGraduated: jest.fn(async () => undefined),
+  currentFirstUseOwner: jest.fn(() => 'u1'),
+}));
 jest.mock('@/lib/streak-celebration', () => ({
   ...jest.requireActual('@/lib/streak-celebration'),
   readLastSeenStreak: jest.fn(),
@@ -248,6 +252,46 @@ describe('첫 사용자', () => {
     expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
   });
 
+  test('기본 홈의 「이것도 해 볼까요?」 맨 끝에 의견 보내기가 있고, 누르면 의견 화면으로 간다(SOMA-953)', async () => {
+    const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
+    hasGraduatedFirstUse.mockImplementation(async (id: string) => id === 'u1');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('의견 보내기')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('의견 보내기'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith('/feedback');
+  });
+
+  test('기록으로 첫 사용자를 벗어나면 졸업 표시를 남긴다 — 다시 읽기 시작해 대본이 「연습 중」이 돼도 첫 홈으로 돌아가지 않게(11/2)', async () => {
+    const { markFirstUseGraduated } = jest.requireMock('@/lib/practice/first-use-graduation');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막', status: 'completed' })] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    await waitFor(() => expect(markFirstUseGraduated).toHaveBeenCalledWith('u1'));
+  });
+
+  test('14일보다 전에 끝까지 읽은 대본만 있는 사람도 첫 사용자가 아니다(11/2)', async () => {
+    const { markFirstUseGraduated } = jest.requireMock('@/lib/practice/first-use-graduation');
+    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막', status: 'reading', last_practiced_at: old })] });
+    (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'completed', started_at: old, progress: { total: 10, done: 10 } }] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
+    expect(markFirstUseGraduated).toHaveBeenCalledWith('u1');
+  });
+
+  test('대본 목록을 못 받으면 첫 사용자로 보지 않는다(11/2)', async () => {
+    listReadingScripts.mockRejectedValue(new Error('network'));
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
+  });
+
   test('대본만 넣고 끝까지 안 읽은 사람은 아직 첫 사용자다 — 선택지를 본다(SOMA-827)', async () => {
     listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
     await render(<HomeScreen />);
@@ -407,6 +451,17 @@ describe('연속 연습', () => {
     expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     await waitFor(() => expect(readLastSeenStreak).toHaveBeenCalled());
     expect(screen.queryByText('일 연속 연습!')).not.toBeOnTheScreen();
+  });
+
+  test('앱을 새로 깔아 저장값이 0 이어도, 오늘 연습이 없으면 어제까지의 연속일로 축하하지 않는다', async () => {
+    (readLastSeenStreak as jest.Mock).mockResolvedValue(0);
+    listPracticeGroups.mockResolvedValue({
+      groups: [group({ practices: [round('p-yesterday', isoDaysAgo(1), true)] })],
+    });
+    await render(<HomeScreen />);
+
+    await waitFor(() => expect(writeLastSeenStreak).toHaveBeenLastCalledWith(1));
+    expect(screen.queryByLabelText('1일 연속 연습 축하')).not.toBeOnTheScreen();
   });
 
   test('기록을 못 받아도 기기에 쌓인 연습일로 연속일을 센다', async () => {
