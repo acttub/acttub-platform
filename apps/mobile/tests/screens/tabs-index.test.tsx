@@ -453,6 +453,17 @@ describe('연속 연습', () => {
     expect(screen.queryByText('일 연속 연습!')).not.toBeOnTheScreen();
   });
 
+  test('앱을 새로 깔아 저장값이 0 이어도, 오늘 연습이 없으면 어제까지의 연속일로 축하하지 않는다', async () => {
+    (readLastSeenStreak as jest.Mock).mockResolvedValue(0);
+    listPracticeGroups.mockResolvedValue({
+      groups: [group({ practices: [round('p-yesterday', isoDaysAgo(1), true)] })],
+    });
+    await render(<HomeScreen />);
+
+    await waitFor(() => expect(writeLastSeenStreak).toHaveBeenLastCalledWith(1));
+    expect(screen.queryByLabelText('1일 연속 연습 축하')).not.toBeOnTheScreen();
+  });
+
   test('기록을 못 받아도 기기에 쌓인 연습일로 연속일을 센다', async () => {
     listPracticeGroups.mockRejectedValue(new Error('down'));
     (rememberPracticeDays as jest.Mock).mockResolvedValue([{ created_at: isoDaysAgo(0) }, { created_at: isoDaysAgo(1) }]);
