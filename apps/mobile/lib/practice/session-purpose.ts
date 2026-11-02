@@ -37,13 +37,17 @@ export const DEFAULT_TALK_PURPOSE: TalkPurpose = 'stuck';
 /** 준비 화면의 두 단계 — 목적 → 영상(권리 체크·시작 포함). 장면 단계는 없앴다(SOMA-778). */
 export type UploadStep = 'purpose' | 'source';
 
-/** 튜토리얼과 예시는 한 장(영상 단계)에서 영상·권리 체크·시작 버튼을 차례로 비추므로 바로 그 단계로 연다. */
-export function firstUploadStep(input: { sample: boolean; tutorial: boolean }): UploadStep {
-  return input.sample || input.tutorial ? 'source' : 'purpose';
+/**
+ * 튜토리얼과 예시는 한 장(영상 단계)에서 영상·권리 체크·시작 버튼을 차례로 비추므로 바로 그 단계로 연다.
+ * 첫 코칭(quickStart, SOMA-984)도 목적을 묻지 않고 기본 목적으로 영상 단계부터 연다.
+ */
+export function firstUploadStep(input: { sample: boolean; tutorial: boolean; quickStart?: boolean }): UploadStep {
+  return input.sample || input.tutorial || input.quickStart ? 'source' : 'purpose';
 }
 
-/** 뒤로 가기가 돌아갈 단계. 첫 단계면 null — 화면을 닫는다. */
-export function previousUploadStep(step: UploadStep): UploadStep | null {
+/** 뒤로 가기가 돌아갈 단계. 첫 단계면 null — 화면을 닫는다. 첫 코칭은 목적 단계가 없어 영상 단계가 첫 단계다. */
+export function previousUploadStep(step: UploadStep, options: { quickStart?: boolean } = {}): UploadStep | null {
+  if (options.quickStart) return null;
   return step === 'source' ? 'purpose' : null;
 }
 
