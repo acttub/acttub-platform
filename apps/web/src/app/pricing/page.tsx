@@ -32,7 +32,7 @@ const COMPARE = [
   ["같은 대본 반복 연습", "제한 없음", "제한 없음"],
   ["리딩 고품질 목소리", "10월 31일까지 무료", "포함"],
   ["발음 보고서", "—", "준비 중"],
-  ["연습 중 광고", "—", "광고 없음"],
+  ["광고", "있음", "광고 없음"],
   ["챌린지 참여·시청·댓글", "무료", "무료 · Pro 배지"],
 ] as const;
 
@@ -84,7 +84,7 @@ export default function PricingPage() {
               <li className="py-2.5">더 자세한 코칭 노트 · 장면·대사별 관찰</li>
               <li className="py-2.5">발음 보고서 (Pro 전용 · 준비 중)</li>
               <li className="py-2.5">리딩 고품질 목소리 (10월 31일까지는 모두 무료)</li>
-              <li className="py-2.5">연습 중 광고 없음</li>
+              <li className="py-2.5">앱 광고 없음</li>
               <li className="py-2.5">참여작·댓글·프로필에 Pro 배지</li>
             </ul>
             {WEB_BILLING_ENABLED ? (

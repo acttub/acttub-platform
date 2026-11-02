@@ -975,7 +975,7 @@ const en: DeepStringShape<typeof ko> = {
     titlePron: 'Get a pronunciation report',
     benefitUnlimited: 'Unlimited coaching and saved scripts',
     benefitModel: 'More detailed coaching from an advanced AI model',
-    benefitExtras: 'Pronunciation report · High-quality voices · No ads while practicing',
+    benefitExtras: 'Pronunciation report · High-quality voices · No ads',
     benefitCoaching: 'Unlimited coaching sessions',
     benefitHabit: 'Remembers and points out your recurring habits',
     benefitScripts: 'Unlimited saved reading scripts',

@@ -56,7 +56,7 @@ test("요금 안내는 무료와 Pro의 차이를 같은 말로 보인다", () =
   assert.match(pro.textContent, /상위 AI 모델로 코칭/);
   assert.match(pro.textContent, /습관을 기억하는 코칭/);
   assert.match(pro.textContent, /더 자세한 코칭 노트/);
-  assert.match(pro.textContent, /연습 중 광고 없음/);
+  assert.match(pro.textContent, /앱 광고 없음/);
 });
 
 test("환불정책은 이용한 날짜만큼 빼는 기준과 30일 예시 금액을 보인다", () => {
