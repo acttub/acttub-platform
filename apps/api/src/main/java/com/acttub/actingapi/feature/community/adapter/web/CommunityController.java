@@ -567,7 +567,7 @@ class CommunityController {
     private static String trimmed(String field, String raw) {
         // String.strip() 은 NBSP 를 공백으로 보지 않아 파이썬과 갈린다 — PythonText 참조.
         String trimmed = PythonText.strip(raw);
-        if (trimmed.isEmpty()) {
+        if (trimmed == null || trimmed.isEmpty()) {
             throw ApiValidationException.valueError(
                     List.of("body", field),
                     "Value error, " + field + " must not be blank",
