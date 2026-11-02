@@ -10,6 +10,9 @@ import {
   commentBody,
   commentText,
   commentTooLong,
+  DOUBLE_TAP_MS,
+  doubleTapAction,
+  isDoubleTap,
   optimisticLike,
   optimisticSave,
   reactFailure,
@@ -87,4 +90,21 @@ test('challenge.react: 비공개·삭제·차단은 404, 하루 한도는 429 �
   assert.deepEqual(reactFailure(apiError(429, 'daily_comment_limit')), { kind: 'daily_limit' });
   assert.deepEqual(reactFailure(apiError(403, 'member_only')), { kind: 'member_only' });
   assert.deepEqual(reactFailure(Object.assign(new Error('x'), { name: 'NetworkError' })), { kind: 'offline' });
+});
+
+test('두 번 누르기는 같은 참여작을 DOUBLE_TAP_MS 안에 다시 누를 때만이다', () => {
+  assert.equal(DOUBLE_TAP_MS, 250);
+  assert.equal(isDoubleTap(null, 1000, 'e1'), false);
+  assert.equal(isDoubleTap({ at: 1000, entryId: 'e1' }, 1200, 'e1'), true);
+  assert.equal(isDoubleTap({ at: 1000, entryId: 'e1' }, 1250, 'e1'), true);
+  assert.equal(isDoubleTap({ at: 1000, entryId: 'e1' }, 1251, 'e1'), false);
+  assert.equal(isDoubleTap({ at: 1000, entryId: 'e1' }, 1100, 'e2'), false);
+  assert.equal(isDoubleTap({ at: 1000, entryId: 'e1' }, 900, 'e1'), false);
+});
+
+test('두 번 누르기는 좋아요만 하고 취소하지 않으며 내 참여작에는 아무것도 하지 않는다', () => {
+  assert.equal(doubleTapAction({ liked: false }), 'like');
+  assert.equal(doubleTapAction({ liked: true }), 'heart');
+  assert.equal(doubleTapAction({ liked: false, is_mine: true }), 'none');
+  assert.equal(doubleTapAction({ liked: true, is_mine: true }), 'none');
 });

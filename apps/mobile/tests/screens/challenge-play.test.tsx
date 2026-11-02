@@ -407,13 +407,18 @@ describe('재생', () => {
     expect(mockPlayer.play).not.toHaveBeenCalled();
   });
 
-  test('화면을 누르면 멈추고 다시 누르면 튼다', async () => {
+  test('화면을 누르면 잠깐 뒤 멈추고 다시 누르면 튼다', async () => {
+    jest.useFakeTimers();
     await renderFeed();
     await waitFor(() => expect(mockPlayer.play).toHaveBeenCalledTimes(1));
 
     await fireEvent.press(iconButtons().toggle);
+    // 두 번 누르기와 구분하려고 바로 멈추지 않는다.
+    expect(mockPlayer.pause).not.toHaveBeenCalled();
+    await act(async () => jest.advanceTimersByTime(300));
     expect(mockPlayer.pause).toHaveBeenCalledTimes(1);
     await fireEvent.press(iconButtons().toggle);
+    await act(async () => jest.advanceTimersByTime(300));
     expect(mockPlayer.play).toHaveBeenCalledTimes(2);
   });
 
@@ -434,9 +439,11 @@ describe('재생', () => {
   });
 
   test('다른 화면이 위에 올라오면 영상을 내려놓고, 돌아오면 보던 참여작을 다시 튼다', async () => {
+    jest.useFakeTimers();
     await renderFeed();
     await waitFor(() => expect(mockPlayer.play).toHaveBeenCalledTimes(1));
     await fireEvent.press(iconButtons().toggle);
+    await act(async () => jest.advanceTimersByTime(300));
 
     mockFocused = false;
     await screen.rerender(<ChallengePlayScreen />);
@@ -512,6 +519,8 @@ describe('조회수', () => {
   test('멈춰 둔 동안은 세지 않는다', async () => {
     await renderFeed();
     await fireEvent.press(iconButtons().toggle);
+    // 한 번 누르기는 두 번 누르기와 구분하려고 잠깐 뒤에 멈춘다. 그동안의 재생은 3초에 못 미친다.
+    await act(async () => jest.advanceTimersByTime(300));
     await act(async () => jest.advanceTimersByTime(5_000));
     expect(mocked.recordEntryView).not.toHaveBeenCalled();
   });
@@ -663,6 +672,64 @@ describe('좋아요·저장', () => {
     mocked.saveEntry.mockResolvedValueOnce({ saved: true });
     await fireEvent.press(screen.getAllByRole('button', { name: '저장' })[1]);
     expect(mocked.saveEntry).toHaveBeenLastCalledWith('e2', true);
+  });
+
+  describe('영상 두 번 누르기 (인스타식)', () => {
+    beforeEach(() => jest.useFakeTimers());
+    const tapAt = { nativeEvent: { locationX: 120, locationY: 300 } };
+    const doubleTap = async () => {
+      await fireEvent.press(iconButtons().toggle, tapAt);
+      await act(async () => jest.advanceTimersByTime(100));
+      await fireEvent.press(iconButtons().toggle, tapAt);
+    };
+
+    test('두 번 누르면 하트가 뜨고 좋아요가 되며, 재생은 멈추지 않는다', async () => {
+      mocked.likeEntry.mockResolvedValueOnce({ liked: true, like_count: 4 });
+      await renderFeed();
+      await doubleTap();
+      expect(screen.getByTestId('like-burst')).toBeOnTheScreen();
+      expect(mocked.likeEntry).toHaveBeenCalledWith('e1', true);
+      expect(await screen.findByTestId('liked-heart')).toBeOnTheScreen();
+      await act(async () => jest.advanceTimersByTime(2_000));
+      expect(mockPlayer.pause).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('like-burst')).toBeNull();
+    });
+
+    test('이미 좋아요한 참여작은 두 번 눌러도 취소하지 않고 하트만 띄운다', async () => {
+      await renderFeed([entry({ liked: true, like_count: 4 })]);
+      await doubleTap();
+      expect(screen.getByTestId('like-burst')).toBeOnTheScreen();
+      expect(mocked.likeEntry).not.toHaveBeenCalled();
+    });
+
+    test('계속 빠르게 눌러도 좋아요는 한 번만 보내고 재생·멈춤은 건드리지 않는다', async () => {
+      mocked.likeEntry.mockResolvedValueOnce({ liked: true, like_count: 4 });
+      await renderFeed();
+      await doubleTap();
+      await act(async () => jest.advanceTimersByTime(100));
+      await fireEvent.press(iconButtons().toggle, tapAt);
+      await act(async () => jest.advanceTimersByTime(1_000));
+      expect(mocked.likeEntry).toHaveBeenCalledTimes(1);
+      expect(mockPlayer.pause).not.toHaveBeenCalled();
+    });
+
+    test('천천히 두 번 누르면 좋아요가 아니라 멈췄다 다시 튼다', async () => {
+      await renderFeed();
+      await fireEvent.press(iconButtons().toggle, tapAt);
+      await act(async () => jest.advanceTimersByTime(400));
+      await fireEvent.press(iconButtons().toggle, tapAt);
+      await act(async () => jest.advanceTimersByTime(400));
+      expect(mocked.likeEntry).not.toHaveBeenCalled();
+      expect(mockPlayer.pause).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId('like-burst')).toBeNull();
+    });
+
+    test('내 참여작은 두 번 눌러도 하트도 좋아요도 없다', async () => {
+      await renderFeed([entry({ is_mine: true, author: { name: '나', user_id: 'me' } })]);
+      await doubleTap();
+      expect(screen.queryByTestId('like-burst')).toBeNull();
+      expect(mocked.likeEntry).not.toHaveBeenCalled();
+    });
   });
 
   test('내 참여작에는 좋아요·저장 버튼이 꺼져 있다', async () => {
