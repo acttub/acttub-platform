@@ -49,6 +49,8 @@ jest.mock('expo-video', () => {
   const { Text } = require('react-native');
   return {
     useVideoPlayer: () => ({ play: () => undefined }),
+    // 다른 배우 영상 줄(SOMA-986)의 썸네일 — 장면을 못 떠도 칸은 그대로다.
+    createVideoPlayer: () => ({ muted: false, status: 'readyToPlay', generateThumbnailsAsync: async () => [], release: () => undefined, addListener: () => ({ remove: () => undefined }) }),
     VideoView: (props: { style?: unknown; onFirstFrameRender?: () => void }) => (
       <Text testID="example-video" style={props.style as never} onPress={props.onFirstFrameRender}>
         예시 영상
