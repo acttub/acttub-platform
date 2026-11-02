@@ -720,6 +720,10 @@ const en: DeepStringShape<typeof ko> = {
     home: 'Go home',
   },
   home: {
+    planPro: 'PRO',
+    planFree: 'FREE',
+    planProA11y: 'Pro plan · Manage subscription',
+    planFreeA11y: 'Free plan · See Pro',
     heroTitle: 'Another day\nof acting.\nNice one!',
     heroSub: 'Steady practice is\nalready showing.',
     weekTitle: 'This week',

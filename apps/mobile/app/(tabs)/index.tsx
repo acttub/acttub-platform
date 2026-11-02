@@ -41,6 +41,9 @@ import { StreakCelebrationScreen } from '@/components/streak-celebration-screen'
 import { AnnouncementPoster } from '@/components/announcement-poster';
 import { HomeHeroActy } from '@/components/home-hero-acty';
 import { HomeUploadCard } from '@/components/home-upload-card';
+import { HomePlanBadge } from '@/components/home-plan-badge';
+import { useBillingMe } from '@/hooks/use-billing-me';
+import { homePlan, settingsTarget } from '@/lib/billing';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
@@ -596,6 +599,12 @@ export default function HomeScreen() {
   }
 
 
+  // 지금 플랜(SOMA-981). 다시 받는 동안은 지난 값을 그대로 두고, 처음 받기 전·실패면 그리지 않는다.
+  const billing = useBillingMe();
+  const plan = homePlan(billing.me);
+  const planBadge = (style: typeof styles.heroPlan) =>
+    plan && billing.me ? <HomePlanBadge plan={plan} style={style} onPress={() => billing.me && router.push(settingsTarget(billing.me))} /> : null;
+
   const bell = (
     <Pressable
       onPress={() => router.push('/notifications')}
@@ -626,6 +635,7 @@ export default function HomeScreen() {
         // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstContainer}>
+            {planBadge(styles.firstPlan)}
             <MascotBubble
               source={MASCOT.coach}
               title={firstName ? t('home.firstHello', { name: firstName }) : t('home.firstHelloNoName')}
@@ -689,6 +699,7 @@ export default function HomeScreen() {
               </View>
               {/* 책은 두고 액티만 폴짝 뛰고 숨 쉰다 — 누르면 다시 뛴다(components/home-hero-acty). */}
               <HomeHeroActy style={styles.heroActy} height={styles.heroActy.height} />
+              {planBadge(styles.heroPlan)}
               {bell}
             </View>
             <View style={styles.weekCard} testID="home-week">
@@ -1124,6 +1135,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 종(오른쪽 -8, 지름 44) 바로 왼쪽, 세로 가운데.
+  heroPlan: { position: 'absolute', top: 8, right: 44 },
+  firstPlan: { position: 'absolute', top: space[3], right: space.gutter },
   bellDot: {
     position: 'absolute',
     top: 10,
