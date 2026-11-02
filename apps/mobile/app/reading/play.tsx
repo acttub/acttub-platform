@@ -668,7 +668,7 @@ export default function ReadingPlay() {
           title: t('reading.downloadAskTitle'),
           message: t('reading.downloadAskBody', { size: prompt.sizeLabel }),
           confirmLabel: t('reading.downloadNow'),
-          cancelLabel: t('reading.deviceVoiceStart'),
+          cancelLabel: t('reading.downloadLater'),
         });
         if (!ok) {
           // 받지 않으면 이 회차는 기기 기본 목소리로 읽고, 다음에 다시 물어본다(플래그를 남기지 않는다).
