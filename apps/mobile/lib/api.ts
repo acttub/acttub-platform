@@ -2,6 +2,7 @@ import type {
   AdmissionsResponse,
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
+import { readGeneration, rememberReadIfCurrent } from './last-reads';
 import { normalizeAuditions, type AuditionPostingList } from './auditions';
 import type { CreateSampleScriptBody, ReviseSampleScriptBody, SampleScript } from './script-cocreate';
 import type { JournalAnswers, JournalUpdateBody, PracticeJournal } from './practice/journal';
@@ -644,7 +645,10 @@ export const api = {
   /** 내 대본 목록(최근 고친 순). q 는 제목·배역 이름만 찾는다 — 대사 본문은 찾지 않는다. */
   listReadingScripts(q?: string): Promise<ScriptListResponse> {
     const query = q ? `?q=${encodeURIComponent(q)}` : '';
-    return request<ScriptListResponse>(`/v2/reading/scripts${query}`, {}, { timeoutMs: 20_000 });
+    const askedAt = readGeneration();
+    const read = request<ScriptListResponse>(`/v2/reading/scripts${query}`, {}, { timeoutMs: 20_000 });
+    // 검색 없는 전체 목록만 탭끼리 같이 쓴다(lib/last-reads).
+    return q ? read : read.then((r) => rememberReadIfCurrent('readingScripts', r, askedAt));
   },
 
   /**
@@ -1154,12 +1158,15 @@ export const api = {
     filter: PracticeGroupFilter = 'all',
     options: ApiCallOptions = {},
   ): Promise<{ groups: PracticeGroupDetail[] }> {
+    const askedAt = readGeneration();
     const response = await request<{ groups: PracticeGroupResponse[] }>(
       `/v2/practices?filter=${filter}`,
       {},
       { timeoutMs: 20_000, signal: options.signal },
     );
-    return { groups: response.groups.map(practiceGroupFromResponse) };
+    const result = { groups: response.groups.map(practiceGroupFromResponse) };
+    // 전체 묶음은 홈·코칭·커뮤니티·프로필이 같이 쓴다(lib/last-reads).
+    return filter === 'all' ? rememberReadIfCurrent('practiceGroups', result, askedAt) : result;
   },
 
   async getPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeDetail> {
@@ -1389,10 +1396,16 @@ export const api = {
     const query = new URLSearchParams({ tab: params.tab });
     if (params.q) query.set('q', params.q);
     if (params.cursor) query.set('cursor', params.cursor);
-    return request<ChallengeListResponse>(`/v2/challenges?${query.toString()}`, {}, {
+    const askedAt = readGeneration();
+    const read = request<ChallengeListResponse>(`/v2/challenges?${query.toString()}`, {}, {
       timeoutMs: 20_000,
       signal: options.signal,
     });
+    // 첫 장(검색·이어 받기 아님)의 인기·끝난 목록만 남긴다 — 커뮤니티 탭을 처음 열 때 바로 그린다(lib/last-reads).
+    if (params.q || params.cursor) return read;
+    if (params.tab === 'popular') return read.then((r) => rememberReadIfCurrent('challengesPopular', r, askedAt));
+    if (params.tab === 'ended') return read.then((r) => rememberReadIfCurrent('challengesEnded', r, askedAt));
+    return read;
   },
 
   /** 대사 상세 + 집계. review·hidden·deleted 챌린지는 남의 눈에 404 다. */
@@ -1688,7 +1701,10 @@ export const api = {
     if (visibility) query.set('visibility', visibility);
     if (cursor) query.set('cursor', cursor);
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<MyEntriesResponse>(`/v2/me/challenge-entries${suffix}`, {}, { timeoutMs: 20_000 });
+    const askedAt = readGeneration();
+    const read = request<MyEntriesResponse>(`/v2/me/challenge-entries${suffix}`, {}, { timeoutMs: 20_000 });
+    // 분류·이어 받기 없는 첫 장만 홈·커뮤니티·프로필이 같이 쓴다(lib/last-reads).
+    return visibility || cursor ? read : read.then((r) => rememberReadIfCurrent('myChallengeEntries', r, askedAt));
   },
 
   // 입시 ----------------------------------------------------------------------

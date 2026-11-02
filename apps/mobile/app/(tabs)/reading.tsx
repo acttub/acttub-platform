@@ -33,6 +33,7 @@ import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
+import { lastRead } from '@/lib/last-reads';
 import { deleteScript, listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
 import { openResume } from '@/lib/reading/resume-open';
 import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/types';
@@ -77,7 +78,8 @@ export default function ReadingList() {
     ? new Date(cloudVoice.status.free_until).toLocaleDateString(isKorean() ? 'ko-KR' : 'en-US', { month: 'long', day: 'numeric' })
     : '';
   const { confirm, sheet, alert, dialog } = useAppDialog();
-  const [list, setList] = useState<ScriptListResponse | null>(null);
+  // 홈이 앱을 켤 때 받은 대본 목록이 있으면 그것으로 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
+  const [list, setList] = useState<ScriptListResponse | null>(() => lastRead<ScriptListResponse>('readingScripts') ?? null);
   const [q, setQ] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScriptCard | null>(null);

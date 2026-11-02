@@ -21,6 +21,7 @@ import { groupPoster, groupRowTarget, recentGroups, sceneTitle } from '@/lib/pra
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeGroup } from '@/lib/practice/types';
+import { lastRead } from '@/lib/last-reads';
 import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
 
 /** 「최근 코칭」에 보이는 묶음 수(pen P13.3). */
@@ -47,10 +48,12 @@ export default function CoachingTab() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
-  const [entry, setEntry] = useState<CoachingEntry | null>(null);
+  // 홈이 앱을 켤 때 받은 묶음이 있으면 그것으로 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
+  const [shared] = useState(() => lastRead<{ groups: PracticeGroup[] }>('practiceGroups')?.groups ?? null);
+  const [entry, setEntry] = useState<CoachingEntry | null>(() => (shared ? coachingEntry(shared) : null));
   // 묶음을 못 받아 처음 화면으로 넘어간 경우 — 뼈대 기억(lib/skeleton-hint)에 적지 않는다.
   const [entryFailed, setEntryFailed] = useState(false);
-  const [groups, setGroups] = useState<PracticeGroup[]>([]);
+  const [groups, setGroups] = useState<PracticeGroup[]>(() => shared ?? []);
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
   const visible = useMemo(() => recentGroups(groups, groups.length), [groups]);
