@@ -94,6 +94,7 @@ import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-err
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
 import { currentVad, type VadEvent } from '@/lib/reading/vad';
+import { getAppConfig } from '@/lib/app-config';
 import { formatMegabytes, modelDownloadPrompt } from '@/lib/reading/voice-policy';
 import {
   choosePartnerVoice,
@@ -1072,9 +1073,35 @@ export default function ReadingPlay() {
     // 인식기가 스스로 멈춘 뒤에는 받아쓴 글이 더 늘지 않는다 — 90% 대조를 기다리면 줄이 멈추므로 침묵만으로 넘긴다.
     let sttStopped = false;
     const sttGaveUp = () => sttStopped || stt.failed() || !saidRef.current.trim();
+    // 말 끝에 받아쓴 글이 모자라 넘기지 않았다. 인식기의 마지막 결과는 말 끝보다 늦게 오기도 해서(SOMA-646), 그 뒤에
+    // 글이 기준을 넘으면 다시 소리가 나지 않아도 넘긴다. 이 표시가 없으면 조용한 채로 줄이 멈췄다(SOMA-804).
+    let shortAtEnd = false;
+    let lateTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearLate = () => {
+      if (lateTimer) clearTimeout(lateTimer);
+      lateTimer = null;
+    };
+    const advanceNow = () => {
+      if (holdRef.current) deferredRef.current = { kind: 'end_turn', from };
+      else void endMyTurn(from);
+    };
+    /** 늦게 온 글로 넘기기 전에 조금 기다린다. 그사이 글이 더 오면(다시 말하는 중) 처음부터 다시 잰다. */
+    const armLate = (ms: number) => {
+      clearLate();
+      lateTimer = setTimeout(() => {
+        lateTimer = null;
+        if (cancelled || !shortAtEnd) return;
+        shortAtEnd = false;
+        advanceNow();
+      }, ms);
+    };
     const onEvent = (event: VadEvent) => {
       if (cancelled) return;
       if (event === 'timeout') setTurnNote('silence');
+      if (event === 'speech_start') {
+        shortAtEnd = false;
+        clearLate();
+      }
       if (event === 'speech_start' && deferredTimer.current) {
         // 시트를 닫은 뒤 다시 말하기 시작했다 — 미뤄 둔 넘김은 버리고 이번 말이 끝나기를 기다린다.
         clearTimeout(deferredTimer.current);
@@ -1085,9 +1112,13 @@ export default function ReadingPlay() {
         // 못 미치면 계속 듣는다. 다시 말하고 멈추면 또 잰다. 받아쓰기 없이 음량만 재는 녹음기는 글자를 몰라 예전처럼 넘긴다.
         // 묶인 차례(SOMA-806)는 묶음 줄 전체 글자로 잰다.
         // 인식기가 오류를 냈거나 글을 하나도 못 줬으면 90% 대조는 믿을 수 없다 — 예전처럼 침묵만으로 넘긴다.
-        if (sttActive.current && !sttGaveUp() && !saidEnough(turnText, saidRef.current)) return;
-        if (holdRef.current) deferredRef.current = { kind: 'end_turn', from };
-        else void endMyTurn(from);
+        clearLate();
+        if (sttActive.current && !sttGaveUp() && !saidEnough(turnText, saidRef.current)) {
+          shortAtEnd = true;
+          return;
+        }
+        shortAtEnd = false;
+        advanceNow();
       }
     };
     recordingClosed.current = false;
@@ -1125,11 +1156,14 @@ export default function ReadingPlay() {
             onInterim: (text) => {
               saidRef.current = text;
               setSaid(text);
+              if (shortAtEnd && session.advance === 'silence' && saidEnough(turnText, text)) armLate(getAppConfig().reading.speechEndGraceMs);
             },
             // 인식기가 스스로 끝났거나 오류로 멈추면 음량·말 끝 이벤트도 끊긴다 — 침묵 감지를 마이크로 이어받는다.
+            // 이미 말이 끝났는데 글이 모자라 기다리던 중이면, 더 올 글이 없으니 침묵을 한 번 더 잰 뒤 넘긴다.
             onEnd: () => {
               if (cancelled || turnClosing.current || recordingClosed.current) return;
               sttStopped = true;
+              if (shortAtEnd) armLate(currentVad().silenceMs);
               void mic.start(onEvent);
             },
           },
@@ -1169,6 +1203,7 @@ export default function ReadingPlay() {
     })();
     return () => {
       cancelled = true;
+      clearLate();
       if (limitTimer) clearTimeout(limitTimer);
       if (deferredTimer.current) clearTimeout(deferredTimer.current);
       deferredTimer.current = null;

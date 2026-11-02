@@ -350,6 +350,53 @@ test('받아쓰기면 대본 글자 수의 90% 이상 말한 뒤의 침묵에만
   await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 });
 
+
+test('말 끝에 글이 모자랐어도 늦게 온 마지막 결과가 기준을 넘으면 다시 말하지 않아도 넘긴다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  // 말 끝 순간에는 앞부분만 받아써져 있다
+  await act(async () => listener.onInterim!('오늘'));
+  await act(async () => listener.onEvent('speech_end'));
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  // 마지막 결과가 조금 늦게 온다 — 새 소리·말 끝 없이 넘어가야 한다
+  mockStt.finish.mockResolvedValueOnce('오늘 와 줬구나');
+  await act(async () => listener.onInterim!('오늘 와 줬구나'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1), { timeout: 4000 });
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+});
+
+test('말 끝에 글이 모자란 채로 다시 말하기 시작하면 늦은 넘김을 버리고 다음 말 끝을 기다린다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  await act(async () => listener.onInterim!('오늘'));
+  await act(async () => listener.onEvent('speech_end'));
+  await act(async () => listener.onEvent('speech_start'));
+  await act(async () => listener.onInterim!('오늘 와 줬구나'));
+  await act(async () => new Promise((r) => setTimeout(r, 1800)));
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  await act(async () => listener.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+});
+
+test('말 끝에 글이 모자란 채로 인식기가 끝나면 침묵을 한 번 더 잰 뒤 넘긴다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  await act(async () => listener.onInterim!('오늘'));
+  await act(async () => listener.onEvent('speech_end'));
+  await act(async () => listener.onEnd!());
+  await waitFor(() => expect(mockMic.start).toHaveBeenCalled());
+  // 마이크로 넘어간 뒤 아무 소리도 없다 — 그래도 넘어간다
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1), { timeout: 4000 });
+});
 test('녹음을 남기지 못하는 인식기면 녹음기로 받는다', async () => {
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   mockStt.canPersist.mockReturnValue(false);
