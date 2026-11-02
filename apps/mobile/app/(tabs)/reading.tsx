@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,6 +9,7 @@ import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SplitJobRow } from '@/components/reading/split-job-row';
+import { BandGradient } from '@/components/ui/band-gradient';
 import { Button } from '@/components/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
@@ -61,6 +62,11 @@ const ENTRY_ART: Partial<Record<EntryKey, number>> = {
   sample: require('@/assets/images/reading/sample-script-3d.png'),
 };
 const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
+/** 입구 화면 위 띠. 24색 밖이라 이 파일 안에만 둔다(DESIGN-SYSTEM 「의도된 차이」). */
+const ENTRY_TOP = '#E4EEFC';
+/** 띠가 흰색이 되는 화면 y. */
+const ENTRY_FADE_END = 310;
+const ROW_ICON_WIDTH = 24;
 
 /** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
 const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
@@ -207,7 +213,7 @@ export default function ReadingList() {
     try {
       await deleteScript(s.id);
     } catch (e) {
-      void alert({ title: t('reading.deleteAction'), message: scriptErrorMessage(e) });
+      void alert({ title: t('reading.deleteFailTitle'), message: scriptErrorMessage(e) });
     }
     void load(q);
   };
@@ -284,7 +290,7 @@ export default function ReadingList() {
   return (
     <View style={styles.root}>
       <ScrollView
-      // 빈 화면의 파란 머리는 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
+      // 입구 위 띠의 첫 색은 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
       style={[styles.root, (showEntry || entrySkeleton) && styles.rootEmpty]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 }]}
       contentInset={{ top: iosTopInset }}
@@ -293,7 +299,10 @@ export default function ReadingList() {
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
       {(showEntry || entrySkeleton) && (
-        <View style={[styles.emptyBg, { height: 300 + insets.top - iosTopInset }]} pointerEvents="none" />
+        <BandGradient
+          stops={[[0, ENTRY_TOP], [1, palette.bg]]}
+          style={{ top: insets.top - iosTopInset, bottom: undefined, height: ENTRY_FADE_END - insets.top }}
+        />
       )}
       {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
@@ -430,32 +439,39 @@ export default function ReadingList() {
             />
           </View>
           <View style={styles.list}>
-            {!searching && splitJobs.rows.map((job) => <SplitJobRow key={job.importId} job={job} onDismiss={splitJobs.dismiss} />)}
-            {scripts.map((s) => {
-              const chip = statusChip(s);
-              const tone = chip ? CHIP_TONE[chip.tone] : null;
-              return (
-                <Pressable
-                  key={s.id}
-                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-                  onPress={() => void open(s)}
-                  onLongPress={(e) => more(s, e)}>
-                  <View style={styles.rowIcon}>
-                    <Feather name="file-text" size={20} color={palette.blue} />
-                  </View>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{s.title}</Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
-                      {chip && tone ? <Text style={[styles.rowChip, { color: tone.color }]}>{`${chip.label} · `}</Text> : null}
-                      {myCharactersLabel(s)} · {t('reading.dialogueCount', { count: s.dialogue_count })}
-                    </Text>
-                  </View>
-                  <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={(e) => more(s, e)}>
-                    <Feather name="more-horizontal" size={18} color={palette.iconFaint} />
+            {[
+              ...(searching ? [] : splitJobs.rows.map((job) => <SplitJobRow key={`job-${job.importId}`} job={job} onDismiss={splitJobs.dismiss} />)),
+              ...scripts.map((s) => {
+                const chip = statusChip(s);
+                const tone = chip ? CHIP_TONE[chip.tone] : null;
+                return (
+                  <Pressable
+                    key={s.id}
+                    style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                    onPress={() => void open(s)}
+                    onLongPress={(e) => more(s, e)}>
+                    <View style={styles.rowIcon}>
+                      <Feather name="file-text" size={20} color={palette.blue} />
+                    </View>
+                    <View style={styles.rowBody}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>{s.title}</Text>
+                      <Text style={styles.rowMeta} numberOfLines={1}>
+                        {chip && tone ? <Text style={[styles.rowChip, { color: tone.color }]}>{`${chip.label} · `}</Text> : null}
+                        {myCharactersLabel(s)} · {t('reading.dialogueCount', { count: s.dialogue_count })}
+                      </Text>
+                    </View>
+                    <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={(e) => more(s, e)}>
+                      <Feather name="more-horizontal" size={18} color={palette.iconFaint} />
+                    </Pressable>
                   </Pressable>
-                </Pressable>
-              );
-            })}
+                );
+              }),
+            ].map((row, i) => (
+              <Fragment key={row.key}>
+                {i > 0 && <View style={styles.rowDivider} />}
+                {row}
+              </Fragment>
+            ))}
             {scripts.length === 0 && searching && <InlineEmpty title={t('reading.noMatch')} description={t('reading.noMatchSub')} />}
           </View>
         </>
@@ -535,15 +551,18 @@ function ReadingListSkeleton({ rows }: { rows: number }) {
       </View>
       <View style={styles.list}>
         {Array.from({ length: rows }, (_, i) => (
-          <View key={i} style={styles.row}>
-            <View style={styles.rowIcon}>
-              <SkeletonBlock width={18} height={20} radius={4} />
+          <Fragment key={i}>
+            {i > 0 && <View style={styles.rowDivider} />}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <SkeletonBlock width={18} height={20} radius={4} />
+              </View>
+              <View style={styles.rowBody}>
+                <SkeletonLine size={type.body1Bold} width={i % 2 === 0 ? '44%' : '36%'} />
+                <SkeletonLine size={type.caption} width={i % 2 === 0 ? '58%' : '50%'} />
+              </View>
             </View>
-            <View style={styles.rowBody}>
-              <SkeletonLine size={type.body1Bold} width={i % 2 === 0 ? '44%' : '36%'} />
-              <SkeletonLine size={type.caption} width={i % 2 === 0 ? '58%' : '50%'} />
-            </View>
-          </View>
+          </Fragment>
         ))}
       </View>
     </SkeletonGroup>
@@ -552,9 +571,9 @@ function ReadingListSkeleton({ rows }: { rows: number }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  rootEmpty: { backgroundColor: palette.blueSoft },
+  rootEmpty: { backgroundColor: ENTRY_TOP },
   statusCover: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: palette.bg },
-  statusCoverEmpty: { backgroundColor: palette.blueSoft },
+  statusCoverEmpty: { backgroundColor: ENTRY_TOP },
   content: { flexGrow: 1, backgroundColor: palette.bg, paddingHorizontal: space.gutter, gap: space[3] },
   listSkeleton: { gap: space[3] },
   headWrap: { marginHorizontal: -space.gutter },
@@ -586,7 +605,6 @@ const styles = StyleSheet.create({
   },
   searchInput: { ...type.body1, lineHeight: undefined, flex: 1, color: palette.text, padding: 0 },
   entry: { gap: space[4] },
-  emptyBg: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: palette.blueSoft, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
   hero: { height: 188, flexDirection: 'row', alignItems: 'center' },
   heroText: { flex: 1, gap: space[3] },
   heroTitle: { ...type.display, color: palette.text },
@@ -630,7 +648,8 @@ const styles = StyleSheet.create({
   sectionCount: { ...type.caption, color: palette.textMeta },
   list: { gap: 0 },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
-  rowIcon: { width: 24, alignItems: 'center' },
+  rowDivider: { height: 1, marginLeft: ROW_ICON_WIDTH + space[3], backgroundColor: palette.border },
+  rowIcon: { width: ROW_ICON_WIDTH, alignItems: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: space[1] },
   rowTitle: { ...type.body1Bold, color: palette.text },
   rowMeta: { ...type.caption, color: palette.textMeta },

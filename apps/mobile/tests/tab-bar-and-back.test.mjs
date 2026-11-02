@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
@@ -47,7 +48,7 @@ test('탭끼리의 뒤로가기는 들어온 순서대로 돌아간다 — 기�
 test('탭 밖 화면은 탭으로 갈 때 replace 하지 않고 이미 있는 탭까지 내려간다 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 간다', async () => {
   const { readdirSync, statSync } = await import('node:fs');
   const { join, relative } = await import('node:path');
-  const base = new URL('..', import.meta.url).pathname;
+  const base = fileURLToPath(new URL('..', import.meta.url));
   const files = [];
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {

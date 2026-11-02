@@ -80,7 +80,7 @@ export default function ReadingDetail() {
       await deleteScript(script.id);
       router.dismissTo('/reading');
     } catch (e) {
-      void alert({ title: t('reading.deleteAction'), message: scriptErrorMessage(e) });
+      void alert({ title: t('reading.deleteFailTitle'), message: scriptErrorMessage(e) });
     }
   };
 
@@ -107,7 +107,7 @@ export default function ReadingDetail() {
       await deleteSession(card.id);
       void load();
     } catch (e) {
-      void alert({ title: t('reading.deleteSession'), message: scriptErrorMessage(e) });
+      void alert({ title: t('reading.deleteFailTitle'), message: scriptErrorMessage(e) });
     }
   };
 

@@ -110,6 +110,19 @@ test('지우기를 취소하면 서버에 보내지 않고, 서버가 거절하�
   expect(screen.getByText('응, 늦어서 미안해.')).toBeOnTheScreen();
 });
 
+test('대사를 지우다 거절 말고 다른 이유로 실패하면 「지우지 못했어요」로 알리고 대사를 그대로 둔다', async () => {
+  const { server } = await openFixtureScript();
+  server.deleteLine.mockRejectedValue(new ApiError(500, '서버 오류'));
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('지우기'));
+  await fireEvent.press(screen.getByText('지우기'));
+
+  expect(await screen.findByText('지우지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('응, 늦어서 미안해.')).toBeOnTheScreen();
+});
+
 test('둘로 나누기는 문장 사이를 자를 곳으로 앞뒤 칸을 채워 두고, 고친 두 글을 보낸다(SOMA-785)', async () => {
   const lines = [['dialogue', '민재', '안녕하세요. 저는 이영입니다. 만나서 반갑습니다.'], ['dialogue', '서연', '반가워요.']] as Parameters<typeof scriptDetail>[0];
   const split = scriptDetail([['dialogue', '민재', '안녕하세요. 저는 이영입니다.'], ['dialogue', '민재', '만나서 반갑습니다.'], lines[1]]);

@@ -2545,8 +2545,8 @@ const styles = StyleSheet.create({
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
   toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: radius.lg, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
-  proHint: { marginHorizontal: 16, marginTop: 10, paddingVertical: 8, alignItems: 'center' },
-  proHintText: { ...type.captionBold, color: palette.flame, textDecorationLine: 'underline' },
+  proHint: { marginHorizontal: space.gutter, marginTop: space[3], paddingVertical: space[2], alignItems: 'center' },
+  proHintText: { ...type.body2Bold, color: palette.blueDeep },
   toastText: { ...type.captionBold, color: palette.onAccent },
   jumpToast: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 

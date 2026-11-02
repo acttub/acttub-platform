@@ -191,7 +191,7 @@ export default function ReadingNew() {
     try {
       await deleteScript(popup.scriptId);
     } catch (error) {
-      return failWith(error);
+      return setPopup({ kind: 'alert', title: t('reading.deleteFailTitle'), message: scriptErrorMessage(error) });
     }
     if (popup.resume.kind === 'import') return void split(popup.resume.input, popup.resume.flags);
     setPopup(null);
@@ -325,8 +325,14 @@ export default function ReadingNew() {
   const working = input.file.kind === 'reading' && !splitting;
   // 붙여넣던 대본이 있으면 나가기 전에 묻는다 — 뒤로 한 번에 다 사라졌다(11/2 QA). 나누기를 시작한 뒤에는 묻지 않는다.
   const pasteDirty = !leaveOk && !makeOpen && naming === null && input.paste.text.trim().length > 0 && popup === null;
-  usePreventRemove(working || pasteDirty, ({ data }) => {
+  // 실패 화면은 팝업이라 화면 머리 뒤로·안드로이드 뒤로·iOS 밀기 모두 나가지 않고 입력 화면으로 돌아간다.
+  const failed = popup?.kind === 'failed';
+  usePreventRemove(working || pasteDirty || failed, ({ data }) => {
     if (working) return;
+    if (failed) {
+      setPopup(null);
+      return;
+    }
     setLeaveAsk(data.action);
   });
   useEffect(() => {
@@ -341,7 +347,6 @@ export default function ReadingNew() {
       <ReadingStatus
         title={t('reading.splitFailTitle')}
         body={popup.message}
-        onBack={() => setPopup(null)}
         primary={{ label: t('reading.splitRetry'), onPress: () => void retryFailed(popup.resume) }}
         secondary={{
           label: t('reading.splitPasteInstead'),
