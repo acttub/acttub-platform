@@ -1317,7 +1317,7 @@ const en: DeepStringShape<typeof ko> = {
     endWord: 'Stop',
     sendFail: 'Failed to send.',
     endTitle: 'Wrap up here?',
-    endMsg: 'If you’ve said it all, tap “Finish”. Write your journal next and today’s conversation is summarized with it.',
+    endMsg: 'If you’ve said it all, tap “Finish”. The coach will sum up what to try next.',
     endConfirm: 'Finish',
     fallbackTitle: 'Question session',
     stripTitle: 'View video & scene',
@@ -1336,9 +1336,9 @@ const en: DeepStringShape<typeof ko> = {
     doneShort:
       'That’s all for today. It’s a bit short to keep as a note — let’s pick it up next time.',
     doneFailure: 'The connection was interrupted while closing. You can review the saved conversation or start another round.',
-    doneNormal: 'That’s it for today’s conversation. Read the coach’s notes, then write your journal below.',
+    doneNormal: 'That’s it for today’s conversation. Read the coach’s notes, then finish below.',
     finishBtn: 'Finish practice',
-    seeSummary: 'Write journal and finish',
+    seeSummary: 'Finish coaching',
     // Continue the same conversation after the summary (SOMA-782, pen ⓐ4).
     continueTalk: 'Keep talking',
     continueTalkSub: 'Still curious? Ask the coach more.',

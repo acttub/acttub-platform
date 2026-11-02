@@ -20,6 +20,7 @@ import { translate as t } from '@/lib/i18n';
 import { readOptionalPracticeNote } from '@/lib/practice/note';
 import type { PracticeNote } from '@/lib/practice/types';
 import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
+import { playSoundEffect } from '@/lib/sound-effects';
 
 /**
  * 오늘 코칭 끝(pen ⑧ 「오늘 코칭 끝」 TFZ59, SOMA-720) — 배우 일지에서 「저장하기」를 누른 뒤 한 번 보인다.
@@ -34,6 +35,8 @@ export default function CoachingDoneScreen() {
   // 코칭을 노트·일지·마무리까지 가 봤으면 첫 사용자 화면은 졸업이다(SOMA-827).
   useEffect(() => {
     void markFirstUseGraduated();
+    // 코칭이 끝난 화면이 뜰 때 짧은 효과음(11/2 우영).
+    playSoundEffect('complete');
   }, []);
   const params = useLocalSearchParams<{ practiceId?: string; saved?: string; next?: string }>();
   const practiceId = params.practiceId?.trim() || null;

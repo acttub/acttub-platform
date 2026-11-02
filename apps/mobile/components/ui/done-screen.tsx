@@ -1,8 +1,9 @@
-import type { ReactNode, Ref } from 'react';
+import { useEffect, type ReactNode, type Ref } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
+import { playSoundEffect } from '@/lib/sound-effects';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { ActyMotion, type ActyMotionKind } from '@/components/ui/acty-motion';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -39,6 +40,12 @@ export function DoneScreen({
   footer?: ReactNode;
   scrollRef?: Ref<ScrollView>;
 }) {
+  // 축하할 완료(액티가 기뻐하는 끝 화면)가 처음 뜰 때 짧은 효과음을 한 번 낸다(11/2 우영).
+  const celebrate = mascotMotion === 'celebrate';
+  useEffect(() => {
+    if (celebrate) playSoundEffect('complete');
+  }, [celebrate]);
+
   const insets = useSafeAreaInsets();
   return (
     <KeyboardLift style={[styles.root, { paddingTop: insets.top }]}>
