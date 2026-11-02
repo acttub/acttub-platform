@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
+import { SplitJobRow } from '@/components/reading/split-job-row';
 import { Button } from '@/components/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
@@ -18,6 +19,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useSplitJobs } from '@/hooks/use-split-jobs';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
 import { skipsReadingTabGuide } from '@/lib/returning-account';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
@@ -120,6 +122,8 @@ export default function ReadingList() {
       if (mine === generation.current) setError(scriptErrorMessage(e));
     }
   }, []);
+
+  const splitJobs = useSplitJobs(() => load(q));
 
   useFocusEffect(
     useCallback(() => {
@@ -293,6 +297,9 @@ export default function ReadingList() {
           </View>
           {voiceBar}
           <View style={styles.entryCards}>
+            {splitJobs.rows.map((job) => (
+              <SplitJobRow key={job.importId} job={job} card onDismiss={splitJobs.dismiss} />
+            ))}
             {ENTRY_CHOICES.map((c) => (
               <Pressable
                 key={c.key}
@@ -377,6 +384,7 @@ export default function ReadingList() {
             />
           </View>
           <View style={styles.list}>
+            {!searching && splitJobs.rows.map((job) => <SplitJobRow key={job.importId} job={job} onDismiss={splitJobs.dismiss} />)}
             {scripts.map((s) => {
               const chip = statusChip(s);
               const tone = chip ? CHIP_TONE[chip.tone] : null;
