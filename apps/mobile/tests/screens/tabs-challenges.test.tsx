@@ -43,6 +43,8 @@ jest.mock('@/lib/api', () => ({
     unreadNotificationCount: jest.fn(),
     listMyChallengeEntries: jest.fn(),
     listPracticeGroups: jest.fn(),
+    communityCategories: jest.fn(() => Promise.resolve({ categories: [{ slug: 'question', name: '질문' }] })),
+    communityPosts: jest.fn(() => Promise.resolve({ posts: [], next_cursor: null })),
   },
 }));
 jest.mock('expo-video', () => {
@@ -520,4 +522,22 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     await act(async () => setFirstTimeState('unknown'));
     expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
   });
+});
+
+
+// SOMA-873 — 챌린지 탭은 커뮤니티 탭이다. 큰 제목 대신 밑줄 탭이고, 게시판으로 바꾸면 글쓰기 버튼과 게시판이 나온다.
+test('커뮤니티 탭은 챌린지가 기본이고 게시판으로 바꾸면 글쓰기·게시판이 보인다', async () => {
+  listChallenges.mockResolvedValue(page([card()]));
+  await markFirstChallengeFinished();
+  await render(<ChallengesScreen />);
+
+  expect(await screen.findByRole('tab', { name: '챌린지', selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '대사 검색' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('tab', { name: '게시판' }));
+
+  expect(await screen.findByText('아직 글이 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '대사 검색' })).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '글쓰기' }));
+  expect(mockRouter.push).toHaveBeenCalledWith('/community-new');
+  expect(logEvent).toHaveBeenCalledWith('community_section', { section: 'board' });
 });

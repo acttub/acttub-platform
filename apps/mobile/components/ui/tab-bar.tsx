@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { useEffect, useRef, type Ref } from 'react';
@@ -11,6 +12,9 @@ import { palette } from '@/constants/palette';
 import { shadowOverlay, space, type } from '@/constants/tokens';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+type FeatherName = React.ComponentProps<typeof Feather>['name'];
+/** pen 이 lucide 선 아이콘을 쓰는 탭(커뮤니티 `users`, SOMA-873)은 같은 모양의 Feather 를 쓴다. */
+export type FeatherTabIcon = { feather: FeatherName };
 
 const IOS = Platform.OS === 'ios';
 // 디자인 시스템 「의도된 차이」 — iOS 고른 탭 알약은 text 8% 회색이다(24색 밖, 탭바에서만).
@@ -79,12 +83,12 @@ export function useTabBarSpace(): number {
 export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
 
 /**
- * 탭 아이콘 — 위 설명대로. `icon`은 Ionicons 이름이거나 pen 에서 꺼낸 그림(require)이고, 그림은 `tintColor`로 같은 색을 입힌다.
+ * 탭 아이콘 — 위 설명대로. `icon`은 Ionicons 이름, `{ feather }`(lucide 와 같은 선 아이콘), pen 에서 꺼낸 그림(require)이고, 그림은 `tintColor`로 같은 색을 입힌다.
  * 안드로이드는 아이콘 아래에 `label`을 둔다. `badge`가 있으면 공용 Badge 를 칸 오른쪽 위에 단다.
  * `target`은 첫 가이드가 이 탭을 비출 때 자리를 재는 ref.
  */
 export function tabIcon(
-  icon: IoniconName | ImageSourcePropType,
+  icon: IoniconName | FeatherTabIcon | ImageSourcePropType,
   label: string,
   { target, badge }: { target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void }; badge?: string | null } = {},
 ) {
@@ -94,6 +98,9 @@ export function tabIcon(
     const glyph =
       typeof icon === 'string' ? (
         <Ionicons size={size} name={icon} color={color} />
+      ) : isFeather(icon) ? (
+        // Feather 선 굵기 2 는 Ionicons outline 보다 굵어 보여서 한 단계 작게 그린다.
+        <Feather size={size - 2} name={icon.feather} color={color} />
       ) : (
         <Image source={icon} style={{ width: size, height: size, tintColor: color }} />
       );
@@ -122,6 +129,10 @@ export function tabIcon(
   };
   TabIcon.displayName = `TabIcon(${label})`;
   return TabIcon;
+}
+
+function isFeather(icon: unknown): icon is FeatherTabIcon {
+  return typeof icon === 'object' && icon !== null && 'feather' in icon;
 }
 
 /** 탭 버튼 — 누를 때 가벼운 진동(iOS)과 누름 기록 이름(ph-label). */
