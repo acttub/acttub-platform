@@ -136,6 +136,24 @@ test('재생 중지로 대기를 풀고 합성 중 화면을 떠나면 뒤늦게
   assert.equal(state.players.length,1);
 });
 
+test('[다음]을 연타하면 지나간 줄은 만들지 않고 도착한 줄만 만들어 튼다', async () => {
+  let release;
+  state.gate = new Promise(resolve => { release=resolve; });
+  const lines = ['첫 줄','둘째 줄','셋째 줄','넷째 줄','다섯째 줄'];
+  // 줄이 바뀔 때마다 화면은 앞 줄을 멈추고(stop) 새 줄을 읽는다(speak).
+  const next = (line) => { engine.stop(); return engine.speak(line,'F1',{scriptId:'script'}); };
+  const speaking = [next(lines[0])];
+  await flush(); // 첫 줄은 이미 만들고 있다
+  for (const line of lines.slice(1)) speaking.push(next(line));
+  release();
+  await flush(); await flush();
+  // 만들던 첫 줄은 끊지 못하지만, 그 사이 지나간 줄(둘째~넷째)은 만들지 않는다.
+  assert.deepEqual(state.calls.map(c=>c.text), ['첫 줄','다섯째 줄']);
+  assert.equal(state.players.length, 1);
+  state.players[0].listener({isLoaded:true,didJustFinish:true,duration:1});
+  await Promise.all(speaking);
+});
+
 test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 지켜보고 받기는 한 번만 한다', async () => {
   engine._reset();
   state.downloads=0;

@@ -8,7 +8,7 @@ const s = globalThis.__deviceVoiceTest;
 const SPEECH = `const s = globalThis.__deviceVoiceTest;
   export async function getAvailableVoicesAsync() { if (s.voices instanceof Error) throw s.voices; return s.voices; }
   export function speak(text, options) { if (s.speakFails) throw new Error('tts engine missing'); s.spoken.push([text, options]); }
-  export function stop() { s.stops += 1; return s.stopFails ? Promise.reject(new Error('not speaking')) : Promise.resolve(); }`;
+  export function stop() { s.stops += 1; if (s.stopGate) return s.stopGate; return s.stopFails ? Promise.reject(new Error('not speaking')) : Promise.resolve(); }`;
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier === 'expo-speech' && context.parentURL?.endsWith('/tts/device-voice.ts')) {
@@ -20,7 +20,7 @@ registerHooks({
 const voice = await import('../lib/reading/tts/device-voice.ts');
 
 beforeEach(() => {
-  Object.assign(s, { voices: [], spoken: [], stops: 0, speakFails: false, stopFails: false });
+  Object.assign(s, { voices: [], spoken: [], stops: 0, speakFails: false, stopFails: false, stopGate: null });
 });
 
 test('기기에 앱 말(한국어)의 음성이 있어야 기기 목소리를 쓴다', async () => {
@@ -68,4 +68,43 @@ test('멈추기는 읽는 것이 없어도 던지지 않는다', async () => {
   voice.stopDeviceVoice();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(s.stops, 1);
+});
+
+test('줄을 넘기자마자 읽어도 앞의 멈추기가 끝난 뒤에 읽는다 — 늦은 멈추기가 새 줄을 끊지 않게', async () => {
+  let release;
+  s.stopGate = new Promise((resolve) => { release = resolve; });
+  voice.stopDeviceVoice();
+  const reading = voice.speakWithDevice('다음 줄', 'F1');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(s.spoken.length, 0);
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(s.spoken[0][0], '다음 줄');
+  s.spoken[0][1].onDone();
+  await reading;
+});
+
+test('[다음]을 연타해 기다리는 사이 또 멈췄으면 지나간 줄은 읽지 않고 마지막 줄만 읽는다', async () => {
+  let release;
+  s.stopGate = new Promise((resolve) => { release = resolve; });
+  voice.stopDeviceVoice();
+  const skipped = voice.speakWithDevice('지나간 줄', 'F1');
+  voice.stopDeviceVoice();
+  const landed = voice.speakWithDevice('도착한 줄', 'F1');
+  release();
+  await skipped;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(s.spoken.map(([text]) => text), ['도착한 줄']);
+  s.spoken[0][1].onDone();
+  await landed;
+});
+
+test('멈추기가 끝을 알리지 않아도 잠깐 뒤에는 읽는다', async () => {
+  s.stopGate = new Promise(() => {});
+  voice.stopDeviceVoice();
+  const reading = voice.speakWithDevice('그래도 읽는다', 'F1');
+  await new Promise((resolve) => setTimeout(resolve, voice.STOP_WAIT_MAX_MS + 50));
+  assert.equal(s.spoken[0][0], '그래도 읽는다');
+  s.spoken[0][1].onDone();
+  await reading;
 });
