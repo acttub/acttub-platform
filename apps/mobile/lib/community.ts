@@ -138,9 +138,28 @@ export function metaLine(item: Authored & { created_at: string }, now?: Date): s
   return time ? `${displayName(item)} · ${time}` : displayName(item);
 }
 
-/** 분류 칩 — 맨 앞에 「전체」(빈 slug). 서버가 준 분류를 그대로 그린다. */
+/** 앱이 아는 분류(V86). 이 분류는 서버 이름(한국어) 대신 앱 언어의 이름을 쓴다(11/2 폰 QA, 영어 앱에 한국어 칩). */
+const KNOWN_CATEGORY_SLUGS = ['question', 'audition', 'partner', 'free'] as const;
+type KnownCategorySlug = (typeof KNOWN_CATEGORY_SLUGS)[number];
+
+function isKnownCategory(slug: string): slug is KnownCategorySlug {
+  return (KNOWN_CATEGORY_SLUGS as readonly string[]).includes(slug);
+}
+
+/** 분류 이름 — 아는 분류는 앱 언어로, 모르는(새로 생긴) 분류는 서버가 준 이름 그대로. */
+export function categoryLabel(slug: string | null | undefined, serverName: string | null | undefined): string {
+  if (slug && isKnownCategory(slug)) return translate(`community.category.${slug}`);
+  return serverName ?? '';
+}
+
+/** 분류 목록을 못 받았을 때(오프라인) 쓰는 기본 분류. 칩이 「전체」 하나만 남지 않게 한다(11/2 폰 QA). */
+export function fallbackCategories(): CommunityCategory[] {
+  return KNOWN_CATEGORY_SLUGS.map((slug) => ({ slug, name: categoryLabel(slug, slug) }));
+}
+
+/** 분류 칩 — 맨 앞에 「전체」(빈 slug). 서버가 준 분류 순서대로, 이름은 categoryLabel 로 그린다. */
 export function categoryChips(categories: CommunityCategory[]): { slug: string; name: string }[] {
-  return [{ slug: '', name: translate('community.all') }, ...categories.map((c) => ({ slug: c.slug, name: c.name }))];
+  return [{ slug: '', name: translate('community.all') }, ...categories.map((c) => ({ slug: c.slug, name: categoryLabel(c.slug, c.name) }))];
 }
 
 /** 게시판에 마지막으로 본 뒤 새 글이 있는가 — 가장 최근 글 시각과 기기에 적어 둔 본 시각을 비교한다. */

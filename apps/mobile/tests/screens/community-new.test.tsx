@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Linking } from 'react-native';
+import { BackHandler, Linking } from 'react-native';
 
 import CommunityNewScreen from '@/app/community-new';
 import { logEvent } from '@/lib/analytics';
@@ -247,4 +247,25 @@ test('고치는 글은 기존 사진을 보여 주고, 빼면 남은 사진 id �
   await waitFor(() =>
     expect(api.updateCommunityPost).toHaveBeenCalledWith('p1', { title: '연습실 구하는 팁', body: '조용한 곳을 찾고 있어요', image_ids: ['i2'] }),
   );
+});
+
+// 11/2 폰 QA — 안드로이드 뒤로 키는 묻지 않고 쓰던 글을 버렸다. 위 뒤로 버튼처럼 버릴지 묻는다.
+test('쓰던 글이 있으면 안드로이드 뒤로 키도 버릴지 묻고, 취소하면 남는다', async () => {
+  const handlers: (() => boolean)[] = [];
+  jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event: unknown, h: unknown) => {
+    handlers.push(h as () => boolean);
+    return { remove: () => handlers.splice(handlers.indexOf(h as () => boolean), 1) } as never;
+  });
+  await render(<CommunityNewScreen />);
+  expect(handlers).toHaveLength(0);
+  await fill();
+  expect(handlers).toHaveLength(1);
+
+  let consumed = false;
+  await act(async () => {
+    consumed = handlers[0]();
+  });
+  expect(consumed).toBe(true);
+  expect(await screen.findByText('쓰던 글을 지울까요?')).toBeOnTheScreen();
+  expect(mockRouter.back).not.toHaveBeenCalled();
 });

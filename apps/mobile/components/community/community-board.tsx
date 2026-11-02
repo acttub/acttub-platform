@@ -20,6 +20,8 @@ import {
   boardFailureMessage,
   bodyPreview,
   categoryChips,
+  categoryLabel,
+  fallbackCategories,
   listThumb,
   metaLine,
   type BoardFailure,
@@ -61,7 +63,8 @@ export function CommunityBoard({
     void api
       .communityCategories()
       .then((r) => setCategories(r.categories))
-      .catch(() => setCategories([]));
+      // 못 받으면 앱이 아는 기본 분류로 칩을 그린다(오프라인에서 「전체」만 남던 것, 11/2 폰 QA).
+      .catch(() => setCategories(fallbackCategories()));
   }, []);
 
   const load = useCallback(
@@ -214,7 +217,7 @@ export function PostRow({ post, first, onPress }: { post: CommunityPost; first?:
       accessibilityRole="button"
       ph-label="community_post_row">
       <View style={styles.rowText}>
-        <Text style={styles.category}>{post.category_name}</Text>
+        <Text style={styles.category}>{categoryLabel(post.category_slug, post.category_name)}</Text>
         <Text style={styles.title} numberOfLines={1}>
           {post.title}
         </Text>

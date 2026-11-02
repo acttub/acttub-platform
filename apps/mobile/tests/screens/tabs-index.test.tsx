@@ -685,6 +685,22 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     expect(screen.queryByText(/일째!/)).not.toBeOnTheScreen();
   });
 
+  // 11/2 폰 QA — 오프라인으로 켜면 홈이 팝업 뒤에서 기록 읽기에 실패한 채 남았다. 게이트가 열리면 다시 읽는다.
+  test('동의·프로필 게이트가 열리는 순간 홈에 있으면 기록을 다시 읽는다', async () => {
+    mockAuth.consentEntry = { status: 'error' };
+    (mockAuth.profile as { status?: string }).status = 'error';
+    listPracticeGroups.mockRejectedValueOnce(new Error('offline'));
+    const view = await render(<HomeScreen />);
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(1));
+
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    mockAuth.consentEntry = { status: 'allowed' };
+    (mockAuth.profile as { status?: string }).status = 'complete';
+    await view.rerender(<HomeScreen />);
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+  });
+
   test('연습일 목록을 못 받아도 홈은 그대로 연다 (SOMA-1003)', async () => {
     listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
     (api.practiceDays as jest.Mock).mockRejectedValue(new Error('down'));
