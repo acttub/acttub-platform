@@ -69,7 +69,8 @@ public class JacksonConfig {
         module.addDeserializer(BigInteger.class, ExactIntegerDeserializer.bigIntegers());
 
         return builder -> {
-            builder.modules(module);
+            // modules() 는 Spring 이 자동으로 붙이던 JavaTimeModule 을 끊는다 — 요청 본문 Instant 가 422 가 됐다.
+            builder.modulesToInstall(module);
             builder.featuresToDisable(
                     com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS,
                     com.fasterxml.jackson.databind.MapperFeature.ALLOW_COERCION_OF_SCALARS);
