@@ -314,7 +314,7 @@ test('구독 관리 — 서버가 결제 기능을 닫았으면 나간다', asyn
 test('설정 — 앱 Pro 스위치가 켜져 있으면 「ACTTUB Pro」 줄이 Pro 안내로 간다', async () => {
   billingMe.mockResolvedValue({ ...none, app_enabled: true });
   await render(<SettingsScreen />);
-  await fireEvent.press(await screen.findByText('무료 이용 중 · Pro 알아보기'));
+  await fireEvent.press(await screen.findByText('Pro로 제한 없이 연습해요'));
   expect(mockRouter.push).toHaveBeenCalledWith('/pro');
 });
 
