@@ -15,7 +15,6 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceStorage;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
-import com.acttub.actingapi.feature.reading.app.VoicePlan;
 import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -57,14 +56,12 @@ class CloudVoiceIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtService jwt;
     @Autowired ObjectMapper mapper;
-    @Autowired TestVoicePlan plans;
     @Autowired CloudVoiceRepository voices;
     String bearer;
     UUID user;
 
     @BeforeEach
     void setUp() {
-        plans.proUsers.clear();
         jdbc.execute("TRUNCATE TABLE users,consent_documents,reading_voice_cache RESTART IDENTITY CASCADE");
         for (String type : List.of("terms", "privacy", "ai_analysis", "retention", "cloud_voice")) {
             jdbc.update("""
@@ -218,7 +215,6 @@ class CloudVoiceIT {
 
     @Test
     void proStatusAndSynthesisUseOnlyThisAccountsKoreanCalendarMonth() throws Exception {
-        plans.proUsers.add(user);
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         YearMonth month = YearMonth.from(today);
         jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,300)", user, today);
@@ -238,7 +234,6 @@ class CloudVoiceIT {
 
     @Test
     void proTenThousandthLineIsAllowedAndTheNextNewLineIs429ButCacheStillWorks() throws Exception {
-        plans.proUsers.add(user);
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, today);
         String body = "{\"text\":\"이번 달 마지막 줄\",\"voice\":\"F1\"}";
@@ -273,14 +268,8 @@ class CloudVoiceIT {
         assertThat(voices.monthlyUsage(user, YearMonth.from(today))).isEqualTo(10_000);
     }
 
-    static class TestVoicePlan implements VoicePlan {
-        final java.util.Set<UUID> proUsers = java.util.concurrent.ConcurrentHashMap.newKeySet();
-        public boolean pro(UUID userId) { return proUsers.contains(userId); }
-    }
-
     @TestConfiguration(proxyBeanMethods = false)
     static class Fakes {
-        @Bean @Primary TestVoicePlan fakeVoicePlan() { return new TestVoicePlan(); }
         @Bean @Primary VoiceModelStorage fakeVoiceModelStorage() {
             return new VoiceModelStorage() {
                 public boolean configured() { return true; }
