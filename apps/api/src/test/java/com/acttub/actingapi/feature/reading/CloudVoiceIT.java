@@ -93,7 +93,8 @@ class CloudVoiceIT {
         assertThat(body.path("pro_only").booleanValue()).isFalse();
         assertThat(body.path("free_until").isNull()).isTrue();
         assertThat(body.path("consent").textValue()).isEqualTo("granted");
-        assertThat(body.path("daily_limit").intValue()).isEqualTo(300);
+        // Pro 에게 daily_limit 칸은 계정별 월 한도를 담는다(SOMA-949).
+        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
         assertThat(body.path("daily_used").intValue()).isZero();
     }
 
