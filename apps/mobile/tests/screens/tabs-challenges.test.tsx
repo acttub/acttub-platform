@@ -219,6 +219,20 @@ describe('오늘의 챌린지', () => {
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요')).not.toBeOnTheScreen();
   });
 
+  test('이미 참여한 오늘의 챌린지는 버튼이 「한 번 더 찍기」다 (SOMA-995)', async () => {
+    listChallenges.mockResolvedValue(page([], { featured: today() }));
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({
+      counts: { all: 1, public: 0, private: 1, under_review: 0 },
+      entries: [{ id: 'mine', challenge_id: 'today', challenge: { id: 'today' } }],
+      next_cursor: null,
+    });
+    await render(<ChallengesScreen />);
+    expect(await screen.findByText('한 번 더 찍기')).toBeOnTheScreen();
+    expect(screen.queryByText('나도 이 대사 연기하기')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '한 번 더 찍기' })).toBeOnTheScreen();
+    (api.listMyChallengeEntries as jest.Mock).mockReset();
+  });
+
   test('오늘의 챌린지에서 연기하기를 누르면 촬영으로 간다', async () => {
     listChallenges.mockResolvedValue(page([], { featured: today() }));
     await render(<ChallengesScreen />);

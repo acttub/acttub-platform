@@ -59,6 +59,7 @@ jest.mock('@/lib/api', () => ({
     getEntry: jest.fn(),
     getChallenge: jest.fn(),
     listChallengeEntries: jest.fn(),
+    listMyChallengeEntries: jest.fn(),
     recordEntryView: jest.fn(),
     likeEntry: jest.fn(),
     saveEntry: jest.fn(),
@@ -316,6 +317,19 @@ describe('참여작이 없을 때', () => {
     expect(StyleSheet.flatten(close.props.style)).toEqual(expect.objectContaining({ position: 'absolute', top: 48 }));
     await fireEvent.press(close);
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('이미 참여했으면(나만 보기) 첫 참여 안내 대신 다른 배우 기준으로 말하고 버튼은 「한 번 더 찍기」다 (SOMA-995)', async () => {
+    mocked.listChallengeEntries.mockResolvedValue(entriesPage([]));
+    mocked.listMyChallengeEntries.mockResolvedValueOnce({
+      counts: { all: 1, public: 0, private: 1, under_review: 0 },
+      entries: [{ id: 'mine', challenge_id: 'c1', challenge: { id: 'c1' } }],
+      next_cursor: null,
+    });
+    await render(<ChallengePlayScreen />);
+    expect(await screen.findByText('아직 다른 배우의 참여작이 없어요. 내 참여작은 프로필에서 볼 수 있어요.')).toBeOnTheScreen();
+    expect(screen.queryByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: endsWith('한 번 더 찍기') })).toBeOnTheScreen();
   });
 
   test('종료된 챌린지에는 연기하기가 없다', async () => {

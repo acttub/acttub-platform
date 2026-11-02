@@ -51,6 +51,7 @@ import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { useBoardNewDot } from '@/hooks/use-board-new-dot';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
+import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -83,6 +84,19 @@ export default function ChallengesScreen() {
   const boardDot = useBoardNewDot();
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
+  // 내가 참여한 챌린지(나만 보기 포함) — 오늘의 챌린지 버튼을 「한 번 더 찍기」로 바꾼다(SOMA-995).
+  const [enteredIds, setEnteredIds] = useState<ReadonlySet<string>>(() => new Set());
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      void enteredChallengeIds().then((ids) => {
+        if (live) setEnteredIds(ids);
+      });
+      return () => {
+        live = false;
+      };
+    }, []),
+  );
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -381,6 +395,7 @@ export default function ChallengesScreen() {
             showGuide={firstTime}
             onOpen={() => tapCard(featured)}
             onPerform={canPerform(featured) ? () => perform(featured) : undefined}
+            entered={enteredIds.has(featured.id)}
           />
         )}
 
@@ -479,11 +494,14 @@ function WeekHero({
   showGuide,
   onOpen,
   onPerform,
+  entered = false,
 }: {
   challenge: ChallengeCard;
   showGuide: boolean;
   onOpen: () => void;
   onPerform?: () => void;
+  /** 이미 참여했는가(나만 보기 포함) — 버튼을 「한 번 더 찍기」로 둔다. */
+  entered?: boolean;
 }) {
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
@@ -525,10 +543,10 @@ function WeekHero({
           style={styles.heroPerform}
           onPress={onPerform}
           accessibilityRole="button"
-          accessibilityLabel={t('challenges.performCta')}>
+          accessibilityLabel={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}>
           {/* 흰 알약 버튼(10/29 시안). */}
           <Feather name="video" size={16} color={heroCard.ctaNavy} />
-          <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
+          <Text style={styles.heroPerformText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
         </Pressable>
       )}
     </Pressable>

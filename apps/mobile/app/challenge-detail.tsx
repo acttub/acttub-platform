@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -45,6 +45,7 @@ import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { hasFinishedFirstChallenge } from '@/lib/challenge/intro-state';
 import { buildReportBody, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/types';
+import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { newRequestId } from '@/lib/request-id';
 import { postedAtLabel } from '@/lib/time-label';
 import { translate as t } from '@/lib/i18n';
@@ -87,6 +88,22 @@ export default function ChallengeDetailScreen() {
   useEffect(() => {
     void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
   }, []);
+
+  // 나만 보기로 올린 참여작은 공개 수에 안 잡힌다 — 내가 이미 참여했으면 「첫 번째로 참여해 보세요」 대신 다른 배우 기준으로 말한다(SOMA-995).
+  // 촬영·올리기에서 돌아왔을 때도 맞도록 화면에 들어올 때마다 다시 읽는다.
+  const [entered, setEntered] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return undefined;
+      let live = true;
+      void enteredChallengeIds().then((ids) => {
+        if (live) setEntered(ids.has(id));
+      });
+      return () => {
+        live = false;
+      };
+    }, [id]),
+  );
 
   const load = useCallback(
     async (nextSort: EntrySort) => {
@@ -322,14 +339,17 @@ export default function ChallengeDetailScreen() {
             )}
 
             {entries !== null && entries.length === 0 && !error && (
-              <InlineEmpty title={t('challenges.emptyEntriesTitle')} description={t('challenges.emptyEntriesSub')} />
+              <InlineEmpty
+                title={t(entered ? 'challenges.emptyOthersTitle' : 'challenges.emptyEntriesTitle')}
+                description={t(entered ? 'challenges.emptyOthersSub' : 'challenges.emptyEntriesSub')}
+              />
             )}
           </>
         )}
       </ScrollView>
       {challenge && canPerform(challenge) && (
         <CtaBar safeBottom={false}>
-          <PrimaryButton label={t('challenges.performCta')} onPress={perform} />
+          <PrimaryButton label={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')} onPress={perform} />
         </CtaBar>
       )}
       {toast && <Toast message={t('lineNew.doneToast')} bottom={TOAST_ABOVE_CTA} />}
