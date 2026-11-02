@@ -33,6 +33,8 @@ type Props = {
   slot: AdSlotKey;
   /** 바깥 여백 등. 칸이 비면(NONE) 이 스타일도 함께 사라진다. */
   style?: StyleProp<ViewStyle>;
+  /** AdMob 배너를 기다리는 시간(ms). 테스트에서만 줄인다. */
+  fillTimeoutMs?: number;
 };
 
 /**
@@ -43,7 +45,10 @@ type Props = {
  * - 이미지형은 칸 폭에 맞춰 비율을 지키고 모서리 16, 오른쪽 위에 「광고」 라벨. AdMob 배너는 같은 자리 가운데에 두고,
  *   광고 위에 우리 요소를 덮지 않는다(AdMob 정책 — 배너는 자체 광고 표시를 갖는다).
  */
-export function AdSlot({ slot, style }: Props) {
+/** AdMob 배너가 이 시간 안에 안 채워지면 칸을 접는다. */
+export const NETWORK_FILL_TIMEOUT_MS = 6000;
+
+export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS }: Props) {
   const router = useRouter();
   const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
@@ -52,6 +57,15 @@ export function AdSlot({ slot, style }: Props) {
   const [failed, setFailed] = useState(false);
   const impressed = useRef<string | null>(null);
   const request = shouldRequestSlot(firstTime);
+  // AdMob 배너가 채워지지 않으면 실패 신호 없이 빈 상자만 남아 화면 위에 빈 공간이 생겼다(11/2 폰 QA).
+  // 정해진 시간 안에 안 채워지면 칸을 접는다. 채워진 배너는 그대로 둔다.
+  const [networkFilled, setNetworkFilled] = useState(false);
+  const waitingNetwork = request && loaded && !failed && !networkFilled && renderableKind(pick) === 'NETWORK';
+  useEffect(() => {
+    if (!waitingNetwork) return undefined;
+    const timer = setTimeout(() => setFailed(true), fillTimeoutMs);
+    return () => clearTimeout(timer);
+  }, [waitingNetwork, fillTimeoutMs]);
 
   useEffect(() => {
     if (!request) return;
@@ -102,7 +116,10 @@ export function AdSlot({ slot, style }: Props) {
             requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
               .requestNonPersonalizedAdsOnly,
           }}
-          onAdLoaded={() => void logEvent('ad_network_loaded', { slot })}
+          onAdLoaded={() => {
+            setNetworkFilled(true);
+            void logEvent('ad_network_loaded', { slot });
+          }}
           onAdFailedToLoad={() => setFailed(true)}
         />
       </View>

@@ -338,7 +338,11 @@ export default function HomeScreen() {
   useEffect(() => {
     const opened = gateOpen && !gateWasOpen.current;
     gateWasOpen.current = gateOpen;
-    if (opened && homeFocused.current) void loadRecords(() => !homeFocused.current);
+    if (!opened) return;
+    // 로그인 전·게이트 전에 읽은(실패했거나 계정을 모르고 센) 기록은 버리고 뼈대로 돌린다 — 로그인 직후 「이번 주 연습」이
+    // 빈 칸으로 보였다가 나중에 채워지던 것(11/2 폰 QA). 지금 홈에 있으면 바로 다시 읽고, 아니면 홈에 올 때 읽는다.
+    setActivityDays(null);
+    if (homeFocused.current) void loadRecords(() => !homeFocused.current);
   }, [gateOpen, loadRecords]);
 
   useEffect(() => {

@@ -111,6 +111,23 @@ test('서버 오류(게스트 403 등)면 칸을 비운다', async () => {
   await waitFor(() => expect(view.toJSON()).toBeNull());
 });
 
+// 11/2 폰 QA — 채워지지 않은 AdMob 배너가 빈 상자로 남아 화면 위에 빈 공간이 생겼다.
+test('NETWORK 배너가 정해진 시간 안에 안 채워지면 칸을 접는다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'LARGE_BANNER', width: 320, height: 100, ad: null });
+  const view = await render(<AdSlot slot="community_list_top" fillTimeoutMs={30} />);
+  await screen.findByTestId('admob-banner');
+  await waitFor(() => expect(view.toJSON()).toBeNull());
+});
+
+test('NETWORK 배너가 채워지면 시간이 지나도 그대로 둔다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'LARGE_BANNER', width: 320, height: 100, ad: null });
+  await render(<AdSlot slot="community_list_top" fillTimeoutMs={30} />);
+  const banner = await screen.findByTestId('admob-banner');
+  await act(async () => banner.props.onAdLoaded());
+  await act(async () => new Promise((r) => setTimeout(r, 80)));
+  expect(screen.getByTestId('admob-banner')).toBeOnTheScreen();
+});
+
 test('NETWORK 배너는 생년월일이 없으면 비맞춤, 성인이면 맞춤으로 요청한다', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
   const first = await render(<AdSlot slot="home_top" />);
@@ -122,3 +139,5 @@ test('NETWORK 배너는 생년월일이 없으면 비맞춤, 성인이면 맞춤
   const adult = await screen.findByTestId('admob-banner');
   expect(adult.props.requestOptions).toEqual({ requestNonPersonalizedAdsOnly: false });
 });
+
+

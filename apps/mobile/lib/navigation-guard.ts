@@ -8,9 +8,19 @@
  */
 export const SAME_TARGET_WINDOW_MS = 800;
 export const BACK_WINDOW_MS = 400;
+/** dismiss 계열로 나간 직후 뒤로 가기를 막는 시간. 나가는 화면이 닫히고 다음 화면이 뜨는 동안의 연타를 덮는다. */
+export const DISMISS_BACK_WINDOW_MS = 800;
 
 type AnyFn = (...args: any[]) => any;
-type GuardableRouter = { push: AnyFn; navigate: AnyFn; replace: AnyFn; back: AnyFn };
+type GuardableRouter = {
+  push: AnyFn;
+  navigate: AnyFn;
+  replace: AnyFn;
+  back: AnyFn;
+  dismiss?: AnyFn;
+  dismissTo?: AnyFn;
+  dismissAll?: AnyFn;
+};
 
 const INSTALLED = Symbol.for('acttub.navigationGuard');
 
@@ -41,11 +51,23 @@ export function installNavigationGuard(router: GuardableRouter, now: () => numbe
   }
 
   let lastBack = -Infinity;
+  let lastDismiss = -Infinity;
   const back = router.back;
   router.back = (...args: unknown[]) => {
     const at = now();
-    if (at - lastBack < BACK_WINDOW_MS) return;
+    if (at - lastBack < BACK_WINDOW_MS || at - lastDismiss < DISMISS_BACK_WINDOW_MS) return;
     lastBack = at;
     return back(...args);
   };
+
+  // 화면 안 버튼이 dismiss 계열로 나가면 그 직후의 뒤로 가기는 같은 손가락의 연타로 본다. 리딩 「나가기」를 연달아 누르면
+  // 남은 누름이 대본 상세의 뒤로 버튼에 떨어져 리딩 탭까지 나가던 것(11/2 폰 QA). dismiss 자체는 막지 않는다.
+  for (const method of ['dismiss', 'dismissTo', 'dismissAll'] as const) {
+    const original = router[method];
+    if (typeof original !== 'function') continue;
+    router[method] = (...args: unknown[]) => {
+      lastDismiss = now();
+      return original(...args);
+    };
+  }
 }

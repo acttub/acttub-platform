@@ -1540,7 +1540,9 @@ export default function ReadingPlay() {
       if (!shouldDiscard()) {
         const paused = cur.status === 'paused' ? cur : pauseRun(cur);
         runRef.current = paused;
-        setRun(paused);
+        // 나가는 화면은 멈춤 모양으로 다시 그리지 않는다 — 「나가기」를 누른 그 순간 멈춤 버튼·안내 줄을 새로 끼우면서
+        // 화면을 닫으면 안드로이드(Fabric)가 떨어져 나간 화면에 뷰를 넣다가 addViewAt 예외로 앱을 껐다(11/2 폰 QA).
+        // 저장은 아래 paused 값으로 하고, 남는 화면 상태는 runRef 로 충분하다.
         const queue = queueRef.current;
         if (queue) {
           queue.push(progressPayload(paused));
