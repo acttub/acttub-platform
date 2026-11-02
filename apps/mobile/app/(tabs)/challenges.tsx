@@ -432,9 +432,16 @@ function WeekHero({
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
     // 10/29 시안 — 진한 파랑 카드, 노란 번개가 든 남색 알약, 오른쪽 아래 슬레이트 든 액티, 아래 흰 알약 [나도 이 대사 연기하기].
-    <View style={styles.weekHero}>
+    // 카드 어디를 눌러도(액티·여백 포함) 상세로 간다 — 예전엔 왼쪽 글자 묶음(68%)만 눌렸다. 흰 알약은 안쪽 Pressable 이라 따로 눌린다.
+    // 바깥은 접근성에서 빼고(안쪽 버튼이 묶여 사라지지 않게) 글자 묶음을 「열기」 버튼으로 읽게 한다.
+    <Pressable style={styles.weekHero} onPress={onOpen} accessible={false}>
       <Image source={MASCOT.slate} style={styles.weekActy} contentFit="contain" cachePolicy="memory-disk" accessibilityElementsHidden />
-      <Pressable style={styles.weekHeroTop} onPress={onOpen} accessibilityRole="button">
+      <View
+        style={styles.weekHeroTop}
+        accessible
+        accessibilityRole="button"
+        accessibilityActions={[{ name: 'activate' }]}
+        onAccessibilityAction={(e) => e.nativeEvent.actionName === 'activate' && onOpen()}>
         <View style={styles.weekChip}>
           <Feather name="zap" size={13} color={heroCard.bolt} />
           <Text style={styles.heroChipText}>
@@ -455,7 +462,7 @@ function WeekHero({
             {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
           </Text>
         </View>
-      </Pressable>
+      </View>
       {onPerform && showGuide && <Text style={styles.heroGuide}>{t('challenges.heroGuidePerform')}</Text>}
       {onPerform && (
         <Pressable
@@ -468,7 +475,7 @@ function WeekHero({
           <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -486,18 +493,20 @@ function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard
   const [frameReady, setFrameReady] = useState(false);
   useEffect(() => setFrameReady(false), [videoUrl]);
   return (
-    <View style={styles.hero}>
+    // 카드 전체(가장자리 여백 포함)가 눌린다. 영상은 터치를 가로채지 않게 pointerEvents="none".
+    <Pressable style={styles.hero} onPress={onOpen} accessibilityRole="button">
       {!!videoUrl && (
         <VideoView
           style={[StyleSheet.absoluteFill, { opacity: frameReady ? 1 : 0 }]}
           player={player}
           contentFit="cover"
           nativeControls={false}
+          pointerEvents="none"
           onFirstFrameRender={() => setFrameReady(true)}
         />
       )}
       <View style={styles.heroScrim} pointerEvents="none" />
-      <Pressable style={styles.heroTop} onPress={onOpen} accessibilityRole="button">
+      <View style={styles.heroTop}>
         <View style={styles.heroChip}>
           <Text style={styles.heroChipText}>
             {videoUrl ? t('challenges.exampleChip') : `${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
@@ -506,8 +515,8 @@ function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard
         <Text style={styles.heroLine} numberOfLines={4}>
           “{challenge.line}”
         </Text>
-      </Pressable>
-    </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -536,8 +545,9 @@ function Card({
 }) {
   const host = challenge.origin === 'team' ? t('challenges.hostTeam') : t('challenges.hostMemberShort');
   return (
-    <View style={styles.row}>
-      <Pressable style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
+    // 카드 전체(테두리 안 여백 포함)가 눌린다 — 예전엔 여백 안쪽 글자 영역만 눌렸다.
+    <Pressable style={({ pressed }) => [styles.row, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
+      <View style={styles.rowMain}>
         <View style={styles.rowBody}>
           <Text style={styles.line} numberOfLines={3}>
             “{challenge.line}”
@@ -560,9 +570,9 @@ function Card({
             </View>
           </View>
         </View>
-      </Pressable>
+      </View>
       {/* 목록 카드 안에는 「나도 이 대사 연기하기」 버튼을 두지 않는다 — 카드를 누르면 챌린지 화면에서 찍는다(UX 가이드 5절 「카드 안 버튼 금지」). */}
-    </View>
+    </Pressable>
   );
 }
 
