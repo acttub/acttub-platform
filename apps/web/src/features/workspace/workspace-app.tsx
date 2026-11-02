@@ -7,9 +7,14 @@ import { CoachComposer } from "./coach-composer";
 // 설계 정본은 새 UI 디자인 캔버스(2026-07-27)의 D1~D10 · M1~M9 화면.
 
 import Image from "next/image";
-import Link from "next/link";
+import { SiteLink } from "@/features/site/site-link";
 import { AccountLink } from "@/features/auth/account-link";
 import { isMemberSession, subscribeAuthChange } from "@/lib/auth/token-store";
+import { AppHandoff } from "@/features/trial/app-handoff";
+import { CoachingExamples, CoachingIntroHeading, NoVideoReadingLink } from "@/features/trial/coaching-intro";
+import { TrialBar } from "@/features/trial/trial-bar";
+import { trialEntryFromSearch } from "@/features/trial/trial-paths";
+import { useTrialGuest } from "@/features/trial/use-trial-guest";
 import {
   memo,
   Suspense,
@@ -57,6 +62,8 @@ import {
 import {
   trackDialogueStarted,
   trackResultViewed,
+  trackTrialComplete,
+  trackTrialStart,
   trackVideoUploaded,
 } from "@/lib/analytics/ga";
 import {
@@ -105,7 +112,7 @@ import {
   type RailGroup,
 } from "../practice/practice-groups";
 import { guardUnfinishedUpload } from "./upload-exit-guard";
-import { guestAnalysisNotice, guestAnalysisUsed, recordGuestAnalysis } from "../practice/guest-daily-limit";
+import { GUEST_DAILY_LIMIT, guestAnalysisNotice, guestAnalysisUsed, recordGuestAnalysis } from "../practice/guest-daily-limit";
 import {
   createCoachStartCoordinator,
   type CoachStartCoordinator,
@@ -291,6 +298,12 @@ function WorkspaceInner() {
   useEffect(() => {
     setGuestUsed(guestAnalysisUsed());
   }, []);
+  // 가입 없이 체험 중인 방문자인가, 그리고 이 화면에 어느 길로 왔나(웹 체험 퍼널). 주소는 화면이 바뀌면 갈아 끼워지므로 처음 열 때 읽어 둔다.
+  const trialGuest = useTrialGuest();
+  const trialEntryRef = useRef<ReturnType<typeof trialEntryFromSearch>>("quick_start");
+  useEffect(() => {
+    trialEntryRef.current = trialEntryFromSearch(window.location.search);
+  }, []);
   // 묶음 숨김 확인. "삭제"는 0.1.0 부터 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
   const [hideConfirm, setHideConfirm] = useState(false);
   /** 기록 목록의 최근 30일 필터. 켠 시각을 들고 있다가 그 시각을 기준으로 자른다(practice.library). */
@@ -379,7 +392,11 @@ function WorkspaceInner() {
       if (countedStepsRef.current.has(key)) return false;
       countedStepsRef.current.add(key);
       if (stepName === "dialogue") trackDialogueStarted();
-      else trackResultViewed();
+      else {
+        trackResultViewed();
+        // 가입 없이 체험한 방문자가 노트까지 본 시점(웹 체험 퍼널).
+        if (!isMemberSession()) trackTrialComplete("coaching");
+      }
       return true;
     },
     [],
@@ -515,6 +532,8 @@ function WorkspaceInner() {
     playbackUrl: detail?.playback_url ?? null,
   });
   const body = view.body;
+  // 영상을 올리기 전 첫 화면에서 체험 안내(제목·질문 예시·리딩 링크)를 보인다. 영상이 이미 있거나 대화·노트 중이면 보이지 않는다.
+  const showTrialIntro = trialGuest && body.kind !== "chat" && body.kind !== "note" && body.video.kind === "upload-zone";
 
   // 후기는 대화가 시작된 뒤에만 묻는다 — 영상만 올리고 나간 사람은 답할 게 없다.
   const reviewArmed = view.review.armed;
@@ -909,6 +928,8 @@ function WorkspaceInner() {
         isSceneContextBlank(sceneDraft),
       );
       trackAnalysis(practice.id);
+      // 가입 없이 체험하는 방문자가 영상을 올려 분석을 시작한 시점(웹 체험 퍼널). 들어온 길은 화면을 연 주소의 from 값이다.
+      if (!isMemberSession()) trackTrialStart("coaching", trialEntryRef.current);
       void refreshList();
     } catch (err) {
       // 시작 자체의 실패는 결과로 오므로, 여기 닿는 것은 회차를 받아 화면을 갈아
@@ -1373,6 +1394,8 @@ function WorkspaceInner() {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <TrialBar feature="coaching" note={`가입 없이 ${GUEST_DAILY_LIMIT}번 받아 볼 수 있어요`} />
+
         <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-[#edf0f3] bg-white px-3.5 sm:px-5">
           <button
             type="button"
@@ -1443,42 +1466,42 @@ function WorkspaceInner() {
                 activeId ? "hidden sm:flex" : "flex"
               }`}
             >
-              <Link
+              <SiteLink
                 href="/library"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 보관함
-              </Link>
-              <Link
+              </SiteLink>
+              <SiteLink
                 href="/reading"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 리딩
-              </Link>
-              <Link
+              </SiteLink>
+              <SiteLink
                 href="/admissions"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 입시
-              </Link>
+              </SiteLink>
               {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한
                   자리라 숨기지 않는다. */}
-              <Link
+              <SiteLink
                 href="/memory"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 기억
-              </Link>
+              </SiteLink>
               {/* 앱은 폰에서 받는 것이라, 이 줄이 폰에서 숨는 상황(연습이 열려 있을 때)은
                   드로어 하단이 대신 받는다. 옆 항목들과 달리 파란 글씨인 이유는 갓 나온
                   길이라 눈에 걸려야 해서다. */}
-              <Link
+              <SiteLink
                 href="/app"
                 {...{ [APP_DOWNLOAD_ATTR]: "app_page" }}
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#3182f6] transition hover:bg-[#e8f3ff]"
               >
                 앱
-              </Link>
+              </SiteLink>
               <AccountLink className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]" />
             </nav>
           </div>
@@ -1551,8 +1574,12 @@ function WorkspaceInner() {
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8">
-            <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 sm:gap-6">
+            <div
+              className={`mx-auto w-full ${showTrialIntro ? "max-w-[1040px] lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12" : "max-w-[760px]"}`}
+            >
+            <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
               <Stepper current={body.step} />
+              {showTrialIntro ? <CoachingIntroHeading /> : null}
               {body.continueBanner ? (
                 <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#e8f3ff] px-4 py-3">
                   <p className="text-sm font-bold leading-6 text-[#1b64da]">
@@ -1581,6 +1608,7 @@ function WorkspaceInner() {
               ) : body.video.kind === "upload-zone" ? (
                 <UploadZone onClick={() => fileInputRef.current?.click()} />
               ) : null}
+              {showTrialIntro ? <NoVideoReadingLink /> : null}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1636,6 +1664,8 @@ function WorkspaceInner() {
                 />
               )}
               <IntroLine />
+            </div>
+            {showTrialIntro ? <CoachingExamples /> : null}
             </div>
           </div>
         )}
@@ -1709,9 +1739,9 @@ const SessionRail = memo(function SessionRail({
     >
       <div className={`flex h-14 items-center ${open ? "justify-between px-4" : "justify-center"}`}>
         {open ? (
-          <Link href={LANDING_INTRO_HREF} aria-label="Acttub 소개 보기" className="shrink-0">
+          <SiteLink href={LANDING_INTRO_HREF} aria-label="Acttub 소개 보기" className="shrink-0">
             <Image src={wordmark} alt="Acttub" priority className="h-5 w-auto" />
-          </Link>
+          </SiteLink>
         ) : null}
         <button
           type="button"
@@ -1863,15 +1893,15 @@ const SessionRail = memo(function SessionRail({
           통째로 숨어서(375px에 제목 자리가 안 남는다) 앱으로 가는 길이 사라진다.
           데스크톱 레일에는 넣지 않는다. 헤더가 이미 보이는 자리라 두 군데가 된다. */}
       {drawer ? (
-        <Link
+        <SiteLink
           href="/library"
           className="mt-auto flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3 text-[13px] font-black text-[#191f28] transition hover:bg-[#eef2f6]"
         >
           영상 보관함
-        </Link>
+        </SiteLink>
       ) : null}
       {drawer ? (
-        <Link
+        <SiteLink
           href="/app"
           {...{ [APP_DOWNLOAD_ATTR]: "app_page" }}
           className="flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3.5 transition hover:bg-[#eef2f6]"
@@ -1888,7 +1918,7 @@ const SessionRail = memo(function SessionRail({
               iOS · Android
             </span>
           </span>
-        </Link>
+        </SiteLink>
       ) : null}
 
       {/* 계정 자리는 상단 메뉴 끝에 있다(SOMA-834). 로그인하지 않은 게스트의 자료는 이 브라우저에만
@@ -1902,12 +1932,12 @@ const SessionRail = memo(function SessionRail({
             {GUEST_BROWSER_ONLY_NOTICE}
           </p>
           {canTransfer ? (
-            <Link
+            <SiteLink
               href="/transfer"
               className="mt-1.5 inline-block text-[12.5px] font-black text-[#3182f6] transition hover:text-[#1b64da]"
             >
               앱으로 옮기기
-            </Link>
+            </SiteLink>
           ) : null}
         </div>
       ) : null}
@@ -2250,9 +2280,9 @@ function IntroLine() {
   return (
     <p className="text-center text-xs font-semibold leading-5 text-[#8b95a1]">
       <span aria-hidden="true">🔒</span> 업로드한 영상은 분석 후 안전하게 처리돼요{" "}
-      <Link href="/terms" className="font-black text-[#4e5968] underline-offset-2 hover:underline">
+      <SiteLink href="/terms" className="font-black text-[#4e5968] underline-offset-2 hover:underline">
         안전 약속 보기
-      </Link>
+      </SiteLink>
     </p>
   );
 }
@@ -2707,6 +2737,10 @@ function NotePanel({
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] p-4 sm:p-5">
         <PracticeReportCards report={report} groupTitle={groupTitle} />
+        {/* 가입 없이 체험한 방문자에게만 그려진다(회원은 AppHandoff 가 비운다). */}
+        <div className="mt-4">
+          <AppHandoff feature="coaching" compact />
+        </div>
       </div>
 
       <div className="grid gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">

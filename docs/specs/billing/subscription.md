@@ -76,6 +76,20 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 `BILLING_APP_RETURN_URL`(기본 `actingapp://billing-result`), `BILLING_TOSS_CLIENT_KEY`·`BILLING_TOSS_SECRET_KEY`(지금은 `test_ck_`·`test_sk_`
 만 받는다 — 운영 Toss 계약 심사 중), `BILLING_RENEWAL_POLL_MS`. dev `.env` 에서만 켠다.
 
+## 구독 메일 (SOMA-961)
+
+웹 토스 결제가 승인되면(첫 결제와 매달 자동결제) 가입 메일(`users.email`)로 구독 메일을 한 통 보낸다. 전자상거래법 제13조 제2항의
+계약내용 전자문서로 쓴다.
+
+- 담는 것: Pro로 열린 기능 3줄, 상품·금액(부가세 포함)·결제 수단(카드사·끝 4자리)·결제 일시·이용 기간·다음 결제일·주문 번호,
+  「구독 관리」(`/account`), 자동결제·해지 안내, 환불 규정(`/refund`), 문의처, 사업자 정보, 약관·개인정보 처리방침.
+- 제목: 첫 결제 「Pro 구독을 시작했어요 · 3,900원 결제 완료」, 자동결제 「Pro 구독이 갱신됐어요 · 3,900원 결제 완료」.
+- 결제 결과와 무관하다: 메일 주소가 없거나 발송이 실패해도 결제·구독 상태는 그대로다. 결제 요청을 붙잡지 않도록 따로 보낸다.
+- 같은 주문은 한 번만 보낸다(승인이 done 으로 바뀌는 순간에만 보내고, Resend `Idempotency-Key`=주문 번호).
+- 앱 스토어 결제는 애플·구글이 영수증을 보내므로 보내지 않는다.
+- 토스 승인 요청의 `customerEmail` 도 같은 주소로 넘긴다(토스 결제내역 메일).
+- 설정: `BILLING_MAIL_ENABLED`(기본 false), `RESEND_API_KEY`(비밀), `BILLING_MAIL_FROM`(기본 `ACTTUB <no-reply@acttub.com>`).
+
 ## 개정: 결제 출처별 구독 (SOMA-818, 1단계)
 
 앱 안에서 브라우저로 토스 결제창을 여는 방식은 Apple 규정에 어긋나 버렸다. 구독은 결제 출처(`provider`)별로 받는다.

@@ -5,6 +5,7 @@ import {
   billingClosed,
   storeSubscribed,
   proVisible,
+  homePlan,
   purchaseOpen,
   freeLimitOf,
   monthDay,
@@ -200,4 +201,14 @@ test('billing: 결제 완료 요약은 요금제·다음 결제를 보이고 서
   ]);
   assert.deepEqual(doneSummary(me({ status: 'none', pro: true, amount: 0, next_billing_at: null })), []);
   assert.deepEqual(doneSummary(null), []);
+});
+
+test('billing: 홈 플랜 표시는 설정 Pro 카드가 보이는 사람에게만 PRO·FREE(SOMA-981)', () => {
+  assert.equal(homePlan(null), null);
+  assert.equal(homePlan(undefined), null);
+  assert.equal(homePlan(me({ status: 'none', pro: false })), null);
+  assert.equal(homePlan(me({ status: 'none', pro: false, app_enabled: true })), 'free');
+  assert.equal(homePlan(me({ status: 'none', pro: true, app_enabled: true })), 'pro');
+  assert.equal(homePlan(me({ status: 'canceled', pro: true })), 'pro');
+  assert.equal(homePlan(me({ status: 'expired', pro: false, app_enabled: true })), 'free');
 });

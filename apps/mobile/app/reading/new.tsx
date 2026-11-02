@@ -33,6 +33,7 @@ import {
   retryFlags,
   runScriptImport,
   TITLE_MAX,
+  splitProgressView,
   uploadScriptFile,
   type ImportFlags,
   type ImportInput,
@@ -48,8 +49,10 @@ import {
   scriptInputReducer,
   type ScriptTab,
 } from '@/lib/reading/script-input';
+import { addSplitJob, removeSplitJob, splitJobTitle } from '@/lib/reading/split-jobs';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
+import { hideForegroundPush } from '@/lib/notifications';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
 import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
@@ -188,10 +191,26 @@ export default function ReadingNew() {
     const signal = life.current?.signal;
     setPopup({ kind: 'splitting', progress: null });
     let input = next;
+    // 접수되면 바로 기기에 적는다(SOMA-976). 떠나는 순간에는 아직 접수 전일 수 있고(파일 읽기), 앱이 꺼져도 리딩 탭에 남아야 한다.
+    const accepted: { importId?: string } = {};
+    const deps: ScriptImportDeps = {
+      ...DEPS,
+      import: {
+        ...DEPS.import,
+        start: async (body) => {
+          const ticket = await DEPS.import.start(body);
+          if (ticket.import_id && !ticket.duplicate_script_id) {
+            accepted.importId = ticket.import_id;
+            void addSplitJob({ importId: ticket.import_id, title: splitJobTitle(next, flags.title) });
+          }
+          return ticket;
+        },
+      },
+    };
     const result = await runScriptImport(
       next,
       flags,
-      DEPS,
+      deps,
       (progress) => setPopup({ kind: 'splitting', progress }),
       (uploadId) => {
         if (next.kind === 'file') input = { ...next, uploadId };
@@ -200,6 +219,8 @@ export default function ReadingNew() {
       signal,
     );
     if (result.kind === 'cancelled' || signal?.aborted) return;
+    // 이 화면에서 끝을 봤다 — 리딩 탭에 보일 일이 없다. 떠났으면 위에서 돌아가 기록이 남고 리딩 탭이 잇는다.
+    if (accepted.importId) void removeSplitJob(accepted.importId);
     if (result.kind === 'file_unreadable' || result.kind === 'file_too_large') dispatch({ type: 'fileFailed' });
     if (result.kind !== 'saved') return showStop(result, { kind: 'import', input, flags });
     const saved = await loadIntoCurrent(result.scriptId);
@@ -279,9 +300,11 @@ export default function ReadingNew() {
     dispatch({ type: 'tab', tab });
   };
   const closable = popup !== null && popup.kind !== 'splitting';
-  // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 다 되면 대본 목록에 생긴다.
+  // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
   const splitting = popup?.kind === 'splitting';
   useWaitExit(splitting, '/reading');
+  // 나누는 중 화면을 보고 있으면 완료 푸시를 배너로 띄우지 않는다 — 이 화면이 끝나면 바로 다음으로 넘어간다(SOMA-960).
+  useEffect(() => (splitting ? hideForegroundPush(isScriptSplitPush) : undefined), [splitting]);
   // 파일을 올리는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일이 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
   const working = input.file.kind === 'reading' && !splitting;
@@ -424,7 +447,7 @@ export default function ReadingNew() {
             />
           ) : (
             <PrimaryButton
-              label={t('reading.next')}
+              label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
               onPress={() => pending && void split(pending, { title })}
               disabled={!pending || !!popup}
             />
@@ -522,10 +545,15 @@ export default function ReadingNew() {
 }
 
 /** pen F4. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 퍼센트 없이 제목만 보인다. */
+/** 대본 나누기 완료 푸시(서버 PushService.onScriptSplit). */
+function isScriptSplitPush(data: unknown): boolean {
+  return !!data && typeof data === 'object' && (data as { kind?: unknown }).kind === 'script_split_complete';
+}
+
 function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
-  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const { pct, checking } = progress ? splitProgressView(progress) : { pct: 0, checking: false };
   // 아래 안내가 안드로이드 내비게이션 바에 가리지 않게 아래 안전 영역만큼 띄운다.
   const bottomInset = useSafeAreaInsets().bottom;
   return (
@@ -538,7 +566,7 @@ function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
           <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
-          <Text style={styles.splitCount}>{t('reading.splitProgress', { pct, done, total })}</Text>
+          <Text style={styles.splitCount}>{t(checking ? 'reading.splitChecking' : 'reading.splitProgress', { pct, done, total })}</Text>
         </View>
       )}
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}

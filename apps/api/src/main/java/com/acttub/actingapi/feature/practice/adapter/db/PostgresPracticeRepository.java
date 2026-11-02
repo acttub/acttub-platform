@@ -20,6 +20,7 @@ import com.acttub.actingapi.integration.observation.VideoRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -577,7 +578,7 @@ class PostgresPracticeRepository implements PracticeRepository {
         entityManager.createNativeQuery("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,request_id,
                                       request_fingerprint,situation,character_context,goal,blockage_kind,sub_branch,
-                                      blockage_detail,title,session_purpose,face_mosaic,created_at,updated_at)
+                                      blockage_detail,title,session_purpose,face_mosaic,language,created_at,updated_at)
                 VALUES (:id,:userId,CAST(:videoId AS uuid),:rootId,:ordinal,:stage,:experienceVersion,:requestId,:fingerprint,
                         :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
                         CAST(:title AS text),
@@ -586,7 +587,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                                  (SELECT CASE WHEN r.session_purpose='reading' THEN 'evaluate' ELSE r.session_purpose END
                                   FROM practices r WHERE r.id=:rootId)),
                         COALESCE(CAST(:faceMosaic AS boolean), false),
-                        :now,:now)
+                        :language,:now,:now)
                 """)
                 .setParameter("id", id)
                 .setParameter("userId", userId)
@@ -606,6 +607,8 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("title", practice.title())
                 .setParameter("sessionPurpose", practice.sessionPurpose())
                 .setParameter("faceMosaic", practice.faceMosaic())
+                // 회차를 만드는 요청의 말. 분석이 끝난 뒤 첫 질문을 미리 쓸 때 이 값으로 쓴다(V84, SOMA-946).
+                .setParameter("language", OutputLanguage.current().getLanguage())
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .executeUpdate();
     }

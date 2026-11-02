@@ -215,22 +215,24 @@ test("B 는 첫 화면만 다르고 아래 본문(요약 줄·기능 설명·요
   assert.equal(b.querySelectorAll('img[src*="acty"]').length, 0);
 });
 
-test("B 첫 화면: 같은 제목, 짧은 설명, 주 버튼 하나, 작은 웹 체험 링크, 휴대폰 한 대", () => {
+test("B 첫 화면: 같은 제목, 체험 카드 둘, 스토어 배지, 로그인 링크, 휴대폰 한 대", () => {
   const { container } = renderB();
   const hero = container.querySelector("#hero");
   assert.equal(
     screen.getByRole("heading", { level: 1 }).textContent,
     "내 연기를 같이 봐 줄사람이 없을 때, 액터브",
   );
-  assert.ok(hero.textContent.includes("연기 영상을 올리면 코치가 장면을 보고 질문해요."));
-  // 주 버튼은 하나, 큰 QR 카드·스토어 배지 이미지는 없다(작은 글자 링크만).
-  assert.equal(hero.querySelectorAll('a[data-app-download]:not([data-app-download-store])').length, 1);
-  assert.equal(hero.querySelectorAll('img[alt$="에서 다운로드"]').length, 0);
+  assert.ok(hero.textContent.includes("설치 없이 지금 여기서 해 보세요."));
+  // 앱 설치 버튼 대신 가입 없이 해 보는 카드 둘이 주 버튼이다(SOMA-834 3차).
+  assert.equal(hero.querySelectorAll('a[data-app-download]:not([data-app-download-store])').length, 0);
+  assert.equal(within(hero).getByRole("link", { name: "바로 시작" }).getAttribute("href"), "/reading/try?from=home_card");
+  assert.equal(within(hero).getByRole("link", { name: "영상 올리기" }).getAttribute("href"), "/practice/new?from=home_card");
+  // 앱은 작은 QR 줄(데스크톱)과 스토어 배지(휴대폰)로만 둔다.
   assert.deepEqual(
-    [...hero.querySelectorAll("a[data-app-download-store]")].map((a) => a.textContent),
-    ["App Store", "Google Play"],
+    [...hero.querySelectorAll("a[data-app-download-store]")].map((a) => a.getAttribute("data-app-download-store")),
+    ["app_store", "google_play"],
   );
-  assert.ok(within(hero).getByRole("link", { name: "웹에서 먼저 해 보기 →" }));
+  assert.equal(within(hero).getByRole("link", { name: "로그인" }).getAttribute("href"), "/login");
   assert.ok(!hero.textContent.includes("혼자 연습하는 배우를 위한 AI 코치"));
   // 영상이 아직 없으면 기존 코칭 화면 한 장만 보이고 video 는 만들지 않는다.
   const shots = [...hero.querySelectorAll('img[src*="shot-"]')];
@@ -295,23 +297,17 @@ test("태그가 아직 없어도 오류 없이 지나가고 아무것도 바로 
   assert.equal(events.length, 0);
 });
 
-test("앱 다운로드 버튼·스토어 배지·웹 체험 클릭에 안 이름과 자리가 실린다", () => {
+test("앱 다운로드 버튼·스토어 배지 클릭에 안 이름과 자리가 실린다", () => {
   const { container } = render(react.createElement(LandingClient, { variant: "b" }));
   events.length = 0;
 
-  fireEvent.click(screen.getByRole("link", { name: "앱 열기 · 무료로 설치" }));
   const heroBadge = container.querySelector('a[data-app-download="landing_hero"][data-app-download-store="app_store"]');
   fireEvent.click(heroBadge);
   fireEvent.click(container.querySelector('a[data-app-download="landing_cta"][data-app-download-store="google_play"]'));
-  fireEvent.click(screen.getByRole("link", { name: "웹에서 먼저 해 보기 →" }));
-  fireEvent.click(within(window.document.getElementById("reading")).getByRole("link", { name: "웹에서 해 보기" }));
 
   const rows = events.map(([, name, p]) => [name, p.landing_variant, p.surface, p.store ?? null]);
   assert.deepEqual(rows, [
-    ["app_download_click", "b", "landing_hero", "auto"],
     ["app_download_click", "b", "landing_hero", "app_store"],
     ["app_download_click", "b", "landing_cta", "google_play"],
-    ["web_try_click", "b", "landing_hero", null],
-    ["web_try_click", "b", "landing_reading", null],
   ]);
 });

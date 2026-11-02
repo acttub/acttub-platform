@@ -89,8 +89,10 @@ const serverError = (status: number, code?: string) => new ApiError(status, '서
 
 const RIGHTS = '본인이 촬영·업로드할 권리가 있고, 영상에 나오는 다른 사람의 촬영·처리 동의를 받았으며, 대본·음원·영상의 저작권과 초상권을 침해하지 않습니다.';
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
+  // 권리 체크 기억(SOMA-984)이 테스트 사이에 남지 않게 비운다.
+  await AsyncStorage.clear();
   mockParams = {};
   takePickedVideo();
   setContinueOrigin(null);
@@ -220,6 +222,56 @@ describe('영상을 고르기 전', () => {
       expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai' } }),
     );
     expect(screen.queryByRole('button', { name: '촬영하기' })).not.toBeOnTheScreen();
+  });
+});
+
+describe('첫 코칭(코칭 탭 「처음」에서 옴, SOMA-984)', () => {
+  test('목적을 묻지 않고 영상 고르기부터 열고, 단계 표시가 없다', async () => {
+    mockParams = { first: '1' };
+    await render(<UploadScreen />);
+    expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
+    expect(screen.queryByText('오늘은 어떤 도움이 필요해요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('목적')).not.toBeOnTheScreen();
+  });
+
+  test('영상을 골라도 연습 제목 팝업 없이 기본 목적(평가 받기)으로 시작한다', async () => {
+    mockParams = { first: '1' };
+    await renderWithSavedVideo();
+    await checkRightsAndStart();
+    await waitFor(() => expect(api.createPractice).toHaveBeenCalled());
+    expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen();
+    const body = (api.createPractice as jest.Mock).mock.calls[0][0];
+    expect(body).not.toHaveProperty('title');
+    expect(body).toMatchObject({ video_id: 'v1', blockage: { category: '그 외', detail: '그 외', note: null } });
+  });
+
+  test('영상 없이 뒤로 가면 망설임 페이지를 한 번 열고, 닫으면 영상 고르기에 머물며 다음 뒤로는 화면을 닫는다', async () => {
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    mockParams = { first: '1' };
+    await render(<UploadScreen />);
+    expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
+    expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+  });
+
+  test('한 번 동의하고 시작하면 다음 새 연습은 권리 체크가 켜진 채로 열린다', async () => {
+    const first = await render(<UploadScreen />);
+    await toSourceStep();
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    await first.unmount();
+
+    await renderWithSavedVideo();
+    await checkRightsAndStart();
+    await waitFor(() => expect(api.createPractice).toHaveBeenCalled());
+    await waitFor(async () => expect(await AsyncStorage.getItem('acttub.practice.rightsAgreed:u1')).toBe('1'));
+    await screen.unmount();
+
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await waitFor(() => expect(screen.getByRole('checkbox')).toBeChecked());
   });
 });
 

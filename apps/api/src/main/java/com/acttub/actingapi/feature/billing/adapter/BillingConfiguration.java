@@ -3,9 +3,11 @@ package com.acttub.actingapi.feature.billing.adapter;
 import java.time.Clock;
 import java.time.Instant;
 
+import com.acttub.actingapi.feature.billing.adapter.mail.ResendBillingMailer;
 import com.acttub.actingapi.feature.billing.adapter.toss.TossBillingGateway;
 import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
 import com.acttub.actingapi.feature.billing.app.BillingKeyCipher;
+import com.acttub.actingapi.feature.billing.app.BillingMailer;
 import com.acttub.actingapi.feature.billing.app.BillingRepository;
 import com.acttub.actingapi.feature.billing.app.BillingSettings;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
@@ -73,16 +75,35 @@ class BillingConfiguration {
 
             @Override
             public PgReviewGateway.Approval approve(String billingKey, String customerKey, String orderId, long amount,
-                    String orderName, String idempotencyKey) {
-                return toss.approve(billingKey, customerKey, orderId, amount, orderName, idempotencyKey);
+                    String orderName, String customerEmail, String idempotencyKey) {
+                return toss.approve(billingKey, customerKey, orderId, amount, orderName, customerEmail, idempotencyKey);
             }
         };
     }
 
+    /**
+     * 구독 메일(SOMA-961). {@code BILLING_MAIL_ENABLED=true} 이고 Resend 키가 있을 때만 보낸다. 그 밖에는 아무것도 보내지 않는다.
+     */
+    @Bean
+    @ConditionalOnMissingBean(BillingMailer.class)
+    BillingMailer billingMailer(@Value("${BILLING_MAIL_ENABLED:false}") boolean enabled,
+            @Value("${RESEND_API_KEY:}") String apiKey,
+            @Value("${BILLING_MAIL_FROM:ACTTUB <no-reply@acttub.com>}") String from) {
+        if (!enabled) {
+            return BillingMailer.NONE;
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            LOG.error("billing mail enabled but closed reason=resend_key_missing");
+            return BillingMailer.NONE;
+        }
+        LOG.info("billing mail enabled from={}", from);
+        return new ResendBillingMailer(apiKey.strip(), from.strip());
+    }
+
     @Bean
     SubscriptionService subscriptionService(BillingSettings settings, BillingRepository repository,
-            AppBillingGateway gateway, BillingKeyCipher cipher, Clock clock) {
-        return new SubscriptionService(settings, repository, gateway, cipher, clock);
+            AppBillingGateway gateway, BillingKeyCipher cipher, Clock clock, BillingMailer mailer) {
+        return new SubscriptionService(settings, repository, gateway, cipher, clock, mailer);
     }
 
     @Bean

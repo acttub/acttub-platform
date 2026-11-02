@@ -41,10 +41,11 @@ test('홈 준비 신호는 한 번만 알린다', () => {
   off();
 });
 
-test('홈은 로딩 표시 없이 첫 데이터를 받으면 준비 신호를 보낸다', () => {
+test('홈은 로딩 표시 없이 첫 데이터를 받거나 첫 사용자 홈을 바로 그릴 수 있으면 준비 신호를 보낸다', () => {
   const home = readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(home, /ActivityIndicator/);
-  assert.match(home, /if \(loaded\) markHomeReady\(\)/);
+  // 지난번이 첫 사용자 홈이었으면(lib/skeleton-hint) 받을 것이 없어 기다리지 않는다.
+  assert.match(home, /if \(loaded \|\| showFirstHome\) markHomeReady\(\)/);
   const layout = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
   assert.match(layout, /readyToShow && !holdSplashForHome/);
 });

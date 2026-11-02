@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { Badge } from '@/components/ui/badge';
-import { useFirstTimeUser } from '@/hooks/use-first-time-user';
+import { useFirstTimeTabBarHidden } from '@/hooks/use-first-time-user';
 import { palette } from '@/constants/palette';
 import { shadowOverlay, space, type } from '@/constants/tokens';
 
@@ -70,8 +70,8 @@ export function useTabBarStyle(): ViewStyle {
  */
 export function useTabBarSpace(): number {
   const insets = useSafeAreaInsets();
-  const firstTime = useFirstTimeUser();
-  if (firstTime) return insets.bottom;
+  const hidden = useFirstTimeTabBarHidden();
+  if (hidden) return insets.bottom;
   return IOS ? Math.max(insets.bottom - 14, 12) + IOS_BAR + space[3] : space[2] + ITEM + space[2] + insets.bottom + space[3];
 }
 

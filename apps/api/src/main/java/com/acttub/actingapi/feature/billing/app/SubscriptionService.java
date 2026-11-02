@@ -44,6 +44,7 @@ public class SubscriptionService {
     private final AppBillingGateway gateway;
     private final BillingKeyCipher cipher;
     private final Clock clock;
+    private final BillingMailer mailer;
     private final SecureRandom random = new SecureRandom();
     private static final long TERMS_RECHECK_MILLIS = 60_000L;
     private volatile Instant termsPublishedAt;
@@ -53,6 +54,12 @@ public class SubscriptionService {
 
     public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
             BillingKeyCipher cipher, Clock clock) {
+        this(settings, repository, gateway, cipher, clock, BillingMailer.NONE);
+    }
+
+    public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
+            BillingKeyCipher cipher, Clock clock, BillingMailer mailer) {
+        this.mailer = mailer;
         this.settings = settings;
         this.repository = repository;
         this.gateway = gateway;
@@ -421,6 +428,16 @@ public class SubscriptionService {
         return ask(sub, orderId, now);
     }
 
+    /** 결제내역 메일 주소. 못 읽어도 결제는 막지 않는다. */
+    private String receiptEmail(UUID userId) {
+        try {
+            return repository.email(userId).orElse(null);
+        } catch (RuntimeException e) {
+            LOG.warn("billing_receipt_email_lookup_failed");
+            return null;
+        }
+    }
+
     /** 같은 주문 ID(=멱등 키)로 승인을 요청하고 결과를 기록한다. */
     Charge ask(Subscription sub, String orderId, Instant now) {
         if (sub.sealedBillingKey() == null) {
@@ -430,7 +447,7 @@ public class SubscriptionService {
         PgReviewGateway.Approval approval;
         try {
             approval = gateway.approve(cipher.open(sub.sealedBillingKey()), sub.customerKey(), orderId, sub.amount(),
-                    BillingRules.ORDER_NAME, orderId);
+                    BillingRules.ORDER_NAME, receiptEmail(sub.userId()), orderId);
         } catch (GatewayException e) {
             String code = e.code() != null && GATEWAY_CODE.matcher(e.code()).matches() ? e.code() : "gateway_error";
             if (e.outcome() == GatewayException.Outcome.UNKNOWN) {
@@ -446,7 +463,36 @@ public class SubscriptionService {
             return Charge.UNKNOWN;
         }
         repository.finishPayment(orderId, "done", approval.approvedAt(), null, now);
+        mailPaid(sub, orderId, approval.approvedAt(), now);
         return Charge.DONE;
+    }
+
+    /**
+     * 승인이 막 끝난 결제의 구독 메일을 보낸다(SOMA-961). 같은 주문은 {@link #charge} 가 done 을 먼저 돌려주므로 여기를 한 번만
+     * 지난다. 메일 주소가 없거나 무엇이 실패해도 결제 결과는 그대로다.
+     */
+    private void mailPaid(Subscription sub, String orderId, String approvedAt, Instant now) {
+        try {
+            Optional<String> email = repository.email(sub.userId());
+            Optional<Payment> payment = repository.findPayment(orderId);
+            if (email.isEmpty() || email.get().isBlank() || payment.isEmpty()) {
+                return;
+            }
+            Payment paid = payment.get();
+            Instant paidAt = now;
+            if (approvedAt != null) {
+                try {
+                    paidAt = java.time.OffsetDateTime.parse(approvedAt).toInstant();
+                } catch (java.time.format.DateTimeParseException ignored) {
+                    // 토스 시각 모양이 다르면 서버 시각을 쓴다.
+                }
+            }
+            mailer.paymentDone(new BillingMailer.PaidMail(email.get().strip(), repository.displayName(sub.userId()).orElse(null),
+                    "first".equals(paid.kind()), orderId, paid.amount(), sub.cardCompany(), sub.cardNumber(), paidAt,
+                    paid.periodStart(), paid.periodEnd()));
+        } catch (RuntimeException e) {
+            LOG.warn("billing_mail_prepare_failed order={}", orderId);
+        }
     }
 
     /** 웹 토스 결제가 열려 있는가(BILLING_WEB_ENABLED 와 설정이 모두 맞을 때). */

@@ -19,6 +19,7 @@ type Route = Parameters<ReturnType<typeof useRouter>['replace']>[0];
  * - homework: 그 회차 묶음의 다음 테이크 준비 화면
  * - pending_video: 그 영상을 얹은 새 연습 준비 화면
  * - unread_script: 그 대본의 리딩 준비 화면
+ * - script_ready: 나누기가 끝난 대본의 목소리 정하기(SOMA-960)
  * 대상이 지워졌거나 못 찾으면 홈으로 간다.
  */
 export default function ReminderOpenScreen() {
@@ -60,6 +61,11 @@ async function resolve(kind: ReminderOpenKind, id: string): Promise<string | nul
   if (kind === 'unread_script') {
     const saved = await loadIntoCurrent(id);
     return saved ? '/reading/detail' : null;
+  }
+  if (kind === 'script_ready') {
+    // 나누기 화면에서 바로 넘어갈 때와 같은 다음 단계(목소리 정하기, 저장하면 대본 상세).
+    const saved = await loadIntoCurrent(id);
+    return saved ? '/reading/roles?from=new' : null;
   }
   if (kind === 'pending_video') {
     const video = await api.getVideo(id);

@@ -45,6 +45,20 @@ public final class OutputLanguage {
         return locale == null ? Locale.KOREAN : locale;
     }
 
+    /**
+     * 요청 밖(예약·뒤에서 도는 작업)에서 {@code language} 를 요청의 말로 두고 {@code work} 를 돌린다. 끝나면 원래대로 되돌린다.
+     * 그 안에서 {@link #current()} 는 이 말을 돌려준다 — 프롬프트 고르기·답할 말 지시가 요청 때와 같아진다.
+     */
+    public static void runAs(Locale language, Runnable work) {
+        var previous = LocaleContextHolder.getLocaleContext();
+        LocaleContextHolder.setLocale(language);
+        try {
+            work.run();
+        } finally {
+            LocaleContextHolder.setLocaleContext(previous);
+        }
+    }
+
     /** 지금 요청이 한국어인가. */
     public static boolean isKorean() {
         return "ko".equals(current().getLanguage());

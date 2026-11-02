@@ -68,6 +68,15 @@ export function proVisible(me: BillingMe): boolean {
   return me.app_enabled === true || me.pro;
 }
 
+/**
+ * 홈 맨 위 플랜 표시(SOMA-981). 설정 「ACTTUB Pro」 카드가 보이는 사람에게만 「PRO」·「FREE」를 보인다 — 판정은 서버 pro 그대로.
+ * 아직 못 받았거나 실패하면(null) 아무것도 그리지 않는다. 무료로 잠깐 보였다가 PRO 로 바뀌는 깜빡임을 막기 위해서다.
+ */
+export function homePlan(me: BillingMe | null | undefined): 'pro' | 'free' | null {
+  if (!me || !proVisible(me)) return null;
+  return me.pro ? 'pro' : 'free';
+}
+
 /** 앱 안에서 구매를 시작할 수 있는 자리가 열려 있는가(스토어 결제 2단계가 붙는 자리). */
 export function purchaseOpen(me: BillingMe | null): boolean {
   return me?.app_enabled === true && !me.pro;

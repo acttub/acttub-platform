@@ -2,7 +2,7 @@ import type { KeywordPageContent } from "../../types";
 
 // 특정 학원 이름·가격·순위는 적지 않는다. 학원은 영업·제휴 대상이고, 확인할 수 없는 값은 금방 낡는다.
 export const HOW_TO_CHOOSE_ACTING_ACADEMY: KeywordPageContent = {
-  path: "/guide/how-to-choose-acting-academy",
+  path: "/blog/how-to-choose-acting-academy",
   title: "연기학원 고르는 법 — 상담 때 꼭 물어볼 일곱 가지",
   description:
     "연기학원을 고를 때 광고 대신 확인해야 할 것을 정리했어요. 입시반·성인반·매체반의 차이, 한 반 인원과 개인 발표 빈도, 체험 수업에서 볼 것, 상담 때 물어볼 일곱 가지 질문이에요.",
@@ -129,8 +129,8 @@ export const HOW_TO_CHOOSE_ACTING_ACADEMY: KeywordPageContent = {
   ],
   related: [
     { href: "/acting-coaching", label: "연기 코칭을 받는 다섯 가지 방법" },
-    { href: "/guide/acting-self-study-routine", label: "연기 독학 루틴 — 매일 30분" },
-    { href: "/guide/acting-exam-prep-timeline", label: "연극영화과 입시, 언제 무엇을 준비할까요" },
+    { href: "/blog/acting-self-study-routine", label: "연기 독학 루틴 — 매일 30분" },
+    { href: "/blog/acting-exam-prep-timeline", label: "연극영화과 입시, 언제 무엇을 준비할까요" },
     { href: "/admissions", label: "연극영화과 입시 정보 (대학별 요강)" },
   ],
 };

@@ -15,6 +15,11 @@ test('분석 완료 알림은 그 회차를 연다(SOMA-844)',()=>{
  assert.equal(reminderTarget({kind:'analysis_complete',practice_id:id}),'/coach?practiceId='+id);
  for(const practice_id of [null,'/bad',12]) assert.equal(reminderTarget({kind:'analysis_complete',practice_id}),null);
 });
+test('대본 나누기 완료 알림은 그 대본의 목소리 정하기로 이어 간다(SOMA-960)',()=>{
+ assert.equal(reminderTarget({kind:'script_split_complete',script_id:id2}),`/reminder-open?kind=script_ready&id=${id2}`);
+ for(const script_id of [null,'/bad',12]) assert.equal(reminderTarget({kind:'script_split_complete',script_id}),'/reading');
+ assert.equal(reminderOpenEvent({kind:'script_split_complete',script_id:id2}),null);
+});
 test('연습 알림은 알림이 말한 대상을 연다(SOMA-862)',()=>{
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'homework',practice_id:id}),`/reminder-open?kind=homework&id=${id}`);
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'pending_video',video_id:id2}),`/reminder-open?kind=pending_video&id=${id2}`);

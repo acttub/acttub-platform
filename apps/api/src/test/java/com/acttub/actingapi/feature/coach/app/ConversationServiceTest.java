@@ -46,6 +46,11 @@ class ConversationServiceTest {
         @Override public void delta(String text) { streamed.add(text); }
     };
 
+    {
+        // 회차를 만든 요청의 말(V84). 따로 정하지 않은 시험은 한국어 기기에서 만든 회차다.
+        when(conversations.practiceLanguage(user, practice)).thenReturn("ko");
+    }
+
     ConversationService service(ConversationClosedListener closed) {
         return new ConversationService(conversations, coach, notes, clock, closed, profiles, memory, failures);
     }
@@ -290,6 +295,37 @@ class ConversationServiceTest {
         service.prewriteStart(user, practice);
         service.prewriteStart(null, practice);
         service.prewriteStart(user, null);
+        verify(conversations, never()).open(any(), any(), any());
+        verify(coach, never()).start(any(), any());
+    }
+
+    // SOMA-946: 미리 쓰기는 요청 밖에서 돌아 말을 모른다. 회차를 만든 요청의 말로 쓴다.
+    @Test void thePrewriteWritesInTheLanguageThePracticeWasCreatedIn() {
+        CoachSessionSnapshot empty = session("open", "legacy", null);
+        when(conversations.practiceLanguage(user, practice)).thenReturn("en");
+        when(conversations.loadByPractice(user, practice)).thenReturn(new Loaded(practice, null, "conversing", empty));
+        when(conversations.open(eq(practice), any(), any())).thenReturn(conversation);
+        when(conversations.loadByConversation(user, conversation)).thenReturn(new Loaded(practice, conversation, "conversing", empty));
+        var seen = new java.util.concurrent.atomic.AtomicReference<java.util.Locale>();
+        when(coach.start(any(), eq(conversation))).thenAnswer(call -> {
+            seen.set(com.acttub.actingapi.platform.web.OutputLanguage.current());
+            return result(empty, "What did he want from her?", "open", null);
+        });
+
+        service(listener).prewriteStart(user, practice);
+
+        assertThat(seen.get().getLanguage()).as("영어 기기로 만든 회차는 영어로 첫 질문을 쓴다").isEqualTo("en");
+        assertThat(com.acttub.actingapi.platform.web.OutputLanguage.isKorean()).as("끝나면 말을 원래대로 되돌린다").isTrue();
+        verify(conversations).saveOpening(eq(conversation), eq("What did he want from her?"), any(), any(), any());
+    }
+
+    @Test void thePrewriteLeavesAPracticeWithoutAKnownLanguageToTheApp() {
+        when(conversations.practiceLanguage(user, practice)).thenReturn(null);
+        when(conversations.loadByPractice(user, practice))
+                .thenReturn(new Loaded(practice, null, "conversing", session("open", "legacy", null)));
+
+        service(listener).prewriteStart(user, practice);
+
         verify(conversations, never()).open(any(), any(), any());
         verify(coach, never()).start(any(), any());
     }

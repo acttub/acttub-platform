@@ -1145,7 +1145,8 @@ public final class DirectVideoCoach {
         var loopState = session.coachingState() == null ? null : session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY);
         int coachTurns = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         var before = PracticeLoopRouter.before(loopState, coachTurns);
-        var classified = PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
+        var classified = PracticeLoopRouter.unsureAfterWrap(
+                PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before), before, actorText);
         String design = loopState == null ? "" : loopState.path("design").asText("");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
         String doing = PracticeLoopRouter.route(classified, before, stayed, flow,
@@ -1384,6 +1385,13 @@ public final class DirectVideoCoach {
         // SOMA-955: 방법을 물어 답하기로 왔으면 방법만 말하고 끝낸다. 10/31 재생: 방법 끝에 "상대가 미안해하는 표정이었을까요?"를 붙여 배우가 또 물었다.
         if (evidence && classified.kind() == PracticeLoopRouter.Kind.METHOD && "답하기".equals(doing)) {
             lines.add("배우가 방법을 물었다. 이번 할 일의 모양보다 이 줄이 먼저다. 마음가짐이 아니라 할 행동 하나와, 그 행동이 어느 대사에서 어떻게 드러날지(어디서 쉬는지, 누구를 보는지, 빨라지는지 느려지는지, 말끝) 하나를 \"예를 들면 ~는 식이에요\"로 말한다. 질문으로 끝내지 않는다. \"살피며\", \"확인하며\"는 쓰지 않는다");
+        }
+        // SOMA-969: 정리 뒤 「잘 모르겠어요」를 닫지 않고 받을 때, 같은 제안을 되풀이하지 않고 하는 방법을 준다(11/1 재생: 같은 제안만 두 번 나왔다).
+        if (classified.kind() == PracticeLoopRouter.Kind.METHOD && before.lastDoing().startsWith(PracticeLoopRouter.WRAP_UP)
+                && com.acttub.actingapi.feature.coach.domain.CoachHelpIntent.isUnsure(actorText == null ? "" : actorText)) {
+            lines.add("배우가 방금 정리를 듣고 잘 모르겠다고 했다. 이 줄이 할 일의 모양보다 먼저다. 정리의 제안을 같은 말로 되풀이하지 않는다. "
+                    + "그 제안을 혼자 찍을 때 실제로 어떻게 하는지 방법 하나를 구체적으로 준다(예: \"렌즈 바로 옆에 그 사람 얼굴이 있다고 정해 두고, "
+                    + "대사 끝마다 그 얼굴이 굳는지 풀리는지 떠올리며 다음 말로 가요\"). 질문하지 않는다");
         }
         if (classified.kind() == PracticeLoopRouter.Kind.METHOD && PracticeLoopRouter.GAP.equals(doing)) {
             lines.add("배우가 방법을 물었다. 방법을 말하기 전에, 무엇을 고쳐야 하는지부터 이번 단계로 보여 준다. 다음 질문에서 배우가 방법을 함께 찾는다");

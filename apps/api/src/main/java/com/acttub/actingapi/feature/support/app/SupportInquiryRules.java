@@ -9,7 +9,7 @@ public final class SupportInquiryRules {
     }
 
     public static final List<String> CATEGORIES =
-            List.of("account", "billing", "refund", "usage", "bug", "report", "other");
+            List.of("account", "billing", "refund", "usage", "bug", "report", "other", "feedback");
     public static final Set<String> STATUSES = Set.of("open", "closed");
     public static final int EMAIL_MAX_CHARS = 254;
     public static final int BODY_MIN_CHARS = 10;
@@ -26,6 +26,19 @@ public final class SupportInquiryRules {
     /** 앞뒤 공백을 걷어 낸다. */
     public static String normalize(String raw) {
         return raw == null ? null : raw.strip();
+    }
+
+    /** 내 문의 목록에서 보여 줄 첫 줄 요약의 길이. */
+    public static final int SUMMARY_CHARS = 40;
+    public static final int MINE_LIMIT = 20;
+
+    /** 줄바꿈과 겹친 공백을 한 칸으로 줄여 앞 40자만 남기고, 잘렸으면 말줄임표를 붙인다. */
+    public static String summarize(String body) {
+        String flat = body.strip().replaceAll("\\s+", " ");
+        if (length(flat) <= SUMMARY_CHARS) {
+            return flat;
+        }
+        return flat.substring(0, flat.offsetByCodePoints(0, SUMMARY_CHARS)) + "…";
     }
 
     public static int length(String text) {

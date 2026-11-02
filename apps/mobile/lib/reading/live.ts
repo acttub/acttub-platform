@@ -11,7 +11,7 @@ import { isHidden, progressOf, type RunState } from './session-run.ts';
 import type { ScriptScene } from './types.ts';
 
 /** 차례 칩(화면의 지금 줄 위 작은 표시)의 아이콘과 글. bars 는 듣는 중 막대. */
-export type TurnChip = { icon: 'volume-2' | 'pause' | 'book-open' | 'check' | 'mic-off' | 'bars' | 'mic'; label: string };
+export type TurnChip = { icon: 'volume-2' | 'pause' | 'book-open' | 'check' | 'mic-off' | 'bars' | 'mic' | 'clock'; label: string };
 
 export function turnChip(input: {
   hold: 'tip' | 'mask_sheet' | 'guide' | null;
@@ -23,6 +23,8 @@ export function turnChip(input: {
   turnDone: boolean;
   turnNote: null | 'silence' | 'limit';
   listening: boolean;
+  /** 핸즈프리(SOMA-954) — 내 차례에 마이크 없이 쉬고 넘어간다. */
+  handsFree?: boolean;
 }): TurnChip {
   if (input.hold === 'tip') return { icon: 'volume-2', label: t('reading.chipBeforeStart') };
   if (input.paused) return { icon: 'pause', label: t(input.interrupted ? 'reading.interruptedChip' : 'reading.pause') };
@@ -31,6 +33,7 @@ export function turnChip(input: {
   }
   if (input.turnDone && input.turnNote !== 'limit') return { icon: 'check', label: t('reading.spokenDone') };
   if (input.hold === 'mask_sheet' || input.hold === 'guide') return { icon: 'pause', label: t('reading.chipHold') };
+  if (input.handsFree) return { icon: 'clock', label: t('reading.chipHandsFree') };
   if (input.turnNote === 'limit') return { icon: 'mic-off', label: t('reading.chipLimit') };
   if (input.listening) return { icon: 'bars', label: t('reading.listening') };
   return { icon: 'mic', label: t('reading.chipMicOpening') };

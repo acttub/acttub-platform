@@ -1,7 +1,7 @@
 import type { KeywordPageContent } from "../../types";
 
 export const REVIEWING_YOUR_ACTING_VIDEO: KeywordPageContent = {
-  path: "/guide/reviewing-your-acting-video",
+  path: "/blog/reviewing-your-acting-video",
   title: "내 연기 영상 다시 보는 법 — 어색함만 보이는 복기에서 벗어나기",
   description:
     "찍어 둔 연기 영상을 연습으로 바꾸는 복기 방법이에요. 왜 내 영상은 보기 힘든지, 언제 어떻게 봐야 하는지, 인상 대신 관찰을 적는 법, 관찰을 질문으로 바꾸는 법, 다음 테이크 한 문장을 남기는 법을 정리했어요.",
@@ -160,8 +160,8 @@ export const REVIEWING_YOUR_ACTING_VIDEO: KeywordPageContent = {
   ],
   related: [
     { href: "/ai-acting-coaching", label: "AI 연기 코칭이 뭔가요?" },
-    { href: "/guide/monologue-practice", label: "독백 연습 혼자 하는 법" },
-    { href: "/guide/acting-self-study-routine", label: "연기 독학 루틴 — 매일 30분" },
-    { href: "/guide/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
+    { href: "/blog/monologue-practice", label: "독백 연습 혼자 하는 법" },
+    { href: "/blog/acting-self-study-routine", label: "연기 독학 루틴 — 매일 30분" },
+    { href: "/blog/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
   ],
 };

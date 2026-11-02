@@ -17,9 +17,9 @@ final class SupportInquiryDtos {
 
     @Schema(name = "SupportInquiryRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record SupportInquiryRequest(
-            @NotNull @Pattern(regexp = "account|billing|refund|usage|bug|report|other")
+            @NotNull @Pattern(regexp = "account|billing|refund|usage|bug|report|other|feedback")
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Category",
-                    allowableValues = {"account", "billing", "refund", "usage", "bug", "report", "other"})
+                    allowableValues = {"account", "billing", "refund", "usage", "bug", "report", "other", "feedback"})
             String category,
             @NotNull @Size(max = SupportInquiryRules.EMAIL_MAX_CHARS + 200)
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Email",
@@ -29,6 +29,21 @@ final class SupportInquiryDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Body",
                     description = "공백을 걷어 낸 뒤 10~3000 유니코드 코드 포인트.")
             String body) {
+    }
+
+    @Schema(name = "MySupportInquiryList", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record MySupportInquiryList(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) java.util.List<MySupportInquiry> items) {
+    }
+
+    @Schema(name = "MySupportInquiry", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record MySupportInquiry(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Id") UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Category") String category,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Summary", description = "본문 앞 40자.") String summary,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Status", allowableValues = {"open", "closed"},
+                    description = "표에 있는 값 그대로다. 답변 상태는 따로 저장하지 않는다.") String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Created At")
+            @JsonProperty("created_at") Instant createdAt) {
     }
 
     @Schema(name = "SupportInquiryResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

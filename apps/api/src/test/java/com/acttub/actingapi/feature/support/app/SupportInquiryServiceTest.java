@@ -26,6 +26,11 @@ class SupportInquiryServiceTest {
                 }
 
                 @Override
+                public List<Inquiry> listByUser(UUID userId, int limit) {
+                    return List.of();
+                }
+
+                @Override
                 public List<Inquiry> list(String status, int limit) {
                     return List.of();
                 }
@@ -84,5 +89,14 @@ class SupportInquiryServiceTest {
         assertThatThrownBy(() -> service.submit("bug", "a@b.co", "문의 본문입니다 " + "Z\u0325\u031c\u0318\u0316\u0323x", null, null))
                 .isInstanceOf(com.acttub.actingapi.platform.web.ApiException.class)
                 .hasMessageContaining("unreadable_text");
+    }
+
+    @Test
+    @DisplayName("내 문의 요약은 공백을 한 칸으로 줄여 앞 40자만 남긴다")
+    void summarizesBodyForMyList() {
+        assertThat(SupportInquiryRules.summarize("  환불은\n어떻게   하나요?  ")).isEqualTo("환불은 어떻게 하나요?");
+        String summary = SupportInquiryRules.summarize("가".repeat(41));
+        assertThat(summary).isEqualTo("가".repeat(40) + "…");
+        assertThat(SupportInquiryRules.summarize("가".repeat(40))).isEqualTo("가".repeat(40));
     }
 }
