@@ -500,6 +500,108 @@ class CloudVoiceServiceTest {
                 Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
     }
 
+    // ── SOMA-1000: 지금 읽는 줄보다 너무 앞선 줄은 읽는 사람이 다가올 때까지 만들지 않는다 ──
+
+    /** 요청한 줄이 지금 줄에서 몇 줄 앞인지를 차례로 돌려주는 가짜. 마지막 값은 계속 돌려준다. */
+    private static UpcomingVoiceLines aheadSequence(List<UpcomingVoiceLines.Line> next, Integer... aheads) {
+        java.util.concurrent.atomic.AtomicInteger at = new java.util.concurrent.atomic.AtomicInteger();
+        return new UpcomingVoiceLines() {
+            @Override
+            public List<Line> after(UUID userId, UUID sessionId, String text, String preset, int count) {
+                return next;
+            }
+
+            @Override
+            public Integer ahead(UUID userId, UUID sessionId, String text, String preset) {
+                return aheads[Math.min(at.getAndIncrement(), aheads.length - 1)];
+            }
+        };
+    }
+
+    @Test
+    void lineWithinTenOfTheReaderIsMadeAtOnce() {
+        repository.consent = "granted";
+        List<Long> slept = new CopyOnWriteArrayList<>();
+        var service = withUpcoming(aheadSequence(List.of(), CloudVoiceService.MAX_AHEAD_LINES), Runnable::run).pausingWith(slept::add);
+        var result = service.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        assertThat(result.cached()).isFalse();
+        assertThat(slept).isEmpty();
+        assertThat(asked).containsExactly("하나");
+    }
+
+    @Test
+    void lineFarAheadWaitsUntilTheReaderComesCloser() {
+        repository.consent = "granted";
+        List<Long> slept = new CopyOnWriteArrayList<>();
+        var service = withUpcoming(aheadSequence(List.of(), 14, 12, 10), Runnable::run).pausingWith(slept::add);
+        service.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        assertThat(slept).containsExactly(1_000L, 1_000L);
+        assertThat(asked).containsExactly("하나");
+        assertThat(repository.increments).isEqualTo(1);
+    }
+
+    @Test
+    void lineThatStaysFarAheadIsRejectedWithoutMakingIt() {
+        repository.consent = "granted";
+        List<Long> slept = new CopyOnWriteArrayList<>();
+        var service = withUpcoming(aheadSequence(List.of(), 30), Runnable::run).pausingWith(slept::add);
+        assertThatThrownBy(() -> service.synthesize(USER, "하나", "F1", UUID.randomUUID()))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status()).isEqualTo(409);
+                    assertThat(error.getMessage()).isEqualTo("cloud_voice_too_far_ahead");
+                });
+        assertThat(slept).hasSize((int) (CloudVoiceService.HOLD_MILLIS / CloudVoiceService.HOLD_POLL_MILLIS));
+        assertThat(asked).isEmpty();
+        assertThat(repository.increments).isZero();
+    }
+
+    @Test
+    void savedLineIsGivenRightAwayEvenFarAhead() {
+        repository.consent = "granted";
+        var maker = withUpcoming(UpcomingVoiceLines.NONE, Runnable::run);
+        maker.synthesize(USER, "하나", "F1");
+        List<Long> slept = new CopyOnWriteArrayList<>();
+        var service = withUpcoming(aheadSequence(List.of(), 30), Runnable::run).pausingWith(slept::add);
+        var result = service.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        assertThat(result.cached()).isTrue();
+        assertThat(slept).isEmpty();
+    }
+
+    @Test
+    void unknownPositionOrNoSessionIsNotHeld() {
+        repository.consent = "granted";
+        List<Long> slept = new CopyOnWriteArrayList<>();
+        var unknown = withUpcoming(aheadSequence(List.of(), (Integer) null), Runnable::run).pausingWith(slept::add);
+        unknown.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        var failing = withUpcoming(new UpcomingVoiceLines() {
+            @Override
+            public List<Line> after(UUID userId, UUID sessionId, String text, String preset, int count) {
+                return List.of();
+            }
+
+            @Override
+            public Integer ahead(UUID userId, UUID sessionId, String text, String preset) {
+                throw new IllegalStateException("db down");
+            }
+        }, Runnable::run).pausingWith(slept::add);
+        failing.synthesize(USER, "둘", "F1", UUID.randomUUID());
+        var noSession = withUpcoming(aheadSequence(List.of(), 30), Runnable::run).pausingWith(slept::add);
+        noSession.synthesize(USER, "셋", "F1");
+        assertThat(slept).isEmpty();
+        assertThat(asked).containsExactly("하나", "둘", "셋");
+    }
+
+    @Test
+    void lookaheadStopsAtTheTenLineWindow() {
+        repository.consent = "granted";
+        List<UpcomingVoiceLines.Line> next = List.of(new UpcomingVoiceLines.Line("둘", "M1"),
+                new UpcomingVoiceLines.Line("셋", "M1"), new UpcomingVoiceLines.Line("넷", "M1"));
+        // 요청한 줄이 9줄 앞이면 다음 줄(10줄 앞)까지만 미리 만든다.
+        var service = withUpcoming(aheadSequence(next, 9), Runnable::run).pausingWith(millis -> {});
+        service.synthesize(USER, "하나", "F1", UUID.randomUUID());
+        assertThat(asked).containsExactly("하나", "둘");
+    }
+
     private void assertDetail(CloudVoiceService target, int status, String detail) {
         assertThatThrownBy(() -> target.synthesize(USER, "hello", "F1"))
                 .isInstanceOfSatisfying(ApiException.class, error -> {

@@ -26,7 +26,7 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원), 선택 쿼리 `session_id`(리딩 회차) 또는 `script_id`(대본). 둘 다 있으면 회차가 먼저 | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 왜 쓸 수 있는지(`reason`: `free_period`·`pro`·`first_reading`, 못 쓰면 null), 설정·한도는 괜찮은데 Pro 전용이라 못 쓰는지(`pro_only`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 호환 필드 daily_limit·daily_used(일반은 오늘, Pro는 이번 달)의 한도·사용량 | 게스트 `member_only` 403 |
-| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5), 선택 `session_id`(리딩 회차) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_monthly_limit` 429, `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
+| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5), 선택 `session_id`(리딩 회차) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_monthly_limit` 429, `cloud_voice_too_far_ahead` 409(`session_id` 회차의 지금 줄보다 상대 대사 10줄 넘게 앞선 새 줄, 최대 20초 기다린 뒤), `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
 
 ## 상태
 없음. 캐시는 문장마다 한 번 만들고 사용량은 회원·한국 날짜마다 센 줄 수다.
@@ -47,6 +47,7 @@
 - 서버는 같은 모델·목소리·문장의 음성을 캐시한다. 적중하면 새로 만들지 않고 세지 않으며, 하루 한도를 넘은 뒤에도 준다.
   캐시는 사용자와 연결하지 않는다.
 - Pro는 **계정당 한국 달력 월 새 합성 10,000줄**이다(SOMA-949, 10/30 결정). 별도 일일 제한은 없고 서비스 전체 월 75,000줄로 차단하지 않는다.
+- 미리 만들기 창(SOMA-1000): 앱은 고품질 목소리일 때 지금 줄부터 상대 대사 5줄만 미리 요청한다. 서버는 `session_id`가 있는 새 줄 요청이 그 회차의 `current_line_id`보다 상대 대사 10줄 넘게 앞서면 1초마다 위치를 보며 최대 20초 기다리고, 끝내 멀면 `cloud_voice_too_far_ahead` 409로 거절한다. 저장본은 바로 주고, 회차·줄·위치를 모르면 막지 않는다. 서버의 3줄 미리 만들기도 이 창 안에서만 만든다.
   월은 Asia/Seoul 기준 매월 1일 00:00에 바뀐다. 결제 주기나 최근 30일 기준이 아니다. 같은 계정의 이번 달 성공 사용량을 합산하므로
   Pro 전환 전 이번 달 사용량도 포함한다. 10,000번째 줄은 허용하고 다음 새 합성은 429 cloud_voice_monthly_limit이다.
 - 일반 계정의 무료 기간·대본별 첫 리딩에는 기존 일 300줄과 서비스 전체 월 75,000줄 제한을 유지한다. 무료·첫 리딩 정책 자체는 바꾸지 않는다.

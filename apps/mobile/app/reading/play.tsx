@@ -93,6 +93,7 @@ import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/r
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
+import { aheadWindow } from '@/lib/reading/tts/ahead-window';
 import { currentVad, type VadEvent } from '@/lib/reading/vad';
 import { formatMegabytes, modelDownloadPrompt } from '@/lib/reading/voice-policy';
 import {
@@ -380,8 +381,10 @@ export default function ReadingPlay() {
       // 서버가 이 회차가 무료 첫 리딩인지 가리도록 회차 번호를 함께 보낸다(SOMA-917).
       synthesizeCloud: (text, scriptId, preset, lang) => synthesizeCloudSpeech(text, scriptId, preset, lang, session?.id),
     });
-    const upcoming = config.lines.slice(from, config.endIndex + 1)
-      .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role))
+    const partners = config.lines.slice(from, config.endIndex + 1)
+      .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role));
+    // 고품질 목소리는 지금 줄부터 몇 줄만 미리 만든다 — 줄이 바뀔 때마다 다시 불러 창이 따라간다(SOMA-1000).
+    const upcoming = aheadWindow(partners, engineRef.current === 'cloud')
       .flatMap((line) => speechParts(line).map((part) => ({ text: speakableText(part.text), preset: presetFor(line.role), lang: part.lang })))
       // 「...」처럼 소리 낼 글자가 없는 줄은 목소리를 만들지 않는다(SOMA-962).
       .filter((part) => !isWordless(part.text));

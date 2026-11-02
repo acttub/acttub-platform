@@ -542,6 +542,8 @@ class ErrorContractInventoryTest {
                     "feature.reading.app.CloudVoiceServiceTest"),
             covered("feature.reading.app.CloudVoiceService|403|cloud_voice_consent_required", 1,
                     "feature.reading.app.CloudVoiceServiceTest"),
+            covered("feature.reading.app.CloudVoiceService|409|cloud_voice_too_far_ahead", 1,
+                    "feature.reading.app.CloudVoiceServiceTest"),
             covered("feature.reading.app.CloudVoiceService|429|cloud_voice_daily_limit", 1,
                     "feature.reading.app.CloudVoiceServiceTest"),
             covered("feature.reading.app.CloudVoiceService|429|cloud_voice_monthly_limit", 2,

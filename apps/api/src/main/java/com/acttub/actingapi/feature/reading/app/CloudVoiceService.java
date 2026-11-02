@@ -59,6 +59,20 @@ public final class CloudVoiceService {
      * 띄우면 잊는다(그 뒤 첫 요청만 한도를 다시 본다). 월 한도는 이와 상관없이 지킨다.
      */
     private final Map<UUID, LocalDate> voicedSessions = new ConcurrentHashMap<>();
+    /** 읽는 사람을 기다리는 동안 쉬는 방법(SOMA-1000). 시험에서만 바꾼다. */
+    private Pause pause = Thread::sleep;
+
+    /** 기다리는 동안 쉬기. {@link Thread#sleep(long)} 과 같다. */
+    @FunctionalInterface
+    interface Pause {
+        void sleep(long millis) throws InterruptedException;
+    }
+
+    /** 시험용 — 기다리는 동안 실제로 자지 않게 한다. */
+    CloudVoiceService pausingWith(Pause pause) {
+        this.pause = pause;
+        return this;
+    }
 
     public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
             VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock) {
@@ -114,6 +128,10 @@ public final class CloudVoiceService {
         if (!"granted".equals(repository.consent(userId))) throw new ApiException(403, "cloud_voice_consent_required");
         String hash = hash(settings.model(), voice, text);
         CacheEntry cached = repository.findCache(hash);
+        // 지금 읽는 줄보다 너무 앞선 줄은 읽는 사람이 다가올 때까지 만들지 않는다(SOMA-1000). 기다린 사이 다른 요청이 만들었을 수 있다.
+        if (cached == null && !making.containsKey(hash) && waitForReader(userId, sessionId, text, preset)) {
+            cached = repository.findCache(hash);
+        }
         Result result;
         if (cached != null) {
             try {
@@ -216,6 +234,44 @@ public final class CloudVoiceService {
     static final int LOOKAHEAD_LINES = 3;
 
     /**
+     * 지금 읽는 줄에서 상대 대사 몇 줄 앞까지 만들어 주는지(SOMA-1000). 1.1.0 앱은 리딩을 시작하면 구간 끝까지 상대 대사를
+     * 쉬지 않고 요청해, 금방 나가도 수백 줄이 만들어졌다. 새 줄은 중간값 2.5초에 만들어지고 한 줄 재생은 5~6초라 이 정도면 끊기지 않는다.
+     */
+    static final int MAX_AHEAD_LINES = 10;
+    /** 너무 앞선 요청을 붙들고 읽는 위치가 따라오길 기다리는 최대 시간. 앱 요청 제한(30초)보다 짧다. */
+    static final long HOLD_MILLIS = 20_000;
+    static final long HOLD_POLL_MILLIS = 1_000;
+
+    /**
+     * 요청한 줄이 지금 읽는 줄보다 {@link #MAX_AHEAD_LINES}줄 넘게 앞서면 위치가 따라올 때까지 기다린다(SOMA-1000). 1.1.0 앱은 한 줄씩
+     * 차례로 요청하므로, 붙들고 있는 동안 앱의 미리 만들기도 멈춘다. 읽는 사람이 다가오면 평소처럼 만들고, 끝내 멀면(나갔거나 멈췄다)
+     * 409 로 거절한다 — 앱은 그 줄에 오면 다시 요청한다. 회차·줄을 모르거나 위치를 읽지 못하면 막지 않는다.
+     *
+     * @return 기다렸으면 {@code true}
+     */
+    private boolean waitForReader(UUID userId, UUID sessionId, String text, String preset) {
+        if (sessionId == null || upcoming == UpcomingVoiceLines.NONE) return false;
+        long waited = 0;
+        while (true) {
+            Integer ahead;
+            try {
+                ahead = upcoming.ahead(userId, sessionId, text, preset);
+            } catch (RuntimeException error) {
+                return waited > 0;
+            }
+            if (ahead == null || ahead <= MAX_AHEAD_LINES) return waited > 0;
+            if (waited >= HOLD_MILLIS) throw new ApiException(409, "cloud_voice_too_far_ahead");
+            try {
+                pause.sleep(HOLD_POLL_MILLIS);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw unavailable(error);
+            }
+            waited += HOLD_POLL_MILLIS;
+        }
+    }
+
+    /**
      * 회차에서 이 줄 다음에 나올 상대 대사 {@link #LOOKAHEAD_LINES}줄을 뒤에서 동시에 만들어 둔다(SOMA-949). 1.1.0 앱은 한 줄씩
      * 차례로 요청해서 상대 대사가 이어지거나 빨리 넘기면 준비가 늦었다 — 서버가 앞서 만들어 두면 다음 요청은 저장본을 바로 받는다.
      * 응답을 늦추지 않고, 실패해도 아무 영향이 없다(그 줄은 앱이 요청할 때 평소처럼 만든다). 사용 조건·하루 한도는 앱 요청과 같다.
@@ -226,6 +282,11 @@ public final class CloudVoiceService {
             background.execute(() -> {
                 try {
                     List<UpcomingVoiceLines.Line> next = upcoming.after(userId, sessionId, text, preset, LOOKAHEAD_LINES);
+                    // 지금 읽는 줄에서 MAX_AHEAD_LINES줄 안쪽만 미리 만든다(SOMA-1000). 다음 줄들은 요청한 줄 바로 뒤로 이어진다.
+                    if (!next.isEmpty()) {
+                        Integer ahead = upcoming.ahead(userId, sessionId, text, preset);
+                        if (ahead != null) next = next.subList(0, Math.max(0, Math.min(next.size(), MAX_AHEAD_LINES - ahead)));
+                    }
                     if (next.isEmpty() || !access(userId, null, sessionId, plan.pro(userId)).available()) return;
                     for (UpcomingVoiceLines.Line line : next) background.execute(() -> prepare(userId, sessionId, line));
                 } catch (RuntimeException ignored) {
