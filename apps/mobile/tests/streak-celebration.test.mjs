@@ -90,3 +90,26 @@ test('오늘 연습해서 늘었으면 축하한다', () => {
     remember: 4,
   });
 });
+
+// 11/2 폰 QA — 오프라인으로 켠 홈이 연속일 0 을 기억하고, 연결된 뒤 같은 날 불꽃 축하가 또 떴다.
+test('기록을 다 못 받은 진입은 축하도 기억도 하지 않는다', () => {
+  assert.deepEqual(
+    streakCelebrationStep({ loaded: true, lastSeen: 1, current: 0, practicedToday: false, failed: true }),
+    { celebrate: false, remember: null },
+  );
+});
+
+test('같은 날 본 값보다 작게 세면 기억을 낮추지 않아, 다시 1 이 와도 축하하지 않는다', () => {
+  const day = '2026-11-02';
+  const dip = streakCelebrationStep({ loaded: true, lastSeen: 1, current: 0, practicedToday: false, lastSeenDay: day, today: day });
+  assert.deepEqual(dip, { celebrate: false, remember: null });
+  const back = streakCelebrationStep({ loaded: true, lastSeen: 1, current: 1, practicedToday: true, lastSeenDay: day, today: day });
+  assert.equal(back.celebrate, false);
+});
+
+test('날이 바뀌면 끊긴 연속을 그대로 적고, 그날 다시 연습하면 축하한다', () => {
+  const broke = streakCelebrationStep({ loaded: true, lastSeen: 5, current: 0, practicedToday: false, lastSeenDay: '2026-11-01', today: '2026-11-03' });
+  assert.deepEqual(broke, { celebrate: false, remember: 0 });
+  const again = streakCelebrationStep({ loaded: true, lastSeen: 0, current: 1, practicedToday: true, lastSeenDay: '2026-11-03', today: '2026-11-03' });
+  assert.equal(again.celebrate, true);
+});

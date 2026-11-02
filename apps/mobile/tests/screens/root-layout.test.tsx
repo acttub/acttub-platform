@@ -497,7 +497,9 @@ describe('푸시를 누르면', () => {
     await renderLayout();
     const id = '12345678-1234-1234-1234-123456789abc';
     pushListener?.({ kind: 'evening_reminder', reminder_kind: 'unread_script', script_id: id, template_id: 'unread.a' });
-    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=unread_script&id=${id}`);
+    // 홈을 아래에 깔고 그 위에 올린다 — 뒤로가기가 앱을 닫지 않는다(11/2 폰 QA).
+    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.push).toHaveBeenCalledWith(`/reminder-open?kind=unread_script&id=${id}`);
     expect(logEvent).toHaveBeenCalledWith('reminder_open', { reminder_kind: 'unread_script', template_id: 'unread.a', target: 'resolve' });
   });
 
@@ -530,14 +532,14 @@ describe('꺼진 앱을 푸시로 열면', () => {
     (takeColdStartPushTap as jest.Mock).mockResolvedValue(SPLIT);
     await renderLayout();
     expect(takeColdStartPushTap).toHaveBeenCalledTimes(1);
-    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
-    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`);
+    expect(mockRouter.replace.mock.calls).toEqual([['/(tabs)']]);
+    expect(mockRouter.push.mock.calls).toEqual([[`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`]]);
   });
 
   test('연습 알림 푸시는 그 숙제를 찾아 여는 화면으로 가고 누른 것을 남긴다', async () => {
     (takeColdStartPushTap as jest.Mock).mockResolvedValue(HOMEWORK);
     await renderLayout();
-    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=homework&id=${PRACTICE_ID}`);
+    expect(mockRouter.push).toHaveBeenCalledWith(`/reminder-open?kind=homework&id=${PRACTICE_ID}`);
     expect(logEvent).toHaveBeenCalledWith('reminder_open', { reminder_kind: 'homework', template_id: 'hw.a', target: 'resolve' });
   });
 
@@ -546,7 +548,7 @@ describe('꺼진 앱을 푸시로 열면', () => {
     auth = signedIn({ status: 'signedOut', user: null });
     const view = await renderLayout();
     expect(mockRouter.replace).toHaveBeenCalledWith('/login');
-    expect(mockRouter.replace).not.toHaveBeenCalledWith(expect.stringContaining('/reminder-open'));
+    expect(mockRouter.push).not.toHaveBeenCalledWith(expect.stringContaining('/reminder-open'));
 
     mockNav.segments = ['login'];
     mockRouter.replace.mockClear();
@@ -554,7 +556,8 @@ describe('꺼진 앱을 푸시로 열면', () => {
     expect(mockRouter.replace).not.toHaveBeenCalled();
 
     await update({ profile: { status: 'complete' } }, view);
-    expect(mockRouter.replace.mock.calls).toEqual([['/(tabs)'], [`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`]]);
+    expect(mockRouter.replace.mock.calls).toEqual([['/(tabs)'], ['/(tabs)']]);
+    expect(mockRouter.push.mock.calls).toEqual([[`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`]]);
 
     mockNav.segments = ['reminder-open'];
     mockRouter.replace.mockClear();
@@ -566,7 +569,8 @@ describe('꺼진 앱을 푸시로 열면', () => {
     (takeColdStartPushTap as jest.Mock).mockResolvedValue(HOMEWORK);
     loadForOwner.mockResolvedValue({ key: 'k1', record: { practice_id: 'p1' } });
     await renderLayout();
-    expect(mockRouter.replace).toHaveBeenLastCalledWith(`/reminder-open?kind=homework&id=${PRACTICE_ID}`);
+    expect(mockRouter.replace).toHaveBeenLastCalledWith('/(tabs)');
+    expect(mockRouter.push).toHaveBeenLastCalledWith(`/reminder-open?kind=homework&id=${PRACTICE_ID}`);
   });
 
   test('켜진 앱의 탭도 게이트가 끝나기 전이면 기다렸다가 연다', async () => {
@@ -576,7 +580,7 @@ describe('꺼진 앱을 푸시로 열면', () => {
     expect(mockRouter.replace).not.toHaveBeenCalled();
 
     await update({ profile: { status: 'complete' } }, view);
-    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`);
+    expect(mockRouter.push).toHaveBeenCalledWith(`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`);
   });
 
   test('푸시 없이 열면 아무 화면도 옮기지 않는다', async () => {

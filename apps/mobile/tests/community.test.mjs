@@ -188,3 +188,14 @@ test('고치는 글의 기존 사진은 다 올라간 사진으로 줄에 들어
 test('신고 사유는 게시판 서버 계약 다섯 가지다', () => {
   assert.deepEqual([...COMMUNITY_REPORT_REASONS], ['spam', 'abuse', 'sexual', 'privacy', 'other']);
 });
+
+// 11/2 폰 QA — 영어 앱에서 분류 칩·글 분류가 서버 이름(한국어)으로 나왔다. 아는 분류는 앱 언어로 그린다.
+test('아는 분류는 앱 언어 이름, 모르는 분류는 서버 이름', async () => {
+  const { categoryLabel, categoryChips, fallbackCategories } = await import('../lib/community.ts');
+  assert.equal(categoryLabel('partner', 'partner-from-server'), '상대역 구함');
+  assert.equal(categoryLabel('new_kind', '새 분류'), '새 분류');
+  assert.equal(categoryLabel(null, null), '');
+  assert.deepEqual(categoryChips([{ slug: 'free', name: 'x' }]).map((c) => c.name), ['전체', '자유']);
+  // 분류 목록을 못 받았을 때도 칩이 「전체」 하나만 남지 않는다.
+  assert.deepEqual(fallbackCategories().map((c) => c.slug), ['question', 'audition', 'partner', 'free']);
+});

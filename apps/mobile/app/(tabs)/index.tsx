@@ -58,6 +58,8 @@ import {
   readLastSeenStreak,
   celebrationDots,
   streakCelebrationStep,
+  kstToday,
+  readLastSeenStreakDay,
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
@@ -323,6 +325,16 @@ export default function HomeScreen() {
     }, [openHomeGuideIfNew, loadRecords]),
   );
 
+  // 오프라인으로 켜면 홈이 동의 팝업 뒤에서 기록을 먼저 읽고 실패한 채 남는다. 동의·프로필을 다시 읽어 게이트가
+  // 열리는 순간 홈에 있으면 기록을 한 번 더 읽는다 — 이번 주 칸·이어 읽기·참여 표시가 비어 있던 것(11/2 폰 QA).
+  const gateOpen = consentAllowed && profile.status === 'complete';
+  const gateWasOpen = useRef(gateOpen);
+  useEffect(() => {
+    const opened = gateOpen && !gateWasOpen.current;
+    gateWasOpen.current = gateOpen;
+    if (opened && homeFocused.current) void loadRecords(() => !homeFocused.current);
+  }, [gateOpen, loadRecords]);
+
   useEffect(() => {
     // 한국어를 안 쓰는 사람에겐 보여줄 자리가 없으니 받아오지도 않는다 (SOMA-544).
     if (!isKorean()) return;
@@ -379,16 +391,24 @@ export default function HomeScreen() {
   const practicedToday = days.some((d) => d.isToday && d.count > 0);
   useEffect(() => {
     let cancelled = false;
-    void readLastSeenStreak().then((lastSeen) => {
+    void Promise.all([readLastSeenStreak(), readLastSeenStreakDay()]).then(([lastSeen, lastSeenDay]) => {
       if (cancelled) return;
-      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak, practicedToday });
+      const step = streakCelebrationStep({
+        loaded: activityLoaded,
+        lastSeen,
+        current: streak,
+        practicedToday,
+        failed: recordsFailed,
+        lastSeenDay,
+        today: kstToday(),
+      });
       if (step.celebrate) setCelebrateStreak(streak);
       if (step.remember !== null) void writeLastSeenStreak(step.remember);
     });
     return () => {
       cancelled = true;
     };
-  }, [activityLoaded, streak, practicedToday]);
+  }, [activityLoaded, streak, practicedToday, recordsFailed]);
 
   const loaded = groupsLoaded && scripts !== null && activityLoaded && graduated !== null;
   // 첫 사용자 화면(뭐부터 해 볼까요?)과 탭바 숨김은 같은 판단 하나다(lib/practice/first-time) — 묶음·대본·연습한 날이 모두 없는 사람.

@@ -28,6 +28,7 @@ import {
   avatarSeed,
   boardFailure,
   boardFailureMessage,
+  categoryLabel,
   displayName,
   isHiddenPost,
   isMine,
@@ -293,7 +294,7 @@ export default function CommunityPostScreen() {
               <Text style={styles.hiddenText}>{t('communityPost.hiddenNotice')}</Text>
             </View>
           ) : null}
-          <Text style={styles.category}>{post.category_name}</Text>
+          <Text style={styles.category}>{categoryLabel(post.category_slug, post.category_name)}</Text>
           <Text style={styles.title}>{post.title}</Text>
           <View style={styles.author}>
             <DefaultAvatar size={28} radius={14} seed={avatarSeed(post)} />

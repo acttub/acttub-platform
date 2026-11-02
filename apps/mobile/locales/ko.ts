@@ -1482,6 +1482,8 @@ const ko = {
     title: '동의 내용을 확인해주세요',
     subtitle: '서비스를 시작하기 전에 각 문서의 결정을 선택해주세요.',
     reconsentTitle: '동의 문서가 바뀌었어요',
+    loadFailTitle: '인터넷 연결을 확인해 주세요',
+    loadFailSubtitle: '동의 상태를 확인하지 못했어요. 연결된 뒤 다시 시도해 주세요.',
     reconsentSubtitle: '계속 쓰려면 아래 문서를 결정해 주세요.',
     outdated: '동의 문서가 새로 바뀌었어요. 다시 확인해 주세요.',
     exit: '동의하지 않고 나가기',
@@ -2336,6 +2338,7 @@ const ko = {
     write: '글쓰기',
     all: '전체',
     actorFallback: '배우',
+    category: { question: '질문', audition: '오디션 정보', partner: '상대역 구함', free: '자유' },
     noticeBadge: '공지',
     rulesTitle: '게시판 이용 규칙',
     rulesBody:

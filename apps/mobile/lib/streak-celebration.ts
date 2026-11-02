@@ -12,6 +12,13 @@
  */
 
 const LAST_SEEN_KEY = 'acttub.streak.lastSeen';
+/** 마지막으로 본 연속일을 적은 날(한국 시간 YYYY-MM-DD). 같은 날에는 그 값을 낮추지 않는다(11/2 폰 QA). */
+const LAST_SEEN_DAY_KEY = 'acttub.streak.lastSeenDay';
+
+/** 한국 시간 날짜 키. lib/practice/groups 의 kstDayKey 와 같은 규칙이지만 이 파일은 순수 node 테스트라 따로 둔다. */
+export function kstToday(now: number = Date.now()): string {
+  return new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
 
 type AsyncStorageLike = {
   getItem(key: string): Promise<string | null>;
@@ -43,12 +50,23 @@ export async function readLastSeenStreak(): Promise<number> {
   }
 }
 
-/** 방금 본 연속일을 저장한다. 실패해도 조용히 넘어간다(축하는 곁다리 기능이다). */
+/** 방금 본 연속일을 저장한다(오늘 날짜와 함께). 실패해도 조용히 넘어간다(축하는 곁다리 기능이다). */
 export async function writeLastSeenStreak(current: number): Promise<void> {
   try {
     await storage().setItem(LAST_SEEN_KEY, String(Math.max(0, Math.trunc(current))));
+    await storage().setItem(LAST_SEEN_DAY_KEY, kstToday());
   } catch {
     // 무시 — 다음 진입에서 다시 시도된다.
+  }
+}
+
+/** 마지막으로 본 연속일을 적은 날. 옛 판(날짜 없이 적음)이거나 못 읽으면 null. */
+export async function readLastSeenStreakDay(): Promise<string | null> {
+  try {
+    const raw = await storage().getItem(LAST_SEEN_DAY_KEY);
+    return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+  } catch {
+    return null;
   }
 }
 
@@ -78,8 +96,18 @@ export function streakCelebrationStep(input: {
   current: number;
   /** 오늘(한국 시간) 센 연습이 있는가. */
   practicedToday: boolean;
+  /** 기록 일부를 못 받았는가(오프라인 등). 그때 센 연속일은 실제보다 작을 수 있다. */
+  failed?: boolean;
+  /** lastSeen 을 적은 날과 오늘(한국 시간). 같은 날이면 기억을 낮추지 않는다. */
+  lastSeenDay?: string | null;
+  today?: string;
 }): { celebrate: boolean; remember: number | null } {
   if (!input.loaded) return { celebrate: false, remember: null };
+  // 기록을 다 못 받은 진입은 판단하지 않는다 — 오프라인으로 켠 홈이 0 을 기억하면 연결된 뒤 같은 날 불꽃이 또 떴다(11/2 폰 QA).
+  if (input.failed) return { celebrate: false, remember: null };
+  // 같은 날 이미 본 값보다 작게 세였다면(잠깐 덜 받은 기록) 기억을 낮추지 않는다. 날이 바뀌면 끊긴 연속을 그대로 적는다.
+  const sameDay = !!input.lastSeenDay && input.lastSeenDay === input.today;
+  if (sameDay && input.current < input.lastSeen) return { celebrate: false, remember: null };
   return {
     // 축하는 "오늘 연습해서 늘었을 때"만 한다. 앱을 새로 깔았거나 저장값이 지워져 '마지막으로 본 값'이
     // 0 으로 돌아가도, 오늘 연습이 없으면 어제까지의 연속일로 불꽃을 다시 띄우지 않는다(실기기, 11/2).

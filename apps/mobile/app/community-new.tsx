@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BackHandler, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -23,6 +23,7 @@ import {
   TITLE_MAX,
   bodyCounter,
   canSubmitPost,
+  categoryLabel,
   charCount,
   draftsFromPost,
   imageIdsOf,
@@ -49,6 +50,7 @@ export default function CommunityNewScreen() {
   const resetImages = images.reset;
   const { id, category: initialCategory } = useLocalSearchParams<{ id?: string; category?: string }>();
   const editing = !!id;
+  const scrollRef = useRef<ScrollView>(null);
   const [categories, setCategories] = useState<CommunityCategory[] | null>(null);
   const [categoriesFailed, setCategoriesFailed] = useState(false);
   const [category, setCategory] = useState<string | null>(initialCategory || null);
@@ -143,14 +145,17 @@ export default function CommunityNewScreen() {
         router.replace({ pathname: '/community-post', params: { id: created.id } });
       }
     } catch (e) {
-      setFailure(postWriteFailure(e));
+      const reason = postWriteFailure(e);
+      setFailure(reason);
+      // 키보드가 올라와 있으면 내용 칸 아래 이유 한 줄이 버튼 뒤로 가려 빨간 칸만 보였다 — 그 줄이 보이게 내린다(11/2 폰 QA).
+      if (reason === 'contact') setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const dirty = !editing && (title.trim().length > 0 || body.trim().length > 0 || images.drafts.length > 0);
   const back = async () => {
-    const dirty = !editing && (title.trim().length > 0 || body.trim().length > 0 || images.drafts.length > 0);
     if (dirty) {
       const ok = await confirm({
         title: t('communityNew.discardTitle'),
@@ -162,6 +167,18 @@ export default function CommunityNewScreen() {
     router.back();
   };
 
+  // 안드로이드 뒤로 키도 위 뒤로 버튼과 같이 쓰던 글을 버릴지 묻는다 — 전에는 묻지 않고 입력이 사라졌다(11/2 폰 QA).
+  const backRef = useRef(back);
+  backRef.current = back;
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      void backRef.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, [dirty]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <NavHeader
@@ -169,7 +186,7 @@ export default function CommunityNewScreen() {
         left={<NavBackButton onPress={() => void back()} />}
       />
       <KeyboardLift aboveSafeBottom>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {postFailed ? <InlineError message={t('communityNew.loadFail')} onRetry={() => void loadPost()} /> : null}
           <Text style={styles.label}>{t('communityNew.categoryLabel')}</Text>
           {categoriesFailed ? (
@@ -185,7 +202,7 @@ export default function CommunityNewScreen() {
               {categories.map((c) => (
                 <Chip
                   key={c.slug}
-                  label={c.name}
+                  label={categoryLabel(c.slug, c.name)}
                   role="radio"
                   selected={category === c.slug}
                   // 글을 고칠 때는 분류를 바꾸지 않는다(서버 수정은 제목·내용만 받는다).
