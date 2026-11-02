@@ -93,9 +93,12 @@ public final class CloudVoiceService {
      */
     public Status status(UUID userId, UUID scriptId, UUID sessionId) {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
-        Access access = access(userId, scriptId, sessionId);
+        boolean pro = plan.pro(userId);
+        Access access = access(userId, scriptId, sessionId, pro);
         return new Status(access.available(), inFreePeriod() ? settings.freeUntil() : null, repository.consent(userId),
-                settings.dailyLineCap(), repository.dailyUsage(userId, today), access.reason(), access == Access.PRO_ONLY);
+                pro ? settings.proMonthlyLineCap() : settings.dailyLineCap(),
+                pro ? repository.monthlyUsage(userId, YearMonth.from(today)) : repository.dailyUsage(userId, today),
+                access.reason(), access == Access.PRO_ONLY);
     }
 
     public Result synthesize(UUID userId, String rawText, String preset) {
@@ -106,7 +109,8 @@ public final class CloudVoiceService {
         String text = rawText == null ? "" : rawText.trim();
         String voice = preset == null ? null : VOICES.get(preset);
         if (text.isEmpty() || text.length() > MAX_CHARS || voice == null) throw new ApiException(400, "invalid_voice_request");
-        if (!access(userId, null, sessionId).available()) throw unavailable(null);
+        boolean pro = plan.pro(userId);
+        if (!access(userId, null, sessionId, pro).available()) throw unavailable(null);
         if (!"granted".equals(repository.consent(userId))) throw new ApiException(403, "cloud_voice_consent_required");
         String hash = hash(settings.model(), voice, text);
         CacheEntry cached = repository.findCache(hash);
@@ -123,8 +127,10 @@ public final class CloudVoiceService {
             if (other != null) {
                 result = result(await(other).objectKey(), true);
             } else {
-                if (overDailyCap(userId, sessionId)) throw new ApiException(429, "cloud_voice_daily_limit");
-                Made made = make(userId, hash, text, voice);
+                String over = overCap(userId, sessionId, pro);
+                if ("cloud_voice_monthly_limit".equals(over)) throw new ApiException(429, "cloud_voice_monthly_limit");
+                if (over != null) throw new ApiException(429, "cloud_voice_daily_limit");
+                Made made = make(userId, hash, text, voice, pro);
                 result = result(made.entry().objectKey(), !made.mine());
             }
         }
@@ -133,11 +139,18 @@ public final class CloudVoiceService {
         return result;
     }
 
-    /** 하루 한도를 넘었는가 — 오늘 이미 고품질 목소리로 읽기 시작한 회차는 넘지 않은 것으로 본다. */
-    private boolean overDailyCap(UUID userId, UUID sessionId) {
+    /**
+     * 한도를 넘었으면 오류 코드를, 아니면 {@code null} 을 돌려준다. Pro는 계정별 월 한도(SOMA-949), 일반 계정은 하루 한도다.
+     * 하루 한도는 오늘 이미 고품질 목소리로 읽기 시작한 회차는 넘지 않은 것으로 본다.
+     */
+    private String overCap(UUID userId, UUID sessionId, boolean pro) {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
-        if (sessionId != null && today.equals(voicedSessions.get(sessionId))) return false;
-        return repository.dailyUsage(userId, today) >= settings.dailyLineCap();
+        if (pro) {
+            return repository.monthlyUsage(userId, YearMonth.from(today)) >= settings.proMonthlyLineCap()
+                    ? "cloud_voice_monthly_limit" : null;
+        }
+        if (sessionId != null && today.equals(voicedSessions.get(sessionId))) return null;
+        return repository.dailyUsage(userId, today) >= settings.dailyLineCap() ? "cloud_voice_daily_limit" : null;
     }
 
     private void markVoiced(UUID sessionId) {
@@ -150,20 +163,35 @@ public final class CloudVoiceService {
     private record Made(CacheEntry entry, boolean mine) {}
 
     /** 이 줄을 만든다. 같은 줄을 누가 이미 만들고 있으면 새로 만들지 않고 그 결과를 기다린다. */
-    private Made make(UUID userId, String hash, String text, String voice) {
+    private Made make(UUID userId, String hash, String text, String voice, boolean pro) {
         CompletableFuture<CacheEntry> mine = new CompletableFuture<>();
         CompletableFuture<CacheEntry> other = making.putIfAbsent(hash, mine);
         if (other != null) return new Made(await(other), false);
+        CacheEntry entry = new CacheEntry(hash, "reading-voice/" + hash + ".wav");
         try {
-            byte[] wav = synthesizeChunks(text, voice);
-            CacheEntry entry = new CacheEntry(hash, "reading-voice/" + hash + ".wav");
-            storage.upload(entry.objectKey(), wav);
-            repository.recordSuccess(userId, LocalDate.now(clock.withZone(SEOUL)), entry, settings.model(), voice, wav.length, clock.instant());
+            boolean recorded;
+            try {
+                byte[] wav = synthesizeChunks(text, voice);
+                storage.upload(entry.objectKey(), wav);
+                LocalDate today = LocalDate.now(clock.withZone(SEOUL));
+                // Pro는 월 한도 안에서만 기록한다 — 동시에 들어온 요청이 한도를 넘기지 않게 DB가 가른다(SOMA-949).
+                if (pro) recorded = repository.recordSuccessWithinMonthlyCap(userId, today, entry, settings.model(), voice,
+                        wav.length, clock.instant(), settings.proMonthlyLineCap());
+                else {
+                    repository.recordSuccess(userId, today, entry, settings.model(), voice, wav.length, clock.instant());
+                    recorded = true;
+                }
+            } catch (RuntimeException error) {
+                mine.completeExceptionally(error);
+                throw unavailable(error);
+            }
+            if (!recorded) {
+                ApiException limit = new ApiException(429, "cloud_voice_monthly_limit");
+                mine.completeExceptionally(limit);
+                throw limit;
+            }
             mine.complete(entry);
             return new Made(entry, true);
-        } catch (RuntimeException error) {
-            mine.completeExceptionally(error);
-            throw unavailable(error);
         } finally {
             making.remove(hash, mine);
         }
@@ -174,6 +202,7 @@ public final class CloudVoiceService {
         try {
             return other.get(25, TimeUnit.SECONDS);
         } catch (ExecutionException error) {
+            if (error.getCause() instanceof ApiException limit) throw limit;
             throw unavailable(error.getCause());
         } catch (TimeoutException error) {
             throw unavailable(error);
@@ -197,7 +226,7 @@ public final class CloudVoiceService {
             background.execute(() -> {
                 try {
                     List<UpcomingVoiceLines.Line> next = upcoming.after(userId, sessionId, text, preset, LOOKAHEAD_LINES);
-                    if (next.isEmpty() || !access(userId, null, sessionId).available()) return;
+                    if (next.isEmpty() || !access(userId, null, sessionId, plan.pro(userId)).available()) return;
                     for (UpcomingVoiceLines.Line line : next) background.execute(() -> prepare(userId, sessionId, line));
                 } catch (RuntimeException ignored) {
                     // 미리 만들기는 덤이다 — 앱 요청이 평소처럼 만든다.
@@ -215,8 +244,9 @@ public final class CloudVoiceService {
             if (text.isEmpty() || text.length() > MAX_CHARS || voice == null) return;
             String hash = hash(settings.model(), voice, text);
             if (making.containsKey(hash) || repository.findCache(hash) != null) return;
-            if (overDailyCap(userId, sessionId)) return;
-            make(userId, hash, text, voice);
+            boolean pro = plan.pro(userId);
+            if (overCap(userId, sessionId, pro) != null) return;
+            make(userId, hash, text, voice, pro);
         } catch (RuntimeException ignored) {
             // 실패한 줄은 앱이 요청할 때 다시 만든다.
         }
@@ -263,13 +293,13 @@ public final class CloudVoiceService {
     /**
      * 무료 기간({@code READING_VOICE_FREE_UNTIL}) 안에는 누구나, 그 뒤에는 Pro 만 쓴다(2026-11-01부터 Pro 혜택).
      * 무료 배우도 (배우, 대본)마다 가장 먼저 시작한 리딩 회차 하나는 쓴다(SOMA-917) — 서버가 회차 표로 가리고 앱 값은 믿지 않는다.
-     * 모델·저장소 설정과 월 한도는 어느 경우에도 늘 지킨다.
+     * Pro는 계정별 월 한도를 따로 적용하고, 일반 계정만 기존 서비스 전체 월 한도를 지킨다.
      */
-    private Access access(UUID userId, UUID scriptId, UUID sessionId) {
+    private Access access(UUID userId, UUID scriptId, UUID sessionId, boolean pro) {
         if (!settings.modelConfigured() || !storage.configured()) return Access.NONE;
+        if (pro) return inFreePeriod() ? Access.FREE_PERIOD : Access.PRO;
         if (repository.monthlyUsage(YearMonth.from(LocalDate.now(clock.withZone(SEOUL)))) >= settings.monthlyLineCap()) return Access.NONE;
         if (inFreePeriod()) return Access.FREE_PERIOD;
-        if (plan.pro(userId)) return Access.PRO;
         boolean first = sessionId != null ? repository.firstReadingSession(userId, sessionId)
                 : scriptId != null && repository.firstReadingScript(userId, scriptId);
         return first ? Access.FIRST_READING : Access.PRO_ONLY;
@@ -304,6 +334,7 @@ public final class CloudVoiceService {
         return Hashing.sha256Hex(model + "\n" + voice + "\n" + text + "\n" + CACHE_FORMAT);
     }
 
+    /** dailyLimit/dailyUsed는 구버전 호환 필드다. Pro에게는 한국 달력 월의 한도·사용량을 담는다. */
     public record Status(boolean available, java.time.OffsetDateTime freeUntil, String consent, int dailyLimit, int dailyUsed,
             String reason, boolean proOnly) {}
     public record Result(String audioUrl, boolean cached, int expiresIn) {}

@@ -933,8 +933,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 **고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
 
-- `available` 은 `GEMINI_API_KEY`·`GEMINI_TTS_MODEL`·오브젝트 스토리지가 모두 설정되고, 현재 시각이 무료 종료 시각
-  (`READING_VOICE_FREE_UNTIL`) 이하이며, 그 달의 새 합성이 월 한도 미만일 때만 참이다. 사용량 날짜는 Asia/Seoul 기준이다.
+- 고품질 음성은 모델·저장소 설정과 동의를 공통으로 지키며, 무료 기간·Pro·무료 첫 리딩 판정은 제품 정본을 따른다.
+- Pro는 계정당 한국 달력 월 새 합성 10,000줄이며 일 300줄·서비스 전체 월 75,000줄로 차단하지 않는다(SOMA-949).
+  일반 계정만 기존 일·전체 월 한도를 따른다. Pro 초과 오류는 429 cloud_voice_monthly_limit이다.
+- 구버전 호환을 위해 status의 daily_limit·daily_used 필드는 유지한다. 일반 계정에는 오늘 값, Pro에는 이번 달 한도·사용량을 담는다.
+  현재 모바일 소비자는 이 두 숫자로만 회차 사용 여부를 계산하고 일일 수치로 화면에 표시하지 않는다.
+- Pro 성공 차감은 계정별 advisory transaction lock 안에서 월 합계를 재검사한다. 외부 합성·업로드는 트랜잭션 밖이다.
 - 캐시 키는 `sha256(model + "\n" + geminiVoice + "\n" + text)` 이고 객체 키는 `reading-voice/{hash}.wav` 다. 캐시 적중은
   합성과 사용량 증가 없이 성공하고, 새 합성 성공만 일 사용량을 1 올린다(`PostgresCloudVoiceRepository`).
 - 모델 호출에는 대사 원문 하나와 고른 prebuilt voice만 싣는다(`CloudVoiceService`).
