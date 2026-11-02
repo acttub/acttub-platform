@@ -7,7 +7,6 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
-import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useReadableInput } from '@/hooks/use-readable-input';
@@ -19,7 +18,23 @@ import { translate as t } from '@/lib/i18n';
 /** 서버 SupportInquiryRules 와 같은 한도(본문 10~3000자, 메일 형식). */
 export const FEEDBACK_MIN = 10;
 export const FEEDBACK_MAX = 3000;
-const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+/** 메일 모양인가 — 공백 없이 @ 하나, @ 뒤에 점. 되돌아가며 맞추는 정규식은 쓰지 않는다(SonarCloud S8786). */
+function looksLikeEmail(value: string): boolean {
+  if (value.length > 254 || /\s/.test(value)) return false;
+  const at = value.indexOf('@');
+  if (at <= 0 || at !== value.lastIndexOf('@')) return false;
+  const dot = value.lastIndexOf('.');
+  return dot > at + 1 && dot < value.length - 1;
+}
+/**
+ * 메일 칸은 두지 않는다(11/1 사용자 결정) — 로그인한 계정으로 받으므로 서버가 계정(user_id)을 같이 남긴다. 서버가 메일을 필수로
+ * 받으므로 계정 메일을 그대로 싣고, 계정에 메일이 없으면(카카오 미동의 등) 답장 없는 자리표시 주소를 싣는다.
+ */
+const NO_REPLY_EMAIL = 'no-reply@acttub.com';
+export function feedbackEmail(account: string | null | undefined): string {
+  const value = (account ?? '').trim();
+  return looksLikeEmail(value) ? value : NO_REPLY_EMAIL;
+}
 
 /**
  * 앱 안 의견 보내기(SOMA-953) — 웹 문의 접수 API 에 category 'feedback' 으로 보낸다.
@@ -29,7 +44,6 @@ export default function FeedbackScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [body, setBody] = useState('');
-  const [email, setEmail] = useState(user?.email ?? '');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,8 +52,7 @@ export default function FeedbackScreen() {
 
   const length = Array.from(body.trim()).length;
   const bodyOk = length >= FEEDBACK_MIN && length <= FEEDBACK_MAX;
-  const emailOk = EMAIL_PATTERN.test(email.trim()) && email.trim().length <= 254;
-  const canSend = bodyOk && emailOk && !sending;
+  const canSend = bodyOk && !sending;
 
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
 
@@ -48,7 +61,7 @@ export default function FeedbackScreen() {
     setSending(true);
     setError(null);
     try {
-      await api.sendFeedback({ email: email.trim(), body: body.trim() });
+      await api.sendFeedback({ email: feedbackEmail(user?.email), body: body.trim() });
       void logEvent('feedback_sent');
       setDone(true);
     } catch (err) {
@@ -90,17 +103,6 @@ export default function FeedbackScreen() {
             <Text style={styles.count}>{t('feedback.count', { count: length, max: FEEDBACK_MAX })}</Text>
             {bodyInput.hint ? <InlineErrorLine message={bodyInput.hint} /> : null}
           </View>
-          <TextField
-            label={t('feedback.emailLabel')}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!sending}
-            error={email.trim().length > 0 && !emailOk ? t('feedback.emailInvalid') : null}
-          />
-          <Text style={styles.help}>{t('feedback.emailHelp')}</Text>
           {error ? <InlineErrorLine message={error} /> : null}
         </ScrollView>
       )}
@@ -134,7 +136,6 @@ const styles = StyleSheet.create({
     color: palette.text,
   },
   count: { ...type.caption, color: palette.textMeta, textAlign: 'right' },
-  help: { ...type.caption, color: palette.textMeta, marginTop: -space[2] },
   doneWrap: { flex: 1, paddingHorizontal: space.gutter, paddingTop: space[8], gap: space[2] },
   doneTitle: { ...type.title2, color: palette.text },
   doneBody: { ...type.body1, color: palette.textSub },

@@ -12,6 +12,7 @@ import {
   useSegments,
   type Href,
 } from 'expo-router';
+import * as NavigationBar from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -32,6 +33,7 @@ import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro'
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
+import { keepDarkNavigationButtons } from '@/lib/navigation-bar-buttons';
 import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
@@ -60,12 +62,13 @@ import {
   flushPendingPushTokenDeletions,
   capturePushOpen,
   onPushTapped,
-  recordColdStartPushOpen,
+  takeColdStartPushTap,
   setPushOpenSignedIn,
 } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
 import { onLanguageChange, translate as t } from '@/lib/i18n';
+import { loadSkeletonHints } from '@/lib/skeleton-hint';
 
 // 아이콘 폰트가 로드되기 전에 UI가 그려지면 탭바 아이콘이 빈칸으로 뜬다.
 // 로드가 끝날 때까지 스플래시를 유지해 아이콘 누락(회귀)을 막는다.
@@ -85,6 +88,8 @@ installNavigationGuard(router);
 setVoiceModelSource(() => api.getVoiceModel());
 // 운영이 바꾸는 값(평가 요청 주기·리딩 감지·칩 목록 등)을 서버에서 받는다(SOMA-939). 기다리지 않는다 — 받기 전엔 기본값이다.
 void loadAppConfig();
+// 뼈대 화면이 지난번 실제 화면 모양(첫 사용자·기존 사용자)을 따르도록 기억을 먼저 읽는다(lib/skeleton-hint).
+void loadSkeletonHints();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -226,26 +231,43 @@ function RootNavigator() {
     };
   }, [status, user, consentGate]);
 
+  // 푸시가 말한 화면. 로그인·동의·프로필 게이트가 끝나기 전에 누른 탭은 들고 있다가 끝난 뒤 연다(SOMA-974).
+  const pushReadyRef = useRef(false);
+  const [heldPush, setHeldPush] = useState<{ data: unknown } | null>(null);
+  const openPush = useCallback(
+    (data: unknown) => {
+      // analysis_complete·resume은 같은 회차, 다른 연습 알림은 알림이 말한 화면(SOMA-862), 못 정하면 홈이다.
+      const reminder = reminderTarget(data);
+      if (reminder) router.replace(reminder as Parameters<typeof router.replace>[0]);
+      else if (challengePushTarget(data)) router.push('/notifications');
+    },
+    [router],
+  );
+  const handlePushTap = useCallback(
+    (data: unknown) => {
+      const opened = reminderOpenEvent(data);
+      if (opened) void logEvent('reminder_open', opened);
+      if (pushReadyRef.current) openPush(data);
+      else setHeldPush({ data });
+    },
+    [openPush],
+  );
+
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data, identifier) => {
       capturePushOpen(data, identifier);
-      // analysis_complete·resume은 같은 회차, 다른 연습 알림은 알림이 말한 화면(SOMA-862), 못 정하면 홈이다.
-      const opened = reminderOpenEvent(data);
-      if (opened) void logEvent('reminder_open', opened);
-      const reminder = reminderTarget(data);
-      if (reminder) {
-        router.replace(reminder as Parameters<typeof router.replace>[0]);
-        return;
-      }
-      if (challengePushTarget(data)) router.push('/notifications');
+      handlePushTap(data);
     });
-  }, [router]);
+  }, [handlePushTap]);
 
-  // 꺼진 앱을 푸시로 열었다면 리스너보다 탭이 먼저 지나갔을 수 있어 한 번 조회해 남긴다(측정만, 이동은 그대로).
+  // 꺼진 앱을 푸시로 열었다면 리스너보다 탭이 먼저 지나갔을 수 있어 한 번 조회해 켜진 앱의 탭과 같은 화면을 연다.
   useEffect(() => {
-    void recordColdStartPushOpen();
-  }, []);
+    void takeColdStartPushTap().then((data) => {
+      if (data) handlePushTap(data);
+    });
+    // 다시 돌아도 이미 넘긴 탭은 null 이라 한 번만 열린다.
+  }, [handlePushTap]);
 
   // 푸시 탭이 로그인보다 먼저 와도 로그인한 회원이 생기면 그때 보낸다.
   useEffect(() => {
@@ -371,6 +393,13 @@ function RootNavigator() {
     profileStatus === 'complete' &&
     recovery.status === 'ready' &&
     recovery.owner === user?.id;
+  // 첫 화면 이동(위 게이트 effect)이 끝난 뒤에 들고 있던 푸시 화면을 연다. effect 는 선언 순서로 돈다.
+  useEffect(() => {
+    pushReadyRef.current = signedInHome;
+    if (!signedInHome || !heldPush) return;
+    setHeldPush(null);
+    openPush(heldPush.data);
+  }, [signedInHome, heldPush, openPush]);
   const [homeHoldExpired, setHomeHoldExpired] = useState(false);
   useEffect(() => {
     if (!signedInHome) return;
@@ -457,6 +486,7 @@ function RootNavigator() {
         />
         <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
         <Stack.Screen name="talk" options={{ title: t('talk.title') }} />
+        <Stack.Screen name="coach-other" options={{ title: t('coachOther.title') }} />
         <Stack.Screen
           name="record-video"
           // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
@@ -536,6 +566,16 @@ export default function RootLayout() {
   useEffect(() => {
     void initCrashlytics();
   }, []);
+
+  // 안드로이드 하단 ||| ○ < 버튼을 진한 색으로 고정한다(SOMA-929). 다크 모드 폰에서 흰 하단바 위 버튼이 안 보였다.
+  useEffect(
+    () => keepDarkNavigationButtons({
+      platform: Platform.OS,
+      setButtonStyle: NavigationBar.setButtonStyleAsync,
+      appState: AppState,
+    }),
+    [],
+  );
 
   // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.

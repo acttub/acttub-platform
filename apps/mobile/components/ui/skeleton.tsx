@@ -39,6 +39,27 @@ export function SkeletonBlock({
 }
 
 /** 뼈대 묶음의 바깥 틀. 화면 낭독기에는 「불러오는 중」 하나로 읽힌다. */
+/**
+ * 글 한 줄 자리. 실제 글과 같은 줄 높이(lineHeight)를 차지하고, 가운데에 글자 크기만 한 회색 막대를 둔다.
+ * 실제 화면의 글 스타일(type.*)을 그대로 넘기면 뼈대와 실제 화면의 세로 배치가 같아진다.
+ */
+export function SkeletonLine({
+  size,
+  width = '100%',
+  style,
+}: {
+  size: { fontSize: number; lineHeight: number };
+  width?: DimensionValue;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const bar = Math.round(size.fontSize * 0.8);
+  return (
+    <View style={[{ height: size.lineHeight, justifyContent: 'center' }, style]}>
+      <SkeletonBlock width={width} height={bar} radius={Math.min(6, bar / 2)} />
+    </View>
+  );
+}
+
 export function SkeletonGroup({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return (
     <View

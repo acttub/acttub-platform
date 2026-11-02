@@ -76,10 +76,14 @@ export function streakCelebrationStep(input: {
   loaded: boolean;
   lastSeen: number;
   current: number;
+  /** 오늘(한국 시간) 센 연습이 있는가. */
+  practicedToday: boolean;
 }): { celebrate: boolean; remember: number | null } {
   if (!input.loaded) return { celebrate: false, remember: null };
   return {
-    celebrate: shouldCelebrateStreak(input.lastSeen, input.current),
+    // 축하는 "오늘 연습해서 늘었을 때"만 한다. 앱을 새로 깔았거나 저장값이 지워져 '마지막으로 본 값'이
+    // 0 으로 돌아가도, 오늘 연습이 없으면 어제까지의 연속일로 불꽃을 다시 띄우지 않는다(실기기, 11/2).
+    celebrate: input.practicedToday && shouldCelebrateStreak(input.lastSeen, input.current),
     remember: Math.max(0, Math.trunc(input.current)),
   };
 }

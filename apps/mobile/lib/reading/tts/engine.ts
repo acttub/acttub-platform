@@ -187,9 +187,20 @@ async function styleFor(preset?: string): Promise<{ voice: any; preset: string }
   }
 }
 
-/** 미리 생성과 화면의 즉시 요청도 같은 엔진을 한 번에 하나만 사용한다. */
-export function synthesize(text: string, scriptId: string, preset = cfg.preset, options: { speed?: number; lang?: string } = {}): Promise<string | null> {
-  const work = synthesisTail.then(() => synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed, options.lang ?? currentLanguage()));
+/**
+ * 미리 생성과 화면의 즉시 요청도 같은 엔진을 한 번에 하나만 사용한다.
+ * isStale 이 차례가 왔을 때 true 면 만들지 않고 null 을 돌려준다 — [다음]을 연타해 지나간 줄들이 줄을 서 있으면
+ * 도착한 줄이 그 줄들을 다 만들 때까지 소리 없이 기다리게 된다.
+ */
+export function synthesize(
+  text: string,
+  scriptId: string,
+  preset = cfg.preset,
+  options: { speed?: number; lang?: string; isStale?: () => boolean } = {},
+): Promise<string | null> {
+  const work = synthesisTail.then(() =>
+    options.isStale?.() ? null : synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed, options.lang ?? currentLanguage()),
+  );
   synthesisTail = work.catch(() => undefined);
   return work;
 }
@@ -314,7 +325,8 @@ export function discardSpeechFile(uri: string): void {
 export async function speak(text: string, preset = cfg.preset, options: { speed?: number; scriptId?: string; lang?: string } = {}): Promise<void> {
   stop();
   const epoch = playbackEpoch;
-  const uri = await synthesize(text, options.scriptId ?? 'adhoc', preset, options);
+  // 차례를 기다리는 동안 멈춤(줄 넘김·화면 떠남)이 있었으면 만들지도 않는다 — 어차피 틀지 않는다.
+  const uri = await synthesize(text, options.scriptId ?? 'adhoc', preset, { ...options, isStale: () => epoch !== playbackEpoch });
   if (uri && epoch === playbackEpoch) await play(uri);
 }
 

@@ -11,6 +11,7 @@ import { CoachPurposeCards } from '@/components/coach-purpose-cards';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { CoachWaiting } from '@/components/coach-waiting';
+import { ActyMotion } from '@/components/ui/acty-motion';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
@@ -590,6 +591,7 @@ function CoachTalk() {
 
           {waiting && (
             <View style={styles.thinkingRow}>
+              <ActyMotion testID="coach-thinking-mascot" source={MASCOT.coach} size={MASCOT_SIZE.chat} kind="think" />
               <Text style={styles.thinkingText}>{t('coach.thinking')}</Text>
             </View>
           )}
@@ -755,7 +757,8 @@ const styles = StyleSheet.create({
   question: { ...type.body1, color: palette.text },
   timeLink: { color: palette.blueDeep, fontWeight: '700' },
 
-  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingLeft: space[10] },
+  // 코치 말풍선처럼 왼쪽에 액티(갸웃하며 고개를 기울인다) — 말풍선 머리줄과 같은 칸·간격.
+  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   thinkingText: { ...type.caption, color: palette.textMeta },
 
   thread: { gap: space[3] },

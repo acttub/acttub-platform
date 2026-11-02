@@ -1,5 +1,4 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
@@ -11,6 +10,7 @@ import { KeyboardLift } from '@/components/keyboard-lift';
 import { ReportRating } from '@/components/report-rating';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { ActyMotion } from '@/components/ui/acty-motion';
 import { MASCOT } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -84,7 +84,7 @@ export default function CoachingDoneScreen() {
           <Text style={styles.badgeText}>{t('note.doneBadge')}</Text>
         </View>
         <View style={styles.head}>
-          <Image source={MASCOT.jump} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+          <ActyMotion testID="coaching-done-mascot" source={MASCOT.jump} size={styles.mascot} kind="celebrate" />
           <Text style={styles.title} accessibilityRole="header">
             {t(nextTake ? 'note.doneTitle' : 'note.doneTitleNoNext')}
           </Text>

@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * 개인화 연습 알림(SOMA-720). 10분마다 돌며, 지금 보낼 때가 된 회원에게 연습 권유와 연속 기록 알림을 보낸다.
- * 규칙의 정본은 account.notification 이다. 한국 날짜마다 칸(practice·streak)별로 한 번, 하루 최대 둘.
+ * 규칙의 정본은 account.notification 이다. 칸(practice·streak)은 둘이지만 한국 날짜마다 둘 중 하나만 보낸다(SOMA-987).
  */
 @Service
 public class PracticeReminderService {
@@ -68,26 +68,31 @@ public class PracticeReminderService {
         List<PushMessage> out = new ArrayList<>();
         if (c.practicedToday()) return out;
 
-        if (!c.sentToday().contains("practice")) {
-            Optional<Integer> due = PracticeReminderPolicy.practiceDue(now, c.firstPracticeAt(), c.lastPracticeDay());
-            if (due.isPresent()) {
-                Map<String, LocalDate> recent = reminders.recentTemplates(c.userId(), today.minusDays(ReminderContent.NO_REPEAT_DAYS));
-                int k = due.get();
-                ReminderContent.Resume resume = !c.neverPracticed() && k == 1 ? reminders.latestOpenQuestion(c.userId()) : null;
-                ReminderContent.Homework homework = c.neverPracticed() ? null : reminders.latestHomework(c.userId());
-                java.util.UUID pendingVideo = reminders.latestPendingVideo(c.userId(), now.minus(PENDING_WINDOW));
-                java.util.UUID unreadScript = reminders.latestUnreadScript(c.userId(), now.minus(PENDING_WINDOW));
-                Map<String, Integer> sentThisWeek = reminders.sentCountsByKind(c.userId(), today.minusDays(WEEK_DAYS - 1));
-                deliver(c, today, out, korean -> ReminderContent.practice(new ReminderContent.PracticeInput(
-                        c.userId(), today, k, c.neverPracticed(), c.lastWasReading(), resume, homework, korean,
-                        pendingVideo, unreadScript, sentThisWeek), recent));
-            } else if (c.neverPracticed() && PracticeReminderPolicy.firstNudgeDue(now, c.firstPracticeAt())) {
-                Map<String, LocalDate> recent = reminders.recentTemplates(c.userId(), today.minusDays(ReminderContent.NO_REPEAT_DAYS));
-                deliver(c, today, out, korean -> ReminderContent.firstNudge(c.userId(), today, korean, recent));
-            }
+        // 하루 알림 하나(SOMA-987): 오늘 어느 칸이든 이미 보냈으면(비교군 기록 포함) 더 보내지 않는다.
+        if (!c.sentToday().isEmpty()) return out;
+
+        // 연습 권유를 보낼 때였으면(선점을 다른 서버가 가져갔어도) 오늘 연속 기록 알림은 보내지 않는다.
+        boolean practiceTurn = false;
+        Optional<Integer> due = PracticeReminderPolicy.practiceDue(now, c.firstPracticeAt(), c.lastPracticeDay());
+        if (due.isPresent()) {
+            Map<String, LocalDate> recent = reminders.recentTemplates(c.userId(), today.minusDays(ReminderContent.NO_REPEAT_DAYS));
+            int k = due.get();
+            ReminderContent.Resume resume = !c.neverPracticed() && k == 1 ? reminders.latestOpenQuestion(c.userId()) : null;
+            ReminderContent.Homework homework = c.neverPracticed() ? null : reminders.latestHomework(c.userId());
+            java.util.UUID pendingVideo = reminders.latestPendingVideo(c.userId(), now.minus(PENDING_WINDOW));
+            java.util.UUID unreadScript = reminders.latestUnreadScript(c.userId(), now.minus(PENDING_WINDOW));
+            Map<String, Integer> sentThisWeek = reminders.sentCountsByKind(c.userId(), today.minusDays(WEEK_DAYS - 1));
+            practiceTurn = true;
+            deliver(c, today, out, korean -> ReminderContent.practice(new ReminderContent.PracticeInput(
+                    c.userId(), today, k, c.neverPracticed(), c.lastWasReading(), resume, homework, korean,
+                    pendingVideo, unreadScript, sentThisWeek), recent));
+        } else if (c.neverPracticed() && PracticeReminderPolicy.firstNudgeDue(now, c.firstPracticeAt())) {
+            Map<String, LocalDate> recent = reminders.recentTemplates(c.userId(), today.minusDays(ReminderContent.NO_REPEAT_DAYS));
+            practiceTurn = true;
+            deliver(c, today, out, korean -> ReminderContent.firstNudge(c.userId(), today, korean, recent));
         }
 
-        if (!c.sentToday().contains("streak") && PracticeReminderPolicy.streakDue(now, Integer.MAX_VALUE, false)) {
+        if (!practiceTurn && PracticeReminderPolicy.streakDue(now, Integer.MAX_VALUE, false)) {
             Set<LocalDate> days = reminders.countedPracticeDays(c.userId(), today.minusDays(STREAK_LOOKBACK_DAYS));
             int streak = PracticeReminderPolicy.streak(days, today);
             if (PracticeReminderPolicy.streakDue(now, streak, days.contains(today))) {

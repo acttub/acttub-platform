@@ -49,6 +49,7 @@ import {
   scriptInputReducer,
   type ScriptTab,
 } from '@/lib/reading/script-input';
+import { addSplitJob, removeSplitJob, splitJobTitle } from '@/lib/reading/split-jobs';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
 import { hideForegroundPush } from '@/lib/notifications';
@@ -190,10 +191,26 @@ export default function ReadingNew() {
     const signal = life.current?.signal;
     setPopup({ kind: 'splitting', progress: null });
     let input = next;
+    // 접수되면 바로 기기에 적는다(SOMA-976). 떠나는 순간에는 아직 접수 전일 수 있고(파일 읽기), 앱이 꺼져도 리딩 탭에 남아야 한다.
+    const accepted: { importId?: string } = {};
+    const deps: ScriptImportDeps = {
+      ...DEPS,
+      import: {
+        ...DEPS.import,
+        start: async (body) => {
+          const ticket = await DEPS.import.start(body);
+          if (ticket.import_id && !ticket.duplicate_script_id) {
+            accepted.importId = ticket.import_id;
+            void addSplitJob({ importId: ticket.import_id, title: splitJobTitle(next, flags.title) });
+          }
+          return ticket;
+        },
+      },
+    };
     const result = await runScriptImport(
       next,
       flags,
-      DEPS,
+      deps,
       (progress) => setPopup({ kind: 'splitting', progress }),
       (uploadId) => {
         if (next.kind === 'file') input = { ...next, uploadId };
@@ -202,6 +219,8 @@ export default function ReadingNew() {
       signal,
     );
     if (result.kind === 'cancelled' || signal?.aborted) return;
+    // 이 화면에서 끝을 봤다 — 리딩 탭에 보일 일이 없다. 떠났으면 위에서 돌아가 기록이 남고 리딩 탭이 잇는다.
+    if (accepted.importId) void removeSplitJob(accepted.importId);
     if (result.kind === 'file_unreadable' || result.kind === 'file_too_large') dispatch({ type: 'fileFailed' });
     if (result.kind !== 'saved') return showStop(result, { kind: 'import', input, flags });
     const saved = await loadIntoCurrent(result.scriptId);
@@ -281,7 +300,7 @@ export default function ReadingNew() {
     dispatch({ type: 'tab', tab });
   };
   const closable = popup !== null && popup.kind !== 'splitting';
-  // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 다 되면 대본 목록에 생긴다.
+  // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
   const splitting = popup?.kind === 'splitting';
   useWaitExit(splitting, '/reading');
   // 나누는 중 화면을 보고 있으면 완료 푸시를 배너로 띄우지 않는다 — 이 화면이 끝나면 바로 다음으로 넘어간다(SOMA-960).
@@ -428,7 +447,7 @@ export default function ReadingNew() {
             />
           ) : (
             <PrimaryButton
-              label={t('reading.next')}
+              label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
               onPress={() => pending && void split(pending, { title })}
               disabled={!pending || !!popup}
             />

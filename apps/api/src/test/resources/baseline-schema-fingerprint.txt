@@ -582,6 +582,7 @@ COLUMN practices.favorite ord=19 type=bool len=- null=NO default=false
 COLUMN practices.goal ord=13 type=text len=- null=NO default=''::text
 COLUMN practices.hidden_at ord=20 type=timestamptz len=- null=YES default=-
 COLUMN practices.id ord=1 type=uuid len=- null=NO default=-
+COLUMN practices.language ord=27 type=text len=- null=YES default=-
 COLUMN practices.legacy_hidden_at ord=21 type=timestamptz len=- null=YES default=-
 COLUMN practices.ordinal ord=5 type=int4 len=- null=NO default=-
 COLUMN practices.reading_session_id ord=26 type=uuid len=- null=YES default=-

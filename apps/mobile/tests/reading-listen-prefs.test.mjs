@@ -11,31 +11,33 @@ beforeEach(() => {
   state.broken = false;
 });
 
-test('듣기 설정(SOMA-952·954): 남긴 것이 없으면 핸즈프리 꺼짐·보통 속도이고, 고른 값을 다시 읽는다', async () => {
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1 });
-  await prefs.saveListenPrefs({ handsFree: true, rate: 1.2 });
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: true, rate: 1.2 });
+test('듣기 설정(SOMA-952·954): 남긴 것이 없으면 자동 넘김 꺼짐·보통 속도·쉬는 시간 2초이고, 고른 값을 다시 읽는다', async () => {
+  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
+  await prefs.saveListenPrefs({ handsFree: true, rate: 1.2, pauseSec: 3 });
+  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: true, rate: 1.2, pauseSec: 3 });
 });
 
 test('듣기 설정: 모르는 속도·깨진 값·못 읽는 저장소는 기본값으로 돌아간다', async () => {
-  state.items.set(prefs.LISTEN_PREFS_KEY, JSON.stringify({ handsFree: 'yes', rate: 3 }));
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1 });
+  state.items.set(prefs.LISTEN_PREFS_KEY, JSON.stringify({ handsFree: 'yes', rate: 3, pauseSec: 70 }));
+  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
   state.items.set(prefs.LISTEN_PREFS_KEY, '{');
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1 });
+  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
   state.broken = true;
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1 });
-  await prefs.saveListenPrefs({ handsFree: true, rate: 1.5 });
+  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
+  await prefs.saveListenPrefs({ handsFree: true, rate: 1.5, pauseSec: 2 });
 });
 
-test('핸즈프리 쉬는 시간: 대사 길이에 맞추고, 지문·문장부호는 세지 않고, 속도를 올리면 짧아지며, 위아래 한도가 있다', () => {
-  const short = prefs.pauseMsFor('응.');
-  const long = prefs.pauseMsFor('그건 네가 한 말이잖아. 나는 그날 아무 데도 가지 않았어.');
-  assert.equal(short, prefs.PAUSE_MIN_MS);
-  assert.ok(long > short);
-  assert.equal(prefs.pauseMsFor('(웃으며) 안녕'), prefs.pauseMsFor('안녕'));
-  assert.equal(prefs.pauseMsFor('안녕하세요 반갑습니다'), prefs.PAUSE_BASE_MS + 10 * prefs.PAUSE_MS_PER_CHAR);
-  assert.ok(prefs.pauseMsFor('안녕하세요 반갑습니다', 1.5) < prefs.pauseMsFor('안녕하세요 반갑습니다'));
-  assert.equal(prefs.pauseMsFor('가'.repeat(500)), prefs.PAUSE_MAX_MS);
+test('자동 넘김 쉬는 시간: 적은 글을 초로 읽고(소수 한 자리, 쉼표 허용), 0.5~30초 밖이나 숫자가 아니면 받지 않는다', () => {
+  assert.equal(prefs.parsePause('2'), 2);
+  assert.equal(prefs.parsePause(' 1.5 '), 1.5);
+  assert.equal(prefs.parsePause('2,5'), 2.5);
+  assert.equal(prefs.parsePause('1.25'), 1.3);
+  assert.equal(prefs.parsePause('0.5'), 0.5);
+  assert.equal(prefs.parsePause('30'), 30);
+  for (const bad of ['', '0', '0.4', '31', 'abc', '1.2.3', '-1']) assert.equal(prefs.parsePause(bad), null, bad);
+  assert.equal(prefs.pauseMsFor(3), 3000);
+  assert.equal(prefs.pauseMsFor(1.5), 1500);
+  assert.equal(prefs.pauseMsFor(99), 2000);
 });
 
 test('속도 칸 숫자: 정수는 소수점 없이', () => {

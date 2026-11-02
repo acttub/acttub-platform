@@ -224,3 +224,39 @@ test('비친 자리 테두리의 맥박은 투명도·크기만 바꾼다 — �
   expect(pulse).toEqual(expect.objectContaining({ left: 0, top: 0, right: 0, bottom: 0 }));
   expect(pulse).not.toHaveProperty('width');
 });
+
+test('다음 단계로 넘길 때는 자리를 한 번만 다시 잰다 — 넘길 때마다 다시 재기를 새로 돌리지 않는다(SOMA-924)', async () => {
+  jest.useFakeTimers();
+  let measured = 0;
+  const unregister = registerMeasure(TARGET.homeStart, () => {
+    measured += 1;
+  });
+  setTargetRect(TARGET.homeStart, HOME_START);
+  setTargetRect(TARGET.shoot, SHOOT);
+  try {
+    await render(<App onDone={jest.fn()} />);
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+    const afterOpen = measured;
+    expect(afterOpen).toBeGreaterThan(1);
+
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    expect(measured).toBe(afterOpen + 1);
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+    expect(measured).toBe(afterOpen + 1);
+  } finally {
+    unregister();
+    jest.useRealTimers();
+  }
+});
+
+test('단계를 넘길 때 구멍을 미끄러뜨리지 않고, 설명 카드도 떠오르는 움직임 없이 투명도만 바꾼다(SOMA-924)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const src: string = require('fs').readFileSync(require('path').join(__dirname, '../../components/spotlight-guide.tsx'), 'utf8');
+  expect(src).not.toMatch(/FadeInDown|entering=/);
+  expect(src).toMatch(/hx\.value = hole\.x;/);
+  expect(src).not.toMatch(/hx\.value = withTiming|withTiming\(to,/);
+});

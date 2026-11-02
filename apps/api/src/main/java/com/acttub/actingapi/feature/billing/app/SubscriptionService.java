@@ -487,7 +487,7 @@ public class SubscriptionService {
                     // 토스 시각 모양이 다르면 서버 시각을 쓴다.
                 }
             }
-            mailer.paymentDone(new BillingMailer.PaidMail(email.get().strip(), repository.nickname(sub.userId()).orElse(null),
+            mailer.paymentDone(new BillingMailer.PaidMail(email.get().strip(), repository.displayName(sub.userId()).orElse(null),
                     "first".equals(paid.kind()), orderId, paid.amount(), sub.cardCompany(), sub.cardNumber(), paidAt,
                     paid.periodStart(), paid.periodEnd()));
         } catch (RuntimeException e) {
