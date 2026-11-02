@@ -125,6 +125,11 @@ export function practiceStreak(startedAt: readonly string[], now: number = Date.
   return streak;
 }
 
+/** 누적 연습일 — 연습한 날(한국 시간)이 모두 며칠인가(SOMA-1003). 연속이 끊겨도 줄지 않고, 같은 날 여러 번은 하루다. */
+export function practiceDayTotal(startedAt: readonly string[]): number {
+  return new Set(startedAt.map((iso) => kstDayKey(iso)).filter(Boolean)).size;
+}
+
 /** 회차 한 줄 — "2차 · 대화 6개 · 노트 제목". 노트가 없으면 아직 정리 없음이다. */
 export function roundSummary(round: Pick<PracticeRound, 'ordinal' | 'message_count' | 'note'>): string {
   const parts = [

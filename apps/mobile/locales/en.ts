@@ -743,6 +743,8 @@ const en: DeepStringShape<typeof ko> = {
     streakDaysRow: 'Day {{n}}!',
     streakDays: '{{n}}d',
     streakA11y: '{{n}}-day practice streak',
+    totalDays: '{{n}} days total',
+    totalDaysA11y: 'Practiced {{n}} days in total',
     today: 'Today',
     moreTitle: 'Want to try these too?',
     seeAll: 'See all',

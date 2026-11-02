@@ -5,8 +5,9 @@
  * 사라져 연속일이 줄어들었다. 리포트를 불러올 때마다 날짜를 기기에 누적해 두고, 그 뒤로는
  * 서버 날짜 ∪ 누적 날짜로 계산한다 — 지워도 "그 날 연습했다"는 사실은 남는다.
  *
- * 서버에 연습일 필드가 없어 기기 로컬(AsyncStorage)이다. 재설치·새 기기에선 지운 날짜는
- * 복원되지 않는다. (CI mobile 잡이 무설치 node --test 라 AsyncStorage 는 lazy require.)
+ * 누적분은 기기 로컬(AsyncStorage)이다. 서버도 연습일 목록(GET /v2/practices/days, SOMA-1003)을 주므로 숨긴 기록·
+ * 오래된 리딩 날은 재설치·새 기기에서도 돌아온다. 묶음째 지운 기록의 날짜만 그 기기 누적분에 남는다.
+ * (CI mobile 잡이 무설치 node --test 라 AsyncStorage 는 lazy require.)
  */
 
 import { dayKey } from './practice-activity.ts';
@@ -53,6 +54,14 @@ export function mergePracticeDays(stored: Stored, records: readonly { created_at
     if (!next[key]) next[key] = at.toISOString();
   }
   return next;
+}
+
+/**
+ * 서버가 센 연습일(한국 날짜 YYYY-MM-DD, SOMA-1003)을 누적분과 같은 모양으로 바꾼다. 한국 시간 한낮으로 둔다 —
+ * 어느 시간대 기기에서도 그 날로 센다. 모양이 틀린 값은 버린다.
+ */
+export function serverPracticeDayRecords(days: readonly string[]): { created_at: string }[] {
+  return days.filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day)).map((day) => ({ created_at: `${day}T12:00:00+09:00` }));
 }
 
 /**

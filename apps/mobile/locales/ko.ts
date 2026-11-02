@@ -737,6 +737,8 @@ const ko = {
     streakDaysRow: '{{n}}일째!',
     streakDays: '{{n}}일',
     streakA11y: '{{n}}일 연속 연습',
+    totalDays: '누적 {{n}}일',
+    totalDaysA11y: '지금까지 {{n}}일 연습',
     today: '오늘',
     moreTitle: '이것도 해 볼까요?',
     seeAll: '전체보기',
