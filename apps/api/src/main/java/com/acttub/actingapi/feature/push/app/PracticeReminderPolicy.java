@@ -16,10 +16,11 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>D = 연습한 가장 최근 한국 날짜, F = D 의 첫 연습 시각. 연습한 적이 없으면 가입 시각이 F, 그 날짜가 D.</li>
- *   <li>k = D 로부터 지난 한국 날짜 수(오늘이 D+k). k 가 1~7 일 때만 보낸다. 7일이 지나면 다시 연습할 때까지 보내지 않는다.</li>
+ *   <li>k = D 로부터 지난 한국 날짜 수(오늘이 D+k). k 가 1·2·3·7 일 때만 보낸다(SOMA-987, 매일 오면 시끄럽다는 피드백으로 4~6일째는 건너뛴다).
+ *       7일이 지나면 다시 연습할 때까지 보내지 않는다.</li>
  *   <li>k 번째 보낼 시각 due_k = F + 23.5시간 + (k-1)×24시간. 밤 23시~아침 9시에 걸리면 다음 아침 9시로 민다.
  *       F 가 23:30 이후면 보정으로 하루 밀린 날짜에 보낸다({@link #practiceDue}).</li>
- *   <li>연속 기록 알림: 어제까지 연속 2일 이상, 오늘 아직 연습 안 함, 밤 22시 이후.</li>
+ *   <li>연속 기록 알림: 어제까지 연속 2일 이상, 오늘 아직 연습 안 함, 밤 22시 이후. 그날 연습 권유가 이미 갔으면 보내지 않는다(하루 최대 하나).</li>
  * </ul>
  */
 public final class PracticeReminderPolicy {
@@ -27,6 +28,8 @@ public final class PracticeReminderPolicy {
 
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     public static final int MAX_SKIPPED_DAYS = 7;
+    /** 연습 권유를 보내는 k(SOMA-987). 이 밖의 날(4·5·6일째)은 보낼 시각이 와도 보내지 않는다. */
+    public static final Set<Integer> SEND_DAYS = Set.of(1, 2, 3, 7);
     public static final int MIN_STREAK = 2;
     public static final LocalTime QUIET_START = LocalTime.of(23, 0);
     public static final LocalTime QUIET_END = LocalTime.of(9, 0);
@@ -69,7 +72,7 @@ public final class PracticeReminderPolicy {
     /**
      * 지금 연습 권유를 보낼 때인가. 맞으면 k(오늘 기준 건너뛴 날 수)를 돌려준다.
      *
-     * <p>오늘이 D 이면(오늘 연습함) k=0 이라 보내지 않고, 8일째부터는 보내지 않는다. 한국 날짜당 한 번은 보낸 기록(DB 선점)이 지킨다.
+     * <p>오늘이 D 이면(오늘 연습함) k=0 이라 보내지 않고, 4·5·6일째와 8일째부터는 보내지 않는다. 한국 날짜당 한 번은 보낸 기록(DB 선점)이 지킨다.
      * 보내는 순간이 밤 시간이면 늦게 돈 작업이 밤에 울리지 않도록 건너뛴다.
      *
      * <p>보낼 시각은 보통 D+j 날짜에 떨어지지만, F 가 23:30 이후면 23:00 보정으로 하루 밀려 D+j+1 날짜에 떨어진다.
@@ -79,7 +82,7 @@ public final class PracticeReminderPolicy {
     public static Optional<Integer> practiceDue(Instant now, Instant firstPracticeAt, LocalDate lastPracticeDay) {
         LocalDate today = kstDate(now);
         int k = skippedDays(lastPracticeDay, today);
-        if (k < 1 || k > MAX_SKIPPED_DAYS) return Optional.empty();
+        if (!SEND_DAYS.contains(k)) return Optional.empty();
         if (inQuietHours(now)) return Optional.empty();
         for (int j = k; j >= Math.max(1, k - 1); j--) {
             Instant due = dueAt(firstPracticeAt, j);
