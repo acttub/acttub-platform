@@ -18,7 +18,7 @@ jest.mock('@/lib/ads-native', () => ({
     const { View } = jest.requireActual('react-native');
     return {
       BannerAd: (props: Record<string, unknown>) => <View testID="admob-banner" {...props} />,
-      BannerAdSize: { BANNER: 'BANNER', LARGE_BANNER: 'LARGE_BANNER', MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE' },
+      BannerAdSize: { BANNER: 'BANNER', LARGE_BANNER: 'LARGE_BANNER', MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE', ANCHORED_ADAPTIVE_BANNER: 'ANCHORED_ADAPTIVE_BANNER', INLINE_ADAPTIVE_BANNER: 'INLINE_ADAPTIVE_BANNER' },
     };
   },
 }));
@@ -62,21 +62,28 @@ test('받기 전에는 자리를 잡고, NONE 이면 비운다', async () => {
   await waitFor(() => expect(view.toJSON()).toBeNull());
 });
 
-test('NETWORK 면 칸 규격의 AdMob 배너(테스트 단위)를 그린다', async () => {
+test('NETWORK 배너 칸은 좌우를 채우는 인라인 적응형 AdMob 배너(규격 높이까지, 테스트 단위)를 그린다', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
   await render(<AdSlot slot="home_top" />);
   const banner = await screen.findByTestId('admob-banner');
-  expect(banner.props.size).toBe('BANNER');
+  expect(banner.props.size).toBe('INLINE_ADAPTIVE_BANNER');
+  expect(banner.props.maxHeight).toBe(50);
   expect(banner.props.unitId).toMatch(/^ca-app-pub-3940256099942544\//);
 });
 
-test('exactHeight 면 칸을 폭 비율로 키우지 않고 규격 높이(50) 그대로 둔다', async () => {
-  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'BANNER', width: 320, height: 50, ad: null });
-  await render(<AdSlot slot="community_list_top" exactHeight />);
+test('300×250 칸은 좌우로 늘리지 않고 고정 규격 AdMob 배너 그대로다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'analyzing_wait', size: 'MEDIUM_RECTANGLE', width: 300, height: 250, ad: null });
+  await render(<AdSlot slot="analyzing_wait" />);
   const banner = await screen.findByTestId('admob-banner');
-  const flat = [banner.parent?.props.style].flat(3).reduce((a: Record<string, unknown>, x: unknown) => ({ ...a, ...(x as object) }), {});
-  expect(flat.height).toBe(50);
-  expect(flat.aspectRatio).toBeUndefined();
+  expect(banner.props.size).toBe('MEDIUM_RECTANGLE');
+  expect(banner.props.maxHeight).toBeUndefined();
+});
+
+test('anchored 면 AdMob 은 좌우를 채우는 적응형 배너로 그린다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'BANNER', width: 320, height: 50, ad: null });
+  await render(<AdSlot slot="community_list_top" anchored />);
+  const banner = await screen.findByTestId('admob-banner');
+  expect(banner.props.size).toBe('ANCHORED_ADAPTIVE_BANNER');
 });
 
 test('직접 광고는 「광고」 라벨과 함께 그리고, 이미지가 뜨면 노출·누르면 클릭을 남기고 광고주 링크를 앱 밖으로 연다', async () => {

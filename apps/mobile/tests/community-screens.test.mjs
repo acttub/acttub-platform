@@ -47,7 +47,7 @@ test('목록 행에는 좋아요 수를 두지 않는다(좋아요는 글 상세
 
 test('게시판 광고는 서버에 이미 있는 community_list_top 칸을 목록 아래 얇은 배너(320×50)로 쓴다', () => {
   const board = read('components/community/community-board.tsx');
-  assert.match(board, /<AdSlot slot="community_list_top" exactHeight style=\{styles\.adBanner\} \/>/);
+  assert.match(board, /<AdSlot slot="community_list_top" anchored style=\{styles\.adBanner\} \/>/);
   // 광고는 FlatList 뒤(목록 아래, 탭바 위)에 둔다
   assert.ok(board.indexOf('<AdSlot slot="community_list_top"') > board.indexOf('<FlatList'));
   assert.match(read('lib/ads.ts'), /community_list_top: \{ size: 'BANNER'/);
