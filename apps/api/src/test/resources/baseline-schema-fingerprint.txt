@@ -1387,7 +1387,7 @@ CONSTRAINT community_posts community_posts_status_not_null NOT NULL status
 CONSTRAINT community_posts community_posts_title_not_null NOT NULL title
 CONSTRAINT community_posts community_posts_updated_at_not_null NOT NULL updated_at
 CONSTRAINT community_posts community_posts_view_count_not_null NOT NULL view_count
-CONSTRAINT community_reports ck_community_reports_reason CHECK ((reason = ANY (ARRAY['spam'::text, 'abuse'::text, 'sexual'::text, 'privacy'::text, 'other'::text])))
+CONSTRAINT community_reports ck_community_reports_reason CHECK ((reason = ANY (ARRAY['spam'::text, 'abuse'::text, 'sexual'::text, 'privacy'::text, 'other'::text, 'copyright'::text, 'inappropriate'::text, 'duplicate'::text])))
 CONSTRAINT community_reports ck_community_reports_status CHECK ((status = ANY (ARRAY['pending'::text, 'actioned'::text, 'dismissed'::text])))
 CONSTRAINT community_reports ck_community_reports_target_type CHECK ((target_type = ANY (ARRAY['post'::text, 'comment'::text])))
 CONSTRAINT community_reports community_reports_created_at_not_null NOT NULL created_at
