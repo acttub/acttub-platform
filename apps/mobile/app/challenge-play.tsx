@@ -611,7 +611,14 @@ export default function ChallengePlayScreen() {
       )}
       {entries !== null && entries.length === 0 && !error && (
         <View style={[styles.emptyWrap, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
-          <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close" style={styles.emptyClose}>
+          {/* 감싼 칸의 paddingTop 은 absolute 자식에 안 먹는다 — 상태바 높이를 직접 더해야 X가 상태바 아래에서 눌린다(SOMA-993). */}
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            ph-label="challenge_play_close"
+            style={[styles.emptyClose, { top: insets.top + space[2] }]}>
             <Feather name="x" size={24} color={palette.onAccent} />
           </Pressable>
           <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
