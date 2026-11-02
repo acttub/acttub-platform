@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "acttub-wiki": {
+      "type": "http",
+      "url": "https://wiki.acttub.com/mcp"
+    }
+  }
+}

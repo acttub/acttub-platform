@@ -40,6 +40,8 @@
   이전 AWS 구성의 배경이 필요할 때만 [보관 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/README.md)을 읽습니다.
 - **이슈를 제안·착수하거나 브랜치·PR을 연결하거나 실행 계획(`.scratch/<이슈키>.md`)을 쓰고 이어받을** 때 →
   [issue-tracker.md](docs/agents/issue-tracker.md)
+- **멘토·인터뷰 기록이나 결정 배경**을 찾을 때 → 팀 위키 MCP `acttub-wiki`(`https://wiki.acttub.com`). 저장소에 설정돼 있으며 처음 쓸 때
+  이메일로 로그인합니다. 제품·기능·API의 정본은 이 문서들이고, 위키는 배경 기록입니다.
 - **트리아지 라벨을 판단**할 때 → [triage-labels.md](docs/agents/triage-labels.md)
 - **제품 개념의 이름을 짓거나 쓸 때, ADR을 제안·인용·변경하고 되돌리기 어려운 결정**을 다룰 때 →
   [domain.md](docs/agents/domain.md)(용어 표가 있는 곳과 ADR 절차)
