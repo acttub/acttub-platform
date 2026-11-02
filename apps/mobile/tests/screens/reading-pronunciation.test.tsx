@@ -142,3 +142,28 @@ test('칠한 어절에 상세 분석이 있으면 줄 밑 「상세 보고서」
   await fireEvent.press(screen.getByText('상세 보고서'));
   expect(screen.queryByText(detail.practice)).toBeNull();
 });
+
+test('줄마다 또렷한 소리 점수를, 상세 보고서에는 어절 점수를 보여 주고 이전 보고서엔 줄 점수를 숨긴다', async () => {
+  const detail = { heard: "'힘들먼'처럼 들렸어요", where: "'면'의 모음 ㅕ가 ㅓ에 가까웠어요", kind: '모음이 바뀜', diff: '차이', practice: '연습' };
+  getReport.mockResolvedValue({
+    status: 'done',
+    report: {
+      ...done.report,
+      habit: null,
+      misheard: [],
+      lines: [{ lineNo: 2, text: '그럼, 내가 힘들면 어떡해?', sounds: 20, clearSounds: 18, marks: [{ index: 2, word: '힘들면', lpr: -4.96, startMs: 400, endMs: 800, detail }] }],
+    },
+  });
+  await render(<PronunciationReportScreen />);
+  expect(await screen.findByText('또렷한 소리 18/20 · 90%')).toBeOnTheScreen();
+  expect(screen.queryByText(/0에 가까울수록/)).toBeNull();
+  await fireEvent.press(screen.getByText('상세 보고서'));
+  expect(screen.getByText('−5.0 · 0에 가까울수록 대본 소리에 가까워요')).toBeOnTheScreen();
+});
+
+test('이전 보고서(줄 소리 수 없음)는 줄 점수를 내지 않는다', async () => {
+  getReport.mockResolvedValue({ ...done, report: { ...done.report, misheard: [], habit: null, lines: [{ ...done.report.lines[0], marks: [] }] } });
+  await render(<PronunciationReportScreen />);
+  expect(await screen.findByText('다르게 들린 말이 없었어요')).toBeOnTheScreen();
+  expect(screen.queryByText(/또렷한 소리/)).toBeNull();
+});
