@@ -340,12 +340,34 @@ export default function ReadingRange() {
         </View>
 
         {firstMode ? (
-          // 첫 리딩 — 배역만 세로 목록으로. 이름 · 대사 수 · 그 배역의 첫 대사를 보여 주고, 여럿 골라도 된다.
+          <>
+          {/* 첫 리딩 — 대본을 먼저 보여 주고 그 아래에서 배역을 고른다(11/2 우영: 대본을 보면서 골라야 한다). 고른 배역의 대사는 진하게 보인다. */}
+          <View style={styles.preview} accessibilityLabel={t('reading.firstPreviewA11y')}>
+            <ScrollView nestedScrollEnabled style={styles.previewScroll} contentContainerStyle={styles.previewBody}>
+              {lines.map((l, i) => {
+                if (l.type !== 'dialogue') {
+                  return (
+                    <Text key={i} style={l.type === 'scene' ? styles.previewScene : styles.previewDirection}>
+                      {l.text}
+                    </Text>
+                  );
+                }
+                const mine = cast.some((c) => c.name === l.role && selected.includes(c.id));
+                return (
+                  <View key={i} style={styles.previewLine}>
+                    <Text style={[styles.previewRole, mine && styles.previewRoleOn]}>{l.role}</Text>
+                    <Text style={[styles.previewText, mine && styles.previewTextOn]}>{l.text}</Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+          <Text style={styles.section}>{t('reading.firstPickBelow')}</Text>
           <View ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout} style={styles.list}>
             {cast.map((c) => {
               const on = selected.includes(c.id);
-              const firstLine = dialogues.find((x) => x.l.type === 'dialogue' && x.l.role === c.name)?.l as Extract<ScriptLine, { type: 'dialogue' }> | undefined;
-              const sub = `${t('reading.dialogueCount', { count: roleLineCount(c, lines, script.characters) })}${firstLine ? ` · ${firstLine.text}` : ''}`;
+              // 대본이 바로 위에 보이니 카드에는 대사 수만 둔다.
+              const sub = t('reading.dialogueCount', { count: roleLineCount(c, lines, script.characters) });
               return (
                 <Pressable
                   key={c.id}
@@ -363,6 +385,7 @@ export default function ReadingRange() {
               );
             })}
           </View>
+          </>
         ) : (
           <>
         <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
@@ -612,6 +635,16 @@ const styles = StyleSheet.create({
   tabText: { ...type.body2Bold, color: palette.textMeta, textAlign: 'center' },
   tabTextOn: { color: palette.text },
   list: { gap: space[3] },
+  preview: { borderRadius: radius.lg, backgroundColor: palette.bgSoft, overflow: 'hidden' },
+  previewScroll: { maxHeight: 320 },
+  previewBody: { padding: space[4], gap: space[3] },
+  previewScene: { ...type.captionBold, color: palette.textMeta },
+  previewDirection: { ...type.caption, color: palette.textMeta, fontStyle: 'italic' },
+  previewLine: { gap: 2 },
+  previewRole: { ...type.captionBold, color: palette.textSub },
+  previewRoleOn: { color: palette.blue },
+  previewText: { ...type.body2, color: palette.textSub },
+  previewTextOn: { ...type.body2Bold, color: palette.text },
   card: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
   cardOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, padding: space[4] - 0.5 },
   rowBody: { flex: 1, gap: space[1] },

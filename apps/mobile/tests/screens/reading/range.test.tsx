@@ -435,10 +435,12 @@ test('첫 리딩이면 배역만 묻고 대사 보기·구간은 보이지 않�
   expect(screen.getByText('어떤 배역을 읽으실 건가요?')).toBeOnTheScreen();
   expect(screen.queryByText('구간')).not.toBeOnTheScreen();
   expect(screen.queryByText('내 대사만 가리기')).not.toBeOnTheScreen();
-  // 배역 카드에 대사 수와 그 배역의 첫 대사를 보인다.
-  expect(screen.getAllByText(/^대사 \d+개 · /).length).toBeGreaterThan(0);
+  // 대본을 위에 먼저 보여 주고(11/2 우영), 그 아래 「읽을 배역」 카드에 대사 수를 보인다.
+  expect(screen.getByLabelText('대본 미리 보기')).toBeOnTheScreen();
+  expect(screen.getByText('읽을 배역')).toBeOnTheScreen();
+  expect(screen.getAllByText(/^대사 \d+개$/).length).toBeGreaterThan(0);
 
-  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(screen.getByRole('checkbox', { name: /민재/ }));
   await fireEvent.press(screen.getByText('처음부터 읽기'));
 
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
