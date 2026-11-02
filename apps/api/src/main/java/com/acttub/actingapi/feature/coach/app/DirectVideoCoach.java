@@ -631,7 +631,8 @@ public final class DirectVideoCoach {
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
             }
             // 배우에게는 코치 본문만 저장한다. 숨은 칸(<설계>·<상태>)은 아래에서 상태에 둔다.
-            String shown = loop ? parsed.message() : message.strip();
+            // 첫 질문 모양의 자리표시([상대]·[인물])를 모델이 그대로 두면 배우 화면에 괄호째 보인다(10/31 15:14 운영).
+            String shown = DirectVideoPracticeLoop.withoutPlaceholders(loop ? parsed.message() : message.strip());
             // 첫 응답에서 모델이 연기 영상이 아니라고 분류했으면 그 코치 문장은 버리고 끊는다.
             boolean cut = loop && !talk && !listen && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
             if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
@@ -1107,7 +1108,8 @@ public final class DirectVideoCoach {
         var loopState = session.coachingState() == null ? null : session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY);
         int coachTurns = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         var before = PracticeLoopRouter.before(loopState, coachTurns);
-        var classified = PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
+        var classified = PracticeLoopRouter.unsureAfterWrap(
+                PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before), before, actorText);
         String design = loopState == null ? "" : loopState.path("design").asText("");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
         String doing = PracticeLoopRouter.route(classified, before, stayed, flow,
@@ -1340,6 +1342,13 @@ public final class DirectVideoCoach {
             }
         }
         add.accept("배우가 방금 한 말", actorText == null ? null : actorText.replaceAll("\\s+", " "));
+        // SOMA-969: 정리 뒤 「잘 모르겠어요」를 닫지 않고 받을 때, 같은 제안을 되풀이하지 않고 하는 방법을 준다(11/1 재생: 같은 제안만 두 번 나왔다).
+        if (classified.kind() == PracticeLoopRouter.Kind.METHOD && before.lastDoing().startsWith(PracticeLoopRouter.WRAP_UP)
+                && com.acttub.actingapi.feature.coach.domain.CoachHelpIntent.isUnsure(actorText == null ? "" : actorText)) {
+            lines.add("배우가 방금 정리를 듣고 잘 모르겠다고 했다. 이 줄이 할 일의 모양보다 먼저다. 정리의 제안을 같은 말로 되풀이하지 않는다. "
+                    + "그 제안을 혼자 찍을 때 실제로 어떻게 하는지 방법 하나를 구체적으로 준다(예: \"렌즈 바로 옆에 그 사람 얼굴이 있다고 정해 두고, "
+                    + "대사 끝마다 그 얼굴이 굳는지 풀리는지 떠올리며 다음 말로 가요\"). 질문하지 않는다");
+        }
         if (classified.kind() == PracticeLoopRouter.Kind.METHOD && PracticeLoopRouter.GAP.equals(doing)) {
             lines.add("배우가 방법을 물었다. 방법을 말하기 전에, 무엇을 고쳐야 하는지부터 이번 단계로 보여 준다. 다음 질문에서 배우가 방법을 함께 찾는다");
         }

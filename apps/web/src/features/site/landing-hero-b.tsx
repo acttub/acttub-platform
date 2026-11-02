@@ -4,39 +4,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  APP_DOWNLOAD_ATTR,
-  APP_DOWNLOAD_STORE_ATTR,
-  goHref,
-  STORE_ORDER,
-  type AppStore,
-} from "@/lib/app-download/store-links";
+import { HomeTrialCards } from "@/features/trial/home-trial-cards";
 
 import type { HeroMedia } from "./landing-hero-media";
 
 /**
  * 랜딩 B안 첫 화면(SOMA-918). 스픽 한국어 랜딩처럼 왼쪽에 제목·짧은 설명·버튼 하나,
  * 오른쪽에 살짝 기운 휴대폰 한 대만 두고 그 안에서 실제 앱 녹화 영상이 돈다.
- * 다운로드 주소·UTM·클릭 가로채기·GA4 는 A안과 같은 것(appHref, goHref, data-app-download)을 쓴다.
+ * 3차부터 버튼 자리는 가입 없이 해 보는 체험 카드(HomeTrialCards)이고, 앱 받기는 QR 줄과 머리 메뉴가 맡는다.
  */
 const FOCUS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4880ee]";
 
-const STORE_NAME: Record<AppStore, string> = { app_store: "App Store", google_play: "Google Play" };
-
-export function LandingHeroB({
-  appHref,
-  webHref,
-  returningGuest,
-  campaignSearch,
-  media,
-}: {
-  appHref: string;
-  webHref: string;
-  returningGuest: boolean;
-  campaignSearch: string;
-  media: HeroMedia;
-}) {
+export function LandingHeroB({ media }: { media: HeroMedia }) {
   return (
     <section id="hero" className="relative overflow-x-clip bg-white lg:flex lg:flex-1 lg:items-center">
       <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-10 px-6 pb-14 pt-9 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:gap-10 lg:py-12">
@@ -46,59 +26,16 @@ export function LandingHeroB({
             <br />
             사람이 없을 때, <span className="text-[#4880ee]">액터브</span>
           </h1>
-          <p className="mt-5 text-base leading-[1.7] text-[#4e5968] sm:text-lg lg:mt-6">
-            연기 영상을 올리면 코치가 장면을 보고 질문해요.
-            <br /> 답하다 보면 막힌 곳이 보이고, 연습 노트가 남아요.
+          <p className="mt-5 text-base leading-[1.7] text-[#4e5968] sm:text-lg lg:mt-6">설치 없이 지금 여기서 해 보세요.</p>
+
+          <HomeTrialCards />
+
+          <p className="mt-5 text-center text-[15px] text-[#4e5968] lg:text-left">
+            계정이 있나요?{" "}
+            <Link href="/login" className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
+              로그인
+            </Link>
           </p>
-
-          <div className="mt-7 flex flex-col gap-4 lg:mt-9 lg:flex-row lg:items-center lg:gap-6">
-            <a
-              href={appHref}
-              data-app-download="landing_hero"
-              className={`flex h-14 w-full items-center justify-center rounded-[14px] bg-[#4880ee] px-8 text-[17px] font-bold text-white transition hover:bg-[#3268d8] lg:w-fit ${FOCUS}`}
-            >
-              앱 열기 · 무료로 설치
-            </a>
-            <p className="text-center text-[15px] text-[#4e5968] lg:text-left">
-              {returningGuest ? "하던 연습이 있어요 " : "설치 전에 "}
-              <Link
-                href={webHref}
-                data-landing-web="landing_hero"
-                className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
-              >
-                {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
-              </Link>
-            </p>
-          </div>
-
-          <div className="mt-12 hidden items-center gap-3.5 lg:flex">
-            <Image
-              src="/site/app-qr.svg"
-              alt="앱 설치 QR 코드"
-              width={56}
-              height={56}
-              unoptimized
-              className="rounded-lg border border-[#e5e8eb] bg-white p-1"
-            />
-            <div className="text-sm leading-[1.65] text-[#8b95a1]">
-              <p>휴대폰 카메라로 찍으면 설치 화면으로 가요</p>
-              <p>
-                iPhone · Android 무료 ·{" "}
-                {STORE_ORDER.map((store, i) => (
-                  <span key={store}>
-                    {i > 0 ? " · " : null}
-                    <a
-                      href={goHref(store, "landing_hero", campaignSearch)}
-                      {...{ [APP_DOWNLOAD_ATTR]: "landing_hero", [APP_DOWNLOAD_STORE_ATTR]: store }}
-                      className={`rounded font-semibold text-[#4e5968] underline-offset-2 hover:underline ${FOCUS}`}
-                    >
-                      {STORE_NAME[store]}
-                    </a>
-                  </span>
-                ))}
-              </p>
-            </div>
-          </div>
         </div>
 
         <HeroPhone media={media} />

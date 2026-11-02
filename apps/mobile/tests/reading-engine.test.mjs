@@ -14,7 +14,8 @@ const modules = {
     export function createAudioPlayer(source){
       const p={source,duration:0,playing:false,removed:false,listener:null,
         addListener(event,listener){this.listener=listener;return {remove:()=>{this.listener=null;}};},
-        play(){this.playing=true;},remove(){this.removed=true;}};
+        play(){this.playing=true;},remove(){this.removed=true;},
+        setPlaybackRate(rate,quality){this.rate=rate;this.quality=quality;}};
       s.players.push(p);return p;
     }`,
   '../../i18n.ts': `export const currentLanguage=()=> 'ko'; export const translate=k=>k;`,
@@ -58,6 +59,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const engine = await import('../lib/reading/tts/engine.ts');
+const playbackRate = await import('../lib/reading/tts/playback-rate.ts');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
 beforeEach(async () => {
@@ -132,6 +134,24 @@ test('재생 중지로 대기를 풀고 합성 중 화면을 떠나면 뒤늦게
   release();
   await speaking;
   assert.equal(state.players.length,1);
+});
+
+test('[다음]을 연타하면 지나간 줄은 만들지 않고 도착한 줄만 만들어 튼다', async () => {
+  let release;
+  state.gate = new Promise(resolve => { release=resolve; });
+  const lines = ['첫 줄','둘째 줄','셋째 줄','넷째 줄','다섯째 줄'];
+  // 줄이 바뀔 때마다 화면은 앞 줄을 멈추고(stop) 새 줄을 읽는다(speak).
+  const next = (line) => { engine.stop(); return engine.speak(line,'F1',{scriptId:'script'}); };
+  const speaking = [next(lines[0])];
+  await flush(); // 첫 줄은 이미 만들고 있다
+  for (const line of lines.slice(1)) speaking.push(next(line));
+  release();
+  await flush(); await flush();
+  // 만들던 첫 줄은 끊지 못하지만, 그 사이 지나간 줄(둘째~넷째)은 만들지 않는다.
+  assert.deepEqual(state.calls.map(c=>c.text), ['첫 줄','다섯째 줄']);
+  assert.equal(state.players.length, 1);
+  state.players[0].listener({isLoaded:true,didJustFinish:true,duration:1});
+  await Promise.all(speaking);
 });
 
 test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 지켜보고 받기는 한 번만 한다', async () => {
@@ -257,4 +277,33 @@ test('재생이 시작됐는데 끝 사건이 오지 않으면 소리 길이와 
   } finally {
     mock.timers.reset();
   }
+});
+
+test('읽는 속도(SOMA-952): 정한 속도로 높낮이를 지키며 틀고, 끝 사건이 없으면 빨라진 길이만큼만 기다린다', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  playbackRate.setReadingPlaybackRate(1.5);
+  try {
+    let finished = false;
+    const playback = engine.play('file:///fast.wav').then(() => { finished = true; });
+    const player = state.players.at(-1);
+    assert.deepEqual([player.rate, player.quality, player.shouldCorrectPitch], [1.5, 'high', true]);
+    player.listener({ isLoaded: true, didJustFinish: false, playing: true, currentTime: 0, duration: 3 });
+    mock.timers.tick(2000 + engine.PLAYBACK_END_MARGIN_MS - 1);
+    await flush();
+    assert.equal(finished, false);
+    mock.timers.tick(1);
+    await playback;
+    assert.equal(finished, true);
+  } finally {
+    playbackRate.setReadingPlaybackRate(1);
+    mock.timers.reset();
+  }
+});
+
+test('보통 속도면 재생기 속도를 건드리지 않는다', async () => {
+  const playback = engine.play('file:///normal.wav');
+  const player = state.players.at(-1);
+  assert.equal(player.rate, undefined);
+  player.listener({ isLoaded: true, didJustFinish: true, duration: 1 });
+  await playback;
 });

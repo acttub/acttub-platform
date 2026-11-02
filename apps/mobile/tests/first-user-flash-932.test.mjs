@@ -9,13 +9,16 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'
 test('대본 탭 — 목록을 받기 전에는 「내 대본」 머리·고품질 목소리 띠·목록 대신 뼈대만 보인다', () => {
   const src = read('app/(tabs)/reading.tsx');
   assert.match(src, /const listPending = list === null && !error;/);
-  // 제목·「새 대본」 버튼·목소리 띠는 받은 뒤 대본이 있을 때만.
-  assert.match(src, /title=\{empty \|\| listPending \? '' : t\('reading\.listTitle'\)\}/);
-  assert.match(src, /\{!empty && !listPending && \(\s*<View ref=\{newTarget\.ref\}/);
-  assert.match(src, /\{!empty && !listPending && voiceBar\}/);
+  // 제목·「새 대본」 버튼·목소리 띠는 대본이 있을 때만. 받기 전에는 지난번에 대본 목록을 그린 사람(뼈대 기억 'list')만
+  // 목록 모양 뼈대와 함께 미리 보이고, 그 밖에는(첫 사용자·기억 없음) 입구 모양 뼈대라 「내 대본」이 번쩍이지 않는다.
+  assert.match(src, /const listSkeleton = listPending && skeletonHints\.reading === 'list';/);
+  assert.match(src, /const entrySkeleton = listPending && !listSkeleton && !entryHint;/);
+  assert.match(src, /title=\{showEntry \|\| entrySkeleton \? '' : t\('reading\.listTitle'\)\}/);
+  assert.match(src, /\{!showEntry && !entrySkeleton && \(\s*<View ref=\{newTarget\.ref\}/);
+  assert.match(src, /\{!showEntry && !entrySkeleton && voiceBar\}/);
   // 몸통은 받기 전 → 뼈대, 비었으면 입구, 아니면 목록 순서로 고른다.
-  const pending = src.indexOf('{listPending ? (');
-  const entry = src.indexOf(') : empty ? (');
+  const pending = src.indexOf('{listPending && !showEntry ? (');
+  const entry = src.indexOf(') : showEntry ? (');
   assert.ok(pending > 0 && entry > pending, '받기 전 뼈대 분기가 빈 입구 분기보다 앞에 있어야 한다');
   // 목록 안쪽의 옛 받는 중 뼈대는 없앤다(이제 위에서 한 번만 그린다).
   assert.doesNotMatch(src, /loading && !list && \(/);

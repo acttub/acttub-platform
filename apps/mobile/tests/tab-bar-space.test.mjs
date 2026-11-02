@@ -8,7 +8,7 @@ const TABS = ['index', 'coaching', 'reading', 'challenges', 'profile', 'history'
 test('탭바는 화면 위에 떠 있어서 탭 화면은 탭바 높이(useTabBarSpace)만큼 아래를 비운다 — 숫자로 적지 않는다(10/22 피드백)', () => {
   const bar = read('components/ui/tab-bar.tsx');
   assert.match(bar, /export function useTabBarSpace\(\): number/);
-  assert.match(bar, /if \(firstTime\) return insets\.bottom;/, '탭바를 숨길 때는 홈 표시줄만 비운다');
+  assert.match(bar, /if \(hidden\) return insets\.bottom;/, '탭바를 숨길 때는 홈 표시줄만 비운다');
   for (const tab of TABS) {
     const src = read(`app/(tabs)/${tab}.tsx`);
     assert.match(src, /useTabBarSpace\(\)/, `${tab} 탭이 탭바 높이를 쓴다`);

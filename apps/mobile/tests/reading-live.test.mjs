@@ -83,3 +83,10 @@ test('가린 지금 대사는 「대사 가림」 — 말한 뒤·원문 보기�
 test('끝났으면 보일 것이 없다', () => {
   assert.equal(live(advance(advance(advance(run())))), null);
 });
+
+test('핸즈프리(SOMA-954): 내 차례에는 마이크 대신 「속으로 말해 보세요」, 멈춤·상대 차례는 그대로', () => {
+  const base = { hold: null, paused: false, interrupted: false, myTurn: true, textOnly: false, turnDone: false, turnNote: null, listening: false, handsFree: true };
+  assert.equal(turnChip(base).icon, 'clock');
+  assert.equal(turnChip({ ...base, paused: true }).icon, 'pause');
+  assert.equal(turnChip({ ...base, myTurn: false }).icon, 'volume-2');
+});

@@ -425,6 +425,14 @@ final class DirectVideoPracticeLoop {
         return null;
     }
 
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\[(상대|인물)\\]");
+
+    /** 첫 질문 모양의 자리표시가 그대로 남았으면 말로 바꾼다. "[상대]" → "상대", "[인물]" → "이 인물". */
+    static String withoutPlaceholders(String text) {
+        if (text == null || text.indexOf('[') < 0) return text;
+        return PLACEHOLDER.matcher(text).replaceAll(m -> "상대".equals(m.group(1)) ? "상대" : "이 인물");
+    }
+
     private static final java.util.Locale UNDECIDED = java.util.Locale.ROOT;
 
     /** 글자 수로 가린다. 한글이 있으면 한국어(null), 가나가 있으면 일본어, 로마자 단어가 충분하면 영어. */

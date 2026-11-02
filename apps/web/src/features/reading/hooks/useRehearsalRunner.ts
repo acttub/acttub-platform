@@ -31,6 +31,8 @@ export interface RunnerOptions {
   myTurn: MyTurnMode;
   partnerVoice: PartnerVoice;
   styleFor: (role: string) => RoleVoice;
+  /** 상대 대사를 소리로 끝까지 냈다(글로 보기·실패는 해당 없음). 웹 체험 퍼널이 첫 재생을 세는 데 쓴다. */
+  onPartnerSpoken?: () => void;
 }
 
 const GAP_BEFORE_AI_MS = 350;
@@ -64,9 +66,11 @@ export function useRehearsalRunner(cfg: RehearsalConfig, opts: RunnerOptions) {
   const abortRef = useRef<AbortController | null>(null);
   const micRef = useRef<MicListener | null>(null);
   const styleForRef = useRef(opts.styleFor);
+  const partnerSpokenRef = useRef(opts.onPartnerSpoken);
   const partnerVoice = opts.partnerVoice;
   useEffect(() => {
     styleForRef.current = opts.styleFor;
+    partnerSpokenRef.current = opts.onPartnerSpoken;
   });
 
   const cleanup = useCallback(() => {
@@ -122,6 +126,7 @@ export function useRehearsalRunner(cfg: RehearsalConfig, opts: RunnerOptions) {
           setVoiceFailed(true);
           return;
         }
+        partnerSpokenRef.current?.();
         setState((s) => (s.status === "ai" ? advance(s) : s));
       })();
     } else if (state.status === "me" && myTurn === "silence") {

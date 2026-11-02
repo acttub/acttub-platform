@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { useCompletionPending } from "@/features/reading/hooks/useCompletionPending";
 import { DoneScreen } from "@/features/reading/screens/DoneScreen";
 import { useReadingStep } from "@/features/reading/use-reading-step";
 import { useSessionStart } from "@/features/reading/use-session-start";
+import { useTrialGuest } from "@/features/trial/use-trial-guest";
+import { trackTrialComplete } from "@/lib/analytics/ga";
 import { getSession } from "@/lib/api/v2/reading-sessions";
 import { useResource } from "@/lib/react/use-resource";
 import { reviewFor } from "@/lib/reading/session/results";
@@ -17,6 +20,15 @@ export function DonePage() {
   const { script, session, stats, ready } = useReadingStep("done");
   const repeat = useSessionStart(() => router.push(STEP_PATH.run));
   const { completing, uploading } = useCompletionPending(session?.id ?? null);
+  // 가입 없이 체험한 방문자가 끝까지 읽은 시점(회차마다 한 번).
+  const guest = useTrialGuest();
+  const completedSession = useRef<string | null>(null);
+  const sessionId = session?.id ?? null;
+  useEffect(() => {
+    if (!guest || !sessionId || !stats || completedSession.current === sessionId) return;
+    completedSession.current = sessionId;
+    trackTrialComplete("reading");
+  }, [guest, sessionId, stats]);
   // read 의 완료 응답을 받지 못했다(끊김·409 session_closed). 완료 저장이 끝나면 회차 상세의 different_lines 를 읽는다.
   const detailKey = session && stats?.mode === "read" && !stats.differentLines && !completing ? session.id : null;
   const detail = useResource(detailKey, (id, signal) => getSession(id, { signal }), "");
@@ -29,6 +41,7 @@ export function DonePage() {
       repeating={repeat.starting}
       error={repeat.error}
       saving={completing || uploading}
+      recordingsSessionId={session.record ? session.id : null}
       onReview={() => {
         storage.saveMemorizeEntry({ scriptId: script.id, roles: session.my_character_names, lineIds: (reviewFor(script, shown) ?? []).map((r) => r.lineId) });
         router.push(MEMORIZE_PATH);

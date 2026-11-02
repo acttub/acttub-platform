@@ -1,7 +1,7 @@
 import type { KeywordPageContent } from "../../types";
 
 export const SELF_TAPE: KeywordPageContent = {
-  path: "/guide/self-tape",
+  path: "/blog/self-tape",
   title: "셀프테이프 찍는 법 — 폰 하나로 오디션 영상 준비하기",
   description:
     "오디션 셀프테이프를 폰 하나로 준비하는 방법이에요. 프레임과 시선, 조명과 소리, 상대 대사 처리, 테이크 고르기, 제출 전 확인까지 실무 순서대로 정리했어요.",
@@ -166,9 +166,9 @@ export const SELF_TAPE: KeywordPageContent = {
     },
   ],
   related: [
-    { href: "/guide/monologue-practice", label: "독백 연습 혼자 하는 법" },
-    { href: "/guide/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
-    { href: "/guide/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
+    { href: "/blog/monologue-practice", label: "독백 연습 혼자 하는 법" },
+    { href: "/blog/scene-analysis-basics", label: "장면 분석 기본 — 상황·상대·목표·장애물" },
+    { href: "/blog/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
     { href: "/ai-acting-coaching", label: "AI 연기 코칭이 뭔가요?" },
   ],
 };

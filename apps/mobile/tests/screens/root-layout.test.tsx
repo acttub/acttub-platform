@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
 
-import { flushPendingPushTokenDeletions, configureNotificationHandling, onPushTapped } from '@/lib/notifications';
+import { flushPendingPushTokenDeletions, configureNotificationHandling, onPushTapped, takeColdStartPushTap } from '@/lib/notifications';
 import { sweepDeviceFiles } from '@/lib/account-files';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
@@ -83,7 +83,7 @@ jest.mock('@/lib/notifications', () => ({
   flushPendingPushTokenDeletions: jest.fn(),
   onPushTapped: jest.fn(),
   capturePushOpen: jest.fn(),
-  recordColdStartPushOpen: jest.fn(() => Promise.resolve()),
+  takeColdStartPushTap: jest.fn(),
   setPushOpenSignedIn: jest.fn(),
 }));
 jest.mock('@/lib/auth', () => ({ AuthProvider: ({ children }: { children: unknown }) => children, useAuth: jest.fn() }));
@@ -136,6 +136,7 @@ beforeEach(() => {
     pushListener = fn;
     return () => undefined;
   });
+  (takeColdStartPushTap as jest.Mock).mockResolvedValue(null);
   setAppState('active');
 });
 
@@ -515,6 +516,73 @@ describe('푸시를 누르면', () => {
 
     pushListener?.({ kind: 'challenge_notification', notification_id: 'x1' });
     expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
+  });
+});
+
+// 꺼진 앱은 리스너가 붙기 전에 탭이 지나가므로 시작할 때 조회한 탭을 켜진 앱과 같은 화면으로 연다(SOMA-974).
+describe('꺼진 앱을 푸시로 열면', () => {
+  const SCRIPT_ID = '12345678-1234-1234-1234-123456789abc';
+  const PRACTICE_ID = '12345678-1234-1234-1234-123456789abd';
+  const SPLIT = { kind: 'script_split_complete', script_id: SCRIPT_ID };
+  const HOMEWORK = { kind: 'evening_reminder', reminder_kind: 'homework', practice_id: PRACTICE_ID, template_id: 'hw.a' };
+
+  test('대본 나누기 완료 푸시는 그 대본의 목소리 정하기로 간다', async () => {
+    (takeColdStartPushTap as jest.Mock).mockResolvedValue(SPLIT);
+    await renderLayout();
+    expect(takeColdStartPushTap).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`);
+  });
+
+  test('연습 알림 푸시는 그 숙제를 찾아 여는 화면으로 가고 누른 것을 남긴다', async () => {
+    (takeColdStartPushTap as jest.Mock).mockResolvedValue(HOMEWORK);
+    await renderLayout();
+    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=homework&id=${PRACTICE_ID}`);
+    expect(logEvent).toHaveBeenCalledWith('reminder_open', { reminder_kind: 'homework', template_id: 'hw.a', target: 'resolve' });
+  });
+
+  test('로그인 전이면 들고 있다가 로그인과 게이트를 지난 뒤 그 화면을 연다', async () => {
+    (takeColdStartPushTap as jest.Mock).mockResolvedValue(SPLIT);
+    auth = signedIn({ status: 'signedOut', user: null });
+    const view = await renderLayout();
+    expect(mockRouter.replace).toHaveBeenCalledWith('/login');
+    expect(mockRouter.replace).not.toHaveBeenCalledWith(expect.stringContaining('/reminder-open'));
+
+    mockNav.segments = ['login'];
+    mockRouter.replace.mockClear();
+    await update({ status: 'signedIn', user: { id: 'u1' }, profile: { status: 'checking' } }, view);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    await update({ profile: { status: 'complete' } }, view);
+    expect(mockRouter.replace.mock.calls).toEqual([['/(tabs)'], [`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`]]);
+
+    mockNav.segments = ['reminder-open'];
+    mockRouter.replace.mockClear();
+    await update({}, view);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
+  test('끝나지 않은 분석을 되살려도 누른 푸시의 화면이 마지막에 열린다', async () => {
+    (takeColdStartPushTap as jest.Mock).mockResolvedValue(HOMEWORK);
+    loadForOwner.mockResolvedValue({ key: 'k1', record: { practice_id: 'p1' } });
+    await renderLayout();
+    expect(mockRouter.replace).toHaveBeenLastCalledWith(`/reminder-open?kind=homework&id=${PRACTICE_ID}`);
+  });
+
+  test('켜진 앱의 탭도 게이트가 끝나기 전이면 기다렸다가 연다', async () => {
+    auth = signedIn({ profile: { status: 'checking' } });
+    const view = await renderLayout();
+    pushListener?.(SPLIT);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    await update({ profile: { status: 'complete' } }, view);
+    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=script_ready&id=${SCRIPT_ID}`);
+  });
+
+  test('푸시 없이 열면 아무 화면도 옮기지 않는다', async () => {
+    await renderLayout();
+    expect(takeColdStartPushTap).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 });
 

@@ -1,10 +1,10 @@
 /**
- * 웹 게스트의 하루 3회 분석 한도 안내(practice.start·practice.resume). 한도는 서버가 한국 시간 하루의 새 분석
+ * 웹 게스트(가입 없이 체험)의 하루 1회 분석 한도 안내(practice.start·practice.resume). 한도는 서버가 한국 시간 하루의 새 분석
  * 요청 수로 세고(429 guest_daily_analysis_limit), 웹은 시작 전에 이를 알린다. 기기는 오늘 시작한 횟수를 세어
  * 둘 뿐이고 서버가 정본이다.
  */
 
-export const GUEST_DAILY_LIMIT = 3;
+export const GUEST_DAILY_LIMIT = 1;
 const KEY = "acttub.practice.guest_daily";
 
 type CountStore = Pick<Storage, "getItem" | "setItem">;
@@ -50,6 +50,6 @@ export function recordGuestAnalysis(s: CountStore | null = store(), now: Date = 
 
 export function guestAnalysisNotice(used: number): string {
   const left = Math.max(0, GUEST_DAILY_LIMIT - used);
-  if (left === 0) return "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요.";
-  return `게스트는 하루 ${GUEST_DAILY_LIMIT}번까지 분석할 수 있어요. 오늘 ${left}번 남았어요.`;
+  if (left === 0) return "가입 없이는 하루 한 번 받아 볼 수 있어요. 앱에서 이어서 하세요.";
+  return `가입 없이 하루 ${GUEST_DAILY_LIMIT}번 받아 볼 수 있어요. 오늘 ${left}번 남았어요.`;
 }

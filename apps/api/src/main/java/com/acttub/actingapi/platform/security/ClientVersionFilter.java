@@ -48,6 +48,8 @@ public class ClientVersionFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return !path.startsWith("/v2/")
                 || path.startsWith("/v2/admin/")
+                // 블로그 공개 읽기(app.blog): 웹 서버 렌더와 <img> 가 부르므로 앱 헤더를 싣지 못한다.
+                || path.startsWith("/v2/blog/")
                 // PG 심사 전용 테스트 결제(SOMA-620): 토스가 브라우저를 되돌려 보내는 콜백은 우리 헤더를 실을 수 없다.
                 // 실제 앱 계정과 무관한 별도 쿠키 세션 경로이며, 설정이 꺼져 있으면 경로 자체가 404 다.
                 || path.startsWith("/v2/pg-review/")

@@ -13,7 +13,7 @@ export { clearLoginExpired };
 export function LoginExpiredNoticeHost() {
   const expired = useSyncExternalStore(subscribeLoginExpired, isLoginExpired, () => false);
   const pathname = usePathname();
-  if (!expired || pathname === "/login" || pathname?.startsWith("/auth/")) return null;
+  if (!expired || pathname === "/login" || pathname === "/signup" || pathname?.startsWith("/auth/")) return null;
   const next = typeof window === "undefined" ? pathname : `${window.location.pathname}${window.location.search}`;
   return (
     <div role="status" className="sticky top-0 z-[80] flex items-center gap-3 bg-[#191f28] px-4 py-3 text-sm text-white">

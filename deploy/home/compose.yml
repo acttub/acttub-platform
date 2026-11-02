@@ -98,7 +98,7 @@ services:
       READING_RETRANSCRIBE_MIN_PEAK_DB: ${READING_RETRANSCRIBE_MIN_PEAK_DB:--30}
       # PG 심사 전용 테스트 빌링(SOMA-620). dev에서만 명시적으로 켜며 기본은 꺼짐이다.
       # 실제 결제 키는 API가 거부한다. 웹 컨테이너에는 이 값을 전달하지 않는다.
-      # 리딩 발음 보고서(SOMA-606, 실험). dev .env 에서만 켠다 — 기본은 꺼짐이고 허용 사용자 목록이 비면 아무도 받지 않는다.
+      # 리딩 발음 보고서(SOMA-606, 실험). dev .env 에서만 켠다 — 기본은 꺼짐이다. 켜면 허용 사용자 목록과 Pro 배우가 받는다(SOMA-967).
       # 채점 서비스는 아래 pron(프로필 pron)이다. 운영 .env 에는 이 값들과 프로필을 넣지 않는다.
       PRON_REPORT_ENABLED: ${PRON_REPORT_ENABLED:-false}
       PRON_REPORT_ALLOWED_USERS: ${PRON_REPORT_ALLOWED_USERS:-}
@@ -117,6 +117,10 @@ services:
       BILLING_WEB_RETURN_URL: ${BILLING_WEB_RETURN_URL:-}
       BILLING_TOSS_CLIENT_KEY: ${BILLING_TOSS_CLIENT_KEY:-}
       BILLING_TOSS_SECRET_KEY: ${BILLING_TOSS_SECRET_KEY:-}
+      # 웹 Pro 구독 메일(SOMA-961). 기본 꺼짐. 키는 .env 에만 둔다.
+      BILLING_MAIL_ENABLED: ${BILLING_MAIL_ENABLED:-false}
+      BILLING_MAIL_FROM: ${BILLING_MAIL_FROM:-ACTTUB <no-reply@acttub.com>}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       BILLING_REVENUECAT_ENABLED: ${BILLING_REVENUECAT_ENABLED:-false}
       REVENUECAT_SECRET_API_KEY: ${REVENUECAT_SECRET_API_KEY:-}
       REVENUECAT_WEBHOOK_AUTH: ${REVENUECAT_WEBHOOK_AUTH:-}
@@ -304,6 +308,8 @@ services:
     environment:
       PRON_THREADS: ${PRON_THREADS:-2}
       OMP_NUM_THREADS: ${PRON_THREADS:-2}
+      # 음소마다 앞뒤 몇 개 음소 구간에서 비교할지(SOMA-967). 0 이면 예전처럼 문장 전체로 비교한다(느리고 메모리를 많이 쓴다).
+      PRON_GOP_WINDOW: ${PRON_GOP_WINDOW:-2}
     networks:
       default: {}
     healthcheck:

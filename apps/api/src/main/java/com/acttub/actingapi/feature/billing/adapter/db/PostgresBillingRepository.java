@@ -60,6 +60,36 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
+    public Optional<String> displayName(UUID userId) {
+        return transaction.execute(tx -> {
+            var rows = entityManager.createNativeQuery("""
+                    SELECT COALESCE(NULLIF(btrim(p.name), ''), NULLIF(btrim(u.nickname), ''))
+                    FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
+                    WHERE u.id = :userId
+                    """)
+                    .setParameter("userId", userId)
+                    .getResultList();
+            if (rows.isEmpty() || rows.get(0) == null || rows.get(0).toString().isBlank()) {
+                return Optional.<String>empty();
+            }
+            return Optional.of(rows.get(0).toString().strip());
+        });
+    }
+
+    @Override
+    public Optional<String> email(UUID userId) {
+        return transaction.execute(tx -> {
+            var rows = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:userId")
+                    .setParameter("userId", userId)
+                    .getResultList();
+            if (rows.isEmpty() || rows.get(0) == null) {
+                return Optional.<String>empty();
+            }
+            return Optional.of(rows.get(0).toString());
+        });
+    }
+
+    @Override
     public Optional<Instant> signedUpAt(UUID userId) {
         return transaction.execute(tx -> {
             var rows = entityManager.createNativeQuery("SELECT created_at FROM users WHERE id=:userId")

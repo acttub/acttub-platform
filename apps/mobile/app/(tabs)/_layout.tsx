@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 
 import { TAB_BAR_HIDDEN, tabButton, tabIcon, useTabBarStyle } from '@/components/ui/tab-bar';
-import { useFirstTimeUser } from '@/hooks/use-first-time-user';
+import { useFirstTimeTabBarHidden } from '@/hooks/use-first-time-user';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { translate as t } from '@/lib/i18n';
@@ -19,7 +19,7 @@ import { TARGET } from '@/lib/spotlight-targets';
  */
 export default function TabLayout() {
   const tabBarStyle = useTabBarStyle();
-  const firstTime = useFirstTimeUser();
+  const tabBarHidden = useFirstTimeTabBarHidden();
   // 읽지 않은 알림 묶음 수.
   const unread = useUnreadNotifications();
   // 홈 첫 가이드가 코칭 탭을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
@@ -40,7 +40,7 @@ export default function TabLayout() {
       <Tabs
         backBehavior="history"
         screenOptions={{
-          tabBarStyle: firstTime ? TAB_BAR_HIDDEN : tabBarStyle,
+          tabBarStyle: tabBarHidden ? TAB_BAR_HIDDEN : tabBarStyle,
           tabBarShowLabel: false,
           headerShown: false,
         }}>

@@ -21,8 +21,8 @@ public final class PracticeRules {
     /** 회차에 싣는 포스터 서명 주소의 수명(초). 보관함의 포스터·재생 주소와 같은 10분이다. */
     public static final int POSTER_URL_TTL_SECONDS = 600;
 
-    /** 게스트의 하루 분석 요청 수. 한국 시간 자정에 끊는다. */
-    public static final int GUEST_DAILY_ANALYSES = 3;
+    /** 게스트(웹 체험)의 하루 분석 요청 수. 한국 시간 자정에 끊는다. 가입 없이 1번 받아 보게 한다(SOMA-834, 2026-11-01). */
+    public static final int GUEST_DAILY_ANALYSES = 1;
     /** 무료 이용자가 한국 시간 하루에 만들 수 있는 코칭 회차 수(SOMA-818, 한도 강제 플래그가 켜졌을 때만). */
     public static final int FREE_DAILY_COACHING_SESSIONS = 3;
 

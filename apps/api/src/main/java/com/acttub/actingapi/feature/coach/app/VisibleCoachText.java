@@ -115,6 +115,13 @@ final class VisibleCoachText {
         text = MEMO_LINE.matcher(text).replaceAll("");
         text = holdMemoHead(text);
         text = STRAY_TAG.matcher(text).replaceAll("");
+        // 자리표시([상대]·[인물])는 말로 바꿔 보낸다. 끝에 덜 쓴 "[상"·"[인물"은 다음 조각까지 잡아 둔다.
+        text = DirectVideoPracticeLoop.withoutPlaceholders(text);
+        int bracket = text.lastIndexOf('[');
+        if (bracket >= 0 && text.indexOf(']', bracket) < 0) {
+            String tail = text.substring(bracket + 1);
+            if ("상대".startsWith(tail) || "인물".startsWith(tail)) text = text.substring(0, bracket);
+        }
         return text.stripLeading();
     }
 

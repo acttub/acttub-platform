@@ -14,14 +14,17 @@ import com.acttub.actingapi.feature.reading.app.PronunciationReportService;
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationSettings;
 import com.acttub.actingapi.feature.reading.app.PronunciationWorker;
+import com.acttub.actingapi.feature.reading.app.VoicePlan;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * 리딩 발음 보고서(SOMA-606) 조립. 켜는 값은 셋이다 — {@code PRON_REPORT_ENABLED}(기본 false),
- * {@code PRON_REPORT_ALLOWED_USERS}(쉼표로 이은 사용자 id, 비면 아무도), {@code PRON_SCORER_URL}(채점 서비스 주소).
+ * {@code PRON_REPORT_ALLOWED_USERS}(Pro 가 아니어도 받는 사용자 id, 쉼표로 이음), {@code PRON_SCORER_URL}(채점 서비스 주소).
+ * 켜져 있으면 Pro 회원은 목록과 상관없이 받는다 — Pro 판정은 리딩 고품질 목소리와 같은 결제 판정(VoicePlan)을 쓴다.
  */
 @Configuration
 class PronunciationConfiguration {
@@ -43,8 +46,9 @@ class PronunciationConfiguration {
 
     @Bean
     PronunciationReportService pronunciationReportService(PronunciationReportRepository reports, PronunciationSettings settings,
-            Clock clock) {
-        return new PronunciationReportService(reports, settings, clock);
+            ObjectProvider<VoicePlan> plan, Clock clock) {
+        VoicePlan pro = plan.getIfAvailable(() -> VoicePlan.NONE);
+        return new PronunciationReportService(reports, settings, pro::pro, clock);
     }
 
     @Bean

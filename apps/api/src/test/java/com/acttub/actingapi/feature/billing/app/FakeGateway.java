@@ -9,6 +9,8 @@ import java.util.List;
 class FakeGateway implements AppBillingGateway {
     final List<String> approvedOrders = new ArrayList<>();
     final List<String> idempotencyKeys = new ArrayList<>();
+    final List<String> customerEmails = new ArrayList<>();
+    String approvedAt = "2026-10-23T10:00:00+09:00";
     final Deque<RuntimeException> nextFailures = new ArrayDeque<>();
     RuntimeException issueFailure;
     int issued;
@@ -24,13 +26,14 @@ class FakeGateway implements AppBillingGateway {
 
     @Override
     public PgReviewGateway.Approval approve(String billingKey, String customerKey, String orderId, long amount, String orderName,
-            String idempotencyKey) {
+            String customerEmail, String idempotencyKey) {
         idempotencyKeys.add(idempotencyKey);
+        customerEmails.add(customerEmail);
         if (!nextFailures.isEmpty()) {
             throw nextFailures.pop();
         }
         approvedOrders.add(orderId);
-        return new PgReviewGateway.Approval("DONE", orderId, amount, "2026-10-23T10:00:00+09:00");
+        return new PgReviewGateway.Approval("DONE", orderId, amount, approvedAt);
     }
 
     static PgReviewGateway.GatewayException rejected() {

@@ -262,7 +262,7 @@ test("게스트가 없으면 목록을 묻지 않고 빈 목록과 오늘 남은
   await mount();
   assert.deepEqual(requests, []);
   assert.ok(screen.getAllByText("첫 영상을 올리면 여기에 쌓여요.").length > 0);
-  assert.ok(screen.getByText("게스트는 하루 3번까지 분석할 수 있어요. 오늘 3번 남았어요."));
+  assert.ok(screen.getByText("가입 없이 하루 1번 받아 볼 수 있어요. 오늘 1번 남았어요."));
   assert.equal(button("질문 받기").disabled, true);
   assert.ok(screen.getByText("영상을 올리면 시작할 수 있어요"));
   none(screen.queryByRole("link", { name: "앱으로 옮기기" }));

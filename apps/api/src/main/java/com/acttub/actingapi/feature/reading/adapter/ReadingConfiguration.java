@@ -29,12 +29,14 @@ import com.acttub.actingapi.feature.reading.app.ScriptPlan;
 import com.acttub.actingapi.feature.reading.app.VoicePlan;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
+import com.acttub.actingapi.feature.reading.app.ScriptSplitListener;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.feature.reading.app.SessionRatingService;
 import com.acttub.actingapi.feature.reading.app.SessionRatingStore;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
+import com.acttub.actingapi.feature.reading.adapter.voice.SessionUpcomingVoiceLines;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceModelService;
 import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
@@ -69,7 +71,7 @@ class ReadingConfiguration {
             @Value("${GEMINI_TTS_MODEL:}") String model,
             @Value("${GEMINI_TTS_API_KEY:}") String ttsKey,
             @Value("${GEMINI_API_KEY:}") String legacyKey,
-            @Value("${READING_VOICE_FREE_UNTIL:2026-10-31T23:59:59+09:00}") String freeUntil,
+            @Value("${READING_VOICE_FREE_UNTIL:}") String freeUntil,
             @Value("${READING_VOICE_DAILY_LINE_CAP:300}") int dailyCap,
             @Value("${READING_VOICE_MONTHLY_LINE_CAP:75000}") int monthlyCap,
             @Value("${READING_VOICE_PRO_MONTHLY_LINE_CAP:10000}") int proMonthlyCap) {
@@ -91,9 +93,11 @@ class ReadingConfiguration {
 
     @Bean
     CloudVoiceService cloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
-            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, ObjectProvider<VoicePlan> plan) {
+            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, ObjectProvider<VoicePlan> plan,
+            SessionRepository sessions, ScriptRepository scripts) {
+        // 회차의 다음 상대 대사를 미리 만든다(SOMA-949).
         return new CloudVoiceService(repository, storage, synthesizer, settings, clock,
-                plan.getIfAvailable(() -> VoicePlan.NONE));
+                plan.getIfAvailable(() -> VoicePlan.NONE), new SessionUpcomingVoiceLines(sessions, scripts), null);
     }
 
     @Bean
@@ -127,13 +131,14 @@ class ReadingConfiguration {
     ScriptSplitWorker scriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, OpenAiTextGenerators generators,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock, ObjectMapper json,
             @Value("${OPENROUTER_SCRIPT_REVIEW_API_KEY:}") String reviewKey,
-            @Value("${SCRIPT_REVIEW_MODEL:" + ScriptSplitRules.REVIEW_MODEL + "}") String reviewModel) {
+            @Value("${SCRIPT_REVIEW_MODEL:" + ScriptSplitRules.REVIEW_MODEL + "}") String reviewModel,
+            ObjectProvider<ScriptSplitListener> listener) {
         LineDecider decider = reviewKey.isBlank() ? null
                 : new OpenRouterLineDecider(json,
                 reviewModel.isBlank() ? ScriptSplitRules.REVIEW_MODEL : reviewModel.strip(), reviewKey.strip(), Duration.ofSeconds(20),
                 ScriptSplitRules.REVIEW_IN_FLIGHT);
         return new ScriptSplitWorker(ledger, imports, generators.scriptSplit(), telemetry, failures, clock, decider,
-                ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN);
+                ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN, listener.getIfAvailable());
     }
 
     @Bean

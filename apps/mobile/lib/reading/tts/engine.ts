@@ -17,6 +17,7 @@
  */
 import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { readingPlaybackRate } from './playback-rate.ts';
 
 import { disposeAudioPlayer } from '../../audio-dispose.ts';
 import { currentLanguage, translate as t } from '../../i18n.ts';
@@ -186,9 +187,20 @@ async function styleFor(preset?: string): Promise<{ voice: any; preset: string }
   }
 }
 
-/** 미리 생성과 화면의 즉시 요청도 같은 엔진을 한 번에 하나만 사용한다. */
-export function synthesize(text: string, scriptId: string, preset = cfg.preset, options: { speed?: number; lang?: string } = {}): Promise<string | null> {
-  const work = synthesisTail.then(() => synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed, options.lang ?? currentLanguage()));
+/**
+ * 미리 생성과 화면의 즉시 요청도 같은 엔진을 한 번에 하나만 사용한다.
+ * isStale 이 차례가 왔을 때 true 면 만들지 않고 null 을 돌려준다 — [다음]을 연타해 지나간 줄들이 줄을 서 있으면
+ * 도착한 줄이 그 줄들을 다 만들 때까지 소리 없이 기다리게 된다.
+ */
+export function synthesize(
+  text: string,
+  scriptId: string,
+  preset = cfg.preset,
+  options: { speed?: number; lang?: string; isStale?: () => boolean } = {},
+): Promise<string | null> {
+  const work = synthesisTail.then(() =>
+    options.isStale?.() ? null : synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed, options.lang ?? currentLanguage()),
+  );
   synthesisTail = work.catch(() => undefined);
   return work;
 }
@@ -230,6 +242,16 @@ export async function play(uri: string): Promise<void> {
   stop();
   const current = createAudioPlayer({ uri });
   player = current;
+  // 리딩 속도(SOMA-952). 높낮이는 그대로 두고 빠르기만 바꾼다.
+  const rate = readingPlaybackRate();
+  if (rate !== 1) {
+    try {
+      current.shouldCorrectPitch = true;
+      current.setPlaybackRate(rate, 'high');
+    } catch {
+      // 속도를 못 바꾸는 재생기면 보통 속도로 튼다.
+    }
+  }
   await new Promise<void>((resolve, reject) => {
     let subscription: { remove(): void } | null = null;
     let startTimer: ReturnType<typeof setTimeout> | null = null;
@@ -276,7 +298,7 @@ export async function play(uri: string): Promise<void> {
       }
       if (started && !endTimer && (status.duration ?? 0) > 0) {
         const left = Math.max(0, status.duration - (status.currentTime ?? 0));
-        endTimer = setTimeout(() => finish(true), left * 1000 + PLAYBACK_END_MARGIN_MS);
+        endTimer = setTimeout(() => finish(true), (left * 1000) / rate + PLAYBACK_END_MARGIN_MS);
       }
     });
     startTimer = setTimeout(() => {
@@ -303,7 +325,8 @@ export function discardSpeechFile(uri: string): void {
 export async function speak(text: string, preset = cfg.preset, options: { speed?: number; scriptId?: string; lang?: string } = {}): Promise<void> {
   stop();
   const epoch = playbackEpoch;
-  const uri = await synthesize(text, options.scriptId ?? 'adhoc', preset, options);
+  // 차례를 기다리는 동안 멈춤(줄 넘김·화면 떠남)이 있었으면 만들지도 않는다 — 어차피 틀지 않는다.
+  const uri = await synthesize(text, options.scriptId ?? 'adhoc', preset, { ...options, isStale: () => epoch !== playbackEpoch });
   if (uri && epoch === playbackEpoch) await play(uri);
 }
 
