@@ -32,7 +32,8 @@ test('challenge.browse: 대사 목록은 네 탭이고 오늘의 챌린지는 �
   for (const tab of ['popular', 'latest', 'ended', 'mine']) {
     assert.match(list, new RegExp(`'${tab}'`), `${tab} 탭이 없다`);
   }
-  assert.match(list, /officialPick \?\? featuredRef\.current/);
+  assert.match(list, /officialPick \?\? previous/);
+  assert.match(list, /pinFeatured\(result, featuredRef\.current\)/);
   assert.match(list, /challenges\.featuredLabel/);
 });
 

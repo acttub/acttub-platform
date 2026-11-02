@@ -49,7 +49,9 @@ import { useExampleUrl } from '@/lib/challenge/use-example-url';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { useBoardNewDot } from '@/hooks/use-board-new-dot';
-import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
+import type { ChallengeCard, ChallengeListResponse, ChallengeTab, MyEntriesResponse } from '@/lib/challenge/types';
+import { lastRead } from '@/lib/last-reads';
+import type { PracticeGroupDetail } from '@/lib/practice/types';
 import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { translate as t } from '@/lib/i18n';
 
@@ -74,6 +76,23 @@ const TABS: { key: ChallengeTab; label: string }[] = [
   { key: 'mine', label: 'challenges.tabMineShort' },
 ];
 
+/**
+ * 목록 맨 위에 고정할 오늘의 챌린지와 나머지 목록. 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
+ * 오늘의 챌린지는 칩과 상관없이 늘 맨 위에 둔다(11/2 QA — 칩을 바꾸면 위 카드가 사라졌다). 서버는 인기 탭에만 featured 를
+ * 주므로, 다른 칩에서는 앞서 받은 것(previous)을 그대로 두고 처음부터 다른 칩이면 진행 중인 공식 챌린지를 올린다.
+ * 서버가 고른 게 회원 챌린지인데 진행 중인 공식 챌린지가 있으면 공식을 올린다. 고정한 챌린지는 아래 목록에서 뺀다 — 두 번 보이지 않게.
+ */
+function pinFeatured(
+  result: ChallengeListResponse,
+  previous: ChallengeCard | null,
+): { pinned: ChallengeCard | null; rest: ChallengeCard[] } {
+  const openTeam = (c: ChallengeCard) => c.origin === 'team' && Date.parse(c.ends_at) > Date.now();
+  const teamFirst = [...result.challenges].sort((a, b) => Number(openTeam(b)) - Number(openTeam(a)));
+  const officialPick = result.featured && !openTeam(result.featured) ? (teamFirst.find(openTeam) ?? result.featured) : result.featured;
+  const pinned = officialPick ?? previous ?? teamFirst.find(openTeam) ?? null;
+  return { pinned, rest: pinned ? teamFirst.filter((c) => c.id !== pinned.id) : teamFirst };
+}
+
 export default function ChallengesScreen() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
@@ -82,9 +101,14 @@ export default function ChallengesScreen() {
   const [section, setSection] = useState<CommunitySection>(sectionParam === 'board' ? 'board' : 'challenge');
   const boardDot = useBoardNewDot();
   const [tab, setTab] = useState<ChallengeTab>('popular');
-  const [featured, setFeatured] = useState<ChallengeCard | null>(null);
+  // 앱을 켠 뒤 미리 받아 둔 인기 목록이 있으면 그것으로 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
+  const [sharedPopular] = useState(() => {
+    const read = lastRead<ChallengeListResponse>('challengesPopular');
+    return read ? { ...pinFeatured(read, null), cursor: read.next_cursor } : null;
+  });
+  const [featured, setFeatured] = useState<ChallengeCard | null>(() => sharedPopular?.pinned ?? null);
   /** 마지막으로 고정한 오늘의 챌린지 — 인기 말고 다른 칩을 받을 때 그대로 둔다. */
-  const featuredRef = useRef<ChallengeCard | null>(null);
+  const featuredRef = useRef<ChallengeCard | null>(sharedPopular?.pinned ?? null);
   // 내가 참여한 챌린지(나만 보기 포함) — 오늘의 챌린지 버튼을 「한 번 더 찍기」로 바꾼다(SOMA-995).
   const [enteredIds, setEnteredIds] = useState<ReadonlySet<string>>(() => new Set());
   useFocusEffect(
@@ -98,14 +122,17 @@ export default function ChallengesScreen() {
       };
     }, []),
   );
-  const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [challenges, setChallenges] = useState<ChallengeCard[] | null>(() => sharedPopular?.rest ?? null);
+  const [cursor, setCursor] = useState<string | null>(() => sharedPopular?.cursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
   /** 지금 보이는 탭. 이어 받는 중에 탭을 바꾸면 늦게 온 옛 탭의 결과를 버린다. */
   const shownTab = useRef<ChallengeTab>('popular');
   const [error, setError] = useState<BrowseFailure | null>(null);
   /** 지난주 결과 띠 — 끝난 지 7일 안의 공식 챌린지. 못 읽으면 띠만 없다. */
-  const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(null);
+  const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(() => {
+    const ended = lastRead<ChallengeListResponse>('challengesEnded');
+    return ended ? lastWeekResult(ended.challenges) : null;
+  });
   /** 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만. */
   const [showGuide, setShowGuide] = useState(false);
   /** 첫 챌린지 화면에서 「챌린지 둘러보기」를 고른 적이 있으면 기본 챌린지 홈을 보인다(SOMA-827). */
@@ -127,19 +154,11 @@ export default function ChallengesScreen() {
     setError(null);
     try {
       const result = await api.listChallenges({ tab: next });
-      // 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
-      const openTeam = (c: ChallengeCard) => c.origin === 'team' && Date.parse(c.ends_at) > Date.now();
-      const teamFirst = [...result.challenges].sort((a, b) => Number(openTeam(b)) - Number(openTeam(a)));
       setCursor(result.next_cursor);
-      // 오늘의 챌린지는 칩과 상관없이 늘 맨 위에 둔다(11/2 QA — 칩을 바꾸면 위 카드가 사라졌다). 서버는 인기 탭에만 featured 를
-      // 주므로, 다른 칩에서는 앞서 받은 것을 그대로 두고 처음부터 다른 칩이면 진행 중인 공식 챌린지를 올린다.
-      // 서버가 고른 게 회원 챌린지인데 진행 중인 공식 챌린지가 있으면 공식을 올린다.
-      const officialPick = result.featured && !openTeam(result.featured) ? (teamFirst.find(openTeam) ?? result.featured) : result.featured;
-      const pinned = officialPick ?? featuredRef.current ?? teamFirst.find(openTeam) ?? null;
+      const { pinned, rest } = pinFeatured(result, featuredRef.current);
       featuredRef.current = pinned;
       setFeatured(pinned);
-      // 맨 위에 고정한 챌린지는 아래 목록에서 뺀다 — 두 번 보이지 않게.
-      setChallenges(pinned ? teamFirst.filter((c) => c.id !== pinned.id) : teamFirst);
+      setChallenges(rest);
     } catch (e) {
       setChallenges([]);
       setFeatured(null);
@@ -198,16 +217,22 @@ export default function ChallengesScreen() {
           setFirstPickChecked(true);
           return;
         }
-        const [entries, groups] = await Promise.all([
-          Promise.resolve()
-            .then(() => api.listMyChallengeEntries())
-            .then((r) => r.entries)
-            .catch(() => []),
-          Promise.resolve()
-            .then(() => api.listPracticeGroups('all'))
-            .then((r) => r.groups)
-            .catch(() => []),
-        ]);
+        // 홈이 앱을 켤 때 받은 내 참여작이 있으면 서버에 다시 묻지 않는다(lib/last-reads) — 참여작이 하나라도 있으면 묶음과
+        // 상관없이 첫 고르기를 건너뛴다. 비어 있으면 그 뒤에 첫 참여·연습을 했을 수 있어 둘 다 새로 묻는다.
+        const sharedEntries = lastRead<MyEntriesResponse>('myChallengeEntries')?.entries;
+        const [entries, groups] =
+          sharedEntries && sharedEntries.length > 0
+            ? [sharedEntries, [] as PracticeGroupDetail[]]
+            : await Promise.all([
+                Promise.resolve()
+                  .then(() => api.listMyChallengeEntries())
+                  .then((r) => r.entries)
+                  .catch(() => []),
+                Promise.resolve()
+                  .then(() => api.listPracticeGroups('all'))
+                  .then((r) => r.groups)
+                  .catch(() => []),
+              ]);
         if (!live) return;
         const countedPracticeCount = countedPractices({ groups, entries }).length;
         if (entries.length > 0) {

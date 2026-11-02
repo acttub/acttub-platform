@@ -21,7 +21,8 @@ import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import type { EntryCard, MyEntryCard } from '@/lib/challenge/types';
+import type { EntryCard, MyEntriesResponse, MyEntryCard } from '@/lib/challenge/types';
+import { lastRead } from '@/lib/last-reads';
 import { displayNameFor } from '@/lib/display-name';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t, translateList } from '@/lib/i18n';
@@ -53,8 +54,15 @@ export default function ProfileScreen() {
   const { confirm, alert, sheet, dialog } = useAppDialog();
   const [name, setName] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('practice');
-  const [groups, setGroups] = useState<PracticeGroupDetail[] | null>(null);
-  const [entries, setEntries] = useState<MyEntryCard[] | null>(null);
+  // 홈이 앱을 켤 때 받은 묶음·참여작이 있으면 그것으로 카드를 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
+  // 참여작은 여기서 끝까지 이어 받으므로, 남은 답이 한 장으로 끝날 때만 쓴다.
+  const [groups, setGroups] = useState<PracticeGroupDetail[] | null>(
+    () => lastRead<{ groups: PracticeGroupDetail[] }>('practiceGroups')?.groups ?? null,
+  );
+  const [entries, setEntries] = useState<MyEntryCard[] | null>(() => {
+    const read = lastRead<MyEntriesResponse>('myChallengeEntries');
+    return read && !read.next_cursor ? read.entries : null;
+  });
   const [saved, setSaved] = useState<EntryCard[] | null>(null);
   const [counts, setCounts] = useState<MonthPracticeCounts>(EMPTY_COUNTS);
   const serverProfile = profile.me?.profile ?? null;
