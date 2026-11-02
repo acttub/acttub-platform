@@ -181,7 +181,8 @@ function Hero({ challenge, videoUrl }: { challenge: ChallengeCard; videoUrl: str
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8], gap: space[2] },
-  hero: { height: 220, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.blue, justifyContent: 'flex-end', padding: space[4], marginBottom: space[1] },
+  // 대사가 길면(최대 4줄) 위쪽 영역이 늘어난다 — 높이를 못 박으면 글자가 밖으로 나간다.
+  hero: { minHeight: 220, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.blue, justifyContent: 'flex-end', padding: space[4], marginBottom: space[1] },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
   chip: { position: 'absolute', top: space[3], left: space[3], backgroundColor: palette.scrim, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: space[1] },
   chipText: { ...type.micro, color: palette.onAccent },
