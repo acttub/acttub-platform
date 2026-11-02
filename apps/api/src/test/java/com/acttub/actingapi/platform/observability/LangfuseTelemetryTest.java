@@ -124,6 +124,22 @@ class LangfuseTelemetryTest {
         assertThat(attributes(span)).containsEntry("langfuse.observation.level", "ERROR");
     }
 
+    @Test
+    @DisplayName("제공자가 알려 준 비용은 cost_details 의 total 로 나가고, 모르면 속성이 없다")
+    void providerCostGoesToCostDetails() throws Exception {
+        LlmCall call = new LlmCall(
+                LlmStep.SCRIPT_REVIEW, PRACTICE, null, "typesafe/jev-1.14-20261014",
+                "질문", "", LlmTokens.of(373, 31, 404), STARTED, Duration.ofMillis(10), null, Map.of());
+
+        Map<String, String> priced = attributes(telemetry(enabledEnvironment()).tracePayload(call.withCost(0.000015666))
+                .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
+        Map<String, String> unpriced = attributes(telemetry(enabledEnvironment()).tracePayload(call)
+                .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
+
+        assertThat(MAPPER.readTree(priced.get("langfuse.observation.cost_details")).path("total").asDouble()).isEqualTo(0.000015666);
+        assertThat(unpriced).doesNotContainKey("langfuse.observation.cost_details");
+    }
+
     /** 값이 없는 칸은 속성을 만들지 않는다 — 빈 속성은 화면에서 빈 줄로 남는다. */
     @Test
     @DisplayName("토큰을 모르면 사용량 속성을 만들지 않는다")
