@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { LoadingText } from '@/components/ui/loading-text';
@@ -88,6 +88,8 @@ export default function ChallengeDetailScreen() {
     void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
   }, []);
 
+  const insets = useSafeAreaInsets();
+  const [myReview, setMyReview] = useState(false);
   const load = useCallback(
     async (nextSort: EntrySort) => {
       if (!id) return;
@@ -102,6 +104,11 @@ export default function ChallengeDetailScreen() {
         setChallenge(detail);
         setEntries(rankEntries(list.entries, nextSort));
         setCursor(list.next_cursor);
+        // 내 참여작이 AI 검사·신고로 확인 중이면 목록에 안 보인다 — 올린 사람에게 그 이유를 알린다(11/2 QA).
+        void Promise.resolve()
+          .then(() => api.listMyChallengeEntries('under_review'))
+          .then((mine) => setMyReview(mine.entries.some((e) => e.challenge.id === id && !e.challenge_hidden)))
+          .catch(() => setMyReview(false));
       } catch (e) {
         setEntries([]);
         setError(browseFailure(e));
@@ -244,6 +251,7 @@ export default function ChallengeDetailScreen() {
 
             {!!moderation && <ChallengeNotice message={moderation} tone={challenge.moderation === 'hidden' ? 'danger' : 'amber'} />}
             {!!notice && <ChallengeNotice message={notice} />}
+            {myReview && <ChallengeNotice message={t('challenges.myEntryReview')} tone="amber" />}
 
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>{t('challenges.otherActors')}</Text>
@@ -332,7 +340,8 @@ export default function ChallengeDetailScreen() {
           <PrimaryButton label={t('challenges.performCta')} onPress={perform} />
         </CtaBar>
       )}
-      {toast && <Toast message={t('lineNew.doneToast')} bottom={TOAST_ABOVE_CTA} />}
+      {/* 화면이 아래 안전 영역만큼 올라가 있어 그만큼 더 띄운다 — 안 그러면 토스트가 버튼을 가렸다(11/2 QA). */}
+      {toast && <Toast message={t('lineNew.doneToast')} bottom={TOAST_ABOVE_CTA + insets.bottom} />}
       <ChallengeReportSheet
         visible={reportOpen}
         target="challenge"

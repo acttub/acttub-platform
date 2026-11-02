@@ -111,11 +111,10 @@ test('노트가 있는 묶음이 있으면 저번 코치 메모 카드와 입구
   expect(screen.queryByRole('button', { name: '찍을 대사부터 같이 만들기' })).not.toBeOnTheScreen();
   await go('다른 방법으로 코칭 받기');
   expect(mockRouter.push).toHaveBeenLastCalledWith('/coach-other');
-  // 연습 기록 보기 — 타일 「지난 코칭 다시 보기」와 「최근 코칭 · 전체 보기」
+  // 연습 기록 보기 — 타일 「지난 코칭 다시 보기」 하나다. 같은 화면으로 가던 「최근 코칭 · 전체 보기」는 뺐다(11/2 QA).
   await go('지난 코칭 다시 보기');
   expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
-  await go('전체 보기');
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
+  expect(screen.queryByRole('button', { name: '전체 보기' })).not.toBeOnTheScreen();
 });
 
 test('저장한 대본이 있어도 코칭 탭에는 「내 대본으로 찍기」 줄을 따로 두지 않는다(SOMA-984)', async () => {

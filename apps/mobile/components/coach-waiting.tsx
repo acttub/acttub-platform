@@ -90,7 +90,7 @@ export function CoachWaiting({
   // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
   const sample = isSamplePracticeId(practiceId);
   // 영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 분석은 서버에서 계속되고 끝나면 완료 푸시가 온다.
-  const leave = useWaitExit(!sample && !error, '/coaching');
+  const leave = useWaitExit(!sample && !error, '/coaching', undefined, { backToTabBelow: true });
   const [sampleReady, setSampleReady] = useState(false);
   const [guideDone, setGuideDone] = useState(false);
   const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);

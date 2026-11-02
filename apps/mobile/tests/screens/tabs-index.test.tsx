@@ -72,6 +72,7 @@ jest.mock('@/lib/practice/first-use-graduation', () => ({
   hasGraduatedFirstUse: jest.fn(async () => false),
   markFirstUseGraduated: jest.fn(async () => undefined),
   currentFirstUseOwner: jest.fn(() => 'u1'),
+  graduatedInMemory: jest.fn(() => false),
 }));
 jest.mock('@/lib/streak-celebration', () => ({
   ...jest.requireActual('@/lib/streak-celebration'),

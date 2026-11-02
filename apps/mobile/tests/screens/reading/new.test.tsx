@@ -26,7 +26,8 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
+const mockNavDispatch = jest.fn();
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: mockNavDispatch }) }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -157,7 +158,7 @@ test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 목소리 정
 test('「대본 같이 만들기」는 화면을 넘기지 않고 아래에 예시 대본 고르기·새 대본 만들기를 펼친다', async () => {
   await render(<ReadingNew />);
 
-  await fireEvent.press(screen.getByRole('tab', { name: /대본 같이 만들기/ }));
+  await fireEvent.press(screen.getByRole('tab', { name: /같이 만들기/ }));
   expect(mockRouter.push).not.toHaveBeenCalled();
   expect(screen.queryByText('대본 파일 첨부')).not.toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
@@ -191,10 +192,12 @@ test('iOS 는 나누는 중에도 뒤로 가기를 막지 않아 밀어서 나�
     .mockResolvedValue(job());
   await render(<ReadingNew />);
   await paste();
+  // 붙여넣은 뒤에는 나가기 확인(11/2 QA)으로 막혀 있다 — 나누기를 시작한 뒤의 호출만 본다.
+  const before = jest.mocked(usePreventRemove).mock.calls.length;
 
   const pressing = fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('배역과 대사를 찾고 있어요')).toBeOnTheScreen();
-  expect(jest.mocked(usePreventRemove).mock.calls.filter(([on]) => on)).toEqual([]);
+  expect(jest.mocked(usePreventRemove).mock.calls.slice(before + 1).filter(([on]) => on)).toEqual([]);
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
 });
@@ -861,4 +864,21 @@ test('리딩을 한 번도 끝내지 않은 계정은 나눈 뒤 목소리·대�
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/range', params: { first: '1' } }));
   expect(mockRouter.replace).not.toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
   setFirstUseOwner(null);
+});
+
+test('붙여넣은 대본이 있으면 뒤로 가기 전에 묻고, 나가기를 누르면 그때 나간다(11/2 QA)', async () => {
+  await render(<ReadingNew />);
+  await paste();
+  const calls = jest.mocked(usePreventRemove).mock.calls;
+  expect(calls.at(-1)![0]).toBe(true);
+  const action = { type: 'GO_BACK' };
+  await act(async () => calls.at(-1)![1]({ data: { action } } as never));
+  expect(await screen.findByText('붙여넣은 대본이 사라져요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('계속 쓰기'));
+  expect(screen.queryByText('붙여넣은 대본이 사라져요')).not.toBeOnTheScreen();
+  expect(mockNavDispatch).not.toHaveBeenCalled();
+
+  await act(async () => jest.mocked(usePreventRemove).mock.calls.at(-1)![1]({ data: { action } } as never));
+  await fireEvent.press(await screen.findByText('나가기'));
+  expect(mockNavDispatch).toHaveBeenCalledWith(action);
 });

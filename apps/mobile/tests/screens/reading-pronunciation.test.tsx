@@ -80,7 +80,7 @@ test('채점 중이면 기다림을 보이고 다시 물어 끝나면 보고서�
 test('쓸 줄이 없거나 실패·허용 밖이면 그 이유만 보인다', async () => {
   getReport.mockResolvedValue({ status: 'skipped', report: null });
   const view = await render(<PronunciationReportScreen />);
-  expect(await screen.findByText('대본대로 읽은 줄이 없어서 보고서를 만들지 않았어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('녹음된 내 대사가 없거나, 대본대로 읽은 줄이 없어서 보고서를 만들지 않았어요.')).toBeOnTheScreen();
   await view.unmount();
 
   getReport.mockRejectedValue(Object.assign(new Error('x'), { code: 'pronunciation_not_available' }));

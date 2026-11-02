@@ -26,13 +26,13 @@ test('challenge.browse: 목업과 예시 데이터를 걷어내고 서버에서 
   assert.match(read('app/challenge-detail.tsx'), /api\.listChallengeEntries/);
 });
 
-test('challenge.browse: 대사 목록은 네 탭이고 오늘의 챌린지는 인기·최신에만 고정한다', () => {
+test('challenge.browse: 대사 목록은 네 탭이고 오늘의 챌린지는 칩과 상관없이 고정한다', () => {
   const list = read('app/(tabs)/challenges.tsx');
 
   for (const tab of ['popular', 'latest', 'ended', 'mine']) {
     assert.match(list, new RegExp(`'${tab}'`), `${tab} 탭이 없다`);
   }
-  assert.match(list, /pinsFeatured\(next\) \? result\.featured : null/);
+  assert.match(list, /officialPick \?\? featuredRef\.current/);
   assert.match(list, /challenges\.featuredLabel/);
 });
 

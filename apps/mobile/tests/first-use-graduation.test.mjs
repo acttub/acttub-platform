@@ -9,7 +9,7 @@ globalThis.require = () => {
   if (broken) throw new Error('native module missing');
   return { default: storage };
 };
-const { hasGraduatedFirstUse, markFirstUseGraduated } = await import('../lib/practice/first-use-graduation.ts');
+const { graduatedInMemory, hasGraduatedFirstUse, markFirstUseGraduated } = await import('../lib/practice/first-use-graduation.ts');
 const { firstTimeStateFrom, getFirstTimeState, setFirstTimeState } = await import('../lib/practice/first-time.ts');
 
 test('끝까지 해 본 계정은 기기에 졸업 표시를 남긴다 — 계정마다 따로(SOMA-827)', async () => {
@@ -30,8 +30,12 @@ test('계정을 모르면 남기지 않고, 저장소를 못 쓰면 졸업 안 �
   assert.equal(storage.values.size, 0);
   assert.equal(await hasGraduatedFirstUse(null), false);
   broken = true;
-  await markFirstUseGraduated('u1');
-  assert.equal(await hasGraduatedFirstUse('u1'), false);
+  await markFirstUseGraduated('u-broken');
+  // 저장소에는 못 남겨도 이번 실행 안에서는 안다(11/2 QA — 홈이 저장값을 다시 읽는 동안 첫 사용자 홈이 비치지 않게).
+  assert.equal(storage.values.size, 0);
+  assert.equal(graduatedInMemory('u-broken'), true);
+  assert.equal(await hasGraduatedFirstUse('u-broken'), true);
+  assert.equal(graduatedInMemory('u-other'), false);
   broken = false;
 });
 

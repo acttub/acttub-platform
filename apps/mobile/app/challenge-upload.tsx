@@ -74,6 +74,8 @@ export default function ChallengeUploadScreen() {
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
+  // 방금 카메라로 찍어 온 영상이면 「다시 찍기」를 보인다(11/2 QA — 찍은 뒤 다시 찍을 길이 없었다).
+  const [fromCamera, setFromCamera] = useState(false);
     const [caption, setCaption] = useState('');
   // pen C9.16·C9.17 — 「공개」가 위에 있고 먼저 골라져 있다.
   const [visibility, setVisibility] = useState<EntryVisibility | null>('public');
@@ -127,6 +129,7 @@ export default function ChallengeUploadScreen() {
     const recorded = takeRecordedVideo();
     if (!recorded || !user?.id || params.videoId) return;
     setLocalUri(recorded.uri);
+    setFromCamera(true);
     if (videoTooLong(recorded.durationMs)) {
       void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
@@ -182,6 +185,15 @@ export default function ChallengeUploadScreen() {
   const chooseVisibility = (next: EntryVisibility) => {
     if (next !== visibility) void logEvent(CHALLENGE_FUNNEL_EVENTS.visibilitySelected, visibilityParams(next));
     setVisibility(next);
+  };
+
+  // 찍은 영상은 보관함에 남는다 — 카메라를 다시 열어 새로 찍으면 그 영상으로 올린다.
+  const retake = () => {
+    if (!challengeId) return;
+    router.replace({
+      pathname: '/record-video',
+      params: { mode: 'challenge', challengeId, line: challenge?.line ?? params.line ?? '', work: params.work ?? '' },
+    });
   };
 
   const submit = useCallback(async () => {
@@ -313,6 +325,18 @@ export default function ChallengeUploadScreen() {
               </Text>
             )}
             {!!challenge && <Text style={[styles.videoSub, ended && styles.videoSubEnded]}>{dDayLabel(challenge)}</Text>}
+            {fromCamera && !!challengeId && !submitting && (
+              <Pressable
+                onPress={retake}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('challengeUpload.retake')}
+                ph-label="challenge_upload_retake"
+                style={styles.retake}>
+                <Feather name="rotate-ccw" size={14} color={palette.blue} />
+                <Text style={styles.retakeText}>{t('challengeUpload.retake')}</Text>
+              </Pressable>
+            )}
           </View>
         </View>
         <Text style={styles.rangeLabel}>{t('challengeUpload.pickVisibility')}</Text>
@@ -412,6 +436,8 @@ const styles = StyleSheet.create({
   videoLine: { ...type.body1Bold, color: palette.text },
   videoSub: { ...type.caption, color: palette.textMeta },
   videoSubEnded: { color: palette.danger },
+  retake: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: space[2], alignSelf: 'flex-start' },
+  retakeText: { ...type.captionBold, color: palette.blue },
   rangeLabel: { ...type.body2Bold, color: palette.textSub, marginTop: space[2] },
   thumbWrap: { width: 72, height: 100, borderRadius: radius.md, overflow: 'hidden', backgroundColor: palette.textSub },
   thumb: { width: '100%', height: '100%' },

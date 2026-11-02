@@ -65,7 +65,7 @@ test('홈이 첫 사용자 뼈대를 그리는 동안만 탭바를 숨기고, �
 test('홈·리딩·코칭이 기억한 모양으로 받기 전 화면을 고르고, 로그아웃하면 기억을 지운다', () => {
   const home = read('app/(tabs)/index.tsx');
   // 지난번이 첫 사용자 홈이면 기다리지 않고 실제 첫 사용자 홈을 그리고 로고도 닫는다.
-  assert.match(home, /const showFirstHome = loaded \? firstUser : skeletonHints\.home === 'first';/);
+  assert.match(home, /const showFirstHome = loaded \? firstUser : skeletonHints\.home === 'first' && !graduatedNow;/);
   assert.match(home, /if \(loaded \|\| showFirstHome\) markHomeReady\(\);/);
   assert.match(home, /\{!showFirstHome && !loaded \? \(/);
   assert.match(home, /variant=\{skeletonHints\.home === 'returning' \? 'returning' : 'first'\}/);

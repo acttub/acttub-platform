@@ -249,7 +249,7 @@ test('머리줄의 알림·추가와 검색·등록 버튼은 각 화면으로 �
 });
 
 describe('탭', () => {
-  test('탭을 바꾸면 그 탭을 처음부터 읽고, 오늘의 챌린지는 인기·최신에만 고정한다', async () => {
+  test('탭을 바꾸면 그 탭을 처음부터 읽고, 오늘의 챌린지는 칩과 상관없이 맨 위에 둔다', async () => {
     await render(<ChallengesScreen />);
     await screen.findByText('“오늘은 내가 주인공이야”');
 
@@ -259,7 +259,7 @@ describe('탭', () => {
     expect(listChallenges).toHaveBeenLastCalledWith({ tab: 'ended' });
     expect(tabButton('종료')).toBeSelected();
     expect(tabButton('인기')).not.toBeSelected();
-    expect(screen.queryByText('“오늘은 내가 주인공이야”')).not.toBeOnTheScreen();
+    expect(screen.getByText('“오늘은 내가 주인공이야”')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: endsWith('찾는 대사가 없나요? 직접 등록하기') })).toBeOnTheScreen();
 
     await fireEvent.press(tabButton('내 챌린지'));
@@ -269,8 +269,10 @@ describe('탭', () => {
 
     listChallenges.mockResolvedValue(page([]));
     await fireEvent.press(tabButton('최신'));
-    expect(await screen.findByText('진행 중인 챌린지가 아직 없어요')).toBeOnTheScreen();
     expect(listChallenges).toHaveBeenLastCalledWith({ tab: 'latest' });
+    // 서버가 최신 칩에 featured 를 안 줘도 앞서 받은 오늘의 챌린지는 그대로 위에 있다.
+    expect(await screen.findByText('“오늘은 내가 주인공이야”')).toBeOnTheScreen();
+    expect(screen.queryByText('진행 중인 챌린지가 아직 없어요')).not.toBeOnTheScreen();
 
     expect(logged('challenge_tab')).toEqual([{ tab: 'ended' }, { tab: 'mine' }, { tab: 'latest' }]);
   });
