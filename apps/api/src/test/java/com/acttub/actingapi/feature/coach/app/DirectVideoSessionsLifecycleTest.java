@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
@@ -17,8 +18,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
@@ -84,6 +87,36 @@ class DirectVideoSessionsLifecycleTest {
             long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
             while (failures.reports().isEmpty() && System.nanoTime() < deadline) Thread.sleep(10);
             assertThat(failures.contexts()).singleElement().asString().startsWith("DirectVideoSessions.remoteCleanup");
+        }
+    }
+
+    @Test void anInterruptWhileWaitingFailsTheSessionRestoresTheFlagAndStillCleansUp() throws Exception {
+        var interruptedAtReport = new AtomicReference<Boolean>();
+        var interruptedAtDelete = new AtomicReference<Boolean>();
+        FailureReporter reporter = (failure, kind, context) -> interruptedAtReport.set(Thread.currentThread().isInterrupted());
+        when(model.model()).thenReturn("test-gemini");
+        when(model.upload(any(), anyString())).thenReturn(video);
+        when(model.ready(video)).thenAnswer(call -> {
+            Thread.currentThread().interrupt();
+            return false;
+        });
+        doAnswer(call -> {
+            interruptedAtDelete.set(Thread.currentThread().isInterrupted());
+            return null;
+        }).when(model).delete(video);
+        try (var sessions = new DirectVideoSessions(model, reporter, clock)) {
+            Path upload = Files.createTempFile("direct-video-test-", ".mp4");
+            UUID id = sessions.start(owner, upload, "video/mp4").id();
+            var view = settled(sessions, id);
+            assertThat(view.status()).isEqualTo("failed");
+            assertThat(view.error()).isEqualTo("direct_video_generation_failed");
+            verify(model, timeout(3000)).delete(video);
+            long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
+            while (Files.exists(upload) && System.nanoTime() < deadline) Thread.sleep(10);
+            assertThat(upload).doesNotExist();
+            assertThat(interruptedAtReport.get()).isTrue();
+            // 플래그가 선 채로 지우면 실제 SDK 는 요청을 보내지도 못한다.
+            assertThat(interruptedAtDelete.get()).isFalse();
         }
     }
 
