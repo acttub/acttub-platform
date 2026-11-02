@@ -52,7 +52,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+    // shortcut: 2.8.9 이상은 spec/openapi.json 을 바꾼다(required·nullable 형태). 계약 스냅샷을 검토할 때(SOMA-1015) 올린다.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
     implementation("com.nimbusds:nimbus-jose-jwt:10.10")
     implementation(platform("software.amazon.awssdk:bom:2.31.30"))
     implementation("software.amazon.awssdk:s3")
