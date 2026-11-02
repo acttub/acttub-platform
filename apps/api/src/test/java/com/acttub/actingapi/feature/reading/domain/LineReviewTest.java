@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.reading.domain;
 
+import java.time.Duration;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -657,5 +659,13 @@ class LineReviewTest {
 
     private static LineReview.Decision decision(String kind, double kindConfidence, String speaker, double speakerConfidence) {
         return new LineReview.Decision(new LineReview.Answer(kind, kindConfidence), new LineReview.Answer(speaker, speakerConfidence));
+    }
+
+    @Test
+    void aLongDashedLastLineIsNotRunThroughTheEndMarkPattern() {
+        List<NumberedLine> lines = NumberedLine.of("철수: 왔어?\n-가" + " ".repeat(20_000) + "나");
+        Map<Integer, Row> rows = Map.of(1, new Row(1, Kind.DIALOGUE, "철수", "철수: "), 2, new Row(2, Kind.DIRECTION, "", ""));
+        // 수정 전에는 대시 뒤 공백 2만 자에 40초쯤 걸렸다
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> LineReview.questions(lines, rows, Set.of(), List.of("철수"), LineReview.Mode.ALL));
     }
 }

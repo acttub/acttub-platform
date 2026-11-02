@@ -22,7 +22,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/app/posters` | 헤더 `Authorization`(회원·게스트), 질의 `platform`(ios·android, 필수), `locale`(두 글자, 선택), `app_version`(점으로 이은 숫자, 선택) | `AppPosterList` 200: 띄울 수 있는 포스터 최대 5장 | 질의 값이 빠지거나 틀리면 422(배열) |
+| `GET /v2/app/posters` | 헤더 `Authorization`(회원·게스트), 질의 `platform`(ios·android, 필수), `locale`(두 글자, 선택), `app_version`(점으로 이은 숫자 64자까지, 선택) | `AppPosterList` 200: 띄울 수 있는 포스터 최대 5장 | 질의 값이 빠지거나 틀리면 422(배열) |
 | `GET /v2/app/notices` | 헤더 `Authorization`(회원·게스트), 질의 `platform`(ios·android, 필수), `locale`(두 글자, 선택) | `AppNoticeList` 200: 아직 시작 전이 아닌 모든 포스터(꺼진 것·기간이 끝난 것 포함)를 공지한 날(`starts_at`, 없으면 만든 날) 늦은 순으로 최대 50건. 건마다 `live`(켜져 있고 기간 안), `published_at`, `ends_at` 과 팝업과 같은 제목·본문·이미지·버튼 | 질의 값이 빠지거나 틀리면 422(배열) |
 | `GET /v2/admin/posters` | 헤더 `Authorization: Bearer $ADMIN_OPS_TOKEN` | `{posters: AdminPoster[]}` 200: 꺼진 것까지 전부, 저장된 값 그대로 | 토큰이 없거나 틀리면 401 `Unauthorized` |
 | `POST /v2/admin/posters` | 운영 토큰, 본문 `AdminPosterFields`(아래 「필드」, id·revision·시각 제외, 모르는 칸은 422) | `AdminPoster` 201 | 같은 (slug, locale) `duplicate_poster` 422, 칸 규칙 위반 422(배열), 401 |
@@ -41,7 +41,7 @@
 | `starts_at`·`ends_at` | 보이는 기간. null 은 제한 없음, `ends_at` 은 그 시각을 포함하지 않는다. 오프셋이 있는 ISO-8601. | null |
 | `platforms` | `ios`·`android` 중 하나 이상. | 둘 다 |
 | `locale` | null 은 모든 언어, 아니면 앱 표시 언어 하나(`ko`·`en`). | null |
-| `min_app_version` | 이 판 이상의 앱에만(`0.1.10 > 0.1.9`). 판을 밝히지 않은 앱에는 가지 않는다. | null |
+| `min_app_version` | 이 판 이상의 앱에만(`0.1.10 > 0.1.9`). 점으로 이은 숫자 64자까지. 판을 밝히지 않은 앱에는 가지 않는다. | null |
 | `frequency` | `daily` 는 한국 날짜 하루 한 번, `once` 는 한 번만, `every` 는 앱에 들어올 때마다(홈 재진입·앱 복귀 포함, SOMA-799). | daily |
 | `audience` | `all` 또는 `cloud_voice_off`(고품질 목소리를 쓸 수 있고 아직 켜지 않은 사람에게만 — 판정은 앱). | all |
 | `dismissible` | 「다시 보지 않기」 버튼을 보인다. | true |
