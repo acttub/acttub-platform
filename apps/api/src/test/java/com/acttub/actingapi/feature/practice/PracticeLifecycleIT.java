@@ -1,10 +1,12 @@
 package com.acttub.actingapi.feature.practice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -20,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
+import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -89,6 +92,9 @@ class PracticeLifecycleIT {
 
     @Autowired
     MutableClock clock;
+
+    @Autowired
+    ProfileRepository profiles;
 
     private final Map<String, UUID> documents = new LinkedHashMap<>();
     private UUID member;
@@ -698,6 +704,107 @@ class PracticeLifecycleIT {
     }
 
     // ---- helpers ----
+
+    private static final UUID DELETED_OWNER = UUID.fromString("00000000-0000-4000-8000-00000000de1e");
+
+    @Test
+    @DisplayName("practice.library 연습 삭제: 보관 동의 거절 — 204 이고 목록·상세에서 사라지며 다시 지우면 404. 회차 둘은 보관 계정으로 "
+            + "옮겨 남고, 이 묶음의 기억은 지워지고 다른 묶음의 기억은 남는다. 영상은 파일을 파기해 장부에 올리고 보관함에서 빠진다. "
+            + "지운 회차의 시각이 무료 횟수 표시로 남는다")
+    void practiceDelete_withoutRetentionPurgesTheVideoAndDetachesTheGroup() throws Exception {
+        declineRetention(member);
+        UUID rootId = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
+                .path("id").textValue());
+        close(rootId);
+        UUID secondId = UUID.fromString(json(post("/v2/practices/{id}/continue", rootId)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").textValue());
+        UUID otherRoot = UUID.fromString(json(post("/v2/practices")
+                .content(startBody(UUID.randomUUID(), video(member), null, null)), 201).path("id").textValue());
+        jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id) VALUES (?,?,'habits','빨라진다','agent',?)",
+                UUID.randomUUID(), member, secondId);
+        jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id) VALUES (?,?,'wants','오디션','agent',?)",
+                UUID.randomUUID(), member, otherRoot);
+
+        assertThat(perform(delete("/v2/practices/{id}/group", rootId), bearer).getStatus()).isEqualTo(204);
+
+        JsonNode groups = json(get("/v2/practices"), 200).path("groups");
+        assertThat(groups).hasSize(1);
+        assertThat(groups.get(0).path("root_id").textValue()).isEqualTo(otherRoot.toString());
+        json(get("/v2/practices/{id}", rootId), 404);
+        assertThat(json(delete("/v2/practices/{id}/group", rootId), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"practice_not_found\"}"));
+        assertThat(jdbc.queryForList("SELECT DISTINCT user_id FROM practices WHERE root_id=?", UUID.class, rootId))
+                .as("회차는 지우지 않고 사람과 끊어 남긴다").containsExactly(DELETED_OWNER);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices WHERE root_id=?", Integer.class, rootId)).isEqualTo(2);
+        assertThat(jdbc.queryForList("SELECT DISTINCT user_id FROM ai_jobs WHERE target_id IN (?,?)", UUID.class, rootId, secondId))
+                .containsExactly(DELETED_OWNER);
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs WHERE target_id=?", String.class, secondId))
+                .as("진행 중이던 분석은 멈춘다").isEqualTo("failed");
+        assertThat(jdbc.queryForList("SELECT field FROM actor_memories WHERE user_id=?", String.class, member))
+                .containsExactly("wants");
+        assertThat(jdbc.queryForMap("SELECT user_id,purged_at FROM videos WHERE id=?", video))
+                .containsEntry("user_id", DELETED_OWNER)
+                .extractingByKey("purged_at").isNotNull();
+        assertThat(count("account_cleanup_operations")).as("파일은 장부가 지운다").isEqualTo(1);
+        assertThat(count("deleted_practice_videos")).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_deletion_marks WHERE user_id=?", Integer.class, member))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, DELETED_OWNER))
+                .as("보관 계정은 로그인할 수 없다").isEqualTo("deactivated");
+    }
+
+    @Test
+    @DisplayName("practice.library 연습 삭제: 보관 동의 — 영상 파일은 남고 보관함에서만 빠지며 지운 영상 장부에 원래 주인이 남는다. "
+            + "뒤에 보관 동의를 거절로 바꾸면 매일 정리가 파일을 파기하고 장부를 비운다")
+    void practiceDelete_withRetentionKeepsTheFileUntilTheConsentIsWithdrawn() throws Exception {
+        UUID rootId = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
+                .path("id").textValue());
+
+        assertThat(perform(delete("/v2/practices/{id}/group", rootId), bearer).getStatus()).isEqualTo(204);
+
+        assertThat(jdbc.queryForMap("SELECT user_id,purged_at FROM videos WHERE id=?", video))
+                .containsEntry("user_id", DELETED_OWNER).containsEntry("purged_at", null);
+        assertThat(jdbc.queryForObject("SELECT user_id FROM deleted_practice_videos WHERE video_id=?", UUID.class, video))
+                .isEqualTo(member);
+        assertThat(count("account_cleanup_operations")).isZero();
+
+        Instant now = clock.instant();
+        assertThat(profiles.purgeDeletedPracticeMedia(now.minusSeconds(3600L * 24 * 365 * 3), now))
+                .as("동의가 살아 있고 3년이 안 됐으면 그대로").isEmpty();
+        declineRetention(member);
+        assertThat(profiles.purgeDeletedPracticeMedia(now.minusSeconds(3600L * 24 * 365 * 3), now)).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT purged_at FROM videos WHERE id=?", OffsetDateTime.class, video)).isNotNull();
+        assertThat(count("deleted_practice_videos")).isZero();
+    }
+
+    @Test
+    @DisplayName("practice.library 연습 삭제: 다른 묶음이 같은 영상을 쓰면 영상은 보관함에 그대로다. 게스트는 403 member_only")
+    void practiceDelete_keepsAVideoStillUsedElsewhereAndRefusesGuests() throws Exception {
+        declineRetention(member);
+        UUID rootId = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
+                .path("id").textValue());
+        json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
+
+        assertThat(perform(delete("/v2/practices/{id}/group", rootId), bearer).getStatus()).isEqualTo(204);
+
+        assertThat(jdbc.queryForMap("SELECT user_id,purged_at FROM videos WHERE id=?", video))
+                .containsEntry("user_id", member).containsEntry("purged_at", null);
+        assertThat(count("account_cleanup_operations")).isZero();
+
+        Guest guest = consentedGuest();
+        UUID guestVideo = video(guest.id());
+        UUID guestRoot = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), guestVideo, null, null)),
+                guest.bearer(), 201).path("id").textValue());
+        assertThat(json(delete("/v2/practices/{id}/group", guestRoot), guest.bearer(), 403))
+                .isEqualTo(mapper.readTree("{\"detail\":\"member_only\"}"));
+    }
+
+    private void declineRetention(UUID userId) {
+        jdbc.update("""
+                INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
+                VALUES (?,?,?,'declined',now() + interval '1 minute')
+                """, UUID.randomUUID(), userId, documents.get("retention"));
+    }
 
     private String startBody(UUID requestId, UUID videoId, String scene, String blockage, String title) {
         String body = startBody(requestId, videoId, scene, blockage);

@@ -119,6 +119,8 @@ class EntityMappingIT {
             "support_inquiries",
             // 블로그 글(V80)은 블로그 저장소의 native SQL(공개 읽기·운영 쓰기)만 쓴다.
             "blog_posts",
+            // 연습 삭제(V85, SOMA-985)의 무료 횟수 표시·지운 영상 장부는 연습 삭제의 native SQL 만 쓴다.
+            "practice_deletion_marks", "deleted_practice_videos",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
             // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.

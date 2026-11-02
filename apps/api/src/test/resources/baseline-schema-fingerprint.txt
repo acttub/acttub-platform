@@ -371,6 +371,9 @@ COLUMN consent_documents.required ord=6 type=bool len=- null=NO default=false
 COLUMN consent_documents.title ord=4 type=text len=- null=NO default=-
 COLUMN consent_documents.type ord=2 type=text len=- null=NO default=-
 COLUMN consent_documents.version ord=3 type=text len=- null=NO default=-
+COLUMN deleted_practice_videos.deleted_at ord=3 type=timestamptz len=- null=NO default=-
+COLUMN deleted_practice_videos.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN deleted_practice_videos.video_id ord=1 type=uuid len=- null=NO default=-
 COLUMN entry_ai_reports.attempt_count ord=8 type=int4 len=- null=NO default=0
 COLUMN entry_ai_reports.completed_at ord=11 type=timestamptz len=- null=YES default=-
 COLUMN entry_ai_reports.entry_id ord=2 type=uuid len=- null=NO default=-
@@ -520,6 +523,11 @@ COLUMN portfolios.share_enabled ord=3 type=bool len=- null=NO default=false
 COLUMN portfolios.share_slug ord=4 type=text len=- null=YES default=-
 COLUMN portfolios.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN portfolios.user_id ord=1 type=uuid len=- null=NO default=-
+COLUMN practice_deletion_marks.deleted_at ord=5 type=timestamptz len=- null=NO default=-
+COLUMN practice_deletion_marks.from_reading ord=4 type=bool len=- null=NO default=-
+COLUMN practice_deletion_marks.id ord=1 type=uuid len=- null=NO default=-
+COLUMN practice_deletion_marks.practice_created_at ord=3 type=timestamptz len=- null=NO default=-
+COLUMN practice_deletion_marks.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN practice_feedback.body ord=6 type=text len=- null=YES default=-
 COLUMN practice_feedback.contact_email ord=7 type=text len=- null=YES default=-
 COLUMN practice_feedback.contact_phone ord=8 type=text len=- null=YES default=-
@@ -1403,6 +1411,12 @@ CONSTRAINT consent_documents consent_documents_title_not_null NOT NULL title
 CONSTRAINT consent_documents consent_documents_type_not_null NOT NULL type
 CONSTRAINT consent_documents consent_documents_version_not_null NOT NULL version
 CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version, locale)
+CONSTRAINT deleted_practice_videos deleted_practice_videos_deleted_at_not_null NOT NULL deleted_at
+CONSTRAINT deleted_practice_videos deleted_practice_videos_pkey PRIMARY KEY (video_id)
+CONSTRAINT deleted_practice_videos deleted_practice_videos_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT deleted_practice_videos deleted_practice_videos_user_id_not_null NOT NULL user_id
+CONSTRAINT deleted_practice_videos deleted_practice_videos_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+CONSTRAINT deleted_practice_videos deleted_practice_videos_video_id_not_null NOT NULL video_id
 CONSTRAINT entry_ai_reports ck_entry_ai_reports_attempts CHECK (((attempt_count >= 0) AND (attempt_count <= 3)))
 CONSTRAINT entry_ai_reports ck_entry_ai_reports_purged CHECK (((purged_at IS NULL) OR (result IS NULL)))
 CONSTRAINT entry_ai_reports ck_entry_ai_reports_ready CHECK (((status <> 'ready'::text) OR (purged_at IS NOT NULL) OR (result IS NOT NULL)))
@@ -1617,6 +1631,13 @@ CONSTRAINT portfolios portfolios_updated_at_not_null NOT NULL updated_at
 CONSTRAINT portfolios portfolios_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT portfolios portfolios_user_id_not_null NOT NULL user_id
 CONSTRAINT portfolios uq_portfolios_share_slug UNIQUE (share_slug)
+CONSTRAINT practice_deletion_marks practice_deletion_marks_deleted_at_not_null NOT NULL deleted_at
+CONSTRAINT practice_deletion_marks practice_deletion_marks_from_reading_not_null NOT NULL from_reading
+CONSTRAINT practice_deletion_marks practice_deletion_marks_id_not_null NOT NULL id
+CONSTRAINT practice_deletion_marks practice_deletion_marks_pkey PRIMARY KEY (id)
+CONSTRAINT practice_deletion_marks practice_deletion_marks_practice_created_at_not_null NOT NULL practice_created_at
+CONSTRAINT practice_deletion_marks practice_deletion_marks_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT practice_deletion_marks practice_deletion_marks_user_id_not_null NOT NULL user_id
 CONSTRAINT practice_feedback ck_practice_feedback_screen CHECK ((screen = ANY (ARRAY['coach'::text, 'report'::text])))
 CONSTRAINT practice_feedback ck_practice_feedback_sheet_seq CHECK ((sheet_seq >= 1))
 CONSTRAINT practice_feedback ck_practice_feedback_trigger CHECK ((trigger = ANY (ARRAY['x'::text, 'leave'::text, 'back'::text])))
@@ -2111,6 +2132,7 @@ INDEX CREATE INDEX idx_community_posts_category_created ON public.community_post
 INDEX CREATE INDEX idx_community_posts_created ON public.community_posts USING btree (created_at DESC, id DESC) WHERE (status = 'visible'::text)
 INDEX CREATE INDEX idx_community_reports_status_created ON public.community_reports USING btree (status, created_at DESC)
 INDEX CREATE INDEX idx_consent_documents_latest ON public.consent_documents USING btree (type, locale, published_at DESC)
+INDEX CREATE INDEX idx_deleted_practice_videos_user ON public.deleted_practice_videos USING btree (user_id)
 INDEX CREATE INDEX idx_external_operations_claimable ON public.external_operations USING btree (kind, status, created_at)
 INDEX CREATE INDEX idx_external_operations_session ON public.external_operations USING btree (session_id)
 INDEX CREATE INDEX idx_external_operations_status_attempt_lease ON public.external_operations USING btree (status, attempt_count, lease_expires_at)
@@ -2120,6 +2142,7 @@ INDEX CREATE INDEX idx_line_memorization_line ON public.line_memorization USING 
 INDEX CREATE INDEX idx_note_ratings_user ON public.note_ratings USING btree (user_id)
 INDEX CREATE INDEX idx_portfolio_credits_user_order ON public.portfolio_credits USING btree (user_id, sort_order)
 INDEX CREATE INDEX idx_portfolio_photos_user_order ON public.portfolio_photos USING btree (user_id, sort_order)
+INDEX CREATE INDEX idx_practice_deletion_marks_user ON public.practice_deletion_marks USING btree (user_id, practice_created_at)
 INDEX CREATE INDEX idx_practice_feedback_sheet_pending ON public.practice_feedback USING btree (created_at) WHERE (sheet_synced_at IS NULL)
 INDEX CREATE INDEX idx_practice_migration_step ON public.practice_migration_entries USING btree (step, created_at)
 INDEX CREATE INDEX idx_practice_reports_session_created ON public.practice_reports USING btree (practice_session_id, created_at)
@@ -2227,6 +2250,7 @@ INDEX CREATE UNIQUE INDEX community_post_likes_pkey ON public.community_post_lik
 INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USING btree (id)
+INDEX CREATE UNIQUE INDEX deleted_practice_videos_pkey ON public.deleted_practice_videos USING btree (video_id)
 INDEX CREATE UNIQUE INDEX entry_ai_reports_pkey ON public.entry_ai_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_comments_pkey ON public.entry_comments USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_likes_pkey ON public.entry_likes USING btree (id)
@@ -2246,6 +2270,7 @@ INDEX CREATE UNIQUE INDEX portfolio_credits_pkey ON public.portfolio_credits USI
 INDEX CREATE UNIQUE INDEX portfolio_photos_object_key_key ON public.portfolio_photos USING btree (object_key)
 INDEX CREATE UNIQUE INDEX portfolio_photos_pkey ON public.portfolio_photos USING btree (id)
 INDEX CREATE UNIQUE INDEX portfolios_pkey ON public.portfolios USING btree (user_id)
+INDEX CREATE UNIQUE INDEX practice_deletion_marks_pkey ON public.practice_deletion_marks USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_feedback_pkey ON public.practice_feedback USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_migration_entries_pkey ON public.practice_migration_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_reminder_sends_pkey ON public.practice_reminder_sends USING btree (user_id, day, slot)
@@ -2401,6 +2426,7 @@ TABLE community_post_likes
 TABLE community_posts
 TABLE community_reports
 TABLE consent_documents
+TABLE deleted_practice_videos
 TABLE entry_ai_reports
 TABLE entry_comments
 TABLE entry_likes
@@ -2419,6 +2445,7 @@ TABLE notifications
 TABLE portfolio_credits
 TABLE portfolio_photos
 TABLE portfolios
+TABLE practice_deletion_marks
 TABLE practice_feedback
 TABLE practice_migration_entries
 TABLE practice_reminder_sends

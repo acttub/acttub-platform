@@ -28,6 +28,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -263,6 +264,25 @@ class PracticeController {
             HttpServletRequest request) {
         return GroupResponse.of(practices.updateGroup(
                 auth.gatedUser(request).id(), rootId, body.favorite(), body.hidden(), body.title()));
+    }
+
+    @Operation(
+            summary = "Delete Practice Group",
+            description = """
+                    연습 삭제(SOMA-985) — 묶음 전체를 배우에게서 지운다. 되돌릴 수 없고 숨김과 다르다. 회차·노트·대화는 사람과
+                    끊어 남기고, 배우가 쓴 일지·노트 평가의 한 줄은 지우며, 그 묶음에서 나온 기억을 지운다. 다른 묶음·챌린지
+                    참여작이 쓰지 않는 영상은 보관함에서 빠지고, 「영상·녹음 보관·활용」 현재 판에 동의했으면 지운 날부터 3년 남고
+                    아니면 파일을 파기한다. 지운 회차도 그날 쓴 무료 코칭 횟수에 든다. 없거나 남의 것이거나 이미 지웠으면 404
+                    practice_not_found, 게스트는 403 member_only.""",
+            operationId = "delete_practice_group_v2_practices__root_id__group_delete",
+            tags = "v2-practices",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(responseCode = "204", description = "Successful Response")
+    @DeleteMapping("/{root_id}/group")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteGroup(@PathVariable("root_id") UUID rootId, HttpServletRequest request) {
+        AuthenticatedUser user = auth.gatedUser(request);
+        practices.deleteGroup(user.id(), user.guest(), rootId);
     }
 
     private static PracticeService.Draft draft(

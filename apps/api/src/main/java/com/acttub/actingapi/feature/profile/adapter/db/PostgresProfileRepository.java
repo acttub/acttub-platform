@@ -49,19 +49,24 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     /** 탈퇴 때 RevenueCat 고객 삭제를 장부에 올릴지 정한다(켜져 있을 때만). 바깥 호출은 장부의 실행기가 한다. */
     private final RevenueCatCustomerClient revenueCat;
 
+    /** 앞서 지운 연습의 영상(보관 동의로 남긴 것)과 무료 횟수 표시를 탈퇴·매일 정리에서 함께 치운다(SOMA-985). */
+    private final PostgresPracticeGroupErasure deletedPractices;
+
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             AccountSecrets secrets,
             PostgresObjectCleanupLedger cleanups,
             ChallengeWithdrawal challenges,
-            RevenueCatCustomerClient revenueCat) {
+            RevenueCatCustomerClient revenueCat,
+            PostgresPracticeGroupErasure deletedPractices) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.secrets = secrets;
         this.cleanups = cleanups;
         this.challenges = challenges;
         this.revenueCat = revenueCat;
+        this.deletedPractices = deletedPractices;
     }
 
     /**
@@ -291,6 +296,11 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             }
             return List.copyOf(cleanups);
         });
+    }
+
+    @Override
+    public List<UUID> purgeDeletedPracticeMedia(Instant deletedBefore, Instant now) {
+        return deletedPractices.purgeExpired(deletedBefore, now);
     }
 
     /**
@@ -758,6 +768,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             }
             cleanups.addAll(eraseReading(userId, retainMedia, now));
             erasePractice(userId, retainMedia, now);
+            deletedPractices.forgetMarks(userId);
+            if (!retainMedia) {
+                cleanups.addAll(deletedPractices.purgeAllOf(userId, now));
+            }
             eraseChallenge(userId, now);
             entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
                     .setParameter("userId", userId)
