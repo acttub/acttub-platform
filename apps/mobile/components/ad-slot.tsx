@@ -55,6 +55,7 @@ export const NETWORK_FILL_TIMEOUT_MS = 6000;
 
 export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, anchored = false }: Props) {
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
   const [pick, setPick] = useState<AdSlotPick | null>(() => lastPick.get(slot) ?? null);
@@ -121,16 +122,18 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     const banner = loadBannerModule();
     if (!banner) return null;
     const { BannerAd, BannerAdSize } = banner;
-    // 좌우를 채우는 칸은 AdMob 적응형 배너를 쓴다 — 고정 규격(320)은 넓은 폰에서 양옆이 빈다.
-    // 탭바 위 고정 칸은 ANCHORED, 화면 안 칸은 INLINE(규격 높이까지만).
-    const bannerSize = anchored ? BannerAdSize.ANCHORED_ADAPTIVE_BANNER : bleed ? BannerAdSize.INLINE_ADAPTIVE_BANNER : BannerAdSize[size];
+    // 좌우를 채우는 칸은 AdMob 인라인 적응형 배너를 쓴다 — 고정 규격(320)은 넓은 폰에서 양옆이 빈다.
+    // 탭바 위 고정 칸도 인라인이다: ANCHORED 는 폭에 안 맞는 광고(468×60 등)를 줄이고 위아래·양옆을 검게 채웠다(11/3 폰 QA).
+    // 높이 한도는 규격 비율을 화면 폭으로 키운 값이다 — 규격 높이(50)로 막으면 광고가 납작하게 눌렸다(홈, 11/3 폰 QA).
+    const bannerSize = bleed ? BannerAdSize.INLINE_ADAPTIVE_BANNER : BannerAdSize[size];
+    const bleedMaxHeight = Math.max(spec.height, Math.ceil((windowWidth * spec.height) / spec.width));
     return (
       <FullBleed on={bleed}>
         <View style={[bleed ? [styles.box, anchored && { minHeight: spec.height }] : box, styles.network, style]} ph-no-capture>
           <BannerAd
             unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
             size={bannerSize}
-            maxHeight={bleed && !anchored ? spec.height : undefined}
+            maxHeight={bleed ? bleedMaxHeight : undefined}
           requestOptions={{
             requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
               .requestNonPersonalizedAdsOnly,

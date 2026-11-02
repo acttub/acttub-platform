@@ -12,7 +12,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { SkeletonCards } from '@/components/ui/skeleton';
+import { SkeletonBlock, SkeletonCards } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
@@ -22,7 +22,7 @@ import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { EntryCard, MyEntriesResponse, MyEntryCard } from '@/lib/challenge/types';
-import { lastRead } from '@/lib/last-reads';
+import { lastRead, rememberRead } from '@/lib/last-reads';
 import { displayNameFor } from '@/lib/display-name';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t, translateList } from '@/lib/i18n';
@@ -35,7 +35,6 @@ import { inMonth, monthPracticeCounts, profileTabCards, type MonthPracticeCounts
 type Tab = 'practice' | 'entries' | 'saved';
 /** 탭마다 보여 줄 카드 수. 나머지는 「전체 보기」로 원래 화면에서 본다. */
 const CARD_LIMIT = 6;
-const EMPTY_COUNTS: MonthPracticeCounts = { coaching: 0, reading: 0, challenge: 0, total: 0 };
 
 /**
  * S14 프로필 탭(pen Y0tPDI·luafK·ktdNI, SOMA-748) — 사진·이름·한 줄 정보·편집, 이번 달 연습(코칭·리딩·챌린지),
@@ -64,7 +63,8 @@ export default function ProfileScreen() {
     return read && !read.next_cursor ? read.entries : null;
   });
   const [saved, setSaved] = useState<EntryCard[] | null>(null);
-  const [counts, setCounts] = useState<MonthPracticeCounts>(EMPTY_COUNTS);
+  // 이번 달 숫자는 셋을 다 받아야 센다. 처음엔 0 대신 뼈대를, 다시 들어오면 지난 숫자를 먼저 보인다(11/3 폰 QA: 0 → 18로 바뀜).
+  const [counts, setCounts] = useState<MonthPracticeCounts | null>(() => lastRead<MonthPracticeCounts>('profileMonthCounts') ?? null);
   const serverProfile = profile.me?.profile ?? null;
   const photoUri = serverProfile?.photo_url ?? null;
   const bio = serverProfile?.bio?.trim() ?? '';
@@ -114,7 +114,7 @@ export default function ProfileScreen() {
         if (!alive) return;
         setGroups(groupList);
         setEntries(entryList);
-        setCounts(monthPracticeCounts({ groups: groupList, readingSessions, entries: entryList }, now));
+        setCounts(rememberRead('profileMonthCounts', monthPracticeCounts({ groups: groupList, readingSessions, entries: entryList }, now)));
       })();
       void api
         .listSavedEntries()
@@ -238,10 +238,10 @@ export default function ProfileScreen() {
 
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month}>
-          <MonthCell label={t('profileTab.monthLabel')} count={counts.total} />
-          <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts.coaching} />
-          <MonthCell dot={palette.green} label={t('profileTab.kindReading')} count={counts.reading} />
-          <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts.challenge} />
+          <MonthCell label={t('profileTab.monthLabel')} count={counts?.total ?? null} />
+          <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts?.coaching ?? null} />
+          <MonthCell dot={palette.green} label={t('profileTab.kindReading')} count={counts?.reading ?? null} />
+          <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
         </View>
 
         <View style={styles.tabs}>
@@ -321,10 +321,16 @@ export default function ProfileScreen() {
   );
 }
 
-function MonthCell({ dot, label, count }: { dot?: string; label: string; count: number }) {
+function MonthCell({ dot, label, count }: { dot?: string; label: string; count: number | null }) {
   return (
     <View style={styles.monthCell}>
-      <Text style={styles.monthCount}>{count}</Text>
+      {count === null ? (
+        <View style={styles.monthCountSkeleton}>
+          <SkeletonBlock width={24} height={18} />
+        </View>
+      ) : (
+        <Text style={styles.monthCount}>{count}</Text>
+      )}
       <View style={styles.monthHead}>
         {!!dot && <View style={[styles.monthDot, { backgroundColor: dot }]} />}
         <Text style={styles.monthLabel} numberOfLines={2}>
@@ -487,6 +493,7 @@ const styles = StyleSheet.create({
   monthDot: { width: 6, height: 6, borderRadius: radius.full },
   monthLabel: { ...type.caption, color: palette.textSub },
   monthCount: { ...type.headline, color: palette.text },
+  monthCountSkeleton: { height: type.headline.lineHeight, justifyContent: 'center' },
 
   tabs: { flexDirection: 'row', gap: space[1], padding: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft },
   tab: { flex: 1, height: 36, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },

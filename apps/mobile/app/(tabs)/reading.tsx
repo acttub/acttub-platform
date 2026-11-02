@@ -34,7 +34,7 @@ import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { lastRead } from '@/lib/last-reads';
+import { lastRead, rememberRead } from '@/lib/last-reads';
 import { deleteScript, listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
 import { openResume } from '@/lib/reading/resume-open';
 import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/types';
@@ -90,7 +90,14 @@ export default function ReadingList() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScriptCard | null>(null);
   /** 「이전에 하던 데부터」 카드 — 연습 중 대본의 진행 중 회차(pen 「새 · 내 대본」). */
-  const [resume, setResume] = useState<{ script: ScriptCard; session: SessionCard } | null>(null);
+  // 지난번 카드를 먼저 보인다 — 목록을 받고 회차까지 받은 뒤에 카드가 끼어들어 목록이 밀렸다(11/3 폰 QA).
+  const [resume, setResumeState] = useState<{ script: ScriptCard; session: SessionCard } | null>(
+    () => lastRead<{ script: ScriptCard; session: SessionCard } | null>('readingResume') ?? null,
+  );
+  const setResume = useCallback((next: { script: ScriptCard; session: SessionCard } | null) => {
+    rememberRead('readingResume', next);
+    setResumeState(next);
+  }, []);
   const [resuming, setResuming] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const generation = useRef(0);
@@ -141,13 +148,17 @@ export default function ReadingList() {
       if (!candidate) {
         if (!keyword.trim() && mine === generation.current) setResume(null);
       } else {
-        const session = resumeSessionOf(await listSessions(candidate.id).catch(() => []));
+        // 그 대본의 회차를 받아 둔 게 있으면 먼저 카드를 그리고, 새로 받은 답으로 맞춘다.
+        const known = lastRead<{ sessions: SessionCard[] }>(`readingSessions:${candidate.id}`)?.sessions;
+        const knownSession = known ? resumeSessionOf(known) : null;
+        if (knownSession && mine === generation.current) setResume({ script: candidate, session: knownSession });
+        const session = resumeSessionOf(await listSessions(candidate.id).catch(() => known ?? []));
         if (mine === generation.current) setResume(session ? { script: candidate, session } : null);
       }
     } catch (e) {
       if (mine === generation.current) setError(scriptErrorMessage(e));
     }
-  }, []);
+  }, [setResume]);
 
   // 맨 위에서 당기면 지금 검색어로 목록을 다시 받는다 — 나누기가 끝났는지 탭을 나갔다 오지 않고 본다(SOMA-964).
   // load 는 실패를 안에서 잡아 오류 줄로 보이므로, 성공·실패 모두 끝나면 표시를 끈다.
