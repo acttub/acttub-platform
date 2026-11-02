@@ -191,7 +191,7 @@ export default function ReadingNew() {
     try {
       await deleteScript(popup.scriptId);
     } catch (error) {
-      return failWith(error);
+      return setPopup({ kind: 'alert', title: t('reading.deleteFailTitle'), message: scriptErrorMessage(error) });
     }
     if (popup.resume.kind === 'import') return void split(popup.resume.input, popup.resume.flags);
     setPopup(null);

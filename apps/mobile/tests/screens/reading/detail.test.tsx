@@ -127,6 +127,7 @@ test('회차를 지우지 못하면 이유를 알린다', async () => {
   await fireEvent.press(screen.getByText('삭제'));
   await fireEvent.press(screen.getAllByText('삭제').at(-1)!);
   expect(await screen.findByText('회차가 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('지우지 못했어요')).toBeOnTheScreen();
 });
 
 test('더보기의 제목 수정으로 제목을 바꾸면 서버에 보내고 새 제목을 보인다', async () => {
@@ -199,5 +200,6 @@ test('대본을 지우지 못하면 이유를 알린다', async () => {
   await fireEvent.press(screen.getAllByText('삭제').at(-1)!);
 
   expect(await screen.findByText('서버가 잠시 멈췄어요')).toBeOnTheScreen();
+  expect(screen.getByText('지우지 못했어요')).toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalled();
 });

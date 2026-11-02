@@ -207,7 +207,7 @@ export default function ReadingList() {
     try {
       await deleteScript(s.id);
     } catch (e) {
-      void alert({ title: t('reading.deleteAction'), message: scriptErrorMessage(e) });
+      void alert({ title: t('reading.deleteFailTitle'), message: scriptErrorMessage(e) });
     }
     void load(q);
   };

@@ -55,7 +55,7 @@ export default function ReadingFull() {
     } catch (e) {
       const kind = classifyUnprocessable(e);
       const key = kind?.kind === 'reason' ? DELETE_REFUSED[kind.code] : undefined;
-      void alert({ title: t(key ? 'reading.lineDeleteRefusedTitle' : 'reading.lineDeleteFailTitle'), message: t(key ?? 'reading.lineEditFailed') });
+      void alert({ title: t(key ? 'reading.lineDeleteRefusedTitle' : 'reading.deleteFailTitle'), message: t(key ?? 'reading.lineEditFailed') });
     }
   };
 

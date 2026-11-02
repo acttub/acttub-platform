@@ -2062,7 +2062,7 @@ const en: DeepStringShape<typeof ko> = {
     lineDeleteEmptyRange: "A practice range has only this line, so it can't be deleted.",
     lineDeleteLast: "The last line of a script can't be deleted.",
     lineDeleteRefusedTitle: 'You can’t delete this line',
-    lineDeleteFailTitle: 'Couldn’t delete the line',
+    deleteFailTitle: 'Couldn’t delete',
     lineSplitSub: 'Write each half in its own box. Past readings and recordings stay with the first line.',
     lineSplitFirst: 'First line',
     lineSplitSecond: 'Second line',
