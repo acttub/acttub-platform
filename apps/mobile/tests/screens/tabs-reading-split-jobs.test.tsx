@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AppState } from 'react-native';
+import { AppState, StyleSheet } from 'react-native';
 
 import ReadingList from '@/app/(tabs)/reading';
 import { api } from '@/lib/api';
@@ -8,6 +8,7 @@ import { ApiError } from '@/lib/api-request';
 import { addSplitJob, readSplitJobs } from '@/lib/reading/split-jobs';
 import { listScripts } from '@/lib/reading/store';
 import type { ScriptCard, ScriptImport } from '@/lib/reading/types';
+import { rememberSkeletonHints } from '@/lib/skeleton-hint';
 
 jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
@@ -71,6 +72,51 @@ beforeEach(async () => {
   jest.clearAllMocks();
   await AsyncStorage.clear();
   jest.mocked(listScripts).mockResolvedValue(scriptsOf(script));
+});
+
+/** 구분선에는 testID 가 없어 그려진 트리에서 모양(높이 1, 아이콘 24 + 간격 12 만큼 들여쓰기)으로 찾는다. */
+type Tree = { props: { style?: unknown }; children: readonly (Tree | string)[] };
+function dividerCount(node: Tree = screen.root as never): number {
+  const style = StyleSheet.flatten(node.props.style as never) as { height?: number; marginLeft?: number } | undefined;
+  const self = style?.height === 1 && style.marginLeft === 36 ? 1 : 0;
+  return node.children.reduce((sum, child) => sum + (typeof child === 'string' ? 0 : dividerCount(child)), self);
+}
+
+test('나누기 행과 대본 행을 합쳐 행 사이에만 구분선이 있다', async () => {
+  await addSplitJob({ importId: 'i1', title: '버스정류장' });
+  jest.mocked(api.getScriptImport).mockResolvedValue(running(50));
+  jest.mocked(listScripts).mockResolvedValue(scriptsOf(script, { ...script, id: 's2', title: '카페 장면' }));
+  await render(<ReadingList />);
+
+  await screen.findByText('버스정류장');
+  await screen.findByText('카페 장면');
+  expect(dividerCount()).toBe(2);
+});
+
+test('대본이 하나뿐이면 구분선이 없다', async () => {
+  await render(<ReadingList />);
+
+  await screen.findByText('옥상 장면');
+  expect(dividerCount()).toBe(0);
+});
+
+test('입구 화면의 나누기 카드에는 구분선이 없다', async () => {
+  await addSplitJob({ importId: 'i1', title: '버스정류장' });
+  jest.mocked(api.getScriptImport).mockResolvedValue(running(50));
+  jest.mocked(listScripts).mockResolvedValue(scriptsOf());
+  await render(<ReadingList />);
+
+  await screen.findByText('버스정류장');
+  expect(dividerCount()).toBe(0);
+});
+
+test('받기 전 뼈대도 줄 사이에 같은 구분선이 있다', async () => {
+  rememberSkeletonHints({ reading: 'list', readingRows: 3 });
+  jest.mocked(listScripts).mockReturnValue(new Promise(() => undefined));
+  await render(<ReadingList />);
+
+  expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
+  expect(dividerCount()).toBe(2);
 });
 
 test('진행 행은 첫 대본 위에 %와 막대를 보이고 물을 때마다 오르며 누를 수 없다', async () => {

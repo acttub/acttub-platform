@@ -35,7 +35,6 @@ export function SplitJobRow({ job, card, onDismiss }: { job: Job; card?: boolean
 
 const styles = StyleSheet.create({
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
-  // 입구 화면의 파란 배경이 위로 4 겹쳐 내려오므로 테두리가 닿지 않게 띄운다.
   card: { marginTop: space[2], backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border, borderRadius: radius.lg, paddingHorizontal: space[4] },
   icon: { width: 24, alignItems: 'center' },
   body: { flex: 1, minWidth: 0, gap: space[1] },
