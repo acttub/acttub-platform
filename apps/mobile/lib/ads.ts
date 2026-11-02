@@ -42,7 +42,7 @@ export const AD_SLOTS = {
   script_parse_wait: { size: 'LARGE_BANNER', phase: 'practice' },
   coaching_done: { size: 'LARGE_BANNER', phase: 'practice' },
   challenge_upload_done: { size: 'LARGE_BANNER', phase: 'practice' },
-  community_list_top: { size: 'LARGE_BANNER', phase: 'community' },
+  community_list_top: { size: 'BANNER', phase: 'community' },
   community_post_top: { size: 'BANNER', phase: 'community' },
 } as const satisfies Record<string, { size: AdSize; phase: AdPhase }>;
 

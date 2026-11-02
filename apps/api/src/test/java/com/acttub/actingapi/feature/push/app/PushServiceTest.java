@@ -96,6 +96,31 @@ class PushServiceTest {
     }
 
     @Test
+    @DisplayName("SOMA-960: 대본 나누기가 끝나면 그 회원의 단말마다 알리고, 제목 없이 대본 id 만 싣는다. 실패는 새지 않고 보고된다")
+    void scriptSplitSendsToEveryDeviceOfTheUser() {
+        UUID userId = UUID.randomUUID();
+        UUID scriptId = UUID.randomUUID();
+        tokens.forUser = List.of(new PushTarget("ExponentPushToken[ko]", "ko"), new PushTarget("ExponentPushToken[en]", "en"));
+
+        service.onScriptSplit(userId, scriptId);
+
+        assertThat(tokens.askedUser).isEqualTo(userId);
+        assertThat(sender.sent).extracting(PushMessage::title).containsExactly("대본을 다 나눴어요", "Your script is ready");
+        assertThat(sender.sent).allSatisfy(message -> assertThat(message.data())
+                .isEqualTo(Map.of("kind", "script_split_complete", "script_id", scriptId.toString())));
+
+        sender.sent.clear();
+        tokens.forUser = List.of();
+        service.onScriptSplit(userId, scriptId);
+        assertThat(sender.sent).isEmpty();
+
+        tokens.forUser = List.of(new PushTarget("ExponentPushToken[ko]", "ko"));
+        sender.failure = new IllegalStateException("expo is down");
+        assertThatCode(() -> service.onScriptSplit(userId, scriptId)).doesNotThrowAnyException();
+        assertThat(failures.contexts()).containsExactly("PushService.onScriptSplit");
+    }
+
+    @Test
     void knownPlatformsAreExactlyIosAndAndroid() {
         // 컨트롤러 검증이 이 집합을 본다 — 넓히면 계약(allowableValues)도 함께 넓혀야 한다.
         assertThat(PushService.PLATFORMS).containsExactlyInAnyOrder("ios", "android");
@@ -103,6 +128,8 @@ class PushServiceTest {
 
     private static final class RecordingRepository implements PushTokenRepository {
         private List<PushTarget> forSession = List.of();
+        private List<PushTarget> forUser = List.of();
+        private UUID askedUser;
         private final List<String> registered = new ArrayList<>();
         private final List<String> removed = new ArrayList<>();
 
@@ -119,6 +146,12 @@ class PushServiceTest {
         @Override
         public List<PushTarget> analysisDoneTargets(UUID sessionId) {
             return forSession;
+        }
+
+        @Override
+        public List<PushTarget> scriptSplitTargets(UUID userId) {
+            askedUser = userId;
+            return forUser;
         }
     }
 

@@ -94,6 +94,23 @@ class PushTokenLifecycleIT {
     }
 
     @Test
+    void scriptSplitLookupFindsEveryDeviceOfTheUserAndFollowsTheAnalysisToggle() {
+        UUID owner = insertUser("push-split-owner@example.com");
+        UUID bystander = insertUser("push-split-bystander@example.com");
+        tokens.register(owner, "ExponentPushToken[split-phone]", "ios", "1.1.0");
+        tokens.register(owner, "ExponentPushToken[split-tablet]", "android", "1.1.0");
+        tokens.register(bystander, "ExponentPushToken[split-bystander]", "ios", "1.1.0");
+
+        assertThat(tokens.scriptSplitTargets(owner)).extracting(PushTarget::token)
+                .containsExactly("ExponentPushToken[split-phone]", "ExponentPushToken[split-tablet]");
+        assertThat(tokens.scriptSplitTargets(UUID.randomUUID())).isEmpty();
+
+        // 오래 기다리는 작업의 완료 알림이라 분석 완료 토글을 같이 따른다(SOMA-960).
+        jdbc.update("INSERT INTO user_profiles(user_id,notify_analysis_done) VALUES (?,false)", owner);
+        assertThat(tokens.scriptSplitTargets(owner)).isEmpty();
+    }
+
+    @Test
     void deactivationDestroysEveryPushToken() {
         UUID user = insertUser("push-deactivate@example.com");
         tokens.register(user, "ExponentPushToken[to-destroy]", "ios", "0.1.2");

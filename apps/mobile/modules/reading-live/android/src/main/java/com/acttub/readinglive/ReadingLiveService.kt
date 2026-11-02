@@ -29,28 +29,17 @@ class ReadingLiveService : Service() {
     return START_NOT_STICKY
   }
 
-  /** 마이크 종류로 띄웠는가. 앱이 앞에 없거나 마이크 권한이 없어 거절되면 재생만으로 띄우고, 화면은 배경에서 멈춘다. */
+  /**
+   * 재생 종류로만 띄운다(앱 1.1.1). 배경에서 마이크를 열지 않으므로 안드로이드 10 이상은 늘 false — 말하기 회차는 배경으로 가면
+   * 멈추고, 마이크를 안 쓰는 전체 듣기·자동 넘김은 JS 가 그대로 이어 간다. 안드로이드 10 미만은 배경 마이크 제한이 없어 true.
+   */
   private fun startForegroundFor(notification: android.app.Notification): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
       startForeground(NOTIFICATION_ID, notification)
       return true
     }
-    // 안드로이드 10 은 배경 마이크 제한이 없다(11 부터 포그라운드 서비스의 마이크 종류가 필요하다).
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-      startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-      return true
-    }
-    return try {
-      startForeground(
-        NOTIFICATION_ID,
-        notification,
-        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
-      )
-      true
-    } catch (_: Exception) {
-      startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-      false
-    }
+    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+    return false
   }
 
   override fun onDestroy() {

@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
+import com.acttub.actingapi.feature.billing.app.BillingMailer;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -89,6 +90,9 @@ class BillingEndpointIT {
     @MockitoBean
     AppBillingGateway gateway;
 
+    @MockitoBean
+    BillingMailer mailer;
+
     private String bearer;
 
     @BeforeEach
@@ -101,7 +105,7 @@ class BillingEndpointIT {
                     """, UUID.randomUUID(), type, type + " 제목", type + " 본문", !"retention".equals(type), PUBLISHED);
         }
         clock.set(Instant.parse("2026-10-23T01:00:00Z"));
-        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER);
+        jdbc.update("INSERT INTO users(id,status,email) VALUES (?,'active','actor@example.com')", USER);
         jdbc.update("INSERT INTO user_identities(id,user_id,provider,provider_uid) VALUES (?,?,'google',?)",
                 UUID.randomUUID(), USER, "g-" + USER);
         AccountFixtures.passGate(jdbc, USER);
@@ -151,6 +155,9 @@ class BillingEndpointIT {
         assertThat(worker.runOnce()).isFalse();
         assertThat(me().path("status").textValue()).isEqualTo("expired");
         assertThat(jdbc.queryForObject("SELECT billing_key FROM billing_subscriptions", String.class)).isNull();
+        // 첫 결제가 승인되면 가입 메일·프로필 이름으로 구독 메일을 한 번 부른다(SOMA-961).
+        org.mockito.Mockito.verify(mailer, org.mockito.Mockito.atLeastOnce()).paymentDone(org.mockito.ArgumentMatchers.argThat(
+                mail -> mail.first() && "actor@example.com".equals(mail.to()) && "테스트 배우".equals(mail.name())));
     }
 
     @Test

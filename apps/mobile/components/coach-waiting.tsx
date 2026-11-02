@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -90,7 +90,9 @@ export function CoachWaiting({
   // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
   const sample = isSamplePracticeId(practiceId);
   // 영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 분석은 서버에서 계속되고 끝나면 완료 푸시가 온다.
-  const leave = useWaitExit(!sample && !error, '/coaching');
+  // iOS 밀어서 나가기는 막지 않고 아래 화면으로 내려간다(SOMA-966). 화면 안 버튼은 그대로 코칭 탭으로 간다.
+  // 프로필·홈에서 바로 연 하던 코칭이면 들어온 탭으로 돌아간다(SOMA-1002).
+  const leave = useWaitExit(!sample && !error && Platform.OS !== 'ios', '/coaching', undefined, { backToTabBelow: true });
   const [sampleReady, setSampleReady] = useState(false);
   const [guideDone, setGuideDone] = useState(false);
   const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);

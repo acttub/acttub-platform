@@ -55,7 +55,8 @@ export function RehearsalScreen({
   const voice = useVoiceReady(initialVoice, hasPartners);
   const runner = useRehearsalRunner(
     { lines: script.lines, myRoles: run.myRoles, start: run.range.start, end: run.range.end, from: run.from },
-    { myTurn: session.advance, partnerVoice: voice.partnerVoice, styleFor: run.styleFor, onPartnerSpoken },
+    // 앱의 핸즈프리(timed)는 웹에 없다 — 웹에서 열면 버튼으로 넘긴다.
+    { myTurn: session.advance === "timed" ? "manual" : session.advance, partnerVoice: voice.partnerVoice, styleFor: run.styleFor, onPartnerSpoken },
   );
   const { state, volume, micError, myTurn } = runner;
   const w = rehearsalWindow(state);

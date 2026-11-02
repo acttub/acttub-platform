@@ -22,11 +22,6 @@ export function searchable(query: string): boolean {
   return query.trim().length >= SEARCH_MIN_LENGTH;
 }
 
-/** 참여자 아바타는 이름 첫 글자다(사진은 보이지 않는다). */
-export function avatarLetter(name: string): string {
-  return [...name.trim()][0] ?? '?';
-}
-
 /** "윤서 · 태오 · 민재 +12" 처럼 셋과 나머지 수. */
 export function participantsLabel(participants: readonly Participant[], moreCount: number): string {
   const names = participants.slice(0, 3).map((p) => p.name.trim()).filter(Boolean);

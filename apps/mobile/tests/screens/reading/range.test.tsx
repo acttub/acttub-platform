@@ -20,7 +20,7 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchPar
 jest.mock('@/hooks/use-reading-mic', () => ({ micPermissionState: jest.fn(), requestMicPermission: jest.fn() }));
 const mockAskFirstReading = jest.fn(async (_scriptId: string) => undefined);
 jest.mock('@/hooks/use-cloud-voice', () => ({ useCloudVoice: () => ({ askFirstReading: mockAskFirstReading, consentSheet: null }) }));
-jest.mock('@/lib/reading/tts/engine', () => ({ prefetchIfWifi: jest.fn(async () => undefined) }));
+jest.mock('@/lib/reading/tts/engine', () => ({ prepareInBackground: jest.fn(async () => undefined) }));
 
 const TWO_SCENES = scriptDetail(
   [...TWO_ROLE_LINES, ['scene', '2장 거리'], ['dialogue', '서연', '어디 가?'], ['dialogue', '민재', '집에.']],
@@ -43,7 +43,7 @@ const LAST_SESSION = {
 
 let appStateListeners: ((state: string) => void)[] = [];
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   mockParams = {};
   appStateListeners = [];
@@ -53,6 +53,8 @@ beforeEach(() => {
   });
   jest.mocked(micPermissionState).mockResolvedValue('granted');
   jest.mocked(requestMicPermission).mockResolvedValue('granted');
+  // 핸즈프리·속도는 기기에 남는다 — 테스트끼리 섞이지 않게 비운다.
+  await require('@react-native-async-storage/async-storage').default.removeItem('acttub.reading.listenPrefs');
 });
 
 async function show(detail = TWO_SCENES) {
@@ -71,18 +73,54 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
 
-test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역을 골라야 시작할 수 있다', async () => {
+test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역을 안 고르면 「전체 듣기」로 시작한다(1.1.1)', async () => {
   await show();
 
   expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
   expect(screen.getByText('봄날의 대화 · 대사 5개')).toBeOnTheScreen();
   expect(screen.getByText('구간')).toBeOnTheScreen();
-  expect(screen.getByText('내 배역을 골라 주세요')).toBeOnTheScreen();
-  expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('전체 듣기 · 5줄')).toBeOnTheScreen();
+  expect(screen.queryByLabelText('내 대사 가리기')).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText('자동 넘김')).not.toBeOnTheScreen();
+  expect(engine.prepareInBackground).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.queryByText('내 배역을 골라 주세요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('전체 듣기 · 5줄')).not.toBeOnTheScreen();
+  expect(screen.getByLabelText('자동 넘김')).toBeOnTheScreen();
   expect(startButton(5)).toBeOnTheScreen();
+});
+
+test('전체 듣기: 내 배역 없이 마이크를 묻지 않고 녹음 없는 회차를 만든다', async () => {
+  jest.mocked(micPermissionState).mockResolvedValue('ask');
+  const server = await show();
+  await fireEvent.press(screen.getByText('전체 듣기 · 5줄'));
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(requestMicPermission).not.toHaveBeenCalled();
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: [], advance: 'manual', record: false }));
+});
+
+test('자동 넘김·쉬는 시간·읽는 속도: 고른 값을 기억하고, 자동 넘김 회차는 마이크 없이 timed 로 시작한다', async () => {
+  jest.mocked(micPermissionState).mockResolvedValue('ask');
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+  expect(screen.queryByLabelText('쉬는 시간')).not.toBeOnTheScreen();
+  await fireEvent(screen.getByLabelText('자동 넘김'), 'valueChange', true);
+  // 켜면 쉬는 시간 입력칸이 보이고 기본은 2초다. 범위 밖은 안내만 하고 받지 않는다.
+  expect(screen.getByLabelText('쉬는 시간')).toHaveDisplayValue('2');
+  await fireEvent.changeText(screen.getByLabelText('쉬는 시간'), '40');
+  expect(screen.getByText('0.5~30초 사이로 적어 주세요')).toBeOnTheScreen();
+  await fireEvent.changeText(screen.getByLabelText('쉬는 시간'), '3.5');
+  expect(screen.queryByText('0.5~30초 사이로 적어 주세요')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByLabelText('읽는 속도 1.2배'));
+  expect(screen.getByLabelText('읽는 속도 1.2배')).toBeSelected();
+
+  await fireEvent.press(startButton(5));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(requestMicPermission).not.toHaveBeenCalled();
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], advance: 'timed', record: false }));
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual({ handsFree: true, rate: 1.2, pauseSec: 3.5 });
 });
 
 test('시작하기 전에 대본의 첫 리딩 고품질 목소리 동의를 먼저 확인한다(SOMA-917)', async () => {
@@ -378,7 +416,7 @@ test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않�
   await show({ ...TWO_SCENES, source: 'sample' });
 
   expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
-  expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
+  expect(engine.prepareInBackground).not.toHaveBeenCalled();
 });
 
 test('SOMA-727: 대사가 한 줄뿐인 대본은 같은 안내 자리에 나눠 읽는 길을 알린다(팝업 없음)', async () => {
@@ -394,7 +432,7 @@ test('첫 리딩이면 배역만 묻고 대사 보기·구간은 보이지 않�
   mockParams = { first: '1' };
   const server = await show();
 
-  expect(screen.getByText('누구 대사를 읽을까요?')).toBeOnTheScreen();
+  expect(screen.getByText('어떤 배역을 읽으실 건가요?')).toBeOnTheScreen();
   expect(screen.queryByText('구간')).not.toBeOnTheScreen();
   expect(screen.queryByText('내 대사만 가리기')).not.toBeOnTheScreen();
   // 배역 카드에 대사 수와 그 배역의 첫 대사를 보인다.

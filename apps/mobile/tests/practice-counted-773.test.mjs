@@ -98,7 +98,7 @@ test('리딩: 「그만하기」로 끝내도 내 대사를 한 줄이라도 읽
   const play = read('app/reading/play.tsx');
   const stopHere = play.slice(play.indexOf('const stopHere = () =>'), play.indexOf('useWaitExit('));
   assert.match(stopHere, /stoppedEarlyRef\.current = true;/);
-  assert.match(stopHere, /stopUncountedRef\.current = !readingStopCounted\(readMyDialogueCount\(/);
+  assert.match(stopHere, /stopUncountedRef\.current = !readingStopCounted\(\s*listenAll \? readDialogueCount\([^)]*\) : readMyDialogueCount\(/);
   // 세지 않는 회차만 멈춘 위치를 저장한다(complete false). 세는 회차는 commit 이 완료로 보낸다.
   assert.match(stopHere, /if \(stopUncountedRef\.current\) queueRef\.current\?\.push\(stoppedProgressPayload\(cur, next\)\)/);
   // 완료 판정(진행 저장·별점·완료 화면)은 모두 같은 표시를 먼저 본다.

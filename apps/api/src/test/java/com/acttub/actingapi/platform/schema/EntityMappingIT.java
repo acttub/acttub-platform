@@ -94,17 +94,14 @@ class EntityMappingIT {
     EntityManager entityManager;
 
     /**
-     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports}, 0.1.0 에서
-     * API·코드를 내린 커뮤니티 일곱({@code docs/specs/community/README.md}), 옛 연습 흐름의 여섯, 그리고
+     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports}, 옛 연습 흐름의 여섯, 그리고
      * 예약 장부({@code upload_intents})다. 옛 연습 여섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
      * native SQL 로만 읽고 쓴다.
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
             "reports",
             "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
-            "handoff_confirmations", "practice_reports", "upload_intents",
-            "community_anonymous_aliases", "community_blocks", "community_categories",
-            "community_comments", "community_post_likes", "community_posts", "community_reports");
+            "handoff_confirmations", "practice_reports", "upload_intents");
 
     /**
      * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 0.1.0, V14). 스키마는 넓히기로 한 번에 들어가고
@@ -119,6 +116,8 @@ class EntityMappingIT {
             "support_inquiries",
             // 블로그 글(V80)은 블로그 저장소의 native SQL(공개 읽기·운영 쓰기)만 쓴다.
             "blog_posts",
+            // 연습 삭제(V85, SOMA-985)의 무료 횟수 표시·지운 영상 장부는 연습 삭제의 native SQL 만 쓴다.
+            "practice_deletion_marks", "deleted_practice_videos",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
             // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.
@@ -159,15 +158,18 @@ class EntityMappingIT {
             // 화면별 광고 칸 스위치(V76, SOMA-876)는 광고 칸 스위치 저장소의 native SELECT 만 쓴다.
             "ad_slot_switches",
             // 푸시 탭 기록(V72, SOMA-926)은 푸시 탭 저장소의 native INSERT 와 탈퇴 파기만 쓴다.
-            "push_opens");
+            "push_opens",
+            // 게시판 글 사진(V87, SOMA-873)은 게시판 저장소의 native SQL 과 탈퇴 파기만 쓴다.
+            "community_post_images");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 40개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 47개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(40);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개다.
+        assertThat(entities).hasSize(47);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())

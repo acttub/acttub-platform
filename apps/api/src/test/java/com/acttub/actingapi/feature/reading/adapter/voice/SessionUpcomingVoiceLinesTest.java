@@ -57,4 +57,31 @@ class SessionUpcomingVoiceLinesTest {
         when(sessions.find(user, session)).thenReturn(detail);
         assertThat(upcoming.after(user, session, "하나", "M1", 3)).isEmpty();
     }
+
+    @Test
+    void aheadCountsFromTheSessionsCurrentLineAndIsUnknownOnceFinished() {
+        SessionCardView card = mock(SessionCardView.class);
+        when(card.myCharacterIds()).thenReturn(List.of(me));
+        SessionDetailView detail = mock(SessionDetailView.class);
+        when(detail.card()).thenReturn(card);
+        when(detail.scriptId()).thenReturn(script);
+        when(sessions.find(user, session)).thenReturn(detail);
+        UUID mine = UUID.randomUUID();
+        ScriptView view = mock(ScriptView.class);
+        when(view.characters()).thenReturn(List.of(
+                new CharacterView(me, "서연", 0, null, "F2", null, null, 1, List.of(), false),
+                new CharacterView(partner, "지호", 1, null, "M1", null, null, 2, List.of(), false)));
+        when(view.lines()).thenReturn(List.of(
+                new LineView(mine, 1, "dialogue", me, "내 줄", 1, null, null),
+                new LineView(UUID.randomUUID(), 2, "dialogue", partner, "하나", 2, null, null),
+                new LineView(UUID.randomUUID(), 3, "dialogue", partner, "둘", 3, null, null)));
+        when(scripts.find(user, script)).thenReturn(view);
+        when(detail.currentLineId()).thenReturn(mine);
+        assertThat(upcoming.ahead(user, session, "둘", "M1")).isEqualTo(1);
+        // 끝난 회차는 지금 줄이 없다 — 모른다고 답해 막지 않는다.
+        when(detail.currentLineId()).thenReturn(null);
+        assertThat(upcoming.ahead(user, session, "둘", "M1")).isNull();
+        when(sessions.find(user, session)).thenReturn(null);
+        assertThat(upcoming.ahead(user, session, "둘", "M1")).isNull();
+    }
 }

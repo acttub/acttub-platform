@@ -53,10 +53,32 @@ class PostgresBillingRepository implements BillingRepository {
     @Override
     public int coachingSessionsSince(UUID userId, Instant since) {
         return transaction.execute(tx -> ((Number) entityManager.createNativeQuery(
-                "SELECT count(*) FROM practices WHERE user_id=:userId AND created_at>=CAST(:since AS timestamptz)")
+                // 지운 연습(SOMA-985)도 쓴 횟수에 든다.
+                """
+                SELECT (SELECT count(*) FROM practices WHERE user_id=:userId AND created_at>=CAST(:since AS timestamptz))
+                     + (SELECT count(*) FROM practice_deletion_marks
+                        WHERE user_id=:userId AND practice_created_at>=CAST(:since AS timestamptz))
+                """)
                 .setParameter("userId", userId)
                 .setParameter("since", at(since))
                 .getSingleResult()).intValue());
+    }
+
+    @Override
+    public Optional<String> displayName(UUID userId) {
+        return transaction.execute(tx -> {
+            var rows = entityManager.createNativeQuery("""
+                    SELECT COALESCE(NULLIF(btrim(p.name), ''), NULLIF(btrim(u.nickname), ''))
+                    FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
+                    WHERE u.id = :userId
+                    """)
+                    .setParameter("userId", userId)
+                    .getResultList();
+            if (rows.isEmpty() || rows.get(0) == null || rows.get(0).toString().isBlank()) {
+                return Optional.<String>empty();
+            }
+            return Optional.of(rows.get(0).toString().strip());
+        });
     }
 
     @Override

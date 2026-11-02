@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.practice.app;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -145,6 +146,13 @@ public interface PracticeRepository {
      * @param filter {@code all}·{@code favorite}·{@code recent30}
      */
     List<GroupView> groups(UUID userId, String filter, Instant now);
+
+    /**
+     * 연습한 날짜(한국 시간, 오래된 순, 겹침 없음). 「연습 1회」(SOMA-773)와 같은 기준이다 — 노트가 생긴 코칭
+     * 회차(옮기기 전 옛 회차 포함), 끝까지 읽은 리딩 회차, 올린 참여작. 숨기거나 지운 기록도 센다 — 숨겨도 그 날
+     * 연습했다는 사실은 남는다(SOMA-1003). 앱은 이걸로 연속일·주간 원·누적 연습일을 센다.
+     */
+    List<LocalDate> practiceDays(UUID userId);
 
     /**
      * 진행 중인 분석을 배우가 그만둔다 — 작업을 {@code failed}/{@code cancelled} 로 닫고 <b>lease 를 지워</b>

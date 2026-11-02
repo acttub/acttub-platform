@@ -29,6 +29,7 @@ const notificationsModule = {
   setNotificationChannelAsync: async (id) => { state.calls.push(['channel', id]); },
   getExpoPushTokenAsync: async () => ({ data: state.token }),
   cancelAllScheduledNotificationsAsync: async () => { state.calls.push(['cancelAll']); },
+  getLastNotificationResponseAsync: async () => state.lastResponse ?? null,
 };
 globalThis.require = name => {
   if (name === 'expo-notifications') return notificationsModule;
@@ -61,7 +62,7 @@ beforeEach(async () => {
   state.storage.values.clear();
   Object.assign(state, {
     os: 'ios', isDevice: true, permission: { granted: true, canAskAgain: true }, requestGrants: true,
-    token: 'ExponentPushToken[abc]', server: { ...ALL_ON }, calls: [], settingsFail: false, unregisterFails: false,
+    token: 'ExponentPushToken[abc]', server: { ...ALL_ON }, calls: [], settingsFail: false, unregisterFails: false, lastResponse: null,
   });
 });
 
@@ -109,6 +110,38 @@ test('받은 푸시와 누른 푸시의 자료를 넘기고, 끊으면 더 듣�
   stopReceived();
   stopTapped();
   assert.deepEqual(state.listeners, {});
+});
+
+const tap = (identifier, data) => ({ notification: { request: { identifier, content: { data } } } });
+const SPLIT = { kind: 'script_split_complete', script_id: '12345678-1234-1234-1234-123456789abc' };
+const HOMEWORK = { kind: 'evening_reminder', reminder_kind: 'homework', practice_id: '12345678-1234-1234-1234-123456789abd' };
+
+test('꺼진 앱을 연 푸시 탭은 한 번만 넘기고, 다음 실행에서는 다시 넘기지 않는다', async () => {
+  state.lastResponse = tap('cold-1', SPLIT);
+  assert.deepEqual(await n.takeColdStartPushTap(), SPLIT);
+  assert.equal(stored('device.lastPushOpenId'), 'cold-1');
+  assert.equal(await n.takeColdStartPushTap(), null);
+
+  state.lastResponse = tap('cold-2', HOMEWORK);
+  assert.deepEqual(await n.takeColdStartPushTap(), HOMEWORK);
+  state.lastResponse = null;
+  assert.equal(await n.takeColdStartPushTap(), null);
+});
+
+test('조회와 리스너가 같은 탭을 알려 주면 먼저 온 쪽만 넘긴다', async () => {
+  const tapped = [];
+  const stop = n.onPushTapped(data => tapped.push(data));
+
+  state.lastResponse = tap('both-1', SPLIT);
+  assert.deepEqual(await n.takeColdStartPushTap(), SPLIT);
+  state.listeners.tapped(tap('both-1', SPLIT));
+  assert.deepEqual(tapped, []);
+
+  state.listeners.tapped(tap('both-2', HOMEWORK));
+  state.lastResponse = tap('both-2', HOMEWORK);
+  assert.equal(await n.takeColdStartPushTap(), null);
+  assert.deepEqual(tapped, [HOMEWORK]);
+  stop();
 });
 
 test('게이트를 지나면 서버 토글을 읽어 기기에 적고 이 폰의 토큰을 등록한 뒤 옛 리마인드를 걷는다', async () => {

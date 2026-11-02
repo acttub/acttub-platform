@@ -1,10 +1,10 @@
-import { Image } from 'expo-image';
 import type { ReactNode, Ref } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { ActyMotion, type ActyMotionKind } from '@/components/ui/acty-motion';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
@@ -13,10 +13,11 @@ import { translate as t } from '@/lib/i18n';
 
 /**
  * 완료 화면 틀 — 디자인 시스템 pen 「DoneScreen」. 첫 완료와 그 뒤 완료가 같은 꼴이다.
- * 머리 없음 · 마스코트 120 · 제목 title1 · 대본 이름 body2 `text-sub` · 내용 칸(요약 · 다음 행동, `children`) · 아래 고정 「홈으로 가기」 하나.
+ * 머리 없음 · 마스코트 120(완료 때 폴짝 뛴다, components/ui/acty-motion) · 제목 title1 · 대본 이름 body2 `text-sub` · 내용 칸(요약 · 다음 행동, `children`) · 아래 고정 「홈으로 가기」 하나.
  */
 export function DoneScreen({
   mascot = MASCOT.jump,
+  mascotMotion = 'celebrate',
   title,
   scriptName,
   children,
@@ -27,6 +28,8 @@ export function DoneScreen({
   scrollRef,
 }: {
   mascot?: ImageSourcePropType;
+  /** 액티 움직임 — 축하할 일이 아닌 완료는 'none'. */
+  mascotMotion?: ActyMotionKind;
   title: string;
   scriptName?: string | null;
   children?: ReactNode;
@@ -40,7 +43,7 @@ export function DoneScreen({
   return (
     <KeyboardLift style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, mascotTop && styles.bodyTop]}>
-        <Image source={mascot} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+        <ActyMotion testID="done-mascot" source={mascot} size={MASCOT_SIZE.xl} kind={mascotMotion} />
         <Text style={styles.title} accessibilityRole="header">
           {title}
         </Text>

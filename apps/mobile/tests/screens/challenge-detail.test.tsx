@@ -22,12 +22,14 @@ jest.mock('expo-router', () => {
     },
     useRouter: () => mockRouter,
     useLocalSearchParams: () => mockParams,
+    useFocusEffect: (effect: () => void | (() => void)) => require('react').useEffect(effect, [effect]),
   };
 });
 jest.mock('@/lib/api', () => ({
   api: {
     getChallenge: jest.fn(),
     listChallengeEntries: jest.fn(),
+    listMyChallengeEntries: jest.fn(),
     deleteChallenge: jest.fn(),
     createReport: jest.fn(),
   },
@@ -141,7 +143,9 @@ test('종료 뒤 집계 중이면 순위와 배지를 감추고 촬영 버튼을
   expect(screen.getByText('Acttub 공식 대사 · 종료')).toBeOnTheScreen();
   expect(screen.getByText('햄릿')).toBeOnTheScreen();
   expect(screen.getByText('참여작 2 · 좋아요 7')).toBeOnTheScreen();
-  expect(screen.getByText('윤')).toBeOnTheScreen();
+  // 순위를 감추면 순위 대신 프로필과 같은 기본 얼굴이 보인다(첫 글자는 쓰지 않는다).
+  expect(screen.getAllByTestId('default-avatar')).toHaveLength(2);
+  expect(screen.queryByText('윤')).not.toBeOnTheScreen();
   expect(screen.queryByText('1')).not.toBeOnTheScreen();
   expect(screen.queryByText(/1위/)).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '나도 이 대사 연기하기' })).not.toBeOnTheScreen();
@@ -167,6 +171,20 @@ test('참여작이 없으면 첫 참여를 권한다', async () => {
   await render(<ChallengeDetailScreen />);
   expect(await screen.findByText('아직 참여작이 없어요')).toBeOnTheScreen();
   expect(screen.getByText('첫 번째로 참여해 보세요.')).toBeOnTheScreen();
+});
+
+test('이미 참여했으면(나만 보기) 다른 배우 기준으로 말하고 버튼은 「한 번 더 찍기」다 (SOMA-995)', async () => {
+  listEntries.mockResolvedValue(entries([]));
+  (api.listMyChallengeEntries as jest.Mock).mockResolvedValueOnce({
+    counts: { all: 1, public: 0, private: 1, under_review: 0 },
+    entries: [{ id: 'mine', challenge_id: 'c1', challenge: { id: 'c1' } }],
+    next_cursor: null,
+  });
+  await render(<ChallengeDetailScreen />);
+  expect(await screen.findByText('아직 다른 배우의 참여작이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('내 참여작은 프로필 「참여작」에서 볼 수 있어요.')).toBeOnTheScreen();
+  expect(screen.queryByText('첫 번째로 참여해 보세요.')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '한 번 더 찍기' })).toBeOnTheScreen();
 });
 
 test('불러오지 못하면 이유를 보여 준다', async () => {

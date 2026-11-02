@@ -10,8 +10,18 @@
  */
 export type PronunciationStatus = 'queued' | 'running' | 'done' | 'skipped' | 'failed';
 
-export type PronunciationMark = { index: number; word: string; lpr: number; startMs: number | null; endMs: number | null };
-export type PronunciationLine = { lineNo: number; text: string; marks: PronunciationMark[] };
+/** 칠한 어절의 상세 분석(11/1) — 어떻게 들렸나 · 어디가 · 두 소리 차이 · 해 볼 연습. 옛 보고서·설명할 수 없는 소리면 없다. */
+export type PronunciationDetail = { heard: string; where: string; kind: string; diff: string; practice: string };
+export type PronunciationMark = {
+  index: number;
+  word: string;
+  lpr: number;
+  startMs: number | null;
+  endMs: number | null;
+  detail?: PronunciationDetail | null;
+};
+/** sounds·clearSounds: 이 줄에서 센 소리와 그중 또렷한 소리(11/2 추가 — 이전 보고서엔 없다). */
+export type PronunciationLine = { lineNo: number; text: string; marks: PronunciationMark[]; sounds?: number; clearSounds?: number };
 export type PronunciationHabit = {
   habit: 'ONSET' | 'CODA' | 'VOWEL';
   label: string;
@@ -73,4 +83,33 @@ export function markSegments(text: string, marks: readonly PronunciationMark[]):
 /** 칠한 어절이 있는 줄 수. 보고서 첫 줄 요약에 쓴다. */
 export function markedLineCount(report: PronunciationReport): number {
   return (report.lines ?? []).filter((l) => l.marks.length > 0).length;
+}
+
+/** 상세 분석이 있는 칠한 어절. 「상세 보고서」 칸에 그린다. */
+/** 줄 점수(또렷한 소리 수/센 소리 수). 이전 보고서이거나 센 소리가 없으면 null. */
+export function lineScore(line: PronunciationLine): { clear: number; total: number; percent: number } | null {
+  const total = line.sounds ?? 0;
+  if (total <= 0 || line.clearSounds == null) return null;
+  const clear = Math.min(Math.max(line.clearSounds, 0), total);
+  return { clear, total, percent: Math.round((clear * 100) / total) };
+}
+
+/** 어절 점수 — 모델의 lpr 원래 값(음수, 10/20 사용자 선택)을 소수 한 자리로. 마이너스는 '−'로 적는다. */
+export function markScore(lpr: number): string {
+  const v = Math.round(lpr * 10) / 10;
+  return v < 0 ? `−${Math.abs(v).toFixed(1)}` : v.toFixed(1);
+}
+
+export function detailedMarks(line: PronunciationLine): (PronunciationMark & { detail: PronunciationDetail })[] {
+  return line.marks.filter((m): m is PronunciationMark & { detail: PronunciationDetail } => !!m.detail);
+}
+
+/**
+ * 「다른 말로 알아들을 수 있는 곳」에 남길 줄. 서버는 1.1.0 앱을 위해 상세 분석을 이 목록에도 문장으로 넣는다 —
+ * 줄 밑 「상세 보고서」로 이미 보이는 같은 줄·같은 어절은 뺀다.
+ */
+export function misheardRows(report: PronunciationReport): PronunciationReport['misheard'] {
+  const shown = new Set<string>();
+  for (const line of report.lines ?? []) for (const m of detailedMarks(line)) shown.add(`${line.lineNo}:${clean(m.word)}`);
+  return report.misheard.filter((r) => !shown.has(`${r.lineNo}:${clean(r.word)}`));
 }

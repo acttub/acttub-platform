@@ -15,9 +15,10 @@ import java.util.function.IntSupplier;
  *
  * <ol>
  *   <li>첫 연습을 끝내기 전이면 아무것도 없다(NONE) — 앱의 첫 사용자 홈과 같은 기준.</li>
- *   <li>연습 중 칸(PRACTICE)은 Pro 면 없고, 무료면 A/B 로 켠 사람만 받는다.</li>
+ *   <li>Pro 면 어느 칸이든 아무것도 없다(NONE) — Pro 혜택 「광고 없음」.</li>
+ *   <li>연습 중 칸(PRACTICE)은 무료 중 A/B 로 켠 사람만 받는다.</li>
  *   <li>칸과 규격 이미지가 맞는 학원 직접 광고(DIRECT).</li>
- *   <li>칸과 대상이 맞는 우리 앱 광고(HOUSE). Pro 에게 Pro 권유(대상 free)는 안 간다.</li>
+ *   <li>칸과 대상이 맞는 우리 앱 광고(HOUSE). 대상이 pro 인 광고는 Pro 가 광고를 안 받으므로 나가지 않는다.</li>
  *   <li>없으면 AdMob 으로 채운다(NETWORK).</li>
  * </ol>
  * 같은 단계 후보가 여럿이면 priority 가 가장 큰 것들 중에서 사람·날마다 하나로 돌린다.
@@ -52,10 +53,10 @@ public final class AdPicker {
 
     /** @param roll 우리 앱 광고 비율을 가를 난수(0~99)를 돌려준다 — 테스트에서 고정한다. 우리 광고를 고를 때만 한 번 부른다. */
     public static Pick pick(AdSlot slot, Viewer viewer, List<Ad> candidates, LocalDate day, IntSupplier roll) {
-        if (!viewer.practiced()) {
+        if (!viewer.practiced() || viewer.pro()) {
             return Pick.none(slot);
         }
-        if (slot.phase() == AdSlot.Phase.PRACTICE && (viewer.pro() || !viewer.practiceOn())) {
+        if (slot.phase() == AdSlot.Phase.PRACTICE && !viewer.practiceOn()) {
             return Pick.none(slot);
         }
         List<Ad> direct = candidates.stream()

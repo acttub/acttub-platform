@@ -64,6 +64,18 @@ import type {
   MyEntriesResponse,
   MyEntryCard,
 } from '@/lib/challenge/types';
+import type {
+  CategoryListResponse,
+  CommentListResponse,
+  CommunityComment,
+  CommunityImageIntent,
+  CommunityPost,
+  CommunityReportBody,
+  LikeResponse,
+  PostListResponse,
+  PostUpdateBody,
+  PostWriteBody,
+} from '@/lib/community';
 import type { ReadingExampleListResponse, ReadingExampleStart } from '@/lib/reading/examples';
 import type { ExampleAudioResponse } from '@/lib/reading/example-audio';
 import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
@@ -1059,6 +1071,8 @@ export const api = {
     uploadUrl: string,
     fileUri: string,
     mimeType: string,
+    /** 서버가 함께 준 PUT 머리(게시판 사진의 upload_headers 등). Content-Type 은 mimeType 이 기본이다. */
+    extraHeaders: Record<string, string> = {},
   ): {
     result: Promise<{ kind: 'uploaded' } | { kind: 'cancelled' }>;
     cancel: () => Promise<void>;
@@ -1066,7 +1080,7 @@ export const api = {
     const task = createUploadTask(uploadUrl, fileUri, {
       httpMethod: 'PUT',
       uploadType: FileSystemUploadType.BINARY_CONTENT,
-      headers: { 'Content-Type': mimeType },
+      headers: { 'Content-Type': mimeType, ...extraHeaders },
     });
     let cancelled = false;
     const result = (async () => {
@@ -1128,6 +1142,14 @@ export const api = {
   },
 
   /** 묶음 목록. 진행 중 회차 id 가 있으면 그 회차로 복귀시킨다. */
+  /**
+   * 연습한 날짜(한국 시간 YYYY-MM-DD, 오래된 순, SOMA-1003). 「연습 1회」 기준으로 서버가 센다 — 리딩은 앱이 최근 대본만
+   * 받으므로, 재설치·새 로그인 뒤에도 지난 날이 빠지지 않게 이걸 함께 쓴다.
+   */
+  practiceDays(options: ApiCallOptions = {}): Promise<{ days: string[] }> {
+    return request<{ days: string[] }>('/v2/practices/days', {}, { signal: options.signal });
+  },
+
   async listPracticeGroups(
     filter: PracticeGroupFilter = 'all',
     options: ApiCallOptions = {},
@@ -1174,6 +1196,19 @@ export const api = {
       { timeoutMs: 20_000 },
     );
     return practiceGroupFromResponse(group);
+  },
+
+  /**
+   * 묶음 영구 삭제 — 묶음·노트·코치 대화·영상이 모든 목록에서 사라지고 되돌릴 수 없다.
+   * 내 것이 아니거나 이미 지워졌으면 404 practice_not_found 인데, 지우려던 결과와 같으니 성공으로 본다.
+   */
+  async deletePracticeGroup(rootId: string): Promise<void> {
+    try {
+      await request<void>(`/v2/practices/${encodeURIComponent(rootId)}/group`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return;
+      throw e;
+    }
   },
 
   /** 회차 진행 상태(A10 폴링). 작업 상태와 분석 결과 상태는 다른 것이다. */
@@ -1500,6 +1535,18 @@ export const api = {
     });
   },
 
+  /**
+   * 앱 안 의견 보내기(SOMA-953). 웹 문의 접수(POST /v2/support/inquiries)에 category 'feedback' 으로 보낸다.
+   * 한 IP 10분 5건을 넘으면 429 다.
+   */
+  sendFeedback(body: { email: string; body: string }): Promise<{ id: string; created_at: string }> {
+    return request<{ id: string; created_at: string }>(
+      '/v2/support/inquiries',
+      jsonInit({ category: 'feedback', email: body.email, body: body.body }),
+      { auth: true, timeoutMs: 15_000 },
+    );
+  },
+
   /** 사람 차단 켜기·끄기. 멱등이고 자기 자신은 422 self_block 이다. 상대에게 알리지 않는다. */
   blockUser(userId: string, blocked: boolean): Promise<void> {
     return request<void>(
@@ -1511,6 +1558,92 @@ export const api = {
 
   listBlocks(): Promise<{ users: BlockedUser[] }> {
     return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
+  },
+
+  // 배우 게시판(SOMA-873, /v2/community) ----------------------------------------------
+  /** 분류 목록. 화면은 서버가 준 분류를 그대로 칩으로 그린다. */
+  communityCategories(): Promise<CategoryListResponse> {
+    return request<CategoryListResponse>('/v2/community/categories', {}, { timeoutMs: 15_000 });
+  },
+
+  /** 글 목록 — 최신순 커서. `category` 가 비면 전체다. 차단한 사람의 글은 서버가 뺀다. */
+  communityPosts(params: { category?: string; cursor?: string | null } = {}): Promise<PostListResponse> {
+    const query = new URLSearchParams();
+    if (params.category) query.set('category', params.category);
+    if (params.cursor) query.set('cursor', params.cursor);
+    const qs = query.toString();
+    return request<PostListResponse>(`/v2/community/posts${qs ? `?${qs}` : ''}`, {}, { timeoutMs: 20_000 });
+  },
+
+  communityPost(postId: string): Promise<CommunityPost> {
+    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 게시판 사진 올릴 주소. 받은 upload_url 로 upload_headers 를 붙여 PUT 한 뒤 completeCommunityImage 로 끝을 알린다
+   * (포트폴리오 사진과 같은 순서).
+   */
+  createCommunityImageIntent(input: { mime_type: string; size_bytes: number }): Promise<CommunityImageIntent> {
+    return request<CommunityImageIntent>('/v2/community/images', jsonInit(input), { timeoutMs: 30_000 });
+  },
+
+  /** 사진 올리기가 끝났다고 알린다. 서버가 객체를 확인해야 글에 붙일 수 있다. */
+  completeCommunityImage(imageId: string): Promise<unknown> {
+    return request<unknown>(`/v2/community/images/${encodeURIComponent(imageId)}/complete`, { method: 'POST' }, { timeoutMs: 30_000 });
+  },
+
+  /**
+   * 글 올리기. 제목·내용에 전화번호·메신저 ID 가 있으면 422 community_contact_info, 사진이 6장 이상이면 400 too_many_images,
+   * 남의·안 끝난 사진 id 면 400 invalid_image 다.
+   */
+  createCommunityPost(body: PostWriteBody): Promise<CommunityPost> {
+    return request<CommunityPost>('/v2/community/posts', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 내 글 고치기 — 제목·내용·사진 목록을 바꾼다(분류는 그대로). */
+  updateCommunityPost(postId: string, body: PostUpdateBody): Promise<CommunityPost> {
+    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, jsonInit(body, 'PATCH'), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  deleteCommunityPost(postId: string): Promise<void> {
+    return request<void>(`/v2/community/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
+  /** 좋아요 켜기·끄기. 응답의 수와 내 상태로 화면을 맞춘다. */
+  likeCommunityPost(postId: string, liked: boolean): Promise<LikeResponse> {
+    return request<LikeResponse>(
+      `/v2/community/posts/${encodeURIComponent(postId)}/likes`,
+      { method: liked ? 'POST' : 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  communityComments(postId: string, cursor?: string | null): Promise<CommentListResponse> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<CommentListResponse>(`/v2/community/posts/${encodeURIComponent(postId)}/comments${query}`, {}, {
+      timeoutMs: 20_000,
+    });
+  },
+
+  createCommunityComment(postId: string, body: { body: string }): Promise<CommunityComment> {
+    return request<CommunityComment>(`/v2/community/posts/${encodeURIComponent(postId)}/comments`, jsonInit(body), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  deleteCommunityComment(commentId: string): Promise<void> {
+    return request<void>(`/v2/community/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
+  reportCommunityContent(body: CommunityReportBody): Promise<void> {
+    return request<void>('/v2/community/reports', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 게시판 차단 — 그 사람의 글·댓글이 내 목록에서 빠진다. */
+  blockCommunityUser(userId: string): Promise<void> {
+    return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), { timeoutMs: 15_000 });
   },
 
   // 알림함(challenge.notification) -------------------------------------------------

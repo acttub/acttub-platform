@@ -219,11 +219,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setConsentEntry({ status: 'checking', entry: null, error: null });
   }, [consentEntrySession]);
 
-  const refreshConsentEntry = useCallback(
-    () => loadConsentEntry({ refresh: true }),
-    [loadConsentEntry],
-  );
-
   const applyMe = useCallback((me: MeResponse) => {
     profileLoadGeneration.current += 1;
     setProfile({ status: profileGateStatus(me), me, error: null });
@@ -251,6 +246,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [applyMe]);
+
+  // 오프라인으로 앱을 켜면 동의와 프로필을 둘 다 못 읽는다. 동의 팝업에서 다시 시도해 통과하면 프로필도 함께
+  // 다시 읽는다 — 전에는 「프로필을 불러오지 못했어요」에서 한 번 더 눌러야 했다(11/2 폰 QA).
+  const profileStatusRef = useRef(profile.status);
+  profileStatusRef.current = profile.status;
+  const refreshConsentEntry = useCallback(async () => {
+    const entry = await loadConsentEntry({ refresh: true });
+    if (profileStatusRef.current === 'error') void reloadProfile();
+    return entry;
+  }, [loadConsentEntry, reloadProfile]);
 
   const resetProfile = useCallback(() => {
     profileLoadGeneration.current += 1;

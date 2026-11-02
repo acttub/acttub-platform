@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.practice.adapter.db;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,6 +21,7 @@ import com.acttub.actingapi.integration.observation.VideoRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -291,6 +293,32 @@ class PostgresPracticeRepository implements PracticeRepository {
     }
 
     @Override
+    public List<LocalDate> practiceDays(UUID userId) {
+        @SuppressWarnings("unchecked")
+        List<String> days = entityManager.createNativeQuery("""
+                SELECT DISTINCT to_char(a.at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD') AS day
+                FROM (
+                    SELECT p.created_at AS at
+                    FROM practices p
+                    JOIN coach_conversations c ON c.practice_id=p.id
+                    JOIN coach_notes n ON n.conversation_id=c.id
+                    WHERE p.user_id=:userId
+                    UNION ALL
+                    SELECT ps.created_at
+                    FROM practice_sessions ps
+                    WHERE ps.user_id=:userId
+                      AND EXISTS (SELECT 1 FROM practice_reports r WHERE r.practice_session_id=ps.id)
+                    UNION ALL
+                    SELECT started_at FROM reading_sessions WHERE user_id=:userId AND status='completed'
+                    UNION ALL
+                    SELECT created_at FROM challenge_entries WHERE user_id=:userId
+                ) a
+                ORDER BY day
+                """).setParameter("userId", userId).getResultList();
+        return days.stream().map(LocalDate::parse).toList();
+    }
+
+    @Override
     public List<GroupView> groups(UUID userId, String filter, Instant now) {
         StringBuilder where = new StringBuilder("""
                 WHERE p.user_id=:userId
@@ -550,7 +578,13 @@ class PostgresPracticeRepository implements PracticeRepository {
             // 무료 코칭 한도(SOMA-818): 오늘 만든 회차 수. 영상 있는·없는 코칭과 이어하기가 모두 든다.
             Number sessions = (Number) entityManager.createNativeQuery(
                     // 리딩 녹음으로 시작한 코칭(SOMA-791)은 무료라 세지 않는다. 그 묶음을 영상으로 이은 회차는 센다.
-                    "SELECT count(*) FROM practices WHERE user_id=:userId AND created_at>=:since AND reading_session_id IS NULL")
+                    // 지운 연습(SOMA-985)도 그날 쓴 횟수다 — 지우고 다시 하는 길로 한도가 풀리지 않는다.
+                    """
+                    SELECT (SELECT count(*) FROM practices
+                            WHERE user_id=:userId AND created_at>=:since AND reading_session_id IS NULL)
+                         + (SELECT count(*) FROM practice_deletion_marks
+                            WHERE user_id=:userId AND practice_created_at>=:since AND NOT from_reading)
+                    """)
                     .setParameter("userId", userId)
                     .setParameter("since", quota.since().atOffset(ZoneOffset.UTC))
                     .getSingleResult();
@@ -577,7 +611,7 @@ class PostgresPracticeRepository implements PracticeRepository {
         entityManager.createNativeQuery("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,request_id,
                                       request_fingerprint,situation,character_context,goal,blockage_kind,sub_branch,
-                                      blockage_detail,title,session_purpose,face_mosaic,created_at,updated_at)
+                                      blockage_detail,title,session_purpose,face_mosaic,language,created_at,updated_at)
                 VALUES (:id,:userId,CAST(:videoId AS uuid),:rootId,:ordinal,:stage,:experienceVersion,:requestId,:fingerprint,
                         :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
                         CAST(:title AS text),
@@ -586,7 +620,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                                  (SELECT CASE WHEN r.session_purpose='reading' THEN 'evaluate' ELSE r.session_purpose END
                                   FROM practices r WHERE r.id=:rootId)),
                         COALESCE(CAST(:faceMosaic AS boolean), false),
-                        :now,:now)
+                        :language,:now,:now)
                 """)
                 .setParameter("id", id)
                 .setParameter("userId", userId)
@@ -606,6 +640,8 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("title", practice.title())
                 .setParameter("sessionPurpose", practice.sessionPurpose())
                 .setParameter("faceMosaic", practice.faceMosaic())
+                // 회차를 만드는 요청의 말. 분석이 끝난 뒤 첫 질문을 미리 쓸 때 이 값으로 쓴다(V84, SOMA-946).
+                .setParameter("language", OutputLanguage.current().getLanguage())
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .executeUpdate();
     }

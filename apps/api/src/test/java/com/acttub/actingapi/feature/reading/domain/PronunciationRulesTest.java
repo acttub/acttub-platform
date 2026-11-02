@@ -55,6 +55,23 @@ class PronunciationRulesTest {
     }
 
     @Test
+    void 줄마다_센_소리와_또렷한_소리를_따로_싣고_합은_전체와_같다() {
+        ScoredLine first = new ScoredLine("다리 머리", List.of(
+                word(0, "다리", ok("ㄷ", false, 0), ok("ㅏ", true, 0), bad("ㄹ", "ㄴ", -4, false, 1), bad("ㅣ", "ㅔ", -6, true, 1)),
+                word(1, "머리", ok("ㅁ", false, 0), ok("ㅓ", true, 0), bad("ㄹ", "ㄴ", -5, false, 1), ok("ㅣ", true, 1))));
+        ScoredLine second = new ScoredLine("소리", List.of(
+                word(0, "소리", ok("ㅅ", false, 0), ok("ㅗ", true, 0), ok("ㄹ", false, 1), ok("ㅣ", true, 1))));
+        Report report = PronunciationRules.build(List.of(
+                new LineInput(1, "다리 머리", "다리 머리", first),
+                new LineInput(2, "다리가 아파", null, first),
+                new LineInput(3, "소리", "소리", second)));
+        assertThat(report.lines()).extracting(l -> l.lineNo() + ":" + l.clearSounds() + "/" + l.sounds())
+                .containsExactly("1:5/8", "3:4/4");
+        assertThat(report.summary().sounds()).isEqualTo(12);
+        assertThat(report.summary().clearSounds()).isEqualTo(9);
+    }
+
+    @Test
     void 줄마다_lpr_마이너스3_이하로_짚힌_어절을_낮은_순으로_두_개까지_칠한다() {
         ScoredLine line = new ScoredLine("다리 머리 허리 소리", List.of(
                 word(0, "다리", ok("ㄷ", false, 0), bad("ㅏ", "ㅓ", -3.5, true, 0)),

@@ -11,6 +11,7 @@ import { CoachPurposeCards } from '@/components/coach-purpose-cards';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { CoachWaiting } from '@/components/coach-waiting';
+import { ActyMotion } from '@/components/ui/acty-motion';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
@@ -332,10 +333,15 @@ function CoachTalk() {
   };
 
   // 예시 튜토리얼 대화 중에 뒤로가기로 나가면 튜토리얼을 '나감'으로 끝낸다.
-  usePreventRemove(sample && !leaveAllowed, ({ data }) => {
+  usePreventRemove(Platform.OS !== 'ios' && sample && !leaveAllowed, ({ data }) => {
     finishTutorial('left');
     leaveThen(() => navigation.dispatch(data.action));
   });
+  // iOS 는 밀어서 나가기를 막지 않고 내려가면서 끝낸다(SOMA-966).
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !sample || leaveAllowed) return;
+    return navigation.addListener('beforeRemove', () => finishTutorial('left'));
+  }, [navigation, sample, leaveAllowed]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -590,6 +596,7 @@ function CoachTalk() {
 
           {waiting && (
             <View style={styles.thinkingRow}>
+              <ActyMotion testID="coach-thinking-mascot" source={MASCOT.coach} size={MASCOT_SIZE.chat} kind="think" />
               <Text style={styles.thinkingText}>{t('coach.thinking')}</Text>
             </View>
           )}
@@ -755,7 +762,8 @@ const styles = StyleSheet.create({
   question: { ...type.body1, color: palette.text },
   timeLink: { color: palette.blueDeep, fontWeight: '700' },
 
-  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingLeft: space[10] },
+  // 코치 말풍선처럼 왼쪽에 액티(갸웃하며 고개를 기울인다) — 말풍선 머리줄과 같은 칸·간격.
+  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   thinkingText: { ...type.caption, color: palette.textMeta },
 
   thread: { gap: space[3] },

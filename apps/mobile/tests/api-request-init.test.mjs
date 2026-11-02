@@ -64,6 +64,8 @@ const CASES = [
     { method: 'POST', path: `/v2/videos/${id(2)}/purge-file`, contentType: 'application/json', body: '{}' }],
   ['patchPracticeGroup', () => api.patchPracticeGroup(id(1), { hidden: true }),
     { method: 'PATCH', path: `/v2/practices/${id(1)}/group`, contentType: 'application/json', body: '{"hidden":true}' }],
+  ['deletePracticeGroup', () => api.deletePracticeGroup(id(1)),
+    { method: 'DELETE', path: `/v2/practices/${id(1)}/group`, contentType: null, body: null }],
   ['cancelPractice', () => api.cancelPractice(id(1)),
     { method: 'POST', path: `/v2/practices/${id(1)}/cancel`, contentType: 'application/json', requestId: UUID, body: '{}' }],
   ['putNoteRating', () => api.putNoteRating(id(1), { rating: 'up', comment: null }),

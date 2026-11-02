@@ -1,23 +1,25 @@
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
+import { SplitJobRow } from '@/components/reading/split-job-row';
 import { Button } from '@/components/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
-import { SkeletonRows } from '@/components/ui/skeleton';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { heroCard } from '@/constants/hero-card';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useSplitJobs } from '@/hooks/use-split-jobs';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
 import { skipsReadingTabGuide } from '@/lib/returning-account';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
@@ -31,9 +33,11 @@ import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { deleteScript, fetchSession, listScripts, listSessions, loadIntoCurrent, setCurrentSession } from '@/lib/reading/store';
+import { deleteScript, listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
+import { openResume } from '@/lib/reading/resume-open';
 import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/types';
 import { isKorean, translate as t } from '@/lib/i18n';
+import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
 import type { GestureResponderEvent } from 'react-native';
 
 import { pt } from '@/components/ui/anchored-menu';
@@ -65,6 +69,8 @@ export default function ReadingList() {
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const insets = useSafeAreaInsets();
+  // iOS 당기기 표시는 스크롤 맨 위(상태 표시줄·다이내믹 아일랜드 밑)에 뜬다 — 위 여백을 contentInset 으로 줘야 그 아래에 보인다(SOMA-964).
+  const iosTopInset = Platform.OS === 'ios' ? insets.top : 0;
   const cloudVoice = useCloudVoice();
   const refreshVoice = cloudVoice.refresh;
   const voiceFreeUntil = cloudVoice.status?.free_until
@@ -78,6 +84,7 @@ export default function ReadingList() {
   /** 「이전에 하던 데부터」 카드 — 연습 중 대본의 진행 중 회차(pen 「새 · 내 대본」). */
   const [resume, setResume] = useState<{ script: ScriptCard; session: SessionCard } | null>(null);
   const [resuming, setResuming] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const generation = useRef(0);
   // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
   const [guideOpen, setGuideOpen] = useState(false);
@@ -120,6 +127,16 @@ export default function ReadingList() {
       if (mine === generation.current) setError(scriptErrorMessage(e));
     }
   }, []);
+
+  // 맨 위에서 당기면 지금 검색어로 목록을 다시 받는다 — 나누기가 끝났는지 탭을 나갔다 오지 않고 본다(SOMA-964).
+  // load 는 실패를 안에서 잡아 오류 줄로 보이므로, 성공·실패 모두 끝나면 표시를 끈다.
+  const refresh = async () => {
+    setRefreshing(true);
+    await load(q);
+    setRefreshing(false);
+  };
+
+  const splitJobs = useSplitJobs(() => load(q));
 
   useFocusEffect(
     useCallback(() => {
@@ -194,6 +211,20 @@ export default function ReadingList() {
   const empty = !!list && scripts.length === 0 && !searching;
   // 목록을 받기 전에는 「내 대본」 화면을 그리지 않는다 — 대본이 없는 첫 사용자에게 그 화면이 먼저 보였다가 입구로 바뀌었다(SOMA-932).
   const listPending = list === null && !error;
+  // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 모양(lib/skeleton-hint)을 따른다.
+  // - 입구 카드 화면이었으면(또는 이 탭 기억은 없지만 홈이 첫 사용자로 확인했으면) 실제 입구 화면을 바로 그린다. 고정 화면이라 받을 것이 없다.
+  // - 대본 목록이었으면 같은 틀에 줄만 회색인 뼈대를 그린다.
+  // - 아무 기억도 없을 때만 입구 모양 회색 뼈대다.
+  const skeletonHints = useSkeletonHints();
+  const entryHint = skeletonHints.reading === 'empty' || (!skeletonHints.reading && firstTime);
+  const showEntry = empty || (listPending && entryHint);
+  const listSkeleton = listPending && skeletonHints.reading === 'list';
+  const entrySkeleton = listPending && !listSkeleton && !entryHint;
+  useEffect(() => {
+    if (!list || q.trim()) return;
+    const count = list.scripts.length;
+    rememberSkeletonHints(count > 0 ? { reading: 'list', readingRows: Math.min(6, count) } : { reading: 'empty' });
+  }, [list, q]);
 
   const goEntry = (choice: EntryKey) => {
     // 「내 대본 올리기」는 같은 고르기(파일·붙여넣기·만들기)를 한 번 더 보이지 않고 바로 파일 고르기 창을 연다(10/29).
@@ -206,13 +237,11 @@ export default function ReadingList() {
     if (!resume || resuming) return;
     setResuming(true);
     try {
-      const opened = await loadIntoCurrent(resume.script.id);
-      const detail = opened ? await fetchSession(resume.session.id) : null;
-      if (!detail) {
+      const where = await openResume(resume.script.id, resume.session.id);
+      if (where !== 'play') {
         void load(q);
         return;
       }
-      setCurrentSession(detail);
       router.push('/reading/play');
     } finally {
       setResuming(false);
@@ -238,19 +267,25 @@ export default function ReadingList() {
   );
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarSpace + 20 }]}
-      keyboardShouldPersistTaps="handled">
-      {empty && (
-        <View style={[styles.emptyBg, { height: 300 + insets.top }]} pointerEvents="none" />
+    <View style={styles.root}>
+      <ScrollView
+      // 빈 화면의 파란 머리는 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
+      style={[styles.root, (showEntry || entrySkeleton) && styles.rootEmpty]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 }]}
+      contentInset={{ top: iosTopInset }}
+      contentOffset={{ x: 0, y: -iosTopInset }}
+      automaticallyAdjustContentInsets={false}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
+      {(showEntry || entrySkeleton) && (
+        <View style={[styles.emptyBg, { height: 300 + insets.top - iosTopInset }]} pointerEvents="none" />
       )}
       {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
       <View style={styles.headWrap}>
         <NavHeader
           large
-          title={empty || listPending ? '' : t('reading.listTitle')}
+          title={showEntry || entrySkeleton ? '' : t('reading.listTitle')}
           left={firstTime ? <NavBackButton onPress={() => router.navigate('/')} phLabel="reading_back_home" /> : undefined}
           right={
             <View style={styles.headRight}>
@@ -258,7 +293,7 @@ export default function ReadingList() {
               {firstTime && (
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
               )}
-              {!empty && !listPending && (
+              {!showEntry && !entrySkeleton && (
                 <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
                   <Button
                     size="md"
@@ -275,13 +310,13 @@ export default function ReadingList() {
       </View>
 
       {/* 고품질 목소리 띠 — 대본이 있어도 머리 아래에 둔다(10/25 사용자 결정, 기본 켜짐). */}
-      {!empty && !listPending && voiceBar}
+      {!showEntry && !entrySkeleton && voiceBar}
 
       {error && <InlineError message={t('reading.listLoadFail')} onRetry={() => void load(q)} />}
 
-      {listPending ? (
-        <SkeletonRows count={6} avatar card={false} />
-      ) : empty ? (
+      {listPending && !showEntry ? (
+        listSkeleton ? <ReadingListSkeleton rows={skeletonHints.readingRows ?? 4} /> : <ReadingEntrySkeleton voiceBar={voiceBar} />
+      ) : showEntry ? (
         // pen R1.13 — 큰 「리딩」 제목과 책 위 액티, 고품질 목소리 알약, 그라데이션 입구 카드 셋(누르면 바로 들어감).
         <View style={styles.entry}>
           <View style={styles.hero}>
@@ -293,6 +328,9 @@ export default function ReadingList() {
           </View>
           {voiceBar}
           <View style={styles.entryCards}>
+            {splitJobs.rows.map((job) => (
+              <SplitJobRow key={job.importId} job={job} card onDismiss={splitJobs.dismiss} />
+            ))}
             {ENTRY_CHOICES.map((c) => (
               <Pressable
                 key={c.key}
@@ -377,6 +415,7 @@ export default function ReadingList() {
             />
           </View>
           <View style={styles.list}>
+            {!searching && splitJobs.rows.map((job) => <SplitJobRow key={job.importId} job={job} onDismiss={splitJobs.dismiss} />)}
             {scripts.map((s) => {
               const chip = statusChip(s);
               const tone = chip ? CHIP_TONE[chip.tone] : null;
@@ -426,13 +465,83 @@ export default function ReadingList() {
           void markSpotlightSeen('reading');
         }}
       />
-    </ScrollView>
+      </ScrollView>
+      {/* 내리면 내용이 상태 표시줄 밑으로 비쳐 겹쳐 보였다(11/2 QA) — 상태 표시줄 자리를 바탕색으로 덮는다. */}
+      <View pointerEvents="none" style={[styles.statusCover, { height: insets.top }, (showEntry || entrySkeleton) && styles.statusCoverEmpty]} />
+    </View>
+  );
+}
+
+/** 대본이 없을 때 화면(입구 카드 셋)의 뼈대 — 큰 「리딩」 제목과 액티는 고정이라 그대로, 카드는 같은 틀에 글만 회색. */
+function ReadingEntrySkeleton({ voiceBar }: { voiceBar: ReactNode }) {
+  return (
+    <SkeletonGroup style={styles.entry}>
+      <View style={styles.hero}>
+        <View style={styles.heroText}>
+          <Text style={styles.heroTitle}>{t('reading.tabTitle')}</Text>
+          <Text style={styles.heroSub}>{t('reading.entryHeroSub')}</Text>
+        </View>
+        <Image source={HERO_ACTY} style={styles.heroActy} resizeMode="stretch" accessibilityElementsHidden />
+      </View>
+      {voiceBar}
+      <View style={styles.entryCards}>
+        {ENTRY_CHOICES.map((c) => (
+          <View key={c.key} style={[styles.entryCard, styles.entryCardPlain]}>
+            <View style={styles.entryArt}>
+              <SkeletonBlock width={52} height={52} radius={radius.md} />
+            </View>
+            <View style={styles.entryBody}>
+              <SkeletonLine size={type.body1Bold} width="56%" />
+              <SkeletonLine size={type.caption} width="82%" />
+              {c.key === 'make' && <SkeletonLine size={type.caption} width="30%" />}
+            </View>
+            <SkeletonBlock width={32} height={32} radius={radius.full} />
+          </View>
+        ))}
+      </View>
+    </SkeletonGroup>
+  );
+}
+
+/** 대본 목록 화면의 뼈대 — 「업로드한 대본」 머리와 검색 칸은 실제와 같고, 줄 수는 지난번 대본 수(최대 6)를 따른다. */
+function ReadingListSkeleton({ rows }: { rows: number }) {
+  return (
+    // 실제 목록은 화면 content 의 gap 으로 머리·검색·목록 사이를 띄운다. 뼈대는 한 묶음이라 같은 gap 을 직접 준다.
+    <SkeletonGroup style={styles.listSkeleton}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{t('reading.uploadedTitle')}</Text>
+        <SkeletonLine size={type.caption} width={44} />
+      </View>
+      <View style={styles.search}>
+        <Feather name="search" size={18} color={palette.iconFaint} />
+        <Text style={[styles.searchInput, { color: palette.textMeta }]} numberOfLines={1}>
+          {t('reading.searchPlaceholder')}
+        </Text>
+      </View>
+      <View style={styles.list}>
+        {Array.from({ length: rows }, (_, i) => (
+          <View key={i} style={styles.row}>
+            <View style={styles.rowIcon}>
+              <SkeletonBlock width={18} height={20} radius={4} />
+            </View>
+            <View style={styles.rowBody}>
+              <SkeletonLine size={type.body1Bold} width={i % 2 === 0 ? '44%' : '36%'} />
+              <SkeletonLine size={type.caption} width={i % 2 === 0 ? '58%' : '50%'} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </SkeletonGroup>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: space.gutter, gap: space[3] },
+  rootEmpty: { backgroundColor: palette.blueSoft },
+  statusCover: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: palette.bg },
+  statusCoverEmpty: { backgroundColor: palette.blueSoft },
+  content: { flexGrow: 1, backgroundColor: palette.bg, paddingHorizontal: space.gutter, gap: space[3] },
+  listSkeleton: { gap: space[3] },
   headWrap: { marginHorizontal: -space.gutter },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   voiceBar: {

@@ -75,7 +75,12 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   const start = screen.getByRole('button', { name: '영상 보여 주고 코칭 받기' });
   expect(start.props['ph-label']).toBe('coaching_first_next');
   await fireEvent.press(start);
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/upload');
+  // 첫 코칭은 목적을 묻지 않는 새 연습으로 간다(SOMA-984).
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/upload', params: { first: '1' } });
+  // 본문에 「대사 같이 만들기」 카드가 없고, 보조 길 둘은 아래 링크 줄이다(SOMA-984).
+  expect(screen.queryByText('대사가 없으면 액티랑 같이')).not.toBeOnTheScreen();
+  expect(screen.getByText('영상 없이 말로')).toBeOnTheScreen();
+  expect(screen.getByText('대사부터 같이 만들기')).toBeOnTheScreen();
   // 영상 없이 말로 — 목적 화면으로(SOMA-745).
   await fireEvent.press(screen.getByRole('button', { name: '영상 없이 말로 코칭 받기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith('/talk');
@@ -101,29 +106,19 @@ test('노트가 있는 묶음이 있으면 저번 코치 메모 카드와 입구
   expect(mockRouter.push).toHaveBeenLastCalledWith('/upload');
   // 「이전 코칭 이어 하기」는 「지난 코칭 다시 보기」와 같은 화면이라 뺐다(10/28).
   expect(screen.queryByRole('button', { name: '이전 코칭 이어 하기' })).not.toBeOnTheScreen();
-  await go('영상 없이 말로 코칭 받기');
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/talk');
-  await go('찍을 대사부터 같이 만들기');
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/script-cocreate');
-  // 연습 기록 보기 — 타일 「지난 코칭 다시 보기」와 「최근 코칭 · 전체 보기」
+  // 말로 코칭 · 내 대본 · 대사 같이 만들기는 한 줄로 모아 선택 화면으로 간다(SOMA-984 B안).
+  expect(screen.queryByRole('button', { name: '영상 없이 말로 코칭 받기' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '찍을 대사부터 같이 만들기' })).not.toBeOnTheScreen();
+  await go('다른 방법으로 코칭 받기');
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/coach-other');
+  // 연습 기록 보기 — 타일 「지난 코칭 다시 보기」 하나다. 같은 화면으로 가던 「최근 코칭 · 전체 보기」는 뺐다(11/2 QA).
   await go('지난 코칭 다시 보기');
   expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
-  await go('전체 보기');
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
+  expect(screen.queryByRole('button', { name: '전체 보기' })).not.toBeOnTheScreen();
 });
 
-test('저장한 대본이 있으면 「내 대본으로 찍기」 줄이 생기고 대본 고르기 화면으로 간다', async () => {
+test('저장한 대본이 있어도 코칭 탭에는 「내 대본으로 찍기」 줄을 따로 두지 않는다(SOMA-984)', async () => {
   mockListScripts.mockResolvedValue({ scripts: [{ id: 's1' }], total_count: 1, in_progress_count: 0 });
-  listPracticeGroups.mockResolvedValue({
-    groups: [group({ title: '이별 장면', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
-  });
-  await render(<CoachingTab />);
-
-  await fireEvent.press(await screen.findByRole('button', { name: '내 대본으로 찍기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/coach-scripts');
-});
-
-test('저장한 대본이 없으면 「내 대본으로 찍기」 줄은 없다', async () => {
   listPracticeGroups.mockResolvedValue({
     groups: [group({ title: '이별 장면', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
   });

@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.ExperienceVersion;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
@@ -132,7 +133,13 @@ public class ConversationService {
         try {
             Loaded loaded = conversations.loadByPractice(userId, practiceId);
             if (loaded == null || loaded.conversationId() != null || !"conversing".equals(loaded.stage())) return;
-            start(userId, practiceId, prewriteRequest(practiceId), null);
+            // 뒤에서 도는 미리 쓰기에는 요청의 말이 없어 그대로 두면 한국어로 쓴다. 회차를 만든 요청의 말로 쓴다.
+            // 2026-11-02 운영: 영어 기기(push locale en) 배우가 대화 19회 중 18회 한국어 첫 질문을 받았다.
+            // 말을 모르는 회차(V84 전에 만든 것)는 미리 쓰지 않는다. 앱의 시작 요청이 그 요청의 말로 쓴다.
+            String language = conversations.practiceLanguage(userId, practiceId);
+            if (language == null || language.isBlank()) return;
+            OutputLanguage.runAs(java.util.Locale.forLanguageTag(language),
+                    () -> start(userId, practiceId, prewriteRequest(practiceId), null));
         } catch (ApiException expected) {
             // 이미 다른 시작이 쓰는 중이거나 첫 질문을 쓰지 못했다(코치 쪽이 이미 기록했다) — 앱의 시작 요청에 맡긴다.
         } catch (RuntimeException failure) {

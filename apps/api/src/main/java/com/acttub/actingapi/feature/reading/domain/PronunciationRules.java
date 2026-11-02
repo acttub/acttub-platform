@@ -105,8 +105,13 @@ public final class PronunciationRules {
         }
     }
 
-    /** 대본대로 읽은 줄과 그 줄에서 칠할 어절(최대 {@link #MAX_MARKS_PER_LINE}개, lpr 낮은 순). */
-    public record MarkedLine(int lineNo, String text, List<Mark> marks) {
+    /**
+     * 대본대로 읽은 줄과 그 줄에서 칠할 어절(최대 {@link #MAX_MARKS_PER_LINE}개, lpr 낮은 순).
+     *
+     * @param sounds 이 줄에서 센 소리 수(전체 진단의 {@link Summary#sounds()}와 같은 규칙) — 줄 점수의 분모.
+     * @param clearSounds 그중 또렷하게 들린 소리 수. 11/2 이전 보고서에는 둘 다 없다.
+     */
+    public record MarkedLine(int lineNo, String text, List<Mark> marks, int sounds, int clearSounds) {
     }
 
     /**
@@ -137,6 +142,8 @@ public final class PronunciationRules {
                 continue;
             }
             used += 1;
+            int lineSounds = sounds;
+            int lineClear = clear;
             List<Mark> marks = new ArrayList<>();
             Map<Mark, String> heardOf = new LinkedHashMap<>();
             for (Word word : line.scored().words()) {
@@ -176,7 +183,7 @@ public final class PronunciationRules {
                     .limit(MAX_MARKS_PER_LINE)
                     .sorted(Comparator.comparingInt(Mark::index))
                     .toList();
-            marked.add(new MarkedLine(line.lineNo(), line.scriptText(), shown));
+            marked.add(new MarkedLine(line.lineNo(), line.scriptText(), shown, sounds - lineSounds, clear - lineClear));
             // 칠한 어절마다 그 소리를 들린 소리로 바꿔 읽은 말을 붙인다 — 어절 안 어느 소리가 어떻게 들렸는지 보이게.
             for (Mark mark : shown) {
                 String heardWord = heardOf.get(mark);

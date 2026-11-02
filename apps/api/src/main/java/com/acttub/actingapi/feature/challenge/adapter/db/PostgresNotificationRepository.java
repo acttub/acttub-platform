@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Repository
 class PostgresNotificationRepository implements NotificationRepository {
-    private static final String WITHDRAWN = "탈퇴한 사용자";
+    private static final String WITHDRAWN = NotificationRules.WITHDRAWN_NAME;
     /** 사건이 지금도 유효한가 — 알림함의 인원·수와 발송이 같은 조건을 쓴다. */
     private static final String VALID = """
             ((n.kind='entry_liked' AND EXISTS(SELECT 1 FROM entry_likes l
@@ -147,7 +147,7 @@ class PostgresNotificationRepository implements NotificationRepository {
             UUID user = group.get("user_id", UUID.class);
             String key = group.get("group_key", String.class);
             var rows = NativeTuples.list(em.createNativeQuery("""
-                    SELECT n.id,n.kind,n.challenge_id,n.entry_id,(%s) AND (%s) AS deliverable FROM notifications n
+                    SELECT n.id,n.kind,n.challenge_id,n.entry_id,n.actor_user_id,(%s) AND (%s) AS deliverable FROM notifications n
                     WHERE n.user_id=:user AND n.group_key=:group AND n.push_status='pending' AND n.push_after<=:now
                     FOR UPDATE OF n SKIP LOCKED
                     """.formatted(VALID, AVAILABLE), Tuple.class).setParameter("user", user).setParameter("group", key)
@@ -182,8 +182,13 @@ class PostgresNotificationRepository implements NotificationRepository {
                 data.put("challenge_id", latest.get("challenge_id", UUID.class).toString());
                 if (latest.get("entry_id") != null) data.put("entry_id", latest.get("entry_id", UUID.class).toString());
                 String kind = latest.get("kind", String.class);
+                // 누가 했는지 — 이번에 보낼 사건 중 가장 최근 행동자와, 그 사람을 뺀 다른 행동자 수.
+                UUID actor = latest.get("actor_user_id", UUID.class);
+                String actorName = actor == null ? null : name(actor);
+                long others = sendable.stream().map(row -> row.get("actor_user_id", UUID.class))
+                        .filter(id -> id != null && !id.equals(actor)).distinct().count();
                 tokens.forEach(target -> outgoing.add(new Outgoing(target.token(), NotificationRules.pushTitle(target.korean()),
-                        NotificationRules.pushBody(kind, target.korean()), java.util.Map.copyOf(data))));
+                        NotificationRules.pushBody(kind, target.korean(), actorName, others), java.util.Map.copyOf(data))));
             }
             var sent = claimed ? sendable.stream().map(row -> row.get("id", UUID.class)).toList() : List.<UUID>of();
             mark(sent, "attempted", now);

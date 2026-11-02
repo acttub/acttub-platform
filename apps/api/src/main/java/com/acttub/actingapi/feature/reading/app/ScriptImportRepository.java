@@ -60,8 +60,9 @@ public interface ScriptImportRepository {
      * @param status {@code pending}·{@code running}·{@code succeeded}·{@code failed}
      * @param scriptId 성공했을 때 만든 대본. 아니면 {@code null}
      * @param failure 실패했을 때 그 이유. 아니면 {@code null}
+     * @param percent 화면 진행률(0~100). 성공한 작업은 100
      */
-    record ImportView(UUID id, String status, int doneLines, int totalLines, UUID scriptId, ScriptImportFailure failure) {
+    record ImportView(UUID id, String status, int doneLines, int totalLines, int percent, UUID scriptId, ScriptImportFailure failure) {
     }
 
     /** 워커가 나눌 재료. 요청이 이미 끝났거나 계정이 활성이 아니면 {@code null}. */
@@ -73,6 +74,9 @@ public interface ScriptImportRepository {
 
     /** 화면의 「N / M줄」. 자기 트랜잭션에서 바로 쓴다. */
     void progress(UUID importId, int doneLines, int totalLines);
+
+    /** 화면 진행률(%, {@link com.acttub.actingapi.feature.reading.domain.ScriptSplitProgress}). 줄어들지 않는다. 자기 트랜잭션에서 바로 쓴다. */
+    void percent(UUID importId, int percent);
 
     /**
      * 나눈 대본을 저장하고 요청과 작업을 성공으로 닫는다. 대본은 요청의 request_id 로 만들어 같은 작업이 다시 돌아도 같은

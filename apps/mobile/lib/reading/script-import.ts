@@ -107,16 +107,27 @@ export type ImportDeps = {
   sleep: (ms: number) => Promise<void>;
 };
 
-export type ImportProgress = { done: number; total: number };
+export type ImportProgress = { done: number; total: number; percent: number | null };
 
 /**
- * 접수하고 끝날 때까지 기다린다. 첫 물음은 접수 바로 뒤다 — 예시 대본·같은 글은 곧 끝나 팝업이 바로 닫힌다.
- * 묻다가 연결이 끊기면 시간 초과까지 계속 묻는다(작업은 서버에서 돈다).
+ * 나누는 중 화면(R2.11)에 보일 진행률과 문구 단계. 서버가 percent 를 주면 그것을 쓴다 — 줄 수만 세면 줄을 다 나눈 뒤
+ * 줄 검토 동안 100% 에 멈춰 있었다(SOMA-960). 줄을 다 나눴는데 아직 끝나지 않았으면 줄 수 대신 「확인 중」을 보인다.
+ */
+export function splitProgressView(progress: ImportProgress): { pct: number; checking: boolean } {
+  const byLines = progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
+  const pct = Math.min(100, Math.max(0, Math.round(progress.percent ?? byLines)));
+  return { pct, checking: progress.percent != null && progress.total > 0 && progress.done >= progress.total && pct < 100 };
+}
+
+/**
+ * 접수하고 끝날 때까지 기다린다. 첫 물음은 접수 바로 뒤다 — 예시 대본은 여기서 끝나 대기 화면 없이 넘어간다.
+ * onProgress 는 나누기가 진행 중이라고 확인됐을 때만 부른다(화면은 이때 대기 화면으로 바꾼다, SOMA-996). 끝난 작업이나 접수
+ * 거절에는 부르지 않는다. 묻다가 연결이 끊기면 마지막 진행률(첫 물음이면 null)로 부르고 시간 초과까지 계속 묻는다(작업은 서버에서 돈다).
  */
 export async function runImport(
   body: ImportScriptBody,
   deps: ImportDeps,
-  onProgress: (progress: ImportProgress) => void,
+  onProgress: (progress: ImportProgress | null) => void,
   signal?: AbortSignal,
 ): Promise<ImportResult> {
   // 떠난 뒤에도 접수는 한다 — 파일 읽기를 기다리는 사이 뒤로 가도 나누기는 서버에서 계속돼야 한다(10-27). 묻기만 멈춘다.
@@ -130,14 +141,17 @@ export async function runImport(
   if (ticket.duplicate_script_id) return { kind: 'duplicate', scriptId: ticket.duplicate_script_id };
   const importId = ticket.import_id;
   if (!importId) return STOP_BY_FAILURE.failed();
+  let last: ImportProgress | null = null;
   while (true) {
     try {
       const job = await deps.get(importId);
-      onProgress({ done: job.progress.done_lines, total: job.progress.total_lines });
       if (job.status === 'succeeded' && job.script_id) return { kind: 'saved', scriptId: job.script_id };
       if (job.status === 'failed') return STOP_BY_FAILURE[job.failure ?? 'failed']();
+      last = { done: job.progress.done_lines, total: job.progress.total_lines, percent: job.progress.percent ?? null };
+      onProgress(last);
     } catch (error) {
       if (!isTransient(error)) return stopOf(error);
+      onProgress(last);
     }
     if (deps.now() + POLL_MS > deadline) return STOP_BY_FAILURE.failed();
     await deps.sleep(POLL_MS);
@@ -197,7 +211,7 @@ export async function runScriptImport(
   input: ImportInput,
   flags: ImportFlags,
   deps: ScriptImportDeps,
-  onProgress: (progress: ImportProgress) => void,
+  onProgress: (progress: ImportProgress | null) => void,
   onUploaded: (uploadId: string) => void,
   signal?: AbortSignal,
 ): Promise<ImportResult> {

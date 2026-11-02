@@ -24,6 +24,7 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+jest.mock('@/lib/api', () => ({ api: { getScriptImport: jest.fn() } }));
 jest.mock('@/lib/reading/store', () => ({
   listScripts: jest.fn(),
   deleteScript: jest.fn(),
@@ -205,6 +206,39 @@ test('목록을 못 불러오면 다시 시도할 수 있다', async () => {
 
   expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
   expect(screen.queryByText('대본 목록을 불러오지 못했어요')).not.toBeOnTheScreen();
+});
+
+// 당기기 제스처는 ScrollView 의 refreshControl 이 받는다. 테스트 렌더러에는 제스처가 없어 그 요소를 꺼내 직접 다룬다.
+const refreshControl = () =>
+  screen.container.queryAll((node) => node.props.refreshControl !== undefined)[0].props.refreshControl;
+
+test('맨 위에서 당기면 표시가 뜨고 목록을 다시 불러온 뒤 표시가 사라진다', async () => {
+  await render(<ReadingList />);
+  expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
+  expect(refreshControl().props.refreshing).toBe(false);
+
+  let resolve: (v: unknown) => void = () => undefined;
+  (listScripts as jest.Mock).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  await act(async () => refreshControl().props.onRefresh());
+  expect(refreshControl().props.refreshing).toBe(true);
+  expect(listScripts).toHaveBeenCalledTimes(2);
+  expect(listScripts).toHaveBeenLastCalledWith('');
+
+  await act(async () => resolve({ scripts: [cafe], total_count: 1, in_progress_count: 0 }));
+  expect(refreshControl().props.refreshing).toBe(false);
+  expect(screen.getByText('카페 장면')).toBeOnTheScreen();
+  expect(screen.queryByText('옥상 장면')).not.toBeOnTheScreen();
+});
+
+test('새로고침이 실패해도 표시는 사라지고 오류를 알린다', async () => {
+  await render(<ReadingList />);
+  expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
+
+  (listScripts as jest.Mock).mockRejectedValueOnce(new ApiError(503, '서버 오류'));
+  await act(async () => refreshControl().props.onRefresh());
+
+  expect(refreshControl().props.refreshing).toBe(false);
+  expect(screen.getByText('대본 목록을 불러오지 못했어요')).toBeOnTheScreen();
 });
 
 test('화면을 떠나면 진행 중이던 응답을 버린다', async () => {

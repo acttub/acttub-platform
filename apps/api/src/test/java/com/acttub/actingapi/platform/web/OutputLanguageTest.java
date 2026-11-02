@@ -52,4 +52,14 @@ class OutputLanguageTest {
                 .contains("Write every word you send to them in Japanese.");
         assertThat(OutputLanguage.directiveFor(null)).isEmpty();
     }
+
+    @Test
+    void runAsGivesBackgroundWorkTheLanguageAndRestoresItAfterwards() {
+        LocaleContextHolder.resetLocaleContext();
+        var seen = new java.util.concurrent.atomic.AtomicReference<java.util.Locale>();
+        OutputLanguage.runAs(java.util.Locale.ENGLISH, () -> seen.set(OutputLanguage.current()));
+        assertThat(seen.get()).isEqualTo(java.util.Locale.ENGLISH);
+        assertThat(OutputLanguage.isKorean()).isTrue();
+        assertThat(LocaleContextHolder.getLocaleContext()).isNull();
+    }
 }

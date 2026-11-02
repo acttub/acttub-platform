@@ -83,7 +83,7 @@ test('Pro 안내 — 앱 결제가 닫혀 있으면 제목·혜택 세 줄만 �
   expect(screen.getByText('Pro로 제한 없이 연습해요')).toBeOnTheScreen();
   expect(screen.getByText('코칭·대본 보관 제한 없이')).toBeOnTheScreen();
   expect(screen.getByText('상위 AI 모델로 더 자세한 코칭')).toBeOnTheScreen();
-  expect(screen.getByText('발음 보고서 · 고품질 목소리 · 연습 중 광고 없음')).toBeOnTheScreen();
+  expect(screen.getByText('발음 보고서 · 고품질 목소리 · 광고 없음')).toBeOnTheScreen();
   await waitFor(() => expect(billingMe).toHaveBeenCalled());
   expect(screen.queryByText('월 구독')).not.toBeOnTheScreen();
   expect(screen.queryByText('Pro 시작하기')).not.toBeOnTheScreen();
@@ -314,7 +314,7 @@ test('구독 관리 — 서버가 결제 기능을 닫았으면 나간다', asyn
 test('설정 — 앱 Pro 스위치가 켜져 있으면 「ACTTUB Pro」 줄이 Pro 안내로 간다', async () => {
   billingMe.mockResolvedValue({ ...none, app_enabled: true });
   await render(<SettingsScreen />);
-  await fireEvent.press(await screen.findByText('무료 이용 중 · Pro 알아보기'));
+  await fireEvent.press(await screen.findByText('Pro로 제한 없이 연습해요'));
   expect(mockRouter.push).toHaveBeenCalledWith('/pro');
 });
 

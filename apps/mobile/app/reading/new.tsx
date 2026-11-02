@@ -1,9 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
-import { usePreventRemove } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -33,6 +33,7 @@ import {
   retryFlags,
   runScriptImport,
   TITLE_MAX,
+  splitProgressView,
   uploadScriptFile,
   type ImportFlags,
   type ImportInput,
@@ -48,8 +49,10 @@ import {
   scriptInputReducer,
   type ScriptTab,
 } from '@/lib/reading/script-input';
+import { addSplitJob, removeSplitJob, splitJobTitle } from '@/lib/reading/split-jobs';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
+import { hideForegroundPush } from '@/lib/notifications';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
 import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
@@ -59,8 +62,9 @@ import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * 대본 넣기(R2, reading.script). 「파일로 넣기 | 글로 붙여넣기」 탭 하나를 골라 [다음]을 누르면 서버가 나눠 바로
- * 저장하고, 그동안 R2.11 팝업에 진행 줄 수를 보인다. 파일은 고르는 순간 서버에 올려 글자를 뽑게 한다(R2.2).
+ * 대본 넣기(R2, reading.script). 「파일로 넣기 | 글로 붙여넣기」 탭 하나를 골라 [다음]을 누르면 입력 화면 버튼에
+ * 「확인하는 중…」을 보이고, 나누기가 진행 중이라고 확인된 때만 R2.11 대기 화면으로 간다(SOMA-996). 서버가 나눠 바로
+ * 저장한다. 파일은 고르는 순간 서버에 올려 글자를 뽑게 한다(R2.2).
  */
 const MASCOT = require('@/assets/images/mascot-reading.png');
 /** pen R2 「대본 읽는 액티」·「예시 대본 카드」 그림. */
@@ -102,6 +106,11 @@ type Resume = { kind: 'import'; input: ImportInput; flags: ImportFlags } | { kin
 
 /** R2 위 팝업 하나. iOS 는 닫히는 모달 위에 새 모달을 띄우지 못해 모든 장을 한 모달에 그린다. */
 type Popup =
+  /**
+   * 접수·첫 물음을 기다리는 동안. 입력 화면에 남아 버튼이 「확인하는 중…」이다. 팝업에서 다시 보냈으면 keepModal 로 모달을 연 채
+   * 둔다 — iOS 는 닫히는 모달을 곧바로 다시 띄우지 못하는데, 이 확인은 0.1초쯤이라 다음 팝업이 닫힘 애니메이션과 겹친다.
+   */
+  | { kind: 'checking'; keepModal: boolean }
   | { kind: 'splitting'; progress: ImportProgress | null } // R2.11
   | { kind: 'alert'; title: string; message: string } // R2.4·R2.12·R2.13·R2.15
   /** pen 「대본을 못 나눴어요」 — 화면 전체로 보이고 [다시 시도]·[직접 붙여 넣기]를 준다. */
@@ -127,6 +136,10 @@ export default function ReadingNew() {
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
+  // 붙여넣은 대본 나가기 확인(11/2 QA) — 물어본 이동과, 떠나도 된다는 표시.
+  const navigation = useNavigation();
+  const [leaveAsk, setLeaveAsk] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
+  const [leaveOk, setLeaveOk] = useState(false);
   const title = input.title[input.tab];
   const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
   const nextTarget = useSpotlightTarget(TARGET.readingNext);
@@ -186,12 +199,29 @@ export default function ReadingNew() {
 
   const split = async (next: ImportInput, flags: ImportFlags) => {
     const signal = life.current?.signal;
-    setPopup({ kind: 'splitting', progress: null });
+    // 「대본을 못 나눴어요」는 모달 없이 전체 화면이라 거기서 다시 시도하면 열어 둘 모달이 없다.
+    setPopup((prev) => ({ kind: 'checking', keepModal: !!prev && prev.kind !== 'failed' }));
     let input = next;
+    // 접수되면 바로 기기에 적는다(SOMA-976). 떠나는 순간에는 아직 접수 전일 수 있고(파일 읽기), 앱이 꺼져도 리딩 탭에 남아야 한다.
+    const accepted: { importId?: string } = {};
+    const deps: ScriptImportDeps = {
+      ...DEPS,
+      import: {
+        ...DEPS.import,
+        start: async (body) => {
+          const ticket = await DEPS.import.start(body);
+          if (ticket.import_id && !ticket.duplicate_script_id) {
+            accepted.importId = ticket.import_id;
+            void addSplitJob({ importId: ticket.import_id, title: splitJobTitle(next, flags.title) });
+          }
+          return ticket;
+        },
+      },
+    };
     const result = await runScriptImport(
       next,
       flags,
-      DEPS,
+      deps,
       (progress) => setPopup({ kind: 'splitting', progress }),
       (uploadId) => {
         if (next.kind === 'file') input = { ...next, uploadId };
@@ -200,11 +230,14 @@ export default function ReadingNew() {
       signal,
     );
     if (result.kind === 'cancelled' || signal?.aborted) return;
+    // 이 화면에서 끝을 봤다 — 리딩 탭에 보일 일이 없다. 떠났으면 위에서 돌아가 기록이 남고 리딩 탭이 잇는다.
+    if (accepted.importId) void removeSplitJob(accepted.importId);
     if (result.kind === 'file_unreadable' || result.kind === 'file_too_large') dispatch({ type: 'fileFailed' });
     if (result.kind !== 'saved') return showStop(result, { kind: 'import', input, flags });
     const saved = await loadIntoCurrent(result.scriptId);
     if (signal?.aborted) return;
     if (!saved) return failToOpen();
+    setLeaveOk(true); // 대본이 저장됐다 — 이제 떠나도 사라질 게 없다.
     setPopup(null);
     // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
@@ -278,14 +311,30 @@ export default function ReadingNew() {
     setMakeOpen(false);
     dispatch({ type: 'tab', tab });
   };
-  const closable = popup !== null && popup.kind !== 'splitting';
-  // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 다 되면 대본 목록에 생긴다.
+  const checking = popup?.kind === 'checking';
+  // 안드로이드는 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
+  // iOS 는 막지 않고 아래 화면으로 그대로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
   const splitting = popup?.kind === 'splitting';
-  useWaitExit(splitting, '/reading');
+  useWaitExit(splitting && Platform.OS !== 'ios', '/reading');
+  // 나누는 중 화면을 보고 있으면 완료 푸시를 배너로 띄우지 않는다 — 이 화면이 끝나면 바로 다음으로 넘어간다(SOMA-960).
+  // 확인 중에도 같다. 예시 대본은 대기 화면 없이 여기서 끝난다.
+  const hidePush = splitting || checking;
+  useEffect(() => (hidePush ? hideForegroundPush(isScriptSplitPush) : undefined), [hidePush]);
   // 파일을 올리는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일이 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
   const working = input.file.kind === 'reading' && !splitting;
-  usePreventRemove(working, () => undefined);
+  // 붙여넣던 대본이 있으면 나가기 전에 묻는다 — 뒤로 한 번에 다 사라졌다(11/2 QA). 나누기를 시작한 뒤에는 묻지 않는다.
+  const pasteDirty = !leaveOk && !makeOpen && naming === null && input.paste.text.trim().length > 0 && popup === null;
+  usePreventRemove(working || pasteDirty, ({ data }) => {
+    if (working) return;
+    setLeaveAsk(data.action);
+  });
+  useEffect(() => {
+    if (leaveOk && leaveAsk) {
+      navigation.dispatch(leaveAsk);
+      setLeaveAsk(null);
+    }
+  }, [leaveOk, leaveAsk, navigation]);
 
   if (popup?.kind === 'failed') {
     return (
@@ -314,7 +363,8 @@ export default function ReadingNew() {
   return (
     <KeyboardLift style={styles.root}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {/* 확인 중에 탭·파일을 바꾸면 보낸 입력과 어긋난다. */}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" pointerEvents={checking ? 'none' : 'auto'}>
         <View style={styles.hero}>
           <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.heroText}>
@@ -330,7 +380,7 @@ export default function ReadingNew() {
             <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={!makeOpen && input.tab === 'paste'} onPress={() => setTab('paste')} />
           </View>
           {/* 세 번째 선택지 — 대본이 없으면 같이 만들기. 예시 대본도 여기서 고른다(10/25). */}
-          <SegmentTab icon="message-circle" label={t('reading.entryCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
+          <SegmentTab icon="message-circle" label={t('reading.tabCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
         </View>
 
         {makeOpen && (
@@ -424,9 +474,11 @@ export default function ReadingNew() {
             />
           ) : (
             <PrimaryButton
-              label={t('reading.next')}
+              label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
               onPress={() => pending && void split(pending, { title })}
-              disabled={!pending || !!popup}
+              loading={checking}
+              loadingLabel={t('loadingText.checking')}
+              disabled={!pending || (!!popup && !checking)}
             />
           )}
         </View>
@@ -440,7 +492,20 @@ export default function ReadingNew() {
           router.replace(firstReadingRef.current ? FIRST_READING_HREF : '/reading/detail');
         }}
       />
-      <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
+      <Modal transparent statusBarTranslucent visible={!!leaveAsk && !leaveOk} animationType="fade" onRequestClose={() => setLeaveAsk(null)}>
+        <View style={styles.backdrop}>
+          <DialogCard title={t('reading.pasteLeaveTitle')} message={t('reading.pasteLeaveBody')}>
+            <DialogButtons
+              cancelLabel={t('reading.pasteLeaveStay')}
+              onCancel={() => setLeaveAsk(null)}
+              confirmLabel={t('reading.pasteLeaveGo')}
+              destructive
+              onConfirm={() => setLeaveOk(true)}
+            />
+          </DialogCard>
+        </View>
+      </Modal>
+      <Modal transparent statusBarTranslucent visible={!!popup && (popup.kind !== 'checking' || popup.keepModal)} animationType="fade" onRequestClose={() => !checking && setPopup(null)}>
         <View style={styles.backdrop}>
           {popup?.kind === 'alert' && (
             <DialogCard title={popup.title} message={popup.message}>
@@ -522,10 +587,15 @@ export default function ReadingNew() {
 }
 
 /** pen F4. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 퍼센트 없이 제목만 보인다. */
+/** 대본 나누기 완료 푸시(서버 PushService.onScriptSplit). */
+function isScriptSplitPush(data: unknown): boolean {
+  return !!data && typeof data === 'object' && (data as { kind?: unknown }).kind === 'script_split_complete';
+}
+
 function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
-  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const { pct, checking } = progress ? splitProgressView(progress) : { pct: 0, checking: false };
   // 아래 안내가 안드로이드 내비게이션 바에 가리지 않게 아래 안전 영역만큼 띄운다.
   const bottomInset = useSafeAreaInsets().bottom;
   return (
@@ -538,7 +608,7 @@ function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
           <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
-          <Text style={styles.splitCount}>{t('reading.splitProgress', { pct, done, total })}</Text>
+          <Text style={styles.splitCount}>{t(checking ? 'reading.splitChecking' : 'reading.splitProgress', { pct, done, total })}</Text>
         </View>
       )}
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}
@@ -569,9 +639,11 @@ const styles = StyleSheet.create({
   heroSub: { ...type.body2, color: palette.textSub },
   segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1] },
+  // 아이콘을 위, 글자를 아래에 쌓아 글자가 탭 폭을 다 쓴다(「대본 같이 만들기」가 한 줄에 들어간다). 높이는 못 박지 않는다 —
+  // 더 좁은 폰에서 두 줄로 꺾여도 탭 줄이 함께 늘어난다.
+  segmentTab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1], paddingVertical: space[2] },
   segmentTabOn: { backgroundColor: palette.bg },
-  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1 },
+  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1, textAlign: 'center' },
   segmentTextOn: { color: palette.text },
   makeArea: { gap: space[3] },
   dropzone: {

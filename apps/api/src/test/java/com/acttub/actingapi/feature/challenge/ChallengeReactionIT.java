@@ -202,7 +202,11 @@ class ChallengeReactionIT {
         JsonNode created = response(post("/v2/entries/{id}/comments", entry).content(body), 201);
         assertThat(created.path("body").asText()).isEqualTo("좋은 호흡이에요");
         assertThat(created.path("author").path("name").asText()).isEqualTo("나");
-        assertThat(created.path("author").has("photo_url")).isFalse();
+        // 사진이 없으면 null. 사진을 넣으면 댓글 작성자에 짧은 주소가 실린다.
+        assertThat(created.path("author").path("photo_url").isNull()).isTrue();
+        jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=?", "users/me/profile/photo.jpg", me);
+        assertThat(response(get("/v2/entries/{id}/comments", entry), 200).at("/comments/0/author/photo_url").asText())
+                .isEqualTo("https://play.test/users/me/profile/photo.jpg");
         assertThat(created.path("is_mine").asBoolean()).isTrue();
         assertThat(response(post("/v2/entries/{id}/comments", entry).content(body), 200).path("id")).isEqualTo(created.path("id"));
         assertThat(detail(post("/v2/entries/{id}/comments", entry).content(body.replace("좋은", "나쁜")), 422))
@@ -255,10 +259,13 @@ class ChallengeReactionIT {
         UUID entry = entry(challenge, member("배우"));
         UUID leaving = member("떠날 사람");
         response(post("/v2/entries/{id}/comments", entry).content(comment("남는 댓글")), 201, token(leaving));
+        // 사진 키가 아직 남아 있어도(파기 전) 탈퇴한 작성자의 사진은 싣지 않는다.
+        jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=?", "users/leaving/profile/photo.jpg", leaving);
         jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", leaving);
         JsonNode comments = response(get("/v2/entries/{id}/comments", entry), 200);
         assertThat(comments.at("/comments/0/author/name").asText()).isEqualTo("탈퇴한 사용자");
         assertThat(comments.at("/comments/0/author_withdrawn").asBoolean()).isTrue();
+        assertThat(comments.at("/comments/0/author/photo_url").isNull()).isTrue();
         assertThat(comments.at("/comments/0/body").asText()).isEqualTo("남는 댓글");
     }
 

@@ -498,6 +498,21 @@ test('프로필 저장과 서버가 돌려준 내 계정 반영은 프로필 상
   expect(saveUserName).toHaveBeenCalledTimes(1);
 });
 
+// 11/2 폰 QA — 오프라인으로 켜서 둘 다 못 읽은 뒤 동의 팝업의 다시 시도로 통과해도 프로필 오류 화면이 한 번 더 떴다.
+test('프로필도 못 읽은 상태에서 동의를 다시 읽으면 프로필도 다시 읽는다', async () => {
+  Object.assign(tokens, { access: 'a', refresh: 'r', user: USER });
+  apiMock.consentEntry.mockRejectedValueOnce(new Error('offline'));
+  apiMock.me.mockRejectedValueOnce(new Error('offline'));
+  await show();
+  seen('consent:error');
+  seen('profile:error:-');
+
+  await act(async () => { await auth.refreshConsentEntry(); });
+  await flush();
+  seen('consent:allowed');
+  seen('profile:complete:member-1');
+});
+
 test('동의 판정을 다시 읽으면 캐시를 건너뛰고 새 판정을 쓴다', async () => {
   Object.assign(tokens, { access: 'a', refresh: 'r', user: USER });
   await show();

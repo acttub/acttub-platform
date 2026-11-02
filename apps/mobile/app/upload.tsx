@@ -23,8 +23,10 @@ import { InlineErrorLine } from '@/components/ui/inline-error';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
+import { PrivateVideoNote } from '@/components/private-video-note';
 import { UploadPrepareFailed } from '@/components/upload-prepare-failed';
 import { scheduleUploadLaterReminder } from '@/lib/notifications';
+import { hasAgreedRights, rememberAgreedRights } from '@/lib/practice/rights-memory';
 import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/practice/upload-options';
 import { UploadWaitPanel } from '@/components/upload-wait-panel';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -125,7 +127,7 @@ export default function UploadScreen() {
   const { alert, dialog } = useAppDialog();
 
   // 튜토리얼의 예시(SOMA-494) — 예시 영상과 장면을 채워 두고, 시작하면 서버 없이 예시 회차로 간다.
-  const params = useLocalSearchParams<{ sample?: string }>();
+  const params = useLocalSearchParams<{ sample?: string; first?: string }>();
   const sample = params.sample === '1';
   const firstTimeUser = useFirstTimeUser();
   const [plan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
@@ -136,8 +138,10 @@ export default function UploadScreen() {
   );
   // 장면 칸은 없다(SOMA-778). 노트·리딩에서 넘겨받은 장면만 화면 없이 그대로 보낸다.
   const scene = plan.scene;
+  // 첫 코칭(코칭 탭 「처음」에서 옴, SOMA-984)은 목적을 묻지 않고 기본 목적(평가 받기)으로 영상 고르기부터 한다. 연습 제목도 묻지 않는다.
+  const quickStart = !sample && params.first === '1' && !plan.continueFrom;
   const [step, setStep] = useState<UploadStep>(() =>
-    firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload') }),
+    firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload'), quickStart }),
   );
   // 선택 목록은 첫 항목을 미리 골라 둔다(UX 가이드 5절, 10/23 결정 — 10/22 「칠하지 않기」를 바꿨다). 「다음」이 처음부터 켜져 있다.
   const [purpose, setPurpose] = useState<SessionPurpose>(SESSION_PURPOSES[0] ?? DEFAULT_PURPOSE);
@@ -167,16 +171,19 @@ export default function UploadScreen() {
   const [titleOpen, setTitleOpen] = useState(false);
   const titleAskedRef = useRef(false);
   const askTitleOnce = useCallback(() => {
-    if (sample || plan.continueFrom || titleAskedRef.current) return;
+    if (sample || quickStart || plan.continueFrom || titleAskedRef.current) return;
     titleAskedRef.current = true;
     // iOS 는 닫히는 화면(촬영·사진 선택) 위에 새 모달을 띄우지 못한다 — 닫힌 뒤에 연다.
     setTimeout(() => setTitleOpen(true), Platform.OS === 'ios' ? 450 : 0);
-  }, [sample, plan.continueFrom]);
+  }, [sample, quickStart, plan.continueFrom]);
   // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
   const reasonBackRef = useRef<UploadStep>('purpose');
   // 뒤로 가기로 여는 망설임 페이지는 이 화면에서 한 번만 연다 — 매번 끼어들면 나가려는 사람이 뒤로를 세 번 눌러야 했다(10/26).
   const reasonAskedOnBack = useRef(false);
-  const showReason = () => { reasonAskedOnBack.current = true; reasonBackRef.current = 'purpose'; setReasonSheet(true); };
+  const showReason = () => { reasonAskedOnBack.current = true; reasonBackRef.current = quickStart ? 'source' : 'purpose'; setReasonSheet(true); };
+  const backStep = previousUploadStep(step, { quickStart });
+  // 목적 단계가 없는 첫 코칭도 영상 없이 뒤로 가면 망설임 페이지를 한 번 연다 — 그다음 뒤로는 화면을 닫는다.
+  const reasonOnLeave = quickStart && step === 'source' && !picked && !reasonAskedOnBack.current;
   const showReasonFromLink = () => { reasonBackRef.current = 'source'; setReasonSheet(true); };
   const closeReason = () => { setReasonSheet(false); setStep(reasonBackRef.current); };
   const reasonRoute = (go: () => void) => {
@@ -189,7 +196,7 @@ export default function UploadScreen() {
     if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
     reasonRoute(() => router.dismissTo('/(tabs)'));
   };
-  usePreventRemove(!leaving && (waitPanel || optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
+  usePreventRemove(!leaving && (waitPanel || optionsOpen || reasonSheet || backStep !== null || reasonOnLeave), () => {
     if (waitPanel) {
       leaveWaiting();
       return;
@@ -203,9 +210,12 @@ export default function UploadScreen() {
       closeReason();
       return;
     }
-    const back = previousUploadStep(step);
-    if (back && !sample && !picked && !reasonAskedOnBack.current) showReason();
-    else if (back) setStep(back);
+    if (reasonOnLeave) {
+      showReason();
+      return;
+    }
+    if (backStep && !sample && !picked && !reasonAskedOnBack.current) showReason();
+    else if (backStep) setStep(backStep);
   });
   const leaveThen = (go: () => void) => {
     setLeaving(true);
@@ -213,6 +223,18 @@ export default function UploadScreen() {
   };
   // 묶음 제목(SOMA-671). 이어하기는 원래 묶음 제목을 그대로 쓰므로 새 연습에서만 받는다.
   const [agreedRights, setAgreedRights] = useState(sample);
+  // 한 번 동의하고 시작했으면 다음부터 체크된 채로 연다(SOMA-984). 그 전에 배우가 직접 눌렀으면 덮어쓰지 않는다.
+  const rightsTouchedRef = useRef(false);
+  useEffect(() => {
+    if (sample) return;
+    let cancelled = false;
+    void hasAgreedRights(user?.id).then((agreed) => {
+      if (agreed && !cancelled && !rightsTouchedRef.current) setAgreedRights(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sample, user?.id]);
   const pickTarget = useSpotlightTarget(TARGET.uploadPick);
   const sampleTarget = useSpotlightTarget(TARGET.uploadSample);
   const rightsTarget = useSpotlightTarget(TARGET.uploadRights);
@@ -456,6 +478,7 @@ export default function UploadScreen() {
         ? await api.continuePractice(continueFrom.practiceId, { ...body, request_id: attempt.requestId })
         : await api.createPractice({ ...body, request_id: attempt.requestId } as Parameters<typeof api.createPractice>[0]);
       startedRef.current = true;
+      void rememberAgreedRights(user?.id);
       if (uploadOptions?.purgeAfterAnalysis) await rememberPurgeAfterAnalysis(practice.id, resolvedVideoId);
       setFaceMosaicForUploads(false);
       logEvent('practice_start', { ordinal: practice.ordinal, continued: Boolean(continueFrom) });
@@ -556,6 +579,7 @@ export default function UploadScreen() {
   };
   const toggleRights = () => {
     const next = !agreedRights;
+    rightsTouchedRef.current = true;
     setAgreedRights(next);
     if (!sample) void logEvent(PRACTICE_UPLOAD_EVENTS.rightsToggle, rightsToggleParams(next));
   };
@@ -604,9 +628,12 @@ export default function UploadScreen() {
           <Text style={styles.hesitateText}>{t('uploadReason.title')}</Text>
         </Pressable>
       )}
-      <View style={styles.stepRow}>
-        <Stepper current={stepperIndex(step)} />
-      </View>
+      {/* 목적 단계가 없으면 단계가 하나뿐이라 단계 표시를 두지 않는다(SOMA-984). */}
+      {!quickStart && (
+        <View style={styles.stepRow}>
+          <Stepper current={stepperIndex(step)} />
+        </View>
+      )}
 
       {step === 'purpose' && (
         <View style={styles.flex}>
@@ -712,6 +739,8 @@ export default function UploadScreen() {
                 />
               </View>
             )}
+
+            {!sample && <PrivateVideoNote />}
 
             {/* 질문 받기를 누른 뒤 — 보내는 중이라는 걸 바로 보인다(SOMA-671). */}
             {locked && (

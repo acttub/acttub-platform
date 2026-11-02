@@ -85,4 +85,48 @@ class UpcomingVoiceLinesTest {
         var next = UpcomingVoiceLines.pick(characters, lines, List.of(me), null, null, "하나", "M1", 3);
         assertThat(next).containsExactly(new Line("둘", "M1"));
     }
+
+    // ── SOMA-1000: 요청한 줄이 지금 읽는 줄에서 상대 대사 몇 줄 앞인지 ──
+
+    @Test
+    void countsPartnerLinesFromTheCurrentLine() {
+        LineView current = line("dialogue", me, "내 대사", null);
+        line("dialogue", jiho, "하나", null);
+        line("direction", null, "(문을 연다)", null);
+        line("dialogue", together, "같이 말하는 줄", null);
+        line("dialogue", mina, "둘", null);
+        line("dialogue", me, "또 내 대사", null);
+        line("dialogue", jiho, "셋", null);
+        // 내 줄·지문·묶음 배역 줄은 세지 않는다.
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), null, null, current.id(), "하나", "M1")).isZero();
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), null, null, current.id(), "둘", "F1")).isEqualTo(1);
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), null, null, current.id(), "셋", "M1")).isEqualTo(2);
+    }
+
+    @Test
+    void passedLinesAreZeroAndUnknownLinesAreNull() {
+        line("dialogue", jiho, "하나", null);
+        LineView current = line("dialogue", jiho, "둘", null);
+        line("dialogue", jiho, "셋", null);
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), null, null, current.id(), "하나", "M1")).isZero();
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), null, null, current.id(), "없는 줄", "M1")).isNull();
+        // 목소리가 다르면 다른 줄이다.
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), null, null, current.id(), "셋", "F1")).isNull();
+        // 지금 줄이 대본에 없으면 모른다.
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), null, null, UUID.randomUUID(), "셋", "M1")).isNull();
+    }
+
+    @Test
+    void repeatedTextUsesTheNearestPlaceAheadAndStaysInRange() {
+        LineView start = line("dialogue", jiho, "네", null);
+        LineView current = line("dialogue", jiho, "하나", null);
+        line("dialogue", jiho, "둘", null);
+        line("dialogue", jiho, "네", null);
+        LineView end = line("dialogue", jiho, "셋", null);
+        line("dialogue", jiho, "범위 밖", null);
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), start.id(), end.id(), current.id(), "네", "M1")).isEqualTo(2);
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), start.id(), end.id(), current.id(), "범위 밖", "M1")).isNull();
+        // 지금 줄을 모르면(첫 줄부터) 구간 처음에서 센다.
+        assertThat(UpcomingVoiceLines.aheadOf(characters, lines, List.of(me), start.id(), end.id(), null, "셋", "M1")).isEqualTo(4);
+    }
 }

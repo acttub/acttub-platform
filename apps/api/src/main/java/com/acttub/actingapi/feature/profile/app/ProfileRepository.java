@@ -104,6 +104,14 @@ public interface ProfileRepository {
      */
     List<UUID> purgeRetained(Instant deactivatedBefore, Instant now);
 
+    /**
+     * 지운 연습(SOMA-985)에서 보관 동의로 남긴 영상 중, 지운 날부터 3년이 지났거나 원래 주인이 보관 동의 현재 판에
+     * 동의하지 않은 것의 파일을 파기한다. 40일 지난 무료 횟수 표시도 지운다.
+     *
+     * @return 장부에 올린 객체 삭제들. 부르는 쪽이 트랜잭션 밖에서 시도한다
+     */
+    List<UUID> purgeDeletedPracticeMedia(Instant deletedBefore, Instant now);
+
     /** 만료되거나 폐기된 지 오래된 리프레시 토큰 행을 지운다. 그 전까지는 재사용 탐지와 문제 추적에 쓴다. */
     int deleteStaleRefreshTokens(Instant before);
 

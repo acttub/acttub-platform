@@ -51,10 +51,10 @@ test('묶음을 최신 순으로 보여 주고 보관 기간을 알린다', asyn
   listNotifications.mockResolvedValue({ groups: [commented, liked], next_cursor: null });
   await render(<NotificationsScreen />);
 
-  await screen.findByText('3명이 좋아해요');
-  expect(screen.getAllByText(/3명이 좋아해요|댓글 2개가 달렸어요/).map((n) => n.props.children)).toEqual([
-    '3명이 좋아해요',
-    '댓글 2개가 달렸어요',
+  await screen.findByText('윤서님 외 2명이 좋아요를 눌렀어요');
+  expect(screen.getAllByText(/좋아요를 눌렀어요|댓글을 달았어요/).map((n) => n.props.children)).toEqual([
+    '윤서님 외 2명이 좋아요를 눌렀어요',
+    '윤서님 외 1명이 댓글을 달았어요',
   ]);
   expect(screen.getByText('알림은 90일 동안 보관해요.')).toBeOnTheScreen();
   expect(screen.queryByText('챌린지 알림이 꺼져 있어요. 여기에는 계속 쌓여요.')).not.toBeOnTheScreen();
@@ -115,7 +115,7 @@ test('대상을 볼 수 없으면 이동하지 않고 볼 수 없다고 알린�
   readNotifications.mockRejectedValue(new Error('down'));
   await render(<NotificationsScreen />);
 
-  await fireEvent.press(await screen.findByText('댓글 1개가 달렸어요'));
+  await fireEvent.press(await screen.findByText('윤서님이 댓글을 달았어요'));
 
   expect(await screen.findByText('볼 수 없는 영상이에요')).toBeOnTheScreen();
   expect(mockRouter.push).not.toHaveBeenCalled();
@@ -130,7 +130,7 @@ test('내 참여작이 운영 확인 중이라 숨겨졌으면 그 이유로 알
   readNotifications.mockResolvedValue(undefined);
   await render(<NotificationsScreen />);
 
-  await fireEvent.press(await screen.findByText('1명이 좋아해요'));
+  await fireEvent.press(await screen.findByText('윤서님이 좋아요를 눌렀어요'));
 
   expect(await screen.findByText('운영 확인 중이라 지금은 볼 수 없는 영상이에요')).toBeOnTheScreen();
   expect(mockRouter.push).not.toHaveBeenCalled();
@@ -140,7 +140,7 @@ test('모두 읽음은 가장 최신 묶음까지를 읽음으로 보낸다', as
   listNotifications.mockResolvedValue({ groups: [commented, liked], next_cursor: null });
   readNotifications.mockRejectedValue(new Error('down'));
   await render(<NotificationsScreen />);
-  await screen.findByText('3명이 좋아해요');
+  await screen.findByText('윤서님 외 2명이 좋아요를 눌렀어요');
 
   await fireEvent.press(screen.getByRole('button', { name: '모두 읽음' }));
 
@@ -164,10 +164,10 @@ test('끝까지 내리면 다음 묶음을 이어 붙이고, 더 없으면 묻�
     .mockResolvedValueOnce({ groups: [liked], next_cursor: 'cur-2' })
     .mockResolvedValueOnce({ groups: [commented], next_cursor: null });
   await render(<NotificationsScreen />);
-  const first = await screen.findByText('3명이 좋아해요');
+  const first = await screen.findByText('윤서님 외 2명이 좋아요를 눌렀어요');
 
   await fireEvent(first, 'momentumScrollEnd');
-  expect(await screen.findByText('댓글 2개가 달렸어요')).toBeOnTheScreen();
+  expect(await screen.findByText('윤서님 외 1명이 댓글을 달았어요')).toBeOnTheScreen();
   expect(listNotifications).toHaveBeenLastCalledWith('cur-2');
 
   await fireEvent(first, 'momentumScrollEnd');
@@ -179,11 +179,11 @@ test('다음 묶음을 못 받으면 있던 목록을 그대로 둔다', async (
     .mockResolvedValueOnce({ groups: [liked], next_cursor: 'cur-2' })
     .mockRejectedValueOnce(new Error('down'));
   await render(<NotificationsScreen />);
-  const first = await screen.findByText('3명이 좋아해요');
+  const first = await screen.findByText('윤서님 외 2명이 좋아요를 눌렀어요');
 
   await fireEvent(first, 'momentumScrollEnd');
   await waitFor(() => expect(listNotifications).toHaveBeenCalledTimes(2));
-  expect(screen.getByText('3명이 좋아해요')).toBeOnTheScreen();
+  expect(screen.getByText('윤서님 외 2명이 좋아요를 눌렀어요')).toBeOnTheScreen();
   expect(screen.queryByText('알림을 불러오지 못했어요')).not.toBeOnTheScreen();
 });
 

@@ -84,26 +84,22 @@ class AccountStatusContractIT {
     }
 
     /**
-     * 커뮤니티는 0.1.0 에서 내렸다({@code docs/specs/community/README.md}) — 테이블과 글은 남고
-     * API 만 없다. 인증이 <b>선택</b>이던 경로는 그것뿐이었고, 헤더 없이 익명으로 지나가던 자리는
-     * 이제 404 다. 헤더가 오면 여전히 읽고, 읽었으면 상태를 본다.
+     * 게시판(SOMA-873)은 되살아나며 회원 전용이 됐다 — 0.1.0 전에는 인증이 <b>선택</b>인 유일한 경로였지만 이제
+     * 헤더가 없으면 401 이고, 탈퇴한 계정의 토큰은 다른 보호 경로와 같이 403 이다.
      */
     @Test
-    void retiredCommunityRoutesAreGoneButATokenIsStillChecked() throws Exception {
-        insertUser(SETTLED, "settled", null, "active");
-
+    void communityRoutesNeedAnActiveAccount() throws Exception {
         for (String path : List.of("/v2/community/posts", "/v2/community/categories",
                 "/v2/community/posts/" + UUID.randomUUID() + "/comments", "/v2/community/blocks")) {
-            assertError(get(path), 404, "Not Found");
-            assertError(get(path).header("Authorization", bearer(SETTLED)), 404, "Not Found");
+            assertError(get(path), 401, "invalid or missing access token");
             assertError(get(path).header("Authorization", bearer(DEACTIVATED)),
                     403, "account_deactivated");
         }
         assertError(post("/v2/community/posts")
-                        .header("Authorization", bearer(SETTLED))
+                        .header("Authorization", bearer(DEACTIVATED))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"),
-                404, "Not Found");
+                403, "account_deactivated");
     }
 
     /** 이미 신원이 연결된 계정으로 다시 로그인해도 상태 검사를 통과하지 못한다. */

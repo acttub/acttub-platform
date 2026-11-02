@@ -1,8 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { LoadingText } from '@/components/ui/loading-text';
@@ -13,6 +13,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -23,7 +24,6 @@ import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
-  avatarLetter,
   browseFailure,
   browseFailureMessage,
   canPerform,
@@ -45,6 +45,7 @@ import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { hasFinishedFirstChallenge } from '@/lib/challenge/intro-state';
 import { buildReportBody, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/types';
+import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { newRequestId } from '@/lib/request-id';
 import { postedAtLabel } from '@/lib/time-label';
 import { translate as t } from '@/lib/i18n';
@@ -88,6 +89,24 @@ export default function ChallengeDetailScreen() {
     void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
   }, []);
 
+  const insets = useSafeAreaInsets();
+  const [myReview, setMyReview] = useState(false);
+  // 나만 보기로 올린 참여작은 공개 수에 안 잡힌다 — 내가 이미 참여했으면 「첫 번째로 참여해 보세요」 대신 다른 배우 기준으로 말한다(SOMA-995).
+  // 촬영·올리기에서 돌아왔을 때도 맞도록 화면에 들어올 때마다 다시 읽는다.
+  const [entered, setEntered] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return undefined;
+      let live = true;
+      void enteredChallengeIds().then((ids) => {
+        if (live) setEntered(ids.has(id));
+      });
+      return () => {
+        live = false;
+      };
+    }, [id]),
+  );
+
   const load = useCallback(
     async (nextSort: EntrySort) => {
       if (!id) return;
@@ -102,6 +121,11 @@ export default function ChallengeDetailScreen() {
         setChallenge(detail);
         setEntries(rankEntries(list.entries, nextSort));
         setCursor(list.next_cursor);
+        // 내 참여작이 AI 검사·신고로 확인 중이면 목록에 안 보인다 — 올린 사람에게 그 이유를 알린다(11/2 QA).
+        void Promise.resolve()
+          .then(() => api.listMyChallengeEntries('under_review'))
+          .then((mine) => setMyReview(mine.entries.some((e) => e.challenge.id === id && !e.challenge_hidden)))
+          .catch(() => setMyReview(false));
       } catch (e) {
         setEntries([]);
         setError(browseFailure(e));
@@ -244,6 +268,7 @@ export default function ChallengeDetailScreen() {
 
             {!!moderation && <ChallengeNotice message={moderation} tone={challenge.moderation === 'hidden' ? 'danger' : 'amber'} />}
             {!!notice && <ChallengeNotice message={notice} />}
+            {myReview && <ChallengeNotice message={t('challenges.myEntryReview')} tone="amber" />}
 
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>{t('challenges.otherActors')}</Text>
@@ -283,9 +308,7 @@ export default function ChallengeDetailScreen() {
                   {!hideRanks && entry.displayRank !== null ? (
                     <Text style={styles.rank}>{entry.displayRank}</Text>
                   ) : (
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarText}>{avatarLetter(entry.author.name)}</Text>
-                    </View>
+                    <UserAvatar size={40} radius={20} seed={entry.author.user_id} photoUrl={entry.author.photo_url} />
                   )}
                 </View>
                 <View style={styles.entryBody}>
@@ -324,17 +347,21 @@ export default function ChallengeDetailScreen() {
             )}
 
             {entries !== null && entries.length === 0 && !error && (
-              <InlineEmpty title={t('challenges.emptyEntriesTitle')} description={t('challenges.emptyEntriesSub')} />
+              <InlineEmpty
+                title={t(entered ? 'challenges.emptyOthersTitle' : 'challenges.emptyEntriesTitle')}
+                description={t(entered ? 'challenges.emptyOthersSub' : 'challenges.emptyEntriesSub')}
+              />
             )}
           </>
         )}
       </ScrollView>
       {challenge && canPerform(challenge) && (
         <CtaBar safeBottom={false}>
-          <PrimaryButton label={t('challenges.performCta')} onPress={perform} />
+          <PrimaryButton label={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')} onPress={perform} />
         </CtaBar>
       )}
-      {toast && <Toast message={t('lineNew.doneToast')} bottom={TOAST_ABOVE_CTA} />}
+      {/* 화면이 아래 안전 영역만큼 올라가 있어 그만큼 더 띄운다 — 안 그러면 토스트가 버튼을 가렸다(11/2 QA). */}
+      {toast && <Toast message={t('lineNew.doneToast')} bottom={TOAST_ABOVE_CTA + insets.bottom} />}
       <ChallengeReportSheet
         visible={reportOpen}
         target="challenge"
@@ -363,8 +390,6 @@ const styles = StyleSheet.create({
   entry: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[4] },
   rankCell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   rank: { ...type.title2, color: palette.blueDeep },
-  avatar: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...type.body2Bold, color: palette.blueDeep },
   entryBody: { flex: 1, minWidth: 0, gap: space[1] },
   entryHead: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   author: { ...type.body1Bold, flexShrink: 1, color: palette.text },
