@@ -88,7 +88,9 @@ describe('목록', () => {
     expect(listComments.mock.calls).toEqual([['e1']]);
     expect(screen.getByText('첫 촬영 응원해요')).toBeOnTheScreen();
     expect(screen.getByText('좋아요!')).toBeOnTheScreen();
-    expect(screen.getByText('태')).toBeOnTheScreen();
+    // 댓글 얼굴은 프로필과 같은 기본 얼굴이다(첫 글자는 쓰지 않는다).
+    expect(screen.getAllByTestId('default-avatar')).toHaveLength(2);
+    expect(screen.queryByText('태')).not.toBeOnTheScreen();
     expect(screen.getAllByText('5분 전', { exact: false })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: '삭제' })).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: '신고' })).toHaveLength(1);

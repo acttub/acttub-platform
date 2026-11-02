@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DEFAULT_AVATAR_GONE, DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -20,7 +21,6 @@ import { radius, space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { useAppDialog } from '@/components/app-dialog';
-import { avatarLetter } from '@/lib/challenge/browse';
 import {
   buildCommentBody,
   canDeleteComment,
@@ -172,9 +172,12 @@ export function ChallengeCommentsSheet({
             }
             renderItem={({ item }) => (
               <View style={styles.row}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{avatarLetter(commentAuthorName(item))}</Text>
-                </View>
+                <DefaultAvatar
+                  size={32}
+                  radius={16}
+                  seed={item.author.user_id}
+                  color={item.author_withdrawn ? DEFAULT_AVATAR_GONE : undefined}
+                />
                 <View style={styles.body}>
                   <Text style={styles.meta}>
                     <Text style={styles.name}>{commentAuthorName(item)}</Text>
@@ -241,8 +244,6 @@ const styles = StyleSheet.create({
   emptyTitle: { ...type.headline, color: palette.text },
   empty: { ...type.body2, color: palette.textMeta, textAlign: 'center' },
   row: { flexDirection: 'row', gap: space[3], alignItems: 'flex-start' },
-  avatar: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...type.captionBold, color: palette.blueDeep },
   body: { flex: 1, gap: space[1] },
   meta: { ...type.caption, color: palette.textMeta },
   name: { ...type.captionBold, color: palette.text },
