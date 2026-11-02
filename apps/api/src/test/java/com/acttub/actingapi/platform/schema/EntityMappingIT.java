@@ -158,7 +158,9 @@ class EntityMappingIT {
             // 화면별 광고 칸 스위치(V76, SOMA-876)는 광고 칸 스위치 저장소의 native SELECT 만 쓴다.
             "ad_slot_switches",
             // 푸시 탭 기록(V72, SOMA-926)은 푸시 탭 저장소의 native INSERT 와 탈퇴 파기만 쓴다.
-            "push_opens");
+            "push_opens",
+            // 게시판 글 사진(V87, SOMA-873)은 게시판 저장소의 native SQL 과 탈퇴 파기만 쓴다.
+            "community_post_images");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 47개 활성 엔티티를 포함한다")

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.community.app.CommunityImageService;
 import com.acttub.actingapi.feature.community.app.CommunityService;
 import com.acttub.actingapi.feature.community.app.Page;
 import com.acttub.actingapi.feature.community.domain.CommunityComment;
@@ -59,11 +60,51 @@ class CommunityController {
             "'copyright', 'inappropriate', 'spam', 'duplicate', 'other', 'abuse', 'sexual' or 'privacy'";
 
     private final CommunityService community;
+    private final CommunityImageService images;
     private final AccessGate auth;
 
-    CommunityController(CommunityService community, AccessGate auth) {
+    CommunityController(CommunityService community, CommunityImageService images, AccessGate auth) {
         this.community = community;
+        this.images = images;
         this.auth = auth;
+    }
+
+    @Operation(
+            summary = "Begin Community Image Upload",
+            description = """
+                    글에 붙일 사진 한 장을 올릴 자리. 받은 upload_url 로 upload_headers 를 실어 PUT 한 뒤 글 쓰기·고치기의 \
+                    image_ids 에 넣는다. JPEG·PNG·WebP·HEIC 만(아니면 415 unsupported_media_type), 10MB 까지(넘으면 413 \
+                    upload_too_large). 글에 붙지 않은 올리기가 20장이면 429 too_many_pending_images. 붙지 않은 채 24시간이 \
+                    지나면 지워진다.""",
+            operationId = "begin_community_image_v2_community_images_post",
+            tags = "v2-community",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "201",
+            description = "Created",
+            content = @Content(schema = @Schema(implementation = ImageUploadResponse.class)))
+    @PostMapping(value = "/images", consumes = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<ImageUploadResponse> beginImageUpload(
+            @Valid @RequestBody ImageUploadRequest body, HttpServletRequest request) {
+        CommunityImageService.NewImageUpload upload =
+                images.begin(viewerId(request), body.mimeType(), body.sizeBytes());
+        return ResponseEntity.status(201).body(new ImageUploadResponse(
+                upload.imageId(), upload.uploadUrl(), Map.of("Content-Type", upload.mimeType()), upload.expiresAt()));
+    }
+
+    @Operation(
+            summary = "Complete Community Image Upload",
+            description = """
+                    올라온 것을 확인한다(포트폴리오 사진과 같은 단계). 건너뛰어도 글에 붙일 때 서버가 확인한다. 다시 불러도 \
+                    같다. 없는 사진 404 community_image_not_found, 시한 지남 409 upload_intent_expired, 아직 안 올라옴 409 \
+                    upload_not_found, 크기 다름 409 upload_size_mismatch.""",
+            operationId = "complete_community_image_v2_community_images__image_id__complete_post",
+            tags = "v2-community",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @PostMapping("/images/{image_id}/complete")
+    PostImagePayload completeImageUpload(@PathVariable("image_id") UUID imageId, HttpServletRequest request) {
+        CommunityImageService.ImageView view = images.complete(viewerId(request), imageId);
+        return new PostImagePayload(view.id(), view.url());
     }
 
     @Operation(
@@ -119,7 +160,7 @@ class CommunityController {
         validateLimit(limit);
         Page<CommunityPost> page = community.listPosts(viewerId, category, cursor, limit);
         return new PostListResponse(
-                page.items().stream().map(CommunityController::postPayload).toList(),
+                page.items().stream().map(this::postPayload).toList(),
                 page.nextCursor());
     }
 
@@ -150,7 +191,8 @@ class CommunityController {
                 body.categorySlug(),
                 title,
                 postBody,
-                body.anonymous());
+                body.anonymous(),
+                body.imageIds());
         return ResponseEntity.status(201).body(postPayload(post));
     }
 
@@ -201,7 +243,8 @@ class CommunityController {
                 postId,
                 authorId,
                 trimmed("title", body.title()),
-                trimmed("body", body.body())));
+                trimmed("body", body.body()),
+                body.imageIds()));
     }
 
     @Operation(
@@ -476,7 +519,7 @@ class CommunityController {
         return viewerId(request);
     }
 
-    private static PostPayload postPayload(CommunityPost post) {
+    private PostPayload postPayload(CommunityPost post) {
         AuthorPayload author = post.anonymous()
                 ? new AuthorPayload(null, null, "익명")
                 : new AuthorPayload(post.authorId(), post.authorNickname(), null);
@@ -496,6 +539,9 @@ class CommunityController {
                 post.likedByMe(),
                 post.mine(),
                 post.mine(),
+                post.images().stream()
+                        .map(image -> new PostImagePayload(image.id(), images.viewUrl(image.objectKey())))
+                        .toList(),
                 post.createdAt(),
                 post.updatedAt());
     }

@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.community.domain;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -30,7 +31,18 @@ public record CommunityPost(
         boolean mine,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
-        String status) {
+        String status,
+        List<PostImage> images) {
+
+    public CommunityPost {
+        images = images == null ? List.of() : List.copyOf(images);
+    }
+
+    /** 붙은 사진(보여 줄 순서)을 채운 같은 글. 사진은 글 행과 따로 한 번에 읽어 붙인다. */
+    public CommunityPost withImages(List<PostImage> value) {
+        return new CommunityPost(id, authorId, anonymous, categorySlug, categoryName, authorNickname, title, body,
+                likeCount, commentCount, viewCount, likedByMe, mine, createdAt, updatedAt, status, value);
+    }
 
     /** 본인 글이 신고·운영으로 가려진 상태. 남에게는 이 글이 아예 보이지 않는다. */
     public boolean hidden() {

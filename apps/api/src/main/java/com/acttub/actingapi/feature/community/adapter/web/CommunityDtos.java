@@ -1,7 +1,10 @@
 package com.acttub.actingapi.feature.community.adapter.web;
 
+import java.math.BigInteger;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -9,6 +12,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
 final class CommunityDtos {
     private CommunityDtos() {
@@ -62,8 +66,38 @@ final class CommunityDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean mine,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "mine 과 같다")
             @JsonProperty("is_mine") boolean isMine,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "붙은 사진(보여 줄 순서, 0~5장). 목록의 각 글에도 전부 온다")
+            List<PostImagePayload> images,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime updatedAt) {
+    }
+
+    @Schema(name = "CommunityPostImage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record PostImagePayload(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "서명한 보기 주소(1시간). 스토리지가 없는 기동에서는 null")
+            String url) {
+    }
+
+    @Schema(name = "CommunityImageUploadRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record ImageUploadRequest(
+            @NotNull @Schema(allowableValues = {"image/jpeg", "image/png", "image/webp", "image/heic"})
+            @JsonProperty("mime_type") String mimeType,
+            @NotNull @PositiveOrZero @Schema(description = "바이트. 10MB(10485760)까지")
+            @JsonProperty("size_bytes") BigInteger sizeBytes) {
+    }
+
+    @Schema(name = "CommunityImageUploadResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ImageUploadResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID imageId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "이 주소로 PUT 한다(30분)") String uploadUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "PUT 에 그대로 실을 헤더. 지금은 Content-Type 하나다")
+            Map<String, String> uploadHeaders,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant expiresAt) {
     }
 
     @Schema(name = "PostListResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -79,7 +113,10 @@ final class CommunityDtos {
             @NotNull @Schema(minLength = 1) String categorySlug,
             @NotNull @Schema(minLength = 1, maxLength = 100) String title,
             @NotNull @Schema(minLength = 1, maxLength = 5000) String body,
-            @Schema(defaultValue = "false") Boolean anonymous) {
+            @Schema(defaultValue = "false") Boolean anonymous,
+            @Schema(description = "붙일 사진 id(POST /v2/community/images 로 받은 것). 순서 = 보여 줄 순서, 0~5장. "
+                    + "6장 이상은 400 too_many_images, 남의 것·없는 것·다른 글에 붙은 것·올라오지 않은 것은 400 invalid_image")
+            List<UUID> imageIds) {
         PostWriteRequest {
             // 트리 선검증이 명시적 null 을 거부한 뒤이므로 여기의 null 은 키 생략만 뜻한다.
             anonymous = anonymous == null ? Boolean.FALSE : anonymous;
@@ -89,7 +126,10 @@ final class CommunityDtos {
     @Schema(name = "PostUpdateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record PostUpdateRequest(
             @NotNull @Schema(minLength = 1, maxLength = 100) String title,
-            @NotNull @Schema(minLength = 1, maxLength = 5000) String body) {
+            @NotNull @Schema(minLength = 1, maxLength = 5000) String body,
+            @Schema(description = "보내면 글의 사진을 이 목록(순서 = 보여 줄 순서, 0~5장)으로 바꾼다. 빠진 사진은 떼고 지운다. "
+                    + "칸을 빼면 사진은 그대로다")
+            @JsonProperty("image_ids") List<UUID> imageIds) {
     }
 
     @Schema(name = "CommentPayload", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

@@ -349,7 +349,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
 | 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
-| 16 | 게시판은 회원 전용 | `/v2/community/**` 는 SOMA-873 에서 되살아났고 게이트(동의·프로필)를 지난 회원만 쓴다. 0.1.0 전에는 인증이 선택인 유일한 경로였지만 이제 헤더가 없으면 401, 탈퇴한 계정의 토큰은 403 이다([community](../../docs/specs/community/README.md)) |
+| 16 | 게시판은 회원 전용 | `/v2/community/**` 는 SOMA-873 에서 되살아났고 게이트(동의·프로필)를 지난 회원만 쓴다. 0.1.0 전에는 인증이 선택인 유일한 경로였지만 이제 헤더가 없으면 401, 탈퇴한 계정의 토큰은 403 이다([community](../../docs/specs/community/README.md)). 글 사진(V87)은 포트폴리오 사진과 같은 서명 올리기 길이이고 객체 삭제는 정리 장부가 맡는다 |
 | 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
 | 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
 | 19 | 클라이언트 판 426 | `ClientVersionFilter` 가 토큰 검증보다 먼저 낸다(§6-5). 행동은 [common.md 「클라이언트 판과 강제 업데이트」](../../docs/specs/common.md#클라이언트-판과-강제-업데이트) |

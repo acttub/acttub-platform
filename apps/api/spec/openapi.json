@@ -3375,6 +3375,72 @@
         } ]
       }
     },
+    "/v2/community/images" : {
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Begin Community Image Upload",
+        "description" : "글에 붙일 사진 한 장을 올릴 자리. 받은 upload_url 로 upload_headers 를 실어 PUT 한 뒤 글 쓰기·고치기의 image_ids 에 넣는다. JPEG·PNG·WebP·HEIC 만(아니면 415 unsupported_media_type), 10MB 까지(넘으면 413 upload_too_large). 글에 붙지 않은 올리기가 20장이면 429 too_many_pending_images. 붙지 않은 채 24시간이 지나면 지워진다.",
+        "operationId" : "begin_community_image_v2_community_images_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CommunityImageUploadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommunityImageUploadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/community/images/{image_id}/complete" : {
+      "post" : {
+        "tags" : [ "v2-community" ],
+        "summary" : "Complete Community Image Upload",
+        "description" : "올라온 것을 확인한다(포트폴리오 사진과 같은 단계). 건너뛰어도 글에 붙일 때 서버가 확인한다. 다시 불러도 같다. 없는 사진 404 community_image_not_found, 시한 지남 409 upload_intent_expired, 아직 안 올라옴 409 upload_not_found, 크기 다름 409 upload_size_mismatch.",
+        "operationId" : "complete_community_image_v2_community_images__image_id__complete_post",
+        "parameters" : [ {
+          "name" : "image_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Image Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommunityPostImage"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/community/blocks" : {
       "get" : {
         "tags" : [ "v2-community" ],
@@ -10566,6 +10632,15 @@
             "type" : "boolean",
             "default" : false,
             "title" : "Anonymous"
+          },
+          "image_ids" : {
+            "type" : "array",
+            "description" : "붙일 사진 id(POST /v2/community/images 로 받은 것). 순서 = 보여 줄 순서, 0~5장. 6장 이상은 400 too_many_images, 남의 것·없는 것·다른 글에 붙은 것·올라오지 않은 것은 400 invalid_image",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "Image Ids"
           }
         },
         "required" : [ "body", "category_slug", "title" ],
@@ -10604,6 +10679,28 @@
         },
         "required" : [ "alias", "id", "nickname" ],
         "title" : "AuthorPayload"
+      },
+      "CommunityPostImage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "서명한 보기 주소(1시간). 스토리지가 없는 기동에서는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Url"
+          }
+        },
+        "required" : [ "id", "url" ],
+        "title" : "CommunityPostImage"
       },
       "PostPayload" : {
         "type" : "object",
@@ -10677,6 +10774,14 @@
             "description" : "mine 과 같다",
             "title" : "Is Mine"
           },
+          "images" : {
+            "type" : "array",
+            "description" : "붙은 사진(보여 줄 순서, 0~5장). 목록의 각 글에도 전부 온다",
+            "items" : {
+              "$ref" : "#/components/schemas/CommunityPostImage"
+            },
+            "title" : "Images"
+          },
           "created_at" : {
             "type" : "string",
             "format" : "date-time",
@@ -10688,7 +10793,7 @@
             "title" : "Updated At"
           }
         },
-        "required" : [ "anonymous", "author", "author_name", "body", "category_name", "category_slug", "comment_count", "created_at", "id", "is_mine", "like_count", "liked_by_me", "mine", "status", "title", "updated_at", "view_count" ],
+        "required" : [ "anonymous", "author", "author_name", "body", "category_name", "category_slug", "comment_count", "created_at", "id", "images", "is_mine", "like_count", "liked_by_me", "mine", "status", "title", "updated_at", "view_count" ],
         "title" : "PostPayload"
       },
       "LikeResponse" : {
@@ -10788,6 +10893,55 @@
         },
         "required" : [ "anonymous", "author", "author_name", "body", "created_at", "id", "is_mine", "mine", "post_id", "status", "updated_at" ],
         "title" : "CommentPayload"
+      },
+      "CommunityImageUploadRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "mime_type" : {
+            "type" : "string",
+            "enum" : [ "image/jpeg", "image/png", "image/webp", "image/heic" ],
+            "title" : "Mime Type"
+          },
+          "size_bytes" : {
+            "type" : "integer",
+            "description" : "바이트. 10MB(10485760)까지",
+            "title" : "Size Bytes"
+          }
+        },
+        "required" : [ "mime_type", "size_bytes" ],
+        "title" : "CommunityImageUploadRequest"
+      },
+      "CommunityImageUploadResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "image_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Image Id"
+          },
+          "upload_url" : {
+            "type" : "string",
+            "description" : "이 주소로 PUT 한다(30분)",
+            "title" : "Upload Url"
+          },
+          "upload_headers" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "PUT 에 그대로 실을 헤더. 지금은 Content-Type 하나다",
+            "title" : "Upload Headers"
+          },
+          "expires_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Expires At"
+          }
+        },
+        "required" : [ "expires_at", "image_id", "upload_headers", "upload_url" ],
+        "title" : "CommunityImageUploadResponse"
       },
       "BlockRequest" : {
         "type" : "object",
@@ -12544,6 +12698,15 @@
             "maxLength" : 5000,
             "minLength" : 1,
             "title" : "Body"
+          },
+          "image_ids" : {
+            "type" : "array",
+            "description" : "보내면 글의 사진을 이 목록(순서 = 보여 줄 순서, 0~5장)으로 바꾼다. 빠진 사진은 떼고 지운다. 칸을 빼면 사진은 그대로다",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "Image Ids"
           }
         },
         "required" : [ "body", "title" ],

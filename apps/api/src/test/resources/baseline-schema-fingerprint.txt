@@ -339,6 +339,16 @@ COLUMN community_comments.id ord=1 type=uuid len=- null=NO default=gen_random_uu
 COLUMN community_comments.post_id ord=2 type=uuid len=- null=NO default=-
 COLUMN community_comments.status ord=5 type=text len=- null=NO default='visible'::text
 COLUMN community_comments.updated_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN community_post_images.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN community_post_images.expires_at ord=9 type=timestamptz len=- null=NO default=-
+COLUMN community_post_images.id ord=1 type=uuid len=- null=NO default=-
+COLUMN community_post_images.mime_type ord=5 type=text len=- null=NO default=-
+COLUMN community_post_images.object_key ord=4 type=text len=- null=NO default=-
+COLUMN community_post_images.post_id ord=2 type=uuid len=- null=YES default=-
+COLUMN community_post_images.size_bytes ord=6 type=int8 len=- null=NO default=-
+COLUMN community_post_images.sort_order ord=7 type=int4 len=- null=YES default=-
+COLUMN community_post_images.uploaded_at ord=10 type=timestamptz len=- null=YES default=-
+COLUMN community_post_images.uploader_id ord=3 type=uuid len=- null=NO default=-
 COLUMN community_post_likes.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN community_post_likes.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN community_post_likes.post_id ord=2 type=uuid len=- null=NO default=-
@@ -1363,6 +1373,19 @@ CONSTRAINT community_comments community_comments_post_id_fkey FOREIGN KEY (post_
 CONSTRAINT community_comments community_comments_post_id_not_null NOT NULL post_id
 CONSTRAINT community_comments community_comments_status_not_null NOT NULL status
 CONSTRAINT community_comments community_comments_updated_at_not_null NOT NULL updated_at
+CONSTRAINT community_post_images ck_community_post_images_attached_has_order CHECK (((post_id IS NULL) OR ((sort_order IS NOT NULL) AND (uploaded_at IS NOT NULL))))
+CONSTRAINT community_post_images ck_community_post_images_sort_order CHECK (((sort_order IS NULL) OR ((sort_order >= 0) AND (sort_order < 5))))
+CONSTRAINT community_post_images community_post_images_created_at_not_null NOT NULL created_at
+CONSTRAINT community_post_images community_post_images_expires_at_not_null NOT NULL expires_at
+CONSTRAINT community_post_images community_post_images_id_not_null NOT NULL id
+CONSTRAINT community_post_images community_post_images_mime_type_not_null NOT NULL mime_type
+CONSTRAINT community_post_images community_post_images_object_key_key UNIQUE (object_key)
+CONSTRAINT community_post_images community_post_images_object_key_not_null NOT NULL object_key
+CONSTRAINT community_post_images community_post_images_pkey PRIMARY KEY (id)
+CONSTRAINT community_post_images community_post_images_post_id_fkey FOREIGN KEY (post_id) REFERENCES community_posts(id)
+CONSTRAINT community_post_images community_post_images_size_bytes_not_null NOT NULL size_bytes
+CONSTRAINT community_post_images community_post_images_uploader_id_fkey FOREIGN KEY (uploader_id) REFERENCES users(id)
+CONSTRAINT community_post_images community_post_images_uploader_id_not_null NOT NULL uploader_id
 CONSTRAINT community_post_likes community_post_likes_created_at_not_null NOT NULL created_at
 CONSTRAINT community_post_likes community_post_likes_id_not_null NOT NULL id
 CONSTRAINT community_post_likes community_post_likes_pkey PRIMARY KEY (id)
@@ -2126,6 +2149,8 @@ INDEX CREATE INDEX idx_community_alias_post ON public.community_anonymous_aliase
 INDEX CREATE INDEX idx_community_blocks_blocker ON public.community_blocks USING btree (blocker_id)
 INDEX CREATE INDEX idx_community_comments_author ON public.community_comments USING btree (author_id)
 INDEX CREATE INDEX idx_community_comments_post_created ON public.community_comments USING btree (post_id, created_at, id)
+INDEX CREATE INDEX idx_community_post_images_unattached ON public.community_post_images USING btree (created_at) WHERE (post_id IS NULL)
+INDEX CREATE INDEX idx_community_post_images_uploader ON public.community_post_images USING btree (uploader_id)
 INDEX CREATE INDEX idx_community_post_likes_user ON public.community_post_likes USING btree (user_id)
 INDEX CREATE INDEX idx_community_posts_author ON public.community_posts USING btree (author_id)
 INDEX CREATE INDEX idx_community_posts_category_created ON public.community_posts USING btree (category_id, created_at DESC, id DESC) WHERE (status = 'visible'::text)
@@ -2246,6 +2271,8 @@ INDEX CREATE UNIQUE INDEX community_blocks_pkey ON public.community_blocks USING
 INDEX CREATE UNIQUE INDEX community_categories_pkey ON public.community_categories USING btree (id)
 INDEX CREATE UNIQUE INDEX community_categories_slug_key ON public.community_categories USING btree (slug)
 INDEX CREATE UNIQUE INDEX community_comments_pkey ON public.community_comments USING btree (id)
+INDEX CREATE UNIQUE INDEX community_post_images_object_key_key ON public.community_post_images USING btree (object_key)
+INDEX CREATE UNIQUE INDEX community_post_images_pkey ON public.community_post_images USING btree (id)
 INDEX CREATE UNIQUE INDEX community_post_likes_pkey ON public.community_post_likes USING btree (id)
 INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
@@ -2332,6 +2359,7 @@ INDEX CREATE UNIQUE INDEX uq_coach_turns_session_index ON public.coach_turns USI
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_ordinal ON public.community_anonymous_aliases USING btree (post_id, ordinal)
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_user ON public.community_anonymous_aliases USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_blocks_pair ON public.community_blocks USING btree (blocker_id, blocked_id)
+INDEX CREATE UNIQUE INDEX uq_community_post_images_post_order ON public.community_post_images USING btree (post_id, sort_order) WHERE (post_id IS NOT NULL)
 INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
 INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
@@ -2422,6 +2450,7 @@ TABLE community_anonymous_aliases
 TABLE community_blocks
 TABLE community_categories
 TABLE community_comments
+TABLE community_post_images
 TABLE community_post_likes
 TABLE community_posts
 TABLE community_reports

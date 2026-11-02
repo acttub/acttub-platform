@@ -2,9 +2,11 @@ package com.acttub.actingapi.feature.community.adapter.db;
 
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -13,9 +15,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.community.app.CommunityContentNotFound;
+import com.acttub.actingapi.feature.community.app.CommunityImageCleanup;
 import com.acttub.actingapi.feature.community.app.CommunityRepository;
 import com.acttub.actingapi.feature.community.app.DuplicateReport;
 import com.acttub.actingapi.feature.community.app.InvalidCursor;
+import com.acttub.actingapi.feature.community.app.InvalidImage;
 import com.acttub.actingapi.feature.community.app.NotAuthor;
 import com.acttub.actingapi.feature.community.app.Page;
 import com.acttub.actingapi.feature.community.app.ReportingOwnContent;
@@ -23,6 +27,7 @@ import com.acttub.actingapi.feature.community.domain.BlockedUser;
 import com.acttub.actingapi.feature.community.domain.CommunityCategory;
 import com.acttub.actingapi.feature.community.domain.CommunityComment;
 import com.acttub.actingapi.feature.community.domain.CommunityPost;
+import com.acttub.actingapi.feature.community.domain.PostImage;
 import com.acttub.actingapi.feature.community.schema.CommunityCommentEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityPostEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityReportEntity;
@@ -96,6 +101,8 @@ class PostgresCommunityRepository implements CommunityRepository {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final AnonymousAliasAllocator aliases;
+    private final CommunityImageCleanup imageCleanup;
+    private final Clock clock;
 
     PostgresCommunityRepository(
             CommunityCategoryJpaRepository categories,
@@ -107,7 +114,9 @@ class PostgresCommunityRepository implements CommunityRepository {
             CommunityReportJpaRepository reports,
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            AnonymousAliasAllocator aliases) {
+            AnonymousAliasAllocator aliases,
+            CommunityImageCleanup imageCleanup,
+            Clock clock) {
         this.categories = categories;
         this.posts = posts;
         this.comments = comments;
@@ -118,6 +127,8 @@ class PostgresCommunityRepository implements CommunityRepository {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.aliases = aliases;
+        this.imageCleanup = imageCleanup;
+        this.clock = clock;
     }
 
     @Override
@@ -182,7 +193,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                 .toList();
 
         boolean hasMore = rows.size() > size;
-        List<CommunityPost> items = hasMore ? List.copyOf(rows.subList(0, size)) : List.copyOf(rows);
+        List<CommunityPost> items = withImages(hasMore ? rows.subList(0, size) : rows);
         String nextCursor = hasMore && !items.isEmpty()
                 ? CommunityCursor.encode(items.getLast().createdAt(), items.getLast().id())
                 : null;
@@ -200,7 +211,8 @@ class PostgresCommunityRepository implements CommunityRepository {
             String categorySlug,
             String title,
             String body,
-            boolean anonymous) {
+            boolean anonymous,
+            List<UUID> imageIds) {
         return required(transaction.execute(status -> {
             UUID categoryId = categories.findBySlugAndActiveTrue(categorySlug)
                     .map(category -> category.getId())
@@ -214,6 +226,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                     body,
                     anonymous,
                     ContentStatus.VISIBLE));
+            attachImages(id, authorId, imageIds);
             return justInserted(id, authorId);
         }));
     }
@@ -236,9 +249,11 @@ class PostgresCommunityRepository implements CommunityRepository {
     }
 
     @Override
-    public CommunityPost updatePost(UUID postId, UUID authorId, String title, String body) {
+    public PostWrite updatePost(
+            UUID postId, UUID authorId, String title, String body, List<UUID> imageIds) {
         return required(transaction.execute(status -> {
-            OwnedPost owned = ownedPost(postId, true, false);
+            // 사진을 바꾸면 행을 잠근다 — 같은 글을 고치는 두 요청이 서로의 순서를 덮지 않게.
+            OwnedPost owned = ownedPost(postId, true, imageIds != null);
             if (owned == null) {
                 throw new CommunityContentNotFound();
             }
@@ -246,13 +261,14 @@ class PostgresCommunityRepository implements CommunityRepository {
                 throw new NotAuthor();
             }
             posts.updateContent(postId, title, body);
-            return loadVisiblePost(postId, authorId);
+            List<UUID> cleanups = imageIds == null ? List.of() : replaceImages(postId, authorId, imageIds);
+            return new PostWrite(loadVisiblePost(postId, authorId), cleanups);
         }));
     }
 
     @Override
-    public void deletePost(UUID postId, UUID authorId) {
-        transaction.executeWithoutResult(status -> {
+    public List<UUID> deletePost(UUID postId, UUID authorId) {
+        return required(transaction.execute(status -> {
             OwnedPost owned = ownedPost(postId, false, true);
             if (owned == null) {
                 throw new CommunityContentNotFound();
@@ -261,7 +277,123 @@ class PostgresCommunityRepository implements CommunityRepository {
                 throw new NotAuthor();
             }
             posts.updateStatus(postId, ContentStatus.DELETED);
-        });
+            return detachAll(postId, authorId);
+        }));
+    }
+
+    /**
+     * 새 글에 사진을 붙인다. 모두 이 사람이 올렸고 올라왔고 아직 어느 글에도 붙지 않아야 한다 — 아니면
+     * {@link InvalidImage} 이고 글 쓰기 전체가 되돌아간다.
+     */
+    private void attachImages(UUID postId, UUID authorId, List<UUID> imageIds) {
+        if (imageIds.isEmpty()) {
+            return;
+        }
+        lockAttachable(postId, authorId, imageIds);
+        order(postId, imageIds);
+    }
+
+    /**
+     * 글의 사진을 이 목록으로 바꾼다. 빠진 사진은 행을 지우고 객체 삭제를 장부에 올린다.
+     *
+     * <p>순서를 다시 매기기 전에 남길 행을 잠깐 떼어 둔다 — {@code (post_id, sort_order)} 가 유일해서 자리를 맞바꾸는
+     * 순서 변경이 한 행씩 고치는 도중에 부딪힌다.
+     */
+    private List<UUID> replaceImages(UUID postId, UUID authorId, List<UUID> imageIds) {
+        lockAttachable(postId, authorId, imageIds);
+        List<String> removedKeys = list(entityManager.createNativeQuery("""
+                WITH removed AS (
+                    DELETE FROM community_post_images
+                    WHERE post_id = :postId AND NOT (id = ANY (CAST(:keep AS uuid[])))
+                    RETURNING object_key
+                )
+                SELECT object_key AS object_key FROM removed
+                """, Tuple.class)
+                .setParameter("postId", postId)
+                .setParameter("keep", imageIds.toArray(UUID[]::new))).stream()
+                .map(row -> row.get("object_key", String.class))
+                .toList();
+        entityManager.createNativeQuery(
+                        "UPDATE community_post_images SET post_id = NULL, sort_order = NULL WHERE post_id = :postId")
+                .setParameter("postId", postId)
+                .executeUpdate();
+        order(postId, imageIds);
+        if (removedKeys.isEmpty()) {
+            return List.of();
+        }
+        Instant now = clock.instant();
+        return List.of(imageCleanup.schedule(authorId, removedKeys, now, now));
+    }
+
+    /** 지운 글의 사진 행을 지우고 객체 삭제를 장부에 올린다. 글 행은 남는다(삭제 표시). */
+    private List<UUID> detachAll(UUID postId, UUID authorId) {
+        List<String> keys = list(entityManager.createNativeQuery("""
+                WITH removed AS (
+                    DELETE FROM community_post_images WHERE post_id = :postId RETURNING object_key
+                )
+                SELECT object_key AS object_key FROM removed
+                """, Tuple.class)
+                .setParameter("postId", postId)).stream()
+                .map(row -> row.get("object_key", String.class))
+                .toList();
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+        Instant now = clock.instant();
+        return List.of(imageCleanup.schedule(authorId, keys, now, now));
+    }
+
+    /** 붙일 사진 행을 잠그고 붙일 수 있는지 본다. 이 글에 이미 붙은 것은 된다(고치기에서 남기는 사진). */
+    private void lockAttachable(UUID postId, UUID authorId, List<UUID> imageIds) {
+        if (imageIds.isEmpty()) {
+            return;
+        }
+        long attachable = list(entityManager.createNativeQuery("""
+                SELECT id AS id, uploader_id AS uploader_id, post_id AS post_id, uploaded_at AS uploaded_at
+                FROM community_post_images
+                WHERE id = ANY (CAST(:ids AS uuid[]))
+                ORDER BY id
+                FOR UPDATE
+                """, Tuple.class)
+                .setParameter("ids", imageIds.toArray(UUID[]::new))).stream()
+                .filter(row -> authorId.equals(row.get("uploader_id", UUID.class)))
+                .filter(row -> row.get("uploaded_at") != null)
+                .filter(row -> row.get("post_id") == null || postId.equals(row.get("post_id", UUID.class)))
+                .count();
+        if (attachable != imageIds.size()) {
+            throw new InvalidImage();
+        }
+    }
+
+    private void order(UUID postId, List<UUID> imageIds) {
+        for (int index = 0; index < imageIds.size(); index++) {
+            entityManager.createNativeQuery(
+                            "UPDATE community_post_images SET post_id = :postId, sort_order = :sortOrder WHERE id = :id")
+                    .setParameter("postId", postId)
+                    .setParameter("sortOrder", index)
+                    .setParameter("id", imageIds.get(index))
+                    .executeUpdate();
+        }
+    }
+
+    /** 글들에 붙은 사진을 한 번에 읽어 순서대로 채운다. */
+    private List<CommunityPost> withImages(List<CommunityPost> rows) {
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, List<PostImage>> byPost = new HashMap<>();
+        list(entityManager.createNativeQuery("""
+                SELECT id AS id, post_id AS post_id, object_key AS object_key
+                FROM community_post_images
+                WHERE post_id = ANY (CAST(:ids AS uuid[]))
+                ORDER BY post_id, sort_order
+                """, Tuple.class)
+                .setParameter("ids", rows.stream().map(CommunityPost::id).toArray(UUID[]::new)))
+                .forEach(row -> byPost.computeIfAbsent(row.get("post_id", UUID.class), key -> new ArrayList<>())
+                        .add(new PostImage(row.get("id", UUID.class), row.get("object_key", String.class))));
+        return rows.stream()
+                .map(post -> post.withImages(byPost.getOrDefault(post.id(), List.of())))
+                .toList();
     }
 
     @Override
@@ -597,7 +729,7 @@ class PostgresCommunityRepository implements CommunityRepository {
         if (rows.isEmpty()) {
             throw new CommunityContentNotFound();
         }
-        return rows.getFirst();
+        return withImages(rows).getFirst();
     }
 
     /** 댓글이 달린 글. 지워졌든 차단됐든 가리지 않고 읽으며, 없으면 FK 불변식 오류다. */
@@ -729,7 +861,8 @@ class PostgresCommunityRepository implements CommunityRepository {
                 viewerId != null && viewerId.equals(authorId),
                 utc(row, "created_at"),
                 utc(row, "updated_at"),
-                row.get("status", String.class));
+                row.get("status", String.class),
+                List.of());
     }
 
     private static CommunityComment comment(Tuple row, UUID viewerId) {

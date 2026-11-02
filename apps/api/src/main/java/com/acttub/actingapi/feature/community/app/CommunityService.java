@@ -26,9 +26,11 @@ import org.springframework.stereotype.Service;
 public class CommunityService {
 
     private final CommunityRepository community;
+    private final CommunityImageService images;
 
-    public CommunityService(CommunityRepository community) {
+    public CommunityService(CommunityRepository community, CommunityImageService images) {
         this.community = community;
+        this.images = images;
     }
 
     public List<CommunityCategory> listCategories() {
@@ -59,35 +61,52 @@ public class CommunityService {
         return post;
     }
 
+    /** @param imageIds 붙일 사진(보여 줄 순서, 0~5장). {@code null} 은 없음이다 */
     public CommunityPost createPost(
-            UUID authorId, String categorySlug, String title, String body, boolean anonymous) {
+            UUID authorId, String categorySlug, String title, String body, boolean anonymous, List<UUID> imageIds) {
         rejectContactInfo(title, body);
+        List<UUID> attach = imageIds == null ? List.of() : imageIds;
+        images.requireAttachable(authorId, attach);
         try {
-            return community.createPost(authorId, categorySlug, title, body, anonymous);
+            return community.createPost(authorId, categorySlug, title, body, anonymous, attach);
         } catch (CommunityContentNotFound exception) {
             throw new ApiException(404, "category_not_found", exception);
+        } catch (InvalidImage exception) {
+            throw CommunityImageService.invalidImage();
         }
     }
 
-    public CommunityPost updatePost(UUID postId, UUID authorId, String title, String body) {
+    /** @param imageIds {@code null} 이면 사진은 그대로, 아니면 이 목록으로 바꾼다 */
+    public CommunityPost updatePost(UUID postId, UUID authorId, String title, String body, List<UUID> imageIds) {
         rejectContactInfo(title, body);
+        if (imageIds != null) {
+            images.requireAttachable(authorId, imageIds);
+        }
+        CommunityRepository.PostWrite written;
         try {
-            return community.updatePost(postId, authorId, title, body);
+            written = community.updatePost(postId, authorId, title, body, imageIds);
         } catch (CommunityContentNotFound exception) {
             throw postNotFound(exception);
         } catch (NotAuthor exception) {
             throw notAuthor(exception);
+        } catch (InvalidImage exception) {
+            throw CommunityImageService.invalidImage();
         }
+        images.attemptCleanup(written.cleanupOperationIds());
+        return written.post();
     }
 
+    /** 글을 지우고 붙은 사진의 객체를 지운다(장부가 커밋과 함께 남아 실패해도 다시 한다). */
     public void deletePost(UUID postId, UUID authorId) {
+        List<UUID> cleanups;
         try {
-            community.deletePost(postId, authorId);
+            cleanups = community.deletePost(postId, authorId);
         } catch (CommunityContentNotFound exception) {
             throw postNotFound(exception);
         } catch (NotAuthor exception) {
             throw notAuthor(exception);
         }
+        images.attemptCleanup(cleanups);
     }
 
     public int likePost(UUID postId, UUID userId) {

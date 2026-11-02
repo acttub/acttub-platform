@@ -37,20 +37,29 @@ public interface CommunityRepository {
     /**
      * @throws CommunityContentNotFound 분류가 없거나 비활성일 때
      */
+    /**
+     * @param imageIds 붙일 사진(보여 줄 순서). 모두 이 사람이 올렸고 올라왔고 아직 어느 글에도 붙지 않아야 한다
+     * @throws InvalidImage 아니면
+     */
     CommunityPost createPost(
-            UUID authorId, String categorySlug, String title, String body, boolean anonymous);
+            UUID authorId, String categorySlug, String title, String body, boolean anonymous, List<UUID> imageIds);
 
     /**
      * @throws CommunityContentNotFound 글이 없을 때
      * @throws NotAuthor 남의 글일 때
      */
-    CommunityPost updatePost(UUID postId, UUID authorId, String title, String body);
+    /**
+     * @param imageIds {@code null} 이면 사진은 그대로, 아니면 이 목록으로 바꾼다(빠진 사진은 떼고 객체 삭제를 장부에 올린다)
+     * @throws InvalidImage 새로 붙일 사진이 이 사람의 것이 아니거나 다른 글에 붙어 있거나 아직 올라오지 않았으면
+     */
+    PostWrite updatePost(UUID postId, UUID authorId, String title, String body, List<UUID> imageIds);
 
     /**
      * @throws CommunityContentNotFound 글이 없을 때
      * @throws NotAuthor 남의 글일 때
      */
-    void deletePost(UUID postId, UUID authorId);
+    /** @return 붙어 있던 사진의 객체 삭제를 올린 장부 id(없으면 빈 목록) */
+    List<UUID> deletePost(UUID postId, UUID authorId);
 
     /** 조회수를 하나 올린다. 없는 글이면 아무 일도 일어나지 않는다. */
     void incrementViewCount(UUID postId);
@@ -116,4 +125,8 @@ public interface CommunityRepository {
 
     /** 차단을 푼다. 차단한 적이 없어도 오류가 아니다. */
     void unblockUser(UUID blockerId, UUID blockedId);
+
+    /** 고친 글과, 뗀 사진의 객체 삭제를 올린 장부 id. */
+    record PostWrite(CommunityPost post, List<UUID> cleanupOperationIds) {
+    }
 }
