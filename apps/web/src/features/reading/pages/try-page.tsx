@@ -39,7 +39,7 @@ export function TryPage() {
       trackTrialStart("reading", trialEntryFromSearch(window.location.search));
     }
     const ac = new AbortController();
-    (async () => {
+    void (async () => {
       try {
         const script = await prepareSampleScript({ importDeps: apiDeps, cached: storage.loadScript(), signal: ac.signal });
         if (ac.signal.aborted) return;

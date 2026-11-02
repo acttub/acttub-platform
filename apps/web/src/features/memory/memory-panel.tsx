@@ -90,7 +90,7 @@ export function MemoryPanel() {
   useEffect(() => {
     if (!hasSession) return;
     const controller = new AbortController();
-    (async () => {
+    void (async () => {
       try {
         const res = await getMemory({ signal: controller.signal });
         const next: Record<string, MemoryItem> = {};
