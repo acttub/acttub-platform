@@ -866,3 +866,30 @@ test('다시 포커스되면 기록을 다시 읽는다', async () => {
   await waitFor(() => expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen());
   expect(listReadingScripts.mock.calls.length).toBeGreaterThanOrEqual(2);
 });
+
+// 당기기 제스처는 ScrollView 의 refreshControl 이 받는다. 테스트 렌더러에는 제스처가 없어 그 요소를 꺼내 직접 다룬다.
+const homeRefresh = () =>
+  screen.container.queryAll((node) => node.props.refreshControl !== undefined)[0].props.refreshControl;
+
+test('기본 홈 맨 위에서 당기면 기록만 다시 읽고 표시가 사라지며, 첫 안내는 다시 묻지 않는다', async () => {
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ root_id: 'r1', title: '카페 장면', practices: [round('p1', '2026-08-15T03:00:00Z', true)] })],
+  });
+  await render(<HomeScreen />);
+  expect(await screen.findByText('2번째 테이크')).toBeOnTheScreen();
+  expect(homeRefresh().props.refreshing).toBe(false);
+  const tutorialAsks = (hasSeenTutorial as jest.Mock).mock.calls.length;
+
+  let resolve: (v: unknown) => void = () => undefined;
+  listPracticeGroups.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  await act(async () => homeRefresh().props.onRefresh());
+  expect(homeRefresh().props.refreshing).toBe(true);
+  expect(listPracticeGroups).toHaveBeenCalledTimes(2);
+
+  await act(async () =>
+    resolve({ groups: [group({ root_id: 'r2', title: '바다 장면', practices: [round('p2', '2026-08-16T03:00:00Z', true)] })] }),
+  );
+  await waitFor(() => expect(homeRefresh().props.refreshing).toBe(false));
+  expect(screen.getAllByText('바다 장면').length).toBeGreaterThan(0);
+  expect((hasSeenTutorial as jest.Mock).mock.calls.length).toBe(tutorialAsks);
+});

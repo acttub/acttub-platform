@@ -606,9 +606,10 @@ const styles = StyleSheet.create({
   roleChipTextOn: { color: palette.blueDeep },
   roleChipCount: { ...type.body2, color: palette.textMeta },
   tabs: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
-  tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  // 높이를 못 박지 않는다 — 탭 글자가 두 줄로 꺾이면 탭 줄이 함께 늘어난다(새 대본 탭과 같다).
+  tab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, paddingVertical: space[1.5] },
   tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
+  tabText: { ...type.body2Bold, color: palette.textMeta, textAlign: 'center' },
   tabTextOn: { color: palette.text },
   list: { gap: space[3] },
   card: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },

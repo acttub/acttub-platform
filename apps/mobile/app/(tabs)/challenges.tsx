@@ -3,7 +3,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -128,6 +128,17 @@ export default function ChallengesScreen() {
       setError(browseFailure(e));
     }
   }, []);
+
+  /** 맨 위에서 당기면 지금 탭을 처음부터 다시 받는다. */
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load(tab);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, tab]);
 
   /** 20개씩 이어 받는다. 커서는 요청자·탭에 묶여 있어 탭을 바꾸면 처음부터 다시 읽는다. */
   const loadMore = async () => {
@@ -317,7 +328,7 @@ export default function ChallengesScreen() {
         <SkeletonRows count={4} avatar={false} style={styles.flush} />
       ) : selectMode && featured ? (
         <>
-          <ScrollView contentContainerStyle={styles.body}>
+          <ScrollView contentContainerStyle={styles.body} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
             <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => openDetail(featured)} />
             <View style={styles.sameHead}>
               <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
@@ -343,7 +354,7 @@ export default function ChallengesScreen() {
           </CtaBar>
         </>
       ) : (
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]}>
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
         {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}

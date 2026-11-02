@@ -296,6 +296,26 @@ describe('탭', () => {
   });
 });
 
+// 당기기 제스처는 ScrollView 의 refreshControl 이 받는다. 테스트 렌더러에는 제스처가 없어 그 요소를 꺼내 직접 다룬다.
+const listRefresh = () =>
+  screen.container.queryAll((node) => node.props.refreshControl !== undefined)[0].props.refreshControl;
+
+test('맨 위에서 당기면 지금 탭을 처음부터 다시 읽고 표시가 사라진다', async () => {
+  await render(<ChallengesScreen />);
+  await screen.findByText('“나는 아직 여기 있어”');
+  expect(listRefresh().props.refreshing).toBe(false);
+
+  let resolve: (v: unknown) => void = () => undefined;
+  listChallenges.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  await act(async () => listRefresh().props.onRefresh());
+  expect(listRefresh().props.refreshing).toBe(true);
+  expect(listChallenges).toHaveBeenLastCalledWith({ tab: 'popular' });
+
+  await act(async () => resolve(page([card({ line: '당겨서 받은 대사' })], { featured: today() })));
+  expect(listRefresh().props.refreshing).toBe(false);
+  expect(screen.getByText('“당겨서 받은 대사”')).toBeOnTheScreen();
+});
+
 describe('목록을 못 불러오면', () => {
   test.each([
     ['게스트·회원 전용', new ApiError(403, '회원만', 'member_only', 'member_only'), '챌린지는 회원만 이용할 수 있어요.'],
