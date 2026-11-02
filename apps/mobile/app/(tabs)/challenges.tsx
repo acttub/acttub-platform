@@ -1,16 +1,18 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { ChallengeOthersRow } from '@/components/challenge-others-row';
+import { CommunityBoard } from '@/components/community/community-board';
+import { CommunityTabs, type CommunitySection } from '@/components/community/community-tabs';
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -46,7 +48,9 @@ import { skipsChallengeFirstPick } from '@/lib/returning-account';
 import { useExampleUrl } from '@/lib/challenge/use-example-url';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
+import { useBoardNewDot } from '@/hooks/use-board-new-dot';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
+import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -59,6 +63,9 @@ import { translate as t } from '@/lib/i18n';
  *
  * SOMA-748 새 디자인(ZxMmEh): 맨 위 「지난주 결과」 띠(끝난 지 7일 안의 공식 챌린지) → 이번 주 대사 카드 → 탭 →
  * 줄 카드. 파란 「누를 것 안내」는 첫 참여를 끝낼 때까지만 보인다.
+ *
+ * SOMA-873: 이 탭은 「커뮤니티」다. 큰 제목 대신 맨 위 밑줄 탭 「챌린지」「게시판」을 두고(기본은 챌린지), 챌린지 내용은 그대로다.
+ * 라우트 이름(challenges)은 그대로 두어 챌린지 탭으로 오는 딥링크·푸시가 계속 열린다. `?section=board` 로 오면 게시판을 연다.
  */
 const TABS: { key: ChallengeTab; label: string }[] = [
   { key: 'popular', label: 'challenges.tabPopular' },
@@ -71,10 +78,26 @@ export default function ChallengesScreen() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
+  const { section: sectionParam } = useLocalSearchParams<{ section?: string }>();
+  const [section, setSection] = useState<CommunitySection>(sectionParam === 'board' ? 'board' : 'challenge');
+  const boardDot = useBoardNewDot();
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   /** 마지막으로 고정한 오늘의 챌린지 — 인기 말고 다른 칩을 받을 때 그대로 둔다. */
   const featuredRef = useRef<ChallengeCard | null>(null);
+  // 내가 참여한 챌린지(나만 보기 포함) — 오늘의 챌린지 버튼을 「한 번 더 찍기」로 바꾼다(SOMA-995).
+  const [enteredIds, setEnteredIds] = useState<ReadonlySet<string>>(() => new Set());
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      void enteredChallengeIds().then((ids) => {
+        if (live) setEnteredIds(ids);
+      });
+      return () => {
+        live = false;
+      };
+    }, []),
+  );
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -124,6 +147,17 @@ export default function ChallengesScreen() {
       setError(browseFailure(e));
     }
   }, []);
+
+  /** 맨 위에서 당기면 지금 탭을 처음부터 다시 받는다. */
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load(tab);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, tab]);
 
   /** 20개씩 이어 받는다. 커서는 요청자·탭에 묶여 있어 탭을 바꾸면 처음부터 다시 읽는다. */
   const loadMore = async () => {
@@ -202,6 +236,10 @@ export default function ChallengesScreen() {
     if (challenges !== null || error) setFirstLoadDone(true);
   }, [challenges, error]);
 
+  useEffect(() => {
+    if (sectionParam === 'board' || sectionParam === 'challenge') setSection(sectionParam);
+  }, [sectionParam]);
+
   const featuredId = featured?.id ?? null;
   const exampleUrl = useExampleUrl(featuredId);
 
@@ -236,8 +274,38 @@ export default function ChallengesScreen() {
         {firstTime && (
           <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
         )}
-        <Text style={[styles.title, styles.titleGrow]}>{t('challenges.title')}</Text>
-        {!selectMode && !deciding && (
+        <View style={styles.titleGrow}>
+          <CommunityTabs
+            value={section}
+            dot={boardDot.hasNew}
+            onChange={(next) => {
+              setSection(next);
+              void logEvent('community_section', { section: next });
+            }}
+          />
+        </View>
+        {section === 'board' ? (
+          <View style={styles.headerRight}>
+            <Pressable
+              style={styles.iconBtn}
+              onPress={() => router.push('/notifications')}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('notifications.title')}
+              ph-label="community_bell">
+              <Feather name="bell" size={22} color={palette.text} />
+              {unread.count > 0 && <View style={styles.badgeDot} />}
+            </Pressable>
+            <Button
+              size="md"
+              label={t('community.write')}
+              icon={<Feather name="plus" size={16} color={palette.onAccent} />}
+              phLabel="community_write"
+              style={styles.writeBtn}
+              onPress={() => router.push('/community-new')}
+            />
+          </View>
+        ) : !selectMode && !deciding && (
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -271,12 +339,15 @@ export default function ChallengesScreen() {
         </View>
         )}
       </View>
+      <View style={styles.headerDivider} />
 
-      {deciding ? (
+      {section === 'board' ? (
+        <CommunityBoard bottomSpace={tabBarSpace} onWrite={() => router.push('/community-new')} onSeen={boardDot.markSeen} />
+      ) : deciding ? (
         <SkeletonRows count={4} avatar={false} style={styles.flush} />
       ) : selectMode && featured ? (
         <>
-          <ScrollView contentContainerStyle={styles.body}>
+          <ScrollView contentContainerStyle={styles.body} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
             <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => openDetail(featured)} />
             <View style={styles.sameHead}>
               <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
@@ -302,7 +373,7 @@ export default function ChallengesScreen() {
           </CtaBar>
         </>
       ) : (
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]}>
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
         {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
@@ -329,6 +400,7 @@ export default function ChallengesScreen() {
             showGuide={firstTime}
             onOpen={() => tapCard(featured)}
             onPerform={canPerform(featured) ? () => perform(featured) : undefined}
+            entered={enteredIds.has(featured.id)}
           />
         )}
 
@@ -336,11 +408,11 @@ export default function ChallengesScreen() {
           <ChallengeOthersRow
             challenge={featured}
             onOpenAll={() => {
-              logEvent('challenge_others_row_all', { id: featured.id });
+              void logEvent('challenge_others_row_all', { id: featured.id });
               openDetail(featured);
             }}
             onOpenEntry={(entry) => {
-              logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
+              void logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
               router.push({ pathname: '/challenge-play', params: { id: featured.id, entryId: entry.id } });
             }}
           />
@@ -428,11 +500,14 @@ function WeekHero({
   showGuide,
   onOpen,
   onPerform,
+  entered = false,
 }: {
   challenge: ChallengeCard;
   showGuide: boolean;
   onOpen: () => void;
   onPerform?: () => void;
+  /** 이미 참여했는가(나만 보기 포함) — 버튼을 「한 번 더 찍기」로 둔다. */
+  entered?: boolean;
 }) {
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
@@ -474,10 +549,10 @@ function WeekHero({
           style={styles.heroPerform}
           onPress={onPerform}
           accessibilityRole="button"
-          accessibilityLabel={t('challenges.performCta')}>
+          accessibilityLabel={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}>
           {/* 흰 알약 버튼(10/29 시안). */}
           <Feather name="video" size={16} color={heroCard.ctaNavy} />
-          <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
+          <Text style={styles.heroPerformText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
         </Pressable>
       )}
     </Pressable>
@@ -592,11 +667,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 72,
+    height: 56,
     paddingHorizontal: space.gutter,
   },
-  title: { ...type.display, color: palette.text },
-  titleGrow: { flex: 1 },
+  titleGrow: { flex: 1, alignSelf: 'stretch' },
+  headerDivider: { height: 1, backgroundColor: palette.border },
+  writeBtn: { paddingLeft: space[3] },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   badgeDot: {

@@ -33,7 +33,8 @@ import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { deleteScript, fetchSession, listScripts, listSessions, loadIntoCurrent, setCurrentSession } from '@/lib/reading/store';
+import { deleteScript, listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
+import { openResume } from '@/lib/reading/resume-open';
 import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/types';
 import { isKorean, translate as t } from '@/lib/i18n';
 import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
@@ -236,13 +237,11 @@ export default function ReadingList() {
     if (!resume || resuming) return;
     setResuming(true);
     try {
-      const opened = await loadIntoCurrent(resume.script.id);
-      const detail = opened ? await fetchSession(resume.session.id) : null;
-      if (!detail) {
+      const where = await openResume(resume.script.id, resume.session.id);
+      if (where !== 'play') {
         void load(q);
         return;
       }
-      setCurrentSession(detail);
       router.push('/reading/play');
     } finally {
       setResuming(false);

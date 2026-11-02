@@ -31,8 +31,10 @@ test('챌린지 탭 — 첫 고르기를 띄울지 정하고 첫 목록을 받�
   assert.match(src, /const deciding = !pickDecided \|\| !firstLoadDone;/);
   // 다시 들어올 때 기록을 새로 따져도(firstPickChecked 가 잠깐 false) 이미 정한 화면을 유지한다.
   assert.match(src, /const selectMode = pickDecided && showGuide/);
-  assert.match(src, /\{!selectMode && !deciding && \(/);
-  const deciding = src.indexOf('{deciding ? (');
+  // SOMA-873: 게시판일 때는 다른 머리 버튼을 두므로 이 조건은 「: 」 뒤 분기다.
+  assert.match(src, /: !selectMode && !deciding && \(/);
+  // SOMA-873: 게시판 분기 다음이라 「) : deciding ? (」 모양이다.
+  const deciding = src.indexOf(') : deciding ? (');
   const select = src.indexOf(') : selectMode && featured ? (');
   assert.ok(deciding > 0 && select > deciding, '정하기 전 뼈대 분기가 첫 고르기 분기보다 앞에 있어야 한다');
 });

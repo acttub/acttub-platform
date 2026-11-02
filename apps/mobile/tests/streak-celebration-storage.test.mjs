@@ -56,3 +56,11 @@ test('SOMA-479: 저장소를 못 읽거나 못 쓰면 0 으로 보고 조용히 
   broken = false;
   assert.equal(storage.values.has(KEY), false);
 });
+
+test('11/2: 연속일을 적을 때 한국 날짜도 함께 적고 다시 읽는다', async () => {
+  const { readLastSeenStreakDay, kstToday } = await import('../lib/streak-celebration.ts');
+  assert.equal(await readLastSeenStreakDay(), null);
+  await writeLastSeenStreak(2);
+  assert.equal(await readLastSeenStreakDay(), kstToday());
+  assert.equal(kstToday(Date.parse('2026-11-02T15:30:00Z')), '2026-11-03');
+});

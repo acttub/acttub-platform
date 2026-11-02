@@ -95,11 +95,6 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
-- `community_*` 일곱 테이블(`community_categories`·`community_posts`·`community_comments`·
-  `community_post_likes`·`community_anonymous_aliases`·`community_reports`·`community_blocks`):
-  0.1.0에서 커뮤니티의 API와 코드를 내렸다([community](../../docs/specs/community/README.md)).
-  `/v2/community/**`는 404다. 글·댓글·차단·신고·카테고리 데이터와 CHECK 값 검사
-  (`ValueCheckCatalogIT`)는 그대로 두고, 되살릴 때는 git 이력에서 `feature/community`를 가져온다.
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않으며 조회·수정은 이 컬럼을 보지 않는다. **탈퇴의 파기만 예외로 이 컬럼에
   NULL을 쓴다** — 복사 뒤에도 옛 값이 남아 있고 탈퇴는 이름을 지체 없이 파기해야 하기 때문이다
@@ -354,7 +349,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
 | 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
-| 16 | 커뮤니티 API 은퇴 | `/v2/community/**` 는 **404** 다(0.1.0, 테이블은 보존 §5-1). 인증이 선택이던 경로는 이것뿐이었다. `Authorization` 헤더가 오면 없는 경로에서도 먼저 검증한다 — 탈퇴한 계정의 토큰은 403 |
+| 16 | 게시판은 회원 전용 | `/v2/community/**` 는 SOMA-873 에서 되살아났고 게이트(동의·프로필)를 지난 회원만 쓴다. 0.1.0 전에는 인증이 선택인 유일한 경로였지만 이제 헤더가 없으면 401, 탈퇴한 계정의 토큰은 403 이다([community](../../docs/specs/community/README.md)). 글 사진(V87)은 포트폴리오 사진과 같은 서명 올리기 길이이고 객체 삭제는 정리 장부가 맡는다 |
 | 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
 | 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
 | 19 | 클라이언트 판 426 | `ClientVersionFilter` 가 토큰 검증보다 먼저 낸다(§6-5). 행동은 [common.md 「클라이언트 판과 강제 업데이트」](../../docs/specs/common.md#클라이언트-판과-강제-업데이트) |
@@ -1470,9 +1465,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
-   선택됐다. 성능 명목으로 증감으로 되돌리면 버그가 부활한다. (1·2는 커뮤니티의 규칙이다. 코드는
-   0.1.0에서 내렸고 git 이력의 `feature/community/adapter/db/PostgresCommunityRepository`에 있다 —
-   되살릴 때와 챌린지의 좋아요·댓글 집계를 만들 때 같은 규칙을 지킨다.)
+   선택됐다. 성능 명목으로 증감으로 되돌리면 버그가 부활한다. (1·2는 게시판의 규칙이다 —
+   `feature/community/adapter/db/PostgresCommunityRepository`(SOMA-873 에서 되살렸다)와 챌린지의 좋아요·댓글
+   집계가 같은 규칙을 지킨다.)
 2. **댓글 수 증감은 원자적이어야 한다.** `post.setCommentCount(get()+1)` 형태로 옮기면 lost
    update 가 새로 생긴다. 벌크 UPDATE 로 분리한다.
 3. **상관 서브쿼리에서 앵커 테이블을 명시한다.** 명시하지 않으면 같은 테이블이 FROM 에 두 번

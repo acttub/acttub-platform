@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 
 import JournalScreen from '@/app/journal';
 import { useAppRating } from '@/hooks/use-app-rating';
@@ -196,7 +197,8 @@ test('일지를 못 만들면 질문에 남아 다시 시도할 수 있다', asy
   expect(screen.getByText('오늘 연습을 한 줄로 남긴다면?')).toBeOnTheScreen();
 });
 
-test('일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다 — 안드로이드 뒤로 키·밀어서 나가기도 같다', async () => {
+test('일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다 — 안드로이드 뒤로 키도 같다', async () => {
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
   getJournal.mockImplementation(missing);
   createJournal.mockReturnValue(new Promise(() => undefined));
   await render(<JournalScreen />);
@@ -212,4 +214,5 @@ test('일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간�
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
   expect(mockRouter.back).not.toHaveBeenCalled();
+  os.restore();
 });

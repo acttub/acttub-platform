@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.CreateRequ
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.GroupListResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.GroupPatchRequest;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.GroupResponse;
+import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.PracticeDaysResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.PracticeResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.SceneInput;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.StatusResponse;
@@ -191,6 +192,25 @@ class PracticeController {
         }
         return new GroupListResponse(practices.groups(auth.gatedUser(request).id(), filter).stream()
                 .map(GroupResponse::of)
+                .toList());
+    }
+
+    @Operation(
+            summary = "List Practice Days",
+            description = """
+                    연습한 날짜(한국 시간 YYYY-MM-DD, 오래된 순). 노트가 생긴 코칭 회차·끝까지 읽은 리딩 회차·올린 참여작을 \
+                    센다. 숨긴 기록도 센다. 홈의 연속일·주간 원·누적 연습일이 쓴다(SOMA-1003).""",
+            operationId = "list_practice_days_v2_practices_days_get",
+            tags = "v2-practices",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = PracticeDaysResponse.class)))
+    @GetMapping("/days")
+    PracticeDaysResponse days(HttpServletRequest request) {
+        return new PracticeDaysResponse(practices.practiceDays(auth.gatedUser(request).id()).stream()
+                .map(java.time.LocalDate::toString)
                 .toList());
     }
 

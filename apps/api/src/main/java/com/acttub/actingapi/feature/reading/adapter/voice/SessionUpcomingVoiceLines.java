@@ -28,4 +28,15 @@ public final class SessionUpcomingVoiceLines implements UpcomingVoiceLines {
         return UpcomingVoiceLines.pick(script.characters(), script.lines(), session.card().myCharacterIds(),
                 session.startLineId(), session.endLineId(), text, preset, count);
     }
+
+    /** 끝난 회차(지금 줄 없음)·남의 회차는 모른다고 답한다(SOMA-1000). */
+    @Override
+    public Integer ahead(UUID userId, UUID sessionId, String text, String preset) {
+        SessionDetailView session = sessions.find(userId, sessionId);
+        if (session == null || session.scriptId() == null || session.currentLineId() == null) return null;
+        ScriptView script = scripts.find(userId, session.scriptId());
+        if (script == null) return null;
+        return UpcomingVoiceLines.aheadOf(script.characters(), script.lines(), session.card().myCharacterIds(),
+                session.startLineId(), session.endLineId(), session.currentLineId(), text, preset);
+    }
 }

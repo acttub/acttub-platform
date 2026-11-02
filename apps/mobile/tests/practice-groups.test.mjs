@@ -7,6 +7,7 @@ import {
   kstDayKey,
   lastNotePracticeId,
   sceneTitle,
+  practiceDayTotal,
   practiceStreak,
   recentGroups,
   roundSummary,
@@ -94,4 +95,10 @@ test('practice.library: 회차 줄은 n차·대화 수·노트 제목을 보여 
   const without = roundSummary({ ordinal: 1, message_count: 2, note: null });
   assert.doesNotMatch(without, /시선/);
   assert.notEqual(without, '');
+});
+
+test('누적 연습일은 한국 날짜로 겹침 없이 센다 — 연속이 끊겨도 줄지 않는다 (SOMA-1003)', () => {
+  assert.equal(practiceDayTotal([]), 0);
+  // 2026-09-19T23:00Z 는 한국 9/20 아침이라 9/20 15:30Z(한국 9/21 0:30)와 다른 날이다.
+  assert.equal(practiceDayTotal(['2026-09-19T23:00:00Z', '2026-09-20T15:30:00Z', '2026-09-20T01:00:00Z', '2026-08-01T12:00:00+09:00', 'bad']), 3);
 });

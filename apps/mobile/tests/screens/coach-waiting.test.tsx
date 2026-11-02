@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { useVideoPlayer } from 'expo-video';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import CoachScreen from '@/app/coach';
 import { logEvent } from '@/lib/analytics';
@@ -67,7 +67,7 @@ jest.mock('@/lib/tutorial-loop', () => ({
   loopApiFor: (practiceId: string | null | undefined) => (practiceId === 'tutorial-sample-practice' ? mockSampleLoop : mockLoop),
 }));
 jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ dispatch: mockNavDispatch }),
+  useNavigation: () => ({ dispatch: mockNavDispatch, addListener: () => () => undefined }),
   usePreventRemove: jest.fn(),
 }));
 jest.mock('@/components/mic-button', () => ({ MicButton: () => null }));
@@ -226,6 +226,7 @@ describe('기다리는 동안', () => {
   });
 
   test('영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다', async () => {
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
     getStatus.mockResolvedValue(status({ job: { id: 'j1', status: 'pending' } }));
     await render(<CoachScreen />);
     expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
@@ -237,9 +238,19 @@ describe('기다리는 동안', () => {
     expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
     // 나가는 동안 막기를 풀지 않는다 — 풀면 안드로이드에서 머리 갱신이 화면 제거와 겹쳐 앱이 꺼진다(SOMA-972).
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+    os.restore();
+  });
+
+  test('iOS 는 영상 보는 중에 밀어서 나가기를 막지 않는다', async () => {
+    getStatus.mockResolvedValue(status({ job: { id: 'j1', status: 'pending' } }));
+    await render(<CoachScreen />);
+    expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    expect(preventRemove.mock.calls.filter(([on]) => on)).toEqual([]);
   });
 
   test('영상 보는 중에도 뒤로 가기가 아닌 이동(다른 회차로 replace 등)은 막지 않고 그대로 보낸다', async () => {
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
     getStatus.mockResolvedValue(status({ job: { id: 'j1', status: 'pending' } }));
     await render(<CoachScreen />);
     expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
@@ -250,6 +261,7 @@ describe('기다리는 동안', () => {
     await act(async () => leave({ data: { action } }));
     expect(mockNavDispatch).toHaveBeenCalledWith({ type: 'REPLACE', payload: { name: 'coach' } });
     expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/coaching');
+    os.restore();
   });
 
   test('작업이 돌기 시작하면 단계 문구로 바뀌고, 영상·장면 보기를 펼치면 기기에 있는 영상을 튼다', async () => {

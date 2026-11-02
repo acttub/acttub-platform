@@ -639,9 +639,11 @@ const styles = StyleSheet.create({
   heroSub: { ...type.body2, color: palette.textSub },
   segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1] },
+  // 아이콘을 위, 글자를 아래에 쌓아 글자가 탭 폭을 다 쓴다(「대본 같이 만들기」가 한 줄에 들어간다). 높이는 못 박지 않는다 —
+  // 더 좁은 폰에서 두 줄로 꺾여도 탭 줄이 함께 늘어난다.
+  segmentTab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1], paddingVertical: space[2] },
   segmentTabOn: { backgroundColor: palette.bg },
-  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1 },
+  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1, textAlign: 'center' },
   segmentTextOn: { color: palette.text },
   makeArea: { gap: space[3] },
   dropzone: {

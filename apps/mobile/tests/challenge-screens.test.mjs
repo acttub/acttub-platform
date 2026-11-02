@@ -93,7 +93,8 @@ test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게
   const layout = read('app/(tabs)/_layout.tsx');
   assert.doesNotMatch(layout, /isKorean/);
   // 탭 제목·읽어 줄 이름은 tab() 묶음이 t(`tabs.<키>`)로 채운다(SOMA-770).
-  assert.match(layout, /name="challenges"\s*options=\{\{\s*\.\.\.tab\('challenge'\)/);
+  // SOMA-873: 라우트는 challenges 그대로, 탭 이름은 커뮤니티이고 누름 기록 이름만 예전(tab_challenge)이다.
+  assert.match(layout, /name="challenges"\s*options=\{\{\s*\.\.\.tab\('community', 'challenge'\)/);
   assert.match(layout, /title: t\(`tabs\.\$\{key\}`\)/);
   assert.match(read('app/(tabs)/challenges.tsx'), /browseFailureMessage/);
   const { default: ko } = await import('../locales/ko.ts');

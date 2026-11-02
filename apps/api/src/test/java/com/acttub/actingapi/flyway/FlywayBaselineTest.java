@@ -136,11 +136,12 @@ class FlywayBaselineTest {
                 assertThat(rs.getString(1)).contains("'반전'", "'약화'", "'국소'");
             }
 
-            // 시드 데이터도 V1 이 전체 값 그대로 들고 있어야 한다.
+            // V1 의 시드 셋을 V86 이 게시판 분류 넷으로 바꿨다(SOMA-873) — 옛 둘은 이름만 바꾸고 하나를 더했다.
             assertThat(categoryRows(connection)).containsExactly(
-                    "free|자유|연습하다 든 생각, 근황, 잡담|10",
-                    "admission|입시 Q&A|실기·전형·준비 과정에서 막힌 것 묻기|20",
-                    "info|정보공유|공고·후기·자료처럼 남에게 도움 되는 것|30");
+                    "question|질문|연기·입시·오디션 준비하다 막힌 것 묻기|10",
+                    "audition|오디션 정보|오디션·공연·촬영 공고와 다녀온 후기|20",
+                    "partner|상대역 구함|같이 맞춰 볼 상대역·스터디 찾기|30",
+                    "free|자유|연습하다 든 생각, 근황, 잡담|40");
         }
     }
 
@@ -189,8 +190,9 @@ class FlywayBaselineTest {
                 .noneMatch(applied2 -> "1".equals(applied2.version));
 
         try (Connection connection = connect(jdbcUrl)) {
-            // V1 의 시드 INSERT 가 다시 돌았다면 여기가 3을 넘는다.
-            assertThat(scalar(connection, "SELECT count(*) FROM community_categories")).isEqualTo(3L);
+            // V1 의 시드 셋에 V86 이 상대역 구함(partner) 하나를 더한다(SOMA-873). V1 의 시드 INSERT 가 다시 돌았다면
+            // 여기가 4를 넘는다.
+            assertThat(scalar(connection, "SELECT count(*) FROM community_categories")).isEqualTo(4L);
         }
     }
 
