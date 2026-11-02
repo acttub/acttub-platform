@@ -502,12 +502,15 @@ test('이미 대본이 된 원본이면 다시 올려 새 원본으로 나눈다
 
 test('나누는 중에 화면을 떠나면 끝나도 다른 화면으로 옮기지 않는다', async () => {
   let finish: (v: ScriptImport) => void = () => undefined;
-  jest.mocked(api.getScriptImport).mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+  jest.mocked(api.getScriptImport)
+    .mockResolvedValueOnce(job({ status: 'running', script_id: null }))
+    .mockImplementation(() => new Promise((resolve) => (finish = resolve)));
   await render(<ReadingNew />);
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
   await screen.findByText('배역과 대사를 찾고 있어요');
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 1100)));
   await screen.unmount();
   finish(job());
   await act(async () => pressing);
@@ -598,6 +601,225 @@ test('무료 대본 팝업의 [Pro 보기]는 대본 한도에서 온 Pro 안내
   await fireEvent.press(screen.getByText('다음'));
   await fireEvent.press(await screen.findByText('Pro 보기'));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/pro', params: { from: 'script' } });
+});
+
+// ── 대기 화면 전 확인(SOMA-996) ─────────────────────────────────────────────────────────
+const WAITING = '배역과 대사를 찾고 있어요';
+const CHECKING = '확인하는 중…';
+
+function held<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (error: unknown) => void = () => undefined;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+/** 테스트의 Modal 은 visible 일 때만 그려진다. */
+type Tree = { type: string; children: readonly (Tree | string)[] };
+function modalOpen(node: Tree = screen.root as never): boolean {
+  return node.type === 'Modal' || node.children.some((child) => typeof child !== 'string' && modalOpen(child));
+}
+
+const ACCEPTED = { import_id: 'i1', duplicate_script_id: null };
+type Ticket = Awaited<ReturnType<typeof api.importScript>>;
+
+test('다음을 누르면 대기 화면 없이 버튼이 「확인하는 중…」이고 다시 눌리지 않으며, 탭도 바꿀 수 없다', async () => {
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValue(post.promise);
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(modalOpen()).toBe(false);
+
+  await fireEvent.press(screen.getByText(CHECKING));
+  expect(api.importScript).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByRole('tab', { name: /파일 업로드/ }));
+  expect(screen.getByRole('tab', { name: /글 붙여넣기/ })).toBeSelected();
+
+  await act(async () => post.resolve(ACCEPTED));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+});
+
+test('파일은 원본을 다시 읽는 동안에도 「확인하는 중…」이다', async () => {
+  await render(<ReadingNew />);
+  await fireEvent.press(screen.getByText('대본 파일 첨부'));
+  await screen.findByText('다른 파일');
+  const complete = held<void>();
+  jest.mocked(api.completeScriptUpload).mockReturnValueOnce(complete.promise);
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(api.importScript).not.toHaveBeenCalled();
+
+  await act(async () => complete.resolve());
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+});
+
+test('접수 뒤 첫 물음이 끝나지 않았으면 대기 화면으로 간다 — 같은 글을 이미 나누는 중이라 같은 작업을 돌려받아도 같다', async () => {
+  const get = held<ScriptImport>();
+  jest.mocked(api.getScriptImport).mockReturnValueOnce(get.promise);
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(() => expect(api.getScriptImport).toHaveBeenCalledWith('i1'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+
+  await act(async () => get.resolve(job({ status: 'running', progress: { done_lines: 0, total_lines: 0 }, script_id: null })));
+  expect(screen.getByText(WAITING)).toBeOnTheScreen();
+});
+
+test('접수 뒤 첫 물음이 일시 오류면 버튼에 멈추지 않고 대기 화면에서 계속 묻는다', async () => {
+  jest.mocked(api.getScriptImport).mockRejectedValueOnce(new ApiError(503, 'down'));
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText(WAITING)).toBeOnTheScreen();
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
+});
+
+test('예시 대본은 대기 화면 없이 대본을 불러온 뒤 다음 화면으로 간다', async () => {
+  mockParams = { sample: '1' };
+  const load = held<ReturnType<typeof scriptDetail>>();
+  server.get.mockReturnValue(load.promise);
+  await render(<ReadingNew />);
+
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(() => expect(server.get).toHaveBeenCalledWith('s1'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+
+  await act(async () => load.resolve(scriptDetail(TWO_ROLE_LINES)));
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+});
+
+test.each<[string, (post: ReturnType<typeof held<Ticket>>) => void, string]>([
+  ['같은 글', (post) => post.resolve({ import_id: null, duplicate_script_id: 's1' }), '이미 넣은 대본이에요'],
+  ['하루 한도', (post) => post.reject(new ApiError(429, 'limit', 'script_split_daily_limit')), '오늘은 대본을 더 넣을 수 없어요'],
+  ['무료 대본 한도', (post) => post.reject(new ApiError(403, 'limit', 'free_script_limit')), '무료는 대본 3개까지 보관해요'],
+  ['동의 없음', (post) => post.reject(new ApiError(403, 'consent', 'script_split_consent_required')), '대본을 넣지 못했어요'],
+])('%s은 대기 화면 없이 입력 화면 위 팝업으로 보인다', async (_name, answer, title) => {
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+
+  await act(async () => answer(post));
+  expect(await screen.findByText(title)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(api.getScriptImport).not.toHaveBeenCalled();
+  expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
+});
+
+test('「그래도 넣기」는 팝업을 지우고 모달을 연 채 확인 중으로 돌아간다(iOS 는 닫히는 모달을 곧바로 다시 못 띄운다)', async () => {
+  jest.mocked(api.importScript).mockResolvedValueOnce({ import_id: null, duplicate_script_id: 's1' });
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await screen.findByText('이미 넣은 대본이에요');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+
+  await fireEvent.press(screen.getByText('그래도 넣기'));
+  expect(screen.queryByText('이미 넣은 대본이에요')).not.toBeOnTheScreen();
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(modalOpen()).toBe(true);
+
+  // 다시 보낸 요청이 한도에 걸려도 대기 화면 없이 같은 모달에 알림이 뜬다.
+  await act(async () => post.reject(new ApiError(429, 'limit', 'script_split_daily_limit')));
+  expect(await screen.findByText('오늘은 대본을 더 넣을 수 없어요')).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+});
+
+test('「그래도 나누기」도 확인 중을 거쳐 첫 물음이 끝나지 않았을 때만 대기 화면으로 간다', async () => {
+  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'not_script', script_id: null }));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await screen.findByText('대본이 아닌 것 같아요');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'running', script_id: null }));
+
+  await fireEvent.press(screen.getByText('그래도 나누기'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+
+  await act(async () => post.resolve(ACCEPTED));
+  expect(await screen.findByText(WAITING)).toBeOnTheScreen();
+});
+
+test('실패 화면에서 「다시 시도」를 누르면 입력 화면의 확인 중으로 돌아온다', async () => {
+  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'no_characters', script_id: null }));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await screen.findByText('대본을 못 나눴어요');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+
+  await fireEvent.press(screen.getByText('다시 시도'));
+  expect(screen.queryByText('대본을 못 나눴어요')).not.toBeOnTheScreen();
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
+  expect(modalOpen()).toBe(false);
+
+  await act(async () => post.resolve(ACCEPTED));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+});
+
+test('「대본 지우고 넣기」도 지운 뒤 확인 중으로 돌아간다', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
+  server.list.mockResolvedValue({ scripts: [{ id: 'old', title: '옥상, 밤' }], total_count: 1, in_progress_count: 0 } as never);
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
+  await screen.findByText('『옥상, 밤』을 지울까요?');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+
+  await fireEvent.press(screen.getByText('지우고 넣기'));
+  await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText('『옥상, 밤』을 지울까요?')).not.toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  await act(async () => post.resolve(ACCEPTED));
+});
+
+test('확인 중에는 뒤로 가기를 막지 않고, 떠난 뒤 접수되면 기기에 기록이 남아 리딩 탭에 보인다', async () => {
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValue(post.promise);
+  const { unmount } = await render(<ReadingNew />);
+  await paste();
+  await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '봄날의 대화');
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(jest.mocked(usePreventRemove).mock.calls.slice(-2).map(([on]) => on)).toEqual([false, false]);
+
+  await unmount();
+  await act(async () => post.resolve(ACCEPTED));
+  await waitFor(async () => expect(await readSplitJobs()).toEqual([{ importId: 'i1', title: '봄날의 대화' }]));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(await readSplitJobs()).toEqual([{ importId: 'i1', title: '봄날의 대화' }]);
 });
 
 // ── 첫 리딩(10/29) ─────────────────────────────────────────────────────────────────────

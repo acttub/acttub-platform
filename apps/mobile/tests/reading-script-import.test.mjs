@@ -39,7 +39,7 @@ function fakeServer({ ticket = { import_id: 'imp-1', duplicate_script_id: null }
       state.now += ms;
     },
   };
-  return { state, deps, onProgress: (p) => state.progress.push(`${p.done}/${p.total}`) };
+  return { state, deps, onProgress: (p) => state.progress.push(p ? `${p.done}/${p.total}` : null) };
 }
 
 const running = (done, total) => ({ status: 'running', progress: { done_lines: done, total_lines: total } });
@@ -57,7 +57,6 @@ test('SOMA-960 R2.11: 서버 진행률(percent)을 그대로 넘기고, 옛 서�
   assert.deepEqual(seen, [
     { done: 61, total: 61, percent: 52 },
     { done: 24, total: 61, percent: null },
-    { done: 61, total: 61, percent: 100 },
   ]);
 });
 
@@ -85,7 +84,7 @@ test('reading.script(R2.11): 글을 보내고 1초마다 물어 진행 줄 수�
   assert.deepEqual(state.bodies, [
     { request_id: 'rid-1', allow_duplicate: false, skip_script_check: false, source: 'paste', raw_text: TEXT.text },
   ]);
-  assert.deepEqual(state.progress, ['0/0', '24/61', '61/61']);
+  assert.deepEqual(state.progress, ['0/0', '24/61'], '끝난 물음에는 부르지 않는다');
   assert.deepEqual(state.sleeps, [1000, 1000]);
 });
 
@@ -98,6 +97,22 @@ test('reading.script(R2.11): 예시 대본처럼 접수 바로 끝난 작업은 
   assert.deepEqual(await runImport(importBody(sample, {}, 'rid-s'), deps, onProgress), { kind: 'saved', scriptId: 'sc-sample' });
   assert.equal(state.bodies[0].source, 'sample');
   assert.deepEqual(state.sleeps, []);
+});
+
+test('SOMA-996: 진행 중이라고 확인된 때만 onProgress 를 부른다 — 첫 물음의 끝·실패는 부르지 않고, 끊기면 마지막 진행률(첫 물음이면 null)로 부른다', async () => {
+  const done = { status: 'succeeded', progress: { done_lines: 2, total_lines: 2 }, script_id: 'sc-1' };
+  const quick = fakeServer({ jobs: [done] });
+  await runImport(importBody(TEXT, {}, 'r'), quick.deps, quick.onProgress);
+  assert.deepEqual(quick.state.progress, []);
+
+  const failed = fakeServer({ jobs: [{ status: 'failed', progress: { done_lines: 0, total_lines: 0 }, failure: 'no_characters' }] });
+  await runImport(importBody(TEXT, {}, 'r'), failed.deps, failed.onProgress);
+  assert.deepEqual(failed.state.progress, []);
+
+  const down = new ApiError(503, 'down');
+  const flaky = fakeServer({ jobs: [down, running(1, 4), down, done] });
+  await runImport(importBody(TEXT, {}, 'r'), flaky.deps, flaky.onProgress);
+  assert.deepEqual(flaky.state.progress, [null, '1/4', '1/4']);
 });
 
 test('reading.script(R2.12): 120초가 지나도 끝나지 않으면 공용 오류로 멈춘다(물음 121번)', async () => {
