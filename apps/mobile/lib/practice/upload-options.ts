@@ -29,7 +29,7 @@ export async function isPurgeAfterAnalysis(practiceId: string): Promise<boolean>
   return Boolean((await read())[practiceId]);
 }
 
-/** 분석이 끝난(노트가 열린) 회차에서 부른다. 지울 영상이 있었고 지웠으면 true. forgetLocalCopy 는 library-runner 의 것을 넘긴다. */
+/** 분석이 끝난(노트가 열린) 회차에서 부른다. 지울 영상이 있었고 지웠으면 true. */
 export async function purgeVideoFileIfDue(
   practiceId: string,
   forgetLocalCopy: (videoId: string) => Promise<void>,
