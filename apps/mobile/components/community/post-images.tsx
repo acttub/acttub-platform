@@ -25,7 +25,7 @@ export function PostImages({ images }: { images: CommunityImage[] }) {
           image={image}
           index={i}
           onPress={() => {
-            void logEvent('community_image_view', { index: i });
+            logEvent('community_image_view', { index: i });
             setViewing(i);
           }}
         />

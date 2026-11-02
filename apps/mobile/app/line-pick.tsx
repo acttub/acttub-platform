@@ -70,7 +70,7 @@ export default function LinePickScreen() {
   const choose = useCallback(
     (challenge: ChallengeCard) => {
       if (!canPerform(challenge)) return;
-      void logEvent('challenge_line_pick', { id: challenge.id });
+      logEvent('challenge_line_pick', { id: challenge.id });
       router.replace({
         pathname: '/challenge-upload',
         params: {

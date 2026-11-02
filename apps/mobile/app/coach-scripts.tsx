@@ -76,7 +76,7 @@ export default function CoachScriptsScreen() {
         t,
       }),
     });
-    void logEvent('coach_my_script_record', { script_id: script.id });
+    logEvent('coach_my_script_record', { script_id: script.id });
     router.push({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   };
 

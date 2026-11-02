@@ -34,7 +34,7 @@ jest.mock('expo-file-system', () => ({
     size = 4096;
   },
 }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   api: {
     importScript: jest.fn(),

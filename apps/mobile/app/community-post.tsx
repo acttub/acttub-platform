@@ -80,7 +80,7 @@ export default function CommunityPostScreen() {
       const [detail, list] = await Promise.all([api.communityPost(id), api.communityComments(id)]);
       if (!opened.current) {
         opened.current = true;
-        void logEvent('community_post_open', { id: detail.id, category: detail.category_slug });
+        logEvent('community_post_open', { id: detail.id, category: detail.category_slug });
       }
       setPost(detail);
       setComments(list.comments);
@@ -141,7 +141,7 @@ export default function CommunityPostScreen() {
       setComments((prev) => [...prev, created]);
       setPost((p) => (p ? { ...p, comment_count: p.comment_count + 1 } : p));
       setDraft('');
-      void logEvent('community_comment_create', { post_id: post.id });
+      logEvent('community_comment_create', { post_id: post.id });
     } catch (e) {
       setSendError(postWriteFailure(e) === 'contact' ? t('communityNew.contactError') : t('communityPost.commentFail'));
     } finally {
@@ -160,7 +160,7 @@ export default function CommunityPostScreen() {
     if (!ok) return;
     try {
       await api.blockCommunityUser(target.authorId);
-      void logEvent('community_block', { target: target.type });
+      logEvent('community_block', { target: target.type });
       // 글쓴이를 차단했으면 이 글을 더 볼 이유가 없다 — 목록으로 돌아간다.
       if (target.type === 'post') router.back();
       else await load();
@@ -179,7 +179,7 @@ export default function CommunityPostScreen() {
         reason,
         ...(detail ? { detail } : {}),
       });
-      void logEvent('community_report', { target: reportTarget.type, reason });
+      logEvent('community_report', { target: reportTarget.type, reason });
       setReportTarget(null);
       await alert({ title: t('communityPost.reportedTitle'), message: t('communityPost.reportedBody') });
     } catch (e) {

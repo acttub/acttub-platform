@@ -62,7 +62,7 @@ export default function FeedbackScreen() {
     setError(null);
     try {
       await api.sendFeedback({ email: feedbackEmail(user?.email), body: body.trim() });
-      void logEvent('feedback_sent');
+      logEvent('feedback_sent');
       setDone(true);
     } catch (err) {
       const status = (err as { status?: number } | null)?.status;

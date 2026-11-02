@@ -47,7 +47,7 @@ stubModules({
   'react-native': `const s = globalThis.__attribution;
     export const Platform = { OS: 'ios' };
     export const AppState = { addEventListener: (name, fn) => { s.appState.push(fn); return { remove() {} }; } };`,
-  '@/lib/analytics': 'export const logEvent = async (name, params) => { globalThis.__attribution.events.push([name, params]); };',
+  '@/lib/analytics': 'export const logEvent = (name, params) => { globalThis.__attribution.events.push([name, params]); };',
   '@/lib/api': `const s = globalThis.__attribution;
     export const ApiError = s.ApiError;
     export const api = {

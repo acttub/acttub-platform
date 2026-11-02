@@ -137,7 +137,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
           }}
           onAdLoaded={() => {
             setNetworkFilled(true);
-            void logEvent('ad_network_loaded', { slot });
+            logEvent('ad_network_loaded', { slot });
           }}
             onAdFailedToLoad={() => setFailed(true)}
           />

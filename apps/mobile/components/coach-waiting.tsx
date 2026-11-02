@@ -163,7 +163,7 @@ export function CoachWaiting({
       });
       // 말로 하는 회차는 분석을 하지 않았으므로 분석·광고 전환으로 집계하지 않는다.
       if (analysis && loaded.video_id) {
-        void logEvent('analysis_complete', { analysis });
+        logEvent('analysis_complete', { analysis });
         logMetaEvent('practice_analysis_complete');
       }
       onReadyRef.current();
@@ -200,7 +200,7 @@ export function CoachWaiting({
       return;
     }
     if (outcome.kind === 'failed') {
-      void logEvent('analysis_failed', { reason: outcome.reason ?? 'unknown' });
+      logEvent('analysis_failed', { reason: outcome.reason ?? 'unknown' });
       setError(analysisFailureMessage(outcome.reason));
       return;
     }
@@ -320,7 +320,7 @@ export function CoachWaiting({
         pendingHandleRef.current = null;
       }
       finishedRef.current = true;
-      void logEvent('analysis_cancelled', {});
+      logEvent('analysis_cancelled', {});
       router.dismissTo('/(tabs)');
     } catch {
       setError(t('analyzing.stopFailed'));

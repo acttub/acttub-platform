@@ -109,6 +109,21 @@ test('PostHog: 끄면 이벤트와 녹화가 멈추고, 다시 켜면 같은 클
   ]);
 });
 
+test('PostHog: SDK 가 던지거나 거절해도 호출자에게 번지지 않는다', async () => {
+  const { bridge, clients } = fakeSdk();
+  bridge.sync(ON);
+  clients[0].capture = () => {
+    throw new Error('storage');
+  };
+  clients[0].screen = async () => {
+    throw new Error('init failed');
+  };
+  assert.doesNotThrow(() => bridge.capture('practice_start'));
+  assert.doesNotThrow(() => bridge.screen('/(tabs)'));
+  // 거절이 빠져나갔으면 node --test 가 이 틱에 unhandledRejection 으로 실패시킨다.
+  await new Promise((resolve) => setImmediate(resolve));
+});
+
 test('PostHog: 켜기 전에 받은 회원 번호로 만들자마자 식별한다', () => {
   const { bridge, clients } = fakeSdk();
   bridge.setUser('member-42');

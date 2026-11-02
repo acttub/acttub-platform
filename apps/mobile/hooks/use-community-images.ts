@@ -42,7 +42,7 @@ export function useCommunityImages() {
           if (alive.current) update((prev) => prev.map((d) => (d.key === key ? { ...d, imageId, status: 'done' } : d)));
         })
         .catch(() => {
-          void logEvent('community_image_upload_fail');
+          logEvent('community_image_upload_fail');
           if (alive.current) update((prev) => prev.map((d) => (d.key === key ? { ...d, status: 'failed' } : d)));
         });
     },
@@ -60,7 +60,7 @@ export function useCommunityImages() {
       picked.current.push(...allowed);
       update((prev) => [...prev, ...fresh]);
       fresh.forEach((d) => upload(d.key, d.uri));
-      void logEvent('community_image_add', { count: fresh.length });
+      logEvent('community_image_add', { count: fresh.length });
       return fresh.length;
     },
     [update, upload],
@@ -69,7 +69,7 @@ export function useCommunityImages() {
   const remove = useCallback(
     (key: string) => {
       update((prev) => prev.filter((d) => d.key !== key));
-      void logEvent('community_image_remove');
+      logEvent('community_image_remove');
     },
     [update],
   );
@@ -78,7 +78,7 @@ export function useCommunityImages() {
     (key: string) => {
       const draft = draftsRef.current.find((d) => d.key === key);
       if (!draft || draft.status !== 'failed') return;
-      void logEvent('community_image_retry');
+      logEvent('community_image_retry');
       upload(key, draft.uri);
     },
     [upload],

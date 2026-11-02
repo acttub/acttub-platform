@@ -25,7 +25,7 @@ jest.mock('expo-speech-recognition', () => ({
 }));
 jest.mock('expo-file-system', () => ({ Paths: { cache: { uri: 'file:///cache/' } } }));
 jest.mock('@/lib/account-files', () => ({ deleteDeviceFile: jest.fn(async () => undefined) }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('expo-audio', () => ({ setAudioModeAsync: jest.fn(async () => undefined) }));
 
 const recognizer = jest.mocked(ExpoSpeechRecognitionModule);

@@ -68,7 +68,7 @@ export default function ChallengeOthersScreen() {
     });
   };
   const open = (entry: EntryCard) => {
-    void logEvent('challenge_others_open', { id: id ?? '', entry: entry.id });
+    logEvent('challenge_others_open', { id: id ?? '', entry: entry.id });
     router.push({ pathname: '/challenge-play', params: { id: id ?? entry.challenge_id, entryId: entry.id } });
   };
 

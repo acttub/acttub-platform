@@ -11,7 +11,7 @@ jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
 }));
 jest.mock('expo-image', () => ({ Image: () => null }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(() => Promise.resolve()) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({ api: { createPractice: jest.fn(), listPracticeGroups: jest.fn() } }));
 jest.mock('@/lib/practice/session-state', () => ({ startPractice: jest.fn() }));
 

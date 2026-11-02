@@ -32,7 +32,7 @@ export default function ReminderOpenScreen() {
     let alive = true;
     const go = (route: string, result: 'opened' | 'home') => {
       if (!alive) return;
-      void logEvent('reminder_target', { reminder_kind: kind || 'unknown', result });
+      logEvent('reminder_target', { reminder_kind: kind || 'unknown', result });
       router.replace(route as Route);
     };
     if (!isReminderOpenKind(kind) || !id) {

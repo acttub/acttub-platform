@@ -12,7 +12,7 @@ jest.mock('expo-router', () => ({
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { email: 'me@acttub.app' } }) }));
 const mockSend = jest.fn();
 jest.mock('@/lib/api', () => ({ api: { sendFeedback: (...args: unknown[]) => mockSend(...args) } }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(() => Promise.resolve()) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 
 beforeEach(() => jest.clearAllMocks());
 

@@ -111,7 +111,7 @@ export default function ChallengeUploadScreen() {
     () => () => {
       const last = exitRef.current;
       if (last.created) return;
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadExit, uploadExitParams({ ...last, now: Date.now() }));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadExit, uploadExitParams({ ...last, now: Date.now() }));
     },
     [],
   );
@@ -131,7 +131,7 @@ export default function ChallengeUploadScreen() {
     setLocalUri(recorded.uri);
     setFromCamera(true);
     if (videoTooLong(recorded.durationMs)) {
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
       return;
     }
@@ -139,13 +139,13 @@ export default function ChallengeUploadScreen() {
       setError(t('challengeUpload.errTooShort'));
       return;
     }
-    void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadStarted, uploadParams('new'));
+    logEvent(CHALLENGE_FUNNEL_EVENTS.uploadStarted, uploadParams('new'));
     void saveRecordingToLibrary({ uri: recorded.uri, durationMs: recorded.durationMs, owner: user.id }).then((outcome) => {
       if (outcome.kind === 'queued') {
         setPendingId(outcome.entry.id);
         return;
       }
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams(outcome.code));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams(outcome.code));
       setError(t('challengeUpload.errTooLong'));
     });
   }, [params.videoId, user?.id]);
@@ -156,7 +156,7 @@ export default function ChallengeUploadScreen() {
     const check = () => {
       const confirmed = confirmedVideoFor(pendingId);
       if (!confirmed) return;
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('new'));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('new'));
       setVideoId(confirmed);
     };
     check();
@@ -165,7 +165,7 @@ export default function ChallengeUploadScreen() {
 
   // 보관함에서 고른 영상은 이미 올라가 있다 — 업로드 단계를 통과한 것으로 센다(SOMA-616).
   useEffect(() => {
-    if (params.videoId) void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('library'));
+    if (params.videoId) logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('library'));
   }, [params.videoId]);
 
   // 보관함에서 고른 영상은 기기 복사본이 있으면 미리보기로 쓴다.
@@ -183,7 +183,7 @@ export default function ChallengeUploadScreen() {
   }, [challengeId]);
 
   const chooseVisibility = (next: EntryVisibility) => {
-    if (next !== visibility) void logEvent(CHALLENGE_FUNNEL_EVENTS.visibilitySelected, visibilityParams(next));
+    if (next !== visibility) logEvent(CHALLENGE_FUNNEL_EVENTS.visibilitySelected, visibilityParams(next));
     setVisibility(next);
   };
 
@@ -204,7 +204,7 @@ export default function ChallengeUploadScreen() {
       if (pendingId && user?.id) await flushLibraryUploads(user.id);
       const confirmed = pendingId ? confirmedVideoFor(pendingId) : null;
       if (!confirmed) {
-        void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('still_uploading'));
+        logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('still_uploading'));
         setError(t('challengeUpload.waitingVideo'));
         return;
       }
@@ -225,7 +225,7 @@ export default function ChallengeUploadScreen() {
       setCreated({ id: entry.id, visibility, faceMosaic: body.face_mosaic === true, first });
     } catch (e) {
       const failure = entryFailure(e);
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
       if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       setError(entryFailureMessage(failure));
     } finally {
@@ -259,7 +259,7 @@ export default function ChallengeUploadScreen() {
       created.faceMosaic ? t('challengeUpload.doneSubMosaic') : '',
     ].filter(Boolean);
     const share = () => {
-      void logEvent('challenge_upload_share', { visibility: created.visibility });
+      logEvent('challenge_upload_share', { visibility: created.visibility });
       void entryShare.openById(created.id);
     };
     // 코칭은 기존 올리기(/upload) 흐름으로 이어진다 — 방금 올린 챌린지 영상을 새 연습의 영상으로 미리 골라 둔다.
