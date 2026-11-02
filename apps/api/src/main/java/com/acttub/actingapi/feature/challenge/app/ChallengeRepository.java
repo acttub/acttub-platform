@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,8 +16,11 @@ public interface ChallengeRepository {
     Card moderate(UUID id, String moderation, Instant now);
     boolean delete(UUID owner, UUID id, Instant now);
     Card find(UUID viewer, UUID id);
-    Listing list(UUID viewer, String tab, String query, Instant now, ChallengeCursor cursor);
+    Listing list(UUID viewer, String tab, String query, Instant now, Position cursor);
 
+    record Draft(String line, String work, String character, String sceneNote, int durationDays) { }
+    /** 대사 목록의 마지막 정렬 값. */
+    record Position(Instant at, UUID id, long likes, long entries) { }
     record Creation(Card card, boolean created) { }
     @Schema(name = "ChallengeList", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

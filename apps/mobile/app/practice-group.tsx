@@ -157,7 +157,7 @@ export default function PracticeGroupScreen() {
   useEffect(() => {
     if (!group) return;
     let alive = true;
-    void Promise.all(group.practices.filter((round) => round.note).map((round) => purgeVideoFileIfDue(round.id)))
+    void Promise.all(group.practices.filter((round) => round.note).map((round) => purgeVideoFileIfDue(round.id, forgetLocalCopy)))
       .then((done) => { if (alive && done.some(Boolean)) void load(); })
       .catch(() => undefined);
     return () => { alive = false; };

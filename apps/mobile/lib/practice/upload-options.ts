@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { api } from '@/lib/api';
-import { forgetLocalCopy } from '@/lib/library/library-runner';
 
 /**
  * 올리기 옵션(P3.26) 중 「분석 끝나면 영상 바로 지우기」를 회차별로 기억한다.
@@ -30,8 +29,11 @@ export async function isPurgeAfterAnalysis(practiceId: string): Promise<boolean>
   return Boolean((await read())[practiceId]);
 }
 
-/** 분석이 끝난(노트가 열린) 회차에서 부른다. 지울 영상이 있었고 지웠으면 true. */
-export async function purgeVideoFileIfDue(practiceId: string): Promise<boolean> {
+/** 분석이 끝난(노트가 열린) 회차에서 부른다. 지울 영상이 있었고 지웠으면 true. forgetLocalCopy 는 library-runner 의 것을 넘긴다. */
+export async function purgeVideoFileIfDue(
+  practiceId: string,
+  forgetLocalCopy: (videoId: string) => Promise<void>,
+): Promise<boolean> {
   const all = await read();
   const videoId = all[practiceId];
   if (!videoId) return false;
