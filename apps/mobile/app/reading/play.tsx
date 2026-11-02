@@ -1852,7 +1852,7 @@ export default function ReadingPlay() {
     if (!completed && !firstStopped) {
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} mascotMotion="none" title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
             <View style={styles.doneBody}>
               <View style={styles.doneHead}>
                 <Text style={styles.doneDesc}>{t('reading.notCountedBody')}</Text>
@@ -1871,7 +1871,7 @@ export default function ReadingPlay() {
       const total = wrapUpProgress(run.lines, run.endIndex).total;
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked}>
             <View style={styles.doneBody}>
               {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
               {links}

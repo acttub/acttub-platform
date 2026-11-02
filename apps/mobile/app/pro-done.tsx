@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { ActyMotion } from '@/components/ui/acty-motion';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -26,7 +26,7 @@ export default function ProDoneScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
       <ScrollView contentContainerStyle={styles.body}>
-        <Image source={MASCOT.jump} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" />
+        <ActyMotion testID="pro-done-mascot" source={MASCOT.jump} size={MASCOT_SIZE.xl} kind="celebrate" />
         <Text style={styles.title} accessibilityRole="header">{t('pro.doneTitle')}</Text>
         <Text style={styles.sub}>{t('pro.doneBody')}</Text>
         {rows.length > 0 && (
