@@ -39,6 +39,7 @@ import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
+import { HomeHeroActy } from '@/components/home-hero-acty';
 import { HomeUploadCard } from '@/components/home-upload-card';
 import { HomePlanBadge } from '@/components/home-plan-badge';
 import { useBillingMe } from '@/hooks/use-billing-me';
@@ -696,7 +697,8 @@ export default function HomeScreen() {
                 <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
                 <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
               </View>
-              <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+              {/* 책은 두고 액티만 폴짝 뛰고 숨 쉰다 — 누르면 다시 뛴다(components/home-hero-acty). */}
+              <HomeHeroActy style={styles.heroActy} height={styles.heroActy.height} />
               {planBadge(styles.heroPlan)}
               {bell}
             </View>

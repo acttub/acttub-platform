@@ -802,7 +802,7 @@ test('목소리가 없고 Wi-Fi 가 아니면 용량을 묻고, 받지 않으면
 
   expect(await screen.findByText('상대역 목소리를 내려받을까요?')).toBeOnTheScreen();
   expect(screen.getByText('Wi-Fi가 아니에요. 약 400.0MB를 한 번 내려받아요. 지금 받지 않으면 상대 대사를 기기 기본 목소리로 읽어요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('기기 목소리로 시작'));
+  await fireEvent.press(screen.getByText('나중에'));
   await begin();
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();

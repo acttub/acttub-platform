@@ -2140,7 +2140,7 @@ const en: DeepStringShape<typeof ko> = {
     ratePh: 'Anything to add? (optional)',
     rateThanks: 'Thanks! We’ll use this for your next reading.',
     // Practice run (R9.4·R9.7·R9.8~R9.20·R9.23·R9.26)
-    deviceVoiceStart: 'Start with device voice',
+    downloadLater: 'Later',
     voiceUnsupportedTitle: 'This device can’t use\nthe app voice',
     voiceUnsupportedBody: 'Partner lines are read with the device’s default voice. From now on it starts right away without asking.',
     continueAnyway: 'Continue',

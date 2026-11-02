@@ -12,6 +12,7 @@ import {
   useSegments,
   type Href,
 } from 'expo-router';
+import * as NavigationBar from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -32,6 +33,7 @@ import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro'
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
+import { keepDarkNavigationButtons } from '@/lib/navigation-bar-buttons';
 import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
@@ -536,6 +538,16 @@ export default function RootLayout() {
   useEffect(() => {
     void initCrashlytics();
   }, []);
+
+  // 안드로이드 하단 ||| ○ < 버튼을 진한 색으로 고정한다(SOMA-929). 다크 모드 폰에서 흰 하단바 위 버튼이 안 보였다.
+  useEffect(
+    () => keepDarkNavigationButtons({
+      platform: Platform.OS,
+      setButtonStyle: NavigationBar.setButtonStyleAsync,
+      appState: AppState,
+    }),
+    [],
+  );
 
   // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
