@@ -171,10 +171,12 @@ function CoachTalk() {
     }, 0);
   }, []);
 
-  // 코칭이 끝나면 배우 일지(SOMA-720)로 간다. 튜토리얼 예시 회차는 서버에 없어 지금처럼 미리 쓴 노트(/report)다.
+  // 코칭이 끝나면 배우 일지 없이 바로 「오늘 코칭 끝」으로 가서 코치가 정한 「다음에 해 볼 것」으로 마무리한다(11/2 우영: 배우 일지 없애기).
+  // 튜토리얼 예시 회차는 서버에 없어 지금처럼 미리 쓴 노트(/report)다. 예전에 쓴 일지는 기록에서 그대로 볼 수 있다.
   const goToNote = useCallback(() => {
-    leaveThen(() => router.replace(sample ? '/report' : '/journal'));
-  }, [leaveThen, router, sample]);
+    const practiceId = practice?.practiceId ?? '';
+    leaveThen(() => router.replace(sample ? '/report' : { pathname: '/coaching-done', params: { practiceId } }));
+  }, [leaveThen, router, sample, practice?.practiceId]);
 
   const applyResult = useCallback(
     (result: CoachTurnResult) => {
@@ -253,7 +255,7 @@ function CoachTalk() {
         if (!mountedRef.current) return;
         attemptRef.current = null;
         setInput('');
-        // 대화가 방금 닫혀도 바로 넘기지 않는다 — 마지막 코치 말을 읽고 「일지 쓰고 마치기」로 직접 넘어간다.
+        // 대화가 방금 닫혀도 바로 넘기지 않는다 — 마지막 코치 말을 읽고 「코칭 마치기」로 직접 넘어간다.
         applyResult(result);
       } catch (e) {
         if (!mountedRef.current) return;
