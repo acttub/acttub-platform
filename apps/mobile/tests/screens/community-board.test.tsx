@@ -83,7 +83,7 @@ test('분류를 고르면 그 분류로 다시 받는다', async () => {
   expect(screen.getByRole('radio', { name: '오디션 정보' })).toBeSelected();
 });
 
-test('글이 없으면 InlineEmpty 와 첫 글 쓰기 버튼을 보인다', async () => {
+test('글이 없으면 액티와 「아직 글이 없어요」, 첫 글 쓰기 버튼을 보인다', async () => {
   communityPosts.mockResolvedValue({ posts: [], next_cursor: null });
   await renderBoard();
   expect(await screen.findByText('아직 글이 없어요')).toBeOnTheScreen();

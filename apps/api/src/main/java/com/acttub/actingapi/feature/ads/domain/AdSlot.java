@@ -30,7 +30,7 @@ public enum AdSlot {
     SCRIPT_PARSE_WAIT("script_parse_wait", AdSize.LARGE_BANNER, Phase.PRACTICE),
     COACHING_DONE("coaching_done", AdSize.LARGE_BANNER, Phase.PRACTICE),
     CHALLENGE_UPLOAD_DONE("challenge_upload_done", AdSize.LARGE_BANNER, Phase.PRACTICE),
-    COMMUNITY_LIST_TOP("community_list_top", AdSize.LARGE_BANNER, Phase.BROWSE),
+    COMMUNITY_LIST_TOP("community_list_top", AdSize.BANNER, Phase.BROWSE),
     COMMUNITY_POST_TOP("community_post_top", AdSize.BANNER, Phase.BROWSE);
 
     public enum Phase { BROWSE, PRACTICE }
