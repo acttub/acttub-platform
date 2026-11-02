@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePreventRemove } from '@react-navigation/native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
 import ReadingNew from '@/app/reading/new';
@@ -184,7 +185,22 @@ test('튜토리얼 예시로 들어오면 예시 대본을 채운 채 연다', a
   expect(screen.getByDisplayValue(SAMPLE_SCRIPT)).toBeOnTheScreen();
 });
 
-test('나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다는 안내를 보이고, 뒤로 가면 리딩 탭 첫 화면으로 간다', async () => {
+test('iOS 는 나누는 중에도 뒤로 가기를 막지 않아 밀어서 나가기가 끊기지 않는다', async () => {
+  jest.mocked(api.getScriptImport)
+    .mockResolvedValueOnce(job({ status: 'running', progress: { done_lines: 3, total_lines: 10 }, script_id: null }))
+    .mockResolvedValue(job());
+  await render(<ReadingNew />);
+  await paste();
+
+  const pressing = fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('배역과 대사를 찾고 있어요')).toBeOnTheScreen();
+  expect(jest.mocked(usePreventRemove).mock.calls.filter(([on]) => on)).toEqual([]);
+  await act(async () => pressing);
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
+});
+
+test('안드로이드는 나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다는 안내를 보이고, 뒤로 가면 리딩 탭 첫 화면으로 간다', async () => {
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
   jest.mocked(api.getScriptImport)
     .mockResolvedValueOnce(job({ status: 'running', progress: { done_lines: 3, total_lines: 10 }, script_id: null }))
     .mockResolvedValue(job());
@@ -202,6 +218,7 @@ test('나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
+  os.restore();
 });
 
 test('접수하면 기기에 기록하고 나누는 중 화면에서 끝을 보면 지운다', async () => {
