@@ -20,6 +20,8 @@ repositories {
 
 // Boot 3.5.16 이 주는 42.7.11 에 CVE-2026-54291(HIGH)이 남아 있어 고친 판으로 올린다. Boot 를 올릴 때 지운다.
 extra["postgresql.version"] = "42.7.14"
+// Boot 3.5.16 이 주는 Tomcat 10.1.55 에 CVE-2026-65182·65637·65905·68525 가 남아 있어 고친 판으로 올린다. Boot 를 올릴 때 지운다.
+extra["tomcat.version"] = "10.1.61"
 
 /*
  * openpnp OpenCV 는 모든 플랫폼의 네이티브(약 110MB)를 한 jar 에 싣는다. 운영 서버는 x86_64 리눅스 하나라
