@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AppState, Linking } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 
 import ReadingPlay from '@/app/reading/play';
 import { hasMicPermission, micPermissionGranted } from '@/hooks/use-reading-mic';
@@ -864,7 +864,8 @@ test('내려받기를 고르면 받는 양과 불러오는 단계를 보이고, 
   expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
 });
 
-test('목소리를 내려받는 중에 뒤로 가면(안드로이드 뒤로 키·밀어서 나가기) 리딩 탭 첫 화면으로 간다', async () => {
+test('목소리를 내려받는 중에 뒤로 가면(안드로이드 뒤로 키) 리딩 탭 첫 화면으로 간다', async () => {
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
   jest.mocked(missingModelBytes).mockReturnValue(400 * 1024 * 1024);
   jest.mocked(currentNetworkType).mockResolvedValue('wifi');
   let report: (p: Parameters<NonNullable<Parameters<typeof tts.ensureReady>[0]>>[0]) => void = () => undefined;
@@ -881,6 +882,7 @@ test('목소리를 내려받는 중에 뒤로 가면(안드로이드 뒤로 키�
   const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
   await act(async () => back({ data: { action: { type: 'GO_BACK' } } }));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  os.restore();
 });
 
 test.each([
@@ -2116,7 +2118,21 @@ test('SOMA-806: 묶인 내 차례는 묶음 줄 전체 글자의 90%를 받아�
   await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
 });
 
-test('뒤로 가기(usePreventRemove)도 확인 없이 저장하고 나간다', async () => {
+test('iOS 는 리딩 중 밀어서 나가기를 막지 않고, 내려갈 때 읽은 데까지 저장한다', async () => {
+  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  const server = await startPlay();
+  await screen.findByText('듣는 중');
+  expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+  server.saveProgress.mockClear();
+
+  await act(async () => mockRemoveListeners.at(-1)!());
+
+  await waitFor(() => expect(server.saveProgress).toHaveBeenCalled());
+  expect(mockRouter.dismissTo).not.toHaveBeenCalled();
+});
+
+test('안드로이드 뒤로 가기(usePreventRemove)도 확인 없이 저장하고 나간다', async () => {
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
   const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
   await startPlay();
   await screen.findByText('듣는 중');
@@ -2124,6 +2140,7 @@ test('뒤로 가기(usePreventRemove)도 확인 없이 저장하고 나간다', 
   await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
   expect(screen.queryByText('리딩을 멈출까요?')).not.toBeOnTheScreen();
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  os.restore();
 });
 
 test('완료 화면은 액티 · 대사 줄 수 줄 아래에 홈으로 가기와 다른 대본으로를 둔다(pen R9.42)', async () => {
