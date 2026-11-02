@@ -34,7 +34,8 @@ import { currentFirstUseOwner, hasGraduatedFirstUse, markFirstUseGraduated } fro
 import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
-import { loadIntoCurrent } from '@/lib/reading/store';
+import { openResume } from '@/lib/reading/resume-open';
+import { resumeSessionOf } from '@/lib/reading/redesign-748';
 import { DEFAULT_SEC_PER_LINE, displayProgress, hasReachedEnd, remainingMinutes, secPerLine } from '@/lib/reading/progress-display';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
@@ -135,7 +136,10 @@ export default function HomeScreen() {
   // 대본 목록·리딩 회차·참여작 중 못 받은 것이 있다 — 그러면 첫 사용자로 보지 않는다(11/2).
   const [recordsFailed, setRecordsFailed] = useState(false);
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
-  const [readingProgress, setReadingProgress] = useState<{ scriptId: string; progress: SessionProgress; perLine: number } | null>(null);
+  const [readingProgress, setReadingProgress] = useState<{ scriptId: string; sessionId: string; progress: SessionProgress; perLine: number } | null>(null);
+  // 홈에 올 때마다 이어 읽기 진행을 새로 받는다 — 리딩을 하고 돌아와도 예전 회차의 줄 수가 남아 있었다(11/2 QA).
+  const [readingTick, setReadingTick] = useState(0);
+  useFocusEffect(useCallback(() => setReadingTick((n) => n + 1), []));
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
@@ -518,12 +522,13 @@ export default function HomeScreen() {
     api
       .listReadingSessions(readingScriptId)
       .then(async ({ sessions }) => {
-        const open = sessions.find((s) => s.status === 'in_progress' && s.progress);
+        // 「이어 읽기」가 여는 회차와 같은 규칙으로 고른다(resumeSessionOf) — 보이는 줄 수와 열리는 회차가 같게.
+        const open = resumeSessionOf(sessions);
         const reached = open?.id ? await hasReachedEnd(open.id) : false;
         if (cancelled) return;
         setReadingProgress(
           open?.progress
-            ? { scriptId: readingScriptId, progress: displayProgress(open.progress, reached), perLine: secPerLine(sessions) }
+            ? { scriptId: readingScriptId, sessionId: open.id, progress: displayProgress(open.progress, reached), perLine: secPerLine(sessions) }
             : null,
         );
       })
@@ -533,7 +538,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [readingScriptId]);
+  }, [readingScriptId, readingTick]);
 
   const openCoaching = (group: PracticeGroup) => {
     const action = continueActionFor(group);
@@ -546,10 +551,18 @@ export default function HomeScreen() {
     router.push('/upload');
   };
 
+  // 홈 「이어 읽기」는 리딩 탭 「이어서 읽기」와 같은 길로 멈춘 회차를 잇는다(SOMA-994). 이을 회차가 없을 때만 대본 상세다.
+  const openingReading = useRef(false);
   const openReading = async (script: ScriptCard) => {
-    const opened = await loadIntoCurrent(script.id);
-    if (opened) router.push('/reading/detail');
-    else router.push('/reading');
+    if (openingReading.current) return;
+    openingReading.current = true;
+    try {
+      // 카드에 보인 그 회차를 연다.
+      const where = await openResume(script.id, readingProgress?.scriptId === script.id ? readingProgress.sessionId : undefined);
+      router.push(where === 'play' ? '/reading/play' : where === 'detail' ? '/reading/detail' : '/reading');
+    } finally {
+      openingReading.current = false;
+    }
   };
 
   const openItem = (item: TodayItem) => {

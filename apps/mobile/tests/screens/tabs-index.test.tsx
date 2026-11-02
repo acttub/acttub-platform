@@ -61,6 +61,7 @@ jest.mock('@/lib/api', () => ({
 jest.mock('@/hooks/use-unread-notifications', () => ({ useUnreadNotifications: () => ({ count: 0, badge: null }) }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 jest.mock('@/lib/reading/store', () => ({ loadIntoCurrent: jest.fn(async () => null) }));
+jest.mock('@/lib/reading/resume-open', () => ({ openResume: jest.fn(async () => 'missing') }));
 jest.mock('@/lib/guide-state', () => ({
   hasSeenSpotlight: jest.fn(),
   hasSeenTutorial: jest.fn(),
@@ -326,6 +327,53 @@ describe('첫 사용자', () => {
     expect(screen.queryByText('이어 읽기')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '리딩 시작하기' }));
     await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading'));
+  });
+
+  test('이어 읽을 회차가 있으면 홈 「이어 읽기」는 리딩 화면으로 바로 잇고, 없으면 대본 상세다 (SOMA-994)', async () => {
+    const openResume = jest.requireMock('@/lib/reading/resume-open').openResume as jest.Mock;
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
+    listReadingScripts.mockResolvedValue({ scripts: [script({ id: 'sc1', title: '갈매기 2막' })] });
+    openResume.mockResolvedValueOnce('play');
+    await render(<HomeScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: '리딩 시작하기' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/play'));
+    // 진행 중 회차가 없으면 회차를 정하지 않고 연다.
+    expect(openResume).toHaveBeenLastCalledWith('sc1', undefined);
+
+    openResume.mockResolvedValueOnce('detail');
+    await fireEvent.press(screen.getByRole('button', { name: '리딩 시작하기' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/detail'));
+  });
+
+  test('홈 「이어 읽기」는 카드에 줄 수를 보인 그 회차를 연다 (11/2 QA)', async () => {
+    const openResume = jest.requireMock('@/lib/reading/resume-open').openResume as jest.Mock;
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
+    listReadingScripts.mockResolvedValue({ scripts: [script({ id: 'sc1', title: '갈매기 2막', status: 'reading', last_practiced_at: isoDaysAgo(1) })] });
+    (api.listReadingSessions as jest.Mock).mockResolvedValue({
+      sessions: [{ id: 's-14', status: 'in_progress', progress: { total: 21, done: 8 } }],
+    });
+    openResume.mockResolvedValueOnce('play');
+    await render(<HomeScreen />);
+    await waitFor(() => expect(api.listReadingSessions).toHaveBeenCalledWith('sc1'));
+    expect(await screen.findByText(/^8\/21줄/)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: /읽기/ }));
+    await waitFor(() => expect(openResume).toHaveBeenLastCalledWith('sc1', 's-14'));
+  });
+
+  test('홈 리딩 카드를 연타해도 한 번만 연다 (SOMA-994)', async () => {
+    const openResume = jest.requireMock('@/lib/reading/resume-open').openResume as jest.Mock;
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    let finish: (v: string) => void = () => undefined;
+    openResume.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await render(<HomeScreen />);
+    const card = await screen.findByRole('button', { name: '리딩 시작하기' });
+    const before = openResume.mock.calls.length;
+    await fireEvent.press(card);
+    await fireEvent.press(card);
+    expect(openResume.mock.calls.length - before).toBe(1);
+    await act(async () => finish('play'));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/play'));
   });
 
   test('묶음을 못 받으면 첫 사용자로 보지 않는다', async () => {
