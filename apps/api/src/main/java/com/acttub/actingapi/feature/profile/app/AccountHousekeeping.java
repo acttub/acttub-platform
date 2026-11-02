@@ -66,6 +66,8 @@ public class AccountHousekeeping {
         // 3년은 달력의 3년이다. 한국 시간의 날짜로 센다(탈퇴 시각의 3년 뒤 같은 시각).
         Instant threeYearsAgo = now.atZone(ProfileService.SEOUL).minusYears(IDENTITY_HASH_YEARS).toInstant();
         step("retention", () -> cleanup.attempt(profiles.purgeRetained(threeYearsAgo, now)));
+        // 지운 연습의 보관 영상은 지운 날부터 3년, 보관 동의를 거절로 바꾸면 다음 정리에서 파기한다(SOMA-985).
+        step("deletedPractices", () -> cleanup.attempt(profiles.purgeDeletedPracticeMedia(threeYearsAgo, now)));
         step("cleanup", cleanup::runDue);
         step("transferCodes", () -> profiles.deleteStaleTransferCodes(now.minus(TRANSFER_CODE_RETENTION)));
         Instant fourteenMonthsAgo = now.atZone(ProfileService.SEOUL).minusMonths(14).toInstant();

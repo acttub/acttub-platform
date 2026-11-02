@@ -97,6 +97,27 @@ export default function HistoryScreen() {
     }
   };
 
+  /** 영구 삭제 — 확인 뒤 목록에서 먼저 빼고, 실패하면(404 제외) 되돌린다. 영상·노트·대화가 모두 지워진다. */
+  const deleteGroup = async (group: PracticeGroup) => {
+    const ok = await confirm({
+      title: t('history.deleteConfirmTitle'),
+      message: t('history.deleteConfirmBody'),
+      confirmLabel: t('history.deleteConfirm'),
+      destructive: true,
+    });
+    if (!ok) return;
+    setGroups((prev) => prev.filter((g) => g.root_id !== group.root_id));
+    try {
+      await api.deletePracticeGroup(group.root_id);
+    } catch (e) {
+      void load();
+      await alert({
+        title: t('history.deleteGroupFailTitle'),
+        message: e instanceof Error ? e.message : t('history.deleteFail'),
+      });
+    }
+  };
+
   const toggleFavorite = async (group: PracticeGroup) => {
     try {
       await api.patchPracticeGroup(group.root_id, { favorite: !group.favorite });
@@ -117,6 +138,7 @@ export default function HistoryScreen() {
           onPress: () => void toggleFavorite(group),
         },
         { label: t('history.menuHide'), onPress: () => void hideGroup(group) },
+        { label: t('history.menuDelete'), destructive: true, onPress: () => void deleteGroup(group) },
       ],
     });
   };

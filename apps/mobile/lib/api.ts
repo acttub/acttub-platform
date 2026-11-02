@@ -1176,6 +1176,19 @@ export const api = {
     return practiceGroupFromResponse(group);
   },
 
+  /**
+   * 묶음 영구 삭제 — 묶음·노트·코치 대화·영상이 모든 목록에서 사라지고 되돌릴 수 없다.
+   * 내 것이 아니거나 이미 지워졌으면 404 practice_not_found 인데, 지우려던 결과와 같으니 성공으로 본다.
+   */
+  async deletePracticeGroup(rootId: string): Promise<void> {
+    try {
+      await request<void>(`/v2/practices/${encodeURIComponent(rootId)}/group`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return;
+      throw e;
+    }
+  },
+
   /** 회차 진행 상태(A10 폴링). 작업 상태와 분석 결과 상태는 다른 것이다. */
   getPracticeStatus(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
     return request<PracticeStatus>(

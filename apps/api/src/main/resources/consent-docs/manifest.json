@@ -9,13 +9,12 @@
     "reconsentFrom": "2026-11-01T00:00:00+09:00"
   },
   {
-    "file": "privacy_v11.md",
+    "file": "privacy_v12.md",
     "type": "privacy",
-    "version": "v11",
+    "version": "v12",
     "locale": "ko",
     "title": "개인정보 수집·이용 동의",
-    "required": true,
-    "reconsentFrom": "2026-11-01T00:00:00+09:00"
+    "required": true
   },
   {
     "file": "ai_analysis_v2.md",
@@ -26,11 +25,11 @@
     "required": true
   },
   {
-    "file": "retention_v1.md",
+    "file": "retention_v2.md",
     "type": "retention",
-    "version": "v1",
+    "version": "v2",
     "locale": "ko",
-    "title": "탈퇴 후 영상·녹음 보관·활용",
+    "title": "영상·녹음 보관·활용",
     "required": false
   },
   {
@@ -83,20 +82,19 @@
     "required": true
   },
   {
-    "file": "privacy_v11_en.md",
+    "file": "privacy_v12_en.md",
     "type": "privacy",
-    "version": "v11",
+    "version": "v12",
     "locale": "en",
     "title": "Consent to Collection and Use of Personal Information",
-    "required": true,
-    "reconsentFrom": "2026-11-01T00:00:00+09:00"
+    "required": true
   },
   {
-    "file": "retention_v1_en.md",
+    "file": "retention_v2_en.md",
     "type": "retention",
-    "version": "v1",
+    "version": "v2",
     "locale": "en",
-    "title": "Retention and Use of Video/Recordings After Withdrawal",
+    "title": "Retention and Use of Video/Recordings",
     "required": false
   },
   {

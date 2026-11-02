@@ -9,3 +9,9 @@ test('줄을 채우는 빈 자리는 바탕색이 없다', () => {
   assert.match(src, /cellEmpty: \{ flex: 1 \},/);
   assert.doesNotMatch(src, /cellEmpty: \{[^}]*backgroundColor/);
 });
+
+test('연습 카드에는 ⋯ 메뉴(전체 보기·숨기기·삭제)가 있고 삭제는 danger 확인을 거친다', () => {
+  assert.match(src, /phLabel="profile_practice_menu"/);
+  assert.match(src, /api\.deletePracticeGroup\(group\.root_id\)/);
+  assert.match(src, /history\.menuDelete'\), destructive: true/);
+});

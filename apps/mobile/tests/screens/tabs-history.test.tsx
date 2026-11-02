@@ -14,10 +14,11 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('expo-image', () => ({ Image: () => null }));
-jest.mock('@/lib/api', () => ({ api: { listPracticeGroups: jest.fn(), patchPracticeGroup: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { listPracticeGroups: jest.fn(), patchPracticeGroup: jest.fn(), deletePracticeGroup: jest.fn() } }));
 
 const listPracticeGroups = api.listPracticeGroups as jest.Mock;
 const patchPracticeGroup = api.patchPracticeGroup as jest.Mock;
+const deletePracticeGroup = api.deletePracticeGroup as jest.Mock;
 
 const year = new Date().getFullYear();
 const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -54,6 +55,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   listPracticeGroups.mockResolvedValue({ groups: [cafe, roof, old, hidden] });
   patchPracticeGroup.mockResolvedValue({});
+  deletePracticeGroup.mockResolvedValue(undefined);
 });
 
 test('묶음을 최근 순으로 월별로 보여 주고 숨긴 묶음은 뺀다', async () => {
@@ -158,7 +160,7 @@ describe('묶음 ⋯ 메뉴', () => {
     await render(<HistoryScreen />);
     await fireEvent(await screen.findByText('카페 이별 장면'), 'longPress');
     const menu = within(screen.getByTestId('anchored-menu'));
-    expect(menu.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['전체 보기', '즐겨찾기에 넣기', '기록에서 숨기기']);
+    expect(menu.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['전체 보기', '즐겨찾기에 넣기', '기록에서 숨기기', '삭제']);
   });
 
   test('전체 보기는 묶음 상세로 간다', async () => {
@@ -196,6 +198,38 @@ describe('묶음 ⋯ 메뉴', () => {
 
     await waitFor(() => expect(screen.queryByText('카페 이별 장면')).not.toBeOnTheScreen());
     expect(patchPracticeGroup).toHaveBeenCalledWith('r-cafe', { hidden: true });
+  });
+
+  test('삭제는 확인을 받은 뒤 묶음을 바로 목록에서 빼고 서버에 지운다', async () => {
+    await openMenu('카페 이별 장면');
+    await fireEvent.press(screen.getByText('삭제'));
+
+    expect(screen.getByText('이 연습을 삭제할까요?')).toBeOnTheScreen();
+    expect(screen.getByText('영상, 노트, 코치 대화가 모두 지워지고 되돌릴 수 없어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '삭제' }));
+
+    await waitFor(() => expect(screen.queryByText('카페 이별 장면')).not.toBeOnTheScreen());
+    expect(deletePracticeGroup).toHaveBeenCalledWith('r-cafe');
+  });
+
+  test('삭제 확인에서 취소하면 지우지 않는다', async () => {
+    await openMenu('카페 이별 장면');
+    await fireEvent.press(screen.getByText('삭제'));
+    await fireEvent.press(screen.getByText('취소'));
+
+    expect(deletePracticeGroup).not.toHaveBeenCalled();
+    expect(screen.getByText('카페 이별 장면')).toBeOnTheScreen();
+  });
+
+  test('삭제가 실패하면 까닭을 알리고 목록을 다시 읽어 되돌린다', async () => {
+    deletePracticeGroup.mockRejectedValue(new Error('서버 오류'));
+    await openMenu('카페 이별 장면');
+    await fireEvent.press(screen.getByText('삭제'));
+    await fireEvent.press(screen.getByRole('button', { name: '삭제' }));
+
+    expect(await screen.findByText('삭제하지 못했어요')).toBeOnTheScreen();
+    expect(screen.getByText('서버 오류')).toBeOnTheScreen();
+    expect(await screen.findByText('카페 이별 장면')).toBeOnTheScreen();
   });
 
   test('숨기기 확인에서 취소하면 숨기지 않는다', async () => {
