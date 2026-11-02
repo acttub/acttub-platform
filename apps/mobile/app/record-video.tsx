@@ -102,7 +102,8 @@ export default function RecordVideoScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [camPerm, requestCam, readCam] = useCameraPermissions();
   const [micPerm, requestMic, readMic] = useMicrophonePermissions();
-  const [facing, setFacing] = useState<'front' | 'back'>('back');
+  // 챌린지는 혼자 자기 얼굴을 찍는 경우가 대부분이라 전면 카메라로 시작한다(11/2 폰 QA). 코칭 촬영은 그대로 후면.
+  const [facing, setFacing] = useState<'front' | 'back'>(isChallenge ? 'front' : 'back');
   const [phase, setPhase] = useState<Phase>('idle');
   const recording = phase === 'recording';
   const [elapsed, setElapsed] = useState(0);

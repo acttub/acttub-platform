@@ -178,12 +178,8 @@ export default function UploadScreen() {
   }, [sample, quickStart, plan.continueFrom]);
   // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
   const reasonBackRef = useRef<UploadStep>('purpose');
-  // 뒤로 가기로 여는 망설임 페이지는 이 화면에서 한 번만 연다 — 매번 끼어들면 나가려는 사람이 뒤로를 세 번 눌러야 했다(10/26).
-  const reasonAskedOnBack = useRef(false);
-  const showReason = () => { reasonAskedOnBack.current = true; reasonBackRef.current = quickStart ? 'source' : 'purpose'; setReasonSheet(true); };
   const backStep = previousUploadStep(step, { quickStart });
-  // 목적 단계가 없는 첫 코칭도 영상 없이 뒤로 가면 망설임 페이지를 한 번 연다 — 그다음 뒤로는 화면을 닫는다.
-  const reasonOnLeave = quickStart && step === 'source' && !picked && !reasonAskedOnBack.current;
+  // 나가려는 사람에게 「영상 올리기가 망설여지나요?」를 묻지 않는다(11/2 폰 QA) — 망설임 페이지는 영상 단계의 링크로만 연다.
   const showReasonFromLink = () => { reasonBackRef.current = 'source'; setReasonSheet(true); };
   const closeReason = () => { setReasonSheet(false); setStep(reasonBackRef.current); };
   const reasonRoute = (go: () => void) => {
@@ -196,7 +192,7 @@ export default function UploadScreen() {
     if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
     reasonRoute(() => router.dismissTo('/(tabs)'));
   };
-  usePreventRemove(!leaving && (waitPanel || optionsOpen || reasonSheet || backStep !== null || reasonOnLeave), () => {
+  usePreventRemove(!leaving && (waitPanel || optionsOpen || reasonSheet || backStep !== null), () => {
     if (waitPanel) {
       leaveWaiting();
       return;
@@ -210,12 +206,7 @@ export default function UploadScreen() {
       closeReason();
       return;
     }
-    if (reasonOnLeave) {
-      showReason();
-      return;
-    }
-    if (backStep && !sample && !picked && !reasonAskedOnBack.current) showReason();
-    else if (backStep) setStep(backStep);
+    if (backStep) setStep(backStep);
   });
   const leaveThen = (go: () => void) => {
     setLeaving(true);
@@ -415,7 +406,7 @@ export default function UploadScreen() {
   const pickFromGallery = async () => {
     if (!user?.id) return;
     const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
-    if (result.canceled || !result.assets[0]) { if (!picked) showReason(); return; }
+    if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     const durationMs = normalizeVideoDurationMs(asset.duration ?? null);
     const outcome = await saveRecordingToLibrary({ uri: asset.uri, durationMs, owner: user.id });

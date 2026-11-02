@@ -197,5 +197,5 @@ test('아는 분류는 앱 언어 이름, 모르는 분류는 서버 이름', as
   assert.equal(categoryLabel(null, null), '');
   assert.deepEqual(categoryChips([{ slug: 'free', name: 'x' }]).map((c) => c.name), ['전체', '자유']);
   // 분류 목록을 못 받았을 때도 칩이 「전체」 하나만 남지 않는다.
-  assert.deepEqual(fallbackCategories().map((c) => c.slug), ['question', 'audition', 'partner', 'free']);
+  assert.deepEqual(fallbackCategories().map((c) => c.slug), ['free', 'question', 'promo']);
 });

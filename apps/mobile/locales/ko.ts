@@ -210,6 +210,10 @@ const ko = {
     linkTalk: '영상 없이 말로',
     linkScript: '대사부터 같이 만들기',
     otherWays: '다른 방법으로 코칭 받기',
+    otherWaysTile: '다른 방법으로\n코칭 받기',
+    otherWaysSub: '말로 · 내 대본 · 대사 만들기',
+    historyLink: '상세보기',
+    historyLinkA11y: '지난 코칭 다시 보기',
     firstTitle: '코칭이 처음이죠?',
     firstBody: '영상을 보여 주면 코치가 질문하며\n고칠 점 하나를 같이 찾아요.',
     exampleLabel: '코칭은 이렇게 해요',
@@ -2356,7 +2360,7 @@ const ko = {
     write: '글쓰기',
     all: '전체',
     actorFallback: '배우',
-    category: { question: '질문', audition: '오디션 정보', partner: '상대역 구함', free: '자유' },
+    category: { free: '자유', question: '질문', promo: '홍보', audition: '오디션 정보', partner: '상대역 구함' },
     noticeBadge: '공지',
     rulesTitle: '게시판 이용 규칙',
     rulesBody:
@@ -2405,7 +2409,6 @@ const ko = {
   communityNew: {
     title: '글쓰기',
     editTitle: '글 수정',
-    categoryLabel: '어떤 글인가요?',
     categoryFail: '분류를 불러오지 못했어요',
     loadFail: '글을 불러오지 못했어요',
     titleLabel: '제목',

@@ -53,7 +53,8 @@ export default function CommunityNewScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [categories, setCategories] = useState<CommunityCategory[] | null>(null);
   const [categoriesFailed, setCategoriesFailed] = useState(false);
-  const [category, setCategory] = useState<string | null>(initialCategory || null);
+  // 글쓰기는 「자유」가 골라진 채로 연다(11/2 폰 QA). 고치는 글은 불러온 글의 분류로 바뀐다.
+  const [category, setCategory] = useState<string | null>(initialCategory || (id ? null : 'free'));
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [loadingPost, setLoadingPost] = useState(editing);
@@ -188,12 +189,11 @@ export default function CommunityNewScreen() {
       <KeyboardLift aboveSafeBottom>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {postFailed ? <InlineError message={t('communityNew.loadFail')} onRetry={() => void loadPost()} /> : null}
-          <Text style={styles.label}>{t('communityNew.categoryLabel')}</Text>
           {categoriesFailed ? (
             <InlineError message={t('communityNew.categoryFail')} onRetry={() => void loadCategories()} />
           ) : categories === null ? (
             <SkeletonGroup style={styles.chips}>
-              {[56, 92, 92, 56].map((w, i) => (
+              {[56, 56, 56].map((w, i) => (
                 <SkeletonBlock key={i} width={w} height={40} radius={radius.full} />
               ))}
             </SkeletonGroup>

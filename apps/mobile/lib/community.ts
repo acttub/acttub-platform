@@ -139,7 +139,9 @@ export function metaLine(item: Authored & { created_at: string }, now?: Date): s
 }
 
 /** 앱이 아는 분류(V86). 이 분류는 서버 이름(한국어) 대신 앱 언어의 이름을 쓴다(11/2 폰 QA, 영어 앱에 한국어 칩). */
-const KNOWN_CATEGORY_SLUGS = ['question', 'audition', 'partner', 'free'] as const;
+// 글쓰기·칩에 쓰는 분류는 자유·질문·홍보 셋이다(V88, 11/2). 오디션 정보·상대역 구함은 꺼졌지만 이름표는 남긴다.
+const KNOWN_CATEGORY_SLUGS = ['free', 'question', 'promo', 'audition', 'partner'] as const;
+const ACTIVE_CATEGORY_SLUGS = ['free', 'question', 'promo'] as const;
 type KnownCategorySlug = (typeof KNOWN_CATEGORY_SLUGS)[number];
 
 function isKnownCategory(slug: string): slug is KnownCategorySlug {
@@ -154,7 +156,7 @@ export function categoryLabel(slug: string | null | undefined, serverName: strin
 
 /** 분류 목록을 못 받았을 때(오프라인) 쓰는 기본 분류. 칩이 「전체」 하나만 남지 않게 한다(11/2 폰 QA). */
 export function fallbackCategories(): CommunityCategory[] {
-  return KNOWN_CATEGORY_SLUGS.map((slug) => ({ slug, name: categoryLabel(slug, slug) }));
+  return ACTIVE_CATEGORY_SLUGS.map((slug) => ({ slug, name: categoryLabel(slug, slug) }));
 }
 
 /** 분류 칩 — 맨 앞에 「전체」(빈 slug). 서버가 준 분류 순서대로, 이름은 categoryLabel 로 그린다. */

@@ -49,6 +49,9 @@ import { lineGroups } from '@/lib/reading/line-groups';
 import { beatMs, directionsBefore } from '@/lib/reading/direction-beat';
 import { directionLabel, readDialogueCount, readMyDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, readingStopCounted, sessionHasRecognized } from '@/lib/practice/counted';
+import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
+import { buildRecentActivity } from '@/lib/practice-activity';
+import { celebrationDots, readLastSeenStreak, readLastSeenStreakDay, writeLastSeenStreak, type CelebrationDot } from '@/lib/streak-celebration';
 import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import { isFirstReadingSession, markReadingFinished } from '@/lib/reading/first-reading';
 import {
@@ -291,6 +294,8 @@ export default function ReadingPlay() {
   const [notice, setNotice] = useState<Notice>(null);
   /** 무료 배우의 두 번째 리딩부터 「Pro는 계속 이 목소리로」 한 줄을 보인다(SOMA-917). */
   const [proVoiceHint, setProVoiceHint] = useState(false);
+  /** 첫 리딩을 마치고 홈으로 가기 전에 띄우는 불꽃 축하(11/2 폰 QA: 끝 → 불꽃 → 기존 홈 순서). */
+  const [firstFlame, setFirstFlame] = useState<CelebrationDot[] | null>(null);
   const proVoiceHintLogged = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [sttMode, setSttMode] = useState<SttPolicy | null>(null);
@@ -1892,9 +1897,19 @@ export default function ReadingPlay() {
     }
     if (firstRunRef.current || fromTutorialRef.current || firstReading) {
       const total = wrapUpProgress(run.lines, run.endIndex).total;
+      // 첫 연습으로 센 회차(끝까지 갔거나 멈췄어도 내 대사를 읽은 회차)면 첫 사용자를 벗어난 것이다. 홈에 가기 전에 여기서
+      // 불꽃을 먼저 보여 준다 — 전에는 끝 → 첫 사용자 홈 → 기존 홈 → 불꽃 순서로 바뀌어 어색했다(11/2 폰 QA).
+      // 이미 불꽃을 본 계정(마지막으로 본 연속일이 있음)은 홈이 규칙대로 축하한다.
+      const homeAfterFirst = async () => {
+        if (!completed) return goHome();
+        void markFirstUseGraduated();
+        const [seen, seenDay] = await Promise.all([readLastSeenStreak(), readLastSeenStreakDay()]);
+        if (seen >= 1 && seenDay !== null) return goHome();
+        setFirstFlame(celebrationDots(buildRecentActivity([{ created_at: new Date().toISOString() }]).days));
+      };
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={() => void homeAfterFirst()} homeDisabled={doneLocked}>
             <View style={styles.doneBody}>
               {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
               {links}
@@ -1902,6 +1917,17 @@ export default function ReadingPlay() {
             </View>
           </DoneScreen>
           {dialog}
+          {firstFlame && (
+            <StreakCelebrationScreen
+              streak={1}
+              dots={firstFlame}
+              onDone={() => {
+                void writeLastSeenStreak(1);
+                setFirstFlame(null);
+                goHome();
+              }}
+            />
+          )}
         </>
       );
     }

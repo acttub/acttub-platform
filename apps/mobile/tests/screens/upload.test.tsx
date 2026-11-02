@@ -201,15 +201,14 @@ describe('영상을 고르기 전', () => {
     expect(screen.queryByText('맨 아래 체크를 누른 뒤 「질문 받기」를 누르세요.')).not.toBeOnTheScreen();
   });
 
-  test('영상 없이 뒤로 가면 이유를 묻고 건너뛰면 목적 단계로 돌아간다', async () => {
+  test('영상 없이 뒤로 가면 이유를 묻지 않고 목적 단계로 돌아간다(11/2)', async () => {
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     await render(<UploadScreen />);
     expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
     await toSourceStep();
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
-    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
     expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
   });
 
@@ -245,16 +244,12 @@ describe('첫 코칭(코칭 탭 「처음」에서 옴, SOMA-984)', () => {
     expect(body).toMatchObject({ video_id: 'v1', blockage: { category: '그 외', detail: '그 외', note: null } });
   });
 
-  test('영상 없이 뒤로 가면 망설임 페이지를 한 번 열고, 닫으면 영상 고르기에 머물며 다음 뒤로는 화면을 닫는다', async () => {
+  test('영상 없이 뒤로 가면 망설임 페이지를 묻지 않고 화면을 닫게 둔다(11/2)', async () => {
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     mockParams = { first: '1' };
     await render(<UploadScreen />);
-    expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
-    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
-    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
     expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
   });
 
   test('한 번 동의하고 시작하면 다음 새 연습은 권리 체크가 켜진 채로 열린다', async () => {
@@ -738,26 +733,21 @@ test('보관함 변경 구독은 화면을 떠나면 푼다', async () => {
 });
 
 describe('영상 업로드를 망설일 때', () => {
+  // 11/2 폰 QA — 나가려는 사람에게 묻지 않는다. 망설임 페이지는 영상 단계의 링크로만 연다.
   async function openReasons() {
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await fireEvent.press(screen.getByRole('link', { name: '영상 올리기가 망설여지나요?' }));
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
+  }
+
+  test('영상 단계에서 뒤로 가면 망설임 페이지 없이 바로 목적 단계로 간다(11/2)', async () => {
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     await render(<UploadScreen />);
     await toSourceStep();
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
-  }
-
-  test('뒤로 가기로 여는 망설임 페이지는 한 번만 — 다시 뒤로 가면 바로 목적 단계로 간다(10/26)', async () => {
-    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
-    await openReasons();
-    // 망설임 페이지에서 뒤로 → 목적 단계
-    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
     expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(screen.getByText('하나 고르고 「질문 받기」를 누르세요.')).toBeOnTheScreen();
-    // 영상 단계에서 다시 뒤로 → 망설임 페이지 없이 목적 단계
-    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
-    expect(screen.queryByText('하나 고르고 「질문 받기」를 누르세요.')).not.toBeOnTheScreen();
+    expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
   });
 
   test('얼굴·영상 걱정 → 다음 → 올리기 옵션 → 이대로 올리기로 영상 단계에 돌아온다', async () => {

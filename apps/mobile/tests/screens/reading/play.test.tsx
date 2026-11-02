@@ -2170,7 +2170,11 @@ test('첫 리딩이면 같은 완료 화면에 칭찬 제목과 「다시 읽기
   expect(screen.getByText('다른 대본으로')).toBeOnTheScreen();
   expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
   // 탭 묶음을 하나 더 쌓지 않고 이미 있는 홈 탭까지 내려간다(SOMA-853).
+  // 처음 끝까지 읽었으면 홈에 가기 전에 불꽃을 먼저 띄우고(11/2 폰 QA), 닫으면 이미 있는 홈 탭까지 내려간다(SOMA-853).
   await pressWhenReady('홈으로 가기');
+  expect(await screen.findByText('계속하기')).toBeOnTheScreen();
+  expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/(tabs)');
+  await fireEvent.press(screen.getByText('계속하기'));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
 });
