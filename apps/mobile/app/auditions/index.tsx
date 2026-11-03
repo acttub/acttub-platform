@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     overflow: 'hidden',
   },
-  tagNew: { backgroundColor: palette.blue, color: palette.onAccent },
+  tagNew: { backgroundColor: palette.blueSoft, color: palette.blueDeep },
   tagCategory: { backgroundColor: palette.bgSoft, color: palette.textSub },
   source: { flexShrink: 1, ...type.micro, color: palette.textMeta },
   title: { ...type.body2Bold, color: palette.text },
