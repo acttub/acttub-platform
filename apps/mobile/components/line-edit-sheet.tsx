@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
-import { radius, type } from '@/constants/tokens';
+import { radius, space, type } from '@/constants/tokens';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { InlineErrorLine } from '@/components/ui/inline-error';
+import { TextField } from '@/components/ui/text-field';
 import { LinePage } from '@/components/line-page';
 import { translate as t } from '@/lib/i18n';
 import { canSaveLineDraft, lineDraftValid, linePatch, type LineDraft } from '@/lib/reading/line-edit';
@@ -43,8 +43,6 @@ export function LineEditSheet({
   const [base, setBase] = useState<LineDraft | null>(original);
   const [draft, setDraft] = useState<LineDraft | null>(original);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const renameInput = useReadableInput(setRenaming as (text: string) => void, 'loose');
-  const textInput = useReadableInput((text) => setDraft((was) => (was ? { ...was, text } : was)), 'loose');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -158,31 +156,29 @@ export function LineEditSheet({
                   <Text style={styles.renameLinkText}>{t('reading.lineEditRename', { name: selected.name })}</Text>
                 </Pressable>
               ) : (
-                <TextInput
-                  style={styles.input}
+                <TextField
+                  charset="loose"
                   value={renaming}
-                  onChangeText={renameInput.onChangeText}
+                  onChangeText={setRenaming}
                   autoFocus
                   maxLength={40}
                   placeholder={selected.name}
-                  placeholderTextColor={palette.textMeta}
                   accessibilityLabel={t('reading.lineEditRename', { name: selected.name })}
                 />
               ))}
           </>
         )}
 
-        <Text style={styles.label}>{t('reading.lineEditText')}</Text>
-        <TextInput
-          style={[styles.input, styles.textInput]}
+        <TextField
+          charset="loose"
+          label={t('reading.lineEditText')}
+          style={styles.textInput}
           value={draft.text}
-          onChangeText={textInput.onChangeText}
+          onChangeText={(text) => setDraft((was) => (was ? { ...was, text } : was))}
           multiline
           maxLength={5000}
           textAlignVertical="top"
-          accessibilityLabel={t('reading.lineEditText')}
         />
-        {(renameInput.hint || textInput.hint) && <InlineErrorLine message={renameInput.hint || textInput.hint || ''} />}
         {failed && <InlineErrorLine message={t('reading.lineEditFailed')} />}
       </ScrollView>
     </LinePage>
@@ -198,7 +194,7 @@ const styles = StyleSheet.create({
   kindOn: { backgroundColor: palette.bg },
   kindText: { ...type.body2Bold, color: palette.textMeta },
   kindTextOn: { color: palette.text },
-  label: { ...type.captionBold, color: palette.textSub, marginTop: 6 },
+  label: { ...type.body2Bold, color: palette.textSub, marginTop: 6 },
   roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   role: { maxWidth: '100%', borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.bg },
   roleOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
@@ -206,16 +202,6 @@ const styles = StyleSheet.create({
   roleTextOn: { color: palette.blueDeep },
   renameLink: { alignSelf: 'flex-start' },
   renameLinkText: { ...type.caption, color: palette.textMeta, textDecorationLine: 'underline' },
-  input: {
-    backgroundColor: palette.bgSubtle,
-    borderColor: palette.border,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: palette.text,
-    ...type.body1,
-  },
-  textInput: { minHeight: 96, maxHeight: 180, lineHeight: 22 },
+  textInput: { minHeight: 96, maxHeight: 180, paddingTop: space[3], paddingBottom: space[3] },
   button: { flex: 1 },
 });
