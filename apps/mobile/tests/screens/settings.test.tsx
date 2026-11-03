@@ -428,6 +428,28 @@ describe('설정', () => {
     });
   });
 
+  describe('인스타 DM 문의', () => {
+    test('누르면 @acttub_com DM 창을 연다. 오픈채팅은 링크가 없어 줄이 없다', async () => {
+      const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+      await settingsLoaded();
+      expect(screen.queryByText('카카오톡 오픈채팅으로 문의')).not.toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: '인스타그램 DM으로 문의' }));
+
+      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://ig.me/m/acttub_com'));
+    });
+
+    test('열지 못하면 인스타 계정 주소를 알려 준다', async () => {
+      jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no app'));
+      await settingsLoaded();
+
+      await fireEvent.press(screen.getByRole('button', { name: '인스타그램 DM으로 문의' }));
+
+      expect(await screen.findByText('열지 못했어요')).toBeOnTheScreen();
+      expect(screen.getByText('https://www.instagram.com/acttub_com/')).toBeOnTheScreen();
+    });
+  });
+
   describe('로그아웃', () => {
     test('확인하면 로그아웃한다', async () => {
       await settingsLoaded();
