@@ -148,10 +148,11 @@ export default function ReadingDetail() {
         ) : sessions.length === 0 ? (
           <InlineEmpty title={t('reading.noSessions')} description={t('reading.noSessionsHint')} />
         ) : (
-          sessions.map((card) => (
+          sessions.map((card, i) => (
             <SessionRow
               key={card.id}
               card={card}
+              last={i === sessions.length - 1}
               onOpen={() => router.push({ pathname: '/reading/session', params: { id: card.id } })}
               onDelete={() => void removeSession(card)}
             />
@@ -178,7 +179,7 @@ export default function ReadingDetail() {
   );
 }
 
-function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () => void; onDelete: () => void }) {
+function SessionRow({ card, last, onOpen, onDelete }: { card: SessionCard; last: boolean; onOpen: () => void; onDelete: () => void }) {
   const swipe = useRef<SwipeableMethods | null>(null);
   const chip = sessionChip(card.status, card.progress);
   const tone = CHIP_TONE[chip.tone];
@@ -201,7 +202,7 @@ function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () 
         </Pressable>
       )}
     >
-      <Pressable style={styles.row} onPress={onOpen}>
+      <Pressable style={[styles.row, !last && styles.rowDivider]} onPress={onOpen}>
         <View style={styles.rowLeft}>
           <Text style={styles.rowOrdinal}>{t('reading.sessionOrdinal', { n: card.ordinal })}</Text>
           <Text style={styles.rowSub}>{relativeDay(card.started_at, Date.now())}</Text>
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
   meta: { ...type.caption, color: palette.textMeta },
   viewScript: { flexDirection: 'row', alignItems: 'center', gap: space[1], alignSelf: 'flex-start', paddingTop: space[1] },
   viewScriptText: { ...type.captionBold, color: palette.blueDeep },
-  sectionTitle: { ...type.headline, color: palette.text, paddingTop: space[4], paddingBottom: space[2], borderTopColor: palette.border, borderTopWidth: 1 },
+  sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[2] },
   row: {
     minHeight: 56,
     flexDirection: 'row',
@@ -237,9 +238,8 @@ const styles = StyleSheet.create({
     gap: space[3],
     paddingVertical: space[3],
     backgroundColor: palette.bg,
-    borderBottomColor: palette.border,
-    borderBottomWidth: 1,
   },
+  rowDivider: { borderBottomColor: palette.border, borderBottomWidth: 1 },
   rowLeft: { width: 56, gap: space[1] },
   rowOrdinal: { ...type.body2Bold, color: palette.text },
   rowBody: { flex: 1, gap: space[1] },

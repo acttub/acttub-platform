@@ -217,7 +217,7 @@ export default function ReadingSession() {
     );
   };
 
-  const scriptRow = (row: SessionLine) => {
+  const scriptRow = (row: SessionLine, i: number) => {
     if (row.type !== 'dialogue') {
       return (
         <Text key={row.lineId} style={row.type === 'scene' ? styles.scene : styles.direction}>
@@ -226,7 +226,7 @@ export default function ReadingSession() {
       );
     }
     return (
-      <View key={row.lineId} style={styles.line}>
+      <View key={row.lineId} style={[styles.line, i < rows.length - 1 && styles.lineDivider]}>
         <View style={styles.lineBody}>
           <View style={styles.roleRow}>
             <Text style={[styles.role, row.mine && styles.roleMine]}>{row.role}</Text>
@@ -243,14 +243,14 @@ export default function ReadingSession() {
     );
   };
 
-  const recordingRow = (row: SessionLine) => {
+  const recordingRow = (row: SessionLine, i: number) => {
     const rec = row.recording as SessionRecording;
     const playing = playingId === rec.id;
     const label = [row.dialogueNo !== null ? t('reading.lineNo', { n: row.dialogueNo }) : null, shortTime(rec.duration_ms / 1000), playing ? t('reading.nowPlaying') : null]
       .filter(Boolean)
       .join(' · ');
     return (
-      <View key={row.lineId} style={styles.line}>
+      <View key={row.lineId} style={[styles.line, i < recorded.length - 1 && styles.lineDivider]}>
         {playButton(rec)}
         <View style={styles.lineBody}>
           <Text style={[styles.recLabel, playing && styles.recLabelOn]}>{label}</Text>
@@ -346,7 +346,8 @@ const styles = StyleSheet.create({
   chipText: type.micro,
   listenAll: { marginTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[3] },
-  line: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
+  lineDivider: { borderBottomColor: palette.border, borderBottomWidth: 1 },
   lineBody: { flex: 1, gap: space[1] },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   role: { ...type.captionBold, color: palette.textMeta },

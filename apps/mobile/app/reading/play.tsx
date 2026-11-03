@@ -2014,7 +2014,7 @@ export default function ReadingPlay() {
                     r.status === 'missed' ? (
                       <Pressable
                         key={r.lineId}
-                        style={styles.monoRow}
+                        style={[styles.monoRow, k < total - 1 && styles.monoDivider]}
                         onPress={() => void readAgain(r.lineId)}
                         disabled={busy}
                         accessibilityRole="button"
@@ -2023,7 +2023,7 @@ export default function ReadingPlay() {
                         <Text style={styles.monoTagMissed}>{`${statusLabel.missed} · ${t('reading.monologueRetryFrom')}`}</Text>
                       </Pressable>
                     ) : (
-                      <View key={r.lineId} style={styles.monoRow}>
+                      <View key={r.lineId} style={[styles.monoRow, k < total - 1 && styles.monoDivider]}>
                         <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
                         <Text style={styles.monoTag}>{statusLabel[r.status]}</Text>
                       </View>
@@ -2537,7 +2537,8 @@ const styles = StyleSheet.create({
   diffTitle: { ...type.body2Bold, color: palette.text },
   diffCount: { ...type.micro, color: palette.amber, backgroundColor: palette.amberSoft, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2, overflow: 'hidden' },
   diffRow: { gap: space[1], alignItems: 'flex-start' },
-  monoRow: { gap: space[1], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
+  monoRow: { gap: space[1], paddingVertical: space[3] },
+  monoDivider: { borderBottomColor: palette.border, borderBottomWidth: 1 },
   monoRowText: { ...type.body2Bold, color: palette.text },
   monoTag: { ...type.caption, color: palette.textMeta },
   monoTagMissed: { ...type.captionBold, color: palette.amber },
