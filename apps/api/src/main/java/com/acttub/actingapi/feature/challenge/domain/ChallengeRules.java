@@ -47,7 +47,19 @@ public final class ChallengeRules {
     }
 
     public static String trim(String value) {
-        return value == null ? "" : value.replaceAll("(?U)^[\\s\\uFEFF]+|[\\s\\uFEFF]+$", "");
+        if (value == null) {
+            return "";
+        }
+        int start = 0;
+        int end = value.length();
+        while (start < end && blank(value.charAt(start))) start++;
+        while (end > start && blank(value.charAt(end - 1))) end--;
+        return value.substring(start, end);
+    }
+
+    /** {@code (?U)\s} 와 U+FEFF. {@link String#strip} 과 달리 U+0085·U+00A0 은 떼고 U+001C~U+001F 는 떼지 않는다. */
+    private static boolean blank(char c) {
+        return Character.isSpaceChar(c) || c >= '\t' && c <= '\r' || c == '\u0085' || c == '\uFEFF';
     }
 
     public static boolean length(String value, int minimum, int maximum) {

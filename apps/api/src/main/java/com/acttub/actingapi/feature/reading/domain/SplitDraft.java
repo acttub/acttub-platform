@@ -614,6 +614,10 @@ public final class SplitDraft {
     }
 
     static String nameOf(String header) {
+        // 원문 줄도 그대로 들어온다 — 이만큼 긴 글은 이름이 아니다
+        if (header.length() > SplitResponse.CELL_MAX) {
+            return "";
+        }
         String name = ScriptText.visible(header).strip().replaceAll("[\\s:：.,，、\\-—]+$", "");
         if (name.length() > 1 && (name.startsWith("[") && name.endsWith("]") || name.startsWith("(") && name.endsWith(")"))) {
             name = name.substring(1, name.length() - 1).strip();

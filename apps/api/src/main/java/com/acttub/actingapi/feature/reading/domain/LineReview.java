@@ -254,8 +254,8 @@ public final class LineReview {
             Row next = at + 1 < lines.size() ? rows.get(lines.get(at + 1).no()) : null;
             String visible = ScriptText.visible(line.text()).strip();
             // 첫 답이 지문으로 둔 꾸민 끝 표시도 끝 표시 후보다 — 첫 답이 무시로 두면 장면, 지문으로 두면 지문이 됐다(재생 022·053 「- 막 -」, SOMA-663 M8)
-            boolean tail = (excluded || kind == Kind.DIRECTION && END_MARK.matcher(visible).matches() && LETTER.matcher(visible).find())
-                    && last >= 0 && at > last && at >= lines.size() - EDGE && visible.codePointCount(0, visible.length()) <= TAIL_CHARS;
+            boolean tail = last >= 0 && at > last && at >= lines.size() - EDGE && visible.codePointCount(0, visible.length()) <= TAIL_CHARS
+                    && (excluded || kind == Kind.DIRECTION && END_MARK.matcher(visible).matches() && LETTER.matcher(visible).find());
             // 첫 대사 앞 문서 머리의 등장인물 줄도 묻는다 — 상황 설명을 등장인물 줄로 뺄 수 있다(재생 220). 제목 줄은 묻지 않는다 — 작품 제목·기획의도가
             // 지문으로 되살아났다(재생 034·052·203)
             boolean front = kind == Kind.CAST && at < first && at < EDGE;
