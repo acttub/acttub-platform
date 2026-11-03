@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.CreateRequ
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.GroupListResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.GroupPatchRequest;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.GroupResponse;
+import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.PracticeDaysResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.PracticeResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.SceneInput;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeDtos.StatusResponse;
@@ -28,6 +29,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -194,6 +196,25 @@ class PracticeController {
     }
 
     @Operation(
+            summary = "List Practice Days",
+            description = """
+                    연습한 날짜(한국 시간 YYYY-MM-DD, 오래된 순). 노트가 생긴 코칭 회차·끝까지 읽은 리딩 회차·올린 참여작을 \
+                    센다. 숨긴 기록도 센다. 홈의 연속일·주간 원·누적 연습일이 쓴다(SOMA-1003).""",
+            operationId = "list_practice_days_v2_practices_days_get",
+            tags = "v2-practices",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = PracticeDaysResponse.class)))
+    @GetMapping("/days")
+    PracticeDaysResponse days(HttpServletRequest request) {
+        return new PracticeDaysResponse(practices.practiceDays(auth.gatedUser(request).id()).stream()
+                .map(java.time.LocalDate::toString)
+                .toList());
+    }
+
+    @Operation(
             summary = "Get Practice",
             description = "회차 하나 — 장면·막힘과 분석·대화·노트의 현재 상태. 없는 것과 남의 것은 같은 404 practice_not_found.",
             operationId = "get_practice_v2_practices__practice_id__get",
@@ -263,6 +284,25 @@ class PracticeController {
             HttpServletRequest request) {
         return GroupResponse.of(practices.updateGroup(
                 auth.gatedUser(request).id(), rootId, body.favorite(), body.hidden(), body.title()));
+    }
+
+    @Operation(
+            summary = "Delete Practice Group",
+            description = """
+                    연습 삭제(SOMA-985) — 묶음 전체를 배우에게서 지운다. 되돌릴 수 없고 숨김과 다르다. 회차·노트·대화는 사람과
+                    끊어 남기고, 배우가 쓴 일지·노트 평가의 한 줄은 지우며, 그 묶음에서 나온 기억을 지운다. 다른 묶음·챌린지
+                    참여작이 쓰지 않는 영상은 보관함에서 빠지고, 「영상·녹음 보관·활용」 현재 판에 동의했으면 지운 날부터 3년 남고
+                    아니면 파일을 파기한다. 지운 회차도 그날 쓴 무료 코칭 횟수에 든다. 없거나 남의 것이거나 이미 지웠으면 404
+                    practice_not_found, 게스트는 403 member_only.""",
+            operationId = "delete_practice_group_v2_practices__root_id__group_delete",
+            tags = "v2-practices",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(responseCode = "204", description = "Successful Response")
+    @DeleteMapping("/{root_id}/group")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteGroup(@PathVariable("root_id") UUID rootId, HttpServletRequest request) {
+        AuthenticatedUser user = auth.gatedUser(request);
+        practices.deleteGroup(user.id(), user.guest(), rootId);
     }
 
     private static PracticeService.Draft draft(

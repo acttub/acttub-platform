@@ -14,6 +14,7 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
@@ -36,6 +37,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class JournalService {
 
     static final String PROMPT = StructuredJson.textResource(ActorJournal.PROMPT_RESOURCE);
+    /** 언어 지시를 붙이기 전의 고정 본문이다. */
+    private static final LlmPrompt TEMPLATE = new LlmPrompt("report.actor_journal", PROMPT);
     static final int ATTEMPTS = 2;
 
     private final JournalRepository journals;
@@ -134,12 +137,12 @@ public class JournalService {
                     generated.usage() == null ? LlmTokens.unknown()
                             : LlmTokens.of(generated.usage().prompt(), generated.usage().completion(), generated.usage().total()),
                     startedAt, Duration.between(startedAt, Instant.now()), null,
-                    LlmCall.metadata("report_type", "actor_journal")));
+                    LlmCall.metadata("report_type", "actor_journal")).withPrompt(TEMPLATE));
             return generated;
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(LlmStep.REPORT, practiceId, userId, "", recordedInput, "", LlmTokens.unknown(),
                     startedAt, Duration.between(startedAt, Instant.now()), failure.getClass().getSimpleName(),
-                    LlmCall.metadata("report_type", "actor_journal")));
+                    LlmCall.metadata("report_type", "actor_journal")).withPrompt(TEMPLATE));
             throw failure;
         }
     }

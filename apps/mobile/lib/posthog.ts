@@ -109,12 +109,17 @@ export function createPostHogBridge(createClient: (key: string) => PostHogClient
     },
 
     capture(name: string, params?: Record<string, string | number | boolean>): void {
-      if (on) client?.capture(name, params);
+      if (!on) return;
+      try {
+        client?.capture(name, params);
+      } catch {
+        // SDK 가 저장소를 읽다 던질 수 있다. 계측 실패가 앱 흐름을 막으면 안 된다.
+      }
     },
 
     screen(name: string): void {
       currentScreen = name;
-      if (on) void client?.screen(name);
+      if (on) void client?.screen(name).catch(() => undefined);
     },
 
     /** 버튼 탭(SOMA-732). 누를 수 있는 요소를 누른 경우만 PostHog 자동 수집($autocapture)으로 남긴다. */

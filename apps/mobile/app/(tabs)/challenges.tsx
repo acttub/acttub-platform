@@ -1,19 +1,22 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { ChallengeOthersRow } from '@/components/challenge-others-row';
+import { CommunityBoard } from '@/components/community/community-board';
+import { CommunityTabs, type CommunitySection } from '@/components/community/community-tabs';
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { defaultAvatarColor } from '@/components/ui/default-avatar';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -26,14 +29,12 @@ import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
-  avatarLetter,
   browseFailure,
   browseFailureMessage,
   canPerform,
   canRetryBrowse,
   dDayLabel,
   participantsLabel,
-  pinsFeatured,
   type BrowseFailure,
 } from '@/lib/challenge/browse';
 import {
@@ -47,7 +48,11 @@ import { skipsChallengeFirstPick } from '@/lib/returning-account';
 import { useExampleUrl } from '@/lib/challenge/use-example-url';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
-import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
+import { useBoardNewDot } from '@/hooks/use-board-new-dot';
+import type { ChallengeCard, ChallengeListResponse, ChallengeTab, MyEntriesResponse } from '@/lib/challenge/types';
+import { lastRead } from '@/lib/last-reads';
+import type { PracticeGroupDetail } from '@/lib/practice/types';
+import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -60,6 +65,9 @@ import { translate as t } from '@/lib/i18n';
  *
  * SOMA-748 새 디자인(ZxMmEh): 맨 위 「지난주 결과」 띠(끝난 지 7일 안의 공식 챌린지) → 이번 주 대사 카드 → 탭 →
  * 줄 카드. 파란 「누를 것 안내」는 첫 참여를 끝낼 때까지만 보인다.
+ *
+ * SOMA-873: 이 탭은 「커뮤니티」다. 큰 제목 대신 맨 위 밑줄 탭 「챌린지」「게시판」을 두고(기본은 챌린지), 챌린지 내용은 그대로다.
+ * 라우트 이름(challenges)은 그대로 두어 챌린지 탭으로 오는 딥링크·푸시가 계속 열린다. `?section=board` 로 오면 게시판을 연다.
  */
 const TABS: { key: ChallengeTab; label: string }[] = [
   { key: 'popular', label: 'challenges.tabPopular' },
@@ -68,20 +76,63 @@ const TABS: { key: ChallengeTab; label: string }[] = [
   { key: 'mine', label: 'challenges.tabMineShort' },
 ];
 
+/**
+ * 목록 맨 위에 고정할 오늘의 챌린지와 나머지 목록. 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
+ * 오늘의 챌린지는 칩과 상관없이 늘 맨 위에 둔다(11/2 QA — 칩을 바꾸면 위 카드가 사라졌다). 서버는 인기 탭에만 featured 를
+ * 주므로, 다른 칩에서는 앞서 받은 것(previous)을 그대로 두고 처음부터 다른 칩이면 진행 중인 공식 챌린지를 올린다.
+ * 서버가 고른 게 회원 챌린지인데 진행 중인 공식 챌린지가 있으면 공식을 올린다. 고정한 챌린지는 아래 목록에서 뺀다 — 두 번 보이지 않게.
+ */
+function pinFeatured(
+  result: ChallengeListResponse,
+  previous: ChallengeCard | null,
+): { pinned: ChallengeCard | null; rest: ChallengeCard[] } {
+  const openTeam = (c: ChallengeCard) => c.origin === 'team' && Date.parse(c.ends_at) > Date.now();
+  const teamFirst = [...result.challenges].sort((a, b) => Number(openTeam(b)) - Number(openTeam(a)));
+  const officialPick = result.featured && !openTeam(result.featured) ? (teamFirst.find(openTeam) ?? result.featured) : result.featured;
+  const pinned = officialPick ?? previous ?? teamFirst.find(openTeam) ?? null;
+  return { pinned, rest: pinned ? teamFirst.filter((c) => c.id !== pinned.id) : teamFirst };
+}
+
 export default function ChallengesScreen() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
+  const { section: sectionParam } = useLocalSearchParams<{ section?: string }>();
+  const [section, setSection] = useState<CommunitySection>(sectionParam === 'board' ? 'board' : 'challenge');
+  const boardDot = useBoardNewDot();
   const [tab, setTab] = useState<ChallengeTab>('popular');
-  const [featured, setFeatured] = useState<ChallengeCard | null>(null);
-  const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
+  // 앱을 켠 뒤 미리 받아 둔 인기 목록이 있으면 그것으로 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
+  const [sharedPopular] = useState(() => {
+    const read = lastRead<ChallengeListResponse>('challengesPopular');
+    return read ? { ...pinFeatured(read, null), cursor: read.next_cursor } : null;
+  });
+  const [featured, setFeatured] = useState<ChallengeCard | null>(() => sharedPopular?.pinned ?? null);
+  /** 마지막으로 고정한 오늘의 챌린지 — 인기 말고 다른 칩을 받을 때 그대로 둔다. */
+  const featuredRef = useRef<ChallengeCard | null>(sharedPopular?.pinned ?? null);
+  // 내가 참여한 챌린지(나만 보기 포함) — 오늘의 챌린지 버튼을 「한 번 더 찍기」로 바꾼다(SOMA-995).
+  const [enteredIds, setEnteredIds] = useState<ReadonlySet<string>>(() => new Set());
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      void enteredChallengeIds().then((ids) => {
+        if (live) setEnteredIds(ids);
+      });
+      return () => {
+        live = false;
+      };
+    }, []),
+  );
+  const [challenges, setChallenges] = useState<ChallengeCard[] | null>(() => sharedPopular?.rest ?? null);
+  const [cursor, setCursor] = useState<string | null>(() => sharedPopular?.cursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
   /** 지금 보이는 탭. 이어 받는 중에 탭을 바꾸면 늦게 온 옛 탭의 결과를 버린다. */
   const shownTab = useRef<ChallengeTab>('popular');
   const [error, setError] = useState<BrowseFailure | null>(null);
   /** 지난주 결과 띠 — 끝난 지 7일 안의 공식 챌린지. 못 읽으면 띠만 없다. */
-  const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(null);
+  const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(() => {
+    const ended = lastRead<ChallengeListResponse>('challengesEnded');
+    return ended ? lastWeekResult(ended.challenges) : null;
+  });
   /** 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만. */
   const [showGuide, setShowGuide] = useState(false);
   /** 첫 챌린지 화면에서 「챌린지 둘러보기」를 고른 적이 있으면 기본 챌린지 홈을 보인다(SOMA-827). */
@@ -103,15 +154,11 @@ export default function ChallengesScreen() {
     setError(null);
     try {
       const result = await api.listChallenges({ tab: next });
-      // 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
-      const openTeam = (c: ChallengeCard) => c.origin === 'team' && Date.parse(c.ends_at) > Date.now();
-      const teamFirst = [...result.challenges].sort((a, b) => Number(openTeam(b)) - Number(openTeam(a)));
-      setChallenges(teamFirst);
       setCursor(result.next_cursor);
-      // 오늘의 챌린지는 인기·최신 탭에만 고정한다(pinsFeatured(next) ? result.featured : null 이 기본).
-      // 서버가 고른 게 회원 챌린지인데 진행 중인 공식 챌린지가 있으면 공식을 올린다.
-      const officialPick = result.featured && !openTeam(result.featured) ? (teamFirst.find(openTeam) ?? result.featured) : result.featured;
-      setFeatured(pinsFeatured(next) ? officialPick : null);
+      const { pinned, rest } = pinFeatured(result, featuredRef.current);
+      featuredRef.current = pinned;
+      setFeatured(pinned);
+      setChallenges(rest);
     } catch (e) {
       setChallenges([]);
       setFeatured(null);
@@ -119,6 +166,17 @@ export default function ChallengesScreen() {
       setError(browseFailure(e));
     }
   }, []);
+
+  /** 맨 위에서 당기면 지금 탭을 처음부터 다시 받는다. */
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load(tab);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, tab]);
 
   /** 20개씩 이어 받는다. 커서는 요청자·탭에 묶여 있어 탭을 바꾸면 처음부터 다시 읽는다. */
   const loadMore = async () => {
@@ -128,7 +186,7 @@ export default function ChallengesScreen() {
       const asked = tab;
       const result = await api.listChallenges({ tab: asked, cursor });
       if (shownTab.current !== asked) return;
-      setChallenges((prev) => [...(prev ?? []), ...result.challenges]);
+      setChallenges((prev) => [...(prev ?? []), ...result.challenges.filter((c) => c.id !== featuredRef.current?.id)]);
       setCursor(result.next_cursor);
     } catch (e) {
       // 순위가 바뀌어 커서가 만료되면 처음부터 다시 읽는다(상세와 같다).
@@ -159,16 +217,22 @@ export default function ChallengesScreen() {
           setFirstPickChecked(true);
           return;
         }
-        const [entries, groups] = await Promise.all([
-          Promise.resolve()
-            .then(() => api.listMyChallengeEntries())
-            .then((r) => r.entries)
-            .catch(() => []),
-          Promise.resolve()
-            .then(() => api.listPracticeGroups('all'))
-            .then((r) => r.groups)
-            .catch(() => []),
-        ]);
+        // 홈이 앱을 켤 때 받은 내 참여작이 있으면 서버에 다시 묻지 않는다(lib/last-reads) — 참여작이 하나라도 있으면 묶음과
+        // 상관없이 첫 고르기를 건너뛴다. 비어 있으면 그 뒤에 첫 참여·연습을 했을 수 있어 둘 다 새로 묻는다.
+        const sharedEntries = lastRead<MyEntriesResponse>('myChallengeEntries')?.entries;
+        const [entries, groups] =
+          sharedEntries && sharedEntries.length > 0
+            ? [sharedEntries, [] as PracticeGroupDetail[]]
+            : await Promise.all([
+                Promise.resolve()
+                  .then(() => api.listMyChallengeEntries())
+                  .then((r) => r.entries)
+                  .catch(() => []),
+                Promise.resolve()
+                  .then(() => api.listPracticeGroups('all'))
+                  .then((r) => r.groups)
+                  .catch(() => []),
+              ]);
         if (!live) return;
         const countedPracticeCount = countedPractices({ groups, entries }).length;
         if (entries.length > 0) {
@@ -196,6 +260,10 @@ export default function ChallengesScreen() {
   useEffect(() => {
     if (challenges !== null || error) setFirstLoadDone(true);
   }, [challenges, error]);
+
+  useEffect(() => {
+    if (sectionParam === 'board' || sectionParam === 'challenge') setSection(sectionParam);
+  }, [sectionParam]);
 
   const featuredId = featured?.id ?? null;
   const exampleUrl = useExampleUrl(featuredId);
@@ -231,8 +299,38 @@ export default function ChallengesScreen() {
         {firstTime && (
           <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
         )}
-        <Text style={[styles.title, styles.titleGrow]}>{t('challenges.title')}</Text>
-        {!selectMode && !deciding && (
+        <View style={styles.titleGrow}>
+          <CommunityTabs
+            value={section}
+            dot={boardDot.hasNew}
+            onChange={(next) => {
+              setSection(next);
+              logEvent('community_section', { section: next });
+            }}
+          />
+        </View>
+        {section === 'board' ? (
+          <View style={styles.headerRight}>
+            <Pressable
+              style={styles.iconBtn}
+              onPress={() => router.push('/notifications')}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('notifications.title')}
+              ph-label="community_bell">
+              <Feather name="bell" size={22} color={palette.text} />
+              {unread.count > 0 && <View style={styles.badgeDot} />}
+            </Pressable>
+            <Button
+              size="md"
+              label={t('community.write')}
+              icon={<Feather name="plus" size={16} color={palette.onAccent} />}
+              phLabel="community_write"
+              style={styles.writeBtn}
+              onPress={() => router.push('/community-new')}
+            />
+          </View>
+        ) : !selectMode && !deciding && (
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -266,12 +364,15 @@ export default function ChallengesScreen() {
         </View>
         )}
       </View>
+      <View style={styles.headerDivider} />
 
-      {deciding ? (
+      {section === 'board' ? (
+        <CommunityBoard bottomSpace={tabBarSpace} onWrite={() => router.push('/community-new')} onSeen={boardDot.markSeen} />
+      ) : deciding ? (
         <SkeletonRows count={4} avatar={false} style={styles.flush} />
       ) : selectMode && featured ? (
         <>
-          <ScrollView contentContainerStyle={styles.body}>
+          <ScrollView contentContainerStyle={styles.body} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
             <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => openDetail(featured)} />
             <View style={styles.sameHead}>
               <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
@@ -285,7 +386,7 @@ export default function ChallengesScreen() {
               label={t('challenges.firstNext')}
               disabled={!firstPick}
               onPress={() => {
-                void logEvent('challenge_first_pick', { pick: firstPick ?? '' });
+                logEvent('challenge_first_pick', { pick: firstPick ?? '' });
                 if (firstPick === 'perform') perform(featured);
                 else {
                   // 둘러보기 — 이 자리에서 기본 챌린지 홈으로 바꾸고, 다음에 와도 그대로 둔다.
@@ -297,12 +398,12 @@ export default function ChallengesScreen() {
           </CtaBar>
         </>
       ) : (
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]}>
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
         {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
             onPress={() => {
-              void logEvent('challenge_last_week_open', { id: lastWeek.id });
+              logEvent('challenge_last_week_open', { id: lastWeek.id });
               router.push({ pathname: '/challenge-result', params: { id: lastWeek.id, nextId: featured?.id ?? '' } });
             }}
             accessibilityRole="button"
@@ -324,6 +425,21 @@ export default function ChallengesScreen() {
             showGuide={firstTime}
             onOpen={() => tapCard(featured)}
             onPerform={canPerform(featured) ? () => perform(featured) : undefined}
+            entered={enteredIds.has(featured.id)}
+          />
+        )}
+
+        {featured && (
+          <ChallengeOthersRow
+            challenge={featured}
+            onOpenAll={() => {
+              logEvent('challenge_others_row_all', { id: featured.id });
+              openDetail(featured);
+            }}
+            onOpenEntry={(entry) => {
+              logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
+              router.push({ pathname: '/challenge-play', params: { id: featured.id, entryId: entry.id } });
+            }}
           />
         )}
 
@@ -369,7 +485,8 @@ export default function ChallengesScreen() {
           </Pressable>
         )}
 
-        {challenges !== null && challenges.length === 0 && !featured && !error && (
+        {/* 종료·내 챌린지는 위에 오늘의 챌린지가 있어도 그 칩의 목록이 비었다고 알린다. */}
+        {challenges !== null && challenges.length === 0 && (!featured || tab === 'ended' || tab === 'mine') && !error && (
           <InlineEmpty title={emptyText} />
         )}
 
@@ -390,8 +507,8 @@ function Avatars({ participants, border }: { participants: ChallengeCard['partic
   return (
     <View style={styles.avatars}>
       {participants.slice(0, 3).map((p, i) => (
-        <View key={`${p.name}-${i}`} style={[styles.avatar, { backgroundColor: defaultAvatarColor(p.name), borderColor: border }]}>
-          <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
+        <View key={`${p.user_id}-${i}`} style={[styles.avatar, { borderColor: border }]}>
+          <UserAvatar size={20} radius={10} seed={p.user_id} photoUrl={p.photo_url} />
         </View>
       ))}
     </View>
@@ -408,25 +525,35 @@ function WeekHero({
   showGuide,
   onOpen,
   onPerform,
+  entered = false,
 }: {
   challenge: ChallengeCard;
   showGuide: boolean;
   onOpen: () => void;
   onPerform?: () => void;
+  /** 이미 참여했는가(나만 보기 포함) — 버튼을 「한 번 더 찍기」로 둔다. */
+  entered?: boolean;
 }) {
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
     // 10/29 시안 — 진한 파랑 카드, 노란 번개가 든 남색 알약, 오른쪽 아래 슬레이트 든 액티, 아래 흰 알약 [나도 이 대사 연기하기].
-    <View style={styles.weekHero}>
+    // 카드 어디를 눌러도(액티·여백 포함) 상세로 간다 — 예전엔 왼쪽 글자 묶음(68%)만 눌렸다. 흰 알약은 안쪽 Pressable 이라 따로 눌린다.
+    // 바깥은 접근성에서 빼고(안쪽 버튼이 묶여 사라지지 않게) 글자 묶음을 「열기」 버튼으로 읽게 한다.
+    <Pressable style={styles.weekHero} onPress={onOpen} accessible={false}>
       <Image source={MASCOT.slate} style={styles.weekActy} contentFit="contain" cachePolicy="memory-disk" accessibilityElementsHidden />
-      <Pressable style={styles.weekHeroTop} onPress={onOpen} accessibilityRole="button">
+      <View
+        style={styles.weekHeroTop}
+        accessible
+        accessibilityRole="button"
+        accessibilityActions={[{ name: 'activate' }]}
+        onAccessibilityAction={(e) => e.nativeEvent.actionName === 'activate' && onOpen()}>
         <View style={styles.weekChip}>
           <Feather name="zap" size={13} color={heroCard.bolt} />
           <Text style={styles.heroChipText}>
             {`${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
           </Text>
         </View>
-        <Text style={styles.weekLine} numberOfLines={4}>
+        <Text style={styles.weekLine} numberOfLines={3}>
           “{challenge.line}”
         </Text>
         {!!meta && (
@@ -440,20 +567,20 @@ function WeekHero({
             {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
           </Text>
         </View>
-      </Pressable>
+      </View>
       {onPerform && showGuide && <Text style={styles.heroGuide}>{t('challenges.heroGuidePerform')}</Text>}
       {onPerform && (
         <Pressable
           style={styles.heroPerform}
           onPress={onPerform}
           accessibilityRole="button"
-          accessibilityLabel={t('challenges.performCta')}>
+          accessibilityLabel={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}>
           {/* 흰 알약 버튼(10/29 시안). */}
-          <Feather name="video" size={18} color={heroCard.ctaNavy} />
-          <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
+          <Feather name="video" size={16} color={heroCard.ctaNavy} />
+          <Text style={styles.heroPerformText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -471,18 +598,20 @@ function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard
   const [frameReady, setFrameReady] = useState(false);
   useEffect(() => setFrameReady(false), [videoUrl]);
   return (
-    <View style={styles.hero}>
+    // 카드 전체(가장자리 여백 포함)가 눌린다. 영상은 터치를 가로채지 않게 pointerEvents="none".
+    <Pressable style={styles.hero} onPress={onOpen} accessibilityRole="button">
       {!!videoUrl && (
         <VideoView
           style={[StyleSheet.absoluteFill, { opacity: frameReady ? 1 : 0 }]}
           player={player}
           contentFit="cover"
           nativeControls={false}
+          pointerEvents="none"
           onFirstFrameRender={() => setFrameReady(true)}
         />
       )}
       <View style={styles.heroScrim} pointerEvents="none" />
-      <Pressable style={styles.heroTop} onPress={onOpen} accessibilityRole="button">
+      <View style={styles.heroTop}>
         <View style={styles.heroChip}>
           <Text style={styles.heroChipText}>
             {videoUrl ? t('challenges.exampleChip') : `${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
@@ -491,8 +620,8 @@ function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard
         <Text style={styles.heroLine} numberOfLines={4}>
           “{challenge.line}”
         </Text>
-      </Pressable>
-    </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -521,8 +650,9 @@ function Card({
 }) {
   const host = challenge.origin === 'team' ? t('challenges.hostTeam') : t('challenges.hostMemberShort');
   return (
-    <View style={styles.row}>
-      <Pressable style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
+    // 카드 전체(테두리 안 여백 포함)가 눌린다 — 예전엔 여백 안쪽 글자 영역만 눌렸다.
+    <Pressable style={({ pressed }) => [styles.row, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
+      <View style={styles.rowMain}>
         <View style={styles.rowBody}>
           <Text style={styles.line} numberOfLines={3}>
             “{challenge.line}”
@@ -545,9 +675,9 @@ function Card({
             </View>
           </View>
         </View>
-      </Pressable>
+      </View>
       {/* 목록 카드 안에는 「나도 이 대사 연기하기」 버튼을 두지 않는다 — 카드를 누르면 챌린지 화면에서 찍는다(UX 가이드 5절 「카드 안 버튼 금지」). */}
-    </View>
+    </Pressable>
   );
 }
 
@@ -562,11 +692,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 72,
+    height: 56,
     paddingHorizontal: space.gutter,
   },
-  title: { ...type.display, color: palette.text },
-  titleGrow: { flex: 1 },
+  titleGrow: { flex: 1, alignSelf: 'stretch' },
+  headerDivider: { height: 1, backgroundColor: palette.border },
+  writeBtn: { paddingLeft: space[3] },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   badgeDot: {
@@ -589,9 +720,10 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { ...type.body2Bold, color: palette.text },
   bannerSub: { ...type.caption, color: palette.textMeta, marginTop: space[1] },
-  weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[5], gap: space[3], overflow: 'hidden' },
-  weekHeroTop: { gap: space[2], maxWidth: '68%' },
-  weekActy: { position: 'absolute', right: -space[2], bottom: space[1], width: 140, height: 130 },
+  // 아래에 「다른 배우 영상」 줄이 붙어도 다른 챌린지가 첫 화면에 보이게 한 단계씩 줄였다(SOMA-986, 11/2 시안).
+  weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[4], gap: space[2], overflow: 'hidden' },
+  weekHeroTop: { gap: space[2], maxWidth: '72%' },
+  weekActy: { position: 'absolute', right: -space[1.5], bottom: 2, width: 104, height: 96 },
   weekChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -602,7 +734,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3],
     paddingVertical: space[1.5],
   },
-  weekLine: { ...type.title1, color: palette.onAccent, marginTop: space[1] },
+  weekLine: { ...type.title2, color: palette.onAccent },
   names: { ...type.caption, color: palette.textMeta, flexShrink: 1 },
   likes: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   hero: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], minHeight: 300, gap: space[3], justifyContent: 'flex-end', overflow: 'hidden' },
@@ -610,8 +742,8 @@ const styles = StyleSheet.create({
   heroGuide: { ...type.body2Bold, color: palette.onMediaSub },
   heroMeta: { ...type.caption, color: palette.onMediaSub },
   heroStat: { ...type.caption, color: palette.onMediaSub },
-  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[2], height: 48, borderRadius: radius.full, paddingHorizontal: space[5], backgroundColor: palette.bg },
-  heroPerformText: { ...type.body1Bold, color: heroCard.ctaNavy },
+  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[2], height: 40, borderRadius: radius.full, paddingHorizontal: space[4], marginTop: 2, backgroundColor: palette.bg },
+  heroPerformText: { ...type.body2Bold, color: heroCard.ctaNavy },
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },
@@ -645,12 +777,10 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     marginRight: -space[1.5],
     borderWidth: 1,
   },
-  avatarText: { ...type.micro, color: palette.text },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

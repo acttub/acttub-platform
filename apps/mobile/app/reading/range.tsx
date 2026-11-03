@@ -42,6 +42,9 @@ import type { ScriptLine, SessionCard } from '@/lib/reading/types';
 import { newRequestId } from '@/lib/request-id';
 import { relativeDay } from '@/lib/reading/script-cards';
 import { translate as t } from '@/lib/i18n';
+import { logEvent } from '@/lib/analytics';
+import { DEFAULT_LISTEN_PREFS, PAUSE_MAX_SEC, PAUSE_MIN_SEC, READING_RATES, loadListenPrefs, parsePause, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
+import { TextField } from '@/components/ui/text-field';
 
 /**
  * 새 연습(R8, reading.cast · reading.session). 연습마다 ① 내 배역(여러 명, 나머지는 앱이 읽음) ② 구간(최근 구간 ·
@@ -64,7 +67,7 @@ export default function ReadingRange() {
   const router = useRouter();
   const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string; first?: string }>();
   /**
-   * 첫 리딩 모드(10/29) — 리딩을 한 번도 끝내지 않은 계정이 대본을 막 넣고 왔다. 「누구 대사를 읽을까요?」 하나만 묻고
+   * 첫 리딩 모드(10/29) — 리딩을 한 번도 끝내지 않은 계정이 대본을 막 넣고 왔다. 「어떤 배역을 읽으실 건가요?」 하나만 묻고
    * 대사 보기·구간은 고르지 않는다(대본 전체를 처음부터, 대사는 다 보인다). 독백이면 배역도 묻지 않고 바로 시작한다.
    */
   const firstMode = params.first === '1';
@@ -98,6 +101,22 @@ export default function ReadingRange() {
   /** null 은 확인 중. 묻는 건 [시작]을 누를 때다(SOMA-772). */
   const [mic, setMic] = useState<MicPermission | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 핸즈프리·읽는 속도(SOMA-952·954) — 이 기기에 남긴 마지막 선택. */
+  const [listen, setListen] = useState<ListenPrefs>(DEFAULT_LISTEN_PREFS);
+  /** 쉬는 시간 입력칸의 글 — 바른 값일 때만 설정에 넣는다. */
+  const [pauseText, setPauseText] = useState(String(DEFAULT_LISTEN_PREFS.pauseSec));
+  const pauseInvalid = parsePause(pauseText) === null;
+  useEffect(() => {
+    let alive = true;
+    void loadListenPrefs().then((p) => {
+      if (!alive) return;
+      setListen(p);
+      setPauseText(String(p.pauseSec));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   // 회차 시작의 요청 id — 이 화면에서 한 번 정해 재시도에도 같은 회차 하나가 된다.
   const requestId = useRef(newRequestId());
   const rangePickTarget = useSpotlightTarget(TARGET.readingRangePick);
@@ -129,11 +148,11 @@ export default function ReadingRange() {
     };
   }, []);
 
-  // Wi-Fi 면 상대역 목소리를 미리 받아 둔다 — 실행 화면에서 기다리지 않게. 화면을 막지 않고 실패도 알리지 않는다.
+  // 상대역 목소리를 미리 준비한다 — 받아 둔 모델은 메모리에 올리고(첫 미리 듣기·실행 화면이 기다리지 않게), 없으면 Wi-Fi 에서만 받는다. 화면을 막지 않고 실패도 알리지 않는다.
   // 예시에서 온 대본(sample)은 미리 만든 음성으로 읽을 수 있어 받지 않는다 — 서버 답을 기다리면 받기와 엇갈려 입력 경로로 정한다.
   const fromSample = script?.source === 'sample';
   useEffect(() => {
-    if (!fromSample) void engine.prefetchIfWifi();
+    if (!fromSample) void engine.prepareInBackground();
   }, [fromSample]);
 
   const recents = useMemo(
@@ -170,7 +189,23 @@ export default function ReadingRange() {
   // 고른 배역의 대사가 구간 안에 거의 없으면 처음 안내 대신 알린다 — 시작은 막지 않는다(SOMA-709).
   const few = fewLines(lines, myTurnRoles, range.startIndex, range.endIndex);
   const loadingDefault = !firstMode && picked === null && sessions === null;
-  const gate = startGate({ roleCount: selected.length, micGranted: mic === null ? null : true, loading: loadingDefault });
+  // 내 배역을 하나도 고르지 않으면 「전체 듣기」 — 앱이 모든 대사를 읽는다(1.1.1). 첫 리딩은 지금처럼 배역을 고른다.
+  const listenAll = !firstMode && selected.length === 0;
+  // 핸즈프리는 상대 대사가 있는 대본에서만 — 독백은 내 대사뿐이라 쉬기만 하게 된다.
+  const handsFree = !firstMode && !listenAll && cast.length > 1 && listen.handsFree;
+  // 전체 듣기·핸즈프리는 마이크를 열지 않는다 — 권한을 묻지 않는다.
+  const needsMic = !listenAll && !handsFree;
+  const gate = startGate({
+    roleCount: listenAll ? 1 : selected.length,
+    micGranted: !needsMic ? true : mic === null ? null : true,
+    loading: loadingDefault,
+  });
+  const updateListen = (next: Partial<ListenPrefs>) =>
+    setListen((prev) => {
+      const merged = { ...prev, ...next };
+      void saveListenPrefs(merged);
+      return merged;
+    });
 
   const toggleRole = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -193,11 +228,11 @@ export default function ReadingRange() {
   const onStart = async () => {
     if (gate !== 'ready' || busy) return;
     const myRoles = pickedCast.map((c) => c.name);
-    if (rangeError(lines, myRoles, range.startIndex, range.endIndex)) {
+    if (!listenAll && rangeError(lines, myRoles, range.startIndex, range.endIndex)) {
       void alert({ title: t('reading.startFailed'), message: t('reading.errorEmptyRange') });
       return;
     }
-    if (mic !== 'granted') {
+    if (needsMic && mic !== 'granted') {
       setBusy(true);
       const asked = await requestMicPermission().finally(() => setBusy(false));
       if (asked === 'blocked') {
@@ -221,8 +256,12 @@ export default function ReadingRange() {
           myCharacterIds: selected,
           startLineId: script.lineIds[range.startIndex],
           endLineId: script.lineIds[range.endIndex],
+          // 전체 듣기·핸즈프리는 말하지 않으니 녹음도 하지 않는다. 핸즈프리는 대사 길이만큼 쉬고 넘어간다(timed).
+          advance: listenAll ? 'manual' : handsFree ? 'timed' : 'silence',
+          record: needsMic,
         }),
       );
+      logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate, pause_sec: handsFree ? listen.pauseSec : 0 });
       await updateCurrent({ maskMode: mask });
       setFirstReadingSession(firstMode ? (getCurrentSession()?.id ?? null) : null);
       router.replace('/reading/play');
@@ -243,13 +282,15 @@ export default function ReadingRange() {
   startRef.current = () => void onStart();
   const mono = cast.length === 1;
   const firstRun = !hasHistory;
-  const micAsk = mic !== 'granted';
+  const micAsk = needsMic && mic !== 'granted';
   const mainLabel = busy
     ? t('reading.startingSession')
     : firstMode
       ? t('reading.firstPickStart')
       : gate === 'pickRole'
       ? t('reading.startNeedsRole')
+      : listenAll
+        ? t('reading.startListenAll', { count: dlgIn })
       : micAsk
         ? t('reading.startWithMic')
         : t('reading.startSession', { count: dlgIn });
@@ -299,12 +340,34 @@ export default function ReadingRange() {
         </View>
 
         {firstMode ? (
-          // 첫 리딩 — 배역만 세로 목록으로. 이름 · 대사 수 · 그 배역의 첫 대사를 보여 주고, 여럿 골라도 된다.
+          <>
+          {/* 첫 리딩 — 대본을 먼저 보여 주고 그 아래에서 배역을 고른다(11/2 우영: 대본을 보면서 골라야 한다). 고른 배역의 대사는 진하게 보인다. */}
+          <View style={styles.preview} accessibilityLabel={t('reading.firstPreviewA11y')}>
+            <ScrollView nestedScrollEnabled style={styles.previewScroll} contentContainerStyle={styles.previewBody}>
+              {lines.map((l, i) => {
+                if (l.type !== 'dialogue') {
+                  return (
+                    <Text key={i} style={l.type === 'scene' ? styles.previewScene : styles.previewDirection}>
+                      {l.text}
+                    </Text>
+                  );
+                }
+                const mine = cast.some((c) => c.name === l.role && selected.includes(c.id));
+                return (
+                  <View key={i} style={styles.previewLine}>
+                    <Text style={[styles.previewRole, mine && styles.previewRoleOn]}>{l.role}</Text>
+                    <Text style={[styles.previewText, mine && styles.previewTextOn]}>{l.text}</Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+          <Text style={styles.section}>{t('reading.firstPickBelow')}</Text>
           <View ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout} style={styles.list}>
             {cast.map((c) => {
               const on = selected.includes(c.id);
-              const firstLine = dialogues.find((x) => x.l.type === 'dialogue' && x.l.role === c.name)?.l as Extract<ScriptLine, { type: 'dialogue' }> | undefined;
-              const sub = `${t('reading.dialogueCount', { count: roleLineCount(c, lines, script.characters) })}${firstLine ? ` · ${firstLine.text}` : ''}`;
+              // 대본이 바로 위에 보이니 카드에는 대사 수만 둔다.
+              const sub = t('reading.dialogueCount', { count: roleLineCount(c, lines, script.characters) });
               return (
                 <Pressable
                   key={c.id}
@@ -322,6 +385,7 @@ export default function ReadingRange() {
               );
             })}
           </View>
+          </>
         ) : (
           <>
         <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
@@ -346,7 +410,9 @@ export default function ReadingRange() {
         </View>
         {/* 대사가 한 줄뿐인 대본은 한 번에 읽게 된다 — 나눠 읽는 길을 같은 안내 자리에 알린다(SOMA-727, 팝업 없음). */}
         <Text style={styles.hint}>
-          {dialogues.length === 1
+          {listenAll && !mono
+            ? t('reading.listenAllNote')
+            : dialogues.length === 1
             ? t('reading.rangeSingleLineNote')
             : mono
               ? t('reading.monologueCard', { count: script.dialogueCount })
@@ -355,13 +421,75 @@ export default function ReadingRange() {
 
         {/* 가리기는 「내 대사 가리기」 스위치 하나다(UX 가이드 10절 리딩, 10/23). 칩 셋이 오른쪽에서 잘렸다(10/28 폰 확인).
             「모두 가리기」는 리딩 화면의 눈 버튼으로 바꿀 수 있다. */}
+        {!listenAll && (
+          <View style={styles.maskRow}>
+            <Text style={styles.maskLabel}>{t('reading.maskMineSwitch')}</Text>
+            <BlueSwitch
+              value={mask !== 'none'}
+              onValueChange={(on) => setMask(on ? 'mine' : 'none')}
+              accessibilityLabel={t('reading.maskMineSwitch')}
+            />
+          </View>
+        )}
+        {/* 자동 넘김(SOMA-954) — 걸으면서 듣게. 내 차례에 마이크를 열지 않고 고른 시간만큼 쉬고 넘어간다. 팝업 없이 스위치 한 줄. */}
+        {!listenAll && cast.length > 1 && (
+          <View style={styles.maskRow}>
+            <View style={styles.rowBody}>
+              <Text style={styles.maskLabel}>{t('reading.handsFreeSwitch')}</Text>
+              <Text style={styles.hint}>{t('reading.handsFreeDesc')}</Text>
+            </View>
+            <BlueSwitch
+              value={listen.handsFree}
+              onValueChange={(on) => updateListen({ handsFree: on })}
+              accessibilityLabel={t('reading.handsFreeSwitch')}
+            />
+          </View>
+        )}
+        {/* 자동 넘김을 켜면 쉬는 시간을 적는다(기본 2초, 0.5~30초, 11/1 사용자 결정: 버튼 말고 입력). */}
+        {handsFree && (
+          <View style={styles.maskRow}>
+            <Text style={styles.maskLabel}>{t('reading.pauseLabel')}</Text>
+            <View style={styles.pauseInput}>
+              <TextField
+                value={pauseText}
+                onChangeText={(text) => {
+                  setPauseText(text);
+                  const sec = parsePause(text);
+                  if (sec !== null) updateListen({ pauseSec: sec });
+                }}
+                // 틀린 채로 칸을 떠나면 마지막 바른 값으로 되돌린다.
+                onBlur={() => pauseInvalid && setPauseText(String(listen.pauseSec))}
+                keyboardType="decimal-pad"
+                maxLength={4}
+                selectTextOnFocus
+                accessibilityLabel={t('reading.pauseLabel')}
+                // 아래 안내 줄은 키보드에 가려진다 — 틀린 값이면 칸 테두리부터 빨갛게(11/1 폰 확인).
+                style={[styles.pauseField, pauseInvalid && styles.pauseFieldError]}
+              />
+              <Text style={styles.maskLabel}>{t('reading.pauseUnit')}</Text>
+            </View>
+          </View>
+        )}
+        {handsFree && pauseInvalid && <Text style={styles.hint}>{t('reading.pauseRange', { min: PAUSE_MIN_SEC, max: PAUSE_MAX_SEC })}</Text>}
+        {/* 읽는 속도(SOMA-952) — 앱이 읽는 모든 목소리에 같이 든다. */}
         <View style={styles.maskRow}>
-          <Text style={styles.maskLabel}>{t('reading.maskMineSwitch')}</Text>
-          <BlueSwitch
-            value={mask !== 'none'}
-            onValueChange={(on) => setMask(on ? 'mine' : 'none')}
-            accessibilityLabel={t('reading.maskMineSwitch')}
-          />
+          <Text style={styles.maskLabel}>{t('reading.rateLabel')}</Text>
+          <View style={styles.rateRow}>
+            {READING_RATES.map((r) => {
+              const on = listen.rate === r;
+              return (
+                <Pressable
+                  key={r}
+                  style={[styles.rateChip, on && styles.rateChipOn]}
+                  onPress={() => updateListen({ rate: r })}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={t('reading.rateA11y', { rate: t('reading.rateValue', { rate: rateLabel(r) }) })}>
+                  <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{t('reading.rateValue', { rate: rateLabel(r) })}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <Text style={[styles.section, styles.sectionRange]}>{t('reading.rangeSection')}</Text>
@@ -488,6 +616,12 @@ const styles = StyleSheet.create({
   bleed: { marginHorizontal: -space.gutter },
   maskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 },
   maskLabel: { ...type.body1, color: palette.text },
+  rateRow: { flexDirection: 'row', gap: space[1.5] },
+  pauseInput: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  pauseField: { width: 72, minHeight: 40, textAlign: 'center' },
+  pauseFieldError: { borderWidth: 1.5, borderColor: palette.danger },
+  rateChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
+  rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 36, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },
   roleChip: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 40, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[4] },
   roleChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },
@@ -495,11 +629,22 @@ const styles = StyleSheet.create({
   roleChipTextOn: { color: palette.blueDeep },
   roleChipCount: { ...type.body2, color: palette.textMeta },
   tabs: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
-  tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  // 높이를 못 박지 않는다 — 탭 글자가 두 줄로 꺾이면 탭 줄이 함께 늘어난다(새 대본 탭과 같다).
+  tab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, paddingVertical: space[1.5] },
   tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
+  tabText: { ...type.body2Bold, color: palette.textMeta, textAlign: 'center' },
   tabTextOn: { color: palette.text },
   list: { gap: space[3] },
+  preview: { borderRadius: radius.lg, backgroundColor: palette.bgSoft, overflow: 'hidden' },
+  previewScroll: { maxHeight: 320 },
+  previewBody: { padding: space[4], gap: space[3] },
+  previewScene: { ...type.captionBold, color: palette.textMeta },
+  previewDirection: { ...type.caption, color: palette.textMeta, fontStyle: 'italic' },
+  previewLine: { gap: 2 },
+  previewRole: { ...type.captionBold, color: palette.textSub },
+  previewRoleOn: { color: palette.blue },
+  previewText: { ...type.body2, color: palette.textSub },
+  previewTextOn: { ...type.body2Bold, color: palette.text },
   card: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
   cardOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, padding: space[4] - 0.5 },
   rowBody: { flex: 1, gap: space[1] },

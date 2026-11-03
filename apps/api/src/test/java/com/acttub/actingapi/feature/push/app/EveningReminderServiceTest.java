@@ -46,6 +46,11 @@ class EveningReminderServiceTest {
             public List<PushTarget> analysisDoneTargets(UUID sessionId) {
                 return List.of();
             }
+
+            @Override
+            public List<PushTarget> scriptSplitTargets(UUID userId) {
+                return List.of();
+            }
         };
         return new EveningReminderService(reminders, tokens, sender, failures, EVENING, "0.1.2");
     }

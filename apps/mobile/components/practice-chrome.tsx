@@ -310,5 +310,5 @@ const styles = StyleSheet.create({
 
 /** 연습 중 '영상·장면 보기'를 펼친 것을 남긴다. 화면 하나에서 여러 번 펼치면 그때마다 남는다. */
 export function logFoldOpen(screen: PreviewScreen): void {
-  void logEvent(FOLD_OPEN_EVENT, { screen });
+  logEvent(FOLD_OPEN_EVENT, { screen });
 }

@@ -109,6 +109,9 @@ public class DirectVideoConfiguration {
             // "이미 그렇게 했다" 처리 비교(SOMA-855). 새 대화의 SHARE% 는 한 일 묻기 → 다르게 정리로 간다. 0 이면 모두 지금처럼(롤백).
             // 값을 주지 않으면 dev 에서만 50 이고 운영은 0 이다 — 운영 반영은 사용자 승인 뒤 운영 env 로 켠다.
             @Value("${ACTTUB_COACH_ALREADY_SHARE:-1}") int alreadyShare,
+            // 근거·방법 비교(SOMA-955). 계정의 SHARE% 가 실험 쪽이다. 0 이면 모두 지금처럼(롤백).
+            // 값을 주지 않으면 dev 에서만 50 이고 운영은 0 이다 — 운영 반영은 사용자 승인 뒤 운영 env 로 켠다.
+            @Value("${ACTTUB_COACH_EVIDENCE_SHARE:-1}") int evidenceShare,
             @Value("${SITE_URL:}") String siteUrl,
             // 첫 코칭 첫 말 비교. 값을 주지 않으면 dev 에서만 켜지고 운영은 꺼진다 — 운영 반영은 사용자 승인 뒤 운영 env 로 켠다.
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachOpenings> openings,
@@ -141,6 +144,7 @@ public class DirectVideoConfiguration {
                 .withFaceMosaic(faceMosaic.getIfAvailable(() -> com.acttub.actingapi.integration.media.FaceMosaic.NONE))
                 .withReadingAudio(readingAudio.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachReadingAudio.NONE))
                 .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))
+                .withEvidenceShare(alreadyShare(evidenceShare, siteUrl))
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
                         proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
                 .withOpenings(openingAb(openingAb, siteUrl)

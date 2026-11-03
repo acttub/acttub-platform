@@ -58,6 +58,13 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
     }
 
     @Override
+    public int monthlyUsage(UUID userId, YearMonth month) {
+        return ((Number) entityManager.createNativeQuery("SELECT COALESCE(SUM(lines),0) FROM reading_voice_usage WHERE user_id=:userId AND day>=:start AND day<:end")
+                .setParameter("userId", userId).setParameter("start", month.atDay(1))
+                .setParameter("end", month.plusMonths(1).atDay(1)).getSingleResult()).intValue();
+    }
+
+    @Override
     public boolean firstReadingSession(UUID userId, UUID sessionId) {
         return Boolean.TRUE.equals(entityManager.createNativeQuery("""
                 SELECT EXISTS (
@@ -82,6 +89,20 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
         var rows = list(entityManager.createNativeQuery("SELECT hash FROM reading_voice_cache WHERE hash=:hash", Tuple.class)
                 .setParameter("hash", hash));
         return rows.isEmpty() ? null : new CacheEntry(hash, "reading-voice/" + hash + ".wav");
+    }
+
+    @Override
+    public boolean recordSuccessWithinMonthlyCap(UUID userId, LocalDate day, CacheEntry entry, String model,
+            String voice, int byteSize, Instant now, int cap) {
+        return Boolean.TRUE.equals(transaction.execute(status -> {
+            // 외부 합성·업로드는 이 트랜잭션 전에 끝났다. 같은 계정의 최종 차감만 직렬화한다.
+            entityManager.createNativeQuery("SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(:key, 0))")
+                    .setParameter("key", "reading_voice_monthly:" + userId).getSingleResult();
+            if (findCache(entry.hash()) != null) return true;
+            if (monthlyUsage(userId, YearMonth.from(day)) >= cap) return false;
+            recordSuccess(userId, day, entry, model, voice, byteSize, now);
+            return true;
+        }));
     }
 
     @Override

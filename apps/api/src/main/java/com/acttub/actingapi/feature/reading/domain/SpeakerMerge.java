@@ -58,6 +58,12 @@ public final class SpeakerMerge {
     private SpeakerMerge() {
     }
 
+    /** 기록에 잇는 후보 질문의 고정 본문(SOMA-1019) — 후보와 역할 이름은 자리표시자다. */
+    public static String promptTemplate() {
+        Candidate placeholder = new Candidate("{후보}", List.of("{역할}"), "");
+        return LineReview.template(List.of(new LineReview.Extra(QUESTION, placeholder.instructions(), placeholder.choices(false))));
+    }
+
     /**
      * 묻는 후보 하나. {@code roles} 는 보기 역할(값 {@code r0}…), {@code state} 는 판단 모델에 보내는 글이다.
      *
@@ -73,6 +79,15 @@ public final class SpeakerMerge {
         public String instructions() {
             return "대본 전체의 배역 목록을 검증한다. 나누기 결과의 배역 후보 「" + name + "」가 가리키는 역할을 고른다. 원문이 명시한 배우 이름은 극중 "
                     + "배역과 구분한다. 표기 오타·화면 밖 목소리는 같은 역할로 합치고 내레이션·다른 극중 역할은 별도 배역으로 둔다.";
+        }
+
+        /** 답 값이 가리키는 보기 역할. 역할 보기가 아니면 {@code null}. */
+        public String role(String choice) {
+            if (!choice.matches(ROLE + "\\d+")) {
+                return null;
+            }
+            int k = Integer.parseInt(choice.substring(ROLE.length()));
+            return k < roles.size() ? roles.get(k) : null;
         }
 
         /** @param reversed 보기 역할을 거꾸로 늘어놓는다 — 값({@code r0}…)은 그대로라 두 답을 바로 견줄 수 있다 */
@@ -366,11 +381,8 @@ public final class SpeakerMerge {
             }
             if (answer.choice().equals(NONE)) {
                 dropped.add(candidate.name());
-            } else if (answer.choice().matches(ROLE + "\\d+")) {
-                int k = Integer.parseInt(answer.choice().substring(ROLE.length()));
-                if (k < candidate.roles().size()) {
-                    target.put(candidate.name(), candidate.roles().get(k));
-                }
+            } else if (candidate.role(answer.choice()) != null) {
+                target.put(candidate.name(), candidate.role(answer.choice()));
             }
         });
         Map<String, String> parent = new HashMap<>();

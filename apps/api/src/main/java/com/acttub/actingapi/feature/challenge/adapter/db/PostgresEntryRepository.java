@@ -39,13 +39,15 @@ class PostgresEntryRepository implements EntryRepository {
     private final TransactionTemplate transaction;
     private final FailureReporter failures;
     private final VideoObjectCleanup cleanup;
+    private final UnseenEntryBoost unseen;
     /** 묶음 푸시 선점은 그 10분 구간(밤이면 다음 09시)이 지나면 쓸모가 없다 — 이틀이면 넉넉하다. */
     private static final java.time.Duration NOTIFICATION_PUSH_CLAIM_RETENTION = java.time.Duration.ofDays(2);
 
     PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
-                            PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup) {
+                            PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup,
+                            UnseenEntryBoost unseen) {
         this.em = em; this.settlement = settlement; this.cards = cards; this.locks = locks; this.failures = failures;
-        this.cleanup = cleanup;
+        this.cleanup = cleanup; this.unseen = unseen;
         this.transaction = new TransactionTemplate(transactions);
     }
 
@@ -472,7 +474,8 @@ class PostgresEntryRepository implements EntryRepository {
     }
 
     /**
-     * 좋아요순: 첫 조회가 전체 순서(공개 조건)와 공동 순위를 굳혀 두고 10분 동안 이어 준다. 매 쪽에서 개인 노출 조건을
+     * 좋아요순: 첫 조회가 전체 순서(공개 조건)와 공동 순위를 굳혀 두고 10분 동안 이어 준다. 진행 중이면 덜 본 새 참여작을
+     * 앞쪽 칸에 끼운다({@link UnseenEntryBoost}). 매 쪽에서 개인 노출 조건을
      * 다시 본다. 기준(진행 중 → 집계 중 → 확정)이 바뀌었거나 굳힌 순서가 오래됐으면 410 cursor_expired.
      */
     private EntryPage byLikes(UUID viewer, UUID challengeId, String cursor, UUID fromEntry, String basis, String state, Instant now) {
@@ -501,6 +504,12 @@ class PostgresEntryRepository implements EntryRepository {
             var ranked = ranked(challengeId, basis);
             order = ranked.keySet().stream().toList();
             ranks = ranked.values().stream().toList();
+            // 진행 중일 때만 아직 덜 본 새 참여작을 앞쪽 칸에 끼운다. 굳힌 순서에 그대로 담기므로 다음 쪽·피드도 같은 순서다.
+            if ("live".equals(basis)) {
+                var boosted = unseen.apply(viewer, order, ranks);
+                order = boosted.order();
+                ranks = boosted.ranks();
+            }
             snapshot = UUID.randomUUID();
             em.createNativeQuery("""
                     INSERT INTO entry_ranking_snapshots(id,challenge_id,viewer_id,basis,entry_ids,ranks,created_at)

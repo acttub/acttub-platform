@@ -11,7 +11,8 @@ for (const [name, file] of [
   test(`${name} 안내는 화면을 떠나면 닫힌다`, () => {
     const src = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
     assert.match(src, /const guideFocused = useRef\(false\);/);
-    assert.match(src, /if \(!seen && guideFocused\.current(?: && !firstTimeRef\.current)?\) setGuideOpen\(true\);/);
+    // 대본 탭은 본 적 없는지(seen)를 먼저 걸러 낸 뒤 연다(11/2, 목록을 받은 뒤에만 연다).
+    assert.match(src, /if \((?:!seen && )?guideFocused\.current(?: && !firstTimeRef\.current)?\) setGuideOpen\(true\);/);
     assert.match(src, /guideFocused\.current = true;/);
     assert.match(src, /guideFocused\.current = false;\s*\n\s*setGuideOpen\(false\);/);
   });

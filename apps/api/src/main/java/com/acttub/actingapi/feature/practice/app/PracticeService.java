@@ -43,6 +43,7 @@ public class PracticeService {
     private final CoachingPlan plan;
     private final Clock clock;
     private ReadingVoice readingVoice = ReadingVoice.OFF;
+    private PracticeGroupErasure groupErasure;
 
     public PracticeService(
             PracticeRepository practices,
@@ -100,6 +101,27 @@ public class PracticeService {
     public PracticeService withReadingVoice(ReadingVoice readingVoice) {
         this.readingVoice = readingVoice == null ? ReadingVoice.OFF : readingVoice;
         return this;
+    }
+
+    /** 연습 삭제(SOMA-985)를 맡을 자리를 끼운다. 없으면(좁은 조립) 삭제는 404 다. */
+    public PracticeService withGroupErasure(PracticeGroupErasure groupErasure) {
+        this.groupErasure = groupErasure;
+        return this;
+    }
+
+    /**
+     * 연습 삭제(practice.library 「연습 삭제」, SOMA-985). 되돌릴 수 없다 — 숨김과 다르다. 회원만 지운다: 게스트의 자료는
+     * 마지막 활동 30일 뒤 통째로 파기되고, 게스트의 하루 분석 한도는 작업 행으로 센다.
+     */
+    public void deleteGroup(UUID userId, boolean guest, UUID rootId) {
+        if (guest) {
+            throw new ApiException(403, "member_only");
+        }
+        List<UUID> scheduled = groupErasure == null ? null : groupErasure.erase(userId, rootId, clock.instant());
+        if (scheduled == null) {
+            throw notFound();
+        }
+        groupErasure.attempt(scheduled);
     }
 
     /**
@@ -191,6 +213,11 @@ public class PracticeService {
         List<GroupView> groups = new java.util.ArrayList<>(practices.groups(userId, filter, clock.instant()));
         groups.addAll(legacy.groups(userId, filter));
         return groups.stream().map(this::posters).toList();
+    }
+
+    /** 연습한 날(한국 시간). 홈의 연속일·주간 원·누적 연습일이 쓴다 — 기기를 바꿔도 줄지 않게(SOMA-1003). */
+    public List<LocalDate> practiceDays(UUID userId) {
+        return practices.practiceDays(userId);
     }
 
     /** "그만두기". 화면 이탈은 취소가 아니다 — 그쪽은 조회만 멈춘다. */

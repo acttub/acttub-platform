@@ -30,7 +30,7 @@ class OpenAiResponsesClientPayloadTest {
             return new OpenAiHttpResponse(200, (String) result);
         };
         return new OpenAiResponsesClient(JSON, transport, transport, timeout -> transport, duration -> { },
-                Map.of("OPENAI_API_KEY", "k", "OPENAI_CHAT_MODEL", "gpt-default")::get);
+                Map.of("OPENAI_API_KEY", "k", "OPENAI_CHAT_MODEL", "ignored-model")::get);
     }
 
     @Test
@@ -43,7 +43,7 @@ class OpenAiResponsesClientPayloadTest {
         assertThat(requests.getFirst().body().path("model").asText()).isEqualTo("gpt-6-luna");
         assertThat(requests.getFirst().body().path("store").asBoolean(true)).isFalse();
         assertThat(client("{\"output_text\":\"기본\"}").generate("지침", "입력",
-                new GenerationOptions(null, "low", 10, null, null)).model()).isEqualTo("gpt-default");
+                new GenerationOptions(null, "low", 10, null, null)).model()).isEqualTo(OpenAiModels.CHAT);
     }
 
     @Test

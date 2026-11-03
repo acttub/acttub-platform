@@ -54,7 +54,7 @@ export default function TalkScreen() {
         videoUri: '',
         playbackUrl: null,
       });
-      void logEvent('practice_start', { ordinal: 1, continued: false, without_video: true });
+      logEvent('practice_start', { ordinal: 1, continued: false, without_video: true });
       // 분석을 기다릴 것이 없어 회차 id 없이 연다 — 코치 화면이 방금 든 회차로 바로 대화한다.
       router.replace('/coach');
     } catch (e) {

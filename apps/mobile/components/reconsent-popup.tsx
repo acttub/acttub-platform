@@ -132,6 +132,8 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
     setBusy(false);
   };
 
+  const loadFailed = consentEntry.status === 'error' && !verificationOnly;
+
   const renderBody = () => {
     if (consentEntry.status === 'checking') {
       return (
@@ -142,7 +144,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         </SkeletonGroup>
       );
     }
-    if (consentEntry.status === 'error' && !verificationOnly) {
+    if (loadFailed) {
       return (
         <View style={styles.loadFailed}>
           <InlineError message={t('consent.docFail')} onRetry={() => void refreshConsentEntry().catch(() => undefined)} />
@@ -201,12 +203,17 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
       <View style={[styles.backdrop, { paddingTop: insets.top + space[3], paddingBottom: insets.bottom + space[3] }]}>
         <View style={styles.card}>
           <View style={styles.head}>
-            <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
-            {documents.some((d) => d.required) && (
+            {/* 동의 상태를 못 읽은 것(대개 인터넷 끊김)은 문서가 바뀐 것이 아니다 — 제목을 끊김 안내로 바꾼다(11/2 폰 QA). */}
+            <Text style={styles.title}>{loadFailed ? t('consent.loadFailTitle') : t('consent.reconsentTitle')}</Text>
+            {!loadFailed && documents.some((d) => d.required) && (
               <Text style={styles.reason}>{t('consent.reconsentHint')}</Text>
             )}
             <Text style={styles.subtitle}>
-              {documents.some((d) => d.required) ? t('consent.reconsentRequiredHint') : t('consent.reconsentSubtitle')}
+              {loadFailed
+                ? t('consent.loadFailSubtitle')
+                : documents.some((d) => d.required)
+                  ? t('consent.reconsentRequiredHint')
+                  : t('consent.reconsentSubtitle')}
             </Text>
           </View>
           {renderBody()}

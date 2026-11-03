@@ -14,7 +14,8 @@ const modules = {
     export function createAudioPlayer(source){
       const p={source,duration:0,playing:false,removed:false,listener:null,
         addListener(event,listener){this.listener=listener;return {remove:()=>{this.listener=null;}};},
-        play(){this.playing=true;},remove(){this.removed=true;}};
+        play(){this.playing=true;},remove(){this.removed=true;},
+        setPlaybackRate(rate,quality){this.rate=rate;this.quality=quality;}};
       s.players.push(p);return p;
     }`,
   '../../i18n.ts': `export const currentLanguage=()=> 'ko'; export const translate=k=>k;`,
@@ -38,7 +39,7 @@ const modules = {
   '../voice-capability.ts': `const s=globalThis.__readingEngineTest;
     export async function readAppVoiceSupport(){return s.unsupported ? {unsupported:true,noticed:false} : {unsupported:false};}`,
   './helper.native.js': `const s=globalThis.__readingEngineTest;
-    export const loadOnnx=async()=>{ if(s.loadFails) throw new Error('bad model'); return {}; };
+    export const loadOnnx=async()=>{ s.loads=(s.loads??0)+1; if(s.loadFails) throw new Error('bad model'); return {}; };
     export const loadVoiceStyleFromObjects=styles=>styles[0];
     export const writeWavFile=samples=>new Uint8Array(samples);
     export class UnicodeProcessor{}
@@ -58,6 +59,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const engine = await import('../lib/reading/tts/engine.ts');
+const playbackRate = await import('../lib/reading/tts/playback-rate.ts');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
 beforeEach(async () => {
@@ -134,6 +136,24 @@ test('재생 중지로 대기를 풀고 합성 중 화면을 떠나면 뒤늦게
   assert.equal(state.players.length,1);
 });
 
+test('[다음]을 연타하면 지나간 줄은 만들지 않고 도착한 줄만 만들어 튼다', async () => {
+  let release;
+  state.gate = new Promise(resolve => { release=resolve; });
+  const lines = ['첫 줄','둘째 줄','셋째 줄','넷째 줄','다섯째 줄'];
+  // 줄이 바뀔 때마다 화면은 앞 줄을 멈추고(stop) 새 줄을 읽는다(speak).
+  const next = (line) => { engine.stop(); return engine.speak(line,'F1',{scriptId:'script'}); };
+  const speaking = [next(lines[0])];
+  await flush(); // 첫 줄은 이미 만들고 있다
+  for (const line of lines.slice(1)) speaking.push(next(line));
+  release();
+  await flush(); await flush();
+  // 만들던 첫 줄은 끊지 못하지만, 그 사이 지나간 줄(둘째~넷째)은 만들지 않는다.
+  assert.deepEqual(state.calls.map(c=>c.text), ['첫 줄','다섯째 줄']);
+  assert.equal(state.players.length, 1);
+  state.players[0].listener({isLoaded:true,didJustFinish:true,duration:1});
+  await Promise.all(speaking);
+});
+
 test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 지켜보고 받기는 한 번만 한다', async () => {
   engine._reset();
   state.downloads=0;
@@ -157,45 +177,62 @@ test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 �
 test('미리 받기: Wi-Fi 에서만 받고, 진행 중인 준비와 한 번의 받기를 나눠 쓴다', async () => {
   engine._reset(); state.downloads=0;
   state.network='cellular';
-  await engine.prefetchIfWifi();
+  await engine.prepareInBackground();
   assert.equal(state.downloads,0);
   assert.equal(engine.isReady(),false);
 
   state.network='unknown';
-  await engine.prefetchIfWifi();
+  await engine.prepareInBackground();
   assert.equal(state.downloads,0);
 
   state.network='wifi';
   let release;
   state.downloadGate=new Promise(resolve=>{release=resolve;});
-  const prefetch=engine.prefetchIfWifi();
+  const prefetch=engine.prepareInBackground();
   await flush(); await flush();
   const screen=engine.ensureReady();
-  const again=engine.prefetchIfWifi();
+  const again=engine.prepareInBackground();
   release();
   await Promise.all([prefetch,screen,again]);
   assert.equal(state.downloads,1);
   assert.equal(engine.isReady(),true);
 });
 
-test('미리 받기: 이미 받아 둔 모델은 미리 불러오지 않고 실패는 삼킨다', async () => {
-  engine._reset(); state.downloads=0;
+test('미리 준비: 이미 받아 둔 모델은 Wi-Fi 가 아니어도 메모리에 올리고, 첫 미리 듣기와 한 번의 로드를 나눠 쓴다(SOMA-973)', async () => {
+  engine._reset(); state.downloads=0; state.loads=0;
   state.present=true;
-  await engine.prefetchIfWifi();
-  assert.equal(state.downloads,0);
-  assert.equal(engine.isReady(),false);
+  state.network='cellular';
+  await engine.prepareInBackground();
+  assert.equal(engine.isReady(),true); // 첫 탭 전에 이미 올라가 있다
+  assert.equal(state.loads,1); // 가짜 assets 의 MODEL_KINDS 는 1개다
 
-  state.present=false;
+  // 로드가 끝나기 전에 첫 미리 듣기를 눌러도(roles.tsx 의 ensureReady) 두 번 올리지 않는다
+  engine._reset(); state.loads=0;
+  let release;
+  state.downloadGate=new Promise(resolve=>{release=resolve;});
+  const prefetch=engine.prepareInBackground();
+  await flush(); await flush();
+  const firstTap=engine.ensureReady();
+  release();
+  await Promise.all([prefetch,firstTap]);
+  assert.equal(engine.isReady(),true);
+  assert.equal(state.loads,1);
+});
+
+test('미리 받기: 받을 때 실패는 삼킨다', async () => {
+  engine._reset(); state.downloads=0;
   state.downloadError=new Error('offline');
-  await engine.prefetchIfWifi(); // 던지지 않는다
+  await engine.prepareInBackground(); // 던지지 않는다
   assert.equal(engine.isReady(),false);
 });
 
-test('미리 받기: 앱 목소리를 못 쓰는 기기로 표시됐으면 Wi-Fi 여도 받지 않는다', async () => {
+test('미리 받기: 앱 목소리를 못 쓰는 기기로 표시됐으면 Wi-Fi 여도 받지 않고, 받아 둔 모델도 올리지 않는다', async () => {
   engine._reset(); state.downloads=0;
   state.unsupported=true;
-  await engine.prefetchIfWifi();
+  await engine.prepareInBackground();
   assert.equal(state.downloads,0);
+  state.present=true;
+  await engine.prepareInBackground();
   assert.equal(engine.isReady(),false);
 });
 
@@ -257,4 +294,33 @@ test('재생이 시작됐는데 끝 사건이 오지 않으면 소리 길이와 
   } finally {
     mock.timers.reset();
   }
+});
+
+test('읽는 속도(SOMA-952): 정한 속도로 높낮이를 지키며 틀고, 끝 사건이 없으면 빨라진 길이만큼만 기다린다', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  playbackRate.setReadingPlaybackRate(1.5);
+  try {
+    let finished = false;
+    const playback = engine.play('file:///fast.wav').then(() => { finished = true; });
+    const player = state.players.at(-1);
+    assert.deepEqual([player.rate, player.quality, player.shouldCorrectPitch], [1.5, 'high', true]);
+    player.listener({ isLoaded: true, didJustFinish: false, playing: true, currentTime: 0, duration: 3 });
+    mock.timers.tick(2000 + engine.PLAYBACK_END_MARGIN_MS - 1);
+    await flush();
+    assert.equal(finished, false);
+    mock.timers.tick(1);
+    await playback;
+    assert.equal(finished, true);
+  } finally {
+    playbackRate.setReadingPlaybackRate(1);
+    mock.timers.reset();
+  }
+});
+
+test('보통 속도면 재생기 속도를 건드리지 않는다', async () => {
+  const playback = engine.play('file:///normal.wav');
+  const player = state.players.at(-1);
+  assert.equal(player.rate, undefined);
+  player.listener({ isLoaded: true, didJustFinish: true, duration: 1 });
+  await playback;
 });

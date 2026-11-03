@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisCompletionListener;
+import com.acttub.actingapi.feature.reading.app.ScriptSplitListener;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.stereotype.Service;
@@ -19,7 +20,7 @@ import org.springframework.stereotype.Service;
  * 하지 않는다.
  */
 @Service
-public class PushService implements AnalysisCompletionListener {
+public class PushService implements AnalysisCompletionListener, ScriptSplitListener {
 
     /** 아는 플랫폼만 받는다. 밖의 값은 등록을 조용히 거르지 않고 요청 검증(web)이 막는다. */
     public static final Set<String> PLATFORMS = Set.of("ios", "android");
@@ -88,5 +89,32 @@ public class PushService implements AnalysisCompletionListener {
                         Map.of("kind", "analysis_complete", "practice_id", sessionId.toString())))
                 .toList();
         sender.send(messages).forEach(tokens::unregister);
+    }
+
+    /**
+     * 대본 나누기가 끝난 순간 그 사람의 토큰 전부에 한 번 보낸다(SOMA-960). 잠금 화면에 보이므로 제목·대사는 싣지 않는다.
+     * 분석 완료와 같이 어떤 실패도 밖으로 내보내지 않는다.
+     */
+    @Override
+    public void onScriptSplit(UUID userId, UUID scriptId) {
+        try {
+            List<PushTarget> targets = tokens.scriptSplitTargets(userId);
+            if (targets.isEmpty()) {
+                return;
+            }
+            List<PushMessage> messages = targets.stream()
+                    .map(target -> new PushMessage(
+                            target.token(),
+                            target.korean() ? "대본을 다 나눴어요" : "Your script is ready",
+                            target.korean()
+                                    ? "배역 목소리를 정하고 리딩을 시작해 볼까요?"
+                                    : "Pick the voices and start reading.",
+                            // 앱이 이 두 키로 알아보고 그 대본의 목소리 정하기를 연다(reminderTarget).
+                            Map.of("kind", "script_split_complete", "script_id", scriptId.toString())))
+                    .toList();
+            sender.send(messages).forEach(tokens::unregister);
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("PushService.onScriptSplit"));
+        }
     }
 }

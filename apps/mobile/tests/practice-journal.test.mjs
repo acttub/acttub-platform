@@ -152,11 +152,12 @@ test('일지가 없으면(404 journal_not_found) null, 다른 실패는 던진�
   await assert.rejects(readOptionalJournal(async () => { throw Object.assign(new Error('x'), { code: 'network' }); }, 'p1'));
 });
 
-test('코칭이 끝나면 배우 일지로 간다 — coach.tsx 는 연결 한 줄만, 튜토리얼 예시는 미리 쓴 노트 그대로', () => {
+test('코칭이 끝나면 배우 일지 없이 오늘 코칭 끝으로 간다(11/2) — 튜토리얼 예시는 미리 쓴 노트 그대로', () => {
   const coach = read('app/coach.tsx');
-  assert.match(coach, /router\.replace\(sample \? '\/report' : '\/journal'\)/);
+  assert.match(coach, /router\.replace\(sample \? '\/report' : \{ pathname: '\/coaching-done', params: \{ practiceId \} \}\)/);
+  assert.doesNotMatch(coach, /'\/journal'/);
   const ko = read('locales/ko.ts');
-  assert.match(ko, /seeSummary: '일지 쓰고 마치기'/);
+  assert.match(ko, /seeSummary: '코칭 마치기'/);
   // 「배우일지로 남길까요?」 확인 창은 두지 않는다.
   assert.doesNotMatch(read('app/journal.tsx'), /배우일지로 남길까요/);
 });

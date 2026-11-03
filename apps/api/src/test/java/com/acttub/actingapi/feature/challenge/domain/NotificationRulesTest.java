@@ -36,4 +36,19 @@ class NotificationRulesTest {
         assertThat(NotificationRules.pushBody("challenge_ended", false)).isEqualTo("A challenge you joined has ended");
         assertThat(NotificationRules.pushBody("entry_ai_report_ready", false)).isEqualTo("Your AI report is ready");
     }
+
+    @Test void challengeNotification_pushTitleIsAlwaysActtub() {
+        assertThat(NotificationRules.pushTitle(true)).isEqualTo("Acttub");
+        assertThat(NotificationRules.pushTitle(false)).isEqualTo("Acttub");
+    }
+
+    @Test void challengeNotification_reactionPushNamesWhoDidIt() {
+        assertThat(NotificationRules.pushBody("entry_liked", true, "지성", 0)).isEqualTo("지성님이 좋아요를 눌렀어요");
+        assertThat(NotificationRules.pushBody("entry_liked", true, "지성", 2)).isEqualTo("지성님 외 2명이 좋아요를 눌렀어요");
+        assertThat(NotificationRules.pushBody("entry_commented", true, "지성", 0)).isEqualTo("지성님이 댓글을 달았어요");
+        assertThat(NotificationRules.pushBody("entry_commented", true, NotificationRules.WITHDRAWN_NAME, 0)).isEqualTo("누군가 댓글을 달았어요");
+        assertThat(NotificationRules.pushBody("entry_liked", true, null, 1)).isEqualTo("2명이 좋아요를 눌렀어요");
+        assertThat(NotificationRules.pushBody("entry_liked", false, "Jisung", 1)).isEqualTo("Jisung and 1 other liked your entry");
+        assertThat(NotificationRules.pushBody("challenge_ended", true, "지성", 0)).isEqualTo("참여한 챌린지가 끝났어요");
+    }
 }

@@ -182,7 +182,8 @@ public class MemoryUpdateWorker {
                     Duration.between(startedAt, Instant.now()),
                     null,
                     LlmCall.metadata("blockage_kind", material.blockageKind(),
-                            "operation_id", operationId == null ? null : operationId.toString())));
+                            "operation_id", operationId == null ? null : operationId.toString()))
+                    .withPrompt(MemoryExtractor.TEMPLATE));
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(
@@ -197,7 +198,8 @@ public class MemoryUpdateWorker {
                     Duration.between(startedAt, Instant.now()),
                     failure.getClass().getSimpleName(),
                     LlmCall.metadata("blockage_kind", material.blockageKind(),
-                            "operation_id", operationId == null ? null : operationId.toString())));
+                            "operation_id", operationId == null ? null : operationId.toString()))
+                    .withPrompt(MemoryExtractor.TEMPLATE));
             throw failure;
         }
     }

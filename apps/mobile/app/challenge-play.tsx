@@ -1,11 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Pressable,
   StyleSheet,
@@ -23,19 +25,32 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
+import { UserAvatar } from '@/components/ui/default-avatar';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
+import { ScrimGradient } from '@/components/ui/band-gradient';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
+import { browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { commentCountAfter } from '@/lib/challenge/entry';
 import { playMenuItems, type PlayMenuItem } from '@/lib/challenge/menu';
-import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
+import {
+  canReact,
+  DOUBLE_TAP_MS,
+  doubleTapAction,
+  isDoubleTap,
+  optimisticLike,
+  optimisticSave,
+  reactFailure,
+  reactFailureMessage,
+  type LastTap,
+} from '@/lib/challenge/react';
 import type { ChallengeDetail, EntryCard, ReportReason, ReportTarget } from '@/lib/challenge/types';
 import { createViewTracker, VIEW_THRESHOLD_MS } from '@/lib/challenge/views';
+import { enteredChallengeIds } from '@/lib/challenge/entered';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { newRequestId } from '@/lib/request-id';
@@ -52,6 +67,9 @@ import { limitVideoBuffer } from '@/lib/video-memory';
  * 반응(challenge.react): 좋아요는 먼저 표시를 바꾸고 서버가 실패하면 되돌려 알린다. 저장·댓글도
  * 같은 자리에 있고 자기 참여작에는 좋아요·저장을 하지 않는다. 신고(A15.4)는 사유 다섯에 기타
  * 메모이고, 차단하면 그 사람의 참여작이 이 화면에서 바로 사라진다(상대에게 알리지 않는다).
+ *
+ * 영상을 두 번 누르면 인스타처럼 누른 자리에 하트가 뜨고 좋아요가 된다(이미 눌렀으면 취소하지
+ * 않고 하트만). 한 번 누르기(재생·멈춤)는 두 번 누르기와 구분하려고 DOUBLE_TAP_MS 만큼 늦게 반응한다.
  */
 export default function ChallengePlayScreen() {
   const router = useRouter();
@@ -62,6 +80,8 @@ export default function ChallengePlayScreen() {
   const { user } = useAuth();
   const { id, entryId } = useLocalSearchParams<{ id?: string; entryId?: string }>();
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  // 이미 참여했으면(나만 보기 포함) 빈 화면에서 「첫 번째로 참여해 보세요」를 띄우지 않고 버튼도 「한 번 더 찍기」로 둔다(SOMA-995).
+  const [entered, setEntered] = useState(false);
   const [entries, setEntries] = useState<EntryCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
@@ -110,17 +130,32 @@ export default function ChallengePlayScreen() {
   ).current;
 
   useEffect(() => {
+    const cid = challenge?.id;
+    if (!cid) return;
+    let live = true;
+    void enteredChallengeIds().then((ids) => {
+      if (live) setEntered(ids.has(cid));
+    });
+    return () => {
+      live = false;
+    };
+  }, [challenge?.id]);
+
+  useEffect(() => {
     if (!id && !entryId) return;
     let alive = true;
     // 저장한 영상·내 영상에서는 챌린지 id 없이 참여작 id 만 넘어온다 — 참여작에서 챌린지를 알아낸다.
     // 내 비공개 참여작은 피드(공개 목록)에 없어 404 가 되므로 그 참여작 한 개만 보여 준다(SOMA-738).
     void (async () => {
-      const own = entryId ? await api.getEntry(entryId).catch(() => null) : null;
-      const challengeId = id ?? own?.challenge_id;
+      // 챌린지 id 를 알면 참여작·챌린지·목록을 한꺼번에 묻는다 — 전에는 셋을 차례로 받아 영상이 늦게 떴다(11/2 폰 QA).
+      const ownRead = entryId ? api.getEntry(entryId).catch(() => null) : Promise.resolve(null);
+      const challengeId = id ?? (await ownRead)?.challenge_id;
       if (!challengeId) throw Object.assign(new Error('not_found'), { status: 404 });
-      const detail = await api.getChallenge(challengeId);
+      const listRead = api.listChallengeEntries(challengeId, { sort: 'likes', fromEntry: entryId });
+      listRead.catch(() => undefined);
+      const [detail, own] = await Promise.all([api.getChallenge(challengeId), ownRead]);
       try {
-        const list = await api.listChallengeEntries(challengeId, { sort: 'likes', fromEntry: entryId });
+        const list = await listRead;
         return { detail, list: rankEntries(list.entries, 'likes'), next: list.next_cursor };
       } catch (e) {
         if (own && browseFailure(e).kind === 'not_found') return { detail, list: [own as EntryCard], next: null };
@@ -267,6 +302,25 @@ export default function ChallengePlayScreen() {
     else player.play();
     setPlaying((v) => !v);
   };
+  // 한 번 누르기는 잠깐 기다렸다가 처리하므로 그때의 최신 재생 상태로 바꾸게 한다.
+  const togglePlayRef = useRef(togglePlay);
+  togglePlayRef.current = togglePlay;
+
+  const lastTap = useRef<LastTap | null>(null);
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 두 번 누른 자리에 띄울 하트. key 가 바뀌면 애니메이션을 처음부터 다시 한다. */
+  const [burst, setBurst] = useState<{ key: number; x: number; y: number; tilt: number } | null>(null);
+  const cancelSingleTap = () => {
+    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = null;
+  };
+  // 다른 참여작으로 넘기거나 화면을 닫으면 기다리던 한 번 누르기와 하트를 버린다.
+  useEffect(() => {
+    cancelSingleTap();
+    lastTap.current = null;
+    setBurst(null);
+  }, [active]);
+  useEffect(() => cancelSingleTap, []);
 
   const perform = () => {
     if (!challenge || !canPerform(challenge)) return;
@@ -303,6 +357,37 @@ export default function ChallengePlayScreen() {
       void alert({ title: t('react.likeFailTitle'), message: reactFailureMessage(reactFailure(e)) });
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** 영상 누르기 — 한 번은 재생·멈춤, 같은 참여작을 빠르게 두 번 누르면 좋아요(인스타식). */
+  const onVideoPress = (entry: EntryCard, e: GestureResponderEvent) => {
+    const now = Date.now();
+    if (!isDoubleTap(lastTap.current, now, entry.id)) {
+      lastTap.current = { at: now, entryId: entry.id };
+      cancelSingleTap();
+      singleTapTimer.current = setTimeout(() => {
+        singleTapTimer.current = null;
+        togglePlayRef.current();
+      }, DOUBLE_TAP_MS);
+      return;
+    }
+    // 계속 빠르게 누르면 하트만 더 띄우고 재생·멈춤은 건드리지 않는다.
+    lastTap.current = { at: now, entryId: entry.id };
+    cancelSingleTap();
+    const action = doubleTapAction(entry);
+    if (action === 'none') return;
+    const x = e?.nativeEvent?.locationX ?? width / 2;
+    const y = e?.nativeEvent?.locationY ?? height / 2;
+    setBurst({ key: now, x, y, tilt: Math.round(Math.random() * 30 - 15) });
+    try {
+      void Promise.resolve(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)).catch(() => {});
+    } catch {
+      // 진동이 안 되는 기기에서도 좋아요는 그대로 한다.
+    }
+    if (action === 'like') {
+      logEvent('challenge_double_tap_like', { id: entry.id });
+      void toggleLike(entry);
     }
   };
 
@@ -386,15 +471,23 @@ export default function ChallengePlayScreen() {
         {isActive && sourceOf(item, originalFor) && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         )}
-        <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button" ph-label="challenge_play_toggle">
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={(e) => onVideoPress(item, e)}
+          accessibilityRole="button"
+          ph-label="challenge_play_toggle">
           {isActive && !playing && (
             <View style={styles.pauseCenter}>
               <Feather name="play" size={40} color={palette.onAccent} />
             </View>
           )}
         </Pressable>
-        <View style={styles.scrimTop} pointerEvents="none" />
-        <View style={styles.scrimBottom} pointerEvents="none" />
+        {isActive && burst && (
+          <LikeBurst key={burst.key} x={burst.x} y={burst.y} tilt={burst.tilt} onDone={() => setBurst(null)} />
+        )}
+        {/* 위·아래 막은 가장자리만 진하고 영상 쪽으로 갈수록 투명해진다 — 아래 절반을 같은 진하기로 덮던 박스를 바꿨다. */}
+        <ScrimGradient color={SCRIM_COLOR} alphas={SCRIM_TOP} height={130} style={styles.scrimTop} />
+        <ScrimGradient color={SCRIM_COLOR} alphas={SCRIM_BOTTOM} height={330} style={styles.scrimBottom} />
 
         <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
           <View style={styles.top}>
@@ -402,9 +495,7 @@ export default function ChallengePlayScreen() {
               <Feather name="x" size={24} color={palette.onAccent} />
             </Pressable>
             <View style={styles.author}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{avatarLetter(item.author.name)}</Text>
-              </View>
+              <UserAvatar size={24} radius={12} seed={item.author.user_id} photoUrl={item.author.photo_url} />
               <Text style={styles.authorName}>{item.author.name}</Text>
             </View>
             <View style={styles.topRight}>
@@ -494,7 +585,7 @@ export default function ChallengePlayScreen() {
                 onPress={perform}
                 accessibilityRole="button">
                 <Feather name="video" size={16} color={palette.onAccent} />
-                <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+                <Text style={styles.performText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
               </Pressable>
             )}
           </View>
@@ -537,15 +628,22 @@ export default function ChallengePlayScreen() {
       )}
       {entries !== null && entries.length === 0 && !error && (
         <View style={[styles.emptyWrap, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
-          <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close" style={styles.emptyClose}>
+          {/* 감싼 칸의 paddingTop 은 absolute 자식에 안 먹는다 — 상태바 높이를 직접 더해야 X가 상태바 아래에서 눌린다(SOMA-993). */}
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            ph-label="challenge_play_close"
+            style={[styles.emptyClose, { top: insets.top + space[2] }]}>
             <Feather name="x" size={24} color={palette.onAccent} />
           </Pressable>
           <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
-          <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
+          <Text style={styles.empty}>{t(entered ? 'challenges.emptyOthers' : 'challenges.emptyEntries')}</Text>
           {challenge && !isEnded(challenge) && (
             <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
               <Feather name="video" size={16} color={palette.onAccent} />
-              <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+              <Text style={styles.performText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
             </Pressable>
           )}
         </View>
@@ -595,6 +693,39 @@ export default function ChallengePlayScreen() {
   );
 }
 
+const BURST_SIZE = 96;
+
+/** 두 번 누른 자리에 떠오르는 하트 — 튀어 커졌다가 잠깐 머문 뒤 살짝 커지며 사라진다. 누르기를 막지 않는다. */
+function LikeBurst({ x, y, tilt, onDone }: { x: number; y: number; tilt: number; onDone: () => void }) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.sequence([
+      Animated.spring(scale, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }),
+      Animated.delay(250),
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.25, duration: 220, useNativeDriver: true }),
+      ]),
+    ]);
+    anim.start(({ finished }) => finished && onDone());
+    return () => anim.stop();
+    // 한 번 뜬 하트는 끝까지 같은 애니메이션을 한다(새로 누르면 key 가 바뀌어 새 하트가 된다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      testID="like-burst"
+      style={[
+        styles.burst,
+        { left: x - BURST_SIZE / 2, top: y - BURST_SIZE / 2, opacity, transform: [{ rotate: `${tilt}deg` }, { scale }] },
+      ]}>
+      <MaterialCommunityIcons name="heart" size={BURST_SIZE} color={palette.danger} />
+    </Animated.View>
+  );
+}
+
 /** 재생할 주소. 원본 보기를 켠 내 참여작이고 원본 주소가 있을 때만 원본이다. */
 function sourceOf(entry: EntryCard, originalFor: string | null): string | null {
   return originalFor === entry.id && entry.original_playback_url ? entry.original_playback_url : entry.playback_url;
@@ -602,6 +733,13 @@ function sourceOf(entry: EntryCard, originalFor: string | null): string | null {
 
 /** 아래 행동 줄(좋아요·저장·댓글·공유) 높이 — 토스트를 그 위에 띄운다. */
 const ACTION_ROW = 32;
+
+// 막 색은 palette.scrim(#0F141E)과 같다. 진하기: 아래 끝 55%, 위 끝 35%, 영상 쪽 끝은 0%.
+const SCRIM_COLOR = '#0F141E';
+const SCRIM_TOP = [[0, 0.35], [1, 0]] as const;
+const SCRIM_BOTTOM = [[0, 0], [0.35, 0.15], [1, 0.55]] as const;
+// 막이 옅어진 만큼 밝은 영상 위 흰 글자가 묻히지 않게 옅은 그림자를 준다.
+const MEDIA_TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 };
 
 const styles = StyleSheet.create({
   playFail: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
@@ -614,16 +752,15 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.text },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 160, backgroundColor: palette.scrim },
-  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 420, backgroundColor: palette.scrim },
+  burst: { position: 'absolute', width: BURST_SIZE, height: BURST_SIZE, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  scrimTop: { top: 0 },
+  scrimBottom: { bottom: 0 },
   overlay: { flex: 1, justifyContent: 'space-between' },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[4], paddingTop: space[2] },
   author: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  authorName: { ...type.body2Bold, color: palette.onAccent },
-  avatar: { width: 24, height: 24, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...type.micro, color: palette.textSub },
+  authorName: { ...type.body2Bold, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
   bottom: { paddingHorizontal: space.gutter, paddingBottom: space[4], gap: space[2] },
-  storyLabel: { ...type.micro, color: palette.onMediaSub },
+  storyLabel: { ...type.micro, color: palette.onMediaSub, ...MEDIA_TEXT_SHADOW },
   originalToggle: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -636,13 +773,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.scrim,
   },
   originalToggleText: { ...type.captionBold, color: palette.onAccent },
-  line: { ...type.title2, color: palette.onAccent },
-  work: { ...type.caption, color: palette.onMediaSub },
+  line: { ...type.title2, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
+  work: { ...type.caption, color: palette.onMediaSub, ...MEDIA_TEXT_SHADOW },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[5], height: ACTION_ROW, marginTop: space[1] },
   topRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   action: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   actionOff: { opacity: 0.4 },
-  actionText: { ...type.body2Bold, color: palette.onAccent },
+  actionText: { ...type.body2Bold, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
   performBtn: {
     flexDirection: 'row',
     alignItems: 'center',

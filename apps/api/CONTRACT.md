@@ -95,11 +95,6 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
-- `community_*` 일곱 테이블(`community_categories`·`community_posts`·`community_comments`·
-  `community_post_likes`·`community_anonymous_aliases`·`community_reports`·`community_blocks`):
-  0.1.0에서 커뮤니티의 API와 코드를 내렸다([community](../../docs/specs/community/README.md)).
-  `/v2/community/**`는 404다. 글·댓글·차단·신고·카테고리 데이터와 CHECK 값 검사
-  (`ValueCheckCatalogIT`)는 그대로 두고, 되살릴 때는 git 이력에서 `feature/community`를 가져온다.
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않으며 조회·수정은 이 컬럼을 보지 않는다. **탈퇴의 파기만 예외로 이 컬럼에
   NULL을 쓴다** — 복사 뒤에도 옛 값이 남아 있고 탈퇴는 이름을 지체 없이 파기해야 하기 때문이다
@@ -354,7 +349,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
 | 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
-| 16 | 커뮤니티 API 은퇴 | `/v2/community/**` 는 **404** 다(0.1.0, 테이블은 보존 §5-1). 인증이 선택이던 경로는 이것뿐이었다. `Authorization` 헤더가 오면 없는 경로에서도 먼저 검증한다 — 탈퇴한 계정의 토큰은 403 |
+| 16 | 게시판은 회원 전용 | `/v2/community/**` 는 SOMA-873 에서 되살아났고 게이트(동의·프로필)를 지난 회원만 쓴다. 0.1.0 전에는 인증이 선택인 유일한 경로였지만 이제 헤더가 없으면 401, 탈퇴한 계정의 토큰은 403 이다([community](../../docs/specs/community/README.md)). 글 사진(V87)은 포트폴리오 사진과 같은 서명 올리기 길이이고 객체 삭제는 정리 장부가 맡는다 |
 | 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
 | 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
 | 19 | 클라이언트 판 426 | `ClientVersionFilter` 가 토큰 검증보다 먼저 낸다(§6-5). 행동은 [common.md 「클라이언트 판과 강제 업데이트」](../../docs/specs/common.md#클라이언트-판과-강제-업데이트) |
@@ -896,7 +891,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
   나누기는 늘 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
-  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751)·`SCRIPT_CAST`(SOMA-937) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
+  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751)·`SCRIPT_CAST`(SOMA-937)·`SCRIPT_REVIEW`·`SCRIPT_SAME_SPEAKER`(SOMA-1019) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
   본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
@@ -933,8 +928,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 **고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
 
-- `available` 은 `GEMINI_API_KEY`·`GEMINI_TTS_MODEL`·오브젝트 스토리지가 모두 설정되고, 현재 시각이 무료 종료 시각
-  (`READING_VOICE_FREE_UNTIL`) 이하이며, 그 달의 새 합성이 월 한도 미만일 때만 참이다. 사용량 날짜는 Asia/Seoul 기준이다.
+- 고품질 음성은 모델·저장소 설정과 동의를 공통으로 지키며, 무료 기간·Pro·무료 첫 리딩 판정은 제품 정본을 따른다.
+- Pro는 계정당 한국 달력 월 새 합성 10,000줄이며 일 300줄·서비스 전체 월 75,000줄로 차단하지 않는다(SOMA-949).
+  일반 계정만 기존 일·전체 월 한도를 따른다. Pro 초과 오류는 429 cloud_voice_monthly_limit이다.
+- 구버전 호환을 위해 status의 daily_limit·daily_used 필드는 유지한다. 일반 계정에는 오늘 값, Pro에는 이번 달 한도·사용량을 담는다.
+  현재 모바일 소비자는 이 두 숫자로만 회차 사용 여부를 계산하고 일일 수치로 화면에 표시하지 않는다.
+- Pro 성공 차감은 계정별 advisory transaction lock 안에서 월 합계를 재검사한다. 외부 합성·업로드는 트랜잭션 밖이다.
 - 캐시 키는 `sha256(model + "\n" + geminiVoice + "\n" + text)` 이고 객체 키는 `reading-voice/{hash}.wav` 다. 캐시 적중은
   합성과 사용량 증가 없이 성공하고, 새 합성 성공만 일 사용량을 1 올린다(`PostgresCloudVoiceRepository`).
 - 모델 호출에는 대사 원문 하나와 고른 prebuilt voice만 싣는다(`CloudVoiceService`).
@@ -1466,9 +1465,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
-   선택됐다. 성능 명목으로 증감으로 되돌리면 버그가 부활한다. (1·2는 커뮤니티의 규칙이다. 코드는
-   0.1.0에서 내렸고 git 이력의 `feature/community/adapter/db/PostgresCommunityRepository`에 있다 —
-   되살릴 때와 챌린지의 좋아요·댓글 집계를 만들 때 같은 규칙을 지킨다.)
+   선택됐다. 성능 명목으로 증감으로 되돌리면 버그가 부활한다. (1·2는 게시판의 규칙이다 —
+   `feature/community/adapter/db/PostgresCommunityRepository`(SOMA-873 에서 되살렸다)와 챌린지의 좋아요·댓글
+   집계가 같은 규칙을 지킨다.)
 2. **댓글 수 증감은 원자적이어야 한다.** `post.setCommentCount(get()+1)` 형태로 옮기면 lost
    update 가 새로 생긴다. 벌크 UPDATE 로 분리한다.
 3. **상관 서브쿼리에서 앵커 테이블을 명시한다.** 명시하지 않으면 같은 테이블이 FROM 에 두 번

@@ -27,9 +27,13 @@ const group = (over = {}) => ({
   ...over,
 });
 
-test('challenge.notification: 묶음 한 줄은 인원·댓글 수를 말한다', () => {
-  assert.match(groupLabel(group({ actor_count: 30 })), /30/);
-  assert.match(groupLabel(group({ kind: 'entry_commented', actor_count: 4 })), /4/);
+test('challenge.notification: 묶음 한 줄은 누가 했는지 인스타처럼 말한다', () => {
+  assert.equal(groupLabel(group({ actor_count: 1 })), '윤서님이 좋아요를 눌렀어요');
+  assert.equal(groupLabel(group({ actor_count: 30 })), '윤서님 외 29명이 좋아요를 눌렀어요');
+  assert.equal(groupLabel(group({ kind: 'entry_commented', actor_count: 1, comment_excerpt: '넘 잘하셔요' })), '윤서님이 댓글을 달았어요: 넘 잘하셔요');
+  assert.equal(groupLabel(group({ kind: 'entry_commented', actor_count: 4 })), '윤서님 외 3명이 댓글을 달았어요');
+  assert.equal(groupLabel(group({ actor_name: '탈퇴한 사용자', actor_count: 1 })), '누군가 좋아요를 눌렀어요');
+  assert.equal(groupLabel(group({ actor_name: null, actor_count: 3 })), '3명이 좋아요를 눌렀어요');
   // 종료는 수를 말하지 않는다.
   assert.doesNotMatch(groupLabel(group({ kind: 'challenge_ended', actor_count: 1 })), /1/);
 });

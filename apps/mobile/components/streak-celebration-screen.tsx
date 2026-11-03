@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { easing, motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
+import { playSoundEffect } from '@/lib/sound-effects';
 import type { CelebrationDot } from '@/lib/streak-celebration';
 
 /** 불꽃이 자리 잡은 뒤 숫자가 바뀌는 때. */
@@ -54,6 +55,8 @@ export function StreakCelebrationScreen({
       withSpring(1, { damping: 12, stiffness: 160 }),
     );
     fill.value = withDelay(FILL_AT, withSpring(1, { damping: 9, stiffness: 200 }));
+    // 불꽃이 뜰 때 짧은 효과음(11/2 우영).
+    playSoundEffect('flame');
     const timer = setTimeout(() => {
       setShown(streak);
       try {

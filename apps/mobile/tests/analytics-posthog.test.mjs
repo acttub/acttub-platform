@@ -47,17 +47,17 @@ const { logEvent, logScreenView, setAnalyticsUserId } = await import('../lib/ana
 const { syncPostHog } = await import('../lib/posthog.ts');
 
 test('analytics: 동의 뒤에는 이벤트·화면을 PostHog 로도 보내고, 회원 번호를 지우면 reset 한다', async () => {
-  await logEvent('before_consent');
+  logEvent('before_consent');
   syncPostHog('decision_required');
-  await logScreenView('/consent');
+  logScreenView('/consent');
   assert.equal(clients.length, 0);
 
   syncPostHog('allowed');
   await setAnalyticsUserId('member-42');
-  await logScreenView('/(tabs)');
-  await logEvent('practice_start', { kind: 'monologue' });
+  logScreenView('/(tabs)');
+  logEvent('practice_start', { kind: 'monologue' });
   await setAnalyticsUserId(null);
-  await logEvent('after_sign_out');
+  logEvent('after_sign_out');
 
   assert.equal(clients.length, 1);
   assert.equal(clients[0].key, 'phc_test');

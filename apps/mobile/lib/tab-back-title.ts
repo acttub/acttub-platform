@@ -6,7 +6,7 @@ import { translate as t } from './i18n.ts';
  */
 export function tabBackTitle(focusedTab: string | undefined): string {
   if (focusedTab === 'reading') return t('tabs.reading');
-  if (focusedTab === 'challenges') return t('tabs.challenge');
+  if (focusedTab === 'challenges') return t('tabs.community');
   if (focusedTab === 'profile') return t('tabs.profile');
   return t('tabs.home');
 }

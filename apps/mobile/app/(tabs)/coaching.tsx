@@ -1,13 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useCallback, useMemo, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
-import { SkeletonDetail } from '@/components/ui/skeleton';
-import { TalkEntryButton } from '@/components/talk-entry-button';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
@@ -23,7 +21,8 @@ import { groupPoster, groupRowTarget, recentGroups, sceneTitle } from '@/lib/pra
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeGroup } from '@/lib/practice/types';
-import { listScripts } from '@/lib/reading/store';
+import { lastRead } from '@/lib/last-reads';
+import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
 
 /** 「최근 코칭」에 보이는 묶음 수(pen P13.3). */
 const RECENT_COUNT = 2;
@@ -37,22 +36,24 @@ function shortDate(iso: string | null | undefined): string {
 /**
  * 코칭 탭(pen 「코칭 탭 · 처음」·「다음 연습」·「하던 코칭 이어서」). 가운데 촬영 버튼을 대신해 코칭을 시작하는 곳이다.
  *
- * - 처음: 액티 말풍선 「어떻게 코칭 받을래요?」 + 고르는 카드 셋(영상 보여 주고 / 영상 없이 말로 / 찍을 대사부터 같이 만들기).
- *   기본 선택은 없고, 고른 뒤 아래 「다음」을 눌러야 넘어간다(선택 규칙).
- * - 다음 연습(pen P13.3·P13.5): 저번 코치 메모 카드(+「한 번 더 연습」) · 새 영상/지난 코칭 타일 · 영상 없이 말로 · 내 대본으로 찍기 · 찍을 대사부터 · 최근 코칭.
- * - 하던 코칭(pen P13.4): 메모 카드 자리가 「하던 코칭 · 이어서 하기」로 바뀌고 나머지는 같다. 「이전 코칭 이어 하기」는 지난 코칭 고르기 줄로 남긴다.
+ * - 처음: 소개 말풍선 · 예시 대화, 아래 링크 줄(영상 없이 말로 | 대사부터 같이 만들기)과 「영상 보여 주고 코칭 받기」 버튼 하나.
+ *   버튼은 목적을 묻지 않는 첫 코칭 새 연습(app/upload?first=1)으로 간다(SOMA-984).
+ * - 다음 연습(pen P13.3·P13.5): 저번 코치 메모 카드 · 새 영상/지난 코칭 타일 · 「다른 방법으로 코칭 받기」 한 줄 · 최근 코칭.
+ *   말로 코칭 · 내 대본으로 찍기 · 대사부터 같이 만들기는 그 한 줄이 여는 선택 화면(app/coach-other)에 모았다(SOMA-984 B안).
+ * - 하던 코칭(pen P13.4): 메모 카드 자리가 「하던 코칭 · 이어서 하기」로 바뀌고 나머지는 같다.
  *
  * 디자인의 「2개 남음」 같은 남은 횟수는 서버에 그 값이 없어 그리지 않고, 장면 제목만 보조 글로 둔다.
- * 「찍을 대사부터 같이 만들기」는 리딩 영역의 script-cocreate 로 연결만 한다.
  */
 export default function CoachingTab() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
-  const [entry, setEntry] = useState<CoachingEntry | null>(null);
-  // 저장한 대본이 하나라도 있으면 「내 대본으로 찍기」를 보인다(리딩·대본 만들기에서 저장한 대본은 같은 목록이다).
-  const [hasScripts, setHasScripts] = useState(false);
-  const [groups, setGroups] = useState<PracticeGroup[]>([]);
+  // 홈이 앱을 켤 때 받은 묶음이 있으면 그것으로 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
+  const [shared] = useState(() => lastRead<{ groups: PracticeGroup[] }>('practiceGroups')?.groups ?? null);
+  const [entry, setEntry] = useState<CoachingEntry | null>(() => (shared ? coachingEntry(shared) : null));
+  // 묶음을 못 받아 처음 화면으로 넘어간 경우 — 뼈대 기억(lib/skeleton-hint)에 적지 않는다.
+  const [entryFailed, setEntryFailed] = useState(false);
+  const [groups, setGroups] = useState<PracticeGroup[]>(() => shared ?? []);
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
   const visible = useMemo(() => recentGroups(groups, groups.length), [groups]);
@@ -66,24 +67,35 @@ export default function CoachingTab() {
           if (cancelled) return;
           setGroups(list);
           setEntry(coachingEntry(list));
+          setEntryFailed(false);
         })
         .catch(() => {
-          if (!cancelled) setEntry({ kind: 'first' });
+          if (cancelled) return;
+          setEntry({ kind: 'first' });
+          setEntryFailed(true);
         });
-      listScripts()
-        .then((list) => {
-          if (!cancelled) setHasScripts(list.scripts.length > 0);
-        })
-        .catch(() => undefined);
       return () => {
         cancelled = true;
       };
     }, []),
   );
 
-  const first = entry?.kind === 'first';
+  // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 모양(lib/skeleton-hint)을 따른다.
+  // - 처음 화면이었으면(또는 이 탭 기억은 없지만 홈이 첫 사용자로 확인했으면) 실제 처음 화면을 바로 그린다. 고정 화면이라 받을 것이 없다.
+  // - 다음 연습 화면이었으면 같은 틀에 받는 칸만 회색인 뼈대를 그린다. 아무 기억도 없을 때만 처음 모양 회색 뼈대다.
+  const skeletonHints = useSkeletonHints();
+  const firstHint = skeletonHints.coaching === 'first' || (!skeletonHints.coaching && firstTime);
+  const first = entry ? entry.kind === 'first' : firstHint;
+  useEffect(() => {
+    if (!entry || entryFailed) return;
+    rememberSkeletonHints(
+      entry.kind === 'first' ? { coaching: 'first' } : { coaching: 'next', coachingRows: Math.min(RECENT_COUNT, visible.length) },
+    );
+  }, [entry, entryFailed, visible.length]);
   // 새 연습은 세션 목적 → 영상 고르기 순서다(app/upload).
   const startNew = () => router.push('/upload');
+  // 첫 코칭은 목적을 묻지 않고 영상 고르기부터 한다(SOMA-984).
+  const startFirst = () => router.push({ pathname: '/upload', params: { first: '1' } });
   // 「이전 코칭 이어 하기」는 지난 코칭 목록에서 고른다.
   // 「하던 코칭 · 이어서 하기」는 열린 대화로, 「저번 코치 메모 · 한 번 더 연습」은 열린 대화가 있으면 그 대화, 없으면 다음 테이크(새 영상)로 간다.
   const again = () => {
@@ -124,9 +136,13 @@ export default function CoachingTab() {
           ) : undefined
         }
       />
-      {!entry ? (
-        <SkeletonDetail media lines={5} />
-      ) : entry.kind === 'first' ? (
+      {!entry && !first ? (
+        skeletonHints.coaching === 'next' ? (
+          <CoachingNextSkeleton rows={skeletonHints.coachingRows ?? RECENT_COUNT} bottomSpace={tabBarSpace + space[5]} />
+        ) : (
+          <CoachingFirstSkeleton bottomSpace={space[2] + tabBarSpace} />
+        )
+      ) : first || !entry || entry.kind === 'first' ? (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstBody}>
             <View style={styles.introRow}>
@@ -159,16 +175,23 @@ export default function CoachingTab() {
               <Feather name="message-circle" size={15} color={palette.blue} />
               <Text style={styles.exampleNoteText}>{t('coachingTab.exampleNote')}</Text>
             </View>
-            <ScriptCocreateEntry style={styles.entryGap} />
           </ScrollView>
           {/* 찍기·올리기는 같은 화면(app/upload)에서 고르므로 버튼 하나로 두고, 엄지 닿는 아래쪽에 붙인다(SOMA-842). */}
           {/* 아래 바 — 보조 글자 버튼 위, 주 버튼 맨 아래. */}
           <View style={[styles.firstFooter, { paddingBottom: space[2] + tabBarSpace }]}>
-            <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-              <Feather name="message-circle" size={15} color={palette.textSub} />
-              <Text style={styles.linkText}>{t('coachingTab.choice.talk')}</Text>
-            </Pressable>
-            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} />
+            {/* 보조 길 둘은 한 줄 글자 링크(SOMA-984) — 본문에 있던 「대사부터 같이 만들기」 카드를 여기로 내렸다. */}
+            <View style={styles.linkRow}>
+              <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+                <Feather name="message-circle" size={15} color={palette.textSub} />
+                <Text style={styles.linkText}>{t('coachingTab.linkTalk')}</Text>
+              </Pressable>
+              <View style={styles.linkSep} />
+              <Pressable onPress={() => router.push('/script-cocreate')} accessibilityRole="button" accessibilityLabel={t('coachingTab.menuScript')} ph-label="coaching_script_cocreate" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+                <Feather name="edit-3" size={15} color={palette.textSub} />
+                <Text style={styles.linkText}>{t('coachingTab.linkScript')}</Text>
+              </Pressable>
+            </View>
+            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startFirst} />
           </View>
         </View>
       ) : (
@@ -209,41 +232,27 @@ export default function CoachingTab() {
 
           <View style={styles.tiles}>
             <Tile icon="video" title={t('coachingTab.newVideo')} sub={t('coachingTab.newVideoSub')} accent phLabel="coaching_new_video" onPress={startNew} />
+            {/* 「지난 코칭 다시 보기」 큰 버튼 자리에 「다른 방법으로 코칭 받기」를 같은 모양으로 둔다(11/2 폰 QA). 지난 코칭은 아래 「최근 코칭」의 상세보기로 간다. */}
             <Tile
-              icon="clock"
-              title={t('coachingTab.history')}
-              sub={t('coachingTab.historyCount', { count: visible.length })}
-              phLabel="coaching_history"
-              onPress={() => router.push('/history')}
+              icon="message-circle"
+              title={t('coachingTab.otherWaysTile')}
+              sub={t('coachingTab.otherWaysSub')}
+              phLabel="coaching_other_ways"
+              onPress={() => router.push('/coach-other')}
             />
           </View>
 
-          <TalkEntryButton onPress={() => router.push('/talk')} />
-          {/* 「이전 코칭 이어 하기」 링크는 뺐다 — 위 「지난 코칭 다시 보기」와 같은 기록 화면으로 갔다(10/28 폰 확인). 하던 대화는 맨 위 카드가 잇는다. */}
-          {hasScripts ? (
-            <Pressable
-              onPress={() => router.push('/coach-scripts')}
-              accessibilityRole="button"
-              accessibilityLabel={t('coachingTab.menuMyScripts')}
-              ph-label="coaching_my_scripts"
-              style={({ pressed }) => [styles.entryRow, styles.entryGap, pressed && styles.pressed]}>
-              <View style={styles.entryIcon}>
-                <Feather name="file-text" size={18} color={palette.textMeta} />
-              </View>
-              <View style={styles.entryText}>
-                <Text style={styles.entryTitle}>{t('coachingTab.menuMyScripts')}</Text>
-                <Text style={styles.entrySub}>{t('coachingTab.menuMyScriptsSub')}</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={palette.iconFaint} />
-            </Pressable>
-          ) : null}
-          <ScriptCocreateEntry style={styles.entryGap} />
-
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>{t('coachingTab.recentTitle')}</Text>
-            <Pressable onPress={() => router.push('/history')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('coachingTab.viewAll')} ph-label="coaching_recent_all" style={styles.more}>
-              <Text style={styles.moreText}>{t('coachingTab.viewAll')}</Text>
-              <Feather name="chevron-right" size={14} color={palette.iconFaint} />
+            <Pressable
+              onPress={() => router.push('/history')}
+              accessibilityRole="button"
+              accessibilityLabel={t('coachingTab.historyLinkA11y')}
+              ph-label="coaching_history"
+              hitSlop={8}
+              style={({ pressed }) => [styles.historyPill, pressed && styles.pressed]}>
+              <Text style={styles.historyPillText}>{t('coachingTab.historyLink')}</Text>
+              <Feather name="chevron-right" size={14} color={palette.textSub} />
             </Pressable>
           </View>
           <View style={styles.recent}>
@@ -268,6 +277,77 @@ export default function CoachingTab() {
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+/**
+ * 처음 화면 뼈대(기억이 없을 때만) — 액티 말풍선과 「코칭은 이렇게 해요」는 고정 글이라 그대로, 예시 대화·아래 링크·버튼 자리는 회색.
+ */
+function CoachingFirstSkeleton({ bottomSpace }: { bottomSpace: number }) {
+  return (
+    <SkeletonGroup style={styles.flex}>
+      <View style={[styles.flex, styles.firstBody]}>
+        <View style={styles.introRow}>
+          <Image source={MASCOT.slate} style={styles.introMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+          <View style={styles.introBubble}>
+            <Text style={styles.introTitle}>{t('coachingTab.firstTitle')}</Text>
+            <Text style={styles.introBody}>{t('coachingTab.firstBody')}</Text>
+          </View>
+        </View>
+        <Text style={styles.exampleLabel}>{t('coachingTab.exampleLabel')}</Text>
+        <SkeletonBlock height={266} radius={radius.lg} />
+        <SkeletonLine size={type.caption} width="72%" style={{ marginTop: space[3] }} />
+      </View>
+      <View style={[styles.firstFooter, { paddingBottom: bottomSpace }]}>
+        <View style={styles.link}>
+          <SkeletonLine size={type.body2Bold} width={200} />
+        </View>
+        <SkeletonBlock height={48} radius={radius.lg} />
+      </View>
+    </SkeletonGroup>
+  );
+}
+
+/** 다음 연습 화면 뼈대 — 메모 카드·타일 둘·「다른 방법」 줄·최근 코칭 순서와 높이를 실제와 같게 둔다. */
+function CoachingNextSkeleton({ rows, bottomSpace }: { rows: number; bottomSpace: number }) {
+  return (
+    <SkeletonGroup style={styles.flex}>
+      <ScrollView contentContainerStyle={[styles.nextBody, { paddingBottom: bottomSpace }]} scrollEnabled={false}>
+        <View style={styles.memo}>
+          <View style={styles.memoHead}>
+            <View style={styles.memoAvatar}>
+              <Image source={MASCOT.coach} style={styles.memoMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+            </View>
+            <View style={styles.flex}>
+              <SkeletonLine size={type.body2Bold} width="34%" />
+              <SkeletonLine size={type.caption} width="46%" />
+            </View>
+          </View>
+          <View style={styles.memoFooter}>
+            <SkeletonLine size={type.body2Bold} width={88} />
+          </View>
+        </View>
+        <View style={styles.tiles}>
+          <SkeletonBlock height={125} radius={radius.lg} style={styles.flex} />
+          <SkeletonBlock height={125} radius={radius.lg} style={styles.flex} />
+        </View>
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>{t('coachingTab.recentTitle')}</Text>
+          <SkeletonLine size={type.caption} width={52} />
+        </View>
+        <View style={styles.recent}>
+          {Array.from({ length: rows }, (_, i) => (
+            <View key={i} style={styles.recentRow}>
+              <SkeletonBlock width={44} height={44} radius={radius.sm} />
+              <View style={styles.flex}>
+                <SkeletonLine size={type.body2Bold} width={i === 0 ? '36%' : '44%'} />
+                <SkeletonLine size={type.caption} width="22%" style={{ marginTop: 2 }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SkeletonGroup>
   );
 }
 
@@ -373,18 +453,15 @@ const styles = StyleSheet.create({
   tileTitle: { ...type.body1Bold, color: palette.text },
   tileTitleAccent: { color: palette.blueDeep },
   tileSub: { ...type.micro, color: palette.textMeta },
+  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[3] },
+  linkSep: { width: 1, height: 12, backgroundColor: palette.border },
   link: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5] },
   linkText: { ...type.body2Bold, color: palette.textSub },
-  entryGap: { marginTop: space[3] },
-  entryRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
-  entryIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  entryText: { flex: 1, minWidth: 0, gap: 2 },
-  entryTitle: { ...type.body2Bold, color: palette.text },
-  entrySub: { ...type.caption, color: palette.textMeta },
+  // 예전 「영상 없이 말로 코칭 받기」 보조 버튼(talk-entry-button)과 같은 모양.
+  historyPill: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: space[3], paddingRight: space[2], height: 28, borderRadius: radius.full, backgroundColor: palette.bgSoft },
+  historyPillText: { ...type.captionBold, color: palette.textSub },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[6] },
   sectionTitle: { ...type.body1Bold, color: palette.text },
-  more: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  moreText: { ...type.captionBold, color: palette.textSub },
   recent: { paddingTop: space[3], gap: space[3] },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   thumb: { width: 44, height: 44, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },

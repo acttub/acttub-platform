@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.challenge.app.AiReportService;
+import com.acttub.actingapi.feature.challenge.app.ChallengeRepository;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService;
 import com.acttub.actingapi.feature.challenge.app.EntryService;
 import com.acttub.actingapi.feature.challenge.app.ReactionService;
@@ -41,7 +42,7 @@ class RequestFingerprintPinTest {
                 List.of("challenge_report", A.toString())))
                 .isEqualTo("dab96fcddacb255fc6ef3ddc4717e571a14fee97da4673d13eb2619da32038b8");
         assertThat(call(new ChallengeService(null, canonical, clock), "fingerprint",
-                new ChallengeService.Draft("대사", "작품", "배역", null, 7)))
+                new ChallengeRepository.Draft("대사", "작품", "배역", null, 7)))
                 .isEqualTo("2d02acaba42988100014fe7ef67b42d7ed1e08612f64f61901d866a54de2e73e");
         assertThat(call(new EntryService(null, null, canonical, clock), "fingerprint",
                 Arrays.asList(A.toString(), B.toString(), "소감 한 줄", "public")))

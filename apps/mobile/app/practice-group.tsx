@@ -157,7 +157,7 @@ export default function PracticeGroupScreen() {
   useEffect(() => {
     if (!group) return;
     let alive = true;
-    void Promise.all(group.practices.filter((round) => round.note).map((round) => purgeVideoFileIfDue(round.id)))
+    void Promise.all(group.practices.filter((round) => round.note).map((round) => purgeVideoFileIfDue(round.id, forgetLocalCopy)))
       .then((done) => { if (alive && done.some(Boolean)) void load(); })
       .catch(() => undefined);
     return () => { alive = false; };
@@ -218,6 +218,28 @@ export default function PracticeGroupScreen() {
     }
   };
 
+  /** 영구 삭제 — 확인 뒤 지우고 돌아간다. 이미 없는 묶음(404)도 지운 것으로 본다. */
+  const deleteGroup = async () => {
+    if (!group) return;
+    const ok = await confirm({
+      title: t('history.deleteConfirmTitle'),
+      message: t('history.deleteConfirmBody'),
+      confirmLabel: t('history.deleteConfirm'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deletePracticeGroup(group.root_id);
+      if (router.canGoBack()) router.back();
+      else router.replace('/history');
+    } catch (e) {
+      await alert({
+        title: t('history.deleteGroupFailTitle'),
+        message: e instanceof Error ? e.message : t('history.deleteFail'),
+      });
+    }
+  };
+
   const rename = async (title: string) => {
     if (!group) return;
     setGroup(await api.patchPracticeGroup(group.root_id, { title }));
@@ -254,6 +276,7 @@ export default function PracticeGroupScreen() {
         ...(group?.video_id && !video?.purged
           ? [{ label: t('history.menuPurge'), icon: 'video-off' as const, destructive: true, onPress: () => void purgeVideo() }]
           : []),
+        { label: t('history.menuDelete'), icon: 'trash-2' as const, destructive: true, onPress: () => void deleteGroup() },
       ],
     });
 

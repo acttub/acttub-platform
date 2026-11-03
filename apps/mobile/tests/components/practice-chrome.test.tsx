@@ -12,7 +12,7 @@ import {
 } from '@/components/practice-chrome';
 import { logEvent } from '@/lib/analytics';
 
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 
 // expo-video 는 네이티브 플레이어라, 실제 훅처럼 소스가 바뀔 때마다 플레이어를 새로 만들고 setup 을 부르는 가짜로 바꾼다.
 jest.mock('expo-video', () => {

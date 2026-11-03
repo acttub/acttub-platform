@@ -158,13 +158,17 @@ export function onPushTapped(
 ): () => void {
   if (!notifications) return () => undefined;
   const subscription = notifications.addNotificationResponseReceivedListener((event) => {
-    listener(
-      event?.notification?.request?.content?.data ?? null,
-      event?.notification?.request?.identifier,
-    );
+    const identifier = event?.notification?.request?.identifier;
+    // 꺼진 앱을 연 탭은 시작 조회(takeColdStartPushTap)와 리스너가 함께 알려 줄 수 있다. 먼저 온 쪽만 넘긴다.
+    if (identifier && identifier === handledTapId) return;
+    if (identifier) handledTapId = identifier;
+    listener(event?.notification?.request?.content?.data ?? null, identifier);
   });
   return () => subscription.remove();
 }
+
+/** 이번 실행에서 이미 넘긴 탭의 알림 식별자. 저장소는 비동기라 같은 순간에 온 두 길을 막으려고 메모리에도 둔다. */
+let handledTapId: string | undefined;
 
 const pushOpens = createPushOpenRecorder({
   send: (body) => api.recordPushOpen(body),
@@ -193,19 +197,24 @@ export function setPushOpenSignedIn(signedIn: boolean): void {
 
 /**
  * 꺼진 앱을 푸시로 연 경우 리스너가 붙기 전에 탭이 지나갔을 수 있다. 앱을 처음 띄울 때 한 번 마지막 탭을
- * 조회해 남긴다. 이미 남긴 식별자(저장해 둔 것)는 건너뛴다. 화면 이동은 건드리지 않는다.
+ * 조회해 남기고(측정), 아직 넘기지 않은 탭이면 그 자료를 돌려준다. 화면 이동은 켜진 앱의 탭과 같은 길로 부르는 쪽이 한다.
+ * 이번 실행에서 리스너가 넘긴 탭이나 지난 실행에서 처리한 탭(저장해 둔 식별자)이면 null 이다.
  */
-export async function recordColdStartPushOpen(): Promise<void> {
-  if (!notifications?.getLastNotificationResponseAsync) return;
+export async function takeColdStartPushTap(): Promise<unknown> {
+  if (!notifications?.getLastNotificationResponseAsync) return null;
   try {
     const last = await notifications.getLastNotificationResponseAsync();
     const identifier = last?.notification?.request?.identifier;
-    if (!last || !identifier) return;
-    if ((await AsyncStorage.getItem(LAST_COLD_START_KEY).catch(() => null)) === identifier) return;
+    if (!last || !identifier || identifier === handledTapId) return null;
+    handledTapId = identifier;
+    if ((await AsyncStorage.getItem(LAST_COLD_START_KEY).catch(() => null)) === identifier) return null;
     await AsyncStorage.setItem(LAST_COLD_START_KEY, identifier).catch(() => undefined);
-    capturePushOpen(last.notification.request.content?.data ?? null, identifier);
+    const data = last.notification.request.content?.data ?? null;
+    capturePushOpen(data, identifier);
+    return data;
   } catch {
     // 조회 실패는 삼킨다.
+    return null;
   }
 }
 

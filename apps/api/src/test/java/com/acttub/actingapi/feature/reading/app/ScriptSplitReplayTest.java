@@ -313,6 +313,11 @@ class ScriptSplitReplayTest {
 
     /** 대본 하나의 Jev 질문 — 캐시와 줄마다의 기록. */
     private static final class ReplayDecider implements LineDecider {
+        @Override
+        public String model() {
+            return JEV_CLIENT.model();
+        }
+
         private final List<ObjectNode> asked = new ArrayList<>();
         private long firstStart = Long.MAX_VALUE;
         private long lastEnd;
@@ -322,7 +327,7 @@ class ScriptSplitReplayTest {
         private ObjectNode speech;
 
         @Override
-        public LineReview.Decision decide(LineReview.Question question) {
+        public LineReview.Decision decide(LineReview.Question question, DeciderTally tally) {
             long started = System.nanoTime();
             Answered answered;
             try {
@@ -346,7 +351,7 @@ class ScriptSplitReplayTest {
 
         /** H1 문지기 — 답은 대본 결과의 {@code speech} 칸에 남긴다. */
         @Override
-        public double speech(String text) {
+        public double speech(String text, DeciderTally tally) {
             Answered answered = send(JEV_CLIENT.speechBody(text));
             double confidence = OpenRouterLineDecider.speechConfidence(answered.response());
             synchronized (this) {
@@ -360,7 +365,7 @@ class ScriptSplitReplayTest {
 
         /** R2 배역 후보 판단 — 후보마다 보기·답·확신을 대본 결과의 {@code same} 칸에 남긴다(문턱은 워커가 건다). */
         @Override
-        public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed) {
+        public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed, DeciderTally tally) {
             Answered answered = send(JEV_CLIENT.roleBody(candidate, reversed));
             Map<String, Double> probabilities = OpenRouterLineDecider.roleProbabilities(answered.response());
             JsonNode answer = answered.response().path("answers").path(SpeakerMerge.QUESTION);
@@ -392,7 +397,7 @@ class ScriptSplitReplayTest {
                     }
                     return new Answered(entry.get("response"), entry.path("ms").asLong(), true);
                 }
-                JsonNode response = JEV_CLIENT.send(body);
+                JsonNode response = JEV_CLIENT.send(body, new DeciderTally());
                 long ms = (System.nanoTime() - started) / 1_000_000;
                 ObjectNode entry = JSON.createObjectNode().put("ms", ms);
                 entry.set("response", response);
@@ -552,6 +557,7 @@ class ScriptSplitReplayTest {
             return new Material(USER, false, UUID.randomUUID(), "f".repeat(64), null, rawText, "paste", false, null);
         }
         @Override public void progress(UUID importId, int doneLines, int totalLines) { }
+        @Override public void percent(UUID importId, int percent) { }
         @Override public Completion complete(UUID jobId, UUID leaseToken, UUID importId, ScriptDraft draft, Instant now) {
             saved = draft;
             return Completion.SAVED;

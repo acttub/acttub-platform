@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react-native';
 
 import PracticeGroupScreen from '@/app/practice-group';
 import { api } from '@/lib/api';
@@ -27,7 +27,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 jest.mock('@/lib/api', () => ({
-  api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn(), getVideo: jest.fn(), purgeVideoFile: jest.fn() },
+  api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn(), getVideo: jest.fn(), purgeVideoFile: jest.fn(), deletePracticeGroup: jest.fn() },
 }));
 jest.mock('expo-video', () => ({
   useVideoPlayer: () => ({ play: jest.fn(), pause: jest.fn() }),
@@ -252,7 +252,7 @@ describe('머리 ⋯ 메뉴', () => {
 
     expect(screen.getByText('이 연습')).toBeOnTheScreen();
     const items = within(screen.getByTestId('anchored-menu')).getAllByRole('button').map((b) => b.props.accessibilityLabel);
-    expect(items).toEqual(['제목 바꾸기', '기록에서 숨기기', '영상 지우기']);
+    expect(items).toEqual(['제목 바꾸기', '기록에서 숨기기', '영상 지우기', '삭제']);
     expect(header().getAllByRole('button')).toHaveLength(1);
   });
 
@@ -305,6 +305,45 @@ describe('머리 ⋯ 메뉴', () => {
     expect(purgeVideoFile).toHaveBeenCalledWith('v1');
     expect(await screen.findByText('영상을 지웠어요')).toBeOnTheScreen();
     expect(patchGroup).not.toHaveBeenCalled();
+  });
+});
+
+describe('삭제', () => {
+  const deleteGroup = api.deletePracticeGroup as jest.Mock;
+
+  test('확인하면 지우고 이전 화면으로 돌아간다', async () => {
+    mockRouter.canGoBack.mockReturnValue(true);
+    deleteGroup.mockResolvedValue(undefined);
+    await render(<PracticeGroupScreen />);
+    await openMenu();
+    await fireEvent.press(screen.getByText('삭제'));
+    expect(await screen.findByText('이 연습을 삭제할까요?')).toBeOnTheScreen();
+    expect(screen.getByText('영상, 노트, 코치 대화가 모두 지워지고 되돌릴 수 없어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '삭제' }));
+
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
+    expect(deleteGroup).toHaveBeenCalledWith('root1');
+  });
+
+  test('취소하면 지우지 않는다', async () => {
+    await render(<PracticeGroupScreen />);
+    await openMenu();
+    await fireEvent.press(screen.getByText('삭제'));
+    await fireEvent.press(await screen.findByRole('button', { name: '취소' }));
+
+    expect(deleteGroup).not.toHaveBeenCalled();
+    expect(mockRouter.back).not.toHaveBeenCalled();
+  });
+
+  test('실패하면 까닭을 알리고 화면에 남는다', async () => {
+    deleteGroup.mockRejectedValue(new Error('서버 오류'));
+    await render(<PracticeGroupScreen />);
+    await openMenu();
+    await fireEvent.press(screen.getByText('삭제'));
+    await fireEvent.press(await screen.findByRole('button', { name: '삭제' }));
+
+    expect(await screen.findByText('삭제하지 못했어요')).toBeOnTheScreen();
+    expect(mockRouter.back).not.toHaveBeenCalled();
   });
 });
 

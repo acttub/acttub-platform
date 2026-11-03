@@ -5,6 +5,7 @@ import {
   billingClosed,
   storeSubscribed,
   proVisible,
+  homePlan,
   purchaseOpen,
   freeLimitOf,
   monthDay,
@@ -40,7 +41,7 @@ test('billing: 날짜·금액 표시', () => {
 });
 
 test('billing: 설정 줄 — 구독이 있으면 구독 관리, 없으면 Pro 안내', () => {
-  assert.equal(settingsSub(me({ status: 'none', pro: false })), '무료 이용 중 · Pro 알아보기');
+  assert.equal(settingsSub(me({ status: 'none', pro: false })), 'Pro로 제한 없이 연습해요');
   assert.equal(settingsSub(me()), 'Pro 이용 중');
   assert.match(settingsSub(me({ status: 'past_due', pro: false })), /결제하지 못했어요/);
   assert.equal(settingsTarget(me({ status: 'none', pro: false })), '/pro');
@@ -200,4 +201,14 @@ test('billing: 결제 완료 요약은 요금제·다음 결제를 보이고 서
   ]);
   assert.deepEqual(doneSummary(me({ status: 'none', pro: true, amount: 0, next_billing_at: null })), []);
   assert.deepEqual(doneSummary(null), []);
+});
+
+test('billing: 홈 플랜 표시는 설정 Pro 카드가 보이는 사람에게만 PRO·FREE(SOMA-981)', () => {
+  assert.equal(homePlan(null), null);
+  assert.equal(homePlan(undefined), null);
+  assert.equal(homePlan(me({ status: 'none', pro: false })), null);
+  assert.equal(homePlan(me({ status: 'none', pro: false, app_enabled: true })), 'free');
+  assert.equal(homePlan(me({ status: 'none', pro: true, app_enabled: true })), 'pro');
+  assert.equal(homePlan(me({ status: 'canceled', pro: true })), 'pro');
+  assert.equal(homePlan(me({ status: 'expired', pro: false, app_enabled: true })), 'free');
 });

@@ -26,25 +26,26 @@ test('challenge.browse: 목업과 예시 데이터를 걷어내고 서버에서 
   assert.match(read('app/challenge-detail.tsx'), /api\.listChallengeEntries/);
 });
 
-test('challenge.browse: 대사 목록은 네 탭이고 오늘의 챌린지는 인기·최신에만 고정한다', () => {
+test('challenge.browse: 대사 목록은 네 탭이고 오늘의 챌린지는 칩과 상관없이 고정한다', () => {
   const list = read('app/(tabs)/challenges.tsx');
 
   for (const tab of ['popular', 'latest', 'ended', 'mine']) {
     assert.match(list, new RegExp(`'${tab}'`), `${tab} 탭이 없다`);
   }
-  assert.match(list, /pinsFeatured\(next\) \? result\.featured : null/);
+  assert.match(list, /officialPick \?\? previous/);
+  assert.match(list, /pinFeatured\(result, featuredRef\.current\)/);
   assert.match(list, /challenges\.featuredLabel/);
 });
 
-test('challenge.browse: 카드에 참여작 수·좋아요 합·참여자 셋과 첫 글자 아바타가 있다', () => {
+test('challenge.browse: 카드에 참여작 수·좋아요 합·참여자 셋과 얼굴(사진 또는 기본 얼굴)이 있다', () => {
   const list = read('app/(tabs)/challenges.tsx');
 
   assert.match(list, /challenges\.entryCount/);
   assert.match(list, /challenges\.likeSum/);
   assert.match(list, /participantsLabel/);
-  assert.match(list, /avatarLetter/);
-  // 사진은 쓰지 않는다 — 챌린지에는 이름만 보인다.
-  assert.doesNotMatch(list, /photo/);
+  // 참여자 얼굴은 프로필 사진(있으면) 또는 프로필과 같은 기본 얼굴(8색, user_id 로 고름)이다 — 이름 첫 글자를 쓰지 않는다(SOMA-997).
+  assert.match(list, /<UserAvatar[^>]*seed=\{p\.user_id\}[^>]*photoUrl=\{p\.photo_url\}/);
+  assert.doesNotMatch(list, /avatarLetter/);
 });
 
 test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 직접 등록으로 잇는다', () => {
@@ -93,7 +94,8 @@ test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게
   const layout = read('app/(tabs)/_layout.tsx');
   assert.doesNotMatch(layout, /isKorean/);
   // 탭 제목·읽어 줄 이름은 tab() 묶음이 t(`tabs.<키>`)로 채운다(SOMA-770).
-  assert.match(layout, /name="challenges"\s*options=\{\{\s*\.\.\.tab\('challenge'\)/);
+  // SOMA-873: 라우트는 challenges 그대로, 탭 이름은 커뮤니티이고 누름 기록 이름만 예전(tab_challenge)이다.
+  assert.match(layout, /name="challenges"\s*options=\{\{\s*\.\.\.tab\('community', 'challenge'\)/);
   assert.match(layout, /title: t\(`tabs\.\$\{key\}`\)/);
   assert.match(read('app/(tabs)/challenges.tsx'), /browseFailureMessage/);
   const { default: ko } = await import('../locales/ko.ts');

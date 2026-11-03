@@ -2,14 +2,15 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 
 import { TAB_BAR_HIDDEN, tabButton, tabIcon, useTabBarStyle } from '@/components/ui/tab-bar';
-import { useFirstTimeUser } from '@/hooks/use-first-time-user';
+import { useFirstTimeTabBarHidden } from '@/hooks/use-first-time-user';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
+import { useWarmTabs } from '@/hooks/use-warm-tabs';
 import { translate as t } from '@/lib/i18n';
 import { TARGET } from '@/lib/spotlight-targets';
 
 /**
- * 하단 탭 — 홈 / 코칭 / 대본 / 챌린지 / 프로필(pen TabBar, SOMA-748·770). 모양은 공통 부품 components/ui/tab-bar.
+ * 하단 탭 — 홈 / 코칭 / 대본 / 커뮤니티 / 프로필(pen TabBar, SOMA-748·770·873). 커뮤니티는 예전 챌린지 탭 자리·라우트(challenges)다. 모양은 공통 부품 components/ui/tab-bar.
  *
  * iOS 는 글자 없는 아이콘 탭, 안드로이드는 아이콘 아래 탭 이름(디자인 시스템 「의도된 차이」). 탭마다 화면 읽기 이름(tabBarAccessibilityLabel)과
  * 누름 기록 이름(ph-label)을 단다(SOMA-770 피드백 9).
@@ -19,7 +20,7 @@ import { TARGET } from '@/lib/spotlight-targets';
  */
 export default function TabLayout() {
   const tabBarStyle = useTabBarStyle();
-  const firstTime = useFirstTimeUser();
+  const tabBarHidden = useFirstTimeTabBarHidden();
   // 읽지 않은 알림 묶음 수.
   const unread = useUnreadNotifications();
   // 홈 첫 가이드가 코칭 탭을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
@@ -27,11 +28,14 @@ export default function TabLayout() {
   const readingTarget = useSpotlightTarget(TARGET.tabReading);
   const challengeTarget = useSpotlightTarget(TARGET.tabChallenge);
   const profileTarget = useSpotlightTarget(TARGET.tabProfile);
+  // 홈이 뜬 뒤 나머지 탭을 하나씩 뒤에서 미리 만든다 — 처음 눌러도 바로 뜨게(lib/tab-warmup).
+  const warm = useWarmTabs();
 
-  const tab = (key: 'home' | 'coaching' | 'reading' | 'challenge' | 'profile') => ({
+  // 커뮤니티 탭은 누름 기록 이름을 예전 그대로(tab_challenge) 두어 지표가 끊기지 않게 한다.
+  const tab = (key: 'home' | 'coaching' | 'reading' | 'community' | 'profile', phKey: string = key) => ({
     title: t(`tabs.${key}`),
     tabBarAccessibilityLabel: t(`tabs.${key}`),
-    tabBarButton: tabButton(`tab_${key}`),
+    tabBarButton: tabButton(`tab_${phKey}`),
   });
 
   return (
@@ -40,7 +44,7 @@ export default function TabLayout() {
       <Tabs
         backBehavior="history"
         screenOptions={{
-          tabBarStyle: firstTime ? TAB_BAR_HIDDEN : tabBarStyle,
+          tabBarStyle: tabBarHidden ? TAB_BAR_HIDDEN : tabBarStyle,
           tabBarShowLabel: false,
           headerShown: false,
         }}>
@@ -54,9 +58,9 @@ export default function TabLayout() {
         />
         <Tabs.Screen
           name="coaching"
-          options={{ ...tab('coaching'), tabBarIcon: tabIcon('chatbubble-outline', t('tabs.coaching'), { target: coachingTarget }) }}
+          options={{ ...tab('coaching'), lazy: !warm.has('coaching'), tabBarIcon: tabIcon('chatbubble-outline', t('tabs.coaching'), { target: coachingTarget }) }}
         />
-        <Tabs.Screen name="reading" options={{ ...tab('reading'), tabBarIcon: tabIcon('book-outline', t('tabs.reading'), { target: readingTarget }) }} />
+        <Tabs.Screen name="reading" options={{ ...tab('reading'), lazy: !warm.has('reading'), tabBarIcon: tabIcon('book-outline', t('tabs.reading'), { target: readingTarget }) }} />
         {/* 기록·예전 촬영 자리는 탭바에서 빠졌지만 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
         <Tabs.Screen name="history" options={{ href: null }} />
         <Tabs.Screen name="record" options={{ href: null }} />
@@ -64,11 +68,12 @@ export default function TabLayout() {
         <Tabs.Screen
           name="challenges"
           options={{
-            ...tab('challenge'),
-            tabBarIcon: tabIcon('trophy-outline', t('tabs.challenge'), { target: challengeTarget, badge: unread.badge }),
+            ...tab('community', 'challenge'),
+            lazy: !warm.has('challenges'),
+            tabBarIcon: tabIcon({ feather: 'users' }, t('tabs.community'), { target: challengeTarget, badge: unread.badge }),
           }}
         />
-        <Tabs.Screen name="profile" options={{ ...tab('profile'), tabBarIcon: tabIcon('person-outline', t('tabs.profile'), { target: profileTarget }) }} />
+        <Tabs.Screen name="profile" options={{ ...tab('profile'), lazy: !warm.has('profile'), tabBarIcon: tabIcon('person-outline', t('tabs.profile'), { target: profileTarget }) }} />
       </Tabs>
     </>
   );

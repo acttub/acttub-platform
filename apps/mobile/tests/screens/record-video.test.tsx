@@ -645,10 +645,12 @@ describe('챌린지 촬영', () => {
     await fireEvent.press(screen.getByLabelText('대사 보기'));
     expect(screen.getByText('나는 아직 끝나지 않았어')).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByLabelText('카메라 전환'));
+    // 챌린지는 전면 카메라로 시작한다(11/2 폰 QA).
     expect(screen.getByText('camera:front')).toBeOnTheScreen();
     await fireEvent.press(screen.getByLabelText('카메라 전환'));
     expect(screen.getByText('camera:back')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('카메라 전환'));
+    expect(screen.getByText('camera:front')).toBeOnTheScreen();
   });
 
   test('작품명이 없으면 라벨만, 대사가 없으면 카드 없이 보인다', async () => {

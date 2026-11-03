@@ -24,6 +24,17 @@ const keyFor = (userId: string) => `acttub.firstUse.graduated.${userId}`;
 /** 지금 로그인한 계정 — 로그인 상태(lib/auth)가 바뀔 때 알려 준다. 화면이 계정을 몰라도 표시를 남길 수 있게. */
 let owner: string | null = null;
 
+/**
+ * 이번 실행에서 졸업한 계정 — 저장소 쓰기·읽기를 기다리지 않고 바로 안다. 첫 연습을 끝내고 홈에 오면 저장값을 다시 읽는 동안
+ * 첫 사용자 홈이 잠깐 보였다가 바뀌었다(11/2 QA).
+ */
+const graduatedNow = new Set<string>();
+
+/** 이번 실행에서 졸업 표시를 남긴 계정인지 — 저장소를 기다리지 않는다. */
+export function graduatedInMemory(userId: string | null | undefined = owner): boolean {
+  return !!userId && graduatedNow.has(userId);
+}
+
 let waiters: ((id: string) => void)[] = [];
 
 export function setFirstUseOwner(userId: string | null): void {
@@ -58,6 +69,7 @@ export function currentFirstUseOwner(): string | null {
 
 export async function hasGraduatedFirstUse(userId: string | null | undefined = owner): Promise<boolean> {
   if (!userId) return false;
+  if (graduatedNow.has(userId)) return true;
   try {
     return (await storage().getItem(keyFor(userId))) === '1';
   } catch {
@@ -69,6 +81,7 @@ export async function hasGraduatedFirstUse(userId: string | null | undefined = o
 /** 끝까지 해 본 순간 부른다. 탭바는 바로 보이게 하고, 홈은 다음에 그려질 때 이 표시를 읽는다. */
 export async function markFirstUseGraduated(userId: string | null | undefined = owner): Promise<void> {
   if (!userId) return;
+  graduatedNow.add(userId);
   setFirstTimeState('practiced');
   try {
     await storage().setItem(keyFor(userId), '1');

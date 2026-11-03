@@ -30,6 +30,7 @@ import {
   withdrawAccount,
   type ClosedAccountDependencies,
 } from '@/lib/auth-session';
+import { rememberSkeletonHints } from '@/lib/skeleton-hint';
 import { createConsentEntrySession } from '@/lib/consent-entry';
 import {
   buildSignupDecisions,
@@ -219,11 +220,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setConsentEntry({ status: 'checking', entry: null, error: null });
   }, [consentEntrySession]);
 
-  const refreshConsentEntry = useCallback(
-    () => loadConsentEntry({ refresh: true }),
-    [loadConsentEntry],
-  );
-
   const applyMe = useCallback((me: MeResponse) => {
     profileLoadGeneration.current += 1;
     setProfile({ status: profileGateStatus(me), me, error: null });
@@ -252,6 +248,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [applyMe]);
 
+  // 오프라인으로 앱을 켜면 동의와 프로필을 둘 다 못 읽는다. 동의 팝업에서 다시 시도해 통과하면 프로필도 함께
+  // 다시 읽는다 — 전에는 「프로필을 불러오지 못했어요」에서 한 번 더 눌러야 했다(11/2 폰 QA).
+  const profileStatusRef = useRef(profile.status);
+  profileStatusRef.current = profile.status;
+  const refreshConsentEntry = useCallback(async () => {
+    const entry = await loadConsentEntry({ refresh: true });
+    if (profileStatusRef.current === 'error') void reloadProfile();
+    return entry;
+  }, [loadConsentEntry, reloadProfile]);
+
   const resetProfile = useCallback(() => {
     profileLoadGeneration.current += 1;
     setProfile(PROFILE_CHECKING);
@@ -259,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    loadTokens().then((hasToken) => {
+    void loadTokens().then((hasToken) => {
       if (!active) return;
       if (!hasToken) {
         // 로그아웃한 폰에는 리마인드 알람이 없어야 한다. 옛 빌드가 로그인 없이 맞춰 둔 것도 걷는다.
@@ -287,6 +293,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void loadConsentEntry({ refresh: true }).catch(() => undefined);
     });
     const unsubProfile = onProfileRequired(() => {
+      // 이미 「프로필 필요」로 알고 있으면(이름 화면에 있는 중) 다시 읽지 않는다 — 다시 읽는 동안 이름 화면이 로딩으로 바뀐다(11/2 폰 QA).
+      if (profileStatusRef.current === 'required') return;
       void reloadProfile();
     });
     const unsubUpdate = onUpdateRequired(() => setUpdateRequired(true));
@@ -445,6 +453,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
       await finishLogin(pair, signup.provider, signup.displayName);
+      // 방금 만든 계정은 기록이 없다 — 서버 답을 기다리지 않고 홈·리딩·코칭을 첫 사용자 모양으로 바로 그린다.
+      // 전에는 기억이 비어 있으면 기록을 다 받은 뒤에야 「뭐부터 해 볼까요?」가 떠 늦게 보였다(11/2 폰 QA).
+      rememberSkeletonHints({ home: 'first', reading: 'empty', coaching: 'first' });
       return true;
     },
     [cancelSignup, finishLogin, signup],

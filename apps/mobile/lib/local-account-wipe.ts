@@ -12,7 +12,9 @@
 import { resetPracticeState } from './practice/session-state.ts';
 import { clearPickedVideo } from './practice/picked-video.ts';
 import { READING_SCRIPTS_KEY, recordingFileUris, resetReadingState } from './reading/store.ts';
+import { resetLastReads } from './last-reads.ts';
 import { takeRecordedVideo } from './recorded-video.ts';
+import { resetSkeletonHints, SKELETON_HINT_KEY } from './skeleton-hint.ts';
 
 type Storage = {
   getAllKeys(): Promise<readonly string[]>;
@@ -53,6 +55,7 @@ const ACCOUNT_CACHE_KEYS = [
   'acttub.profilePhotoUri',
   'acttub.profileBio',
   'acttub.push.settings',
+  SKELETON_HINT_KEY,
 ];
 
 export async function clearAccountCacheData({
@@ -61,6 +64,8 @@ export async function clearAccountCacheData({
 }: AccountCacheDependencies): Promise<void> {
   resetPracticeState();
   clearPickedVideo();
+  resetSkeletonHints();
+  resetLastReads();
   await Promise.allSettled([storage.multiRemove(ACCOUNT_CACHE_KEYS), deleteUserName()]);
 }
 
@@ -74,6 +79,8 @@ export async function wipeLocalAccountData({
 }: LocalAccountWipeDependencies): Promise<void> {
   // 메모리에만 있는 것부터. 실패할 수 없고, 아래가 느려도 화면이 먼저 비워진다.
   resetPracticeState();
+  resetSkeletonHints();
+  resetLastReads();
   clearPickedVideo();
   resetReadingState();
   takeRecordedVideo();

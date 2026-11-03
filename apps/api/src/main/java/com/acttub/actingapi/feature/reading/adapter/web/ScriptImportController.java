@@ -104,7 +104,7 @@ class ScriptImportController {
     @GetMapping("/{import_id}")
     ImportResponse get(@PathVariable("import_id") UUID importId, HttpServletRequest request) {
         ImportView view = imports.find(auth.gatedUser(request).id(), importId);
-        return new ImportResponse(view.id(), view.status(), new ProgressResponse(view.doneLines(), view.totalLines()),
+        return new ImportResponse(view.id(), view.status(), new ProgressResponse(view.doneLines(), view.totalLines(), view.percent()),
                 view.scriptId(), view.failure() == null ? null : view.failure().dbValue());
     }
 }

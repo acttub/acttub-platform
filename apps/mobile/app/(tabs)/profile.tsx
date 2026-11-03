@@ -3,10 +3,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { useAppDialog } from '@/components/app-dialog';
+import { pt } from '@/components/ui/anchored-menu';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
@@ -19,11 +21,12 @@ import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import type { EntryCard, MyEntryCard } from '@/lib/challenge/types';
+import type { EntryCard, MyEntriesResponse, MyEntryCard } from '@/lib/challenge/types';
+import { lastRead } from '@/lib/last-reads';
 import { displayNameFor } from '@/lib/display-name';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t, translateList } from '@/lib/i18n';
-import { groupPoster, groupRowTarget, lastNotePracticeId, sceneTitle } from '@/lib/practice/groups';
+import { groupPoster, groupRowTarget, groupTitle, lastNotePracticeId, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroupDetail } from '@/lib/practice/types';
 import { getUserName } from '@/lib/profile';
 import { EXPERIENCE_VALUES, GOAL_VALUES } from '@/lib/profile-form';
@@ -48,10 +51,18 @@ export default function ProfileScreen() {
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const { user, profile } = useAuth();
+  const { confirm, alert, sheet, dialog } = useAppDialog();
   const [name, setName] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('practice');
-  const [groups, setGroups] = useState<PracticeGroupDetail[] | null>(null);
-  const [entries, setEntries] = useState<MyEntryCard[] | null>(null);
+  // 홈이 앱을 켤 때 받은 묶음·참여작이 있으면 그것으로 카드를 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
+  // 참여작은 여기서 끝까지 이어 받으므로, 남은 답이 한 장으로 끝날 때만 쓴다.
+  const [groups, setGroups] = useState<PracticeGroupDetail[] | null>(
+    () => lastRead<{ groups: PracticeGroupDetail[] }>('practiceGroups')?.groups ?? null,
+  );
+  const [entries, setEntries] = useState<MyEntryCard[] | null>(() => {
+    const read = lastRead<MyEntriesResponse>('myChallengeEntries');
+    return read && !read.next_cursor ? read.entries : null;
+  });
   const [saved, setSaved] = useState<EntryCard[] | null>(null);
   const [counts, setCounts] = useState<MonthPracticeCounts>(EMPTY_COUNTS);
   const serverProfile = profile.me?.profile ?? null;
@@ -64,10 +75,15 @@ export default function ProfileScreen() {
       void getUserName().then((n) => alive && setName(n?.trim() || null));
       void (async () => {
         const now = new Date();
+        // 받는 대로 바로 그린다 — 전에는 셋(리딩은 대본별 회차까지)을 다 받은 뒤에 한꺼번에 그려 프로필이 늦게 떴다(11/2 폰 QA).
+        // 이번 달 연습 수만 셋이 다 온 뒤에 센다.
         const [groupList, entryList, readingSessions] = await Promise.all([
           api
             .listPracticeGroups('all')
-            .then((r) => r.groups)
+            .then((r) => {
+              if (alive) setGroups(r.groups);
+              return r.groups;
+            })
             .catch(() => [] as PracticeGroupDetail[]),
           // 내 참여작은 20개씩이다. 끝까지 읽어 이번 달 챌린지 수와 카드를 같이 만든다(비공개 참여 포함, challenge.browse).
           (async () => {
@@ -76,6 +92,7 @@ export default function ProfileScreen() {
             while (alive) {
               const r = await api.listMyChallengeEntries(undefined, cursor);
               all.push(...r.entries);
+              if (alive) setEntries([...all]);
               if (!r.next_cursor) break;
               cursor = r.next_cursor;
             }
@@ -108,6 +125,54 @@ export default function ProfileScreen() {
       };
     }, []),
   );
+
+  /** 연습 카드 ⋯ 메뉴 — 기록에서 숨기기(되돌릴 수 있음)와 영구 삭제. 둘 다 목록에서 먼저 빼고 실패하면 다시 읽는다. */
+  const reloadGroups = () =>
+    void api
+      .listPracticeGroups('all')
+      .then((r) => setGroups(r.groups))
+      .catch(() => undefined);
+  const hideGroup = async (group: PracticeGroupDetail) => {
+    const ok = await confirm({
+      title: t('history.hideTitle'),
+      message: t('history.hideNotice'),
+      confirmLabel: t('history.hideConfirm'),
+    });
+    if (!ok) return;
+    try {
+      await api.patchPracticeGroup(group.root_id, { hidden: true });
+      reloadGroups();
+    } catch (e) {
+      await alert({ title: t('history.deleteFailTitle'), message: e instanceof Error ? e.message : t('history.deleteFail') });
+    }
+  };
+  const deleteGroup = async (group: PracticeGroupDetail) => {
+    const ok = await confirm({
+      title: t('history.deleteConfirmTitle'),
+      message: t('history.deleteConfirmBody'),
+      confirmLabel: t('history.deleteConfirm'),
+      destructive: true,
+    });
+    if (!ok) return;
+    setGroups((prev) => prev && prev.filter((g) => g.root_id !== group.root_id));
+    try {
+      await api.deletePracticeGroup(group.root_id);
+    } catch (e) {
+      reloadGroups();
+      await alert({ title: t('history.deleteGroupFailTitle'), message: e instanceof Error ? e.message : t('history.deleteFail') });
+    }
+  };
+  const onGroupMenu = (group: PracticeGroupDetail, e?: GestureResponderEvent) => {
+    void sheet({
+      anchor: pt(e),
+      title: groupTitle(group),
+      actions: [
+        { label: t('history.fullView'), onPress: () => router.push(groupRowTarget(group)) },
+        { label: t('history.menuHide'), onPress: () => void hideGroup(group) },
+        { label: t('history.menuDelete'), destructive: true, onPress: () => void deleteGroup(group) },
+      ],
+    });
+  };
 
   // 정본은 서버의 프로필 이름이다. 아직 못 읽었으면 기기에 적어 둔 이름으로 부른다.
   const display = displayNameFor(serverProfile?.name ?? name, user?.email ?? null) || t('profileTab.title');
@@ -209,6 +274,7 @@ export default function ProfileScreen() {
               title: nextTakes[lastNotePracticeId(group) ?? ''] || sceneTitle(group),
               meta: shortDate(at),
               onPress: () => router.push(groupRowTarget(group)),
+              onMenu: (e) => onGroupMenu(group, e),
             }))}
           />
         )}
@@ -250,6 +316,7 @@ export default function ProfileScreen() {
           />
         )}
       </ScrollView>
+      {dialog}
     </SafeAreaView>
   );
 }
@@ -279,6 +346,8 @@ type Card = {
   /** 나만 보기 참여작 — 썸네일 오른쪽 위 자물쇠. */
   locked?: boolean;
   onPress: () => void;
+  /** 있으면 카드 오른쪽 위에 ⋯ 버튼을 둔다(연습 기록). */
+  onMenu?: (e: GestureResponderEvent) => void;
 };
 
 /** pen 그리드는 한 줄에 세 칸(114, 사이 4)이고, 모자란 칸은 빈 회색 칸으로 채운다. */
@@ -353,6 +422,11 @@ function CardGrid({
                   {thumb(card)}
                   {/* pen은 아래로 짙어지는 그라데이션 — 그라데이션 모듈이 없어 아래쪽에 옅은 막을 깐다. */}
                   <View style={styles.scrim} pointerEvents="none" />
+                  {card.onMenu && (
+                    <View style={styles.cardMenu}>
+                      <NavIconButton icon="more-horizontal" size={18} color={palette.onAccent} label={t('history.groupMenu')} phLabel="profile_practice_menu" onPress={card.onMenu} />
+                    </View>
+                  )}
                   <Text style={styles.cardTitle} numberOfLines={2}>
                     {card.title}
                   </Text>
@@ -435,6 +509,7 @@ const styles = StyleSheet.create({
     paddingBottom: space[2],
     gap: space[1],
   },
+  cardMenu: { position: 'absolute', top: 0, right: 0 },
   thumbEmpty: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: palette.scrim },
   cardTitle: { ...type.micro, color: palette.onAccent },

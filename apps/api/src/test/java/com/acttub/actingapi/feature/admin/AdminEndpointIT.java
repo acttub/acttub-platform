@@ -2175,10 +2175,10 @@ class AdminEndpointIT {
                 "/v2/admin/ads", "/v2/admin/ads/{id}", "/v2/admin/ads/{id}/stats", "/v2/admin/ad-images", "/v2/admin/ad-settings",
                 // 웹 문의하기(app.support-inquiry)의 운영 조회도 같은 토큰 조건을 진다.
                 "/v2/admin/support/inquiries",
-                // ops 구독 화면(SOMA-963)도 같은 토큰 조건을 진다.
-                "/v2/admin/subscribers",
                 // 웹 블로그(app.blog)의 운영 경로도 같은 토큰 조건을 진다.
-                "/v2/admin/blog/posts", "/v2/admin/blog/posts/{id}", "/v2/admin/blog-images");
+                "/v2/admin/blog/posts", "/v2/admin/blog/posts/{id}", "/v2/admin/blog-images",
+                // ops 구독 화면(SOMA-963)도 같은 토큰 조건을 진다.
+                "/v2/admin/subscribers");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")

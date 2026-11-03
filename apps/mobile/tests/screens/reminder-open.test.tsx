@@ -35,6 +35,14 @@ test('안 읽은 대본 알림은 그 대본의 리딩 준비 화면을 연다',
   expect(loadIntoCurrent).toHaveBeenCalledWith(id);
 });
 
+test('대본 나누기 완료 알림은 그 대본을 불러 목소리 정하기를 연다(SOMA-960)', async () => {
+  mockParams = { kind: 'script_ready', id };
+  (loadIntoCurrent as jest.Mock).mockResolvedValue({ id });
+  await render(<ReminderOpenScreen />);
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/reading/roles?from=new'));
+  expect(loadIntoCurrent).toHaveBeenCalledWith(id);
+});
+
 test('지워진 대본이면 홈으로 간다', async () => {
   mockParams = { kind: 'unread_script', id };
   (loadIntoCurrent as jest.Mock).mockResolvedValue(null);

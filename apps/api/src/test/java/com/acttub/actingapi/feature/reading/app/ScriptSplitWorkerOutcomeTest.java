@@ -48,6 +48,27 @@ class ScriptSplitWorkerOutcomeTest {
                 : new ScriptImportRepository.Material(user, false, UUID.randomUUID(), "fp", "제목", rawText, "paste", false, null));
     }
 
+    @Test void everyRecordedPromptIsTheSameFixedTemplateWhateverTheScriptSays() {
+        var telemetry = new RecordingLlmTelemetry();
+        var recording = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock);
+        List<java.util.Set<com.acttub.actingapi.platform.observability.LlmPrompt>> runs = new ArrayList<>();
+        for (String cast : List.of("김비밀", "박비밀")) {
+            telemetry.clear();
+            StringBuilder text = new StringBuilder();
+            for (int i = 0; i < 160; i++) text.append(cast).append(": 대사 ").append(i).append(" 번째\n");
+            claimed(text.toString());
+            answers.clear();
+            answers.add("대본\t예\n" + cast + "\tm\tadult");
+            recording.runOnce();
+            assertThat(telemetry.calls()).isNotEmpty().allSatisfy(call -> assertThat(call.input()).contains(cast));
+            assertThat(telemetry.calls()).extracting(call -> call.prompt()).doesNotContainNull()
+                    .allSatisfy(prompt -> assertThat(prompt.name() + prompt.text()).doesNotContain("비밀"));
+            runs.add(telemetry.calls().stream().map(call -> call.prompt()).collect(java.util.stream.Collectors.toSet()));
+        }
+        assertThat(runs.getFirst()).isEqualTo(runs.getLast());
+        assertThat(runs.getFirst()).extracting(prompt -> prompt.name()).contains("script.split.roster.judge", "script.split.rows.known-cast");
+    }
+
     @Test void nothingToClaimMeansNoWork() {
         assertThat(worker.runOnce()).isFalse();
     }
@@ -101,5 +122,33 @@ class ScriptSplitWorkerOutcomeTest {
         assertThat(failures.contexts()).hasSize(2);
         assertThat(failures.contexts().get(0)).startsWith("ScriptSplitWorker.run");
         assertThat(failures.contexts().get(1)).startsWith("ScriptSplitWorker.release");
+    }
+
+    @Test void aSavedScriptIsAnnouncedOnceAndAFailingAnnouncementOnlyReports() {
+        List<String> heard = new ArrayList<>();
+        UUID script = UUID.randomUUID();
+        ScriptSplitListener listener = (userId, scriptId) -> heard.add(userId + "|" + scriptId);
+        var announcing = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null, listener);
+        claimed(SHORT);
+        answers.add(SHORT_ANSWER);
+        when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SAVED);
+        when(imports.find(user, importId)).thenReturn(new ScriptImportRepository.ImportView(importId, "succeeded", 2, 2, 100, script, null));
+        assertThat(announcing.runOnce()).isTrue();
+        assertThat(heard).containsExactly(user + "|" + script);
+
+        // 저장하지 못한 작업은 알리지 않는다.
+        answers.add(SHORT_ANSWER);
+        when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SCRIPT_LIMIT);
+        announcing.runOnce();
+        assertThat(heard).hasSize(1);
+
+        // 알림이 실패해도 나누기는 성공이고 실패를 닫지 않는다 — 보고만 한다.
+        var broken = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null,
+                (userId, scriptId) -> { throw new IllegalStateException("push is down"); });
+        answers.add(SHORT_ANSWER);
+        when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SAVED);
+        assertThat(broken.runOnce()).isTrue();
+        assertThat(failures.contexts()).singleElement().asString().startsWith("ScriptSplitWorker.notify");
+        verify(imports, never()).fail(eq(job), any(), eq(importId), eq(ScriptImportFailure.FAILED), anyBoolean(), any());
     }
 }

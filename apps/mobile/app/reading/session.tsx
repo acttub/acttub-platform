@@ -190,7 +190,7 @@ export default function ReadingSession() {
       await deleteSession(detail.id);
       router.back();
     } catch (e) {
-      void alert({ title: t('reading.deleteSession'), message: scriptErrorMessage(e) });
+      void alert({ title: t('reading.deleteFailTitle'), message: scriptErrorMessage(e) });
     }
   };
 

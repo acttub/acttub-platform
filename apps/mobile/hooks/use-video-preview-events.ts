@@ -14,7 +14,7 @@ export function useVideoPreviewEvents(
   sourceKey: string | null,
   params: PreviewParams = {},
 ): void {
-  const tracker = useRef(createPreviewTracker(screen, (name, p) => void logEvent(name, p))).current;
+  const tracker = useRef(createPreviewTracker(screen, (name, p) => logEvent(name, p))).current;
   const paramsKey = JSON.stringify(params);
 
   useEffect(() => {

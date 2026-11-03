@@ -26,10 +26,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.reading.app.DeciderTally;
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitProgress;
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
@@ -736,18 +739,69 @@ class ReadingImportIT {
                 .containsExactly("안녕하세요. 저는 이영입니다. 만나서 반갑습니다.", "네.");
     }
 
+    @Test
+    @DisplayName("SOMA-960: 진행률은 줄을 다 나눈 뒤 줄 검토 동안에도 오르고(35→88%) 줄지 않으며, 저장이 끝난 작업만 100이다")
+    void percentKeepsMovingThroughReview() throws Exception {
+        List<Integer> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        LineDecider decider = new LineDecider() {
+            @Override public String model() {
+                return "test-jev";
+            }
+
+            @Override public LineReview.Decision decide(LineReview.Question question, DeciderTally tally) {
+                seen.add(jdbc.queryForObject("SELECT progress_percent FROM script_imports", Integer.class));
+                return new LineReview.Decision(null, null);
+            }
+
+            @Override public double speech(String ignored, DeciderTally tally) {
+                return 1.0;
+            }
+
+            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed, DeciderTally tally) {
+                return Map.of();
+            }
+        };
+        // 한 번에 하나씩 물어야 앞 답이 뒤 질문 전에 진행률을 올린다.
+        LineReview.Settings r = ScriptSplitRules.REVIEW;
+        LineReview.Settings oneAtATime = new LineReview.Settings(r.mode(), r.kindThreshold(), r.dropThreshold(), r.speakerThreshold(),
+                r.edgeThreshold(), r.speechThreshold(), r.blockThreshold(), 1);
+        ScriptSplitWorker reviewing = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, oneAtATime);
+        String text = "니나: 저는 갈매기예요.\n트레플레프: 아니, 당신은 배우예요.\n니나: 아니에요.\n트레플레프: 그래요.\n니나: 가요.";
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").textValue();
+        assertThat(json(get("/v2/reading/imports/{id}", id), 200).path("progress").path("percent").intValue()).isZero();
+
+        assertThat(reviewing.runOnce(clock.instant())).isTrue();
+
+        assertThat(seen).as("줄 검토 질문마다 본 진행률 — 줄은 이미 다 나눴지만 100 이 아니다").isNotEmpty()
+                .allSatisfy(percent -> assertThat(percent).isBetween(ScriptSplitProgress.FILLED, ScriptSplitProgress.REVIEWED));
+        assertThat(seen.getLast()).as("답을 받을수록 오른다").isGreaterThan(seen.getFirst());
+        JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(done.path("progress").path("percent").intValue()).isEqualTo(100);
+        assertThat(jdbc.queryForObject("SELECT progress_percent FROM script_imports", Integer.class))
+                .as("저장 직전 값이 남고 100 은 응답이 성공으로 정한다").isEqualTo(ScriptSplitProgress.SAVING);
+
+        imports.percent(UUID.fromString(id), 40);
+        assertThat(jdbc.queryForObject("SELECT progress_percent FROM script_imports", Integer.class)).as("끝난 작업은 바꾸지 않는다")
+                .isEqualTo(ScriptSplitProgress.SAVING);
+    }
+
     /** 문지기만 붙인 워커로 하나 나누고 상태(실패면 failure)를 돌려준다. */
     private String gated(java.util.function.DoubleSupplier speech, String text) throws Exception {
         LineDecider decider = new LineDecider() {
-            @Override public LineReview.Decision decide(LineReview.Question question) {
+            @Override public String model() {
+                return "test-jev";
+            }
+
+            @Override public LineReview.Decision decide(LineReview.Question question, DeciderTally tally) {
                 throw new AssertionError("줄 두 번째 의견은 꺼져 있다");
             }
 
-            @Override public double speech(String ignored) {
+            @Override public double speech(String ignored, DeciderTally tally) {
                 return speech.getAsDouble();
             }
 
-            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed) {
+            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed, DeciderTally tally) {
                 throw new AssertionError("같은 사람 판단은 꺼져 있다");
             }
         };

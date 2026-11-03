@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.time.Clock;
 import java.util.UUID;
+import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Draft;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ChallengeService {
-    public record Draft(String line, String work, String character, String sceneNote, int durationDays) { }
     private final ChallengeRepository challenges;
     private final CanonicalJson canonical;
     private final Clock clock;
@@ -54,7 +54,7 @@ public class ChallengeService {
     public ChallengeRepository.Listing list(UUID viewer, String tab, String query, String rawCursor) {
         String normalized = ChallengeRules.normalize(query);
         if (normalized.codePointCount(0, normalized.length()) < 2) normalized = "";
-        ChallengeCursor cursor;
+        ChallengeRepository.Position cursor;
         try { cursor = ChallengeCursor.decode(rawCursor, tab, viewer, normalized); }
         catch (IllegalArgumentException | java.time.format.DateTimeParseException invalid) {
             throw ApiValidationException.valueError(List.of("query", "cursor"), "Value error, invalid cursor", rawCursor);

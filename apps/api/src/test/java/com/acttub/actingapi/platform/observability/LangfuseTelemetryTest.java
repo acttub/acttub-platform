@@ -63,6 +63,19 @@ class LangfuseTelemetryTest {
     }
 
     @Test
+    @DisplayName("Gemini 코치 호출의 토큰도 값이 계산되는 OpenAI 호출과 같은 usage_details 로 나간다")
+    void geminiCoachTokensUseThePricedUsageKeys() throws Exception {
+        LlmCall coach = new LlmCall(LlmStep.COACH_TURN, PRACTICE, USER, "gemini-3-flash-preview", "입력", "답",
+                LlmTokens.of(190, 30, 220), STARTED, Duration.ofSeconds(2), null, Map.of());
+        JsonNode span = telemetry(enabledEnvironment()).tracePayload(coach)
+                .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
+        Map<String, String> attributes = attributes(span);
+        assertThat(attributes).containsEntry("langfuse.observation.model.name", "gemini-3-flash-preview");
+        assertThat(MAPPER.readTree(attributes.get("langfuse.observation.usage_details")))
+                .isEqualTo(MAPPER.readTree("{\"input\":190,\"output\":30,\"total\":220}"));
+    }
+
+    @Test
     @DisplayName("호출 하나가 OTLP 한 건으로 조립된다")
     void callBecomesOneOtlpSpan() throws Exception {
         JsonNode payload = telemetry(Map.of(
@@ -109,6 +122,22 @@ class LangfuseTelemetryTest {
         assertThat(span.path("status").path("code").asInt()).isEqualTo(2);
         assertThat(span.path("status").path("message").asText()).isEqualTo("타임아웃");
         assertThat(attributes(span)).containsEntry("langfuse.observation.level", "ERROR");
+    }
+
+    @Test
+    @DisplayName("제공자가 알려 준 비용은 cost_details 의 total 로 나가고, 모르면 속성이 없다")
+    void providerCostGoesToCostDetails() throws Exception {
+        LlmCall call = new LlmCall(
+                LlmStep.SCRIPT_REVIEW, PRACTICE, null, "typesafe/jev-1.14-20261014",
+                "질문", "", LlmTokens.of(373, 31, 404), STARTED, Duration.ofMillis(10), null, Map.of());
+
+        Map<String, String> priced = attributes(telemetry(enabledEnvironment()).tracePayload(call.withCost(0.000015666))
+                .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
+        Map<String, String> unpriced = attributes(telemetry(enabledEnvironment()).tracePayload(call)
+                .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
+
+        assertThat(MAPPER.readTree(priced.get("langfuse.observation.cost_details")).path("total").asDouble()).isEqualTo(0.000015666);
+        assertThat(unpriced).doesNotContainKey("langfuse.observation.cost_details");
     }
 
     /** 값이 없는 칸은 속성을 만들지 않는다 — 빈 속성은 화면에서 빈 줄로 남는다. */

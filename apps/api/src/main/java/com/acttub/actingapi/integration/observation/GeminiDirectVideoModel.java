@@ -217,9 +217,11 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     private String streamOnce(Request request, Consumer<String> onText, Consumer<AutoCloseable> onOpen) {
         StringBuilder text = new StringBuilder();
         boolean limited = false;
+        GenerateContentResponse used = null;
         try (var stream = client.models.generateContentStream(model, request.contents(), request.config())) {
             if (onOpen != null) onOpen.accept(stream);
             for (var chunk : stream) {
+                if (chunk.usageMetadata().isPresent()) used = chunk;
                 String piece = chunk.text();
                 if (piece != null && !piece.isEmpty()) {
                     text.append(piece);
@@ -228,6 +230,9 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                 if (outputLimitReached(chunk)) limited = true;
                 if (request.trace() != null) request.trace().usage(chunk);
             }
+        } finally {
+            // 조각의 토큰 수는 누적값이라 마지막 것만 더한다. 중간에 끊긴 스트림(깨진 글, 다시 보내기에서 진 쪽)도 쓴 만큼 든다.
+            if (used != null && request.usage() != null) request.usage().add(model, GeminiUsage.tokens(used));
         }
         if (limited) throw new IllegalStateException("empty video coaching reply: output limit reached");
         if (text.toString().isBlank()) throw new IllegalStateException("empty video coaching reply");
@@ -306,12 +311,14 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         return generate(null, history, instruction, categories, false);
     }
 
-    private record Request(List<Content> contents, GenerateContentConfig config, ReplyTrace trace) { }
+    /** @param trace 생각 단계를 따를 턴. 분류는 없다. @param usage 토큰을 더할 곳. 분류도 받는다. */
+    private record Request(List<Content> contents, GenerateContentConfig config, ReplyTrace trace, ReplyTrace usage) { }
 
     private Request request(Video video, List<Message> history, String instruction, List<String> categories, boolean light) {
         boolean classification = categories != null;
         // 코치 답(분류 아님)만 턴 단위 생각 단계 요청을 따른다. 분류는 늘 LOW 다.
-        ReplyTrace trace = classification ? null : ReplyTrace.current();
+        ReplyTrace usage = ReplyTrace.current();
+        ReplyTrace trace = classification ? null : usage;
         List<Content> contents = new ArrayList<>();
         if (video != null) contents.add(Content.builder().role("user").parts(
                 Part.fromUri(video.uri(), video.mimeType())).build());
@@ -338,7 +345,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                             "type", "array", "items", java.util.Map.of("type", "string", "enum", categories))),
                     "required", List.of("signals"), "additionalProperties", false));
         }
-        return new Request(contents, config.build(), trace);
+        return new Request(contents, config.build(), trace, usage);
     }
 
     /**
@@ -372,8 +379,12 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     private String generate(Video video, List<Message> history, String instruction, List<String> categories, boolean light) {
         boolean classification = categories != null;
         Request request = request(video, history, instruction, categories, light);
-        var response = hedged(() -> client.models.generateContent(model, request.contents(), request.config()),
-                classification ? hedge.classify() : hedge.reply());
+        // shortcut: 다시 보낸 요청이 기록을 남긴 뒤에 끝나면 그 토큰은 빠진다. 다시 보내기 비율이 커지면 별도 기록으로 옮긴다.
+        var response = hedged(() -> {
+            var answered = client.models.generateContent(model, request.contents(), request.config());
+            if (request.usage() != null) request.usage().add(model, GeminiUsage.tokens(answered));
+            return answered;
+        }, classification ? hedge.classify() : hedge.reply());
         if (request.trace() != null) request.trace().usage(response);
         // 한도에 걸려 끊긴 답은 중간에 잘린 글이다. 빈 답과 같이 다루어 연습 루프가 한 번 다시 쓰게 한다.
         if (!classification && outputLimitReached(response)) {

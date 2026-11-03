@@ -221,6 +221,11 @@ final class PracticeDtos {
     record GroupListResponse(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<GroupResponse> groups) {
     }
 
+    /** 연습한 날짜 목록(SOMA-1003). 한국 시간 날짜(YYYY-MM-DD)를 오래된 순으로, 하루 한 번만. */
+    @Schema(name = "PracticeDays", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record PracticeDaysResponse(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> days) {
+    }
+
     /** 폴링이 읽는 것. 앱 4초·웹 10초다. */
     @Schema(name = "PracticeStatus", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

@@ -44,6 +44,7 @@ public final class LineReview {
             new Choice("info", "작품 정보", "작품 제목·작가·장르·러닝타임, 배역과 배우 정보 줄."));
     private static final Map<String, Kind> EDGE_OF = Map.of("guide", Kind.IGNORE, "info", Kind.TITLE);
     /** 장면 사이에 끼인 제외 줄에 더 묻는 질문 — 각주·해설이 지문으로 되살아나지 않게 한다(재생 076). */
+    private static final String EDGE_INSTRUCTIONS = "▶ 표시가 붙은 「판단할 줄」은 문서 전체 %d줄 중 %s %d번째 줄입니다. 이 줄이 연기할 대본의 내용인지, 대본 앞뒤에 붙은 글인지 고르세요.";
     public static final String NOTE_QUESTION = "note";
     public static final String NOTE_INSTRUCTIONS = "▶ 표시가 붙은 「판단할 줄」이 연기할 대본의 내용인지, 대본에 덧붙은 글인지 고르세요.";
     public static final List<Choice> NOTES = List.of(
@@ -54,6 +55,7 @@ public final class LineReview {
      * 두면 Jev 가 소리로 읽는 내레이션 「(NA.) …」도 서술로 골랐다(재생 002) — 말은 관객이 듣는 글, 서술은 소리 내지 않는 무대 설명이다.
      */
     public static final String TALK_QUESTION = "talk";
+    private static final String TALK_INSTRUCTIONS = "▶ 표시가 붙은 「판단할 줄」에서 괄호 밖의 글 「%s」이 배역이 소리 내어 하는 말인지, 행동·상황을 적은 서술인지 고르세요.";
     public static final List<Choice> TALKS = List.of(
             new Choice("speech", "말", "배역이 소리 내어 하는 대사. 부르는 말·감탄·대답도 말이다. 내레이션(NA)·화면 밖 목소리(VO)·독백·기계나 방송의 음성처럼 관객이 소리로 듣는 글도 말이다."),
             new Choice("narration", "무대 서술", "소리 내어 읽지 않고 인물의 행동·상황·무대를 설명하는 글, 효과음·조명·음향 설명."));
@@ -141,6 +143,25 @@ public final class LineReview {
     private static final int MAX_SETS = 6;
 
     private LineReview() {
+    }
+
+    /** 기록에 잇는 줄 질문의 고정 본문(SOMA-1019) — 채우기 전 틀이라 대본 글과 배역 이름이 없다. 화자 보기는 자리표시자다. */
+    public static String promptTemplate() {
+        return template(List.of(new Extra(KIND_QUESTION, KIND_INSTRUCTIONS, KINDS),
+                new Extra(SPEAKER_QUESTION, SPEAKER_INSTRUCTIONS, List.of(new Choice("{배역}", "{배역}", "{배역}"))),
+                new Extra(EDGE_QUESTION, EDGE_INSTRUCTIONS, EDGES), new Extra(NOTE_QUESTION, NOTE_INSTRUCTIONS, NOTES),
+                new Extra(TALK_QUESTION, TALK_INSTRUCTIONS, TALKS), new Extra(MEDIUM_QUESTION, MEDIUM_INSTRUCTIONS, MEDIUMS)));
+    }
+
+    /** 질문들을 프롬프트 저장소에 넣을 글로 편다. */
+    static String template(List<Extra> questions) {
+        StringBuilder text = new StringBuilder();
+        for (Extra question : questions) {
+            text.append('[').append(question.key()).append("] ").append(question.instructions()).append('\n');
+            question.choices().forEach(choice -> text.append("- ").append(choice.value()).append(": ").append(choice.label())
+                    .append(" — ").append(choice.description()).append('\n'));
+        }
+        return text.toString();
     }
 
     public enum Mode { ALL, SUSPECT }
@@ -294,13 +315,13 @@ public final class LineReview {
             List<NumberedLine> window = lines.subList(Math.max(0, at - BEFORE), Math.min(lines.size(), at + AFTER + 1));
             List<Extra> extras = new ArrayList<>();
             if (edge) {
-                extras.add(new Extra(EDGE_QUESTION, "▶ 표시가 붙은 「판단할 줄」은 문서 전체 %d줄 중 %s %d번째 줄입니다. 이 줄이 연기할 대본의 내용인지, 대본 앞뒤에 붙은 글인지 고르세요."
+                extras.add(new Extra(EDGE_QUESTION, EDGE_INSTRUCTIONS
                         .formatted(lines.size(), at < EDGE ? "앞에서" : "끝에서", at < EDGE ? at + 1 : lines.size() - at), EDGES));
             } else if (excluded) {
                 extras.add(new Extra(NOTE_QUESTION, NOTE_INSTRUCTIONS, NOTES));
             }
             if (talk != null) {
-                extras.add(new Extra(TALK_QUESTION, "▶ 표시가 붙은 「판단할 줄」에서 괄호 밖의 글 「%s」이 배역이 소리 내어 하는 말인지, 행동·상황을 적은 서술인지 고르세요."
+                extras.add(new Extra(TALK_QUESTION, TALK_INSTRUCTIONS
                         .formatted(clip(PAREN.matcher(talkRest(line.text())).replaceAll(" ").replaceAll("\\s+", " ").strip(), TALK_CHARS)), TALKS));
             }
             // 줄 머리에 배역 이름이 있거나 앞 줄이 대사·화자 이름 줄이면 묻지 않는다 — 「해온 한서린.」은 해온의 말이고(재생 004), 「[은서]」 아래 문자

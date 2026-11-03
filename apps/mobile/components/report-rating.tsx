@@ -33,7 +33,7 @@ export function ReportRating({ practiceId, initial }: { practiceId: string; init
       commentMax={NOTE_RATING_COMMENT_MAX}
       save={async (requestId, rating, comment) => {
         const result = await noteRatings.send(practiceId, buildNoteRatingBody({ requestId, rating, comment }));
-        void logEvent('report_rating_submit', { rating, length: comment?.length ?? 0, result });
+        logEvent('report_rating_submit', { rating, length: comment?.length ?? 0, result });
         return result;
       }}
     />

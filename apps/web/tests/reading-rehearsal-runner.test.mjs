@@ -1,12 +1,25 @@
 // reading.session·reading.cast — 실행 러너(useRehearsalRunner). 상대 대사는 엔진으로 읽고 끝나면 넘기며, 못 읽으면 글로 보기로
 // 남는다. 내 차례는 침묵 감지·버튼·화면 대조로 넘기고, 60초 무발화는 알리기만 한다. 음성 엔진·마이크는 대역이다.
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import { afterEach, beforeEach, mock, test } from "node:test";
 
 import "./ts-module-loader.mjs";
 import { registerAudioFakes } from "./fixtures/reading-audio-fakes.mjs";
 import { react } from "./mount-probe.mjs";
 import { installRecorder, uninstallRecorder } from "./fixtures/reading-media-recorder-fake.mjs";
+
+const reported = [];
+globalThis.__rehearsalSentry = reported;
+const sentryModule = `data:text/javascript,${encodeURIComponent(
+  "export const captureException = (error) => globalThis.__rehearsalSentry.push(error.message);",
+)}`;
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "@sentry/nextjs") return { url: sentryModule, shortCircuit: true };
+    return nextResolve(specifier, context);
+  },
+});
 
 const fakes = registerAudioFakes();
 const { audio, callsOf } = fakes;
@@ -118,6 +131,19 @@ test("reading.cast: 상대 목소리를 내지 못하면 다른 음성으로 바
   assert.equal(shown(), "ai@0 · manual · 음량 0 · 목소리 실패");
   await press(() => latest.next());
   assert.equal(shown(), "me@1 · manual · 음량 0 · -");
+});
+
+test("reading.cast: 음성 엔진이 거절하면 화면은 그 줄에 그대로 두고 Sentry 로 올린다", async () => {
+  reported.length = 0;
+  audio.impl.speakWithEngine = async () => {
+    throw new Error("no utterance");
+  };
+  mount({ myTurn: "manual", partnerVoice: "device" });
+  await press(() => void latest.start());
+  await advance(350);
+  await flush();
+  assert.deepEqual(reported, ["no utterance"]);
+  assert.equal(shown(), "ai@0 · manual · 음량 0 · -");
 });
 
 test("reading.cast: 글로 보기는 상대 대사를 소리 없이 보여 주고 다음을 누를 때까지 기다린다", async () => {

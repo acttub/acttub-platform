@@ -1,11 +1,14 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePreventRemove } from '@react-navigation/native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
 import ReadingNew from '@/app/reading/new';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
+import { readSplitJobs } from '@/lib/reading/split-jobs';
 import { resetReadingState } from '@/lib/reading/store';
 import { setFirstUseOwner } from '@/lib/practice/first-use-graduation';
 import type { ScriptImport } from '@/lib/reading/types';
@@ -23,14 +26,15 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
+const mockNavDispatch = jest.fn();
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: mockNavDispatch }) }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-file-system', () => ({
   File: class {
     size = 4096;
   },
 }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   api: {
     importScript: jest.fn(),
@@ -50,10 +54,11 @@ function job(over: Partial<ScriptImport> = {}): ScriptImport {
 
 let server: ReturnType<typeof fakeServer>;
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
   mockParams = {};
   resetReadingState();
+  await AsyncStorage.clear();
   server = fakeServer(scriptDetail(TWO_ROLE_LINES));
   jest.mocked(api.importScript).mockResolvedValue({ import_id: 'i1', duplicate_script_id: null });
   jest.mocked(api.getScriptImport).mockResolvedValue(job());
@@ -65,6 +70,11 @@ beforeEach(() => {
     assets: [{ uri: 'file:///cache/대본.txt', name: '대본.txt', size: 2048 }],
   } as never);
 });
+
+/** 화면 머리 뒤로·안드로이드 뒤로·iOS 밀기는 모두 usePreventRemove 콜백으로 들어온다. */
+async function pressStackBack() {
+  await act(async () => jest.mocked(usePreventRemove).mock.calls.at(-1)![1]({ data: { action: { type: 'GO_BACK' } } } as never));
+}
 
 async function paste(text = PASTED) {
   await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
@@ -153,7 +163,7 @@ test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 목소리 정
 test('「대본 같이 만들기」는 화면을 넘기지 않고 아래에 예시 대본 고르기·새 대본 만들기를 펼친다', async () => {
   await render(<ReadingNew />);
 
-  await fireEvent.press(screen.getByRole('tab', { name: /대본 같이 만들기/ }));
+  await fireEvent.press(screen.getByRole('tab', { name: /같이 만들기/ }));
   expect(mockRouter.push).not.toHaveBeenCalled();
   expect(screen.queryByText('대본 파일 첨부')).not.toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
@@ -181,7 +191,24 @@ test('튜토리얼 예시로 들어오면 예시 대본을 채운 채 연다', a
   expect(screen.getByDisplayValue(SAMPLE_SCRIPT)).toBeOnTheScreen();
 });
 
-test('나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다는 안내를 보이고, 뒤로 가면 리딩 탭 첫 화면으로 간다', async () => {
+test('iOS 는 나누는 중에도 뒤로 가기를 막지 않아 밀어서 나가기가 끊기지 않는다', async () => {
+  jest.mocked(api.getScriptImport)
+    .mockResolvedValueOnce(job({ status: 'running', progress: { done_lines: 3, total_lines: 10 }, script_id: null }))
+    .mockResolvedValue(job());
+  await render(<ReadingNew />);
+  await paste();
+  // 붙여넣은 뒤에는 나가기 확인(11/2 QA)으로 막혀 있다 — 나누기를 시작한 뒤의 호출만 본다.
+  const before = jest.mocked(usePreventRemove).mock.calls.length;
+
+  const pressing = fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('배역과 대사를 찾고 있어요')).toBeOnTheScreen();
+  expect(jest.mocked(usePreventRemove).mock.calls.slice(before + 1).filter(([on]) => on)).toEqual([]);
+  await act(async () => pressing);
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
+});
+
+test('안드로이드는 나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다는 안내를 보이고, 뒤로 가면 리딩 탭 첫 화면으로 간다', async () => {
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
   jest.mocked(api.getScriptImport)
     .mockResolvedValueOnce(job({ status: 'running', progress: { done_lines: 3, total_lines: 10 }, script_id: null }))
     .mockResolvedValue(job());
@@ -193,12 +220,50 @@ test('나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다
   expect(await screen.findByText('30% · 3 / 10줄')).toBeOnTheScreen();
   expect(screen.getByText('대본 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
   expect(screen.getByText('화면을 나가도 나누기는 계속돼요')).toBeOnTheScreen();
-  expect(screen.getByText('다 되면 리딩 탭 대본 목록에 생겨요.')).toBeOnTheScreen();
+  expect(screen.getByText('리딩 탭에서 진행 상황을 볼 수 있고, 다 되면 알림으로 알려 드릴게요.')).toBeOnTheScreen();
   const back = jest.mocked(usePreventRemove).mock.calls.filter(([on]) => on).at(-1)![1];
   await act(async () => back({ data: { action: { type: 'GO_BACK' } } } as never));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
+  os.restore();
+});
+
+test('접수하면 기기에 기록하고 나누는 중 화면에서 끝을 보면 지운다', async () => {
+  let finish = (_: ScriptImport) => undefined as void;
+  jest.mocked(api.getScriptImport).mockReturnValue(new Promise((resolve) => (finish = resolve)));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '봄날의 대화');
+
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(async () => expect(await readSplitJobs()).toEqual([{ importId: 'i1', title: '봄날의 대화' }]));
+
+  await act(async () => finish(job()));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+  await waitFor(async () => expect(await readSplitJobs()).toEqual([]));
+});
+
+test('나누기가 실패해 이 화면에서 알렸으면 기록을 남기지 않는다', async () => {
+  jest.mocked(api.getScriptImport).mockResolvedValue(job({ status: 'failed', script_id: null, failure: 'no_characters' }));
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('대본을 못 나눴어요')).toBeOnTheScreen();
+  await waitFor(async () => expect(await readSplitJobs()).toEqual([]));
+});
+
+test('나누는 중에 화면을 떠나면 기록이 남는다', async () => {
+  jest.mocked(api.getScriptImport).mockResolvedValue(job({ status: 'running', progress: { done_lines: 1, total_lines: 4 }, script_id: null }));
+  const { unmount } = await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  await screen.findByText('25% · 1 / 4줄');
+  await unmount();
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 1100)));
+  expect(await readSplitJobs()).toEqual([{ importId: 'i1', title: expect.any(String) }]);
 });
 
 test('같은 글의 대본이 있으면 그 대본을 열거나 새로 넣을 수 있다', async () => {
@@ -253,16 +318,23 @@ test('대본이 아닌 것 같다면 그래도 나누거나 다시 고를 수 �
   expect(jest.mocked(api.importScript).mock.calls.at(-1)![0]).toEqual(expect.objectContaining({ skip_script_check: true }));
 });
 
-test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유를 보이고, 뒤로 가면 닫는다', async () => {
+test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유를 보이고, 자기 뒤로 버튼 없이 화면 머리 뒤로로 닫혀 입력 화면이 다시 보인다', async () => {
   jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'no_characters', script_id: null }));
   await render(<ReadingNew />);
+  expect(jest.mocked(usePreventRemove).mock.calls.at(-1)![0]).toBe(false);
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('대본을 못 나눴어요')).toBeOnTheScreen();
   expect(screen.getByText('대본에 말하는 사람 이름이 있는지 확인하고 다시 넣어 주세요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByLabelText('뒤로'));
+  expect(screen.queryByLabelText('뒤로')).not.toBeOnTheScreen();
+  expect(jest.mocked(usePreventRemove).mock.calls.at(-1)![0]).toBe(true);
+
+  await pressStackBack();
   expect(screen.queryByText('대본을 못 나눴어요')).not.toBeOnTheScreen();
+  expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
+  expect(screen.queryByText('붙여넣은 대본이 사라져요')).not.toBeOnTheScreen();
+  expect(mockNavDispatch).not.toHaveBeenCalled();
   expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 
@@ -327,8 +399,17 @@ test('파일을 고르면 올려 두고 이름과 크기를 보인 뒤, 다음�
   expect(screen.getByText('대본.txt')).toBeOnTheScreen();
   expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   expect(usePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+  // 읽는 동안 다음 버튼은 막혀 있고 왜 막혔는지 「읽는 중…」으로 알린다(SOMA-975).
+  expect(screen.getByRole('button', { name: '읽는 중…' })).toBeDisabled();
+  expect(screen.queryByText('다음')).not.toBeOnTheScreen();
+  // 붙여넣기 탭의 버튼은 파일과 상관없이 [다음]이다.
+  await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
+  expect(screen.getByText('다음')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('tab', { name: /파일 업로드/ }));
+  expect(screen.getByRole('button', { name: '읽는 중…' })).toBeDisabled();
   await act(async () => uploaded({ kind: 'uploaded' }));
   await act(async () => picking);
+  expect(screen.queryByRole('button', { name: '읽는 중…' })).not.toBeOnTheScreen();
 
   expect(screen.getByText('대본.txt')).toBeOnTheScreen();
   expect(screen.getByText('2KB')).toBeOnTheScreen();
@@ -423,7 +504,7 @@ test('올리는 중에 끊기면 연결 문구를 띄우고 파일을 비운다'
 
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
   expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByLabelText('뒤로'));
+  await pressStackBack();
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
@@ -435,7 +516,7 @@ test('나누다 원본을 읽을 수 없다고 하면 파일 칸을 비운다', 
 
   await fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('대본을 못 나눴어요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByLabelText('뒤로'));
+  await pressStackBack();
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
@@ -453,12 +534,15 @@ test('이미 대본이 된 원본이면 다시 올려 새 원본으로 나눈다
 
 test('나누는 중에 화면을 떠나면 끝나도 다른 화면으로 옮기지 않는다', async () => {
   let finish: (v: ScriptImport) => void = () => undefined;
-  jest.mocked(api.getScriptImport).mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+  jest.mocked(api.getScriptImport)
+    .mockResolvedValueOnce(job({ status: 'running', script_id: null }))
+    .mockImplementation(() => new Promise((resolve) => (finish = resolve)));
   await render(<ReadingNew />);
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
   await screen.findByText('배역과 대사를 찾고 있어요');
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 1100)));
   await screen.unmount();
   finish(job());
   await act(async () => pressing);
@@ -498,6 +582,20 @@ test('무료 대본 한도(free_script_limit)에서 보관 대본이 하나면 �
   await waitFor(() => expect(server.remove).toHaveBeenCalledWith('old'));
   await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
   expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ raw_text: PASTED }));
+});
+
+test('바꾸려던 대본을 지우지 못하면 「지우지 못했어요」로 알리고 다시 나누지 않는다', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
+  server.list.mockResolvedValue({ scripts: [{ id: 'old', title: '옥상, 밤' }], total_count: 1, in_progress_count: 0 } as never);
+  server.remove.mockRejectedValueOnce(new ApiError(500, '서버 오류'));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
+  await fireEvent.press(await screen.findByText('지우고 넣기'));
+
+  expect(await screen.findByText('지우지 못했어요')).toBeOnTheScreen();
+  expect(api.importScript).toHaveBeenCalledTimes(1);
 });
 
 test('무료 대본 3개가 차 있으면 지울 대본을 고르고, 고른 대본만 지운 뒤 다시 나눈다 (SOMA-818)', async () => {
@@ -551,6 +649,225 @@ test('무료 대본 팝업의 [Pro 보기]는 대본 한도에서 온 Pro 안내
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/pro', params: { from: 'script' } });
 });
 
+// ── 대기 화면 전 확인(SOMA-996) ─────────────────────────────────────────────────────────
+const WAITING = '배역과 대사를 찾고 있어요';
+const CHECKING = '확인하는 중…';
+
+function held<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (error: unknown) => void = () => undefined;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+/** 테스트의 Modal 은 visible 일 때만 그려진다. */
+type Tree = { type: string; children: readonly (Tree | string)[] };
+function modalOpen(node: Tree = screen.root as never): boolean {
+  return node.type === 'Modal' || node.children.some((child) => typeof child !== 'string' && modalOpen(child));
+}
+
+const ACCEPTED = { import_id: 'i1', duplicate_script_id: null };
+type Ticket = Awaited<ReturnType<typeof api.importScript>>;
+
+test('다음을 누르면 대기 화면 없이 버튼이 「확인하는 중…」이고 다시 눌리지 않으며, 탭도 바꿀 수 없다', async () => {
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValue(post.promise);
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(modalOpen()).toBe(false);
+
+  await fireEvent.press(screen.getByText(CHECKING));
+  expect(api.importScript).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByRole('tab', { name: /파일 업로드/ }));
+  expect(screen.getByRole('tab', { name: /글 붙여넣기/ })).toBeSelected();
+
+  await act(async () => post.resolve(ACCEPTED));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+});
+
+test('파일은 원본을 다시 읽는 동안에도 「확인하는 중…」이다', async () => {
+  await render(<ReadingNew />);
+  await fireEvent.press(screen.getByText('대본 파일 첨부'));
+  await screen.findByText('다른 파일');
+  const complete = held<void>();
+  jest.mocked(api.completeScriptUpload).mockReturnValueOnce(complete.promise);
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(api.importScript).not.toHaveBeenCalled();
+
+  await act(async () => complete.resolve());
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+});
+
+test('접수 뒤 첫 물음이 끝나지 않았으면 대기 화면으로 간다 — 같은 글을 이미 나누는 중이라 같은 작업을 돌려받아도 같다', async () => {
+  const get = held<ScriptImport>();
+  jest.mocked(api.getScriptImport).mockReturnValueOnce(get.promise);
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(() => expect(api.getScriptImport).toHaveBeenCalledWith('i1'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+
+  await act(async () => get.resolve(job({ status: 'running', progress: { done_lines: 0, total_lines: 0 }, script_id: null })));
+  expect(screen.getByText(WAITING)).toBeOnTheScreen();
+});
+
+test('접수 뒤 첫 물음이 일시 오류면 버튼에 멈추지 않고 대기 화면에서 계속 묻는다', async () => {
+  jest.mocked(api.getScriptImport).mockRejectedValueOnce(new ApiError(503, 'down'));
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText(WAITING)).toBeOnTheScreen();
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
+});
+
+test('예시 대본은 대기 화면 없이 대본을 불러온 뒤 다음 화면으로 간다', async () => {
+  mockParams = { sample: '1' };
+  const load = held<ReturnType<typeof scriptDetail>>();
+  server.get.mockReturnValue(load.promise);
+  await render(<ReadingNew />);
+
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(() => expect(server.get).toHaveBeenCalledWith('s1'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+
+  await act(async () => load.resolve(scriptDetail(TWO_ROLE_LINES)));
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+});
+
+test.each<[string, (post: ReturnType<typeof held<Ticket>>) => void, string]>([
+  ['같은 글', (post) => post.resolve({ import_id: null, duplicate_script_id: 's1' }), '이미 넣은 대본이에요'],
+  ['하루 한도', (post) => post.reject(new ApiError(429, 'limit', 'script_split_daily_limit')), '오늘은 대본을 더 넣을 수 없어요'],
+  ['무료 대본 한도', (post) => post.reject(new ApiError(403, 'limit', 'free_script_limit')), '무료는 대본 3개까지 보관해요'],
+  ['동의 없음', (post) => post.reject(new ApiError(403, 'consent', 'script_split_consent_required')), '대본을 넣지 못했어요'],
+])('%s은 대기 화면 없이 입력 화면 위 팝업으로 보인다', async (_name, answer, title) => {
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+
+  await act(async () => answer(post));
+  expect(await screen.findByText(title)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(api.getScriptImport).not.toHaveBeenCalled();
+  expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
+});
+
+test('「그래도 넣기」는 팝업을 지우고 모달을 연 채 확인 중으로 돌아간다(iOS 는 닫히는 모달을 곧바로 다시 못 띄운다)', async () => {
+  jest.mocked(api.importScript).mockResolvedValueOnce({ import_id: null, duplicate_script_id: 's1' });
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await screen.findByText('이미 넣은 대본이에요');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+
+  await fireEvent.press(screen.getByText('그래도 넣기'));
+  expect(screen.queryByText('이미 넣은 대본이에요')).not.toBeOnTheScreen();
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  expect(modalOpen()).toBe(true);
+
+  // 다시 보낸 요청이 한도에 걸려도 대기 화면 없이 같은 모달에 알림이 뜬다.
+  await act(async () => post.reject(new ApiError(429, 'limit', 'script_split_daily_limit')));
+  expect(await screen.findByText('오늘은 대본을 더 넣을 수 없어요')).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+});
+
+test('「그래도 나누기」도 확인 중을 거쳐 첫 물음이 끝나지 않았을 때만 대기 화면으로 간다', async () => {
+  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'not_script', script_id: null }));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await screen.findByText('대본이 아닌 것 같아요');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'running', script_id: null }));
+
+  await fireEvent.press(screen.getByText('그래도 나누기'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+
+  await act(async () => post.resolve(ACCEPTED));
+  expect(await screen.findByText(WAITING)).toBeOnTheScreen();
+});
+
+test('실패 화면에서 「다시 시도」를 누르면 입력 화면의 확인 중으로 돌아온다', async () => {
+  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'no_characters', script_id: null }));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await screen.findByText('대본을 못 나눴어요');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+
+  await fireEvent.press(screen.getByText('다시 시도'));
+  expect(screen.queryByText('대본을 못 나눴어요')).not.toBeOnTheScreen();
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
+  expect(modalOpen()).toBe(false);
+
+  await act(async () => post.resolve(ACCEPTED));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+});
+
+test('「대본 지우고 넣기」도 지운 뒤 확인 중으로 돌아간다', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
+  server.list.mockResolvedValue({ scripts: [{ id: 'old', title: '옥상, 밤' }], total_count: 1, in_progress_count: 0 } as never);
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
+  await screen.findByText('『옥상, 밤』을 지울까요?');
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValueOnce(post.promise);
+
+  await fireEvent.press(screen.getByText('지우고 넣기'));
+  await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(screen.queryByText('『옥상, 밤』을 지울까요?')).not.toBeOnTheScreen();
+  expect(screen.queryByText(WAITING)).not.toBeOnTheScreen();
+  await act(async () => post.resolve(ACCEPTED));
+});
+
+test('확인 중에는 뒤로 가기를 막지 않고, 떠난 뒤 접수되면 기기에 기록이 남아 리딩 탭에 보인다', async () => {
+  const post = held<Ticket>();
+  jest.mocked(api.importScript).mockReturnValue(post.promise);
+  const { unmount } = await render(<ReadingNew />);
+  await paste();
+  await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '봄날의 대화');
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText(CHECKING)).toBeOnTheScreen();
+  expect(jest.mocked(usePreventRemove).mock.calls.slice(-2).map(([on]) => on)).toEqual([false, false]);
+
+  await unmount();
+  await act(async () => post.resolve(ACCEPTED));
+  await waitFor(async () => expect(await readSplitJobs()).toEqual([{ importId: 'i1', title: '봄날의 대화' }]));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(await readSplitJobs()).toEqual([{ importId: 'i1', title: '봄날의 대화' }]);
+});
+
 // ── 첫 리딩(10/29) ─────────────────────────────────────────────────────────────────────
 test('리딩 탭 첫 화면 「내 대본 올리기」로 오면(pick=file) 들어오자마자 파일 고르기 창을 연다', async () => {
   mockParams = { pick: 'file' };
@@ -573,4 +890,21 @@ test('리딩을 한 번도 끝내지 않은 계정은 나눈 뒤 목소리·대�
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/range', params: { first: '1' } }));
   expect(mockRouter.replace).not.toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
   setFirstUseOwner(null);
+});
+
+test('붙여넣은 대본이 있으면 뒤로 가기 전에 묻고, 나가기를 누르면 그때 나간다(11/2 QA)', async () => {
+  await render(<ReadingNew />);
+  await paste();
+  const calls = jest.mocked(usePreventRemove).mock.calls;
+  expect(calls.at(-1)![0]).toBe(true);
+  const action = { type: 'GO_BACK' };
+  await act(async () => calls.at(-1)![1]({ data: { action } } as never));
+  expect(await screen.findByText('붙여넣은 대본이 사라져요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('계속 쓰기'));
+  expect(screen.queryByText('붙여넣은 대본이 사라져요')).not.toBeOnTheScreen();
+  expect(mockNavDispatch).not.toHaveBeenCalled();
+
+  await act(async () => jest.mocked(usePreventRemove).mock.calls.at(-1)![1]({ data: { action } } as never));
+  await fireEvent.press(await screen.findByText('나가기'));
+  expect(mockNavDispatch).toHaveBeenCalledWith(action);
 });

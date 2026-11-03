@@ -1700,7 +1700,15 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Practice Group
+         * @description 연습 삭제(SOMA-985) — 묶음 전체를 배우에게서 지운다. 되돌릴 수 없고 숨김과 다르다. 회차·노트·대화는 사람과
+         *     끊어 남기고, 배우가 쓴 일지·노트 평가의 한 줄은 지우며, 그 묶음에서 나온 기억을 지운다. 다른 묶음·챌린지
+         *     참여작이 쓰지 않는 영상은 보관함에서 빠지고, 「영상·녹음 보관·활용」 현재 판에 동의했으면 지운 날부터 3년 남고
+         *     아니면 파일을 파기한다. 지운 회차도 그날 쓴 무료 코칭 횟수에 든다. 없거나 남의 것이거나 이미 지웠으면 404
+         *     practice_not_found, 게스트는 403 member_only.
+         */
+        delete: operations["delete_practice_group_v2_practices__root_id__group_delete"];
         options?: never;
         head?: never;
         /**
@@ -2108,6 +2116,26 @@ export interface paths {
         };
         /** Get Practice Analysis */
         get: operations["analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Practice Days
+         * @description 연습한 날짜(한국 시간 YYYY-MM-DD, 오래된 순). 노트가 생긴 코칭 회차·끝까지 읽은 리딩 회차·올린 참여작을 센다. 숨긴 기록도 센다. 홈의 연속일·주간 원·누적 연습일이 쓴다(SOMA-1003).
+         */
+        get: operations["list_practice_days_v2_practices_days_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3312,7 +3340,7 @@ export interface components {
              * Category
              * @enum {string}
              */
-            category: "account" | "billing" | "refund" | "usage" | "bug" | "report" | "other";
+            category: "account" | "billing" | "refund" | "usage" | "bug" | "report" | "other" | "feedback";
             /**
              * Email
              * @description 공백을 걷어 낸 뒤 254자 이하의 이메일 주소.
@@ -3834,7 +3862,7 @@ export interface components {
          * ReadingAdvanceInput
          * @enum {string}
          */
-        ReadingAdvanceInput: "silence" | "manual";
+        ReadingAdvanceInput: "silence" | "manual" | "timed";
         /**
          * ReadingModeInput
          * @enum {string}
@@ -3868,7 +3896,7 @@ export interface components {
          * ReadingAdvance
          * @enum {string}
          */
-        ReadingAdvance: "silence" | "manual";
+        ReadingAdvance: "silence" | "manual" | "timed";
         /**
          * ReadingDifferentLine
          * @description 원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다
@@ -4453,6 +4481,8 @@ export interface components {
             user_id: string;
             /** Name */
             name: string;
+            /** Photo Url */
+            photo_url: string | null;
         };
         /** EntryComment */
         EntryComment: {
@@ -5543,6 +5573,11 @@ export interface components {
             done_lines: number;
             /** Total Lines */
             total_lines: number;
+            /**
+             * Percent
+             * @description 화면 진행률(0~100%). 줄을 다 나눈 뒤의 단계(빠진 줄·줄 검토·마무리)까지 센다. 성공한 작업만 100 이다.
+             */
+            percent: number;
         };
         /**
          * ScriptImportFailure
@@ -5714,6 +5749,11 @@ export interface components {
             spoken_content: string[];
             /** Limitations */
             limitations: components["schemas"]["VideoRecordLimit"][];
+        };
+        /** PracticeDays */
+        PracticeDays: {
+            /** Days */
+            days: string[];
         };
         /** ChallengeEntry */
         ChallengeEntry: {
@@ -9803,6 +9843,26 @@ export interface operations {
             };
         };
     };
+    delete_practice_group_v2_practices__root_id__group_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     update_practice_group_v2_practices__root_id__group_patch: {
         parameters: {
             query?: never;
@@ -10378,6 +10438,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PracticeAnalysis"];
+                };
+            };
+        };
+    };
+    list_practice_days_v2_practices_days_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeDays"];
                 };
             };
         };

@@ -98,6 +98,7 @@ class PracticeReminderServiceTest {
             @Override public void register(UUID userId, String token, String platform, String appVersion) { throw new AssertionError(); }
             @Override public void unregister(String token) { }
             @Override public List<PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
+            @Override public List<PushTarget> scriptSplitTargets(UUID userId) { return List.of(); }
         };
     }
 
@@ -108,6 +109,7 @@ class PracticeReminderServiceTest {
             @Override public void register(UUID userId, String token, String platform, String appVersion) { throw new AssertionError(); }
             @Override public void unregister(String token) { unregistered.add(token); }
             @Override public List<PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
+            @Override public List<PushTarget> scriptSplitTargets(UUID userId) { return List.of(); }
         };
         new PracticeReminderService(repo, tokens, sender, failures, clock, "0.1.2", holdoutPercent).sendDue();
     }
@@ -256,7 +258,8 @@ class PracticeReminderServiceTest {
 
     @Test
     void streakReminderNeedsTwoDaysNoPracticeTodayAndTenPm() {
-        repo.add(USER, "2026-10-20T20:00", false, days(1, 2, 3));
+        // 습관 시각이 22:10 이라 22:00 에는 아직 연습 권유 전이다
+        repo.add(USER, "2026-10-20T22:40", false, days(1, 2, 3));
         run("2026-10-21T21:50");
         assertThat(sent.stream().filter(m -> "streak".equals(m.data().get("reminder_kind")))).isEmpty();
         run("2026-10-21T22:00");
@@ -281,12 +284,26 @@ class PracticeReminderServiceTest {
     }
 
     @Test
-    void atMostTwoPushesPerDayOnePracticeAndOneStreak() {
+    void atMostOnePushPerDayPracticeFirstThenNoStreak() {
         repo.add(USER, "2026-10-20T20:00", false, days(1, 2));
         for (String t : List.of("2026-10-21T19:30", "2026-10-21T19:40", "2026-10-21T22:00", "2026-10-21T22:10", "2026-10-21T22:50")) run(t);
-        assertThat(sent).hasSize(2);
-        assertThat(sent).extracting(m -> m.data().get("reminder_kind")).containsExactlyInAnyOrder("general", "streak");
-        assertThat(repo.claims).hasSize(2);
+        assertThat(sent).extracting(m -> m.data().get("reminder_kind")).containsExactly("general");
+        assertThat(repo.claims).hasSize(1);
+    }
+
+    @Test
+    void atMostOnePushPerDayStreakFirstThenNoPractice() {
+        repo.add(USER, "2026-10-20T22:40", false, days(1, 2));
+        for (String t : List.of("2026-10-21T22:00", "2026-10-21T22:10", "2026-10-21T22:20", "2026-10-21T22:50")) run(t);
+        assertThat(sent).extracting(m -> m.data().get("reminder_kind")).containsExactly("streak");
+        assertThat(repo.claims).hasSize(1);
+    }
+
+    @Test
+    void skipsTheFourthToSixthDayAndSendsOnTheSeventh() {
+        repo.add(USER, "2026-10-20T20:00", false, days());
+        for (String d : List.of("21", "22", "23", "24", "25", "26", "27", "28")) run("2026-10-" + d + "T19:30");
+        assertThat(sent).extracting(m -> m.data().get("skipped_days")).containsExactly("1", "2", "3", "7");
     }
 
     @Test
@@ -413,9 +430,12 @@ class PracticeReminderServiceTest {
         run("2026-10-21T19:30");
         run("2026-10-22T19:30");
         run("2026-10-23T19:30");
+        // 4·5·6일째는 보내지 않는다(SOMA-987)
         run("2026-10-24T19:30");
         run("2026-10-25T19:30");
+        run("2026-10-26T19:30");
+        run("2026-10-27T19:30");
         assertThat(sent).extracting(m -> m.data().get("reminder_kind"))
-                .containsExactly("pending_video", "pending_video", "unread_script", "unread_script", "general");
+                .containsExactly("pending_video", "pending_video", "unread_script", "unread_script");
     }
 }

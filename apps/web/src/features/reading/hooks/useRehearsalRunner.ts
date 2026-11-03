@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startListening, type MicListener } from "@/lib/reading/audio/mic";
+import * as Sentry from "@sentry/nextjs";
 import { cancelSpeech, clearPrefetch, prefetch, queuePrefetch, setPrefetchPaused, speakWithEngine, unlockTts, type RoleVoice } from "@/lib/reading/audio/tts";
 import { DEFAULT_VAD } from "@/lib/reading/audio/vad";
 import {
@@ -128,11 +129,14 @@ export function useRehearsalRunner(cfg: RehearsalConfig, opts: RunnerOptions) {
         }
         partnerSpokenRef.current?.();
         setState((s) => (s.status === "ai" ? advance(s) : s));
-      })();
+      })().catch((failure: unknown) => {
+        // 기기 음성 생성자가 없는 브라우저 등에서 여기로 온다. 지금처럼 화면은 그대로 두고 Sentry 로만 올린다.
+        Sentry.captureException(failure);
+      });
     } else if (state.status === "me" && myTurn === "silence") {
       const ac = new AbortController();
       abortRef.current = ac;
-      (async () => {
+      void (async () => {
         await delay(GAP_BEFORE_MIC_MS, ac.signal);
         if (ac.signal.aborted) return;
         try {

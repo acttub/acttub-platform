@@ -21,7 +21,7 @@ test('안드로이드 릴리스 빌드는 R8·리소스 축소를 켜고 onnxrun
   assert.match(props.android.extraProguardRules, /-keep class ai\.onnxruntime\.\*\* \{ \*; \}/);
 });
 
-test('expo-audio 의 포그라운드 서비스는 빼고, 안드로이드는 리딩 포그라운드 서비스도 붙이지 않는다', () => {
+test('expo-audio 의 포그라운드 서비스는 빼고, 안드로이드 리딩 서비스는 재생(mediaPlayback)만 쓴다', () => {
   const appJson = JSON.parse(readFileSync(path.join(appRoot, 'app.json'), 'utf8'));
   const plugins = appJson.expo.plugins.map((p) => (Array.isArray(p) ? p[0] : p));
   assert.ok(plugins.includes('./plugins/with-remove-audio-foreground-service.js'));
@@ -29,12 +29,17 @@ test('expo-audio 의 포그라운드 서비스는 빼고, 안드로이드는 리
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioControlsService/);
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioRecordingService/);
   assert.match(plugin, /'tools:node': 'remove'/);
-  // 1.0.0: Play 포그라운드 서비스 선언(동영상 필수) 없이 내려고 안드로이드에서는 리딩 모듈을 연결하지 않는다.
-  // 모듈이 없으면 readingKeepsRunning() 이 false 라 화면이 배경으로 가면 리딩이 멈춘다(0.1.5 동작).
+  // 1.1.1(11/1 사용자 결정): 전체 듣기·자동 넘김이 화면을 꺼도 이어지게 안드로이드에도 리딩 모듈을 연결한다.
+  // Play 포그라운드 서비스 선언은 재생(mediaPlayback)만 한다 — 마이크 종류는 계속 막아, 말하기 회차는 배경으로 가면 멈춘다.
   const moduleConfig = JSON.parse(readFileSync(path.join(appRoot, 'modules/reading-live/expo-module.config.json'), 'utf8'));
-  assert.deepEqual(moduleConfig.platforms, ['apple']);
+  assert.deepEqual(moduleConfig.platforms, ['apple', 'android']);
+  assert.deepEqual(moduleConfig.android.modules, ['com.acttub.readinglive.ReadingLiveModule']);
+  const manifest = readFileSync(path.join(appRoot, 'modules/reading-live/android/src/main/AndroidManifest.xml'), 'utf8');
+  assert.match(manifest, /android:foregroundServiceType="mediaPlayback"/);
+  assert.match(manifest, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/);
+  assert.doesNotMatch(manifest, /FOREGROUND_SERVICE_MICROPHONE|microphone"/);
   const blocked = appJson.expo.android.blockedPermissions;
-  assert.ok(blocked.includes('android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'));
+  assert.ok(!blocked.includes('android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'));
   assert.ok(blocked.includes('android.permission.FOREGROUND_SERVICE_MICROPHONE'));
 });
 

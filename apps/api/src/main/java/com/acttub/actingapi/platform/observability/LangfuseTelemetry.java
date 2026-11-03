@@ -281,6 +281,10 @@ public class LangfuseTelemetry implements LlmTelemetry {
         if (!call.tokens().isUnknown()) {
             attribute(attributes, "langfuse.observation.usage_details", usage(call.tokens()));
         }
+        if (call.cost() != null) {
+            attribute(attributes, "langfuse.observation.cost_details",
+                    mapper.createObjectNode().put("total", call.cost()).toString());
+        }
         attribute(attributes, "langfuse.observation.metadata.step", call.step().name());
         call.metadata().forEach((key, metadataValue) ->
                 attribute(attributes, "langfuse.observation.metadata." + key, metadataValue));

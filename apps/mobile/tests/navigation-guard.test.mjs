@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { BACK_WINDOW_MS, SAME_TARGET_WINDOW_MS, installNavigationGuard } from '../lib/navigation-guard.ts';
+import { BACK_WINDOW_MS, DISMISS_BACK_WINDOW_MS, SAME_TARGET_WINDOW_MS, installNavigationGuard } from '../lib/navigation-guard.ts';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -14,6 +14,7 @@ function fakeRouter() {
     replace: (href) => calls.push(['replace', href]),
     back: () => calls.push(['back']),
     dismiss: () => calls.push(['dismiss']),
+    dismissTo: (href) => calls.push(['dismissTo', href]),
   };
   return { router, calls };
 }
@@ -78,7 +79,7 @@ test('뒤로 가기를 연달아 누르면 한 화면만 닫힌다', () => {
   assert.deepEqual(calls.map((c) => c[0]), ['back', 'back']);
 });
 
-test('인자는 그대로 넘기고 감싸지 않은 메서드는 건드리지 않는다', () => {
+test('인자는 그대로 넘기고 dismiss 는 연달아 불러도 막지 않는다', () => {
   const { router, calls } = guarded();
   const options = { withAnchor: true };
   router.push('/coach', options);
@@ -102,4 +103,15 @@ test('루트 레이아웃이 expo-router 의 router 에 가드를 건다', () =>
   const layout = read('../app/_layout.tsx');
   assert.match(layout, /installNavigationGuard\(router\)/);
   assert.match(layout, /import \{[^}]*\brouter\b[^}]*\} from 'expo-router'/s);
+});
+
+// 11/2 폰 QA — 리딩 「나가기」(dismissTo) 연타의 남은 누름이 대본 상세 뒤로 버튼에 떨어져 리딩 탭까지 나갔다.
+test('dismissTo 로 나간 직후의 뒤로 가기는 연타로 보고 막고, 창이 지나면 된다', () => {
+  const { router, calls, tick } = guarded();
+  router.dismissTo('/reading/detail');
+  tick(150);
+  router.back();
+  tick(DISMISS_BACK_WINDOW_MS);
+  router.back();
+  assert.deepEqual(calls.map((c) => c[0]), ['dismissTo', 'back']);
 });

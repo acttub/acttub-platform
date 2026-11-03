@@ -49,11 +49,33 @@ public final class NotificationRules {
         return (time.isBefore(MORNING) ? morning : morning.plusDays(1)).toInstant();
     }
 
+    /** 앱 이름은 말과 상관없이 「Acttub」(11/2 QA — 「액트텁」으로 오면 안 된다). */
     public static String pushTitle(boolean korean) {
-        return korean ? "액트텁" : "Acttub";
+        return "Acttub";
     }
 
-    /** 잠금 화면에 보일 일반 문구. 이름·본문을 넣지 않는다. */
+    /**
+     * 좋아요·댓글 푸시 문구 — 인스타처럼 누가 했는지 보인다(11/2). 댓글 내용은 잠금 화면에 넣지 않는다.
+     * actorName 이 없거나(시스템 사건) 탈퇴한 사람이면 「누군가」로 쓴다. others 는 대표 행동자를 뺀 다른 사람 수.
+     */
+    public static String pushBody(String kind, boolean korean, String actorName, long others) {
+        if (!"entry_liked".equals(kind) && !"entry_commented".equals(kind)) return pushBody(kind, korean);
+        boolean named = actorName != null && !actorName.isBlank() && !WITHDRAWN_NAME.equals(actorName);
+        boolean liked = "entry_liked".equals(kind);
+        if (korean) {
+            String act = liked ? "좋아요를 눌렀어요" : "댓글을 달았어요";
+            if (!named) return others > 0 ? (others + 1) + "명이 " + act : "누군가 " + act;
+            return actorName + "님" + (others > 0 ? " 외 " + others + "명" : "") + "이 " + act;
+        }
+        String who = !named ? (others > 0 ? (others + 1) + " people" : "Someone")
+                : others > 0 ? actorName + " and " + others + (others == 1 ? " other" : " others") : actorName;
+        return who + (liked ? " liked your entry" : " commented on your entry");
+    }
+
+    /** 이름 조회가 돌려주는 탈퇴 표시 — 푸시에는 이름처럼 쓰지 않는다. */
+    public static final String WITHDRAWN_NAME = "탈퇴한 사용자";
+
+    /** 잠금 화면에 보일 일반 문구(이름을 모를 때). */
     public static String pushBody(String kind, boolean korean) {
         return switch (kind) {
             case "entry_liked", "entry_commented" -> korean ? "내 참여작에 새 반응이 있어요" : "New reactions on your entry";

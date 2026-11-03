@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <!-- 리딩 중 배경에서도 상대역 목소리·녹음을 이어 간다(SOMA-802). Play Console 포그라운드 서비스 선언(mediaPlayback·microphone)이 필요하다. -->
+  <!-- 리딩 중 배경에서도 상대역 목소리를 이어 간다(SOMA-802). 안드로이드는 재생(mediaPlayback)만 쓴다 — 마이크는 배경에서 열지 않아
+       말하기 회차는 배경으로 가면 멈추고, 전체 듣기·자동 넘김만 계속 돈다(앱 1.1.1, 11/1 사용자 결정). Play Console 포그라운드 서비스
+       선언(mediaPlayback)이 필요하다. -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
   <!-- 안드로이드 16+ 에서 진행 알림을 Live Update(잠금 화면·상태 막대 칩)로 올린다. 실행 중 묻지 않는 권한이다. -->
   <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
@@ -11,6 +12,6 @@
       android:name=".ReadingLiveService"
       android:exported="false"
       android:stopWithTask="true"
-      android:foregroundServiceType="mediaPlayback|microphone" />
+      android:foregroundServiceType="mediaPlayback" />
   </application>
 </manifest>

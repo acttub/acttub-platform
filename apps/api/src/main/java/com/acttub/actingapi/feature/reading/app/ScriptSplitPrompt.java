@@ -1,6 +1,11 @@
 package com.acttub.actingapi.feature.reading.app;
 
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.acttub.actingapi.platform.observability.LlmPrompt;
+import com.acttub.actingapi.platform.observability.LlmStep;
 
 /**
  * 나누기 모델에 주는 지시문 (SOMA-593 7-3·7-14). 2026-10-02 시험의 지시문에 괄호만 있는 줄의 규칙 한 줄을 더했다 — 가짜 대본
@@ -104,7 +109,28 @@ public final class ScriptSplitPrompt {
             - 이메일 주소·숫자·고유명사만 외국 글자인 한국어 줄은 ko 다.
             - 받은 줄 번호를 하나도 빠뜨리지 않는다.""";
 
+    private static final String KNOWN_CAST = "알려진 배역(이 표기를 그대로 쓴다. 목록에 없는 새 배역이 나오면 대본 표기대로 쓴다): ";
+    private static final Pattern KNOWN_CAST_LINE = Pattern.compile("(?m)^" + Pattern.quote(KNOWN_CAST) + ".*$");
+
     private ScriptSplitPrompt() {
+    }
+
+    /**
+     * 기록에 잇는 고정 템플릿. 지시문에서 호출마다 달라지는 것은 알려진 배역 줄뿐이라 그 이름들을 자리표시로 바꾸고, 이름은 지시문 갈래로 정한다.
+     * 갈래마다 이름을 따로 둬야 Langfuse 가 번갈아 오는 본문을 새 버전으로 쌓지 않는다.
+     */
+    public static LlmPrompt template(LlmStep step, String instructions) {
+        if (step != LlmStep.SCRIPT_SPLIT) {
+            return new LlmPrompt(step.spanName(), instructions);
+        }
+        String text = KNOWN_CAST_LINE.matcher(instructions).replaceAll(Matcher.quoteReplacement(KNOWN_CAST + "{배역}"));
+        String name = step.spanName() + (text.contains(ROSTER) ? ".roster" : text.contains(MISSING) ? ".missing" : ".rows")
+                + (text.contains(JUDGMENT) || text.contains(UNNAMED_JUDGMENT) ? ".judge" : "")
+                + (text.contains(KNOWN_CAST) ? ".known-cast" : "")
+                + (text.contains(CAST_BLOCK) ? ".traits" : "")
+                + (text.contains(UNNAMED) ? ".unnamed" : "")
+                + (text.contains(FORMAT_RETRY) ? ".format-retry" : "");
+        return new LlmPrompt(name, text);
     }
 
     /**
@@ -154,7 +180,7 @@ public final class ScriptSplitPrompt {
             prompt.append('\n').append(JUDGMENT);
         }
         if (!roster.isEmpty()) {
-            prompt.append("\n알려진 배역(이 표기를 그대로 쓴다. 목록에 없는 새 배역이 나오면 대본 표기대로 쓴다): ")
+            prompt.append('\n').append(KNOWN_CAST)
                     .append(String.join(", ", roster));
         }
         if (askTraits) {

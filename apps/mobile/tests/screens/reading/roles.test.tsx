@@ -21,9 +21,9 @@ const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn(), dismi
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/reading/tts/engine', () => ({
-  prefetchIfWifi: jest.fn(async () => undefined),
+  prepareInBackground: jest.fn(async () => undefined),
   stop: jest.fn(),
   play: jest.fn(),
   isReady: jest.fn(),
@@ -83,7 +83,7 @@ test('배역마다 대사 수와 서버가 정한 목소리를 보이고, 전체
   expect(screen.getByText('10대')).toBeOnTheScreen();
   expect(screen.getByText('여성')).toBeOnTheScreen();
   expect(screen.getByText('30대')).toBeOnTheScreen();
-  expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
+  expect(engine.prepareInBackground).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('전체 보기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/full');
@@ -291,7 +291,7 @@ test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않�
   await show(SAMPLE());
 
   expect(screen.getByText('10대')).toBeOnTheScreen();
-  expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
+  expect(engine.prepareInBackground).not.toHaveBeenCalled();
 });
 
 test('예시 대본이고 모델이 없으면 예시 목소리 그대로인 배역은 그 배역의 첫 대사 음성으로 미리 듣는다', async () => {

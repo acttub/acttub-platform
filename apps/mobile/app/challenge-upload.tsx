@@ -74,6 +74,8 @@ export default function ChallengeUploadScreen() {
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
+  // 방금 카메라로 찍어 온 영상이면 「다시 찍기」를 보인다(11/2 QA — 찍은 뒤 다시 찍을 길이 없었다).
+  const [fromCamera, setFromCamera] = useState(false);
     const [caption, setCaption] = useState('');
   // pen C9.16·C9.17 — 「공개」가 위에 있고 먼저 골라져 있다.
   const [visibility, setVisibility] = useState<EntryVisibility | null>('public');
@@ -109,7 +111,7 @@ export default function ChallengeUploadScreen() {
     () => () => {
       const last = exitRef.current;
       if (last.created) return;
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadExit, uploadExitParams({ ...last, now: Date.now() }));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadExit, uploadExitParams({ ...last, now: Date.now() }));
     },
     [],
   );
@@ -127,8 +129,9 @@ export default function ChallengeUploadScreen() {
     const recorded = takeRecordedVideo();
     if (!recorded || !user?.id || params.videoId) return;
     setLocalUri(recorded.uri);
+    setFromCamera(true);
     if (videoTooLong(recorded.durationMs)) {
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
       return;
     }
@@ -136,13 +139,13 @@ export default function ChallengeUploadScreen() {
       setError(t('challengeUpload.errTooShort'));
       return;
     }
-    void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadStarted, uploadParams('new'));
+    logEvent(CHALLENGE_FUNNEL_EVENTS.uploadStarted, uploadParams('new'));
     void saveRecordingToLibrary({ uri: recorded.uri, durationMs: recorded.durationMs, owner: user.id }).then((outcome) => {
       if (outcome.kind === 'queued') {
         setPendingId(outcome.entry.id);
         return;
       }
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams(outcome.code));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams(outcome.code));
       setError(t('challengeUpload.errTooLong'));
     });
   }, [params.videoId, user?.id]);
@@ -153,7 +156,7 @@ export default function ChallengeUploadScreen() {
     const check = () => {
       const confirmed = confirmedVideoFor(pendingId);
       if (!confirmed) return;
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('new'));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('new'));
       setVideoId(confirmed);
     };
     check();
@@ -162,7 +165,7 @@ export default function ChallengeUploadScreen() {
 
   // 보관함에서 고른 영상은 이미 올라가 있다 — 업로드 단계를 통과한 것으로 센다(SOMA-616).
   useEffect(() => {
-    if (params.videoId) void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('library'));
+    if (params.videoId) logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('library'));
   }, [params.videoId]);
 
   // 보관함에서 고른 영상은 기기 복사본이 있으면 미리보기로 쓴다.
@@ -180,8 +183,17 @@ export default function ChallengeUploadScreen() {
   }, [challengeId]);
 
   const chooseVisibility = (next: EntryVisibility) => {
-    if (next !== visibility) void logEvent(CHALLENGE_FUNNEL_EVENTS.visibilitySelected, visibilityParams(next));
+    if (next !== visibility) logEvent(CHALLENGE_FUNNEL_EVENTS.visibilitySelected, visibilityParams(next));
     setVisibility(next);
+  };
+
+  // 찍은 영상은 보관함에 남는다 — 카메라를 다시 열어 새로 찍으면 그 영상으로 올린다.
+  const retake = () => {
+    if (!challengeId) return;
+    router.replace({
+      pathname: '/record-video',
+      params: { mode: 'challenge', challengeId, line: challenge?.line ?? params.line ?? '', work: params.work ?? '' },
+    });
   };
 
   const submit = useCallback(async () => {
@@ -192,7 +204,7 @@ export default function ChallengeUploadScreen() {
       if (pendingId && user?.id) await flushLibraryUploads(user.id);
       const confirmed = pendingId ? confirmedVideoFor(pendingId) : null;
       if (!confirmed) {
-        void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('still_uploading'));
+        logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('still_uploading'));
         setError(t('challengeUpload.waitingVideo'));
         return;
       }
@@ -213,7 +225,7 @@ export default function ChallengeUploadScreen() {
       setCreated({ id: entry.id, visibility, faceMosaic: body.face_mosaic === true, first });
     } catch (e) {
       const failure = entryFailure(e);
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
+      logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
       if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       setError(entryFailureMessage(failure));
     } finally {
@@ -247,7 +259,7 @@ export default function ChallengeUploadScreen() {
       created.faceMosaic ? t('challengeUpload.doneSubMosaic') : '',
     ].filter(Boolean);
     const share = () => {
-      void logEvent('challenge_upload_share', { visibility: created.visibility });
+      logEvent('challenge_upload_share', { visibility: created.visibility });
       void entryShare.openById(created.id);
     };
     // 코칭은 기존 올리기(/upload) 흐름으로 이어진다 — 방금 올린 챌린지 영상을 새 연습의 영상으로 미리 골라 둔다.
@@ -313,6 +325,18 @@ export default function ChallengeUploadScreen() {
               </Text>
             )}
             {!!challenge && <Text style={[styles.videoSub, ended && styles.videoSubEnded]}>{dDayLabel(challenge)}</Text>}
+            {fromCamera && !!challengeId && !submitting && (
+              <Pressable
+                onPress={retake}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('challengeUpload.retake')}
+                ph-label="challenge_upload_retake"
+                style={styles.retake}>
+                <Feather name="rotate-ccw" size={14} color={palette.blue} />
+                <Text style={styles.retakeText}>{t('challengeUpload.retake')}</Text>
+              </Pressable>
+            )}
           </View>
         </View>
         <Text style={styles.rangeLabel}>{t('challengeUpload.pickVisibility')}</Text>
@@ -412,6 +436,8 @@ const styles = StyleSheet.create({
   videoLine: { ...type.body1Bold, color: palette.text },
   videoSub: { ...type.caption, color: palette.textMeta },
   videoSubEnded: { color: palette.danger },
+  retake: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: space[2], alignSelf: 'flex-start' },
+  retakeText: { ...type.captionBold, color: palette.blue },
   rangeLabel: { ...type.body2Bold, color: palette.textSub, marginTop: space[2] },
   thumbWrap: { width: 72, height: 100, borderRadius: radius.md, overflow: 'hidden', backgroundColor: palette.textSub },
   thumb: { width: '100%', height: '100%' },

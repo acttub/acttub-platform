@@ -4,7 +4,7 @@
 
 - 도입: 0.1.0
 - 결정 기록: ADR-031
-- 화면: R1(내 대본, R1.1~R1.12), R2(대본 넣기, R2.1~R2.13), R3.4(대본 전체), R4.1~R4.8(대본 상세), D13, WR1
+- 화면: R1(내 대본, R1.1~R1.12), R2(대본 넣기, R2.1~R2.13), R3.4(대본 전체), R4.1~R4.8(대본 상세), D13, WR1, reading-tab.list-splitting·list-split-failed·empty-splitting, reading-new.splitting-progress
 - 테이블: scripts, script_characters, script_lines, script_imports, script_uploads, ai_jobs(종류 script_split)
 
 ## 기능
@@ -29,7 +29,7 @@
 | `POST /v2/reading/uploads` | `ReadingUploadRequest`(file_name·byte_size) | `ReadingUpload` 201 `{upload_id, upload_url, content_type, expires_at}` — 기기는 `upload_url`에 `Content-Type: content_type`(언제나 `application/octet-stream`)으로 파일을 PUT 한다(15분, 크기는 서명에 묶임) | `script_file_too_large`(50,000,000바이트 초과)·`script_file_unreadable`(확장자가 txt·docx·pdf·hwp·hwpx 밖) 422, `script_split_consent_required` 403, 형태 오류 422 배열(빈 파일 포함), `storage_not_configured` 503 |
 | `POST /v2/reading/uploads/{upload_id}/complete` | `upload_id` | 204 — 서버가 올라온 파일을 받아 글자를 뽑아 둔다. 다시 불러도·대본에 연결된 뒤에도 204(다시 받지 않는다) | `script_upload_not_ready`(아직 다 안 올라옴)·`script_file_unreadable`(글자를 못 뽑음, 받기와 뽑기 45초 초과 포함)·`script_too_long`(뽑은 글 100,000자 초과) 422, `script_upload_busy`(읽기 자리가 10초 안에 안 남) 429, `script_upload_not_found` 404 |
 | `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·source·allow_duplicate?·skip_script_check?와 raw_text·upload_id 가운데 하나) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch`·`script_upload_not_ready`(읽기 전)·`script_upload_used`(이미 대본이 된 원본으로 `allow_duplicate`) 422, `script_upload_not_found` 404, `script_split_daily_limit` 429, 형태 오류 422 배열(raw_text·upload_id 둘 다 또는 둘 다 없음 포함), `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
-| `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
+| `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines,percent}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
 | `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines). 옛 앱의 기기 나누기 결과 저장, D1에서 걷는다 | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
 | `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200 | `script_not_found` 404 |
@@ -54,9 +54,29 @@
 **나누기 작업**
 - 글을 `POST /v2/reading/imports`로 보내면 서버가 작업을 접수하고 워커가 뒤에서 나눈다. 앱·웹은 `GET /v2/reading/imports/{id}`를
   1초 간격으로 물어 succeeded면 `script_id`로 목소리 정하기(R3)로 가고, failed면 `failure`에 맞는 팝업을 띄운다. 나누는 동안
-  R2.11 「나누는 중」 팝업에 `progress`의 N / M줄을 보인다. [취소]는 없다. 앱은 아래에 「화면을 나가도 나누기는 계속돼요 · 다 되면
-  리딩 탭 대본 목록에 생겨요.」를 두고, 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27). 앱은 묻기만 멈추고 작업은 서버에서 끝까지
+  R2.11 「나누는 중」 화면(앱은 전체 화면, 웹은 팝업)에 `progress.percent`로 진행 막대와 %를, 줄을 나누는 동안은 N / M줄을 보인다. [취소]는 없다.
+- 앱은 [다음]을 누르면 입력 화면에 남아 버튼에 「확인하는 중…」을 보이고 다시 누르거나 탭·파일을 바꿀 수 없게 한다(SOMA-996). 파일의 원본
+  읽기, 접수 요청, 접수 뒤 첫 `GET`까지 이 상태다. 첫 `GET`이 끝나지 않은 작업(pending·running)이거나 일시 오류(끊김·시간 초과·5xx·429)면
+  R2.11로 간다 — 같은 글을 이미 나누는 중이라 서버가 같은 작업을 돌려줘도 같다. 같은 글(R2.7)·접수 거절(하루 한도, 무료 대본 한도, 나누기 동의 없음)과
+  첫 `GET`에서 끝난 실패는 R2.11 없이 입력 화면에서 팝업이나 「대본을 못 나눴어요」 화면으로 보이고, 첫 `GET`에서 끝난 작업(예시 대본)은 대본을 불러
+  바로 다음 화면으로 간다. [그래도 넣기]·[그래도 나누기]·[다시 시도]·[지우고 넣기]도 같은 순서다. 확인 중에 뒤로 가면 평소처럼 이전 화면으로 가고,
+  접수되면 나누기는 서버에서 계속되며 리딩 탭에 진행 행이 보인다.
+  `percent`(0~100)는 줄을 다 나눈 뒤 단계까지 센다 — 줄 수만 세면 줄 검토 동안 100%에 1분 가까이 멈춰 있었다(SOMA-960).
+  구간은 준비(띄어쓰기·배역 목록) 0~8, 줄 나누기 8~30, 빠진 줄 30~35, 줄 검토 35~88(답마다), 마무리 88~99이고 저장이 끝난
+  작업만 100이다(2026-11-01 dev 실측 시간 비율, `ScriptSplitProgress`). 줄어들지 않는다. 앱은 줄을 다 나눴는데 아직 끝나지 않았으면
+  줄 수 대신 「N% · 나눈 줄을 확인하고 있어요」를 보인다. `percent`가 없는 옛 서버면 줄 수로 센다.
+- 나누기가 대본을 저장하면 그 회원의 단말에 「대본을 다 나눴어요」 푸시를 보낸다(SOMA-960, [account.notification](../account/notification.md),
+  분석 완료 토글을 따른다). 잠금 화면에 보이므로 제목·대사는 싣지 않는다. 누르면 그 대본을 불러 목소리 정하기(R3)를 연다 — 나누는 중
+  화면에서 바로 넘어갈 때와 같은 다음 단계다. 나누는 중 화면을 보고 있으면 앱은 이 푸시를 배너로 띄우지 않는다. 실패한 나누기는 알리지 않는다. 앱은 아래에 「화면을 나가도 나누기는 계속돼요 · 리딩
+  탭에서 진행 상황을 볼 수 있고, 다 되면 알림으로 알려 드릴게요.」를 두고, 나누는 중에 뒤로 가면 안드로이드는 리딩 탭 첫 화면으로 가고(10-27), iOS는 밀어서 나가기가 끊기지 않게 아래 화면으로 내려간다(SOMA-966). 앱은 묻기만 멈추고 작업은 서버에서 끝까지
   돌아 대본 목록에 생긴다. 파일 원본 읽기를 기다리는 사이에 나가도 나누기는 접수한다. 파일을 올리는 중(나누기 전)에는 떠나지 못한다.
+- 떠난 작업의 진행 행(SOMA-976, 앱만). 서버에 진행 중 작업 목록이 없어 앱은 접수된 작업의 id·제목(적은 제목 → 확장자를 뗀 파일 이름, 없으면 「제목 없는 대본」)을
+  AsyncStorage에 적고 나누는 중 화면에서 끝을 보면 지운다. 앱이 꺼져 끝을 못 봐도 기록이 남는다. 리딩 탭은 보이는 동안(앱이 백그라운드면 멈춘다) 기록된 작업을
+  1초에 하나씩 차례로 `GET /v2/reading/imports/{id}`로 묻고, 첫 답을 받은 뒤 「업로드한 대본」 첫 행 위(대본이 없으면 입구 카드 위 흰 카드, 검색 중에는 숨김)에 행을 그린다. 진행 행은
+  「배역과 대사 찾는 중 · N%」와 진행 막대이고 누를 수 없다. N은 나누는 중 화면과 같은 계산이다(`percent`, 없는 옛 서버면 줄 수). succeeded면 대본 목록을 다시 받고 기록을 지운다 — 완료 푸시로
+  목소리 정하기에 갔다 와도 행 없이 지워진다. failed(이유와 상관없이)는 「나누지 못했어요 · 다시 넣어 주세요」와 [지우기]이고, [지우기]는 기록만 지운다 — 앱에 원문이 없을 수 있어 다시 시도는 없다.
+  `import_not_found`(다른 계정의 작업 포함)는 행 없이 기록을 지운다. 끊김 등 그 밖의 오류는 행을 두고 다시 묻는다. 탈퇴하면 기록도 지운다(`acttub.` 키).
+  한계: 같은 기기에서 넣은 대본만 보인다. 웹·다른 기기에서 넣은 대본까지 보이려면 서버에 진행 중 작업 목록 API가 필요하다.
 - 예시 대본이 아닌 글은 나누기 동의가 있어야 한다 — 개인정보 수집·이용 동의 v9 이상에 동의했거나(SOMA-726, 그 판부터 이 처리가
   들어 있다) 선택 동의 `script_split`(대본 글을 OpenAI로 보내는 처리)이 현재 판에 granted다. 아니면 403 script_split_consent_required.
   앱·웹은 나누기 동의를 따로 묻지 않는다(10-27) — 개인정보 필수 판이 v9 이상(지금 v11)이라 동의를 마친 회원은 모두 동의자다. 403이 오면 앱은 공용
@@ -153,6 +173,7 @@
   문맥 근거(원문이 적은 화자 표기일 수 있다)로 더하고, Jev 가 0.9 이상으로 고르면 그 표기가 화자이자 머리다.
   그 밖의 줄은 묻는 글과 보기가 위와 같다.
   한 작업은 동시 16개, 서버 전체는 동시 64개까지 묻고, 질문이 끝내 실패한 줄은 나누기 답대로 둔다 — 작업을 실패시키지 않는다. 키가 없으면 이 단계를 건너뛴다.
+- Jev 호출 기록(SOMA-1019). 줄 두 번째 의견과 「말하는 글」 문지기는 `script.review`, 배역 후보 판단은 `script.same-speaker` 로 Langfuse에 작업당 단계별 한 건만 남긴다(묶는 열쇠는 작업 id). 이름 없는 대사 규칙으로 다시 나눠 두 판을 돌아도 한 건에 합치고, 작업이 실패해도 남기며, 물은 것이 없으면 남기지 않는다. 기록 실패는 나누기를 막지 않는다. 입력은 질문 수 같은 요약, 출력은 바뀐 줄의 번호와 전후 종류·화자(배역 후보는 전후 이름)뿐이고 대본 글은 넣지 않는다 — 20자가 넘는 이름과 줄 글 전체가 이름 자리에 온 후보는 값 대신 표시만 남긴다. metadata 는 `operation_id`·`questions`(실제 질문 수)·`changed`·`failed`(끝내 실패한 질문)·`retries_429`·`retries_other`·`parallel`(설정한 동시 수)·`review_mode`·`passes`·`speech_check` 다. 모든 질문이 실패한 단계는 ERROR 다. 토큰과 비용은 OpenRouter 응답 `usage` 를 작업 단위로 합친 값이고, 실패한 시도는 응답에 사용량이 없어 세지 않는다.
 - 함께 말하기 머리 잇기(SOMA-663 M8). 두 번째 의견 뒤(키가 없으면 첫 조립 뒤), 원문이 함께 말하기 머리(「모두」·「다같이」·「일동」 등)를 줄 안
   화자 머리로 쓴 문서에서 같은 이름·같은 띄어쓰기로 시작하는 머리 없는 대사 줄은 그 함께 말하기 화자의 말이고, 그 이름과 띄어쓰기를 머리로
   뗀다(「모두 고양이가 물어갔잖아!」를 앞 화자의 이어지는 말로 봤다). 띄어쓰기가 머리와 다른 줄(「모두⎵⎵⎵⎵⎵⎵⎵나만의 기회!」 문서의 가사
@@ -426,6 +447,7 @@
   (위 「나누기 작업」). 다시 보내는 요청(R2.7·R2.8)도 같은 제목을 싣는다. 「파일 업로드」 탭의 제목 칸은 파일을 고르고 읽힌 뒤에만
   보이고, 고른 파일 이름에서 확장자를 떼고 밑줄을 띄어쓰기로 바꾼 글로 미리 채운다(`버스정류장_대본.txt` → 「버스정류장 대본」). 칸 아래에
   「파일 이름으로 채웠어요. 고쳐도 돼요.」를 두고, [다음]에서 제목을 따로 묻지 않는다. 제목은 탭마다 따로 든다. 다른 파일을 고르면 고친 제목도 새 파일 이름으로 다시 채운다.
+  「파일 업로드」 탭에서 고른 파일을 읽는 동안 [다음]은 막히고 글이 「읽는 중…」으로 바뀌며, 다 읽으면 [다음]으로 돌아간다. 「글 붙여넣기」 탭의 버튼은 그대로 [다음]이다.
   서버의 수정 요청은 배역 이름도 받는다(옛 앱이 제목과 함께 보낸다). 배역 이름을 고쳐도 배역 id와 줄의 연결, 목소리 설정은 그대로다. 이름은 앞뒤 공백을 정리하고, 비어
   있거나 같은 대본 안에서 겹치면 422 invalid_characters. 겹침은 고친 뒤의 이름들로 보므로 한 요청에서 두 배역의 이름을 맞바꿀 수 있다. 수정 요청은 `title`과 `characters[{id, name?, voice_preset?}]`만
   받고 줄은 모르는 키라 422 배열이다. 이 대본에 없는 배역 id나 같은 id 둘도 422 invalid_characters다. 고치면

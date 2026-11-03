@@ -9,8 +9,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository;
-import com.acttub.actingapi.feature.challenge.app.ChallengeCursor;
-import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
+import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Draft;
 import com.acttub.actingapi.feature.challenge.schema.ChallengeEntity;
 import com.acttub.actingapi.platform.schema.ChallengeOrigin;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -109,7 +108,7 @@ class PostgresChallengeRepository implements ChallengeRepository {
     }
 
     @Override @Transactional(readOnly = true)
-    public Listing list(UUID viewer, String tab, String query, Instant now, ChallengeCursor cursor) {
+    public Listing list(UUID viewer, String tab, String query, Instant now, Position cursor) {
         return browse.list(viewer, tab, query, now, cursor);
     }
 

@@ -4,12 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceStorage;
+import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
 import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -33,8 +38,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
         "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model",
         "READING_VOICE_MODEL_PREFIX=reading-model/supertonic3-fp16-v1",
-        // 실제 시계를 쓰므로 무료 기간(기본 2026-10-31)이 지나면 Pro 가 아닌 시험 계정은 막힌다. 이 시험은 무료 기간 안의 동작을 본다.
-        "READING_VOICE_FREE_UNTIL=2099-12-31T23:59:59+09:00"})
+        // 무료 기간은 설정하지 않는다(기본 없음). Pro 판정은 결제 도메인이 하고, 결제 기능이 열려 있어야 Pro 를 본다.
+        "BILLING_APP_ENABLED=true"})
 @AutoConfigureMockMvc
 @Import(CloudVoiceIT.Fakes.class)
 class CloudVoiceIT {
@@ -51,6 +56,7 @@ class CloudVoiceIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtService jwt;
     @Autowired ObjectMapper mapper;
+    @Autowired CloudVoiceRepository voices;
     String bearer;
     UUID user;
 
@@ -67,6 +73,11 @@ class CloudVoiceIT {
         user = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
         AccountFixtures.passGate(jdbc, user);
+        // 합성·캐시·동의를 보는 테스트는 서버가 준 Pro 기간 안의 회원으로 한다(지금 시각 기준이라 날짜가 지나도 깨지지 않는다).
+        jdbc.update("""
+                INSERT INTO billing_pro_grants(id,user_id,starts_at,ends_at,reason)
+                VALUES (?,?,now() - interval '1 day',now() + interval '30 days','test')
+                """, UUID.randomUUID(), user);
         bearer = "Bearer " + jwt.issueAccessToken(user).value();
     }
 
@@ -78,9 +89,30 @@ class CloudVoiceIT {
         assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "available", "free_until", "consent", "daily_limit", "daily_used", "reason", "pro_only");
         assertThat(body.path("available").booleanValue()).isTrue();
+        assertThat(body.path("reason").textValue()).isEqualTo("pro");
+        assertThat(body.path("pro_only").booleanValue()).isFalse();
+        assertThat(body.path("free_until").isNull()).isTrue();
         assertThat(body.path("consent").textValue()).isEqualTo("granted");
-        assertThat(body.path("daily_limit").intValue()).isEqualTo(300);
+        // Pro 에게 daily_limit 칸은 계정별 월 한도를 담는다(SOMA-949).
+        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
         assertThat(body.path("daily_used").intValue()).isZero();
+    }
+
+    @Test
+    void reading_cloudVoice_aMemberWithoutProIsRefusedOutsideTheFreePeriod() throws Exception {
+        jdbc.update("DELETE FROM billing_pro_grants WHERE user_id=?", user);
+        var status = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
+        assertThat(status.getStatus()).isEqualTo(200);
+        JsonNode body = mapper.readTree(status.getContentAsString());
+        assertThat(body.path("available").booleanValue()).isFalse();
+        assertThat(body.path("reason").isNull()).isTrue();
+        assertThat(body.path("pro_only").booleanValue()).isTrue();
+        assertThat(body.path("free_until").isNull()).isTrue();
+
+        var refused = synthesize("{\"text\":\"가지 마\",\"voice\":\"F1\"}");
+        assertThat(refused.getStatus()).isEqualTo(503);
+        assertThat(mapper.readTree(refused.getContentAsString()).path("detail").textValue()).isEqualTo("cloud_voice_unavailable");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_voice_cache", Long.class)).isZero();
     }
 
     @Test
@@ -180,6 +212,61 @@ class CloudVoiceIT {
         jdbc.update("INSERT INTO user_consents(id,user_id,document_id,action,occurred_at) VALUES (?,?,?,'granted',now())",
                 UUID.randomUUID(), user, privacy);
         assertThat(consent()).isEqualTo("granted");
+    }
+
+    @Test
+    void proStatusAndSynthesisUseOnlyThisAccountsKoreanCalendarMonth() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        YearMonth month = YearMonth.from(today);
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,300)", user, today);
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, month.atDay(1).minusDays(1));
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, month.plusMonths(1).atDay(1));
+        UUID other = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,80000)", other, today);
+        var response = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
+        JsonNode body = mapper.readTree(response.getContentAsString());
+        assertThat(body.path("available").booleanValue()).isTrue();
+        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
+        assertThat(body.path("daily_used").intValue()).isEqualTo(300);
+        assertThat(synthesize("{\"text\":\"Pro 새 대사\",\"voice\":\"F1\"}").getStatus()).isEqualTo(200);
+        assertThat(voices.monthlyUsage(user, month)).isEqualTo(301);
+    }
+
+    @Test
+    void proTenThousandthLineIsAllowedAndTheNextNewLineIs429ButCacheStillWorks() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, today);
+        String body = "{\"text\":\"이번 달 마지막 줄\",\"voice\":\"F1\"}";
+        assertThat(synthesize(body).getStatus()).isEqualTo(200);
+        var blocked = synthesize("{\"text\":\"한도 다음 줄\",\"voice\":\"F1\"}");
+        assertThat(blocked.getStatus()).isEqualTo(429);
+        assertThat(blocked.getContentAsString()).contains("cloud_voice_monthly_limit");
+        assertThat(mapper.readTree(synthesize(body).getContentAsString()).path("cached").booleanValue()).isTrue();
+        assertThat(voices.monthlyUsage(user, YearMonth.from(today))).isEqualTo(10_000);
+    }
+
+    @Test
+    void concurrentFinalRecordsDoNotExceedTheAccountsMonthlyCap() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,9999)", user, today);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<Boolean>>();
+            for (String hash : List.of("a".repeat(64), "b".repeat(64))) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return voices.recordSuccessWithinMonthlyCap(user, today,
+                            new CloudVoiceRepository.CacheEntry(hash, "reading-voice/" + hash + ".wav"),
+                            "test-model", "Kore", 40, Instant.now(), 10_000);
+                }));
+            }
+            start.countDown();
+            int accepted = 0;
+            for (var result : futures) if (result.get()) accepted++;
+            assertThat(accepted).isEqualTo(1);
+        }
+        assertThat(voices.monthlyUsage(user, YearMonth.from(today))).isEqualTo(10_000);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { useVideoPlayer } from 'expo-video';
-import { ScrollView, TextInput } from 'react-native';
+import { Platform, ScrollView, TextInput } from 'react-native';
 
 import CoachScreen from '@/app/coach';
 import { logEvent } from '@/lib/analytics';
@@ -12,7 +12,14 @@ import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutorial-sample';
 
 const mockRouter = { replace: jest.fn(), dismissAll: jest.fn(), dismissTo: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
-const mockNavigation = { dispatch: jest.fn() };
+const mockRemoveListeners: (() => void)[] = [];
+const mockNavigation = {
+  dispatch: jest.fn(),
+  addListener: jest.fn((event: string, fn: () => void) => {
+    if (event === 'beforeRemove') mockRemoveListeners.push(fn);
+    return () => undefined;
+  }),
+};
 let mockKeyboardHeight = 0;
 let mockPreventRemove: { enabled: boolean; callback: (e: { data: { action: unknown } }) => void } | null = null;
 const mockLoop = {
@@ -559,7 +566,7 @@ describe('빠른 답과 그만하기', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
     expect(screen.getByText('여기서 마칠까요?')).toBeOnTheScreen();
-    expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 이어서 일지를 쓰면 오늘 대화와 함께 정리돼요.')).toBeOnTheScreen();
+    expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 코치가 다음에 해 볼 것을 정리해 드려요.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('계속하기'));
     expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
 
@@ -592,24 +599,24 @@ describe('빠른 답과 그만하기', () => {
 });
 
 describe('닫힌 대화', () => {
-  test('노트와 함께 닫혀도 마지막 코치 말을 보여 주고, 「일지 쓰고 마치기」를 눌러야 배우 일지로 간다(SOMA-720)', async () => {
+  test('노트와 함께 닫혀도 마지막 코치 말을 보여 주고, 「코칭 마치기」를 눌러야 오늘 코칭 끝으로 간다(배우 일지 없음, 11/2)', async () => {
     jest.useFakeTimers();
     mockLoop.replyToCoach.mockResolvedValue(turn(conv({ status: 'closed', close_reason: 'exhausted' }), NOTE));
     await renderOpen();
 
     await typeAndSend('마지막 답');
-    expect(screen.getByText('오늘 대화는 여기까지예요. 코치 말을 읽고 아래에서 일지를 써요.')).toBeOnTheScreen();
+    expect(screen.getByText('오늘 대화는 여기까지예요. 코치 말을 읽고 아래에서 마쳐요.')).toBeOnTheScreen();
     expect(getPractice()?.note).toEqual(NOTE);
     await act(async () => jest.advanceTimersByTime(0));
     expect(mockRouter.replace).not.toHaveBeenCalled();
-    // 대화 이어 가기는 대화 끝 카드, 아래 바는 「다음 테이크 찍기」 위 · 「일지 쓰고 마치기」 맨 아래. 입력칸은 없다.
+    // 대화 이어 가기는 대화 끝 카드, 아래 바는 「다음 테이크 찍기」 위 · 「코칭 마치기」 맨 아래. 입력칸은 없다.
     const labels = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel);
-    expect(labels.slice(-3)).toEqual(['대화 이어 가기', '다음 테이크 찍기', '일지 쓰고 마치기']);
+    expect(labels.slice(-3)).toEqual(['대화 이어 가기', '다음 테이크 찍기', '코칭 마치기']);
     expect(screen.queryByLabelText('보내기')).not.toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByRole('button', { name: '일지 쓰고 마치기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '코칭 마치기' }));
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace.mock.calls).toEqual([['/journal']]);
+    expect(mockRouter.replace.mock.calls).toEqual([[{ pathname: '/coaching-done', params: { practiceId: 'p1' } }]]);
   });
 
   test('닫힌 대화로 다시 들어오면 노트를 읽어 정리 화면으로 넘어간다', async () => {
@@ -618,7 +625,7 @@ describe('닫힌 대화', () => {
     begin({ conversationId: 'c1' });
     await render(<CoachScreen />);
 
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/journal'));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coaching-done', params: { practiceId: 'p1' } }));
     expect(mockLoop.getPracticeNote).toHaveBeenCalledWith('p1');
     expect(mockLoop.startConversation).not.toHaveBeenCalled();
   });
@@ -823,13 +830,25 @@ describe('튜토리얼 예시', () => {
     expect(await screen.findByText('좋아요. 나눈 이야기를 연습 노트로 정리할게요.')).toBeOnTheScreen();
     // 마지막 코치 말을 읽을 수 있게 바로 넘기지 않는다. 버튼을 눌러야 정리로 간다.
     expect(mockRouter.replace).not.toHaveBeenCalledWith('/report');
-    await fireEvent.press(screen.getByRole('button', { name: /일지 쓰고 마치기|연습 마치기/ }));
+    await fireEvent.press(screen.getByRole('button', { name: /코칭 마치기|연습 마치기/ }));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/report'));
     expect(screen.queryByRole('button', { name: '다음 테이크 찍기' })).not.toBeOnTheScreen();
     expect(getPractice()?.note?.actor_words).toEqual(['컵을 내려놓으면서 더는 미루지 않겠다고 마음먹었어요.']);
   });
 
-  test('대화 중에 뒤로 가면 튜토리얼을 나감으로 끝내고 그 이동을 이어 간다', async () => {
+  test('iOS 는 대화 중 밀어서 나가기를 막지 않고, 내려갈 때 튜토리얼을 나감으로 끝낸다', async () => {
+    jest.useFakeTimers();
+    beginSample();
+    await render(<CoachScreen />);
+    expect(mockPreventRemove?.enabled).toBe(false);
+
+    await act(async () => mockRemoveListeners.at(-1)!());
+    expect(currentTutorial()).toBeNull();
+    expect(logged('tutorial_finish')).toEqual([{ mode: 'sample', track: 'practice', how: 'left' }]);
+  });
+
+  test('안드로이드는 대화 중에 뒤로 가면 튜토리얼을 나감으로 끝내고 그 이동을 이어 간다', async () => {
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
     jest.useFakeTimers();
     beginSample();
     await render(<CoachScreen />);
@@ -843,6 +862,7 @@ describe('튜토리얼 예시', () => {
 
     await act(async () => jest.advanceTimersByTime(0));
     expect(mockNavigation.dispatch).toHaveBeenCalledWith(action);
+    os.restore();
   });
 
   test('실제 회차에서는 뒤로 가기를 막지 않는다', async () => {

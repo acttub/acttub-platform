@@ -57,6 +57,9 @@ public final class DirectVideoSessions implements AutoCloseable {
                     Thread.sleep(2000);
                 }
                 generate(session, null);
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                failed(session, failure);
             } catch (Exception failure) {
                 failed(session, failure);
             } finally {
@@ -153,11 +156,15 @@ public final class DirectVideoSessions implements AutoCloseable {
     private void deleteVideo(Session session) {
         synchronized (session) {
             if (session.video == null) return;
+            // interrupt 상태면 Gemini SDK 요청이 서버에 닿기 전에 실패하므로, 삭제하는 동안만 내려 둔다.
+            boolean interrupted = Thread.interrupted();
             try {
                 model.delete(session.video);
                 session.video = null;
             } catch (RuntimeException failure) {
                 failures.report(failure, new FailureContext("DirectVideoSessions.remoteCleanup", session.id));
+            } finally {
+                if (interrupted) Thread.currentThread().interrupt();
             }
         }
     }

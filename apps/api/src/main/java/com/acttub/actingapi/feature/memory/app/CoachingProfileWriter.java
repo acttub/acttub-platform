@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.memory.app;
 
 import com.acttub.actingapi.feature.coach.app.ActorCoaching;
 import com.acttub.actingapi.integration.llm.TextValidator;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.web.PythonText;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -139,6 +140,8 @@ public final class CoachingProfileWriter {
              "answer_directly": null, "max_questions": null, "feedback_focus": null, "skip": [], "reply_length": null,
              "summary": "..."}
             """;
+
+    static final LlmPrompt TEMPLATE = new LlmPrompt("memory.coaching-profile", SYSTEM_PROMPT);
 
     public CoachingProfileWriter() {
     }

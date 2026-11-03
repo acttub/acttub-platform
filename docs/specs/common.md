@@ -272,6 +272,7 @@ pen을 고칠 목록이다. 무엇을 어떻게 바꾸는지(문구·수치)는 
 | 개인정보 처리방침 | 보관 동의의 철회 연락처와 본인 확인 방법 | account.withdraw |
 | 개인정보 처리방침 | 게스트 자료의 파기 시점 | account.guest |
 | 개인정보 처리방침 | 포트폴리오 공유 링크로 공개되는 항목 | account.portfolio |
+| 개인정보 처리방침 · 개인정보 수집·이용 동의 | 챌린지 참여작·댓글에 다른 회원에게 보이는 프로필 사진(얼굴 가림 참여작은 제외) | challenge.browse, challenge.react |
 | 이용약관 | 가입 방식(제공자)과 웹 게스트 이용 | account.login, account.guest |
 | 탈퇴 후 영상·녹음 보관·활용(신설, 선택) | 목적, 보관 기간, 철회 방법, 거절해도 같은 서비스 | account.withdraw |
 | AI 분석 동의 | 리딩에 AI 분석 동의가 필요 없는 이유 | account.guest, reading.recording |
