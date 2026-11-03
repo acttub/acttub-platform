@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 
 import {
   HOME_SPLASH_HOLD_MS,
+  LAUNCH_SPLASH_MAX_MS,
   isHomeReady,
+  msUntilLaunchSplashCap,
   markHomeReady,
   resetHomeReadyForTest,
   shouldHoldSplashForHome,
@@ -21,6 +23,13 @@ test('홈이 준비됐거나 상한이 지나면 로고를 닫는다', () => {
   assert.equal(shouldHoldSplashForHome({ ...base, homeReady: true }), false);
   assert.equal(shouldHoldSplashForHome({ ...base, holdExpired: true }), false);
   assert.equal(HOME_SPLASH_HOLD_MS, 3000);
+});
+
+test('앱 코드가 뜬 지 2초가 지나면 준비와 상관없이 스플래시를 닫는다', () => {
+  assert.equal(LAUNCH_SPLASH_MAX_MS, 2000);
+  assert.equal(msUntilLaunchSplashCap(11_000, 10_000), 1000);
+  assert.equal(msUntilLaunchSplashCap(12_000, 10_000), 0);
+  assert.equal(msUntilLaunchSplashCap(15_000, 10_000), 0);
 });
 
 test('로그인·동의·프로필·분석 화면으로 가는 길에서는 기다리지 않는다', () => {
