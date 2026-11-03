@@ -169,20 +169,18 @@ export default function AuditionsScreen() {
                   label={`${t(`auditions.groups.${key}`)} ${count}`}
                   role="radio"
                   selected={filters.group === key}
-                  size="sm"
                   onPress={() => setFilters((was) => ({ ...was, group: key }))}
                 />
               ))}
             </ScrollView>
 
             <View style={styles.toggleRow}>
-              <Chip label={t('auditions.filterWeek')} role="checkbox" selected={filters.week} size="sm" onPress={() => toggle('week')} />
-              <Chip label={t('auditions.filterPaid')} role="checkbox" selected={filters.paid} size="sm" onPress={() => toggle('paid')} />
+              <Chip label={t('auditions.filterWeek')} role="checkbox" selected={filters.week} onPress={() => toggle('week')} />
+              <Chip label={t('auditions.filterPaid')} role="checkbox" selected={filters.paid} onPress={() => toggle('paid')} />
               <Chip
                 label={t('auditions.filterStarred')}
                 role="checkbox"
                 selected={filters.starred}
-                size="sm"
                 onPress={() => toggle('starred')}
               />
               {dirty && (
