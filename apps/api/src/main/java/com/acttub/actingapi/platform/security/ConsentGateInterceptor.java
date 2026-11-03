@@ -35,6 +35,8 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
             route(null, "/v2/admissions/**"),
             // 오디션 공고 모아보기(app.audition) — 로그인과 무관한 공개 목록이다.
             route(HttpMethod.GET, "/v2/auditions"),
+            // 앱 운영 값(SOMA-939) — 앱이 켤 때 로그인 없이 부른다. 게이트 안이라 늘 401 이었다.
+            route(HttpMethod.GET, "/v2/app/config"),
             // 포트폴리오 공개 조회 — 받은 링크를 로그인 없이 여는 사람이 본다.
             route(HttpMethod.GET, "/v2/public/**"),
             // 웹 문의하기(SOMA-834)는 로그인 없이 받는다. 토큰이 있으면 컨트롤러가 직접 읽는다.

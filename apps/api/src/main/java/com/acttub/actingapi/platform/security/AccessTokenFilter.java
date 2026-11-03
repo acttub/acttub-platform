@@ -47,6 +47,8 @@ public class AccessTokenFilter extends OncePerRequestFilter {
                 || path.startsWith("/v2/public/")
                 || path.startsWith("/v2/admissions")
                 || path.equals("/v2/auditions")
+                // 앱 운영 값(SOMA-939)은 앱이 켤 때 로그인 없이 부른다.
+                || path.equals("/v2/app/config")
                 // 블로그 공개 읽기(app.blog)는 로그인 없이 누구나 읽는다. 만료 토큰이 붙어 와도 401 로 막지 않는다.
                 || path.startsWith("/v2/blog/")) {
             return true;
