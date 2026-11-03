@@ -1156,9 +1156,9 @@ function TodayCardBody({
       style={({ pressed }) => [styles.todayCard, pressed && styles.pressed]}>
       <View style={styles.eyebrowRow}>
         {icon === 'trophy' ? (
-          <Ionicons name="trophy-outline" size={16} color={palette.onAccent} />
+          <Ionicons name="trophy-outline" size={16} color={palette.blueDeep} />
         ) : (
-          <Feather name={icon} size={16} color={palette.onAccent} />
+          <Feather name={icon} size={16} color={palette.blueDeep} />
         )}
         <Text style={styles.eyebrow}>{eyebrow}</Text>
       </View>
@@ -1168,7 +1168,7 @@ function TodayCardBody({
       {/* 버튼 모양이 아니라 카드가 어디로 가는지 알려 주는 글자 줄이다 — 누르는 곳은 카드 전체. */}
       <View style={styles.todayCta}>
         <Text style={styles.todayCtaText}>{cta}</Text>
-        <Feather name="arrow-right" size={16} color={palette.onAccent} />
+        <Feather name="arrow-right" size={16} color={palette.blueDeep} />
       </View>
     </Pressable>
   );
@@ -1453,18 +1453,20 @@ const styles = StyleSheet.create({
   weekLabelToday: { color: palette.text },
 
   todayCard: {
-    backgroundColor: palette.text,
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: palette.border,
     borderRadius: radius.lg,
     padding: space[5],
     gap: space[2],
   },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  eyebrow: { ...type.caption, color: palette.onMediaSub },
-  todayTitle: { ...type.title2, color: palette.onAccent },
-  todaySub: { ...type.caption, color: palette.onMediaSub },
+  eyebrow: { ...type.captionBold, color: palette.blueDeep },
+  todayTitle: { ...type.title2, color: palette.text },
+  todaySub: { ...type.caption, color: palette.textMeta },
   todaySpacer: { height: space[2] },
   todayCta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  todayCtaText: { ...type.body2Bold, color: palette.onAccent },
+  todayCtaText: { ...type.body2Bold, color: palette.blueDeep },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },
