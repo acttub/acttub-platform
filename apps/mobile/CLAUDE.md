@@ -4,8 +4,8 @@
 
 1. 명령과 버전은 이 디렉터리의 `package.json`·`package-lock.json`에서 확인합니다.
 2. Expo API를 바꾸기 전에 설치된 SDK 버전과 일치하는 공식 문서를 확인합니다.
-3. **화면·부품 작업이면 코드를 고치기 전에 [DESIGN-SYSTEM.html](docs/DESIGN-SYSTEM.html)을 읽고, 부품은 [부품 표](docs/DESIGN-SYSTEM.html#components)에서 고릅니다.**
-   「의도된 차이」는 하나로 맞추지 않습니다.
+3. **화면·부품 작업이면 코드를 고치기 전에 [DESIGN-SYSTEM.html](docs/DESIGN-SYSTEM.html)을 읽고, 부품은 이 파일의 `4 부품`에서 고릅니다.**
+   「의도된 차이」는 하나로 맞추지 않습니다. 이 파일은 pen 내보내기이므로 손으로 고치지 않습니다.
 4. 그 밖의 작업 갈래에 맞는 정본을 읽습니다.
    - **네이티브 설정·플러그인** → `app.json`, `app.config.js`, `plugins/*`
    - **EAS 빌드·제출·Firebase 파일** → `eas.json`, `.easignore`, `app.config.js`
@@ -56,7 +56,7 @@
 - 네이티브 설정·플러그인은 평가된 설정과 영향받는 플랫폼의 development build로 검증합니다.
 - EAS build·submit·Firebase 파일 전달은 `eas.json`·`.easignore`·평가된 앱 설정과 해당 EAS
   프로필의 실행 결과를 함께 확인합니다.
-- 새 화면·부품은 [DESIGN-SYSTEM.html 부품 표](docs/DESIGN-SYSTEM.html#components)로 맞는 부품을 확인합니다.
+- 새 화면·부품은 [DESIGN-SYSTEM.html](docs/DESIGN-SYSTEM.html)의 `4 부품`으로 맞는 부품을 확인합니다.
 - 화면·카피는 typed routes를 다시 생성한 뒤 development build에서 바뀐 경로와 상태를 직접
   열어 카피·상호작용을 확인합니다.
 - CI `mobile` 잡의 검증 명령을 새 의존 조건에서도 재현합니다.
