@@ -176,7 +176,7 @@ export default function ReadingSession() {
     void sheet({
       anchor: pt(e),
       title: t('reading.sessionOrdinal', { n: detail.ordinal }),
-      actions: [{ label: t('reading.deleteSession'), destructive: true, onPress: () => void removeSession() }],
+      actions: [{ label: t('reading.deleteSession'), icon: 'trash-2', destructive: true, onPress: () => void removeSession() }],
     });
 
   const removeSession = async () => {

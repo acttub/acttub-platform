@@ -65,10 +65,10 @@ export default function ReadingFull() {
       anchor: pt(e),
       title: line.type === 'dialogue' ? `${line.role} · ${line.text}` : line.text,
       actions: [
-        { label: t('reading.lineMenuEdit'), onPress: () => openEditor(index) },
-        { label: t('reading.lineMenuSplit'), onPress: () => setSplitting(index) },
-        { label: t('reading.lineMenuInsert'), onPress: () => setInserting(index) },
-        { label: t('reading.lineMenuDelete'), destructive: true, onPress: () => void removeLine(index) },
+        { label: t('reading.lineMenuEdit'), icon: 'edit-2', onPress: () => openEditor(index) },
+        { label: t('reading.lineMenuSplit'), icon: 'scissors', onPress: () => setSplitting(index) },
+        { label: t('reading.lineMenuInsert'), icon: 'plus', onPress: () => setInserting(index) },
+        { label: t('reading.lineMenuDelete'), icon: 'trash-2', destructive: true, onPress: () => void removeLine(index) },
       ],
     });
   };
