@@ -116,7 +116,7 @@ export default function NotificationsScreen() {
       <NavHeader
         title={t('notifications.title')}
         left={<NavBackButton onPress={() => router.back()} phLabel="notifications_back" />}
-        right={<TextButton tone="accent" label={t('notifications.markAll')} onPress={() => void readAll()} />}
+        right={groups?.some((group) => !group.read) ? <TextButton tone="accent" label={t('notifications.markAll')} onPress={() => void readAll()} /> : undefined}
       />
 
       {error ? (
