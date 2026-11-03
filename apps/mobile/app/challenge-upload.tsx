@@ -13,9 +13,9 @@ import { setPickedVideo } from '@/lib/practice/picked-video';
 import { ChallengeDone } from '@/components/challenge-done';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { Checkbox } from '@/components/ui/checkbox';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
+import { SelectCard } from '@/components/ui/select-card';
 import { TextField } from '@/components/ui/text-field';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
@@ -341,13 +341,13 @@ export default function ChallengeUploadScreen() {
         </View>
         <Text style={styles.rangeLabel}>{t('challengeUpload.pickVisibility')}</Text>
 
-        <Option
+        <SelectCard
           title={t('challengeUpload.optPublic')}
           sub={t('challengeUpload.optPublicSub')}
           selected={visibility === 'public'}
           onPress={() => chooseVisibility('public')}
         />
-        <Option
+        <SelectCard
           title={t('challengeUpload.optPrivate')}
           sub={t('challengeUpload.optPrivateSub')}
           selected={visibility === 'private'}
@@ -398,34 +398,6 @@ export default function ChallengeUploadScreen() {
   );
 }
 
-/** 선택지 줄(pen C9.17) — 고르면 연파랑 바탕·파란 테두리·파란 글자·오른쪽 체크, 안 고르면 흰 바탕 · 회색 테두리. */
-function Option({
-  title,
-  sub,
-  selected,
-  onPress,
-}: {
-  title: string;
-  sub: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      style={[styles.option, selected && styles.optionOn]}
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityLabel={title}
-      accessibilityState={{ selected }}>
-      <View style={styles.flex}>
-        <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>{title}</Text>
-        <Text style={styles.optionSub}>{sub}</Text>
-      </View>
-      {selected && <Checkbox checked />}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { flex: 1 },
@@ -445,10 +417,6 @@ const styles = StyleSheet.create({
   caption: { minHeight: 96, paddingTop: space[3], textAlignVertical: 'top', marginTop: space[1] },
   counter: { ...type.caption, color: palette.textMeta, textAlign: 'right', marginTop: -space[1] },
   hint: { ...type.caption, color: palette.textMeta },
-  option: { flexDirection: 'row', alignItems: 'center', gap: space[3], borderRadius: radius.lg, paddingVertical: space[3], paddingHorizontal: space[4], borderWidth: 1, borderColor: palette.border },
-  optionOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5, paddingVertical: space[3] - 0.5 },
-  optionTitle: { ...type.headline, fontWeight: '700', color: palette.text },
-  optionTitleOn: { color: palette.blueDeep },
   optionSub: { ...type.caption, color: palette.textMeta },
   mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[1] },
   mosaicTitle: { ...type.body1Bold, color: palette.text },

@@ -13,13 +13,13 @@ import { CommunityTabs, type CommunitySection } from '@/components/community/com
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { SelectCard } from '@/components/ui/select-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -362,8 +362,8 @@ export default function ChallengesScreen() {
               <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
               <Text style={styles.sameMeta}>{t('challenges.firstSub')}</Text>
             </View>
-            <PickRow label={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
-            <PickRow label={t('challenges.firstBrowse')} selected={firstPick === 'browse'} onPress={() => setFirstPick('browse')} />
+            <SelectCard title={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
+            <SelectCard title={t('challenges.firstBrowse')} selected={firstPick === 'browse'} onPress={() => setFirstPick('browse')} />
           </ScrollView>
           <CtaBar safeBottom={false} style={{ paddingBottom: tabBarSpace > 0 ? tabBarSpace : space[3] }}>
             <PrimaryButton
@@ -613,21 +613,6 @@ function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard
   );
 }
 
-/** 첫 사용자 고르기 줄(C1.16) — 고르면 연파랑 바탕·파란 테두리·오른쪽 체크. */
-function PickRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      style={[styles.pick, selected && styles.pickOn]}
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityLabel={label}
-      accessibilityState={{ selected }}>
-      <Text style={[styles.pickText, selected && styles.pickTextOn]}>{label}</Text>
-      {selected && <Checkbox checked />}
-    </Pressable>
-  );
-}
-
 /** 줄 카드(ZxMmEh) — 아이콘 · 대사 · "주최 · 참여작 · D-N", 그 아래 참여자와 좋아요 합. */
 function Card({
   challenge,
@@ -736,10 +721,6 @@ const styles = StyleSheet.create({
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },
   sameMeta: { ...type.caption, color: palette.textMeta },
-  pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, paddingVertical: space[4], paddingHorizontal: space[4] },
-  pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5, paddingVertical: space[4] - 0.5 },
-  pickText: { ...type.body1Bold, color: palette.text },
-  pickTextOn: { color: palette.blueDeep },
   heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
