@@ -333,7 +333,7 @@ export default function ChallengeUploadScreen() {
                 accessibilityLabel={t('challengeUpload.retake')}
                 ph-label="challenge_upload_retake"
                 style={styles.retake}>
-                <Feather name="rotate-ccw" size={14} color={palette.blue} />
+                <Feather name="rotate-ccw" size={14} color={palette.blueDeep} />
                 <Text style={styles.retakeText}>{t('challengeUpload.retake')}</Text>
               </Pressable>
             )}
@@ -408,8 +408,8 @@ const styles = StyleSheet.create({
   videoLine: { ...type.body1Bold, color: palette.text },
   videoSub: { ...type.caption, color: palette.textMeta },
   videoSubEnded: { color: palette.danger },
-  retake: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: space[2], alignSelf: 'flex-start' },
-  retakeText: { ...type.captionBold, color: palette.blue },
+  retake: { flexDirection: 'row', alignItems: 'center', gap: space[1], marginTop: space[2], alignSelf: 'flex-start' },
+  retakeText: { ...type.captionBold, color: palette.blueDeep },
   rangeLabel: { ...type.body2Bold, color: palette.textSub, marginTop: space[2] },
   thumbWrap: { width: 72, height: 100, borderRadius: radius.md, overflow: 'hidden', backgroundColor: palette.textSub },
   thumb: { width: '100%', height: '100%' },
