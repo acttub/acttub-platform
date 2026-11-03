@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import type { ReactNode } from 'react';
+import { Children, Fragment, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 
 import { palette } from '@/constants/palette';
@@ -50,7 +50,26 @@ export function SettingsCard({
   );
 }
 
+/**
+ * 설정 묶음 하나 — 제목과 줄들. 줄 사이에만 구분선을 넣는다(디자인 시스템 ListRow 「구분선」: 섹션 맨 위·아래와 섹션 사이에는 넣지 않는다).
+ */
+export function SettingsSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {Children.toArray(children).map((row, i) => (
+        <Fragment key={i}>
+          {i > 0 && <View style={styles.divider} />}
+          {row}
+        </Fragment>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  sectionTitle: { ...type.captionBold, color: palette.textSub, marginBottom: space[1] },
+  divider: { height: 1, backgroundColor: palette.border },
   // 테두리 상자 없는 줄(UX 가이드 6절, 10/16·10/18 — 목록·메뉴 줄마다 상자를 씌우지 않는다).
   card: {
     flexDirection: 'row',
