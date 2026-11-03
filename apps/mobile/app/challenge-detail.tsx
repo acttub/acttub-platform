@@ -8,6 +8,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { LoadingText } from '@/components/ui/loading-text';
 import { useAppDialog, type DialogAction } from '@/components/app-dialog';
 import { ChallengeLineCard } from '@/components/challenge-line-card';
+import { ChallengeLoadFail } from '@/components/challenge-load-fail';
 import { ChallengeNotice } from '@/components/challenge-notice';
 import { pt } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -224,6 +225,15 @@ export default function ChallengeDetailScreen() {
   };
   const openMenu = (e: GestureResponderEvent, items: readonly DetailMenuItem[]) =>
     void sheet({ anchor: pt(e), actions: items.map((item) => menuAction[item]) });
+
+  if (error && !challenge) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <Stack.Screen options={{ headerShown: true, title: t(detailTitleKey(null)), headerRight: () => null }} />
+        <ChallengeLoadFail failure={error} onRetry={() => void load(sort)} onLeave={() => router.dismissTo('/challenges')} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
