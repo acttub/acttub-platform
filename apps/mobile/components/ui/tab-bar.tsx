@@ -25,7 +25,7 @@ const ITEM = 56;
 const LABEL_SHIFT = 9;
 
 /**
- * 하단 탭바 — 디자인 시스템 pen 「TabBar」. 플랫폼마다 일부러 다르다(DESIGN-SYSTEM.md 「의도된 차이」).
+ * 하단 탭바 — 디자인 시스템 pen 「TabBar」. 플랫폼마다 일부러 다르다(DESIGN-SYSTEM.html 「의도된 차이」).
  *
  * iOS: 화면 위에 뜬 알약(좌우 20, 높이 64, 모서리 32, 안쪽 4, shadow-overlay). 글자 없이 아이콘 26, 고른 탭은 칸을 채우는 회색 알약.
  *   견본의 반투명 바탕 + 흐림 24 는 흐림 모듈(expo-blur)이 앱에 없어 흰 바탕 + 1px `border` 로 둔다.
