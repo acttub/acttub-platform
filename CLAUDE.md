@@ -22,7 +22,7 @@
 
 - **제품 범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)
 - **화면·컴포넌트·카피**를 만들 때 → 앱 화면은 코드를 고치기 전에 [apps/mobile/docs/DESIGN-SYSTEM.html](apps/mobile/docs/DESIGN-SYSTEM.html)(토큰·부품·의도된 차이)를
-  읽습니다. 이 파일은 pen 내보내기이므로 손으로 고치지 않습니다. 이 문서는 웹 화면에 적용되지 않습니다. 앱·웹 모두 [acttub/pen](https://github.com/acttub/pen)과 [PRD 「디자인」](docs/PRD.md#디자인)을 따릅니다.
+  읽습니다. pen 내보내기에 보기 기능을 더한 파일이므로 손으로 고치지 않습니다. 이 문서는 웹 화면에 적용되지 않습니다. 앱·웹 모두 [acttub/pen](https://github.com/acttub/pen)과 [PRD 「디자인」](docs/PRD.md#디자인)을 따릅니다.
   어느 pen 파일이 앱·웹인지와 화면 번호 접두사는 [pen README](https://github.com/acttub/pen#readme)가 정하므로 여기에
   옮겨 적지 않습니다. 기능별 화면 번호는 [docs/specs/](docs/specs/README.md)의 `화면` 줄에 있습니다(앱 리딩부터 새 pen
   번호로 옮기는 중).
