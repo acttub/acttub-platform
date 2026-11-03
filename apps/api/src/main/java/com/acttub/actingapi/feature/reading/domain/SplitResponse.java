@@ -40,6 +40,12 @@ import java.util.stream.Stream;
 public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected, Map<String, CharacterTraits> traits,
         Map<Integer, Row> refused) {
 
+    /**
+     * 답의 배역·머리 칸 길이 상한. 뒤따르는 이름 정규식은 긴 글에서 제곱으로 느려지는데 칸은 원문 한 줄({@link ScriptRules#TEXT_MAX})만큼 길 수 있어,
+     * 넘는 칸은 여기서 비운다. 이름도 머리도 아닌 글이고, 머리를 떼지 않으니 줄 글은 본문에 그대로 남는다.
+     */
+    static final int CELL_MAX = 200;
+
     private static final String JUDGMENT_PREFIX = "대본\t";
     /** 종류 칸에 배역을 붙여 쓴 답 — {@code d=샬럿}. */
     /** 등장인물 소개를 옮긴 배역 이름의 대시 뒤 설명 — 대시 앞이나 뒤에 공백이 있을 때만(「J-1」은 이름이다). */
@@ -176,6 +182,9 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
      */
     private static void castLine(String raw, Map<String, CharacterTraits> traits) {
         String[] fields = raw.split("\t", -1);
+        if (fields[0].length() > CELL_MAX) {
+            return;
+        }
         String name = DESCRIBED.matcher(fields[0].strip().replaceFirst("^[-*•\\d.)\\s]+", "")).replaceFirst("").strip();
         if (name.isEmpty()) {
             return;
@@ -229,6 +238,9 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
         if (original == null || kind == null) {
             return null;
         }
+        if (speaker.length() > CELL_MAX) {
+            speaker = "";
+        }
         // 원문 머리 안의 탭(「모⇥두⇥」)은 칸 구분과 같은 글자라 머리가 뒤 칸으로 넘친다 — 뒤 칸을 이어 원문 머리와 맞으면 그것을 쓴다(SOMA-663 M1, 재생 066)
         String joined = fields.length > 4 ? header(original, String.join("\t", Arrays.copyOfRange(fields, 3, fields.length))) : null;
         String header = joined != null ? joined : header(original, fields.length > 3 ? fields[3] : "");
@@ -240,6 +252,9 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
         }
         if (header == null) {
             return new Row(no, kind, kind == Kind.DIALOGUE ? speaker.replaceFirst("[\\s:：;]+$", "") : "", null);
+        }
+        if (header.length() > CELL_MAX) {
+            header = "";
         }
         // 머리 칸에 대사 글을 옮겨 쓴 답 — 그대로 떼면 대사가 사라진다. 배역 이름으로 시작하는 한 줄(「여자 방송기자 (소리)」·「[주인]」)은
         // 블록 형식의 이름 줄이라 그대로 둔다.

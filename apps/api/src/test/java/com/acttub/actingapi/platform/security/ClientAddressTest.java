@@ -1,5 +1,7 @@
 package com.acttub.actingapi.platform.security;
 
+import java.time.Duration;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -109,5 +111,16 @@ class ClientAddressTest {
             request.addHeader("X-Forwarded-For", line);
         }
         return request;
+    }
+
+    @Test
+    @DisplayName("IPv6 최대 길이를 넘는 값은 정규식에 넣지 않고 주소가 아닌 값처럼 연결한 상대로 돌아간다")
+    void aHopLongerThanAnyAddressIsNotAnAddress() {
+        String hop = ":".repeat(200_000) + "g";
+        // 수정 전에는 8,000자에 514ms, 20만 자면 몇 분이었다
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                assertThat(addresses.of(request(WEB_CONTAINER, hop))).isEqualTo(WEB_CONTAINER));
+        assertThat(addresses.of(request(WEB_CONTAINER, "2001:0db8:0000:0000:0000:ffff:203.113.113.113")))
+                .as("45자는 아직 주소다").isEqualTo("2001:db8:0:0:0:ffff:cb71:7171");
     }
 }

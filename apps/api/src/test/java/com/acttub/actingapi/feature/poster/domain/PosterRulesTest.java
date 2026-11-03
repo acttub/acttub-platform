@@ -120,4 +120,12 @@ class PosterRulesTest {
                 "daily", "all", true, "배지", "제목", "본문", "asset:mascot-reading", "asset:cloud-voice-sample",
                 "켜기", "cloud_voice_enable", null, null, null);
     }
+
+    @Test
+    void aVersionLongerThanTheLimitIsInvalidWithoutReachingTheRegex() {
+        // 수정 전에는 StackOverflowError 가 났다
+        assertThat(PosterRules.validVersion("1.".repeat(50_000) + "1")).isFalse();
+        assertThat(PosterRules.validVersion("1".repeat(64))).isTrue();
+        assertThat(PosterRules.validVersion("1".repeat(65))).isFalse();
+    }
 }
