@@ -180,10 +180,9 @@ export function CommunityBoard({
           <Image source={MASCOT.shy} style={styles.emptyMascot} contentFit="contain" cachePolicy="memory-disk" />
           <Text style={styles.emptyTitle}>{t('community.empty')}</Text>
           <Button
-            variant="secondary"
             size="md"
             label={t('community.firstPost')}
-            icon={<Feather name="plus" size={16} color={palette.text} />}
+            icon={<Feather name="plus" size={16} color={palette.onAccent} />}
             phLabel="community_empty_write"
             onPress={onWrite}
           />

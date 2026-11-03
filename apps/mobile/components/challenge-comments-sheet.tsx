@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DEFAULT_AVATAR_GONE, UserAvatar } from '@/components/ui/default-avatar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -164,10 +165,7 @@ export function ChallengeCommentsSheet({
             onEndReachedThreshold={0.3}
             ListEmptyComponent={
               comments !== null && !loadError ? (
-                <View style={styles.emptyBox}>
-                  <Text style={styles.emptyTitle}>{t('comments.emptyTitle')}</Text>
-                  <Text style={styles.empty}>{t('comments.empty')}</Text>
-                </View>
+                <InlineEmpty title={t('comments.emptyTitle')} description={t('comments.empty')} />
               ) : null
             }
             renderItem={({ item }) => (
@@ -241,9 +239,6 @@ const styles = StyleSheet.create({
   errorBox: { paddingHorizontal: space.gutter, paddingTop: space[3] },
   list: { flex: 1 },
   listContent: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[3], gap: space[5] },
-  emptyBox: { alignItems: 'center', paddingVertical: space[10], gap: space[1.5] },
-  emptyTitle: { ...type.headline, color: palette.text },
-  empty: { ...type.body2, color: palette.textMeta, textAlign: 'center' },
   row: { flexDirection: 'row', gap: space[3], alignItems: 'flex-start' },
   body: { flex: 1, gap: space[1] },
   meta: { ...type.caption, color: palette.textMeta },
