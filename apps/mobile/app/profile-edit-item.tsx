@@ -221,7 +221,7 @@ export default function ProfileEditItemScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[8], gap: space[3] },
-  hint: { ...type.captionBold, color: palette.blueDeep },
+  hint: { ...type.caption, color: palette.textMeta },
   field: { gap: space[2] },
   done: { ...type.body2Bold, color: palette.blueDeep },
   doneOff: { color: palette.textDisabled },
