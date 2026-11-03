@@ -10,6 +10,7 @@ import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { SkeletonCards } from '@/components/ui/skeleton';
+import { UnderlineTabs } from '@/components/ui/underline-tabs';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -81,21 +82,14 @@ export default function SavedVideosScreen() {
       <NavHeader title={t('savedVideos.title')} left={<NavBackButton phLabel="saved_videos_back" onPress={() => router.back()} />} />
 
       <View style={styles.tabs}>
-        {(
-          [
-            ['mine', t('savedVideos.tabMine', { count: mine?.length ?? 0 })],
-            ['saved', t('savedVideos.tabSaved', { count: saved?.length ?? 0 })],
-          ] as const
-        ).map(([key, label]) => (
-          <Pressable
-            key={key}
-            style={[styles.tab, tab === key && styles.tabOn]}
-            onPress={() => setTab(key)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: tab === key }}>
-            <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{label}</Text>
-          </Pressable>
-        ))}
+        <UnderlineTabs
+          tabs={[
+            { key: 'mine', label: t('savedVideos.tabMine', { count: mine?.length ?? 0 }) },
+            { key: 'saved', label: t('savedVideos.tabSaved', { count: saved?.length ?? 0 }) },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -147,18 +141,7 @@ export default function SavedVideosScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  tabs: {
-    flexDirection: 'row',
-    gap: space[1],
-    marginHorizontal: space.gutter,
-    backgroundColor: palette.bgSoft,
-    borderRadius: radius.md,
-    padding: space[1],
-  },
-  tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
-  tabTextOn: { color: palette.text },
+  tabs: { marginHorizontal: space.gutter },
   body: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[10], gap: space[3] },
   hint: { ...type.caption, color: palette.textMeta },
   skeleton: { paddingHorizontal: 0 },
