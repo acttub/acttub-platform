@@ -80,7 +80,6 @@ const FONT_SIZE_ALLOWED = {
   'app/login.tsx': 1,
   'app/ui-preview.tsx': 5,
   'components/ad-slot.tsx': 2,
-  'components/announcement-poster.tsx': 7,
   'components/birth-wheel.tsx': 2,
   'components/diff-text.tsx': 4,
   'components/home-mascot.tsx': 1,
