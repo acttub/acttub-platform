@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 import { pickNoteCheer } from '@/lib/note-cheer';
 
@@ -21,16 +22,16 @@ export function NoteCheer() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   mascot: { width: 72, height: 72 },
   bubble: {
     flex: 1,
     backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    borderRadius: radius.lg,
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
   },
-  text: { fontSize: 14.5, fontWeight: '600', color: palette.textSub, lineHeight: 22 },
+  text: { ...type.body2, color: palette.textSub },
 });

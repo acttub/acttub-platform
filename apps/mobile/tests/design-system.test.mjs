@@ -85,7 +85,6 @@ const FONT_SIZE_ALLOWED = {
   'components/home-mascot.tsx': 1,
   'components/launch-splash-screen.tsx': 1,
   'components/markdown.tsx': 5,
-  'components/note-cheer.tsx': 1,
   'components/practice-chrome.tsx': 11,
   'components/practice-video-modal.tsx': 1,
   'components/streak-celebration-screen.tsx': 7,
