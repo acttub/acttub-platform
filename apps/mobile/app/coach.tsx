@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
   },
   wrapText: { ...type.micro, color: palette.amber },
 
-  body: { paddingTop: space[4], paddingHorizontal: space[4], paddingBottom: space[5], gap: space[3] },
+  body: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[5], gap: space[3] },
 
   loading: { alignItems: 'center', gap: space[2], paddingTop: space[6], paddingHorizontal: space[4] },
   loadingText: { ...type.body2Bold, color: palette.text },
@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
   continueTitle: { ...type.body2Bold, color: palette.text },
   continueSub: { ...type.caption, color: palette.textSub },
 
-  composer: { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[3] },
+  composer: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[3] },
   chipGuide: { ...type.captionBold, color: palette.blueDeep },
   purposeChoices: { alignItems: 'flex-start', gap: space[2], marginBottom: space[3] },
   exampleChoices: { alignItems: 'flex-start', gap: space[2], marginTop: space[2] },

@@ -451,7 +451,7 @@ export function CoachWaiting({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: space[4], paddingHorizontal: space[4], paddingBottom: space[5], gap: space[3] },
+  body: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[5], gap: space[3] },
   wide: { alignSelf: 'stretch' },
   ad: { marginHorizontal: space.gutter, marginBottom: space[3] },
   banner: { marginBottom: space[2] },
