@@ -49,7 +49,7 @@ import { homePlan, settingsTarget } from '@/lib/billing';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
-import { markHomeReady } from '@/lib/launch-splash';
+import { afterHomeReady, markHomeReady } from '@/lib/launch-splash';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -350,9 +350,11 @@ export default function HomeScreen() {
     if (!isKorean()) return;
     let cancelled = false;
     // 오디션 공고는 한국 공고뿐이고(app.audition) 하루 두 번 바뀐다 — 입시와 같이 홈을 열 때 한 번만 읽는다.
-    api
-      .auditions()
+    // 홈 첫 화면에 필요한 기록을 다 받은 뒤에 부른다(lib/launch-splash afterHomeReady).
+    afterHomeReady()
+      .then(() => (cancelled ? null : api.auditions()))
       .then((data) => {
+        if (data === null) return;
         if (!cancelled) setAuditions(data);
       })
       .catch(() => {

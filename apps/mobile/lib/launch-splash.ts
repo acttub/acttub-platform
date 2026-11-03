@@ -55,6 +55,28 @@ export function shouldHoldSplashForHome(input: {
   return input.signedInHome && input.pathname === '/' && !input.homeReady && !input.holdExpired;
 }
 
+/** 홈에 꼭 필요하지 않은 호출을 미루는 최대 시간(ms). 홈을 거치지 않고(알림 등으로) 들어와도 이 뒤에는 부른다. */
+export const HOME_DEFER_MAX_MS = 5000;
+
+/**
+ * 홈이 첫 데이터를 다 받은 뒤에 풀린다(이미 받았으면 바로). 앱을 켜는 순간 홈과 상관없는 호출(공지 포스터·알림 개수·
+ * 목소리 상태·결제·알림 설정·오디션·앱 설정)이 함께 나가면, 한 서버에 동시에 5개씩만 보내는 안드로이드 네트워크 줄에서
+ * 홈 호출이 뒤로 밀렸다(11/3 실측: 켜자마자 12개 동시, 홈 4~13초).
+ */
+export function afterHomeReady(maxWaitMs: number = HOME_DEFER_MAX_MS): Promise<void> {
+  if (homeReady) return Promise.resolve();
+  return new Promise((resolve) => {
+    let unsubscribe: () => void = () => undefined;
+    const finish = () => {
+      unsubscribe();
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, maxWaitMs);
+    unsubscribe = subscribeHomeReady(finish);
+  });
+}
+
 /** 테스트 전용 — 스플래시 상한을 지금부터 다시 잰다. */
 export function resetLaunchSplashClockForTest(): void {
   launchStartedAt = Date.now();

@@ -39,7 +39,7 @@ import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { loadAppConfig } from '@/lib/app-config-load';
 import { tabBackTitle } from '@/lib/tab-back-title';
-import { HOME_SPLASH_HOLD_MS, isHomeReady, msUntilLaunchSplashCap, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
+import { HOME_SPLASH_HOLD_MS, afterHomeReady, isHomeReady, msUntilLaunchSplashCap, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -88,7 +88,8 @@ installNavigationGuard(router);
 // 리딩 기기 목소리 모델은 서버가 주는 fp16 묶음 주소로 받는다(SOMA-747). 못 받으면 원본 fp32.
 setVoiceModelSource(() => api.getVoiceModel());
 // 운영이 바꾸는 값(평가 요청 주기·리딩 감지·칩 목록 등)을 서버에서 받는다(SOMA-939). 기다리지 않는다 — 받기 전엔 기본값이다.
-void loadAppConfig();
+// 앱 운영 값(SOMA-939)은 홈 첫 화면에 필요한 기록을 다 받은 뒤에 받는다(lib/launch-splash afterHomeReady).
+void afterHomeReady().then(loadAppConfig);
 // 뼈대 화면이 지난번 실제 화면 모양(첫 사용자·기존 사용자)을 따르도록 기억을 먼저 읽는다(lib/skeleton-hint).
 void loadSkeletonHints();
 
