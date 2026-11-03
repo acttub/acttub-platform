@@ -41,6 +41,7 @@ const ko = {
     secElapsed: '{{sec}}초 경과',
     minSecElapsed: '{{min}}분 {{sec}}초 경과',
     tryLater: '잠시 후 다시 시도해주세요.',
+    checkConnection: '인터넷 연결을 확인해 주세요.',
   },
   login: {
     tagline: '그 장면에서 뭘 하려 했는지부터',

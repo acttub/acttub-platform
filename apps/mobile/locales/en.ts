@@ -49,6 +49,7 @@ const en: DeepStringShape<typeof ko> = {
     secElapsed: '{{sec}}s elapsed',
     minSecElapsed: '{{min}}m {{sec}}s elapsed',
     tryLater: 'Please try again in a moment.',
+    checkConnection: 'Please check your internet connection.',
   },
   login: {
     tagline: 'Practice acting alone, together with Acty',

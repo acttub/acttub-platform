@@ -5,7 +5,6 @@ import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/buttons';
-import { InlineError } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
@@ -87,9 +86,7 @@ export default function NoticeDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {header}
       {state === 'failed' ? (
-        <View style={styles.body}>
-          <InlineError message={t('notices.loadFail')} onRetry={() => void load()} />
-        </View>
+        <StatusScreen title={t('notices.loadFail')} body={t('common.checkConnection')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
       ) : !notice ? (
         <SkeletonDetail media lines={5} />
       ) : (

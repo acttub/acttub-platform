@@ -5,9 +5,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -45,9 +45,10 @@ export default function NoticesScreen() {
       <NavHeader title={t('notices.title')} left={<NavBackButton onPress={() => router.back()} phLabel="notices_back" />} />
       {notices === null && !failed ? (
         <SkeletonRows count={6} avatar={false} card={false} />
+      ) : failed ? (
+        <StatusScreen title={t('notices.loadFail')} body={t('common.checkConnection')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
-          {failed ? <InlineError message={t('notices.loadFail')} onRetry={() => void load()} /> : null}
           {notices !== null && notices.length === 0 ? <InlineEmpty title={t('notices.empty')} /> : null}
           {notices?.map((notice, i) => (
             <Pressable

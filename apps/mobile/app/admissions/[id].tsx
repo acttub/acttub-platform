@@ -13,8 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
-import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonDetail } from '@/components/ui/skeleton';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -71,15 +71,9 @@ export default function UniversityDetailScreen() {
       {!payload && !error && (
         <SkeletonDetail lines={6} />
       )}
-      {error && (
-        <View style={styles.errorBox}>
-          <InlineError message={error} onRetry={load} />
-        </View>
-      )}
+      {error && <StatusScreen title={error} body={'인터넷 연결을 확인해 주세요.'} primary={{ label: '다시 시도', onPress: load }} />}
       {payload && !university && (
-        <View style={styles.errorBox}>
-          <InlineErrorLine message="해당 대학을 찾을 수 없어요." />
-        </View>
+        <StatusScreen kind="empty" title="해당 대학을 찾을 수 없어요" primary={{ label: '목록으로', onPress: () => router.back() }} />
       )}
 
       {payload && university && (
@@ -461,7 +455,6 @@ function Block({ label, value }: { label: string; value?: string | null }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },
-  errorBox: { paddingHorizontal: space.gutter, paddingTop: space[2] },
   list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[4] },
   uniHead: { gap: space[2] },
   uniName: { ...type.title1, color: palette.text },

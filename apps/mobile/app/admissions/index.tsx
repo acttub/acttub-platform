@@ -15,9 +15,9 @@ import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -84,11 +84,7 @@ export default function AdmissionsScreen() {
       {!payload && !error && (
         <SkeletonRows count={6} />
       )}
-      {error && (
-        <View style={styles.errorBox}>
-          <InlineError message={error} onRetry={load} />
-        </View>
-      )}
+      {error && <StatusScreen title={error} body={'인터넷 연결을 확인해 주세요.'} primary={{ label: '다시 시도', onPress: load }} />}
 
       {payload && (
         <ScrollView contentContainerStyle={styles.list}>
@@ -317,7 +313,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },
-  errorBox: { paddingHorizontal: space.gutter, paddingTop: space[2] },
   list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[3] },
   notice: {
     flexDirection: 'row',
