@@ -1,7 +1,7 @@
 import type { TextStyle, ViewStyle } from 'react-native';
 
 /**
- * 글자·모서리·간격 토큰. 이름과 값은 디자인 시스템 pen 변수(`docs/DESIGN-SYSTEM.md` 「글자」·「모서리·간격·그림자」)와 같다.
+ * 글자·모서리·간격 토큰. 이름과 값은 디자인 시스템 pen 변수(`docs/DESIGN-SYSTEM.html` 「글자」·「모서리·간격·그림자」)와 같다.
  *
  * 화면에서 크기·모서리·간격 숫자를 직접 적지 않는다. 색은 `palette.ts`.
  */

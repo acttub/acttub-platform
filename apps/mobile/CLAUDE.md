@@ -7,7 +7,7 @@
 3. 작업 갈래에 맞는 정본을 읽습니다.
    - **네이티브 설정·플러그인** → `app.json`, `app.config.js`, `plugins/*`
    - **EAS 빌드·제출·Firebase 파일** → `eas.json`, `.easignore`, `app.config.js`
-   - **화면·부품·색·글자** → [DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md). 「의도된 차이」는 하나로 맞추지 않습니다.
+   - **화면·부품·색·글자** → [DESIGN-SYSTEM.html](docs/DESIGN-SYSTEM.html). 「의도된 차이」는 하나로 맞추지 않습니다.
    - **연습 화면 대응** → [PRACTICE-FLOW.md](docs/PRACTICE-FLOW.md)의 화면 표
    - **테스트·CI** → 루트 `.github/workflows/ci.yml`의 `mobile` 잡
    - **API 계약 변경** → [계약 변경 절차](../api/CONTRACT.md#계약-변경-절차)의 모바일 소비자 확인
@@ -55,6 +55,7 @@
 - 네이티브 설정·플러그인은 평가된 설정과 영향받는 플랫폼의 development build로 검증합니다.
 - EAS build·submit·Firebase 파일 전달은 `eas.json`·`.easignore`·평가된 앱 설정과 해당 EAS
   프로필의 실행 결과를 함께 확인합니다.
+- 새 화면·부품은 DESIGN-SYSTEM.html 부품 표로 맞는 부품을 확인합니다.
 - 화면·카피는 typed routes를 다시 생성한 뒤 development build에서 바뀐 경로와 상태를 직접
   열어 카피·상호작용을 확인합니다.
 - CI `mobile` 잡의 검증 명령을 새 의존 조건에서도 재현합니다.

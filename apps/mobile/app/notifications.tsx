@@ -134,7 +134,7 @@ export default function NotificationsScreen() {
               style={[styles.row, i > 0 && styles.divider]}
               onPress={() => void open(group)}
               accessibilityRole="button">
-              {/* 알림함은 모든 알림에 민트 기본 얼굴(DESIGN-SYSTEM 「의도된 차이」). */}
+              {/* 알림함은 모든 알림에 민트 기본 얼굴(DESIGN-SYSTEM.html 「의도된 차이」). */}
               <DefaultAvatar size={40} radius={20} />
               <View style={styles.rowBody}>
                 <Text style={[styles.rowText, !group.read && styles.rowTextUnread]} numberOfLines={2}>
