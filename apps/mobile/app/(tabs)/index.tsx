@@ -689,7 +689,7 @@ export default function HomeScreen() {
   const rowChallenge: HomeRowData = {
     key: 'challenge',
     icon: 'award',
-    tone: 'orange',
+    ionicon: 'trophy-outline',
     title: t('home.rowChallenge'),
     sub: featured
       ? [`‘${featured.line}’`, featuredDays !== null && featuredDays >= 0 ? dDayLabel(featured) : null].filter(Boolean).join(' · ')
@@ -700,7 +700,7 @@ export default function HomeScreen() {
   const rowWatch: HomeRowData = {
     key: 'watch',
     icon: 'play',
-    tone: 'orange',
+    ionicon: 'play-outline',
     title: t('home.rowWatch'),
     // pen P1.16 「이번 주 참여작 12개」 — 참여작이 없으면 정렬 안내.
     sub: featured && featured.entry_count > 0 ? t('home.rowWatchSubCount', { n: featured.entry_count }) : t('home.rowWatchSub'),
@@ -953,9 +953,9 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 ph-label={row.phLabel}
                 style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
-                <View style={[styles.rowIcon, row.tone === 'orange' && styles.rowIconOrange]}>
-                  {row.tone === 'orange' ? (
-                    <Ionicons name={row.icon === 'award' ? 'trophy-outline' : 'play-outline'} size={20} color={palette.flame} />
+                <View style={styles.rowIcon}>
+                  {row.ionicon ? (
+                    <Ionicons name={row.ionicon} size={20} color={palette.blue} />
                   ) : (
                     <Feather name={row.icon} size={20} color={palette.blue} />
                   )}
@@ -1061,8 +1061,8 @@ type HomeRowData = {
   title: string;
   sub: string;
   phLabel: string;
-  /** orange 면 아이콘 칸이 주황(챌린지·영상 보기) — 나머지는 파랑. */
-  tone?: 'orange';
+  /** 챌린지·영상 보기는 pen 의 lucide 모양에 맞는 Ionicons 로 그린다. */
+  ionicon?: 'trophy-outline' | 'play-outline';
   onPress: () => void;
 };
 
@@ -1483,7 +1483,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bg,
   },
   rowIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  rowIconOrange: { backgroundColor: palette.flameSoft },
   listTitle: { ...type.body1Bold, color: palette.text },
   listMeta: { marginTop: space[1] / 2, ...type.caption, color: palette.textMeta },
   deadlineRow: {
