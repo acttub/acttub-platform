@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { usePathname } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
 
 import { api } from '@/lib/api';
@@ -10,6 +11,11 @@ import { scheduleTabWarmup, type WarmTab } from '@/lib/tab-warmup';
  */
 export function useWarmTabs(): ReadonlySet<WarmTab> {
   const [warm, setWarm] = useState<ReadonlySet<WarmTab>>(() => new Set());
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
   useEffect(
     () =>
       scheduleTabWarmup({
@@ -28,6 +34,7 @@ export function useWarmTabs(): ReadonlySet<WarmTab> {
         // 커뮤니티 첫 화면의 인기 목록과 지난주 결과 띠. 받은 답은 api 가 lib/last-reads 에 남긴다.
         prefetchCommunity: () =>
           Promise.allSettled([api.listChallenges({ tab: 'popular' }), api.listChallenges({ tab: 'ended' })]),
+        homeShowing: () => pathnameRef.current === '/',
         warm: (tab) => setWarm((prev) => (prev.has(tab) ? prev : new Set([...prev, tab]))),
       }),
     [],
