@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -95,6 +96,7 @@ export default function FeedbackScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={k('title')} left={<NavBackButton onPress={leave} disabled={sending} />} />
+      <KeyboardLift>
       {done ? (
         <View style={styles.doneWrap}>
           <Text style={styles.doneTitle}>{k('doneTitle')}</Text>
@@ -154,6 +156,7 @@ export default function FeedbackScreen() {
           <PrimaryButton label={t('feedback.send')} loading={sending} loadingLabel={t('feedback.sending')} onPress={() => void send()} disabled={!canSend && !sending} />
         )}
       </CtaBar>
+      </KeyboardLift>
     </SafeAreaView>
   );
 }

@@ -1,10 +1,10 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -98,7 +98,7 @@ export default function GuestTransferScreen() {
   const ready = isTransferCodeComplete(code);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
         title={t('guestTransfer.title')}
@@ -113,14 +113,15 @@ export default function GuestTransferScreen() {
             <Text style={[styles.heading, styles.center]}>{t('guestTransfer.doneTitle')}</Text>
             <Text style={[styles.body, styles.center]}>{t('guestTransfer.doneBody')}</Text>
           </View>
-          <CtaBar safeBottom={false}>
+          <CtaBar>
             <TextButton label={t('guestTransfer.another')} onPress={enterAnother} />
             {/* 목록은 화면이 열릴 때마다 서버에서 다시 받는다. 기록으로 보내면 옮긴 연습이 보인다. */}
             <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.dismissTo('/(tabs)/history')} />
           </CtaBar>
         </>
       ) : (
-        <KeyboardAwareScroll contentContainerStyle={styles.content}>
+        <KeyboardLift>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.titleBlock}>
             <Text style={styles.heading}>{t('guestTransfer.heading')}</Text>
             <Text style={styles.body}>{t('guestTransfer.body')}</Text>
@@ -140,15 +141,18 @@ export default function GuestTransferScreen() {
             autoFocus
             accessibilityLabel={t('guestTransfer.codeLabel')}
           />
-          <PrimaryButton
-            label={t('guestTransfer.cta')}
-            onPress={() => void submit()}
-            disabled={!ready || (busy && choosing)}
-            loading={busy && !choosing}
-            loadingLabel={t('guestTransfer.submitting')}
-          />
           <Text style={styles.hint}>{t('guestTransfer.hint')}</Text>
-        </KeyboardAwareScroll>
+        </ScrollView>
+        <CtaBar>
+            <PrimaryButton
+              label={t('guestTransfer.cta')}
+              onPress={() => void submit()}
+              disabled={!ready || (busy && choosing)}
+              loading={busy && !choosing}
+              loadingLabel={t('guestTransfer.submitting')}
+            />
+        </CtaBar>
+        </KeyboardLift>
       )}
 
       {/* 기억 선택 팝업 — 기본은 회원 것이고 고른 쪽만 남는다. */}
