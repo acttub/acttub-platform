@@ -5,6 +5,27 @@
 import { adRequestConfigFor, type AdRequestConfig } from './ads.ts';
 
 let started: Promise<void> | null = null;
+
+/**
+ * AdMob 초기화가 끝났는가(실패·모듈 없음도 끝난 것으로 본다). 끝나기 전에 배너를 붙이면 앱을 켠 직후 첫 요청이 실패해
+ * 칸이 접혔다가, 다시 그려질 때 광고가 들어오며 아래 카드를 밀어냈다(11/3 폰 QA). 광고 칸은 이 값이 true 가 된 뒤에 배너를 붙인다.
+ */
+let ready = false;
+const readyListeners = new Set<() => void>();
+export function isAdMobReady(): boolean {
+  return ready;
+}
+export function subscribeAdMobReady(listener: () => void): () => void {
+  readyListeners.add(listener);
+  return () => {
+    readyListeners.delete(listener);
+  };
+}
+function markReady() {
+  if (ready) return;
+  ready = true;
+  readyListeners.forEach((listener) => listener());
+}
 /** 프로필을 받기 전 기본값 — 청소년 기준(G·미성년·비맞춤). */
 let current: AdRequestConfig = adRequestConfigFor(null, '1970-01-01');
 
@@ -43,6 +64,8 @@ export function initAdMob(): Promise<void> {
       await mobileAds.initialize();
     } catch {
       // 네이티브 모듈 없음(Expo Go·웹·테스트) 또는 초기화 실패 — 광고 없이 앱은 그대로 돈다
+    } finally {
+      markReady();
     }
   })();
   return started;

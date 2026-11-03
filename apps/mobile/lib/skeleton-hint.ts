@@ -16,6 +16,8 @@ export type SkeletonHints = {
   home?: 'first' | 'returning';
   /** 기존 사용자 홈 오늘 카드의 실제 높이(dp). 카드 종류마다 줄 수가 달라 지난번 높이를 따른다. */
   homeCardHeight?: number;
+  /** 기존 사용자 홈 맨 위 광고 칸이 지난번에 보였는가. 뼈대와 받기 전 자리를 같게 해, 광고 칸이 늦게 생기며 카드를 밀지 않게 한다(11/3 폰 QA). */
+  homeAd?: boolean;
   /** 리딩 탭: 대본 없음(입구 카드) / 대본 목록. */
   reading?: 'empty' | 'list';
   /** 리딩 탭 대본 목록 줄 수(뼈대 줄 수를 맞춘다, 최대 6). */
@@ -60,6 +62,7 @@ function parse(raw: string | null): SkeletonHints {
     const out: SkeletonHints = {};
     if (v.home === 'first' || v.home === 'returning') out.home = v.home;
     if (typeof v.homeCardHeight === 'number' && Number.isFinite(v.homeCardHeight)) out.homeCardHeight = Math.max(80, Math.min(320, Math.round(v.homeCardHeight)));
+    if (typeof v.homeAd === 'boolean') out.homeAd = v.homeAd;
     if (v.reading === 'empty' || v.reading === 'list') out.reading = v.reading;
     if (typeof v.readingRows === 'number' && Number.isFinite(v.readingRows)) out.readingRows = Math.max(1, Math.min(6, Math.round(v.readingRows)));
     if (v.coaching === 'first' || v.coaching === 'next') out.coaching = v.coaching;
