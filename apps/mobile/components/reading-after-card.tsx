@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { palette } from '@/constants/palette';
 import { radius, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -131,7 +132,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
             <Feather name="message-circle" size={16} color={palette.onAccent} />
             <Text style={styles.ctaText}>{starting ? t('reading.voiceCoachStarting') : t('reading.voiceCoachCta')}</Text>
           </Pressable>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <InlineErrorLine message={error} /> : null}
         </View>
       )}
       {wantReport && reportOn && (
@@ -181,7 +182,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  errorText: { ...type.caption, color: palette.textSub },
   ctaText: { ...type.body2Bold, color: palette.onAccent },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 8 },
   rowText: { ...type.body2Bold, color: palette.textSub },

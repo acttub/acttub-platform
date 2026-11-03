@@ -5,6 +5,7 @@ import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
 import { radius, type } from '@/constants/tokens';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { LinePage } from '@/components/line-page';
 import { translate as t } from '@/lib/i18n';
 import { canSaveLineDraft, lineDraftValid, linePatch, type LineDraft } from '@/lib/reading/line-edit';
@@ -181,8 +182,8 @@ export function LineEditSheet({
           textAlignVertical="top"
           accessibilityLabel={t('reading.lineEditText')}
         />
-        {(renameInput.hint || textInput.hint) && <Text style={styles.error}>{renameInput.hint || textInput.hint}</Text>}
-        {failed && <Text style={styles.error}>{t('reading.lineEditFailed')}</Text>}
+        {(renameInput.hint || textInput.hint) && <InlineErrorLine message={renameInput.hint || textInput.hint || ''} />}
+        {failed && <InlineErrorLine message={t('reading.lineEditFailed')} />}
       </ScrollView>
     </LinePage>
   );
@@ -216,6 +217,5 @@ const styles = StyleSheet.create({
     ...type.body1,
   },
   textInput: { minHeight: 96, maxHeight: 180, lineHeight: 22 },
-  error: { ...type.caption, color: palette.danger },
   button: { flex: 1 },
 });
