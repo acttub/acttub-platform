@@ -525,7 +525,7 @@ function WeekHero({
     // 카드 어디를 눌러도(액티·여백 포함) 상세로 간다 — 예전엔 왼쪽 글자 묶음(68%)만 눌렸다. 흰 알약은 안쪽 Pressable 이라 따로 눌린다.
     // 바깥은 접근성에서 빼고(안쪽 버튼이 묶여 사라지지 않게) 글자 묶음을 「열기」 버튼으로 읽게 한다.
     <Pressable style={styles.weekHero} onPress={onOpen} accessible={false}>
-      <Image source={MASCOT.slate} style={styles.weekActy} contentFit="contain" cachePolicy="memory-disk" accessibilityElementsHidden />
+      <Image source={MASCOT.slate} style={[styles.weekActy, !onPerform && styles.weekActyLow]} contentFit="contain" cachePolicy="memory-disk" accessibilityElementsHidden />
       <View
         style={styles.weekHeroTop}
         accessible
@@ -696,6 +696,7 @@ const styles = StyleSheet.create({
   weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[4], gap: space[2], overflow: 'hidden' },
   weekHeroTop: { gap: space[2], maxWidth: '72%' },
   weekActy: { position: 'absolute', right: -space[1.5], bottom: 48 + space[4], width: 104, height: 96 },
+  weekActyLow: { bottom: 2 },
   weekChip: {
     flexDirection: 'row',
     alignItems: 'center',

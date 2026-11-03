@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Share, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
 import { AdSlot } from '@/components/ad-slot';
 import { ReportRating } from '@/components/report-rating';
@@ -61,6 +61,12 @@ export default function CoachingDoneScreen() {
     };
   }, []);
 
+  // 평가 한 줄 칸을 누르면 키보드 위로 올린다.
+  const scrollRef = useRef<ScrollView | null>(null);
+  const liftRatingInput = () => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
+  };
+
   const share = () => {
     void Share.share({ message: t('journal.shareText') }).catch(() => {});
   };
@@ -71,6 +77,7 @@ export default function CoachingDoneScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
       <DoneScreen
+        scrollRef={scrollRef}
         mascotTop
         title={t(nextTake ? 'note.doneTitle' : 'note.doneTitleNoNext')}
         onHome={() => router.dismissTo('/(tabs)')}
@@ -94,7 +101,7 @@ export default function CoachingDoneScreen() {
               <Text style={styles.reminderText}>{t('note.doneReminder')}</Text>
             </View>
           )}
-          {practiceId && note && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
+          {practiceId && note && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} onInputFocus={liftRatingInput} />}
         </View>
       </DoneScreen>
     </>

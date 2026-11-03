@@ -368,6 +368,7 @@ describe('답 보내기', () => {
     await fireEvent.changeText(input(), '가'.repeat(301));
     expect(input().props.maxLength).toBe(300);
     expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
+    expect(screen.getByText('답은 300자까지 쓸 수 있어요.')).toBeOnTheScreen();
   });
 
   test('같은 답을 다시 보내면 같은 요청 id 를, 고쳐 쓰면 새 id 를 쓴다', async () => {

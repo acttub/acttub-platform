@@ -712,7 +712,9 @@ function CoachTalk() {
                 sendLabel={t('coach.send')}
               />
             </View>
-            {strippedInput && input.trim() ? (
+            {answerTooLong(input.trim()) ? (
+              <InlineErrorLine message={t('coach.answerTooLong')} />
+            ) : strippedInput && input.trim() ? (
               <InlineErrorLine message={t('coach.answerStripped')} />
             ) : (
               hasUnreadableText(input) && <InlineErrorLine message={t('coach.answerUnreadable')} />

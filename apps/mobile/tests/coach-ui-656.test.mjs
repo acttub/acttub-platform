@@ -52,7 +52,7 @@ test('액티 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 �
   assert.match(input, /maxHeight: 136/);
   // 한 줄일 때 글자가 가운데 오게 — 줄 간격을 따로 주지 않고 위아래 여백을 같게
   assert.doesNotMatch(input, /lineHeight/);
-  assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 3 : space\[1\.5\],\s*paddingBottom: space\[1\.5\],/);
+  assert.match(input, /paddingVertical: space\[2\],/);
 });
 
 test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {

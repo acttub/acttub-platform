@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import type { Ref } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -73,10 +73,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 36,
     maxHeight: 136,
-    // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 한 줄일 때 글자가 아래로 처진다 — 기본 줄 간격에
-    // 위아래 여백을 같게 둔다. iOS 여러 줄 입력칸은 위에 자체 여백이 더 붙어 그만큼 위 여백을 줄인다.
-    paddingTop: Platform.OS === 'ios' ? 3 : space[1.5],
-    paddingBottom: space[1.5],
+    // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 글자가 처진다 — 기본 줄 간격에 위아래 8을 둔다.
+    // pen 의 글 자리 위아래 6 · 줄 높이 24 와 글자 위치가 같다.
+    paddingVertical: space[2],
     fontSize: type.body1.fontSize,
     color: palette.text,
     textAlignVertical: 'center',

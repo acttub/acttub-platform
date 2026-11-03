@@ -137,7 +137,6 @@ export function ChallengeCommentsSheet({
   };
 
   const length = [...draft].length;
-  const ready = canSendComment(draft) && !sending;
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -205,7 +204,7 @@ export function ChallengeCommentsSheet({
               value={draft}
               onChangeText={readable.onChangeText}
               maxLength={COMMENT_MAX}
-              canSend={ready}
+              canSend={canSendComment(draft)}
               onSend={() => void send()}
               sendLabel={t('comments.send')}
             />

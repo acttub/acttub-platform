@@ -264,7 +264,7 @@ describe('쓰기', () => {
     await fireEvent.changeText(input(), '응원해요');
     await fireEvent.press(sendButton());
 
-    expect(screen.queryByRole('button', { name: '보내기' })).not.toBeOnTheScreen();
+    await fireEvent.press(sendButton());
     expect(createComment).toHaveBeenCalledTimes(1);
 
     await act(async () => pending.resolve(comment('new', { body: '응원해요', is_mine: true })));
