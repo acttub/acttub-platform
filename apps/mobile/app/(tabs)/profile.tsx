@@ -15,6 +15,7 @@ import { InlineEmpty } from '@/components/ui/inline-empty';
 import { SkeletonBlock, SkeletonCards } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
+import { TabsUnderline } from '@/components/ui/tabs-underline';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -244,24 +245,15 @@ export default function ProfileScreen() {
           <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
         </View>
 
-        <View style={styles.tabs}>
-          {(
-            [
-              ['practice', t('profileTab.tabPractice')],
-              ['entries', t('profileTab.tabEntries')],
-              ['saved', t('profileTab.tabSaved')],
-            ] as const
-          ).map(([key, label]) => (
-            <Pressable
-              key={key}
-              style={[styles.tab, tab === key && styles.tabOn]}
-              onPress={() => setTab(key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === key }}>
-              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <TabsUnderline
+          tabs={[
+            ['practice', t('profileTab.tabPractice')],
+            ['entries', t('profileTab.tabEntries')],
+            ['saved', t('profileTab.tabSaved')],
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
 
         {tab === 'practice' && (
           <CardGrid
@@ -494,12 +486,6 @@ const styles = StyleSheet.create({
   monthLabel: { ...type.caption, color: palette.textSub },
   monthCount: { ...type.headline, color: palette.text },
   monthCountSkeleton: { height: type.headline.lineHeight, justifyContent: 'center' },
-
-  tabs: { flexDirection: 'row', gap: space[1], padding: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft },
-  tab: { flex: 1, height: 36, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
-  tabTextOn: { color: palette.text },
 
   skeleton: { paddingHorizontal: 0 },
   gridWrap: { gap: space[3] },
