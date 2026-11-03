@@ -195,6 +195,55 @@ class CocreateRulesTest {
         assertThat(new CocreatedScript(base.design(), base.title(), base.scene(), List.of(), base.lines()).myLines()).isZero();
     }
 
+    static Conditions english(int count, int minutes) {
+        return new Conditions(Experience.BEGINNER, "20s female", "Enjoys acting as a hobby", false, "Hurt", "Apology", "None",
+                count, minutes, CocreateRules.ENDINGS.getFirst(), CocreateRules.PROPS.getFirst(),
+                CocreateRules.defaultMyLines(minutes, count), true);
+    }
+
+    static CocreatedScript englishScript(List<String> dialogue, List<String> directions) {
+        List<CocreatedScript.Role> roles = List.of(new CocreatedScript.Role("Mia", "f", "young", true));
+        List<CocreatedScript.Line> lines = new ArrayList<>();
+        lines.add(new CocreatedScript.Line("scene", null, "Rooftop, night"));
+        directions.forEach(text -> lines.add(new CocreatedScript.Line("direction", null, text)));
+        dialogue.forEach(text -> lines.add(new CocreatedScript.Line("dialogue", "Mia", text)));
+        return new CocreatedScript(CocreatedScript.Design.EMPTY, "The receipt", "Rooftop, night", roles, lines);
+    }
+
+    @Test
+    @DisplayName("SOMA-1033 영어 대본은 영어 기준(줄 40~80자, 1분 630~1050자, 지문 70자)으로 보고 낭독 시간도 영어로 잰다")
+    void englishScriptsUseEnglishLengths() {
+        String line = "a".repeat(70);
+        CocreatedScript ok = englishScript(java.util.Collections.nCopies(12, line), List.of("Puts the phone down on the table."));
+        assertThat(CocreateRules.check(ok, english(1, 1))).isEmpty();
+        assertThat(CocreateRules.english(ok)).isTrue();
+        assertThat(CocreateRules.estimatedSeconds(ok)).isEqualTo(60);
+        assertThat(CocreateRules.english(script(1, 12))).isFalse();
+        assertThat(CocreateRules.estimatedSeconds(script(1, 12))).isEqualTo(60);
+        // 같은 영어 대본을 한국어 기준으로 보면 분량·줄 길이가 넘친다 — 언어별 기준이 따로 있다는 뜻
+        assertThat(CocreateRules.check(ok, conditions(1, 1))).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-1033 영어 검사: 감정 이름·표정 지문·안전 금지어를 영어로 잡고, 안전은 고쳐도 남으면 막는다")
+    void englishChecks() {
+        String pad = " " + "a".repeat(52);
+        List<String> dialogue = new ArrayList<>(java.util.Collections.nCopies(12, "a".repeat(70)));
+        dialogue.set(1, "I'm so angry with you right now." + pad.substring(0, 40));
+        dialogue.set(2, "Do you want me to die out here?" + pad.substring(0, 40));
+        CocreatedScript script = englishScript(dialogue, List.of("Her eyes fill with tears."));
+        List<Issue> issues = CocreateRules.check(script, english(1, 1));
+        assertThat(issues).extracting(Issue::why).anyMatch(why -> why.startsWith("Direction describes face or inner state"))
+                .contains("Names the emotion out loud")
+                .contains("Safety: banned word (death, self-harm, profanity, physical distress)");
+        assertThat(issues).filteredOn(Issue::fatal).extracting(Issue::why).allMatch(why -> why.startsWith("Safety"));
+        assertThat(CocreateRules.lengthRules(1, 1, true)).contains("about 840 characters", "630-1050", "12 monologue lines")
+                .doesNotContainPattern("[가-힣]");
+        assertThat(CocreateRules.charactersSchema(2, true)).contains("\"Name\"", "\"mine\":true", "\"mine\":false");
+        assertThat(CocreateRules.ENDINGS).allMatch(slot -> !slot.text(true).isBlank() && !slot.text(true).matches(".*[가-힣].*"));
+        assertThat(CocreateRules.PROPS).allMatch(slot -> !slot.text(true).isBlank() && !slot.text(true).matches(".*[가-힣].*"));
+    }
+
     private static CocreatedScript copy(CocreatedScript base, List<CocreatedScript.Line> lines) {
         return new CocreatedScript(base.design(), base.title(), base.scene(), base.characters(), lines);
     }

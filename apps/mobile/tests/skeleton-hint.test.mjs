@@ -84,3 +84,24 @@ test('홈·리딩·코칭이 기억한 모양으로 받기 전 화면을 고르�
   assert.match(wipe, /resetSkeletonHints\(\);/);
   assert.match(read('app/_layout.tsx'), /void loadSkeletonHints\(\);/);
 });
+
+// 11/3 폰 QA: 뼈대에는 광고 자리가 없어서, 실제 홈이 뜰 때 광고 칸만큼 카드가 밀려 내려갔다.
+test('홈 광고 칸이 지난번에 보였는지 적고 읽는다 — 참·거짓만 받는다', async () => {
+  resetSkeletonHints();
+  await storage.removeItem(SKELETON_HINT_KEY);
+  rememberSkeletonHints({ home: 'returning', homeAd: false }, storage);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(JSON.parse(await storage.getItem(SKELETON_HINT_KEY)).homeAd, false);
+  await storage.setItem(SKELETON_HINT_KEY, JSON.stringify({ home: 'returning', homeAd: 'yes' }));
+  resetSkeletonHints();
+  await loadSkeletonHints(storage);
+  assert.equal(getSkeletonHints().homeAd, undefined);
+});
+
+test('홈 뼈대는 실제 홈과 같은 자리에 광고 칸 높이를 두고, 지난번에 비었으면 받기 전 자리도 잡지 않는다', () => {
+  const home = read('app/(tabs)/index.tsx');
+  assert.match(home, /adSpace=\{skeletonHints\.homeAd !== false \? AD_SIZES\[AD_SLOTS\.home_top\.size\]\.height : 0\}/);
+  assert.match(home, /\{adSpace > 0 && <View style=\{\{ height: adSpace \}\} \/>\}\n\s+<SkeletonBlock height=\{cardHeight\}/);
+  assert.match(home, /reserve=\{skeletonHints\.homeAd !== false\}/);
+  assert.match(home, /onShownChange=\{\(shown\) => rememberSkeletonHints\(\{ homeAd: shown \}\)\}/);
+});

@@ -637,6 +637,7 @@ COLUMN reading_examples.audio ord=10 type=jsonb len=- null=YES default=-
 COLUMN reading_examples.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN reading_examples.draft ord=7 type=jsonb len=- null=NO default=-
 COLUMN reading_examples.id ord=1 type=text len=- null=NO default=-
+COLUMN reading_examples.language ord=11 type=text len=- null=NO default='ko'::text
 COLUMN reading_examples.raw_text ord=6 type=text len=- null=NO default=-
 COLUMN reading_examples.sort_order ord=4 type=int4 len=- null=NO default=-
 COLUMN reading_examples.summary ord=3 type=text len=- null=NO default=-
@@ -1772,6 +1773,7 @@ CONSTRAINT reading_examples reading_examples_active_not_null NOT NULL active
 CONSTRAINT reading_examples reading_examples_created_at_not_null NOT NULL created_at
 CONSTRAINT reading_examples reading_examples_draft_not_null NOT NULL draft
 CONSTRAINT reading_examples reading_examples_id_not_null NOT NULL id
+CONSTRAINT reading_examples reading_examples_language_not_null NOT NULL language
 CONSTRAINT reading_examples reading_examples_pkey PRIMARY KEY (id)
 CONSTRAINT reading_examples reading_examples_raw_text_not_null NOT NULL raw_text
 CONSTRAINT reading_examples reading_examples_sort_order_not_null NOT NULL sort_order

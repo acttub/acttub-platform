@@ -4,7 +4,15 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { api } from '@/lib/api';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 
-const { AdSlot } = jest.requireActual('@/components/ad-slot') as typeof import('@/components/ad-slot');
+const { AdSlot, resetAdSlotMemoryForTest, ageAdSlotFailuresForTest, NETWORK_FAILED_HOLD_MS } = jest.requireActual('@/components/ad-slot') as typeof import('@/components/ad-slot');
+
+// AdMob 초기화가 끝났는지(lib/ads-native isAdMobReady). 기본은 끝난 상태로 두고, 초기화 전을 보는 테스트만 false 로 바꾼다.
+let mockAdMobReady = true;
+const mockReadyListeners = new Set<() => void>();
+function setAdMobReady(next: boolean) {
+  mockAdMobReady = next;
+  mockReadyListeners.forEach((listener) => listener());
+}
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -14,6 +22,11 @@ jest.mock('expo-image', () => {
 });
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/ads-native', () => ({
+  isAdMobReady: () => mockAdMobReady,
+  subscribeAdMobReady: (listener: () => void) => {
+    mockReadyListeners.add(listener);
+    return () => mockReadyListeners.delete(listener);
+  },
   loadBannerModule: () => {
     const { View } = jest.requireActual('react-native');
     return {
@@ -44,6 +57,9 @@ beforeEach(() => {
   openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
   setFirstTimeState('practiced');
   mockBirthDate = null;
+  mockAdMobReady = true;
+  mockReadyListeners.clear();
+  resetAdSlotMemoryForTest();
 });
 
 test('첫 사용자면 서버에 묻지 않고 아무것도 그리지 않는다', async () => {
@@ -170,6 +186,67 @@ test('NETWORK 배너가 채워지면 시간이 지나도 그대로 둔다', asyn
   expect(screen.getByTestId('admob-banner')).toBeOnTheScreen();
 });
 
+// 11/3 폰 QA: 앱을 켜자마자 홈 광고 칸이 자리 → 접힘 → 광고가 다시 들어오며 아래 카드를 밀었다.
+test('AdMob 초기화가 끝나기 전에는 같은 높이 띠만 깔고 배너를 붙이지 않다가, 끝나면 그 자리에 붙인다', async () => {
+  mockAdMobReady = false;
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
+  const view = await render(<AdSlot slot="home_top" />);
+  await waitFor(() => expect(getAdSlot).toHaveBeenCalled());
+  await act(async () => undefined);
+  expect(screen.queryByTestId('admob-banner')).toBeNull();
+  expect(view.toJSON()).not.toBeNull();
+  await act(async () => setAdMobReady(true));
+  expect(await screen.findByTestId('admob-banner')).toBeTruthy();
+});
+
+test('AdMob 이 못 채워 접힌 칸은 잠시 동안 다시 그려져도 열지 않는다 — 다시 생기며 카드를 밀지 않게', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
+  const first = await render(<AdSlot slot="home_top" />);
+  const banner = await screen.findByTestId('admob-banner');
+  await act(async () => banner.props.onAdFailedToLoad({ code: 'no-fill' }));
+  await waitFor(() => expect(first.toJSON()).toBeNull());
+  await first.unmount();
+  getAdSlot.mockClear();
+  const again = await render(<AdSlot slot="home_top" />);
+  await act(async () => undefined);
+  expect(again.toJSON()).toBeNull();
+  expect(getAdSlot).not.toHaveBeenCalled();
+});
+
+test('접힌 지 1분이 지나면 다시 그릴 때 처음부터 자리를 잡고 연다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'profile_top', size: 'BANNER', width: 320, height: 50, ad: null });
+  const first = await render(<AdSlot slot="profile_top" />);
+  const banner = await screen.findByTestId('admob-banner');
+  await act(async () => banner.props.onAdFailedToLoad());
+  await waitFor(() => expect(first.toJSON()).toBeNull());
+  await first.unmount();
+  ageAdSlotFailuresForTest(NETWORK_FAILED_HOLD_MS + 1);
+  await render(<AdSlot slot="profile_top" />);
+  expect(await screen.findByTestId('admob-banner')).toBeTruthy();
+});
+
+test('reserve={false} 면 받기 전에 자리를 잡지 않는다 — 지난번에 비었던 칸이 자리를 잡았다가 접히며 아래를 올리지 않게', async () => {
+  let resolve: (value: unknown) => void = () => undefined;
+  getAdSlot.mockReturnValue(new Promise((r) => { resolve = r; }));
+  const view = await render(<AdSlot slot="settings_top" reserve={false} />);
+  expect(view.toJSON()).toBeNull();
+  await act(async () => resolve({ kind: 'NONE', slot: 'settings_top', size: 'BANNER', width: 320, height: 50, ad: null }));
+  expect(view.toJSON()).toBeNull();
+});
+
+test('보이는지가 정해지면 onShownChange 로 알린다 — 받는 중에는 알리지 않는다', async () => {
+  const shown = jest.fn();
+  let resolve: (value: unknown) => void = () => undefined;
+  getAdSlot.mockReturnValue(new Promise((r) => { resolve = r; }));
+  await render(<AdSlot slot="notifications_top" onShownChange={shown} />);
+  expect(shown).not.toHaveBeenCalled();
+  await act(async () => resolve({ kind: 'NETWORK', slot: 'notifications_top', size: 'BANNER', width: 320, height: 50, ad: null }));
+  expect(shown).toHaveBeenLastCalledWith(true);
+  const banner = await screen.findByTestId('admob-banner');
+  await act(async () => banner.props.onAdFailedToLoad());
+  await waitFor(() => expect(shown).toHaveBeenLastCalledWith(false));
+});
+
 test('NETWORK 배너는 생년월일이 없으면 비맞춤, 성인이면 맞춤으로 요청한다', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
   const first = await render(<AdSlot slot="home_top" />);
@@ -181,5 +258,6 @@ test('NETWORK 배너는 생년월일이 없으면 비맞춤, 성인이면 맞춤
   const adult = await screen.findByTestId('admob-banner');
   expect(adult.props.requestOptions).toEqual({ requestNonPersonalizedAdsOnly: false });
 });
+
 
 

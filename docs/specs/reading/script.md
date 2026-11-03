@@ -472,6 +472,9 @@
   글자 그대로 같다. 고치기·더하기·끄기(`active=false`)는 새 마이그레이션이나 운영 SQL로 하고 앱 배포가 필요 없다(SOMA-824).
   - 목록 `GET /v2/reading/examples`(회원·게스트): 켜진 예시를 정한 순서(sort_order)로 `{examples: [{id, title, summary,
     dialogue_count, characters, preview}]}`. preview는 앞 5줄까지이고 지문·장면은 `speaker`가 null이다.
+  - 언어(SOMA-1033): 목록은 Accept-Language 가 한국어면 `language='ko'`(rooftop·cafe·minji), 아니면 `language='en'`(rooftop-en·cafe-en·mia-en,
+    한국어판을 뜻 그대로 옮김)만 준다. 고르기·음성 찾기는 언어와 상관없다. 앱 내장 목록(목록을 못 받을 때)도 화면 언어를 따른다.
+    영어 장면 둘은 미리 만든 상대역 음성이 아직 없다(audio NULL, 기기 목소리로 읽는다).
   - 고르기 `POST /v2/reading/examples/{id}/start`(`request_id`): 미리 나눈 결과를 그 사람의 대본으로 복사한다 — 제목은 예시 제목, 입력
     경로 sample. 모델을 부르지 않으므로 script_split 동의·하루 나누기 한도를 보지 않고 나누기 작업 행(script_imports·ai_jobs)도 없다.
     새로 복사하면 201 `{script_id, created: true}`. 그 사람에게 같은 글(scripts.raw_hash)의 대본이 이미 있으면(옛 길로 넣은 같은 글

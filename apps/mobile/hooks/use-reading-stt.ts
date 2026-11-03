@@ -12,6 +12,7 @@ import { sttPolicy, type SttPolicy } from '@/lib/reading/stt-policy';
 import { createRecordingTracker } from '@/lib/reading/stt-recordings';
 import { EMPTY_TRANSCRIPT, addResult, transcriptText, type SttTranscript } from '@/lib/reading/stt-transcript';
 import { DEFAULT_APP_CONFIG, getAppConfig } from '@/lib/app-config';
+import { logAdvance } from '@/lib/reading/advance-log';
 import { VAD_TICK_MS, currentVad, createSilenceDetector, createVolumeFeed, type VadEvent } from '@/lib/reading/vad';
 
 /**
@@ -112,12 +113,14 @@ export function useReadingStt(): SttHandle {
     if (speechEndTimer.current) clearTimeout(speechEndTimer.current);
     speechEndTimer.current = null;
   }, []);
-  /** 말 끝을 조금 더 기다렸다가 알린다. 다시 부르면 처음부터 다시 잰다. */
-  const armSpeechEnd = useCallback(() => {
+  /** 말 끝을 조금 더 기다렸다가 알린다. 다시 부르면 처음부터 다시 잰다. source 는 기록용(무엇이 말 끝을 걸었나). */
+  const armSpeechEnd = useCallback((source: 'result' | 'speechend') => {
     if (speechEndTimer.current) clearTimeout(speechEndTimer.current);
     speechEndTimer.current = setTimeout(() => {
       speechEndTimer.current = null;
-      if (active.current) callbacks.current?.onEvent('speech_end');
+      if (!active.current) return;
+      logAdvance('speech_end', { source, platform: Platform.OS, chars: text.current.length });
+      callbacks.current?.onEvent('speech_end');
     }, getAppConfig().reading.speechEndGraceMs);
   }, []);
   const recordings = useRef(createRecordingTracker()).current;
@@ -151,9 +154,10 @@ export function useReadingStt(): SttHandle {
       callbacks.current?.onInterim(whole);
     }
     // 아이폰 인식기는 말 끝(speechend)을 주지 않고, 음량은 최댓값 기준이라 방 소음에도 「소리 있음」이 되어 침묵을 못 잰다
-    // (SOMA-801). 그래서 아이폰은 받아쓴 글이 있는 결과가 끊기고 조금 지나면 말 끝으로 본다 — 말하는 동안은 중간 결과가
-    // 계속 와서 다시 잰다.
-    if (Platform.OS === 'ios' && whole) armSpeechEnd();
+    // (SOMA-801). 안드로이드도 말 끝 신호가 받아쓴 글보다 먼저 오면 버려지고, 방 소음이 있으면 음량으로 침묵을 못 재서
+    // 녹음은 되는데 줄이 멈췄다(SOMA-1037). 그래서 두 플랫폼 모두 받아쓴 글이 있는 결과가 끊기고 조금 지나면 말 끝으로
+    // 본다 — 말하는 동안은 중간 결과가 계속 와서 다시 잰다. 글이 기준에 모자라면 화면 쪽이 계속 듣는다(app/reading/play).
+    if (whole) armSpeechEnd('result');
     // 멈춘 뒤 첫 확정에서 끝내지 않는다 — 앞 구간 확정(Android 구간 인식·iOS 18)이 마지막 구간보다 먼저 올 수 있어서다.
     // 두 플랫폼 모두 마지막 결과 뒤에 end 를 준다(SOMA-646).
   });
@@ -170,8 +174,13 @@ export function useReadingStt(): SttHandle {
     if (active.current) callbacks.current?.onEvent('speech_start');
   });
   useSpeechRecognitionEvent('speechend', () => {
-    if (!active.current || !text.current.trim()) return;
-    armSpeechEnd();
+    if (!active.current) return;
+    // 글보다 먼저 온 말 끝은 여기서 걸지 않는다 — 글이 오면 위 result 가 말 끝을 건다(SOMA-1037).
+    if (!text.current.trim()) {
+      logAdvance('speechend_before_text', { platform: Platform.OS });
+      return;
+    }
+    armSpeechEnd('speechend');
   });
   useSpeechRecognitionEvent('audioend', (event) => {
     recordings.audioEnd(event?.uri);

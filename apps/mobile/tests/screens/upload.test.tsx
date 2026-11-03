@@ -24,13 +24,15 @@ let mockParams: Record<string, string> = {};
 let mockFocusEffect: () => void = () => undefined;
 const mockPlayer = { pause: jest.fn(), addListener: jest.fn(() => ({ remove: jest.fn() })), loop: true };
 
+const mockScreenGesture: Array<boolean | undefined> = [];
 jest.mock('expo-router', () => {
   const { useEffect } = require('react');
   const { Text } = require('react-native');
   return {
     Stack: {
-      Screen: ({ options }: { options?: { title?: string; headerRight?: () => React.ReactNode } }) => (
+      Screen: ({ options }: { options?: { title?: string; gestureEnabled?: boolean; headerRight?: () => React.ReactNode } }) => (
         <>
+          {(mockScreenGesture.push(options?.gestureEnabled), null)}
           <Text>{options?.title}</Text>
           {options?.headerRight?.()}
         </>
@@ -205,8 +207,11 @@ describe('영상을 고르기 전', () => {
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     await render(<UploadScreen />);
     expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+    expect(mockScreenGesture[mockScreenGesture.length - 1]).toBe(true);
     await toSourceStep();
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+    // 뒤로 가기를 JS 가 받는 동안은 iOS 밀어서 나가기를 꺼 아래 화면이 비치지 않게 한다(SOMA-966).
+    expect(mockScreenGesture[mockScreenGesture.length - 1]).toBe(false);
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
     expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
     expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();

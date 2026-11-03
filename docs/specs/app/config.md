@@ -20,6 +20,7 @@
 | `reading.monologue_missed_below` · `monologue_next_at` · `monologue_touch_min` | 독백 빠뜨림 판정·다음 문장으로 강조를 옮기는 비율·읽기 시작으로 보는 글자 수 | 0.3 · 0.8 · 3 |
 | `cocreate.emotions` | 대본 같이 만들기 감정 칩(보이는 순서). **서버가 받는 감정 목록 밖의 값은 뺀다** | 서운함·설렘·분노·슬픔·긴장·담담함 |
 | `cocreate.situations` | 같이 만들기 상황 칩(자유 글) | 오랜만의 재회·이별·오디션 직전·가족 다툼·고백·사과 |
+| `cocreate_en.emotions` · `cocreate_en.situations` | 한국어가 아닌 기기(Accept-Language)에 `cocreate` 자리로 내려 주는 영어 칩(SOMA-1033). 감정은 서버가 받는 영어 목록 밖의 값을 뺀다 | Hurt·Excitement·Anger·Sadness·Nervousness·Calm / Reunion after years·Breakup·Right before an audition·Family fight·Confession·Apology |
 | `home_tips.ko` · `home_tips.en` | 홈 「오늘의 연기 팁」 | 7개씩 |
 | `challenge.entry_min_seconds` | 챌린지 참여 영상 최소 길이(초) | 3 |
 | `challenge.entry_max_seconds` · `durations_days` | 참여 영상 최대 길이·챌린지 기간 — **서버 규칙(ChallengeRules)과 같은 값, 파일로 못 바꾼다** | 60 · [7, 14] |

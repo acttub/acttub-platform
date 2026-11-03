@@ -29,17 +29,13 @@ test('expo-audio 의 포그라운드 서비스는 빼고, 안드로이드 리딩
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioControlsService/);
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioRecordingService/);
   assert.match(plugin, /'tools:node': 'remove'/);
-  // 1.1.1(11/1 사용자 결정): 전체 듣기·자동 넘김이 화면을 꺼도 이어지게 안드로이드에도 리딩 모듈을 연결한다.
-  // Play 포그라운드 서비스 선언은 재생(mediaPlayback)만 한다 — 마이크 종류는 계속 막아, 말하기 회차는 배경으로 가면 멈춘다.
+  // 1.1.1 출시 전(11/3 사용자 결정): 리딩 백그라운드 재생을 iOS·안드로이드 모두 뺀다. 안드로이드 리딩 모듈(재생 포그라운드
+  // 서비스·Live Update 알림 권한)을 연결하지 않고 재생 서비스 권한도 막는다 — Play 포그라운드 서비스 선언(사용 장면 동영상 필수) 대상이 안 생긴다.
   const moduleConfig = JSON.parse(readFileSync(path.join(appRoot, 'modules/reading-live/expo-module.config.json'), 'utf8'));
-  assert.deepEqual(moduleConfig.platforms, ['apple', 'android']);
-  assert.deepEqual(moduleConfig.android.modules, ['com.acttub.readinglive.ReadingLiveModule']);
-  const manifest = readFileSync(path.join(appRoot, 'modules/reading-live/android/src/main/AndroidManifest.xml'), 'utf8');
-  assert.match(manifest, /android:foregroundServiceType="mediaPlayback"/);
-  assert.match(manifest, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/);
-  assert.doesNotMatch(manifest, /FOREGROUND_SERVICE_MICROPHONE|microphone"/);
+  assert.deepEqual(moduleConfig.platforms, ['apple']);
+  assert.equal(moduleConfig.android, undefined);
   const blocked = appJson.expo.android.blockedPermissions;
-  assert.ok(!blocked.includes('android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'));
+  assert.ok(blocked.includes('android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'));
   assert.ok(blocked.includes('android.permission.FOREGROUND_SERVICE_MICROPHONE'));
 });
 

@@ -2565,6 +2565,13 @@ const ko = {
     opening: '여는 중…',
   },
   scriptCocreate: {
+    anyEmotion: '잘 모르겠어요',
+    anySituation: '아무거나 좋아요',
+    kindMonologue: '독백',
+    kindScene: '{{count}}인 대화',
+    aboutSeconds: '약 {{count}}초',
+    aboutMinutes: '약 {{count}}분',
+    aboutMinutesHalf: '약 {{count}}분 30초',
     startAsk: '어떤 대본으로 할까요?',
     startSample: '예시 대본 고르기',
     startSampleSub: '내 경력에 맞춘 추천 3개',

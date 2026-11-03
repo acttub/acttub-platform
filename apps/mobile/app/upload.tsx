@@ -192,7 +192,8 @@ export default function UploadScreen() {
     if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
     reasonRoute(() => router.dismissTo('/(tabs)'));
   };
-  usePreventRemove(!leaving && (waitPanel || optionsOpen || reasonSheet || backStep !== null), () => {
+  const backBlocked = !leaving && (waitPanel || optionsOpen || reasonSheet || backStep !== null);
+  usePreventRemove(backBlocked, () => {
     if (waitPanel) {
       leaveWaiting();
       return;
@@ -603,6 +604,8 @@ export default function UploadScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
         options={{
+          // 뒤로 가기를 JS 가 받아 앞 단계·닫기로 처리하는 동안 iOS 밀어서 나가기는 꺼 둔다 — 아래 화면이 잠깐 보이다 되돌아온다(SOMA-966).
+          gestureEnabled: !backBlocked,
           title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'),
           headerShadowVisible: false,
           // pen 03 「새 연습」 머리 — 오른쪽 설정 아이콘(24). 탭바를 숨긴 첫 사용자에게만 둔다 — 그 밖에는 프로필 탭에 설정이 있다(SOMA-781·849).

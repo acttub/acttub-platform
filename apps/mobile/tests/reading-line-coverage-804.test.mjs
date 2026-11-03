@@ -24,7 +24,10 @@ test('SOMA-804: 대본 글자 수의 90% 이상 말했을 때만 넘길 만하�
 
 test('SOMA-804: 받아쓰기가 켜진 내 차례는 충분히 말했을 때만 침묵으로 넘긴다', () => {
   const src = readFileSync(new URL('../app/reading/play.tsx', import.meta.url), 'utf8');
-  assert.match(src, /if \(sttActive\.current && !sttGaveUp\(\) && !saidEnough\(turnText, saidRef\.current\)\) return;/);
+  assert.match(src, /const short = sttActive\.current && !sttGaveUp\(\) && !saidEnough\(turnText, saidRef\.current\);/);
+  assert.match(src, /if \(short\) \{\n\s*shortAtEnd = true;\n\s*return;/);
+  // 말 끝 뒤에 늦게 온 글이 기준을 넘으면 다시 말하지 않아도 넘긴다.
+  assert.match(src, /if \(shortAtEnd && session\.advance === 'silence' && saidEnough\(turnText, text\)\) armLate\(/);
   assert.match(src, /const sttGaveUp = \(\) => sttStopped \|\| stt\.failed\(\) \|\| !saidRef\.current\.trim\(\);/);
 });
 

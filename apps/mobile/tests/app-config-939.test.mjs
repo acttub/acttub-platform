@@ -150,8 +150,10 @@ test('쓰는 곳은 모듈 상수 대신 getAppConfig/currentVad 를 읽는다',
   assert.match(read('hooks/use-reading-stt.ts'), /createSilenceDetector\(currentVad\(\), Date\.now\(\)\)/);
   assert.match(read('app/reading/play.tsx'), /currentVad\(\)\.silenceMs/);
   const cocreate = read('app/script-cocreate.tsx');
-  assert.match(cocreate, /getAppConfig\(\)\.cocreate\.emotions/);
-  assert.match(cocreate, /getAppConfig\(\)\.cocreate\.situations/);
+  // 칩은 화면 언어에 맞춘 cocreateChips() 로 읽는다 — 기본 인자가 getAppConfig() 다(SOMA-1033).
+  assert.match(cocreate, /cocreateChips\(\)\.emotions/);
+  assert.match(cocreate, /cocreateChips\(\)\.situations/);
+  assert.match(read('lib/app-config.ts'), /export function cocreateChips\(config: AppConfig = getAppConfig\(\)\)/);
   assert.match(read('app/line-new.tsx'), /getAppConfig\(\)\.challenge\.durationsDays\.map/);
 });
 

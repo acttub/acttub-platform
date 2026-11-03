@@ -12,6 +12,9 @@ public interface ReadingExampleRepository {
     /** 켜진 예시를 sort_order 순으로. */
     List<ReadingExample> listActive();
 
+    /** 켜진 예시 가운데 그 말({@code ko}·{@code en})의 것만 sort_order 순으로(SOMA-1033). */
+    List<ReadingExample> listActive(String language);
+
     /** 켜진 예시 하나. 없거나 꺼졌으면 {@code null}. */
     ReadingExample findActive(String id);
 
