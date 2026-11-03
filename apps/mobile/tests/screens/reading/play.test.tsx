@@ -453,13 +453,12 @@ test('일시정지하면 위치를 저장하고, 이어서를 누르면 그 줄�
   expect(mockMic.start).toHaveBeenCalledTimes(2);
 });
 
-test('배경에서도 리딩이 도는 기기는 다른 앱으로 넘어가도 멈추지 않는다(SOMA-802)', async () => {
+test('다른 앱으로 넘어가면 멈춘다 — 리딩 백그라운드 재생을 뺐다(11/3 사용자 결정)', async () => {
   await startPlay();
   await screen.findByText('듣는 중');
 
   await act(async () => appStateListeners.forEach((l) => l('background')));
-  expect(screen.getByText('듣는 중')).toBeOnTheScreen();
-  expect(screen.queryByText('이어서')).toBeNull();
+  expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
 test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배경으로 가면 멈춘다', async () => {
@@ -471,13 +470,12 @@ test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배�
   expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
-test('자동 넘김 회차는 마이크 서비스를 못 띄우는 기기여도 화면을 끄거나 다른 앱으로 가도 멈추지 않는다(11/1 폰 확인)', async () => {
-  mockLive.keepsRunning.mockReturnValue(false);
+test('자동 넘김 회차도 화면을 끄거나 다른 앱으로 가면 멈춘다(백그라운드 재생을 뺐다)', async () => {
   await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
   expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
 
   await act(async () => appStateListeners.forEach((l) => l('background')));
-  expect(screen.queryByText('이어서')).toBeNull();
+  expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
 test('일시정지를 두 번 빠르게 눌러도 같은 자리에 생긴 「그만하기」가 바로 눌리지 않는다(11/1 폰 확인)', async () => {
