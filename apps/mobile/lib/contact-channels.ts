@@ -6,5 +6,5 @@
 export const INSTAGRAM_HANDLE = 'acttub_com';
 export const INSTAGRAM_DM_URL = `https://ig.me/m/${INSTAGRAM_HANDLE}`;
 export const INSTAGRAM_PROFILE_URL = `https://www.instagram.com/${INSTAGRAM_HANDLE}/`;
-/** 카카오톡 오픈채팅 문의방 링크(https://open.kakao.com/o/...). 방을 만들기 전에는 빈 값이다. */
-export const KAKAO_OPEN_CHAT_URL = '';
+/** 카카오톡 1:1 오픈채팅 「ACTTUB 문의」 방 링크(11/3 만듦, 모든 프로필로 참여 가능). 비우면 설정에 줄이 안 보인다. */
+export const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/s9tVEoVi';

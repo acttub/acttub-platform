@@ -415,10 +415,11 @@ describe('설정', () => {
   });
 
   describe('인스타 DM 문의', () => {
-    test('누르면 @acttub_com DM 창을 연다. 오픈채팅은 링크가 없어 줄이 없다', async () => {
+    test('누르면 @acttub_com DM 창을 열고, 오픈채팅 줄은 문의방 링크를 연다', async () => {
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
-      expect(screen.queryByText('카카오톡 오픈채팅으로 문의')).not.toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: '카카오톡 오픈채팅으로 문의' }));
+      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://open.kakao.com/o/s9tVEoVi'));
 
       await fireEvent.press(screen.getByRole('button', { name: '인스타그램 DM으로 문의' }));
 
