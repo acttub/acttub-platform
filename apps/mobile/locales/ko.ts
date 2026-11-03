@@ -22,6 +22,7 @@ const ko = {
     starting: '시작하는 중…',
   },
   common: {
+    adLabel: '광고',
     confirm: '확인',
     cancel: '취소',
     delete: '삭제',

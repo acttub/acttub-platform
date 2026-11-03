@@ -22,6 +22,7 @@ import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { kstDate } from '@/lib/auditions';
 import { useAuth } from '@/lib/auth';
+import { isKorean, translate as t } from '@/lib/i18n';
 import { getFirstTimeState, subscribeFirstTimeState } from '@/lib/practice/first-time';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -65,7 +66,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
   // AdMob 배너가 채워지지 않으면 실패 신호 없이 빈 상자만 남아 화면 위에 빈 공간이 생겼다(11/2 폰 QA).
   // 정해진 시간 안에 안 채워지면 칸을 접는다. 채워진 배너는 그대로 둔다.
   const [networkFilled, setNetworkFilled] = useState(false);
-  const waitingNetwork = request && loaded && !failed && !networkFilled && renderableKind(pick) === 'NETWORK';
+  const waitingNetwork = request && loaded && !failed && !networkFilled && renderableKind(pick, { korean: isKorean() }) === 'NETWORK';
   useEffect(() => {
     if (!waitingNetwork) return undefined;
     const timer = setTimeout(() => setFailed(true), fillTimeoutMs);
@@ -114,7 +115,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     return <View style={[box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
   }
 
-  const kind = failed ? 'NONE' : renderableKind(pick);
+  const kind = failed ? 'NONE' : renderableKind(pick, { korean: isKorean() });
   if (kind === 'NONE' || !pick) return null;
 
   if (kind === 'NETWORK') {
@@ -192,7 +193,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
         </View>
       )}
       <View style={styles.label} pointerEvents="none">
-        <Text style={styles.labelText}>{AD_LABEL.text}</Text>
+        <Text style={styles.labelText}>{t('common.adLabel')}</Text>
       </View>
     </Pressable>
     </FullBleed>
