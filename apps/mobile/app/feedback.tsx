@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -8,9 +8,9 @@ import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
-import { useReadableInput } from '@/hooks/use-readable-input';
+import { space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api, type SupportCategory } from '@/lib/api';
 import { KAKAO_OPEN_CHAT_URL } from '@/lib/contact-channels';
@@ -66,8 +66,6 @@ export default function FeedbackScreen() {
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 입력 허용 글자 규칙(#1106): 다른 입력칸과 같은 strict 규칙을 쓴다.
-  const bodyInput = useReadableInput(setBody, 'strict');
 
   const length = Array.from(body.trim()).length;
   const bodyOk = length >= FEEDBACK_MIN && length <= FEEDBACK_MAX;
@@ -123,13 +121,11 @@ export default function FeedbackScreen() {
             </View>
           )}
           <View style={styles.field}>
-            <Text style={styles.label}>{k('bodyLabel')}</Text>
-            <TextInput
+            <TextField
+              label={k('bodyLabel')}
               value={body}
-              onChangeText={bodyInput.onChangeText}
+              onChangeText={setBody}
               placeholder={k('bodyPlaceholder')}
-              placeholderTextColor={palette.textMeta}
-              accessibilityLabel={k('bodyLabel')}
               multiline
               textAlignVertical="top"
               maxLength={FEEDBACK_MAX}
@@ -137,7 +133,6 @@ export default function FeedbackScreen() {
               style={styles.area}
             />
             <Text style={styles.count}>{t('feedback.count', { count: length, max: FEEDBACK_MAX })}</Text>
-            {bodyInput.hint ? <InlineErrorLine message={bodyInput.hint} /> : null}
           </View>
           {error ? <InlineErrorLine message={error} /> : null}
           {/* 앱스토어 1.2 「연락처 공개」 — 버튼은 앱 안 창구지만 메일 주소는 글로 남긴다. */}
@@ -169,18 +164,7 @@ const styles = StyleSheet.create({
   intro: { ...type.body1, color: palette.textSub },
   field: { gap: space[2] },
   label: { ...type.body2Bold, color: palette.textSub },
-  area: {
-    minHeight: 160,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-    paddingHorizontal: space[4],
-    paddingVertical: space[3],
-    ...type.body1,
-    lineHeight: undefined,
-    color: palette.text,
-  },
+  area: { minHeight: 160, paddingVertical: space[3] },
   count: { ...type.caption, color: palette.textMeta, textAlign: 'right' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   contacts: { gap: space[1.5], paddingTop: space[2] },
