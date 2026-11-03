@@ -9,7 +9,12 @@ import type { SampleScript } from '@/lib/script-cocreate';
 const mockParams: { mode?: string; start?: string } = {};
 const mockRouter = { dismissTo: jest.fn(), push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
+const mockScreenOptions: Array<{ gestureEnabled?: boolean }> = [];
+jest.mock('expo-router', () => ({
+  useRouter: () => mockRouter,
+  useLocalSearchParams: () => mockParams,
+  Stack: { Screen: ({ options }: { options?: { gestureEnabled?: boolean } }) => { if (options) mockScreenOptions.push(options); return null; } },
+}));
 jest.mock('expo-image', () => ({ Image: () => null }));
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/auth', () => ({
@@ -355,6 +360,15 @@ test('내 대본 올리기에서 「새로 만들기」를 고르고 오면 처�
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.back).toHaveBeenCalled();
   expect(screen.queryByText('어떤 대본으로 할까요?')).not.toBeOnTheScreen();
+});
+
+test('만드는 중에는 iOS 밀어서 나가기를 꺼서 아래 화면이 비치지 않고, 끝나면 다시 켠다(SOMA-966)', async () => {
+  createSampleScript.mockReturnValue(new Promise(() => undefined));
+  await reachDirection();
+  expect(mockScreenOptions[mockScreenOptions.length - 1]?.gestureEnabled).toBe(true);
+  void fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await screen.findByText('30초에서 1분쯤 걸려요. 화면을 닫지 말고 기다려 주세요.');
+  expect(mockScreenOptions[mockScreenOptions.length - 1]?.gestureEnabled).toBe(false);
 });
 
 test('만드는 중 — 화면을 닫지 말라고 안내하고, 뒤로 가면 코칭 탭 첫 화면으로 간다(코칭 입구에서 열었을 때)', async () => {

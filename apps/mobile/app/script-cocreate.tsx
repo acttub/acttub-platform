@@ -284,7 +284,8 @@ export default function ScriptCocreateScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Stack.Screen options={{ headerShown: false }} />
+      {/* 만드는 중에는 iOS 밀어서 나가기를 처음부터 꺼 둔다 — 켜 두면 아래 화면이 잠깐 보이다 되돌아온다. 머리 뒤로·안드로이드 뒤로는 물음 창만 띄운다(SOMA-966). */}
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: step !== 'generating' }} />
       <NavHeader
         title={t('scriptCocreate.title')}
         left={<NavBackButton phLabel="script_cocreate_back" onPress={back} />}
