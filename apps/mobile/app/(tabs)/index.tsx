@@ -7,6 +7,7 @@ import { BackHandler, type LayoutChangeEvent, Linking, Platform, Pressable, Refr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { AD_SIZES, AD_SLOTS } from '@/lib/ads';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
@@ -808,6 +809,7 @@ export default function HomeScreen() {
         <HomeSkeleton
           variant={skeletonHints.home === 'returning' ? 'returning' : 'first'}
           cardHeight={skeletonHints.homeCardHeight}
+          adSpace={skeletonHints.homeAd !== false ? AD_SIZES[AD_SLOTS.home_top.size].height : 0}
           heroBand={heroBand(true)}
           footerSpace={tabBarSpace}
         />
@@ -872,7 +874,12 @@ export default function HomeScreen() {
           {heroBand(false)}
 
           <View style={styles.body}>
-          <AdSlot slot="home_top" />
+          {/* 지난번에 광고 칸이 비었으면 받기 전에 자리를 잡지 않고, 보였으면 뼈대에도 같은 자리를 둔다(11/3 폰 QA). */}
+          <AdSlot
+            slot="home_top"
+            reserve={skeletonHints.homeAd !== false}
+            onShownChange={(shown) => rememberSkeletonHints({ homeAd: shown })}
+          />
           {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
           {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
           {!waitingUpload.card && (
@@ -1203,11 +1210,14 @@ function FirstChoice({
 function HomeSkeleton({
   variant,
   cardHeight = TODAY_CARD_SKELETON_HEIGHT,
+  adSpace = 0,
   heroBand,
   footerSpace,
 }: {
   variant: 'first' | 'returning';
   cardHeight?: number;
+  /** 실제 홈 맨 위 광고 칸 높이(dp). 0 이면 두지 않는다. */
+  adSpace?: number;
   heroBand: ReactNode;
   footerSpace: number;
 }) {
@@ -1236,6 +1246,7 @@ function HomeSkeleton({
       <ScrollView style={styles.scrollBg} contentContainerStyle={{ paddingBottom: footerSpace + space[5] }} scrollEnabled={false} showsVerticalScrollIndicator={false}>
         {heroBand}
         <View style={styles.body}>
+          {adSpace > 0 && <View style={{ height: adSpace }} />}
           <SkeletonBlock height={cardHeight} radius={radius.lg} />
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>{t('home.moreTitle')}</Text>

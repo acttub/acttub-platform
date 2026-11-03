@@ -17,7 +17,7 @@ import {
   type AdSlotKey,
   type AdSlotPick,
 } from '@/lib/ads';
-import { loadBannerModule } from '@/lib/ads-native';
+import { isAdMobReady, loadBannerModule, subscribeAdMobReady } from '@/lib/ads-native';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { kstDate } from '@/lib/auditions';
@@ -30,8 +30,38 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 /** 칸마다 마지막으로 받은 결과. 같은 화면에 다시 오면 이것으로 바로 그리고 뒤에서 새로 받는다(칸이 깜빡이지 않게). */
 const lastPick = new Map<AdSlotKey, AdSlotPick>();
 
+/**
+ * AdMob 이 채우지 못해(대체 광고도 없어) 칸을 접은 시각. 이 시간 안에 같은 칸이 다시 그려져도 띄를 다시 열지 않는다 —
+ * 접힌 뒤 다시 생기면 아래 카드를 밀어낸다(11/3 폰 QA: 홈에서 자리 → 접힘 → 광고가 다시 들어오며 카드를 밀었다).
+ */
+const networkFailedAt = new Map<AdSlotKey, number>();
+export const NETWORK_FAILED_HOLD_MS = 60_000;
+
+function heldAfterFailure(slot: AdSlotKey, now: number = Date.now()): boolean {
+  const at = networkFailedAt.get(slot);
+  return at !== undefined && now - at < NETWORK_FAILED_HOLD_MS;
+}
+
+/** 테스트용 — 접힘 기억을 ms 만큼 오래된 것으로 만든다. */
+export function ageAdSlotFailuresForTest(ms: number): void {
+  networkFailedAt.forEach((at, key) => networkFailedAt.set(key, at - ms));
+}
+
+/** 테스트용 — 칸별 기억을 비운다. */
+export function resetAdSlotMemoryForTest(): void {
+  lastPick.clear();
+  networkFailedAt.clear();
+}
+
 type Props = {
   slot: AdSlotKey;
+  /**
+   * 받기 전에 자리를 잡을지(기본 잡는다). 지난번에 이 칸이 비었던 화면(Pro·광고 없음)은 false 로 넘겨, 자리를 잡았다가 접히며
+   * 아래가 올라가지 않게 한다.
+   */
+  reserve?: boolean;
+  /** 칸이 보이는지가 정해질 때마다 알린다(받는 중에는 부르지 않는다). 화면이 뼈대의 광고 자리를 맞추는 데 쓴다. */
+  onShownChange?: (shown: boolean) => void;
   /** 바깥 여백 등. 칸이 비면(NONE) 이 스타일도 함께 사라진다. */
   style?: StyleProp<ViewStyle>;
   /** AdMob 배너를 기다리는 시간(ms). 테스트에서만 줄인다. */
@@ -56,25 +86,35 @@ type Props = {
 /** AdMob 배너가 이 시간 안에 안 채워지면 칸을 접는다. */
 export const NETWORK_FILL_TIMEOUT_MS = 6000;
 
-export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, anchored = false }: Props) {
+export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, anchored = false, reserve = true, onShownChange }: Props) {
   const router = useRouter();
   const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
   const [pick, setPick] = useState<AdSlotPick | null>(() => lastPick.get(slot) ?? null);
   const [loaded, setLoaded] = useState(() => lastPick.has(slot));
+  const adMobReady = useSyncExternalStore(subscribeAdMobReady, isAdMobReady, isAdMobReady);
+  // 방금 AdMob 이 못 채워 접힌 칸이면 이번에는 열지 않는다 — 접힌 뒤 다시 생기면 카드를 밀어낸다.
+  const [held] = useState(() => heldAfterFailure(slot));
   const [failed, setFailed] = useState(false);
   const [fallbackFailed, setFallbackFailed] = useState(false);
   const impressed = useRef<string | null>(null);
-  const request = shouldRequestSlot(firstTime);
+  const request = shouldRequestSlot(firstTime) && !held;
   // AdMob 배너가 채워지지 않으면 실패 신호 없이 빈 상자만 남아 화면 위에 빈 공간이 생겼다(11/2 폰 QA).
   // 정해진 시간 안에 안 채워지면 칸을 접는다. 채워진 배너는 그대로 둔다.
   const [networkFilled, setNetworkFilled] = useState(false);
   const waitingNetwork = request && loaded && !failed && !networkFilled && renderableKind(pick, { korean: isKorean() }) === 'NETWORK';
+  // AdMob 이 못 채웠다 — 대체 광고가 없으면 접히므로, 잠시 다시 열지 않게 적어 둔다.
+  const failNetwork = () => {
+    if (!pick?.fallback) networkFailedAt.set(slot, Date.now());
+    setFailed(true);
+  };
   useEffect(() => {
     if (!waitingNetwork) return undefined;
-    const timer = setTimeout(() => setFailed(true), fillTimeoutMs);
+    // 채움 시간은 AdMob 초기화가 끝나 배너를 붙인 뒤부터 잰다. 초기화가 그 두 배보다 오래 걸리면 그때 접는다.
+    const timer = setTimeout(() => failNetwork(), adMobReady ? fillTimeoutMs : fillTimeoutMs * 2);
     return () => clearTimeout(timer);
-  }, [waitingNetwork, fillTimeoutMs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingNetwork, adMobReady, fillTimeoutMs]);
 
   useEffect(() => {
     if (!request) return;
@@ -85,7 +125,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
         if (!alive) return;
         lastPick.set(slot, next);
         setPick(next);
-        setFailed(false);
+        setFailed(heldAfterFailure(slot));
         setFallbackFailed(false);
       })
       .catch(() => {
@@ -100,25 +140,6 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     };
   }, [slot, request]);
 
-  if (!request) return null;
-
-  const size = pick?.size ?? AD_SLOTS[slot].size;
-  const spec = AD_SIZES[size];
-  // 배너(320×50·320×100)는 화면 좌우 끝까지 붙인다(11/2 사용자 「배너 광고 다 양옆에 붙여」). 300×250 은 그대로 가운데.
-  const bleed = anchored || AD_SLOTS[slot].size !== 'MEDIUM_RECTANGLE';
-  const box = [styles.box, { aspectRatio: spec.width / spec.height }];
-
-  if (!loaded) {
-    if (bleed) {
-      return (
-        <FullBleed>
-          <View style={[styles.box, { height: spec.height }, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
-        </FullBleed>
-      );
-    }
-    return <View style={[box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
-  }
-
   const korean = isKorean();
   const baseKind = renderableKind(pick, { korean });
   const banner = baseKind === 'NETWORK' ? loadBannerModule() : null;
@@ -129,6 +150,32 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
       ? pick.fallback
       : null;
   const kind = fallback ? 'HOUSE' : failed ? 'NONE' : baseKind;
+  // 보이는지 정해졌으면 알린다 — 받는 중(null)에는 알리지 않는다.
+  const shown: boolean | null = !request || !loaded ? null : kind !== 'NONE' && !!pick && (kind !== 'NETWORK' || !!banner);
+  useEffect(() => {
+    if (shown !== null) onShownChange?.(shown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown]);
+  if (!request) return null;
+
+  const size = pick?.size ?? AD_SLOTS[slot].size;
+  const spec = AD_SIZES[size];
+  // 배너(320×50·320×100)는 화면 좌우 끝까지 붙인다(11/2 사용자 「배너 광고 다 양옆에 붙여」). 300×250 은 그대로 가운데.
+  const bleed = anchored || AD_SLOTS[slot].size !== 'MEDIUM_RECTANGLE';
+  const box = [styles.box, { aspectRatio: spec.width / spec.height }];
+
+  if (!loaded) {
+    if (!reserve) return null;
+    if (bleed) {
+      return (
+        <FullBleed>
+          <View style={[styles.box, { height: spec.height }, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+        </FullBleed>
+      );
+    }
+    return <View style={[box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
+  }
+
   if (kind === 'NONE' || !pick) return null;
 
   if (kind === 'NETWORK') {
@@ -141,19 +188,23 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     return (
       <FullBleed on={bleed}>
         <View style={[bleed ? [styles.box, styles.band, { height: spec.height }] : box, styles.network, style]} ph-no-capture>
-          <BannerAd
-            unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
-            size={bannerSize}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
-              .requestNonPersonalizedAdsOnly,
-          }}
-          onAdLoaded={() => {
-            setNetworkFilled(true);
-            logEvent('ad_network_loaded', { slot });
-          }}
-            onAdFailedToLoad={() => setFailed(true)}
-          />
+          {/* AdMob 초기화가 끝나기 전에는 띄만 깔아 자리를 지킨다(위 isAdMobReady). */}
+          {adMobReady && (
+            <BannerAd
+              unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
+              size={bannerSize}
+              requestOptions={{
+                requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
+                  .requestNonPersonalizedAdsOnly,
+              }}
+              onAdLoaded={() => {
+                networkFailedAt.delete(slot);
+                setNetworkFilled(true);
+                logEvent('ad_network_loaded', { slot });
+              }}
+              onAdFailedToLoad={() => failNetwork()}
+            />
+          )}
         </View>
       </FullBleed>
     );
