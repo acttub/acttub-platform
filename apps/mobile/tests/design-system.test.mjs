@@ -80,7 +80,6 @@ const FONT_SIZE_ALLOWED = {
   'app/ui-preview.tsx': 5,
   'components/ad-slot.tsx': 2,
   'components/birth-wheel.tsx': 2,
-  'components/diff-text.tsx': 4,
   'components/home-mascot.tsx': 1,
   'components/launch-splash-screen.tsx': 1,
   'components/markdown.tsx': 5,
