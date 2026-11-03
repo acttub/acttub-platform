@@ -1292,7 +1292,7 @@ function HomeSkeleton({
           <View style={styles.rowList}>
             {[0, 1, 2].map((i) => (
               <View key={i} style={styles.listRow}>
-                <SkeletonBlock width={40} height={40} radius={radius.md} />
+                <SkeletonBlock width={40} height={40} radius={radius.full} />
                 <View style={styles.flex}>
                   <SkeletonLine size={type.body1Bold} width={i % 2 === 0 ? '52%' : '44%'} />
                   <SkeletonLine size={type.caption} width={i % 2 === 0 ? '38%' : '46%'} style={{ marginTop: space[1] / 2 }} />
@@ -1482,7 +1482,7 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     backgroundColor: palette.bg,
   },
-  rowIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   listTitle: { ...type.body1Bold, color: palette.text },
   listMeta: { marginTop: space[1] / 2, ...type.caption, color: palette.textMeta },
   deadlineRow: {
