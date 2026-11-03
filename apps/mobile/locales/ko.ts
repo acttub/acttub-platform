@@ -1715,7 +1715,7 @@ const ko = {
     memoryMemberSub: '웹의 기억은 버려져요.',
     memoryGuest: '웹의 기억',
     memoryGuestSub: '이 계정의 지금 기억은 지워져요.',
-    memoryConfirm: '이대로 가져오기',
+    memoryConfirm: '가져올게요',
     memoryClose: '닫기',
   },
   deleteAccount: {

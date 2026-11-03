@@ -8,7 +8,7 @@ import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { DialogButtons } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
@@ -159,9 +159,7 @@ export default function GuestTransferScreen() {
       <Modal visible={choosing} transparent statusBarTranslucent animationType="fade" onRequestClose={dismissChoice}>
         <View style={styles.scrim}>
           <Pressable style={StyleSheet.absoluteFill} onPress={dismissChoice} accessibilityRole="button" />
-          <View style={styles.dialog}>
-            <Text style={styles.dialogTitle}>{t('guestTransfer.memoryTitle')}</Text>
-            <Text style={styles.body}>{t('guestTransfer.memoryBody')}</Text>
+          <DialogCard title={t('guestTransfer.memoryTitle')} message={t('guestTransfer.memoryBody')}>
             <View accessibilityRole="radiogroup" style={styles.options}>
               {(['member', 'guest'] as MemoryChoice[]).map((option) => {
                 const selected = choice === option;
@@ -193,7 +191,7 @@ export default function GuestTransferScreen() {
               onConfirm={() => void confirmChoice()}
               busy={busy}
             />
-          </View>
+          </DialogCard>
         </View>
       </Modal>
     </SafeAreaView>
@@ -219,9 +217,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrim: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
-  dialog: { width: '100%', maxWidth: 362, backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], gap: space[4] },
-  dialogTitle: { ...type.headline, color: palette.text },
-  options: { gap: space[2] },
+  options: { gap: space[2], paddingTop: space[2] },
   option: {
     flexDirection: 'row',
     alignItems: 'flex-start',

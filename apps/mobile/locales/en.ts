@@ -1716,7 +1716,7 @@ const en: DeepStringShape<typeof ko> = {
     memoryMemberSub: 'The web memory is discarded.',
     memoryGuest: 'The web memory',
     memoryGuestSub: 'This account’s current memory is erased.',
-    memoryConfirm: 'Bring them in like this',
+    memoryConfirm: 'Bring in',
     memoryClose: 'Close',
   },
   deleteAccount: {
