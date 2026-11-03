@@ -20,6 +20,7 @@ import { MASCOT_SIZE } from '@/components/ui/mascot';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { SelectCard } from '@/components/ui/select-card';
 import { TextField } from '@/components/ui/text-field';
+import { UnderlineTabs } from '@/components/ui/underline-tabs';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { radius, space, type } from '@/constants/tokens';
@@ -382,14 +383,16 @@ export default function ReadingNew() {
         </View>
 
         {/* 「사진」 탭(사진으로 대본 넣기)은 서버에 사진 출처가 없어 숨긴다(SOMA-748). */}
-        <View style={styles.segment}>
-          <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={!makeOpen && input.tab === 'file'} onPress={() => setTab('file')} />
-          <View ref={pasteTabTarget.ref} onLayout={pasteTabTarget.onLayout} style={styles.segmentSlot}>
-            <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={!makeOpen && input.tab === 'paste'} onPress={() => setTab('paste')} />
-          </View>
-          {/* 세 번째 선택지 — 대본이 없으면 같이 만들기. 예시 대본도 여기서 고른다(10/25). */}
-          <SegmentTab icon="message-circle" label={t('reading.tabCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
-        </View>
+        {/* 세 번째 선택지 — 대본이 없으면 같이 만들기. 예시 대본도 여기서 고른다(10/25). */}
+        <UnderlineTabs
+          tabs={[
+            { key: 'file', label: t('reading.tabFile') },
+            { key: 'paste', label: t('reading.tabPaste'), target: pasteTabTarget },
+            { key: 'make', label: t('reading.tabCocreate') },
+          ]}
+          value={makeOpen ? 'make' : input.tab}
+          onChange={(next) => (next === 'make' ? setMakeOpen(true) : setTab(next))}
+        />
 
         {makeOpen && (
           <View style={styles.makeArea}>
@@ -626,15 +629,6 @@ function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   );
 }
 
-function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={16} color={on ? palette.text : palette.iconFaint} />
-      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={2}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   scroll: { flex: 1 },
@@ -645,14 +639,6 @@ const styles = StyleSheet.create({
   heroText: { flex: 1, gap: space[2] },
   title: { ...type.title1, color: palette.text },
   heroSub: { ...type.body2, color: palette.textSub },
-  segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
-  segmentSlot: { flex: 1 },
-  // 아이콘을 위, 글자를 아래에 쌓아 글자가 탭 폭을 다 쓴다(「대본 같이 만들기」가 한 줄에 들어간다). 높이는 못 박지 않는다 —
-  // 더 좁은 폰에서 두 줄로 꺾여도 탭 줄이 함께 늘어난다.
-  segmentTab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1], paddingVertical: space[2] },
-  segmentTabOn: { backgroundColor: palette.bg },
-  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1, textAlign: 'center' },
-  segmentTextOn: { color: palette.text },
   makeArea: { gap: space[3] },
   dropzone: {
     alignItems: 'center',

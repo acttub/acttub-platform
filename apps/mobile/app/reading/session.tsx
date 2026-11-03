@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { UnderlineTabs } from '@/components/ui/underline-tabs';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
@@ -289,15 +290,14 @@ export default function ReadingSession() {
         </View>
 
         <Text style={styles.sectionTitle}>{t('reading.sessionScript')}</Text>
-        <View style={styles.tabs}>
-          {(['all', 'mine'] as const).map((key) => (
-            <Pressable key={key} style={[styles.tab, tab === key && styles.tabOn]} onPress={() => setTab(key)} accessibilityRole="tab" accessibilityState={{ selected: tab === key }}>
-              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>
-                {key === 'all' ? t('reading.rangeWhole') : t('reading.myRecordingsOnly')}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <UnderlineTabs
+          tabs={[
+            { key: 'all', label: t('reading.rangeWhole') },
+            { key: 'mine', label: t('reading.myRecordingsOnly') },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
 
         {tab === 'all' ? (
           rows.map(scriptRow)
@@ -342,11 +342,6 @@ const styles = StyleSheet.create({
   listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], marginTop: space[2], borderRadius: radius.lg, height: 40, backgroundColor: palette.blueSoft },
   listenAllText: { ...type.body2Bold, color: palette.blueDeep },
   sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[3] },
-  tabs: { flexDirection: 'row', padding: space[1], gap: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft, marginBottom: space[2] },
-  tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
-  tabTextOn: { color: palette.text },
   line: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
   lineBody: { flex: 1, gap: space[1] },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
