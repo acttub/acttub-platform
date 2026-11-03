@@ -151,7 +151,7 @@ export default function FeedbackScreen() {
         {done ? (
           <PrimaryButton label={t('feedback.back')} onPress={leave} />
         ) : (
-          <PrimaryButton label={sending ? t('feedback.sending') : t('feedback.send')} onPress={() => void send()} disabled={!canSend} />
+          <PrimaryButton label={t('feedback.send')} loading={sending} loadingLabel={t('feedback.sending')} onPress={() => void send()} disabled={!canSend && !sending} />
         )}
       </CtaBar>
     </SafeAreaView>
