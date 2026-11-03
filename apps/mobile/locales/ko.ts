@@ -38,8 +38,6 @@ const ko = {
     unfold: '펼치기',
     view: '보기',
     detail: '자세히',
-    secElapsed: '{{sec}}초 경과',
-    minSecElapsed: '{{min}}분 {{sec}}초 경과',
     tryLater: '잠시 후 다시 시도해주세요.',
     checkConnection: '인터넷 연결을 확인해 주세요.',
   },

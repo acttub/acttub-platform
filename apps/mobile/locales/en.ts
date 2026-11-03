@@ -46,8 +46,6 @@ const en: DeepStringShape<typeof ko> = {
     unfold: 'Expand',
     view: 'View',
     detail: 'Details',
-    secElapsed: '{{sec}}s elapsed',
-    minSecElapsed: '{{min}}m {{sec}}s elapsed',
     tryLater: 'Please try again in a moment.',
     checkConnection: 'Please check your internet connection.',
   },

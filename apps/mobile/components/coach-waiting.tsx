@@ -78,7 +78,6 @@ export function CoachWaiting({
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stage, setStage] = useState(0);
-  const [elapsedSec, setElapsedSec] = useState(0);
   const [sceneOpen, setSceneOpen] = useState(false);
   const [videoUri, setVideoUri] = useState<VideoSource | null>(null);
 
@@ -285,13 +284,6 @@ export function CoachWaiting({
 
   useEffect(() => {
     if (error) return;
-    const startedAt = Date.now();
-    const timer = setInterval(() => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-    return () => clearInterval(timer);
-  }, [error]);
-
-  useEffect(() => {
-    if (error) return;
     const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 20_000);
     return () => clearInterval(timer);
   }, [error]);
@@ -371,10 +363,6 @@ export function CoachWaiting({
 
   const jobStatus = status?.job?.status ?? 'pending';
   const stageText = jobStatus === 'pending' && !sample ? t('analyzing.queued') : STAGES[stage];
-  const elapsedText =
-    elapsedSec < 60
-      ? t('common.secElapsed', { sec: elapsedSec })
-      : t('common.minSecElapsed', { min: Math.floor(elapsedSec / 60), sec: elapsedSec % 60 });
   const recovery = analysisRecoveryAction(status);
 
   // 실패는 말풍선 안 빨간 글 대신 StatusScreen/Error — 할 수 있는 행동 하나, 나가기는 머리의 뒤로.
@@ -414,7 +402,7 @@ export function CoachWaiting({
 
         {/* 코치 말풍선 자리에서 기다린다(pen 09 「질문 대화 · 영상 보는 중」). */}
         <View ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
-          <CoachMessage below={<Text style={styles.elapsed}>{elapsedText}</Text>}>
+          <CoachMessage>
             <View style={styles.watchingBox} accessibilityLiveRegion="polite">
               <View style={styles.typingRow}>
                 <Text style={styles.watching}>{t('coach.watching')}</Text>
@@ -461,7 +449,6 @@ const styles = StyleSheet.create({
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   watching: { ...type.body1Bold, color: palette.text },
   stageText: { ...type.caption, color: palette.textSub },
-  elapsed: { ...type.caption, color: palette.textMeta },
 
   notice: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });
