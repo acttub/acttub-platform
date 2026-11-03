@@ -576,8 +576,11 @@ function WeekHero({
           accessibilityRole="button"
           accessibilityLabel={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}>
           {/* 흰 알약 버튼(10/29 시안). */}
-          <Feather name="video" size={16} color={heroCard.ctaNavy} />
+          <Feather name="video" size={18} color={heroCard.ctaNavy} />
           <Text style={styles.heroPerformText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
+          <View style={styles.heroPerformArrow}>
+            <Feather name="arrow-right" size={16} color={palette.onAccent} />
+          </View>
         </Pressable>
       )}
     </Pressable>
@@ -723,7 +726,7 @@ const styles = StyleSheet.create({
   // 아래에 「다른 배우 영상」 줄이 붙어도 다른 챌린지가 첫 화면에 보이게 한 단계씩 줄였다(SOMA-986, 11/2 시안).
   weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[4], gap: space[2], overflow: 'hidden' },
   weekHeroTop: { gap: space[2], maxWidth: '72%' },
-  weekActy: { position: 'absolute', right: -space[1.5], bottom: 2, width: 104, height: 96 },
+  weekActy: { position: 'absolute', right: -space[1.5], bottom: 48 + space[4], width: 104, height: 96 },
   weekChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -742,8 +745,9 @@ const styles = StyleSheet.create({
   heroGuide: { ...type.body2Bold, color: palette.onMediaSub },
   heroMeta: { ...type.caption, color: palette.onMediaSub },
   heroStat: { ...type.caption, color: palette.onMediaSub },
-  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[2], height: 40, borderRadius: radius.full, paddingHorizontal: space[4], marginTop: 2, backgroundColor: palette.bg },
-  heroPerformText: { ...type.body2Bold, color: heroCard.ctaNavy },
+  heroPerform: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2], height: 48, borderRadius: radius.full, marginTop: 2, backgroundColor: palette.bg },
+  heroPerformArrow: { position: 'absolute', right: space[2], width: 32, height: 32, borderRadius: radius.full, backgroundColor: heroCard.ctaNavy, alignItems: 'center', justifyContent: 'center' },
+  heroPerformText: { ...type.headline, color: heroCard.ctaNavy },
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },
