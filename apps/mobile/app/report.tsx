@@ -8,7 +8,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { NoteSections } from '@/components/note-sections';
 import { ReportRating } from '@/components/report-rating';
-import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
@@ -159,23 +159,14 @@ export default function ReportScreen() {
       )}
 
       {error && !note && (
-        <>
-          <StatusScreen
-            mascot={MASCOT[NOTE_PROBLEM[error].mascot]}
-            title={t(NOTE_PROBLEM[error].title)}
-            body={t(NOTE_PROBLEM[error].body)}
-          />
-          <CtaBar safeBottom={false}>
-            {NOTE_PROBLEM[error].retry ? (
-              <>
-                <TextButton label={t('common.goHome')} phLabel="report_go_home" onPress={finish} />
-                <PrimaryButton label={t('common.retry')} phLabel="report_retry" onPress={() => void loadNote()} />
-              </>
-            ) : (
-              <PrimaryButton label={t('common.goHome')} phLabel="report_go_home" onPress={finish} />
-            )}
-          </CtaBar>
-        </>
+        <StatusScreen
+          mascot={MASCOT[NOTE_PROBLEM[error].mascot]}
+          title={t(NOTE_PROBLEM[error].title)}
+          body={t(NOTE_PROBLEM[error].body)}
+          primary={NOTE_PROBLEM[error].retry ? { label: t('common.retry'), onPress: () => void loadNote() } : { label: t('common.goHome'), onPress: finish }}
+          // 이 화면은 머리에 뒤로가 없어 집으로 갈 길을 버튼으로 남긴다.
+          secondary={NOTE_PROBLEM[error].retry ? { label: t('common.goHome'), onPress: finish } : undefined}
+        />
       )}
 
       {note && practice && (

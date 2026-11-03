@@ -14,7 +14,7 @@ import { CoachWaiting } from '@/components/coach-waiting';
 import { ActyMotion } from '@/components/ui/acty-motion';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
-import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
@@ -469,12 +469,17 @@ function CoachTalk() {
   if (interrupted) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
-        <Stack.Screen options={{ title: t('coach.fallbackTitle'), headerShadowVisible: false }} />
-        <StatusScreen mascot={MASCOT.coach} title={t('coach.interruptedTitle')} body={t('coach.interruptedBody')} />
-        <CtaBar safeBottom={false}>
-          <TextButton label={t('coach.interruptedLater')} phLabel="coach_interrupted_later" onPress={() => leaveThen(() => router.dismissAll())} />
-          <PrimaryButton label={t('coach.interruptedResume')} phLabel="coach_interrupted_resume" onPress={() => void startConversation()} />
-        </CtaBar>
+        <Stack.Screen options={{ headerShown: false }} />
+        {/* 나가기는 머리의 뒤로 — 상태 화면 버튼은 문구 아래 하나다. */}
+        <StatusScreen
+          safeArea
+          header={t('coach.fallbackTitle')}
+          onBack={() => leaveThen(() => router.dismissAll())}
+          mascot={MASCOT.coach}
+          title={t('coach.interruptedTitle')}
+          body={t('coach.interruptedBody')}
+          primary={{ label: t('coach.interruptedResume'), onPress: () => void startConversation() }}
+        />
         {dialog}
       </SafeAreaView>
     );

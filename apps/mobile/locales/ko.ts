@@ -1371,7 +1371,6 @@ const ko = {
     interruptedTitle: '대화가 잠깐 끊겼어요',
     interruptedBody: '답한 건 저장돼 있어요. 「이어서 하기」를 누르면 같은 질문부터 다시 해요.',
     interruptedResume: '이어서 하기',
-    interruptedLater: '나중에 하기',
     seekFrom: '{{time}}부터',
     seekLabel: '{{time}}부터 영상 보기',
   },

@@ -1376,7 +1376,6 @@ const en: DeepStringShape<typeof ko> = {
     interruptedTitle: 'The conversation dropped for a moment',
     interruptedBody: 'Your answers are saved. Tap “Continue” to pick up from the same question.',
     interruptedResume: 'Continue',
-    interruptedLater: 'Later',
     seekFrom: 'From {{time}}',
     seekLabel: 'Watch from {{time}}',
   },
