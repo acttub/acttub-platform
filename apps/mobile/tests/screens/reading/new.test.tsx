@@ -21,8 +21,9 @@ jest.mock('@react-native-async-storage/async-storage', () => {
 });
 const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn() };
 let mockParams: Record<string, string> = {};
+const mockScreenOptions: Array<{ gestureEnabled?: boolean }> = [];
 jest.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
+  Stack: { Screen: ({ options }: { options?: { gestureEnabled?: boolean } }) => { if (options) mockScreenOptions.push(options); return null; } },
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
@@ -189,6 +190,13 @@ test('튜토리얼 예시로 들어오면 예시 대본을 채운 채 연다', a
   await render(<ReadingNew />);
 
   expect(screen.getByDisplayValue(SAMPLE_SCRIPT)).toBeOnTheScreen();
+});
+
+test('iOS 밀어서 나가기는 읽는 중·붙여넣던 대본이 있을 때 꺼서 아래 화면이 비치지 않는다(SOMA-966)', async () => {
+  await render(<ReadingNew />);
+  expect(mockScreenOptions[mockScreenOptions.length - 1]?.gestureEnabled).toBe(true);
+  await paste();
+  expect(mockScreenOptions[mockScreenOptions.length - 1]?.gestureEnabled).toBe(false);
 });
 
 test('iOS 는 나누는 중에도 뒤로 가기를 막지 않아 밀어서 나가기가 끊기지 않는다', async () => {
