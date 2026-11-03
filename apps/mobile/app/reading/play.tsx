@@ -1993,6 +1993,7 @@ export default function ReadingPlay() {
                 <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
+              {links}
               {coaching && (
                 <>
                   <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
@@ -2031,7 +2032,6 @@ export default function ReadingPlay() {
                   )}
                 </View>
               )}
-              {links}
               {rating}
               {ratingCard}
             </View>
@@ -2052,6 +2052,7 @@ export default function ReadingPlay() {
           <View style={styles.doneBody}>
             {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
+            {links}
             {coaching && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
             {listened ? (
               note(t('reading.listenDoneNote'), 'info')
@@ -2076,7 +2077,6 @@ export default function ReadingPlay() {
                 <TextButton tone="accent" label={t('reading.seeAll')} onPress={() => router.push('/reading/diff')} />
               </View>
             ) : null}
-            {links}
             {rating}
             {ratingCard}
           </View>
