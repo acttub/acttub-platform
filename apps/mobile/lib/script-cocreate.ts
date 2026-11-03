@@ -4,6 +4,7 @@
  * 분량은 서버가 대사 5자 = 1초로 어림한 추정치다. 실제 낭독 시간으로 보정한 값이 아니므로 「약 1분」처럼만 보인다.
  */
 import { DEFAULT_APP_CONFIG } from './app-config.ts';
+import { translate as t } from './i18n.ts';
 
 export type SampleScriptExperience = 'beginner' | 'exam' | 'experienced';
 
@@ -64,9 +65,16 @@ export type ReviseSampleScriptBody = {
  */
 export const EMOTIONS: readonly string[] = DEFAULT_APP_CONFIG.cocreate.emotions;
 export const ANY_EMOTION = '잘 모르겠어요';
+/** 화면 언어의 「잘 모르겠어요」. 서버는 한국어·영어 둘 다 「서버가 고른다」로 받는다(SOMA-1033). */
+export function anyEmotion(): string {
+  return t('scriptCocreate.anyEmotion');
+}
 /** 상황 칩(pen P14.2) — 고르거나 직접 쓴다. 「아무거나 좋아요」면 서버가 고른다. 서버는 자유 글로 받는다. */
 export const SITUATIONS: readonly string[] = DEFAULT_APP_CONFIG.cocreate.situations;
 export const ANY_SITUATION = '아무거나 좋아요';
+export function anySituation(): string {
+  return t('scriptCocreate.anySituation');
+}
 /** 코칭은 혼자 찍으므로 독백이 기본이다. 2인은 상대역 대사가 있는 장면. */
 export const CAST_OPTIONS = [1, 2] as const;
 /** 찍기에 맞는 분량만 보인다(서버는 10분도 받는다). */
@@ -82,16 +90,16 @@ export function experienceFor(profileExperience: string | null | undefined): Sam
 
 /** 「약 1분」·「약 40초」. 서버의 추정 초를 30초 단위로 둥글린다. */
 export function durationLabel(seconds: number): string {
-  if (seconds < 45) return `약 ${Math.max(10, Math.round(seconds / 10) * 10)}초`;
+  if (seconds < 45) return t('scriptCocreate.aboutSeconds', { count: Math.max(10, Math.round(seconds / 10) * 10) });
   const halves = Math.round(seconds / 30);
   const minutes = Math.floor(halves / 2);
-  return halves % 2 === 0 ? `약 ${minutes}분` : `약 ${minutes}분 30초`;
+  return t(halves % 2 === 0 ? 'scriptCocreate.aboutMinutes' : 'scriptCocreate.aboutMinutesHalf', { count: minutes });
 }
 
 /** 결과 머리의 한 줄 — 「지민 · 독백 · 약 1분」·「지민 · 민호 · 2인 대화 · 약 1분」. */
 export function summaryLine(script: Pick<SampleScript, 'characters' | 'estimated_seconds'>): string {
   const names = script.characters.map((c) => c.name);
-  const kind = names.length === 1 ? '독백' : `${names.length}인 대화`;
+  const kind = names.length === 1 ? t('scriptCocreate.kindMonologue') : t('scriptCocreate.kindScene', { count: names.length });
   return [...names, kind, durationLabel(script.estimated_seconds)].join(' · ');
 }
 

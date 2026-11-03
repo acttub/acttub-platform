@@ -27,6 +27,7 @@ import com.acttub.actingapi.feature.reading.domain.CocreatedScript;
 import com.acttub.actingapi.feature.reading.app.ScriptCocreateRepository.Row;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,8 +69,9 @@ public class ScriptCocreateService {
         this.mapper = mapper;
         this.clock = clock;
         this.random = random;
-        for (String name : List.of("generate.txt", "generate-monologue.txt", "revise.txt", "fix.txt")) {
-            prompts.put(name, load(name));
+        for (String name : List.of("generate", "generate-monologue", "revise", "fix")) {
+            prompts.put(name + ".txt", load(name + ".txt"));
+            prompts.put(name + ".en.txt", load(name + ".en.txt"));
         }
     }
 
@@ -325,8 +327,18 @@ public class ScriptCocreateService {
         int chars = script.dialogueChars();
         int min = CocreateRules.minChars(minutes);
         int max = CocreateRules.maxChars(minutes);
-        if (chars >= min && chars <= max) {
+        if (!conditions.english() && chars >= min && chars <= max) {
             return "";
+        }
+        if (conditions.english()) {
+            int lo = CocreateRules.minChars(minutes, true);
+            int hi = CocreateRules.maxChars(minutes, true);
+            if (chars >= lo && chars <= hi) {
+                return "";
+            }
+            return ("\n\n[Previous attempt] All dialogue came to %d characters, %s the allowed %d-%d. This time aim for about %d "
+                    + "characters (%d-%d) and %s.").formatted(chars, chars < lo ? "below" : "above", lo, hi,
+                    CocreateRules.targetChars(minutes, true), lo, hi, chars < lo ? "write a little more" : "cut it down");
         }
         return "\n\n[직전 시도 결과] 대사 텍스트 합계가 %d자여서 허용 %d~%d자를 %s. 이번에는 %d자 안팎(%d~%d자)으로 %s."
                 .formatted(chars, min, max, chars < min ? "밑돌았다" : "넘었다", CocreateRules.targetChars(minutes), min, max,
@@ -334,8 +346,8 @@ public class ScriptCocreateService {
     }
 
     private Revised reviseOnce(CocreatedScript script, Conditions target, String request) {
-        String prompt = fill(prompts.get("revise.txt"), values(target))
-                .replace("{cast_rule}", CocreateRules.castRule(target.characterCount(), target.myLines()))
+        String prompt = fill(prompts.get(target.english() ? "revise.en.txt" : "revise.txt"), values(target))
+                .replace("{cast_rule}", CocreateRules.castRule(target.characterCount(), target.myLines(), target.english()))
                 .replace("{script}", writeScript(script).toString())
                 .replace("{request}", request);
         ScriptCocreateModel.Reply reply;
@@ -374,6 +386,9 @@ public class ScriptCocreateService {
         if (!resized) {
             return text;
         }
+        if (target.english()) {
+            return requestEn(target, current, text);
+        }
         StringBuilder out = new StringBuilder("[설정 변경] 등장인물을 정확히 %d명으로 맞춘다. 내 배역 이름과 성별·나이대는 유지한다. "
                 .formatted(target.characterCount()));
         if (target.characterCount() == 1) {
@@ -394,6 +409,30 @@ public class ScriptCocreateService {
     }
 
     /** 특정 줄 문제를 고치기 프롬프트로 한 번 고친다. 고치지 못하면 그대로 돌려준다. */
+    private static String requestEn(Conditions target, Version current, String text) {
+        StringBuilder out = new StringBuilder(("[Settings change] Make it exactly %d characters. Keep the actor's role's name, gender, "
+                + "and age band. ").formatted(target.characterCount()));
+        if (target.characterCount() == 1) {
+            out.append("Remove all of the other roles' lines and turn it into a monologue the actor's role speaks directly to the "
+                    + "person in front of them. Show that person's reactions only in short stage directions. ");
+        } else {
+            out.append("Keep the original partners where possible. When adding characters, bring them naturally into the existing "
+                    + "incident and give each at least one line. When removing characters, never remove the actor's role; remove "
+                    + "partners. ");
+        }
+        out.append("Keep the core relationship, objective, emotion, and situation. Make the whole scene about %d minute(s). "
+                .formatted(target.minutes()))
+                .append(CocreateRules.lengthRules(target.minutes(), target.characterCount(), true));
+        if (target.minutes() != current.minutes()) {
+            out.append(" This request changes the length, so you may restructure the whole script. Don't just stretch the same "
+                    + "words; add new information and new attempts.");
+        }
+        if (!text.isEmpty()) {
+            out.append(" Additional request: ").append(text);
+        }
+        return out.toString();
+    }
+
     private CocreatedScript fix(CocreatedScript script, List<Issue> issues, Conditions conditions) {
         Map<Integer, String> wrong = new LinkedHashMap<>();
         for (Issue issue : issues) {
@@ -405,9 +444,9 @@ public class ScriptCocreateService {
             return script;
         }
         StringBuilder list = new StringBuilder();
-        wrong.forEach((index, why) -> list.append("- %d번 줄: %s / 현재: \"%s\"\n"
-                .formatted(index, why, script.lines().get(index).text())));
-        String prompt = prompts.get("fix.txt")
+        String row = conditions.english() ? "- line %d: %s / now: \"%s\"\n" : "- %d번 줄: %s / 현재: \"%s\"\n";
+        wrong.forEach((index, why) -> list.append(row.formatted(index, why, script.lines().get(index).text())));
+        String prompt = prompts.get(conditions.english() ? "fix.en.txt" : "fix.txt")
                 .replace("{script}", writeScript(script).toString())
                 .replace("{issues}", list.toString().strip())
                 .replace("{line_len}", conditions.lineLen());
@@ -432,25 +471,27 @@ public class ScriptCocreateService {
     }
 
     private String generatePrompt(Conditions conditions) {
-        String template = prompts.get(conditions.monologue() ? "generate-monologue.txt" : "generate.txt");
+        String template = prompts.get((conditions.monologue() ? "generate-monologue" : "generate")
+                + (conditions.english() ? ".en.txt" : ".txt"));
         return fill(template, values(conditions));
     }
 
     private static Map<String, String> values(Conditions c) {
         Map<String, String> values = new LinkedHashMap<>();
-        values.put("experience", c.experience().label());
+        boolean en = c.english();
+        values.put("experience", c.experience().label(en));
         values.put("actor", c.actor());
         values.put("purpose", c.purpose());
         values.put("emotion", c.emotion());
         values.put("situation", c.situation());
         values.put("direction", c.direction());
         values.put("character_count", String.valueOf(c.characterCount()));
-        values.put("ending", c.ending().text());
-        values.put("prop", c.prop().text());
-        values.put("length_rules", CocreateRules.lengthRules(c.minutes(), c.characterCount()));
+        values.put("ending", c.ending().text(en));
+        values.put("prop", c.prop().text(en));
+        values.put("length_rules", CocreateRules.lengthRules(c.minutes(), c.characterCount(), en));
         values.put("my_lines", String.valueOf(c.myLines()));
         values.put("line_len", c.lineLen());
-        values.put("characters_schema", CocreateRules.charactersSchema(c.characterCount()));
+        values.put("characters_schema", CocreateRules.charactersSchema(c.characterCount(), en));
         return values;
     }
 
@@ -468,21 +509,44 @@ public class ScriptCocreateService {
 
     private Conditions base(Request request) {
         boolean minor = request.age() != null && request.age() < 20;
-        String emotion = blankOr(request.emotion(), CocreateRules.ANY_EMOTION)
-                ? CocreateRules.EMOTIONS.get(Math.floorMod(random.applyAsInt(CocreateRules.EMOTIONS.size()), CocreateRules.EMOTIONS.size()))
+        // 대본 언어는 요청한 기기 언어(Accept-Language)를 따른다. 한국어가 아니면 영어로 쓴다(SOMA-1033).
+        boolean en = !OutputLanguage.isKorean();
+        List<String> emotions = en ? CocreateRules.EMOTIONS_EN : CocreateRules.EMOTIONS;
+        List<String> situations = en ? CocreateRules.SITUATIONS_EN : CocreateRules.SITUATIONS;
+        String emotion = blankOr(request.emotion(), CocreateRules.ANY_EMOTION, CocreateRules.ANY_EMOTION_EN)
+                ? emotions.get(Math.floorMod(random.applyAsInt(emotions.size()), emotions.size()))
                 : request.emotion().strip();
-        String situation = blankOr(request.situation(), CocreateRules.ANY_SITUATION)
-                ? CocreateRules.SITUATIONS.get(Math.floorMod(random.applyAsInt(CocreateRules.SITUATIONS.size()), CocreateRules.SITUATIONS.size()))
+        String situation = blankOr(request.situation(), CocreateRules.ANY_SITUATION, CocreateRules.ANY_SITUATION_EN)
+                ? situations.get(Math.floorMod(random.applyAsInt(situations.size()), situations.size()))
                 : request.situation().strip();
-        String direction = request.direction() == null || request.direction().isBlank() ? "없음" : request.direction().strip();
+        String none = en ? "None" : "없음";
+        String direction = request.direction() == null || request.direction().isBlank() ? none : request.direction().strip();
         return new Conditions(request.experience() == null ? Experience.BEGINNER : request.experience(),
-                actor(request.age(), request.gender()), purpose(request.goal()), minor, emotion, situation, direction,
+                en ? actorEn(request.age(), request.gender()) : actor(request.age(), request.gender()),
+                en ? purposeEn(request.goal()) : purpose(request.goal()), minor, emotion, situation, direction,
                 request.characterCount(), request.minutes(), CocreateRules.ENDINGS.getFirst(), CocreateRules.PROPS.getFirst(),
-                CocreateRules.defaultMyLines(request.minutes(), request.characterCount()));
+                CocreateRules.defaultMyLines(request.minutes(), request.characterCount()), en);
     }
 
-    private static boolean blankOr(String value, String any) {
-        return value == null || value.isBlank() || any.equals(value.strip());
+    private static boolean blankOr(String value, String any, String anyEn) {
+        return value == null || value.isBlank() || any.equals(value.strip()) || anyEn.equalsIgnoreCase(value.strip());
+    }
+
+    static String actorEn(Integer age, String gender) {
+        String band = age == null ? "" : Math.max(10, age / 10 * 10) + "s";
+        String sex = "female".equals(gender) ? "female" : "male".equals(gender) ? "male" : "";
+        String joined = (band + " " + sex).strip();
+        return joined.isEmpty() ? "Not specified (choose what fits the scene)" : joined;
+    }
+
+    static String purposeEn(String goal) {
+        if ("audition".equals(goal)) {
+            return "Preparing for auditions or drama-school entrance";
+        }
+        if ("professional".equals(goal)) {
+            return "Wants to nail performances for real productions";
+        }
+        return "Enjoys acting as a hobby";
     }
 
     static String actor(Integer age, String gender) {
@@ -667,6 +731,9 @@ public class ScriptCocreateService {
         node.put("direction", c.direction());
         node.put("ending", c.ending().name());
         node.put("prop", c.prop().name());
+        if (c.english()) {
+            node.put("language", "en");
+        }
         return node.toString();
     }
 
@@ -677,7 +744,7 @@ public class ScriptCocreateService {
                 node.path("purpose").asText(), node.path("minor").asBoolean(), node.path("emotion").asText(),
                 node.path("situation").asText(), node.path("direction").asText(), 1, 1,
                 slot(CocreateRules.ENDINGS, node.path("ending").asText()), slot(CocreateRules.PROPS, node.path("prop").asText()),
-                CocreateRules.defaultMyLines(1, 1));
+                CocreateRules.defaultMyLines(1, 1), "en".equals(node.path("language").asText()));
     }
 
     private static Slot slot(List<Slot> slots, String name) {

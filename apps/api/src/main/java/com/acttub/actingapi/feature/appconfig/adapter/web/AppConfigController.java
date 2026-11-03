@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.feature.appconfig.app.AppConfig;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,7 +39,9 @@ class AppConfigController {
             content = @Content(schema = @Schema(implementation = AppConfigResponse.class)))
     @GetMapping("/config")
     ResponseEntity<AppConfigResponse> get() {
-        return ResponseEntity.ok().cacheControl(CacheControl.noCache()).body(AppConfigResponse.of(config));
+        // 감정·상황 칩은 기기 언어(Accept-Language)를 따른다. 한국어가 아니면 영어 칩(SOMA-1033).
+        return ResponseEntity.ok().cacheControl(CacheControl.noCache()).varyBy("Accept-Language")
+                .body(AppConfigResponse.of(config, OutputLanguage.isKorean()));
     }
 
     @Schema(name = "AppConfig", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -52,6 +55,11 @@ class AppConfigController {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ChallengeResponse challenge) {
 
         static AppConfigResponse of(AppConfig c) {
+            return of(c, true);
+        }
+
+        static AppConfigResponse of(AppConfig c, boolean korean) {
+            var cc = korean ? c.cocreate() : c.cocreateEn();
             var r = c.rating();
             var x = c.reading();
             var ch = c.challenge();
@@ -60,7 +68,7 @@ class AppConfigController {
                     new ReadingResponse(x.vadThreshold(), x.silenceMs(), x.minSpeechMs(), x.maxListenMs(),
                             x.speechEndGraceMs(), x.advanceCoverage(), x.monologuePass(), x.monologueMissedBelow(),
                             x.monologueNextAt(), x.monologueTouchMin()),
-                    new CocreateResponse(c.cocreate().emotions(), c.cocreate().situations()),
+                    new CocreateResponse(cc.emotions(), cc.situations()),
                     c.homeTips(),
                     new ChallengeResponse(ch.entryMinSeconds(), ch.entryMaxSeconds(), ch.durationsDays()));
         }

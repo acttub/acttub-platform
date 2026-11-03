@@ -30,6 +30,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
 import com.acttub.actingapi.feature.reading.domain.CocreateRules.Experience;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -91,6 +92,45 @@ class ScriptCocreateServiceTest {
             lines.addObject().put("kind", "dialogue").put("character", names[count == 1 ? 0 : i % count]).put("text", line);
         }
         return node.toString();
+    }
+
+    @Test
+    @DisplayName("SOMA-1033 영어 기기 요청은 영어 지시문으로 만들고, 고른 게 없으면 영어 칩에서 고르며, 수정도 저장된 언어(영어)로 한다")
+    void englishRequestsWriteEnglishScripts() {
+        String line = "a".repeat(70);
+        model.replies.add(p -> script(1, 12, line, "Mia", "f"));
+        Request english = new Request(Experience.BEGINNER, 24, "female", "hobby", "Not sure", "Anything works", null, 1, 1);
+        View[] made = new View[1];
+
+        OutputLanguage.runAs(java.util.Locale.ENGLISH, () -> made[0] = service.generate(USER, UUID.randomUUID(), english));
+
+        String prompt = model.prompts.getFirst();
+        assertThat(prompt).startsWith("You are a writer who creates one-person monologues")
+                .contains("20s female", "Excitement", "Breakup", "Enjoys acting as a hobby", "Extra direction: None",
+                        "Write about 12 monologue lines", "40~80 characters", "\"name\":\"Name\"")
+                .doesNotContainPattern("[가-힣]").doesNotContain("{my_lines}", "{actor}", "{length_rules}");
+        assertThat(made[0].estimatedSeconds()).isEqualTo(60);
+        assertThat(made[0].emotion()).isEqualTo("Excitement");
+        assertThat(repo.rows.values()).singleElement().matches(r -> r.conditions().contains("\"language\":\"en\""));
+
+        // 수정 요청에는 언어 헤더가 없어도(한국어 기본) 만들 때 저장한 언어를 따른다.
+        model.replies.add(p -> script(1, 12, line, "Mia", "f"));
+        service.revise(USER, made[0].id(), new Revision(1, "Make the last line calmer", null, null));
+        assertThat(model.prompts.getLast()).startsWith("You are a writer revising a 1-person practice scene")
+                .contains("Make the last line calmer", "about 12 monologue lines");
+    }
+
+    @Test
+    @DisplayName("SOMA-1033 한국어 요청은 예전과 같다 — 「잘 모르겠어요」면 한국어 감정에서 고르고 언어 표시는 저장하지 않는다")
+    void koreanRequestsStayKorean() {
+        model.replies.add(p -> script(1, 12));
+        Request any = new Request(Experience.BEGINNER, 24, "female", "hobby", "잘 모르겠어요", "아무거나 좋아요", null, 1, 1);
+
+        View view = service.generate(USER, UUID.randomUUID(), any);
+
+        assertThat(model.prompts.getFirst()).startsWith("너는 배우 연습용 1인 독백을").contains("설렘", "이별", "추가로 원하는 방향: 없음");
+        assertThat(view.emotion()).isEqualTo("설렘");
+        assertThat(repo.rows.values()).singleElement().matches(r -> !r.conditions().contains("language"));
     }
 
     @Test

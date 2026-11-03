@@ -12,7 +12,7 @@ import java.util.Map;
  * <p>서버가 이미 막는 규칙(챌린지 영상 60초·기간 7/14일·같이 만들기 감정·독백 통과선)은 파일로 바꾸지 않고 서버 규칙과 같은 값을
  * 그대로 싣는다({@link ServerRules}). 앱이 보이는 값과 서버가 받는 값이 어긋나지 않게.
  */
-public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Map<String, List<String>> homeTips,
+public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Cocreate cocreateEn, Map<String, List<String>> homeTips,
         Challenge challenge) {
 
     /** 앱 평가 요청 — 코칭·리딩 몇 번마다 묻는지, 최소 간격(일), 최대 횟수. */
@@ -35,7 +35,7 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Map<S
 
     /** 서버가 이미 막는 규칙 — 파일로 바꾸지 않는다. 각 도메인 규칙과 같은지는 테스트가 잠근다. */
     public record ServerRules(double monologuePass, int entryMaxSeconds, List<Integer> durationsDays,
-            List<String> allowedEmotions) {
+            List<String> allowedEmotions, List<String> allowedEmotionsEn) {
     }
 
     /**
@@ -70,6 +70,13 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Map<S
         Cocreate cocreate = new Cocreate(
                 emotions.isEmpty() ? defaults.cocreate().emotions() : emotions,
                 texts(c.situations(), defaults.cocreate().situations()));
+        // 한국어가 아닌 기기에 내려 주는 칩(SOMA-1033). 고르는 규칙은 한국어 칸과 같다.
+        Cocreate ce = merged.cocreateEn() == null ? defaults.cocreateEn() : merged.cocreateEn();
+        List<String> emotionsEn = ce.emotions() == null ? List.of()
+                : ce.emotions().stream().filter(rules.allowedEmotionsEn()::contains).distinct().toList();
+        Cocreate cocreateEn = new Cocreate(
+                emotionsEn.isEmpty() ? defaults.cocreateEn().emotions() : emotionsEn,
+                texts(ce.situations(), defaults.cocreateEn().situations()));
 
         Map<String, List<String>> tips = merged.homeTips() == null ? defaults.homeTips() : merged.homeTips();
         Map<String, List<String>> homeTips = new java.util.TreeMap<>();
@@ -80,7 +87,7 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Map<S
         Challenge challenge = new Challenge(min < rules.entryMaxSeconds() ? min : defaults.challenge().entryMinSeconds(),
                 rules.entryMaxSeconds(), rules.durationsDays());
 
-        return new AppConfig(rating, reading, cocreate, Map.copyOf(homeTips), challenge);
+        return new AppConfig(rating, reading, cocreate, cocreateEn, Map.copyOf(homeTips), challenge);
     }
 
     private static int positive(int value, int fallback) {

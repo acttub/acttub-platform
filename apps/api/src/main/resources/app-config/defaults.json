@@ -15,6 +15,10 @@
     "emotions": ["서운함", "설렘", "분노", "슬픔", "긴장", "담담함"],
     "situations": ["오랜만의 재회", "이별", "오디션 직전", "가족 다툼", "고백", "사과"]
   },
+  "cocreate_en": {
+    "emotions": ["Hurt", "Excitement", "Anger", "Sadness", "Nervousness", "Calm"],
+    "situations": ["Reunion after years", "Breakup", "Right before an audition", "Family fight", "Confession", "Apology"]
+  },
   "home_tips": {
     "ko": [
       "대사 전에 숨을 한 번 쉬면, 말보다 시선이 먼저 움직여요.",
