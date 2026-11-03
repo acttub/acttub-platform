@@ -30,6 +30,7 @@ const en: DeepStringShape<typeof ko> = {
     starting: 'Starting…',
   },
   common: {
+    adLabel: 'Ad',
     confirm: 'OK',
     cancel: 'Cancel',
     delete: 'Delete',
