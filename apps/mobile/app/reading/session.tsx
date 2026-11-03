@@ -100,6 +100,7 @@ export default function ReadingSession() {
     if (!failed) {
       return (
         <View style={styles.root}>
+          <Stack.Screen options={{ title: t('reading.sessionTitle') }} />
           <SkeletonRows count={5} avatar={false} />
         </View>
       );
