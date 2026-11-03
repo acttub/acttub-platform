@@ -8,10 +8,11 @@ import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { ReadingNoScript } from '@/components/reading/no-script';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { UnderlineTabs } from '@/components/ui/underline-tabs';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
@@ -99,6 +100,7 @@ export default function ReadingSession() {
     if (!failed) {
       return (
         <View style={styles.root}>
+          <Stack.Screen options={{ title: t('reading.sessionTitle') }} />
           <SkeletonRows count={5} avatar={false} />
         </View>
       );
@@ -174,7 +176,7 @@ export default function ReadingSession() {
     void sheet({
       anchor: pt(e),
       title: t('reading.sessionOrdinal', { n: detail.ordinal }),
-      actions: [{ label: t('reading.deleteSession'), destructive: true, onPress: () => void removeSession() }],
+      actions: [{ label: t('reading.deleteSession'), icon: 'trash-2', destructive: true, onPress: () => void removeSession() }],
     });
 
   const removeSession = async () => {
@@ -215,7 +217,7 @@ export default function ReadingSession() {
     );
   };
 
-  const scriptRow = (row: SessionLine) => {
+  const scriptRow = (row: SessionLine, i: number) => {
     if (row.type !== 'dialogue') {
       return (
         <Text key={row.lineId} style={row.type === 'scene' ? styles.scene : styles.direction}>
@@ -224,7 +226,7 @@ export default function ReadingSession() {
       );
     }
     return (
-      <View key={row.lineId} style={styles.line}>
+      <View key={row.lineId} style={[styles.line, i < rows.length - 1 && styles.lineDivider]}>
         <View style={styles.lineBody}>
           <View style={styles.roleRow}>
             <Text style={[styles.role, row.mine && styles.roleMine]}>{row.role}</Text>
@@ -241,14 +243,14 @@ export default function ReadingSession() {
     );
   };
 
-  const recordingRow = (row: SessionLine) => {
+  const recordingRow = (row: SessionLine, i: number) => {
     const rec = row.recording as SessionRecording;
     const playing = playingId === rec.id;
     const label = [row.dialogueNo !== null ? t('reading.lineNo', { n: row.dialogueNo }) : null, shortTime(rec.duration_ms / 1000), playing ? t('reading.nowPlaying') : null]
       .filter(Boolean)
       .join(' · ');
     return (
-      <View key={row.lineId} style={styles.line}>
+      <View key={row.lineId} style={[styles.line, i < recorded.length - 1 && styles.lineDivider]}>
         {playButton(rec)}
         <View style={styles.lineBody}>
           <Text style={[styles.recLabel, playing && styles.recLabelOn]}>{label}</Text>
@@ -281,23 +283,26 @@ export default function ReadingSession() {
             </View>
           </View>
           {playable.length > 0 && (
-            <Pressable style={styles.listenAll} onPress={() => void listenAll()}>
-              <Feather name={listen ? 'pause' : 'play'} size={16} color={palette.blueDeep} />
-              <Text style={styles.listenAllText}>{listen ? t('reading.stopListening', { k: listen.at, n: listen.total }) : t('reading.listenAll')}</Text>
-            </Pressable>
+            <Button
+              variant="secondary"
+              size="md"
+              label={listen ? t('reading.stopListening', { k: listen.at, n: listen.total }) : t('reading.listenAll')}
+              icon={<Feather name={listen ? 'pause' : 'play'} size={16} color={palette.textSub} />}
+              style={styles.listenAll}
+              onPress={() => void listenAll()}
+            />
           )}
         </View>
 
         <Text style={styles.sectionTitle}>{t('reading.sessionScript')}</Text>
-        <View style={styles.tabs}>
-          {(['all', 'mine'] as const).map((key) => (
-            <Pressable key={key} style={[styles.tab, tab === key && styles.tabOn]} onPress={() => setTab(key)} accessibilityRole="tab" accessibilityState={{ selected: tab === key }}>
-              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>
-                {key === 'all' ? t('reading.rangeWhole') : t('reading.myRecordingsOnly')}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <UnderlineTabs
+          tabs={[
+            { key: 'all', label: t('reading.rangeWhole') },
+            { key: 'mine', label: t('reading.myRecordingsOnly') },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
 
         {tab === 'all' ? (
           rows.map(scriptRow)
@@ -339,15 +344,10 @@ const styles = StyleSheet.create({
   meta: { ...type.caption, color: palette.textMeta },
   chip: { borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2 },
   chipText: type.micro,
-  listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], marginTop: space[2], borderRadius: radius.lg, height: 40, backgroundColor: palette.blueSoft },
-  listenAllText: { ...type.body2Bold, color: palette.blueDeep },
+  listenAll: { marginTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[3] },
-  tabs: { flexDirection: 'row', padding: space[1], gap: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft, marginBottom: space[2] },
-  tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
-  tabTextOn: { color: palette.text },
-  line: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
+  lineDivider: { borderBottomColor: palette.border, borderBottomWidth: 1 },
   lineBody: { flex: 1, gap: space[1] },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   role: { ...type.captionBold, color: palette.textMeta },

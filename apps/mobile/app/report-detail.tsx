@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { useAppDialog } from '@/components/app-dialog';
 import { forgetLocalCopy } from '@/lib/library/library-runner';
 import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
@@ -12,7 +13,8 @@ import { NoteSections } from '@/components/note-sections';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { ReportRating } from '@/components/report-rating';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { InlineEmpty } from '@/components/ui/inline-empty';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -41,7 +43,7 @@ export default function ReportDetailScreen() {
   // 준비 화면이 409 로 그 대화에 돌려보낸다.
   const [group, setGroup] = useState<Pick<PracticeGroupDetail, 'in_progress_practice_id'> | null>(null);
   const [loading, setLoading] = useState(true);
-  // 노트를 읽지 못함(회차 id 없음·요청 실패)은 StatusScreen 오류, 노트가 아직 없음은 InlineEmpty 다.
+  // 노트를 읽지 못함(회차 id 없음·요청 실패)은 StatusScreen 오류, 노트가 아직 없음은 StatusScreen/Empty 다.
   const [problem, setProblem] = useState<'load_fail' | 'none' | null>(null);
   const { alert, dialog } = useAppDialog();
   const loadRevision = useRef(0);
@@ -136,11 +138,10 @@ export default function ReportDetailScreen() {
         />
       )}
       {!loading && problem === 'none' && (
-        <View style={styles.body}>
-          <InlineEmpty title={t('note.noneTitle')} description={t('note.noneDetailBody')} />
-        </View>
+        <StatusScreen kind="empty" mascot={MASCOT.coach} title={t('note.noneTitle')} body={t('note.noneDetailBody')} />
       )}
       {note && (
+        <KeyboardLift aboveSafeBottom>
         <KeyboardAwareScroll contentContainerStyle={styles.body}>
           <View style={styles.heading}>
             <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
@@ -158,9 +159,11 @@ export default function ReportDetailScreen() {
 
           {/* 지난 노트에서도 평가를 남기고 고친다 — 초기값은 이미 남긴 평가다(practice.note). */}
           {practiceId && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
-
-          <PrimaryButton label={t(continueActionLabel(action))} phLabel="report_detail_continue" onPress={continuePractice} />
         </KeyboardAwareScroll>
+        <CtaBar safeBottom={false}>
+          <PrimaryButton label={t(continueActionLabel(action))} phLabel="report_detail_continue" onPress={continuePractice} />
+        </CtaBar>
+        </KeyboardLift>
       )}
       {dialog}
     </SafeAreaView>

@@ -10,7 +10,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SplitJobRow } from '@/components/reading/split-job-row';
 import { BandGradient } from '@/components/ui/band-gradient';
-import { Button } from '@/components/ui/buttons';
+import { FLOATING_ADD_HEIGHT, FloatingAdd } from '@/components/ui/floating-add';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
@@ -303,7 +303,7 @@ export default function ReadingList() {
       <ScrollView
       // 입구 위 띠의 첫 색은 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
       style={[styles.root, (showEntry || entrySkeleton) && styles.rootEmpty]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 + (showEntry || entrySkeleton ? 0 : FLOATING_ADD_HEIGHT + space[3]) }]}
       contentInset={{ top: iosTopInset }}
       contentOffset={{ x: 0, y: -iosTopInset }}
       automaticallyAdjustContentInsets={false}
@@ -327,17 +327,6 @@ export default function ReadingList() {
               {/* 탭바가 숨어 프로필 탭의 설정으로 못 가므로 로그아웃·탈퇴 길을 남긴다(SOMA-781). */}
               {firstTime && (
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
-              )}
-              {!showEntry && !entrySkeleton && (
-                <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
-                  <Button
-                    size="md"
-                    label={t('reading.titleNew')}
-                    icon={<Feather name="plus" size={16} color={palette.onAccent} />}
-                    phLabel="reading_new"
-                    onPress={() => router.push('/reading/new')}
-                  />
-                </View>
               )}
             </View>
           }
@@ -510,6 +499,16 @@ export default function ReadingList() {
       </ScrollView>
       {/* 내리면 내용이 상태 표시줄 밑으로 비쳐 겹쳐 보였다(11/2 QA) — 상태 표시줄 자리를 바탕색으로 덮는다. */}
       <View pointerEvents="none" style={[styles.statusCover, { height: insets.top }, (showEntry || entrySkeleton) && styles.statusCoverEmpty]} />
+      {!showEntry && !entrySkeleton && (
+        <FloatingAdd
+          label={t('reading.titleNew')}
+          // useTabBarSpace 는 탭바가 있으면 탭바 위 12까지 포함하고, 숨기면 안전영역뿐이다.
+          bottom={tabBarSpace === insets.bottom ? insets.bottom + space[3] : tabBarSpace}
+          phLabel="reading_new"
+          target={newTarget}
+          onPress={() => router.push('/reading/new')}
+        />
+      )}
     </View>
   );
 }

@@ -226,7 +226,7 @@ test('대학을 찾지 못하면 그렇다고 알리고 머리는 기본 제목�
   byUniversity.mockResolvedValue(admissions());
   await render(<UniversityDetailScreen />);
 
-  expect(await screen.findByText('해당 대학을 찾을 수 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('해당 대학을 찾을 수 없어요')).toBeOnTheScreen();
   expect(screen.getByText('연기 입시 정보')).toBeOnTheScreen();
 });
 

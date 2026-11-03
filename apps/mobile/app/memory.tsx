@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -48,11 +49,14 @@ export default function MemoryScreen() {
   const [items, setItems] = useState<Record<string, MemoryItem>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [savedField, setSavedField] = useState<string | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await api.actorMemory();
       const next: Record<string, MemoryItem> = {};
@@ -60,12 +64,11 @@ export default function MemoryScreen() {
       setItems(next);
       setDrafts(Object.fromEntries(res.items.map((i) => [i.field, i.value])));
     } catch {
-      // 못 불러와도 화면은 뜬다. 빈 상태와 구분되도록 알리기만 한다.
-      void alert({ title: translate('memory.loadFailTitle'), message: translate('memory.loadFailBody') });
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [alert]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -157,7 +160,13 @@ export default function MemoryScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <NavHeader title={translate('memory.screenTitle')} left={<NavBackButton onPress={() => router.back()} />} />
-      {loading ? (
+      {loadFailed ? (
+        <StatusScreen
+          title={translate('memory.loadFailTitle')}
+          body={translate('memory.loadFailBody')}
+          primary={{ label: translate('common.retry'), onPress: () => void load() }}
+        />
+      ) : loading ? (
         <>
           {intro}
           <SkeletonRows count={3} avatar={false} />

@@ -363,7 +363,7 @@ export default function PracticeGroupScreen() {
 
           {video && (
             video.url ? (
-              <Pressable style={styles.linkRow} onPress={() => setPlaying(true)} accessibilityRole="button" accessibilityLabel={t('history.viewVideo')}>
+              <Pressable style={[styles.linkRow, !!group.last_conversation_id && styles.linkRowAfter]} onPress={() => setPlaying(true)} accessibilityRole="button" accessibilityLabel={t('history.viewVideo')}>
                 <Text style={styles.linkLabel}>{t('history.viewVideo')}</Text>
                 <Feather name="play" size={18} color={palette.iconFaint} />
               </Pressable>
@@ -454,9 +454,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[2],
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
   },
+  // 구분선은 같은 섹션의 행 사이에만.
+  linkRowAfter: { borderTopWidth: 1, borderTopColor: palette.border },
   linkLabel: { ...type.body1Bold, color: palette.text },
   sectionTitle: { ...type.body2Bold, color: palette.textSub, marginTop: space[2] },
   card: { borderWidth: 1, borderColor: palette.border, borderRadius: radius.lg, padding: space[4], gap: space[1] },
@@ -468,8 +468,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
   },
   roundLineLabel: { ...type.body2Bold, color: palette.textSub },
   chat: { gap: space[3], paddingVertical: space[2] },

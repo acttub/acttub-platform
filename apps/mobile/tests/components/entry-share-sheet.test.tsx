@@ -82,9 +82,9 @@ describe('EntryShareSheet', () => {
     m.videoDeps.download.mockReturnValue(new Promise((r) => (finish = r)));
     await open();
     fireEvent.press(screen.getByLabelText('인스타'));
-    expect(await screen.findByText('영상을 준비하고 있어요…')).toBeTruthy();
+    expect(await screen.findByText('영상을 준비하는 중…')).toBeTruthy();
     await act(async () => finish({ uri: 'f', size: 1 }));
-    await waitFor(() => expect(screen.queryByText('영상을 준비하고 있어요…')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('영상을 준비하는 중…')).toBeNull());
   });
 
   it('인스타: 받기에 실패하면 안내를 보이고 스토리를 열지 않는다', async () => {

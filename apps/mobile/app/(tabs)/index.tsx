@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { AD_SIZES, AD_SLOTS } from '@/lib/ads';
+import { BandGradient } from '@/components/ui/band-gradient';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
@@ -688,7 +689,7 @@ export default function HomeScreen() {
   const rowChallenge: HomeRowData = {
     key: 'challenge',
     icon: 'award',
-    tone: 'orange',
+    ionicon: 'trophy-outline',
     title: t('home.rowChallenge'),
     sub: featured
       ? [`‘${featured.line}’`, featuredDays !== null && featuredDays >= 0 ? dDayLabel(featured) : null].filter(Boolean).join(' · ')
@@ -699,7 +700,7 @@ export default function HomeScreen() {
   const rowWatch: HomeRowData = {
     key: 'watch',
     icon: 'play',
-    tone: 'orange',
+    ionicon: 'play-outline',
     title: t('home.rowWatch'),
     // pen P1.16 「이번 주 참여작 12개」 — 참여작이 없으면 정렬 안내.
     sub: featured && featured.entry_count > 0 ? t('home.rowWatchSubCount', { n: featured.entry_count }) : t('home.rowWatchSub'),
@@ -774,9 +775,7 @@ export default function HomeScreen() {
       {/* iOS 에서 위로 당기면(바운스) 히어로 위가 비어 스크롤 바탕색이 띠처럼 보였다 — 히어로 첫 색을 위로 길게 깐다(SOMA-924). */}
       <View style={styles.overscrollFill} pointerEvents="none" />
       <View style={styles.heroBg} pointerEvents="none">
-        {HERO_FADE.map((c, i) => (
-          <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
-        ))}
+        <BandGradient stops={HERO_STOPS} />
       </View>
       <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
       <View style={styles.hero}>
@@ -909,7 +908,7 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshRecords()} tintColor={palette.blue} />}>
           {/* 히어로(pen 「홈」) — 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
-          {/* 요소·배치는 개편본, 배경(위에서 옅어지는 파랑 띠·창문 빛·연한 바탕)은 예전 것(SOMA-923). */}
+          {/* 요소·배치는 개편본, 배경은 흰색까지 옅어지는 파랑 띠와 창문 빛(SOMA-923). */}
           {heroBand(false)}
 
           <View style={styles.body}>
@@ -954,9 +953,9 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 ph-label={row.phLabel}
                 style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
-                <View style={[styles.rowIcon, row.tone === 'orange' && styles.rowIconOrange]}>
-                  {row.tone === 'orange' ? (
-                    <Ionicons name={row.icon === 'award' ? 'trophy-outline' : 'play-outline'} size={20} color={palette.flame} />
+                <View style={styles.rowIcon}>
+                  {row.ionicon ? (
+                    <Ionicons name={row.ionicon} size={20} color={palette.blue} />
                   ) : (
                     <Feather name={row.icon} size={20} color={palette.blue} />
                   )}
@@ -1043,10 +1042,9 @@ type DeadlineBlock = {
   rows: { id: string; days: number; title: string; sub: string }[];
 };
 
-/** D-day 배지 — 3일 안은 danger, 10일 안은 amber, 그 밖은 파랑. */
+/** D-day 배지 — 3일 안은 danger, 그 밖은 파랑. 한 화면에 상태색은 하나만 쓴다. */
 function ddayTone(days: number): { box: { backgroundColor: string }; text: { color: string } } {
   if (days <= 3) return { box: { backgroundColor: palette.dangerSoft }, text: { color: palette.danger } };
-  if (days <= 10) return { box: { backgroundColor: palette.amberSoft }, text: { color: palette.amber } };
   return { box: { backgroundColor: palette.blueSoft }, text: { color: palette.blueDeep } };
 }
 
@@ -1062,8 +1060,8 @@ type HomeRowData = {
   title: string;
   sub: string;
   phLabel: string;
-  /** orange 면 아이콘 칸이 주황(챌린지·영상 보기) — 나머지는 파랑. */
-  tone?: 'orange';
+  /** 챌린지·영상 보기는 pen 의 lucide 모양에 맞는 Ionicons 로 그린다. */
+  ionicon?: 'trophy-outline' | 'play-outline';
   onPress: () => void;
 };
 
@@ -1157,9 +1155,9 @@ function TodayCardBody({
       style={({ pressed }) => [styles.todayCard, pressed && styles.pressed]}>
       <View style={styles.eyebrowRow}>
         {icon === 'trophy' ? (
-          <Ionicons name="trophy-outline" size={16} color={palette.onAccent} />
+          <Ionicons name="trophy-outline" size={16} color={palette.blueDeep} />
         ) : (
-          <Feather name={icon} size={16} color={palette.onAccent} />
+          <Feather name={icon} size={16} color={palette.blueDeep} />
         )}
         <Text style={styles.eyebrow}>{eyebrow}</Text>
       </View>
@@ -1169,7 +1167,7 @@ function TodayCardBody({
       {/* 버튼 모양이 아니라 카드가 어디로 가는지 알려 주는 글자 줄이다 — 누르는 곳은 카드 전체. */}
       <View style={styles.todayCta}>
         <Text style={styles.todayCtaText}>{cta}</Text>
-        <Feather name="arrow-right" size={16} color={palette.onAccent} />
+        <Feather name="arrow-right" size={16} color={palette.blueDeep} />
       </View>
     </Pressable>
   );
@@ -1293,7 +1291,7 @@ function HomeSkeleton({
           <View style={styles.rowList}>
             {[0, 1, 2].map((i) => (
               <View key={i} style={styles.listRow}>
-                <SkeletonBlock width={40} height={40} radius={radius.md} />
+                <SkeletonBlock width={40} height={40} radius={radius.full} />
                 <View style={styles.flex}>
                   <SkeletonLine size={type.body1Bold} width={i % 2 === 0 ? '52%' : '44%'} />
                   <SkeletonLine size={type.caption} width={i % 2 === 0 ? '38%' : '46%'} style={{ marginTop: space[1] / 2 }} />
@@ -1340,15 +1338,18 @@ function SkeletonChoice({ steps = 0 }: { steps?: number }) {
 /** 오늘 카드(TodayCardBody) 높이를 아직 모를 때 — 제목 한 줄짜리 카드(이어 읽기) 높이. */
 const TODAY_CARD_SKELETON_HEIGHT = 140;
 
-/** 홈 위 배경 — 위에서 아래로 옅어지는 파랑(예전 배경, SOMA-923). */
-const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
+/** 홈 위 배경 — 위에서 아래로 흰색까지 옅어지는 파랑(디자인 시스템 「그라데이션 예외」). */
+const HERO_STOPS = [
+  [0, '#E4EEFC'],
+  [1, palette.bg],
+] as const;
 
 const styles = StyleSheet.create({
   contactFooter: { ...type.caption, color: palette.textMeta, textAlign: 'center', marginTop: space[6] },
-  contactFooterLink: { ...type.caption, color: palette.textSub, textDecorationLine: 'underline' },
+  contactFooterLink: { ...type.caption, color: palette.blueDeep },
   safe: { flex: 1, backgroundColor: palette.bg },
   safeHero: { backgroundColor: '#E4EEFC' },
-  scrollBg: { backgroundColor: '#F7FAFE' },
+  scrollBg: { backgroundColor: palette.bg },
   heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
   overscrollFill: { position: 'absolute', top: -1000, left: 0, right: 0, height: 1000, backgroundColor: '#E4EEFC' },
   heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
@@ -1381,7 +1382,7 @@ const styles = StyleSheet.create({
   choiceText: { ...type.body1Bold, color: palette.text },
   choiceTextOn: { color: palette.blueDeep },
   choiceSub: { marginTop: space[1], ...type.body2, color: palette.textSub },
-  radio: { width: 22, height: 22, borderRadius: radius.full, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
+  radio: { width: 22, height: 22, borderRadius: radius.full, borderWidth: 1.5, borderColor: palette.textDisabled, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   radioOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   steps: { gap: space[2], paddingTop: space[3], borderTopWidth: 1, borderTopColor: palette.border },
   stepsTitle: { ...type.captionBold, color: palette.blueDeep },
@@ -1451,22 +1452,24 @@ const styles = StyleSheet.create({
   weekLabelToday: { color: palette.text },
 
   todayCard: {
-    backgroundColor: palette.text,
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: palette.border,
     borderRadius: radius.lg,
     padding: space[5],
     gap: space[2],
   },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  eyebrow: { ...type.caption, color: palette.onMediaSub },
-  todayTitle: { ...type.title2, color: palette.onAccent },
-  todaySub: { ...type.caption, color: palette.onMediaSub },
+  eyebrow: { ...type.captionBold, color: palette.blueDeep },
+  todayTitle: { ...type.title2, color: palette.text },
+  todaySub: { ...type.caption, color: palette.textMeta },
   todaySpacer: { height: space[2] },
   todayCta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  todayCtaText: { ...type.body2Bold, color: palette.onAccent },
+  todayCtaText: { ...type.body2Bold, color: palette.blueDeep },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },
-  sectionAll: { ...type.captionBold, color: palette.blueDeep },
+  sectionAll: { ...type.body2Bold, color: palette.blueDeep },
   rowList: { gap: space[3] },
   deadlineList: { gap: space[2] },
   deadlineBlock: { gap: space[3] },
@@ -1480,8 +1483,7 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     backgroundColor: palette.bg,
   },
-  rowIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  rowIconOrange: { backgroundColor: palette.flameSoft },
+  rowIcon: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   listTitle: { ...type.body1Bold, color: palette.text },
   listMeta: { marginTop: space[1] / 2, ...type.caption, color: palette.textMeta },
   deadlineRow: {

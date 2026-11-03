@@ -24,7 +24,7 @@ export function HomeUploadCard({ upload }: { upload: ReturnType<typeof useWaitin
     <View style={styles.card} testID="home-upload-card">
       <View style={styles.eyebrowRow}>
         {/* pen P1 「영상 올리는 중」 — 올리는 동안은 올리기 아이콘, 다 올렸거나 실패하면 영상 아이콘. */}
-        <Feather name={state === 'uploading' ? 'upload' : 'video'} size={16} color={palette.onAccent} />
+        <Feather name={state === 'uploading' ? 'upload' : 'video'} size={16} color={palette.blueDeep} />
         <Text style={styles.eyebrow}>{eyebrow}</Text>
       </View>
       <Text style={styles.title} numberOfLines={3}>{title}</Text>
@@ -44,20 +44,20 @@ export function HomeUploadCard({ upload }: { upload: ReturnType<typeof useWaitin
   );
 }
 
-/** 홈 「오늘 할 것」 카드와 같은 모양 — text 바탕 r16, 안쪽 20, 흰 글자, 흰 버튼(md 40). 진행률을 받지 않아 막대는 두지 않는다. */
+/** 홈 「오늘 할 것」 카드와 같은 모양 — 흰 바탕 + 1px border, r16, 안쪽 20, 옅은 파랑 버튼(md 40). 진행률을 받지 않아 막대는 두지 않는다. */
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.text, borderRadius: radius.lg, padding: space[5], gap: space[2] },
+  card: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border, borderRadius: radius.lg, padding: space[5], gap: space[2] },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  eyebrow: { ...type.caption, color: palette.onMediaSub },
-  title: { ...type.title2, color: palette.onAccent },
-  sub: { ...type.caption, color: palette.onMediaSub },
+  eyebrow: { ...type.captionBold, color: palette.blueDeep },
+  title: { ...type.title2, color: palette.text },
+  sub: { ...type.caption, color: palette.textMeta },
   cta: {
     alignSelf: 'flex-start',
     marginTop: space[2],
     height: 40,
     borderRadius: radius.lg,
     paddingHorizontal: space[4],
-    backgroundColor: palette.bg,
+    backgroundColor: palette.blueSoft,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[1.5],

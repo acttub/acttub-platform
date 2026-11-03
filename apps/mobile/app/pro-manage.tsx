@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   rows: { marginHorizontal: -space.gutter },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space[3], paddingHorizontal: space[5] },
   pressed: { backgroundColor: palette.bgSubtle },
-  rowText: { ...type.body1, flex: 1, color: palette.text },
+  rowText: { ...type.body1Bold, flex: 1, color: palette.text },
   divider: { height: 1, marginHorizontal: space[5], backgroundColor: palette.border },
   progress: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });

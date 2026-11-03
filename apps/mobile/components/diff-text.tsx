@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View, type TextStyle } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { type } from '@/constants/tokens';
 import type { DifferentLine } from '@/lib/reading/types';
 
 /**
@@ -43,11 +44,11 @@ export function DiffText({
 
 const styles = StyleSheet.create({
   box: { gap: 4 },
-  text: { color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23 },
-  differs: { backgroundColor: palette.amberSoft, fontFamily: 'Pretendard-Bold' },
-  said: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 18 },
-  // pen R9.26 「내가 말한 것」 — 전체 보기에서는 14 반굵게 회색.
-  saidFull: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 20 },
+  text: { ...type.body2, color: palette.text },
+  differs: { ...type.body2Bold, backgroundColor: palette.amberSoft },
+  said: { ...type.caption, color: palette.textMeta },
+  // pen R9.26 「내가 말한 것」 — 전체 보기에서는 한 단계 크게.
+  saidFull: type.body2,
   saidBox: { gap: 2 },
-  saidLabel: { color: palette.textMeta, fontFamily: 'Pretendard-Bold', fontSize: 12 },
+  saidLabel: { ...type.micro, color: palette.textMeta },
 });

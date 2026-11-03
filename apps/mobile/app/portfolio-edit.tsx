@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   heroMascot: { width: 72, height: 72 },
   heroTitle: { ...type.title2, color: palette.text },
   lead: { ...type.body2, color: palette.textSub },
-  section: { borderTopWidth: 1, borderTopColor: palette.border, paddingVertical: space[5], gap: space[3] },
+  section: { paddingVertical: space[5], gap: space[3] },
   sectionHead: { gap: space[1] },
   sectionTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { ...type.headline, color: palette.text },

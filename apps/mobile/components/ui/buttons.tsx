@@ -16,6 +16,8 @@ type ButtonProps = {
   loadingLabel?: string;
   /** 글자 앞 아이콘. */
   icon?: ReactNode;
+  /** 글자 뒤 아이콘(「다음 →」). */
+  iconAfter?: ReactNode;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
   /** PostHog 누름 이름(ph-label). */
@@ -37,6 +39,7 @@ export function Button({
   loading,
   loadingLabel,
   icon,
+  iconAfter,
   style,
   accessibilityLabel,
   phLabel,
@@ -80,6 +83,7 @@ export function Button({
           <Text style={[labelStyle, disabled && styles.disabledLabel]}>
             {label}
           </Text>
+          {iconAfter}
         </>
       )}
     </Pressable>

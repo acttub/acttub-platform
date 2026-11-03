@@ -343,10 +343,10 @@ describe('답 보내기', () => {
         }),
     );
     await renderOpen();
-    expect(screen.getByRole('button', { name: SEND })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
 
     await typeAndSend('  더는 미루지 않기로요  ');
-    expect(screen.getByRole('button', { name: SEND })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
     expect(screen.getByText('답을 듣고 생각 중이에요…')).toBeOnTheScreen();
     expect(input()).toBeDisabled();
     // 보낸 답은 코치 답을 기다리는 동안 바로 오른쪽 말풍선으로 올라가고 입력칸은 빈다.
@@ -367,7 +367,8 @@ describe('답 보내기', () => {
 
     await fireEvent.changeText(input(), '가'.repeat(301));
     expect(input().props.maxLength).toBe(300);
-    expect(screen.getByRole('button', { name: SEND })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
+    expect(screen.getByText('답은 300자까지 쓸 수 있어요.')).toBeOnTheScreen();
   });
 
   test('같은 답을 다시 보내면 같은 요청 id 를, 고쳐 쓰면 새 id 를 쓴다', async () => {

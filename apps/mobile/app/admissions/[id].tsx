@@ -13,8 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
-import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonDetail } from '@/components/ui/skeleton';
+import { StatusScreen } from '@/components/ui/status-screen';
+import { weightBarColors } from '@/constants/chart-colors';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -71,15 +72,9 @@ export default function UniversityDetailScreen() {
       {!payload && !error && (
         <SkeletonDetail lines={6} />
       )}
-      {error && (
-        <View style={styles.errorBox}>
-          <InlineError message={error} onRetry={load} />
-        </View>
-      )}
+      {error && <StatusScreen title={error} body={'인터넷 연결을 확인해 주세요.'} primary={{ label: '다시 시도', onPress: load }} />}
       {payload && !university && (
-        <View style={styles.errorBox}>
-          <InlineErrorLine message="해당 대학을 찾을 수 없어요." />
-        </View>
+        <StatusScreen kind="empty" title="해당 대학을 찾을 수 없어요" primary={{ label: '목록으로', onPress: () => router.back() }} />
       )}
 
       {payload && university && (
@@ -239,15 +234,6 @@ function NoticeCard({ notice, today }: { notice: AdmissionNotice; today: string 
   );
 }
 
-const BAR_COLOR: Record<string, string> = {
-  practical: palette.blue,
-  transcript: palette.textMeta,
-  csat: palette.textDisabled,
-  interview: palette.green,
-  portfolio: palette.amber,
-  other: palette.border,
-};
-
 function WeightBar({
   bars,
   note,
@@ -261,20 +247,20 @@ function WeightBar({
     <View>
       <Text style={styles.blockLabel}>전형요소 반영비율</Text>
       <View style={styles.bar}>
-        {bars.map((bar) => (
+        {bars.map((bar, i) => (
           <View
             key={bar.key}
             style={{
               flex: bar.value / total,
-              backgroundColor: BAR_COLOR[bar.key] ?? palette.border,
+              backgroundColor: weightBarColors[i],
             }}
           />
         ))}
       </View>
       <View style={styles.legend}>
-        {bars.map((bar) => (
+        {bars.map((bar, i) => (
           <View key={bar.key} style={styles.legendItem}>
-            <View style={[styles.dot, { backgroundColor: BAR_COLOR[bar.key] ?? palette.border }]} />
+            <View style={[styles.dot, { backgroundColor: weightBarColors[i] }]} />
             <Text style={styles.legendText}>
               {bar.label} {bar.value}%
             </Text>
@@ -461,7 +447,6 @@ function Block({ label, value }: { label: string; value?: string | null }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },
-  errorBox: { paddingHorizontal: space.gutter, paddingTop: space[2] },
   list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[4] },
   uniHead: { gap: space[2] },
   uniName: { ...type.title1, color: palette.text },
@@ -510,7 +495,7 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row', gap: space[3] },
   fieldLabel: { width: 64, ...type.caption, color: palette.textMeta },
   fieldValue: { flex: 1, ...type.captionBold, color: palette.text },
-  bar: { marginTop: space[2], flexDirection: 'row', height: 8, borderRadius: radius.xs, overflow: 'hidden' },
+  bar: { marginTop: space[2], flexDirection: 'row', gap: 2, height: 8, borderRadius: radius.xs, overflow: 'hidden' },
   legend: { marginTop: space[2], flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   dot: { width: 8, height: 8, borderRadius: radius.full },
@@ -545,7 +530,7 @@ const styles = StyleSheet.create({
   tipGroupLabel: { ...type.captionBold, color: palette.textSub },
   tip: { padding: space[4], borderRadius: radius.md, backgroundColor: palette.bgSubtle, gap: space[1.5] },
   tipText: { ...type.caption, color: palette.text },
-  tipLink: { ...type.micro, color: palette.blueDeep },
+  tipLink: { ...type.body2Bold, color: palette.blueDeep },
   tipHost: { ...type.micro, color: palette.textMeta },
   resource: { padding: space[4], borderRadius: radius.lg, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border, gap: space[2] },
   badge: {
@@ -556,10 +541,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeOfficial: { backgroundColor: palette.blueSoft },
-  badgeAcademy: { backgroundColor: palette.dangerSoft },
+  badgeAcademy: { backgroundColor: palette.amberSoft },
   badgeText: { ...type.micro, color: palette.textSub },
   badgeTextOfficial: { color: palette.blueDeep },
-  badgeTextAcademy: { color: palette.danger },
+  badgeTextAcademy: { color: palette.amber },
   publisher: { flex: 1, ...type.micro, color: palette.textMeta },
   resourceTitle: { ...type.body2Bold, color: palette.text },
   foot: { marginTop: space[2], ...type.caption, color: palette.textMeta },

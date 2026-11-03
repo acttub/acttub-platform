@@ -149,14 +149,12 @@ test('모두 읽음은 가장 최신 묶음까지를 읽음으로 보낸다', as
   });
 });
 
-test('알림이 없으면 모두 읽음은 아무것도 보내지 않는다', async () => {
+test('안 읽은 알림이 없으면 모두 읽음을 보이지 않는다', async () => {
   listNotifications.mockResolvedValue({ groups: [], next_cursor: null });
   await render(<NotificationsScreen />);
   await screen.findByText('아직 알림이 없어요');
 
-  await fireEvent.press(screen.getByRole('button', { name: '모두 읽음' }));
-  expect(readNotifications).not.toHaveBeenCalled();
-  expect(screen.getByText('아직 알림이 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '모두 읽음' })).not.toBeOnTheScreen();
 });
 
 test('끝까지 내리면 다음 묶음을 이어 붙이고, 더 없으면 묻지 않는다', async () => {

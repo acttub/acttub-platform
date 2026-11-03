@@ -293,10 +293,10 @@ export function SpotlightHost() {
 
 const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
-  shroud: { position: 'absolute', backgroundColor: 'rgba(0, 0, 0, 0.55)' },
+  shroud: { position: 'absolute', backgroundColor: palette.scrim },
   // overflow hidden 이 있어야 iOS 가 이 두꺼운 반투명 테두리를 Core Animation(GPU)으로 그린다. 없으면 RN 이 테두리를
   // 그림으로 직접 그리는데, 덮개가 화면 대각선의 두 배라 한 장이 수백 MB 급이고 구멍이 움직일 때마다 다시 그려 버벅였다(SOMA-924).
-  shroudRing: { position: 'absolute', overflow: 'hidden', borderColor: 'rgba(0, 0, 0, 0.55)' },
+  shroudRing: { position: 'absolute', overflow: 'hidden', borderColor: palette.scrim },
   hole: { position: 'absolute' },
   // 밝은 배경 위에서도 보이게 파랑으로 두른다 — 흰 테두리는 흰 화면에 묻힌다.
   // 고리도 같은 까닭으로 overflow hidden(SOMA-924).

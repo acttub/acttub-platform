@@ -7,7 +7,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
 // 설정 Pro 카드 왕관 타일과 같은 파랑→보라(settings-pro-card TILE_STOPS) — 홈에서도 같은 Pro 로 읽히게 한다.
-const PRO_STOPS = [
+export const PRO_STOPS = [
   [0, '#6F9CFA'],
   [1, '#7C6BEF'],
 ] as const;

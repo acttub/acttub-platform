@@ -45,6 +45,7 @@ import { translate as t } from '@/lib/i18n';
 import { logEvent } from '@/lib/analytics';
 import { DEFAULT_LISTEN_PREFS, PAUSE_MAX_SEC, PAUSE_MIN_SEC, READING_RATES, loadListenPrefs, parsePause, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
 import { TextField } from '@/components/ui/text-field';
+import { UnderlineTabs } from '@/components/ui/underline-tabs';
 
 /**
  * 새 연습(R8, reading.cast · reading.session). 연습마다 ① 내 배역(여러 명, 나머지는 앱이 읽음) ② 구간(최근 구간 ·
@@ -377,10 +378,10 @@ export default function ReadingRange() {
                   accessibilityState={{ checked: on }}
                   ph-label="reading_first_role">
                   <View style={styles.rowBody}>
-                    <Text style={styles.cardTitle}>{c.name}</Text>
+                    <Text style={[styles.cardTitle, on && styles.titleOn]}>{c.name}</Text>
                     <Text style={styles.cardSub} numberOfLines={1}>{sub}</Text>
                   </View>
-                  {on && <Feather name="check" size={18} color={palette.blue} />}
+                  {on && <Feather name="check-circle" size={22} color={palette.blue} />}
                 </Pressable>
               );
             })}
@@ -497,16 +498,7 @@ export default function ReadingRange() {
           <View style={styles.list}>{wholeCard}</View>
         ) : (
           <>
-            <View style={styles.tabs}>
-              {tabs.map((k) => {
-                const on = activeTab === k;
-                return (
-                  <Pressable key={k} style={[styles.tab, on && styles.tabOn]} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-                    <Text style={[styles.tabText, on && styles.tabTextOn]} numberOfLines={2}>{tabLabel(k)}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <UnderlineTabs tabs={tabs.map((k) => ({ key: k, label: tabLabel(k) }))} value={activeTab} onChange={setTab} />
 
             {activeTab === 'recent' && (
               <View style={styles.list}>
@@ -621,19 +613,13 @@ const styles = StyleSheet.create({
   pauseField: { width: 72, minHeight: 40, textAlign: 'center' },
   pauseFieldError: { borderWidth: 1.5, borderColor: palette.danger },
   rateChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
-  rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 36, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
+  rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 32, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },
   roleChip: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 40, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[4] },
   roleChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },
   roleChipText: { ...type.body2Bold, color: palette.textSub },
   roleChipTextOn: { color: palette.blueDeep },
   roleChipCount: { ...type.body2, color: palette.textMeta },
-  tabs: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
-  // 높이를 못 박지 않는다 — 탭 글자가 두 줄로 꺾이면 탭 줄이 함께 늘어난다(새 대본 탭과 같다).
-  tab: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, paddingVertical: space[1.5] },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta, textAlign: 'center' },
-  tabTextOn: { color: palette.text },
   list: { gap: space[3] },
   preview: { borderRadius: radius.lg, backgroundColor: palette.bgSoft, overflow: 'hidden' },
   previewScroll: { maxHeight: 320 },
@@ -642,7 +628,7 @@ const styles = StyleSheet.create({
   previewDirection: { ...type.caption, color: palette.textMeta, fontStyle: 'italic' },
   previewLine: { gap: 2 },
   previewRole: { ...type.captionBold, color: palette.textSub },
-  previewRoleOn: { color: palette.blue },
+  previewRoleOn: { color: palette.blueDeep },
   previewText: { ...type.body2, color: palette.textSub },
   previewTextOn: { ...type.body2Bold, color: palette.text },
   card: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
@@ -657,7 +643,7 @@ const styles = StyleSheet.create({
   recentMeta: { ...type.caption, color: palette.textMeta },
   pickBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.blueSoft, borderRadius: radius.md, paddingHorizontal: space[3], paddingVertical: space[2] },
   pickText: { ...type.captionBold, color: palette.blueDeep },
-  pickReset: { ...type.captionBold, color: palette.textSub },
+  pickReset: { ...type.body2Bold, color: palette.textSub },
   lineRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: radius.md, paddingVertical: space[3], paddingHorizontal: space[4] },
   lineRowIn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   lineRole: { ...type.body2Bold, color: palette.text, width: 44 },

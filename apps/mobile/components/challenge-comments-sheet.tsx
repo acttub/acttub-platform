@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
@@ -6,18 +5,19 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DEFAULT_AVATAR_GONE, UserAvatar } from '@/components/ui/default-avatar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { ChatComposer } from '@/components/ui/chat-composer';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
+import { space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { useAppDialog } from '@/components/app-dialog';
@@ -137,7 +137,6 @@ export function ChallengeCommentsSheet({
   };
 
   const length = [...draft].length;
-  const ready = canSendComment(draft) && !sending;
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -164,10 +163,7 @@ export function ChallengeCommentsSheet({
             onEndReachedThreshold={0.3}
             ListEmptyComponent={
               comments !== null && !loadError ? (
-                <View style={styles.emptyBox}>
-                  <Text style={styles.emptyTitle}>{t('comments.emptyTitle')}</Text>
-                  <Text style={styles.empty}>{t('comments.empty')}</Text>
-                </View>
+                <InlineEmpty title={t('comments.emptyTitle')} description={t('comments.empty')} />
               ) : null
             }
             renderItem={({ item }) => (
@@ -188,7 +184,7 @@ export function ChallengeCommentsSheet({
                   <Text style={[styles.text, item.status === 'hidden' && styles.hidden]}>{commentText(item)}</Text>
                   {canDeleteComment(item) ? (
                     <Pressable onPress={() => void remove(item)} hitSlop={8} accessibilityRole="button">
-                      <Text style={styles.action}>{t('comments.delete')}</Text>
+                      <Text style={styles.actionDelete}>{t('comments.delete')}</Text>
                     </Pressable>
                   ) : (
                     <Pressable onPress={() => onReport(item.id)} hitSlop={8} accessibilityRole="button">
@@ -202,28 +198,16 @@ export function ChallengeCommentsSheet({
 
           <View style={styles.inputBar}>
             {!!(error || readable.hint) && <InlineErrorLine message={(error || readable.hint) as string} />}
-            <View style={styles.inputPill}>
-              <TextInput
-                style={styles.input}
-                placeholder={t('comments.placeholder')}
-                placeholderTextColor={palette.textMeta}
-                accessibilityLabel={t('comments.placeholder')}
-                value={draft}
-                onChangeText={readable.onChangeText}
-                maxLength={COMMENT_MAX}
-                multiline
-              />
-              <Pressable
-                style={[styles.send, !ready && styles.sendOff]}
-                onPress={() => void send()}
-                disabled={!ready}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel={t('comments.send')}>
-                {/* SOMA-828: 작은 원형 버튼이라 문구 대신 아이콘을 그대로 둔다(보내는 동안 비활성) */}
-                  <Feather name="arrow-up" size={18} color={ready ? palette.onAccent : palette.textDisabled} />
-              </Pressable>
-            </View>
+            <ChatComposer
+              placeholder={t('comments.placeholder')}
+              label={t('comments.placeholder')}
+              value={draft}
+              onChangeText={readable.onChangeText}
+              maxLength={COMMENT_MAX}
+              canSend={canSendComment(draft)}
+              onSend={() => void send()}
+              sendLabel={t('comments.send')}
+            />
             {/* 글자 수는 한도 가까이 갔을 때만 보인다 — 평소엔 입력줄만. */}
             {length >= COMMENT_MAX - 50 && (
               <Text style={styles.counter}>{t('comments.counter', { count: length, max: COMMENT_MAX })}</Text>
@@ -241,16 +225,14 @@ const styles = StyleSheet.create({
   errorBox: { paddingHorizontal: space.gutter, paddingTop: space[3] },
   list: { flex: 1 },
   listContent: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[3], gap: space[5] },
-  emptyBox: { alignItems: 'center', paddingVertical: space[10], gap: space[1.5] },
-  emptyTitle: { ...type.headline, color: palette.text },
-  empty: { ...type.body2, color: palette.textMeta, textAlign: 'center' },
   row: { flexDirection: 'row', gap: space[3], alignItems: 'flex-start' },
   body: { flex: 1, gap: space[1] },
   meta: { ...type.caption, color: palette.textMeta },
   name: { ...type.captionBold, color: palette.text },
   text: { ...type.body2, color: palette.text },
   hidden: { color: palette.textMeta },
-  action: { ...type.captionBold, color: palette.danger, marginTop: space[1] },
+  action: { ...type.captionBold, color: palette.textMeta, marginTop: space[1] },
+  actionDelete: { ...type.captionBold, color: palette.danger, marginTop: space[1] },
   inputBar: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.border,
@@ -258,18 +240,5 @@ const styles = StyleSheet.create({
     paddingTop: space[2],
     gap: space[2],
   },
-  inputPill: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: space[2],
-    borderRadius: radius.full,
-    backgroundColor: palette.bgSoft,
-    paddingLeft: space[4],
-    paddingRight: space[1],
-    paddingVertical: space[1],
-  },
-  input: { flex: 1, minHeight: 36, maxHeight: 110, paddingVertical: space[2], ...type.body1, lineHeight: undefined, color: palette.text },
-  send: { width: 36, height: 36, borderRadius: radius.full, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  sendOff: { backgroundColor: palette.border },
   counter: { ...type.caption, color: palette.textMeta, textAlign: 'right', paddingRight: space[1.5] },
 });

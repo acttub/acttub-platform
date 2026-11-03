@@ -13,7 +13,7 @@ import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
-import { SkeletonRows } from '@/components/ui/skeleton';
+import { SkeletonLine, SkeletonRows } from '@/components/ui/skeleton';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -191,11 +191,14 @@ export default function HistoryScreen() {
       <NavHeader title={t('history.title')} left={<NavBackButton onPress={goBack} phLabel="history_back" />} />
 
       <ScrollView contentContainerStyle={[styles.list, { paddingBottom: tabBarSpace + space[5] }]}>
-        <View style={styles.summary}>
-          <Stat value={t('history.countTimes', { count: roundTotal })} label={t('history.statTotal')} />
-          <View style={styles.statDivider} />
-          <Stat value={t('history.countItems', { count: groups.length })} label={t('history.statLines')} />
-        </View>
+        {/* 받기 전 숫자는 0 대신 뼈대, 한 번도 못 받았으면 숫자를 두지 않는다. */}
+        {(!error || groups.length > 0) && (
+          <View style={styles.summary}>
+            <Stat value={loading ? null : t('history.countTimes', { count: roundTotal })} label={t('history.statTotal')} />
+            <View style={styles.statDivider} />
+            <Stat value={loading ? null : t('history.countItems', { count: groups.length })} label={t('history.statLines')} />
+          </View>
+        )}
 
         <View style={styles.filters}>
           {(
@@ -280,10 +283,10 @@ export default function HistoryScreen() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label }: { value: string | null; label: string }) {
   return (
     <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
+      {value === null ? <SkeletonLine size={type.headline} width={40} /> : <Text style={styles.statValue}>{value}</Text>}
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );

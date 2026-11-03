@@ -15,9 +15,9 @@ import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -84,11 +84,7 @@ export default function AdmissionsScreen() {
       {!payload && !error && (
         <SkeletonRows count={6} />
       )}
-      {error && (
-        <View style={styles.errorBox}>
-          <InlineError message={error} onRetry={load} />
-        </View>
-      )}
+      {error && <StatusScreen title={error} body={'인터넷 연결을 확인해 주세요.'} primary={{ label: '다시 시도', onPress: load }} />}
 
       {payload && (
         <ScrollView contentContainerStyle={styles.list}>
@@ -115,13 +111,11 @@ export default function AdmissionsScreen() {
             <Chip
               label="접수 가능만"
               role="checkbox"
-              size="sm"
               selected={filters.openOnly}
               onPress={() => setFilters((was) => ({ ...was, openOnly: !was.openOnly }))}
             />
             <Chip
               label={activeCount > 0 ? `필터 ${activeCount}` : '필터'}
-              size="sm"
               selected={activeCount > 0}
               onPress={() => setFilterOpen((was) => !was)}
             />
@@ -135,7 +129,6 @@ export default function AdmissionsScreen() {
                     key={region}
                     label={region}
                     role="checkbox"
-                    size="sm"
                     selected={filters.regions.includes(region)}
                     onPress={() => toggle('regions', region)}
                   />
@@ -147,7 +140,6 @@ export default function AdmissionsScreen() {
                     key={track}
                     label={track}
                     role="checkbox"
-                    size="sm"
                     selected={filters.tracks.includes(track)}
                     onPress={() => toggle('tracks', track)}
                   />
@@ -159,7 +151,6 @@ export default function AdmissionsScreen() {
                     key={discipline}
                     label={DISCIPLINE_LABEL[discipline] ?? discipline}
                     role="checkbox"
-                    size="sm"
                     selected={filters.disciplines.includes(discipline)}
                     onPress={() => toggle('disciplines', discipline)}
                   />
@@ -171,7 +162,6 @@ export default function AdmissionsScreen() {
                     key={category}
                     label={PRACTICAL_LABEL[category] ?? category}
                     role="checkbox"
-                    size="sm"
                     selected={filters.practicals.includes(category)}
                     onPress={() => toggle('practicals', category)}
                   />
@@ -183,7 +173,6 @@ export default function AdmissionsScreen() {
                     key={type}
                     label={TYPE_LABEL[type] ?? type}
                     role="checkbox"
-                    size="sm"
                     selected={filters.types.includes(type)}
                     onPress={() => toggle('types', type)}
                   />
@@ -191,7 +180,6 @@ export default function AdmissionsScreen() {
                 <Chip
                   label="수능 최저 없음"
                   role="checkbox"
-                  size="sm"
                   selected={filters.noCsatOnly}
                   onPress={() => setFilters((was) => ({ ...was, noCsatOnly: !was.noCsatOnly }))}
                 />
@@ -325,7 +313,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },
-  errorBox: { paddingHorizontal: space.gutter, paddingTop: space[2] },
   list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[3] },
   notice: {
     flexDirection: 'row',

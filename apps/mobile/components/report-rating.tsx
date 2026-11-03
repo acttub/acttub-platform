@@ -18,7 +18,7 @@ import { newRequestId } from '@/lib/request-id';
  * 한 줄은 선택이고, 보내면 같은 평가에 덧붙는다. 못 보낸 요청은 기기가 같은 요청 id 로 들고 있다가
  * 다시 보낸다(lib/note-rating.ts). 초기값은 노트 조회의 my_rating 이다. 이탈 설문과 다른 기능이다.
  */
-export function ReportRating({ practiceId, initial }: { practiceId: string; initial: NoteRating | null | undefined }) {
+export function ReportRating({ practiceId, initial, onInputFocus }: { practiceId: string; initial: NoteRating | null | undefined; onInputFocus?: () => void }) {
   return (
     <RatingBox<NoteRatingValue>
       initial={initial ?? null}
@@ -31,6 +31,7 @@ export function ReportRating({ practiceId, initial }: { practiceId: string; init
       sendLabel={t('report.rateSend')}
       thanks={t('report.rateThanks')}
       commentMax={NOTE_RATING_COMMENT_MAX}
+      onInputFocus={onInputFocus}
       save={async (requestId, rating, comment) => {
         const result = await noteRatings.send(practiceId, buildNoteRatingBody({ requestId, rating, comment }));
         logEvent('report_rating_submit', { rating, length: comment?.length ?? 0, result });

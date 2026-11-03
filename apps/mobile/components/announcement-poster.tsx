@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
@@ -28,7 +28,9 @@ import {
   type PosterAudioAsset,
   type PosterImageAsset,
 } from '@/lib/poster';
+import { Button, TextButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 
 const IMAGES: Record<PosterImageAsset, number> = {
   'mascot-reading': require('@/assets/images/mascot-reading.png'),
@@ -160,16 +162,19 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
             <Text style={styles.title}>{poster.title}</Text>
             {poster.body ? <Text style={styles.body}>{poster.body}</Text> : null}
             {audio ? (
-              <Pressable style={styles.sample} onPress={toggleSample} accessibilityRole="button">
-                <Feather name={playing ? 'pause' : 'play'} size={16} color={palette.blue} />
-                <Text style={styles.sampleText}>{t(playing ? 'poster.sampleStop' : 'poster.samplePlay')}</Text>
-              </Pressable>
+              <Button
+                size="sm"
+                style={styles.sample}
+                onPress={toggleSample}
+                icon={<Feather name={playing ? 'pause' : 'play'} size={16} color={palette.blueDeep} />}
+                label={t(playing ? 'poster.sampleStop' : 'poster.samplePlay')}
+              />
             ) : null}
             {poster.footnote ? <Text style={styles.footnote}>{poster.footnote}</Text> : null}
-            {cta ? <Pressable style={styles.enable} onPress={() => void press()} accessibilityRole="button"><Text style={styles.enableText}>{cta.label}</Text></Pressable> : null}
+            {cta ? <Button style={styles.enable} onPress={() => void press()} label={cta.label} /> : null}
             <View style={styles.footer}>
-              {poster.dismissible ? <Pressable style={styles.footerBtn} onPress={() => void dismissToday()} accessibilityRole="button"><Text style={styles.dismissText}>{t('poster.hideToday')}</Text></Pressable> : <View />}
-              <Pressable style={styles.footerBtn} onPress={close} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="poster_close"><Text style={styles.dismissText}>{t('poster.close')}</Text></Pressable>
+              {poster.dismissible ? <TextButton onPress={() => void dismissToday()} label={t('poster.hideToday')} /> : <View />}
+              <TextButton onPress={close} accessibilityLabel={t('common.close')} phLabel="poster_close" label={t('poster.close')} />
             </View>
           </View>
         </View>
@@ -180,20 +185,16 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(25,31,40,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
-  card: { borderRadius: 24, backgroundColor: palette.bg, overflow: 'hidden' },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', paddingHorizontal: space[6] },
+  card: { borderRadius: radius.xl, backgroundColor: palette.bg, overflow: 'hidden' },
   art: { height: 170, alignItems: 'center', justifyContent: 'center' },
   mascot: { width: 170, height: 170 },
-  content: { paddingHorizontal: 22, paddingTop: 22, paddingBottom: 6 },
-  badge: { color: palette.blueDeep, fontSize: 13, fontWeight: '800' },
-  title: { marginTop: 6, color: palette.text, fontSize: 21, lineHeight: 28, fontWeight: '800' },
-  body: { color: palette.textMeta, fontSize: 15, lineHeight: 22, fontWeight: '400', marginTop: 6 },
-  footnote: { marginTop: 14, color: palette.textMeta, fontSize: 12, lineHeight: 17 },
-  sample: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderRadius: 12, backgroundColor: palette.blueSoft, paddingHorizontal: 14, height: 44 },
-  sampleText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
-  enable: { marginTop: 22, height: 52, borderRadius: 12, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  enableText: { color: palette.onAccent, fontSize: 17, fontWeight: '700' },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  footerBtn: { height: 44, paddingHorizontal: 8, justifyContent: 'center' },
-  dismissText: { color: palette.textMeta, fontSize: 14, fontWeight: '600' },
+  content: { paddingHorizontal: space[6], paddingTop: space[6], paddingBottom: space[2] },
+  badge: { ...type.captionBold, color: palette.blueDeep },
+  title: { ...type.title2, marginTop: space[1], color: palette.text },
+  body: { ...type.body2, color: palette.textSub, marginTop: space[2] },
+  footnote: { ...type.caption, marginTop: space[3], color: palette.textMeta },
+  sample: { alignSelf: 'flex-start', marginTop: space[3] },
+  enable: { marginTop: space[6] },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space[1] },
 });

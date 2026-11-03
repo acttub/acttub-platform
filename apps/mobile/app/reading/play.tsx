@@ -22,6 +22,7 @@ import { DoneScreen } from '@/components/ui/done-screen';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
 import { ReadingStatus } from '@/components/ui/reading-status';
+import { Toast } from '@/components/ui/toast';
 import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
@@ -1909,12 +1910,7 @@ export default function ReadingPlay() {
         {pendingUploads > 0 && <Text style={styles.doneMeta}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
       </View>
     );
-    const note = (text: string, icon?: 'info' | 'wifi-off') => (
-      <View style={styles.noteBox}>
-        {icon && <Feather name={icon} size={16} color={palette.iconFaint} />}
-        <Text style={styles.noteText}>{text}</Text>
-      </View>
-    );
+    const note = (text: string, icon?: 'info' | 'wifi-off') => <InfoBanner body={text} icon={icon} />;
     const rating = coaching && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
     // 발음 보고서는 녹음한 회차에만 — 자동 넘김·듣기만은 녹음이 없어 「읽은 줄이 없어요」만 나온다(11/2 QA).
     const recorded = !listenAll && !handsFree && session.record !== false;
@@ -1992,6 +1988,7 @@ export default function ReadingPlay() {
                 <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
+              {links}
               {coaching && (
                 <>
                   <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
@@ -2013,7 +2010,7 @@ export default function ReadingPlay() {
                     r.status === 'missed' ? (
                       <Pressable
                         key={r.lineId}
-                        style={styles.monoRow}
+                        style={[styles.monoRow, k < total - 1 && styles.monoDivider]}
                         onPress={() => void readAgain(r.lineId)}
                         disabled={busy}
                         accessibilityRole="button"
@@ -2022,7 +2019,7 @@ export default function ReadingPlay() {
                         <Text style={styles.monoTagMissed}>{`${statusLabel.missed} · ${t('reading.monologueRetryFrom')}`}</Text>
                       </Pressable>
                     ) : (
-                      <View key={r.lineId} style={styles.monoRow}>
+                      <View key={r.lineId} style={[styles.monoRow, k < total - 1 && styles.monoDivider]}>
                         <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
                         <Text style={styles.monoTag}>{statusLabel[r.status]}</Text>
                       </View>
@@ -2030,7 +2027,6 @@ export default function ReadingPlay() {
                   )}
                 </View>
               )}
-              {links}
               {rating}
               {ratingCard}
             </View>
@@ -2051,6 +2047,7 @@ export default function ReadingPlay() {
           <View style={styles.doneBody}>
             {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
+            {links}
             {coaching && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
             {listened ? (
               note(t('reading.listenDoneNote'), 'info')
@@ -2075,7 +2072,6 @@ export default function ReadingPlay() {
                 <TextButton tone="accent" label={t('reading.seeAll')} onPress={() => router.push('/reading/diff')} />
               </View>
             ) : null}
-            {links}
             {rating}
             {ratingCard}
           </View>
@@ -2161,11 +2157,6 @@ export default function ReadingPlay() {
         <Pressable style={styles.proHint} onPress={() => router.push('/pro')} accessibilityRole="button" accessibilityLabel={t('reading.proVoiceHint')}>
           <Text style={styles.proHintText}>{t('reading.proVoiceHint')}</Text>
         </Pressable>
-      )}
-      {notice?.kind === 'cloud_fallback' && (
-        <View style={styles.toast}>
-          <Text style={styles.toastText}>{t('reading.cloudFallbackToast')}</Text>
-        </View>
       )}
 
       <ScrollView
@@ -2356,12 +2347,6 @@ export default function ReadingPlay() {
         </View>
       )}
 
-      {notice?.kind === 'jump' && (
-        <View style={[styles.toast, styles.jumpToast]}>
-          <Feather name="rotate-ccw" size={14} color="#fff" />
-          <Text style={styles.toastText}>{t('reading.jumpToast', { text: notice.text })}</Text>
-        </View>
-      )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
       {coachMark === 'next' && <View style={styles.coachAboveControls}>{coachElement}</View>}
 
@@ -2391,21 +2376,16 @@ export default function ReadingPlay() {
         </Pressable>
         {paused ? (
           <>
-            <Pressable
+            <Button
               key="stop"
-              style={[styles.ctrl, styles.ctrlGhost]}
+              variant="secondary"
+              style={styles.ctrl}
               onPress={stopHere}
-              accessibilityRole="button"
-              // 이름표를 직접 단다 — 안 달면 같은 자리에 있던 [이전]의 「이전 대사」가 남아 화면 낭독기가 잘못 읽었다.
-              accessibilityLabel={t('reading.stopHere')}
-              ph-label="reading_play_stop">
-              <Feather name="square" size={16} color={palette.textSub} />
-              <Text style={styles.ctrlGhostText}>{t('reading.stopHere')}</Text>
-            </Pressable>
-            <Pressable key="resume" style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume} accessibilityRole="button" accessibilityLabel={t('reading.resume')}>
-              <Feather name="play" size={16} color="#fff" />
-              <Text style={styles.ctrlPrimaryText}>{t('reading.resume')}</Text>
-            </Pressable>
+              label={t('reading.stopHere')}
+              icon={<Feather name="square" size={16} color={palette.textSub} />}
+              phLabel="reading_play_stop"
+            />
+            <Button key="resume" style={styles.ctrl} onPress={doResume} label={t('reading.resume')} icon={<Feather name="play" size={16} color={palette.onAccent} />} />
           </>
         ) : (
           <>
@@ -2423,22 +2403,19 @@ export default function ReadingPlay() {
                 <Feather name="skip-back" size={20} color={palette.textSub} />
               </Pressable>
             )}
-            <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={doPause}>
-              <Feather name="pause" size={16} color={palette.textSub} />
-              <Text style={styles.ctrlGhostText}>{t('reading.pause')}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.ctrl, styles.ctrlPrimary]}
+            <Button variant="secondary" style={styles.ctrl} onPress={doPause} label={t('reading.pause')} icon={<Feather name="pause" size={16} color={palette.textSub} />} />
+            <Button
+              style={styles.ctrl}
+              label={t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}
+              iconAfter={<Feather name="arrow-right" size={16} color={palette.onAccent} />}
               onPress={() => {
                 if (monoNext) nextMonoChunk(monoNext.start);
                 else if (monologue) void finishMonologue();
                 else if (beatOn) setBeatDoneAt(run.index);
                 else if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
-              }}>
-              <Text style={styles.ctrlPrimaryText}>{t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
-              <Feather name="arrow-right" size={16} color="#fff" />
-            </Pressable>
+              }}
+            />
           </>
         )}
       </View>
@@ -2457,6 +2434,10 @@ export default function ReadingPlay() {
           <PrimaryButton label={t('reading.start')} onPress={() => void closeTip()} style={styles.startButton} />
         </View>
       )}
+
+      {/* 토스트는 화면 아래 한 곳 — 아래 버튼 줄(위 12 · 높이 48 · 아래 안전영역+12) 위 12. */}
+      {notice?.kind === 'cloud_fallback' && <Toast icon="info" message={t('reading.cloudFallbackToast')} bottom={insets.bottom + 84} />}
+      {notice?.kind === 'jump' && <Toast icon="info" message={t('reading.jumpToast', { text: notice.text })} bottom={insets.bottom + 84} />}
 
       {script && (
         <>
@@ -2544,14 +2525,13 @@ const styles = StyleSheet.create({
   doneLinkText: { ...type.body2Bold, color: palette.textSub },
   doneLinkAccent: { color: palette.blueDeep },
   doneCoach: { alignSelf: 'center' },
-  noteBox: { flexDirection: 'row', alignItems: 'center', gap: space[3], borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
-  noteText: { flex: 1, ...type.caption, color: palette.textSub },
   resultCard: { borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: space[4], paddingVertical: space[2], gap: space[2] },
   diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingVertical: space[2] },
   diffTitle: { ...type.body2Bold, color: palette.text },
   diffCount: { ...type.micro, color: palette.amber, backgroundColor: palette.amberSoft, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2, overflow: 'hidden' },
   diffRow: { gap: space[1], alignItems: 'flex-start' },
-  monoRow: { gap: space[1], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
+  monoRow: { gap: space[1], paddingVertical: space[3] },
+  monoDivider: { borderBottomColor: palette.border, borderBottomWidth: 1 },
   monoRowText: { ...type.body2Bold, color: palette.text },
   monoTag: { ...type.caption, color: palette.textMeta },
   monoTagMissed: { ...type.captionBold, color: palette.amber },
@@ -2562,16 +2542,16 @@ const styles = StyleSheet.create({
   prepBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   prepMascot: { width: 84, height: 94, marginBottom: 8 },
   prepTitle: { ...type.title1, color: palette.text, textAlign: 'center' },
-  prepProgress: { ...type.body2Bold, color: palette.blue, textAlign: 'center' },
+  prepProgress: { ...type.body2Bold, color: palette.blueDeep, textAlign: 'center' },
 
   monoNow: { ...type.headline, color: palette.text, marginTop: 6 },
   monoOther: { ...type.body2, color: palette.textMeta, marginTop: 6 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
   maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.bg },
   maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.bg },
-  maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
+  maskOptOn: { borderColor: palette.blue, borderWidth: 1.5, backgroundColor: palette.blueSoft },
   maskOptText: { ...type.captionBold, textAlign: 'center', color: palette.textSub },
-  maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
+  maskOptTextOn: { color: palette.blueDeep },
   // 화면 흐름 안에 둔다(겹쳐 덮지 않는다) — 위 대사 칸이 이 안내 위로 올라가 첫 줄이 가려지지 않는다.
   startDock: { backgroundColor: palette.bg, paddingHorizontal: space.gutter, paddingTop: space[4], gap: space[2], borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
   startRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
@@ -2590,11 +2570,8 @@ const styles = StyleSheet.create({
   firstStopText: { ...type.body2Bold, color: palette.blueDeep },
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
-  toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: radius.lg, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
   proHint: { marginHorizontal: space.gutter, marginTop: space[3], paddingVertical: space[2], alignItems: 'center' },
   proHintText: { ...type.body2Bold, color: palette.blueDeep },
-  toastText: { ...type.captionBold, color: palette.onAccent },
-  jumpToast: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, gap: 18 },
@@ -2603,8 +2580,8 @@ const styles = StyleSheet.create({
   beatText: { ...type.headline, color: palette.textSub },
   beatScene: { ...type.body2Bold, color: palette.textSub },
   pastRow: { gap: 3, paddingHorizontal: 4 },
-  pastRole: { ...type.micro, color: palette.textDisabled },
-  pastText: { ...type.body2, color: palette.textDisabled },
+  pastRole: { ...type.micro, color: palette.textMeta },
+  pastText: { ...type.body2, color: palette.textMeta },
   pastRowPressed: { backgroundColor: palette.blueSoft, borderRadius: 12 },
   spoken: { gap: 2 },
   differs: { textDecorationLine: 'underline', textDecorationColor: palette.flame, color: palette.textMeta },
@@ -2645,10 +2622,6 @@ const styles = StyleSheet.create({
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },
   eyeDot: { position: 'absolute', top: 9, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: palette.blue },
-  ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], borderRadius: radius.lg, height: 48 },
-  ctrlGhost: { backgroundColor: palette.bgSoft },
-  ctrlGhostText: { ...type.body1Bold, color: palette.textSub },
-  ctrlPrimary: { backgroundColor: palette.blue },
-  ctrlPrimaryText: { ...type.body1Bold, color: palette.onAccent },
+  ctrl: { flex: 1 },
 
 });

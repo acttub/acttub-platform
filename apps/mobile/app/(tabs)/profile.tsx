@@ -12,9 +12,11 @@ import { pt } from '@/components/ui/anchored-menu';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError } from '@/components/ui/inline-error';
 import { SkeletonBlock, SkeletonCards } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
+import { UnderlineTabs } from '@/components/ui/underline-tabs';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -63,6 +65,10 @@ export default function ProfileScreen() {
     return read && !read.next_cursor ? read.entries : null;
   });
   const [saved, setSaved] = useState<EntryCard[] | null>(null);
+  // 탭마다 목록을 못 받았는지. 못 받은 목록을 빈 상태로 보이지 않고 InlineError 를 띄운다.
+  const [failed, setFailed] = useState<Record<Tab, boolean>>({ practice: false, entries: false, saved: false });
+  const [reloadKey, setReloadKey] = useState(0);
+  const retry = () => setReloadKey((n) => n + 1);
   // 이번 달 숫자는 셋을 다 받아야 센다. 처음엔 0 대신 뼈대를, 다시 들어오면 지난 숫자를 먼저 보인다(11/3 폰 QA: 0 → 18로 바뀜).
   const [counts, setCounts] = useState<MonthPracticeCounts | null>(() => lastRead<MonthPracticeCounts>('profileMonthCounts') ?? null);
   const serverProfile = profile.me?.profile ?? null;
@@ -81,10 +87,16 @@ export default function ProfileScreen() {
           api
             .listPracticeGroups('all')
             .then((r) => {
-              if (alive) setGroups(r.groups);
+              if (alive) {
+                setGroups(r.groups);
+                setFailed((f) => ({ ...f, practice: false }));
+              }
               return r.groups;
             })
-            .catch(() => [] as PracticeGroupDetail[]),
+            .catch(() => {
+              if (alive) setFailed((f) => ({ ...f, practice: true }));
+              return null;
+            }),
           // 내 참여작은 20개씩이다. 끝까지 읽어 이번 달 챌린지 수와 카드를 같이 만든다(비공개 참여 포함, challenge.browse).
           (async () => {
             const all: MyEntryCard[] = [];
@@ -96,8 +108,12 @@ export default function ProfileScreen() {
               if (!r.next_cursor) break;
               cursor = r.next_cursor;
             }
+            if (alive) setFailed((f) => ({ ...f, entries: false }));
             return all;
-          })().catch(() => [] as MyEntryCard[]),
+          })().catch(() => {
+            if (alive) setFailed((f) => ({ ...f, entries: true }));
+            return null;
+          }),
           // 리딩 회차는 대본별로만 받는다. 이번 달에 연습한 대본만 회차를 읽는다.
           api
             .listReadingScripts()
@@ -109,21 +125,26 @@ export default function ProfileScreen() {
               ),
             )
             .then((lists) => lists.flat())
-            .catch(() => []),
+            .catch(() => null),
         ]);
-        if (!alive) return;
-        setGroups(groupList);
-        setEntries(entryList);
+        // 하나라도 못 받으면 틀린 숫자를 세지 않고 지난 숫자(없으면 뼈대)를 둔다.
+        if (!alive || !groupList || !entryList || !readingSessions) return;
         setCounts(rememberRead('profileMonthCounts', monthPracticeCounts({ groups: groupList, readingSessions, entries: entryList }, now)));
       })();
       void api
         .listSavedEntries()
-        .then((r) => alive && setSaved(r.entries))
-        .catch(() => alive && setSaved([]));
+        .then((r) => {
+          if (!alive) return;
+          setSaved(r.entries);
+          setFailed((f) => ({ ...f, saved: false }));
+        })
+        .catch(() => alive && setFailed((f) => ({ ...f, saved: true })));
       return () => {
         alive = false;
       };
-    }, []),
+      // reloadKey: 「다시 시도」가 이 효과를 다시 돌린다.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reloadKey]),
   );
 
   /** 연습 카드 ⋯ 메뉴 — 기록에서 숨기기(되돌릴 수 있음)와 영구 삭제. 둘 다 목록에서 먼저 빼고 실패하면 다시 읽는다. */
@@ -239,32 +260,25 @@ export default function ProfileScreen() {
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month}>
           <MonthCell label={t('profileTab.monthLabel')} count={counts?.total ?? null} />
-          <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts?.coaching ?? null} />
-          <MonthCell dot={palette.green} label={t('profileTab.kindReading')} count={counts?.reading ?? null} />
-          <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
+          <MonthCell label={t('profileTab.kindCoaching')} count={counts?.coaching ?? null} />
+          <MonthCell label={t('profileTab.kindReading')} count={counts?.reading ?? null} />
+          <MonthCell label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
         </View>
 
-        <View style={styles.tabs}>
-          {(
-            [
-              ['practice', t('profileTab.tabPractice')],
-              ['entries', t('profileTab.tabEntries')],
-              ['saved', t('profileTab.tabSaved')],
-            ] as const
-          ).map(([key, label]) => (
-            <Pressable
-              key={key}
-              style={[styles.tab, tab === key && styles.tabOn]}
-              onPress={() => setTab(key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === key }}>
-              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <UnderlineTabs
+          tabs={[
+            { key: 'practice', label: t('profileTab.tabPractice') },
+            { key: 'entries', label: t('profileTab.tabEntries') },
+            { key: 'saved', label: t('profileTab.tabSaved') },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
 
         {tab === 'practice' && (
           <CardGrid
+            failed={failed.practice}
+            onRetry={retry}
             loading={practiceCards === null}
             empty={[t('profileTab.emptyPracticeTitle'), t(firstTime ? 'profileTab.emptyPracticeBodyFirst' : 'profileTab.emptyPracticeBody')]}
             more={groups && groups.length > CARD_LIMIT ? () => router.push('/history') : undefined}
@@ -280,6 +294,8 @@ export default function ProfileScreen() {
         )}
         {tab === 'entries' && (
           <CardGrid
+            failed={failed.entries}
+            onRetry={retry}
             loading={entryCards === null}
             empty={[t('profileTab.emptyEntriesTitle'), t('profileTab.emptyEntriesBody')]}
             // P03 내 참여작 — 공개 범위 바꾸기·지우기는 원래 화면에서 한다(challenge.browse).
@@ -300,6 +316,8 @@ export default function ProfileScreen() {
         )}
         {tab === 'saved' && (
           <CardGrid
+            failed={failed.saved}
+            onRetry={retry}
             loading={savedCards === null}
             empty={[t('savedVideos.emptyTitle'), t('savedVideos.emptyBody')]}
             more={saved && saved.length > CARD_LIMIT ? () => router.push('/saved-videos') : undefined}
@@ -321,7 +339,7 @@ export default function ProfileScreen() {
   );
 }
 
-function MonthCell({ dot, label, count }: { dot?: string; label: string; count: number | null }) {
+function MonthCell({ label, count }: { label: string; count: number | null }) {
   return (
     <View style={styles.monthCell}>
       {count === null ? (
@@ -331,12 +349,9 @@ function MonthCell({ dot, label, count }: { dot?: string; label: string; count: 
       ) : (
         <Text style={styles.monthCount}>{count}</Text>
       )}
-      <View style={styles.monthHead}>
-        {!!dot && <View style={[styles.monthDot, { backgroundColor: dot }]} />}
-        <Text style={styles.monthLabel} numberOfLines={2}>
-          {label}
-        </Text>
-      </View>
+      <Text style={styles.monthLabel} numberOfLines={2}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -360,12 +375,16 @@ type Card = {
 const PER_ROW = 3;
 
 function CardGrid({
+  failed,
+  onRetry,
   loading,
   empty,
   cards,
   more,
   below = false,
 }: {
+  failed: boolean;
+  onRetry: () => void;
   loading: boolean;
   /** 빈 상태 InlineEmpty 의 제목·설명. */
   empty: [string, string];
@@ -374,6 +393,8 @@ function CardGrid({
   /** 참여작·저장됨(pen S14.4·S14.5) — 썸네일 152 아래에 제목·하트 줄. 아니면 연습 기록처럼 썸네일 위에 글을 얹는다. */
   below?: boolean;
 }) {
+  // 전에 받아 둔 카드가 있으면 그대로 보인다.
+  if (failed && cards.length === 0) return <InlineError message={t('profileTab.loadFail')} onRetry={onRetry} />;
   if (loading) return <SkeletonCards count={3} columns={3} aspectRatio={0.8} style={styles.skeleton} />;
   if (cards.length === 0) return <InlineEmpty title={empty[0]} description={empty[1]} />;
   const rows: (Card | null)[][] = [];
@@ -489,17 +510,9 @@ const styles = StyleSheet.create({
 
   month: { flexDirection: 'row' },
   monthCell: { flex: 1, alignItems: 'center', gap: space[1] },
-  monthHead: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  monthDot: { width: 6, height: 6, borderRadius: radius.full },
   monthLabel: { ...type.caption, color: palette.textSub },
   monthCount: { ...type.headline, color: palette.text },
   monthCountSkeleton: { height: type.headline.lineHeight, justifyContent: 'center' },
-
-  tabs: { flexDirection: 'row', gap: space[1], padding: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft },
-  tab: { flex: 1, height: 36, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
-  tabTextOn: { color: palette.text },
 
   skeleton: { paddingHorizontal: 0 },
   gridWrap: { gap: space[3] },

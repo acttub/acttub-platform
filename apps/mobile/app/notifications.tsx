@@ -8,8 +8,6 @@ import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
-import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -29,6 +27,7 @@ import { relativeDayLabel } from '@/lib/archive-format';
 import { translate as t } from '@/lib/i18n';
 import { loadNotificationSettings } from '@/lib/notifications';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { StatusScreen } from '@/components/ui/status-screen';
 
 /**
  * 알림함(challenge.notification) — 묶음 20개씩, 묶음의 최신 사건 순.
@@ -104,51 +103,57 @@ export default function NotificationsScreen() {
       .catch(() => undefined);
   };
 
+  const pushOff = !pushEnabled && (
+    <View style={styles.pushOff}>
+      <Feather name="bell-off" size={16} color={palette.amber} />
+      <Text style={styles.pushOffText}>{toggleOffNotice(pushEnabled)}</Text>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
         title={t('notifications.title')}
         left={<NavBackButton onPress={() => router.back()} phLabel="notifications_back" />}
-        right={<TextButton tone="accent" label={t('notifications.markAll')} onPress={() => void readAll()} />}
+        right={groups?.some((group) => !group.read) ? <TextButton tone="accent" label={t('notifications.markAll')} onPress={() => void readAll()} /> : undefined}
       />
 
-      <ScrollView contentContainerStyle={styles.body} onMomentumScrollEnd={() => void loadMore()}>
-        {!pushEnabled && (
-          <View style={styles.pushOff}>
-            <Feather name="bell-off" size={16} color={palette.amber} />
-            <Text style={styles.pushOffText}>{toggleOffNotice(pushEnabled)}</Text>
+      {error ? (
+        <StatusScreen title={error} body={t('common.checkConnection')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
+      ) : groups?.length === 0 ? (
+        <StatusScreen kind="empty" title={t('notifications.empty')} body={t('notifications.emptyBody')}>
+          {pushOff}
+        </StatusScreen>
+      ) : (
+        <ScrollView contentContainerStyle={styles.body} onMomentumScrollEnd={() => void loadMore()}>
+          {pushOff}
+          {groups === null && <SkeletonRows count={6} card={false} style={styles.skeletonFlush} />}
+          <AdSlot slot="notifications_top" />
+
+          <View>
+            {groups?.map((group, i) => (
+              <Pressable
+                key={group.group_key}
+                style={[styles.row, i > 0 && styles.divider]}
+                onPress={() => void open(group)}
+                accessibilityRole="button">
+                {/* 알림함은 모든 알림에 민트 기본 얼굴(DESIGN-SYSTEM.html 「의도된 차이」). */}
+                <DefaultAvatar size={40} radius={20} />
+                <View style={styles.rowBody}>
+                  <Text style={[styles.rowText, !group.read && styles.rowTextUnread]} numberOfLines={2}>
+                    {groupLabel(group)}
+                  </Text>
+                  <Text style={styles.rowMeta}>{relativeDayLabel(group.latest_at)}</Text>
+                </View>
+                {!group.read && <View style={styles.dot} />}
+              </Pressable>
+            ))}
           </View>
-        )}
-        {groups === null && !error && <SkeletonRows count={6} card={false} style={styles.skeletonFlush} />}
-        {!!error && <InlineError message={error} onRetry={() => void load()} />}
-        {groups !== null && groups.length === 0 && !error && (
-          <InlineEmpty title={t('notifications.empty')} description={t('notifications.emptyBody')} />
-        )}
-        <AdSlot slot="notifications_top" />
 
-        <View>
-          {groups?.map((group, i) => (
-            <Pressable
-              key={group.group_key}
-              style={[styles.row, i > 0 && styles.divider]}
-              onPress={() => void open(group)}
-              accessibilityRole="button">
-              {/* 알림함은 모든 알림에 민트 기본 얼굴(DESIGN-SYSTEM.html 「의도된 차이」). */}
-              <DefaultAvatar size={40} radius={20} />
-              <View style={styles.rowBody}>
-                <Text style={[styles.rowText, !group.read && styles.rowTextUnread]} numberOfLines={2}>
-                  {groupLabel(group)}
-                </Text>
-                <Text style={styles.rowMeta}>{relativeDayLabel(group.latest_at)}</Text>
-              </View>
-              {!group.read && <View style={styles.dot} />}
-            </Pressable>
-          ))}
-        </View>
-
-        {groups !== null && groups.length > 0 && <Text style={styles.keep}>{t('notifications.keep')}</Text>}
-      </ScrollView>
+          {groups !== null && <Text style={styles.keep}>{t('notifications.keep')}</Text>}
+        </ScrollView>
+      )}
       {dialog}
     </SafeAreaView>
   );
