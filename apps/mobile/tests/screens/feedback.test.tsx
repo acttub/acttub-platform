@@ -67,6 +67,9 @@ test('문의·신고 창구(kind=support)는 분류를 골라야 보낼 수 있�
   mockSend.mockResolvedValue({ id: 'i2', created_at: 'x' });
   await render(<FeedbackScreen />);
   expect(screen.getByText('문의·신고')).toBeOnTheScreen();
+  // 앱 밖 창구는 오픈채팅만. 인스타·메일은 홈 맨 아래에만 있다.
+  expect(screen.getByText('카카오톡 오픈채팅 「ACTTUB 문의」 열기')).toBeOnTheScreen();
+  expect(screen.queryByText(/acttub0527@gmail\.com/)).toBeNull();
   await fireEvent.changeText(screen.getByLabelText('내용'), TEXT);
   expect(screen.getByRole('button', { name: '보내기' })).toBeDisabled();
   await fireEvent.press(screen.getByRole('radio', { name: '신고' }));

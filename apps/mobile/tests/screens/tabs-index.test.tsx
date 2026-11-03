@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { BackHandler, Platform, ToastAndroid } from 'react-native';
+import { BackHandler, Linking, Platform, ToastAndroid } from 'react-native';
 
 import HomeScreen from '@/app/(tabs)/index';
 import { AnnouncementPoster } from '@/components/announcement-poster';
@@ -268,6 +268,19 @@ describe('첫 사용자', () => {
     expect(await screen.findByText('의견 보내기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('의견 보내기'));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/feedback');
+  });
+
+  test('기본 홈 맨 아래에 인스타 계정·메일 주소가 있고, 인스타를 누르면 프로필이 열린다(11/3)', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
+    hasGraduatedFirstUse.mockImplementation(async (id: string) => id === 'u1');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    const insta = await screen.findByRole('link', { name: '인스타그램 @acttub_com 프로필 열기' });
+    expect(screen.getByText(/메일 acttub0527@gmail\.com/)).toBeOnTheScreen();
+    await fireEvent.press(insta);
+    expect(openURL).toHaveBeenCalledWith('https://www.instagram.com/acttub_com/');
   });
 
   test('기록으로 첫 사용자를 벗어나면 졸업 표시를 남긴다 — 다시 읽기 시작해 대본이 「연습 중」이 돼도 첫 홈으로 돌아가지 않게(11/2)', async () => {

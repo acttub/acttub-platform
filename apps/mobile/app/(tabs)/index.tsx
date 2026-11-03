@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
-import { BackHandler, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
+import { BackHandler, type LayoutChangeEvent, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -50,6 +50,7 @@ import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
 import { afterHomeReady, markHomeReady } from '@/lib/launch-splash';
+import { INSTAGRAM_HANDLE, INSTAGRAM_PROFILE_URL, SUPPORT_EMAIL } from '@/lib/contact-channels';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -923,6 +924,7 @@ export default function HomeScreen() {
             ))}
           </View>
 
+
           {/* 연기 입시(입시생만)·오디션 마감 임박 — 가까운 마감 두 줄씩(pen P1.1). 없으면 구역째 그리지 않는다(P1.3). */}
           {deadlineBlocks.map((block) => (
             <View key={block.key} style={styles.deadlineBlock}>
@@ -953,6 +955,17 @@ export default function HomeScreen() {
               </View>
             </View>
           ))}
+          {/* 팀 연락처(11/3 사용자: 인스타·메일은 홈 맨 아래에만) — 인스타 계정을 누르면 프로필이 열린다. 메일은 글자만. */}
+          <Text style={styles.contactFooter}>
+            <Text
+              style={styles.contactFooterLink}
+              onPress={() => void Linking.openURL(INSTAGRAM_PROFILE_URL).catch(() => undefined)}
+              accessibilityRole="link"
+              accessibilityLabel={t('home.contactInstagramA11y', { handle: INSTAGRAM_HANDLE })}>
+              {t('home.contactInstagram', { handle: INSTAGRAM_HANDLE })}
+            </Text>
+            {` · ${t('home.contactEmail', { email: SUPPORT_EMAIL })}`}
+          </Text>
           </View>
         </ScrollView>
       )}
@@ -1281,6 +1294,8 @@ const TODAY_CARD_SKELETON_HEIGHT = 140;
 const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
 
 const styles = StyleSheet.create({
+  contactFooter: { ...type.caption, color: palette.textMeta, textAlign: 'center', marginTop: space[6] },
+  contactFooterLink: { ...type.caption, color: palette.textSub, textDecorationLine: 'underline' },
   safe: { flex: 1, backgroundColor: palette.bg },
   safeHero: { backgroundColor: '#E4EEFC' },
   scrollBg: { backgroundColor: '#F7FAFE' },

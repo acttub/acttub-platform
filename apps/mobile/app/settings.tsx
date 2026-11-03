@@ -11,7 +11,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { SettingsProCard } from '@/components/settings-pro-card';
 import { SettingsCard } from '@/components/ui/settings-card';
-import { INSTAGRAM_DM_URL, INSTAGRAM_HANDLE, INSTAGRAM_PROFILE_URL, KAKAO_OPEN_CHAT_URL } from '@/lib/contact-channels';
+import { KAKAO_OPEN_CHAT_URL } from '@/lib/contact-channels';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
 import { useAuth } from '@/lib/auth';
@@ -103,13 +103,7 @@ export default function SettingsScreen() {
         {/* 앱 안 의견 보내기 (SOMA-953) */}
         <SettingsCard icon="message-circle" title={t('feedback.row')} sub={t('feedback.rowSub')} onPress={() => router.push('/feedback')} />
         {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
-        {/* 인스타 DM·카카오톡 오픈채팅 문의(11/3) — 메일보다 배우들이 편하게 쓰는 창구. 오픈채팅은 링크가 있을 때만 보인다. */}
-        <SettingsCard
-          icon="instagram"
-          title={t('settings.contactInstagram')}
-          sub={t('settings.contactInstagramSub', { handle: INSTAGRAM_HANDLE })}
-          onPress={() => void openContactLink(INSTAGRAM_DM_URL, INSTAGRAM_PROFILE_URL)}
-        />
+        {/* 카카오톡 오픈채팅 문의(11/3) — 메일보다 배우들이 편하게 쓰는 창구. 링크가 있을 때만 보인다. */}
         {!!KAKAO_OPEN_CHAT_URL && (
           <SettingsCard
             icon="message-square"
