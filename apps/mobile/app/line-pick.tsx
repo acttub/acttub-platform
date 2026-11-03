@@ -5,12 +5,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import Feather from '@expo/vector-icons/Feather';
 
-import { Button, PrimaryButton } from '@/components/ui/buttons';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
+import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -130,15 +130,8 @@ export default function LinePickScreen() {
             </Pressable>
           );
         })}
-        <Button
-          size="sm"
-          label={t('challenges.registerCta')}
-          icon={<Feather name="plus" size={16} color={palette.blueDeep} />}
-          onPress={() => router.push('/line-new')}
-          phLabel="line_pick_register"
-          style={styles.register}
-        />
       </ScrollView>
+      <FloatingAddButton label={t('challenges.registerCta')} onPress={() => router.push('/line-new')} phLabel="line_pick_register" />
     </SafeAreaView>
   );
 }
@@ -180,7 +173,8 @@ function Hero({ challenge, videoUrl }: { challenge: ChallengeCard; videoUrl: str
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8], gap: space[2] },
+  // 맨 아래 줄이 떠 있는 추가 버튼에 가리지 않게 버튼 높이만큼 더 띄운다.
+  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8] + 48, gap: space[2] },
   // 대사가 길면(최대 4줄) 위쪽 영역이 늘어난다 — 높이를 못 박으면 글자가 밖으로 나간다.
   hero: { minHeight: 220, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.blue, justifyContent: 'flex-end', padding: space[4], marginBottom: space[1] },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
@@ -196,6 +190,5 @@ const styles = StyleSheet.create({
   row: { paddingVertical: space[3], gap: space[1] },
   rowOff: { opacity: 0.5 },
   rowLine: { ...type.body1Bold, color: palette.text },
-  register: { height: 48, marginTop: space[4] },
   pressed: { opacity: 0.85 },
 });

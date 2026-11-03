@@ -123,12 +123,11 @@ export default function LineSearchScreen() {
           <View style={styles.empty}>
             <InlineEmpty title={t('lineSearch.empty')} description={t('lineSearch.emptySub')} />
             <Button
-              size="sm"
+              size="md"
               label={t('lineSearch.registerCta')}
-              icon={<Feather name="plus" size={16} color={palette.blueDeep} />}
+              icon={<Feather name="plus" size={16} color={palette.onAccent} />}
               onPress={register}
               phLabel="line_search_register"
-              style={styles.register}
             />
           </View>
         )}
@@ -172,5 +171,4 @@ const styles = StyleSheet.create({
   rowLine: { ...type.body1Bold, color: palette.text },
   rowMeta: { ...type.caption, color: palette.textMeta },
   empty: { gap: space[3] },
-  register: { height: 48 },
 });
