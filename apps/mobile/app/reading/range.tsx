@@ -378,10 +378,10 @@ export default function ReadingRange() {
                   accessibilityState={{ checked: on }}
                   ph-label="reading_first_role">
                   <View style={styles.rowBody}>
-                    <Text style={styles.cardTitle}>{c.name}</Text>
+                    <Text style={[styles.cardTitle, on && styles.titleOn]}>{c.name}</Text>
                     <Text style={styles.cardSub} numberOfLines={1}>{sub}</Text>
                   </View>
-                  {on && <Feather name="check" size={18} color={palette.blue} />}
+                  {on && <Feather name="check-circle" size={22} color={palette.blue} />}
                 </Pressable>
               );
             })}
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
   pauseField: { width: 72, minHeight: 40, textAlign: 'center' },
   pauseFieldError: { borderWidth: 1.5, borderColor: palette.danger },
   rateChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
-  rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 36, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
+  rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 32, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },
   roleChip: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 40, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[4] },
   roleChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },
