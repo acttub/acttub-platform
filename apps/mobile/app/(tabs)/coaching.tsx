@@ -225,7 +225,7 @@ export default function CoachingTab() {
             <View style={styles.memoFooter}>
               <View style={styles.againBtn}>
                 <Text style={styles.againText}>{t(resuming ? 'coachingTab.resume' : 'coachingTab.again')}</Text>
-                <Feather name="arrow-right" size={15} color={palette.blue} />
+                <Feather name="arrow-right" size={15} color={palette.blueDeep} />
               </View>
             </View>
           </Pressable>
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
   quoteText: { ...type.body1, color: palette.text },
   memoFooter: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
   againBtn: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  againText: { ...type.body2Bold, color: palette.blue },
+  againText: { ...type.body2Bold, color: palette.blueDeep },
   tiles: { flexDirection: 'row', gap: space[2], paddingTop: space[3] },
   tile: { flex: 1, gap: space[2], padding: space[3], borderRadius: radius.lg, backgroundColor: palette.bgSoft },
   tileAccent: { backgroundColor: palette.blueSoft },
