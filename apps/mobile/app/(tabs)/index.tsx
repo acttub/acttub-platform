@@ -1042,10 +1042,9 @@ type DeadlineBlock = {
   rows: { id: string; days: number; title: string; sub: string }[];
 };
 
-/** D-day 배지 — 3일 안은 danger, 10일 안은 amber, 그 밖은 파랑. */
+/** D-day 배지 — 3일 안은 danger, 그 밖은 파랑. 한 화면에 상태색은 하나만 쓴다. */
 function ddayTone(days: number): { box: { backgroundColor: string }; text: { color: string } } {
   if (days <= 3) return { box: { backgroundColor: palette.dangerSoft }, text: { color: palette.danger } };
-  if (days <= 10) return { box: { backgroundColor: palette.amberSoft }, text: { color: palette.amber } };
   return { box: { backgroundColor: palette.blueSoft }, text: { color: palette.blueDeep } };
 }
 

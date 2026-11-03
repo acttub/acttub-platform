@@ -246,7 +246,7 @@ export default function AuditionsScreen() {
   );
 }
 
-/** D-day 칸. 3일 안은 빨강, 7일 안은 주황, 그 뒤는 파랑. 마감일이 없으면 원문을 보라고 한다. */
+/** D-day 칸. 3일 안은 빨강, 그 뒤는 파랑. 마감일이 없으면 원문을 보라고 한다. */
 function DdayBadge({ posting, today }: { posting: AuditionPosting; today: string }) {
   const days = daysUntil(posting.apply_end, today);
   if (days === null) {
@@ -257,14 +257,10 @@ function DdayBadge({ posting, today }: { posting: AuditionPosting; today: string
       </View>
     );
   }
-  const tone = days <= 3 ? 'urgent' : days <= 7 ? 'soon' : 'ok';
+  const urgent = days <= 3;
   return (
-    <View style={[styles.dday, tone === 'urgent' ? styles.ddayUrgent : tone === 'soon' ? styles.ddaySoon : styles.ddayOk]}>
-      <Text
-        style={[
-          styles.ddayText,
-          tone === 'urgent' ? styles.ddayTextUrgent : tone === 'soon' ? styles.ddayTextSoon : styles.ddayTextOk,
-        ]}>
+    <View style={[styles.dday, urgent ? styles.ddayUrgent : styles.ddayOk]}>
+      <Text style={[styles.ddayText, urgent ? styles.ddayTextUrgent : styles.ddayTextOk]}>
         {days === 0 ? t('auditions.ddayToday') : t('auditions.dday', { n: days })}
       </Text>
       <Text style={styles.ddaySub}>{t('auditions.deadlineOn', { date: shortDate(posting.apply_end) })}</Text>
@@ -397,12 +393,10 @@ const styles = StyleSheet.create({
 
   dday: { width: 60, paddingVertical: space[2], borderRadius: radius.md, alignItems: 'center', gap: 2 },
   ddayUrgent: { backgroundColor: palette.dangerSoft },
-  ddaySoon: { backgroundColor: palette.amberSoft },
   ddayOk: { backgroundColor: palette.blueSoft },
   ddayNone: { backgroundColor: palette.bgSoft },
   ddayText: { ...type.body2Bold },
   ddayTextUrgent: { color: palette.danger },
-  ddayTextSoon: { color: palette.amber },
   ddayTextOk: { color: palette.blueDeep },
   ddayTextNone: { ...type.captionBold, color: palette.textSub },
   ddaySub: { ...type.micro, fontWeight: '400', color: palette.textMeta },
