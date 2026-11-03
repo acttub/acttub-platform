@@ -15,6 +15,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { weightBarColors } from '@/constants/chart-colors';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -233,15 +234,6 @@ function NoticeCard({ notice, today }: { notice: AdmissionNotice; today: string 
   );
 }
 
-const BAR_COLOR: Record<string, string> = {
-  practical: palette.blue,
-  transcript: palette.textMeta,
-  csat: palette.textDisabled,
-  interview: palette.blueDeep,
-  portfolio: palette.iconFaint,
-  other: palette.border,
-};
-
 function WeightBar({
   bars,
   note,
@@ -255,20 +247,20 @@ function WeightBar({
     <View>
       <Text style={styles.blockLabel}>전형요소 반영비율</Text>
       <View style={styles.bar}>
-        {bars.map((bar) => (
+        {bars.map((bar, i) => (
           <View
             key={bar.key}
             style={{
               flex: bar.value / total,
-              backgroundColor: BAR_COLOR[bar.key] ?? palette.border,
+              backgroundColor: weightBarColors[i],
             }}
           />
         ))}
       </View>
       <View style={styles.legend}>
-        {bars.map((bar) => (
+        {bars.map((bar, i) => (
           <View key={bar.key} style={styles.legendItem}>
-            <View style={[styles.dot, { backgroundColor: BAR_COLOR[bar.key] ?? palette.border }]} />
+            <View style={[styles.dot, { backgroundColor: weightBarColors[i] }]} />
             <Text style={styles.legendText}>
               {bar.label} {bar.value}%
             </Text>
@@ -503,7 +495,7 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row', gap: space[3] },
   fieldLabel: { width: 64, ...type.caption, color: palette.textMeta },
   fieldValue: { flex: 1, ...type.captionBold, color: palette.text },
-  bar: { marginTop: space[2], flexDirection: 'row', height: 8, borderRadius: radius.xs, overflow: 'hidden' },
+  bar: { marginTop: space[2], flexDirection: 'row', gap: 2, height: 8, borderRadius: radius.xs, overflow: 'hidden' },
   legend: { marginTop: space[2], flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   dot: { width: 8, height: 8, borderRadius: radius.full },
