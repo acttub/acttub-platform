@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -12,6 +12,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { useReadableInput } from '@/hooks/use-readable-input';
 import { logEvent } from '@/lib/analytics';
 import { api, type SupportCategory } from '@/lib/api';
+import { INSTAGRAM_HANDLE, KAKAO_OPEN_CHAT_URL, SUPPORT_EMAIL } from '@/lib/contact-channels';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 
@@ -31,7 +32,6 @@ function looksLikeEmail(value: string): boolean {
  * 받으므로 계정 메일을 그대로 싣고, 계정에 메일이 없으면(카카오 미동의 등) 답장 없는 자리표시 주소를 싣는다.
  */
 const NO_REPLY_EMAIL = 'no-reply@acttub.com';
-const SUPPORT_EMAIL = 'acttub0527@gmail.com';
 export function feedbackEmail(account: string | null | undefined): string {
   const value = (account ?? '').trim();
   return looksLikeEmail(value) ? value : NO_REPLY_EMAIL;
@@ -144,7 +144,19 @@ export default function FeedbackScreen() {
           </View>
           {error ? <InlineErrorLine message={error} /> : null}
           {/* 앱스토어 1.2 「연락처 공개」 — 버튼은 앱 안 창구지만 메일 주소는 글로 남긴다. */}
-          {support && <Text style={styles.count}>{t('support.emailNote', { email: SUPPORT_EMAIL })}</Text>}
+          {support && (
+            // 앱 밖 창구도 같이 알린다 — 카카오톡 오픈채팅은 누르면 열리고, 인스타·메일은 글로 적는다(11/3).
+            <View style={styles.contacts}>
+              <Text style={styles.label}>{t('support.otherWays')}</Text>
+              {!!KAKAO_OPEN_CHAT_URL && (
+                <Pressable onPress={() => void Linking.openURL(KAKAO_OPEN_CHAT_URL).catch(() => undefined)} accessibilityRole="link" hitSlop={6}>
+                  <Text style={styles.contactLink}>{t('support.openChat')}</Text>
+                </Pressable>
+              )}
+              <Text style={styles.contactText}>{t('support.instagram', { handle: INSTAGRAM_HANDLE })}</Text>
+              <Text style={styles.contactText}>{t('support.email', { email: SUPPORT_EMAIL })}</Text>
+            </View>
+          )}
         </ScrollView>
       )}
       <CtaBar>
@@ -178,6 +190,9 @@ const styles = StyleSheet.create({
   },
   count: { ...type.caption, color: palette.textMeta, textAlign: 'right' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  contacts: { gap: space[1.5], paddingTop: space[2] },
+  contactLink: { ...type.body2Bold, color: palette.blueDeep },
+  contactText: { ...type.body2, color: palette.textSub },
   chip: { borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: space[4], paddingVertical: space[2] },
   chipOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
   chipText: { ...type.body2, color: palette.textSub },

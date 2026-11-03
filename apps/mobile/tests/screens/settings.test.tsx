@@ -414,26 +414,25 @@ describe('설정', () => {
     });
   });
 
-  describe('인스타 DM 문의', () => {
-    test('누르면 @acttub_com DM 창을 열고, 오픈채팅 줄은 문의방 링크를 연다', async () => {
+  describe('문의 연락처', () => {
+    test('인스타 DM 버튼 없이 인스타 계정과 메일 주소를 글로 보이고, 오픈채팅 줄은 문의방 링크를 연다', async () => {
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
+      expect(screen.queryByText('인스타그램 DM으로 문의')).not.toBeOnTheScreen();
+      expect(screen.getByText('인스타그램 @acttub_com · 메일 acttub0527@gmail.com')).toBeOnTheScreen();
+
       await fireEvent.press(screen.getByRole('button', { name: '카카오톡 오픈채팅으로 문의' }));
       await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://open.kakao.com/o/s9tVEoVi'));
-
-      await fireEvent.press(screen.getByRole('button', { name: '인스타그램 DM으로 문의' }));
-
-      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://ig.me/m/acttub_com'));
     });
 
-    test('열지 못하면 인스타 계정 주소를 알려 준다', async () => {
+    test('오픈채팅을 열지 못하면 링크를 알려 준다', async () => {
       jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no app'));
       await settingsLoaded();
 
-      await fireEvent.press(screen.getByRole('button', { name: '인스타그램 DM으로 문의' }));
+      await fireEvent.press(screen.getByRole('button', { name: '카카오톡 오픈채팅으로 문의' }));
 
       expect(await screen.findByText('열지 못했어요')).toBeOnTheScreen();
-      expect(screen.getByText('https://www.instagram.com/acttub_com/')).toBeOnTheScreen();
+      expect(screen.getByText('https://open.kakao.com/o/s9tVEoVi')).toBeOnTheScreen();
     });
   });
 
