@@ -1,4 +1,4 @@
-import { Linking, Dimensions } from 'react-native';
+import { Linking } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { api } from '@/lib/api';
@@ -62,13 +62,13 @@ test('받기 전에는 자리를 잡고, NONE 이면 비운다', async () => {
   await waitFor(() => expect(view.toJSON()).toBeNull());
 });
 
-test('NETWORK 배너 칸은 좌우를 채우는 인라인 적응형 AdMob 배너(규격 비율을 화면 폭으로 키운 높이까지, 테스트 단위)를 그린다', async () => {
+test('NETWORK 배너 칸은 규격 크기 AdMob 배너를 좌우 끝까지 깐 띠 가운데에 그린다(테스트 단위)', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
   await render(<AdSlot slot="home_top" />);
   const banner = await screen.findByTestId('admob-banner');
-  expect(banner.props.size).toBe('INLINE_ADAPTIVE_BANNER');
-  // 높이 한도를 규격 높이(50)로 막으면 광고가 납작하게 눌렸다(11/3 폰 QA) — 화면 폭 비율만큼 둔다.
-  expect(banner.props.maxHeight).toBe(Math.ceil((Dimensions.get('window').width * 50) / 320));
+  // 적응형은 안 맞는 광고를 검은 띠로 채우거나 눌렀다(11/3 폰 QA) — 규격 크기로 받는다.
+  expect(banner.props.size).toBe('BANNER');
+  expect(banner.props.maxHeight).toBeUndefined();
   expect(banner.props.unitId).toMatch(/^ca-app-pub-3940256099942544\//);
 });
 
@@ -80,12 +80,11 @@ test('300×250 칸은 좌우로 늘리지 않고 고정 규격 AdMob 배너 그�
   expect(banner.props.maxHeight).toBeUndefined();
 });
 
-test('anchored 도 AdMob 은 인라인 적응형이다 — ANCHORED 는 안 맞는 광고 양옆·위아래를 검게 채웠다', async () => {
+test('anchored 도 AdMob 은 규격 크기다 — 적응형은 안 맞는 광고 양옆·위아래를 검게 채웠다', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'BANNER', width: 320, height: 50, ad: null });
   await render(<AdSlot slot="community_list_top" anchored />);
   const banner = await screen.findByTestId('admob-banner');
-  expect(banner.props.size).toBe('INLINE_ADAPTIVE_BANNER');
-  expect(banner.props.maxHeight).toBe(Math.ceil((Dimensions.get('window').width * 50) / 320));
+  expect(banner.props.size).toBe('BANNER');
 });
 
 test('직접 광고는 「광고」 라벨과 함께 그리고, 이미지가 뜨면 노출·누르면 클릭을 남기고 광고주 링크를 앱 밖으로 연다', async () => {
