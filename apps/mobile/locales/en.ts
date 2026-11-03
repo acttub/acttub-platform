@@ -1412,12 +1412,10 @@ const en: DeepStringShape<typeof ko> = {
     finish: 'Finish practice',
     // Actor journal and wrap-up (SOMA-748)
     saveFinish: 'Save and finish',
-    doneBadge: 'Coaching done for today!',
     doneTitle: 'Nice work! Try just this one thing in your next take',
     doneTitleNoNext: 'Nice work! You finished today’s coaching',
     doneNextLabel: 'Try next',
     doneReminder: 'If you take a break, we’ll remind you on days 1, 2, 3, and 7',
-    doneConfirm: 'OK',
   },
   journal: {
     title: 'Actor journal',

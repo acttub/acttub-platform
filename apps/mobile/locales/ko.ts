@@ -1407,12 +1407,10 @@ const ko = {
     finish: '연습 마치기',
     // 배우 일지·코칭 마무리(SOMA-748)
     saveFinish: '저장하고 마치기',
-    doneBadge: '오늘 코칭 끝!',
     doneTitle: '수고했어요! 다음 테이크에서 이거 하나만 해 봐요',
     doneTitleNoNext: '수고했어요! 오늘 코칭을 마쳤어요',
     doneNextLabel: '다음에 해 볼 것',
     doneReminder: '연습을 쉬면 1·2·3·7일째에 알려 드릴게요',
-    doneConfirm: '확인',
   },
   // 배우 일지(practice.journal, SOMA-720) — pen ⑧ 「배우 일지 질문 1~4 / 4」·「완성 (요약형)」·「편집」, 10/19 채택안
   journal: {
