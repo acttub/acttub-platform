@@ -146,9 +146,13 @@ test('대화 중인 묶음이 있으면 맨 위 「하던 코칭 · 이어서 �
 test('탭바가 보이면 하단 탭으로 홈에 가므로 뒤로 꺾쇠를 두지 않는다(10/22 피드백)', async () => {
   listPracticeGroups.mockRejectedValue(new Error('down'));
   await render(<CoachingTab />);
-  await screen.findByText('코칭이 처음이죠?');
-
+  // 못 받으면 처음 화면이 아니라 오류 화면이고, 다시 시도하면 다시 읽는다.
+  await screen.findByText('연습 기록을 불러오지 못했어요');
+  expect(screen.queryByText('코칭이 처음이죠?')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(listPracticeGroups).toHaveBeenCalledTimes(2);
 });
 
 describe('첫 사용자라 탭바가 숨으면', () => {

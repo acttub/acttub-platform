@@ -9,6 +9,7 @@ import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skel
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -53,6 +54,7 @@ export default function CoachingTab() {
   const [entry, setEntry] = useState<CoachingEntry | null>(() => (shared ? coachingEntry(shared) : null));
   // 묶음을 못 받아 처음 화면으로 넘어간 경우 — 뼈대 기억(lib/skeleton-hint)에 적지 않는다.
   const [entryFailed, setEntryFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [groups, setGroups] = useState<PracticeGroup[]>(() => shared ?? []);
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
@@ -77,7 +79,7 @@ export default function CoachingTab() {
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [attempt]),
   );
 
   // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 모양(lib/skeleton-hint)을 따른다.
@@ -136,7 +138,10 @@ export default function CoachingTab() {
           ) : undefined
         }
       />
-      {!entry && !first ? (
+      {/* 못 받았을 때 처음 화면으로 넘어가지 않는다 — 첫 사용자 화면은 받을 것이 없어 그대로 둔다. */}
+      {entryFailed && !firstHint ? (
+        <StatusScreen title={t('history.loadFail')} body={t('settings.retryLater')} primary={{ label: t('common.retry'), onPress: () => setAttempt((n) => n + 1) }} />
+      ) : !entry && !first ? (
         skeletonHints.coaching === 'next' ? (
           <CoachingNextSkeleton rows={skeletonHints.coachingRows ?? RECENT_COUNT} bottomSpace={tabBarSpace + space[5]} />
         ) : (
