@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { useAppDialog } from '@/components/app-dialog';
 import { forgetLocalCopy } from '@/lib/library/library-runner';
 import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
@@ -12,6 +13,7 @@ import { NoteSections } from '@/components/note-sections';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { ReportRating } from '@/components/report-rating';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
@@ -141,6 +143,7 @@ export default function ReportDetailScreen() {
         </View>
       )}
       {note && (
+        <KeyboardLift aboveSafeBottom>
         <KeyboardAwareScroll contentContainerStyle={styles.body}>
           <View style={styles.heading}>
             <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
@@ -158,9 +161,11 @@ export default function ReportDetailScreen() {
 
           {/* 지난 노트에서도 평가를 남기고 고친다 — 초기값은 이미 남긴 평가다(practice.note). */}
           {practiceId && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
-
-          <PrimaryButton label={t(continueActionLabel(action))} phLabel="report_detail_continue" onPress={continuePractice} />
         </KeyboardAwareScroll>
+        <CtaBar safeBottom={false}>
+          <PrimaryButton label={t(continueActionLabel(action))} phLabel="report_detail_continue" onPress={continuePractice} />
+        </CtaBar>
+        </KeyboardLift>
       )}
       {dialog}
     </SafeAreaView>
