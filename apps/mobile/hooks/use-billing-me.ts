@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { api } from '@/lib/api';
+import { afterHomeReady } from '@/lib/launch-splash';
 import { BILLING_SYNC_MIN_INTERVAL_MS, loadBilling, type BillingMe } from '@/lib/billing';
 
 export type BillingState = {
@@ -42,7 +43,8 @@ export function useBillingMe(): BillingState {
   useFocusEffect(
     useCallback(() => {
       focused.current = true;
-      refresh();
+      // 앱을 켤 때는 홈 첫 화면에 필요한 기록을 다 받은 뒤에 묻는다(lib/launch-splash afterHomeReady).
+      void afterHomeReady().then(() => focused.current && refresh());
       return () => {
         focused.current = false;
       };

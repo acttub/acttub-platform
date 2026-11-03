@@ -49,7 +49,7 @@ import { homePlan, settingsTarget } from '@/lib/billing';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
-import { markHomeReady } from '@/lib/launch-splash';
+import { afterHomeReady, markHomeReady } from '@/lib/launch-splash';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -200,9 +200,12 @@ export default function HomeScreen() {
     });
   }, []);
 
+  // 마지막 기록 읽기 — 이 계정으로 다 받았으면 true. 게이트가 열릴 때 다시 읽을지 정한다(아래 gateOpen).
+  const recordsRead = useRef<Promise<boolean>>(Promise.resolve(false));
   // 기록(연습 묶음·대본·리딩 회차·참여작)을 읽는다. 화면에 들어올 때와 맨 위에서 당길 때 같이 쓴다 —
   // 당길 때는 첫 안내·튜토리얼을 다시 띄우지 않도록 이 부분만 다시 부른다.
   const loadRecords = useCallback((isCancelled: () => boolean) => {
+    let groupsOk = true;
     const groupsRead = api
       .listPracticeGroups('all')
       .then((r) => {
@@ -213,6 +216,7 @@ export default function HomeScreen() {
         return r.groups;
       })
       .catch(() => {
+        groupsOk = false;
         if (!isCancelled()) {
           setGroups([]);
           setGroupsFailed(true);
@@ -260,7 +264,7 @@ export default function HomeScreen() {
       .then(() => api.practiceDays())
       .then((r) => r.days)
       .catch(() => [] as string[]);
-    return Promise.all([groupsRead, scriptsRead, readingRead, entriesRead, serverDaysRead]).then(async ([groupList, scriptList, readingSessions, entries, serverDays]) => {
+    const run = Promise.all([groupsRead, scriptsRead, readingRead, entriesRead, serverDaysRead]).then(async ([groupList, scriptList, readingSessions, entries, serverDays]) => {
       // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
       if (isCancelled()) return;
       // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
@@ -287,7 +291,12 @@ export default function HomeScreen() {
       return rememberPracticeDays(records, currentFirstUseOwner()).then((days) => {
         if (!isCancelled()) setActivityDays(days);
       });
-    });
+    }).then(
+      () => !isCancelled() && groupsOk && !readFailed && currentFirstUseOwner() !== null,
+      () => false,
+    );
+    recordsRead.current = run;
+    return run;
   }, []);
   const homeFocused = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -339,10 +348,19 @@ export default function HomeScreen() {
     const opened = gateOpen && !gateWasOpen.current;
     gateWasOpen.current = gateOpen;
     if (!opened) return;
-    // 로그인 전·게이트 전에 읽은(실패했거나 계정을 모르고 센) 기록은 버리고 뼈대로 돌린다 — 로그인 직후 「이번 주 연습」이
-    // 빈 칸으로 보였다가 나중에 채워지던 것(11/2 폰 QA). 지금 홈에 있으면 바로 다시 읽고, 아니면 홈에 올 때 읽는다.
-    setActivityDays(null);
-    if (homeFocused.current) void loadRecords(() => !homeFocused.current);
+    // 게이트 전에 읽은 기록을 이 계정으로 다 받았으면 다시 읽지 않는다 — 앱을 켤 때마다 같은 기록을 두 번 받았다(11/3 측정).
+    // 받는 중이면 끝나기를 기다린다.
+    let stale = false;
+    void recordsRead.current.then((ok) => {
+      if (ok || stale) return;
+      // 로그인 전·게이트 전에 읽은(실패했거나 계정을 모르고 센) 기록은 버리고 뼈대로 돌린다 — 로그인 직후 「이번 주 연습」이
+      // 빈 칸으로 보였다가 나중에 채워지던 것(11/2 폰 QA). 지금 홈에 있으면 바로 다시 읽고, 아니면 홈에 올 때 읽는다.
+      setActivityDays(null);
+      if (homeFocused.current) void loadRecords(() => !homeFocused.current);
+    });
+    return () => {
+      stale = true;
+    };
   }, [gateOpen, loadRecords]);
 
   useEffect(() => {
@@ -350,9 +368,11 @@ export default function HomeScreen() {
     if (!isKorean()) return;
     let cancelled = false;
     // 오디션 공고는 한국 공고뿐이고(app.audition) 하루 두 번 바뀐다 — 입시와 같이 홈을 열 때 한 번만 읽는다.
-    api
-      .auditions()
+    // 홈 첫 화면에 필요한 기록을 다 받은 뒤에 부른다(lib/launch-splash afterHomeReady).
+    afterHomeReady()
+      .then(() => (cancelled ? null : api.auditions()))
       .then((data) => {
+        if (data === null) return;
         if (!cancelled) setAuditions(data);
       })
       .catch(() => {

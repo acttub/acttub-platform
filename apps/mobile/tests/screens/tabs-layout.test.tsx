@@ -41,7 +41,7 @@ jest.mock('expo-router', () => {
     );
   }
   Tabs.Screen = () => null;
-  return { Tabs, useRouter: () => mockRouter };
+  return { Tabs, useRouter: () => mockRouter, usePathname: () => '/' };
 });
 // 진동 버튼 대신 받은 속성을 그대로 넘기는 버튼 — 탭마다 붙인 이름(ph-label)을 볼 수 있게.
 jest.mock('@/components/haptic-tab', () => ({
