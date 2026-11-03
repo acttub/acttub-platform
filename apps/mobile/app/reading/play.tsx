@@ -1910,12 +1910,7 @@ export default function ReadingPlay() {
         {pendingUploads > 0 && <Text style={styles.doneMeta}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
       </View>
     );
-    const note = (text: string, icon?: 'info' | 'wifi-off') => (
-      <View style={styles.noteBox}>
-        {icon && <Feather name={icon} size={16} color={palette.iconFaint} />}
-        <Text style={styles.noteText}>{text}</Text>
-      </View>
-    );
+    const note = (text: string, icon?: 'info' | 'wifi-off') => <InfoBanner body={text} icon={icon} />;
     const rating = coaching && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
     // 발음 보고서는 녹음한 회차에만 — 자동 넘김·듣기만은 녹음이 없어 「읽은 줄이 없어요」만 나온다(11/2 QA).
     const recorded = !listenAll && !handsFree && session.record !== false;
@@ -2530,8 +2525,6 @@ const styles = StyleSheet.create({
   doneLinkText: { ...type.body2Bold, color: palette.textSub },
   doneLinkAccent: { color: palette.blueDeep },
   doneCoach: { alignSelf: 'center' },
-  noteBox: { flexDirection: 'row', alignItems: 'center', gap: space[3], borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
-  noteText: { flex: 1, ...type.caption, color: palette.textSub },
   resultCard: { borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: space[4], paddingVertical: space[2], gap: space[2] },
   diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingVertical: space[2] },
   diffTitle: { ...type.body2Bold, color: palette.text },
