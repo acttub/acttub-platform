@@ -15,6 +15,7 @@ import { ActyMotion } from '@/components/ui/acty-motion';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { ChatComposer } from '@/components/ui/chat-composer';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
@@ -697,28 +698,19 @@ function CoachTalk() {
             )}
             <View style={styles.inputRow}>
               {MicButton && !sample && <MicButton onText={changeInput} disabled={connecting || waiting || !conversation} />}
-              <TextInput
-                ref={inputRef}
-                style={styles.input}
+              <ChatComposer
+                inputRef={inputRef}
                 // 코치가 질문을 만드는 동안은 입력칸 안내로 그 상태를 알린다.
                 placeholder={waiting || connecting ? t('coach.composerPhWaiting') : t('coach.composerPh')}
-                placeholderTextColor={palette.textMeta}
-                accessibilityLabel={t('coach.composerLabel')}
+                label={t('coach.composerLabel')}
                 value={input}
                 onChangeText={changeInput}
                 maxLength={COACH_ANSWER_MAX}
-                multiline
                 editable={!connecting && !waiting && !!conversation}
+                canSend={canSend}
+                onSend={() => void sendText(input)}
+                sendLabel={t('coach.send')}
               />
-              <Pressable
-                style={[styles.send, !canSend && styles.sendOff]}
-                disabled={!canSend}
-                onPress={() => void sendText(input)}
-                accessibilityRole="button"
-                accessibilityLabel={t('coach.send')}>
-                {/* SOMA-828: 전송 중 스피너 제거, 아래 "코치 생각 중" 문구가 대신한다 */}
-                <Feather name="arrow-up" size={20} color={canSend ? palette.onAccent : palette.textDisabled} />
-              </Pressable>
             </View>
             {strippedInput && input.trim() ? (
               <InlineErrorLine message={t('coach.answerStripped')} />
@@ -800,22 +792,4 @@ const styles = StyleSheet.create({
   exampleChoices: { alignItems: 'flex-start', gap: space[2], marginTop: space[2] },
   choiceChip: { alignSelf: 'flex-start', maxWidth: '100%' },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2], marginTop: space[3] },
-  // Chat/Composer — bg-soft 알약, 최소 44, 안쪽 좌우 16, body1. 한 줄로 시작해 다섯 줄쯤부터 칸 안에서 스크롤한다(SOMA-656).
-  input: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 144,
-    borderRadius: radius.full,
-    backgroundColor: palette.bgSoft,
-    // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 한 줄일 때 글자가 아래로 처진다 — 기본 줄 간격에
-    // 위아래 여백을 같게 둔다. iOS 여러 줄 입력칸은 위에 자체 여백이 더 붙어 그만큼 위 여백을 줄인다.
-    paddingTop: Platform.OS === 'ios' ? 8 : 11,
-    paddingBottom: 11,
-    paddingHorizontal: space[4],
-    fontSize: type.body1.fontSize,
-    color: palette.text,
-    textAlignVertical: 'center',
-  },
-  send: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  sendOff: { backgroundColor: palette.border },
 });

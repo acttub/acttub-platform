@@ -805,6 +805,7 @@ describe('댓글', () => {
     await renderFeed();
     await fireEvent.press(screen.getByRole('button', { name: '댓글' }));
     expect(await screen.findByText('아직 댓글이 없어요')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByPlaceholderText('응원 댓글을 남겨보세요'), '잘 봤어요');
     const buttons = screen.getAllByRole('button');
     await fireEvent.press(buttons[buttons.indexOf(screen.getByRole('button', { name: '보내기' })) - 1]);
     expect(screen.queryByText('아직 댓글이 없어요')).not.toBeOnTheScreen();
