@@ -357,13 +357,41 @@ describe('useReadingStt', () => {
       expect(events).toEqual([]);
     });
 
-    test('안드로이드는 결과만으로 넘기지 않고 인식기의 말 끝을 기다린다', async () => {
+    // SOMA-1037: 안드로이드도 말 끝 신호가 글보다 먼저 와서 버려지거나, 방 소음으로 침묵을 못 재면 녹음은 되는데 줄이 멈췄다.
+    test('안드로이드도 받아쓴 글이 있는 결과가 끊기고 조금 지나면 말 끝으로 본다', async () => {
       jest.replaceProperty(Platform, 'OS', 'android');
       const { events } = await listen();
 
       await emit('result', result('여기 있을 줄 알았어'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 1));
+      expect(events).toEqual([]);
+      await act(async () => jest.advanceTimersByTime(1));
+      expect(events).toEqual(['speech_end']);
+    });
+
+    test('안드로이드에서 글보다 먼저 온 말 끝은 버리지만, 뒤이어 글이 오면 그 글로 말 끝을 건다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      const { events } = await listen();
+
+      await emit('speechend');
       await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS * 2));
       expect(events).toEqual([]);
+      await emit('result', result('여기 있을 줄 알았어', true));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+      expect(events).toEqual(['speech_end']);
+    });
+
+    test('안드로이드에서 말하는 동안 결과가 계속 오면 말 끝을 미룬다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      const { events } = await listen();
+
+      await emit('result', result('여기'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 100));
+      await emit('result', result('여기 있을 줄'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 100));
+      expect(events).toEqual([]);
+      await act(async () => jest.advanceTimersByTime(100));
+      expect(events).toEqual(['speech_end']);
     });
   });
 

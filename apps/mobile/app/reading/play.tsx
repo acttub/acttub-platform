@@ -42,7 +42,8 @@ import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } fro
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
-import { isWordless, saidEnough } from '@/lib/reading/line-coverage';
+import { isWordless, saidEnough, spokenCoverage } from '@/lib/reading/line-coverage';
+import { logAdvance } from '@/lib/reading/advance-log';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
@@ -1102,6 +1103,7 @@ export default function ReadingPlay() {
         lateTimer = null;
         if (cancelled || !shortAtEnd) return;
         shortAtEnd = false;
+        logAdvance('advance_late', { line: from, chars: saidRef.current.length });
         advanceNow();
       }, ms);
     };
@@ -1123,7 +1125,16 @@ export default function ReadingPlay() {
         // 묶인 차례(SOMA-806)는 묶음 줄 전체 글자로 잰다.
         // 인식기가 오류를 냈거나 글을 하나도 못 줬으면 90% 대조는 믿을 수 없다 — 예전처럼 침묵만으로 넘긴다.
         clearLate();
-        if (sttActive.current && !sttGaveUp() && !saidEnough(turnText, saidRef.current)) {
+        const short = sttActive.current && !sttGaveUp() && !saidEnough(turnText, saidRef.current);
+        logAdvance(short ? 'wait_short' : 'advance', {
+          line: from,
+          stt: sttActive.current,
+          gaveUp: sttGaveUp(),
+          chars: saidRef.current.length,
+          coverage: Math.round(spokenCoverage(turnText, saidRef.current) * 100) / 100,
+          need: getAppConfig().reading.advanceCoverage,
+        });
+        if (short) {
           shortAtEnd = true;
           return;
         }
@@ -1173,6 +1184,7 @@ export default function ReadingPlay() {
             onEnd: () => {
               if (cancelled || turnClosing.current || recordingClosed.current) return;
               sttStopped = true;
+              logAdvance('stt_end', { line: from, shortAtEnd, chars: saidRef.current.length });
               if (shortAtEnd) armLate(currentVad().silenceMs);
               void mic.start(onEvent);
             },
