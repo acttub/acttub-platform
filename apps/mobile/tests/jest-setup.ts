@@ -14,3 +14,9 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 // 광고 칸(SOMA-876)은 화면마다 서버에 따로 묻는다. 화면 테스트가 광고 요청까지 흉내 내지 않게 비워 두고,
 // 칸 자체의 동작은 tests/screens/ad-slot.test.tsx 가 실제 구현으로 본다.
 jest.mock('@/components/ad-slot', () => ({ AdSlot: () => null }));
+
+// 앱을 켤 때 홈과 상관없는 호출은 홈이 첫 데이터를 받은 뒤에 나간다(lib/launch-splash afterHomeReady).
+// 화면 테스트는 홈이 이미 받은 상태에서 시작한다 — 미루는 동작은 그 화면 테스트에서 따로 본다.
+beforeEach(() => {
+  require('@/lib/launch-splash').markHomeReady();
+});

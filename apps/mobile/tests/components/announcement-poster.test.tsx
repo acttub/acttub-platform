@@ -7,6 +7,7 @@ import { AppState, Linking, Platform, Text } from 'react-native';
 import { AnnouncementPoster } from '@/components/announcement-poster';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
+import { markHomeReady, resetHomeReadyForTest } from '@/lib/launch-splash';
 import { localDay, type Poster } from '@/lib/poster';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -106,6 +107,20 @@ test('로그아웃 상태에서는 포스터를 묻지 않고, 로그인하면 �
       'challenge-week': { revision: 2, lastShownDay: TODAY, shownOnce: true, dismissedForever: false },
     }),
   );
+});
+
+test('앱을 켤 때는 홈이 첫 데이터를 받은 뒤에 포스터를 묻는다', async () => {
+  // 홈 호출과 같이 나가면 한 서버에 동시에 5개씩만 가는 줄에서 홈이 뒤로 밀렸다(11/3 실측).
+  resetHomeReadyForTest();
+  getPosters.mockResolvedValue({ posters: [poster()] });
+
+  await render(<AnnouncementPoster loggedIn />);
+  await act(async () => undefined);
+  expect(getPosters).not.toHaveBeenCalled();
+
+  await act(async () => markHomeReady());
+  expect(await screen.findByText('이번 주 챌린지')).toBeOnTheScreen();
+  expect(getPosters).toHaveBeenCalledTimes(1);
 });
 
 test('안드로이드에서는 platform=android 로 묻는다', async () => {

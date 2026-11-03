@@ -15,8 +15,12 @@ class AdPickerTest {
     private static final UUID USER = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     private static Ad direct(String slot, String large, String banner, int priority) {
+        return direct(slot, large, banner, priority, 100);
+    }
+
+    private static Ad direct(String slot, String large, String banner, int priority, int share) {
         return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of(slot), "all", priority, "학원",
-                null, null, large, banner, null, "https://example.com", null, 50);
+                null, null, large, banner, null, "https://example.com", null, share);
     }
 
     private static Ad house(String slot, String audience, String headline, String path) {
@@ -125,12 +129,49 @@ class AdPickerTest {
     }
 
     @Test
-    @DisplayName("직접 광고는 비율 없이 늘 먼저 나가고 난수도 쓰지 않는다")
-    void directIgnoresShare() {
+    @DisplayName("직접 광고가 100% 면 늘 먼저 나가고 난수도 쓰지 않는다")
+    void fullDirectNeverRolls() {
         var pick = AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false),
                 List.of(direct("home_top", null, "b.png", 0), house("home_top", "all", "문구", "/pro", 0)), DAY,
                 () -> { throw new AssertionError("direct must not roll"); });
         assertThat(pick.kind()).isEqualTo(AdPicker.Kind.DIRECT);
+    }
+
+    @Test
+    @DisplayName("직접 20 · 우리 앱 30 이면 난수 0~19 직접, 20~49 우리 앱, 50~99 AdMob 이다")
+    void directShareStacksBeforeHouse() {
+        var viewer = viewer(true, false, false);
+        List<Ad> ads = List.of(direct("home_top", null, "b.png", 0, 20), house("home_top", "all", "문구", "/pro", 30));
+        int directs = 0;
+        int houses = 0;
+        int networks = 0;
+        for (int roll = 0; roll < 100; roll++) {
+            int r = roll;
+            var kind = AdPicker.pick(AdSlot.HOME_TOP, viewer, ads, DAY, () -> r).kind();
+            if (kind == AdPicker.Kind.DIRECT) {
+                directs++;
+                assertThat(r).isLessThan(20);
+            } else if (kind == AdPicker.Kind.HOUSE) {
+                houses++;
+                assertThat(r).isBetween(20, 49);
+            } else {
+                networks++;
+                assertThat(kind).isEqualTo(AdPicker.Kind.NETWORK);
+                assertThat(r).isGreaterThanOrEqualTo(50);
+            }
+        }
+        assertThat(List.of(directs, houses, networks)).containsExactly(20, 30, 50);
+    }
+
+    @Test
+    @DisplayName("직접 광고가 비율에서 지고 우리 앱 광고가 없으면 AdMob 이다")
+    void directShareFallsToNetwork() {
+        var pick = AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false),
+                List.of(direct("home_top", null, "b.png", 0, 20)), DAY, () -> 20);
+        assertThat(pick.kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(pick.ad()).isNull();
+        assertThat(AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false),
+                List.of(direct("home_top", null, "b.png", 0, 20)), DAY, () -> 19).kind()).isEqualTo(AdPicker.Kind.DIRECT);
     }
 
     @Test

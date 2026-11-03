@@ -155,8 +155,8 @@ test('쓰는 곳은 모듈 상수 대신 getAppConfig/currentVad 를 읽는다',
   assert.match(read('app/line-new.tsx'), /getAppConfig\(\)\.challenge\.durationsDays\.map/);
 });
 
-test('앱을 켤 때 설정을 받아 오되 기다리지 않는다', () => {
-  assert.match(read('app/_layout.tsx'), /^void loadAppConfig\(\);$/m);
+test('앱을 켤 때 설정을 받아 오되 기다리지 않고, 홈 첫 데이터를 받은 뒤에 부른다', () => {
+  assert.match(read('app/_layout.tsx'), /^void afterHomeReady\(\)\.then\(loadAppConfig\);$/m);
   const load = read('lib/app-config-load.ts');
   assert.match(load, /api\.getAppConfig\(\)/);
   assert.match(load, /AsyncStorage\.getItem/);

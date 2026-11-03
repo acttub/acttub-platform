@@ -8,39 +8,52 @@ import { radius, space, type } from '../constants/tokens.ts';
 const root = new URL('../', import.meta.url);
 const read = (p) => readFileSync(new URL(p, root), 'utf8');
 
-// docs/DESIGN-SYSTEM.html 토큰 표의 [이름, 값, 줄 원문]. 첫 두 칸의 <code> 만 읽는다.
-function tokenRows(id) {
-  const table = read('docs/DESIGN-SYSTEM.html').match(new RegExp(`<table id="${id}">([\\s\\S]*?)</table>`));
-  assert.ok(table, `DESIGN-SYSTEM.html 에 ${id} 표가 없습니다`);
-  const rows = [...table[1].matchAll(/<tr><td><code>([^<]+)<\/code><\/td><td>.*?<code>([^<]+)<\/code>.*<\/tr>/g)];
-  return rows.map((m) => [m[1], m[2], m[0]]);
-}
+// docs/DESIGN-SYSTEM.html 은 pen 내보내기다. 값은 태그를 벗긴 글에서 찾는다.
+const designSystem = read('docs/DESIGN-SYSTEM.html');
+const body = designSystem.slice(designSystem.indexOf('<body>'));
+const penText = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 const camel = (name) => name.replace(/-(\w)/g, (_, c) => c.toUpperCase());
 
-test('DESIGN-SYSTEM.html 색 표가 palette.ts 와 같다', () => {
-  const rows = tokenRows('color-tokens');
-  assert.deepEqual(Object.fromEntries(rows.map(([n, v]) => [camel(n), v])), palette);
-  for (const [name, value, row] of rows) {
-    assert.ok(row.includes(`style="background:${value}"`), `${name} 색 견본이 값 ${value} 와 다릅니다`);
-  }
+test('DESIGN-SYSTEM.html 의 색이 palette.ts 와 같다', () => {
+  const rows = [...penText.matchAll(/\$([a-z-]+) (#[0-9A-Fa-f]{6,8})\b/g)].map((m) => [camel(m[1]), m[2]]);
+  assert.deepEqual(Object.fromEntries(rows), palette);
 });
 
-test('DESIGN-SYSTEM.html 글자 표가 tokens.ts type 과 같다', () => {
+test('DESIGN-SYSTEM.html 의 글자가 tokens.ts type 과 같다', () => {
   const fromCode = Object.fromEntries(
     Object.entries(type).map(([k, t]) => [k, `${t.fontSize} / ${t.lineHeight} · ${t.fontWeight}`]),
   );
-  assert.deepEqual(Object.fromEntries(tokenRows('type-tokens').map(([n, v]) => [camel(n), v])), fromCode);
+  const rows = [...penText.matchAll(/\b([a-z0-9]+(?:-bold)?) (\d+ \/ \d+ · \d+)/g)].map((m) => [camel(m[1]), m[2]]);
+  assert.equal(rows.filter(([n]) => n.endsWith('Bold')).length, 3, '-bold 변형이 3개 있어야 합니다');
+  assert.deepEqual(Object.fromEntries(rows), fromCode);
 });
 
-test('DESIGN-SYSTEM.html 모서리 표가 tokens.ts radius 와 같다', () => {
-  const rows = tokenRows('radius-tokens').map(([n, v]) => [n.replace(/^r-/, ''), Number(v)]);
+test('DESIGN-SYSTEM.html 의 모서리가 tokens.ts radius 와 같다', () => {
+  const rows = [...penText.matchAll(/\br-([a-z]+) · (\d+)/g)].map((m) => [m[1], Number(m[2])]);
   assert.deepEqual(Object.fromEntries(rows), radius);
 });
 
-test('DESIGN-SYSTEM.html 간격 표가 tokens.ts space 와 같다', () => {
-  const rows = tokenRows('space-tokens').map(([n, v]) => [n.replace(/^space\[(.+)\]$/, '$1'), Number(v)]);
+test('DESIGN-SYSTEM.html 의 간격이 tokens.ts space 와 같다', () => {
+  const rows = [...penText.matchAll(/space(?:\[([\d.]+)\]|\.(gutter))=(\d+)/g)].map((m) => [m[1] ?? m[2], Number(m[3])]);
   assert.deepEqual(Object.fromEntries(rows), space);
+});
+
+// pen 에서 부품을 일부러 지웠다면 이 목록에서도 지운다.
+const PEN_COMPONENTS = [
+  'Button/Primary', 'Button/Secondary', 'Button/Danger', 'Button/Disabled', 'Button/Primary-md', 'Button/Primary-sm',
+  'Button/Text', 'Button/Busy', 'IconButton', 'Button/Text-link', 'Chip/Off', 'Chip/On', 'Switch/On', 'Switch/Off',
+  'Checkbox/On', 'Checkbox/Off', 'Checkbox/Danger', 'SelectCard/Off', 'SelectCard/On', 'TextField/Default',
+  'TextField/Focus', 'TextField/Error', 'BottomCTA', 'FloatingButton/Add', 'NavHeader', 'NavHeader/Large', 'StepHeader',
+  'TabBar/iOS', 'TabBar/Android', 'Tabs/Underline', 'ListRow', 'Card', 'Badge', 'PlanBadge/Pro', 'PlanBadge/Free',
+  'ProCard', 'ProCard/Free', 'InlineError', 'InlineError/Line', 'InlineEmpty', 'Skeleton/Row', 'Skeleton/Number',
+  'Dialog', 'Sheet', 'Menu', 'Toast', 'Chat/Composer', 'Chat/Bubble/Coach', 'Chat/Bubble/Me', 'Chat/Guide',
+  'StatusScreen/Error', 'StatusScreen/Empty', 'StatusScreen/Loading', 'DoneScreen',
+];
+
+test('DESIGN-SYSTEM.html 에 pen 부품이 모두 있다', () => {
+  const missing = PEN_COMPONENTS.filter((name) => !designSystem.includes(`data-pencil-name="${name}"`));
+  assert.deepEqual(missing, []);
 });
 
 // 지금 토큰 밖에 있는 곳의 파일별 개수. 새 어긋남만 막는다. 개수가 줄면 함께 낮춘다.

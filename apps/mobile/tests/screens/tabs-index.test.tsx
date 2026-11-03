@@ -763,6 +763,40 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
   });
 
+  // 11/3 측정 — 앱을 켤 때마다 동의 확인이 끝나는 순간 같은 기록(묶음·대본·참여작·연습일)을 한 번 더 받았다.
+  test('게이트 전에 읽은 기록을 이 계정으로 다 받았으면 게이트가 열려도 다시 읽지 않는다', async () => {
+    mockAuth.consentEntry = { status: 'checking' };
+    (mockAuth.profile as { status?: string }).status = 'complete';
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    const view = await render(<HomeScreen />);
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+
+    mockAuth.consentEntry = { status: 'allowed' };
+    await view.rerender(<HomeScreen />);
+    await act(async () => new Promise((r) => setTimeout(r, 50)));
+    expect(listPracticeGroups).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('1일째! · 누적 1일')).toBeOnTheScreen();
+  });
+
+  test('게이트가 열릴 때 기록을 받는 중이면 끝나기를 기다렸다가, 실패했을 때만 다시 읽는다', async () => {
+    mockAuth.consentEntry = { status: 'checking' };
+    (mockAuth.profile as { status?: string }).status = 'complete';
+    let fail: (error: Error) => void = () => undefined;
+    listPracticeGroups.mockReturnValueOnce(new Promise((_, reject) => (fail = reject)));
+    const view = await render(<HomeScreen />);
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(1));
+
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    mockAuth.consentEntry = { status: 'allowed' };
+    await view.rerender(<HomeScreen />);
+    await act(async () => undefined);
+    expect(listPracticeGroups).toHaveBeenCalledTimes(1);
+
+    await act(async () => fail(new Error('consent required')));
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+  });
+
   test('연습일 목록을 못 받아도 홈은 그대로 연다 (SOMA-1003)', async () => {
     listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
     (api.practiceDays as jest.Mock).mockRejectedValue(new Error('down'));
