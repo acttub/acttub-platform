@@ -121,17 +121,36 @@ export default function CommunityPostScreen() {
     }
   };
 
+  // 좋아요는 마지막으로 누른 상태만 서버에 맞춘다. 연타하면 요청(누름·취소·누름)이 순서 바뀌어 도착해 화면은 1, 서버는 0이 됐다
+  // (11/3 폰 QA). 보내는 중이면 더 보내지 않고, 끝나면 그사이 바뀐 마지막 상태만 한 번 더 보낸다.
+  const likeWant = useRef<boolean | null>(null);
+  const likeBusy = useRef(false);
   const toggleLike = async () => {
     if (!post || !requireLogin()) return;
-    const before = post;
-    const next = !post.liked_by_me;
+    const next = !(likeWant.current ?? post.liked_by_me);
+    likeWant.current = next;
     // 하트는 바로 바뀌어야 눌린 느낌이 난다 — 먼저 바꾸고 서버 답으로 맞춘다.
-    setPost({ ...post, liked_by_me: next, like_count: Math.max(0, post.like_count + (next ? 1 : -1)) });
+    setPost((p) => (p ? { ...p, liked_by_me: next, like_count: Math.max(0, p.like_count + (next === p.liked_by_me ? 0 : next ? 1 : -1)) } : p));
+    if (likeBusy.current) return;
+    likeBusy.current = true;
+    const id = post.id;
+    let sent: boolean | null = null;
+    let last: { like_count: number; liked_by_me: boolean } | null = null;
     try {
-      const res = await api.likeCommunityPost(post.id, next);
-      setPost((p) => (p ? { ...p, like_count: res.like_count, liked_by_me: res.liked_by_me } : p));
+      while (likeWant.current !== null && likeWant.current !== sent) {
+        sent = likeWant.current;
+        last = await api.likeCommunityPost(id, sent);
+      }
+      if (last) {
+        const res = last;
+        setPost((p) => (p ? { ...p, like_count: res.like_count, liked_by_me: res.liked_by_me } : p));
+      }
     } catch {
-      setPost(before);
+      // 실패하면 서버 상태를 다시 받아 맞춘다 — 눌러 둔 화면 상태를 믿지 않는다.
+      void api.communityPost(id).then((detail) => setPost(detail), () => undefined);
+    } finally {
+      likeBusy.current = false;
+      likeWant.current = null;
     }
   };
 

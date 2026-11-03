@@ -810,7 +810,10 @@ export const api = {
 
   /** 그 대본의 회차 목록(최근순). */
   listReadingSessions(scriptId: string): Promise<{ sessions: SessionCard[] }> {
-    return request(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/sessions`, {}, { timeoutMs: 20_000 });
+    const askedAt = readGeneration();
+    return request<{ sessions: SessionCard[] }>(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/sessions`, {}, { timeoutMs: 20_000 }).then(
+      (r) => rememberReadIfCurrent(`readingSessions:${scriptId}`, r, askedAt),
+    );
   },
 
   getReadingSession(sessionId: string): Promise<SessionDetail> {

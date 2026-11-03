@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 
 import CommunityPostScreen from '@/app/community-post';
 import { logEvent } from '@/lib/analytics';
@@ -162,6 +162,25 @@ test('좋아요를 누르면 바로 채운 하트가 되고 서버 수로 맞춘
 
   expect(api.likeCommunityPost).toHaveBeenCalledWith('p1', true);
   expect(await screen.findByTestId('liked-heart')).toBeOnTheScreen();
+  expect(await screen.findByText('좋아요 4')).toBeOnTheScreen();
+});
+
+test('좋아요를 세 번 빨리 누르면 보내는 중엔 더 보내지 않고, 마지막 상태(누름)만 서버에 맞춘다', async () => {
+  communityPost.mockResolvedValue(post());
+  let release: (v: { like_count: number; liked_by_me: boolean }) => void = () => undefined;
+  const like = api.likeCommunityPost as jest.Mock;
+  like.mockReset();
+  like.mockImplementationOnce(() => new Promise((r) => (release = r)));
+  await render(<CommunityPostScreen />);
+  const heart = await screen.findByRole('button', { name: '좋아요 3' });
+  await fireEvent.press(heart);
+  await fireEvent.press(await screen.findByRole('button', { name: '좋아요 4' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '좋아요 3' }));
+  // 첫 요청이 끝나기 전에는 하나만 나간다.
+  expect(like).toHaveBeenCalledTimes(1);
+  await act(async () => release({ like_count: 4, liked_by_me: true }));
+  // 마지막으로 원한 상태(누름)가 이미 보낸 것과 같아 더 보내지 않는다.
+  expect(like).toHaveBeenCalledTimes(1);
   expect(await screen.findByText('좋아요 4')).toBeOnTheScreen();
 });
 

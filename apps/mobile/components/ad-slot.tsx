@@ -36,7 +36,7 @@ type Props = {
   /** AdMob 배너를 기다리는 시간(ms). 테스트에서만 줄인다. */
   fillTimeoutMs?: number;
   /**
-   * 화면 아래 탭바 위에 붙이는 고정 배너(게시판). 좌우 끝까지 채운다 — AdMob 은 폭에 맞춘 적응형 배너(ANCHORED_ADAPTIVE_BANNER),
+   * 화면 아래 탭바 위에 붙이는 고정 배너(게시판). 좌우 끝까지 채운다 — AdMob 은 규격 크기 배너를 화면 폭 띠 가운데에 두고,
    * 학원·우리 앱 이미지는 모서리 없이 규격 비율로 꽉 채운다. 받기 전 자리는 높이 50.
    */
   anchored?: boolean;
@@ -121,16 +121,16 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     const banner = loadBannerModule();
     if (!banner) return null;
     const { BannerAd, BannerAdSize } = banner;
-    // 좌우를 채우는 칸은 AdMob 적응형 배너를 쓴다 — 고정 규격(320)은 넓은 폰에서 양옆이 빈다.
-    // 탭바 위 고정 칸은 ANCHORED, 화면 안 칸은 INLINE(규격 높이까지만).
-    const bannerSize = anchored ? BannerAdSize.ANCHORED_ADAPTIVE_BANNER : bleed ? BannerAdSize.INLINE_ADAPTIVE_BANNER : BannerAdSize[size];
+    // AdMob 은 규격 크기(320×50·320×100)로 받아 가운데 두고, 좌우 끝까지 연한 띠를 깐다(11/3 폰 QA).
+    // 적응형(ANCHORED·INLINE)은 폭에 안 맞는 광고를 받으면 양옆·위아래를 검게 채우거나 납작하게 줄였다 — 광고마다 달라 막을 수 없다.
+    // 규격 크기는 늘 그 크기로 그려져 검은 띠·눌림이 없고, 띠가 화면 폭을 채워 좌우에 붙은 배너로 보인다.
+    const bannerSize = BannerAdSize[size];
     return (
       <FullBleed on={bleed}>
-        <View style={[bleed ? [styles.box, anchored && { minHeight: spec.height }] : box, styles.network, style]} ph-no-capture>
+        <View style={[bleed ? [styles.box, styles.band, { height: spec.height }] : box, styles.network, style]} ph-no-capture>
           <BannerAd
             unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
             size={bannerSize}
-            maxHeight={bleed && !anchored ? spec.height : undefined}
           requestOptions={{
             requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
               .requestNonPersonalizedAdsOnly,
@@ -224,6 +224,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   flush: { borderRadius: 0 },
+  band: { backgroundColor: palette.bgSoft },
   creative: {
     borderRadius: AD_RADIUS,
     overflow: 'hidden',

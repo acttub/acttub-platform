@@ -8,7 +8,18 @@
  *
  * 메모리에만 둔다 — 앱을 끄면 사라지고, 로그아웃·탈퇴 때 resetLastReads 로 비운다(다른 계정에 남지 않게).
  */
-export type LastReadKey = 'practiceGroups' | 'readingScripts' | 'myChallengeEntries' | 'challengesPopular' | 'challengesEnded';
+export type LastReadKey =
+  | 'practiceGroups'
+  | 'readingScripts'
+  | 'myChallengeEntries'
+  | 'challengesPopular'
+  | 'challengesEnded'
+  /** 프로필 「이번 달 연습」 숫자 — 셋을 다 받아야 세서 늦다. 다시 들어올 때는 지난 숫자를 먼저 보인다(11/3 폰 QA). */
+  | 'profileMonthCounts'
+  /** 리딩 탭 「이전에 하던 대본부터」 카드 — 목록 뒤에 회차까지 받아야 해서 늦게 끼어들었다(11/3 폰 QA). */
+  | 'readingResume'
+  /** 대본별 회차 목록 — 대본 상세의 연습 기록과 리딩 탭 이어 읽기 카드가 같이 쓴다. */
+  | `readingSessions:${string}`;
 
 const reads = new Map<LastReadKey, unknown>();
 /** 계정이 바뀐 뒤 늦게 도착한 옛 계정 답을 버리기 위한 세대 번호. */
