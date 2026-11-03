@@ -627,7 +627,7 @@ function CoachTalk() {
                     <Text style={styles.continueTitle}>{t('coach.continueTalk')}</Text>
                     <Text style={styles.continueSub}>{t('coach.continueTalkSub')}</Text>
                   </View>
-                  <Feather name="chevron-right" size={20} color={palette.blueDeep} />
+                  <Feather name="chevron-right" size={20} color={palette.iconFaint} />
                 </Pressable>
               )}
             </>
@@ -781,10 +781,12 @@ const styles = StyleSheet.create({
     gap: space[3],
     padding: space[4],
     borderRadius: radius.lg,
-    backgroundColor: palette.blueSoft,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
   },
   continueText: { flex: 1, gap: space[1] },
-  continueTitle: { ...type.body2Bold, color: palette.blueDeep },
+  continueTitle: { ...type.body2Bold, color: palette.text },
   continueSub: { ...type.caption, color: palette.textSub },
 
   composer: { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[3] },

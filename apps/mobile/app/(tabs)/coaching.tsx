@@ -387,13 +387,13 @@ function Tile({
       accessibilityRole="button"
       accessibilityLabel={title.replace('\n', ' ')}
       ph-label={phLabel}
-      style={({ pressed }) => [styles.tile, accent && styles.tileAccent, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
       <View style={styles.tileTop}>
         <Feather name={icon} size={22} color={accent ? palette.blue : palette.text} />
-        <Feather name="arrow-up-right" size={16} color={palette.textDisabled} />
+        <Feather name="arrow-up-right" size={16} color={palette.iconFaint} />
       </View>
       <View style={styles.tileText}>
-        <Text style={[styles.tileTitle, accent && styles.tileTitleAccent]}>{title}</Text>
+        <Text style={styles.tileTitle}>{title}</Text>
         <Text style={styles.tileSub} numberOfLines={1}>{sub}</Text>
       </View>
     </Pressable>
@@ -446,12 +446,10 @@ const styles = StyleSheet.create({
   againBtn: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   againText: { ...type.body2Bold, color: palette.blueDeep },
   tiles: { flexDirection: 'row', gap: space[2], paddingTop: space[3] },
-  tile: { flex: 1, gap: space[2], padding: space[3], borderRadius: radius.lg, backgroundColor: palette.bgSoft },
-  tileAccent: { backgroundColor: palette.blueSoft },
+  tile: { flex: 1, gap: space[2], padding: space[3], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tileText: { gap: space[1] },
   tileTitle: { ...type.body1Bold, color: palette.text },
-  tileTitleAccent: { color: palette.blueDeep },
   tileSub: { ...type.micro, color: palette.textMeta },
   linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[3] },
   linkSep: { width: 1, height: 12, backgroundColor: palette.border },
