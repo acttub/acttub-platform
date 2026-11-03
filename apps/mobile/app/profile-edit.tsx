@@ -159,10 +159,10 @@ export default function ProfileEditScreen() {
           {photoError && <InlineErrorLine message={photoError} />}
         </View>
 
-        {rows.map((row) => (
+        {rows.map((row, i) => (
           <Pressable
             key={row.field}
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.row, i > 0 && styles.divider, pressed && styles.pressed]}
             onPress={() => router.push({ pathname: '/profile-edit-item', params: { field: row.field } })}
             accessibilityRole="button"
             accessibilityLabel={`${row.label} ${row.value}`}>
@@ -175,7 +175,7 @@ export default function ProfileEditScreen() {
         ))}
         {/* 포트폴리오(account.portfolio) — 가입 때 받는 여섯 항목과 다른 기능. 들어갈 길이 여기뿐이다. */}
         <Pressable
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.row, styles.divider, pressed && styles.pressed]}
           onPress={() => router.push('/portfolio-edit')}
           accessibilityRole="button">
           <Text style={styles.rowLabel}>{t('profileName.rowPortfolio')}</Text>
@@ -228,9 +228,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[2],
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
   },
+  divider: { borderTopWidth: 1, borderTopColor: palette.border },
   pressed: { opacity: 0.6 },
   rowLabel: { ...type.body2, color: palette.textSub },
   rowEmpty: { ...type.body1, color: palette.textMeta },
