@@ -18,7 +18,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { InlineError } from '@/components/ui/inline-error';
 import { SelectCard } from '@/components/ui/select-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -447,7 +447,7 @@ export default function ChallengesScreen() {
           ))}
         </View>
 
-        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && !canRetryBrowse(error) && <InlineEmpty title={browseFailureMessage(error)} />}
         {error && canRetryBrowse(error) && <InlineError message={browseFailureMessage(error)} onRetry={() => void load(tab)} />}
         {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={styles.flush} />}
 

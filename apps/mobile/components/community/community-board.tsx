@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
-import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError } from '@/components/ui/inline-error';
 import { LoadingText } from '@/components/ui/loading-text';
 import { MASCOT } from '@/components/ui/mascot';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
@@ -173,7 +174,7 @@ export function CommunityBoard({
         ))}
       </ScrollView>
       {error === 'other' ? <InlineError message={boardFailureMessage(error)} onRetry={() => void load(category)} /> : null}
-      {error && error !== 'other' ? <InlineErrorLine message={boardFailureMessage(error)} /> : null}
+      {error && error !== 'other' ? <InlineEmpty title={boardFailureMessage(error)} /> : null}
       {posts === null && !error ? <BoardSkeleton /> : null}
       {posts !== null && posts.length === 0 ? (
         <View style={styles.empty}>
