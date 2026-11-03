@@ -15,7 +15,13 @@ test('안드로이드 헤더 오른쪽 버튼을 다시 붙일 때 옛 부모에
   assert.equal(name, `react-native-screens+${version}.patch`);
   const patch = read(`patches/${name}`);
   assert.match(patch, /ScreenStackHeaderConfig\.kt/);
-  assert.match(patch, /\+\s*\(view\.parent as\? android\.view\.ViewGroup\)\?\.removeView\(view\)\n\s+toolbar\.addView\(view\)/);
+  // 전환 중인 부모는 removeView 뒤에도 뗀 뷰를 「사라지는 중인 자식」으로 쥐고 있다(1.1.0 에서도 같은 줄에서 꺼짐, SOMA-978) —
+  // endViewTransition 으로 끝낸 뒤 떼고, 그래도 부모가 남으면 붙이지 않는다.
+  assert.match(
+    patch,
+    /\+\s*\(view\.parent as\? android\.view\.ViewGroup\)\?\.let \{ old ->\n\+\s*old\.endViewTransition\(view\)\n\+\s*old\.removeView\(view\)\n\+\s*\}\n\+\s*if \(view\.parent == null\) \{\n\+\s*toolbar\.addView\(view\)/,
+  );
+  assert.doesNotMatch(patch, /^\s+toolbar\.addView\(view\)$/m);
 });
 
 test('iOS 음성 인식은 마이크 하드웨어 형식이 비어 있으면 꺼지지 않고 「입력 사용 중」 오류로 끝난다(SOMA-822)', () => {
