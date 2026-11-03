@@ -99,3 +99,12 @@ test('만 19세 경계: 19번째 생일 전날은 G, 당일부터 T', () => {
   assert.equal(adRequestConfigFor('2007-10-27', '2026-10-26').maxAdContentRating, 'G');
   assert.equal(adRequestConfigFor('2007-10-26', '2026-10-26').maxAdContentRating, 'T');
 });
+
+test('영어로 쓰는 사람에게는 한국어로 만든 직접·우리 앱 광고 대신 AdMob 으로 채운다', () => {
+  const direct = pick('DIRECT', creative({ image_url: 'x.png', link_url: 'https://example.com' }));
+  const house = pick('HOUSE', creative({ image_url: 'x.png', app_path: '/pro' }));
+  assert.equal(renderableKind(direct, { korean: false }), 'NETWORK');
+  assert.equal(renderableKind(house, { korean: false }), 'NETWORK');
+  assert.equal(renderableKind(direct, { korean: true }), 'DIRECT');
+  assert.equal(renderableKind(pick('NETWORK'), { korean: false }), 'NETWORK');
+});
