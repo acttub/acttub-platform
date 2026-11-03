@@ -161,5 +161,5 @@ const styles = StyleSheet.create({
   },
   caption: { ...type.captionBold, color: palette.text, marginTop: space[1] },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  meta: { flexShrink: 1, ...type.micro, color: palette.textMeta },
+  meta: { flexShrink: 1, ...type.caption, color: palette.textMeta },
 });
