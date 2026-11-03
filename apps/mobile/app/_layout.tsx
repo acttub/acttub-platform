@@ -39,7 +39,7 @@ import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { loadAppConfig } from '@/lib/app-config-load';
 import { tabBackTitle } from '@/lib/tab-back-title';
-import { HOME_SPLASH_HOLD_MS, afterHomeReady, isHomeReady, msUntilLaunchSplashCap, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
+import { HOME_SPLASH_HOLD_MS, afterHomeReady, isHomeReady, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -418,14 +418,6 @@ function RootNavigator() {
     holdExpired: homeHoldExpired,
   });
 
-  // 준비가 덜 끝나도 앱을 켠 지 LAUNCH_SPLASH_MAX_MS 가 지나면 스플래시를 닫는다 — 아래 화면이 뼈대부터 그리고, 게이트는 그 뒤에 옮긴다.
-  const [splashCapReached, setSplashCapReached] = useState(() => msUntilLaunchSplashCap() === 0);
-  useEffect(() => {
-    if (splashCapReached) return;
-    const timer = setTimeout(() => setSplashCapReached(true), msUntilLaunchSplashCap());
-    return () => clearTimeout(timer);
-  }, [splashCapReached]);
-
   // 한 번 닫은 진입 화면은 다시 띄우지 않는다(로그아웃 등으로 조건이 바뀌어도).
   const [launchDone, setLaunchDone] = useState(false);
   const hideNativeSplash = useCallback(() => void SplashScreen.hideAsync(), []);
@@ -450,11 +442,11 @@ function RootNavigator() {
               (profileStatus === 'complete' &&
                 recovery.status === 'ready' &&
                 recovery.owner === user?.id)))));
-    // 인증을 읽는 중이면 그릴 화면이 없어(아래 return null) 상한이 지나도 기다린다.
-    if ((readyToShow && !holdSplashForHome) || (splashCapReached && status !== 'loading')) setLaunchDone(true);
+    // 로그인·동의·프로필 확인과 홈 첫 데이터(최대 HOME_SPLASH_HOLD_MS)가 끝나면 닫는다. 한때 앱 코드가 뜬 지 2초에 무조건
+    // 닫았는데(#1296), 홈과 상관없는 호출을 홈 뒤로 미뤄(#1300) 로딩이 끝날 때 닫는 쪽으로 되돌렸다.
+    if (readyToShow && !holdSplashForHome) setLaunchDone(true);
   }, [
     holdSplashForHome,
-    splashCapReached,
     updateRequired,
     status,
     user,

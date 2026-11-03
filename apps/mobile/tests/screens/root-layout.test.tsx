@@ -18,7 +18,7 @@ import { postHog, syncPostHog } from '@/lib/posthog';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { useAuth } from '@/lib/auth';
 import RootLayout from '@/app/_layout';
-import { markHomeReady, resetHomeReadyForTest, resetLaunchSplashClockForTest } from '@/lib/launch-splash';
+import { markHomeReady, resetHomeReadyForTest } from '@/lib/launch-splash';
 
 type AuthState = {
   status: 'loading' | 'signedIn' | 'signedOut';
@@ -124,7 +124,6 @@ beforeEach(() => {
   // 게이트 테스트는 홈이 이미 준비된 상태로 본다. 홈을 기다리는 로고는 아래 「홈을 기다리는 로고」에서 따로 본다.
   resetHomeReadyForTest();
   markHomeReady();
-  resetLaunchSplashClockForTest();
   mockFontsLoaded = true;
   mockNav.segments = ['(tabs)'];
   mockNav.pathname = '/';
@@ -474,36 +473,21 @@ describe('홈을 기다리는 로고', () => {
     }
   });
 
-  test('준비가 덜 끝나도 앱 코드가 뜬 지 2초가 지나면 스플래시를 닫는다', async () => {
+  test('로그인·동의·프로필 확인이 덜 끝났으면 시간이 지나도 스플래시를 닫지 않고, 끝나면 닫는다', async () => {
+    // 한때 앱 코드가 뜬 지 2초에 무조건 닫았다(#1296) — 홈 호출을 줄여(#1300) 로딩이 끝날 때 닫는 쪽으로 되돌렸다.
     jest.useFakeTimers();
     try {
-      resetLaunchSplashClockForTest();
       auth = signedIn({ profile: { status: 'checking' } });
-      await renderLayout();
+      const view = await renderLayout();
       await act(async () => {
-        jest.advanceTimersByTime(1999);
+        jest.advanceTimersByTime(10_000);
       });
       expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
-      await act(async () => {
-        jest.advanceTimersByTime(1);
-      });
-      expect(SplashScreen.hideAsync).toHaveBeenCalled();
-      expect(screen.queryByText('진입 화면')).not.toBeOnTheScreen();
-    } finally {
-      jest.useRealTimers();
-    }
-  });
+      expect(screen.getByText('진입 화면')).toBeOnTheScreen();
 
-  test('인증을 읽는 중이면 그릴 화면이 없어 상한이 지나도 닫지 않는다', async () => {
-    jest.useFakeTimers();
-    try {
-      resetLaunchSplashClockForTest();
-      auth = signedIn({ status: 'loading', user: null });
-      await renderLayout();
-      await act(async () => {
-        jest.advanceTimersByTime(5000);
-      });
-      expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+      await update({ profile: { status: 'complete' } }, view);
+      await act(async () => markHomeReady());
+      expect(SplashScreen.hideAsync).toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
     }
