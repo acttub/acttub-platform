@@ -455,14 +455,13 @@ export default function ChallengePlayScreen() {
   const menuFor = (entry: EntryCard) => playMenuItems({ entry, challenge, myId: user?.id ?? null });
   const openMenu = (entry: EntryCard, e?: GestureResponderEvent) => {
     const action: Record<PlayMenuItem, DialogAction> = {
-      report_entry: { label: t('react.menuReport'), icon: 'flag', destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) },
+      report_entry: { label: t('react.menuReport'), icon: 'flag', onPress: () => setReportTarget({ type: 'entry', id: entry.id }) },
       report_challenge: {
         label: t('react.menuReportChallenge'),
         icon: 'flag',
-        destructive: true,
         onPress: () => challenge && setReportTarget({ type: 'challenge', id: challenge.id }),
       },
-      block: { label: t('react.menuBlock'), icon: 'slash', destructive: true, onPress: () => void blockAuthor(entry) },
+      block: { label: t('react.menuBlock'), icon: 'slash', onPress: () => void blockAuthor(entry) },
     };
     void sheet({ anchor: pt(e), actions: menuFor(entry).map((item) => action[item]) });
   };

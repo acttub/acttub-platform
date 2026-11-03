@@ -188,7 +188,7 @@ export function ChallengeCommentsSheet({
                   <Text style={[styles.text, item.status === 'hidden' && styles.hidden]}>{commentText(item)}</Text>
                   {canDeleteComment(item) ? (
                     <Pressable onPress={() => void remove(item)} hitSlop={8} accessibilityRole="button">
-                      <Text style={styles.action}>{t('comments.delete')}</Text>
+                      <Text style={styles.actionDelete}>{t('comments.delete')}</Text>
                     </Pressable>
                   ) : (
                     <Pressable onPress={() => onReport(item.id)} hitSlop={8} accessibilityRole="button">
@@ -250,7 +250,8 @@ const styles = StyleSheet.create({
   name: { ...type.captionBold, color: palette.text },
   text: { ...type.body2, color: palette.text },
   hidden: { color: palette.textMeta },
-  action: { ...type.captionBold, color: palette.danger, marginTop: space[1] },
+  action: { ...type.captionBold, color: palette.textMeta, marginTop: space[1] },
+  actionDelete: { ...type.captionBold, color: palette.danger, marginTop: space[1] },
   inputBar: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.border,
