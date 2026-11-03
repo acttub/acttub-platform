@@ -1346,7 +1346,7 @@ const HERO_STOPS = [
 
 const styles = StyleSheet.create({
   contactFooter: { ...type.caption, color: palette.textMeta, textAlign: 'center', marginTop: space[6] },
-  contactFooterLink: { ...type.caption, color: palette.textSub, textDecorationLine: 'underline' },
+  contactFooterLink: { ...type.caption, color: palette.blueDeep },
   safe: { flex: 1, backgroundColor: palette.bg },
   safeHero: { backgroundColor: '#E4EEFC' },
   scrollBg: { backgroundColor: palette.bg },
@@ -1469,7 +1469,7 @@ const styles = StyleSheet.create({
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },
-  sectionAll: { ...type.captionBold, color: palette.blueDeep },
+  sectionAll: { ...type.body2Bold, color: palette.blueDeep },
   rowList: { gap: space[3] },
   deadlineList: { gap: space[2] },
   deadlineBlock: { gap: space[3] },

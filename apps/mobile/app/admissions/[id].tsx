@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   tipGroupLabel: { ...type.captionBold, color: palette.textSub },
   tip: { padding: space[4], borderRadius: radius.md, backgroundColor: palette.bgSubtle, gap: space[1.5] },
   tipText: { ...type.caption, color: palette.text },
-  tipLink: { ...type.micro, color: palette.blueDeep },
+  tipLink: { ...type.body2Bold, color: palette.blueDeep },
   tipHost: { ...type.micro, color: palette.textMeta },
   resource: { padding: space[4], borderRadius: radius.lg, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border, gap: space[2] },
   badge: {
