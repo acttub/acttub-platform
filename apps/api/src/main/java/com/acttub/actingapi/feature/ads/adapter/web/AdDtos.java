@@ -14,7 +14,8 @@ final class AdDtos {
     }
 
     @Schema(name = "AdSlotPick", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
-            description = "칸 하나에 띄울 것. kind 가 DIRECT·HOUSE 일 때만 ad 가 있다. NETWORK 면 앱이 AdMob 으로 채우고, NONE 이면 칸을 비운다.")
+            description = "칸 하나에 띄울 것. kind 가 DIRECT·HOUSE 일 때만 ad 가 있다. NETWORK 면 앱이 AdMob 으로 채우고, NONE 이면 칸을 비운다. "
+                    + "fallback 은 NETWORK 일 때만 있을 수 있고, AdMob 이 안 채워지면 칸을 접지 않고 대신 그릴 우리 앱 광고다.")
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record AdSlotPick(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"DIRECT", "HOUSE", "NETWORK", "NONE"})
@@ -24,12 +25,14 @@ final class AdDtos {
                     allowableValues = {"LARGE_BANNER", "BANNER", "MEDIUM_RECTANGLE"}) String size,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int width,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int height,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) AdCreative ad) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) AdCreative ad,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) AdCreative fallback) {
 
         static AdSlotPick of(AdPicker.Pick pick, AdImages images) {
             var size = pick.slot().size();
             return new AdSlotPick(pick.kind().name(), pick.slot().key(), size.name(), size.width(), size.height(),
-                    pick.ad() == null ? null : AdCreative.of(pick.ad(), pick.slot().size(), images));
+                    pick.ad() == null ? null : AdCreative.of(pick.ad(), size, images),
+                    pick.fallback() == null ? null : AdCreative.of(pick.fallback(), size, images));
         }
     }
 

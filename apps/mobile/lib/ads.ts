@@ -66,6 +66,8 @@ export type AdSlotPick = {
   width: number;
   height: number;
   ad: AdCreative | null;
+  /** NETWORK 일 때 AdMob 이 안 채워지면 대신 그릴 우리 앱 광고(SOMA-1030). 옛 서버는 보내지 않는다. */
+  fallback?: AdCreative | null;
 };
 
 /** 광고 칸 모서리·라벨 — 디자인 결정(SOMA-876). */
