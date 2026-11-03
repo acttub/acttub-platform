@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { TextField } from '@/components/ui/text-field';
@@ -94,8 +94,8 @@ export function LineEditSheet({
       busy={busy}
       footer={
         <>
-          <SecondaryButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} style={styles.button} />
-          <PrimaryButton label={t('common.save')} onPress={() => void save()} disabled={!canSave} loading={busy} style={styles.button} />
+          <TextButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} />
+          <PrimaryButton label={t('common.save')} onPress={() => void save()} disabled={!canSave} loading={busy} />
         </>
       }>
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
@@ -198,5 +198,4 @@ const styles = StyleSheet.create({
   renameLink: { alignSelf: 'flex-start' },
   renameLinkText: { ...type.caption, color: palette.textMeta, textDecorationLine: 'underline' },
   textInput: { minHeight: 96, maxHeight: 180, paddingTop: space[3], paddingBottom: space[3] },
-  button: { flex: 1 },
 });
