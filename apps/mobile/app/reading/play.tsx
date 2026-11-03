@@ -2548,7 +2548,7 @@ const styles = StyleSheet.create({
   prepBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   prepMascot: { width: 84, height: 94, marginBottom: 8 },
   prepTitle: { ...type.title1, color: palette.text, textAlign: 'center' },
-  prepProgress: { ...type.body2Bold, color: palette.blue, textAlign: 'center' },
+  prepProgress: { ...type.body2Bold, color: palette.blueDeep, textAlign: 'center' },
 
   monoNow: { ...type.headline, color: palette.text, marginTop: 6 },
   monoOther: { ...type.body2, color: palette.textMeta, marginTop: 6 },

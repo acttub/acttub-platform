@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   previewDirection: { ...type.caption, color: palette.textMeta, fontStyle: 'italic' },
   previewLine: { gap: 2 },
   previewRole: { ...type.captionBold, color: palette.textSub },
-  previewRoleOn: { color: palette.blue },
+  previewRoleOn: { color: palette.blueDeep },
   previewText: { ...type.body2, color: palette.textSub },
   previewTextOn: { ...type.body2Bold, color: palette.text },
   card: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
