@@ -78,7 +78,6 @@ const HEX_ALLOWED = {
 const FONT_SIZE_ALLOWED = {
   'app/_layout.tsx': 1,
   'app/login.tsx': 1,
-  'app/notice-detail.tsx': 1,
   'app/ui-preview.tsx': 5,
   'components/ad-slot.tsx': 2,
   'components/announcement-poster.tsx': 7,
