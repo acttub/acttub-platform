@@ -100,7 +100,6 @@ export default function NotificationSettingsScreen() {
           {NOTIFICATION_TOGGLES.map((toggle) => (
             <SettingsCard
               key={toggle.key}
-              iconCircle
               icon={TOGGLE_ICON[toggle.key] ?? 'bell'}
               title={t(toggle.titleKey)}
               sub={t(toggle.subKey)}
