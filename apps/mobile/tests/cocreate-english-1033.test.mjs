@@ -29,3 +29,12 @@ test('영어 기기: 「잘 모르겠어요」·「아무거나 좋아요」·�
   assert.equal(cocreate.summaryLine(script), 'Mia · Jake · 2-person scene · About 1 min');
   assert.equal(cocreate.summaryLine({ ...script, characters: [script.characters[0]] }), 'Mia · Monologue · About 1 min');
 });
+
+test('영어 기기: 서버 목록을 못 받을 때 쓰는 내장 예시도 영어 3편이다', async () => {
+  const { localExamples } = await import('../lib/reading/examples.ts');
+  const { sampleById } = await import('../lib/reading/sample.ts');
+  assert.deepEqual(localExamples().examples.map((e) => e.id), ['rooftop-en', 'cafe-en', 'mia-en']);
+  assert.equal(sampleById('cafe-en').title, 'Café, the breakup talk');
+  assert.equal(sampleById('rooftop').title, '옥상, 밤');
+  assert.equal(sampleById('없는-id').id, 'rooftop-en');
+});

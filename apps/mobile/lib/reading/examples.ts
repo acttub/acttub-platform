@@ -3,7 +3,7 @@
  * (옛 서버의 404 포함) 앱에 내장된 예시(sample.ts)로 대신 보여 준다. 출처(source)에 따라 고른 뒤 길이 갈린다 —
  * server 는 서버 복사(start), local 은 지금처럼 대본 넣기(/reading/new?sample=).
  */
-import { dialogueCount, SAMPLE_SCRIPTS, samplePreview } from './sample.ts';
+import { dialogueCount, localSamples, samplePreview } from './sample.ts';
 
 export type ExamplePreviewLine = { speaker: string | null; text: string };
 
@@ -73,7 +73,7 @@ export function normalizeExamples(body: unknown): ExampleEntry[] {
 export function localExamples(): ExampleList {
   return {
     source: 'local',
-    examples: SAMPLE_SCRIPTS.map((s) => ({
+    examples: localSamples().map((s) => ({
       id: s.id,
       title: s.title,
       summary: s.summary,
