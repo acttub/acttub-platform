@@ -2,13 +2,14 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
 import { DiffText } from '@/components/diff-text';
 import { ReadingNoScript } from '@/components/reading/no-script';
+import { Button } from '@/components/ui/buttons';
 import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { radius, space, type } from '@/constants/tokens';
@@ -122,10 +123,12 @@ export default function ReadingDiff() {
             <View style={styles.rowHead}>
               <Text style={styles.roleCard}>{row.line.role}</Text>
               {!!rec?.playback_url && (
-                <Pressable style={styles.playBtn} onPress={() => void play(row.lineId)} hitSlop={8} accessibilityRole="button">
-                  <Feather name={playing ? 'square' : 'play'} size={14} color={palette.blueDeep} />
-                  <Text style={styles.playText}>{t('reading.myRecording')}</Text>
-                </Pressable>
+                <Button
+                  size="sm"
+                  label={t('reading.myRecording')}
+                  icon={<Feather name={playing ? 'square' : 'play'} size={14} color={palette.blueDeep} />}
+                  onPress={() => void play(row.lineId)}
+                />
               )}
             </View>
             <DiffText text={row.line.text} different={row.different} textStyle={styles.textCard} saidLabel={t('reading.diffSaidLabel')} />
@@ -149,6 +152,4 @@ const styles = StyleSheet.create({
   roleCard: { ...type.captionBold, color: palette.text },
   text: { ...type.body2, color: palette.textSub },
   textCard: { ...type.body1Bold, color: palette.text },
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: space[1], backgroundColor: palette.blueSoft, borderRadius: radius.full, height: 32, paddingHorizontal: space[3] },
-  playText: { ...type.micro, color: palette.blueDeep },
 });

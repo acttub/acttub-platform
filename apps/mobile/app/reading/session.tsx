@@ -8,7 +8,7 @@ import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { ReadingNoScript } from '@/components/reading/no-script';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { StatusScreen } from '@/components/ui/status-screen';
@@ -283,10 +283,14 @@ export default function ReadingSession() {
             </View>
           </View>
           {playable.length > 0 && (
-            <Pressable style={styles.listenAll} onPress={() => void listenAll()}>
-              <Feather name={listen ? 'pause' : 'play'} size={16} color={palette.blueDeep} />
-              <Text style={styles.listenAllText}>{listen ? t('reading.stopListening', { k: listen.at, n: listen.total }) : t('reading.listenAll')}</Text>
-            </Pressable>
+            <Button
+              variant="secondary"
+              size="md"
+              label={listen ? t('reading.stopListening', { k: listen.at, n: listen.total }) : t('reading.listenAll')}
+              icon={<Feather name={listen ? 'pause' : 'play'} size={16} color={palette.textSub} />}
+              style={styles.listenAll}
+              onPress={() => void listenAll()}
+            />
           )}
         </View>
 
@@ -340,8 +344,7 @@ const styles = StyleSheet.create({
   meta: { ...type.caption, color: palette.textMeta },
   chip: { borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2 },
   chipText: type.micro,
-  listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], marginTop: space[2], borderRadius: radius.lg, height: 40, backgroundColor: palette.blueSoft },
-  listenAllText: { ...type.body2Bold, color: palette.blueDeep },
+  listenAll: { marginTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[3] },
   line: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
   lineBody: { flex: 1, gap: space[1] },

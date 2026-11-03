@@ -2391,21 +2391,16 @@ export default function ReadingPlay() {
         </Pressable>
         {paused ? (
           <>
-            <Pressable
+            <Button
               key="stop"
-              style={[styles.ctrl, styles.ctrlGhost]}
+              variant="secondary"
+              style={styles.ctrl}
               onPress={stopHere}
-              accessibilityRole="button"
-              // 이름표를 직접 단다 — 안 달면 같은 자리에 있던 [이전]의 「이전 대사」가 남아 화면 낭독기가 잘못 읽었다.
-              accessibilityLabel={t('reading.stopHere')}
-              ph-label="reading_play_stop">
-              <Feather name="square" size={16} color={palette.textSub} />
-              <Text style={styles.ctrlGhostText}>{t('reading.stopHere')}</Text>
-            </Pressable>
-            <Pressable key="resume" style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume} accessibilityRole="button" accessibilityLabel={t('reading.resume')}>
-              <Feather name="play" size={16} color="#fff" />
-              <Text style={styles.ctrlPrimaryText}>{t('reading.resume')}</Text>
-            </Pressable>
+              label={t('reading.stopHere')}
+              icon={<Feather name="square" size={16} color={palette.textSub} />}
+              phLabel="reading_play_stop"
+            />
+            <Button key="resume" style={styles.ctrl} onPress={doResume} label={t('reading.resume')} icon={<Feather name="play" size={16} color={palette.onAccent} />} />
           </>
         ) : (
           <>
@@ -2423,22 +2418,19 @@ export default function ReadingPlay() {
                 <Feather name="skip-back" size={20} color={palette.textSub} />
               </Pressable>
             )}
-            <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={doPause}>
-              <Feather name="pause" size={16} color={palette.textSub} />
-              <Text style={styles.ctrlGhostText}>{t('reading.pause')}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.ctrl, styles.ctrlPrimary]}
+            <Button variant="secondary" style={styles.ctrl} onPress={doPause} label={t('reading.pause')} icon={<Feather name="pause" size={16} color={palette.textSub} />} />
+            <Button
+              style={styles.ctrl}
+              label={t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}
+              iconAfter={<Feather name="arrow-right" size={16} color={palette.onAccent} />}
               onPress={() => {
                 if (monoNext) nextMonoChunk(monoNext.start);
                 else if (monologue) void finishMonologue();
                 else if (beatOn) setBeatDoneAt(run.index);
                 else if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
-              }}>
-              <Text style={styles.ctrlPrimaryText}>{t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
-              <Feather name="arrow-right" size={16} color="#fff" />
-            </Pressable>
+              }}
+            />
           </>
         )}
       </View>
@@ -2645,10 +2637,6 @@ const styles = StyleSheet.create({
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },
   eyeDot: { position: 'absolute', top: 9, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: palette.blue },
-  ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], borderRadius: radius.lg, height: 48 },
-  ctrlGhost: { backgroundColor: palette.bgSoft },
-  ctrlGhostText: { ...type.body1Bold, color: palette.textSub },
-  ctrlPrimary: { backgroundColor: palette.blue },
-  ctrlPrimaryText: { ...type.body1Bold, color: palette.onAccent },
+  ctrl: { flex: 1 },
 
 });
