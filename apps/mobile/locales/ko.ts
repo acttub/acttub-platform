@@ -2555,7 +2555,7 @@ const ko = {
     make: '새 대본 같이 만들기',
     emptyTitle: '아직 저장한 대본이 없어요',
     emptySub: '액티랑 대본부터 같이 만들어 볼까요?',
-    failed: '대본 목록을 못 불러왔어요. 잠시 뒤 다시 열어 주세요.',
+    failTitle: "대본 목록을 불러오지 못했어요",
     opening: '여는 중…',
   },
   scriptCocreate: {
