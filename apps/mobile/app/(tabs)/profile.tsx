@@ -240,9 +240,9 @@ export default function ProfileScreen() {
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month}>
           <MonthCell label={t('profileTab.monthLabel')} count={counts?.total ?? null} />
-          <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts?.coaching ?? null} />
-          <MonthCell dot={palette.green} label={t('profileTab.kindReading')} count={counts?.reading ?? null} />
-          <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
+          <MonthCell label={t('profileTab.kindCoaching')} count={counts?.coaching ?? null} />
+          <MonthCell label={t('profileTab.kindReading')} count={counts?.reading ?? null} />
+          <MonthCell label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
         </View>
 
         <TabsUnderline
@@ -313,7 +313,7 @@ export default function ProfileScreen() {
   );
 }
 
-function MonthCell({ dot, label, count }: { dot?: string; label: string; count: number | null }) {
+function MonthCell({ label, count }: { label: string; count: number | null }) {
   return (
     <View style={styles.monthCell}>
       {count === null ? (
@@ -323,12 +323,9 @@ function MonthCell({ dot, label, count }: { dot?: string; label: string; count: 
       ) : (
         <Text style={styles.monthCount}>{count}</Text>
       )}
-      <View style={styles.monthHead}>
-        {!!dot && <View style={[styles.monthDot, { backgroundColor: dot }]} />}
-        <Text style={styles.monthLabel} numberOfLines={2}>
-          {label}
-        </Text>
-      </View>
+      <Text style={styles.monthLabel} numberOfLines={2}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -481,8 +478,6 @@ const styles = StyleSheet.create({
 
   month: { flexDirection: 'row' },
   monthCell: { flex: 1, alignItems: 'center', gap: space[1] },
-  monthHead: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  monthDot: { width: 6, height: 6, borderRadius: radius.full },
   monthLabel: { ...type.caption, color: palette.textSub },
   monthCount: { ...type.headline, color: palette.text },
   monthCountSkeleton: { height: type.headline.lineHeight, justifyContent: 'center' },
