@@ -2489,8 +2489,6 @@ const ko = {
   auditions: {
     title: '오디션 공고',
     searchPh: '제목·출연료·출처 검색',
-    collectedAt: '{{ago}} 수집',
-    count: '{{n}}건',
     filterWeek: '7일 안에 마감',
     filterPaid: '출연료 명시',
     filterStarred: '찜한 공고',

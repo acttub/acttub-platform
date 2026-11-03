@@ -64,7 +64,6 @@ const titles = () => screen.getAllByRole('link').map((card) => card.props.access
 test('마감이 가까운 순으로 묶고 남은 날짜를 보여 준다', async () => {
   await loaded();
 
-  expect(screen.getByText('2시간 전 수집 · 5건')).toBeOnTheScreen();
   expect(titles()).toEqual(['장편 영화 주연', '웹드라마 조연', '광고 모델', '연극 앙상블', '기획사 공개 오디션']);
   expect(screen.getByText('이번 주 마감 · 3')).toBeOnTheScreen();
   expect(screen.getByText('여유 있음 · 1')).toBeOnTheScreen();
@@ -100,7 +99,6 @@ test('분야 칩은 건수를 달고, 고르면 그 분야만 보인다', async 
   await fireEvent.press(screen.getByRole('radio', { name: '영화·드라마 2' }));
 
   expect(titles()).toEqual(['장편 영화 주연', '웹드라마 조연']);
-  expect(screen.getByText('2시간 전 수집 · 2건')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '초기화' })).toBeOnTheScreen();
 });
 
@@ -169,7 +167,6 @@ test('공고가 하나도 없으면 하루 두 번 모은다고 알린다', asyn
   await render(<AuditionsScreen />);
 
   expect(await screen.findByText('지금 지원할 수 있는 공고가 없어요. 하루 두 번 새로 모아요.')).toBeOnTheScreen();
-  expect(screen.getByText('0건')).toBeOnTheScreen();
 });
 
 test('못 불러오면 다시 시도를 둔다', async () => {
@@ -191,7 +188,6 @@ test('당겨서 새로고침하면 다시 받는다', async () => {
 
   expect(getAuditions).toHaveBeenCalledTimes(2);
   expect(titles()).toEqual(['연극 앙상블']);
-  expect(screen.getByText('1건')).toBeOnTheScreen();
 });
 
 test('뒤로는 이전 화면으로 간다', async () => {

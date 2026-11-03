@@ -41,7 +41,6 @@ import {
   type AuditionPostingList,
 } from '@/lib/auditions';
 import { translate as t } from '@/lib/i18n';
-import { postedAtLabel } from '@/lib/time-label';
 
 type Toggle = 'week' | 'paid' | 'starred';
 
@@ -113,8 +112,6 @@ export default function AuditionsScreen() {
     void Linking.openURL(posting.source_url).catch(() => undefined);
   };
 
-  const collected = payload?.collected_at ? postedAtLabel(payload.collected_at) : '';
-
   const filtered = !filters.starred && items.length > 0;
   const emptyText = filters.starred ? t('auditions.emptyStarred') : t('auditions.empty');
 
@@ -124,13 +121,6 @@ export default function AuditionsScreen() {
         title={t('auditions.title')}
         left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="auditions_back" onPress={() => router.back()} />}
       />
-      {payload && (
-        <Text style={styles.headerMeta} numberOfLines={1}>
-          {collected ? `${t('auditions.collectedAt', { ago: collected })} · ` : ''}
-          {t('auditions.count', { n: visible.length })}
-        </Text>
-      )}
-
       {!payload && !error && (
         <SkeletonRows count={5} />
       )}
@@ -331,7 +321,6 @@ function AuditionCard({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  headerMeta: { paddingHorizontal: space.gutter, paddingBottom: space[1.5], ...type.caption, color: palette.textMeta },
   link: { ...type.body2Bold, color: palette.blueDeep },
   ad: { marginVertical: space[2] },
 

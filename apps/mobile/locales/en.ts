@@ -2490,8 +2490,6 @@ const en: DeepStringShape<typeof ko> = {
   auditions: {
     title: 'Auditions',
     searchPh: 'Search title, pay, source',
-    collectedAt: 'Collected {{ago}}',
-    count: '{{n}} listings',
     filterWeek: 'Closes in 7 days',
     filterPaid: 'Pay listed',
     filterStarred: 'Saved',
