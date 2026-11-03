@@ -254,10 +254,10 @@ export default function ChallengeEntriesScreen() {
           <InlineEmpty title={t('challengeEntries.emptyTitle')} description={t('challengeEntries.emptySub')} />
         )}
 
-        {shown.map((entry) => (
+        {shown.map((entry, index) => (
           <Pressable
             key={entry.id}
-            style={styles.row}
+            style={[styles.row, index > 0 && styles.rowDivider]}
             onPress={() => router.push({ pathname: '/challenge-play', params: { id: entry.challenge.id, entryId: entry.id } })}
             onLongPress={(e) => openMenu(entry, e)}
             accessibilityRole="button">
@@ -334,9 +334,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[3],
     paddingVertical: space[3],
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
   },
+  rowDivider: { borderTopWidth: 1, borderTopColor: palette.border },
   thumb: {
     width: 64,
     aspectRatio: 9 / 16,
