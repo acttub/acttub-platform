@@ -58,7 +58,7 @@ test('DESIGN-SYSTEM.html 에 pen 부품이 모두 있다', () => {
 
 // 지금 토큰 밖에 있는 곳의 파일별 개수. 새 어긋남만 막는다. 개수가 줄면 함께 낮춘다.
 const HEX_ALLOWED = {
-  'app/(tabs)/index.tsx': 11,
+  'app/(tabs)/index.tsx': 3,
   'app/(tabs)/reading.tsx': 1,
   'app/challenge-play.tsx': 2,
   'app/login.tsx': 11,

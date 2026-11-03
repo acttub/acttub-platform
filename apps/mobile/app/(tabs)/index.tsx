@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { AD_SIZES, AD_SLOTS } from '@/lib/ads';
+import { BandGradient } from '@/components/ui/band-gradient';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
@@ -774,9 +775,7 @@ export default function HomeScreen() {
       {/* iOS 에서 위로 당기면(바운스) 히어로 위가 비어 스크롤 바탕색이 띠처럼 보였다 — 히어로 첫 색을 위로 길게 깐다(SOMA-924). */}
       <View style={styles.overscrollFill} pointerEvents="none" />
       <View style={styles.heroBg} pointerEvents="none">
-        {HERO_FADE.map((c, i) => (
-          <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
-        ))}
+        <BandGradient stops={HERO_STOPS} />
       </View>
       <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
       <View style={styles.hero}>
@@ -909,7 +908,7 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshRecords()} tintColor={palette.blue} />}>
           {/* 히어로(pen 「홈」) — 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
-          {/* 요소·배치는 개편본, 배경(위에서 옅어지는 파랑 띠·창문 빛·연한 바탕)은 예전 것(SOMA-923). */}
+          {/* 요소·배치는 개편본, 배경은 흰색까지 옅어지는 파랑 띠와 창문 빛(SOMA-923). */}
           {heroBand(false)}
 
           <View style={styles.body}>
@@ -1340,15 +1339,18 @@ function SkeletonChoice({ steps = 0 }: { steps?: number }) {
 /** 오늘 카드(TodayCardBody) 높이를 아직 모를 때 — 제목 한 줄짜리 카드(이어 읽기) 높이. */
 const TODAY_CARD_SKELETON_HEIGHT = 140;
 
-/** 홈 위 배경 — 위에서 아래로 옅어지는 파랑(예전 배경, SOMA-923). */
-const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
+/** 홈 위 배경 — 위에서 아래로 흰색까지 옅어지는 파랑(디자인 시스템 「그라데이션 예외」). */
+const HERO_STOPS = [
+  [0, '#E4EEFC'],
+  [1, palette.bg],
+] as const;
 
 const styles = StyleSheet.create({
   contactFooter: { ...type.caption, color: palette.textMeta, textAlign: 'center', marginTop: space[6] },
   contactFooterLink: { ...type.caption, color: palette.textSub, textDecorationLine: 'underline' },
   safe: { flex: 1, backgroundColor: palette.bg },
   safeHero: { backgroundColor: '#E4EEFC' },
-  scrollBg: { backgroundColor: '#F7FAFE' },
+  scrollBg: { backgroundColor: palette.bg },
   heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
   overscrollFill: { position: 'absolute', top: -1000, left: 0, right: 0, height: 1000, backgroundColor: '#E4EEFC' },
   heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
