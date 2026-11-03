@@ -2569,9 +2569,9 @@ const styles = StyleSheet.create({
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
   maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.bg },
   maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.bg },
-  maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
+  maskOptOn: { borderColor: palette.blue, borderWidth: 1.5, backgroundColor: palette.blueSoft },
   maskOptText: { ...type.captionBold, textAlign: 'center', color: palette.textSub },
-  maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
+  maskOptTextOn: { color: palette.blueDeep },
   // 화면 흐름 안에 둔다(겹쳐 덮지 않는다) — 위 대사 칸이 이 안내 위로 올라가 첫 줄이 가려지지 않는다.
   startDock: { backgroundColor: palette.bg, paddingHorizontal: space.gutter, paddingTop: space[4], gap: space[2], borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
   startRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },

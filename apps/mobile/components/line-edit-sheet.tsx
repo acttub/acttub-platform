@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { TextField } from '@/components/ui/text-field';
 import { LinePage } from '@/components/line-page';
@@ -121,14 +122,13 @@ export function LineEditSheet({
         )}
         <View style={styles.kinds}>
           {KINDS.map((kind) => (
-            <Pressable
+            <Chip
               key={kind}
-              style={[styles.kind, draft.kind === kind && styles.kindOn]}
+              role="radio"
+              label={t(`reading.lineKind.${kind}`)}
+              selected={draft.kind === kind}
               onPress={() => setDraft({ ...draft, kind, characterId: kind === 'dialogue' ? draft.characterId ?? base.characterId : draft.characterId })}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: draft.kind === kind }}>
-              <Text style={[styles.kindText, draft.kind === kind && styles.kindTextOn]}>{t(`reading.lineKind.${kind}`)}</Text>
-            </Pressable>
+            />
           ))}
         </View>
 
@@ -137,17 +137,16 @@ export function LineEditSheet({
             <Text style={styles.label}>{t('reading.lineEditWho')}</Text>
             <View style={styles.roles}>
               {characters.map((c) => (
-                <Pressable
+                <Chip
                   key={c.id}
-                  style={[styles.role, draft.characterId === c.id && styles.roleOn]}
+                  role="radio"
+                  label={c.name}
+                  selected={draft.characterId === c.id}
                   onPress={() => {
                     setDraft({ ...draft, characterId: c.id });
                     setRenaming(null);
                   }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: draft.characterId === c.id }}>
-                  <Text style={[styles.roleText, draft.characterId === c.id && styles.roleTextOn]}>{c.name}</Text>
-                </Pressable>
+                />
               ))}
             </View>
             {selected &&
@@ -189,15 +188,11 @@ const styles = StyleSheet.create({
   sub: { ...type.body2, color: palette.textMeta },
   body: { flex: 1 },
   bodyContent: { gap: 10, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-  kinds: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: 4 },
-  kind: { flex: 1, alignItems: 'center', borderRadius: 9, paddingVertical: 10 },
-  kindOn: { backgroundColor: palette.bg },
-  kindText: { ...type.body2Bold, color: palette.textMeta },
-  kindTextOn: { color: palette.text },
+  kinds: { flexDirection: 'row', gap: space[2] },
   label: { ...type.body2Bold, color: palette.textSub, marginTop: 6 },
   roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   role: { maxWidth: '100%', borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.bg },
-  roleOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
+  roleOn: { borderColor: palette.blue, borderWidth: 1.5, backgroundColor: palette.blueSoft },
   roleText: { ...type.body2Bold, color: palette.textSub },
   roleTextOn: { color: palette.blueDeep },
   renameLink: { alignSelf: 'flex-start' },
