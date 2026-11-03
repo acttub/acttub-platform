@@ -1382,7 +1382,7 @@ const styles = StyleSheet.create({
   choiceText: { ...type.body1Bold, color: palette.text },
   choiceTextOn: { color: palette.blueDeep },
   choiceSub: { marginTop: space[1], ...type.body2, color: palette.textSub },
-  radio: { width: 22, height: 22, borderRadius: radius.full, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
+  radio: { width: 22, height: 22, borderRadius: radius.full, borderWidth: 1.5, borderColor: palette.textDisabled, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   radioOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   steps: { gap: space[2], paddingTop: space[3], borderTopWidth: 1, borderTopColor: palette.border },
   stepsTitle: { ...type.captionBold, color: palette.blueDeep },
