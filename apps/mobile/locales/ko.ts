@@ -304,6 +304,7 @@ const ko = {
     tabPractice: '연습 기록',
     tabEntries: '참여작',
     tabSaved: '저장됨',
+    loadFail: '목록을 불러오지 못했어요',
     emptyPracticeTitle: '아직 연습 기록이 없어요',
     emptyPracticeBodyFirst: '첫 연습을 끝내면 여기에 쌓여요',
     emptyPracticeBody: '코칭이나 리딩을 하면 여기에 쌓여요',

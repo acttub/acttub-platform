@@ -311,6 +311,7 @@ const en: DeepStringShape<typeof ko> = {
     tabPractice: 'Practice',
     tabEntries: 'Entries',
     tabSaved: 'Saved',
+    loadFail: "Couldn't load the list",
     emptyPracticeTitle: 'No practice yet',
     emptyPracticeBodyFirst: 'Finish your first practice and it shows up here',
     emptyPracticeBody: 'Coaching and reading sessions show up here',
