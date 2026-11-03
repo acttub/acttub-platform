@@ -98,10 +98,10 @@ export default function LineSearchScreen() {
         {loading && !results?.length && <SkeletonRows count={4} avatar={false} card={false} style={styles.skeleton} />}
         {error && <InlineError message={error} onRetry={() => void search(query)} />}
 
-        {results?.map((challenge) => (
+        {results?.map((challenge, index) => (
           <Pressable
             key={challenge.id}
-            style={styles.row}
+            style={[styles.row, index === results.length - 1 && styles.rowLast]}
             onPress={() => router.push({ pathname: '/challenge-detail', params: { id: challenge.id } })}
             accessibilityRole="button">
             <View style={styles.rowBody}>
@@ -167,6 +167,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
   },
+  rowLast: { borderBottomWidth: 0 },
   rowBody: { flex: 1, gap: space[1] },
   rowLine: { ...type.body1Bold, color: palette.text },
   rowMeta: { ...type.caption, color: palette.textMeta },

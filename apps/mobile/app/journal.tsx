@@ -382,13 +382,13 @@ function JournalBody({
       {edit && note.hint ? <InlineErrorLine message={note.hint} /> : null}
 
       <View style={styles.list}>
-        {summary.rows.map((row) =>
+        {summary.rows.map((row, index) =>
           edit ? (
-            <EditRow key={row.key} row={row} edit={edit} onEdit={onEdit} />
+            <EditRow key={row.key} row={row} edit={edit} onEdit={onEdit} last={index === summary.rows.length - 1} />
           ) : (
             <Pressable
               key={row.key}
-              style={styles.row}
+              style={[styles.row, index === summary.rows.length - 1 && styles.rowLast]}
               onPress={() => onToggle(row.key)}
               accessibilityRole="button"
               accessibilityState={{ expanded: !!open[row.key] }}
@@ -421,7 +421,7 @@ function JournalBody({
 }
 
 /** 편집 중 목록 한 줄 — 줄마다 입력 칸(연필). 해 보니의 고른 칩은 그대로 두고 글만 고친다. */
-function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; onEdit: (edit: JournalEdit) => void }) {
+function EditRow({ row, edit, onEdit, last }: { row: JournalRow; edit: JournalEdit; onEdit: (edit: JournalEdit) => void; last: boolean }) {
   const note = useReadableNote();
   const field = (index: number): { value: string; set: (text: string) => void } => {
     switch (row.key) {
@@ -441,7 +441,7 @@ function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; on
   // 화면 줄과 편집 값의 자리를 맞춘다 — AI 칸은 원래 순서의 몇 번째인지로 고친다.
   const indexes = row.lines.map((line) => Number(line.id.split('-')[1] ?? 0));
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, last && styles.rowLast]}>
       <Text style={styles.rowLabel}>{row.label}</Text>
       {note.hint ? <InlineErrorLine message={note.hint} /> : null}
       {row.lines.map((line, i) => {
@@ -496,6 +496,7 @@ const styles = StyleSheet.create({
   notice: { ...type.captionBold, color: palette.amber },
   list: { gap: 0 },
   row: { gap: space[2], paddingVertical: space[3], borderBottomWidth: 1, borderBottomColor: palette.border },
+  rowLast: { borderBottomWidth: 0 },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   rowLabel: { ...type.body2Bold, color: palette.text },
   rowPreview: { ...type.caption, color: palette.textMeta },
