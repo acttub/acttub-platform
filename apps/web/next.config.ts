@@ -1,4 +1,4 @@
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 // rewrites로 acting-api를 same-origin 프록시해 CORS 없이 호출한다. 이 프록시는
@@ -124,9 +124,11 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   // 클라이언트 번들 전체로 업로드 범위를 넓히지 않는다 — 산출물만 커진다.
   widenClientFileUpload: false,
-  disableLogger: true,
-  // 배포는 홈서버 Compose가 맡는다(docs/deploy/DEPLOY-HOME.md).
-  automaticVercelMonitors: false,
+  webpack: {
+    treeshake: { removeDebugLogging: true },
+    // 배포는 홈서버 Compose가 맡는다(docs/deploy/DEPLOY-HOME.md).
+    automaticVercelMonitors: false,
+  },
   // 업로드하는 소스맵에 붙는 릴리스 이름은 런타임 init의 release와 **정확히 같아야**
   // 한다. 어긋나면 업로드는 성공하는데 이슈 화면의 스택트레이스는 난독화된 채로 남는다.
   // 자동 감지(git)에 맡기지 않고 같은 환경변수를 양쪽이 읽게 못박는다.
