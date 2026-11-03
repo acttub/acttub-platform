@@ -48,6 +48,8 @@ type Props = {
  *
  * - 받기 전에는 칸 규격 비율의 빈 자리를 먼저 잡는다(스켈레톤 없이) — 받은 뒤 화면이 밀리지 않게.
  * - 첫 연습 전 사용자(lib/practice/first-time 'first')는 서버에 묻지 않고 처음부터 비운다.
+ * - AdMob 이 안 채워지면(실패·시간 초과) 칸을 접지 않고 서버가 함께 준 우리 앱 광고(fallback, 예: Pro 홍보)로 채운다(SOMA-1030).
+ *   fallback 이 없거나 그 이미지도 깨지면 그때 접는다.
  * - 이미지형은 칸 폭에 맞춰 비율을 지키고 모서리 16, 오른쪽 위에 「광고」 라벨. AdMob 배너는 같은 자리 가운데에 두고,
  *   광고 위에 우리 요소를 덮지 않는다(AdMob 정책 — 배너는 자체 광고 표시를 갖는다).
  */
@@ -61,6 +63,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
   const [pick, setPick] = useState<AdSlotPick | null>(() => lastPick.get(slot) ?? null);
   const [loaded, setLoaded] = useState(() => lastPick.has(slot));
   const [failed, setFailed] = useState(false);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
   const impressed = useRef<string | null>(null);
   const request = shouldRequestSlot(firstTime);
   // AdMob 배너가 채워지지 않으면 실패 신호 없이 빈 상자만 남아 화면 위에 빈 공간이 생겼다(11/2 폰 QA).
@@ -83,6 +86,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
         lastPick.set(slot, next);
         setPick(next);
         setFailed(false);
+        setFallbackFailed(false);
       })
       .catch(() => {
         // 게스트(403)·네트워크 오류 — 칸을 비운다
@@ -115,11 +119,19 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     return <View style={[box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
   }
 
-  const kind = failed ? 'NONE' : renderableKind(pick, { korean: isKorean() });
+  const korean = isKorean();
+  const baseKind = renderableKind(pick, { korean });
+  const banner = baseKind === 'NETWORK' ? loadBannerModule() : null;
+  // AdMob 이 실패·시간 초과(또는 이 빌드에 AdMob 모듈이 없음)면 서버가 함께 준 우리 앱 광고로 채운다.
+  const fallback =
+    pick && baseKind === 'NETWORK' && (failed || !banner) && !fallbackFailed && pick.fallback &&
+    renderableKind({ ...pick, kind: 'HOUSE', ad: pick.fallback }, { korean }) === 'HOUSE'
+      ? pick.fallback
+      : null;
+  const kind = fallback ? 'HOUSE' : failed ? 'NONE' : baseKind;
   if (kind === 'NONE' || !pick) return null;
 
   if (kind === 'NETWORK') {
-    const banner = loadBannerModule();
     if (!banner) return null;
     const { BannerAd, BannerAdSize } = banner;
     // AdMob 은 규격 크기(320×50·320×100)로 받아 가운데 두고, 좌우 끝까지 연한 띠를 깐다(11/3 폰 QA).
@@ -147,7 +159,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     );
   }
 
-  const ad = pick.ad!;
+  const ad = fallback ?? pick.ad!;
   const onImpression = () => {
     if (impressed.current === ad.id) return;
     impressed.current = ad.id;
@@ -178,7 +190,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           onLoad={onImpression}
-          onError={() => setFailed(true)}
+          onError={() => (fallback ? setFallbackFailed(true) : setFailed(true))}
         />
       ) : (
         <View style={styles.textAd} onLayout={onImpression}>

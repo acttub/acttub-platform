@@ -105,6 +105,23 @@ class AdPickerTest {
         var edge = AdPicker.pick(AdSlot.HOME_TOP, viewer, half, DAY, () -> 50);
         assertThat(edge.kind()).isEqualTo(AdPicker.Kind.NETWORK);
         assertThat(edge.ad()).isNull();
+        assertThat(edge.fallback()).isEqualTo(half.get(0));
+        assertThat(AdPicker.pick(AdSlot.HOME_TOP, viewer, half, DAY, () -> 49).fallback()).isNull();
+    }
+
+    @Test
+    @DisplayName("AdMob 대신 그릴 fallback: 비율에서 진 우리 앱 광고만, 0% 광고·우리 광고 없는 칸·대상 안 맞음·직접 광고 칸은 없다")
+    void networkFallback() {
+        var free = viewer(true, false, false);
+        assertThat(AdPicker.pick(AdSlot.HOME_TOP, free, List.of(house("home_top", "all", "문구", "/pro", 0)), DAY, () -> 99)
+                .fallback()).isNull();
+        var empty = AdPicker.pick(AdSlot.HOME_TOP, free, List.of(), DAY, () -> 0);
+        assertThat(empty.kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(empty.fallback()).isNull();
+        assertThat(AdPicker.pick(AdSlot.HOME_TOP, free, List.of(house("home_top", "pro", "문구", "/pro", 50)), DAY, () -> 99)
+                .fallback()).isNull();
+        assertThat(AdPicker.pick(AdSlot.HOME_TOP, free, List.of(direct("home_top", null, "b.png", 0),
+                house("home_top", "all", "문구", "/pro", 50)), DAY, () -> 99).fallback()).isNull();
     }
 
     @Test
