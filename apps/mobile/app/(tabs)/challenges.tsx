@@ -673,7 +673,7 @@ function Card({
               {participantsLabel(challenge.participants, challenge.more_count)}
             </Text>
             <View style={styles.likes}>
-              <Feather name="heart" size={12} color={palette.danger} />
+              <Feather name="heart" size={12} color={palette.iconFaint} />
               <Text style={styles.names}>{t('challenges.likeSum', { count: challenge.like_sum })}</Text>
             </View>
           </View>

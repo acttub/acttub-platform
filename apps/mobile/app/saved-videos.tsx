@@ -131,7 +131,7 @@ export default function SavedVideosScreen() {
                   </Text>
                 )}
                 <View style={styles.metaRow}>
-                  <Ionicons name="heart-outline" size={12} color={palette.danger} />
+                  <Ionicons name="heart-outline" size={12} color={palette.iconFaint} />
                   <Text style={styles.meta} numberOfLines={1}>
                     {entry.like_count} · {entry.author.name}
                   </Text>
