@@ -12,7 +12,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { useReadableInput } from '@/hooks/use-readable-input';
 import { logEvent } from '@/lib/analytics';
 import { api, type SupportCategory } from '@/lib/api';
-import { INSTAGRAM_HANDLE, KAKAO_OPEN_CHAT_URL, SUPPORT_EMAIL } from '@/lib/contact-channels';
+import { KAKAO_OPEN_CHAT_URL } from '@/lib/contact-channels';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 
@@ -144,17 +144,13 @@ export default function FeedbackScreen() {
           </View>
           {error ? <InlineErrorLine message={error} /> : null}
           {/* 앱스토어 1.2 「연락처 공개」 — 버튼은 앱 안 창구지만 메일 주소는 글로 남긴다. */}
-          {support && (
-            // 앱 밖 창구도 같이 알린다 — 카카오톡 오픈채팅은 누르면 열리고, 인스타·메일은 글로 적는다(11/3).
+          {support && !!KAKAO_OPEN_CHAT_URL && (
+            // 앱 밖 창구 — 카카오톡 오픈채팅. 인스타·메일은 홈 맨 아래에만 둔다(11/3).
             <View style={styles.contacts}>
               <Text style={styles.label}>{t('support.otherWays')}</Text>
-              {!!KAKAO_OPEN_CHAT_URL && (
-                <Pressable onPress={() => void Linking.openURL(KAKAO_OPEN_CHAT_URL).catch(() => undefined)} accessibilityRole="link" hitSlop={6}>
-                  <Text style={styles.contactLink}>{t('support.openChat')}</Text>
-                </Pressable>
-              )}
-              <Text style={styles.contactText}>{t('support.instagram', { handle: INSTAGRAM_HANDLE })}</Text>
-              <Text style={styles.contactText}>{t('support.email', { email: SUPPORT_EMAIL })}</Text>
+              <Pressable onPress={() => void Linking.openURL(KAKAO_OPEN_CHAT_URL).catch(() => undefined)} accessibilityRole="link" hitSlop={6}>
+                <Text style={styles.contactLink}>{t('support.openChat')}</Text>
+              </Pressable>
             </View>
           )}
         </ScrollView>
@@ -192,7 +188,6 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   contacts: { gap: space[1.5], paddingTop: space[2] },
   contactLink: { ...type.body2Bold, color: palette.blueDeep },
-  contactText: { ...type.body2, color: palette.textSub },
   chip: { borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: space[4], paddingVertical: space[2] },
   chipOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
   chipText: { ...type.body2, color: palette.textSub },

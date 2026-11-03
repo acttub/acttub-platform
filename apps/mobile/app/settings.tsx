@@ -11,7 +11,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { SettingsProCard } from '@/components/settings-pro-card';
 import { SettingsCard } from '@/components/ui/settings-card';
-import { INSTAGRAM_HANDLE, KAKAO_OPEN_CHAT_URL, SUPPORT_EMAIL } from '@/lib/contact-channels';
+import { KAKAO_OPEN_CHAT_URL } from '@/lib/contact-channels';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
 import { useAuth } from '@/lib/auth';
@@ -114,8 +114,6 @@ export default function SettingsScreen() {
         )}
         {/* 문의·신고는 앱 안 창구로 받는다(11/3, 메일 대신) — 분류를 고르고 보내면 팀 문의함에 계정과 함께 쌓인다. */}
         <SettingsCard icon="alert-circle" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => router.push({ pathname: '/feedback', params: { kind: 'support' } })} />
-        {/* 팀 연락처는 버튼이 아니라 글로 알린다(11/3 사용자: 인스타 계정과 메일 주소를 적어 두기). */}
-        <Text style={styles.contactInfo}>{t('settings.contactInfo', { handle: INSTAGRAM_HANDLE, email: SUPPORT_EMAIL })}</Text>
 
         <SectionTitle>{t('settings.sectionEtc')}</SectionTitle>
         <SettingsCard icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
@@ -146,7 +144,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   list: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[2] },
   sectionTitle: { ...type.captionBold, color: palette.textSub, marginTop: space[4] },
-  contactInfo: { ...type.caption, color: palette.textMeta, paddingHorizontal: space[1], paddingTop: space[1] },
   logout: { paddingTop: space[6] },
   version: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingTop: space[1], paddingBottom: space[6] },
 });

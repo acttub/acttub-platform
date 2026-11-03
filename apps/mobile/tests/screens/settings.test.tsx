@@ -415,11 +415,11 @@ describe('설정', () => {
   });
 
   describe('문의 연락처', () => {
-    test('인스타 DM 버튼 없이 인스타 계정과 메일 주소를 글로 보이고, 오픈채팅 줄은 문의방 링크를 연다', async () => {
+    test('인스타·메일은 설정에 없고(홈 맨 아래에만), 오픈채팅 줄은 문의방 링크를 연다', async () => {
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
       expect(screen.queryByText('인스타그램 DM으로 문의')).not.toBeOnTheScreen();
-      expect(screen.getByText('인스타그램 @acttub_com · 메일 acttub0527@gmail.com')).toBeOnTheScreen();
+      expect(screen.queryByText(/acttub0527@gmail\.com/)).not.toBeOnTheScreen();
 
       await fireEvent.press(screen.getByRole('button', { name: '카카오톡 오픈채팅으로 문의' }));
       await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://open.kakao.com/o/s9tVEoVi'));
