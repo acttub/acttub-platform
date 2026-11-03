@@ -3,9 +3,10 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Button } from '@/components/ui/buttons';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { palette } from '@/constants/palette';
-import { radius, type } from '@/constants/tokens';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { logEvent } from '@/lib/analytics';
@@ -122,16 +123,16 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
         <View style={styles.card}>
           <Text style={styles.title}>{t('reading.voiceCoachTitle')}</Text>
           <Text style={styles.sub}>{t('reading.voiceCoachSub')}</Text>
-          <Pressable
+          <Button
+            size="md"
+            label={t('reading.voiceCoachCta')}
+            icon={<Feather name="message-circle" size={16} color={palette.onAccent} />}
+            loading={starting}
+            loadingLabel={t('reading.voiceCoachStarting')}
+            phLabel="reading_voice_coach_open"
+            style={styles.cta}
             onPress={() => void startCoaching()}
-            disabled={starting}
-            accessibilityRole="button"
-            accessibilityLabel={t('reading.voiceCoachCta')}
-            ph-label="reading_voice_coach_open"
-            style={({ pressed }) => [styles.cta, (pressed || starting) && styles.pressed]}>
-            <Feather name="message-circle" size={16} color={palette.onAccent} />
-            <Text style={styles.ctaText}>{starting ? t('reading.voiceCoachStarting') : t('reading.voiceCoachCta')}</Text>
-          </Pressable>
+          />
           {error ? <InlineErrorLine message={error} /> : null}
         </View>
       )}
@@ -167,22 +168,10 @@ const styles = StyleSheet.create({
   proNoteText: { ...type.caption, color: palette.textMeta },
   proNoteLink: { ...type.captionBold, color: palette.blueDeep },
   wrap: { alignSelf: 'stretch', gap: 6, marginTop: 8 },
-  card: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 6 },
+  card: { backgroundColor: palette.blueSoft, borderRadius: radius.lg, padding: space[4], gap: space[2] },
   title: { ...type.headline, color: palette.text },
   sub: { ...type.body2, color: palette.textSub },
-  cta: {
-    marginTop: 10,
-    minHeight: 44,
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.blue,
-    borderRadius: radius.md,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  ctaText: { ...type.body2Bold, color: palette.onAccent },
+  cta: { marginTop: space[1], alignSelf: 'flex-start' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 8 },
   rowText: { ...type.body2Bold, color: palette.textSub },
   pro: { backgroundColor: palette.text, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
