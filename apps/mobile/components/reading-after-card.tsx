@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   cta: { marginTop: space[1], alignSelf: 'flex-start' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 8 },
   rowText: { ...type.body2Bold, color: palette.textSub },
-  pro: { backgroundColor: palette.text, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  pro: { backgroundColor: palette.text, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2 },
   proText: { ...type.micro, color: palette.onAccent },
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },
