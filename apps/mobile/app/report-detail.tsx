@@ -14,7 +14,7 @@ import { SkeletonDetail } from '@/components/ui/skeleton';
 import { ReportRating } from '@/components/report-rating';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { InlineEmpty } from '@/components/ui/inline-empty';
+import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -43,7 +43,7 @@ export default function ReportDetailScreen() {
   // 준비 화면이 409 로 그 대화에 돌려보낸다.
   const [group, setGroup] = useState<Pick<PracticeGroupDetail, 'in_progress_practice_id'> | null>(null);
   const [loading, setLoading] = useState(true);
-  // 노트를 읽지 못함(회차 id 없음·요청 실패)은 StatusScreen 오류, 노트가 아직 없음은 InlineEmpty 다.
+  // 노트를 읽지 못함(회차 id 없음·요청 실패)은 StatusScreen 오류, 노트가 아직 없음은 StatusScreen/Empty 다.
   const [problem, setProblem] = useState<'load_fail' | 'none' | null>(null);
   const { alert, dialog } = useAppDialog();
   const loadRevision = useRef(0);
@@ -138,9 +138,7 @@ export default function ReportDetailScreen() {
         />
       )}
       {!loading && problem === 'none' && (
-        <View style={styles.body}>
-          <InlineEmpty title={t('note.noneTitle')} description={t('note.noneDetailBody')} />
-        </View>
+        <StatusScreen kind="empty" mascot={MASCOT.coach} title={t('note.noneTitle')} body={t('note.noneDetailBody')} />
       )}
       {note && (
         <KeyboardLift aboveSafeBottom>
