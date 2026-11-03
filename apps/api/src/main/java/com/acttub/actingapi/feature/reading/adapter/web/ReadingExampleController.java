@@ -6,6 +6,7 @@ import com.acttub.actingapi.feature.reading.adapter.web.ReadingExampleDtos.Start
 import com.acttub.actingapi.feature.reading.app.ReadingExampleService;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -47,7 +48,7 @@ class ReadingExampleController {
     @GetMapping
     ListResponse list(HttpServletRequest request) {
         auth.gatedUser(request);
-        return ListResponse.of(examples.list());
+        return ListResponse.of(examples.list(OutputLanguage.isKorean()));
     }
 
     @Operation(

@@ -8,6 +8,7 @@
 
 import en from '../locales/en.ts';
 import ko from '../locales/ko.ts';
+import { isKorean } from './i18n.ts';
 
 export type AppConfig = {
   rating: {
@@ -147,6 +148,25 @@ export function parseAppConfig(json: unknown): AppConfig {
 
 let current: AppConfig = DEFAULT_APP_CONFIG;
 const listeners = new Set<() => void>();
+
+/** 한국어가 아닌 기기의 같이 만들기 칩 기본값 — 서버 app-config 의 cocreate_en 과 같다(SOMA-1033). */
+export const COCREATE_EN: AppConfig['cocreate'] = {
+  emotions: ['Hurt', 'Excitement', 'Anger', 'Sadness', 'Nervousness', 'Calm'],
+  situations: ['Reunion after years', 'Breakup', 'Right before an audition', 'Family fight', 'Confession', 'Apology'],
+};
+
+const HANGUL = /[가-힣]/;
+
+/**
+ * 지금 화면 언어에 맞는 같이 만들기 칩. 서버는 Accept-Language 에 맞춰 칩을 주지만, 받기 전 기본값이나 언어를 바꾸기 전에
+ * 받아 둔 값은 다른 말일 수 있다. 화면 언어와 칩의 말이 다르면 그 언어의 기본값을 쓴다.
+ */
+export function cocreateChips(config: AppConfig = getAppConfig()): AppConfig['cocreate'] {
+  const korean = isKorean();
+  const chipsKorean = config.cocreate.emotions.some((chip) => HANGUL.test(chip));
+  if (korean === chipsKorean) return config.cocreate;
+  return korean ? DEFAULT_APP_CONFIG.cocreate : COCREATE_EN;
+}
 
 /** 지금 쓰는 설정. 받아 오기 전에는 기본값이다. */
 export function getAppConfig(): AppConfig {

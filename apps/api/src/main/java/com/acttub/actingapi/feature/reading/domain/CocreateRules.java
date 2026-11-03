@@ -35,50 +35,101 @@ public final class CocreateRules {
     public static final String ANY_EMOTION = "잘 모르겠어요";
     public static final String ANY_SITUATION = "아무거나 좋아요";
 
+    /*
+     * 영어 기기(Accept-Language 가 한국어가 아님) 사용자의 칩과 기준(SOMA-1033). 칩은 앱 설정이 언어별로 내려 주고, 대본은
+     * 영어 지시문으로 쓴다. 영어 대사는 공백 포함 14자 = 1초(분당 약 150단어)로 어림한다 — 한국어 5자 = 1초와 같은 시간이
+     * 되도록 줄 길이·지문 길이도 같은 비율(약 2.8배)로 늘렸다. 이것도 추정이다.
+     */
+    public static final int CHARS_PER_SECOND_EN = 14;
+    public static final int DIRECTION_MAX_EN = 70;
+    public static final List<String> EMOTIONS_EN = List.of("Excitement", "Anger", "Sadness", "Nervousness", "Hurt", "Calm");
+    public static final List<String> SITUATIONS_EN = List.of("Breakup", "Right before an audition", "Family fight",
+            "Confession", "Apology", "Reunion after years");
+    public static final String ANY_EMOTION_EN = "Not sure";
+    public static final String ANY_SITUATION_EN = "Anything works";
+
     /** 경력. 대사 한 줄 길이의 기준이 다르다. */
     public enum Experience {
-        BEGINNER("입문 (연기 경험 거의 없음)", 15, 28),
-        EXAM("입시생", 15, 40),
-        EXPERIENCED("경력자 (단편영화·연극 출연)", 15, 40);
+        BEGINNER("입문 (연기 경험 거의 없음)", 15, 28, "Beginner (little to no acting experience)", 40, 80),
+        EXAM("입시생", 15, 40, "Drama-school applicant (preparing for auditions)", 40, 110),
+        EXPERIENCED("경력자 (단편영화·연극 출연)", 15, 40, "Experienced (short films, stage)", 40, 110);
 
         private final String label;
         private final int lineMin;
         private final int lineMax;
+        private final String labelEn;
+        private final int lineMinEn;
+        private final int lineMaxEn;
 
-        Experience(String label, int lineMin, int lineMax) {
+        Experience(String label, int lineMin, int lineMax, String labelEn, int lineMinEn, int lineMaxEn) {
             this.label = label;
             this.lineMin = lineMin;
             this.lineMax = lineMax;
+            this.labelEn = labelEn;
+            this.lineMinEn = lineMinEn;
+            this.lineMaxEn = lineMaxEn;
         }
 
         public String label() {
             return label;
         }
 
+        public String label(boolean english) {
+            return english ? labelEn : label;
+        }
+
         public String lineLen() {
             return lineMin + "~" + lineMax;
         }
+
+        public String lineLen(boolean english) {
+            return english ? lineMinEn + "~" + lineMaxEn : lineLen();
+        }
     }
 
-    /** @param minorAllowed 10대에게도 쓰는가 */
-    public record Slot(String name, String text, boolean minorAllowed) {
+    /**
+     * @param name 저장·피하기에 쓰는 이름(언어와 상관없이 한국어 그대로)
+     * @param textEn 영어 지시문에 넣는 설명
+     * @param minorAllowed 10대에게도 쓰는가
+     */
+    public record Slot(String name, String text, String textEn, boolean minorAllowed) {
+
+        public Slot(String name, String text, boolean minorAllowed) {
+            this(name, text, text, minorAllowed);
+        }
+
+        public String text(boolean english) {
+            return english ? textEn : text;
+        }
     }
 
     public static final List<Slot> ENDINGS = List.of(
-            new Slot("떠난다", "배우 배역이 원하는 걸 못 얻고 스스로 자리를 뜬다", true),
-            new Slot("털어놓는다", "배우 배역이 숨겨 온 진짜 이유를 말하면서 대화의 흐름이 바뀐다", true),
-            new Slot("미룬다", "배우 배역이 결론을 미루고 다음을 기약하는 행동으로 끝난다", true),
-            new Slot("받아들인다", "배우 배역이 상대의 결정을 받아들이고 먼저 정리한다", true),
-            new Slot("받아낸다", "배우 배역이 끝내 상대의 약속을 받아 낸다", false));
+            new Slot("떠난다", "배우 배역이 원하는 걸 못 얻고 스스로 자리를 뜬다",
+                    "The actor's role doesn't get what they want and walks away on their own", true),
+            new Slot("털어놓는다", "배우 배역이 숨겨 온 진짜 이유를 말하면서 대화의 흐름이 바뀐다",
+                    "The actor's role reveals the real reason they've been hiding, and the conversation turns", true),
+            new Slot("미룬다", "배우 배역이 결론을 미루고 다음을 기약하는 행동으로 끝난다",
+                    "The actor's role puts off the decision and ends on an action that promises a next time", true),
+            new Slot("받아들인다", "배우 배역이 상대의 결정을 받아들이고 먼저 정리한다",
+                    "The actor's role accepts the other person's decision and is the first to wrap things up", true),
+            new Slot("받아낸다", "배우 배역이 끝내 상대의 약속을 받아 낸다",
+                    "The actor's role finally gets a promise out of the other person", false));
 
     public static final List<Slot> PROPS = List.of(
-            new Slot("종이", "종이 (서류·편지·영수증·원서 중 하나)", true),
-            new Slot("선물", "선물 (작은 상자)", true),
-            new Slot("음식", "음식이나 음료", true),
-            new Slot("열쇠", "열쇠", true),
-            new Slot("휴대폰", "휴대폰 (문자 한 통)", false),
-            new Slot("사진", "휴대폰 (사진 한 장)", false),
-            new Slot("옷", "옷이나 목도리", false));
+            new Slot("종이", "종이 (서류·편지·영수증·원서 중 하나)",
+                    "A piece of paper (a document, letter, receipt, or application)", true),
+            new Slot("선물", "선물 (작은 상자)",
+                    "A gift (a small box)", true),
+            new Slot("음식", "음식이나 음료",
+                    "Food or a drink", true),
+            new Slot("열쇠", "열쇠",
+                    "Keys", true),
+            new Slot("휴대폰", "휴대폰 (문자 한 통)",
+                    "A phone (one text message)", false),
+            new Slot("사진", "휴대폰 (사진 한 장)",
+                    "A phone (one photo)", false),
+            new Slot("옷", "옷이나 목도리",
+                    "Clothing or a scarf", false));
 
     private static final List<String> BAD_DIRECTION = List.of("눈빛", "표정", "숨을", "숨이", "한숨", "망설", "머뭇", "떨리", "떨린",
             "흔들", "한참", "눈을 피", "대답하지 못", "목소리", "울컥", "애써", "감정", "미소", "웃음기", "눈물");
@@ -87,6 +138,19 @@ public final class CocreateRules {
     private static final List<String> SAFETY = List.of("한강", "죽고", "죽을", "죽어", "뛰어내", "자살", "토할", "손목", "약을 먹",
             "개자식", "씨발", "새끼");
     private static final Pattern BRACKETS = Pattern.compile("[()（）\\[\\]]");
+
+    /* 영어 대본 검사 — 위 한국어 목록과 같은 뜻. 단어 경계로 찾고 대소문자를 가리지 않는다. 글 같은 어미 검사는 한국어에만 있다. */
+    private static final Pattern BAD_DIRECTION_EN = Pattern.compile("\\b(eyes?|gaz\\w*|glanc\\w*|star(e|es|ing)|expression\\w*"
+            + "|breath\\w*|sigh\\w*|hesitat\\w*|trembl\\w*|voice\\w*|teary|tearful|in tears|cries|crying|weep\\w*|smil\\w*|grin\\w*"
+            + "|frown\\w*|emotion\\w*|feeling\\w*|a long (moment|time|while)|(can't|cannot|unable to|fails to) answer|holding back)\\b",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern EMOTION_WORDS_EN = Pattern.compile("\\bi(?:'m|’m| am) (?:so |really |just )?"
+            + "(hurt|angry|mad|sad|upset|excited|guilty|heartbroken)\\b|\\bi feel (?:so |really )?(hurt|angry|sad|upset|guilty|betrayed)\\b",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SAFETY_EN = Pattern.compile("\\b(kill(ing)? (my|your|him|her|them)sel(f|ves)|suicid\\w*|die|dying"
+            + "|jump(ing)? off|wrists?|overdos\\w*|throw(ing)? up|vomit\\w*|fuck\\w*|shit\\w*|bitch\\w*|bastard\\w*|asshole\\w*)\\b",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
     private static final Set<String> KINDS = Set.of("scene", "direction", "dialogue");
 
     private CocreateRules() {
@@ -111,29 +175,37 @@ public final class CocreateRules {
             int minutes,
             Slot ending,
             Slot prop,
-            int myLines) {
+            int myLines,
+            boolean english) {
+
+        /** 한국어 대본. */
+        public Conditions(Experience experience, String actor, String purpose, boolean minor, String emotion, String situation,
+                String direction, int characterCount, int minutes, Slot ending, Slot prop, int myLines) {
+            this(experience, actor, purpose, minor, emotion, situation, direction, characterCount, minutes, ending, prop, myLines,
+                    false);
+        }
 
         public boolean monologue() {
             return characterCount == 1;
         }
 
         public String lineLen() {
-            return experience.lineLen();
+            return experience.lineLen(english);
         }
 
         public Conditions resized(int count, int lengthMinutes) {
             return new Conditions(experience, actor, purpose, minor, emotion, situation, direction, count, lengthMinutes,
-                    ending, prop, defaultMyLines(lengthMinutes, count));
+                    ending, prop, defaultMyLines(lengthMinutes, count), english);
         }
 
         public Conditions withMyLines(int lines) {
             return new Conditions(experience, actor, purpose, minor, emotion, situation, direction, characterCount, minutes,
-                    ending, prop, lines);
+                    ending, prop, lines, english);
         }
 
         public Conditions withSlot(Slot nextEnding, Slot nextProp) {
             return new Conditions(experience, actor, purpose, minor, emotion, situation, direction, characterCount, minutes,
-                    nextEnding, nextProp, myLines);
+                    nextEnding, nextProp, myLines, english);
         }
     }
 
@@ -146,7 +218,8 @@ public final class CocreateRules {
 
         /** 고친 뒤에도 남으면 보이지 않는 문제 — 구조·안전·연속 발화. 줄 길이 같은 가벼운 경고는 보인다. */
         public boolean fatal() {
-            return index == null || why.startsWith("안전") || why.contains("연속");
+            return index == null || why.startsWith("안전") || why.contains("연속") || why.startsWith("Safety")
+                    || why.contains("in a row");
         }
     }
 
@@ -164,20 +237,64 @@ public final class CocreateRules {
     }
 
     public static int targetChars(int minutes) {
-        return minutes * 300;
+        return targetChars(minutes, false);
     }
 
     public static int minChars(int minutes) {
-        return minutes * 225;
+        return minChars(minutes, false);
     }
 
     public static int maxChars(int minutes) {
-        return minutes * 375;
+        return maxChars(minutes, false);
     }
 
-    /** 대사 글자 수로 어림한 낭독 시간(초). */
+    /** 목표 대사 글자 수 — 분당 60초 × 초당 글자, 허용은 ±25%. */
+    public static int targetChars(int minutes, boolean english) {
+        return minutes * 60 * charsPerSecond(english);
+    }
+
+    public static int minChars(int minutes, boolean english) {
+        return minutes * 45 * charsPerSecond(english);
+    }
+
+    public static int maxChars(int minutes, boolean english) {
+        return minutes * 75 * charsPerSecond(english);
+    }
+
+    private static int charsPerSecond(boolean english) {
+        return english ? CHARS_PER_SECOND_EN : CHARS_PER_SECOND;
+    }
+
+    /** 대사에 한글이 하나도 없으면 영어 대본으로 본다. */
+    public static boolean english(CocreatedScript script) {
+        return script.lines().stream().filter(line -> "dialogue".equals(line.kind()))
+                .noneMatch(line -> HANGUL.matcher(line.text()).find());
+    }
+
+    /** 대사 글자 수로 어림한 낭독 시간(초). 영어 대본은 영어 기준으로 잔다. */
     public static int estimatedSeconds(CocreatedScript script) {
-        return Math.round(script.dialogueChars() / (float) CHARS_PER_SECOND);
+        return Math.round(script.dialogueChars() / (float) charsPerSecond(english(script)));
+    }
+
+    /** 영어 지시문의 {@code [Length]}. 뜻은 한국어판과 같다. */
+    public static String lengthRules(int minutes, int count, boolean english) {
+        if (!english) {
+            return lengthRules(minutes, count);
+        }
+        int beats = Map.of(1, 3, 3, 4, 10, 6).getOrDefault(minutes, 3);
+        String lines = count == 1
+                ? "Write about %d monologue lines, so keep each line close to 70 characters on average. ".formatted(minutes * 12)
+                : "Write about %d lines for the actor's role and %d lines in total for the other roles, so keep each line close to 70 "
+                        .formatted(minutes * 6, minutes * 6) + "characters on average. ";
+        return ("The whole scene takes about %d minute(s) to read aloud. All dialogue text together should be about %d characters, "
+                + "counting spaces and punctuation (allowed %d-%d). ")
+                .formatted(minutes, targetChars(minutes, true), minChars(minutes, true), maxChars(minutes, true))
+                + lines
+                + ("Plan %d beats in the design and spread them evenly. Build with new information, the other person's reactions, "
+                        + "and changes in approach; don't pad the length by repeating the same demand or explanation. ").formatted(beats)
+                + (count == 1 ? "" : "More characters does not mean a longer scene. ")
+                + "Longer scenes should develop setup -> first attempt -> new information -> change of tactic -> decision -> aftermath, "
+                + "with a concrete event in each beat.";
     }
 
     /** 생성·수정 프롬프트의 {@code [분량 조건]}. */
@@ -196,6 +313,17 @@ public final class CocreateRules {
     }
 
     /** 수정 프롬프트 4번 규칙의 배역 칸. */
+    public static String castRule(int count, int myLines, boolean english) {
+        if (!english) {
+            return castRule(count, myLines);
+        }
+        return count == 1
+                ? "a one-person monologue (no lines for the other person; their reactions only in short stage directions), "
+                        + "about %d monologue lines".formatted(myLines)
+                : "nobody speaks twice in a row, about %d lines for the actor's role, and a similar total for the other roles"
+                        .formatted(myLines);
+    }
+
     public static String castRule(int count, int myLines) {
         return count == 1
                 ? "1인 독백(상대 대사 없음, 상대의 반응은 짧은 지문으로만), 독백 대사 %d줄 기준".formatted(myLines)
@@ -216,10 +344,16 @@ public final class CocreateRules {
 
     /** 배역 수와 요청을 프롬프트의 {@code characters} 자리에 넣을 예시 JSON. */
     public static String charactersSchema(int count) {
+        return charactersSchema(count, false);
+    }
+
+    public static String charactersSchema(int count, boolean english) {
+        String item = english
+                ? "{\"name\":\"Name\",\"gender\":\"m or f\",\"age_band\":\"one of child, young, adult, senior\",\"mine\":"
+                : "{\"name\":\"이름\",\"gender\":\"m 또는 f\",\"age_band\":\"child, young, adult, senior 중 하나\",\"mine\":";
         List<String> items = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            items.add("{\"name\":\"이름\",\"gender\":\"m 또는 f\",\"age_band\":\"child, young, adult, senior 중 하나\",\"mine\":"
-                    + (i == 0) + "}");
+            items.add(item + (i == 0) + "}");
         }
         return "[" + String.join(",", items) + "]";
     }
@@ -245,62 +379,78 @@ public final class CocreateRules {
             }
         }
         int myCount = script.myLines();
+        boolean en = conditions.english();
         if (script.characters().size() != conditions.characterCount()) {
-            issues.add(new Issue(null, "배역 수 %d명(선택 %d명)".formatted(script.characters().size(), conditions.characterCount())));
+            issues.add(new Issue(null, (en ? "%d characters (chose %d)" : "배역 수 %d명(선택 %d명)")
+                    .formatted(script.characters().size(), conditions.characterCount())));
         }
         Set<String> speakers = new HashSet<>();
         dialogue.forEach(i -> speakers.add(lines.get(i).character()));
         if (speakers.size() != script.characters().size()) {
-            issues.add(new Issue(null, "대사가 없는 배역"));
+            issues.add(new Issue(null, en ? "A character has no lines" : "대사가 없는 배역"));
         }
         if (!conditions.monologue()) {
             double share = dialogue.isEmpty() ? 0 : myCount / (double) dialogue.size();
             if (share < .25 || share > .6) {
-                issues.add(new Issue(null, "내 배역의 대사 비중이 너무 적거나 많음"));
+                issues.add(new Issue(null, en ? "The actor's role has too few or too many lines" : "내 배역의 대사 비중이 너무 적거나 많음"));
             }
             for (int k = 1; k < dialogue.size(); k++) {
                 int a = dialogue.get(k - 1);
                 int b = dialogue.get(k);
                 if (b == a + 1 && lines.get(a).character().equals(lines.get(b).character())) {
-                    issues.add(new Issue(b, "같은 사람이 연속으로 말함"));
+                    issues.add(new Issue(b, en ? "Same character speaks twice in a row" : "같은 사람이 연속으로 말함"));
                 }
             }
         }
         int chars = script.dialogueChars();
         int minutes = conditions.minutes();
-        if (chars < minChars(minutes) || chars > maxChars(minutes)) {
-            issues.add(new Issue(null, "분량 %d자(목표 %d분, 허용 %d~%d자)".formatted(chars, minutes, minChars(minutes), maxChars(minutes))));
+        if (chars < minChars(minutes, en) || chars > maxChars(minutes, en)) {
+            issues.add(new Issue(null, (en ? "Length %d characters (target %d min, allowed %d-%d)" : "분량 %d자(목표 %d분, 허용 %d~%d자)")
+                    .formatted(chars, minutes, minChars(minutes, en), maxChars(minutes, en))));
         }
         for (int i = 0; i < lines.size(); i++) {
             CocreatedScript.Line line = lines.get(i);
             String text = line.text();
-            if (SAFETY.stream().anyMatch(text::contains)) {
-                issues.add(new Issue(i, "안전 금지어(죽음·자해·욕설·몸 이상)"));
+            if (en ? SAFETY_EN.matcher(text).find() : SAFETY.stream().anyMatch(text::contains)) {
+                issues.add(new Issue(i, en ? "Safety: banned word (death, self-harm, profanity, physical distress)"
+                        : "안전 금지어(죽음·자해·욕설·몸 이상)"));
             }
             if ("dialogue".equals(line.kind())) {
                 if (text.length() < lo || text.length() > hi) {
-                    issues.add(new Issue(i, "길이 %d자(기준 %s자)".formatted(text.length(), conditions.lineLen())));
+                    issues.add(new Issue(i, (en ? "Line is %d characters (target %s)" : "길이 %d자(기준 %s자)")
+                            .formatted(text.length(), conditions.lineLen())));
                 }
                 if (BRACKETS.matcher(text).find()) {
-                    issues.add(new Issue(i, "대사 안 괄호"));
+                    issues.add(new Issue(i, en ? "Brackets inside dialogue" : "대사 안 괄호"));
                 }
-                if (EMOTION_WORDS.stream().anyMatch(text::contains)) {
-                    issues.add(new Issue(i, "감정 이름을 대사로 말함"));
+                if (en ? EMOTION_WORDS_EN.matcher(text).find() : EMOTION_WORDS.stream().anyMatch(text::contains)) {
+                    issues.add(new Issue(i, en ? "Names the emotion out loud" : "감정 이름을 대사로 말함"));
                 }
-                if (WRITTEN.stream().anyMatch(text::contains)) {
+                if (!en && WRITTEN.stream().anyMatch(text::contains)) {
                     issues.add(new Issue(i, "글 같은 어미"));
                 }
             } else if ("direction".equals(line.kind())) {
-                if (text.length() > DIRECTION_MAX) {
-                    issues.add(new Issue(i, "지문 %d자(25자 이내)".formatted(text.length())));
+                int max = en ? DIRECTION_MAX_EN : DIRECTION_MAX;
+                if (text.length() > max) {
+                    issues.add(new Issue(i, (en ? "Direction is %d characters (max 70)" : "지문 %d자(25자 이내)").formatted(text.length())));
                 }
-                List<String> bad = BAD_DIRECTION.stream().filter(text::contains).toList();
+                List<String> bad = en ? badDirectionEn(text) : BAD_DIRECTION.stream().filter(text::contains).toList();
                 if (!bad.isEmpty()) {
-                    issues.add(new Issue(i, "지문에 표정·속마음(%s)".formatted(String.join(",", bad))));
+                    issues.add(new Issue(i, (en ? "Direction describes face or inner state (%s)" : "지문에 표정·속마음(%s)")
+                            .formatted(String.join(",", bad))));
                 }
             }
         }
         return List.copyOf(issues);
+    }
+
+    private static List<String> badDirectionEn(String text) {
+        List<String> found = new ArrayList<>();
+        var matcher = BAD_DIRECTION_EN.matcher(text);
+        while (matcher.find()) {
+            found.add(matcher.group());
+        }
+        return found;
     }
 
     private static Issue structure(CocreatedScript script) {

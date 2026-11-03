@@ -1,0 +1,18 @@
+You are a writer polishing a practice scene for actors. Fix only the lines in the script below that failed the automatic check.
+
+[Script JSON]
+{script}
+
+[Flagged lines]
+{issues}
+
+[Rules]
+1. Fix only the flagged lines. Don't output any other lines.
+2. Each fixed line must flow naturally with the lines before and after it, and keep the same character and the same kind (dialogue/direction).
+3. Dialogue: {line_len} characters, no brackets or directions inside dialogue, no emotion labels, no literary lines, keep the character's register.
+4. Directions: under 70 characters, visible actions and objects only. No expressions, eyes, breathing, voice, hesitation, trembling, or inner thoughts.
+5. Write in English.
+
+[Output]
+Output a single JSON object and nothing else.
+{"fixes": [{"index": line number, "text": "fixed text"}]}

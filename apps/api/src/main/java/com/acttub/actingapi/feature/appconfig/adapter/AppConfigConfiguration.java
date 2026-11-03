@@ -33,7 +33,8 @@ class AppConfigConfiguration {
 
     /** 서버가 이미 막는 규칙. 각 도메인 규칙(LineMatch·ChallengeRules·CocreateRules)과 같은지는 AppConfigEndpointIT 가 잠근다. */
     static final AppConfig.ServerRules RULES = new AppConfig.ServerRules(0.72, 60, List.of(7, 14),
-            List.of("설렘", "분노", "슬픔", "긴장", "서운함", "담담함"));
+            List.of("설렘", "분노", "슬픔", "긴장", "서운함", "담담함"),
+            List.of("Excitement", "Anger", "Sadness", "Nervousness", "Hurt", "Calm"));
 
     @Bean
     AppConfig appConfig(@Value("${APP_CONFIG_FILE:}") String overrideFile) throws IOException {

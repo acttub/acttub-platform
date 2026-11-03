@@ -1,4 +1,6 @@
 /** 형식을 보여 주기 위한 짧은 샘플. 창작물이라 저작권 문제가 없다. */
+import { isKorean } from '../i18n.ts';
+
 const ROOFTOP = `옥상, 밤
 
 (옥상 난간. 도시 불빛. 바람 소리.)
@@ -52,6 +54,59 @@ const MINJI = `민지의 독백
 
 오늘도 괜찮다고 말했다. 정말 괜찮았던 건지는 잘 모르겠다. 엄마한테 전화가 왔는데 일부러 받지 않았다. 목소리를 들으면 울 것 같아서였다. 집에 가면 불부터 켜야지. 물도 한 잔 마셔야지. 그러고 나면 조금은 나아질 거라고 믿어 보기로 했다.`;
 
+/** 영어 기기의 예시(SOMA-1033). 서버 reading_examples(language='en')의 raw_text 와 글자 그대로 같다. */
+const ROOFTOP_EN = `Rooftop, night
+
+(Rooftop railing. City lights. Wind.)
+
+Ellie: Knew I'd find you up here.
+Theo: How'd you know?
+Ellie: You always go somewhere high when things get bad.
+Theo: (smiles) Do I?
+Ellie: Why didn't you tell me? About the audition.
+Theo: What would telling you change?
+Ellie: Everything. I know how hard you worked for that one.
+Theo: That's exactly why I didn't want to tell you.
+
+(Beat. Theo leans on the railing.)
+
+Ellie: When's the next one?
+Theo: Day after tomorrow.
+Ellie: Then let's go down. I'll read the other part for you.
+Theo: You can't act.
+Ellie: I know. Still better than doing it alone.
+Theo: (looks at her for a while) Thanks.
+Ellie: Come on. It's cold.`;
+
+const CAFE_EN = `Café, the breakup talk
+
+(A window seat. Two cups of coffee gone cold.)
+
+Hannah: You're early.
+Josh: Yeah, a little. Sit down.
+Hannah: You said you had something to tell me. Your text sounded off.
+Josh: Yeah. I've been thinking about it for a long time.
+Hannah: And?
+Josh: I think we should stop. Us, I mean.
+Hannah: (silent for a moment) So this isn't sudden.
+Josh: No. It's been a few months for me.
+Hannah: I had no idea. That's the part that hurts most.
+Josh: I kept meaning to say it. The timing was never right.
+Hannah: Don't blame the timing.
+Josh: Sorry. That was cowardly of me.
+
+(Beat. Hannah turns her cup in her hands.)
+
+Hannah: Okay. But today, I'm the one who leaves first.
+Josh: Okay.
+Hannah: Take care.`;
+
+const MIA_EN = `Mia's monologue
+
+(On the way home from work. Forehead against the bus window.)
+
+I told everyone I was fine again today. I'm not sure I actually was. Mom called, and I let it ring. I knew if I heard her voice, I'd cry. When I get home, I'll turn the lights on first. Drink a glass of water. Then I'm going to let myself believe it'll get a little better.`;
+
 export type SampleEntry = { id: string; title: string; text: string; summary: string };
 
 /** 「예시 대본 고르기」 목록 — 모두 이 앱을 위해 새로 쓴 짧은 창작물이다. */
@@ -61,10 +116,22 @@ export const SAMPLE_SCRIPTS: readonly SampleEntry[] = [
   { id: 'minji', title: '민지의 독백', text: MINJI, summary: '혼자 읽는 독백' },
 ];
 
+/** 영어 기기의 「예시 대본 고르기」 목록 — 위 셋을 뜻 그대로 영어로 옮겼다(SOMA-1033). */
+export const SAMPLE_SCRIPTS_EN: readonly SampleEntry[] = [
+  { id: 'rooftop-en', title: 'Rooftop, night', text: ROOFTOP_EN, summary: 'Ellie · Theo · 2-person scene' },
+  { id: 'cafe-en', title: 'Café, the breakup talk', text: CAFE_EN, summary: 'Hannah · Josh · 2-person scene' },
+  { id: 'mia-en', title: "Mia's monologue", text: MIA_EN, summary: 'Solo monologue' },
+];
+
+/** 지금 화면 언어의 예시 목록. */
+export function localSamples(): readonly SampleEntry[] {
+  return isKorean() ? SAMPLE_SCRIPTS : SAMPLE_SCRIPTS_EN;
+}
+
 export const SAMPLE_SCRIPT = ROOFTOP;
 
 export function sampleById(id: string | null | undefined): SampleEntry {
-  return SAMPLE_SCRIPTS.find((s) => s.id === id) ?? SAMPLE_SCRIPTS[0];
+  return SAMPLE_SCRIPTS.find((s) => s.id === id) ?? SAMPLE_SCRIPTS_EN.find((s) => s.id === id) ?? localSamples()[0];
 }
 
 /** 미리보기용 — 제목을 뺀 본문에서 대사·지문 앞부분. */

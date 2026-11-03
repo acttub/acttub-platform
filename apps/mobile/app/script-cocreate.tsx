@@ -30,10 +30,10 @@ import { recordScriptFromCocreated, setRecordScript } from '@/lib/practice/recor
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { loadIntoCurrent, rememberMyRoles } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
-import { getAppConfig } from '@/lib/app-config';
+import { cocreateChips } from '@/lib/app-config';
 import {
-  ANY_EMOTION,
-  ANY_SITUATION,
+  anyEmotion,
+  anySituation,
   CAST_OPTIONS,
   coachSceneFor,
   generateWithWait,
@@ -112,7 +112,7 @@ export default function ScriptCocreateScreen() {
         gender: me?.gender ?? null,
         goal: me?.goal ?? null,
         emotion,
-        situation: situation.trim() || ANY_SITUATION,
+        situation: situation.trim() || anySituation(),
         direction: direction.trim() || null,
         character_count: characterCount,
         length_minutes: minutes,
@@ -425,12 +425,12 @@ export default function ScriptCocreateScreen() {
             {step === 'emotion' ? (
               <>
                 <MascotBubble title={t('scriptCocreate.emotionAsk')} guide={t('scriptCocreate.pickNext')} />
-                <ChoiceGrid options={[...getAppConfig().cocreate.emotions, ANY_EMOTION]} value={emotion} phLabel="script_cocreate_emotion" onPick={setEmotion} />
+                <ChoiceGrid options={[...cocreateChips().emotions, anyEmotion()]} value={emotion} phLabel="script_cocreate_emotion" onPick={setEmotion} />
               </>
             ) : step === 'situation' ? (
               <>
                 <MascotBubble title={t('scriptCocreate.situationAsk')} guide={t('scriptCocreate.pickNext')} />
-                <ChoiceGrid options={[...getAppConfig().cocreate.situations, ANY_SITUATION]} value={situation} phLabel="script_cocreate_situation" onPick={setSituation} />
+                <ChoiceGrid options={[...cocreateChips().situations, anySituation()]} value={situation} phLabel="script_cocreate_situation" onPick={setSituation} />
                 {/* 칩에 없는 상황은 직접 쓴다(pen 에는 없는 칸 — 서버가 자유 글을 받으므로 남겨 둔다). */}
                 <TextField
                   value={situation}

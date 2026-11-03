@@ -2566,6 +2566,13 @@ const en: DeepStringShape<typeof ko> = {
     opening: 'Opening…',
   },
   scriptCocreate: {
+    anyEmotion: 'Not sure',
+    anySituation: 'Anything works',
+    kindMonologue: 'Monologue',
+    kindScene: '{{count}}-person scene',
+    aboutSeconds: 'About {{count}} sec',
+    aboutMinutes: 'About {{count}} min',
+    aboutMinutesHalf: 'About {{count}} min 30 sec',
     startAsk: 'Which script would you like?',
     startSample: 'Pick a sample script',
     startSampleSub: '3 picks matched to your experience',

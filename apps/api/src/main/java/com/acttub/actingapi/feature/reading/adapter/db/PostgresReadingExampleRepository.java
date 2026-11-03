@@ -47,6 +47,12 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
     }
 
     @Override
+    public List<ReadingExample> listActive(String language) {
+        return NativeTuples.list(entityManager.createNativeQuery(SELECT + " AND language=:language ORDER BY sort_order,id", Tuple.class)
+                .setParameter("language", language)).stream().map(this::example).toList();
+    }
+
+    @Override
     public ReadingExample findActive(String id) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(SELECT + " AND id=:id", Tuple.class)
                 .setParameter("id", id));
