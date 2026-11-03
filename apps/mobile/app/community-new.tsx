@@ -137,12 +137,12 @@ export default function CommunityNewScreen() {
     try {
       if (editing && id) {
         await api.updateCommunityPost(id, { title: title.trim(), body: body.trim(), image_ids: imageIdsOf(images.drafts) });
-        void logEvent('community_post_update', { id });
+        logEvent('community_post_update', { id });
         router.back();
       } else {
         const imageIds = imageIdsOf(images.drafts);
         const created = await api.createCommunityPost({ category_slug: category, title: title.trim(), body: body.trim(), image_ids: imageIds });
-        void logEvent('community_post_create', { category, images: imageIds.length });
+        logEvent('community_post_create', { category, images: imageIds.length });
         router.replace({ pathname: '/community-post', params: { id: created.id } });
       }
     } catch (e) {

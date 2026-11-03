@@ -14,10 +14,9 @@ export const BUSINESS_INFO = {
 
 export function BusinessInfo({ tone = "light" }: { tone?: "light" | "dark" }) {
   const b = BUSINESS_INFO;
-  const text = tone === "dark" ? "text-[#8b95a1]" : "text-[#8b95a1]";
   const link = tone === "dark" ? "hover:text-white" : "hover:text-[#191f28]";
   return (
-    <div className={`text-xs leading-5 ${text}`}>
+    <div className="text-xs leading-5 text-[#8b95a1]">
       <p>
         상호: {b.name} <span aria-hidden="true">|</span> 대표자: {b.representative}
       </p>

@@ -32,7 +32,7 @@ export function ReadingRating({
       onInputFocus={onInputFocus}
       save={async (requestId, rating, comment) => {
         const result = await readingRatings.send(sessionId, buildReadingRatingBody({ requestId, rating, comment }));
-        void logEvent('reading_rating_submit', { rating, length: comment?.length ?? 0, result });
+        logEvent('reading_rating_submit', { rating, length: comment?.length ?? 0, result });
         return result;
       }}
     />

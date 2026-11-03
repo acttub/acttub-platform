@@ -183,7 +183,7 @@ export function useReadingStt(): SttHandle {
       // 녹음은 했는데 받아쓴 글이 하나도 없는 차례 — 한 번만(오류로 이미 보냈으면 건너뛴다).
       if (!emptyReported.current && !errored.current) {
         emptyReported.current = true;
-        void logEvent('reading_stt_empty_turn', { platform: Platform.OS });
+        logEvent('reading_stt_empty_turn', { platform: Platform.OS });
       }
     }
     if (active.current || settle.current) finishNow(text.current);
@@ -234,14 +234,14 @@ export function useReadingStt(): SttHandle {
     if (active.current && !settle.current && !text.current.trim() && RESTARTABLE_ERRORS.has(code) && restarts.current < STT_RESTART_MAX) {
       restarts.current += 1;
       restartPending.current = true;
-      void logEvent('reading_stt_restart', { code, attempt: restarts.current, platform: Platform.OS });
+      logEvent('reading_stt_restart', { code, attempt: restarts.current, platform: Platform.OS });
       return;
     }
     // 오류 코드와 짧은 메시지만 보낸다 — 받아쓴 글은 보내지 않는다.
     if (active.current || settle.current) {
       errored.current = true;
       emptyReported.current = true;
-      void logEvent('reading_stt_error', {
+      logEvent('reading_stt_error', {
         code,
         message: String(event?.message ?? '').slice(0, 120),
         platform: Platform.OS,

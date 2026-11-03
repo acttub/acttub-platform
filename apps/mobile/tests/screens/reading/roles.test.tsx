@@ -21,7 +21,7 @@ const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn(), dismi
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/reading/tts/engine', () => ({
   prepareInBackground: jest.fn(async () => undefined),
   stop: jest.fn(),

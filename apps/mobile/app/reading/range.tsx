@@ -261,7 +261,7 @@ export default function ReadingRange() {
           record: needsMic,
         }),
       );
-      void logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate, pause_sec: handsFree ? listen.pauseSec : 0 });
+      logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate, pause_sec: handsFree ? listen.pauseSec : 0 });
       await updateCurrent({ maskMode: mask });
       setFirstReadingSession(firstMode ? (getCurrentSession()?.id ?? null) : null);
       router.replace('/reading/play');

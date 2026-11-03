@@ -88,7 +88,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
         videoUri: '',
         playbackUrl: null,
       });
-      void logEvent('practice_start', { ordinal: 1, continued: false, without_video: true, from_reading: true });
+      logEvent('practice_start', { ordinal: 1, continued: false, without_video: true, from_reading: true });
       // 분석을 기다릴 것이 없어 회차 id 없이 연다 — 코치 화면이 방금 든 회차로 바로 대화한다(talk 와 같은 길).
       router.push({ pathname: '/coach', params: { purpose: 'reading' } });
     } catch (e) {
@@ -108,7 +108,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
     }
     if (!isPro) {
       setProNote(true);
-      void logEvent('reading_pron_report_locked', {});
+      logEvent('reading_pron_report_locked', {});
       return;
     }
     router.push({ pathname: '/reading/pronunciation', params: { sessionId } });

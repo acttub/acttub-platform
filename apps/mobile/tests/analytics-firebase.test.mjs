@@ -32,8 +32,8 @@ const load = () => import(`../lib/analytics.ts?firebase=${++instance}`);
 test('analytics: 운영 빌드는 이벤트·화면 조회·회원 번호를 Firebase 로 보낸다', async () => {
   resetFirebase('modular');
   const analytics = await load();
-  await analytics.logEvent('practice_start', { kind: 'monologue' });
-  await analytics.logScreenView('/(tabs)');
+  analytics.logEvent('practice_start', { kind: 'monologue' });
+  analytics.logScreenView('/(tabs)');
   await analytics.setAnalyticsUserId('member-42');
   await analytics.setAnalyticsUserId(null);
   assert.deepEqual(firebase.sent, [
@@ -46,14 +46,17 @@ test('analytics: 운영 빌드는 이벤트·화면 조회·회원 번호를 Fir
 test('analytics: getAnalytics 가 없는 옛 모듈은 default 로 인스턴스를 만든다', async () => {
   resetFirebase('namespaced');
   const analytics = await load();
-  await analytics.logEvent('signup_complete');
+  analytics.logEvent('signup_complete');
   assert.deepEqual(firebase.sent, [['namespaced', 'signup_complete', undefined]]);
 });
 
 test('analytics: Firebase 가 던져도 이벤트·회원 번호 호출은 조용히 끝난다', async () => {
   resetFirebase('modular', { fails: true });
   const analytics = await load();
-  await assert.doesNotReject(() => analytics.logEvent('practice_start'));
+  assert.equal(analytics.logEvent('practice_start'), undefined);
+  assert.equal(analytics.logScreenView('/(tabs)'), undefined);
+  // 거절이 빠져나갔으면 node --test 가 이 틱에 unhandledRejection 으로 실패시킨다.
+  await new Promise((resolve) => setImmediate(resolve));
   await assert.doesNotReject(() => analytics.setAnalyticsUserId('member-42'));
   assert.deepEqual(firebase.sent, []);
   assert.deepEqual(firebase.users, []);

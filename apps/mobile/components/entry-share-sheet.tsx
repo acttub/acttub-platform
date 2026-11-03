@@ -156,7 +156,7 @@ export function EntryShareSheet({
       await shareVideoToInstagramStory(uri);
     } catch (e) {
       // 스토리 편집 화면을 닫은 경우라 안내하지 않는다. 다른 실패를 가려 내도록 이유만 남긴다.
-      void logEvent('challenge_share_story_error', { id: entry.id, reason: String((e as Error)?.message ?? e).slice(0, 80) });
+      logEvent('challenge_share_story_error', { id: entry.id, reason: String((e as Error)?.message ?? e).slice(0, 80) });
     }
   };
 
@@ -168,7 +168,7 @@ export function EntryShareSheet({
     try {
       sent = await shareKakaoFeed(kakaoFeed(entry, entry.authorName, line));
     } catch (e) {
-      void logEvent('challenge_share_kakao_error', { id: entry.id, reason: String((e as Error)?.message ?? e).slice(0, 80) });
+      logEvent('challenge_share_kakao_error', { id: entry.id, reason: String((e as Error)?.message ?? e).slice(0, 80) });
     }
     if (!sent) await openSystemShare(message);
   };
@@ -195,7 +195,7 @@ export function EntryShareSheet({
   };
 
   const onTarget = async (target: ShareTarget) => {
-    void logEvent('challenge_share_target', { id: entry.id, target });
+    logEvent('challenge_share_target', { id: entry.id, target });
     setNotice(null);
     try {
       if (target === 'instagram') await postStory();
@@ -213,7 +213,7 @@ export function EntryShareSheet({
 
   const onSave = async () => {
     if (busy) return;
-    void logEvent('challenge_share_save', { id: entry.id });
+    logEvent('challenge_share_save', { id: entry.id });
     setNotice(null);
     setBusy('save');
     let uri: string | null = null;

@@ -620,7 +620,7 @@ export default function ReadingPlay() {
       setProVoiceHint(true);
       if (!proVoiceHintLogged.current) {
         proVoiceHintLogged.current = true;
-        void logEvent('pro_hint_shown', { trigger: 'reading_voice' });
+        logEvent('pro_hint_shown', { trigger: 'reading_voice' });
       }
     }
     // 이번 회차에 서버 음성으로 만들 상대 대사 수 — 남은 한도로 끝까지 못 읽으면 서버 음성을 쓰지 않는다(SOMA-912).
@@ -704,7 +704,7 @@ export default function ReadingPlay() {
     } catch (e) {
       // 원문(메시지·경로)은 보내지 않는다 — 종류만(SOMA-494).
       const kind = voiceErrorKind(e);
-      void logEvent('reading_voice_failed', { kind });
+      logEvent('reading_voice_failed', { kind });
       if (kind === 'model_load') {
         await markAppVoiceUnsupported();
         removeDownloadedAssets('fp32');
@@ -905,7 +905,7 @@ export default function ReadingPlay() {
         await tts.play(uri);
         return;
       } catch (e) {
-        void logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
+        logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
         tts.discardSpeechFile(uri);
       }
       if (cancelled || !mounted.current) return;
@@ -923,7 +923,7 @@ export default function ReadingPlay() {
      */
     const readWithAppVoice = async (text: string, lang: string | undefined, reason: 'missing' | 'play_failed'): Promise<boolean> => {
       const to = tts.isReady() ? 'supertonic' : deviceVoiceRef.current ? 'device_voice' : 'text_only';
-      void logEvent('reading_line_voice_fallback', { engine, to, reason });
+      logEvent('reading_line_voice_fallback', { engine, to, reason });
       if (to !== 'supertonic') return false;
       setLineEngine('supertonic');
       await tts.speak(text, preset, { scriptId: script?.id, lang });
@@ -1010,7 +1010,7 @@ export default function ReadingPlay() {
         }
       } catch (e) {
         // 한 줄을 못 읽어도 다음 줄로 넘어간다. 얼마나 자주 그런지만 남긴다.
-        void logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
+        logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
       }
       finish();
     })();
@@ -1636,7 +1636,7 @@ export default function ReadingPlay() {
         scene: readingCoachScene({ title: script.title, lineIds: cur.lineIds, scenes: script.scenes, startIndex: cur.startIndex, myRoles: config?.myNames ?? [], t }),
       });
     }
-    void logEvent('reading_to_coach', { reading_session_id: session?.id ?? '' });
+    logEvent('reading_to_coach', { reading_session_id: session?.id ?? '' });
     router.replace({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   };
 

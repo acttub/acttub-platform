@@ -250,7 +250,7 @@ function RootNavigator() {
   const handlePushTap = useCallback(
     (data: unknown) => {
       const opened = reminderOpenEvent(data);
-      if (opened) void logEvent('reminder_open', opened);
+      if (opened) logEvent('reminder_open', opened);
       if (pushReadyRef.current) openPush(data);
       else setHeldPush({ data });
     },

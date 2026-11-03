@@ -265,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    loadTokens().then((hasToken) => {
+    void loadTokens().then((hasToken) => {
       if (!active) return;
       if (!hasToken) {
         // 로그아웃한 폰에는 리마인드 알람이 없어야 한다. 옛 빌드가 로그인 없이 맞춰 둔 것도 걷는다.

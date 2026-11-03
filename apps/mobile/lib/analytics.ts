@@ -40,9 +40,9 @@ function getAnalytics(): unknown {
 type EventParams = Record<string, string | number | boolean>;
 
 async function logFirebaseEvent(name: string, params?: EventParams): Promise<void> {
-  const a = getAnalytics();
-  if (!a || !mod) return;
   try {
+    const a = getAnalytics();
+    if (!a || !mod) return;
     await mod.logEvent(a, name, params);
   } catch {
     // 무시
@@ -50,18 +50,18 @@ async function logFirebaseEvent(name: string, params?: EventParams): Promise<voi
 }
 
 /** 커스텀/표준 이벤트 로깅. 실패는 삼킨다(분석은 앱 흐름을 막지 않는다). */
-export async function logEvent(name: string, params?: EventParams): Promise<void> {
+export function logEvent(name: string, params?: EventParams): void {
   postHog.capture(name, params);
-  await logFirebaseEvent(name, params);
+  void logFirebaseEvent(name, params);
 }
 
 /**
  * 화면 조회 이벤트. Firebase 에는 GA4 표준 'screen_view' 이벤트로, PostHog 에는 화면($screen)으로 보낸다.
  * (rnfirebase v22+에서 logScreenView는 deprecated — logEvent로 통합)
  */
-export async function logScreenView(screenName: string): Promise<void> {
+export function logScreenView(screenName: string): void {
   postHog.screen(screenName);
-  await logFirebaseEvent('screen_view', {
+  void logFirebaseEvent('screen_view', {
     screen_name: screenName,
     screen_class: screenName,
   });

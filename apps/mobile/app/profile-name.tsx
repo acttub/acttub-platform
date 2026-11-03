@@ -143,7 +143,7 @@ export default function ProfileNameScreen() {
     try {
       const now = new Date();
       await saveProfile(buildProfilePayload(form, now));
-      void logEvent('profile_setup', {
+      logEvent('profile_setup', {
         mediums: form.directions.join(',') || 'none',
         career: form.experience ?? 'none',
         goal: form.goal ?? 'none',

@@ -41,7 +41,7 @@ const mockNavigation = {
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 // 지문 멈춤(SOMA-937)은 기본 0초로 두고 기존 흐름을 본다. 멈춤 자체는 아래 SOMA-937 테스트가 시간을 정해 본다.
 const mockBeatMs = { value: 0 };
 jest.mock('@/lib/reading/direction-beat', () => ({

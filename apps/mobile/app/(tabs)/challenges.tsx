@@ -305,7 +305,7 @@ export default function ChallengesScreen() {
             dot={boardDot.hasNew}
             onChange={(next) => {
               setSection(next);
-              void logEvent('community_section', { section: next });
+              logEvent('community_section', { section: next });
             }}
           />
         </View>
@@ -386,7 +386,7 @@ export default function ChallengesScreen() {
               label={t('challenges.firstNext')}
               disabled={!firstPick}
               onPress={() => {
-                void logEvent('challenge_first_pick', { pick: firstPick ?? '' });
+                logEvent('challenge_first_pick', { pick: firstPick ?? '' });
                 if (firstPick === 'perform') perform(featured);
                 else {
                   // 둘러보기 — 이 자리에서 기본 챌린지 홈으로 바꾸고, 다음에 와도 그대로 둔다.
@@ -403,7 +403,7 @@ export default function ChallengesScreen() {
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
             onPress={() => {
-              void logEvent('challenge_last_week_open', { id: lastWeek.id });
+              logEvent('challenge_last_week_open', { id: lastWeek.id });
               router.push({ pathname: '/challenge-result', params: { id: lastWeek.id, nextId: featured?.id ?? '' } });
             }}
             accessibilityRole="button"
@@ -433,11 +433,11 @@ export default function ChallengesScreen() {
           <ChallengeOthersRow
             challenge={featured}
             onOpenAll={() => {
-              void logEvent('challenge_others_row_all', { id: featured.id });
+              logEvent('challenge_others_row_all', { id: featured.id });
               openDetail(featured);
             }}
             onOpenEntry={(entry) => {
-              void logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
+              logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
               router.push({ pathname: '/challenge-play', params: { id: featured.id, entryId: entry.id } });
             }}
           />

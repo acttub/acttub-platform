@@ -23,7 +23,7 @@ export function UploadReasonSheet({ onFace, onShort, onLater }: {
   const [choice, setChoice] = useState<UploadHesitation | null>(null);
   const next = () => {
     if (!choice) return;
-    void logEvent('practice_upload_decline_route', { reason: choice, destination: choice });
+    logEvent('practice_upload_decline_route', { reason: choice, destination: choice });
     (choice === 'face' ? onFace : choice === 'short' ? onShort : onLater)();
   };
   return (
@@ -40,7 +40,7 @@ export function UploadReasonSheet({ onFace, onShort, onLater }: {
               selected={choice === item}
               phLabel={`upload_hesitate_${item}`}
               onPress={() => {
-                void logEvent('practice_upload_decline_reason', { reason: item });
+                logEvent('practice_upload_decline_reason', { reason: item });
                 setChoice(item);
               }}
             />

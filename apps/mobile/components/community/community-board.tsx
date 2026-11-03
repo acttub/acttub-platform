@@ -65,7 +65,7 @@ export function CommunityBoard({
   const shown = useRef('');
 
   useEffect(() => {
-    void logEvent('community_board_open');
+    logEvent('community_board_open');
     void api
       .communityCategories()
       .then((r) => setCategories(r.categories))
@@ -105,7 +105,7 @@ export function CommunityBoard({
     setCategory(slug);
     setPosts(null);
     setCursor(null);
-    void logEvent('community_category', { category: slug || 'all' });
+    logEvent('community_category', { category: slug || 'all' });
     void load(slug);
   };
 
@@ -140,7 +140,7 @@ export function CommunityBoard({
   };
 
   const showRules = () => {
-    void logEvent('community_rules_open');
+    logEvent('community_rules_open');
     void alert({ title: t('community.rulesTitle'), message: t('community.rulesBody'), confirmLabel: t('common.confirm') });
   };
 

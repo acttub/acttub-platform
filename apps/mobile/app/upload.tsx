@@ -250,13 +250,13 @@ export default function UploadScreen() {
       const needsUpload = Boolean(video.pendingId && !video.videoId);
       sourceRef.current = source;
       pendingSinceRef.current = needsUpload ? Date.now() : null;
-      void logEvent(PRACTICE_UPLOAD_EVENTS.videoPicked, videoPickedParams(source, needsUpload, video.durationMs));
+      logEvent(PRACTICE_UPLOAD_EVENTS.videoPicked, videoPickedParams(source, needsUpload, video.durationMs));
     },
     [sample],
   );
   const noteReady = useCallback(() => {
     if (sample || pendingSinceRef.current === null) return;
-    void logEvent(
+    logEvent(
       PRACTICE_UPLOAD_EVENTS.videoReady,
       videoReadyParams(sourceRef.current ?? 'library', Date.now() - pendingSinceRef.current),
     );
@@ -534,7 +534,7 @@ export default function UploadScreen() {
   useEffect(
     () => () => {
       if (sample || startedRef.current) return;
-      void logEvent(
+      logEvent(
         PRACTICE_UPLOAD_EVENTS.screenExit,
         uploadExitParams({
           ...exitRef.current,
@@ -552,7 +552,7 @@ export default function UploadScreen() {
     const reason = startBlockReason({ hasVideo: canStart(videoId) || uploading, uploading, rights: agreedRights });
     if (!reason) return;
     blockedTapsRef.current += 1;
-    void logEvent(PRACTICE_UPLOAD_EVENTS.startBlocked, startBlockedParams(reason));
+    logEvent(PRACTICE_UPLOAD_EVENTS.startBlocked, startBlockedParams(reason));
   };
   // 준비 전에 누른 질문 받기. 올리는 중이면 업로드를 한 번 더 밀어 준다 — 「잠시 뒤에 다시 눌러 주세요」대로 누르면
   // 멈춘 업로드가 다시 돈다(SOMA-734).
@@ -572,7 +572,7 @@ export default function UploadScreen() {
     const next = !agreedRights;
     rightsTouchedRef.current = true;
     setAgreedRights(next);
-    if (!sample) void logEvent(PRACTICE_UPLOAD_EVENTS.rightsToggle, rightsToggleParams(next));
+    if (!sample) logEvent(PRACTICE_UPLOAD_EVENTS.rightsToggle, rightsToggleParams(next));
   };
   // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
   // 올리는 중이면 영상은 이미 고른 것이다 — 「영상을 채워주세요」가 아니라 올리는 중이라고 말한다(SOMA-671).

@@ -37,7 +37,7 @@ const tracker = createSignupAttributionTracker({
   storage: AsyncStorage,
   report: (diagnostic) => {
     // 어디서 빠지는지 PostHog·Firebase 로 센다(SOMA-643). 광고 이름·계정 번호는 싣지 않는다.
-    void logEvent('signup_attribution', signupAttributionEventParams(diagnostic, Platform.OS));
+    logEvent('signup_attribution', signupAttributionEventParams(diagnostic, Platform.OS));
   },
   onSendFailed: scheduleRetry,
   send: async (payload) => {
@@ -47,7 +47,7 @@ const tracker = createSignupAttributionTracker({
       // 값 규칙 위반(422)은 다시 보내도 같다 — 보낸 것으로 끝낸다. 나머지는 다음 기회에 다시 보낸다.
       // 조용히 빠지지 않게 거절도 센다(SOMA-643).
       if (error instanceof ApiError && error.status === 422) {
-        void logEvent('signup_attribution', { stage: 'rejected', platform: Platform.OS });
+        logEvent('signup_attribution', { stage: 'rejected', platform: Platform.OS });
         return;
       }
       throw error;

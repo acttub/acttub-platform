@@ -36,7 +36,7 @@ jest.mock('react-native-purchases', () => ({
 }));
 jest.mock('expo-application', () => ({ applicationId: 'com.acttub.app' }));
 jest.mock('expo-web-browser', () => ({ openAuthSessionAsync: jest.fn(), openBrowserAsync: jest.fn() }));
-jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(() => Promise.resolve()) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ signOut: jest.fn(), user: { id: '11111111-1111-4111-8111-111111111111' } }) }));
 jest.mock('@/lib/practice/session-state', () => ({ startPractice: jest.fn() }));
 jest.mock('@/lib/api', () => ({

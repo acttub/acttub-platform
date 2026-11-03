@@ -178,7 +178,7 @@ export default function RecordVideoScreen() {
       const mic = micPerm?.granted ? micPerm : await requestMic();
       if (isChallenge) {
         permLoggedRef.current = true;
-        void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(cam, mic, true));
+        logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(cam, mic, true));
       }
       return cam.granted && mic.granted;
     } finally {
@@ -190,7 +190,7 @@ export default function RecordVideoScreen() {
   useEffect(() => {
     if (!isChallenge || !ready || permLoggedRef.current) return;
     permLoggedRef.current = true;
-    void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(camPerm, micPerm, false));
+    logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(camPerm, micPerm, false));
   }, [camPerm, isChallenge, micPerm, ready]);
 
   useEffect(() => {
@@ -359,12 +359,12 @@ export default function RecordVideoScreen() {
       const result = await cameraRef.current.recordAsync({ maxDuration: maxSec });
       // 닫기로 버린 녹화는 고른 것도 실패도 아니다.
       if (isChallenge && !leavingRef.current) {
-        void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', result?.uri ? 'selected' : 'failed'));
+        logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', result?.uri ? 'selected' : 'failed'));
       }
       finishWith(result?.uri ?? null);
     } catch {
       // 촬영이 실패하면 화면만 되돌린다(업로드에서 다시 시도).
-      if (isChallenge && !leavingRef.current) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', 'failed'));
+      if (isChallenge && !leavingRef.current) logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', 'failed'));
       finishWith(null);
     } finally {
       // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
@@ -396,7 +396,7 @@ export default function RecordVideoScreen() {
     if (recording) return;
     const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
     const picked = !result.canceled && !!result.assets[0];
-    if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('gallery', picked ? 'selected' : 'cancelled'));
+    if (isChallenge) logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('gallery', picked ? 'selected' : 'cancelled'));
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if (finishedRef.current) return;
