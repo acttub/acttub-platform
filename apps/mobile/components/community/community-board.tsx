@@ -9,6 +9,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Button } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
+import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { LoadingText } from '@/components/ui/loading-text';
 import { MASCOT } from '@/components/ui/mascot';
@@ -193,6 +194,7 @@ export function CommunityBoard({
 
   return (
     <View style={styles.wrap}>
+      <View style={styles.wrap}>
       <FlatList
         style={styles.wrap}
         data={posts ?? []}
@@ -211,6 +213,8 @@ export function CommunityBoard({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.iconFaint} />}
         contentContainerStyle={styles.list}
       />
+      <FloatingAddButton label={t('community.write')} bottom={space[3]} phLabel="community_write" onPress={onWrite} />
+      </View>
       {/* 광고는 탭바 바로 위에 좌우 끝까지 붙인 고정 배너 — 칸이 비면 위 구분선까지 사라져 목록이 탭바 위까지 내려온다. */}
       <View style={{ marginBottom: Math.max(bottomSpace - space[3], 0) }}>
         <AdSlot slot="community_list_top" anchored style={styles.adBanner} />
@@ -284,7 +288,7 @@ function BoardSkeleton() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
-  list: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[5] },
+  list: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: 48 + space[6] },
   head: { gap: space[3] },
   chipScroll: { marginHorizontal: -space.gutter, flexGrow: 0 },
   chips: { gap: space[2], paddingHorizontal: space.gutter },

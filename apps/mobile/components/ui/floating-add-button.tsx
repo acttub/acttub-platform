@@ -1,20 +1,31 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { radius, shadowOverlay, space, type } from '@/constants/tokens';
 
-/** 디자인 시스템 FloatingButton/Add — 목록 화면의 「추가」 전용. 높이 48 · r-full · 오른쪽 20, 탭바 없으면 안전영역+12. */
-export function FloatingAddButton({ label, onPress, phLabel }: { label: string; onPress: () => void; phLabel: string }) {
-  const insets = useSafeAreaInsets();
+/**
+ * 디자인 시스템 pen 「FloatingButton/Add」 — 목록 화면의 「추가」 전용. 높이 48 · r-full · 오른쪽 20, 더하기 20 + body1-bold.
+ * `bottom`은 탭바 위 12(탭바가 없으면 안전 영역 + 12)를 부르는 쪽에서 준다. 목록 맨 아래에 이 버튼이 가리지 않을 여백을 둔다.
+ */
+export function FloatingAddButton({
+  label,
+  bottom,
+  onPress,
+  phLabel,
+}: {
+  label: string;
+  bottom: number;
+  onPress: () => void;
+  phLabel?: string;
+}) {
   return (
     <Pressable
+      style={({ pressed }) => [styles.button, { bottom }, pressed && styles.pressed]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      ph-label={phLabel}
-      style={({ pressed }) => [styles.button, { bottom: insets.bottom + space[3] }, pressed && styles.pressed]}>
+      ph-label={phLabel}>
       <Feather name="plus" size={20} color={palette.onAccent} />
       <Text style={styles.label}>{label}</Text>
     </Pressable>
@@ -35,5 +46,5 @@ const styles = StyleSheet.create({
     ...shadowOverlay,
   },
   pressed: { opacity: 0.85 },
-  label: { ...type.body2Bold, color: palette.onAccent },
+  label: { ...type.body1Bold, color: palette.onAccent },
 });

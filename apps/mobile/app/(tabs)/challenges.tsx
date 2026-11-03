@@ -12,10 +12,11 @@ import { CommunityBoard } from '@/components/community/community-board';
 import { CommunityTabs, type CommunitySection } from '@/components/community/community-tabs';
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
-import { Button, PrimaryButton } from '@/components/ui/buttons';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
@@ -321,14 +322,6 @@ export default function ChallengesScreen() {
               <Feather name="bell" size={22} color={palette.text} />
               {unread.count > 0 && <View style={styles.badgeDot} />}
             </Pressable>
-            <Button
-              size="md"
-              label={t('community.write')}
-              icon={<Feather name="plus" size={16} color={palette.onAccent} />}
-              phLabel="community_write"
-              style={styles.writeBtn}
-              onPress={() => router.push('/community-new')}
-            />
           </View>
         ) : !selectMode && !deciding && (
         <View style={styles.headerRight}>
@@ -351,15 +344,6 @@ export default function ChallengesScreen() {
             ph-label="challenges_bell">
             <Feather name="bell" size={22} color={palette.text} />
             {unread.count > 0 && <View style={styles.badgeDot} />}
-          </Pressable>
-          <Pressable
-            style={styles.iconBtn}
-            onPress={() => router.push('/line-new')}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={t('challenges.addLine')}
-            ph-label="challenges_add_line">
-            <Feather name="plus" size={22} color={palette.text} />
           </Pressable>
         </View>
         )}
@@ -398,7 +382,7 @@ export default function ChallengesScreen() {
           </CtaBar>
         </>
       ) : (
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 48 + space[6] }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
         {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
@@ -489,14 +473,15 @@ export default function ChallengesScreen() {
         {challenges !== null && challenges.length === 0 && (!featured || tab === 'ended' || tab === 'mine') && !error && (
           <InlineEmpty title={emptyText} />
         )}
-
-        {tab !== 'mine' && (
-          <Pressable style={styles.registerBtn} onPress={() => router.push('/line-new')} accessibilityRole="button">
-            <Feather name="plus" size={16} color={palette.blueDeep} />
-            <Text style={styles.registerText}>{t('challenges.registerCta')}</Text>
-          </Pressable>
-        )}
       </ScrollView>
+      )}
+      {section === 'challenge' && !selectMode && !deciding && (
+        <FloatingAddButton
+          label={t('challenges.addLine')}
+          bottom={tabBarSpace + (firstTime ? space[3] : 0)}
+          phLabel="challenges_add_line"
+          onPress={() => router.push('/line-new')}
+        />
       )}
     </SafeAreaView>
   );
@@ -700,7 +685,6 @@ const styles = StyleSheet.create({
   },
   titleGrow: { flex: 1, alignSelf: 'stretch' },
   headerDivider: { height: 1, backgroundColor: palette.border },
-  writeBtn: { paddingLeft: space[3] },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   badgeDot: {
@@ -785,14 +769,4 @@ const styles = StyleSheet.create({
     marginRight: -space[1.5],
     borderWidth: 1,
   },
-  registerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[1.5],
-    backgroundColor: palette.blueSoft,
-    borderRadius: radius.md,
-    paddingVertical: space[3],
-  },
-  registerText: { ...type.body2Bold, color: palette.blueDeep },
 });

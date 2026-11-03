@@ -183,7 +183,7 @@ describe('인기 탭 첫 화면', () => {
 
     // 「나도 이 대사 연기하기」는 오늘의 챌린지에만 있다 — 목록 카드 안에는 버튼을 두지 않는다(UX 가이드 5절, 10/28).
     expect(screen.getAllByText('나도 이 대사 연기하기')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: endsWith('찾는 대사가 없나요? 직접 등록하기') })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '대사 등록' })).toBeOnTheScreen();
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요')).not.toBeOnTheScreen();
   });
 
@@ -251,16 +251,11 @@ test('머리줄의 알림·추가와 검색·등록 버튼은 각 화면으로 �
   await fireEvent.press(screen.getByRole('button', { name: '알림' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith('/notifications');
 
-  // 추가 버튼은 이름 없는 아이콘 버튼이라 알림 바로 다음 버튼으로 찾는다.
-  const buttons = screen.getAllByRole('button');
-  await fireEvent.press(buttons[buttons.indexOf(screen.getByRole('button', { name: '알림' })) + 1]);
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/line-new');
-
   await fireEvent.press(screen.getByRole('button', { name: '대사 검색' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith('/line-search');
 
   mockRouter.push.mockClear();
-  await fireEvent.press(screen.getByRole('button', { name: endsWith('찾는 대사가 없나요? 직접 등록하기') }));
+  await fireEvent.press(screen.getByRole('button', { name: '대사 등록' }));
   expect(mockRouter.push).toHaveBeenCalledWith('/line-new');
 });
 
@@ -276,12 +271,12 @@ describe('탭', () => {
     expect(tabButton('종료')).toBeSelected();
     expect(tabButton('인기')).not.toBeSelected();
     expect(screen.getByText('“오늘은 내가 주인공이야”')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: endsWith('찾는 대사가 없나요? 직접 등록하기') })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '대사 등록' })).toBeOnTheScreen();
 
     await fireEvent.press(tabButton('내 챌린지'));
     expect(await screen.findByText('아직 참여한 챌린지가 없어요')).toBeOnTheScreen();
     expect(listChallenges).toHaveBeenLastCalledWith({ tab: 'mine' });
-    expect(screen.queryByRole('button', { name: endsWith('찾는 대사가 없나요? 직접 등록하기') })).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '대사 등록' })).toBeOnTheScreen();
 
     listChallenges.mockResolvedValue(page([]));
     await fireEvent.press(tabButton('최신'));

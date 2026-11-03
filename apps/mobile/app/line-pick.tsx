@@ -3,7 +3,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -131,7 +131,7 @@ export default function LinePickScreen() {
           );
         })}
       </ScrollView>
-      <FloatingAddButton label={t('challenges.registerCta')} onPress={() => router.push('/line-new')} phLabel="line_pick_register" />
+      <FloatingAddButton label={t('challenges.registerCta')} bottom={insets.bottom + space[3]} onPress={() => router.push('/line-new')} phLabel="line_pick_register" />
     </SafeAreaView>
   );
 }
