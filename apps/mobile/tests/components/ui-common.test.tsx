@@ -349,18 +349,16 @@ describe('배지', () => {
 });
 
 describe('체크·입력칸·오류 줄', () => {
-  test('체크는 원형 하나이고 되돌릴 수 없는 동의만 켜짐이 빨강이다', async () => {
+  test('체크는 채운 원 안의 흰 체크이고 꺼짐은 빈 원, 되돌릴 수 없는 동의만 켜짐이 빨강이다', async () => {
     const drawn = async (node: React.ReactElement) => {
       const view = await render(node);
       const json = JSON.parse(JSON.stringify(view.toJSON()));
       await view.unmount();
-      return [json.children[0], StyleSheet.flatten(json.props.style).color];
+      return { style: StyleSheet.flatten(json.props.style), glyphs: json.children?.length ?? 0 };
     };
-    const [onGlyph] = await drawn(<Feather name="check-circle" size={22} />);
-    const [offGlyph] = await drawn(<Feather name="circle" size={22} />);
-    expect(await drawn(<Checkbox checked />)).toEqual([onGlyph, '#4880EE']);
-    expect(await drawn(<Checkbox checked={false} />)).toEqual([offGlyph, '#B0B8C1']);
-    expect(await drawn(<Checkbox checked danger />)).toEqual([onGlyph, '#E42939']);
+    expect(await drawn(<Checkbox checked />)).toEqual({ style: expect.objectContaining({ width: 22, backgroundColor: '#4880EE' }), glyphs: 1 });
+    expect(await drawn(<Checkbox checked={false} />)).toEqual({ style: expect.objectContaining({ width: 22, borderWidth: 1.5, borderColor: '#B0B8C1' }), glyphs: 0 });
+    expect(await drawn(<Checkbox checked danger />)).toEqual({ style: expect.objectContaining({ backgroundColor: '#E42939' }), glyphs: 1 });
   });
 
   test('입력칸은 이름표로 읽히고, 입력 중 파랑 · 오류면 빨강 테두리와 아래 한 줄이다', async () => {
