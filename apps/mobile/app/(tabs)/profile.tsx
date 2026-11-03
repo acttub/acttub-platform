@@ -16,7 +16,7 @@ import { InlineError } from '@/components/ui/inline-error';
 import { SkeletonBlock, SkeletonCards } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
-import { TabsUnderline } from '@/components/ui/tabs-underline';
+import { UnderlineTabs } from '@/components/ui/underline-tabs';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -265,11 +265,11 @@ export default function ProfileScreen() {
           <MonthCell label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
         </View>
 
-        <TabsUnderline
+        <UnderlineTabs
           tabs={[
-            ['practice', t('profileTab.tabPractice')],
-            ['entries', t('profileTab.tabEntries')],
-            ['saved', t('profileTab.tabSaved')],
+            { key: 'practice', label: t('profileTab.tabPractice') },
+            { key: 'entries', label: t('profileTab.tabEntries') },
+            { key: 'saved', label: t('profileTab.tabSaved') },
           ]}
           value={tab}
           onChange={setTab}

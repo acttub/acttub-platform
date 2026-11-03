@@ -10,7 +10,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { FloatingAddButton } from '@/components/ui/floating-add-button';
+import { FloatingAdd } from '@/components/ui/floating-add';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -35,6 +35,7 @@ const TABS: { key: ChallengeTab; label: string }[] = [
 
 export default function LinePickScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ videoId?: string }>();
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
@@ -131,7 +132,7 @@ export default function LinePickScreen() {
           );
         })}
       </ScrollView>
-      <FloatingAddButton label={t('challenges.registerCta')} bottom={insets.bottom + space[3]} onPress={() => router.push('/line-new')} phLabel="line_pick_register" />
+      <FloatingAdd label={t('challenges.registerCta')} bottom={insets.bottom + space[3]} onPress={() => router.push('/line-new')} phLabel="line_pick_register" />
     </SafeAreaView>
   );
 }

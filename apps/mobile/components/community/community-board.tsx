@@ -9,7 +9,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Button } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
-import { FloatingAddButton } from '@/components/ui/floating-add-button';
+import { FloatingAdd } from '@/components/ui/floating-add';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { LoadingText } from '@/components/ui/loading-text';
@@ -213,7 +213,7 @@ export function CommunityBoard({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.iconFaint} />}
         contentContainerStyle={styles.list}
       />
-      <FloatingAddButton label={t('community.write')} bottom={space[3]} phLabel="community_write" onPress={onWrite} />
+      <FloatingAdd label={t('community.write')} bottom={space[3]} phLabel="community_write" onPress={onWrite} />
       </View>
       {/* 광고는 탭바 바로 위에 좌우 끝까지 붙인 고정 배너 — 칸이 비면 위 구분선까지 사라져 목록이 탭바 위까지 내려온다. */}
       <View style={{ marginBottom: Math.max(bottomSpace - space[3], 0) }}>

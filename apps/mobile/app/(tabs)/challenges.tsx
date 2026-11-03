@@ -15,7 +15,7 @@ import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { FloatingAddButton } from '@/components/ui/floating-add-button';
+import { FloatingAdd } from '@/components/ui/floating-add';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
@@ -476,7 +476,7 @@ export default function ChallengesScreen() {
       </ScrollView>
       )}
       {section === 'challenge' && !selectMode && !deciding && (
-        <FloatingAddButton
+        <FloatingAdd
           label={t('challenges.addLine')}
           bottom={tabBarSpace + (firstTime ? space[3] : 0)}
           phLabel="challenges_add_line"
