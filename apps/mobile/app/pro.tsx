@@ -158,8 +158,8 @@ export default function ProScreen() {
 
 function LegalLink({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
-    // 글자 줄이 19라 위아래 13씩 넓혀 누르는 자리를 44 넘게 둔다.
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="link" hitSlop={{ top: 13, bottom: 13, left: 6, right: 6 }}>
+    // 글자 줄이 21이라 위아래 12씩 넓혀 누르는 자리를 44 넘게 둔다.
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="link" hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}>
       <Text style={styles.link}>{label}</Text>
     </Pressable>
   );
@@ -288,6 +288,6 @@ const styles = StyleSheet.create({
   legal: { alignItems: 'center', gap: space[1] },
   legalText: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
   links: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  link: { ...type.captionBold, color: palette.textMeta },
+  link: { ...type.body2Bold, color: palette.textSub },
   dot: { ...type.caption, color: palette.textDisabled },
 });
