@@ -22,6 +22,7 @@ import { DoneScreen } from '@/components/ui/done-screen';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
 import { ReadingStatus } from '@/components/ui/reading-status';
+import { Toast } from '@/components/ui/toast';
 import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
@@ -2162,11 +2163,6 @@ export default function ReadingPlay() {
           <Text style={styles.proHintText}>{t('reading.proVoiceHint')}</Text>
         </Pressable>
       )}
-      {notice?.kind === 'cloud_fallback' && (
-        <View style={styles.toast}>
-          <Text style={styles.toastText}>{t('reading.cloudFallbackToast')}</Text>
-        </View>
-      )}
 
       <ScrollView
         ref={scrollRef}
@@ -2356,12 +2352,6 @@ export default function ReadingPlay() {
         </View>
       )}
 
-      {notice?.kind === 'jump' && (
-        <View style={[styles.toast, styles.jumpToast]}>
-          <Feather name="rotate-ccw" size={14} color="#fff" />
-          <Text style={styles.toastText}>{t('reading.jumpToast', { text: notice.text })}</Text>
-        </View>
-      )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
       {coachMark === 'next' && <View style={styles.coachAboveControls}>{coachElement}</View>}
 
@@ -2449,6 +2439,10 @@ export default function ReadingPlay() {
           <PrimaryButton label={t('reading.start')} onPress={() => void closeTip()} style={styles.startButton} />
         </View>
       )}
+
+      {/* 토스트는 화면 아래 한 곳 — 아래 버튼 줄(위 12 · 높이 48 · 아래 안전영역+12) 위 12. */}
+      {notice?.kind === 'cloud_fallback' && <Toast icon="info" message={t('reading.cloudFallbackToast')} bottom={insets.bottom + 84} />}
+      {notice?.kind === 'jump' && <Toast icon="info" message={t('reading.jumpToast', { text: notice.text })} bottom={insets.bottom + 84} />}
 
       {script && (
         <>
@@ -2582,11 +2576,8 @@ const styles = StyleSheet.create({
   firstStopText: { ...type.body2Bold, color: palette.blueDeep },
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
-  toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: radius.lg, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
   proHint: { marginHorizontal: space.gutter, marginTop: space[3], paddingVertical: space[2], alignItems: 'center' },
   proHintText: { ...type.body2Bold, color: palette.blueDeep },
-  toastText: { ...type.captionBold, color: palette.onAccent },
-  jumpToast: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, gap: 18 },

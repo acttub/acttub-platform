@@ -62,7 +62,6 @@ const HEX_ALLOWED = {
   'app/(tabs)/reading.tsx': 1,
   'app/challenge-play.tsx': 2,
   'app/login.tsx': 11,
-  'app/reading/play.tsx': 1,
   'components/ad-slot.tsx': 1,
   'components/entry-share-sheet.tsx': 6,
   'components/home-plan-badge.tsx': 2,

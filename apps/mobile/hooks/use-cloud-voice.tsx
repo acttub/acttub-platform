@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { Toast } from '@/components/ui/toast';
 import { palette } from '@/constants/palette';
 import { space } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -129,11 +130,7 @@ export function useCloudVoice({ deferUntilHomeReady = false }: { deferUntilHomeR
         </View>
       </View>
     </Modal>
-    {toast && (
-      <View pointerEvents="none" style={[styles.toast, { bottom: insets.bottom + 96 }]}>
-        <Text style={styles.toastText}>{t('cloudVoice.enabledToast')}</Text>
-      </View>
-    )}
+    {toast && <Toast message={t('cloudVoice.enabledToast')} bottom={insets.bottom + 96} />}
     </>
   );
 
@@ -142,8 +139,6 @@ export function useCloudVoice({ deferUntilHomeReady = false }: { deferUntilHomeR
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', paddingHorizontal: 16 },
-  toast: { position: 'absolute', left: 24, right: 24, borderRadius: 14, backgroundColor: palette.text, paddingVertical: 13, paddingHorizontal: 16, alignItems: 'center' },
-  toastText: { color: palette.onAccent, fontSize: 14, fontWeight: '700' },
   sheet: { maxHeight: '82%', backgroundColor: palette.bg, borderRadius: 22, padding: 20 },
   title: { color: palette.text, fontSize: 21, fontWeight: '900', marginBottom: 12 },
   body: { maxHeight: 360 },
