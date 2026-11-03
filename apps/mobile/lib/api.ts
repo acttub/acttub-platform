@@ -269,6 +269,9 @@ export type BlockedReport = {
 export type PracticeReport = AnalysisReport | ExpressionReport | BlockedReport | PublicPracticeNote;
 // ─── 인증 타입 ──────────────────────────────────────────────────────────────
 
+/** 문의 분류 — 서버 SupportInquiryRules.CATEGORIES 와 같다. 앱 문의·신고(11/3)는 usage·report·bug·billing·account·other 를 쓴다. */
+export type SupportCategory = 'account' | 'billing' | 'refund' | 'usage' | 'bug' | 'report' | 'other' | 'feedback';
+
 export type AuthUser = {
   id: string;
   email: string | null;
@@ -1555,10 +1558,10 @@ export const api = {
    * 앱 안 의견 보내기(SOMA-953). 웹 문의 접수(POST /v2/support/inquiries)에 category 'feedback' 으로 보낸다.
    * 한 IP 10분 5건을 넘으면 429 다.
    */
-  sendFeedback(body: { email: string; body: string }): Promise<{ id: string; created_at: string }> {
+  sendFeedback(body: { email: string; body: string; category?: SupportCategory }): Promise<{ id: string; created_at: string }> {
     return request<{ id: string; created_at: string }>(
       '/v2/support/inquiries',
-      jsonInit({ category: 'feedback', email: body.email, body: body.body }),
+      jsonInit({ category: body.category ?? 'feedback', email: body.email, body: body.body }),
       { auth: true, timeoutMs: 15_000 },
     );
   },

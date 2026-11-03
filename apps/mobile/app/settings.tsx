@@ -65,16 +65,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const openContactMail = async () => {
-    const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent(t('settings.contactSubject'));
-    // canOpenURL 은 안드로이드 11+ 에서 매니페스트 <queries> 에 mailto 가 없으면 메일 앱이 있어도 false 다(10/25 제보).
-    // 바로 열고, 받을 앱이 정말 없어 openURL 이 실패할 때만 주소를 알려 준다.
-    try {
-      await Linking.openURL(url);
-    } catch {
-      void alert({ title: t('settings.contactMailFail'), message: t('settings.contactMailFailBody', { email: 'acttub0527@gmail.com' }) });
-    }
-  };
+
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -127,7 +118,8 @@ export default function SettingsScreen() {
             onPress={() => void openContactLink(KAKAO_OPEN_CHAT_URL, KAKAO_OPEN_CHAT_URL)}
           />
         )}
-        <SettingsCard icon="mail" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => void openContactMail()} />
+        {/* 문의·신고는 앱 안 창구로 받는다(11/3, 메일 대신) — 분류를 고르고 보내면 팀 문의함에 계정과 함께 쌓인다. */}
+        <SettingsCard icon="alert-circle" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => router.push({ pathname: '/feedback', params: { kind: 'support' } })} />
 
         <SectionTitle>{t('settings.sectionEtc')}</SectionTitle>
         <SettingsCard icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
