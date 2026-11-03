@@ -243,19 +243,20 @@ describe('불러오기', () => {
     await render(<ChallengePlayScreen />);
     expect(await screen.findByText('없는 챌린지예요.')).toBeOnTheScreen();
     expect(mocked.getChallenge).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
   test.each([
     ['게스트', serverError(403, 'member_only'), '챌린지는 회원만 이용할 수 있어요.'],
     ['연결 끊김', serverError(503, 'unavailable'), '연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.'],
-  ])('챌린지를 못 받으면(%s) 이유와 닫기를 보여 준다', async (_name, error, message) => {
+  ])('챌린지를 못 받으면(%s) 이유와 뒤로·다시 시도를 보여 준다', async (_name, error, message) => {
     mocked.getChallenge.mockRejectedValue(error);
     await render(<ChallengePlayScreen />);
     expect(await screen.findByText(message)).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '닫기' })).toBeOnTheScreen();
-    expect(screen.queryByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeOnTheScreen();
+    expect(screen.queryByText('첫 번째로 참여해 보세요.')).not.toBeOnTheScreen();
   });
 
   test('내 참여작이 있어도 목록 실패가 404 가 아니면 오류로 알린다', async () => {
@@ -288,8 +289,7 @@ describe('참여작이 없을 때', () => {
     mocked.listChallengeEntries.mockResolvedValue(entriesPage([]));
     await render(<ChallengePlayScreen />);
 
-    expect(await screen.findByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.')).toBeOnTheScreen();
-    expect(screen.getByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
+    expect(await screen.findByText('첫 번째로 참여해 보세요.')).toBeOnTheScreen();
     expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: endsWith('나도 이 대사 연기하기') }));
@@ -299,23 +299,7 @@ describe('참여작이 없을 때', () => {
     });
     expect(logged('challenge_perform_tap')).toEqual([{ id: 'c1' }]);
 
-    const buttons = screen.getAllByRole('button');
-    await fireEvent.press(buttons[0]);
-    expect(mockRouter.back).toHaveBeenCalledTimes(1);
-  });
-
-  test('닫기(X)는 이름이 있고 상태바 높이만큼 내려와 눌린다 (SOMA-993)', async () => {
-    mocked.listChallengeEntries.mockResolvedValue(entriesPage([]));
-    const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 40, left: 0, right: 0, bottom: 20 } };
-    await render(
-      <SafeAreaProvider initialMetrics={metrics}>
-        <ChallengePlayScreen />
-      </SafeAreaProvider>,
-    );
-    await screen.findByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.');
-    const close = screen.getByRole('button', { name: '닫기' });
-    expect(StyleSheet.flatten(close.props.style)).toEqual(expect.objectContaining({ position: 'absolute', top: 48 }));
-    await fireEvent.press(close);
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
@@ -327,8 +311,8 @@ describe('참여작이 없을 때', () => {
       next_cursor: null,
     });
     await render(<ChallengePlayScreen />);
-    expect(await screen.findByText('아직 다른 배우의 참여작이 없어요. 내 참여작은 프로필에서 볼 수 있어요.')).toBeOnTheScreen();
-    expect(screen.queryByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.')).not.toBeOnTheScreen();
+    expect(await screen.findByText('아직 다른 배우의 참여작이 없어요')).toBeOnTheScreen();
+    expect(screen.queryByText('첫 번째로 참여해 보세요.')).not.toBeOnTheScreen();
     expect(screen.getByRole('button', { name: endsWith('한 번 더 찍기') })).toBeOnTheScreen();
   });
 
@@ -336,7 +320,7 @@ describe('참여작이 없을 때', () => {
     mocked.getChallenge.mockResolvedValue(challenge({ ends_at: new Date(Date.now() - DAY).toISOString() }));
     mocked.listChallengeEntries.mockResolvedValue(entriesPage([]));
     await render(<ChallengePlayScreen />);
-    await screen.findByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.');
+    await screen.findByText('첫 번째로 참여해 보세요.');
     expect(screen.queryByRole('button', { name: endsWith('나도 이 대사 연기하기') })).not.toBeOnTheScreen();
   });
 });
@@ -989,7 +973,7 @@ describe('반응 메뉴', () => {
     await openMenu();
     await fireEvent.press(screen.getByText('이 사용자 차단'));
     await fireEvent.press(screen.getByText('차단하기'));
-    expect(await screen.findByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('첫 번째로 참여해 보세요.')).toBeOnTheScreen();
     expect(mocked.blockUser).toHaveBeenCalledWith('u-minji', true);
   });
 

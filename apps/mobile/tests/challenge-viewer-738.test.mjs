@@ -29,7 +29,8 @@ test('SOMA-738: 뷰어는 챌린지 id 없이도 열리고, 불러오는 중·�
   const play = read('app/challenge-play.tsx');
   assert.match(play, /if \(!id && !entryId\) return;/);
   assert.match(play, /api\.getEntry\(entryId\)/);
-  assert.match(play, /\(entries === null \|\| !!error\)/);
+  assert.match(play, /\{entries === null && \(/);
+  assert.match(play, /\{!!error && \(\s*<StatusScreen[\s\S]*?onBack=/);
   assert.match(play, /challenges\.playFailTitle/);
   assert.match(play, /statusChange/);
 });

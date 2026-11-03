@@ -27,6 +27,8 @@ import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { MASCOT } from '@/components/ui/mascot';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { Toast } from '@/components/ui/toast';
 import { ScrimGradient } from '@/components/ui/band-gradient';
 import { palette } from '@/constants/palette';
@@ -96,6 +98,8 @@ export default function ChallengePlayScreen() {
   const [playFailed, setPlayFailed] = useState(false);
   /** 「다시 시도」를 누를 때마다 올라가 같은 참여작의 영상을 다시 받는다. */
   const [retryTick, setRetryTick] = useState(0);
+  /** 목록을 못 받았을 때 「다시 시도」로 처음부터 다시 받는다. */
+  const [reload, setReload] = useState(0);
   // 모자이크를 잠시 빼고 원본으로 보는 내 참여작(SOMA-809). 다른 참여작으로 넘기면 그 참여작은 모자이크본이다.
   const [originalFor, setOriginalFor] = useState<string | null>(null);
   const resumeAt = useRef(0);
@@ -176,7 +180,7 @@ export default function ChallengePlayScreen() {
     return () => {
       alive = false;
     };
-  }, [entryId, id]);
+  }, [entryId, id, reload]);
 
   // 보던 맨 끝 참여작을 신고로 빼면 보던 자리가 비므로 효과가 돌기 전에 남은 마지막 참여작으로 당긴다.
   if (entries?.length && active >= entries.length) setActive(entries.length - 1);
@@ -612,41 +616,43 @@ export default function ChallengePlayScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style="light" />
-      {!!error && (
-        <View style={[styles.error, { paddingTop: 56 + insets.top }]}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-      {/* 불러오는 중이거나 실패했을 때도 항상 닫을 수 있게 한다(SOMA-738). */}
-      {(entries === null || !!error) && (
+      <StatusBar style={error || entries?.length === 0 ? 'dark' : 'light'} />
+      {/* 불러오는 중에도 항상 닫을 수 있게 한다(SOMA-738). */}
+      {entries === null && (
         <View style={[styles.loadingClose, { paddingTop: 8 + insets.top }]} pointerEvents="box-none">
           <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="challenge_play_close">
             <Feather name="x" size={24} color={palette.onAccent} />
           </Pressable>
         </View>
       )}
+      {!!error && (
+        <StatusScreen
+          safeArea
+          header={t('challenges.entryTitle')}
+          onBack={() => router.back()}
+          title={t('challenges.loadFailTitle')}
+          body={error}
+          primary={{
+            label: t('common.retry'),
+            onPress: () => {
+              setError(null);
+              setEntries(null);
+              setReload((n) => n + 1);
+            },
+          }}
+        />
+      )}
       {entries !== null && entries.length === 0 && !error && (
-        <View style={[styles.emptyWrap, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
-          {/* 감싼 칸의 paddingTop 은 absolute 자식에 안 먹는다 — 상태바 높이를 직접 더해야 X가 상태바 아래에서 눌린다(SOMA-993). */}
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.close')}
-            ph-label="challenge_play_close"
-            style={[styles.emptyClose, { top: insets.top + space[2] }]}>
-            <Feather name="x" size={24} color={palette.onAccent} />
-          </Pressable>
-          <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
-          <Text style={styles.empty}>{t(entered ? 'challenges.emptyOthers' : 'challenges.emptyEntries')}</Text>
-          {challenge && !isEnded(challenge) && (
-            <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
-              <Feather name="video" size={16} color={palette.onAccent} />
-              <Text style={styles.performText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
-            </Pressable>
-          )}
-        </View>
+        <StatusScreen
+          safeArea
+          kind="empty"
+          mascot={MASCOT.shy}
+          header={t('challenges.entryTitle')}
+          onBack={() => router.back()}
+          title={t(entered ? 'challenges.emptyOthersTitle' : 'challenges.emptyEntriesTitle')}
+          body={t(entered ? 'challenges.emptyOthersSub' : 'challenges.emptyEntriesSub')}
+          primary={challenge && !isEnded(challenge) ? { label: t(entered ? 'challenges.performAgainCta' : 'challenges.performCta'), onPress: perform } : undefined}
+        />
       )}
       {entries !== null && entries.length > 0 && (
         <FlatList
@@ -743,12 +749,7 @@ const MEDIA_TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset
 
 const styles = StyleSheet.create({
   playFail: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
-  error: { position: 'absolute', left: 0, right: 0, paddingHorizontal: space.gutter },
-  errorText: { ...type.body2, color: palette.onAccent, textAlign: 'center' },
   loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space[4] },
-  emptyWrap: { flex: 1, padding: space[6], gap: space[3], justifyContent: 'center' },
-  emptyClose: { position: 'absolute', top: space[4], left: space[4] },
-  empty: { ...type.body1, color: palette.onMediaSub },
   root: { flex: 1, backgroundColor: palette.text },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
