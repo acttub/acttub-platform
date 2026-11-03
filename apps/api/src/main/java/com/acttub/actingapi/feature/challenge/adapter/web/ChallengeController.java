@@ -5,7 +5,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Card;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Listing;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService;
-import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
+import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Draft;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;

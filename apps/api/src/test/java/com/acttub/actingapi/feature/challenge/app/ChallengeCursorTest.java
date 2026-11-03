@@ -28,7 +28,7 @@ class ChallengeCursorTest {
         assertThat(ChallengeCursor.decode(null, "popular", viewer, "")).isNull();
         assertThat(ChallengeCursor.decode(" ", "popular", viewer, "")).isNull();
         assertThat(ChallengeCursor.decode(raw("1", "popular", viewer, "가지", "2026-10-01T00:00:00Z", "3", "4"), "popular", viewer, "가지"))
-                .isEqualTo(new ChallengeCursor(Instant.parse("2026-10-01T00:00:00Z"), card, 3, 4));
+                .isEqualTo(new ChallengeRepository.Position(Instant.parse("2026-10-01T00:00:00Z"), card, 3, 4));
         assertThatThrownBy(() -> ChallengeCursor.decode("a".repeat(4097), "popular", viewer, "")).hasMessage("cursor too long");
         assertThatThrownBy(() -> ChallengeCursor.decode(raw("2", "popular", viewer, "", "2026-10-01T00:00:00Z", "0", "0"), "popular", viewer, ""))
                 .hasMessage("cursor scope changed");

@@ -1,7 +1,7 @@
 package com.acttub.actingapi.feature.admin.adapter.web;
 
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Card;
-import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
+import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Draft;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService;
 import com.acttub.actingapi.feature.support.app.SupportInquiryRules;
 import com.acttub.actingapi.feature.support.app.SupportInquiryService;

@@ -12,6 +12,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Card;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Listing;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Participant;
+import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Position;
 import com.acttub.actingapi.feature.challenge.app.ChallengeCursor;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import jakarta.persistence.EntityManager;
@@ -49,7 +50,7 @@ class PostgresChallengeBrowse {
         return rows.isEmpty() ? null : cards(rows, viewer).getFirst();
     }
 
-    Listing list(UUID viewer, String tab, String search, Instant now, ChallengeCursor cursor) {
+    Listing list(UUID viewer, String tab, String search, Instant now, Position cursor) {
         List<Tuple> featured = List.of();
         if (search.isEmpty() && ("popular".equals(tab) || "latest".equals(tab))) {
             featured = NativeTuples.list(em.createNativeQuery(SELECT + " WHERE " + VISIBLE

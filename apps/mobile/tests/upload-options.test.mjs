@@ -10,10 +10,9 @@ stubModules({
   '@react-native-async-storage/async-storage': 'export default globalThis.__uploadOptions.storage;',
   '@/lib/api': `const s = globalThis.__uploadOptions;
     export const api = { purgeVideoFile: async (id) => { if (s.purgeFails) throw new Error('down'); s.purged.push(id); return { id }; } };`,
-  '@/lib/library/library-runner': `const s = globalThis.__uploadOptions;
-    export const forgetLocalCopy = async (id) => { s.forgot.push(id); };`,
 });
 const opts = await import('../lib/practice/upload-options.ts');
+const forget = async (id) => { state.forgot.push(id); };
 
 beforeEach(() => {
   state.storage = memoryStorage();
@@ -24,25 +23,25 @@ beforeEach(() => {
 
 test('지우기를 고른 회차만 기억하고, 노트가 열리면 서버에 파일 파기를 요청한 뒤 잊는다', async () => {
   assert.equal(await opts.isPurgeAfterAnalysis('p1'), false);
-  assert.equal(await opts.purgeVideoFileIfDue('p1'), false);
+  assert.equal(await opts.purgeVideoFileIfDue('p1', forget), false);
   await opts.rememberPurgeAfterAnalysis('p1', 'v1');
   assert.equal(await opts.isPurgeAfterAnalysis('p1'), true);
   assert.equal(await opts.isPurgeAfterAnalysis('p2'), false);
 
-  assert.equal(await opts.purgeVideoFileIfDue('p1'), true);
+  assert.equal(await opts.purgeVideoFileIfDue('p1', forget), true);
   assert.deepEqual(state.purged, ['v1']);
   assert.deepEqual(state.forgot, ['v1']);
   assert.equal(await opts.isPurgeAfterAnalysis('p1'), false);
-  assert.equal(await opts.purgeVideoFileIfDue('p1'), false);
+  assert.equal(await opts.purgeVideoFileIfDue('p1', forget), false);
 });
 
 test('파기 요청이 실패하면 적어 둔 채로 남겨 다음에 다시 시도한다', async () => {
   await opts.rememberPurgeAfterAnalysis('p3', 'v3');
   state.purgeFails = true;
-  assert.equal(await opts.purgeVideoFileIfDue('p3'), false);
+  assert.equal(await opts.purgeVideoFileIfDue('p3', forget), false);
   assert.equal(await opts.isPurgeAfterAnalysis('p3'), true);
   state.purgeFails = false;
-  assert.equal(await opts.purgeVideoFileIfDue('p3'), true);
+  assert.equal(await opts.purgeVideoFileIfDue('p3', forget), true);
   assert.deepEqual(state.purged, ['v3']);
 });
 
