@@ -243,8 +243,8 @@ const BAR_COLOR: Record<string, string> = {
   practical: palette.blue,
   transcript: palette.textMeta,
   csat: palette.textDisabled,
-  interview: palette.green,
-  portfolio: palette.amber,
+  interview: palette.blueDeep,
+  portfolio: palette.iconFaint,
   other: palette.border,
 };
 
@@ -556,10 +556,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeOfficial: { backgroundColor: palette.blueSoft },
-  badgeAcademy: { backgroundColor: palette.dangerSoft },
+  badgeAcademy: { backgroundColor: palette.amberSoft },
   badgeText: { ...type.micro, color: palette.textSub },
   badgeTextOfficial: { color: palette.blueDeep },
-  badgeTextAcademy: { color: palette.danger },
+  badgeTextAcademy: { color: palette.amber },
   publisher: { flex: 1, ...type.micro, color: palette.textMeta },
   resourceTitle: { ...type.body2Bold, color: palette.text },
   foot: { marginTop: space[2], ...type.caption, color: palette.textMeta },
