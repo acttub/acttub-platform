@@ -29,7 +29,7 @@ final class AdAdminDtos {
             List<String> slots,
             String audience,
             Integer priority,
-            @Schema(description = "우리 앱 광고(house)의 노출 비율 0~100 %. 비면 50. 나머지는 AdMob. direct 는 무시.")
+            @Schema(description = "칸에서 이 광고가 나갈 비율 0~100 %. 만들 때 비면 house 50·direct 100. 직접 → 우리 앱 → AdMob 순서로 쌓인다.")
             Integer sharePercent,
             String advertiserName,
             String headline,
@@ -45,7 +45,7 @@ final class AdAdminDtos {
         AdDraft toDraft() {
             return new AdDraft(kind, status, slots, audience, priority == null ? 0 : priority, advertiserName,
                     headline, body, imageLargeBanner, imageBanner, imageMediumRectangle, linkUrl, appPath, startsAt, endsAt,
-                    Ad.HOUSE.equals(kind) && sharePercent != null ? sharePercent : AdDraft.DEFAULT_SHARE_PERCENT);
+                    sharePercent != null ? sharePercent : AdDraft.defaultSharePercent(kind));
         }
 
         static AdFields of(AdDraft d) {
@@ -70,7 +70,7 @@ final class AdAdminDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> slots,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String audience,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int priority,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "우리 앱 광고(house)의 노출 비율 0~100 %, 나머지는 AdMob. direct 는 쓰지 않는다(50).") int sharePercent,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "칸에서 이 광고가 나갈 비율 0~100 %. 직접 → 우리 앱 → AdMob 순서로 쌓인다.") int sharePercent,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String advertiserName,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String headline,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String body,

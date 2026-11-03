@@ -9,10 +9,11 @@ import com.acttub.actingapi.feature.support.app.SupportInquiryStore.Inquiry;
 import com.acttub.actingapi.feature.support.app.SupportInquiryStore.NewInquiry;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiValidationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 로그인 없이 받는 웹 문의 (app.support-inquiry). 접수는 DB 커밋으로 끝나고 메일은 보내지 않는다.
+ * 로그인 없이 받는 웹 문의 (app.support-inquiry). 접수는 DB 커밋으로 끝나고 메일은 보내지 않는다. 팀에는 Slack 으로 알린다(11/3).
  * 이메일·본문은 개인정보라 로그에 남기지 않는다.
  */
 @Service
@@ -20,10 +21,17 @@ public class SupportInquiryService {
 
     private final SupportInquiryStore store;
     private final Clock clock;
+    private final SupportInquiryNotifier notifier;
 
     public SupportInquiryService(SupportInquiryStore store, Clock clock) {
+        this(store, clock, SupportInquiryNotifier.NONE);
+    }
+
+    @Autowired
+    public SupportInquiryService(SupportInquiryStore store, Clock clock, SupportInquiryNotifier notifier) {
         this.store = store;
         this.clock = clock;
+        this.notifier = notifier == null ? SupportInquiryNotifier.NONE : notifier;
     }
 
     public record Accepted(UUID id, Instant createdAt) {
@@ -55,6 +63,8 @@ public class SupportInquiryService {
         UUID id = UUID.randomUUID();
         Instant now = clock.instant();
         store.insert(new NewInquiry(id, category, trimmedEmail, trimmedBody, userId, trimmedClient), now);
+        // 커밋한 뒤 팀에 알린다(Slack). 알림 실패는 접수에 영향이 없다.
+        notifier.accepted(new SupportInquiryNotifier.Notice(id, category, trimmedBody, userId != null, trimmedClient));
         return new Accepted(id, now);
     }
 

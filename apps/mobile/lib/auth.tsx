@@ -38,6 +38,7 @@ import {
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { lastProviderStore } from '@/lib/last-provider';
+import { afterHomeReady } from '@/lib/launch-splash';
 import { clearAccountCache, clearLocalAccountData } from '@/lib/local-account-data';
 import {
   emailConflictNotice,
@@ -329,7 +330,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const gatePassed =
     status === 'signedIn' && consentEntry.status === 'allowed' && profile.status === 'complete';
   useEffect(() => {
-    if (gatePassed) void syncNotificationsAfterGate().catch(() => undefined);
+    // 앱을 켤 때는 홈 첫 화면에 필요한 기록을 다 받은 뒤에 맞춘다(lib/launch-splash afterHomeReady).
+    if (gatePassed) void afterHomeReady().then(syncNotificationsAfterGate).catch(() => undefined);
   }, [gatePassed, user?.id]);
 
   // 0.1.0 이전 앱이 기기에 남긴 대본은 게이트를 지난 뒤 한 번 서버로 옮긴다(reading.script). 보호 기능이라

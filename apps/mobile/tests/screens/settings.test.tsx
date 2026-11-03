@@ -402,29 +402,37 @@ describe('설정', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/ui-preview');
   });
 
-  describe('문의·신고 메일', () => {
-    test('canOpenURL 이 false 여도(안드로이드 11+ 패키지 가시성) 묻지 않고 제목을 채워 연다', async () => {
-      const canOpen = jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
+  describe('문의·신고', () => {
+    test('메일 앱을 열지 않고 앱 안 문의·신고 창구로 간다', async () => {
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
 
-      await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));
+      await fireEvent.press(screen.getByRole('button', { name: '문의·신고하기' }));
 
-      await waitFor(() =>
-        expect(openURL).toHaveBeenCalledWith(`mailto:acttub0527@gmail.com?subject=${encodeURIComponent('[Acttub] 문의·신고')}`),
-      );
-      expect(canOpen).not.toHaveBeenCalled();
-      expect(screen.queryByText('메일 앱을 열지 못했어요')).not.toBeOnTheScreen();
+      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/feedback', params: { kind: 'support' } });
+      expect(openURL).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('문의 연락처', () => {
+    test('인스타·메일은 설정에 없고(홈 맨 아래에만), 오픈채팅 줄은 문의방 링크를 연다', async () => {
+      const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+      await settingsLoaded();
+      expect(screen.queryByText('인스타그램 DM으로 문의')).not.toBeOnTheScreen();
+      expect(screen.queryByText(/acttub0527@gmail\.com/)).not.toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: '카카오톡 오픈채팅으로 문의' }));
+      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://open.kakao.com/o/s9tVEoVi'));
     });
 
-    test('받을 메일 앱이 정말 없어 열기가 실패하면 주소를 알려 준다', async () => {
-      jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('No Activity found to handle Intent'));
+    test('오픈채팅을 열지 못하면 링크를 알려 준다', async () => {
+      jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no app'));
       await settingsLoaded();
 
-      await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));
+      await fireEvent.press(screen.getByRole('button', { name: '카카오톡 오픈채팅으로 문의' }));
 
-      expect(await screen.findByText('메일 앱을 열지 못했어요')).toBeOnTheScreen();
-      expect(screen.getByText('acttub0527@gmail.com 으로 보내 주세요.')).toBeOnTheScreen();
+      expect(await screen.findByText('열지 못했어요')).toBeOnTheScreen();
+      expect(screen.getByText('https://open.kakao.com/o/s9tVEoVi')).toBeOnTheScreen();
     });
   });
 

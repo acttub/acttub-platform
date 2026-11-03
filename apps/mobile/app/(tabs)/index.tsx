@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
-import { BackHandler, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
+import { BackHandler, type LayoutChangeEvent, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -49,7 +49,8 @@ import { homePlan, settingsTarget } from '@/lib/billing';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
-import { markHomeReady } from '@/lib/launch-splash';
+import { afterHomeReady, markHomeReady } from '@/lib/launch-splash';
+import { INSTAGRAM_HANDLE, INSTAGRAM_PROFILE_URL, SUPPORT_EMAIL } from '@/lib/contact-channels';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -200,9 +201,12 @@ export default function HomeScreen() {
     });
   }, []);
 
+  // 마지막 기록 읽기 — 이 계정으로 다 받았으면 true. 게이트가 열릴 때 다시 읽을지 정한다(아래 gateOpen).
+  const recordsRead = useRef<Promise<boolean>>(Promise.resolve(false));
   // 기록(연습 묶음·대본·리딩 회차·참여작)을 읽는다. 화면에 들어올 때와 맨 위에서 당길 때 같이 쓴다 —
   // 당길 때는 첫 안내·튜토리얼을 다시 띄우지 않도록 이 부분만 다시 부른다.
   const loadRecords = useCallback((isCancelled: () => boolean) => {
+    let groupsOk = true;
     const groupsRead = api
       .listPracticeGroups('all')
       .then((r) => {
@@ -213,6 +217,7 @@ export default function HomeScreen() {
         return r.groups;
       })
       .catch(() => {
+        groupsOk = false;
         if (!isCancelled()) {
           setGroups([]);
           setGroupsFailed(true);
@@ -260,7 +265,7 @@ export default function HomeScreen() {
       .then(() => api.practiceDays())
       .then((r) => r.days)
       .catch(() => [] as string[]);
-    return Promise.all([groupsRead, scriptsRead, readingRead, entriesRead, serverDaysRead]).then(async ([groupList, scriptList, readingSessions, entries, serverDays]) => {
+    const run = Promise.all([groupsRead, scriptsRead, readingRead, entriesRead, serverDaysRead]).then(async ([groupList, scriptList, readingSessions, entries, serverDays]) => {
       // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
       if (isCancelled()) return;
       // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
@@ -287,7 +292,12 @@ export default function HomeScreen() {
       return rememberPracticeDays(records, currentFirstUseOwner()).then((days) => {
         if (!isCancelled()) setActivityDays(days);
       });
-    });
+    }).then(
+      () => !isCancelled() && groupsOk && !readFailed && currentFirstUseOwner() !== null,
+      () => false,
+    );
+    recordsRead.current = run;
+    return run;
   }, []);
   const homeFocused = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -339,10 +349,19 @@ export default function HomeScreen() {
     const opened = gateOpen && !gateWasOpen.current;
     gateWasOpen.current = gateOpen;
     if (!opened) return;
-    // 로그인 전·게이트 전에 읽은(실패했거나 계정을 모르고 센) 기록은 버리고 뼈대로 돌린다 — 로그인 직후 「이번 주 연습」이
-    // 빈 칸으로 보였다가 나중에 채워지던 것(11/2 폰 QA). 지금 홈에 있으면 바로 다시 읽고, 아니면 홈에 올 때 읽는다.
-    setActivityDays(null);
-    if (homeFocused.current) void loadRecords(() => !homeFocused.current);
+    // 게이트 전에 읽은 기록을 이 계정으로 다 받았으면 다시 읽지 않는다 — 앱을 켤 때마다 같은 기록을 두 번 받았다(11/3 측정).
+    // 받는 중이면 끝나기를 기다린다.
+    let stale = false;
+    void recordsRead.current.then((ok) => {
+      if (ok || stale) return;
+      // 로그인 전·게이트 전에 읽은(실패했거나 계정을 모르고 센) 기록은 버리고 뼈대로 돌린다 — 로그인 직후 「이번 주 연습」이
+      // 빈 칸으로 보였다가 나중에 채워지던 것(11/2 폰 QA). 지금 홈에 있으면 바로 다시 읽고, 아니면 홈에 올 때 읽는다.
+      setActivityDays(null);
+      if (homeFocused.current) void loadRecords(() => !homeFocused.current);
+    });
+    return () => {
+      stale = true;
+    };
   }, [gateOpen, loadRecords]);
 
   useEffect(() => {
@@ -350,9 +369,11 @@ export default function HomeScreen() {
     if (!isKorean()) return;
     let cancelled = false;
     // 오디션 공고는 한국 공고뿐이고(app.audition) 하루 두 번 바뀐다 — 입시와 같이 홈을 열 때 한 번만 읽는다.
-    api
-      .auditions()
+    // 홈 첫 화면에 필요한 기록을 다 받은 뒤에 부른다(lib/launch-splash afterHomeReady).
+    afterHomeReady()
+      .then(() => (cancelled ? null : api.auditions()))
       .then((data) => {
+        if (data === null) return;
         if (!cancelled) setAuditions(data);
       })
       .catch(() => {
@@ -903,6 +924,7 @@ export default function HomeScreen() {
             ))}
           </View>
 
+
           {/* 연기 입시(입시생만)·오디션 마감 임박 — 가까운 마감 두 줄씩(pen P1.1). 없으면 구역째 그리지 않는다(P1.3). */}
           {deadlineBlocks.map((block) => (
             <View key={block.key} style={styles.deadlineBlock}>
@@ -933,6 +955,17 @@ export default function HomeScreen() {
               </View>
             </View>
           ))}
+          {/* 팀 연락처(11/3 사용자: 인스타·메일은 홈 맨 아래에만) — 인스타 계정을 누르면 프로필이 열린다. 메일은 글자만. */}
+          <Text style={styles.contactFooter}>
+            <Text
+              style={styles.contactFooterLink}
+              onPress={() => void Linking.openURL(INSTAGRAM_PROFILE_URL).catch(() => undefined)}
+              accessibilityRole="link"
+              accessibilityLabel={t('home.contactInstagramA11y', { handle: INSTAGRAM_HANDLE })}>
+              {t('home.contactInstagram', { handle: INSTAGRAM_HANDLE })}
+            </Text>
+            {` · ${t('home.contactEmail', { email: SUPPORT_EMAIL })}`}
+          </Text>
           </View>
         </ScrollView>
       )}
@@ -1261,6 +1294,8 @@ const TODAY_CARD_SKELETON_HEIGHT = 140;
 const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
 
 const styles = StyleSheet.create({
+  contactFooter: { ...type.caption, color: palette.textMeta, textAlign: 'center', marginTop: space[6] },
+  contactFooterLink: { ...type.caption, color: palette.textSub, textDecorationLine: 'underline' },
   safe: { flex: 1, backgroundColor: palette.bg },
   safeHero: { backgroundColor: '#E4EEFC' },
   scrollBg: { backgroundColor: '#F7FAFE' },

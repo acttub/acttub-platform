@@ -62,12 +62,13 @@ test('받기 전에는 자리를 잡고, NONE 이면 비운다', async () => {
   await waitFor(() => expect(view.toJSON()).toBeNull());
 });
 
-test('NETWORK 배너 칸은 좌우를 채우는 인라인 적응형 AdMob 배너(규격 높이까지, 테스트 단위)를 그린다', async () => {
+test('NETWORK 배너 칸은 규격 크기 AdMob 배너를 좌우 끝까지 깐 띠 가운데에 그린다(테스트 단위)', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
   await render(<AdSlot slot="home_top" />);
   const banner = await screen.findByTestId('admob-banner');
-  expect(banner.props.size).toBe('INLINE_ADAPTIVE_BANNER');
-  expect(banner.props.maxHeight).toBe(50);
+  // 적응형은 안 맞는 광고를 검은 띠로 채우거나 눌렀다(11/3 폰 QA) — 규격 크기로 받는다.
+  expect(banner.props.size).toBe('BANNER');
+  expect(banner.props.maxHeight).toBeUndefined();
   expect(banner.props.unitId).toMatch(/^ca-app-pub-3940256099942544\//);
 });
 
@@ -79,11 +80,11 @@ test('300×250 칸은 좌우로 늘리지 않고 고정 규격 AdMob 배너 그�
   expect(banner.props.maxHeight).toBeUndefined();
 });
 
-test('anchored 면 AdMob 은 좌우를 채우는 적응형 배너로 그린다', async () => {
+test('anchored 도 AdMob 은 규격 크기다 — 적응형은 안 맞는 광고 양옆·위아래를 검게 채웠다', async () => {
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'BANNER', width: 320, height: 50, ad: null });
   await render(<AdSlot slot="community_list_top" anchored />);
   const banner = await screen.findByTestId('admob-banner');
-  expect(banner.props.size).toBe('ANCHORED_ADAPTIVE_BANNER');
+  expect(banner.props.size).toBe('BANNER');
 });
 
 test('직접 광고는 「광고」 라벨과 함께 그리고, 이미지가 뜨면 노출·누르면 클릭을 남기고 광고주 링크를 앱 밖으로 연다', async () => {
@@ -132,6 +133,31 @@ test('NETWORK 배너가 정해진 시간 안에 안 채워지면 칸을 접는�
   getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'LARGE_BANNER', width: 320, height: 100, ad: null });
   const view = await render(<AdSlot slot="community_list_top" fillTimeoutMs={30} />);
   await screen.findByTestId('admob-banner');
+  await waitFor(() => expect(view.toJSON()).toBeNull());
+});
+
+// 11/3 사용자 「admob 이 안 올 때 pro 홍보 배너로 채우자」(SOMA-1030)
+const proFallback = creative({ id: 'pro-1', image_url: 'https://cdn/pro.png', app_path: '/pro', advertiser_name: 'Pro 홍보' });
+
+test('AdMob 이 실패하면 칸을 접지 않고 fallback 우리 앱 광고(Pro 홍보)로 채우고, 누르면 그 경로로 간다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null, fallback: proFallback });
+  await render(<AdSlot slot="home_top" />);
+  const banner = await screen.findByTestId('admob-banner');
+  await act(async () => banner.props.onAdFailedToLoad());
+  const image = await screen.findByTestId('ad-image');
+  expect(screen.queryByTestId('admob-banner')).toBeNull();
+  await act(async () => image.props.onLoad());
+  expect(recordAdEvent).toHaveBeenCalledWith('pro-1', 'home_top', 'impression');
+  fireEvent.press(screen.getByLabelText('광고 Pro 홍보'));
+  expect(mockPush).toHaveBeenCalledWith('/pro');
+});
+
+test('AdMob 이 시간 안에 안 채워져도 fallback 으로 채우고, fallback 이미지가 깨지면 그때 접는다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'community_list_top', size: 'LARGE_BANNER', width: 320, height: 100, ad: null, fallback: proFallback });
+  const view = await render(<AdSlot slot="community_list_top" fillTimeoutMs={30} />);
+  await screen.findByTestId('admob-banner');
+  const image = await screen.findByTestId('ad-image');
+  await act(async () => image.props.onError());
   await waitFor(() => expect(view.toJSON()).toBeNull());
 });
 

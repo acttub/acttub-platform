@@ -23,14 +23,23 @@ import java.util.function.IntSupplier;
  * </ol>
  * 같은 단계 후보가 여럿이면 priority 가 가장 큰 것들 중에서 사람·날마다 하나로 돌린다.
  * 우리 앱 광고는 그렇게 고른 광고의 노출 비율(share_percent, 0~100)만큼의 확률로 나가고, 아니면 AdMob(NETWORK)이다 —
- * 칸을 열 때마다 난수 0~99 를 뽑아 비율보다 작으면 우리 광고다. 직접 광고는 비율 없이 늘 먼저 나간다.
+ * 칸을 열 때마다 난수 0~99 를 뽑아 비율보다 작으면 우리 광고다. 직접 광고도 비율만큼 먼저 나가고(100% 면 늘), 남은 몫이 우리 앱 → AdMob 순서다.
+ * 비율에서 져 AdMob 으로 간 경우에는 그 우리 앱 광고를 {@code fallback} 으로 함께 준다 — 앱은 AdMob 이 안 채워지면
+ * 칸을 접지 않고 이것을 그린다(SOMA-1030). 비율 0% 인 광고는 fallback 으로도 쓰지 않는다.
  */
 public final class AdPicker {
 
     public enum Kind { DIRECT, HOUSE, NETWORK, NONE }
 
-    /** 고른 결과. {@code ad} 는 DIRECT·HOUSE 일 때만 있다. */
-    public record Pick(Kind kind, AdSlot slot, Ad ad) {
+    /**
+     * 고른 결과. {@code ad} 는 DIRECT·HOUSE 일 때만 있다. {@code fallback} 은 NETWORK 일 때만, AdMob 이 안 채워지면
+     * 대신 그릴 우리 앱 광고다(없으면 null).
+     */
+    public record Pick(Kind kind, AdSlot slot, Ad ad, Ad fallback) {
+        public Pick(Kind kind, AdSlot slot, Ad ad) {
+            this(kind, slot, ad, null);
+        }
+
         static Pick none(AdSlot slot) {
             return new Pick(Kind.NONE, slot, null);
         }
@@ -64,7 +73,19 @@ public final class AdPicker {
                         && AdRules.validLink(ad.linkUrl()))
                 .toList();
         if (!direct.isEmpty()) {
-            return new Pick(Kind.DIRECT, slot, rotate(direct, viewer.userId(), slot, day));
+            /* 직접 광고도 노출 비율(share_percent)만큼만 나간다. 100% 면 난수 없이 늘 나간다.
+               지면 같은 난수를 직접 광고 몫만큼 당겨 우리 앱 광고에 넘긴다 — 그래서 한 칸의 비율이
+               직접 → 우리 앱 → AdMob 순서로 쌓인다(예: 직접 20 · 우리 앱 30 이면 AdMob 50). */
+            Ad chosen = rotate(direct, viewer.userId(), slot, day);
+            if (chosen.sharePercent() >= AdRules.SHARE_PERCENT_MAX) {
+                return new Pick(Kind.DIRECT, slot, chosen);
+            }
+            int drawn = roll.getAsInt();
+            if (drawn < chosen.sharePercent()) {
+                return new Pick(Kind.DIRECT, slot, chosen);
+            }
+            int rest = drawn - chosen.sharePercent();
+            roll = () -> rest;
         }
         List<Ad> house = candidates.stream()
                 .filter(ad -> Ad.HOUSE.equals(ad.kind()) && ad.targets(slot) && audienceMatches(ad.audience(), viewer.pro())
@@ -72,7 +93,10 @@ public final class AdPicker {
                 .toList();
         if (!house.isEmpty()) {
             Ad chosen = rotate(house, viewer.userId(), slot, day);
-            return roll.getAsInt() < chosen.sharePercent() ? new Pick(Kind.HOUSE, slot, chosen) : new Pick(Kind.NETWORK, slot, null);
+            if (roll.getAsInt() < chosen.sharePercent()) {
+                return new Pick(Kind.HOUSE, slot, chosen);
+            }
+            return new Pick(Kind.NETWORK, slot, null, chosen.sharePercent() > 0 ? chosen : null);
         }
         return new Pick(Kind.NETWORK, slot, null);
     }

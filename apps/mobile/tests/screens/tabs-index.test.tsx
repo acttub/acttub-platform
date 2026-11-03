@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { BackHandler, Platform, ToastAndroid } from 'react-native';
+import { BackHandler, Linking, Platform, ToastAndroid } from 'react-native';
 
 import HomeScreen from '@/app/(tabs)/index';
 import { AnnouncementPoster } from '@/components/announcement-poster';
@@ -268,6 +268,19 @@ describe('첫 사용자', () => {
     expect(await screen.findByText('의견 보내기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('의견 보내기'));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/feedback');
+  });
+
+  test('기본 홈 맨 아래에 인스타 계정·메일 주소가 있고, 인스타를 누르면 프로필이 열린다(11/3)', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
+    hasGraduatedFirstUse.mockImplementation(async (id: string) => id === 'u1');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    const insta = await screen.findByRole('link', { name: '인스타그램 @acttub_com 프로필 열기' });
+    expect(screen.getByText(/메일 acttub0527@gmail\.com/)).toBeOnTheScreen();
+    await fireEvent.press(insta);
+    expect(openURL).toHaveBeenCalledWith('https://www.instagram.com/acttub_com/');
   });
 
   test('기록으로 첫 사용자를 벗어나면 졸업 표시를 남긴다 — 다시 읽기 시작해 대본이 「연습 중」이 돼도 첫 홈으로 돌아가지 않게(11/2)', async () => {
@@ -746,6 +759,40 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     mockAuth.consentEntry = { status: 'allowed' };
     (mockAuth.profile as { status?: string }).status = 'complete';
     await view.rerender(<HomeScreen />);
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+  });
+
+  // 11/3 측정 — 앱을 켤 때마다 동의 확인이 끝나는 순간 같은 기록(묶음·대본·참여작·연습일)을 한 번 더 받았다.
+  test('게이트 전에 읽은 기록을 이 계정으로 다 받았으면 게이트가 열려도 다시 읽지 않는다', async () => {
+    mockAuth.consentEntry = { status: 'checking' };
+    (mockAuth.profile as { status?: string }).status = 'complete';
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    const view = await render(<HomeScreen />);
+    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+
+    mockAuth.consentEntry = { status: 'allowed' };
+    await view.rerender(<HomeScreen />);
+    await act(async () => new Promise((r) => setTimeout(r, 50)));
+    expect(listPracticeGroups).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('1일째! · 누적 1일')).toBeOnTheScreen();
+  });
+
+  test('게이트가 열릴 때 기록을 받는 중이면 끝나기를 기다렸다가, 실패했을 때만 다시 읽는다', async () => {
+    mockAuth.consentEntry = { status: 'checking' };
+    (mockAuth.profile as { status?: string }).status = 'complete';
+    let fail: (error: Error) => void = () => undefined;
+    listPracticeGroups.mockReturnValueOnce(new Promise((_, reject) => (fail = reject)));
+    const view = await render(<HomeScreen />);
+    await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(1));
+
+    listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
+    mockAuth.consentEntry = { status: 'allowed' };
+    await view.rerender(<HomeScreen />);
+    await act(async () => undefined);
+    expect(listPracticeGroups).toHaveBeenCalledTimes(1);
+
+    await act(async () => fail(new Error('consent required')));
     await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
   });

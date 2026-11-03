@@ -66,6 +66,8 @@ export type AdSlotPick = {
   width: number;
   height: number;
   ad: AdCreative | null;
+  /** NETWORK 일 때 AdMob 이 안 채워지면 대신 그릴 우리 앱 광고(SOMA-1030). 옛 서버는 보내지 않는다. */
+  fallback?: AdCreative | null;
 };
 
 /** 광고 칸 모서리·라벨 — 디자인 결정(SOMA-876). */
@@ -176,9 +178,12 @@ export function isHttpLink(url: string | null | undefined): url is string {
 }
 
 /** 서버가 고른 결과가 그릴 수 있는 모양인가. 모르는 kind·이미지 없는 DIRECT 는 그리지 않는다. */
-export function renderableKind(pick: AdSlotPick | null): AdKind {
+export function renderableKind(pick: AdSlotPick | null, options: { korean?: boolean } = {}): AdKind {
   if (!pick) return 'NONE';
   if (pick.kind === 'NETWORK') return 'NETWORK';
+  // 직접·우리 앱 광고 그림과 글은 한국어로만 만든다. 영어로 쓰는 사람에게는 그 칸을 AdMob 으로 채운다 —
+  // AdMob 은 기기 언어·지역에 맞는 광고를 보낸다(11/3 폰 QA: 영어 기기에 한국어 Pro 안내가 떴다).
+  if (options.korean === false && (pick.kind === 'DIRECT' || pick.kind === 'HOUSE')) return 'NETWORK';
   if (pick.kind === 'DIRECT') return pick.ad?.image_url && isHttpLink(pick.ad.link_url) ? 'DIRECT' : 'NONE';
   if (pick.kind === 'HOUSE') {
     if (!pick.ad?.app_path?.startsWith('/')) return 'NONE';

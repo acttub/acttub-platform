@@ -120,7 +120,7 @@ export default function DeleteAccountScreen() {
         </Section>
       </ScrollView>
 
-      {/* 회원 탈퇴만 주 버튼이 위, 「그대로 쓸게요」가 맨 아래(DESIGN-SYSTEM 「의도된 차이」). */}
+      {/* 회원 탈퇴만 주 버튼이 위, 「그대로 쓸게요」가 맨 아래(DESIGN-SYSTEM.html 「의도된 차이」). */}
       <CtaBar>
         <Pressable
           style={[styles.ack, acknowledged && styles.ackOn]}

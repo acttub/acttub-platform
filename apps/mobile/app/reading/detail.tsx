@@ -17,6 +17,7 @@ import { CHIP_TONE, relativeDay } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { sessionCardMeta, sessionChip } from '@/lib/reading/session-cards';
 import { rangeTitle } from '@/lib/reading/session-plan';
+import { lastRead } from '@/lib/last-reads';
 import { deleteScript, deleteSession, getCurrent, listSessions, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
 import type { SessionCard } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
@@ -33,19 +34,25 @@ export default function ReadingDetail() {
   const router = useRouter();
   const { confirm, sheet, alert, dialog } = useAppDialog();
   const [script, setScript] = useState<SavedScript | null>(getCurrent());
-  const [sessions, setSessions] = useState<SessionCard[] | null>(null);
+  // 지난번에 받은 연습 기록이 있으면 바로 그린다 — 대본 본문을 다 받은 뒤에야 기록을 물어 늦게 떴다(11/3 폰 QA).
+  const [sessions, setSessions] = useState<SessionCard[] | null>(() => {
+    const id = getCurrent()?.id;
+    return (id && lastRead<{ sessions: SessionCard[] }>(`readingSessions:${id}`)?.sessions) || null;
+  });
   const [editingTitle, setEditingTitle] = useState(false);
   const mounted = useRef(true);
 
   const load = useCallback(async () => {
     const id = getCurrent()?.id;
     if (!id) return;
+    // 대본 본문과 연습 기록을 같이 묻는다(전에는 본문이 온 뒤에 기록을 물었다).
+    const settling = leavingSavesSettled();
+    const sessionsRead = listSessions(id).catch(() => [] as SessionCard[]);
     const s = await loadIntoCurrent(id);
     if (!mounted.current) return;
     setScript(s ? { ...s } : null);
     if (!s) return;
-    const settling = leavingSavesSettled();
-    const list = await listSessions(s.id).catch(() => []);
+    const list = await sessionsRead;
     if (!mounted.current) return;
     setSessions(list);
     // 리딩에서 바로 나왔으면 마지막 위치 저장(또는 [시작] 전 회차 지우기)이 아직 가는 중일 수 있다 — 다 가면 한 번 더 불러온다.

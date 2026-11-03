@@ -2128,7 +2128,9 @@ export default function ReadingPlay() {
         ref={scrollRef}
         style={styles.flow}
         contentContainerStyle={styles.flowContent}
-        onContentSizeChange={() => !monologue && scrollRef.current?.scrollTo({ y: Math.max(0, dialogueCardY.current - 12), animated: true })}>
+        onContentSizeChange={() => !monologue && scrollRef.current?.scrollTo({ y: Math.max(0, dialogueCardY.current - 12), animated: true })}
+        // 멈추면 아래에 안내 한 줄이 생겨 목록 칸이 낮아진다 — 자리를 다시 맞추지 않으면 「방금 말한 것」 칸 아래가 안내 글에 가려졌다(11/3 폰 QA).
+        onLayout={() => !monologue && scrollRef.current?.scrollTo({ y: Math.max(0, dialogueCardY.current - 12), animated: false })}>
         {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
         {leadLines.map((i) => {
           const l = run.lines[i];
@@ -2590,7 +2592,7 @@ const styles = StyleSheet.create({
   barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blue },
   listenBars: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
   listenBar: { width: 3, borderRadius: 2, backgroundColor: palette.blue },
-  hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10 },
+  hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 },
 
   controls: { flexDirection: 'row', gap: space[2], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
   // 시작 안내가 조작 자리를 대신하는 동안은 자리를 차지하지 않는다.

@@ -10,6 +10,7 @@ import { AppState } from 'react-native';
 
 import { syncStore } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
+import { afterHomeReady } from '@/lib/launch-splash';
 import { useAuth } from '@/lib/auth';
 import { forget, identify, Purchases, revenueCatAvailable, storePlatform } from '@/lib/revenuecat';
 import { storeLive } from '@/lib/billing';
@@ -36,6 +37,8 @@ export function useStoreRecovery(active: boolean): void {
       running.current = true;
       lastRun.current = now;
       try {
+        // 앱을 켤 때는 홈 첫 화면에 필요한 기록을 다 받은 뒤에 묻는다(lib/launch-splash afterHomeReady).
+        await afterHomeReady();
         const me = await api.billingMe().catch(() => null);
         // 스토어 구독이 이미 Pro 여도 앱을 켜거나 돌아올 때 한 번 서버에 다시 읽어 달라고 한다 — 해지 예약·만료는 알림이
         // 늦거나 못 와도 여기서 따라잡는다(SOMA-851).

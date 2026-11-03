@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState, type NativeEventSubscription } from 'react-native';
 
 import { api } from '@/lib/api';
+import { afterHomeReady } from '@/lib/launch-splash';
 import { badgeText } from '@/lib/challenge/notification-center';
 
 /**
@@ -49,7 +50,8 @@ export function useUnreadNotifications(): { count: number; badge: string | null 
         if (state === 'active') void refreshShared();
       });
     }
-    void refreshShared();
+    // 앱을 켤 때는 홈 첫 화면에 필요한 기록을 다 받은 뒤에 묻는다(lib/launch-splash afterHomeReady).
+    void afterHomeReady().then(refreshShared);
     return () => {
       listeners.delete(setCount);
       users -= 1;
