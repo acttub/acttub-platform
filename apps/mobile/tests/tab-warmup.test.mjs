@@ -38,7 +38,7 @@ function fakeClock() {
   };
 }
 
-function harness({ prefetch = () => Promise.resolve(), homeShowing = () => false } = {}) {
+function harness({ prefetch = () => Promise.resolve(), others, homeShowing = () => false } = {}) {
   const clock = fakeClock();
   const warmed = [];
   let homeListener = null;
@@ -52,6 +52,7 @@ function harness({ prefetch = () => Promise.resolve(), homeShowing = () => false
     afterInteractions: (task) => ({ cancel: clock.wait(0, task) }),
     wait: clock.wait,
     prefetchCommunity: prefetch,
+    prefetchOthers: others,
     homeShowing,
     warm: (tab) => warmed.push(tab),
   });
@@ -143,4 +144,31 @@ test('마지막 답: 로그아웃 뒤에 늦게 온 옛 계정 답은 남기지 
   rememberReadIfCurrent('practiceGroups', { groups: [3] }, readGeneration());
   assert.deepEqual(lastRead('practiceGroups'), { groups: [3] });
   resetLastReads();
+});
+
+test('받기는 홈이 뜨는 즉시 시작한다 — 첫 탭을 만들기 시작하는 시간을 기다리지 않는다', async () => {
+  const calls = [];
+  const h = harness({
+    prefetch: () => (calls.push('community'), Promise.resolve()),
+    others: () => (calls.push('others'), Promise.resolve()),
+  });
+  await h.clock.advance(1000);
+  assert.deepEqual(calls, [], '홈이 뜨기 전에는 받지 않는다');
+  h.homeReady();
+  assert.deepEqual(calls, ['community', 'others'], '홈이 뜬 바로 그 순간 함께 시작');
+  assert.deepEqual(h.warmed, [], '탭은 아직 만들지 않았다');
+  await h.clock.advance(WARM_START_DELAY_MS + 5000);
+  assert.deepEqual(calls, ['community', 'others'], '커뮤니티를 만들 때 목록을 다시 받지 않는다');
+  assert.deepEqual(h.warmed, [...WARM_ORDER]);
+});
+
+test('나머지 탭 받기가 실패하거나 끝나지 않아도 탭 만들기는 막지 않는다', async () => {
+  const h = harness({ others: () => Promise.reject(new Error('offline')) });
+  h.homeReady();
+  await h.clock.advance(WARM_START_DELAY_MS + 3000);
+  assert.deepEqual(h.warmed, [...WARM_ORDER]);
+  const h2 = harness({ others: () => new Promise(() => undefined) });
+  h2.homeReady();
+  await h2.clock.advance(WARM_START_DELAY_MS + 3000);
+  assert.deepEqual(h2.warmed, [...WARM_ORDER]);
 });

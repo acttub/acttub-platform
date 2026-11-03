@@ -29,6 +29,8 @@ export type WarmDeps = {
   wait: (ms: number, task: () => void) => () => void;
   /** 커뮤니티를 만들기 전에 받아 둘 목록. 실패해도 넘어간다. */
   prefetchCommunity: () => Promise<unknown>;
+  /** 홈이 뜨는 즉시 함께 시작하는 나머지 탭 몫(리딩 이어 읽기·프로필 이번 달 숫자, lib/tab-prefetch). 기다리지 않는다. */
+  prefetchOthers?: () => Promise<unknown>;
   /** 지금 홈 화면이 떠 있는가 — 떠 있으면 상한이 지나도 홈이 다 그려질 때까지 기다린다. */
   homeShowing: () => boolean;
   warm: (tab: WarmTab) => void;
@@ -39,6 +41,8 @@ export function scheduleTabWarmup(deps: WarmDeps): () => void {
   let stopped = false;
   let started = false;
   const cancels: (() => void)[] = [];
+  /** 커뮤니티 목록 받기 — 홈이 뜨는 순간 시작해 첫 탭을 만들기 전에 이미 가는 중이다. */
+  let community: Promise<unknown> = Promise.resolve();
   const later = (ms: number, task: () => void) => {
     cancels.push(deps.wait(ms, () => !stopped && task()));
   };
@@ -63,13 +67,16 @@ export function scheduleTabWarmup(deps: WarmDeps): () => void {
       went = true;
       run();
     };
-    void deps.prefetchCommunity().catch(() => undefined).then(() => !stopped && go());
+    void community.then(() => !stopped && go());
     later(WARM_PREFETCH_WAIT_MS, go);
   };
 
   const start = () => {
     if (started || stopped) return;
     started = true;
+    // 탭을 만들기 시작하는 것(600ms 뒤)을 기다리지 않고 지금 받기 시작한다 — 사용자가 탭을 누르기 전에 준비를 끝내려고.
+    community = new Promise((resolve) => resolve(deps.prefetchCommunity())).catch(() => undefined);
+    void deps.prefetchOthers?.().catch(() => undefined);
     later(WARM_START_DELAY_MS, () => step(0));
   };
   cancels.push(deps.onHomeReady(start));
