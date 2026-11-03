@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   title: { ...type.title1, color: palette.text },
   meta: { ...type.caption, color: palette.textMeta },
   viewScript: { flexDirection: 'row', alignItems: 'center', gap: space[1], alignSelf: 'flex-start', paddingTop: space[1] },
-  viewScriptText: { ...type.captionBold, color: palette.blueDeep },
+  viewScriptText: { ...type.body2Bold, color: palette.blueDeep },
   sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[2] },
   row: {
     minHeight: 56,

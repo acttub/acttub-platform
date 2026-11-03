@@ -166,7 +166,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
 const styles = StyleSheet.create({
   proNote: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4 },
   proNoteText: { ...type.caption, color: palette.textMeta },
-  proNoteLink: { ...type.captionBold, color: palette.blueDeep },
+  proNoteLink: { ...type.body2Bold, color: palette.blueDeep },
   wrap: { alignSelf: 'stretch', gap: 6, marginTop: 8 },
   card: { backgroundColor: palette.blueSoft, borderRadius: radius.lg, padding: space[4], gap: space[2] },
   title: { ...type.headline, color: palette.text },

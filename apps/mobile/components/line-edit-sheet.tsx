@@ -196,6 +196,6 @@ const styles = StyleSheet.create({
   roleText: { ...type.body2Bold, color: palette.textSub },
   roleTextOn: { color: palette.blueDeep },
   renameLink: { alignSelf: 'flex-start' },
-  renameLinkText: { ...type.caption, color: palette.textMeta, textDecorationLine: 'underline' },
+  renameLinkText: { ...type.body2Bold, color: palette.blueDeep },
   textInput: { minHeight: 96, maxHeight: 180, paddingTop: space[3], paddingBottom: space[3] },
 });

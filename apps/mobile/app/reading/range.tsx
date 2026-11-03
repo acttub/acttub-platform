@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   recentMeta: { ...type.caption, color: palette.textMeta },
   pickBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.blueSoft, borderRadius: radius.md, paddingHorizontal: space[3], paddingVertical: space[2] },
   pickText: { ...type.captionBold, color: palette.blueDeep },
-  pickReset: { ...type.captionBold, color: palette.textSub },
+  pickReset: { ...type.body2Bold, color: palette.textSub },
   lineRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: radius.md, paddingVertical: space[3], paddingHorizontal: space[4] },
   lineRowIn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   lineRole: { ...type.body2Bold, color: palette.text, width: 44 },

@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   scriptTitle: { ...type.body1Bold, color: palette.text },
   meta: { ...type.caption, color: palette.textMeta },
   previewing: { ...type.captionBold, color: palette.blueDeep },
-  viewAll: { ...type.captionBold, color: palette.blueDeep },
+  viewAll: { ...type.body2Bold, color: palette.blueDeep },
   sectionHead: { gap: space[1], marginBottom: -space[3] },
   section: { ...type.headline, color: palette.text },
   list: { gap: space[3] },
