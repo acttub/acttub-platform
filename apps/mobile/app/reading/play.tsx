@@ -26,7 +26,7 @@ import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type Coac
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
 import { MIC_STOP_MAX_MS, settleWithin, STT_FINISH_MAX_MS } from '@/lib/reading/turn-close';
-import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
+import { onReadingLiveEvent, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { Image } from 'expo-image';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
@@ -1424,16 +1424,13 @@ export default function ReadingPlay() {
     setRun(next);
     queueRef.current?.push(progressPayload(next));
   }, []);
-  // 배경에서도 리딩이 도는 기기(SOMA-802)는 배경으로 가도 멈추지 않는다. 못 도는 기기(안드로이드에서 마이크 서비스를 못 띄움)만 예전처럼 멈춘다.
-  // 단, 마이크를 안 쓰는 듣기 회차는 어느 기기든 멈추지 않는다.
+  // 배경으로 가면(화면 끔·다른 앱) 어느 회차든 멈춘다 — 리딩 백그라운드 재생은 1.1.1 출시 전에 iOS·안드로이드 모두 뺐다(11/3 사용자 결정).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      // 전체 듣기·자동 넘김은 마이크를 쓰지 않는다 — 마이크 서비스를 못 띄워도(마이크 권한 거절 등) 재생 서비스로 계속 돈다.
-      // 예전엔 마이크 종류 서비스만 「배경에서 돈다」로 쳐서, 마이크 권한이 없으면 화면을 끄는 순간 멈췄다(11/1 폰 확인).
-      if (state !== 'active' && phase.kind === 'running' && !readingKeepsRunning() && !listenAll && !handsFree) doPause();
+      if (state !== 'active' && phase.kind === 'running') doPause();
     });
     return () => sub.remove();
-  }, [phase.kind, doPause, listenAll, handsFree]);
+  }, [phase.kind, doPause]);
   // 잠금 화면·알림의 [일시정지], 그리고 전화 등으로 소리가 실제로 끊긴 때.
   useEffect(() => {
     const offPause = onReadingLiveEvent('onPause', doPause);

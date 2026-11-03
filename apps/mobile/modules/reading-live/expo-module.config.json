@@ -1,16 +1,10 @@
 {
   "platforms": [
-    "apple",
-    "android"
+    "apple"
   ],
   "apple": {
     "modules": [
       "ReadingLiveModule"
-    ]
-  },
-  "android": {
-    "modules": [
-      "com.acttub.readinglive.ReadingLiveModule"
     ]
   }
 }
