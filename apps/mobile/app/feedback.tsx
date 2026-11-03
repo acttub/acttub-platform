@@ -4,6 +4,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fro
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
@@ -108,20 +109,16 @@ export default function FeedbackScreen() {
             <View style={styles.field}>
               <Text style={styles.label}>{t('support.kindLabel')}</Text>
               <View style={styles.chips} accessibilityRole="radiogroup">
-                {SUPPORT_KINDS.map((kind) => {
-                  const on = category === kind.category;
-                  return (
-                    <Pressable
-                      key={kind.category}
-                      style={[styles.chip, on && styles.chipOn]}
-                      onPress={() => setCategory(kind.category)}
-                      disabled={sending}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}>
-                      <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(kind.label)}</Text>
-                    </Pressable>
-                  );
-                })}
+                {SUPPORT_KINDS.map((kind) => (
+                  <Chip
+                    key={kind.category}
+                    label={t(kind.label)}
+                    role="radio"
+                    selected={category === kind.category}
+                    onPress={() => setCategory(kind.category)}
+                    disabled={sending}
+                  />
+                ))}
               </View>
             </View>
           )}
@@ -188,10 +185,6 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   contacts: { gap: space[1.5], paddingTop: space[2] },
   contactLink: { ...type.body2Bold, color: palette.blueDeep },
-  chip: { borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: space[4], paddingVertical: space[2] },
-  chipOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  chipText: { ...type.body2, color: palette.textSub },
-  chipTextOn: { ...type.body2Bold, color: palette.blueDeep },
   doneWrap: { flex: 1, paddingHorizontal: space.gutter, paddingTop: space[8], gap: space[2] },
   doneTitle: { ...type.title2, color: palette.text },
   doneBody: { ...type.body1, color: palette.textSub },
