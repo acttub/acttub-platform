@@ -8,7 +8,6 @@ import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
-import { InlineEmpty } from '@/components/ui/inline-empty';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -104,6 +103,13 @@ export default function NotificationsScreen() {
       .catch(() => undefined);
   };
 
+  const pushOff = !pushEnabled && (
+    <View style={styles.pushOff}>
+      <Feather name="bell-off" size={16} color={palette.amber} />
+      <Text style={styles.pushOffText}>{toggleOffNotice(pushEnabled)}</Text>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -115,18 +121,14 @@ export default function NotificationsScreen() {
 
       {error ? (
         <StatusScreen title={error} body={t('common.checkConnection')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
+      ) : groups?.length === 0 ? (
+        <StatusScreen kind="empty" title={t('notifications.empty')} body={t('notifications.emptyBody')}>
+          {pushOff}
+        </StatusScreen>
       ) : (
         <ScrollView contentContainerStyle={styles.body} onMomentumScrollEnd={() => void loadMore()}>
-          {!pushEnabled && (
-            <View style={styles.pushOff}>
-              <Feather name="bell-off" size={16} color={palette.amber} />
-              <Text style={styles.pushOffText}>{toggleOffNotice(pushEnabled)}</Text>
-            </View>
-          )}
+          {pushOff}
           {groups === null && <SkeletonRows count={6} card={false} style={styles.skeletonFlush} />}
-          {groups !== null && groups.length === 0 && (
-            <InlineEmpty title={t('notifications.empty')} description={t('notifications.emptyBody')} />
-          )}
           <AdSlot slot="notifications_top" />
 
           <View>
@@ -149,7 +151,7 @@ export default function NotificationsScreen() {
             ))}
           </View>
 
-          {groups !== null && groups.length > 0 && <Text style={styles.keep}>{t('notifications.keep')}</Text>}
+          {groups !== null && <Text style={styles.keep}>{t('notifications.keep')}</Text>}
         </ScrollView>
       )}
       {dialog}

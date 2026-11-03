@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { InlineEmpty } from '@/components/ui/inline-empty';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
@@ -47,9 +46,10 @@ export default function NoticesScreen() {
         <SkeletonRows count={6} avatar={false} card={false} />
       ) : failed ? (
         <StatusScreen title={t('notices.loadFail')} body={t('common.checkConnection')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
+      ) : notices?.length === 0 ? (
+        <StatusScreen kind="empty" title={t('notices.empty')} />
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
-          {notices !== null && notices.length === 0 ? <InlineEmpty title={t('notices.empty')} /> : null}
           {notices?.map((notice, i) => (
             <Pressable
               key={notice.slug}
