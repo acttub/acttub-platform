@@ -25,10 +25,13 @@ public final class PosterRules {
     /** 각주 최대 글자 수. */
     public static final int FOOTNOTE_MAX = 200;
 
+    /** 앱 판의 길이 상한. 유효한 판보다 넉넉한 값이다. */
+    private static final int VERSION_MAX = 64;
+
     private static final Pattern IMAGE_BG = Pattern.compile("#[0-9A-Fa-f]{6}");
     private static final Pattern SLUG = Pattern.compile("[a-z0-9][a-z0-9-]{0,63}");
     private static final Pattern LOCALE = Pattern.compile("[a-z]{2}");
-    private static final Pattern VERSION = Pattern.compile("[0-9]+(?:\\.[0-9]+)*");
+    private static final Pattern VERSION = Pattern.compile("[0-9]++(?:\\.[0-9]++)*+");
     private static final Pattern ASSET = Pattern.compile("asset:[a-z0-9-]+");
     private static final Pattern OBJECT_KEY = Pattern.compile(
             "posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:png|jpg|webp)");
@@ -41,7 +44,7 @@ public final class PosterRules {
     }
 
     public static boolean validVersion(String value) {
-        return value != null && VERSION.matcher(value).matches();
+        return value != null && value.length() <= VERSION_MAX && VERSION.matcher(value).matches();
     }
 
     public static boolean validLocale(String value) {

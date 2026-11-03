@@ -1,7 +1,7 @@
 plugins {
     java
     jacoco
-    id("org.springframework.boot") version "3.4.7"
+    id("org.springframework.boot") version "3.5.16"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -18,7 +18,10 @@ repositories {
     mavenCentral()
 }
 
-extra["testcontainers.version"] = "1.21.3"
+// Boot 3.5.16 이 주는 42.7.11 에 CVE-2026-54291(HIGH)이 남아 있어 고친 판으로 올린다. Boot 를 올릴 때 지운다.
+extra["postgresql.version"] = "42.7.14"
+// Boot 3.5.16 이 주는 Tomcat 10.1.55 에 CVE-2026-65182·65637·65905·68525 가 남아 있어 고친 판으로 올린다. Boot 를 올릴 때 지운다.
+extra["tomcat.version"] = "10.1.61"
 
 /*
  * openpnp OpenCV 는 모든 플랫폼의 네이티브(약 110MB)를 한 jar 에 싣는다. 운영 서버는 x86_64 리눅스 하나라
@@ -51,8 +54,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
+    // shortcut: 2.8.9 이상은 spec/openapi.json 을 바꾼다(required·nullable 형태). 계약 스냅샷을 검토할 때(SOMA-1015) 올린다.
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
-    implementation("com.nimbusds:nimbus-jose-jwt:9.48")
+    implementation("com.nimbusds:nimbus-jose-jwt:10.10")
     implementation(platform("software.amazon.awssdk:bom:2.31.30"))
     implementation("software.amazon.awssdk:s3")
     // runtimeOnly 가 아니라 implementation 이다. 제약명 문자열로 유니크 위반을 가르는 코드가

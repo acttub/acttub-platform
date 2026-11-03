@@ -496,4 +496,19 @@ class SplitResponseTest {
                 + "J-1\n지수\n";
         assertThat(SplitResponse.roster(answer)).containsExactly("지수", "구두쇠", "허세남", "멀티맨(남)", "J-1");
     }
+
+    @Test
+    @DisplayName("SOMA-1005: 상한을 넘는 배역·머리 칸은 비운다 — 줄 글은 떼이지 않고, 상한 안의 칸은 그대로다")
+    void cellsLongerThanTheLimitAreEmptied() {
+        String name = "가".repeat(SplitResponse.CELL_MAX - 2);
+        String longest = name + "가가";
+        String over = longest + "가";
+        List<NumberedLine> sent = List.of(new NumberedLine(1, name + ": 말"), new NumberedLine(2, over + ": 말"));
+
+        SplitResponse parsed = SplitResponse.parse("1\td\t" + name + "\t" + name + ": \n2\td\t" + over + "\t" + over + ": ", sent);
+
+        assertThat(parsed.rows().get(1)).isEqualTo(new Row(1, Kind.DIALOGUE, name, name + ": "));
+        assertThat(parsed.rows().get(2)).isEqualTo(new Row(2, Kind.DIALOGUE, "", ""));
+        assertThat(SplitResponse.rosterTraits(longest + "\n" + over)).containsOnlyKeys(longest);
+    }
 }

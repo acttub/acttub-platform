@@ -52,6 +52,8 @@ public class ClientAddress {
 
     private static final Pattern IPV4 = Pattern.compile("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})");
     private static final Pattern IPV6 = Pattern.compile("[0-9A-Fa-f:]*:[0-9A-Fa-f:.]*");
+    /** IPv6 글자의 최대 길이(IPv4 를 품은 꼴 포함). */
+    private static final int ADDRESS_MAX = 45;
     private static final String FORWARDED_FOR = "X-Forwarded-For";
 
     private final List<Network> trustedProxies;
@@ -123,6 +125,9 @@ public class ClientAddress {
      * 먼저 확인해 방문자가 보낸 값으로 DNS 를 부르는 일이 없게 한다.
      */
     private static InetAddress literal(String text) {
+        if (text.length() > ADDRESS_MAX) {
+            return null;
+        }
         var ipv4 = IPV4.matcher(text);
         boolean shaped = ipv4.matches()
                 ? java.util.stream.IntStream.rangeClosed(1, 4).allMatch(group -> Integer.parseInt(ipv4.group(group)) <= 255)
