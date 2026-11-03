@@ -904,17 +904,6 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* 팀 연락처(11/3 사용자: 인스타·메일은 홈 맨 아래에만) — 인스타 계정을 누르면 프로필이 열린다. 메일은 글자만. */}
-          <Text style={styles.contactFooter}>
-            <Text
-              style={styles.contactFooterLink}
-              onPress={() => void Linking.openURL(INSTAGRAM_PROFILE_URL).catch(() => undefined)}
-              accessibilityRole="link"
-              accessibilityLabel={t('home.contactInstagramA11y', { handle: INSTAGRAM_HANDLE })}>
-              {t('home.contactInstagram', { handle: INSTAGRAM_HANDLE })}
-            </Text>
-            {` · ${t('home.contactEmail', { email: SUPPORT_EMAIL })}`}
-          </Text>
 
           {/* 연기 입시(입시생만)·오디션 마감 임박 — 가까운 마감 두 줄씩(pen P1.1). 없으면 구역째 그리지 않는다(P1.3). */}
           {deadlineBlocks.map((block) => (
@@ -946,6 +935,17 @@ export default function HomeScreen() {
               </View>
             </View>
           ))}
+          {/* 팀 연락처(11/3 사용자: 인스타·메일은 홈 맨 아래에만) — 인스타 계정을 누르면 프로필이 열린다. 메일은 글자만. */}
+          <Text style={styles.contactFooter}>
+            <Text
+              style={styles.contactFooterLink}
+              onPress={() => void Linking.openURL(INSTAGRAM_PROFILE_URL).catch(() => undefined)}
+              accessibilityRole="link"
+              accessibilityLabel={t('home.contactInstagramA11y', { handle: INSTAGRAM_HANDLE })}>
+              {t('home.contactInstagram', { handle: INSTAGRAM_HANDLE })}
+            </Text>
+            {` · ${t('home.contactEmail', { email: SUPPORT_EMAIL })}`}
+          </Text>
           </View>
         </ScrollView>
       )}
