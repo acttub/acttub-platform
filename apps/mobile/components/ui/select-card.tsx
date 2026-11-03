@@ -15,6 +15,7 @@ export function SelectCard({
   onPress,
   disabled,
   phLabel,
+  role = 'radio',
 }: {
   title: string;
   sub?: string | null;
@@ -22,14 +23,16 @@ export function SelectCard({
   onPress: () => void;
   disabled?: boolean;
   phLabel?: string;
+  /** 여럿을 고르는 카드면 checkbox. */
+  role?: 'radio' | 'checkbox';
 }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole="radio"
+      accessibilityRole={role}
       accessibilityLabel={title}
-      accessibilityState={{ selected, disabled: !!disabled }}
+      accessibilityState={role === 'checkbox' ? { checked: selected, disabled: !!disabled } : { selected, disabled: !!disabled }}
       ph-label={phLabel}
       style={({ pressed }) => [styles.card, selected && styles.on, pressed && styles.pressed, disabled && styles.dim]}>
       <View style={styles.body}>
