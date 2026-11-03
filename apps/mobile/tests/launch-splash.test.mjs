@@ -3,7 +3,9 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
 import {
+  HOME_DEFER_MAX_MS,
   HOME_SPLASH_HOLD_MS,
+  afterHomeReady,
   isHomeReady,
   markHomeReady,
   resetHomeReadyForTest,
@@ -48,4 +50,27 @@ test('홈은 로딩 표시 없이 첫 데이터를 받거나 첫 사용자 홈�
   assert.match(home, /if \(loaded \|\| showFirstHome\) markHomeReady\(\)/);
   const layout = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
   assert.match(layout, /readyToShow && !holdSplashForHome/);
+});
+
+test('홈에 필요 없는 호출은 홈이 첫 데이터를 받은 뒤에 풀린다', async () => {
+  resetHomeReadyForTest();
+  let released = false;
+  const waiting = afterHomeReady(10_000).then(() => {
+    released = true;
+  });
+  await new Promise((r) => setImmediate(r));
+  assert.equal(released, false);
+  markHomeReady();
+  await waiting;
+  assert.equal(released, true);
+});
+
+test('홈이 이미 받았으면 바로, 홈을 거치지 않으면 상한 뒤에 풀린다', async () => {
+  markHomeReady();
+  await afterHomeReady(10_000);
+  resetHomeReadyForTest();
+  const started = Date.now();
+  await afterHomeReady(30);
+  assert.ok(Date.now() - started >= 25);
+  assert.equal(HOME_DEFER_MAX_MS, 5000);
 });

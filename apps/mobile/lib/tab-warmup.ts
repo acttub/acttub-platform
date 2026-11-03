@@ -13,7 +13,10 @@ export const WARM_ORDER: readonly WarmTab[] = ['coaching', 'reading', 'challenge
 /** 홈이 뜬 뒤 첫 탭을 만들기까지, 그리고 탭 사이의 간격. 홈 첫 화면의 움직임·누름과 겹치지 않게 둔다. */
 export const WARM_START_DELAY_MS = 600;
 export const WARM_STEP_MS = 350;
-/** 홈을 거치지 않고(알림 등으로) 다른 화면으로 들어왔을 때도 이만큼 지나면 만든다. */
+/**
+ * 홈을 거치지 않고(알림 등으로) 다른 화면으로 들어왔을 때도 이만큼 지나면 만든다. 홈이 떠서 아직 받는 중이면
+ * 만들지 않고 다음 확인으로 미룬다 — 다른 탭도 서버를 불러 홈이 받는 답과 다툰다(11/3 홈이 느릴수록 더 늦어짐).
+ */
 export const WARM_FALLBACK_MS = 4000;
 /** 미리 받을 목록이 늦어도 이 시간 뒤에는 그냥 만든다 — 그때는 탭을 열 때 받는다. */
 export const WARM_PREFETCH_WAIT_MS = 2500;
@@ -26,6 +29,8 @@ export type WarmDeps = {
   wait: (ms: number, task: () => void) => () => void;
   /** 커뮤니티를 만들기 전에 받아 둘 목록. 실패해도 넘어간다. */
   prefetchCommunity: () => Promise<unknown>;
+  /** 지금 홈 화면이 떠 있는가 — 떠 있으면 상한이 지나도 홈이 다 그려질 때까지 기다린다. */
+  homeShowing: () => boolean;
   warm: (tab: WarmTab) => void;
 };
 
@@ -68,7 +73,8 @@ export function scheduleTabWarmup(deps: WarmDeps): () => void {
     later(WARM_START_DELAY_MS, () => step(0));
   };
   cancels.push(deps.onHomeReady(start));
-  later(WARM_FALLBACK_MS, start);
+  const fallback = () => (deps.homeShowing() ? later(WARM_FALLBACK_MS, fallback) : start());
+  later(WARM_FALLBACK_MS, fallback);
 
   return () => {
     stopped = true;

@@ -8,10 +8,12 @@ import { palette } from '@/constants/palette';
 import { space } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api, type ConsentEntryDocument } from '@/lib/api';
+import { afterHomeReady } from '@/lib/launch-splash';
 import { consentBodyWithoutTitle, loadCloudVoiceEnabled, saveCloudVoiceEnabled, type CloudVoiceStatus } from '@/lib/reading/cloud-voice';
 import { translate as t } from '@/lib/i18n';
 
-export function useCloudVoice() {
+/** deferUntilHomeReady — 홈에 뜨는 쪽(공지 포스터)은 홈 첫 데이터를 받은 뒤에 상태를 묻는다(lib/launch-splash afterHomeReady). */
+export function useCloudVoice({ deferUntilHomeReady = false }: { deferUntilHomeReady?: boolean } = {}) {
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState(false);
   const [status, setStatus] = useState<CloudVoiceStatus | null>(null);
@@ -34,7 +36,13 @@ export function useCloudVoice() {
     return next;
   }, []);
 
-  useEffect(() => { void refresh().catch(() => setStatusFailed(true)); }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+    void (deferUntilHomeReady ? afterHomeReady() : Promise.resolve())
+      .then(() => (cancelled ? undefined : refresh()))
+      .catch(() => setStatusFailed(true));
+    return () => { cancelled = true; };
+  }, [refresh, deferUntilHomeReady]);
 
   const finishEnable = useCallback(async (source: 'promo' | 'settings' | 'first_reading') => {
     await saveCloudVoiceEnabled(true);

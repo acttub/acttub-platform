@@ -344,6 +344,8 @@ export default function ReadingNew() {
 
   if (popup?.kind === 'failed') {
     return (
+      <>
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <ReadingStatus
         title={t('reading.splitFailTitle')}
         body={popup.message}
@@ -356,6 +358,7 @@ export default function ReadingNew() {
           },
         }}
       />
+      </>
     );
   }
 
@@ -367,7 +370,7 @@ export default function ReadingNew() {
   const file = input.file;
   return (
     <KeyboardLift style={styles.root}>
-      <Stack.Screen options={{ gestureEnabled: !working }} />
+      <Stack.Screen options={{ gestureEnabled: !(working || pasteDirty) }} />
       {/* 확인 중에 탭·파일을 바꾸면 보낸 입력과 어긋난다. */}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" pointerEvents={checking ? 'none' : 'auto'}>
         <View style={styles.hero}>

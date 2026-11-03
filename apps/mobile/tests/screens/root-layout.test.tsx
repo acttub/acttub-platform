@@ -473,6 +473,26 @@ describe('홈을 기다리는 로고', () => {
     }
   });
 
+  test('로그인·동의·프로필 확인이 덜 끝났으면 시간이 지나도 스플래시를 닫지 않고, 끝나면 닫는다', async () => {
+    // 한때 앱 코드가 뜬 지 2초에 무조건 닫았다(#1296) — 홈 호출을 줄여(#1300) 로딩이 끝날 때 닫는 쪽으로 되돌렸다.
+    jest.useFakeTimers();
+    try {
+      auth = signedIn({ profile: { status: 'checking' } });
+      const view = await renderLayout();
+      await act(async () => {
+        jest.advanceTimersByTime(10_000);
+      });
+      expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+      expect(screen.getByText('진입 화면')).toBeOnTheScreen();
+
+      await update({ profile: { status: 'complete' } }, view);
+      await act(async () => markHomeReady());
+      expect(SplashScreen.hideAsync).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('홈이 아닌 화면으로 가면 기다리지 않는다', async () => {
     mockNav.pathname = '/analyzing';
     await renderLayout();

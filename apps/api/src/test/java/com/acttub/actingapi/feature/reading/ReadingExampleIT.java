@@ -148,6 +148,18 @@ class ReadingExampleIT {
     }
 
     @Test
+    @DisplayName("SOMA-1033 영어 기기(Accept-Language: en)는 영어 예시 3편만 받고, 고르면 그 글이 내 대본이 된다")
+    void englishDevicesListEnglishExamples() throws Exception {
+        JsonNode examples = json(get("/v2/reading/examples").header("Accept-Language", "en-US"), 200, bearer).path("examples");
+        assertThat(examples).extracting(e -> e.path("id").textValue()).containsExactly("rooftop-en", "cafe-en", "mia-en");
+        assertThat(examples).extracting(e -> e.path("title").textValue())
+                .containsExactly("Rooftop, night", "Café, the breakup talk", "Mia's monologue");
+        assertThat(examples).extracting(e -> e.path("dialogue_count").intValue()).containsExactly(15, 15, 7);
+        JsonNode started = json(post("/v2/reading/examples/{id}/start", "mia-en").content(start(UUID.randomUUID())), 201, bearer);
+        assertThat(started.path("script_id").textValue()).isNotBlank();
+    }
+
+    @Test
     @DisplayName("예시 대본 목록: 켜진 3편을 sort_order 순으로 — 대사 수·배역·미리보기 5줄(지문은 speaker null)")
     void listsActiveExamplesInOrder() throws Exception {
         JsonNode body = json(get("/v2/reading/examples"), 200, bearer);

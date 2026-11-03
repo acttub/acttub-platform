@@ -6348,7 +6348,7 @@ export interface components {
         };
         /**
          * AdSlotPick
-         * @description 칸 하나에 띄울 것. kind 가 DIRECT·HOUSE 일 때만 ad 가 있다. NETWORK 면 앱이 AdMob 으로 채우고, NONE 이면 칸을 비운다.
+         * @description 칸 하나에 띄울 것. kind 가 DIRECT·HOUSE 일 때만 ad 가 있다. NETWORK 면 앱이 AdMob 으로 채우고, NONE 이면 칸을 비운다. fallback 은 NETWORK 일 때만 있을 수 있고, AdMob 이 안 채워지면 칸을 접지 않고 대신 그릴 우리 앱 광고다.
          */
         AdSlotPick: {
             /**
@@ -6368,6 +6368,7 @@ export interface components {
             /** Height */
             height: number;
             ad: components["schemas"]["AdCreative"] | null;
+            fallback: components["schemas"]["AdCreative"] | null;
         };
         /** AdmissionNotice */
         AdmissionNotice: {

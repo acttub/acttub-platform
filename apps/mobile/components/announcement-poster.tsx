@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
+import { afterHomeReady } from '@/lib/launch-splash';
 import { logEvent } from '@/lib/analytics';
 import { api, APP_VERSION } from '@/lib/api';
 import { currentLanguage, translate as t } from '@/lib/i18n';
@@ -42,7 +43,7 @@ const AUDIO: Record<PosterAudioAsset, number> = {
  */
 export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFinished = false }: { loggedIn: boolean; blocked?: boolean; onboardingJustFinished?: boolean }) {
   const insets = useSafeAreaInsets();
-  const cloud = useCloudVoice();
+  const cloud = useCloudVoice({ deferUntilHomeReady: true });
   const [posters, setPosters] = useState<Poster[] | null>(null);
   const [poster, setPoster] = useState<Poster | null>(null);
   const [visible, setVisible] = useState(false);
@@ -70,8 +71,10 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
     setPosters(null);
     setVisible(false);
     let cancelled = false;
-    api.getPosters({ platform: Platform.OS === 'ios' ? 'ios' : 'android', locale: currentLanguage(), app_version: APP_VERSION })
-      .then((response) => { if (!cancelled) { decided.current = false; setPosters(response.posters); } })
+    // 홈 첫 화면에 필요한 기록을 다 받은 뒤에 묻는다(lib/launch-splash afterHomeReady).
+    afterHomeReady()
+      .then(() => (cancelled ? null : api.getPosters({ platform: Platform.OS === 'ios' ? 'ios' : 'android', locale: currentLanguage(), app_version: APP_VERSION })))
+      .then((response) => { if (response && !cancelled) { decided.current = false; setPosters(response.posters); } })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [loggedIn, focused, entry]);

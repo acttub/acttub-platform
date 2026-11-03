@@ -94,7 +94,12 @@ class AdAdminController {
     ResponseEntity<AdminAd> create(
             @RequestBody JsonNode body, @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
-        AdDraft draft = merge(AdDraft.blank(), changes(body));
+        ObjectNode changes = changes(body);
+        if (!changes.has("share_percent")) {
+            // 비율을 안 보내면 종류마다 기본값이다 — 직접 광고는 칸을 다 쓰고, 우리 앱 광고는 AdMob 과 반씩.
+            changes.put("share_percent", AdDraft.defaultSharePercent(changes.path("kind").asText(AdDraft.blank().kind())));
+        }
+        AdDraft draft = merge(AdDraft.blank(), changes);
         return ResponseEntity.status(201).header(HttpHeaders.CACHE_CONTROL, "private, no-store")
                 .body(AdminAd.of(ads.create(draft), ads::viewUrl));
     }

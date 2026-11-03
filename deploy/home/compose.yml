@@ -58,6 +58,7 @@ services:
       ADMIN_OPS_TOKEN: ${ADMIN_OPS_TOKEN:?.env 의 ADMIN_OPS_TOKEN 이 없다}
       # 앱이 SDK 콜백으로 못 보낸 가입 유입 광고를 서버가 Airbridge 에서 가져온다(SOMA-643). 토큰이 비면 기능이 꺼진다.
       AIRBRIDGE_API_TOKEN: ${AIRBRIDGE_API_TOKEN:-}
+      SUPPORT_SLACK_WEBHOOK_URL: ${SUPPORT_SLACK_WEBHOOK_URL:-}
       AIRBRIDGE_APP_NAME: ${AIRBRIDGE_APP_NAME:-acttub}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
