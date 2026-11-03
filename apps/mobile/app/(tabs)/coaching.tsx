@@ -250,9 +250,9 @@ export default function CoachingTab() {
               accessibilityLabel={t('coachingTab.historyLinkA11y')}
               ph-label="coaching_history"
               hitSlop={8}
-              style={({ pressed }) => [styles.historyPill, pressed && styles.pressed]}>
-              <Text style={styles.historyPillText}>{t('coachingTab.historyLink')}</Text>
-              <Feather name="chevron-right" size={14} color={palette.textSub} />
+              style={({ pressed }) => [styles.historyLink, pressed && styles.pressed]}>
+              <Text style={styles.historyLinkText}>{t('coachingTab.historyLink')}</Text>
+              <Feather name="chevron-right" size={16} color={palette.iconFaint} />
             </Pressable>
           </View>
           <View style={styles.recent}>
@@ -457,9 +457,9 @@ const styles = StyleSheet.create({
   linkSep: { width: 1, height: 12, backgroundColor: palette.border },
   link: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5] },
   linkText: { ...type.body2Bold, color: palette.textSub },
-  // 예전 「영상 없이 말로 코칭 받기」 보조 버튼(talk-entry-button)과 같은 모양.
-  historyPill: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: space[3], paddingRight: space[2], height: 28, borderRadius: radius.full, backgroundColor: palette.bgSoft },
-  historyPillText: { ...type.captionBold, color: palette.textSub },
+  // Button/Text — 알약 바탕 없는 보조 글자 버튼.
+  historyLink: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  historyLinkText: { ...type.body2Bold, color: palette.textSub },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[6] },
   sectionTitle: { ...type.body1Bold, color: palette.text },
   recent: { paddingTop: space[3], gap: space[3] },
