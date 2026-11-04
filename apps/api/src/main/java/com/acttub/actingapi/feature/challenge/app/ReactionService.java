@@ -21,6 +21,7 @@ import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.platform.web.Hashing;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** 좋아요·저장·댓글·차단·신고 (challenge.react, challenge.block, challenge.report). 모양 검사와 요청 지문은 여기서 한다. */
@@ -31,11 +32,19 @@ public class ReactionService {
     private static final Set<String> RESOLUTIONS = Set.of("restored", "kept_hidden", "dismissed");
     private final ReactionRepository reactions;
     private final ReportRepository reports;
+    private final ReportNotifier notifier;
     private final CanonicalJson canonical;
     private final Clock clock;
 
     public ReactionService(ReactionRepository reactions, ReportRepository reports, CanonicalJson canonical, Clock clock) {
+        this(reactions, reports, canonical, clock, ReportNotifier.NONE);
+    }
+
+    @Autowired
+    public ReactionService(ReactionRepository reactions, ReportRepository reports, CanonicalJson canonical, Clock clock,
+                           ReportNotifier notifier) {
         this.reactions = reactions; this.reports = reports; this.canonical = canonical; this.clock = clock;
+        this.notifier = notifier == null ? ReportNotifier.NONE : notifier;
     }
 
     public Liked like(UUID viewer, UUID entryId, boolean on) { return reactions.like(viewer, entryId, on, clock.instant()); }
@@ -75,8 +84,13 @@ public class ReactionService {
             throw ApiValidationException.valueError(List.of("body", "note"), "Value error, invalid length", rawNote);
         }
         String kept = note.isEmpty() ? null : note;
-        return reports.file(reporter, requestId, fingerprint(Arrays.asList(targetType, targetId.toString(), reason, kept)),
+        Filed filed = reports.file(reporter, requestId, fingerprint(Arrays.asList(targetType, targetId.toString(), reason, kept)),
                 new NewReport(targetType, targetId, reason, kept), clock.instant());
+        // 저장소가 커밋한 뒤 새 신고만 팀에 알린다(재전송은 같은 신고라 다시 알리지 않는다). 알림 실패는 신고에 영향이 없다.
+        if (filed.created()) {
+            notifier.filed(new ReportNotifier.Notice(filed.receipt().id(), targetType, targetId, reason, kept, filed.targetText()));
+        }
+        return filed;
     }
 
     public AdminReportPage adminReports(String status, String cursor) {
