@@ -4,6 +4,7 @@ import java.nio.file.Path;
 
 import com.acttub.actingapi.feature.reading.app.RetranscribeAudio;
 import com.acttub.actingapi.integration.media.AudioPeak;
+import com.acttub.actingapi.integration.observation.NoSpeechInResponse;
 import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import com.acttub.actingapi.integration.observation.SpeechAnalyzer;
 
@@ -27,7 +28,16 @@ class MediaRetranscribeAudio implements RetranscribeAudio {
 
     @Override
     public String transcribe(Path audio) {
-        SpeechAnalysis analysis = speech.analyze(audio, null, null);
+        SpeechAnalysis analysis;
+        try {
+            analysis = speech.analyze(audio, null, null);
+        } catch (RuntimeException failure) {
+            // 모델이 답은 했는데 받아쓴 말이 없으면 실패가 아니라 말이 없는 녹음이다. 다시 보내도 같은 답이라 빈 글로 끝낸다.
+            if (NoSpeechInResponse.within(failure)) {
+                return "";
+            }
+            throw failure;
+        }
         return analysis == null || analysis.transcript() == null ? "" : analysis.transcript();
     }
 }

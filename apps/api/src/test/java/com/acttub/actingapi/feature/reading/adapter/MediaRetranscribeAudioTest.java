@@ -1,11 +1,13 @@
 package com.acttub.actingapi.feature.reading.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.util.List;
 
 import com.acttub.actingapi.integration.media.AudioPeak;
+import com.acttub.actingapi.integration.observation.NoSpeechInResponse;
 import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import org.junit.jupiter.api.Test;
 
@@ -31,5 +33,17 @@ class MediaRetranscribeAudioTest {
         assertThat(new MediaRetranscribeAudio(new AudioPeak(),
                 (path, session, user) -> new SpeechAnalysis(null, 0, List.of(), List.of())).transcribe(Path.of("a.m4a")))
                 .isEmpty();
+    }
+
+    @Test
+    void modelAnswerWithoutSpeechIsBlankButOtherFailuresStillThrow() {
+        MediaRetranscribeAudio silent = new MediaRetranscribeAudio(new AudioPeak(), (path, session, user) -> {
+            throw new RuntimeException("audio transcription failed", new NoSpeechInResponse("no word annotations"));
+        });
+        assertThat(silent.transcribe(Path.of("a.m4a"))).isEmpty();
+        MediaRetranscribeAudio down = new MediaRetranscribeAudio(new AudioPeak(), (path, session, user) -> {
+            throw new RuntimeException("audio transcription failed", new IllegalStateException("model down"));
+        });
+        assertThatThrownBy(() -> down.transcribe(Path.of("a.m4a"))).hasRootCauseMessage("model down");
     }
 }
