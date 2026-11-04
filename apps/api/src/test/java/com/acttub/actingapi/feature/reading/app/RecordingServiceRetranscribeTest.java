@@ -32,8 +32,8 @@ import org.junit.jupiter.api.io.TempDir;
 /** 녹음 저장 뒤 서버 다시 받아쓰기 줄 세우기: 기기 인식을 켰는데 글이 없을 때만, 실패해도 저장은 성공. */
 class RecordingServiceRetranscribeTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-30T09:00:00Z"), ZoneOffset.UTC);
-    private static final RetranscribeSettings ON = new RetranscribeSettings(true, -30, 400, 60_000, Duration.ofMinutes(5), 2);
-    private static final RetranscribeSettings OFF = new RetranscribeSettings(false, -30, 400, 60_000, Duration.ofMinutes(5), 2);
+    private static final RetranscribeSettings ON = new RetranscribeSettings(true, -30, 400, 60_000, 1_500, Duration.ofMinutes(5), 2);
+    private static final RetranscribeSettings OFF = new RetranscribeSettings(false, -30, 400, 60_000, 1_500, Duration.ofMinutes(5), 2);
 
     @TempDir
     Path temporary;

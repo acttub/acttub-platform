@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class RetranscribeWorkerTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-30T09:00:00Z"), ZoneOffset.UTC);
     private static final UUID RECORDING = UUID.randomUUID();
-    private static final RetranscribeSettings ON = new RetranscribeSettings(true, -36, 400, 60_000, Duration.ofMinutes(5), 2);
+    private static final RetranscribeSettings ON = new RetranscribeSettings(true, -36, 400, 60_000, 1_500, Duration.ofMinutes(5), 2);
 
     static final class FakeQueue implements RetranscribeRepository {
         Claimed next;
@@ -172,6 +172,22 @@ class RetranscribeWorkerTest {
     }
 
     @Test
+    void shortRecordingIsSkippedBeforeTheDailyLimit() {
+        queue.next = claimed(true, 1_499, 1);
+        queue.transcribed = 400;
+        assertThat(worker(ON).runOnce()).isTrue();
+        assertThat(queue.events).containsExactly("too_short");
+        assertThat(downloaded).isEmpty();
+    }
+
+    @Test
+    void failureLogNamesTheRootCause() {
+        var wrapped = new RuntimeException("audio transcription failed", new IllegalStateException("quota\n exceeded"));
+        assertThat(RetranscribeWorker.root(wrapped)).isEqualTo("IllegalStateException: quota exceeded");
+        assertThat(RetranscribeWorker.root(new IllegalStateException())).isEqualTo("IllegalStateException");
+    }
+
+    @Test
     void dailyLimitReleasesAndStops() {
         queue.next = claimed(true, 4_000, 1);
         queue.transcribed = 400;
@@ -193,7 +209,7 @@ class RetranscribeWorkerTest {
     @Test
     void disabledWorkerDoesNothing() {
         queue.next = claimed(true, 4_000, 1);
-        assertThat(worker(new RetranscribeSettings(false, -36, 400, 60_000, Duration.ofMinutes(5), 2)).runOnce()).isFalse();
+        assertThat(worker(new RetranscribeSettings(false, -36, 400, 60_000, 1_500, Duration.ofMinutes(5), 2)).runOnce()).isFalse();
         assertThat(queue.events).isEmpty();
     }
 }
