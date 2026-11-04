@@ -11,6 +11,7 @@ import {
   targetOf,
   toggleOffNotice,
   unavailableMessage,
+  viewDigestTarget,
 } from '../lib/challenge/notification-center.ts';
 
 const group = (over = {}) => ({
@@ -103,4 +104,16 @@ test('challenge.notification: 푸시에는 식별자만 있고 그것으로 알�
   // 다른 푸시(분석 완료)는 여기서 열지 않는다.
   assert.equal(challengePushTarget({ kind: 'analysis_complete', practice_id: 'p1' }), null);
   assert.equal(challengePushTarget(null), null);
+});
+
+test('challenge.notification: 하루 조회 요약 푸시를 누르면 그날 가장 많이 본 참여작, 없으면 챌린지 탭으로 간다(SOMA-958)', () => {
+  const id = '0b9c6f1e-2d3a-4b5c-8d7e-9f0a1b2c3d4e';
+  assert.equal(viewDigestTarget({ kind: 'entry_views_daily', type: 'entry_views_daily', entry_id: id }), '/entry/' + id);
+  assert.equal(viewDigestTarget({ type: 'entry_views_daily', entry_id: id }), '/entry/' + id);
+  assert.equal(viewDigestTarget({ kind: 'entry_views_daily' }), '/challenges');
+  assert.equal(viewDigestTarget({ kind: 'entry_views_daily', entry_id: '../x' }), '/challenges');
+  assert.equal(viewDigestTarget({ kind: 'challenge_notification', group_key: 'g1' }), null);
+  assert.equal(viewDigestTarget(null), null);
+  // 조회 요약은 알림함으로 보내지 않는다(알림함 행이 없다).
+  assert.equal(challengePushTarget({ kind: 'entry_views_daily', entry_id: id }), null);
 });
