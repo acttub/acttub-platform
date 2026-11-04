@@ -33,7 +33,8 @@ export function loadEntryThumb(entryId: string, url: string, maxWidth = 240): Pr
       player.muted = true;
       limitVideoBuffer(player);
       await waitUntilLoaded(player);
-      const [thumb] = await player.generateThumbnailsAsync(THUMB_AT_SEC, { maxWidth });
+      // iOS 네이티브는 시각 배열만 받는다 — 숫자 하나를 넘기면 앱이 꺼졌다(SOMA-1049). 타입은 숫자도 허용한다.
+      const [thumb] = await player.generateThumbnailsAsync([THUMB_AT_SEC], { maxWidth });
       if (thumb) cache.set(entryId, thumb);
       return thumb ?? null;
     } catch {
