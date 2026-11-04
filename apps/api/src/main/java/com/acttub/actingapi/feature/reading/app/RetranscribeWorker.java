@@ -15,7 +15,7 @@ import java.util.logging.Logger;
  * 기기 음성 인식이 빈 결과를 낸 리딩 줄 녹음을 서버가 뒤에서 다시 받아쓴다. 하나씩 임대로 집고, 내려받기·소리 재기·받아쓰기는
  * 트랜잭션 밖에서 한다.
  *
- * <p>순서: 녹음이 바뀌었으면 건너뜀(stale) → 너무 길면 건너뜀(too_long) → 하루 한도를 넘었으면 미룸 →
+ * <p>순서: 녹음이 바뀌었으면 건너뜀(stale) → 너무 길면 건너뜀(too_long) → 1.5초보다 짧으면 건너뜀(too_short) → 하루 한도를 넘었으면 미룸 →
  * 내려받기 → 가장 큰 소리가 기준보다 작으면 모델에 보내지 않음(silent) → 받아쓰기 → 글이 없으면 empty, 있으면 녹음의 전사와
  * 대조를 채움(done). 리딩 진행·자동 넘김은 기기에서 이미 끝났으므로 여기서 늦어져도 배우는 기다리지 않는다.
  */
@@ -56,6 +56,10 @@ public class RetranscribeWorker {
             queue.finish(claimed.recordingId(), token, "too_long", null, clock.instant());
             return true;
         }
+        if (claimed.durationMs() != null && claimed.durationMs() < settings.minDurationMs()) {
+            queue.finish(claimed.recordingId(), token, "too_short", null, clock.instant());
+            return true;
+        }
         Instant now = clock.instant();
         if (queue.transcribedSince(now.minus(DAY)) >= settings.dailyLimit()) {
             queue.release(claimed.recordingId(), token, now);
@@ -84,7 +88,8 @@ public class RetranscribeWorker {
         } catch (RuntimeException | IOException failure) {
             boolean retry = claimed.attempt() < settings.maxAttempts();
             LOGGER.warning("reading retranscribe failed: recording=" + claimed.recordingId() + " attempt="
-                    + claimed.attempt() + " retry=" + retry + " cause=" + failure.getClass().getSimpleName());
+                    + claimed.attempt() + " retry=" + retry + " cause=" + failure.getClass().getSimpleName()
+                    + " root=" + root(failure));
             queue.fail(claimed.recordingId(), token, failure.getClass().getSimpleName(), retry, clock.instant());
             // 바깥 서비스가 죽었으면 쌓인 것을 한꺼번에 실패시키지 않게 이번 주기는 여기서 멈춘다.
             return false;
@@ -97,5 +102,16 @@ public class RetranscribeWorker {
                 }
             }
         }
+    }
+
+    /** 감싼 예외 안쪽의 진짜 원인. 다음에 실패 이유를 로그로 바로 볼 수 있게 종류와 앞 120자만 남긴다. */
+    static String root(Throwable failure) {
+        Throwable cause = failure;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        String message = cause.getMessage() == null ? "" : cause.getMessage().replaceAll("\\s+", " ");
+        return cause.getClass().getSimpleName() + (message.isEmpty() ? "" : ": "
+                + (message.length() > 120 ? message.substring(0, 120) : message));
     }
 }
