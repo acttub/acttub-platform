@@ -43,7 +43,7 @@ import { HOME_SPLASH_HOLD_MS, afterHomeReady, isHomeReady, shouldHoldSplashForHo
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
-import { challengePushTarget } from '@/lib/challenge/notification-center';
+import { challengePushTarget, viewDigestTarget } from '@/lib/challenge/notification-center';
 import {
   recoveryStatusForConsentGate,
   resolveAnalyzingBootstrapRoute,
@@ -242,7 +242,8 @@ function RootNavigator() {
     (data: unknown) => {
       // analysis_complete·resume은 같은 회차, 다른 연습 알림은 알림이 말한 화면(SOMA-862), 못 정하면 홈이다.
       // 화면 아래에 홈을 깔아 뒤로가기가 앱을 닫지 않게 한다(lib/push-open-nav).
-      const reminder = reminderTarget(data);
+      // 하루 조회 요약(SOMA-958)은 그날 가장 많이 본 참여작으로 간다.
+      const reminder = reminderTarget(data) ?? viewDigestTarget(data);
       if (reminder) openPushTarget(router as unknown as PushOpenRouter, reminder);
       else if (challengePushTarget(data)) router.push('/notifications');
     },
