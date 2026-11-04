@@ -56,6 +56,8 @@ test('썸네일을 누르면 그 참여작을, 「전체 보기」를 누르면 
   const tile = await screen.findByRole('button', { name: '민서 영상 보기' });
   expect(api.listChallengeEntries).toHaveBeenCalledWith('c1', { sort: 'likes' });
   expect(screen.getAllByText('NEW')).toHaveLength(1);
+  // iOS 네이티브는 시각 배열만 받는다(SOMA-1049).
+  expect(mockThumbs).toHaveBeenCalledWith([0.5], expect.anything());
   await fireEvent.press(tile);
   expect(onOpenEntry).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }));
   await fireEvent.press(screen.getByText('전체 보기'));
