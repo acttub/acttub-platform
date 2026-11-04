@@ -27,10 +27,13 @@ public class CommunityService {
 
     private final CommunityRepository community;
     private final CommunityImageService images;
+    private final CommunityReportNotifier reportNotifier;
 
-    public CommunityService(CommunityRepository community, CommunityImageService images) {
+    public CommunityService(
+            CommunityRepository community, CommunityImageService images, CommunityReportNotifier reportNotifier) {
         this.community = community;
         this.images = images;
+        this.reportNotifier = reportNotifier == null ? CommunityReportNotifier.NONE : reportNotifier;
     }
 
     public List<CommunityCategory> listCategories() {
@@ -178,6 +181,8 @@ public class CommunityService {
         } catch (DuplicateReport exception) {
             throw new ApiException(409, "already_reported", exception);
         }
+        // 저장소가 커밋한 뒤 팀에 알린다(SOMA-1042). 같은 대상 재신고는 위에서 409 로 끝나 여기 오지 않는다.
+        reportNotifier.filed(new CommunityReportNotifier.Notice(targetType, targetId, reason, detail));
     }
 
     public List<BlockedUser> listBlocks(UUID blockerId) {
