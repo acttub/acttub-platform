@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.acttub.actingapi.feature.support.app.SupportInquiryNotifier.Notice;
+import com.acttub.actingapi.integration.slack.SupportSlackChannel;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,7 +46,7 @@ class SlackSupportInquiryNotifierTest {
                 .andRespond(withSuccess());
         server.expect(requestTo(HOOK)).andRespond(withServerError());
         ExecutorService sender = Executors.newSingleThreadExecutor();
-        SlackSupportInquiryNotifier notifier = new SlackSupportInquiryNotifier(HOOK, builder, sender);
+        SlackSupportInquiryNotifier notifier = new SlackSupportInquiryNotifier(new SupportSlackChannel(HOOK, builder, sender));
         notifier.accepted(new Notice(ID, "bug", "앱이 꺼져요 열 글자 이상", true, "1.1.1"));
         notifier.accepted(new Notice(ID, "bug", "두 번째도 열 글자 이상", true, "1.1.1"));
         sender.shutdown();
@@ -55,8 +56,9 @@ class SlackSupportInquiryNotifierTest {
 
     @Test
     void doesNothingWithoutWebhook() {
-        SlackSupportInquiryNotifier notifier = new SlackSupportInquiryNotifier("", RestClient.builder(), Executors.newSingleThreadExecutor());
-        assertThat(notifier.enabled()).isFalse();
+        SupportSlackChannel channel = new SupportSlackChannel("", RestClient.builder(), Executors.newSingleThreadExecutor());
+        assertThat(channel.enabled()).isFalse();
+        SlackSupportInquiryNotifier notifier = new SlackSupportInquiryNotifier(channel);
         notifier.accepted(new Notice(ID, "other", "아무 일도 없어야 해요", false, null));
     }
 }
