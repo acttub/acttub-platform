@@ -108,6 +108,8 @@ class GeminiTranscriberTest {
             assertThatThrownBy(() -> transcriber.transcribe(Path.of("take.wav"))).satisfies(exception -> {
                 assertThat(FailureClassifier.classify(exception)).isEqualTo(FailureKind.EXTERNAL);
                 assertThat(exception.getCause()).isNotNull();
+                // 말이 없는 답(후보·받아쓰기 칸 없음)만 NoSpeechInResponse 다. 글만 있고 단어 시각이 없는 답은 진짜 실패다.
+                assertThat(NoSpeechInResponse.within(exception)).isEqualTo(!response.contains("\"unused\""));
             });
             assertThat(gateway.deleted).containsExactly("files/audio");
         }
