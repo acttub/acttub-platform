@@ -15,6 +15,7 @@ import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,7 +54,14 @@ class PostgresNotificationRepository implements NotificationRepository {
             """;
     private final EntityManager em;
 
-    PostgresNotificationRepository(EntityManager em) { this.em = em; }
+    /** 팀 계정 메일(소문자, 쉼표로 이음) — ops 와 같은 ADMIN_OPS_EXCLUDE_EMAILS. 조회 요약에서 팀을 뺀다(SOMA-958). */
+    private final String teamEmails;
+
+    PostgresNotificationRepository(EntityManager em, @Value("${ADMIN_OPS_EXCLUDE_EMAILS:}") String teamEmails) {
+        this.em = em;
+        this.teamEmails = java.util.Arrays.stream(teamEmails.split(",")).map(String::trim).map(String::toLowerCase)
+                .filter(email -> !email.isEmpty()).collect(java.util.stream.Collectors.joining(","));
+    }
 
     @Override @Transactional(readOnly = true)
     public Inbox inbox(UUID user, String cursor, Instant now) {
@@ -193,6 +201,58 @@ class PostgresNotificationRepository implements NotificationRepository {
             var sent = claimed ? sendable.stream().map(row -> row.get("id", UUID.class)).toList() : List.<UUID>of();
             mark(sent, "attempted", now);
             mark(ids.stream().filter(id -> !sent.contains(id)).toList(), "skipped", now);
+        }
+        return outgoing;
+    }
+
+    @Override @Transactional
+    public List<Outgoing> viewDigest(Instant now, int recipients) {
+        if (!NotificationRules.outsideNight(now).equals(now)) return List.of();
+        // 공개·보이는 참여작만 센다(비공개·신고로 숨김·삭제 제외). 팀(ADMIN_OPS_EXCLUDE_EMAILS)이 본 것은 세지 않고 팀 참여작 주인에게는 보내지 않는다.
+        // 누르면 갈 참여작은 그날 가장 많은 사람이 본 것(같으면 최근 올린 것)이다.
+        var viewed = NativeTuples.list(em.createNativeQuery("""
+                WITH team AS (
+                    SELECT id FROM users WHERE lower(COALESCE(email,'')) = ANY(string_to_array(:team, ','))
+                ), seen AS (
+                    SELECT e.user_id AS owner,e.id AS entry,e.published_at,v.user_id AS viewer
+                    FROM entry_view_events v JOIN challenge_entries e ON e.id=v.entry_id
+                    WHERE v.created_at>:since AND v.created_at<=:now AND v.user_id<>e.user_id
+                      AND e.visibility='public' AND e.status='visible'
+                      AND v.user_id NOT IN (SELECT id FROM team) AND e.user_id NOT IN (SELECT id FROM team)
+                ), top AS (
+                    SELECT DISTINCT ON (owner) owner,entry FROM (
+                        SELECT owner,entry,max(published_at) AS published_at,count(DISTINCT viewer) AS viewers FROM seen GROUP BY owner,entry
+                    ) per_entry ORDER BY owner,viewers DESC,published_at DESC,entry
+                )
+                SELECT seen.owner,count(DISTINCT seen.viewer) AS viewers,top.entry AS entry
+                FROM seen JOIN top ON top.owner=seen.owner
+                GROUP BY seen.owner,top.entry ORDER BY seen.owner LIMIT :limit
+                """, Tuple.class).setParameter("since", now.minus(NotificationRules.VIEW_DIGEST_SPAN).atOffset(ZoneOffset.UTC))
+                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("team", teamEmails).setParameter("limit", recipients));
+        var outgoing = new ArrayList<Outgoing>();
+        for (Tuple row : viewed) {
+            UUID owner = row.get("owner", UUID.class);
+            long viewers = ((Number) row.get("viewers")).longValue();
+            UUID entry = row.get("entry", UUID.class);
+            var tokens = NativeTuples.list(em.createNativeQuery("""
+                    SELECT t.token,t.locale FROM push_tokens t JOIN users u ON u.id=t.user_id JOIN user_profiles p ON p.user_id=t.user_id
+                    WHERE t.user_id=:user AND u.status='active' AND p.notify_challenge
+                    ORDER BY t.token
+                    """, Tuple.class).setParameter("user", owner)).stream()
+                    .map(token -> new PushTarget(token.get("token", String.class), token.get("locale", String.class))).toList();
+            if (tokens.isEmpty()) continue;
+            String key = NotificationRules.viewDigestKey(owner, now);
+            boolean claimed = em.createNativeQuery("""
+                    INSERT INTO notification_pushes(id,group_key,stage,user_id,created_at) VALUES (:id,:group,'first',:user,:now)
+                    ON CONFLICT (group_key,stage) DO NOTHING
+                    """).setParameter("id", UUID.randomUUID()).setParameter("group", key).setParameter("user", owner)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate() == 1;
+            if (!claimed) continue;
+            // type 을 challenge_notification 으로 두지 않는다 — 지금 앱은 그 푸시를 알림함으로 보내는데 알림함 행이 없다.
+            var data = java.util.Map.of("type", NotificationRules.VIEW_DIGEST_KIND, "kind", NotificationRules.VIEW_DIGEST_KIND,
+                    "viewers", Long.toString(viewers), "entry_id", entry.toString());
+            tokens.forEach(target -> outgoing.add(new Outgoing(target.token(), NotificationRules.pushTitle(target.korean()),
+                    NotificationRules.viewDigestBody(viewers, target.korean()), data)));
         }
         return outgoing;
     }

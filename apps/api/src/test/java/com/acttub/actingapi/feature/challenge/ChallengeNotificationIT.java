@@ -45,7 +45,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 시각을 고정한 채 워커를 직접 부른다. 푸시 전달만 대체해 보낸 것을 기록한다.
  */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "CHALLENGE_SETTLEMENT_ENABLED=false", "CHALLENGE_NOTIFICATION_PUSH_ENABLED=false"})
+        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "CHALLENGE_SETTLEMENT_ENABLED=false", "CHALLENGE_NOTIFICATION_PUSH_ENABLED=false",
+        "CHALLENGE_VIEW_DIGEST_ENABLED=false", "ADMIN_OPS_EXCLUDE_EMAILS= Team@Acttub.com ,ops@acttub.com"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ChallengeNotificationIT.Fakes.class})
 class ChallengeNotificationIT {
@@ -96,6 +97,7 @@ class ChallengeNotificationIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired NotificationPushWorker pushes;
+    @Autowired com.acttub.actingapi.feature.challenge.app.EntryViewDigestWorker digest;
     @Autowired ChallengeReportWorker reports;
     @Autowired EntryRepository entries;
     UUID me;
@@ -362,6 +364,62 @@ class ChallengeNotificationIT {
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────────
+
+    @Test void challengeNotification_eveningDigestCountsDistinctViewersOfTheLastDayOncePerDayWithoutAnInboxRow() throws Exception {
+        UUID mine = entry(challenge, me);
+        UUID other = entry(challenge, me);
+        UUID fan = member("팬"), second = member("둘째"), old = member("어제 본");
+        Instant evening = Instant.parse("2026-09-23T11:00:00Z"); // 한국 20:00
+        view(mine, fan, evening.minus(Duration.ofHours(3)));
+        view(other, fan, evening.minus(Duration.ofHours(2)));
+        view(mine, second, evening.minus(Duration.ofHours(1)));
+        view(mine, me, evening.minus(Duration.ofHours(1)));
+        view(mine, old, evening.minus(Duration.ofHours(25)));
+        UUID quiet = member("조용한");
+        device(quiet, "ExponentPushToken[quiet-1]", "ko");
+        UUID muted = member("끈 사람");
+        device(muted, "ExponentPushToken[muted-1]", "en");
+        jdbc.update("UPDATE user_profiles SET notify_challenge=false WHERE user_id=?", muted);
+        view(entry(challenge, muted), fan, evening.minus(Duration.ofHours(1)));
+        UUID english = member("영어");
+        device(english, "ExponentPushToken[en-1]", "en");
+        view(entry(challenge, english), fan, evening.minus(Duration.ofHours(1)));
+        // 팀이 본 것은 세지 않고, 팀 참여작 주인에게는 보내지 않는다. 비공개·신고로 숨긴 참여작의 조회도 세지 않는다.
+        UUID team = member("팀");
+        jdbc.update("UPDATE users SET email='team@acttub.com' WHERE id=?", team);
+        device(team, "ExponentPushToken[team-1]", "ko");
+        view(mine, team, evening.minus(Duration.ofHours(1)));
+        view(entry(challenge, team), fan, evening.minus(Duration.ofHours(1)));
+        UUID secret = entry(challenge, me), hidden = entry(challenge, me);
+        jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", secret);
+        jdbc.update("UPDATE challenge_entries SET status='hidden_by_report' WHERE id=?", hidden);
+        UUID third = member("셋째");
+        view(secret, third, evening.minus(Duration.ofHours(1)));
+        view(hidden, third, evening.minus(Duration.ofHours(1)));
+
+        assertThat(digest.runOnce(Instant.parse("2026-09-23T13:00:00Z"))).isZero(); // 한국 22:00 밤
+        assertThat(digest.runOnce(evening)).isEqualTo(2);
+        var byToken = new java.util.HashMap<String, PushMessage>();
+        Fakes.SENT.forEach(message -> byToken.put(message.to(), message));
+        assertThat(byToken.keySet()).containsExactlyInAnyOrder("ExponentPushToken[me-1]", "ExponentPushToken[en-1]");
+        assertThat(byToken.get("ExponentPushToken[me-1]").body()).isEqualTo("오늘 내 연기를 2명이 봤어요");
+        assertThat(byToken.get("ExponentPushToken[me-1]").body()).doesNotContain("팬");
+        assertThat(byToken.get("ExponentPushToken[me-1]").data()).containsEntry("kind", "entry_views_daily")
+                .containsEntry("type", "entry_views_daily").containsEntry("viewers", "2")
+                .containsEntry("entry_id", mine.toString()); // 누르면 그날 가장 많은 사람이 본 참여작으로 간다
+        assertThat(byToken.get("ExponentPushToken[en-1]").body()).isEqualTo("1 person watched your acting today");
+        assertThat(count("notifications")).isZero();
+
+        assertThat(digest.runOnce(evening.plus(Duration.ofMinutes(30)))).isZero();
+        assertThat(digest.runOnce(evening.plus(Duration.ofDays(1)))).isZero();
+        view(mine, old, evening.plus(Duration.ofHours(23)));
+        assertThat(digest.runOnce(evening.plus(Duration.ofDays(1)))).isEqualTo(1);
+    }
+
+    private void view(UUID entry, UUID viewer, Instant at) {
+        jdbc.update("INSERT INTO entry_view_events(event_id,entry_id,user_id,created_at) VALUES (?,?,?,?)",
+                UUID.randomUUID(), entry, viewer, java.sql.Timestamp.from(at));
+    }
 
     private UUID member(String name) {
         UUID id = UUID.randomUUID();
