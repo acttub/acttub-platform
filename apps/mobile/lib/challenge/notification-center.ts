@@ -133,3 +133,18 @@ export function challengePushTarget(data: unknown): ChallengePushTarget | null {
   }
   return null;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 하루 조회 요약 푸시(SOMA-958, kind=entry_views_daily)를 눌렀을 때 열 화면 — 그날 가장 많은 사람이 본 참여작.
+ * /entry/{id} 가 노출 조건을 다시 확인하고 그 참여작부터 피드를 연다. 참여작이 없으면 챌린지 탭이다. 다른 푸시는 null.
+ */
+export function viewDigestTarget(data: unknown): string | null {
+  if (data === null || typeof data !== 'object') return null;
+  const payload = data as { kind?: unknown; type?: unknown; entry_id?: unknown };
+  const kind = typeof payload.kind === 'string' ? payload.kind : payload.type;
+  if (kind !== 'entry_views_daily') return null;
+  const entry = typeof payload.entry_id === 'string' && UUID_RE.test(payload.entry_id) ? payload.entry_id : null;
+  return entry ? '/entry/' + encodeURIComponent(entry) : '/challenges';
+}
