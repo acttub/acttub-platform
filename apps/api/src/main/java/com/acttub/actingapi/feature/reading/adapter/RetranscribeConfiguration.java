@@ -29,9 +29,11 @@ class RetranscribeConfiguration {
             @Value("${READING_RETRANSCRIBE_MIN_PEAK_DB:-30}") double minPeakDb,
             @Value("${READING_RETRANSCRIBE_DAILY_LIMIT:400}") int dailyLimit,
             @Value("${READING_RETRANSCRIBE_MAX_DURATION_MS:60000}") int maxDurationMs,
+            @Value("${READING_RETRANSCRIBE_MIN_DURATION_MS:1500}") int minDurationMs,
             @Value("${READING_RETRANSCRIBE_LEASE_SECONDS:300}") long leaseSeconds,
             @Value("${READING_RETRANSCRIBE_MAX_ATTEMPTS:2}") int maxAttempts) {
-        return new RetranscribeSettings(enabled, minPeakDb, dailyLimit, maxDurationMs, Duration.ofSeconds(leaseSeconds),
+        return new RetranscribeSettings(enabled, minPeakDb, dailyLimit, maxDurationMs, minDurationMs,
+                Duration.ofSeconds(leaseSeconds),
                 maxAttempts);
     }
 
