@@ -141,11 +141,14 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
     }
 
     static SpeechAnalysis parse(GenerateContentResponse response) {
-        var candidates = response.candidates().orElseThrow();
-        var parts = candidates.getFirst().content().orElseThrow().parts().orElseThrow();
+        var candidates = response.candidates().orElse(List.of());
+        if (candidates.isEmpty()) {
+            throw new NoSpeechInResponse("transcription response has no candidates");
+        }
+        var parts = candidates.getFirst().content().flatMap(content -> content.parts()).orElse(List.of());
         var transcriptions = parts.stream().flatMap(part -> part.audioTranscription().stream()).toList();
         if (transcriptions.isEmpty()) {
-            throw new IllegalArgumentException("transcription response has no word annotations");
+            throw new NoSpeechInResponse("transcription response has no word annotations");
         }
         var words = transcriptions.stream().flatMap(t -> t.words().orElse(List.of()).stream()).toList();
         String text = parts.stream().filter(part -> !part.thought().orElse(false))
