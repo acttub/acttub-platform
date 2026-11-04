@@ -40,12 +40,14 @@ class PostgresEntryReportRepository implements ReportRepository {
         Filed prior = prior(reporter, requestId, fingerprint, report);
         if (prior != null) return prior;
         UUID id = UUID.randomUUID();
+        String text;
         switch (report.targetType()) {
             case "entry" -> {
                 var target = locks.entry(reporter, report.targetId(), now, true, false);
                 if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(target.author())) throw new ApiException(422, "self_report");
-                insert(id, reporter, requestId, fingerprint, report, target.contentVersion(), target.caption(), now);
+                text = target.caption();
+                insert(id, reporter, requestId, fingerprint, report, target.contentVersion(), text, now);
                 if (hidesEntry(report.targetId())) {
                     em.createNativeQuery("UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'")
                             .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", report.targetId()).executeUpdate();
@@ -55,7 +57,8 @@ class PostgresEntryReportRepository implements ReportRepository {
                 var comment = lockVisibleComment(reporter, report.targetId());
                 if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(comment.get("user_id", UUID.class))) throw new ApiException(422, "self_report");
-                insert(id, reporter, requestId, fingerprint, report, 1, comment.get("body", String.class), now);
+                text = comment.get("body", String.class);
+                insert(id, reporter, requestId, fingerprint, report, 1, text, now);
                 em.createNativeQuery("UPDATE entry_comments SET status='hidden' WHERE id=:id")
                         .setParameter("id", report.targetId()).executeUpdate();
             }
@@ -68,7 +71,8 @@ class PostgresEntryReportRepository implements ReportRepository {
                 if (challenge.isEmpty()) throw new ApiException(404, "challenge_not_found");
                 if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(challenge.getFirst().get("host_user_id", UUID.class))) throw new ApiException(422, "self_report");
-                insert(id, reporter, requestId, fingerprint, report, 1, challenge.getFirst().get("line", String.class), now);
+                text = challenge.getFirst().get("line", String.class);
+                insert(id, reporter, requestId, fingerprint, report, 1, text, now);
                 long reporters = ((Number) em.createNativeQuery("""
                         SELECT count(DISTINCT reporter_id) FROM entry_reports
                         WHERE target_type='challenge' AND target_id=:id AND status='received'
@@ -79,7 +83,7 @@ class PostgresEntryReportRepository implements ReportRepository {
                 }
             }
         }
-        return new Filed(new Receipt(id, "received"), true);
+        return new Filed(new Receipt(id, "received"), true, text);
     }
 
     /**

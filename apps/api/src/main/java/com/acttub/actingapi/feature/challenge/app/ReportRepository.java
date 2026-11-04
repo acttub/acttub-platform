@@ -20,7 +20,10 @@ public interface ReportRepository {
     AdminReport resolve(UUID id, String resolution, String reviewer, String note, Instant now);
 
     record NewReport(String targetType, UUID targetId, String reason, String note) { }
-    record Filed(Receipt receipt, boolean created) { }
+    /** {@code targetText} 는 새로 접수했을 때만 신고 시점의 대상 글(참여작 캡션·댓글·챌린지 대사)이다. 재전송이면 null. */
+    record Filed(Receipt receipt, boolean created, String targetText) {
+        public Filed(Receipt receipt, boolean created) { this(receipt, created, null); }
+    }
 
     @Schema(name = "ReportReceipt", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
