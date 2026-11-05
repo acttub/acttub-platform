@@ -293,8 +293,32 @@ class CloudVoiceServiceTest {
         // 목소리를 바꾸면 저장본이 없다.
         var changed = endedFreeWith(sessionLines(List.of(new UpcomingVoiceLines.Line("하나", "M2"))));
         assertThat(changed.status(USER, null, UUID.randomUUID()).available()).isFalse();
-        // 서버가 줄을 확정할 수 없는 회차(null)도 열지 않는다.
+        // 서버가 줄을 확정할 수 없는 회차(null)·모르는 목소리·상대 대사 없는 회차·조회 실패도 열지 않는다.
         assertThat(endedFreeWith(sessionLines(null)).status(USER, null, UUID.randomUUID()).available()).isFalse();
+        assertThat(endedFreeWith(sessionLines(List.of())).status(USER, null, UUID.randomUUID()).available()).isFalse();
+        assertThat(endedFreeWith(sessionLines(List.of(new UpcomingVoiceLines.Line("하나", "X9"))))
+                .status(USER, null, UUID.randomUUID()).available()).isFalse();
+        var broken = endedFreeWith(new UpcomingVoiceLines() {
+            public List<Line> after(UUID userId, UUID sessionId, String text, String preset, int count) { return List.of(); }
+            @Override public List<Line> all(UUID userId, UUID sessionId) { throw new IllegalStateException("db down"); }
+        });
+        assertThat(broken.status(USER, null, UUID.randomUUID()).proOnly()).isTrue();
+    }
+
+    @Test
+    void replayPlaybackFailureIsUnavailable() {
+        repository.consent = "granted";
+        saved("하나", "M1");
+        CloudVoiceStorage down = new CloudVoiceStorage() {
+            public boolean configured() { return true; }
+            public void upload(String key, byte[] wav) {}
+            public String playbackUrl(String key, int expiresInSeconds) { throw new IllegalStateException("s3 down"); }
+        };
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
+        var service = new CloudVoiceService(repository, down, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")),
+                userId -> false, sessionLines(List.of(new UpcomingVoiceLines.Line("하나", "M1"))), Runnable::run);
+        assertThatThrownBy(() -> service.synthesize(USER, "하나", "M1", UUID.randomUUID()))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(503));
     }
 
     @Test
