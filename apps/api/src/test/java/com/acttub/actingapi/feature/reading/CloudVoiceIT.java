@@ -153,6 +153,55 @@ class CloudVoiceIT {
     }
 
     @Test
+    void reading_cloudVoice_freeFirstReadingIsOncePerAccountNotPerScript() {
+        // SOMA-1060: 무료 배우의 고품질 목소리 첫 리딩은 대본마다가 아니라 계정당 한 번이다.
+        UUID first = scriptWithLine(user);
+        UUID second = scriptWithLine(user);
+        assertThat(voices.firstReadingScript(user, first)).isTrue();
+        assertThat(voices.firstReadingScript(user, second)).isTrue();
+
+        // 다른 사람의 리딩은 내 첫 리딩을 막지 않는다.
+        UUID other = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
+        UUID othersScript = scriptWithLine(other);
+        readingSession(other, othersScript, Instant.parse("2026-11-01T00:00:00Z"));
+
+        UUID firstSession = readingSession(user, first, Instant.parse("2026-11-02T00:00:00Z"));
+        assertThat(voices.firstReadingSession(user, firstSession)).isTrue();
+        // 한 번 읽은 계정은 새 대본도 첫 리딩이 아니다.
+        assertThat(voices.firstReadingScript(user, second)).isFalse();
+        UUID secondSession = readingSession(user, second, Instant.parse("2026-11-03T00:00:00Z"));
+        assertThat(voices.firstReadingSession(user, secondSession)).isFalse();
+        // 같은 대본을 다시 읽어도 첫 리딩이 아니다.
+        UUID again = readingSession(user, first, Instant.parse("2026-11-04T00:00:00Z"));
+        assertThat(voices.firstReadingSession(user, again)).isFalse();
+        // 남의 회차는 내 첫 리딩이 아니다.
+        assertThat(voices.firstReadingSession(user, readingSession(other, othersScript, Instant.parse("2026-10-01T00:00:00Z")))).isFalse();
+    }
+
+    private UUID scriptWithLine(UUID owner) {
+        UUID script = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint)
+                VALUES (?,?,'대본','원문',repeat('0',64),'paste',?,?)
+                """, script, owner, UUID.randomUUID(), "f".repeat(64));
+        jdbc.update("INSERT INTO script_lines(id,script_id,ordinal,kind,text) VALUES (?,?,0,'dialogue','대사')", UUID.randomUUID(), script);
+        return script;
+    }
+
+    private UUID readingSession(UUID owner, UUID script, Instant startedAt) {
+        UUID id = UUID.randomUUID();
+        UUID line = jdbc.queryForObject("SELECT id FROM script_lines WHERE script_id=? LIMIT 1", UUID.class, script);
+        jdbc.update("""
+                INSERT INTO reading_sessions(id,script_id,user_id,request_id,my_character_ids,mode,start_line_id,end_line_id,
+                                             advance,record,status,started_at,updated_at,ended_at)
+                VALUES (?,?,?,?,CAST('{}' AS uuid[]),'read',?,?,'silence',true,'completed',?,?,?)
+                """, id, script, owner, UUID.randomUUID(), line, line,
+                startedAt.atOffset(ZoneOffset.UTC), startedAt.atOffset(ZoneOffset.UTC), startedAt.atOffset(ZoneOffset.UTC));
+        return id;
+    }
+
+    @Test
     void reading_cloudVoice_allCachedNeedsEverySavedLine() {
         jdbc.update("INSERT INTO reading_voice_cache(hash,model,voice,byte_size,created_at) VALUES ('h1','m','Kore',4,now()),('h2','m','Kore',4,now())");
         // SOMA-1056: 재연습 회차는 상대 대사가 전부 저장돼 있어야 연다. 같은 줄이 여러 번 나와도 한 번으로 센다.
