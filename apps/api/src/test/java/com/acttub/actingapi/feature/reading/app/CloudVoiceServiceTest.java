@@ -233,7 +233,91 @@ class CloudVoiceServiceTest {
         assertThat(secondStatus.available()).isFalse();
         assertThat(secondStatus.reason()).isNull();
         assertThat(secondStatus.proOnly()).isTrue();
-        assertThatThrownBy(() -> endedFree().synthesize(USER, "안녕하세요.", "F1", second))
+        assertThatThrownBy(() -> endedFree().synthesize(USER, "처음 듣는 줄.", "F1", second))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(503));
+    }
+
+    // ── SOMA-1056: 무료 재연습 회차는 이미 만든 목소리만으로 연다 ──
+
+    private CloudVoiceService endedFreeWith(UpcomingVoiceLines upcoming) {
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
+        return new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")),
+                userId -> false, upcoming, Runnable::run);
+    }
+
+    private static UpcomingVoiceLines sessionLines(List<UpcomingVoiceLines.Line> all) {
+        return new UpcomingVoiceLines() {
+            public List<Line> after(UUID userId, UUID sessionId, String text, String preset, int count) { return List.of(); }
+            @Override public List<Line> all(UUID userId, UUID sessionId) { return all; }
+        };
+    }
+
+    private void saved(String text, String preset) {
+        String hash = CloudVoiceService.hash("tts-model", CloudVoiceService.VOICES.get(preset), text);
+        repository.rows.put(hash, new CloudVoiceRepository.CacheEntry(hash, "reading-voice/" + hash + ".wav"));
+    }
+
+    @Test
+    void replayOpensWhenEveryPartnerLineIsAlreadySaved() {
+        repository.consent = "granted";
+        repository.daily = 300;
+        saved("하나", "M1");
+        saved("둘", "F1");
+        var service = endedFreeWith(sessionLines(List.of(new UpcomingVoiceLines.Line("하나", "M1"),
+                new UpcomingVoiceLines.Line("둘", "F1"))));
+        UUID again = UUID.randomUUID();
+
+        var status = service.status(USER, null, again);
+        assertThat(status.available()).isTrue();
+        assertThat(status.reason()).isEqualTo("replay");
+        assertThat(status.proOnly()).isFalse();
+        // 하루 한도를 다 썼어도 앱이 회차를 끝까지 읽을 수 있다고 판단하도록 쓴 양은 0으로 알린다.
+        assertThat(status.dailyUsed()).isZero();
+        assertThat(status.dailyLimit()).isGreaterThanOrEqualTo(2);
+
+        assertThat(service.synthesize(USER, " 하나 ", "M1", again).cached()).isTrue();
+        assertThat(calls).hasValue(0);
+        assertThat(repository.increments).isZero();
+    }
+
+    @Test
+    void replayStaysClosedWhenAnyLineIsMissing() {
+        repository.consent = "granted";
+        saved("하나", "M1");
+        var service = endedFreeWith(sessionLines(List.of(new UpcomingVoiceLines.Line("하나", "M1"),
+                new UpcomingVoiceLines.Line("둘", "F1"))));
+        var status = service.status(USER, null, UUID.randomUUID());
+        assertThat(status.available()).isFalse();
+        assertThat(status.proOnly()).isTrue();
+
+        // 목소리를 바꾸면 저장본이 없다.
+        var changed = endedFreeWith(sessionLines(List.of(new UpcomingVoiceLines.Line("하나", "M2"))));
+        assertThat(changed.status(USER, null, UUID.randomUUID()).available()).isFalse();
+        // 서버가 줄을 확정할 수 없는 회차(null)도 열지 않는다.
+        assertThat(endedFreeWith(sessionLines(null)).status(USER, null, UUID.randomUUID()).available()).isFalse();
+    }
+
+    @Test
+    void replaySessionNeverSynthesizesNewLines() {
+        repository.consent = "granted";
+        var service = endedFreeWith(sessionLines(List.of(new UpcomingVoiceLines.Line("둘", "F1"))));
+        assertThatThrownBy(() -> service.synthesize(USER, "둘", "F1", UUID.randomUUID()))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(503));
+        assertThat(calls).hasValue(0);
+        assertThat(repository.increments).isZero();
+    }
+
+    @Test
+    void replayStillNeedsConsentAndIgnoresOldAppsWithoutSession() {
+        saved("하나", "M1");
+        var service = endedFreeWith(sessionLines(List.of(new UpcomingVoiceLines.Line("하나", "M1"))));
+        UUID again = UUID.randomUUID();
+        assertThat(service.status(USER, null, again).consent()).isEqualTo("undecided");
+        assertThatThrownBy(() -> service.synthesize(USER, "하나", "M1", again))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getMessage()).isEqualTo("cloud_voice_consent_required"));
+        repository.consent = "granted";
+        assertThat(service.status(USER).available()).isFalse();
+        assertThatThrownBy(() -> service.synthesize(USER, "하나", "M1"))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(503));
     }
 
