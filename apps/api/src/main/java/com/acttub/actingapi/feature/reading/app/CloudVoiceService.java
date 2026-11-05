@@ -109,6 +109,15 @@ public final class CloudVoiceService {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
         boolean pro = plan.pro(userId);
         Access access = access(userId, scriptId, sessionId, pro);
+        if (access == Access.PRO_ONLY && sessionId != null) {
+            // 재연습 회차의 상대 대사가 지금 목소리로 전부 만들어져 있으면 무료 배우도 연다(SOMA-1056). 새로 만들지 않으니
+            // 하루 한도를 쓰지 않는다 — 앱은 남은 한도와 회차 줄 수를 비교하므로 쓴 양을 0으로 알린다.
+            int lines = replayableLines(userId, sessionId);
+            if (lines > 0) {
+                return new Status(true, null, repository.consent(userId), Math.max(settings.dailyLineCap(), lines), 0,
+                        REPLAY, false);
+            }
+        }
         return new Status(access.available(), inFreePeriod() ? settings.freeUntil() : null, repository.consent(userId),
                 pro ? settings.proMonthlyLineCap() : settings.dailyLineCap(),
                 pro ? repository.monthlyUsage(userId, YearMonth.from(today)) : repository.dailyUsage(userId, today),
@@ -124,10 +133,21 @@ public final class CloudVoiceService {
         String voice = preset == null ? null : VOICES.get(preset);
         if (text.isEmpty() || text.length() > MAX_CHARS || voice == null) throw new ApiException(400, "invalid_voice_request");
         boolean pro = plan.pro(userId);
-        if (!access(userId, null, sessionId, pro).available()) throw unavailable(null);
+        Access access = access(userId, null, sessionId, pro);
+        // 첫 리딩이 아닌 무료 회차는 이미 만든 줄만 준다(SOMA-1056). 새로 만들지도, 미리 만들지도 않는다.
+        boolean replayOnly = access == Access.PRO_ONLY && sessionId != null;
+        if (!access.available() && !replayOnly) throw unavailable(null);
         if (!"granted".equals(repository.consent(userId))) throw new ApiException(403, "cloud_voice_consent_required");
         String hash = hash(settings.model(), voice, text);
         CacheEntry cached = repository.findCache(hash);
+        if (replayOnly) {
+            if (cached == null) throw unavailable(null);
+            try {
+                return result(cached.objectKey(), true);
+            } catch (RuntimeException error) {
+                throw unavailable(error);
+            }
+        }
         // 지금 읽는 줄보다 너무 앞선 줄은 읽는 사람이 다가올 때까지 만들지 않는다(SOMA-1000). 기다린 사이 다른 요청이 만들었을 수 있다.
         if (cached == null && !making.containsKey(hash) && waitForReader(userId, sessionId, text, preset)) {
             cached = repository.findCache(hash);
@@ -364,6 +384,26 @@ public final class CloudVoiceService {
         boolean first = sessionId != null ? repository.firstReadingSession(userId, sessionId)
                 : scriptId != null && repository.firstReadingScript(userId, scriptId);
         return first ? Access.FIRST_READING : Access.PRO_ONLY;
+    }
+
+    /** 무료 재연습으로 열 때의 이유 값(SOMA-1056). */
+    static final String REPLAY = "replay";
+
+    /** 회차 상대 대사가 지금 목소리로 전부 저장돼 있으면 그 줄 수, 아니면 0. */
+    private int replayableLines(UUID userId, UUID sessionId) {
+        try {
+            List<UpcomingVoiceLines.Line> lines = upcoming.all(userId, sessionId);
+            if (lines == null || lines.isEmpty()) return 0;
+            List<String> hashes = new ArrayList<>(lines.size());
+            for (UpcomingVoiceLines.Line line : lines) {
+                String voice = VOICES.get(line.preset());
+                if (voice == null) return 0;
+                hashes.add(hash(settings.model(), voice, line.text().trim()));
+            }
+            return repository.allCached(hashes) ? lines.size() : 0;
+        } catch (RuntimeException error) {
+            return 0;
+        }
     }
 
     private enum Access {
