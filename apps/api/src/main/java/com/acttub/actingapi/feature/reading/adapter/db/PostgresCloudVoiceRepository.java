@@ -92,6 +92,15 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
     }
 
     @Override
+    public boolean allCached(java.util.Collection<String> hashes) {
+        var distinct = java.util.Set.copyOf(hashes);
+        if (distinct.isEmpty()) return false;
+        Number found = (Number) entityManager.createNativeQuery("SELECT COUNT(*) FROM reading_voice_cache WHERE hash IN (:hashes)")
+                .setParameter("hashes", distinct).getSingleResult();
+        return found.intValue() == distinct.size();
+    }
+
+    @Override
     public boolean recordSuccessWithinMonthlyCap(UUID userId, LocalDate day, CacheEntry entry, String model,
             String voice, int byteSize, Instant now, int cap) {
         return Boolean.TRUE.equals(transaction.execute(status -> {
