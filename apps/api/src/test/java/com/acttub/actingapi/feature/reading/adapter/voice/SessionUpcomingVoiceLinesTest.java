@@ -84,4 +84,27 @@ class SessionUpcomingVoiceLinesTest {
         when(sessions.find(user, session)).thenReturn(null);
         assertThat(upcoming.ahead(user, session, "둘", "M1")).isNull();
     }
+
+    @Test
+    void allListsEveryPartnerLineOfMySessionAndIsUnknownOtherwise() {
+        assertThat(upcoming.all(user, session)).isNull();
+        SessionCardView card = mock(SessionCardView.class);
+        when(card.myCharacterIds()).thenReturn(List.of(me));
+        SessionDetailView detail = mock(SessionDetailView.class);
+        when(detail.card()).thenReturn(card);
+        when(detail.scriptId()).thenReturn(script);
+        when(sessions.find(user, session)).thenReturn(detail);
+        // 대본을 못 찾으면 모른다.
+        assertThat(upcoming.all(user, session)).isNull();
+        ScriptView view = mock(ScriptView.class);
+        when(view.characters()).thenReturn(List.of(
+                new CharacterView(me, "서연", 0, null, "F2", null, null, 1, List.of(), false),
+                new CharacterView(partner, "지호", 1, null, "M1", null, null, 2, List.of(), false)));
+        when(view.lines()).thenReturn(List.of(
+                new LineView(UUID.randomUUID(), 1, "dialogue", partner, "하나", 1, null, null),
+                new LineView(UUID.randomUUID(), 2, "dialogue", me, "내 줄", 2, null, null),
+                new LineView(UUID.randomUUID(), 3, "dialogue", partner, "둘", 3, null, null)));
+        when(scripts.find(user, script)).thenReturn(view);
+        assertThat(upcoming.all(user, session)).containsExactly(new Line("하나", "M1"), new Line("둘", "M1"));
+    }
 }
