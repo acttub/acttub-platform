@@ -85,3 +85,10 @@ test('withProgressTimeout: 압축이 먼저 실패하면 그 오류를 그대로
 test('전체 상한은 길이로 정한 멈춤 상한보다 길다', () => {
   assert.ok(COMPRESS_HARD_MAX_MS > compressTimeoutMs(300));
 });
+
+test('withProgressTimeout: 압축을 시작하자마자 던져도 거절로 받는다', async () => {
+  await assert.rejects(
+    withProgressTimeout(() => { throw new Error('no codec'); }, { stallMs: 50, maxMs: 100 }),
+    /no codec/,
+  );
+});

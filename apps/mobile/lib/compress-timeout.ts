@@ -86,15 +86,8 @@ export function withProgressTimeout<T>(
       best = progress;
       arm();
     };
-    let running: Promise<T>;
-    try {
-      running = start(onProgress);
-    } catch (error) {
-      stop();
-      reject(error);
-      return;
-    }
-    running.then(
+    // start 가 바로 던져도 거절로 받는다.
+    new Promise<T>((started) => started(start(onProgress))).then(
       (value) => {
         if (settled) return;
         stop();
