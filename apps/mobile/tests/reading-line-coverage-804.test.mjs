@@ -36,3 +36,8 @@ test('SOMA-727: 대사 속 괄호 지문 자리에서 멈춰도 지문 앞까지
   assert.equal(saidEnough(line, '관장님'), false);
   assert.equal(saidEnough(line, '관장님 관장님 저 빨리 권투 가르쳐 주세요'), true);
 });
+
+test('괄호가 닫히지 않은 내 줄도 글자를 센다 — 0자로 세면 첫 침묵에 바로 넘어갔다(11/5 제보)', () => {
+  assert.equal(spokenCoverage('(문을 열며 그래 들어와', ''), 0);
+  assert.ok(spokenCoverage('(문을 열며 그래 들어와', '그래') < 0.5);
+});

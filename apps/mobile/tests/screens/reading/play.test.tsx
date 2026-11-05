@@ -16,6 +16,7 @@ import { setFirstReadingSession } from '@/lib/reading/first-reading';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
 import { missingModelBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { hasDeviceVoice, speakWithDevice } from '@/lib/reading/tts/device-voice';
+import { NEXT_TAP_GUARD_MS, setNextTapGuardMs } from '@/lib/reading/next-tap-guard';
 import * as tts from '@/lib/reading/tts/engine';
 import { VoicePrepareError } from '@/lib/reading/tts/voice-errors';
 import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
@@ -137,7 +138,7 @@ jest.mock('expo-file-system', () => ({
   },
 }));
 
-const queue = { prime: jest.fn(), first: jest.fn(), take: jest.fn(), make: jest.fn(), cancel: jest.fn() };
+const queue = { prime: jest.fn(), first: jest.fn(), take: jest.fn(), make: jest.fn(), cancel: jest.fn(), forget: jest.fn() };
 let mic: Listener | null = null;
 let recognizer: Listener | null = null;
 let appStateListeners: ((state: string) => void)[] = [];
@@ -976,12 +977,61 @@ test('미리 만든 음성이 없으면 앱 목소리로 그 자리에서 읽는
   expect(tts.speak).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { scriptId: 's1', lang: 'ko' });
 });
 
-test('상대 줄 하나를 못 읽어도 기록만 남기고 다음 줄로 넘어간다', async () => {
+test('저장한 소리를 못 틀면 기기 목소리로 읽고, 지운 저장본은 큐에서 잊어 다시 꺼내지 않는다', async () => {
   jest.mocked(tts.play).mockRejectedValueOnce(new Error('player crashed'));
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', { engine: 'supertonic', kind: 'unknown' });
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
+  expect(tts.discardSpeechFile).toHaveBeenCalledWith('file:///speech.wav');
+  expect(queue.forget).toHaveBeenCalledWith('file:///speech.wav');
+});
+
+// 11/5 문의 「인원이 많은 대본에서 상대 배역 대사 하나가 씹힌다」 — 목소리 실패를 기록만 하고 넘기던 길을 막는다.
+test('앱 목소리로 그 자리에서 읽다 실패한 상대 줄은 건너뛰지 않고 기기 목소리로 읽는다', async () => {
+  queue.take.mockResolvedValue(null);
+  jest.mocked(tts.speak).mockRejectedValueOnce(new Error('synth failed'));
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
+  expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', { engine: 'supertonic', kind: 'unknown', to: 'device_voice' });
+});
+
+test('앱 목소리가 실패하고 기기 목소리도 없으면 그 줄을 글로 보이고 다음을 눌러 넘긴다', async () => {
+  jest.mocked(hasDeviceVoice).mockResolvedValue(false);
+  queue.take.mockResolvedValue(null);
+  jest.mocked(tts.speak).mockRejectedValueOnce(new Error('synth failed'));
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText('글로 보기')).toBeOnTheScreen();
+  expect(screen.queryByText(ME)).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+});
+
+test('저장한 소리를 못 틀었는데 기기 목소리가 없으면 그 줄을 건너뛰지 않고 글로 보인다', async () => {
+  jest.mocked(hasDeviceVoice).mockResolvedValue(false);
+  jest.mocked(tts.play).mockRejectedValueOnce(new Error('player crashed'));
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText('글로 보기')).toBeOnTheScreen();
+  expect(screen.queryByText(ME)).not.toBeOnTheScreen();
+});
+
+test('괄호가 닫히지 않은 상대 줄도 소리 내 읽는다 — 지문이 다음 줄로 넘어간 대본(11/5 문의)', async () => {
+  const detail = scriptDetail([
+    ['scene', '1장 카페'],
+    ['dialogue', '민재', '오늘 왔구나.'],
+    ['dialogue', '서연', '(문을 열며 그래, 들어와'],
+    ['dialogue', '민재', '괜찮아.'],
+  ]);
+  queue.take.mockResolvedValue(null);
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l4' }, detail);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.speak).toHaveBeenCalledWith('문을 열며 그래, 들어와', expect.any(String), expect.anything());
 });
 
 test('구간에 상대 대사가 없으면 목소리를 준비하지 않는다', async () => {
@@ -1137,6 +1187,21 @@ test('한 줄 녹음이 3분에 이르면 녹음을 멈춰 올리고, 다음을 
   await fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('서연')).toBeOnTheScreen();
   expect(enqueueLineRecording).toHaveBeenCalledTimes(1);
+});
+
+test('줄이 막 바뀐 직후 [다음]을 한 번 더 눌러도 새로 시작한 상대 대사를 건너뛰지 않는다(11/5 문의 「대사가 씹힘」)', async () => {
+  setNextTapGuardMs(NEXT_TAP_GUARD_MS);
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined)); // 상대 대사를 읽는 중으로 둔다
+  await startPlay();
+  await screen.findByText('듣는 중');
+  await act(() => new Promise<void>((resolve) => setTimeout(resolve, NEXT_TAP_GUARD_MS + 50))); // 내 줄을 충분히 본 뒤
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('읽는 중')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('다음')); // 앞 줄을 넘기려던 두 번째 누름
+
+  expect(screen.getByText('읽는 중')).toBeOnTheScreen();
+  expect(screen.getByText('서연')).toBeOnTheScreen();
 });
 
 test('너무 커서 못 보낸 녹음은 위쪽에 잠깐 알린다', async () => {

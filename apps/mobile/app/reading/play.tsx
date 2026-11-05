@@ -44,6 +44,7 @@ import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads }
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { isWordless, saidEnough, spokenCoverage } from '@/lib/reading/line-coverage';
+import { tooSoonAfterLineChange } from '@/lib/reading/next-tap-guard';
 import { logAdvance } from '@/lib/reading/advance-log';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
@@ -798,6 +799,11 @@ export default function ReadingPlay() {
   );
   const beatDuration = beatLines.length > 0 && run ? beatMs(beatLines.map((i) => run.lines[i].text)) : 0;
   const beatOn = beatDuration > 0;
+  // 줄이 바뀌거나 지문 멈춤이 끝난 때 — 그 직후의 [다음]은 두 번 누름으로 본다(lib/reading/next-tap-guard).
+  const lineShownAt = useRef(0);
+  useEffect(() => {
+    lineShownAt.current = Date.now();
+  }, [run?.index, beatOn]);
   /** 시작 전 안내나 지문 멈춤 — 상대 읽기·내 차례 마이크를 열지 않는다. */
   const turnGated = tipOpen || beatOn;
   const runPaused = run?.status === 'paused';
@@ -910,12 +916,23 @@ export default function ReadingPlay() {
       } catch (e) {
         logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
         tts.discardSpeechFile(uri);
+        // 지운 파일을 큐가 기억하면 같은 대사가 다시 나올 때 또 꺼내 틀다 실패한다(11/5 문의).
+        speechQueue.current?.forget(uri);
       }
       if (cancelled || !mounted.current) return;
       await readInstead();
     };
+    // 소리 낼 길이 없으면 그 줄을 글로 보이고 버튼을 기다린다 — 소리 없이 넘기면 대사가 씹힌 것처럼 들린다(11/5 문의).
+    let waitForTap = false;
+    const showAsText = () => {
+      waitForTap = true;
+      setLineEngine('text_only');
+    };
     const readWithDeviceVoice = async (read: () => Promise<void>) => {
-      if (!deviceVoiceRef.current) return;
+      if (!deviceVoiceRef.current) {
+        showAsText();
+        return;
+      }
       setLineEngine('device_voice');
       await read();
     };
@@ -932,6 +949,7 @@ export default function ReadingPlay() {
       await tts.speak(text, preset, { scriptId: script?.id, lang });
       return true;
     };
+    let at = 0;
     void (async () => {
       try {
         if (engine === 'text_only') {
@@ -957,6 +975,7 @@ export default function ReadingPlay() {
                   }
                 }),
               );
+              if (waitForTap) return;
               continue;
             }
             if (!deviceVoiceRef.current) {
@@ -972,7 +991,8 @@ export default function ReadingPlay() {
           finish();
           return;
         }
-        for (const { text, lang } of parts) {
+        for (; at < parts.length; at++) {
+          const { text, lang } = parts[at];
           if (cancelled || !mounted.current) return;
           if (engine === 'device_voice') {
             setLineEngine('device_voice');
@@ -991,6 +1011,7 @@ export default function ReadingPlay() {
               if (engine === 'cloud' && (await readWithAppVoice(text, lang, 'play_failed'))) return;
               await readWithDeviceVoice(() => speakWithDevice(text, preset, { locale: speechLocaleFor(lang) }));
             });
+            if (waitForTap) return;
           } else if (engine === 'supertonic') {
             setLineEngine('supertonic');
             await tts.speak(text, preset, { scriptId: script?.id, lang });
@@ -1012,9 +1033,26 @@ export default function ReadingPlay() {
           }
         }
       } catch (e) {
-        // 한 줄을 못 읽어도 다음 줄로 넘어간다. 얼마나 자주 그런지만 남긴다.
-        logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
+        // 앱 목소리로 못 읽은 줄은 남은 조각을 기기 목소리로 읽고, 기기 목소리도 없으면 글로 보이고 버튼을 기다린다 —
+        // 기록만 남기고 넘기면 그 대사가 씹혔다(11/5 문의 「인원이 많은 대본에서 한 줄이 씹힘」).
+        const to = deviceVoiceRef.current ? 'device_voice' : 'text_only';
+        logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e), to });
+        if (cancelled || !mounted.current) return;
+        if (to === 'text_only') {
+          showAsText();
+          return;
+        }
+        setLineEngine('device_voice');
+        try {
+          for (const { text, lang } of parts.slice(at)) {
+            if (cancelled || !mounted.current) return;
+            await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
+          }
+        } catch {
+          // 기기 목소리마저 못 읽으면 다음 줄로 넘긴다.
+        }
       }
+      if (waitForTap) return;
       finish();
     })();
     return () => {
@@ -2409,6 +2447,7 @@ export default function ReadingPlay() {
               label={t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}
               iconAfter={<Feather name="arrow-right" size={16} color={palette.onAccent} />}
               onPress={() => {
+                if (tooSoonAfterLineChange(lineShownAt.current)) return;
                 if (monoNext) nextMonoChunk(monoNext.start);
                 else if (monologue) void finishMonologue();
                 else if (beatOn) setBeatDoneAt(run.index);
