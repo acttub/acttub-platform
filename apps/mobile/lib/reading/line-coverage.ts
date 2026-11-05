@@ -14,15 +14,23 @@ const JAMO = /[ㄱ-ㆎ]/;
 
 const comparable = (c: string) => COMPARABLE.test(c) && !JAMO.test(c);
 
+/**
+ * 괄호 지문 밖의 글자들. 닫힌 괄호 안만 지문으로 뺀다 — 닫히지 않은 여는 괄호 뒤를 모두 지문으로 보면, 지문이 다음 줄로
+ * 넘어간 대본(「(문을 열며 그래, 들어와」)에서 상대 대사가 통째로 소리 없이 넘어가고 내 줄은 0자로 세어졌다(11/5 제보).
+ */
+function outsideDirections(text: string): string[] {
+  const chars = [...text];
+  const inside = new Array<boolean>(chars.length).fill(false);
+  const opens: number[] = [];
+  chars.forEach((c, i) => {
+    if (OPEN.test(c)) opens.push(i);
+    else if (CLOSE.test(c) && opens.length > 0) inside.fill(true, opens.pop()!, i + 1);
+  });
+  return chars.filter((c, i) => !inside[i] && !OPEN.test(c) && !CLOSE.test(c));
+}
+
 function lineChars(target: string): number {
-  let depth = 0;
-  let count = 0;
-  for (const c of target) {
-    if (OPEN.test(c)) depth += 1;
-    else if (CLOSE.test(c)) depth = Math.max(0, depth - 1);
-    else if (depth === 0 && comparable(c)) count += 1;
-  }
-  return count;
+  return outsideDirections(target).filter(comparable).length;
 }
 
 /**
@@ -30,13 +38,7 @@ function lineChars(target: string): number {
  * 잠깐 보여 준 뒤 넘긴다. 「ㅋㅋㅋ」 같은 낱자모는 배우가 내는 소리라 글자로 친다.
  */
 export function isWordless(text: string): boolean {
-  let depth = 0;
-  for (const c of text) {
-    if (OPEN.test(c)) depth += 1;
-    else if (CLOSE.test(c)) depth = Math.max(0, depth - 1);
-    else if (depth === 0 && COMPARABLE.test(c)) return false;
-  }
-  return true;
+  return !outsideDirections(text).some((c) => COMPARABLE.test(c));
 }
 
 /** 말한 글자 수 ÷ 대본 글자 수(최대 1). 셀 글자가 없는 줄은 1. */

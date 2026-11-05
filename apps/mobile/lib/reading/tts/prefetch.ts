@@ -42,6 +42,11 @@ export type SpeechQueue = {
    * 서버 음성 회차에서 큐가 못 따라온 줄을 곧바로 기기 목소리로 읽어 한 배역의 목소리가 중간에 바뀌던 것을 막는다).
    */
   make: (text: SpeechLine) => Promise<string | null>;
+  /**
+   * 틀지 못해 지운 저장본을 잊는다. 잊지 않으면 같은 대사·목소리가 다시 나올 때 지운 파일을 또 꺼내 틀다 실패해
+   * 그 줄이 씹혔다(11/5 문의). 다음에 그 줄이 오면 다시 만든다.
+   */
+  forget: (uri: string) => void;
   /** 화면을 나갈 때. 만들던 것이 끝나도 다음 줄로 넘어가지 않는다. */
   cancel: () => void;
   /** 시험용 — 지금 만들고 있는 한 줄이 끝날 때까지 기다린다(다음 줄은 그때 막 시작한다). */
@@ -124,6 +129,9 @@ export function createSpeechQueue(options: SpeechQueueOptions): SpeechQueue {
     async make(line) {
       if (!textOf(line)) return null;
       return done.get(keyOf(line)) ?? (await makeOne(line));
+    },
+    forget(uri) {
+      for (const [key, value] of done) if (value === uri) done.delete(key);
     },
     cancel() {
       cancelled = true;

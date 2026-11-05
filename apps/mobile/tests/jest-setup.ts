@@ -19,4 +19,6 @@ jest.mock('@/components/ad-slot', () => ({ AdSlot: () => null }));
 // 화면 테스트는 홈이 이미 받은 상태에서 시작한다 — 미루는 동작은 그 화면 테스트에서 따로 본다.
 beforeEach(() => {
   require('@/lib/launch-splash').markHomeReady();
+  // 리딩 [다음] 두 번 누름 막기 — 화면 테스트는 버튼을 연달아 누르므로 끈다. 막기는 play 화면 테스트 한 곳에서 켜고 본다.
+  require('@/lib/reading/next-tap-guard').setNextTapGuardMs(0);
 });

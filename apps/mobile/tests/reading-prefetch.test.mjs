@@ -187,3 +187,23 @@ test('make 는 큐가 아직 손대지 않았거나 실패한 줄을 지금 만�
   calls[1].reject(new Error('x'));
   assert.equal(await failed, null);
 });
+
+test('틀지 못해 지운 저장본은 잊는다 — 같은 대사가 다시 나오면 지운 파일을 또 꺼내 틀다 실패해 그 줄이 씹혔다(11/5 문의)', async () => {
+  const { calls, synthesize } = fakeSynth();
+  const queue = createSpeechQueue({ synthesize, ...options });
+
+  queue.prime(['네.']);
+  await Promise.resolve();
+  calls[0].resolve('file:///broken.wav');
+  await queue.settled();
+  assert.equal(await queue.take('네.'), 'file:///broken.wav');
+
+  queue.forget('file:///broken.wav');
+  assert.equal(await queue.take('네.'), null, '지운 파일은 다시 주지 않는다');
+
+  const remade = queue.make('네.');
+  await Promise.resolve();
+  assert.equal(calls.length, 2, '다시 만든다');
+  calls[1].resolve('file:///fresh.wav');
+  assert.equal(await remade, 'file:///fresh.wav');
+});
