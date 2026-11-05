@@ -6,7 +6,7 @@
     "min_speech_ms": 400,
     "max_listen_ms": 60000,
     "speech_end_grace_ms": 1300,
-    "advance_coverage": 0.7,
+    "advance_coverage": 0.9,
     "monologue_missed_below": 0.3,
     "monologue_next_at": 0.8,
     "monologue_touch_min": 3
