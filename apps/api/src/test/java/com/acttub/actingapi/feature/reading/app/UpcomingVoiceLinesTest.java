@@ -73,6 +73,16 @@ class UpcomingVoiceLinesTest {
     }
 
     @Test
+    void allGivesUpOnPartnersWithoutVoiceOrABrokenRange() {
+        UUID silent = UUID.randomUUID();
+        var withSilent = new ArrayList<>(characters);
+        withSilent.add(character(silent, "목소리 없음", null, List.of()));
+        line("dialogue", silent, "하나", null);
+        assertThat(UpcomingVoiceLines.allOf(withSilent, lines, List.of(me), null, null)).isNull();
+        assertThat(UpcomingVoiceLines.allOf(characters, lines, List.of(me), UUID.randomUUID(), null)).isNull();
+    }
+
+    @Test
     void staysInsideTheSessionRange() {
         line("dialogue", jiho, "하나", null);
         LineView end = line("dialogue", jiho, "둘", null);
