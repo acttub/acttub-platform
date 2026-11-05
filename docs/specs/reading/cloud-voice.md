@@ -25,7 +25,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원), 선택 쿼리 `session_id`(리딩 회차) 또는 `script_id`(대본). 둘 다 있으면 회차가 먼저 | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 왜 쓸 수 있는지(`reason`: `free_period`·`pro`·`first_reading`, 못 쓰면 null), 설정·한도는 괜찮은데 Pro 전용이라 못 쓰는지(`pro_only`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 호환 필드 daily_limit·daily_used(일반은 오늘, Pro는 이번 달)의 한도·사용량 | 게스트 `member_only` 403 |
+| `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원), 선택 쿼리 `session_id`(리딩 회차) 또는 `script_id`(대본). 둘 다 있으면 회차가 먼저 | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 왜 쓸 수 있는지(`reason`: `free_period`·`pro`·`first_reading`·`replay`, 못 쓰면 null), 설정·한도는 괜찮은데 Pro 전용이라 못 쓰는지(`pro_only`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 호환 필드 daily_limit·daily_used(일반은 오늘, Pro는 이번 달)의 한도·사용량 | 게스트 `member_only` 403 |
 | `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5), 선택 `session_id`(리딩 회차) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_monthly_limit` 429, `cloud_voice_too_far_ahead` 409(`session_id` 회차의 지금 줄보다 상대 대사 10줄 넘게 앞선 새 줄, 최대 20초 기다린 뒤), `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
 
 ## 상태
@@ -75,6 +75,11 @@
   `POST /v2/reading/voice`도 같은 `session_id`로 다시 판정한다(상태 응답을 믿지 않는다).
 - 회차를 만들기 전(동의를 받는 시점)에는 `script_id`로 묻는다. 내 대본이고 그 대본의 회차가 아직 하나도 없으면 `first_reading`이다.
 - 우선순위: 무료 기간(`free_period`) → Pro(`pro`) → 첫 리딩(`first_reading`). 모델·저장소 설정·동의는 공통이며 Pro는 계정별 월 10,000줄, 일반 계정만 기존 일·전체 월 한도를 적용한다.
+- 무료 재연습(SOMA-1056): 첫 회차가 아니어도 `session_id`로 물었을 때 그 회차 범위의 상대 대사가 지금 배역 목소리로 **전부** 저장(`reading_voice_cache`)돼
+  있으면 `available=true`·`reason=replay`·`pro_only=false`다. 새로 만들지 않으니 하루 한도를 쓰지 않는다 — 앱이 남은 한도와 회차 줄 수를 비교하므로
+  `daily_used=0`, `daily_limit=max(일 한도, 회차 상대 대사 수)`로 알린다. 한 줄이라도 없거나(중간에 나간 첫 리딩, 목소리·대사 변경), 여러 말로 나눠 읽는 줄·목소리
+  없는 배역이 있으면 열지 않는다(회차 도중 목소리가 바뀌지 않게). 이런 회차의 `POST /v2/reading/voice`는 저장된 줄만 주고, 없는 줄은 503이며 만들지도 미리 만들지도 않는다.
+  앱 수정 없이 회차 기준으로 상태를 묻는 기존 앱에서 동작한다.
 - `session_id`·`script_id`를 안 보내는 옛 앱 요청은 예전과 똑같다(무료 기간 또는 Pro만). 응답에 늘어난 `reason`·`pro_only`는 옛 앱이 무시한다.
 - 앱: 대본의 첫 리딩이면 [시작하기] 직후 회차를 만들기 전에 `cloud_voice` 동의가 undecided일 때만 기존 동의 창(가운데 카드 모달, 바텀시트 아님)을 띄운다.
   동의하면 첫 리딩부터 고품질이고, 거절하면 기기 목소리로 그대로 시작한다. 거절(denied)한 사람과 스위치를 꺼 둔 사람에게는 다시 묻지 않는다. 무료 기간·Pro에는 이 창을 띄우지 않는다.
@@ -108,7 +113,7 @@
 - 켠 앱의 R3 미리 듣기: 서버 요청 없이 그 프리셋의 Gemini 샘플이 나온다.
 - 팝업: 같은 날 두 번째 실행에는 뜨지 않는다. 「다시 보지 않기」 뒤에는 다음 날에도 뜨지 않는다. 켠 뒤에는 뜨지 않는다.
 
-- 무료 기간이 지난 뒤 무료 배우의 첫 리딩: `session_id`로 상태·합성을 하면 `reason=first_reading`이고, 같은 대본의 두 번째 회차는 `available=false`·`pro_only=true`·합성 503이다.
+- 무료 기간이 지난 뒤 무료 배우의 첫 리딩: `session_id`로 상태·합성을 하면 `reason=first_reading`이고, 같은 대본의 두 번째 회차는 `available=false`·`pro_only=true`·합성 503이다. 단 상대 대사가 전부 저장돼 있으면 `reason=replay`로 열리고 저장된 줄만 나온다(SOMA-1056).
   `session_id` 없이는 예전과 같다.
 
 ## 범위 밖
