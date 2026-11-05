@@ -16,6 +16,13 @@ public interface CloudVoiceRepository {
     /** 내 대본이고 아직 그 대본의 회차가 하나도 없는가 — 곧 시작할 회차가 첫 회차가 된다. */
     boolean firstReadingScript(UUID userId, UUID scriptId);
     CacheEntry findCache(String hash);
+
+    /** 모두 저장돼 있는지(SOMA-1056). 빈 목록은 {@code false}. */
+    default boolean allCached(java.util.Collection<String> hashes) {
+        if (hashes.isEmpty()) return false;
+        for (String hash : hashes) if (findCache(hash) == null) return false;
+        return true;
+    }
     /** 계정별 월 한도를 같은 계정의 기록과 직렬화해 검사한다. 캐시가 이미 있으면 차감 없이 성공한다. */
     boolean recordSuccessWithinMonthlyCap(UUID userId, LocalDate day, CacheEntry entry, String model, String voice, int byteSize, Instant now, int cap);
     void recordSuccess(UUID userId, LocalDate day, CacheEntry entry, String model, String voice, int byteSize, Instant now);
