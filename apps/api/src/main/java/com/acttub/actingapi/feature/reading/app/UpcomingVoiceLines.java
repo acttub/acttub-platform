@@ -27,6 +27,15 @@ public interface UpcomingVoiceLines {
     UpcomingVoiceLines NONE = (userId, sessionId, text, preset, count) -> List.of();
 
     /**
+     * 회차 범위의 상대 대사 전부(SOMA-1056). 무료 배우의 재연습 회차를 이미 만든 목소리만으로 끝까지 읽을 수 있는지 볼 때 쓴다.
+     * 회차·대본을 모르거나, 앱 요청과 같은 글을 서버가 알 수 없는 줄(여러 말로 나눠 읽는 줄, 목소리 없는 배역)이 있으면
+     * {@code null} 이다 — 그런 회차는 열지 않는다.
+     */
+    default List<Line> all(UUID userId, UUID sessionId) {
+        return null;
+    }
+
+    /**
      * 요청한 줄이 회차에서 지금 읽는 줄(current_line_id)보다 상대 대사 몇 줄 앞인지(SOMA-1000). 지금 줄이거나 이미 지나간 줄이면
      * 0, 바로 다음 상대 대사면 1이다. 회차·줄을 찾지 못하면 {@code null} — 모르면 막지 않는다.
      */
@@ -98,6 +107,27 @@ public interface UpcomingVoiceLines {
             else if (partner.text().equals(wanted) && partner.preset().equals(preset)) found = true;
         }
         return found ? next : List.of();
+    }
+
+    /** {@link #all} 의 계산. 상대 대사는 {@link #pick} 과 같은 규칙으로 고르고, 서버가 글을 확정할 수 없는 줄이 하나라도 있으면 {@code null}. */
+    static List<Line> allOf(List<CharacterView> characters, List<LineView> lines, List<UUID> myCharacterIds,
+            UUID startLineId, UUID endLineId) {
+        Set<UUID> mine = new HashSet<>(myCharacterIds == null ? List.of() : myCharacterIds);
+        Map<UUID, CharacterView> byId = characters.stream().collect(Collectors.toMap(CharacterView::id, Function.identity(), (a, b) -> a));
+        int start = indexOf(lines, startLineId, 0);
+        int end = indexOf(lines, endLineId, lines.size() - 1);
+        if (start < 0 || end < start) return null;
+        List<Line> all = new ArrayList<>();
+        for (int i = start; i <= end; i++) {
+            LineView line = lines.get(i);
+            if (!"dialogue".equals(line.kind())) continue;
+            CharacterView who = byId.get(line.characterId());
+            if (who == null || mine.contains(who.id()) || who.memberIds().stream().anyMatch(mine::contains)) continue;
+            String spoken = VoiceText.spoken(line.text(), line.speech());
+            if (spoken == null || who.voice() == null) return null;
+            if (!spoken.isEmpty()) all.add(new Line(spoken, who.voice()));
+        }
+        return all;
     }
 
     private static int indexOf(List<LineView> lines, UUID id, int fallback) {

@@ -153,6 +153,15 @@ class CloudVoiceIT {
     }
 
     @Test
+    void reading_cloudVoice_allCachedNeedsEverySavedLine() {
+        jdbc.update("INSERT INTO reading_voice_cache(hash,model,voice,byte_size,created_at) VALUES ('h1','m','Kore',4,now()),('h2','m','Kore',4,now())");
+        // SOMA-1056: 재연습 회차는 상대 대사가 전부 저장돼 있어야 연다. 같은 줄이 여러 번 나와도 한 번으로 센다.
+        assertThat(voices.allCached(List.of("h1", "h2", "h1"))).isTrue();
+        assertThat(voices.allCached(List.of("h1", "missing"))).isFalse();
+        assertThat(voices.allCached(List.of())).isFalse();
+    }
+
+    @Test
     void reading_cloudVoice_aLineIsSynthesizedOnceThenServedFromTheCache() throws Exception {
         var first = synthesize("{\"text\":\" 가지 마. \",\"voice\":\"F1\"}");
         assertThat(first.getStatus()).isEqualTo(200);
