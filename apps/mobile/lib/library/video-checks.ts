@@ -9,6 +9,13 @@ import { VIDEO_ERROR_CODES, type VideoErrorCode } from './types.ts';
 export const VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 export const VIDEO_MAX_MS = 300_000;
 
+/**
+ * 앱 촬영 화질(SOMA-737 후속). 기본값(1080p)이면 2분 촬영본이 100MiB 를 넘어, 줄이기가 멈추거나 실패했을 때 원본으로도
+ * 못 올렸다(11/4 Galaxy S23 리뷰). 720p·2Mbps면 5분도 약 80MB다. 분석은 어차피 720px 로 줄여서 본다.
+ */
+export const RECORD_VIDEO_QUALITY = '720p' as const;
+export const RECORD_VIDEO_BPS = 2_000_000;
+
 export type VideoCheck = { ok: true } | { ok: false; code: 'video_too_large' | 'video_too_long' | 'video_empty' };
 
 export function checkVideoForUpload(file: { byteSize: number; durationMs: number | null }): VideoCheck {

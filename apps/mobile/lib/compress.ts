@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
-import { compressTimeoutMs, withTimeout } from '@/lib/compress-timeout';
+import { COMPRESS_HARD_MAX_MS, compressTimeoutMs, withProgressTimeout } from '@/lib/compress-timeout';
 
 export type CompressResult = {
   uri: string;
@@ -84,18 +84,24 @@ export async function compressVideo(uri: string): Promise<CompressResult> {
           maxSize: 720,
           progressDivider: 5,
         };
-  // 코덱이 막히면 끝나지 않는다 — 길이로 정한 시간이 지나면 압축을 취소하고 원본으로 올린다(SOMA-737).
+  // 코덱이 막히면 끝나지 않는다 — 진행률이 길이로 정한 시간 동안 그대로면 압축을 취소하고 원본으로 올린다(SOMA-737).
+  // 진행률이 오르는 동안은 전체 상한까지 기다린다 — 길이만 보고 끊으면 줄이는 중인 영상도 끊겼다(11/4 S23 리뷰).
   let cancellationId: string | null = null;
   let compressed: string;
   try {
-    compressed = await withTimeout(
-      compressor.Video.compress(uri, {
-        ...options,
-        getCancellationId: (id: string) => {
-          cancellationId = id;
-        },
-      }),
-      compressTimeoutMs(durationSec),
+    compressed = await withProgressTimeout(
+      (onProgress) =>
+        compressor.Video.compress(
+          uri,
+          {
+            ...options,
+            getCancellationId: (id: string) => {
+              cancellationId = id;
+            },
+          },
+          onProgress,
+        ),
+      { stallMs: compressTimeoutMs(durationSec), maxMs: COMPRESS_HARD_MAX_MS },
       () => {
         if (cancellationId) compressor.Video.cancelCompression(cancellationId);
       },

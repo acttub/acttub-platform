@@ -2653,6 +2653,8 @@ const en: DeepStringShape<typeof ko> = {
     failBody: 'Shrinking the video took too long. Try again or pick another video.',
     retry: 'Try again',
     other: 'Pick another video',
+    savedTitle: 'Your recording is saved to Photos',
+    savedBody: 'No need to film it again. You can pick it from your gallery and upload it again.',
     laterTitle: 'Time to practice with Acti',
     laterBody: 'Shall we film just one line?',
     laterDenied: 'Notifications are off. Turn them on in settings and we can remind you.',

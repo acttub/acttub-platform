@@ -45,13 +45,18 @@ jest.mock('expo-camera', () => {
     };
     return [perm, ask, read];
   };
-  const CameraView = forwardRef(({ facing, onCameraReady }: { facing: string; onCameraReady?: () => void }, ref: unknown) => {
+  const CameraView = forwardRef(({ facing, onCameraReady, videoQuality, videoBitrate }: { facing: string; onCameraReady?: () => void; videoQuality?: string; videoBitrate?: number }, ref: unknown) => {
     useImperativeHandle(ref, () => mockCamera);
     // 실제 카메라처럼 세션이 준비되면 알린다. mockCameraReadySignal 이 false 면 알리지 않는다(iOS 준비 전 셔터 시험).
     useEffect(() => {
       if (mockCameraReadySignal) onCameraReady?.();
     }, [onCameraReady]);
-    return <Text>{`camera:${facing}`}</Text>;
+    return (
+      <>
+        <Text>{`camera:${facing}`}</Text>
+        <Text>{`quality:${videoQuality}@${videoBitrate}`}</Text>
+      </>
+    );
   });
   CameraView.displayName = 'CameraView';
   return {
@@ -333,8 +338,11 @@ describe('기본 촬영 화면', () => {
     await fireEvent.press(screen.getByLabelText('카메라 전환'));
     expect(screen.getByText('camera:back')).toBeOnTheScreen();
 
+    // 1080p 기본값이면 2분 촬영본이 100MiB 를 넘어 줄이기가 실패하면 못 올렸다(SOMA-737 후속, 11/4 S23 리뷰).
+    expect(screen.getByText('quality:720p@2000000')).toBeOnTheScreen();
     await startRecording();
-    expect(mockCamera.recordAsync).toHaveBeenCalledWith({ maxDuration: 300 });
+    // iOS 는 코덱을 정해야 비트레이트가 먹는다.
+    expect(mockCamera.recordAsync).toHaveBeenCalledWith({ maxDuration: 300, codec: 'avc1' });
     expect(screen.getByText('0:00 / 5:00')).toBeOnTheScreen();
     expect(screen.getByText('5분 남았어요')).toBeOnTheScreen();
     expect(screen.queryByLabelText('카메라 전환')).not.toBeOnTheScreen();
@@ -671,7 +679,7 @@ describe('챌린지 촬영', () => {
     await render(<RecordVideoScreen />);
 
     await startRecording();
-    expect(mockCamera.recordAsync).toHaveBeenCalledWith({ maxDuration: 60 });
+    expect(mockCamera.recordAsync).toHaveBeenCalledWith({ maxDuration: 60, codec: 'avc1' });
     expect(screen.getByText('1분 남았어요')).toBeOnTheScreen();
     expect(screen.queryByLabelText('카메라 전환')).not.toBeOnTheScreen();
     await act(async () => {
