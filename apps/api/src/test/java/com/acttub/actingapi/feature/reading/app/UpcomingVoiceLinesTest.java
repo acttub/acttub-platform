@@ -52,6 +52,37 @@ class UpcomingVoiceLinesTest {
     }
 
     @Test
+    void allListsEveryPartnerLineInTheRange() {
+        line("dialogue", jiho, "하나", null);
+        LineView start = line("dialogue", me, "내 대사", null);
+        line("dialogue", mina, "(웃으며) 둘", null);
+        line("dialogue", together, "같이 말하는 줄", null);
+        LineView end = line("dialogue", jiho, "셋", null);
+        line("dialogue", jiho, "범위 밖", null);
+
+        var all = UpcomingVoiceLines.allOf(characters, lines, List.of(me), start.id(), end.id());
+
+        assertThat(all).containsExactly(new Line("둘", "F1"), new Line("셋", "M1"));
+    }
+
+    @Test
+    void allGivesUpOnLinesReadInParts() {
+        line("dialogue", jiho, "하나", null);
+        line("dialogue", mina, "Hello 안녕", "⟦en⟧Hello⟦ko⟧안녕");
+        assertThat(UpcomingVoiceLines.allOf(characters, lines, List.of(me), null, null)).isNull();
+    }
+
+    @Test
+    void allGivesUpOnPartnersWithoutVoiceOrABrokenRange() {
+        UUID silent = UUID.randomUUID();
+        var withSilent = new ArrayList<>(characters);
+        withSilent.add(character(silent, "목소리 없음", null, List.of()));
+        line("dialogue", silent, "하나", null);
+        assertThat(UpcomingVoiceLines.allOf(withSilent, lines, List.of(me), null, null)).isNull();
+        assertThat(UpcomingVoiceLines.allOf(characters, lines, List.of(me), UUID.randomUUID(), null)).isNull();
+    }
+
+    @Test
     void staysInsideTheSessionRange() {
         line("dialogue", jiho, "하나", null);
         LineView end = line("dialogue", jiho, "둘", null);
