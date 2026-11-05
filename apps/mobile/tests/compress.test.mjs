@@ -10,7 +10,7 @@ globalThis.__compress = state;
 const compressor = {
   getVideoMetaData: async () => { if (state.meta instanceof Error) throw state.meta; return state.meta; },
   Video: {
-    compress: (uri, options) => { state.calls.push(['compress', uri, { ...options, getCancellationId: typeof options.getCancellationId }]); return state.compress(options); },
+    compress: (uri, options, onProgress) => { state.calls.push(['compress', uri, { ...options, getCancellationId: typeof options.getCancellationId }]); return state.compress(options, onProgress); },
     cancelCompression: id => { state.calls.push(['cancel', id]); if (state.cancelThrows) throw new Error('gone'); },
   },
 };
@@ -87,4 +87,25 @@ test('길이로 정한 시간 안에 끝나지 않으면 취소하고 원본을 
   mock.timers.tick(51_000);
   assert.deepEqual(await result, { uri: 'file:///in.mp4', originalBytes: 40_000_000, compressedBytes: null, fallback: 'timeout' });
   assert.deepEqual(state.calls.filter(([name]) => name === 'cancel'), [['cancel', 'job-2'], ['cancel', 'job-2']]);
+});
+
+test('줄이는 중 진행률이 오르면 길이로 정한 상한을 넘겨도 끝까지 기다린다(SOMA-737 후속)', async () => {
+  state.meta = { duration: 3 };
+  let report;
+  let finish;
+  state.compress = (options, onProgress) => {
+    options.getCancellationId('job-3');
+    report = onProgress;
+    return new Promise((resolve) => (finish = resolve));
+  };
+  const result = compressVideo('file:///in.mp4');
+  await settle();
+  for (const progress of [0.25, 0.5, 0.75]) {
+    mock.timers.tick(40_000);
+    report(progress);
+  }
+  mock.timers.tick(40_000);
+  finish('file:///out.mp4');
+  assert.deepEqual(await result, { uri: 'file:///out.mp4', originalBytes: 40_000_000, compressedBytes: 5_000_000 });
+  assert.deepEqual(state.calls.filter(([name]) => name === 'cancel'), []);
 });

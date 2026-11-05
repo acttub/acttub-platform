@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File } from 'expo-file-system';
 
 import { deleteDeviceFile, keepDeviceFile, libraryDirectory, trackTemporaryDeviceFile } from '@/lib/account-files';
+import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { compressVideo } from '@/lib/compress';
@@ -53,6 +54,25 @@ function notify(): void {
   for (const fn of listeners) fn();
 }
 
+/** GA 에 남길 파일 크기 구간(MiB). 정확한 값 대신 구간만 보낸다. */
+function sizeBucket(bytes: number): string {
+  const mib = bytes / (1024 * 1024);
+  if (mib < 25) return '0-25';
+  if (mib < 50) return '25-50';
+  if (mib < 100) return '50-100';
+  if (mib < 200) return '100-200';
+  return '200+';
+}
+
+function lengthBucket(durationMs: number | null): string {
+  if (durationMs === null) return 'unknown';
+  if (durationMs < 30_000) return '0-30s';
+  if (durationMs < 60_000) return '30-60s';
+  if (durationMs < 120_000) return '1-2m';
+  if (durationMs < 180_000) return '2-3m';
+  return '3-5m';
+}
+
 function instance(): UploadQueue {
   if (queue) return queue;
   queue = createUploadQueue({
@@ -64,6 +84,15 @@ function instance(): UploadQueue {
       if (compressed.uri !== entry.uri) await trackTemporaryDeviceFile(compressed.uri).catch(() => undefined);
       const byteSize = compressed.compressedBytes ?? fileSize(compressed.uri);
       const check = checkVideoForUpload({ byteSize, durationMs });
+      if (compressed.fallback) {
+        // 줄이기가 멈추거나 실패한 것을 셀 길이 없었다(11/4 S23 리뷰). 기기·OS 는 GA 가 붙인다.
+        logEvent('video_compress_fallback', {
+          reason: compressed.fallback,
+          outcome: check.ok ? 'original' : 'blocked',
+          size_mb: sizeBucket(byteSize),
+          length: lengthBucket(durationMs),
+        });
+      }
       // 압축이 멈추거나 실패해 원본을 올리려는데 한도를 넘으면, 영상을 버리지 않고 「실패 · 다시 시도」로 남긴다(SOMA-737).
       if (!check.ok && compressed.fallback) throw new CompressFailedError(compressed.fallback);
       if (!check.ok) throw rejection(check.code === 'video_empty' ? 'video_too_large' : check.code);

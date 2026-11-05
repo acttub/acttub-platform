@@ -15,6 +15,7 @@ const state = {
   meta: null,
   compress: async uri => ({ uri: 'file:///cache/small.mp4', originalBytes: 9_000, compressedBytes: 1_000, source: uri }),
   complete: async () => ({ id: 'video-1' }),
+  events: [],
 };
 globalThis.__libraryRunner = state;
 globalThis.require = name => {
@@ -38,6 +39,7 @@ stubModules({
     export const keepDeviceFile = async uri => { s.kept.push(uri); };
     export const trackTemporaryDeviceFile = async uri => { s.temporary.push(uri); };`,
   '@/lib/compress': 'export const compressVideo = uri => globalThis.__libraryRunner.compress(uri);',
+  '@/lib/analytics': 'export const logEvent = (name, params) => globalThis.__libraryRunner.events.push([name, params]);',
   '@/lib/api': `const s = globalThis.__libraryRunner;
     export const api = {
       createVideoIntent: async body => { s.intents.push(body); return { intent_id: 'intent-' + s.intents.length, upload_url: 'https://s3.test/put', expires_at: '2999-01-01T00:00:00Z' }; },
@@ -55,7 +57,7 @@ runner.onLibraryChange(() => { changes += 1; });
 beforeEach(() => {
   state.storage.values.clear();
   state.files.clear();
-  Object.assign(state, { copyFails: false, deleted: [], kept: [], temporary: [], intents: [], meta: null });
+  Object.assign(state, { copyFails: false, deleted: [], kept: [], temporary: [], intents: [], meta: null, events: [] });
   state.compress = async () => ({ uri: 'file:///cache/small.mp4', originalBytes: 9_000, compressedBytes: 1_000 });
   state.complete = async () => ({ id: 'video-1' });
   state.files.set('file:///cache/small.mp4', 1_000);
@@ -155,6 +157,20 @@ test('압축이 실패해 원본이 한도를 넘으면 버리지 않고 실패�
   assert.equal(left.status, 'failed');
   assert.equal(left.lastError, 'compress_failed');
   assert.deepEqual(state.temporary, []);
+  // 몇 번 났는지 셀 길이 없었다(11/4 S23 리뷰) — 원본 크기·길이 구간과 함께 남긴다.
+  assert.deepEqual(state.events, [['video_compress_fallback', { reason: 'timeout', outcome: 'blocked', size_mb: '200+', length: '0-30s' }]]);
+});
+
+test('압축이 실패해도 원본이 한도 안이면 원본으로 올리고 그 사실을 남긴다', async () => {
+  state.files.set('file:///camera/mid.mp4', 60 * 1024 * 1024);
+  state.compress = async uri => ({ uri, originalBytes: 60 * 1024 * 1024, compressedBytes: null, fallback: 'error' });
+  await runner.enqueueLibraryUpload({ id: 'mid', owner: 'u5b', requestId: 'r-mid', uri: 'file:///camera/mid.mp4', contentType: 'video/mp4', durationMs: 150_000, createdAt: Date.now() });
+
+  await runner.flushLibraryUploads('u5b');
+
+  assert.deepEqual(await runner.pendingLibraryUploads('u5b'), []);
+  assert.equal(state.intents.length, 1);
+  assert.deepEqual(state.events, [['video_compress_fallback', { reason: 'error', outcome: 'original', size_mb: '50-100', length: '2-3m' }]]);
 });
 
 test('줄인 업로드본이 한도를 넘거나 비었으면 버린다', async () => {

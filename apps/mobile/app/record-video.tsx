@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,7 +22,7 @@ import { translate as t } from '@/lib/i18n';
 import { takeRecordScript } from '@/lib/practice/record-script';
 import { RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
-import { VIDEO_MAX_MS, videoRejectDialog } from '@/lib/library/video-checks';
+import { RECORD_VIDEO_BPS, RECORD_VIDEO_QUALITY, VIDEO_MAX_MS, videoRejectDialog } from '@/lib/library/video-checks';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
 import { setPickedVideo } from '@/lib/practice/picked-video';
@@ -356,7 +356,10 @@ export default function RecordVideoScreen() {
     startedAtRef.current = Date.now();
     try {
       // maxDuration 으로 상한에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
-      const result = await cameraRef.current.recordAsync({ maxDuration: maxSec });
+      // iOS 는 코덱을 정해야 videoBitrate 가 먹는다(H.264).
+      const result = await cameraRef.current.recordAsync(
+        Platform.OS === 'ios' ? { maxDuration: maxSec, codec: 'avc1' } : { maxDuration: maxSec },
+      );
       // 닫기로 버린 녹화는 고른 것도 실패도 아니다.
       if (isChallenge && !leavingRef.current) {
         logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', result?.uri ? 'selected' : 'failed'));
@@ -478,7 +481,16 @@ export default function RecordVideoScreen() {
     <View style={styles.root}>
       {/* 검은 카메라 화면 — 상태 표시줄 글자를 흰색으로(앱 기본은 검은 글자라 시간·배터리가 안 보였다). */}
       <StatusBar style="light" />
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
+      <CameraView
+        ref={cameraRef}
+        style={styles.camera}
+        facing={facing}
+        mode="video"
+        // 720p·2Mbps — 줄이기가 실패해도 원본이 100MiB 안이라 그대로 올라간다(SOMA-737 후속).
+        videoQuality={RECORD_VIDEO_QUALITY}
+        videoBitrate={RECORD_VIDEO_BPS}
+        onCameraReady={() => setCameraReady(true)}
+      />
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
