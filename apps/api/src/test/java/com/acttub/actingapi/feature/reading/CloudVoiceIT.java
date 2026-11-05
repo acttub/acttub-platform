@@ -185,7 +185,7 @@ class CloudVoiceIT {
                 INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint)
                 VALUES (?,?,'대본','원문',repeat('0',64),'paste',?,?)
                 """, script, owner, UUID.randomUUID(), "f".repeat(64));
-        jdbc.update("INSERT INTO script_lines(id,script_id,ordinal,kind,text) VALUES (?,?,0,'dialogue','대사')", UUID.randomUUID(), script);
+        jdbc.update("INSERT INTO script_lines(id,script_id,ordinal,kind,text) VALUES (?,?,0,'direction','지문')", UUID.randomUUID(), script);
         return script;
     }
 
