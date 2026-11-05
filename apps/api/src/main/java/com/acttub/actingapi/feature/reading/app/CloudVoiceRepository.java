@@ -11,9 +11,9 @@ public interface CloudVoiceRepository {
     int dailyUsage(UUID userId, LocalDate day);
     int monthlyUsage(YearMonth month);
     int monthlyUsage(UUID userId, YearMonth month);
-    /** 이 회차가 (회원, 대본)에서 가장 먼저 시작한 회차인가. 내 회차가 아니거나 없으면 false. 중간에 그만둔 회차도 센다. */
+    /** 이 회차가 이 회원이 가장 먼저 시작한 리딩 회차인가(대본과 상관없이 계정당 하나, SOMA-1060). 내 회차가 아니거나 없으면 false. 중간에 그만둔 회차도 센다. */
     boolean firstReadingSession(UUID userId, UUID sessionId);
-    /** 내 대본이고 아직 그 대본의 회차가 하나도 없는가 — 곧 시작할 회차가 첫 회차가 된다. */
+    /** 내 대본이고 이 회원의 리딩 회차가 아직 하나도 없는가(SOMA-1060) — 곧 시작할 회차가 계정의 첫 회차가 된다. */
     boolean firstReadingScript(UUID userId, UUID scriptId);
     CacheEntry findCache(String hash);
 
