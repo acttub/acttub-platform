@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /**
  * 앱의 광고 칸(SOMA-876). 키는 앱과 서버가 같이 쓰는 이름이다.
- * BROWSE 는 둘러보는 화면(무료·Pro 모두), PRACTICE 는 연습 중 기다리는 자리(무료만, A/B 로 절반만 켠다).
+ * BROWSE 는 둘러보는 화면(무료·Pro 모두), PRACTICE 는 연습 중 기다리는 자리(무료만, 기본은 전원에게 켠다).
  * COMMUNITY 는 게시판(SOMA-873) 자리로 키만 예약한다 — 둘러보기와 같은 규칙이다.
  */
 public enum AdSlot {
