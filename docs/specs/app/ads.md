@@ -13,7 +13,7 @@
 ## 노출 조건
 - 첫 연습(노트가 생긴 코칭·끝까지 읽은 리딩·챌린지 참여)을 끝내기 전이면 모든 칸이 NONE 이다. 앱의 첫 사용자 홈과 같은 기준이다.
 - 둘러보기 칸(BROWSE)은 Pro 도 본다(DIRECT·HOUSE·NETWORK 모두). Pro 에게 대상이 free 인 HOUSE(Pro 권유)는 가지 않는다.
-- 연습 중 칸(PRACTICE)은 무료 사용자만, 그중 `ADS_PRACTICE_SLOT_PERCENT`(기본 50)% 에게만 켠다. 배정은 사용자 id 해시로 고정한다.
+- 연습 중 칸(PRACTICE)은 무료 사용자만, 그중 `ADS_PRACTICE_SLOT_PERCENT`(기본 100)% 에게 켠다. 기본값이면 전원이다. 배정은 사용자 id 해시로 고정한다.
 - `ADS_ENABLED=false` 면 모든 칸이 NONE 이다.
 - DIRECT 는 칸 규격의 이미지와 http(s) `link_url` 이 있어야 하고(없으면 건너뛴다), 누르면 `link_url` 을 앱 밖 브라우저로 바로 연다. 학원 전용 칸(등록번호·교습과정·교습비)은 쓰지 않는다(열은 남아 있다).  HOUSE 는 `/` 로 시작하는 앱 안 경로와 이미지 또는 headline 이 있어야 한다.
 - 칸 하나만 끄려면 `ad_slot_switches`(V76)에서 그 칸을 `enabled=false` 로 둔다. 그 칸은 누구에게나 NONE 이라 직접·자체 광고도 AdMob 도 나오지 않는다. 줄이 없는 칸은 켜진 것이다. 앱 빌드 없이 다음 화면 진입부터 적용된다.
