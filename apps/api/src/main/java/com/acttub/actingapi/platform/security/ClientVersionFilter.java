@@ -1,11 +1,14 @@
 package com.acttub.actingapi.platform.security;
 
 import java.io.IOException;
+import java.math.BigInteger;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -31,6 +34,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *   <li>제공자가 부르는 연결 끊기 콜백 — 네이버·카카오는 우리 헤더를 모른다.</li>
  *   <li>{@code /v2/admin/**} — 운영 토큰으로 여는 운영 도구의 경로이고 앱 빌드와 무관하다.</li>
  * </ul>
+ *
+ * <p><b>플랫폼별 최소 판</b>(SOMA-1049) — {@code MIN_APP_VERSION_IOS}·{@code MIN_APP_VERSION_ANDROID} 보다 낮은 앱도
+ * 같은 426으로 업데이트 화면에 보낸다. 판 헤더에는 플랫폼이 없어 User-Agent 로 가른다(iOS 는
+ * {@code Acttub/61 CFNetwork/… Darwin/…}, 안드로이드는 {@code okhttp/…} — 11/5 운영 refresh_tokens 로 확인).
+ * 값이 비었거나, 플랫폼·판을 모르면 막지 않는다. <b>스토어에 그 판이 공개된 뒤에만 켠다</b> — 먼저 켜면 받을 판이 없는
+ * 사용자가 업데이트 화면에 갇힌다.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -42,6 +51,22 @@ public class ClientVersionFilter extends OncePerRequestFilter {
     static final String UPGRADE_NOTICE = "새 버전이 나왔어요. 스토어에서 업데이트해 주세요.";
 
     private static final AntPathMatcher PATHS = new AntPathMatcher();
+
+    private final String minimumIos;
+    private final String minimumAndroid;
+
+    /** 최소 판 없이 — 헤더 없는 요청만 막는다. */
+    public ClientVersionFilter() {
+        this("", "");
+    }
+
+    @Autowired
+    public ClientVersionFilter(
+            @Value("${MIN_APP_VERSION_IOS:}") String minimumIos,
+            @Value("${MIN_APP_VERSION_ANDROID:}") String minimumAndroid) {
+        this.minimumIos = minimumIos == null ? "" : minimumIos.strip();
+        this.minimumAndroid = minimumAndroid == null ? "" : minimumAndroid.strip();
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -67,7 +92,7 @@ public class ClientVersionFilter extends OncePerRequestFilter {
             FilterChain chain)
             throws ServletException, IOException {
         String client = request.getHeader(HEADER);
-        if (client == null || client.isBlank()) {
+        if (client == null || client.isBlank() || outdated(client, request.getHeader("User-Agent"))) {
             response.setStatus(426);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
@@ -75,5 +100,32 @@ public class ClientVersionFilter extends OncePerRequestFilter {
             return;
         }
         chain.doFilter(request, response);
+    }
+
+    /** 이 플랫폼의 최소 판보다 낮은 앱인가. 플랫폼·판·최소 판 중 하나라도 모르면 false. */
+    private boolean outdated(String client, String userAgent) {
+        if (!client.startsWith("app/") || userAgent == null) return false;
+        String minimum = userAgent.contains("CFNetwork") && userAgent.contains("Darwin") ? minimumIos
+                : userAgent.startsWith("okhttp/") ? minimumAndroid
+                : "";
+        BigInteger[] actual = version(client.substring(4));
+        BigInteger[] required = version(minimum);
+        if (actual == null || required == null) return false;
+        for (int i = 0; i < Math.max(actual.length, required.length); i++) {
+            BigInteger a = i < actual.length ? actual[i] : BigInteger.ZERO;
+            BigInteger b = i < required.length ? required[i] : BigInteger.ZERO;
+            int compared = a.compareTo(b);
+            if (compared != 0) return compared < 0;
+        }
+        return false;
+    }
+
+    /** 점으로 이은 숫자(1.1.2)만 판으로 읽는다. 아니면 null. */
+    private static BigInteger[] version(String value) {
+        if (value.isEmpty() || value.length() > 64 || !value.matches("[0-9]++(?:\\.[0-9]++)*+")) return null;
+        String[] parts = value.split("\\.");
+        BigInteger[] parsed = new BigInteger[parts.length];
+        for (int i = 0; i < parts.length; i++) parsed[i] = new BigInteger(parts[i]);
+        return parsed;
     }
 }
