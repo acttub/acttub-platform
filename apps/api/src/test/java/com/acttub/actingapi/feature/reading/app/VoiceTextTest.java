@@ -13,6 +13,14 @@ class VoiceTextTest {
     }
 
     @Test
+    void dropsUnclosedBracketsLikeTheApp() {
+        // 앱은 11/5(SOMA-962)부터 짝 없는 괄호 글자만 빼고 읽는다 — 서버가 다르면 재연습 줄이 저장본을 못 찾아 503이다(SOMA-1061).
+        assertThat(VoiceText.speakable("(웃으며 그래, 알았어.")).isEqualTo("웃으며 그래, 알았어.");
+        assertThat(VoiceText.speakable("가자】 지금")).isEqualTo("가자 지금");
+        assertThat(VoiceText.spoken("[작게] 정말（ 몰라", null)).isEqualTo("정말 몰라");
+    }
+
+    @Test
     void usesSpeechWhenPresentAndTextOtherwise() {
         assertThat(VoiceText.spoken("원문 (지문)", null)).isEqualTo("원문");
         assertThat(VoiceText.spoken("원문", "  ")).isEqualTo("원문");
