@@ -5,7 +5,6 @@ import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/buttons';
-import { InlineError } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
@@ -87,9 +86,7 @@ export default function NoticeDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {header}
       {state === 'failed' ? (
-        <View style={styles.body}>
-          <InlineError message={t('notices.loadFail')} onRetry={() => void load()} />
-        </View>
+        <StatusScreen title={t('notices.loadFail')} body={t('common.checkConnection')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
       ) : !notice ? (
         <SkeletonDetail media lines={5} />
       ) : (
@@ -123,13 +120,13 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[6], gap: space[3] },
   art: { height: 160, borderRadius: radius.lg, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   image: { width: 130, height: 130 },
-  badge: { alignSelf: 'flex-start', overflow: 'hidden', backgroundColor: palette.flameSoft, color: palette.text, borderRadius: radius.full, paddingHorizontal: space[3], paddingVertical: space[1.5], ...type.captionBold },
+  badge: { alignSelf: 'flex-start', overflow: 'hidden', backgroundColor: palette.blueSoft, color: palette.blueDeep, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: space[1], ...type.micro },
   title: { ...type.title2, color: palette.text },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   status: { ...type.captionBold, color: palette.textMeta },
   statusLive: { color: palette.blueDeep },
   meta: { ...type.caption, color: palette.textMeta },
   text: { ...type.body1, color: palette.textSub },
-  footnote: { marginTop: 14, fontSize: 12, lineHeight: 17, color: palette.textMeta },
+  footnote: { marginTop: space[3], ...type.caption, color: palette.textMeta },
   cta: { marginTop: space[3] },
 });

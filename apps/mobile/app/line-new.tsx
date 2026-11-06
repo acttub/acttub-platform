@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   counter: { ...type.caption, color: palette.textMeta },
   counterOver: { color: palette.danger },
   durationRow: { flexDirection: 'row', gap: space[2] },
-  duration: { flex: 1, borderRadius: radius.md, alignItems: 'center' },
+  duration: { flex: 1, alignItems: 'center' },
   preview: { backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], gap: space[1] },
   previewLine: { ...type.headline, color: palette.text },
   previewMeta: { ...type.caption, color: palette.textMeta },

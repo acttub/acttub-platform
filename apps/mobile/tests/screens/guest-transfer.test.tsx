@@ -79,7 +79,7 @@ describe('양쪽에 액티 기억이 있으면', () => {
     expect(screen.getByRole('radio', { name: /이 계정의 기억 웹의/ })).toBeSelected();
     await fireEvent.press(screen.getByRole('radio', { name: /웹의 기억 이 계정의/ }));
     expect(screen.getByRole('radio', { name: /웹의 기억 이 계정의/ })).toBeSelected();
-    await fireEvent.press(screen.getByRole('button', { name: '이대로 가져오기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '가져올게요' }));
 
     expect(send).toHaveBeenLastCalledWith({ code: '654321', memory_choice: 'guest' });
     expect(await screen.findByText('옮겼어요')).toBeOnTheScreen();
@@ -101,7 +101,7 @@ describe('양쪽에 액티 기억이 있으면', () => {
     send.mockRejectedValueOnce(choiceNeeded()).mockRejectedValueOnce(new ApiError(429, 'slow'));
     await openChoice();
 
-    await fireEvent.press(screen.getByRole('button', { name: '이대로 가져오기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '가져올게요' }));
 
     expect(send).toHaveBeenLastCalledWith({ code: '654321', memory_choice: 'member' });
     expect(await screen.findByText('시도가 너무 많았어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
@@ -113,10 +113,10 @@ describe('양쪽에 액티 기억이 있으면', () => {
     send.mockRejectedValueOnce(choiceNeeded()).mockReturnValueOnce(new Promise<void>((r) => (finish = r)));
     await openChoice();
 
-    await fireEvent.press(screen.getByRole('button', { name: '이대로 가져오기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '가져올게요' }));
     expect(screen.getByRole('radio', { name: /웹의 기억 이 계정의/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: '닫기' })).toBeDisabled();
-    expect(screen.queryByText('이대로 가져오기')).not.toBeOnTheScreen();
+    expect(screen.queryByText('가져올게요')).not.toBeOnTheScreen();
 
     const [, backdrop] = screen.getAllByRole('button');
     await fireEvent.press(backdrop);

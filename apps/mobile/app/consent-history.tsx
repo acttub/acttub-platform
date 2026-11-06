@@ -165,7 +165,7 @@ export default function ConsentHistoryScreen() {
               </View>
             );
           })}
-          <Text style={[styles.note, styles.divider]}>{t('settings.consentHistoryNote')}</Text>
+          <Text style={styles.note}>{t('settings.consentHistoryNote')}</Text>
         </ScrollView>
       )}
       {dialog}

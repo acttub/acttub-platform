@@ -26,8 +26,9 @@ class AppConfigConfigurationTest {
     void 기본값은_앱에_들어_있던_값과_같다() throws Exception {
         AppConfig c = load("");
         assertThat(c.rating()).isEqualTo(new AppConfig.Rating(2, 2, 7, 3));
-        // 자동 넘김 받아쓰기 비율만 서버에서 0.7로 낮췄다(SOMA-804, 앱 기본값 0.9는 서버 값을 못 받을 때만 쓴다).
-        assertThat(c.reading()).isEqualTo(new AppConfig.Reading(0.015, 1800, 400, 60000, 1300, 0.7, 0.72, 0.3, 0.8, 3));
+        // 넘김 받아쓰기 비율은 앱 기본값과 같은 0.9다(SOMA-804). 11/2 0.7로 낮췄지만 앱 설정이 401이라 내려가지 않다가
+        // 11/3 401을 고친 뒤 모든 앱이 0.7을 받자, 대사 중간의 사이에서 다음 줄로 넘어간다는 제보가 왔다(11/5).
+        assertThat(c.reading()).isEqualTo(new AppConfig.Reading(0.015, 1800, 400, 60000, 1300, 0.9, 0.72, 0.3, 0.8, 3));
         assertThat(c.cocreate().emotions()).containsExactly("서운함", "설렘", "분노", "슬픔", "긴장", "담담함");
         assertThat(c.cocreate().situations()).containsExactly("오랜만의 재회", "이별", "오디션 직전", "가족 다툼", "고백", "사과");
         // 한국어가 아닌 기기용 칩(SOMA-1033) — 보이는 순서는 한국어 칩과 같은 뜻 순서다.

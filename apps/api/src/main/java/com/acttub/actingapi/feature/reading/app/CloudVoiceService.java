@@ -102,7 +102,7 @@ public final class CloudVoiceService {
     }
 
     /**
-     * 대본 정보(scriptId 또는 회차 sessionId)가 있으면 무료 배우의 「대본마다 첫 리딩」도 가려 준다(SOMA-917).
+     * 대본 정보(scriptId 또는 회차 sessionId)가 있으면 무료 배우의 「계정 첫 리딩」도 가려 준다(SOMA-917, 11/5부터 대본마다가 아니라 계정당 한 번 — SOMA-1060).
      * 둘 다 있으면 회차가 먼저다. 없으면(옛 앱) 예전과 똑같다.
      */
     public Status status(UUID userId, UUID scriptId, UUID sessionId) {

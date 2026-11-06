@@ -45,15 +45,14 @@ test('액티 대화(P5.3): 답 버튼은 지금 질문의 예시 답(입력칸�
 });
 
 test('액티 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 높이부터는 칸 안에서 스크롤한다', () => {
-  const coach = read('app/coach.tsx');
-  const input = coach.slice(coach.indexOf('  input: {'), coach.indexOf('},', coach.indexOf('  input: {')));
-  // pen 09 「Input」 높이 44.
-  assert.match(input, /minHeight: 44/);
-  assert.match(input, /maxHeight: 144/);
-  assert.doesNotMatch(input, /minHeight: 112/);
+  const composer = read('components/ui/chat-composer.tsx');
+  const input = composer.slice(composer.indexOf('  input: {'), composer.indexOf('},', composer.indexOf('  input: {')));
+  // 칸 위아래 안쪽 4 를 더해 최소 44, 최대 144.
+  assert.match(input, /minHeight: 36/);
+  assert.match(input, /maxHeight: 136/);
   // 한 줄일 때 글자가 가운데 오게 — 줄 간격을 따로 주지 않고 위아래 여백을 같게
   assert.doesNotMatch(input, /lineHeight/);
-  assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 8 : 11,\s*paddingBottom: 11,/);
+  assert.match(input, /paddingVertical: space\[2\],/);
 });
 
 test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {

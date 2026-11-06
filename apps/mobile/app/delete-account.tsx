@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[6], gap: space[4] },
   title: { ...type.title2, color: palette.text },
   account: { ...type.caption, color: palette.textMeta, marginTop: -space[3] },
-  section: { paddingTop: space[4], borderTopWidth: 1, borderTopColor: palette.border, gap: space[1.5] },
+  section: { paddingTop: space[2], gap: space[1.5] },
   sectionLabel: { ...type.captionBold, color: palette.textMeta },
   bullet: { flexDirection: 'row', gap: space[2] },
   dot: { ...type.body2Bold, color: palette.iconFaint },

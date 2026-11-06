@@ -10,7 +10,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { pt } from '@/components/ui/anchored-menu';
 import { SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { SettingsProCard } from '@/components/settings-pro-card';
-import { SettingsCard } from '@/components/ui/settings-card';
+import { SettingsCard, SettingsSection } from '@/components/ui/settings-card';
 import { KAKAO_OPEN_CHAT_URL } from '@/lib/contact-channels';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
@@ -78,7 +78,7 @@ export default function SettingsScreen() {
           <SettingsProCard sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)} free={!billing.pro} onPress={() => router.push(settingsTarget(billing))} />
         )}
 
-        <SectionTitle>{t('settings.profile')}</SectionTitle>
+        <SettingsSection title={t('settings.profile')}>
         <SettingsCard icon="user" title={t('settings.profileEditTitle')} sub={t('settings.profileEditBody')} onPress={() => router.push('/profile-edit')} />
         <SettingsCard
           icon="globe"
@@ -95,7 +95,9 @@ export default function SettingsScreen() {
         {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
         <SettingsCard icon="download" title={t('settings.transferTitle')} sub={t('settings.transferBody')} onPress={() => router.push('/guest-transfer')} />
 
-        <SectionTitle>{t('settings.feedbackSection')}</SectionTitle>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.feedbackSection')}>
         {/* 앱 평가하기 — 스토어의 리뷰 쓰기 화면을 바로 연다. */}
         <SettingsCard icon="star" title={t('settings.storeReviewTitle')} sub={t('settings.storeReviewSub')} onPress={() => void openStoreReviewPage()} />
         {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
@@ -115,11 +117,14 @@ export default function SettingsScreen() {
         {/* 문의·신고는 앱 안 창구로 받는다(11/3, 메일 대신) — 분류를 고르고 보내면 팀 문의함에 계정과 함께 쌓인다. */}
         <SettingsCard icon="alert-circle" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => router.push({ pathname: '/feedback', params: { kind: 'support' } })} />
 
-        <SectionTitle>{t('settings.sectionEtc')}</SectionTitle>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.sectionEtc')}>
         <SettingsCard icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
         <SettingsCard icon="award" title={t('settings.challengeRecordRow')} sub={t('settings.challengeRecordSub')} onPress={() => router.push('/challenge-entries')} />
         <SettingsCard icon="clipboard" title={t('settings.notices')} sub={t('settings.noticesSub')} onPress={() => router.push('/notices')} />
         <SettingsCard icon="file-text" title={t('settings.consentHistory')} sub={t('settings.consentHistorySub')} onPress={() => router.push('/consent-history')} />
+        </SettingsSection>
 
         <View style={styles.logout}>
           <SecondaryButton label={t('settings.logout')} onPress={() => void confirmLogout()} />
@@ -136,14 +141,9 @@ export default function SettingsScreen() {
   );
 }
 
-function SectionTitle({ children }: { children: string }) {
-  return <Text style={styles.sectionTitle}>{children}</Text>;
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  list: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[2] },
-  sectionTitle: { ...type.captionBold, color: palette.textSub, marginTop: space[4] },
-  logout: { paddingTop: space[6] },
+  list: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[4] },
+  logout: { paddingTop: space[2] },
   version: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingTop: space[1], paddingBottom: space[6] },
 });

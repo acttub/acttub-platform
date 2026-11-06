@@ -208,7 +208,7 @@ describe('기다리는 동안', () => {
     expect(screen.getByText('코치')).toBeOnTheScreen();
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
-    expect(screen.getByText('0초 경과')).toBeOnTheScreen();
+    expect(screen.queryByText('0초 경과')).not.toBeOnTheScreen();
     expect(screen.getByText('화면을 나가도 분석은 계속돼요')).toBeOnTheScreen();
     expect(screen.getByText('보통 30초쯤 걸려요. 다 되면 알림으로 알려 드릴게요.')).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledWith('p1', { signal: expect.any(AbortSignal) });
@@ -331,7 +331,7 @@ describe('기다리는 동안', () => {
     expect(screen.queryByText('분석을 그만둘까요?')).not.toBeOnTheScreen();
   });
 
-  test('시간이 지나면 경과 시간과 단계 문구가 넘어가고 4초마다 다시 읽는다', async () => {
+  test('시간이 지나면 단계 문구가 넘어가고 4초마다 다시 읽는다', async () => {
     jest.useFakeTimers();
     await render(<CoachScreen />);
     expect(await screen.findByText(STAGES[0])).toBeOnTheScreen();
@@ -341,11 +341,9 @@ describe('기다리는 동안', () => {
     expect(getStatus).toHaveBeenCalledTimes(2);
 
     await act(async () => jest.advanceTimersByTime(17_000));
-    expect(screen.getByText('21초 경과')).toBeOnTheScreen();
     expect(screen.getByText(STAGES[1])).toBeOnTheScreen();
 
     await act(async () => jest.advanceTimersByTime(100_000));
-    expect(screen.getByText('2분 1초 경과')).toBeOnTheScreen();
     expect(screen.getByText(STAGES[3])).toBeOnTheScreen();
   });
 });

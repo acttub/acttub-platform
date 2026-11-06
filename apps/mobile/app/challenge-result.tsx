@@ -4,17 +4,17 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ChallengeLoadFail } from '@/components/challenge-load-fail';
 import { ChallengeNotice } from '@/components/challenge-notice';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { browseFailure, browseFailureMessage, canRetryBrowse, rankingNotice, ranksHidden, type BrowseFailure } from '@/lib/challenge/browse';
+import { browseFailure, rankingNotice, ranksHidden, type BrowseFailure } from '@/lib/challenge/browse';
 import type { ChallengeDetail, EntryCard, MyEntryCard } from '@/lib/challenge/types';
 import { periodLabel, pickedEntries } from '@/lib/challenge/week-result';
 import { translate as t } from '@/lib/i18n';
@@ -74,15 +74,20 @@ export default function ChallengeResultScreen() {
         : t('challengeResult.minePrivate')
     : null;
 
+  if (error && !challenge) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <Stack.Screen options={{ headerShown: true, title: t('challengeResult.title') }} />
+        <ChallengeLoadFail failure={error} onRetry={() => setReload((n) => n + 1)} onLeave={() => router.dismissTo('/challenges')} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeResult.title') }} />
       <ScrollView contentContainerStyle={styles.content}>
         {!challenge && !error && <SkeletonDetail lines={3} style={styles.flush} />}
-        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
-        {error && canRetryBrowse(error) && (
-          <InlineError message={browseFailureMessage(error)} onRetry={() => setReload((n) => n + 1)} />
-        )}
 
         {challenge && (
           <>

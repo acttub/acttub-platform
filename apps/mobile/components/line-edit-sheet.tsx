@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
-import { radius, type } from '@/constants/tokens';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { radius, space, type } from '@/constants/tokens';
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { TextField } from '@/components/ui/text-field';
 import { LinePage } from '@/components/line-page';
 import { translate as t } from '@/lib/i18n';
 import { canSaveLineDraft, lineDraftValid, linePatch, type LineDraft } from '@/lib/reading/line-edit';
@@ -42,8 +44,6 @@ export function LineEditSheet({
   const [base, setBase] = useState<LineDraft | null>(original);
   const [draft, setDraft] = useState<LineDraft | null>(original);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const renameInput = useReadableInput(setRenaming as (text: string) => void, 'loose');
-  const textInput = useReadableInput((text) => setDraft((was) => (was ? { ...was, text } : was)), 'loose');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -94,8 +94,8 @@ export function LineEditSheet({
       busy={busy}
       footer={
         <>
-          <SecondaryButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} style={styles.button} />
-          <PrimaryButton label={t('common.save')} onPress={() => void save()} disabled={!canSave} loading={busy} style={styles.button} />
+          <TextButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} />
+          <PrimaryButton label={t('common.save')} onPress={() => void save()} disabled={!canSave} loading={busy} />
         </>
       }>
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
@@ -122,14 +122,13 @@ export function LineEditSheet({
         )}
         <View style={styles.kinds}>
           {KINDS.map((kind) => (
-            <Pressable
+            <Chip
               key={kind}
-              style={[styles.kind, draft.kind === kind && styles.kindOn]}
+              role="radio"
+              label={t(`reading.lineKind.${kind}`)}
+              selected={draft.kind === kind}
               onPress={() => setDraft({ ...draft, kind, characterId: kind === 'dialogue' ? draft.characterId ?? base.characterId : draft.characterId })}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: draft.kind === kind }}>
-              <Text style={[styles.kindText, draft.kind === kind && styles.kindTextOn]}>{t(`reading.lineKind.${kind}`)}</Text>
-            </Pressable>
+            />
           ))}
         </View>
 
@@ -138,17 +137,16 @@ export function LineEditSheet({
             <Text style={styles.label}>{t('reading.lineEditWho')}</Text>
             <View style={styles.roles}>
               {characters.map((c) => (
-                <Pressable
+                <Chip
                   key={c.id}
-                  style={[styles.role, draft.characterId === c.id && styles.roleOn]}
+                  role="radio"
+                  label={c.name}
+                  selected={draft.characterId === c.id}
                   onPress={() => {
                     setDraft({ ...draft, characterId: c.id });
                     setRenaming(null);
                   }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: draft.characterId === c.id }}>
-                  <Text style={[styles.roleText, draft.characterId === c.id && styles.roleTextOn]}>{c.name}</Text>
-                </Pressable>
+                />
               ))}
             </View>
             {selected &&
@@ -157,32 +155,30 @@ export function LineEditSheet({
                   <Text style={styles.renameLinkText}>{t('reading.lineEditRename', { name: selected.name })}</Text>
                 </Pressable>
               ) : (
-                <TextInput
-                  style={styles.input}
+                <TextField
+                  charset="loose"
                   value={renaming}
-                  onChangeText={renameInput.onChangeText}
+                  onChangeText={setRenaming}
                   autoFocus
                   maxLength={40}
                   placeholder={selected.name}
-                  placeholderTextColor={palette.textMeta}
                   accessibilityLabel={t('reading.lineEditRename', { name: selected.name })}
                 />
               ))}
           </>
         )}
 
-        <Text style={styles.label}>{t('reading.lineEditText')}</Text>
-        <TextInput
-          style={[styles.input, styles.textInput]}
+        <TextField
+          charset="loose"
+          label={t('reading.lineEditText')}
+          style={styles.textInput}
           value={draft.text}
-          onChangeText={textInput.onChangeText}
+          onChangeText={(text) => setDraft((was) => (was ? { ...was, text } : was))}
           multiline
           maxLength={5000}
           textAlignVertical="top"
-          accessibilityLabel={t('reading.lineEditText')}
         />
-        {(renameInput.hint || textInput.hint) && <Text style={styles.error}>{renameInput.hint || textInput.hint}</Text>}
-        {failed && <Text style={styles.error}>{t('reading.lineEditFailed')}</Text>}
+        {failed && <InlineErrorLine message={t('reading.lineEditFailed')} />}
       </ScrollView>
     </LinePage>
   );
@@ -192,30 +188,14 @@ const styles = StyleSheet.create({
   sub: { ...type.body2, color: palette.textMeta },
   body: { flex: 1 },
   bodyContent: { gap: 10, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-  kinds: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: 4 },
-  kind: { flex: 1, alignItems: 'center', borderRadius: 9, paddingVertical: 10 },
-  kindOn: { backgroundColor: palette.bg },
-  kindText: { ...type.body2Bold, color: palette.textMeta },
-  kindTextOn: { color: palette.text },
-  label: { ...type.captionBold, color: palette.textSub, marginTop: 6 },
+  kinds: { flexDirection: 'row', gap: space[2] },
+  label: { ...type.body2Bold, color: palette.textSub, marginTop: 6 },
   roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   role: { maxWidth: '100%', borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.bg },
-  roleOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
+  roleOn: { borderColor: palette.blue, borderWidth: 1.5, backgroundColor: palette.blueSoft },
   roleText: { ...type.body2Bold, color: palette.textSub },
   roleTextOn: { color: palette.blueDeep },
   renameLink: { alignSelf: 'flex-start' },
-  renameLinkText: { ...type.caption, color: palette.textMeta, textDecorationLine: 'underline' },
-  input: {
-    backgroundColor: palette.bgSubtle,
-    borderColor: palette.border,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: palette.text,
-    ...type.body1,
-  },
-  textInput: { minHeight: 96, maxHeight: 180, lineHeight: 22 },
-  error: { ...type.caption, color: palette.danger },
-  button: { flex: 1 },
+  renameLinkText: { ...type.body2Bold, color: palette.blueDeep },
+  textInput: { minHeight: 96, maxHeight: 180, paddingTop: space[3], paddingBottom: space[3] },
 });

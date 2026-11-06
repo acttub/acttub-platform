@@ -58,11 +58,10 @@ test('DESIGN-SYSTEM.html 에 pen 부품이 모두 있다', () => {
 
 // 지금 토큰 밖에 있는 곳의 파일별 개수. 새 어긋남만 막는다. 개수가 줄면 함께 낮춘다.
 const HEX_ALLOWED = {
-  'app/(tabs)/index.tsx': 11,
+  'app/(tabs)/index.tsx': 3,
   'app/(tabs)/reading.tsx': 1,
   'app/challenge-play.tsx': 2,
   'app/login.tsx': 11,
-  'app/reading/play.tsx': 3,
   'components/ad-slot.tsx': 1,
   'components/entry-share-sheet.tsx': 6,
   'components/home-plan-badge.tsx': 2,
@@ -78,16 +77,12 @@ const HEX_ALLOWED = {
 const FONT_SIZE_ALLOWED = {
   'app/_layout.tsx': 1,
   'app/login.tsx': 1,
-  'app/notice-detail.tsx': 1,
   'app/ui-preview.tsx': 5,
   'components/ad-slot.tsx': 2,
-  'components/announcement-poster.tsx': 7,
   'components/birth-wheel.tsx': 2,
-  'components/diff-text.tsx': 4,
   'components/home-mascot.tsx': 1,
   'components/launch-splash-screen.tsx': 1,
   'components/markdown.tsx': 5,
-  'components/note-cheer.tsx': 1,
   'components/practice-chrome.tsx': 11,
   'components/practice-video-modal.tsx': 1,
   'components/streak-celebration-screen.tsx': 7,

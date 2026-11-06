@@ -11,6 +11,7 @@ import { PostImages } from '@/components/community/post-images';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { pt } from '@/components/ui/anchored-menu';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonDetail } from '@/components/ui/skeleton';
@@ -354,7 +355,7 @@ export default function CommunityPostScreen() {
           </View>
           <View style={styles.divider} />
 
-          {commentsLoaded && comments.length === 0 ? <Text style={styles.noComment}>{t('communityPost.firstComment')}</Text> : null}
+          {commentsLoaded && comments.length === 0 ? <InlineEmpty title={t('communityPost.firstComment')} /> : null}
           {comments.map((comment) => {
             const mine = isMine(comment);
             return (
@@ -450,7 +451,16 @@ const styles = StyleSheet.create({
     marginBottom: space[2],
   },
   hiddenText: { ...type.caption, flex: 1, color: palette.textSub },
-  category: { ...type.micro, color: palette.blueDeep },
+  category: {
+    ...type.micro,
+    alignSelf: 'flex-start',
+    color: palette.textSub,
+    backgroundColor: palette.bgSoft,
+    borderRadius: radius.xs,
+    overflow: 'hidden',
+    paddingHorizontal: space[1.5],
+    paddingVertical: 2,
+  },
   title: { ...type.title2, color: palette.text },
   author: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   authorName: { ...type.body2Bold, color: palette.text, flexShrink: 1 },
@@ -461,7 +471,6 @@ const styles = StyleSheet.create({
   reactions: { flexDirection: 'row', gap: space[4], paddingVertical: space[1] },
   reaction: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 32 },
   reactionText: { ...type.body2Bold, color: palette.textSub },
-  noComment: { ...type.body2, color: palette.textMeta, paddingVertical: space[3] },
   comment: { flexDirection: 'row', gap: space[3], paddingVertical: space[3] },
   commentMain: { flex: 1, gap: 2 },
   commentHead: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },

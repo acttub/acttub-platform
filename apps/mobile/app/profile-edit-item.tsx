@@ -9,8 +9,8 @@ import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
-import { Checkbox } from '@/components/ui/checkbox';
 import { LoadingText } from '@/components/ui/loading-text';
+import { SelectCard } from '@/components/ui/select-card';
 import { translate as t, translateList } from '@/lib/i18n';
 import {
   BIO_MAX_LENGTH,
@@ -109,15 +109,7 @@ export default function ProfileEditItemScreen() {
   const goals = translateList('profileName.goalOptions');
   const careers = translateList('profileName.careerOptions');
   const choice = (key: string, label: string, selected: boolean, onPress: () => void, multi = false) => (
-    <Pressable
-      key={key}
-      style={styles.option}
-      onPress={onPress}
-      accessibilityRole={multi ? 'checkbox' : 'radio'}
-      accessibilityState={multi ? { checked: selected } : { selected }}>
-      <Text style={[styles.optionText, selected && styles.optionTextOn]}>{label}</Text>
-      <Checkbox checked={selected} />
-    </Pressable>
+    <SelectCard key={key} title={label} selected={selected} onPress={onPress} role={multi ? 'checkbox' : 'radio'} />
   );
 
   let hint = t('profileName.hintPickOne');
@@ -229,14 +221,11 @@ export default function ProfileEditItemScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[8], gap: space[3] },
-  hint: { ...type.captionBold, color: palette.blueDeep },
+  hint: { ...type.caption, color: palette.textMeta },
   field: { gap: space[2] },
   done: { ...type.body2Bold, color: palette.blueDeep },
   doneOff: { color: palette.textDisabled },
   saving: { ...type.body2Bold, color: palette.textMeta },
-  option: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space[3], borderBottomWidth: 1, borderBottomColor: palette.border },
-  optionText: { flex: 1, ...type.body1, color: palette.text },
-  optionTextOn: { fontWeight: '700' },
   multiline: { minHeight: 96, paddingTop: space[3], textAlignVertical: 'top' },
   fieldHint: { ...type.caption, color: palette.textMeta },
 });

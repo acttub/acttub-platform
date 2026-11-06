@@ -75,7 +75,7 @@ test('대본 탭: 대본이 없으면 리딩 입구(올리기 줄), 있으면 �
   assert.match(tab, /onPress=\{\(\) => router\.push\('\/reading\/new'\)\}/);
   assert.match(tab, /resumeCandidate\(/);
   assert.doesNotMatch(tab, /entryCreate|대본 같이 만들기/);
-  assert.match(tab, /ref=\{newTarget\.ref\}/, '스포트라이트 자리는 그대로');
+  assert.match(tab, /target=\{newTarget\}/, '스포트라이트 자리는 그대로');
 });
 
 test('대본 넣기: 파일·글 붙여넣기·대본 같이 만들기 셋 중 고르고, 예시 대본 링크는 없다(10/25)', () => {

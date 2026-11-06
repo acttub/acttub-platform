@@ -209,7 +209,7 @@ describe('쓰기', () => {
     );
     const { onCountChange } = await open();
     await screen.findByText('댓글 1');
-    expect(sendButton()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '보내기' })).not.toBeOnTheScreen();
 
     await fireEvent.changeText(input(), '  최고   예요  ');
     await fireEvent.press(sendButton());
@@ -228,7 +228,7 @@ describe('쓰기', () => {
   test('공백만 적으면 보낼 수 없다', async () => {
     await open();
     await fireEvent.changeText(input(), '   ');
-    expect(sendButton()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '보내기' })).not.toBeOnTheScreen();
   });
 
   test('실패한 같은 글을 다시 보내면 같은 요청 id 를, 글을 고치면 새 id 를 쓴다', async () => {
@@ -264,7 +264,6 @@ describe('쓰기', () => {
     await fireEvent.changeText(input(), '응원해요');
     await fireEvent.press(sendButton());
 
-    expect(sendButton()).toBeDisabled();
     await fireEvent.press(sendButton());
     expect(createComment).toHaveBeenCalledTimes(1);
 

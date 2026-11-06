@@ -55,6 +55,8 @@ jest.mock('expo-video', () => ({
   VideoView: () => null,
 }));
 jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
+jest.mock('@/lib/challenge/share-native', () => ({ saveVideoToLibrary: jest.fn(async () => undefined) }));
+import { saveVideoToLibrary } from '@/lib/challenge/share-native';
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 jest.mock('@/lib/tutorial-loop', () => ({ sampleVideoUri: () => 'file:///sample.mp4' }));
@@ -794,4 +796,53 @@ describe('영상 업로드를 망설일 때', () => {
     expect(scheduleUploadLaterReminder).toHaveBeenCalled();
   });
 
+});
+
+// 압축이 실패해 원본도 못 올린 앱 촬영본을 「다른 영상 고르기」로 버리면 다시 찍어야 했다(11/4 S23 리뷰 「영상 몇 개 날리고」).
+describe('압축 실패 뒤 다른 영상 고르기', () => {
+  const failedEntry = (id: string) => ({ id, owner: 'u1', status: 'failed', lastError: 'compress_failed' });
+
+  test('앱에서 찍은 영상은 사진첩에 남긴 뒤 대기 업로드를 지운다', async () => {
+    (pendingLibraryUploads as jest.Mock).mockResolvedValue([failedEntry('p-rec')]);
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await returnWithPicked({ videoId: null, pendingId: 'p-rec', uri: 'file:///docs/archive/rec.mp4', playbackUrl: null, durationMs: 100_000, source: 'record' });
+
+    await waitFor(() => expect(screen.getByText('영상을 준비하지 못했어요')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByText('다른 영상 고르기'));
+
+    await waitFor(() => expect(removePendingUpload).toHaveBeenCalledWith('p-rec'));
+    expect(saveVideoToLibrary).toHaveBeenCalledWith('file:///docs/archive/rec.mp4');
+    expect((saveVideoToLibrary as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (removePendingUpload as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect(await screen.findByText('찍은 영상은 사진첩에 남겼어요')).toBeOnTheScreen();
+  });
+
+  test('갤러리에서 고른 영상은 사진첩에 이미 있으니 다시 저장하지 않는다', async () => {
+    (pendingLibraryUploads as jest.Mock).mockResolvedValue([failedEntry('p-gal')]);
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await returnWithPicked({ videoId: null, pendingId: 'p-gal', uri: 'file:///docs/archive/gal.mp4', playbackUrl: null, durationMs: 100_000 });
+
+    await waitFor(() => expect(screen.getByText('영상을 준비하지 못했어요')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByText('다른 영상 고르기'));
+
+    await waitFor(() => expect(removePendingUpload).toHaveBeenCalledWith('p-gal'));
+    expect(saveVideoToLibrary).not.toHaveBeenCalled();
+  });
+
+  test('사진첩 저장이 막혀도 대기 업로드는 지우고 고르기로 돌아간다', async () => {
+    (saveVideoToLibrary as jest.Mock).mockRejectedValueOnce(new Error('permission_denied'));
+    (pendingLibraryUploads as jest.Mock).mockResolvedValue([failedEntry('p-deny')]);
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await returnWithPicked({ videoId: null, pendingId: 'p-deny', uri: 'file:///docs/archive/deny.mp4', playbackUrl: null, durationMs: 100_000, source: 'record' });
+
+    await waitFor(() => expect(screen.getByText('영상을 준비하지 못했어요')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByText('다른 영상 고르기'));
+
+    await waitFor(() => expect(removePendingUpload).toHaveBeenCalledWith('p-deny'));
+    expect(screen.queryByText('찍은 영상은 사진첩에 남겼어요')).not.toBeOnTheScreen();
+  });
 });

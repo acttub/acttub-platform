@@ -75,12 +75,13 @@ test('아무것도 없으면 빈 안내를 보이고 전부 지우기는 없다'
   for (const button of saveButtons()) expect(button).toBeDisabled();
 });
 
-test('못 불러와도 화면은 뜨고 그렇다고 알린다', async () => {
+test('못 불러오면 오류 화면과 다시 시도를 보인다', async () => {
   actorMemory.mockRejectedValue(new Error('down'));
   await render(<MemoryScreen />);
 
   expect(await screen.findByText('잠시 후 다시 열어주세요.')).toBeOnTheScreen();
-  expect(screen.getByText('아직 적힌 게 없어요')).toBeOnTheScreen();
+  expect(screen.queryByText('아직 적힌 게 없어요')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다시 시도' })).toBeOnTheScreen();
 });
 
 test('고친 값만 저장할 수 있고, 저장하면 내가 적은 값이 된다', async () => {

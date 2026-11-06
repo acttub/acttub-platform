@@ -19,17 +19,3 @@ export function useReadableInput(onChange: (text: string) => void, mode: InputCh
   );
   return { onChangeText, hint: stripped ? t('input.stripped') : null };
 }
-
-/** 한 화면에 입력칸이 여럿이거나 줄마다 핸들러가 달라 훅을 못 쓰는 자리: 핸들러를 감싸고 안내는 한 줄로 모은다. */
-export function useReadableNote(mode: InputCharsetMode = 'strict') {
-  const [stripped, setStripped] = useState(false);
-  const wrap = useCallback(
-    (onChange: (text: string) => void) => (text: string) => {
-      const kept = sanitizeInput(text, mode);
-      setStripped(kept !== text);
-      onChange(kept);
-    },
-    [mode],
-  );
-  return { wrap, hint: stripped ? t('input.stripped') : null };
-}

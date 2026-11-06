@@ -7,8 +7,10 @@ import { ChoiceCard } from '@/components/choice-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { space } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -29,9 +31,11 @@ export default function CoachScriptsScreen() {
   const [failed, setFailed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setFailed(false);
     listScripts()
       // 서버의 내 배역은 리딩 회차에서만 온다. 아직 읽지 않은 대본은 대본 만들기 때 이 기기에 기억한 배역을 쓴다.
       .then((list) =>
@@ -54,7 +58,7 @@ export default function CoachScriptsScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   // 고른 대본의 줄을 받아 촬영 화면 대본 카드와 장면 칸(제목·첫 장면·내 배역)을 채운다. 줄을 못 받으면 제목·배역만 채우고 간다.
   const record = async () => {
@@ -89,16 +93,23 @@ export default function CoachScriptsScreen() {
         title={t('coachScripts.title')}
         left={<NavIconButton icon="chevron-left" size={26} label={t('common.back')} phLabel="coach_scripts_back" onPress={() => router.back()} />}
       />
-      {scripts === null && !failed ? (
+      {failed ? (
+        <StatusScreen title={t('coachScripts.failTitle')} body={t('settings.retryLater')} primary={{ label: t('common.retry'), onPress: () => setAttempt((n) => n + 1) }} />
+      ) : scripts === null ? (
         <SkeletonRows count={4} />
+      ) : empty ? (
+        <StatusScreen
+          kind="empty"
+          mascot={MASCOT.coach}
+          title={t('coachScripts.emptyTitle')}
+          body={t('coachScripts.emptySub')}
+          primary={{ label: t('coachScripts.make'), onPress: () => router.replace('/script-cocreate') }}
+        />
       ) : (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.body}>
-            <MascotBubble
-              title={t(empty || failed ? 'coachScripts.emptyTitle' : 'coachScripts.ask')}
-              guide={failed ? t('coachScripts.failed') : empty ? t('coachScripts.emptySub') : t('coachScripts.guide')}
-            />
-            {(scripts ?? []).map((script) => (
+            <MascotBubble title={t('coachScripts.ask')} guide={t('coachScripts.guide')} />
+            {scripts.map((script) => (
               <ChoiceCard
                 key={script.id}
                 title={script.title}
@@ -117,21 +128,15 @@ export default function CoachScriptsScreen() {
             ))}
           </ScrollView>
           <CtaBar>
-            {empty || failed ? (
-              <PrimaryButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
-            ) : (
-              <>
-                <TextButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
-                <PrimaryButton
-                  label={t('coachScripts.next')}
-                  phLabel="coach_scripts_next"
-                  disabled={!picked}
-                  loading={opening}
-                  loadingLabel={t('coachScripts.opening')}
-                  onPress={() => void record()}
-                />
-              </>
-            )}
+            <TextButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
+            <PrimaryButton
+              label={t('coachScripts.next')}
+              phLabel="coach_scripts_next"
+              disabled={!picked}
+              loading={opening}
+              loadingLabel={t('coachScripts.opening')}
+              onPress={() => void record()}
+            />
           </CtaBar>
         </View>
       )}

@@ -41,7 +41,6 @@ import {
   type AuditionPostingList,
 } from '@/lib/auditions';
 import { translate as t } from '@/lib/i18n';
-import { postedAtLabel } from '@/lib/time-label';
 
 type Toggle = 'week' | 'paid' | 'starred';
 
@@ -113,8 +112,6 @@ export default function AuditionsScreen() {
     void Linking.openURL(posting.source_url).catch(() => undefined);
   };
 
-  const collected = payload?.collected_at ? postedAtLabel(payload.collected_at) : '';
-
   const filtered = !filters.starred && items.length > 0;
   const emptyText = filters.starred ? t('auditions.emptyStarred') : t('auditions.empty');
 
@@ -124,13 +121,6 @@ export default function AuditionsScreen() {
         title={t('auditions.title')}
         left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="auditions_back" onPress={() => router.back()} />}
       />
-      {payload && (
-        <Text style={styles.headerMeta} numberOfLines={1}>
-          {collected ? `${t('auditions.collectedAt', { ago: collected })} · ` : ''}
-          {t('auditions.count', { n: visible.length })}
-        </Text>
-      )}
-
       {!payload && !error && (
         <SkeletonRows count={5} />
       )}
@@ -169,20 +159,18 @@ export default function AuditionsScreen() {
                   label={`${t(`auditions.groups.${key}`)} ${count}`}
                   role="radio"
                   selected={filters.group === key}
-                  size="sm"
                   onPress={() => setFilters((was) => ({ ...was, group: key }))}
                 />
               ))}
             </ScrollView>
 
             <View style={styles.toggleRow}>
-              <Chip label={t('auditions.filterWeek')} role="checkbox" selected={filters.week} size="sm" onPress={() => toggle('week')} />
-              <Chip label={t('auditions.filterPaid')} role="checkbox" selected={filters.paid} size="sm" onPress={() => toggle('paid')} />
+              <Chip label={t('auditions.filterWeek')} role="checkbox" selected={filters.week} onPress={() => toggle('week')} />
+              <Chip label={t('auditions.filterPaid')} role="checkbox" selected={filters.paid} onPress={() => toggle('paid')} />
               <Chip
                 label={t('auditions.filterStarred')}
                 role="checkbox"
                 selected={filters.starred}
-                size="sm"
                 onPress={() => toggle('starred')}
               />
               {dirty && (
@@ -246,7 +234,7 @@ export default function AuditionsScreen() {
   );
 }
 
-/** D-day 칸. 3일 안은 빨강, 7일 안은 주황, 그 뒤는 파랑. 마감일이 없으면 원문을 보라고 한다. */
+/** D-day 칸. 3일 안은 빨강, 그 뒤는 파랑. 마감일이 없으면 원문을 보라고 한다. */
 function DdayBadge({ posting, today }: { posting: AuditionPosting; today: string }) {
   const days = daysUntil(posting.apply_end, today);
   if (days === null) {
@@ -257,14 +245,10 @@ function DdayBadge({ posting, today }: { posting: AuditionPosting; today: string
       </View>
     );
   }
-  const tone = days <= 3 ? 'urgent' : days <= 7 ? 'soon' : 'ok';
+  const urgent = days <= 3;
   return (
-    <View style={[styles.dday, tone === 'urgent' ? styles.ddayUrgent : tone === 'soon' ? styles.ddaySoon : styles.ddayOk]}>
-      <Text
-        style={[
-          styles.ddayText,
-          tone === 'urgent' ? styles.ddayTextUrgent : tone === 'soon' ? styles.ddayTextSoon : styles.ddayTextOk,
-        ]}>
+    <View style={[styles.dday, urgent ? styles.ddayUrgent : styles.ddayOk]}>
+      <Text style={[styles.ddayText, urgent ? styles.ddayTextUrgent : styles.ddayTextOk]}>
         {days === 0 ? t('auditions.ddayToday') : t('auditions.dday', { n: days })}
       </Text>
       <Text style={styles.ddaySub}>{t('auditions.deadlineOn', { date: shortDate(posting.apply_end) })}</Text>
@@ -337,7 +321,6 @@ function AuditionCard({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  headerMeta: { paddingHorizontal: space.gutter, paddingBottom: space[1.5], ...type.caption, color: palette.textMeta },
   link: { ...type.body2Bold, color: palette.blueDeep },
   ad: { marginVertical: space[2] },
 
@@ -388,7 +371,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     overflow: 'hidden',
   },
-  tagNew: { backgroundColor: palette.blue, color: palette.onAccent },
+  tagNew: { backgroundColor: palette.blueSoft, color: palette.blueDeep },
   tagCategory: { backgroundColor: palette.bgSoft, color: palette.textSub },
   source: { flexShrink: 1, ...type.micro, color: palette.textMeta },
   title: { ...type.body2Bold, color: palette.text },
@@ -397,12 +380,10 @@ const styles = StyleSheet.create({
 
   dday: { width: 60, paddingVertical: space[2], borderRadius: radius.md, alignItems: 'center', gap: 2 },
   ddayUrgent: { backgroundColor: palette.dangerSoft },
-  ddaySoon: { backgroundColor: palette.amberSoft },
   ddayOk: { backgroundColor: palette.blueSoft },
   ddayNone: { backgroundColor: palette.bgSoft },
   ddayText: { ...type.body2Bold },
   ddayTextUrgent: { color: palette.danger },
-  ddayTextSoon: { color: palette.amber },
   ddayTextOk: { color: palette.blueDeep },
   ddayTextNone: { ...type.captionBold, color: palette.textSub },
   ddaySub: { ...type.micro, fontWeight: '400', color: palette.textMeta },

@@ -42,6 +42,7 @@ import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
+import { saveVideoToLibrary } from '@/lib/challenge/share-native';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
@@ -380,14 +381,20 @@ export default function UploadScreen() {
       : Promise.resolve();
     void remembered.catch(() => undefined).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
   };
-  // 압축 실패(P3.27) — 영상을 버리고 고르기로 돌아간다.
+  // 압축 실패(P3.27) — 영상을 버리고 고르기로 돌아간다. 앱에서 찍은 영상은 기기 복사본뿐이라 지우기 전에 사진첩에 남긴다
+  // (11/4 S23 리뷰 「영상 몇 개 날리고」). 갤러리에서 고른 영상은 사진첩에 이미 있다.
   const pickOther = () => {
     const pendingId = picked?.pendingId;
+    const recorded = picked?.source === 'record' ? picked.uri : null;
     setPicked(null);
     setSourceChoice(null);
     setUploadFailed(false);
-    if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
     if (user?.id) void forgetWaitingUpload(user.id);
+    const kept = recorded ? saveVideoToLibrary(recorded).then(() => true, () => false) : Promise.resolve(false);
+    void kept.then((saved) => {
+      if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
+      if (saved) void alert({ title: t('uploadFlow.savedTitle'), message: t('uploadFlow.savedBody') });
+    });
   };
   const waitRetry = () => {
     if (user?.id) void flushLibraryUploads(user.id).catch(() => undefined);

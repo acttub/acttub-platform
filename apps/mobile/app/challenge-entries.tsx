@@ -1,9 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardLift } from '@/components/keyboard-lift';
@@ -14,6 +14,7 @@ import { InlineError } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { TextField } from '@/components/ui/text-field';
+import { Toast } from '@/components/ui/toast';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -54,6 +55,13 @@ export default function ChallengeEntriesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MyEntryCard | null>(null);
   const [draft, setDraft] = useState('');
+  const insets = useSafeAreaInsets();
+  const [toast, setToast] = useState(false);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(false), 2500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -91,7 +99,7 @@ export default function ChallengeEntriesScreen() {
     try {
       await api.updateEntry(editing.id, { caption: draft.trim() });
       setEditing(null);
-      void alert({ title: t('challengeEntries.captionSaved') });
+      setToast(true);
       void load();
     } catch (e) {
       void alert({ title: t('challengeEntries.captionFailTitle'), message: entryFailureMessage(entryFailure(e)) });
@@ -254,10 +262,10 @@ export default function ChallengeEntriesScreen() {
           <InlineEmpty title={t('challengeEntries.emptyTitle')} description={t('challengeEntries.emptySub')} />
         )}
 
-        {shown.map((entry) => (
+        {shown.map((entry, index) => (
           <Pressable
             key={entry.id}
-            style={styles.row}
+            style={[styles.row, index > 0 && styles.rowDivider]}
             onPress={() => router.push({ pathname: '/challenge-play', params: { id: entry.challenge.id, entryId: entry.id } })}
             onLongPress={(e) => openMenu(entry, e)}
             accessibilityRole="button">
@@ -317,6 +325,7 @@ export default function ChallengeEntriesScreen() {
         </View>
       )}
       </KeyboardLift>
+      {toast && <Toast message={t('challengeEntries.captionSaved')} bottom={insets.bottom + space[3]} />}
       {dialog}
     </SafeAreaView>
   );
@@ -334,9 +343,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[3],
     paddingVertical: space[3],
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
   },
+  rowDivider: { borderTopWidth: 1, borderTopColor: palette.border },
   thumb: {
     width: 64,
     aspectRatio: 9 / 16,

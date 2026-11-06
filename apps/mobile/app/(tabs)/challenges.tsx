@@ -12,13 +12,14 @@ import { CommunityBoard } from '@/components/community/community-board';
 import { CommunityTabs, type CommunitySection } from '@/components/community/community-tabs';
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
-import { Button, PrimaryButton } from '@/components/ui/buttons';
-import { Checkbox } from '@/components/ui/checkbox';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { FloatingAdd } from '@/components/ui/floating-add';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { InlineError } from '@/components/ui/inline-error';
+import { SelectCard } from '@/components/ui/select-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -321,14 +322,6 @@ export default function ChallengesScreen() {
               <Feather name="bell" size={22} color={palette.text} />
               {unread.count > 0 && <View style={styles.badgeDot} />}
             </Pressable>
-            <Button
-              size="md"
-              label={t('community.write')}
-              icon={<Feather name="plus" size={16} color={palette.onAccent} />}
-              phLabel="community_write"
-              style={styles.writeBtn}
-              onPress={() => router.push('/community-new')}
-            />
           </View>
         ) : !selectMode && !deciding && (
         <View style={styles.headerRight}>
@@ -352,15 +345,6 @@ export default function ChallengesScreen() {
             <Feather name="bell" size={22} color={palette.text} />
             {unread.count > 0 && <View style={styles.badgeDot} />}
           </Pressable>
-          <Pressable
-            style={styles.iconBtn}
-            onPress={() => router.push('/line-new')}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={t('challenges.addLine')}
-            ph-label="challenges_add_line">
-            <Feather name="plus" size={22} color={palette.text} />
-          </Pressable>
         </View>
         )}
       </View>
@@ -378,8 +362,8 @@ export default function ChallengesScreen() {
               <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
               <Text style={styles.sameMeta}>{t('challenges.firstSub')}</Text>
             </View>
-            <PickRow label={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
-            <PickRow label={t('challenges.firstBrowse')} selected={firstPick === 'browse'} onPress={() => setFirstPick('browse')} />
+            <SelectCard title={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
+            <SelectCard title={t('challenges.firstBrowse')} selected={firstPick === 'browse'} onPress={() => setFirstPick('browse')} />
           </ScrollView>
           <CtaBar safeBottom={false} style={{ paddingBottom: tabBarSpace > 0 ? tabBarSpace : space[3] }}>
             <PrimaryButton
@@ -398,7 +382,7 @@ export default function ChallengesScreen() {
           </CtaBar>
         </>
       ) : (
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 48 + space[6] }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
         {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
@@ -463,7 +447,7 @@ export default function ChallengesScreen() {
           ))}
         </View>
 
-        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && !canRetryBrowse(error) && <InlineEmpty title={browseFailureMessage(error)} />}
         {error && canRetryBrowse(error) && <InlineError message={browseFailureMessage(error)} onRetry={() => void load(tab)} />}
         {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={styles.flush} />}
 
@@ -489,14 +473,15 @@ export default function ChallengesScreen() {
         {challenges !== null && challenges.length === 0 && (!featured || tab === 'ended' || tab === 'mine') && !error && (
           <InlineEmpty title={emptyText} />
         )}
-
-        {tab !== 'mine' && (
-          <Pressable style={styles.registerBtn} onPress={() => router.push('/line-new')} accessibilityRole="button">
-            <Feather name="plus" size={16} color={palette.blueDeep} />
-            <Text style={styles.registerText}>{t('challenges.registerCta')}</Text>
-          </Pressable>
-        )}
       </ScrollView>
+      )}
+      {section === 'challenge' && !selectMode && !deciding && (
+        <FloatingAdd
+          label={t('challenges.addLine')}
+          bottom={tabBarSpace + (firstTime ? space[3] : 0)}
+          phLabel="challenges_add_line"
+          onPress={() => router.push('/line-new')}
+        />
       )}
     </SafeAreaView>
   );
@@ -540,7 +525,7 @@ function WeekHero({
     // 카드 어디를 눌러도(액티·여백 포함) 상세로 간다 — 예전엔 왼쪽 글자 묶음(68%)만 눌렸다. 흰 알약은 안쪽 Pressable 이라 따로 눌린다.
     // 바깥은 접근성에서 빼고(안쪽 버튼이 묶여 사라지지 않게) 글자 묶음을 「열기」 버튼으로 읽게 한다.
     <Pressable style={styles.weekHero} onPress={onOpen} accessible={false}>
-      <Image source={MASCOT.slate} style={styles.weekActy} contentFit="contain" cachePolicy="memory-disk" accessibilityElementsHidden />
+      <Image source={MASCOT.slate} style={[styles.weekActy, !onPerform && styles.weekActyLow]} contentFit="contain" cachePolicy="memory-disk" accessibilityElementsHidden />
       <View
         style={styles.weekHeroTop}
         accessible
@@ -576,8 +561,11 @@ function WeekHero({
           accessibilityRole="button"
           accessibilityLabel={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}>
           {/* 흰 알약 버튼(10/29 시안). */}
-          <Feather name="video" size={16} color={heroCard.ctaNavy} />
+          <Feather name="video" size={18} color={heroCard.ctaNavy} />
           <Text style={styles.heroPerformText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
+          <View style={styles.heroPerformArrow}>
+            <Feather name="arrow-right" size={16} color={palette.onAccent} />
+          </View>
         </Pressable>
       )}
     </Pressable>
@@ -625,21 +613,6 @@ function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard
   );
 }
 
-/** 첫 사용자 고르기 줄(C1.16) — 고르면 연파랑 바탕·파란 테두리·오른쪽 체크. */
-function PickRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      style={[styles.pick, selected && styles.pickOn]}
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityLabel={label}
-      accessibilityState={{ selected }}>
-      <Text style={[styles.pickText, selected && styles.pickTextOn]}>{label}</Text>
-      {selected && <Checkbox checked />}
-    </Pressable>
-  );
-}
-
 /** 줄 카드(ZxMmEh) — 아이콘 · 대사 · "주최 · 참여작 · D-N", 그 아래 참여자와 좋아요 합. */
 function Card({
   challenge,
@@ -670,7 +643,7 @@ function Card({
               {participantsLabel(challenge.participants, challenge.more_count)}
             </Text>
             <View style={styles.likes}>
-              <Feather name="heart" size={12} color={palette.danger} />
+              <Feather name="heart" size={12} color={palette.iconFaint} />
               <Text style={styles.names}>{t('challenges.likeSum', { count: challenge.like_sum })}</Text>
             </View>
           </View>
@@ -697,7 +670,6 @@ const styles = StyleSheet.create({
   },
   titleGrow: { flex: 1, alignSelf: 'stretch' },
   headerDivider: { height: 1, backgroundColor: palette.border },
-  writeBtn: { paddingLeft: space[3] },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   badgeDot: {
@@ -723,7 +695,8 @@ const styles = StyleSheet.create({
   // 아래에 「다른 배우 영상」 줄이 붙어도 다른 챌린지가 첫 화면에 보이게 한 단계씩 줄였다(SOMA-986, 11/2 시안).
   weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[4], gap: space[2], overflow: 'hidden' },
   weekHeroTop: { gap: space[2], maxWidth: '72%' },
-  weekActy: { position: 'absolute', right: -space[1.5], bottom: 2, width: 104, height: 96 },
+  weekActy: { position: 'absolute', right: -space[1.5], bottom: 48 + space[4], width: 104, height: 96 },
+  weekActyLow: { bottom: 2 },
   weekChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -742,16 +715,13 @@ const styles = StyleSheet.create({
   heroGuide: { ...type.body2Bold, color: palette.onMediaSub },
   heroMeta: { ...type.caption, color: palette.onMediaSub },
   heroStat: { ...type.caption, color: palette.onMediaSub },
-  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[2], height: 40, borderRadius: radius.full, paddingHorizontal: space[4], marginTop: 2, backgroundColor: palette.bg },
-  heroPerformText: { ...type.body2Bold, color: heroCard.ctaNavy },
+  heroPerform: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2], height: 48, borderRadius: radius.full, marginTop: 2, backgroundColor: palette.bg },
+  heroPerformArrow: { position: 'absolute', right: space[2], width: 32, height: 32, borderRadius: radius.full, backgroundColor: heroCard.ctaNavy, alignItems: 'center', justifyContent: 'center' },
+  heroPerformText: { ...type.headline, color: heroCard.ctaNavy },
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },
   sameMeta: { ...type.caption, color: palette.textMeta },
-  pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, paddingVertical: space[4], paddingHorizontal: space[4] },
-  pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5, paddingVertical: space[4] - 0.5 },
-  pickText: { ...type.body1Bold, color: palette.text },
-  pickTextOn: { color: palette.blueDeep },
   heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -781,14 +751,4 @@ const styles = StyleSheet.create({
     marginRight: -space[1.5],
     borderWidth: 1,
   },
-  registerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[1.5],
-    backgroundColor: palette.blueSoft,
-    borderRadius: radius.md,
-    paddingVertical: space[3],
-  },
-  registerText: { ...type.body2Bold, color: palette.blueDeep },
 });

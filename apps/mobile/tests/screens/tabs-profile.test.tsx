@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import ProfileScreen from '@/app/(tabs)/profile';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 import { api } from '@/lib/api';
+import { resetLastReads } from '@/lib/last-reads';
 
 type Me = {
   profile: {
@@ -184,19 +185,25 @@ test('이름도 이메일도 없으면 화면 제목으로 부른다', async () 
   expect(screen.queryByText(/@/)).not.toBeOnTheScreen();
 });
 
-test('목록을 못 읽으면 0으로 두고 빈 안내를 보인다', async () => {
+test('목록을 못 읽으면 숫자는 뼈대로 두고 다시 시도 상자를 보이며, 다시 시도하면 다시 받는다', async () => {
   listGroups.mockRejectedValue(new Error('down'));
   listEntries.mockRejectedValue(new Error('down'));
   listScripts.mockRejectedValue(new Error('down'));
   listSaved.mockRejectedValue(new Error('down'));
+  resetLastReads();
 
   await render(<ProfileScreen />);
 
-  expect(await screen.findByText('아직 연습 기록이 없어요')).toBeOnTheScreen();
-  expect(screen.getByText('코칭이나 리딩을 하면 여기에 쌓여요')).toBeOnTheScreen();
+  expect(await screen.findByText('목록을 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByText('아직 연습 기록이 없어요')).not.toBeOnTheScreen();
   expect(listEntries).toHaveBeenCalledTimes(1);
-  expect(screen.getAllByText('0')).toHaveLength(4);
-  expect(screen.queryByText(/개$/)).not.toBeOnTheScreen();
+  expect(screen.queryAllByText('0')).toHaveLength(0);
+
+  listGroups.mockResolvedValue({ groups: [] });
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+
+  expect(await screen.findByText('아직 연습 기록이 없어요')).toBeOnTheScreen();
+  expect(listGroups).toHaveBeenCalledTimes(2);
 });
 
 test('다른 화면에서 돌아오면 다시 세고, 떠나기 전 늦게 온 응답은 새 값을 덮지 않는다', async () => {

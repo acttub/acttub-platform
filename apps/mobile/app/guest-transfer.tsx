@@ -1,14 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { DialogButtons } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
@@ -98,7 +98,7 @@ export default function GuestTransferScreen() {
   const ready = isTransferCodeComplete(code);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
         title={t('guestTransfer.title')}
@@ -113,14 +113,15 @@ export default function GuestTransferScreen() {
             <Text style={[styles.heading, styles.center]}>{t('guestTransfer.doneTitle')}</Text>
             <Text style={[styles.body, styles.center]}>{t('guestTransfer.doneBody')}</Text>
           </View>
-          <CtaBar safeBottom={false}>
+          <CtaBar>
             <TextButton label={t('guestTransfer.another')} onPress={enterAnother} />
             {/* 목록은 화면이 열릴 때마다 서버에서 다시 받는다. 기록으로 보내면 옮긴 연습이 보인다. */}
             <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.dismissTo('/(tabs)/history')} />
           </CtaBar>
         </>
       ) : (
-        <KeyboardAwareScroll contentContainerStyle={styles.content}>
+        <KeyboardLift>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.titleBlock}>
             <Text style={styles.heading}>{t('guestTransfer.heading')}</Text>
             <Text style={styles.body}>{t('guestTransfer.body')}</Text>
@@ -140,24 +141,25 @@ export default function GuestTransferScreen() {
             autoFocus
             accessibilityLabel={t('guestTransfer.codeLabel')}
           />
-          <PrimaryButton
-            label={t('guestTransfer.cta')}
-            onPress={() => void submit()}
-            disabled={!ready || (busy && choosing)}
-            loading={busy && !choosing}
-            loadingLabel={t('guestTransfer.submitting')}
-          />
           <Text style={styles.hint}>{t('guestTransfer.hint')}</Text>
-        </KeyboardAwareScroll>
+        </ScrollView>
+        <CtaBar>
+            <PrimaryButton
+              label={t('guestTransfer.cta')}
+              onPress={() => void submit()}
+              disabled={!ready || (busy && choosing)}
+              loading={busy && !choosing}
+              loadingLabel={t('guestTransfer.submitting')}
+            />
+        </CtaBar>
+        </KeyboardLift>
       )}
 
       {/* 기억 선택 팝업 — 기본은 회원 것이고 고른 쪽만 남는다. */}
       <Modal visible={choosing} transparent statusBarTranslucent animationType="fade" onRequestClose={dismissChoice}>
         <View style={styles.scrim}>
           <Pressable style={StyleSheet.absoluteFill} onPress={dismissChoice} accessibilityRole="button" />
-          <View style={styles.dialog}>
-            <Text style={styles.dialogTitle}>{t('guestTransfer.memoryTitle')}</Text>
-            <Text style={styles.body}>{t('guestTransfer.memoryBody')}</Text>
+          <DialogCard title={t('guestTransfer.memoryTitle')} message={t('guestTransfer.memoryBody')}>
             <View accessibilityRole="radiogroup" style={styles.options}>
               {(['member', 'guest'] as MemoryChoice[]).map((option) => {
                 const selected = choice === option;
@@ -189,7 +191,7 @@ export default function GuestTransferScreen() {
               onConfirm={() => void confirmChoice()}
               busy={busy}
             />
-          </View>
+          </DialogCard>
         </View>
       </Modal>
     </SafeAreaView>
@@ -215,9 +217,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrim: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
-  dialog: { width: '100%', maxWidth: 362, backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], gap: space[4] },
-  dialogTitle: { ...type.headline, color: palette.text },
-  options: { gap: space[2] },
+  options: { gap: space[2], paddingTop: space[2] },
   option: {
     flexDirection: 'row',
     alignItems: 'flex-start',

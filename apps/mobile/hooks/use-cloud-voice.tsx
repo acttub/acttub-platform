@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Markdown } from '@/components/markdown';
-import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { Toast } from '@/components/ui/toast';
 import { palette } from '@/constants/palette';
 import { space } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -120,20 +122,20 @@ export function useCloudVoice({ deferUntilHomeReady = false }: { deferUntilHomeR
     <>
     <Modal visible={!!document} transparent animationType="fade" onRequestClose={() => { if (!busy) { setDocument(null); settle(); } }}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <Text style={styles.title}>{document?.title}</Text>
+        <DialogCard title={document?.title ?? ''}>
           <ScrollView style={styles.body}><Markdown source={consentBodyWithoutTitle(document?.body ?? '')} /></ScrollView>
-          {decideFailed && <Text style={styles.error}>{t('consent.agreeFail')}</Text>}
-          <PrimaryButton label={t('cloudVoice.consentAgree')} loading={busy} style={styles.agree} onPress={() => void decide(true)} />
-          <TextButton label={t('cloudVoice.consentDecline')} disabled={busy} onPress={() => void decide(false)} />
-        </View>
+          {decideFailed && <InlineErrorLine message={t('consent.agreeFail')} />}
+          <DialogButtons
+            cancelLabel={t('cloudVoice.consentDecline')}
+            onCancel={() => void decide(false)}
+            confirmLabel={t('cloudVoice.consentAgree')}
+            onConfirm={() => void decide(true)}
+            busy={busy}
+          />
+        </DialogCard>
       </View>
     </Modal>
-    {toast && (
-      <View pointerEvents="none" style={[styles.toast, { bottom: insets.bottom + 96 }]}>
-        <Text style={styles.toastText}>{t('cloudVoice.enabledToast')}</Text>
-      </View>
-    )}
+    {toast && <Toast message={t('cloudVoice.enabledToast')} bottom={insets.bottom + 96} />}
     </>
   );
 
@@ -141,12 +143,6 @@ export function useCloudVoice({ deferUntilHomeReady = false }: { deferUntilHomeR
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', paddingHorizontal: 16 },
-  toast: { position: 'absolute', left: 24, right: 24, borderRadius: 14, backgroundColor: palette.text, paddingVertical: 13, paddingHorizontal: 16, alignItems: 'center' },
-  toastText: { color: palette.onAccent, fontSize: 14, fontWeight: '700' },
-  sheet: { maxHeight: '82%', backgroundColor: palette.bg, borderRadius: 22, padding: 20 },
-  title: { color: palette.text, fontSize: 21, fontWeight: '900', marginBottom: 12 },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
   body: { maxHeight: 360 },
-  error: { color: palette.danger, textAlign: 'center', marginTop: 12 },
-  agree: { marginTop: space[4] },
 });

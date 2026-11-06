@@ -60,7 +60,7 @@ export function ChallengeDone({
 const styles = StyleSheet.create({
   rows: { paddingTop: space[4] },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
-  rowIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { ...type.body1Bold, color: palette.text },
   rowSub: { ...type.caption, color: palette.textMeta },

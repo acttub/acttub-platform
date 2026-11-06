@@ -1,15 +1,20 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PRO_STOPS } from '@/components/home-plan-badge';
+import { BandGradient } from '@/components/ui/band-gradient';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
-/** PRO 배지 — `text` 알약 · micro `on-accent`. */
+/** PRO 배지 — 디자인 시스템 pen 「PlanBadge/Pro」. 높이 28 알약, 그라데이션 + 왕관 14, micro `on-accent`. */
 export function ProBadge() {
   return (
     <View style={styles.badge}>
+      <BandGradient stops={PRO_STOPS} horizontal bands={16} />
+      <MaterialCommunityIcons name="crown-outline" size={14} color={palette.onAccent} />
       <Text style={styles.badgeText}>{t('pro.badge')}</Text>
     </View>
   );
@@ -43,7 +48,7 @@ export function CoachingLimitSheet({ visible, onClose }: { visible: boolean; onC
 }
 
 const styles = StyleSheet.create({
-  badge: { alignSelf: 'flex-start', backgroundColor: palette.text, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2 },
+  badge: { alignSelf: 'flex-start', height: 28, flexDirection: 'row', alignItems: 'center', gap: space[1], paddingHorizontal: space[3], borderRadius: radius.full, overflow: 'hidden' },
   badgeText: { ...type.micro, color: palette.onAccent },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
   full: { width: '100%', alignItems: 'center' },

@@ -1,12 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
 
-import { useReadableNote } from '@/hooks/use-readable-input';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -311,7 +310,6 @@ function JournalBody({
   /** 스크롤 맨 아래에 놓는 칸 — 앱 평가 카드(SOMA-821: 시트 대신 화면 안 카드). */
   footer?: ReactNode;
 }) {
-  const note = useReadableNote();
   const summary = journalSummary(journal);
   const notice =
     journal.draft_status === 'failed' ? t('journal.draftFailed') : journal.draft_status === 'pending' ? t('journal.draftPending') : null;
@@ -327,14 +325,13 @@ function JournalBody({
       {showTop && (
         <View style={styles.reviewBox} testID="journal-review">
           {edit ? (
-            <TextInput
-              style={styles.reviewInput}
+            <TextField
+              style={styles.editArea}
               value={edit.review}
-              onChangeText={note.wrap((review) => onEdit({ ...edit, review }))}
+              onChangeText={(review) => onEdit({ ...edit, review })}
               multiline
               maxLength={300}
               placeholder={t('journal.q4Ph')}
-              placeholderTextColor={palette.textMeta}
               accessibilityLabel={t('journal.q4')}
             />
           ) : summary.review ? (
@@ -362,14 +359,13 @@ function JournalBody({
         <View style={styles.nextBlock}>
           <Text style={styles.nextLabel}>{t('journal.nextLabel')}</Text>
           {edit ? (
-            <TextInput
-              style={styles.nextInput}
+            <TextField
+              style={styles.editArea}
               value={edit.next}
-              onChangeText={note.wrap((next) => onEdit({ ...edit, next }))}
+              onChangeText={(next) => onEdit({ ...edit, next })}
               multiline
               maxLength={300}
               placeholder={t('journal.q3Ph')}
-              placeholderTextColor={palette.textMeta}
               accessibilityLabel={t('journal.nextLabel')}
             />
           ) : (
@@ -379,16 +375,15 @@ function JournalBody({
       )}
 
       {notice && <Text style={styles.notice}>{notice}</Text>}
-      {edit && note.hint ? <InlineErrorLine message={note.hint} /> : null}
 
       <View style={styles.list}>
-        {summary.rows.map((row) =>
+        {summary.rows.map((row, index) =>
           edit ? (
-            <EditRow key={row.key} row={row} edit={edit} onEdit={onEdit} />
+            <EditRow key={row.key} row={row} edit={edit} onEdit={onEdit} last={index === summary.rows.length - 1} />
           ) : (
             <Pressable
               key={row.key}
-              style={styles.row}
+              style={[styles.row, index === summary.rows.length - 1 && styles.rowLast]}
               onPress={() => onToggle(row.key)}
               accessibilityRole="button"
               accessibilityState={{ expanded: !!open[row.key] }}
@@ -421,8 +416,7 @@ function JournalBody({
 }
 
 /** 편집 중 목록 한 줄 — 줄마다 입력 칸(연필). 해 보니의 고른 칩은 그대로 두고 글만 고친다. */
-function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; onEdit: (edit: JournalEdit) => void }) {
-  const note = useReadableNote();
+function EditRow({ row, edit, onEdit, last }: { row: JournalRow; edit: JournalEdit; onEdit: (edit: JournalEdit) => void; last: boolean }) {
   const field = (index: number): { value: string; set: (text: string) => void } => {
     switch (row.key) {
       case 'feeling':
@@ -441,23 +435,14 @@ function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; on
   // 화면 줄과 편집 값의 자리를 맞춘다 — AI 칸은 원래 순서의 몇 번째인지로 고친다.
   const indexes = row.lines.map((line) => Number(line.id.split('-')[1] ?? 0));
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, last && styles.rowLast]}>
       <Text style={styles.rowLabel}>{row.label}</Text>
-      {note.hint ? <InlineErrorLine message={note.hint} /> : null}
       {row.lines.map((line, i) => {
         const { value, set } = field(indexes[i]);
         return (
           <View key={line.id} style={styles.editField}>
             {line.prefix && row.key !== 'feeling' ? <Text style={styles.editPrefix}>{line.prefix}</Text> : null}
-            <TextInput
-              style={styles.editInput}
-              value={value}
-              onChangeText={note.wrap(set)}
-              multiline
-              maxLength={200}
-              accessibilityLabel={row.label}
-            />
-            <Feather name="edit-2" size={14} color={palette.iconFaint} />
+            <TextField style={styles.editArea} value={value} onChangeText={set} multiline maxLength={200} accessibilityLabel={row.label} />
           </View>
         );
       })}
@@ -483,7 +468,6 @@ const styles = StyleSheet.create({
   title: { ...type.title2, color: palette.text },
   reviewBox: { gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4] },
   review: { ...type.headline, color: palette.text },
-  reviewInput: { ...type.headline, color: palette.text, padding: 0, textAlignVertical: 'top' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   tag: { backgroundColor: palette.bg, borderRadius: radius.full, paddingVertical: space[1.5], paddingHorizontal: space[3] },
   tagText: { ...type.captionBold, color: palette.textSub },
@@ -492,15 +476,15 @@ const styles = StyleSheet.create({
   nextBlock: { gap: space[1.5] },
   nextLabel: { ...type.captionBold, color: palette.blueDeep },
   next: { ...type.body1Bold, color: palette.text },
-  nextInput: { ...type.body1Bold, color: palette.text, padding: 0, textAlignVertical: 'top' },
   notice: { ...type.captionBold, color: palette.amber },
   list: { gap: 0 },
   row: { gap: space[2], paddingVertical: space[3], borderBottomWidth: 1, borderBottomColor: palette.border },
+  rowLast: { borderBottomWidth: 0 },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   rowLabel: { ...type.body2Bold, color: palette.text },
   rowPreview: { ...type.caption, color: palette.textMeta },
   rowLine: { ...type.body2, color: palette.textSub },
-  editField: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingHorizontal: space[3], paddingVertical: space[2] },
+  editField: { gap: space[1] },
+  editArea: { paddingVertical: space[3], textAlignVertical: 'top' },
   editPrefix: { ...type.captionBold, color: palette.blueDeep },
-  editInput: { flex: 1, ...type.caption, color: palette.textSub, padding: 0 },
 });

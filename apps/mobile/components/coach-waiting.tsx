@@ -12,6 +12,7 @@ import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InfoBanner } from '@/components/ui/info-banner';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -77,7 +78,6 @@ export function CoachWaiting({
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stage, setStage] = useState(0);
-  const [elapsedSec, setElapsedSec] = useState(0);
   const [sceneOpen, setSceneOpen] = useState(false);
   const [videoUri, setVideoUri] = useState<VideoSource | null>(null);
 
@@ -284,13 +284,6 @@ export function CoachWaiting({
 
   useEffect(() => {
     if (error) return;
-    const startedAt = Date.now();
-    const timer = setInterval(() => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-    return () => clearInterval(timer);
-  }, [error]);
-
-  useEffect(() => {
-    if (error) return;
     const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 20_000);
     return () => clearInterval(timer);
   }, [error]);
@@ -370,11 +363,27 @@ export function CoachWaiting({
 
   const jobStatus = status?.job?.status ?? 'pending';
   const stageText = jobStatus === 'pending' && !sample ? t('analyzing.queued') : STAGES[stage];
-  const elapsedText =
-    elapsedSec < 60
-      ? t('common.secElapsed', { sec: elapsedSec })
-      : t('common.minSecElapsed', { min: Math.floor(elapsedSec / 60), sec: elapsedSec % 60 });
   const recovery = analysisRecoveryAction(status);
+
+  // 실패는 말풍선 안 빨간 글 대신 StatusScreen/Error — 할 수 있는 행동 하나, 나가기는 머리의 뒤로.
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <Stack.Screen options={{ title: t('coach.fallbackTitle'), headerShadowVisible: false }} />
+        <StatusScreen
+          title={t('analyzing.errorTitle')}
+          body={`${error} ${recovery !== 'none' ? t('analyzing.errorBody') : ''}`.trim()}
+          primary={
+            recovery !== 'none'
+              ? { label: t('common.retry'), onPress: () => void retry(), loading: retrying }
+              : { label: t('analyzing.leaveLater'), onPress: () => router.dismissTo('/(tabs)') }
+          }
+        />
+        {dialog}
+        {tutorialGuide.element}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -393,56 +402,36 @@ export function CoachWaiting({
 
         {/* 코치 말풍선 자리에서 기다린다(pen 09 「질문 대화 · 영상 보는 중」). */}
         <View ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
-          <CoachMessage below={error ? null : <Text style={styles.elapsed}>{elapsedText}</Text>}>
-            {error ? (
-              <>
-                <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
-                <Text style={styles.errorBody}>
-                  {error} {recovery !== 'none' ? t('analyzing.errorBody') : ''}
-                </Text>
-              </>
-            ) : (
-              <View style={styles.watchingBox} accessibilityLiveRegion="polite">
-                <View style={styles.typingRow}>
-                  <Text style={styles.watching}>{t('coach.watching')}</Text>
-                </View>
-                <Text style={styles.stageText}>{stageText}</Text>
+          <CoachMessage>
+            <View style={styles.watchingBox} accessibilityLiveRegion="polite">
+              <View style={styles.typingRow}>
+                <Text style={styles.watching}>{t('coach.watching')}</Text>
               </View>
-            )}
+              <Text style={styles.stageText}>{stageText}</Text>
+            </View>
           </CoachMessage>
         </View>
-
-        {error && (
-          <View style={styles.errorActions}>
-            {recovery !== 'none' && (
-              <PrimaryButton label={t('common.retry')} phLabel="analyzing_retry" onPress={() => void retry()} loading={retrying} style={styles.wide} />
-            )}
-            <TextButton label={t('analyzing.leaveLater')} phLabel="analyzing_leave_later" onPress={() => router.dismissTo('/(tabs)')} />
-          </View>
-        )}
       </ScrollView>
 
       {/* 광고 칸(SOMA-876) — 연습 중 칸이라 무료 사용자 일부만 받는다. 아래 버튼 묶음 바로 위, 24 띄운다. */}
-      {!error && !sample && <AdSlot slot="analyzing_wait" style={styles.ad} />}
+      {!sample && <AdSlot slot="analyzing_wait" style={styles.ad} />}
 
       {/* 아래 바 — 안내 띠, 보조 글자 버튼 「그만두기」 위, 주 버튼 「끝나면 알려 주세요」 맨 아래. */}
-      {!error && (
-        <CtaBar safeBottom={false}>
-          {sample ? (
-            <Text style={styles.notice}>{t('tutorial.sampleAnalyzing')}</Text>
-          ) : (
-            <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.banner} />
-          )}
-          <TextButton
-            label={stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}
-            phLabel="analyzing_stop"
-            disabled={stopping}
-            onPress={() => void stop()}
-          />
-          {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 뒤로 가기와 같은 코칭 탭으로 나간다. */}
-          {!sample && <PrimaryButton label={t('analyzing.notifyMe')} phLabel="analyzing_notify_me" onPress={leave} />}
-        </CtaBar>
-      )}
+      <CtaBar safeBottom={false}>
+        {sample ? (
+          <Text style={styles.notice}>{t('tutorial.sampleAnalyzing')}</Text>
+        ) : (
+          <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.banner} />
+        )}
+        <TextButton
+          label={stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}
+          phLabel="analyzing_stop"
+          disabled={stopping}
+          onPress={() => void stop()}
+        />
+        {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 뒤로 가기와 같은 코칭 탭으로 나간다. */}
+        {!sample && <PrimaryButton label={t('analyzing.notifyMe')} phLabel="analyzing_notify_me" onPress={leave} />}
+      </CtaBar>
       {dialog}
       {tutorialGuide.element}
     </SafeAreaView>
@@ -451,8 +440,7 @@ export function CoachWaiting({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: space[4], paddingHorizontal: space[4], paddingBottom: space[5], gap: space[3] },
-  wide: { alignSelf: 'stretch' },
+  body: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[5], gap: space[3] },
   ad: { marginHorizontal: space.gutter, marginBottom: space[3] },
   banner: { marginBottom: space[2] },
 
@@ -461,11 +449,6 @@ const styles = StyleSheet.create({
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   watching: { ...type.body1Bold, color: palette.text },
   stageText: { ...type.caption, color: palette.textSub },
-  elapsed: { ...type.caption, color: palette.textMeta },
-
-  errorTitle: { ...type.body1Bold, color: palette.text },
-  errorBody: { ...type.caption, color: palette.danger },
-  errorActions: { alignItems: 'center', gap: space[2], paddingLeft: space[10] },
 
   notice: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });

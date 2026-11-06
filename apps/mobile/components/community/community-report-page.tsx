@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { Button } from '@/components/ui/buttons';
-import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { SelectCard } from '@/components/ui/select-card';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
+import { space, type } from '@/constants/tokens';
 import { COMMUNITY_REPORT_REASONS, REPORT_DETAIL_MAX, charCount, type CommunityReportReason } from '@/lib/community';
 import { translate as t } from '@/lib/i18n';
 
@@ -55,16 +55,7 @@ export function CommunityReportPage({
             <Text style={styles.subtitle}>{t('communityReport.subtitle')}</Text>
           </View>
           {COMMUNITY_REPORT_REASONS.map((value) => (
-            <Pressable
-              key={value}
-              style={({ pressed }) => [styles.row, reason === value && styles.rowOn, pressed && styles.pressed]}
-              onPress={() => setReason(value)}
-              accessibilityRole="radio"
-              accessibilityLabel={t(`communityReport.${value}`)}
-              accessibilityState={{ selected: reason === value }}>
-              <Checkbox checked={reason === value} />
-              <Text style={[styles.rowText, reason === value && styles.rowTextOn]}>{t(`communityReport.${value}`)}</Text>
-            </Pressable>
+            <SelectCard key={value} title={t(`communityReport.${value}`)} selected={reason === value} onPress={() => setReason(value)} />
           ))}
           {reason === 'other' && (
             <View style={styles.noteBlock}>
@@ -109,21 +100,6 @@ const styles = StyleSheet.create({
   head: { gap: space[1], marginBottom: space[2] },
   title: { ...type.title2, color: palette.text },
   subtitle: { ...type.caption, color: palette.textMeta },
-  pressed: { opacity: 0.7 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    minHeight: 52,
-    paddingHorizontal: space[4],
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-  },
-  rowOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },
-  rowText: { ...type.body1, flex: 1, color: palette.text },
-  rowTextOn: { ...type.body1Bold, color: palette.blueDeep },
   noteBlock: { gap: space[1.5], paddingTop: space[2] },
   noteInput: { minHeight: 96, paddingTop: space[3] },
   noteCounter: { ...type.caption, color: palette.textMeta, textAlign: 'right' },

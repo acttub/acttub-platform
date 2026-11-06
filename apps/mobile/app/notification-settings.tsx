@@ -1,15 +1,15 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { InlineError } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
-import { SettingsCard } from '@/components/ui/settings-card';
+import { SettingsCard, SettingsSection } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
-import { space, type } from '@/constants/tokens';
+import { space } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -96,11 +96,10 @@ export default function NotificationSettingsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
-          <Text style={styles.section}>{t('settings.pushSection')}</Text>
+          <SettingsSection title={t('settings.pushSection')}>
           {NOTIFICATION_TOGGLES.map((toggle) => (
             <SettingsCard
               key={toggle.key}
-              iconCircle
               icon={TOGGLE_ICON[toggle.key] ?? 'bell'}
               title={t(toggle.titleKey)}
               sub={t(toggle.subKey)}
@@ -114,6 +113,7 @@ export default function NotificationSettingsScreen() {
               }
             />
           ))}
+          </SettingsSection>
         </ScrollView>
       )}
       {dialog}
@@ -124,5 +124,4 @@ export default function NotificationSettingsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[6], gap: space[2] },
-  section: { ...type.captionBold, color: palette.textSub },
 });

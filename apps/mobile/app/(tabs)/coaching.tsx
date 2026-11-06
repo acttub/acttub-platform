@@ -9,6 +9,7 @@ import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skel
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -53,6 +54,7 @@ export default function CoachingTab() {
   const [entry, setEntry] = useState<CoachingEntry | null>(() => (shared ? coachingEntry(shared) : null));
   // 묶음을 못 받아 처음 화면으로 넘어간 경우 — 뼈대 기억(lib/skeleton-hint)에 적지 않는다.
   const [entryFailed, setEntryFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [groups, setGroups] = useState<PracticeGroup[]>(() => shared ?? []);
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
@@ -77,7 +79,7 @@ export default function CoachingTab() {
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [attempt]),
   );
 
   // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 모양(lib/skeleton-hint)을 따른다.
@@ -136,7 +138,10 @@ export default function CoachingTab() {
           ) : undefined
         }
       />
-      {!entry && !first ? (
+      {/* 못 받았을 때 처음 화면으로 넘어가지 않는다 — 첫 사용자 화면은 받을 것이 없어 그대로 둔다. */}
+      {entryFailed && !firstHint ? (
+        <StatusScreen title={t('history.loadFail')} body={t('settings.retryLater')} primary={{ label: t('common.retry'), onPress: () => setAttempt((n) => n + 1) }} />
+      ) : !entry && !first ? (
         skeletonHints.coaching === 'next' ? (
           <CoachingNextSkeleton rows={skeletonHints.coachingRows ?? RECENT_COUNT} bottomSpace={tabBarSpace + space[5]} />
         ) : (
@@ -225,7 +230,7 @@ export default function CoachingTab() {
             <View style={styles.memoFooter}>
               <View style={styles.againBtn}>
                 <Text style={styles.againText}>{t(resuming ? 'coachingTab.resume' : 'coachingTab.again')}</Text>
-                <Feather name="arrow-right" size={15} color={palette.blue} />
+                <Feather name="arrow-right" size={15} color={palette.blueDeep} />
               </View>
             </View>
           </Pressable>
@@ -250,9 +255,9 @@ export default function CoachingTab() {
               accessibilityLabel={t('coachingTab.historyLinkA11y')}
               ph-label="coaching_history"
               hitSlop={8}
-              style={({ pressed }) => [styles.historyPill, pressed && styles.pressed]}>
-              <Text style={styles.historyPillText}>{t('coachingTab.historyLink')}</Text>
-              <Feather name="chevron-right" size={14} color={palette.textSub} />
+              style={({ pressed }) => [styles.historyLink, pressed && styles.pressed]}>
+              <Text style={styles.historyLinkText}>{t('coachingTab.historyLink')}</Text>
+              <Feather name="chevron-right" size={16} color={palette.iconFaint} />
             </Pressable>
           </View>
           <View style={styles.recent}>
@@ -387,13 +392,13 @@ function Tile({
       accessibilityRole="button"
       accessibilityLabel={title.replace('\n', ' ')}
       ph-label={phLabel}
-      style={({ pressed }) => [styles.tile, accent && styles.tileAccent, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
       <View style={styles.tileTop}>
         <Feather name={icon} size={22} color={accent ? palette.blue : palette.text} />
-        <Feather name="arrow-up-right" size={16} color={palette.textDisabled} />
+        <Feather name="arrow-up-right" size={16} color={palette.iconFaint} />
       </View>
       <View style={styles.tileText}>
-        <Text style={[styles.tileTitle, accent && styles.tileTitleAccent]}>{title}</Text>
+        <Text style={styles.tileTitle}>{title}</Text>
         <Text style={styles.tileSub} numberOfLines={1}>{sub}</Text>
       </View>
     </Pressable>
@@ -444,22 +449,20 @@ const styles = StyleSheet.create({
   quoteText: { ...type.body1, color: palette.text },
   memoFooter: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
   againBtn: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  againText: { ...type.body2Bold, color: palette.blue },
+  againText: { ...type.body2Bold, color: palette.blueDeep },
   tiles: { flexDirection: 'row', gap: space[2], paddingTop: space[3] },
-  tile: { flex: 1, gap: space[2], padding: space[3], borderRadius: radius.lg, backgroundColor: palette.bgSoft },
-  tileAccent: { backgroundColor: palette.blueSoft },
+  tile: { flex: 1, gap: space[2], padding: space[3], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tileText: { gap: space[1] },
   tileTitle: { ...type.body1Bold, color: palette.text },
-  tileTitleAccent: { color: palette.blueDeep },
   tileSub: { ...type.micro, color: palette.textMeta },
   linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[3] },
   linkSep: { width: 1, height: 12, backgroundColor: palette.border },
   link: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5] },
   linkText: { ...type.body2Bold, color: palette.textSub },
-  // 예전 「영상 없이 말로 코칭 받기」 보조 버튼(talk-entry-button)과 같은 모양.
-  historyPill: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: space[3], paddingRight: space[2], height: 28, borderRadius: radius.full, backgroundColor: palette.bgSoft },
-  historyPillText: { ...type.captionBold, color: palette.textSub },
+  // Button/Text — 알약 바탕 없는 보조 글자 버튼.
+  historyLink: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  historyLinkText: { ...type.body2Bold, color: palette.textSub },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[6] },
   sectionTitle: { ...type.body1Bold, color: palette.text },
   recent: { paddingTop: space[3], gap: space[3] },
