@@ -26,7 +26,7 @@ class AdConfiguration {
             ObjectProvider<ProStatusReader> proStatus,
             Clock clock,
             @Value("${ADS_ENABLED:true}") boolean enabled,
-            @Value("${ADS_PRACTICE_SLOT_PERCENT:50}") int practiceSlotPercent) {
+            @Value("${ADS_PRACTICE_SLOT_PERCENT:100}") int practiceSlotPercent) {
         return new AdService(repository, proStatus.getIfAvailable(() -> ProStatusReader.ALWAYS_FREE),
                 new AdService.Settings(enabled, practiceSlotPercent), switches, frequency, clock);
     }
