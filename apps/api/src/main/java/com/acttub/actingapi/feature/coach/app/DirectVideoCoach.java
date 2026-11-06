@@ -74,6 +74,17 @@ public final class DirectVideoCoach {
     private int alreadyShare = 0;
     // 근거·방법 비교(SOMA-955). 계정의 evidenceShare% 는 본 것부터 말하고, 제안에 방법 예 하나를 붙이고, 방법을 물으면 바로 답한다. 0 이면 모두 지금처럼(롤백).
     private int evidenceShare = 0;
+    /**
+     * 고정 앞부분(SOMA-1063). 켜면 지시문을 회차 안에서 바뀌지 않는 칸과 이번 답만의 칸으로 나눠
+     * ({@link DirectVideoModel#TURN_BOUNDARY}) 앞 칸만 systemInstruction 에 두고, 뒤 칸은 마지막 user 메시지로 보낸다.
+     * 지시문 맨 앞이 턴마다 바뀌어 Gemini 암묵 캐시가 거의 걸리지 않았다. 끄면 예전과 같은 요청이다(롤백).
+     */
+    private boolean stablePrefix = false;
+    /**
+     * 회차 영상 예산(SOMA-1063, 환산 토큰). 회차의 코치 답 입력 토큰(캐시 적중분은 10%로 환산)이 이만큼 쌓이면 다음 답부터
+     * 영상을 빼고 글만 보낸다(내려놓기와 같은 영상 생략 경로). 0 이면 끈다. 1층 관찰·받아쓰기는 세지 않는다.
+     */
+    private long videoTokenBudget = 0;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -155,6 +166,25 @@ public final class DirectVideoCoach {
     public DirectVideoCoach withEvidenceShare(int share) {
         this.evidenceShare = Math.max(0, Math.min(100, share));
         return this;
+    }
+
+    /** 고정 앞부분(SOMA-1063)을 켜거나 끈다. */
+    public DirectVideoCoach withStablePrefix(boolean enabled) {
+        this.stablePrefix = enabled;
+        return this;
+    }
+
+    /** 회차 영상 예산(SOMA-1063, 환산 토큰). 0 이하면 끈다. */
+    public DirectVideoCoach withVideoTokenBudget(long budget) {
+        this.videoTokenBudget = Math.max(0, budget);
+        return this;
+    }
+
+    /** 코치 답 입력 토큰의 환산값(SOMA-1063). 캐시 적중분은 단가가 10%라 10%로 센다(올림). 모르면 0. */
+    static long weightedInput(com.acttub.actingapi.platform.observability.LlmTokens tokens) {
+        if (tokens == null || tokens.input() == null) return 0;
+        long cached = tokens.cachedInput() == null ? 0 : Math.max(0, Math.min(tokens.cachedInput(), tokens.input()));
+        return tokens.input() - cached + (cached + 9) / 10;
     }
 
     /** 첫 코칭 첫 말 비교의 배정기를 끼운다. 기본은 {@link CoachOpenings#NONE}(모두 A). */
@@ -254,8 +284,11 @@ public final class DirectVideoCoach {
         classifiedNanos = System.nanoTime();
         // 내려놓기 답은 영상 없이 쓴다 — 영상 준비·기다림도 건너뛴다. 영상 파일은 대화가 이어지면 다음 답에서 다시 쓰도록 그대로 둔다.
         // 한 일 묻기(SOMA-855)도 내려놓기처럼 배우 말에 답하는 짧은 질문이라 영상 없이 쓴다.
-        final boolean videoOmitted = letGoWithoutVideo && branch != null
+        boolean videoOmitted = letGoWithoutVideo && branch != null
                 && (PracticeLoopRouter.LET_GO.equals(branch.doing()) || PracticeLoopRouter.ASK_DONE.equals(branch.doing()));
+        // 회차 영상 예산(SOMA-1063)을 넘겨 영상을 뺀 답인지. 아래에서 영상 키를 안 뒤에 정한다.
+        boolean budgetOmitted = false;
+        long budgetSpent = 0;
         if (purposeTurn != null && purposeTurn.end()) {
             // 그만: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText), talk, listen);
@@ -299,6 +332,14 @@ public final class DirectVideoCoach {
             if (!talk && !listen) videoKey = new CoachVideoCache.Key(session.practiceSessionId(),
                     source.faceMosaic() ? CoachVideoCache.faceMosaicSource(source.objectKey()) : source.objectKey(),
                     source.etag());
+            // 회차 영상 예산(SOMA-1063): 이 영상으로 쓴 코치 답 입력이 기준을 넘었으면 이번 답부터 영상을 빼고 글만 보낸다.
+            // 첫 답은 늘 영상을 본다. 새 영상(원본 키·etag 가 다름)이면 0 부터 다시 센다. 리딩 녹음 회차는 세지 않는다.
+            if (!talk && !listen) {
+                budgetSpent = session.turns().isEmpty() ? 0 : videoCache.spentTokens(videoKey);
+                budgetOmitted = videoTokenBudget > 0 && !videoOmitted && !session.turns().isEmpty()
+                        && budgetSpent >= videoTokenBudget;
+                videoOmitted = videoOmitted || budgetOmitted;
+            }
             String mimeType = talk ? null : listen ? reading.mimeType()
                     : source.faceMosaic() ? "video/mp4" : source.mimeType();
             DirectVideoModel.InputInspection inspection = null;
@@ -498,17 +539,27 @@ public final class DirectVideoCoach {
                 template = new LlmPrompt("coach.direct." + route, task);
             }
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
-            String prompt = DirectVideoPrompts.withAudioFacts(DirectVideoPrompts.withFaceMosaicFact(
-                    CoachPrompt.actorProfileBlock(session.actorProfile())
+            // 고정 앞부분(SOMA-1063)의 경계. 칸 순서와 문구는 예전 그대로이고, 켜면 사이에 경계 표시만 끼운다.
+            // 고정 칸(앞): 회차 동안 다시 계산해도 같은 값이고 원래도 지시문 앞에 있던 것만 둔다.
+            //   - 배우 프로필·지난 맥락: 회차를 연 배우·지난 회차에서 읽는다(이번 회차의 대화로 바뀌지 않는다).
+            //   - Pro 기억: 첫 답에서 상태(PRO_MEMORY)에 적어 두고 그 뒤로는 그 값을 읽는다(proMemoryBlock).
+            //   - 배우가 적은 것(상황·인물·목표·막힘): 회차 시작 때 적은 칸이다.
+            //   - 얼굴 가리기·소리 없음 사실: 회차의 원본 영상에 달린 사실이라 맨 앞에 그대로 붙는다(영상을 뺀 답은 소리 사실도 빠진다).
+            // 가변 칸(뒤, 마지막 user 메시지): 1층 관찰(아직 안 끝났으면 비었다가 나중에 생긴다), 리딩 대본(답마다 다시 읽는다),
+            //   과제(첫 답 지시와 둘째 답부터의 공통 지시가 다르고, 단계·할 일·피할 것·재료·마지막 말·성격·첫 말 칸이 섞여 있다.
+            //   맞춤 코칭은 공통 지시까지 통째로 고쳐 쓴다). 다시 쓰기 메모·이어 찍기 칸도 이 뒤에 붙는다.
+            String fixedPart = CoachPrompt.actorProfileBlock(session.actorProfile())
                     + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
                     + (loop && !talk ? proMemoryBlock(session, state) : "")
-                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) + layerBlock : "")
-                    + (listen ? reading.material() + "\n\n" : "") + task,
+                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "");
+            String turnPart = (loop ? layerBlock : "") + (listen ? reading.material() + "\n\n" : "") + task;
+            String prompt = DirectVideoPrompts.withAudioFacts(DirectVideoPrompts.withFaceMosaicFact(
+                    fixedPart + (stablePrefix ? DirectVideoModel.TURN_BOUNDARY : "") + turnPart,
                     !talk && !listen && source.faceMosaic()), uploaded);
             // 말로 하는 회차는 영상이 없어 첫 응답의 대화 기록이 비고, 모델은 빈 대화를 받지 않는다. 시작을 알리는 배우 쪽 한 줄을
             // 대화 맨 앞에 둔다(저장하지 않는 모델 입력이다). 둘째 응답부터도 같은 줄이 맨 앞에 있어 대화가 배우 말로 시작한다.
             if (talk) history.addFirst(new DirectVideoModel.Message("user", PurposeLoop.talkOpening(purpose)));
-            input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
+            input = CoachPrompt.withoutActorName(DirectVideoModel.readable(prompt), session.actorProfile()) + "\n" + history;
             // 이어서 찍은 회차: 받아 적기와 "지난 시도부터 묻는 첫 답"을 기본 첫 답과 동시에 돌린다. 받아 적기로 같은 장면이
             // 확인될 때만 그 답을 쓴다. 차례로 돌리면 첫 답이 15초쯤 늦어져서(2026-10-15 로컬 재생) 기다리는 시간을 늘리지 않는다.
             String continuedPrompt = continuationBlock == null ? null : prompt + continuationBlock;
@@ -596,7 +647,7 @@ public final class DirectVideoCoach {
                         && !DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(continued).message(), replyLanguage)) {
                     message = continued;
                     prompt = continuedPrompt;
-                    input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
+                    input = CoachPrompt.withoutActorName(DirectVideoModel.readable(prompt), session.actorProfile()) + "\n" + history;
                 }
             }
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
@@ -748,6 +799,9 @@ public final class DirectVideoCoach {
                 if (shorter == null) break;
                 shown = shorter;
             }
+            // 이번 답의 코치 입력을 회차 예산에 더한다(SOMA-1063). 첫 답이면 0 부터 다시 센다.
+            if (!talk && !listen) budgetSpent = videoCache.spend(videoKey,
+                    weightedInput(replyTrace.tokens(speaker.model())), session.turns().isEmpty());
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     speaker.model(), input, message, replyTrace.tokens(speaker.model()), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
@@ -757,6 +811,8 @@ public final class DirectVideoCoach {
                             "persona", persona, "coach_model_arm", arm, "layer1_arm", layerArm, "layer1_used", Boolean.toString(!layerBlock.isEmpty()), "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow, "coach_opening", opening, "already_arm", alreadyArm,
                             "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused),
                             "video_omitted", Boolean.toString(videoOmitted),
+                            "video_budget_omitted", Boolean.toString(budgetOmitted),
+                            "video_budget_tokens", Long.toString(budgetSpent),
                             "classify_ms", Long.toString(millis(startedNanos, classifiedNanos)),
                             "video_ms", Long.toString(millis(classifiedNanos, videoNanos)),
                             "warm_wait_ms", Long.toString(warmWaitNanos / 1_000_000),
@@ -792,11 +848,16 @@ public final class DirectVideoCoach {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
             failures.report(failure, inspecting ? FailureKind.UNEXPECTED : FailureKind.EXTERNAL,
                     new FailureContext(inspecting ? "DirectVideoCoach.inspect" : "DirectVideoCoach.turn", operationId));
+            // 실패한 답도 쓴 입력만큼 든다 — 예산에 더한다(SOMA-1063).
+            if (!talk && !listen && videoKey != null) budgetSpent = videoCache.spend(videoKey,
+                    weightedInput(replyTrace.tokens(speaker.model())), session.turns().isEmpty());
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     speaker.model(), input, "", replyTrace.tokens(speaker.model()), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow,
                             "video_omitted", Boolean.toString(videoOmitted), "thinking", replyTrace.thinking(),
+                            "video_budget_omitted", Boolean.toString(budgetOmitted),
+                            "video_budget_tokens", Long.toString(budgetSpent),
                             "thoughts_tokens", Integer.toString(replyTrace.thoughtsTokens()),
                             "candidates_tokens", Integer.toString(replyTrace.candidatesTokens()),
                             "other_model_tokens", replyTrace.otherModels(speaker.model()))).withPrompt(template));

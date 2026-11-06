@@ -102,6 +102,39 @@ public final class CoachVideoCache implements AutoCloseable {
     /** 미리 준비·원격 지우기를 돌리는 곳. 요청 스레드를 막지 않게 가상 스레드를 쓴다. */
     private final ExecutorService background = Executors.newVirtualThreadPerTaskExecutor();
 
+    /**
+     * 회차별 코치 답 입력의 환산 토큰 합(SOMA-1063, 회차 영상 예산). 영상 기억과 같은 회차·원본 키로 센다 — 원본이 바뀌면
+     * (재촬영·새 영상) 0 부터 다시 센다. 메모리에만 두며 서버가 다시 뜨면 0 이 된다(감수). 영상 기억을 끈 {@link #NONE} 도 센다.
+     */
+    private record Spent(Key key, long tokens, Instant updated) { }
+    private final Map<UUID, Spent> spent = new ConcurrentHashMap<>();
+    /** 이만큼 회차가 쌓이면 오래 손대지 않은 것을 걷어 낸다. 회차 하나가 숫자 몇 개라 넉넉히 둔다. */
+    static final int SPENT_PRUNE_AT = 2_000;
+    static final Duration SPENT_IDLE = Duration.ofHours(6);
+
+    /** 이 회차·원본으로 지금까지 쓴 코치 답 입력(환산 토큰). 원본이 다르거나 기록이 없으면 0. */
+    public long spentTokens(Key key) {
+        if (key == null || key.practiceId() == null) return 0;
+        Spent current = spent.get(key.practiceId());
+        return current == null || !sameSource(current.key(), key) ? 0 : current.tokens();
+    }
+
+    /**
+     * 이번 답의 환산 토큰을 더하고 새 합을 돌려준다. {@code restart}(첫 답)이거나 원본이 바뀌었으면 0 부터 센다.
+     */
+    public long spend(Key key, long tokens, boolean restart) {
+        if (key == null || key.practiceId() == null) return 0;
+        long added = Math.max(0, tokens);
+        Instant now = clock.instant();
+        Spent next = spent.compute(key.practiceId(), (id, current) -> restart || current == null
+                || !sameSource(current.key(), key) ? new Spent(key, added, now)
+                : new Spent(key, current.tokens() + added, now));
+        if (spent.size() > SPENT_PRUNE_AT) {
+            spent.values().removeIf(entry -> entry.updated().plus(SPENT_IDLE).isBefore(now));
+        }
+        return next.tokens();
+    }
+
     public CoachVideoCache(DirectVideoModel model, Duration idle, Clock clock, FailureReporter failures) {
         this(model, idle, clock, failures, null, Duration.ZERO);
     }

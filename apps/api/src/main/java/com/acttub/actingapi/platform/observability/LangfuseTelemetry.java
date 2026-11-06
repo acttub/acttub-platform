@@ -366,6 +366,10 @@ public class LangfuseTelemetry implements LlmTelemetry {
         if (tokens.total() != null) {
             node.put("total", tokens.total());
         }
+        // 캐시 적중분(SOMA-1063). input 에 이미 들어 있는 수라 따로 보는 칸이다 — 단가를 등록하지 않는다.
+        if (tokens.cachedInput() != null) {
+            node.put("input_cached", tokens.cachedInput());
+        }
         return node.toString();
     }
 
