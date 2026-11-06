@@ -76,6 +76,17 @@ class LangfuseTelemetryTest {
     }
 
     @Test
+    @DisplayName("Gemini 캐시 적중 토큰은 input 합계를 바꾸지 않고 input_cached 칸으로 따로 나간다")
+    void geminiCachedTokensGoToTheirOwnUsageKey() throws Exception {
+        LlmCall coach = new LlmCall(LlmStep.COACH_TURN, PRACTICE, USER, "gemini-3-flash-preview", "입력", "답",
+                LlmTokens.of(9000, 30, 9030, 7000), STARTED, Duration.ofSeconds(2), null, Map.of());
+        JsonNode span = telemetry(enabledEnvironment()).tracePayload(coach)
+                .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
+        assertThat(MAPPER.readTree(attributes(span).get("langfuse.observation.usage_details")))
+                .isEqualTo(MAPPER.readTree("{\"input\":9000,\"output\":30,\"total\":9030,\"input_cached\":7000}"));
+    }
+
+    @Test
     @DisplayName("호출 하나가 OTLP 한 건으로 조립된다")
     void callBecomesOneOtlpSpan() throws Exception {
         JsonNode payload = telemetry(Map.of(

@@ -319,6 +319,12 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         // 코치 답(분류 아님)만 턴 단위 생각 단계 요청을 따른다. 분류는 늘 LOW 다.
         ReplyTrace usage = ReplyTrace.current();
         ReplyTrace trace = classification ? null : usage;
+        // 고정 앞부분(SOMA-1063): 경계 표시가 있으면 앞은 systemInstruction, 뒤는 맨 마지막 user 메시지에 싣는다.
+        // 순서는 systemInstruction → 영상 → 대화 기록 → 이번 답 지시. 표시가 없으면 예전과 바이트까지 같은 요청이다.
+        int boundary = classification || instruction == null ? -1 : instruction.indexOf(TURN_BOUNDARY);
+        String system = boundary < 0 ? instruction : instruction.substring(0, boundary);
+        String turn = boundary < 0 ? null
+                : TURN_HEADER + "\n" + instruction.substring(boundary + TURN_BOUNDARY.length());
         List<Content> contents = new ArrayList<>();
         if (video != null) contents.add(Content.builder().role("user").parts(
                 Part.fromUri(video.uri(), video.mimeType())).build());
@@ -333,9 +339,12 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                 contents.add(Content.builder().role(message.role())
                         .parts(Part.fromText(message.text())).build());
             }
+            if (turn != null) appendTurn(contents, turn);
         }
-        var config = GenerateContentConfig.builder()
-                        .systemInstruction(Content.fromParts(Part.fromText(instruction)))
+        var config = GenerateContentConfig.builder();
+        // 고정 칸이 비면 빈 systemInstruction 을 보내지 않는다. 표시가 없는 예전 요청은 늘 싣는다.
+        if (boundary < 0 || !system.isBlank()) config.systemInstruction(Content.fromParts(Part.fromText(system)));
+        config
                         .httpOptions(HttpOptions.builder().timeout(classification ? 15000 : 90000).build())
                         .thinkingConfig(thinking(light, trace))
                         .maxOutputTokens(classification ? 1024 : REPLY_TOKEN_LIMIT);
@@ -346,6 +355,22 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                     "required", List.of("signals"), "additionalProperties", false));
         }
         return new Request(contents, config.build(), trace, usage);
+    }
+
+    /**
+     * 이번 답 지시를 맨 끝에 붙인다(SOMA-1063). 마지막 내용이 user(배우 말, 또는 대화 없는 첫 답의 영상)면 같은 user 턴의
+     * 뒤 Part 로 넣어 user·model 교대를 깨지 않는다. 마지막이 model 이거나 내용이 없으면 user 메시지 하나로 붙인다.
+     * 앞 Part 들은 그대로라, 다음 턴에 이 배우 말이 대화 기록으로 들어가도 앞부분이 같다.
+     */
+    private static void appendTurn(List<Content> contents, String turn) {
+        Content last = contents.isEmpty() ? null : contents.getLast();
+        if (last != null && "user".equals(last.role().orElse(null))) {
+            List<Part> parts = new ArrayList<>(last.parts().orElse(List.of()));
+            parts.add(Part.fromText(turn));
+            contents.set(contents.size() - 1, Content.builder().role("user").parts(parts).build());
+        } else {
+            contents.add(Content.builder().role("user").parts(Part.fromText(turn)).build());
+        }
     }
 
     /**
