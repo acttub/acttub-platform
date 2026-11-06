@@ -96,7 +96,7 @@ public final class ReplyTrace {
 
     private static LlmTokens plus(LlmTokens left, LlmTokens right) {
         return LlmTokens.of(plus(left.input(), right.input()), plus(left.output(), right.output()),
-                plus(left.total(), right.total()));
+                plus(left.total(), right.total()), plus(left.cachedInput(), right.cachedInput()));
     }
 
     private static Integer plus(Integer left, Integer right) {

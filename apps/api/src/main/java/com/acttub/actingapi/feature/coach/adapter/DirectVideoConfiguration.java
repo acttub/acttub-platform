@@ -125,6 +125,11 @@ public class DirectVideoConfiguration {
             // false 면 모두 LOW(롤백).
             @Value("${ACTTUB_COACH_FOLLOWUP_MINIMAL_THINKING:true}") boolean followUpMinimalThinking,
             com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne,
+            // 고정 앞부분(SOMA-1063): 회차 안에서 바뀌지 않는 지시만 systemInstruction 에 두고 이번 답 지시는 마지막 user 메시지로
+            // 보내 Gemini 암묵 캐시가 걸리게 한다. false 면 예전과 같은 요청이다(롤백).
+            @Value("${ACTTUB_COACH_STABLE_PREFIX:true}") boolean stablePrefix,
+            // 회차 영상 예산(SOMA-1063, 환산 토큰): 회차의 코치 답 입력(캐시 적중분 10%)이 넘으면 다음 답부터 영상을 뺀다. 0 이면 끈다.
+            @Value("${ACTTUB_COACH_SESSION_VIDEO_TOKEN_BUDGET:120000}") long videoTokenBudget,
             // 얼굴 가리기 회차는 원본 대신 얼굴을 가린 사본을 올린다(practice.start). 없으면 그 회차는 원본을 올리지 않고 실패한다.
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.media.FaceMosaic> faceMosaic,
             // Pro 지난 연습 기억(SOMA-900). Pro 판정 스위치는 ACTTUB_COACH_PRO(값이 없으면 dev 만 켜짐).
@@ -145,6 +150,8 @@ public class DirectVideoConfiguration {
                 .withReadingAudio(readingAudio.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachReadingAudio.NONE))
                 .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))
                 .withEvidenceShare(alreadyShare(evidenceShare, siteUrl))
+                .withStablePrefix(stablePrefix)
+                .withVideoTokenBudget(videoTokenBudget)
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
                         proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
                 .withOpenings(openingAb(openingAb, siteUrl)

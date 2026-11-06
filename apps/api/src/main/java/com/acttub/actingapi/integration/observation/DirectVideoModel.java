@@ -24,6 +24,18 @@ public interface DirectVideoModel {
         }
     }
     record Message(String role, String text) {}
+    /**
+     * 지시문 안의 경계 표시(SOMA-1063). 앞은 회차 안에서 바뀌지 않는 지시라 systemInstruction 에 두고, 뒤는 이번 답만의
+     * 지시라 {@link #TURN_HEADER} 를 달아 마지막 user 메시지 끝에 붙인다. 요청 앞부분이 턴마다 같아야 Gemini 암묵 캐시가 걸린다.
+     * 표시가 없으면 예전처럼 지시문 전체가 systemInstruction 이다. 모델에는 이 표시 자체를 보내지 않는다.
+     */
+    String TURN_BOUNDARY = "\u0000acttub-turn\u0000";
+    /** 마지막 user 메시지에 붙는 이번 답 지시의 머리말. */
+    String TURN_HEADER = "[이번 답 지시]";
+    /** 기록(Langfuse 입력)용: 경계 표시를 머리말로 바꾼다. 표시가 없으면 그대로다. */
+    static String readable(String instruction) {
+        return instruction == null ? null : instruction.replace(TURN_BOUNDARY, "\n\n" + TURN_HEADER + "\n");
+    }
     /** No provider call. Older/test implementations can leave both facts unknown. */
     default InputInspection inspect(Path path) { return new InputInspection(null, null); }
     Video upload(Path path, String mimeType);
