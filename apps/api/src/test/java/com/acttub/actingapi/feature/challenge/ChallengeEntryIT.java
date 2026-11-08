@@ -539,6 +539,57 @@ class ChallengeEntryIT {
                 .isEqualTo(mine);
     }
 
+    @Test void challengeBrowse_liveLikesPutVisibleFacesFirstButPlacesStayByLikes() throws Exception {
+        Instant deadline = NOW.plus(Duration.ofHours(2));
+        UUID challenge = challenge(deadline);
+        UUID many = seeded(challenge, member("벽 많이"), 1, 10);
+        UUID mid = seeded(challenge, member("벽 중간"), 2, 5);
+        UUID faceZero = seeded(challenge, member("얼굴 영"), 3, 0);
+        UUID faceThree = seeded(challenge, member("얼굴 셋"), 4, 3);
+        UUID unknown = seeded(challenge, member("모름"), 5, 1);
+        jdbc.update("UPDATE challenge_entries SET face_visible=true WHERE id IN (?,?)", faceZero, faceThree);
+        jdbc.update("UPDATE challenge_entries SET face_visible=false WHERE id IN (?,?)", many, mid);
+        JsonNode live = response(get("/v2/challenges/{id}/entries", challenge), 200);
+        assertThat(ids(live)).containsExactly(faceThree.toString(), faceZero.toString(), many.toString(), mid.toString(),
+                unknown.toString());
+        assertThat(ranks(live)).containsExactly("3", "5", "1", "2", "4");
+        JsonNode latest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200);
+        assertThat(ids(latest)).containsExactly(unknown.toString(), faceThree.toString(), faceZero.toString(), mid.toString(),
+                many.toString());
+
+        clock.set(deadline.plus(Duration.ofMinutes(1)));
+        entryRepository.settle(clock.instant());
+        JsonNode settled = response(get("/v2/challenges/{id}/entries", challenge), 200);
+        assertThat(settled.path("ranking_state").asText()).isEqualTo("final");
+        var byLikes = List.of(many.toString(), mid.toString(), faceThree.toString(), unknown.toString(), faceZero.toString());
+        assertThat(ids(settled)).containsExactlyElementsOf(byLikes);
+        jdbc.update("UPDATE challenges SET ranking_state='pending' WHERE id=?", challenge);
+        JsonNode pending = response(get("/v2/challenges/{id}/entries", challenge), 200);
+        assertThat(ids(pending)).containsExactlyElementsOf(byLikes);
+        assertThat(pending.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
+    }
+
+    @Test void challengeBrowse_barelySeenSlotsAreCountedAfterTheLeadingFaces() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        var faces = new ArrayList<String>();
+        for (int i = 0; i < 2; i++) faces.add(seeded(challenge, member("얼굴 " + i), i, 1).toString());
+        jdbc.update("UPDATE challenge_entries SET face_visible=true WHERE challenge_id=?", challenge);
+        var byRank = new ArrayList<String>();
+        for (int i = 0; i < 12; i++) byRank.add(seeded(challenge, member("배우 " + i), 10 + i, 30 - i).toString());
+        String older = seeded(challenge, member("덜 본 하나"), 30, 0, 0).toString();
+        String newer = seeded(challenge, member("덜 본 둘"), 31, 0, 0).toString();
+        JsonNode likes = response(get("/v2/challenges/{id}/entries", challenge), 200);
+        var expected = new ArrayList<String>(faces);
+        expected.addAll(byRank);
+        expected.add(2 + 2, newer);
+        expected.add(2 + 5, older);
+        assertThat(ids(likes)).containsExactlyElementsOf(expected);
+        assertThat(likes.at("/entries/0/rank").asInt()).isEqualTo(13);
+        assertThat(likes.at("/entries/2/rank").asInt()).isEqualTo(1);
+        assertThat(likes.at("/entries/4/rank").isNull()).isTrue();
+        assertThat(likes.at("/entries/7/rank").isNull()).isTrue();
+    }
+
     @Test void challengeBrowse_heldOrderSurvivesOvertakingButRechecksVisibilityAndExpiresWhenTheBasisChanges() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofHours(1)));
         var byRank = new ArrayList<UUID>();

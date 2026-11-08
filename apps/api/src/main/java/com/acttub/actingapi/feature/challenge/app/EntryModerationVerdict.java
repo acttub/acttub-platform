@@ -6,9 +6,14 @@ package com.acttub.actingapi.feature.challenge.app;
  * @param decision pass(그대로) · hide(숨기고 운영 확인) · review(보이게 두고 운영 확인)
  * @param category 판정 근거의 종류. 통과면 none
  * @param reason   운영이 볼 한 문장(사람을 묘사하지 않는다)
+ * @param face     영상에 얼굴이 보이는가(SOMA-1066). 모델이 답하지 않았거나 모양이 틀리면 {@code null}(모름)
  */
-public record EntryModerationVerdict(Decision decision, String category, String reason) {
+public record EntryModerationVerdict(Decision decision, String category, String reason, Boolean face) {
     public enum Decision { PASS, HIDE, REVIEW }
+
+    public EntryModerationVerdict(Decision decision, String category, String reason) {
+        this(decision, category, reason, null);
+    }
 
     /** 신고 목록의 사유 칸(entry_reports.reason)에 맞춘다. */
     public String reportReason() {

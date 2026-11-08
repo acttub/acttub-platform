@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.challenge.app;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /** 공개 참여작 AI 검사의 장부 (SOMA-907). 집기·판정 붙이기·실패 닫기는 각자 짧은 트랜잭션이다. */
@@ -19,5 +20,16 @@ public interface EntryModerationRepository {
     /** 마지막 시도까지 실패했다 — 영상은 보이게 두고 운영 확인으로 올린다. */
     void fail(Job job, Instant now);
 
+    /**
+     * 얼굴 여부를 모르는 채 검사가 끝난 공개 참여작을 오래된 순으로 {@code limit} 개까지 집어 얼굴 시도 수를 올려 커밋한다
+     * (SOMA-1066). 얼굴 시도가 {@code maxAttempts} 에 닿은 것은 집지 않는다.
+     */
+    List<FaceJob> claimFaces(int limit, int maxAttempts);
+
+    /** 얼굴 여부만 붙인다. 판정(moderation_*)은 건드리지 않고, 그 사이 이미 정해졌으면 아무것도 하지 않는다. */
+    void faceSeen(UUID entryId, boolean face);
+
     record Job(UUID entryId, int attempts, int contentVersion, AiReportRepository.Video video, String line, String caption) { }
+
+    record FaceJob(UUID entryId, AiReportRepository.Video video) { }
 }
