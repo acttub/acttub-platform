@@ -67,6 +67,16 @@ public final class DirectVideoCoach {
     private final boolean followUpMinimalThinking;
     /** 코칭 1층 관찰 A/B(SOMA-815). NONE 이면 칸이 없다(롤백). */
     static final String LAYER1 = "layer1";
+    /**
+     * 1층 관찰을 받는 연습인데 아직 관찰이 안 끝난 답(SOMA-815). 운영 Pro 18건에서 코치가 관찰 없이 먼저 말한 행동이 관찰·영상과
+     * 어긋났고, 관찰이 온 뒤에도 그 말을 이어 갔다. 그래서 관찰이 오기 전에는 행동을 짚지 않고 의도부터 묻는다.
+     */
+    static final String LAYER1_WAIT = """
+            ## 1층 관찰 대기
+            이 영상의 서버 관찰이 아직 오지 않았다. 아래 과제가 영상 속 행동을 짚으라고 해도, 이번 답에서는 배우의 시선·손·표정·몸 움직임을 근거로 짚거나 단정하지 않는다.
+            배우가 이 장면에서 무엇을 하려 했는지, 배우가 적은 고민이 무엇인지부터 묻는다. 이 칸의 존재를 배우에게 말하지 않는다.
+
+            """;
     private final CoachLayerOne layerOne;
     /** 얼굴 가리기 회차(practice.start)의 원본을 가린 사본으로 바꾼다. NONE 이면 그런 회차는 원본을 올리지 않고 실패한다. */
     private FaceMosaic faceMosaic = FaceMosaic.NONE;
@@ -444,6 +454,7 @@ public final class DirectVideoCoach {
             // 1층 관찰(SOMA-815): 배정된 연습이고 끝났으면 칸을 붙이고 상태에 남긴다. 안 끝났으면 기다리지 않는다.
             String layerArm = layerOneArm(session);
             String layerBlock = loop ? layerOneBlock(session, state, layerArm) : "";
+            String layerWait = loop && !talk && !listen && layerBlock.isEmpty() && CoachLayerOne.on(layerArm) ? LAYER1_WAIT : "";
             if (!persona.isEmpty()) DirectVideoPracticeLoop.rememberPersona(state, persona);
             if (loop && purpose == null) DirectVideoPracticeLoop.rememberCoachModel(state, arm);
             if (loop && purpose == null) DirectVideoPracticeLoop.rememberFlow(state, flow);
@@ -552,7 +563,7 @@ public final class DirectVideoCoach {
                     + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
                     + (loop && !talk ? proMemoryBlock(session, state) : "")
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "");
-            String turnPart = (loop ? layerBlock : "") + (listen ? reading.material() + "\n\n" : "") + task;
+            String turnPart = (loop ? layerBlock + layerWait : "") + (listen ? reading.material() + "\n\n" : "") + task;
             String prompt = DirectVideoPrompts.withAudioFacts(DirectVideoPrompts.withFaceMosaicFact(
                     fixedPart + (stablePrefix ? DirectVideoModel.TURN_BOUNDARY : "") + turnPart,
                     !talk && !listen && source.faceMosaic()), uploaded);
@@ -808,7 +819,7 @@ public final class DirectVideoCoach {
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "polish_calls", Integer.toString(polished), "empty_retry", Boolean.toString(emptyRetry), "light_retry", Boolean.toString(lightRetry), "broken_retry", Boolean.toString(brokenRetry),
-                            "persona", persona, "coach_model_arm", arm, "layer1_arm", layerArm, "layer1_used", Boolean.toString(!layerBlock.isEmpty()), "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow, "coach_opening", opening, "already_arm", alreadyArm,
+                            "persona", persona, "coach_model_arm", arm, "layer1_arm", layerArm, "layer1_used", Boolean.toString(!layerBlock.isEmpty()), "layer1_wait", Boolean.toString(!layerWait.isEmpty()), "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow, "coach_opening", opening, "already_arm", alreadyArm,
                             "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused),
                             "video_omitted", Boolean.toString(videoOmitted),
                             "video_budget_omitted", Boolean.toString(budgetOmitted),
