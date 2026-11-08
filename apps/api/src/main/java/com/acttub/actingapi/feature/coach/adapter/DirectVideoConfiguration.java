@@ -106,6 +106,9 @@ public class DirectVideoConfiguration {
             // 사용자가 3.8 로 바꾸기로 정했다. 배우 말 분류·줄이기는 그대로 기본 모델이다. 되돌리려면 SHARE=0.
             @Value("${GEMINI_COACH_MODEL_B:gemini-3.8-flash}") String modelB,
             @Value("${ACTTUB_COACH_MODEL_B_SHARE:100}") int modelBShare,
+            // 배우 말 분류 모델(SOMA-657). 2026-11-08 사용자가 분류도 3.8 로 바꾸기로 정했다. 정답 150건 평가는 SOMA-657 기록에 있다.
+            // 비우면 기본 모델(GEMINI_MODEL)로 분류한다. 되돌리려면 ACTTUB_COACH_CLASSIFY_MODEL=gemini-3-flash-preview.
+            @Value("${ACTTUB_COACH_CLASSIFY_MODEL:gemini-3.8-flash}") String classifyModel,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFlows> flows,
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
             @Value("${ACTTUB_COACH_FLOW_AB:false}") boolean flowAb,
@@ -153,6 +156,8 @@ public class DirectVideoConfiguration {
                 .withReadingAudio(readingAudio.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachReadingAudio.NONE))
                 .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))
                 .withEvidenceShare(alreadyShare(evidenceShare, siteUrl))
+                .withClassifier(classifyModel == null || classifyModel.isBlank() ? null
+                        : new GeminiDirectVideoModel(client, classifyModel.strip()).withHedge(coachHedge))
                 .withStablePrefix(stablePrefix)
                 .withVideoTokenBudget(videoTokenBudget)
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
