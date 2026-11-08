@@ -5,7 +5,7 @@
 - 도입: 1.0.x (SOMA-818). 서버 플래그 `BILLING_APP_ENABLED`(기본 false) 뒤에 있다.
 - 화면: pen ⑥ Pro · 안내(P0xJ9), 오늘 무료 코칭 다 씀(a5y1Qr), 무료 대본 3개(WLdNc), 결제 창(t2V04c, 토스 화면), 외부 결제 안내
   (hD5to, iOS), 결제 완료(kqeG6), 설정 · 구독 관리(GmTw6), 결제하지 못했어요(ETD1H), 지금 대본과 바꾸기 확인(K7q5Vk)
-- 테이블: `billing_subscriptions`·`billing_checkouts`·`billing_payments`(V64), 요금제 열 `plan`(V91, SOMA-1068)
+- 테이블: `billing_subscriptions`·`billing_checkouts`·`billing_payments`(V64), 요금제 열 `plan`(V92, SOMA-1068)
 
 ## 기능
 Pro 는 월 3,900원(부가세 포함) 자동결제다. 결제는 앱 스토어 결제가 아니라 토스페이먼츠 자동결제(카드 등록 → 빌링키 → 첫
@@ -189,7 +189,7 @@ Pro 가 아닌 사람에 한해 RevenueCat SDK 를 그 사람으로 열고(SDK �
 - 첫 결제 직전에 구독 줄(아직 expired)에 요금제와 그 금액을 적는다(`billing_subscriptions.plan`·`amount`). 이용 중인 구독의 요금제는 바꾸지 않는다
   (월 ↔ 연 전환 없음).
 - 자동결제·재시도·결과 모름 재확인은 그 구독의 요금제 주문명·장부 금액·기간으로 청구·연장한다. 이미 연 구독인 사람은 서버 스위치를 꺼도
-  계속 갱신되고 해지하면 그 1년 기간 끝까지 Pro 다. 기존 줄은 V91 에서 monthly 다(스토어 연 구독 줄만 yearly 로 맞춘다).
+  계속 갱신되고 해지하면 그 1년 기간 끝까지 Pro 다. 기존 줄은 V92 에서 monthly 다(스토어 연 구독 줄만 yearly 로 맞춘다).
 - 스토어 줄의 `plan` 은 상품 ID 로 정한다(`acttub_pro_yearly` → yearly). ops 구독 화면(`/v2/admin/subscribers`)의 `plan` 은 토스 줄이면 장부의
   `plan`, 스토어 줄이면 상품 ID 를 따른다.
 - 구독 메일: 상품명이 요금제 주문명이고, 자동결제 안내가 연 구독이면 「매년 결제일에」, 월 구독이면 지금처럼 「매달 결제일에」다. 제목의 금액도
