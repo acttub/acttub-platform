@@ -1667,13 +1667,32 @@ class DirectVideoCoachTest {
             var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
             var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
             verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
-            assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt).contains("## 1층 관찰"));
+            assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt).contains("## 1층 관찰").doesNotContain("## 1층 관찰 대기"));
             assertThat(second.session().coachingState().path("layer1").path("from_turn").asInt()).isZero();
             assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
                     .allSatisfy(call -> assertThat(call.metadata()).containsEntry("layer1_arm", "on").containsEntry("layer1_used", "true"));
         } finally {
             layer.close();
             Files.deleteIfExists(clip);
+        }
+    }
+
+    @Test void onArmWithoutReadyObservationAsksIntentInsteadOfNamingBehavior() {
+        var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰", 100, failures);
+        try {
+            var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                    model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachFlows.NONE,
+                    CoachVideoCache.NONE, true, true, layer)));
+            when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+            var first = loopEngine.start(session(), UUID.randomUUID());
+            assertThat(first.session().coachingState().path("layer1").path("arm").asText()).isEqualTo("on");
+            var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(model).reply(eq(file), anyList(), prompts.capture());
+            assertThat(prompts.getValue()).contains("## 1층 관찰 대기").doesNotContain("## 1층 관찰\n");
+            assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                    .allSatisfy(call -> assertThat(call.metadata()).containsEntry("layer1_used", "false").containsEntry("layer1_wait", "true"));
+        } finally {
+            layer.close();
         }
     }
 
@@ -1687,6 +1706,6 @@ class DirectVideoCoachTest {
         assertThat(first.session().coachingState().path("layer1").path("arm").asText()).isEqualTo("off");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model).reply(eq(file), anyList(), prompts.capture());
-        assertThat(prompts.getValue()).doesNotContain("## 1층 관찰");
+        assertThat(prompts.getValue()).doesNotContain("## 1층 관찰").doesNotContain("## 1층 관찰 대기");
     }
 }
