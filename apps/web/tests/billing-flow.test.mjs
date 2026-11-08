@@ -72,6 +72,48 @@ test("내 계정 구독 칸은 서버 상태를 그대로 문장으로 바꾼다
   assert.equal(koreanDate("bad"), null);
 });
 
+test("웹 연 구독(SOMA-1068) — 빌드 스위치가 기본 꺼짐이고, 꺼져 있으면 연 구독이어도 문장이 월 그대로다", async () => {
+  const { WEB_YEARLY_ENABLED, planPrice, subscriptionViewOf } = await import("../src/features/billing/billing-flow.ts");
+  assert.equal(WEB_YEARLY_ENABLED, false);
+  assert.equal(planPrice("yearly", 3900, false), "월 3,900원");
+  const base = { card_company: null, card_last4: null, grant_ends_at: null, period_end: null, next_billing_at: null };
+  const monthlyOff = subscriptionViewOf({ ...base, amount: 3900, plan: "monthly", status: "active", pro: true, provider: "toss" }, false);
+  assert.ok(monthlyOff.lines.includes("월 3,900원 자동결제"));
+  const free = subscriptionViewOf({ ...base, amount: 3900, plan: "monthly", status: "none", pro: false, provider: null }, false);
+  assert.deepEqual(free.lines, ["Pro는 월 3,900원예요."]);
+  assert.equal(resultViewOf("done", true, { plan: "yearly", amount: 32500 }, false).body, "코칭과 대본 보관에 제한 없이 Pro를 이용해요.");
+});
+
+test("웹 연 구독 빌드에서는 내 계정·결과 화면이 요금제와 금액을 그대로 보인다", async () => {
+  const { planPrice, subscriptionViewOf, PLAN_OPTIONS } = await import("../src/features/billing/billing-flow.ts");
+  assert.deepEqual(PLAN_OPTIONS.map((o) => [o.plan, o.amount]), [["monthly", 3900], ["yearly", 32500]]);
+  assert.equal(planPrice("yearly", 32500, true), "연 32,500원");
+  assert.equal(planPrice("monthly", 3900, true), "월 3,900원");
+  assert.equal(planPrice(undefined, 3900, true), "월 3,900원");
+
+  const base = { card_company: null, card_last4: null, grant_ends_at: null, period_end: null };
+  const yearly = subscriptionViewOf(
+    { ...base, amount: 32500, plan: "yearly", status: "active", pro: true, provider: "toss", next_billing_at: "2027-10-23T01:00:00Z" },
+    true,
+  );
+  assert.ok(yearly.lines.includes("연 32,500원 자동결제"));
+  assert.ok(yearly.lines.includes("다음 결제일 2027년 10월 23일"));
+  const monthly = subscriptionViewOf({ ...base, amount: 3900, plan: "monthly", status: "active", pro: true, provider: "toss", next_billing_at: null }, true);
+  assert.ok(monthly.lines.includes("월 3,900원 자동결제"));
+  const store = subscriptionViewOf({ ...base, amount: 32500, plan: "yearly", status: "active", pro: true, provider: "apple", next_billing_at: null }, true);
+  assert.equal(store.summary, "연 32,500원");
+  const free = subscriptionViewOf({ ...base, amount: 3900, plan: "monthly", status: "none", pro: false, provider: null, next_billing_at: null }, true);
+  assert.deepEqual(free.lines, ["Pro는 월 3,900원, 연 32,500원이에요."]);
+
+  assert.equal(
+    resultViewOf("done", true, { plan: "yearly", amount: 32500 }, true).body,
+    "연 32,500원 구독이에요. 코칭과 대본 보관에 제한 없이 Pro를 이용해요.",
+  );
+  assert.equal(resultViewOf("done", true, null, true).body, "코칭과 대본 보관에 제한 없이 Pro를 이용해요.");
+  assert.equal(startOutcomeOf({ status: 422, code: "plan_unavailable" }).kind, "plan_unavailable");
+  assert.match(startMessage({ kind: "plan_unavailable" }), /월 구독으로/);
+});
+
 test("로그인이 필요하면 안내 문구가 웹 로그인을 가리킨다", () => {
   assert.match(startMessage({ kind: "login_required" }), /로그인/);
   assert.doesNotMatch(startMessage({ kind: "login_required" }), /준비 중/);

@@ -209,6 +209,9 @@ jobs:
           # 웹 Pro 결제 화면(SOMA-818). dev·운영 모두 켠다. 실제 결제는 서버 BILLING_WEB_ENABLED 가 따로 연다 —
           # 서버가 닫혀 있으면 구독 버튼은 "준비 중" 안내만 내고 결제 창을 열지 않는다.
           NEXT_PUBLIC_BILLING_WEB_ENABLED: 'true'
+          # 웹 연 구독 선택(SOMA-1068). 토스 계약 변경 승인 전이라 dev·운영 모두 끈다. 켜도 서버 BILLING_WEB_YEARLY_ENABLED 가
+          # 꺼져 있으면 연 구독 결제 창은 열리지 않는다.
+          NEXT_PUBLIC_BILLING_WEB_YEARLY_ENABLED: 'false'
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_WEB }}
           # secret 이 없으면 빈 값이 들어가고 Dockerfile 이 소스맵 업로드를 건너뜁니다(실측: --secret 의
@@ -223,6 +226,7 @@ jobs:
             --build-arg NEXT_PUBLIC_SENTRY_ENV="$NEXT_PUBLIC_SENTRY_ENV" \
             --build-arg NEXT_PUBLIC_POSTHOG_KEY="$NEXT_PUBLIC_POSTHOG_KEY" \
             --build-arg NEXT_PUBLIC_BILLING_WEB_ENABLED="$NEXT_PUBLIC_BILLING_WEB_ENABLED" \
+            --build-arg NEXT_PUBLIC_BILLING_WEB_YEARLY_ENABLED="$NEXT_PUBLIC_BILLING_WEB_YEARLY_ENABLED" \
             --build-arg NEXT_PUBLIC_APP_COMMIT="$GITHUB_SHA" \
             --build-arg SENTRY_ORG="$SENTRY_ORG" \
             --build-arg SENTRY_PROJECT="$SENTRY_PROJECT" \
