@@ -21,7 +21,7 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.junit.jupiter.api.Test;
 
-/** 모자이크 워커의 갈래 — 얼굴 없음은 곧바로 실패, 그 밖의 실패는 상한까지 다시, 성공은 붙이고 늦은 사본을 지운다. */
+/** 모자이크 워커의 갈래 — 얼굴 없음은 모자이크를 끄고 원본 공개,그 밖의 실패는 상한까지 다시, 성공은 붙이고 늦은 사본을 지운다. */
 class EntryMosaicWorkerTest {
     private static final Instant NOW = Instant.parse("2026-10-22T09:00:00Z");
     private final EntryRepository entries = mock(EntryRepository.class);
@@ -61,12 +61,14 @@ class EntryMosaicWorkerTest {
         verify(entries, never()).failMosaic(any(), any());
     }
 
-    @Test void aVideoWithoutAFaceFailsAtOnce() {
+    @Test void aVideoWithoutAFaceTurnsTheMosaicOffInsteadOfFailing() {
         var job = job(1);
         when(mosaics.render(anyString(), anyString())).thenReturn(false);
         assertThat(worker.runOnce()).isTrue();
-        verify(entries).failMosaic(job, NOW);
+        verify(entries).skipMosaic(job, NOW);
+        verify(entries, never()).failMosaic(any(), any());
         verify(entries, never()).attachMosaic(any(), anyString(), any());
+        verify(failures, never()).report(any(), any());
     }
 
     @Test void otherFailuresRetryUntilTheLastAttempt() {
@@ -75,6 +77,7 @@ class EntryMosaicWorkerTest {
         assertThat(worker.runOnce()).isTrue();
         verify(failures).report(any(IllegalStateException.class), any(FailureContext.class));
         verify(entries, never()).failMosaic(eq(first), any());
+        verify(entries, never()).skipMosaic(any(), any());
 
         var last = job(ChallengeRules.MOSAIC_MAX_ATTEMPTS);
         assertThat(worker.runOnce()).isTrue();

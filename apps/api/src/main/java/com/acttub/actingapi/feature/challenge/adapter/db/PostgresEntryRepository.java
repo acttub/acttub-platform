@@ -309,6 +309,15 @@ class PostgresEntryRepository implements EntryRepository {
                 .setParameter("attempts", job.attempts()).executeUpdate());
     }
 
+    @Override
+    public void skipMosaic(MosaicJob job, Instant now) {
+        transaction.executeWithoutResult(tx -> em.createNativeQuery("""
+                UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,mosaic_key=NULL,updated_at=:now
+                WHERE id=:id AND mosaic_status='pending' AND mosaic_attempts=:attempts
+                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", job.entryId())
+                .setParameter("attempts", job.attempts()).executeUpdate());
+    }
+
     @Override @Transactional
     public boolean view(UUID viewer, UUID entryId, UUID eventId, Instant now) {
         var rows = NativeTuples.list(em.createNativeQuery(
