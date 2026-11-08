@@ -221,7 +221,7 @@ COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
 COLUMN challenge_entries.created_at ord=16 type=timestamptz len=- null=NO default=now()
 COLUMN challenge_entries.deleted_at ord=18 type=timestamptz len=- null=YES default=-
-COLUMN challenge_entries.face_attempts ord=28 type=int2 len=- null=NO default=0
+COLUMN challenge_entries.face_attempts ord=28 type=int4 len=- null=NO default=0
 COLUMN challenge_entries.face_mosaic ord=19 type=bool len=- null=NO default=false
 COLUMN challenge_entries.face_visible ord=27 type=bool len=- null=YES default=-
 COLUMN challenge_entries.final_eligible ord=12 type=bool len=- null=YES default=-

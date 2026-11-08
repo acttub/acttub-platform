@@ -6,4 +6,4 @@
 -- 묻지 않는다. 더하기만 하는 변경이다 — 직전 판 API 는 두 열을 모르고 넣으므로 기본값(NULL·0)이 그 상태다.
 ALTER TABLE public.challenge_entries
     ADD COLUMN face_visible boolean,
-    ADD COLUMN face_attempts smallint DEFAULT 0 NOT NULL;
+    ADD COLUMN face_attempts integer DEFAULT 0 NOT NULL;
