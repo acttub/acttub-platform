@@ -101,8 +101,11 @@ public class DirectVideoConfiguration {
             // 코치 모델 비교(SOMA-657). 새 대화의 SHARE% 는 코치 답을 이 모델로 쓴다. SHARE=0 이면 모두 GEMINI_MODEL(롤백).
             // 2026-10-20 끔(SOMA-780): 운영 서버에서 같은 영상으로 재 보니 3.8 이 첫 질문 12.8초·답장 6.8초로 기본 모델(7.4초·4.5초)보다
             // 느렸다. 사용자가 끄기로 정했다. 이미 b 로 시작한 대화도 기본 모델로 이어 간다. 다시 켜려면 SHARE=50.
+            // 2026-11-08 전부 3.8(SHARE=100): 같은 운영 첫 응답 지시문으로 영상 5개 × 3회를 재 보니 첫 응답이 3.8 10.4초·기본 9.6초로
+            // 차이가 작았고, 기본 모델은 질문에 [인물] 칸을 그대로 남기거나(15번 중 5번) 근본 문제를 모두 목적성으로만 골랐다.
+            // 사용자가 3.8 로 바꾸기로 정했다. 배우 말 분류·줄이기는 그대로 기본 모델이다. 되돌리려면 SHARE=0.
             @Value("${GEMINI_COACH_MODEL_B:gemini-3.8-flash}") String modelB,
-            @Value("${ACTTUB_COACH_MODEL_B_SHARE:0}") int modelBShare,
+            @Value("${ACTTUB_COACH_MODEL_B_SHARE:100}") int modelBShare,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFlows> flows,
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
             @Value("${ACTTUB_COACH_FLOW_AB:false}") boolean flowAb,
