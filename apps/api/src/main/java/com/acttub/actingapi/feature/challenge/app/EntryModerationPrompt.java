@@ -22,10 +22,33 @@ public final class EntryModerationPrompt {
                 - 영상 속 사람의 외모·신원을 묘사하지 않는다. 연기 실력은 평가하지 않는다.
                 - reason 은 한국어 한 문장, 80자 이내로 무엇 때문인지만 쓴다.
 
+                판정과 따로 face 를 정한다(SOMA-1066).
+                %s
+
                 JSON 하나만 낸다:
                 {"verdict":"pass|hide|review",
                  "category":"none|sexual|violence|self_harm|hate|harassment|spam|unrelated|other",
-                 "reason":"판정 이유"}
-                """.formatted(line == null ? "" : line, caption == null ? "" : caption);
+                 "reason":"판정 이유",
+                 "face":true|false}
+                """.formatted(line == null ? "" : line, caption == null ? "" : caption, FACE_RULE);
     }
+
+    /** 이미 검사가 끝난 참여작에 얼굴 여부만 묻는다 (SOMA-1066). 판정은 다시 묻지 않는다. */
+    public static String faceOnly() {
+        return """
+                너는 배우 연기 연습 앱의 공개 영상 검수자다. 영상은 배우가 챌린지 대사를 연기해 공개로 올린 참여작이다.
+                영상 속에 사람 얼굴이 보이는지만 정한다.
+                %s
+
+                지킬 것: 영상 속 사람의 외모·신원을 묘사하지 않는다. 연기 실력은 평가하지 않는다.
+
+                JSON 하나만 낸다:
+                {"face":true|false}
+                """.formatted(FACE_RULE);
+    }
+
+    private static final String FACE_RULE = """
+            - face: 영상 속에 사람 얼굴이 알아볼 수 있을 만큼(정면이나 옆얼굴, 잠깐이라도) 나오면 true.
+              모자이크·흐림으로 가린 얼굴도 얼굴이 화면에 있으면 true.
+              화면이 어둡거나 가려졌거나 벽·천장·물건만 나오면 false.""";
 }

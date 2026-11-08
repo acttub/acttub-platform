@@ -14,6 +14,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.challenge.app.AiReportRepository;
 import com.acttub.actingapi.feature.challenge.app.EntryMedia;
+import com.acttub.actingapi.feature.challenge.app.EntryFaceBackfill;
 import com.acttub.actingapi.feature.challenge.app.EntryModerationModel;
 import com.acttub.actingapi.feature.challenge.app.EntryModerationRepository;
 import com.acttub.actingapi.feature.challenge.app.EntryModerationVerdict;
@@ -100,6 +101,9 @@ class ChallengeReactionIT {
     @Autowired EntryRepository entryRepository;
     @Autowired EntryModerationWorker moderationWorker;
     @Autowired EntryModerationRepository moderationRepository;
+    @Autowired EntryFaceBackfill faceBackfill;
+    @Autowired EntryModerationModel moderationModel;
+    @Autowired com.acttub.actingapi.platform.observability.FailureReporter failureReporter;
     UUID me;
     String bearer;
     UUID challenge;
@@ -576,6 +580,79 @@ class ChallengeReactionIT {
         assertThat(entryStatus(entry)).isEqualTo("visible");
         assertThat(moderationOf(entry)).isEqualTo("pending");
         assertThat(count("entry_reports")).isZero();
+    }
+
+    // ── 얼굴 여부 (SOMA-1066) ──────────────────────────────────────────────
+
+    @Test void challengeModeration_theVerdictCarriesTheFaceAndAMissingFaceStaysUnknown() {
+        UUID face = entry(challenge, member("얼굴"));
+        pending(face);
+        Media.MODERATION.add("{\"verdict\":\"pass\",\"category\":\"none\",\"face\":true}");
+        assertThat(moderationWorker.runOnce()).isTrue();
+        UUID wall = entry(challenge, member("벽"));
+        pending(wall);
+        Media.MODERATION.add("{\"verdict\":\"review\",\"category\":\"unrelated\",\"reason\":\"벽만 보인다\",\"face\":false}");
+        assertThat(moderationWorker.runOnce()).isTrue();
+        UUID unknown = entry(challenge, member("모름"));
+        pending(unknown);
+        Media.MODERATION.add("{\"verdict\":\"pass\",\"category\":\"none\",\"face\":\"maybe\"}");
+        assertThat(moderationWorker.runOnce()).isTrue();
+        assertThat(jdbc.queryForMap("SELECT moderation_status,face_visible FROM challenge_entries WHERE id=?", face))
+                .containsEntry("moderation_status", "passed").containsEntry("face_visible", true);
+        assertThat(jdbc.queryForMap("SELECT moderation_status,face_visible FROM challenge_entries WHERE id=?", wall))
+                .containsEntry("moderation_status", "review").containsEntry("face_visible", false);
+        assertThat(jdbc.queryForMap("SELECT moderation_status,face_visible FROM challenge_entries WHERE id=?", unknown))
+                .containsEntry("moderation_status", "passed").containsEntry("face_visible", null);
+    }
+
+    @Test void challengeModeration_faceBackfillIsOffByDefaultAndOnlyFillsTheFaceOfCheckedPublicEntries() {
+        UUID checked = entry(challenge, member("검사 끝"));
+        jdbc.update("UPDATE challenge_entries SET moderation_status='passed',moderation_model='old-model',moderated_at=?,"
+                + "moderation_attempts=1 WHERE id=?", java.sql.Timestamp.from(NOW.minus(Duration.ofDays(3))), checked);
+        UUID waiting = entry(challenge, member("검사 차례"));
+        pending(waiting);
+        UUID never = entry(challenge, member("검사 대상 아님"));
+        UUID known = entry(challenge, member("이미 앎"));
+        jdbc.update("UPDATE challenge_entries SET moderation_status='passed',face_visible=false WHERE id=?", known);
+        UUID exhausted = entry(challenge, member("시도 끝"));
+        jdbc.update("UPDATE challenge_entries SET moderation_status='passed',face_attempts=3 WHERE id=?", exhausted);
+        UUID secret = entry(challenge, member("비공개"));
+        jdbc.update("UPDATE challenge_entries SET moderation_status='passed',visibility='private' WHERE id=?", secret);
+        var before = jdbc.queryForList("SELECT id,moderation_status,moderation_attempts,moderation_model,moderated_at,status "
+                + "FROM challenge_entries ORDER BY id");
+
+        // 기본(CHALLENGE_FACE_BACKFILL 없음)은 꺼짐이다.
+        assertThat(faceBackfill.runOnce()).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM challenge_entries WHERE face_attempts>0 AND id<>?", Integer.class,
+                exhausted)).isZero();
+
+        var on = new EntryFaceBackfill(moderationRepository, moderationModel, failureReporter, true);
+        Media.MODERATION.add("{\"face\":true}");
+        assertThat(on.runOnce()).isEqualTo(1);
+        assertThat(jdbc.queryForMap("SELECT face_visible,face_attempts FROM challenge_entries WHERE id=?", checked))
+                .containsEntry("face_visible", true).containsEntry("face_attempts", 1);
+        // 판정·숨김·순서에 쓰이는 칸은 그대로다.
+        assertThat(jdbc.queryForList("SELECT id,moderation_status,moderation_attempts,moderation_model,moderated_at,status "
+                + "FROM challenge_entries ORDER BY id")).isEqualTo(before);
+        assertThat(count("entry_reports")).isZero();
+        for (UUID untouched : List.of(waiting, never, secret)) {
+            assertThat(jdbc.queryForMap("SELECT face_visible,face_attempts FROM challenge_entries WHERE id=?", untouched))
+                    .containsEntry("face_visible", null).containsEntry("face_attempts", 0);
+        }
+        assertThat(jdbc.queryForObject("SELECT face_visible FROM challenge_entries WHERE id=?", Boolean.class, known)).isFalse();
+        assertThat(on.runOnce()).isZero();
+
+        // 얼굴 답을 못 받으면 건너뛰고, 세 번 시도한 뒤에는 더 묻지 않는다.
+        UUID mute = entry(challenge, member("답 없음"));
+        jdbc.update("UPDATE challenge_entries SET moderation_status='review' WHERE id=?", mute);
+        for (int i = 0; i < 3; i++) {
+            Media.MODERATION.add(i == 0 ? "모르겠어요" : "{\"verdict\":\"pass\"}");
+            assertThat(on.runOnce()).isEqualTo(1);
+        }
+        assertThat(on.runOnce()).isZero();
+        assertThat(jdbc.queryForMap("SELECT face_visible,face_attempts,moderation_status FROM challenge_entries WHERE id=?", mute))
+                .containsEntry("face_visible", null).containsEntry("face_attempts", 3)
+                .containsEntry("moderation_status", "review");
     }
 
     private void pending(UUID entry) {
