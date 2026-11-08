@@ -157,7 +157,9 @@ public class DirectVideoConfiguration {
                 .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))
                 .withEvidenceShare(alreadyShare(evidenceShare, siteUrl))
                 .withClassifier(classifyModel == null || classifyModel.isBlank() ? null
-                        : new GeminiDirectVideoModel(client, classifyModel.strip()).withHedge(coachHedge))
+                        // 3.8 분류는 중간 8초라(11/8 정답 150건, 3 Flash 4초) 6초 다시 보내기면 대부분 두 번 나간다. 분류만 12초로 늦춘다.
+                        : new GeminiDirectVideoModel(client, classifyModel.strip()).withHedge(new GeminiDirectVideoModel.Hedge(
+                                java.time.Duration.ofSeconds(12), coachHedge.reply(), coachHedge.stream())))
                 .withStablePrefix(stablePrefix)
                 .withVideoTokenBudget(videoTokenBudget)
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
