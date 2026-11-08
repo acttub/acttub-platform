@@ -62,6 +62,11 @@ public class ChallengeEntryEntity extends AppGeneratedUuidEntity {
     private String moderationModel;
     @Column(name="moderated_at", nullable=true)
     private Instant moderatedAt;
+    /** 공개 참여작 AI 검사가 본 얼굴 여부(SOMA-1066). 네이티브 쿼리만 쓰므로 엔티티 저장이 덮어쓰지 않게 읽기 전용이다. */
+    @Column(name="face_visible", nullable=true, insertable=false, updatable=false)
+    private Boolean faceVisible;
+    @Column(name="face_attempts", nullable=false, insertable=false, updatable=false)
+    private int faceAttempts;
     protected ChallengeEntryEntity() { }
     public UUID getChallengeId() { return challengeId; }
     public UUID getUserId() { return userId; }
@@ -88,4 +93,6 @@ public class ChallengeEntryEntity extends AppGeneratedUuidEntity {
     public int getModerationAttempts() { return moderationAttempts; }
     public String getModerationModel() { return moderationModel; }
     public Instant getModeratedAt() { return moderatedAt; }
+    public Boolean getFaceVisible() { return faceVisible; }
+    public int getFaceAttempts() { return faceAttempts; }
 }

@@ -34,6 +34,32 @@ class EntryModerationParserTest {
         assertThatThrownBy(() -> EntryModerationParser.parse("{\"verdict\":")).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test void readsTheFaceAndAMissingOrMalformedFaceIsUnknownWithoutFailingTheVerdict() {
+        assertThat(EntryModerationParser.parse("{\"verdict\":\"pass\",\"category\":\"none\",\"face\":true}"))
+                .isEqualTo(new EntryModerationVerdict(Decision.PASS, "none", null, true));
+        assertThat(EntryModerationParser.parse("{\"verdict\":\"hide\",\"category\":\"spam\",\"reason\":\"광고\",\"face\":false}"))
+                .isEqualTo(new EntryModerationVerdict(Decision.HIDE, "spam", "광고", false));
+        assertThat(EntryModerationParser.parse("{\"verdict\":\"pass\",\"category\":\"none\"}").face()).isNull();
+        assertThat(EntryModerationParser.parse("{\"verdict\":\"pass\",\"category\":\"none\",\"face\":\"yes\"}"))
+                .isEqualTo(new EntryModerationVerdict(Decision.PASS, "none", null, null));
+        assertThat(EntryModerationParser.parse("{\"verdict\":\"review\",\"category\":\"unrelated\",\"face\":null}").face()).isNull();
+    }
+
+    @Test void theFaceOnlyAnswerMustCarryAFace() {
+        assertThat(EntryModerationParser.parseFace("```json\n{\"face\":true}\n```")).isTrue();
+        assertThat(EntryModerationParser.parseFace("{\"face\":false}")).isFalse();
+        assertThatThrownBy(() -> EntryModerationParser.parseFace("{\"verdict\":\"pass\"}")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> EntryModerationParser.parseFace("{\"face\":\"true\"}")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> EntryModerationParser.parseFace("모르겠어요")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test void bothInstructionsAskForTheFaceWithoutDescribingPeople() {
+        assertThat(EntryModerationPrompt.instruction("가지 마", "첫 참여")).contains("\"face\":true|false").contains("모자이크·흐림")
+                .contains("외모·신원을 묘사하지 않는다");
+        assertThat(EntryModerationPrompt.faceOnly()).contains("{\"face\":true|false}").contains("벽·천장·물건만")
+                .contains("외모·신원을 묘사하지 않는다").doesNotContain("verdict");
+    }
+
     @Test void notesNeverExceedTheReportNoteLimit() {
         var verdict = new EntryModerationVerdict(Decision.REVIEW, "unrelated", "가".repeat(300));
         String note = verdict.reportNote();
