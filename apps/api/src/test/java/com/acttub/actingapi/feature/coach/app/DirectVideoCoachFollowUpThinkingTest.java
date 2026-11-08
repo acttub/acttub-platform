@@ -69,4 +69,15 @@ class DirectVideoCoachFollowUpThinkingTest {
         coach(false).turn(DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a", "첫 질문"), "붙잡고 싶었어", UUID.randomUUID());
         assertThat(minimalRequests).containsExactly(false);
     }
+
+    /** SOMA-657: 분류 모델을 따로 주면 배우 말 분류는 그 모델로 하고, 코치 답은 기본 모델로 쓴다. */
+    @Test void aSeparateClassifierClassifiesTheActorsWords() {
+        DirectVideoModel classifier = mock(DirectVideoModel.class);
+        when(classifier.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        coach(true).withClassifier(classifier)
+                .turn(DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a", "첫 질문"), "붙잡고 싶었어", UUID.randomUUID());
+        org.mockito.Mockito.verify(classifier).classify(anyList(), anyString(), anyList());
+        org.mockito.Mockito.verify(model, org.mockito.Mockito.never()).classify(anyList(), anyString(), anyList());
+        assertThat(minimalRequests).containsExactly(true);
+    }
 }
