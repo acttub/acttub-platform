@@ -157,9 +157,10 @@ class ChallengeEntryIT {
                 .isPositive();
     }
 
-    @Test void faceMosaic_aVideoWithoutAFaceFailsClosedUntilTheOwnerRetriesOrTurnsItOff() throws Exception {
+    @Test void faceMosaic_aVideoWithoutAFaceIsPublishedAsTheOriginalWithTheMosaicOff() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
-        JsonNode entry = enter(challenge, video(user, 30_000), "private", 201);
+        UUID video = video(user, 30_000);
+        JsonNode entry = enter(challenge, video, "private", 201);
         String id = entry.path("id").asText();
         assertThat(entry.path("face_mosaic").asBoolean()).isFalse();
         assertThat(entry.path("mosaic_status").isNull()).isTrue();
@@ -169,18 +170,45 @@ class ChallengeEntryIT {
         assertThat(published.path("visibility").asText()).isEqualTo("public");
         assertThat(published.path("mosaic_status").asText()).isEqualTo("pending");
         assertThat(mosaicWorker.runOnce()).isTrue();
+        assertThat(mosaicWorker.runOnce()).isFalse();
+        assertThat(Media.RENDERED).isEmpty();
+        // 가릴 얼굴이 없으니 모자이크를 끄고 원본으로 공개한다.
+        JsonNode mine = edit(id, Map.of("caption", "그대로"), 200);
+        assertThat(mine.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(mine.path("mosaic_status").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT mosaic_key FROM challenge_entries WHERE id=?::uuid", String.class, id)).isNull();
         String other = token(member("다른 배우"));
-        assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, other).path("entries")).isEmpty();
-        response(get("/v2/entries/{id}", id), 404, other);
-        assertThat(response(get("/v2/entries/{id}", id), 200).path("playback_url").asText()).startsWith("https://play.test/videos/");
-        JsonNode failed = edit(id, Map.of("caption", "그대로"), 200);
-        assertThat(failed.path("mosaic_status").asText()).isEqualTo("failed");
-        // 다시 켜면 처음부터 다시 만든다.
-        Media.FACE = true;
-        assertThat(response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":true}"), 200).path("mosaic_status").asText())
-                .isEqualTo("pending");
-        assertThat(mosaicWorker.runOnce()).isTrue();
-        assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge), 200, other))).containsExactly(id);
+        JsonNode page = response(get("/v2/challenges/{id}/entries", challenge), 200, other);
+        assertThat(ids(page)).containsExactly(id);
+        assertThat(page.path("entries").get(0).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        JsonNode seen = response(get("/v2/entries/{id}", id), 200, other);
+        assertThat(seen.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(seen.path("original_playback_url").isNull()).isTrue();
+        response(get("/v2/public/entries/{id}", id), 200, other);
+    }
+
+    @Test void faceMosaic_aLateNoFaceResultLeavesAnEntryTheOwnerChangedMeanwhile() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID video = video(user, 30_000);
+        String id = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
+                "request_id", UUID.randomUUID(), "video_id", video, "visibility", "public", "face_mosaic", true))), 201)
+                .path("id").asText();
+        var stale = entryRepository.claimMosaic(3, NOW);
+        assertThat(stale).isNotNull();
+        // 그사이 본인이 끄고 다시 켰다 — 시도 수가 0으로 돌아가 늦게 온 결과는 이 참여작을 바꾸지 않는다.
+        response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":false}"), 200);
+        response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":true}"), 200);
+        entryRepository.skipMosaic(stale, NOW);
+        var row = jdbc.queryForMap("SELECT face_mosaic,mosaic_status,mosaic_attempts FROM challenge_entries WHERE id=?::uuid", id);
+        assertThat(row.get("face_mosaic")).isEqualTo(true);
+        assertThat(row.get("mosaic_status")).isEqualTo("pending");
+        assertThat(((Number) row.get("mosaic_attempts")).intValue()).isZero();
+        // 다음 시도는 새로 집혀 원래대로 처리된다.
+        var fresh = entryRepository.claimMosaic(3, NOW);
+        assertThat(fresh).isNotNull();
+        assertThat(fresh.attempts()).isEqualTo(1);
+        entryRepository.skipMosaic(fresh, NOW);
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM challenge_entries WHERE id=?::uuid", Boolean.class, id)).isFalse();
     }
 
     @Test void faceMosaic_aDeletedEntryDropsItsMosaicAndALateRenderIsNotAttached() throws Exception {

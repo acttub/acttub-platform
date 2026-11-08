@@ -51,6 +51,8 @@ public interface EntryRepository {
     List<UUID> attachMosaic(MosaicJob job, String mosaicKey, Instant now);
     /** 모자이크본을 만들 수 없다 — 실패로 닫는다(다른 사람에게 보이지 않는다). 이미 바뀐 참여작은 두지 않는다. */
     void failMosaic(MosaicJob job, Instant now);
+    /** 영상에 가릴 얼굴이 없다 — 모자이크를 끄고 원본으로 공개한다. 이미 바뀐 참여작은 두지 않는다. */
+    void skipMosaic(MosaicJob job, Instant now);
     /** 매시 도는 일: 마감이 지난 챌린지의 집계·확정과 기한 지난 조회수 사건·커서 정리. */
     int settle(Instant now);
 
