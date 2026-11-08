@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 public final class VoiceText {
     private static final Pattern PART_MARK = Pattern.compile("\u27E6([a-z]{2})\u27E7");
     private static final Pattern BRACKETS = Pattern.compile("[(（\\[【][^)）\\]】]*[)）\\]】]");
+    private static final Pattern LONE_BRACKETS = Pattern.compile("[(（\\[【)）\\]】]");
     private static final Pattern QUOTES = Pattern.compile("[\"“”'‘’]");
     private static final Pattern SPACES = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
@@ -27,9 +28,9 @@ public final class VoiceText {
         return speakable(joined.isEmpty() ? (text == null ? "" : text) : joined);
     }
 
-    /** 괄호 지문·따옴표를 뺀 본문(앱 speakableText). */
+    /** 괄호 지문·따옴표를 뺀 본문(앱 speakableText). 닫히지 않은 괄호는 괄호 글자만 뺀다(앱 SOMA-962). */
     public static String speakable(String text) {
-        String noBrackets = BRACKETS.matcher(text).replaceAll(" ");
+        String noBrackets = LONE_BRACKETS.matcher(BRACKETS.matcher(text).replaceAll(" ")).replaceAll(" ");
         String noQuotes = QUOTES.matcher(noBrackets).replaceAll("");
         return SPACES.matcher(noQuotes).replaceAll(" ").trim();
     }
