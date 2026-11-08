@@ -90,6 +90,8 @@ public final class DirectVideoCoach {
      * 지시문 맨 앞이 턴마다 바뀌어 Gemini 암묵 캐시가 거의 걸리지 않았다. 끄면 예전과 같은 요청이다(롤백).
      */
     private boolean stablePrefix = false;
+    /** 배우 말 분류 모델(SOMA-657). null 이면 기본 모델(model)로 분류한다(롤백). */
+    private DirectVideoModel classifier = null;
     /**
      * 회차 영상 예산(SOMA-1063, 환산 토큰). 회차의 코치 답 입력 토큰(캐시 적중분은 10%로 환산)이 이만큼 쌓이면 다음 답부터
      * 영상을 빼고 글만 보낸다(내려놓기와 같은 영상 생략 경로). 0 이면 끈다. 1층 관찰·받아쓰기는 세지 않는다.
@@ -175,6 +177,12 @@ public final class DirectVideoCoach {
     /** 근거·방법 비교(SOMA-955)의 실험 쪽 계정 비율(0~100). */
     public DirectVideoCoach withEvidenceShare(int share) {
         this.evidenceShare = Math.max(0, Math.min(100, share));
+        return this;
+    }
+
+    /** 배우 말 분류를 이 모델로 한다(SOMA-657). null 이면 기본 모델이다. */
+    public DirectVideoCoach withClassifier(DirectVideoModel classifier) {
+        this.classifier = classifier;
         return this;
     }
 
@@ -1511,7 +1519,8 @@ public final class DirectVideoCoach {
         ReplyTrace usage = new ReplyTrace(false);
         ExternalOperationExecution.externalCall("model");
         try {
-            output = usage.run(() -> model.classify(java.util.List.copyOf(transcript), DirectVideoPrompts.practiceLoopClassifier(),
+            DirectVideoModel classifying = classifier == null ? model : classifier;
+            output = usage.run(() -> classifying.classify(java.util.List.copyOf(transcript), DirectVideoPrompts.practiceLoopClassifier(),
                     PracticeLoopRouter.SIGNALS));
             return PracticeLoopRouter.parse(output);
         } catch (RuntimeException failure) {
