@@ -1460,6 +1460,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   RevenueCat 호출은 `StoreGateways.RevenueCatGateway` Port 뒤라 `StoreBillingServiceTest` 가 가짜 값으로 상태 매핑(만료·환불·결제 문제·유예)·
   멱등·이전(TRANSFER)·토스 보호·샌드박스 차단을 본다. 스토어 구독의 Pro 는 active 여도 기간이 지나면 끝난다(`BillingRules.pro(.., provider)`).
   새 오류 코드는 `ErrorContractInventoryTest` 표에 있다.
+- 웹 연 구독(SOMA-1068): V91 이 `billing_subscriptions.plan`·`billing_checkouts.plan`(text, 기본 `monthly`, NOT NULL, CHECK 없음)을 더한다 —
+  더하기만 하는 변경이라 옛 서버와 함께 돌아도 옛 서버가 쓴 줄은 monthly 다. 값은 `BillingRules.Plan` 이 지키고 모르는 값은 monthly 로 읽는다.
+  첫 결제 직전 `choosePlan` 이 expired 토스 줄에만 plan·amount 를 적는 조건부 UPDATE 다. `POST /v2/billing/checkout` 의 `plan`·`GET /v2/billing/me`
+  의 `plan` 은 더하기만 하는 필드이고(`@Hidden`, OpenAPI 변화 없음), 새 오류 `422 invalid_plan`·`422 plan_unavailable` 은 `WebYearlyPlanTest` 가 지킨다.
+  서버 스위치 `BILLING_WEB_YEARLY_ENABLED`(기본 false).
 - 이 Mac 에서 Testcontainers 를 못 돌려 저장소 SQL 의 통합 테스트는 CI 에서만 돈다(`BillingEndpointIT`, `StoreBillingEndpointIT`).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정

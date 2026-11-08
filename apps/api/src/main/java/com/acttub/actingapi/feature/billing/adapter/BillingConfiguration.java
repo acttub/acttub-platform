@@ -43,13 +43,16 @@ class BillingConfiguration {
             @Value("${BILLING_TOSS_CLIENT_KEY:}") String clientKey,
             @Value("${BILLING_TOSS_SECRET_KEY:}") String secretKey,
             @Value("${BILLING_LEGACY_SIGNUP_BEFORE:}") String legacySignupBefore,
-            @Value("${BILLING_LEGACY_LIMITS_FROM:2026-11-30T15:00:00Z}") String legacyLimitsFrom) {
+            @Value("${BILLING_LEGACY_LIMITS_FROM:2026-11-30T15:00:00Z}") String legacyLimitsFrom,
+            @Value("${BILLING_WEB_YEARLY_ENABLED:false}") boolean webYearly) {
         BillingSettings settings = new BillingSettings(enabled, appEnabled, freeLimits, origin, returnUrl, clientKey, secretKey,
-                legacySignupBefore.isBlank() ? null : Instant.parse(legacySignupBefore.strip()), Instant.parse(legacyLimitsFrom.strip()));
+                legacySignupBefore.isBlank() ? null : Instant.parse(legacySignupBefore.strip()), Instant.parse(legacyLimitsFrom.strip()),
+                webYearly);
         if (enabled) {
             String reason = settings.invalidReason();
             if (reason == null) {
-                LOG.info("web billing enabled origin={} freeLimits={}", settings.origin(), settings.limitsEnforced());
+                LOG.info("web billing enabled origin={} freeLimits={} yearly={}", settings.origin(), settings.limitsEnforced(),
+                        settings.webYearlyUsable());
             } else {
                 LOG.error("web billing enabled but closed reason={}", reason);
             }

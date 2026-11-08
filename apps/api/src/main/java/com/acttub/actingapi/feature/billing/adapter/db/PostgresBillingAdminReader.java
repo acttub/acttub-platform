@@ -42,7 +42,7 @@ class PostgresBillingAdminReader implements BillingAdminReader {
                     NULLIF(btrim(u.nickname), '') AS nickname,
                     (s.user_id IN (SELECT id FROM team)) AS is_team,
                     u.created_at AS signed_up_at,
-                    s.provider, s.store_product_id, s.amount, s.status,
+                    s.provider, s.store_product_id, s.plan, s.amount, s.status,
                     s.current_period_start, s.current_period_end, s.canceled_at, s.created_at,
                     COALESCE(paid.amount, 0) AS paid_amount,
                     COALESCE(paid.n, 0) AS paid_count
@@ -65,6 +65,7 @@ class PostgresBillingAdminReader implements BillingAdminReader {
                         instant(row, "signed_up_at"),
                         row.get("provider", String.class),
                         row.get("store_product_id", String.class),
+                        row.get("plan", String.class),
                         ((Number) row.get("amount")).longValue(),
                         row.get("status", String.class),
                         instant(row, "current_period_start"),

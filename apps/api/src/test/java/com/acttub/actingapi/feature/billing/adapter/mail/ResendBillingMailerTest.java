@@ -25,7 +25,7 @@ class ResendBillingMailerTest {
             builder.build(), Runnable::run);
     private final PaidMail mail = new PaidMail("actor@example.com", "QAtest", true, "pro-first-1", 3900, "하나",
             "53183800****5678", Instant.parse("2026-11-01T06:52:12Z"), Instant.parse("2026-11-01T06:52:12Z"),
-            Instant.parse("2026-12-01T06:52:12Z"));
+            Instant.parse("2026-12-01T06:52:12Z"), com.acttub.actingapi.feature.billing.app.BillingRules.Plan.MONTHLY);
 
     @Test
     @DisplayName("주문 번호를 멱등 키로 Resend 에 한 번 보낸다")

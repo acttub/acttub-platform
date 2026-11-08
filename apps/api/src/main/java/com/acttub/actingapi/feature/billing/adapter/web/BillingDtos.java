@@ -12,7 +12,8 @@ final class BillingDtos {
     private BillingDtos() {
     }
 
-    record CheckoutRequest(@Size(max = 32) String purpose) {
+    /** @param plan monthly·yearly. 생략하면 monthly(SOMA-1068) */
+    record CheckoutRequest(@Size(max = 32) String purpose, @Size(max = 32) String plan) {
     }
 
     record CheckoutResponse(
@@ -34,12 +35,13 @@ final class BillingDtos {
             @JsonProperty("limits_enforced") boolean limitsEnforced,
             String provider,
             @JsonProperty("grant_ends_at") Instant grantEndsAt,
-            @JsonProperty("app_enabled") boolean appEnabled) {
+            @JsonProperty("app_enabled") boolean appEnabled,
+            String plan) {
 
         static MeResponse of(View view) {
             return new MeResponse(view.status(), view.pro(), view.amount(), view.periodEnd(), view.nextBillingAt(),
                     view.cardCompany(), view.cardLast4(), view.retryCount(), view.limitsEnforced(), view.provider(),
-                    view.grantEndsAt(), view.appEnabled());
+                    view.grantEndsAt(), view.appEnabled(), view.plan());
         }
     }
 }

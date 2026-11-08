@@ -5,7 +5,7 @@
 - 도입: 1.0.x (SOMA-818). 서버 플래그 `BILLING_APP_ENABLED`(기본 false) 뒤에 있다.
 - 화면: pen ⑥ Pro · 안내(P0xJ9), 오늘 무료 코칭 다 씀(a5y1Qr), 무료 대본 3개(WLdNc), 결제 창(t2V04c, 토스 화면), 외부 결제 안내
   (hD5to, iOS), 결제 완료(kqeG6), 설정 · 구독 관리(GmTw6), 결제하지 못했어요(ETD1H), 지금 대본과 바꾸기 확인(K7q5Vk)
-- 테이블: `billing_subscriptions`·`billing_checkouts`·`billing_payments`(V64)
+- 테이블: `billing_subscriptions`·`billing_checkouts`·`billing_payments`(V64), 요금제 열 `plan`(V91, SOMA-1068)
 
 ## 기능
 Pro 는 월 3,900원(부가세 포함) 자동결제다. 결제는 앱 스토어 결제가 아니라 토스페이먼츠 자동결제(카드 등록 → 빌링키 → 첫
@@ -51,8 +51,8 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 ## API (앱 토큰·동의·클라이언트 판 게이트 안, OpenAPI 미게재)
 | 경로 | 응답·오류 |
 |---|---|
-| `GET /v2/billing/me` | `{status, pro, amount, period_end, next_billing_at, card_company, card_last4, retry_count, limits_enforced}` |
-| `POST /v2/billing/checkout` | `{checkout_url, return_url, expires_at}`. 403 billing_member_required(게스트), 409 already_subscribed, 409 no_subscription, 409 payment_pending, 422 invalid_purpose, 429 |
+| `GET /v2/billing/me` | `{status, pro, amount, period_end, next_billing_at, card_company, card_last4, retry_count, limits_enforced, provider, grant_ends_at, app_enabled, plan}`. `plan` 은 `monthly`·`yearly`(구독 없음은 monthly) |
+| `POST /v2/billing/checkout` | 본문 `{purpose: subscribe\|change_card, plan: monthly\|yearly}`(둘 다 생략 가능, plan 기본 monthly) → `{checkout_url, return_url, expires_at}`. 403 billing_member_required(게스트), 409 already_subscribed, 409 no_subscription, 409 payment_pending, 422 invalid_purpose, 422 invalid_plan, 422 plan_unavailable(웹 연 구독 스위치 꺼짐), 429 |
 | `POST /v2/billing/subscription/cancel` | me. 409 no_subscription |
 | `POST /v2/billing/subscription/retry` | me(결제 결과는 status 로). 409 no_subscription, 409 not_past_due, 429 |
 
@@ -114,6 +114,7 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 그룹에 두 상품을 둔다. RevenueCat 에서는 entitlement `pro` 에 두 상품을 붙이고, current offering(`default`)의 `$rc_monthly`·`$rc_annual` 패키지로 판다.
 장부 amount 는 산 상품의 정가(3,900·32,500)이고 실제 청구액은 스토어가 정한다. Pro 화면은 월·연을 고르게 하고(기본 월), 오퍼링에 없는 요금제는 고를 수 없다.
 연 구독은 앱 스토어 전용이다 — 웹 토스는 계약 조건(서비스 제공 기간 1개월 이내) 때문에 월 구독만 판다. 웹 토스 결제는 이 단계 범위가 아니다.
+(웹 연 구독은 아래 「개정: 웹 연 구독」의 스위치 뒤에 있다. 스위치가 꺼져 있는 동안은 이 문단이 그대로다.)
 
 ### 앱이 사용자에게 보이는 동작
 - Pro 안내 화면은 서버가 앱 결제를 열었고(`app_enabled`) 아직 Pro 가 아닐 때만 요금제·[Pro 시작하기]·[구매 복원]을 그린다. 요금제 카드에
@@ -171,3 +172,31 @@ entitlement 를 읽어 사람당 한 줄을 덮어쓴다 — 여러 번 불러�
 서버 동기화 전에 앱이 꺼졌거나 네트워크가 끊겨 결제는 됐는데 Pro 가 안 켜진 구매는, 앱을 켜거나 앞으로 가져올 때(30초 간격) 서버가 앱 결제를 열었고 아직
 Pro 가 아닌 사람에 한해 RevenueCat SDK 를 그 사람으로 열고(SDK 가 남은 거래를 올린다), 고객 정보에 활성 `pro` entitlement 가 있으면 서버 동기화를 부른다.
 갱신·만료·환불은 웹훅이 반영한다.
+
+## 개정: 웹 연 구독 (SOMA-1068)
+
+웹(토스)에서도 연 구독(32,500원, 부가세 포함)을 판다. 토스 계약 변경(서비스 제공 기간 1년) 승인 전이라 두 스위치 모두 기본 꺼짐이고,
+꺼져 있으면 지금 동작·화면·문구와 같다.
+
+- 스위치: 서버 `BILLING_WEB_YEARLY_ENABLED`(기본 false, `BILLING_WEB_ENABLED` 가 열려 있어야 의미가 있다), 웹 빌드
+  `NEXT_PUBLIC_BILLING_WEB_YEARLY_ENABLED`(기본 false, `NEXT_PUBLIC_BILLING_WEB_ENABLED` 처럼 Dockerfile build-arg·deploy.yml 로 넣는다).
+  dev·운영 모두 false 다.
+- 요금제: `monthly` 3,900원·주문명 「ACTTUB Pro 월 구독」·기간 1개월, `yearly` 32,500원·「ACTTUB Pro 연 구독」·기간 결제일부터 1년(한국 시간 같은 날,
+  2월 29일 → 다음 해 2월 28일).
+- 결제 창: `POST /v2/billing/checkout` 의 `plan`(생략하면 monthly). 모르는 값은 422 `invalid_plan`, 서버 스위치가 꺼져 있는데 `yearly` 면 목적과
+  상관없이 422 `plan_unavailable` 이고 창을 만들지 않는다. 창(`billing_checkouts.plan`)에 고른 요금제를 적고, 창을 연 뒤 스위치가 꺼졌으면 콜백은
+  카드를 등록하지 않고 `failed` 로 돌려보낸다. 요금제는 새 구독(subscribe)에만 쓰고 카드 바꾸기는 지금 구독의 요금제 그대로다.
+- 첫 결제 직전에 구독 줄(아직 expired)에 요금제와 그 금액을 적는다(`billing_subscriptions.plan`·`amount`). 이용 중인 구독의 요금제는 바꾸지 않는다
+  (월 ↔ 연 전환 없음).
+- 자동결제·재시도·결과 모름 재확인은 그 구독의 요금제 주문명·장부 금액·기간으로 청구·연장한다. 이미 연 구독인 사람은 서버 스위치를 꺼도
+  계속 갱신되고 해지하면 그 1년 기간 끝까지 Pro 다. 기존 줄은 V91 에서 monthly 다(스토어 연 구독 줄만 yearly 로 맞춘다).
+- 스토어 줄의 `plan` 은 상품 ID 로 정한다(`acttub_pro_yearly` → yearly). ops 구독 화면(`/v2/admin/subscribers`)의 `plan` 은 토스 줄이면 장부의
+  `plan`, 스토어 줄이면 상품 ID 를 따른다.
+- 구독 메일: 상품명이 요금제 주문명이고, 자동결제 안내가 연 구독이면 「매년 결제일에」, 월 구독이면 지금처럼 「매달 결제일에」다. 제목의 금액도
+  결제 금액(32,500원)이다.
+- 환불액 계산(`BillingRules.refundAmount`, 약관 제14조 제1항·제2항): 결제 후 7일 이내이고 유료 기능을 안 썼으면 전액, 7일 이내에 썼으면 이용 일수만큼 빼고,
+  7일이 지났으면 이용 일수만큼 빼고 남은 금액의 10%를 더 뺀다. 하루 이용료는 결제금액 ÷ 그 결제주기의 전체 일수(월 28~31일, 연 365·366일),
+  24시간 미만도 1일, 1원 미만은 올린다. 환불 처리 자체는 지금처럼 운영자가 토스 관리자에서 한다(서버 환불 API 없음).
+- 웹 화면: 빌드 스위치가 켜졌을 때만 `/pricing` Pro 카드에 월/연 선택(월 3,900원 / 연 32,500원)이 보이고 고른 요금제로 결제 창을 연다. 내 계정 구독
+  칸과 결제 결과 화면은 `GET /v2/billing/me` 의 `plan`·`amount` 로 월/연과 금액을 보인다.
+- 약관: 지금 약관 v2 는 「웹 결제는 월 구독만, 연 구독은 앱 결제로만」이라 적혀 있다. 스위치를 켜기 전에 약관 개정이 필요하다.

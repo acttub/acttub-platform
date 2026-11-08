@@ -17,6 +17,7 @@ public interface BillingAdminReader {
             Instant signedUpAt,
             String provider,
             String productId,
+            String plan,
             long amount,
             String status,
             Instant periodStart,
