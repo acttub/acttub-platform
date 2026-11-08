@@ -81,10 +81,12 @@ class PostgresEntryModerationRepository implements EntryModerationRepository {
                 case HIDE -> "flagged";
                 case REVIEW -> "review";
             };
+            // 얼굴 여부는 Boolean 의 세 값뿐이라 글자로 넣는다 — null 바인딩은 타입을 알 수 없어서다.
+            String face = verdict.face() == null ? "face_visible" : verdict.face().toString(); // 모델이 답하지 않으면 이미 아는 값을 지우지 않는다
             em.createNativeQuery("""
-                    UPDATE challenge_entries SET moderation_status=:status,moderation_model=:model,moderated_at=:now
+                    UPDATE challenge_entries SET moderation_status=:status,moderation_model=:model,moderated_at=:now,face_visible=%s
                     WHERE id=:id
-                    """).setParameter("status", status).setParameter("model", model)
+                    """.formatted(face)).setParameter("status", status).setParameter("model", model)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", job.entryId()).executeUpdate();
             if (verdict.decision() == Decision.PASS) return;
             if (verdict.decision() == Decision.HIDE) {
@@ -101,6 +103,39 @@ class PostgresEntryModerationRepository implements EntryModerationRepository {
         transaction.executeWithoutResult(tx -> {
             if (lockCurrent(job, now) != null) closeFailed(job.entryId(), now);
         });
+    }
+
+    @Override
+    public List<FaceJob> claimFaces(int limit, int maxAttempts) {
+        return transaction.execute(tx -> NativeTuples.list(em.createNativeQuery("""
+                WITH next AS (
+                    SELECT e.id %s
+                    WHERE %s AND e.face_visible IS NULL AND e.face_attempts<:max
+                      AND e.moderation_status IS NOT NULL AND e.moderation_status<>'pending'
+                    ORDER BY e.created_at,e.id
+                    LIMIT :limit
+                    FOR UPDATE OF e SKIP LOCKED
+                ), claimed AS (
+                    UPDATE challenge_entries SET face_attempts=face_attempts+1
+                    FROM next WHERE challenge_entries.id=next.id
+                    RETURNING challenge_entries.id,challenge_entries.video_id,challenge_entries.created_at
+                )
+                SELECT c.id,v.object_key,v.content_type,v.duration_ms
+                FROM claimed c JOIN videos v ON v.id=c.video_id
+                ORDER BY c.created_at,c.id
+                """.formatted(ChallengeVisibility.ENTRY_FROM, ChallengeVisibility.PUBLIC_ENTRY), Tuple.class)
+                .setParameter("max", maxAttempts).setParameter("limit", limit)).stream().map(row -> {
+                    Number duration = (Number) row.get("duration_ms");
+                    return new FaceJob(row.get("id", UUID.class), new Video(row.get("object_key", String.class),
+                            row.get("content_type", String.class), duration == null ? 0 : duration.intValue()));
+                }).toList());
+    }
+
+    @Override
+    public void faceSeen(UUID entryId, boolean face) {
+        transaction.executeWithoutResult(tx -> em.createNativeQuery(
+                        "UPDATE challenge_entries SET face_visible=:face WHERE id=:id AND face_visible IS NULL")
+                .setParameter("face", face).setParameter("id", entryId).executeUpdate());
     }
 
     /** 집은 그대로(검사 차례·같은 시도·같은 내용)인 참여작을 잠근다. 아니면 {@code null}. */

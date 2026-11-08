@@ -502,11 +502,12 @@ class PostgresEntryRepository implements EntryRepository {
             ranks = split(row.get("ranks", String.class)).stream().map(Integer::valueOf).toList();
         } else {
             var ranked = ranked(challengeId, basis);
-            order = ranked.keySet().stream().toList();
-            ranks = ranked.values().stream().toList();
-            // 진행 중일 때만 아직 덜 본 새 참여작을 앞쪽 칸에 끼운다. 굳힌 순서에 그대로 담기므로 다음 쪽·피드도 같은 순서다.
+            order = ranked.order();
+            ranks = ranked.ranks();
+            // 진행 중일 때만 아직 덜 본 새 참여작을 앞쪽 칸에 끼운다(맨 앞 얼굴 묶음 뒤부터 센다). 굳힌 순서에 그대로 담기므로
+            // 다음 쪽·피드도 같은 순서다.
             if ("live".equals(basis)) {
-                var boosted = unseen.apply(viewer, order, ranks);
+                var boosted = unseen.apply(viewer, order, ranks, ranked.faces());
                 order = boosted.order();
                 ranks = boosted.ranks();
             }
@@ -545,12 +546,24 @@ class PostgresEntryRepository implements EntryRepository {
         return new EntryPage(page, nextOffset == null ? null : encode("S", snapshot.toString(), Integer.toString(nextOffset)), state);
     }
 
-    /** 전체 순서와 순위(0은 순위 없음). 진행 중은 현재 좋아요, 종료 뒤는 저장된 값이다. */
-    private java.util.LinkedHashMap<UUID, Integer> ranked(UUID challengeId, String basis) {
+    /**
+     * 전체 순서와 순위.
+     *
+     * @param ranks 순서와 같은 길이. 0은 순위 없음
+     * @param faces 맨 앞 얼굴 묶음의 길이(진행 중만, 그 밖은 0)
+     */
+    private record Ranked(List<UUID> order, List<Integer> ranks, int faces) { }
+
+    /**
+     * 전체 순서와 순위(0은 순위 없음). 진행 중은 현재 좋아요, 종료 뒤는 저장된 값이다. 진행 중은 얼굴이 보이는 참여작을
+     * 먼저 놓되(SOMA-1066) 순위 숫자는 좋아요 기준 전체 순위 그대로다 — 순서만 바뀐다.
+     */
+    private Ranked ranked(UUID challengeId, String basis) {
         String sql = switch (basis) {
             case "live" -> """
-                    SELECT e.id,(SELECT count(*) FROM entry_likes l WHERE l.entry_id=e.id) AS likes,NULL::integer AS final_rank
-                    %s WHERE e.challenge_id=:challenge AND %s ORDER BY likes DESC,e.published_at,e.id
+                    SELECT e.id,(SELECT count(*) FROM entry_likes l WHERE l.entry_id=e.id) AS likes,NULL::integer AS final_rank,
+                           e.face_visible IS TRUE AS face
+                    %s WHERE e.challenge_id=:challenge AND %s ORDER BY face DESC,likes DESC,e.published_at,e.id
                     """;
             case "pending" -> """
                     SELECT e.id,coalesce(e.final_like_count,0) AS likes,NULL::integer AS final_rank
@@ -563,22 +576,35 @@ class PostgresEntryRepository implements EntryRepository {
         };
         var rows = NativeTuples.list(em.createNativeQuery(sql.formatted(ChallengeVisibility.ENTRY_FROM, ChallengeVisibility.PUBLIC_ENTRY),
                 Tuple.class).setParameter("challenge", challengeId));
-        long top = rows.stream().mapToLong(row -> ((Number) row.get("likes")).longValue()).max().orElse(0);
-        var result = new java.util.LinkedHashMap<UUID, Integer>();
-        long previous = -1;
-        int rank = 0;
-        for (int i = 0; i < rows.size(); i++) {
-            Tuple row = rows.get(i);
+        long[] sorted = rows.stream().mapToLong(row -> ((Number) row.get("likes")).longValue()).sorted().toArray();
+        long top = sorted.length == 0 ? 0 : sorted[sorted.length - 1];
+        var order = new ArrayList<UUID>(rows.size());
+        var ranks = new ArrayList<Integer>(rows.size());
+        int faces = 0;
+        for (Tuple row : rows) {
             long likes = ((Number) row.get("likes")).longValue();
-            if (likes != previous) { rank = i + 1; previous = likes; }
+            // 좋아요 기준 공동 순위: 나보다 좋아요가 많은 참여작 수 + 1. 정렬 순서와 무관하다.
+            int rank = sorted.length - upperBound(sorted, likes) + 1;
             int shown = switch (basis) {
                 case "live" -> top == 0 ? 0 : rank;
                 case "pending" -> 0;
                 default -> top == 0 || row.get("final_rank") == null ? 0 : ((Number) row.get("final_rank")).intValue();
             };
-            result.put(row.get("id", UUID.class), shown);
+            if ("live".equals(basis) && faces == order.size() && Boolean.TRUE.equals(row.get("face", Boolean.class))) faces++;
+            order.add(row.get("id", UUID.class));
+            ranks.add(shown);
         }
-        return result;
+        return new Ranked(List.copyOf(order), List.copyOf(ranks), faces);
+    }
+
+    /** 오름차순 배열에서 {@code value} 보다 큰 첫 자리. */
+    private static int upperBound(long[] sorted, long value) {
+        int low = 0, high = sorted.length;
+        while (low < high) {
+            int mid = (low + high) >>> 1;
+            if (sorted[mid] <= value) low = mid + 1; else high = mid;
+        }
+        return low;
     }
 
     private java.util.Set<UUID> visibleAmong(UUID viewer, List<UUID> ids) {
