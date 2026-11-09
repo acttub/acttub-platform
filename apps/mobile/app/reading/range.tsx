@@ -67,12 +67,17 @@ const NO_LINES: ScriptLine[] = [];
 
 export default function ReadingRange() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string; first?: string }>();
+  const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string; first?: string; go?: string }>();
   /**
    * 첫 리딩 모드(10/29) — 리딩을 한 번도 끝내지 않은 계정이 대본을 막 넣고 왔다. 「어떤 배역을 읽으실 건가요?」 하나만 묻고
    * 대사 보기·구간은 고르지 않는다(대본 전체를 처음부터, 대사는 다 보인다). 독백이면 배역도 묻지 않고 바로 시작한다.
    */
   const firstMode = params.first === '1';
+  /**
+   * 대본 전체 보기의 「여기서부터 읽기」(SOMA-1071) — start·end 로 그 줄부터 대본 끝까지를 골라 둔다. 지난 배역이 골라져 있으면
+   * [시작]과 같은 길로 한 번 바로 시작하고, 없으면 「대사로 찾기」 탭을 열어 배역만 고르게 한다.
+   */
+  const goMode = params.go === '1' && !firstMode;
   const { alert, confirm, dialog } = useAppDialog();
   const { askFirstReading, consentSheet } = useCloudVoice();
   const script = getCurrent();
@@ -95,7 +100,7 @@ export default function ReadingRange() {
   );
   /** null 이면 아직 고르지 않았다 — 최근 구간의 첫 줄, 없으면 대본 전체. */
   const [picked, setPicked] = useState<LineRange | null>(() => (script ? rangeOfLineIds(script.lineIds, params.start, params.end) : null));
-  const [tab, setTab] = useState<Tab | null>(null);
+  const [tab, setTab] = useState<Tab | null>(goMode ? 'line' : null);
   const [picking, setPicking] = useState<'start' | 'end'>('start');
   const [mask, setMask] = useState<MaskMode>(firstMode ? 'none' : (script?.maskMode ?? 'none'));
   /** 회차 목록. null 은 불러오는 중. */
@@ -174,6 +179,14 @@ export default function ReadingRange() {
     autoStarted.current = true;
     startRef.current?.();
   }, [firstMode, cast.length, mic]);
+  // 「여기서부터 읽기」(SOMA-1071)도 마이크 상태를 안 뒤 한 번만 시작한다 — 들어올 때 배역·구간이 다 골라져 있었을 때만(들어와서
+  // 배역을 고르면 [시작]을 누르게 둔다). 권한·동의·구간 확인은 onStart 그대로다.
+  const [goReady] = useState(() => goMode && picked !== null && selected.length > 0);
+  useEffect(() => {
+    if (!goReady || mic === null || autoStarted.current) return;
+    autoStarted.current = true;
+    startRef.current?.();
+  }, [goReady, mic]);
 
   if (!script) return <ReadingNoScript />;
 
