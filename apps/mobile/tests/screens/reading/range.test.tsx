@@ -462,3 +462,38 @@ test('첫 리딩의 독백은 배역을 묻지 않고 바로 시작한다', asyn
   await waitFor(() => expect(server.startSession).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
 });
+
+// ── 여기서부터 읽기(SOMA-1071) — 대본 전체 보기에서 고른 줄부터 대본 끝까지 ─────────────────────────
+test('SOMA-1071: 여기서부터 읽기는 지난 배역이 골라져 있으면 그 줄부터 대본 끝까지로 한 번 바로 시작한다', async () => {
+  mockParams = { start: 'l4', end: 'l8', go: '1' };
+  const server = await show({ ...TWO_SCENES, last_session: LAST_SESSION });
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(server.startSession).toHaveBeenCalledTimes(1);
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], start_line_id: 'l4', end_line_id: 'l8' }));
+  expect(mockAskFirstReading).toHaveBeenCalledWith('s1');
+});
+
+test('SOMA-1071: 여기서부터 읽기도 마이크를 허락받지 못하면 시작하지 않는다', async () => {
+  jest.mocked(micPermissionState).mockResolvedValue('ask');
+  jest.mocked(requestMicPermission).mockResolvedValue('denied');
+  mockParams = { start: 'l4', end: 'l8', go: '1' };
+  const server = await show({ ...TWO_SCENES, last_session: LAST_SESSION });
+
+  await waitFor(() => expect(requestMicPermission).toHaveBeenCalledTimes(1));
+  expect(server.startSession).not.toHaveBeenCalled();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+});
+
+test('SOMA-1071: 여기서부터 읽기에 고른 배역이 없으면 시작하지 않고 대사로 찾기 탭에 그 시작 줄을 보인 채 배역을 고르게 한다', async () => {
+  mockParams = { start: 'l4', end: 'l8', go: '1' };
+  const server = await show();
+
+  expect(await screen.findByText('① 시작할 대사를 탭하세요')).toBeOnTheScreen();
+  expect(screen.getByText('시작')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('checkbox', { name: /^민재 / }));
+  expect(server.startSession).not.toHaveBeenCalled();
+
+  await fireEvent.press(startButton(4));
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], start_line_id: 'l4', end_line_id: 'l8' })));
+});
