@@ -345,6 +345,9 @@
 - 집은 워커가 죽으면 30분 lease가 지난 뒤 다른 워커가 다시 집어 끝낸다(저장이 `request_id`로 멱등이라 대본은 하나). 그동안 상태는
   running이다. 세 번 집고도 끝내지 못한 작업은 failed `failed`로 닫힌다. 앱은 끝없이 기다리지 않게 자기 시간 초과를 둔다(권장 120초,
   68편 실측 최대 36초).
+- 서버가 꺼질 때(배포) 워커는 새 작업을 집지 않고 하던 작업을 20초까지 기다린다. 그 안에 못 끝낸 작업은 실패로 닫지 않고 대기로 돌려
+  (시도 수는 그대로) 다른 서버가 바로 처음부터 다시 나눈다. 마지막 시도였던 작업은 아무도 다시 집지 않으므로 failed `failed`로 닫는다.
+  강제로 죽어 반납하지 못한 작업만 위의 30분 lease를 기다린다.
 - 같은 `request_id`의 재전송은 [요청 재전송](../common.md#요청-재전송) 규칙을 따른다(유일 범위 script_imports의 (user_id,
   request_id), 지문은 제목·입력 경로·원문·두 플래그). 작업 행은 나누는 동안만 원문을 들고 있고 끝나면(성공·실패) 비운다 — 글은
   대본에 있고 같은 글 판정은 해시만 쓴다. 행 자체는 탈퇴 때 지운다. 대본을 지운 뒤 작업 상태의 `script_id`는 지워진 대본을
@@ -620,6 +623,8 @@
 - R2.8 뒤 `skip_script_check: true`: 지시문에 판단 줄이 없고 모델이 「아니오」라 해도 나눠 succeeded.
 - 다른 워커가 집은 채 죽음: 30분 동안 running, 같은 글의 새 요청은 그 작업 id. 31분 뒤 다른 워커가 집어 succeeded(시도 2).
   시도 셋을 다 쓴 채 lease가 지남: sweep이 failed `failed`로 닫는다.
+- 나누는 중 서버를 끔(배포): 20초 안에 끝나면 succeeded. 넘으면 작업은 pending으로 돌아가 다른 서버가 집어 succeeded(시도 2). 시도 셋째에
+  끊기면 failed `failed`.
 - 끝난 요청(성공·실패)의 script_imports.raw_text는 비어 있다.
 - 없는 import_id·남의 import_id: 404 import_not_found. 탈퇴·이관이 먼저 끝난 계정의 접수: 403 account_deactivated.
 - 옛 저장 API로 콜론 형식 대본을 저장: scripts 1행, script_characters와 script_lines의 수가 기기가 나눈
