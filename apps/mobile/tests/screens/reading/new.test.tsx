@@ -82,7 +82,7 @@ async function paste(text = PASTED) {
   await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), text);
 }
 
-test('처음에는 파일 탭을 보이고, 넣은 것이 없이 다음을 누르면 빠진 칸 아래에 이유를 보인다', async () => {
+test('처음에는 파일 탭을 보이고 파일이 없으면 다음이 막혀 있으며, 붙여넣기 칸이 비면 누를 때 이유를 보인다', async () => {
   await render(<ReadingNew />);
 
   expect(screen.getByRole('tab', { name: /파일 업로드/ })).toBeSelected();
@@ -94,12 +94,10 @@ test('처음에는 파일 탭을 보이고, 넣은 것이 없이 다음을 누�
   expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   // 예시 대본은 「대본 같이 만들기」에서 고른다 — 이 화면에는 링크가 없다(10/25).
   expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
-  // 「다음」은 눌린다 — 넘어가지 않고 파일 칸 아래에 이유 한 줄(SOMA-1057).
-  await fireEvent.press(screen.getByText('다음'));
-  expect(screen.getByText('파일을 골라 주세요')).toBeOnTheScreen();
-  // 붙여넣기 탭으로 가면 그 칸의 이유로 바뀐다 — 다시 누를 때까지 줄은 숨는다.
+  // 파일은 고르는 칸이라 「다음」이 회색으로 막힌다. 글을 적는 붙여넣기 칸만 눌러서 이유를 본다(SOMA-1057 11/9 결정).
+  expect(screen.getByText('다음')).toBeDisabled();
   await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
-  expect(screen.queryByText('파일을 골라 주세요')).not.toBeOnTheScreen();
+  expect(screen.getByText('다음')).toBeEnabled();
   await fireEvent.press(screen.getByText('다음'));
   expect(screen.getByText('대본 글을 붙여 넣어 주세요')).toBeOnTheScreen();
   await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), '민지: 안녕');
@@ -188,9 +186,7 @@ test('「대본 같이 만들기」는 화면을 넘기지 않고 아래에 예�
   await fireEvent.press(screen.getByRole('tab', { name: /같이 만들기/ }));
   expect(mockRouter.push).not.toHaveBeenCalled();
   expect(screen.queryByText('대본 파일 첨부')).not.toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('다음'));
-  expect(screen.getByText('예시 대본 고르기·새로 만들기 중 하나를 골라 주세요')).toBeOnTheScreen();
-  expect(mockRouter.push).not.toHaveBeenCalled();
+  expect(screen.getByText('다음')).toBeDisabled();
 
   // 예시 대본 고르기 — 그 아래에 예시 카드와 고르기 칩이 바로 보인다.
   await fireEvent.press(screen.getByText('예시 대본 고르기'));
@@ -586,8 +582,7 @@ test('탭마다 넣은 것을 따로 들고, 보고 있는 탭의 것을 보낸�
   await fireEvent.press(screen.getByRole('tab', { name: /파일/ }));
 
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('다음'));
-  expect(screen.getByText('파일을 골라 주세요')).toBeOnTheScreen();
+  expect(screen.getByText('다음')).toBeDisabled();
   await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
   expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeEnabled();

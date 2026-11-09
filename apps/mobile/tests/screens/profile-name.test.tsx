@@ -168,11 +168,11 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(radio('입시생'));
 
     // 추구하는 방향 — 여러 개 고를 수 있다
+    // 고르는 질문은 고르기 전 「다음」이 회색으로 막혀 있다(SOMA-1057 11/9 결정).
     expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
-    await fireEvent.press(next());
-    expect(screen.getByText('하나를 골라 주세요')).toBeOnTheScreen();
+    expect(next()).toBeDisabled();
     await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
-    expect(screen.queryByText('하나를 골라 주세요')).not.toBeOnTheScreen();
+    expect(next()).toBeEnabled();
     expect(saveProfile).not.toHaveBeenCalled();
   });
 
@@ -221,8 +221,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await answerToDirections();
     await fireEvent.press(next());
 
-    await fireEvent.press(done());
-    expect(screen.getByText('하나를 골라 주세요')).toBeOnTheScreen();
+    expect(done()).toBeDisabled();
     await fireEvent.press(radio('인스타그램'));
     expect(radio('인스타그램')).toBeSelected();
     expect(saveProfile).not.toHaveBeenCalled();
@@ -290,7 +289,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     // 12월 31일이 이미 지났다면 이 시험은 해당 없음 — 그때는 아직 안 온 날짜가 없다.
     if (new Date() < new Date(THIS_YEAR, 11, 31)) {
       expect(screen.getByText('생년월일을 다시 확인해주세요.')).toBeOnTheScreen();
-      await fireEvent.press(next());
+      expect(next()).toBeDisabled();
       expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
     }
   });
@@ -329,9 +328,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(checkbox('매체 (TV·영화)'));
 
     expect(checkbox('매체 (TV·영화)')).not.toBeChecked();
-    await fireEvent.press(next());
-    expect(screen.getByText('하나를 골라 주세요')).toBeOnTheScreen();
-    expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
+    expect(next()).toBeDisabled();
   });
 
   test('「완료」를 빠르게 두 번 눌러도 한 번만 저장한다(SOMA-1057)', async () => {

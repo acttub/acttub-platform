@@ -65,8 +65,8 @@ test('stepBlockReason: 못 넘어가는 이유를 칸마다 하나로 말한다(
   assert.equal(stepBlockReason('name', { ...EMPTY, name: '  ' }, NOW), 'name_empty');
   assert.equal(stepBlockReason('name', { ...EMPTY, name: '가'.repeat(21) }, NOW), 'name_too_long');
   assert.equal(stepBlockReason('name', { ...EMPTY, name: '김배우' }, NOW), null);
-  assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '' }, NOW), 'birth_incomplete');
-  assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '2004-02-30' }, NOW), 'birth_invalid');
+  assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '' }, NOW), 'birth');
+  assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '2004-02-30' }, NOW), 'birth');
   assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '2004-03-14' }, NOW), null);
   assert.equal(stepBlockReason('directions', EMPTY, NOW), 'pick_one');
   assert.equal(stepBlockReason('gender', EMPTY, NOW), 'pick_one');

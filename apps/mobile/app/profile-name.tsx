@@ -281,6 +281,8 @@ export default function ProfileNameScreen() {
         : discovery.source === 'other' && !discovery.otherText.trim()
           ? 'discovery_other'
           : null;
+  // 고르는 칸(생년월일·고르기)은 버튼을 회색으로 막는다. 글을 적는 칸만 버튼을 열어 두고 누르면 이유를 한 줄로 알린다(11/9 결정).
+  const nextOff = block === 'pick_one' || block === 'birth';
   const blockKey = blockedTaps > 0 && block ? BLOCK_LINE[block] : undefined;
   const careers = translateList('profileName.careerOptions');
   const goals = translateList('profileName.goalOptions');
@@ -292,7 +294,7 @@ export default function ProfileNameScreen() {
   let footer: ReactNode = null;
   /**
    * 한 화면에 질문 하나 — 고르거나 적고 아래 「다음」(마지막이면 「완료」)을 눌러야 넘어간다.
-   * 다 채우기 전에도 버튼은 눌린다. 누르면 넘어가지 않고 빠진 칸 아래에 이유 한 줄을 보이고 그 칸으로 옮긴다(SOMA-1057).
+   * 글을 적는 칸이 비었거나 잘못돼도 버튼은 눌린다. 누르면 넘어가지 않고 칸 아래에 이유 한 줄을 보이고 그 칸으로 옮긴다(SOMA-1057).
    */
   const pressNext = (go: () => void) => {
     if (!block) return go();
@@ -301,7 +303,7 @@ export default function ProfileNameScreen() {
     if (block === 'discovery_other') otherRef.current?.focus();
   };
   const nextButton = (onPress: () => void) => (
-    <PrimaryButton label={isLast ? t('profileName.done') : t('profileName.next')} onPress={() => pressNext(onPress)} loading={busy} />
+    <PrimaryButton label={isLast ? t('profileName.done') : t('profileName.next')} onPress={() => pressNext(onPress)} disabled={nextOff} loading={busy} />
   );
 
   switch (step) {
@@ -518,14 +520,14 @@ function ChoiceRow({
 }
 
 /**
- * 못 넘어가는 이유마다 빠진 칸 아래에 보일 한 줄. 이름이 너무 길거나 생년월일이 틀리면 칸 아래에 이미 오류 줄이 있어 더하지 않는다.
+ * 글을 적는 칸이 비었을 때 칸 아래에 보일 한 줄. 이름이 너무 길면 칸 아래에 이미 오류 줄이 있어 더하지 않는다.
+ * 고르는 칸(생년월일·고르기)은 버튼이 막혀 있어 줄이 없다.
  */
 const BLOCK_LINE: Record<StepBlock | 'discovery_other', string | undefined> = {
   name_empty: 'profileName.blockNameEmpty',
   name_too_long: undefined,
-  birth_incomplete: 'profileName.blockBirth',
-  birth_invalid: undefined,
-  pick_one: 'profileName.blockPickOne',
+  birth: undefined,
+  pick_one: undefined,
   discovery_other: 'profileName.blockDiscoveryOther',
 };
 

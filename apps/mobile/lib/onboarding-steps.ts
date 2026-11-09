@@ -26,8 +26,11 @@ export function stepBefore(steps: readonly OnboardingStep[], step: OnboardingSte
   return index > 0 ? steps[index - 1] : 'intro';
 }
 
-/** 「다음」을 눌러도 못 넘어가는 이유(SOMA-1057). 이유마다 빠진 칸 아래에 한 줄로 알린다. */
-export type StepBlock = 'name_empty' | 'name_too_long' | 'birth_incomplete' | 'birth_invalid' | 'pick_one';
+/**
+ * 「다음」으로 못 넘어가는 이유(SOMA-1057). 글을 적는 칸(이름)은 버튼을 막지 않고 칸 아래 한 줄로 알리고,
+ * 고르는 칸(생년월일·고르기)은 버튼을 회색으로 막는다(11/9 결정).
+ */
+export type StepBlock = 'name_empty' | 'name_too_long' | 'birth' | 'pick_one';
 
 /** 그 단계를 못 넘어가는 이유. 넘어갈 수 있으면 null. 생년월일은 모양만 본다 — 나이는 누른 뒤 birthStepOutcome 이 가른다. */
 export function stepBlockReason(step: OnboardingStep, form: ProfileFormState, now: Date): StepBlock | null {
@@ -39,8 +42,7 @@ export function stepBlockReason(step: OnboardingStep, form: ProfileFormState, no
     }
     case 'birth': {
       const check = checkBirthDate(form.birthDate, now);
-      if (check.kind === 'incomplete') return 'birth_incomplete';
-      return check.kind === 'invalid' ? 'birth_invalid' : null;
+      return check.kind === 'ok' || check.kind === 'under_minimum' ? null : 'birth';
     }
     case 'gender':
       return form.gender !== null ? null : 'pick_one';
