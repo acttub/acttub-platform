@@ -11,7 +11,9 @@ globalThis.require = name => {
   if (requireFails) throw new Error('native module missing');
   return { default: storage };
 };
-const { mergePracticeDays, rememberPracticeDays } = await import('../lib/practice-days.ts');
+const { mergePracticeDays, rememberPracticeDays, rememberSessionPracticeDay, sessionPracticeDays, subscribeSessionPracticeDays } = await import(
+  '../lib/practice-days.ts'
+);
 
 const KEY = 'acttub.practiceDays.v2.u1';
 const LEGACY = 'acttub.practiceDays.v1';
@@ -97,4 +99,33 @@ test('서버 연습일은 한국 시간 한낮 시각으로 바꾸고, 모양이
     { created_at: '2026-10-03T12:00:00+09:00' },
     { created_at: '2026-11-02T12:00:00+09:00' },
   ]);
+});
+
+// SOMA-1075 — 코칭 끝 화면이 적는 이번 실행의 연습한 날.
+test('막 끝낸 코칭의 시작 시각은 계정별 메모리에만 두고, 기기 저장소에는 쓰지 않는다', async () => {
+  const calls = [];
+  const off = subscribeSessionPracticeDays(() => calls.push(sessionPracticeDays('s1')));
+  const empty = sessionPracticeDays('s1');
+  assert.deepEqual(empty, []);
+  // 자정 전에 시작해 자정을 넘겨 끝낸 코칭 — 끝낸 날이 아니라 시작 시각 그대로 적는다(서버도 created_at 날로 센다).
+  const started = '2026-10-31T14:50:00.000Z';
+  rememberSessionPracticeDay(started, 's1');
+  assert.deepEqual(sessionPracticeDays('s1'), [{ created_at: started }]);
+  assert.equal(calls.length, 1);
+  // 같은 회차를 다시 적으면 알리지 않고 같은 배열을 돌려준다(useSyncExternalStore 스냅샷).
+  const snapshot = sessionPracticeDays('s1');
+  rememberSessionPracticeDay(started, 's1');
+  assert.equal(sessionPracticeDays('s1'), snapshot);
+  assert.equal(calls.length, 1);
+  // 계정·시각을 모르면 적지 않는다. 다른 계정에는 보이지 않는다.
+  rememberSessionPracticeDay(started, null);
+  rememberSessionPracticeDay('', 's1');
+  rememberSessionPracticeDay('not a date', 's1');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(sessionPracticeDays('s2'), []);
+  assert.equal(storage.values.size, 0);
+  off();
+  rememberSessionPracticeDay('2026-10-28T03:00:00.000Z', 's1');
+  assert.equal(calls.length, 1);
+  assert.equal(sessionPracticeDays('s1').length, 2);
 });

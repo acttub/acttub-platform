@@ -32,6 +32,7 @@ test('practice.start: 새 회차를 시작하면 대화도 노트도 없이 화�
     videoUri: 'file:///docs/archive/rec-1.mp4',
     playbackUrl: null,
     note: null,
+    createdAt: null,
   };
   assert.deepEqual(started, expected);
   assert.deepEqual(getPractice(), expected);

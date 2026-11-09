@@ -70,7 +70,7 @@ export async function hasGraduatedFirstUse(userId: string | null | undefined = o
   }
 }
 
-/** 끝까지 해 본 순간 부른다. 탭바는 바로 보이게 하고, 홈은 다음에 그려질 때 이 표시를 읽는다. */
+/** 끝까지 해 본 순간 부른다. 탭바와 (뒤에 숨은) 홈이 subscribeFirstTimeState 로 바로 다시 그린다(SOMA-1075). */
 export async function markFirstUseGraduated(userId: string | null | undefined = owner): Promise<void> {
   if (!userId) return;
   graduatedNow.add(userId);

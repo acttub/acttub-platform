@@ -14,6 +14,10 @@ function setAdMobReady(next: boolean) {
   mockReadyListeners.forEach((listener) => listener());
 }
 
+// 화면이 보이는지(useIsFocused). 기본은 보이는 상태, 숨은 화면을 보는 테스트만 false 로 바꾼다.
+let mockFocused = true;
+jest.mock('@react-navigation/native', () => ({ useIsFocused: () => mockFocused }));
+
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('expo-image', () => {
@@ -58,6 +62,7 @@ beforeEach(() => {
   setFirstTimeState('practiced');
   mockBirthDate = null;
   mockAdMobReady = true;
+  mockFocused = true;
   mockReadyListeners.clear();
   resetAdSlotMemoryForTest();
 });
@@ -111,7 +116,7 @@ test('직접 광고는 「광고」 라벨과 함께 그리고, 이미지가 뜨
   await render(<AdSlot slot="archive_top" />);
   const image = await screen.findByTestId('ad-image');
   expect(screen.getByText('광고')).toBeTruthy();
-  image.props.onLoad();
+  await act(async () => image.props.onLoad());
   expect(recordAdEvent).toHaveBeenCalledWith('ad-1', 'archive_top', 'impression');
   await fireEvent.press(screen.getByLabelText('광고 한빛연기학원'));
   expect(recordAdEvent).toHaveBeenCalledWith('ad-1', 'archive_top', 'click');
@@ -252,7 +257,7 @@ test('NETWORK 배너는 생년월일이 없으면 비맞춤, 성인이면 맞춤
   const first = await render(<AdSlot slot="home_top" />);
   const none = await screen.findByTestId('admob-banner');
   expect(none.props.requestOptions).toEqual({ requestNonPersonalizedAdsOnly: true });
-  first.unmount();
+  await first.unmount();
   mockBirthDate = '1990-01-01';
   await render(<AdSlot slot="home_top" />);
   const adult = await screen.findByTestId('admob-banner');
@@ -261,3 +266,41 @@ test('NETWORK 배너는 생년월일이 없으면 비맞춤, 성인이면 맞춤
 
 
 
+
+// SOMA-1075 — 코칭 끝 화면 뒤에 숨은 홈처럼 안 보이는 칸은 어떤 광고인지만 미리 받는다.
+test('숨은 화면에서는 광고를 미리 받기만 하고, 이미지가 떠도 노출은 화면이 보인 뒤에 한 번 센다', async () => {
+  mockFocused = false;
+  getAdSlot.mockResolvedValue({
+    kind: 'DIRECT', slot: 'home_top', size: 'BANNER', width: 320, height: 50,
+    ad: creative({ image_url: 'https://cdn/a.png', advertiser_name: '한빛연기학원', link_url: 'https://example.com/hanbit' }),
+  });
+  const view = await render(<AdSlot slot="home_top" />);
+  const image = await screen.findByTestId('ad-image');
+  expect(getAdSlot).toHaveBeenCalledWith('home_top');
+  await act(async () => image.props.onLoad());
+  expect(recordAdEvent).not.toHaveBeenCalled();
+
+  mockFocused = true;
+  await view.rerender(<AdSlot slot="home_top" />);
+  await waitFor(() => expect(recordAdEvent).toHaveBeenCalledWith('ad-1', 'home_top', 'impression'));
+  // 다시 숨었다 보여도 같은 광고는 한 번만 센다.
+  mockFocused = false;
+  await view.rerender(<AdSlot slot="home_top" />);
+  mockFocused = true;
+  await view.rerender(<AdSlot slot="home_top" />);
+  expect(recordAdEvent).toHaveBeenCalledTimes(1);
+});
+
+test('숨은 화면에서는 AdMob 배너를 붙이지 않고 채움 시간도 재지 않다가, 보이면 붙인다', async () => {
+  mockFocused = false;
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
+  const view = await render(<AdSlot slot="home_top" fillTimeoutMs={30} />);
+  await waitFor(() => expect(getAdSlot).toHaveBeenCalled());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 80)));
+  expect(screen.queryByTestId('admob-banner')).toBeNull();
+  expect(view.toJSON()).not.toBeNull();
+
+  mockFocused = true;
+  await view.rerender(<AdSlot slot="home_top" fillTimeoutMs={30} />);
+  expect(await screen.findByTestId('admob-banner')).toBeOnTheScreen();
+});

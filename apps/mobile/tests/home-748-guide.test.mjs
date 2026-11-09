@@ -15,7 +15,7 @@ test('홈 안내는 첫 연습을 끝낸 뒤 카드·대본·챌린지·프로�
   // 불꽃 축하를 따져 본 뒤·축하가 끝난 뒤에만 띄운다(11/2 QA).
   assert.match(home, /streakCheckedFor === streak && celebrateStreak === null/);
   assert.match(home, /visible=\{guideVisible\}/);
-  assert.match(home, /const practiced = \(activityDays\?\.length \?\? 0\) > 0;/);
+  assert.match(home, /const practiced = \(shownDays\?\.length \?\? 0\) > 0;/);
 
   const layout = src('app/(tabs)/_layout.tsx');
   for (const key of ['tabReading', 'tabChallenge', 'tabProfile']) assert.match(layout, new RegExp(`useSpotlightTarget\\(TARGET\\.${key}\\)`));

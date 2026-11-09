@@ -176,10 +176,12 @@ function CoachTalk() {
 
   // 코칭이 끝나면 배우 일지 없이 바로 「오늘 코칭 끝」으로 가서 코치가 정한 「다음에 해 볼 것」으로 마무리한다(11/2 우영: 배우 일지 없애기).
   // 튜토리얼 예시 회차는 서버에 없어 지금처럼 미리 쓴 노트(/report)다. 예전에 쓴 일지는 기록에서 그대로 볼 수 있다.
+  // 시작 시각을 같이 넘긴다 — 코칭 끝 화면이 노트를 확인하면 그 날을 홈 연속일에 미리 더한다(SOMA-1075).
   const goToNote = useCallback(() => {
     const practiceId = practice?.practiceId ?? '';
-    leaveThen(() => router.replace(sample ? '/report' : { pathname: '/coaching-done', params: { practiceId } }));
-  }, [leaveThen, router, sample, practice?.practiceId]);
+    const startedAt = practice?.createdAt ?? '';
+    leaveThen(() => router.replace(sample ? '/report' : { pathname: '/coaching-done', params: { practiceId, startedAt } }));
+  }, [leaveThen, router, sample, practice?.practiceId, practice?.createdAt]);
 
   const applyResult = useCallback(
     (result: CoachTurnResult) => {
