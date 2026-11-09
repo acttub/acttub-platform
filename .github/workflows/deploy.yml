@@ -122,8 +122,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         if: ${{ steps.exists.outputs.exists != 'true' }}
 
-      # docker build 의 type=gha 캐시가 쓸 러너 토큰을 셸 스텝에 내놓는다. 범위 이름은 ci.yml smoke 와 같다 — 서로의
-      # 레이어(apt·pnpm install)를 읽는다(SOMA-1076).
+      # docker build 의 type=gha 캐시가 쓸 러너 토큰을 셸 스텝에 내놓는다. 캐시는 ci.yml 의 매일 smoke 가 쓰고(범위
+      # acttub-api) 여기서는 apt 레이어를 읽기만 한다 — 바뀌는 jar 레이어까지 올리면 아낀 만큼 느려진다(SOMA-1076).
       - uses: crazy-max/ghaction-github-runtime@v3
         if: ${{ steps.exists.outputs.exists != 'true' }}
 
@@ -136,8 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           (cd apps/api && ./gradlew --no-daemon --console=plain bootJar)
-          docker build --cache-from type=gha,scope=acttub-api --cache-to type=gha,mode=max,ignore-error=true,scope=acttub-api \
-            -t "$IMAGE" apps/api
+          docker build --cache-from type=gha,scope=acttub-api -t "$IMAGE" apps/api
           docker push "$IMAGE"
 
   build_web:
@@ -194,11 +193,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # docker build 의 type=gha 캐시가 쓸 러너 토큰을 셸 스텝에 내놓는다. 범위 이름은 ci.yml smoke 와 같다 — 서로의
-      # 레이어(apt·pnpm install)를 읽는다(SOMA-1076).
-      - uses: crazy-max/ghaction-github-runtime@v3
-        if: ${{ steps.exists.outputs.exists != 'true' }}
-
       # 빌드는 Docker 안에서 돕니다(apps/web/Dockerfile: pnpm install → prebuild → next build) — 러너에
       # node 가 필요 없습니다. build-arg 는 브라우저에 내려가는 공개값뿐이고 SENTRY_AUTH_TOKEN 만
       # --secret 마운트로 들어가 레이어에 남지 않습니다.
@@ -228,7 +222,6 @@ jobs:
         run: |
           set -euo pipefail
           docker build -f apps/web/Dockerfile \
-            --cache-from type=gha,scope=acttub-web --cache-to type=gha,mode=max,ignore-error=true,scope=acttub-web \
             --build-arg API_ORIGIN=http://api:8080 \
             --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
             --build-arg NEXT_PUBLIC_SENTRY_DSN="$NEXT_PUBLIC_SENTRY_DSN" \
@@ -274,17 +267,13 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: crazy-max/ghaction-github-runtime@v3
-        if: ${{ steps.exists.outputs.exists != 'true' }}
-
       - name: docker build → push
         if: ${{ steps.exists.outputs.exists != 'true' }}
         env:
           IMAGE: ${{ needs.guard.outputs.backup_image }}
         run: |
           set -euo pipefail
-          docker build --cache-from type=gha,scope=acttub-backup --cache-to type=gha,mode=max,ignore-error=true,scope=acttub-backup \
-            -t "$IMAGE" deploy/home/backup
+          docker build -t "$IMAGE" deploy/home/backup
           docker push "$IMAGE"
 
   # 러너가 Tailscale 임시 노드(tag:ci)가 되어 홈서버의 deploy 계정에 Tailscale SSH 로 들어갑니다.
