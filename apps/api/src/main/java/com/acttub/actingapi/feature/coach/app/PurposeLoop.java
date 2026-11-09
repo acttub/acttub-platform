@@ -404,13 +404,18 @@ final class PurposeLoop {
      * 띄어 쓴 「ㅋㅋ」 같은 것은 건드리지 않는다.
      */
     private static final Pattern STRAY_JAMO = Pattern.compile("([\\uAC00-\\uD7A3])[\\u3131-\\u318E]+$");
+    /** 버튼 글자에 모델이 붙인 이모지·기호(📂 ❤️ 등). 문장 부호(~ ? !)는 남는다. */
+    private static final Pattern SYMBOL = Pattern.compile("[\\p{So}\\p{Sk}\\p{Cs}\\uFE0F\\u200D\\u20E3]");
 
     static Output extract(String raw) {
         String text = raw == null ? "" : raw;
         var choices = new ArrayList<PurposeView.Choice>();
         Matcher m = CHOICES.matcher(text);
         if (m.find()) {
-            for (String line : m.group(1).split("\\R")) {
+            String body = m.group(1);
+            int tag = body.indexOf('<'); // </보기> 없이 뒤 칸(<인물 카드> 등)이 이어지면 거기서 끊는다
+            if (tag >= 0) body = body.substring(0, tag);
+            for (String line : body.split("\\R")) {
                 String label = BULLET.matcher(line).replaceFirst("").strip();
                 Integer at = null;
                 Lead lead = leadTime(label);
@@ -418,6 +423,7 @@ final class PurposeLoop {
                     at = lead.seconds();
                     label = label.substring(lead.end()).strip();
                 }
+                label = SYMBOL.matcher(label).replaceAll("").strip();
                 label = STRAY_JAMO.matcher(label).replaceFirst("$1").strip();
                 if (label.isEmpty() || "직접 쓰기".equals(label) || DONT_KNOW.equals(label)) continue;
                 if (label.length() > CHOICE_LENGTH) label = label.substring(0, CHOICE_LENGTH).strip();
