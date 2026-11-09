@@ -35,11 +35,10 @@ class ScriptedCoachTest {
     static final String DEMO = "/coaching/scripted/demo.json";
     static final String EMAIL = "sukpower198919@gmail.com";
     static final List<String> LINES = List.of(
-            "준비하고 있는 인물은 어떤 사람이라고 생각해요?",
-            "숨기면서까지 상대에게 얻어내고 싶은 게 있나요?",
-            "상대가 믿어주지 않는 상황인가요? 그걸 뭐가 막고 있어요?",
-            "과거가 발목을 잡고 있네요. 그래서 지금 상대한테 어떻게 해요?",
-            "이 인물은 속마음을 숨긴 채 화를 내며 따져서라도 상대의 믿음을 얻으려 해요. 상대가 의심하는 순간에 더 당당하게 몰아붙여 봐도 좋아요.");
+            "이 장면에서 이 사람은 상대한테서 결국 뭘 얻어 내고 싶었어요?",
+            "\"혼자 싸우고\"에서도, \"기회를 주실 수 있잖아요\"에서도 하소연하듯 털어놓기만 해요. 그러면 상대가 억울함을 알아줬을까요?",
+            "상대가 억울함을 알아주게 하려면, 장면 내내 상대한테 뭘 해 볼래요?",
+            "맞아요, 그거예요. 상대가 반박 못 하게 조목조목 따져 봐도 좋아요. 특히 \"기회를 주실 수 있잖아요\"에서요.");
 
     final ConversationRepository conversations = mock(ConversationRepository.class);
     final CoachEngine coach = mock(CoachEngine.class);
@@ -105,16 +104,16 @@ class ScriptedCoachTest {
 
         turns.add(service.start(user, practice, UUID.randomUUID()));
         // 배우가 무슨 말을 하든 다음 말은 대본의 다음 줄이다.
-        for (String answer : List.of("음 글쎄요", "모르겠어요", "아무 말", "그냥 화내요")) {
+        for (String answer : List.of("음 글쎄요", "모르겠어요", "그냥 화내요")) {
             turns.add(service.reply(user, conversation, UUID.randomUUID(), answer, current.get().stateRevision()));
         }
 
         assertThat(turns).extracting(ConversationService.Turn::coachMessage).containsExactlyElementsOf(LINES);
         assertThat(turns).extracting(ConversationService.Turn::status)
-                .containsExactly("open", "open", "open", "open", "closed");
+                .containsExactly("open", "open", "open", "closed");
         assertThat(turns.getLast().closeReason()).as("연습 루프가 마무리를 마칠 때와 같은 사유").isEqualTo("exhausted");
-        assertThat(turns.getFirst().answerExamples()).containsExactly("속마음을 잘 숨기는 사람");
-        assertThat(turns.get(3).replyLimit()).as("마지막 앞 줄에서 평소처럼 '다음 답으로 마무리'를 띄운다").isEqualTo(5);
+        assertThat(turns.getFirst().answerExamples()).containsExactly("제 억울함을 알아주길 바랐어요");
+        assertThat(turns.get(2).replyLimit()).as("마지막 앞 줄에서 평소처럼 '다음 답으로 마무리'를 띄운다").isEqualTo(4);
         assertThat(turns.getLast().answerExamples()).isEmpty();
 
         verifyNoInteractions(coach, notes, lineNotes, listener, memory, profiles);
@@ -122,11 +121,11 @@ class ScriptedCoachTest {
         verify(conversations).saveNote(eq(conversation), note.capture(), any());
         assertThat(note.getValue().format()).isEqualTo("v2");
         assertThat(note.getValue().kind()).isEqualTo("action");
-        assertThat(note.getValue().title()).isEqualTo("속마음을 숨긴 채 화를 내며 상대의 믿음을 얻으려 한다");
-        assertThat(note.getValue().nextTake()).isEqualTo("상대가 의심하는 순간에 더 당당하게 몰아붙여 보기");
+        assertThat(note.getValue().title()).isEqualTo("상대가 반박 못 하게 조목조목 따져서 억울함을 알아주게 한다");
+        assertThat(note.getValue().nextTake()).isEqualTo("\"기회를 주실 수 있잖아요\"에서 상대가 반박 못 하게 조목조목 따져 보기");
         assertThat(note.getValue().summaryQuotes()).extracting(quote -> quote.path("quote").asText())
                 .as("배우가 실제로 한 첫 답과 마지막 답만 인용한다").containsExactly("음 글쎄요", "그냥 화내요");
-        assertThat(note.getValue().sourceRevision()).isEqualTo(5);
+        assertThat(note.getValue().sourceRevision()).isEqualTo(4);
     }
 
     @Test void theStreamingPathSendsTheFixedLineAsADelta() {
