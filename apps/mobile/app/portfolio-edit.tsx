@@ -48,7 +48,8 @@ import {
 import { pickAndUploadPortfolioPhoto } from '@/lib/profile-photo-upload';
 
 /** 편집 중인 경력. id 가 null 이면 새 경력이다. */
-type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors };
+/** `failure` 는 저장 실패 사유 — 대화상자 위에 알림을 겹쳐 띄우면 iOS 에서 안 보여 대화상자 안에 적는다. */
+type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors; failure?: string | null };
 
 /**
  * 포트폴리오 편집 — 배우가 오디션에 낼 소개글·경력·사진을 적어 두고 공유 링크로 보여 준다.
@@ -87,9 +88,12 @@ export default function PortfolioEditScreen() {
     void load();
   }, [load]);
 
-  /** 요청 하나를 돌린다. 실패하면 `undo`로 되돌리고 사유에 맞는 안내를 띄우며, 필요하면 목록을 다시 받는다. */
+  /**
+   * 요청 하나를 돌린다. 실패하면 `undo`로 되돌리고 사유에 맞는 안내를 띄우며(`report`가 있으면 그쪽에 넘긴다),
+   * 필요하면 목록을 다시 받는다.
+   */
   const run = useCallback(
-    async (key: string, task: () => Promise<void>, undo?: () => void) => {
+    async (key: string, task: () => Promise<void>, undo?: () => void, report?: (message: string) => void) => {
       if (busy) return;
       setBusy(key);
       try {
@@ -98,13 +102,9 @@ export default function PortfolioEditScreen() {
         undo?.();
         const failure = portfolioFailure(error);
         if (failure.reload) await load();
-        void alert({
-          title: t('portfolio.failTitle'),
-          message:
-            failure.kind === 'retry' && error instanceof Error
-              ? error.message
-              : t(`portfolio.fail.${failure.kind}`),
-        });
+        const message = failure.kind === 'retry' && error instanceof Error ? error.message : t(`portfolio.fail.${failure.kind}`);
+        if (report) report(message);
+        else void alert({ title: t('portfolio.failTitle'), message });
       } finally {
         setBusy(null);
       }
@@ -141,17 +141,23 @@ export default function PortfolioEditScreen() {
       return;
     }
     const original = portfolio.credits.find((credit) => credit.id === editing.id) ?? null;
-    void run('credit', async () => {
-      if (original) {
-        // 보낸 항목만 바뀐다. 바뀐 것이 없으면 요청을 보내지 않는다.
-        const patch = creditPatch(original, result.payload);
-        if (patch) await api.updatePortfolioCredit(original.id, patch);
-      } else {
-        await api.createPortfolioCredit(result.payload);
-      }
-      setEditing(null);
-      apply(await api.portfolio());
-    });
+    setEditing({ ...editing, failure: null });
+    void run(
+      'credit',
+      async () => {
+        if (original) {
+          // 보낸 항목만 바뀐다. 바뀐 것이 없으면 요청을 보내지 않는다.
+          const patch = creditPatch(original, result.payload);
+          if (patch) await api.updatePortfolioCredit(original.id, patch);
+        } else {
+          await api.createPortfolioCredit(result.payload);
+        }
+        setEditing(null);
+        apply(await api.portfolio());
+      },
+      undefined,
+      (failure) => setEditing((current) => (current ? { ...current, failure } : current)),
+    );
   };
 
   const removeCredit = async (credit: PortfolioCredit) => {
@@ -189,9 +195,10 @@ export default function PortfolioEditScreen() {
     );
   };
 
+  // 고르기 창이 열린 동안은 'photo-pick' 이라 「올리는 중」을 보이지 않는다. 고른 뒤에 'photo' 로 바꾼다.
   const addPhoto = () =>
-    run('photo', async () => {
-      const next = await pickAndUploadPortfolioPhoto();
+    run('photo-pick', async () => {
+      const next = await pickAndUploadPortfolioPhoto(() => setBusy('photo'));
       if (next) apply(next);
     });
 
@@ -428,6 +435,7 @@ export default function PortfolioEditScreen() {
                       ))}
                     </View>
                     {editing.errors.kind && <InlineErrorLine message={t('portfolio.fieldError.required')} />}
+                    {editing.failure ? <InlineErrorLine message={editing.failure} /> : null}
                   </View>
                   <DialogButtons
                     cancelLabel={t('common.cancel')}
