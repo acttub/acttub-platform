@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, renderHook, screen } from '@testing-library/react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StyleSheet, Text } from 'react-native';
 
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,9 @@ import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-hea
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { useTabFloatingAddBottom } from '@/components/ui/floating-add';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
+import { setFirstTimeProvisional, setFirstTimeState } from '@/lib/practice/first-time';
 import { StepHeader } from '@/components/ui/step-header';
 import { TextField } from '@/components/ui/text-field';
 
@@ -362,5 +366,30 @@ describe('체크·입력칸·오류 줄', () => {
     await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
     expect(retry).toHaveBeenCalledTimes(1);
     expect(screen.getByText('저장하지 못했어요.')).toBeOnTheScreen();
+  });
+});
+
+describe('FloatingAdd 위치', () => {
+  afterEach(() => {
+    setFirstTimeProvisional(false);
+    setFirstTimeState('unknown');
+  });
+
+  test('탭바가 보이면 탭바 위, 첫 사용자로 숨거나 홈 뼈대가 숨기면 안전영역 위 12다', async () => {
+    const insets = { top: 0, bottom: 34, left: 0, right: 0 };
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets }}>{children}</SafeAreaProvider>
+    );
+    const shown = await renderHook(() => ({ bottom: useTabFloatingAddBottom(), tab: useTabBarSpace() }), { wrapper });
+    expect(shown.result.current.bottom).toBe(shown.result.current.tab);
+
+    setFirstTimeState('first');
+    const first = await renderHook(() => useTabFloatingAddBottom(), { wrapper });
+    expect(first.result.current).toBe(34 + 12);
+
+    setFirstTimeState('unknown');
+    setFirstTimeProvisional(true);
+    const skeleton = await renderHook(() => useTabFloatingAddBottom(), { wrapper });
+    expect(skeleton.result.current).toBe(34 + 12);
   });
 });

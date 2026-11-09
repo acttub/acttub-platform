@@ -9,7 +9,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Button } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
-import { FloatingAdd } from '@/components/ui/floating-add';
+import { FLOATING_ADD_HEIGHT, FloatingAdd } from '@/components/ui/floating-add';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { LoadingText } from '@/components/ui/loading-text';
@@ -288,7 +288,7 @@ function BoardSkeleton() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
-  list: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: 48 + space[6] },
+  list: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: FLOATING_ADD_HEIGHT + space[6] },
   head: { gap: space[3] },
   chipScroll: { marginHorizontal: -space.gutter, flexGrow: 0 },
   chips: { gap: space[2], paddingHorizontal: space.gutter },

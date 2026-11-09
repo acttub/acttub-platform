@@ -1,9 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import type { Ref } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { radius, shadowOverlay, space, type } from '@/constants/tokens';
+import { useFirstTimeTabBarHidden } from '@/hooks/use-first-time-user';
 
 /**
  * 목록 화면의 「추가」 전용 — 디자인 시스템 pen 「FloatingButton/Add」. 높이 48, r-full, 오른쪽 20, blue, 아이콘 20 + body1-bold,
@@ -33,6 +36,13 @@ export function FloatingAdd({
 }
 
 export const FLOATING_ADD_HEIGHT = 48;
+
+/** 탭 화면의 `bottom` — 탭바가 보이면 탭바 위 12(useTabBarSpace), 첫 사용자로 숨으면 안전영역 위 12. */
+export function useTabFloatingAddBottom(): number {
+  const insets = useSafeAreaInsets();
+  const tabBarSpace = useTabBarSpace();
+  return useFirstTimeTabBarHidden() ? insets.bottom + space[3] : tabBarSpace;
+}
 
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', right: space.gutter },
