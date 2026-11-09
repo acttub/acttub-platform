@@ -46,8 +46,9 @@ import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/se
 import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
 import { readingNextLine } from '@/lib/reading/voice-coaching';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
-import { hasUnreadableText, stripUnreadable } from '@/lib/practice/readable-text';
+import { hasUnreadableText } from '@/lib/practice/readable-text';
 import { newRequestId } from '@/lib/request-id';
+import { useReadableInput } from '@/hooks/use-readable-input';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -122,12 +123,7 @@ function CoachTalk() {
   const messages = useMemo(() => (conversation ? orderedMessages(conversation) : []), [conversation]);
   const [input, setInput] = useState('');
   // 허용 범위 밖 글자(결합 기호를 쌓은 글 등)는 입력칸에 들어오지 않는다(SOMA-905). 뺀 게 있으면 한 줄 알린다.
-  const [strippedInput, setStrippedInput] = useState(false);
-  const changeInput = useCallback((text: string) => {
-    const kept = stripUnreadable(text);
-    setStrippedInput(kept !== text);
-    setInput(kept);
-  }, []);
+  const { onChangeText: changeInput, hint: strippedHint } = useReadableInput(setInput);
   const inputRef = useRef<TextInput>(null);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
@@ -714,7 +710,7 @@ function CoachTalk() {
             </View>
             {answerTooLong(input.trim()) ? (
               <InlineErrorLine message={t('coach.answerTooLong')} />
-            ) : strippedInput && input.trim() ? (
+            ) : strippedHint && input.trim() ? (
               <InlineErrorLine message={t('coach.answerStripped')} />
             ) : (
               hasUnreadableText(input) && <InlineErrorLine message={t('coach.answerUnreadable')} />
