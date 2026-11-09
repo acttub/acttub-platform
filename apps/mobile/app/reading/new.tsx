@@ -3,7 +3,7 @@ import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -15,6 +15,7 @@ import { Image } from 'expo-image';
 import { Button, PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { MASCOT_SIZE } from '@/components/ui/mascot';
 import { ReadingStatus } from '@/components/ui/reading-status';
@@ -312,6 +313,15 @@ export default function ReadingNew() {
     setMakeOpen(false);
     dispatch({ type: 'tab', tab });
   };
+  // 글 붙여넣기 칸이 비었을 때만 「다음」을 막지 않는다(SOMA-1057). 누르면 넘어가지 않고 칸 아래에 이유 한 줄을 보이고 칸으로 옮긴다.
+  // 채우면 줄은 바로 사라진다. 고르는 곳(같이 만들기 카드·파일 없음)과 파일을 읽는 동안은 버튼을 회색으로 막는다(11/9 결정).
+  const pasteEmpty = !makeOpen && input.tab === 'paste' && !pending && input.file.kind !== 'reading';
+  const [pasteBlocked, setPasteBlocked] = useState(0);
+  useEffect(() => setPasteBlocked(0), [pasteEmpty]);
+  const scrollRef = useRef<ScrollView>(null);
+  const pasteRef = useRef<TextInput>(null);
+  // 「다음」을 빠르게 두 번 눌러도 대본을 한 번만 나눈다.
+  const splitLock = useRef(false);
   const checking = popup?.kind === 'checking';
   // 안드로이드는 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
   // iOS 는 막지 않고 아래 화면으로 그대로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
@@ -373,7 +383,7 @@ export default function ReadingNew() {
     <KeyboardLift style={styles.root}>
       <Stack.Screen options={{ gestureEnabled: !(working || pasteDirty) }} />
       {/* 확인 중에 탭·파일을 바꾸면 보낸 입력과 어긋난다. */}
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" pointerEvents={checking ? 'none' : 'auto'}>
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" pointerEvents={checking ? 'none' : 'auto'}>
         <View style={styles.hero}>
           <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.heroText}>
@@ -456,6 +466,7 @@ export default function ReadingNew() {
 
         {!makeOpen && input.tab === 'paste' && (
           <TextField
+            ref={pasteRef}
             charset="loose"
             label={t('reading.pasteLabel')}
             style={styles.textArea}
@@ -465,6 +476,12 @@ export default function ReadingNew() {
             placeholder={t('reading.pastePlaceholder')}
             textAlignVertical="top"
           />
+        )}
+        {pasteEmpty && pasteBlocked > 0 && (
+          // 누를 때마다 새로 그려(key) 빠진 칸이 있는 아래까지 내린다.
+          <View key={pasteBlocked} onLayout={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+            <InlineErrorLine message={t('reading.blockPaste')} />
+          </View>
         )}
       </ScrollView>
 
@@ -486,10 +503,20 @@ export default function ReadingNew() {
           ) : (
             <PrimaryButton
               label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
-              onPress={() => pending && void split(pending, { title })}
+              onPress={() => {
+                if (pasteEmpty) {
+                  setPasteBlocked((n) => n + 1);
+                  pasteRef.current?.focus();
+                  return;
+                }
+                if (!pending || splitLock.current) return;
+                splitLock.current = true;
+                void split(pending, { title }).finally(() => (splitLock.current = false));
+              }}
               loading={checking}
               loadingLabel={t('loadingText.checking')}
-              disabled={!pending || (!!popup && !checking)}
+              // 파일을 읽는 동안은 버튼 글자가 「읽는 중…」으로 이유를 말한다(SOMA-975).
+              disabled={(!pending && !pasteEmpty) || (!!popup && !checking)}
             />
           )}
         </View>

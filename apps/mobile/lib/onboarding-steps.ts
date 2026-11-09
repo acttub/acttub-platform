@@ -26,28 +26,40 @@ export function stepBefore(steps: readonly OnboardingStep[], step: OnboardingSte
   return index > 0 ? steps[index - 1] : 'intro';
 }
 
-/** 그 단계의 「계속하기」를 켤 수 있나. 생년월일은 모양만 본다 — 나이는 누른 뒤 birthStepOutcome 이 가른다. */
-export function stepReady(step: OnboardingStep, form: ProfileFormState, now: Date): boolean {
+/**
+ * 「다음」으로 못 넘어가는 이유(SOMA-1057). 글을 적는 칸(이름)은 버튼을 막지 않고 칸 아래 한 줄로 알리고,
+ * 고르는 칸(생년월일·고르기)은 버튼을 회색으로 막는다(11/9 결정).
+ */
+export type StepBlock = 'name_empty' | 'name_too_long' | 'birth' | 'pick_one';
+
+/** 그 단계를 못 넘어가는 이유. 넘어갈 수 있으면 null. 생년월일은 모양만 본다 — 나이는 누른 뒤 birthStepOutcome 이 가른다. */
+export function stepBlockReason(step: OnboardingStep, form: ProfileFormState, now: Date): StepBlock | null {
   switch (step) {
     case 'name': {
       const name = form.name.trim();
-      return name.length > 0 && [...name].length <= NAME_MAX_LENGTH;
+      if (name.length === 0) return 'name_empty';
+      return [...name].length > NAME_MAX_LENGTH ? 'name_too_long' : null;
     }
     case 'birth': {
       const check = checkBirthDate(form.birthDate, now);
-      return check.kind === 'ok' || check.kind === 'under_minimum';
+      return check.kind === 'ok' || check.kind === 'under_minimum' ? null : 'birth';
     }
     case 'gender':
-      return form.gender !== null;
+      return form.gender !== null ? null : 'pick_one';
     case 'goal':
-      return form.goal !== null;
+      return form.goal !== null ? null : 'pick_one';
     case 'career':
-      return form.experience !== null;
+      return form.experience !== null ? null : 'pick_one';
     case 'directions':
-      return form.directions.length > 0;
+      return form.directions.length > 0 ? null : 'pick_one';
     case 'discovery':
-      return true; // 선택 항목 — 고르지 않으면 건너뜀으로 적는다.
+      return null; // 선택 항목 — 고르지 않으면 건너뜀으로 적는다.
   }
+}
+
+/** 그 단계의 「계속하기」로 넘어갈 수 있나. */
+export function stepReady(step: OnboardingStep, form: ProfileFormState, now: Date): boolean {
+  return stepBlockReason(step, form, now) === null;
 }
 
 /** 생년월일 단계에서 「계속하기」를 눌렀을 때. 만 14세 미만은 「가입할 수 없어요」로 간다. */

@@ -134,8 +134,13 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     expect(screen.getByText('뭐라고 불러 드릴까요?')).toBeOnTheScreen();
     expect(screen.getByText('1 / 7')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByDisplayValue('민지'), '  ');
-    expect(next()).toBeDisabled();
+    // 비어도 「다음」은 눌린다 — 넘어가지 않고 칸 아래에 이유 한 줄(SOMA-1057). 채우면 바로 사라진다.
+    expect(next()).toBeEnabled();
+    await fireEvent.press(next());
+    expect(screen.getByText('이름을 적어 주세요')).toBeOnTheScreen();
+    expect(screen.getByText('1 / 7')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByLabelText('닉네임'), '민지');
+    expect(screen.queryByText('이름을 적어 주세요')).not.toBeOnTheScreen();
     await fireEvent.press(next());
 
     // 생년월일 — 연·월·일 돌림판. 돌려도 「다음」을 눌러야 넘어간다.
@@ -163,6 +168,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(radio('입시생'));
 
     // 추구하는 방향 — 여러 개 고를 수 있다
+    // 고르는 질문은 고르기 전 「다음」이 회색으로 막혀 있다(SOMA-1057 11/9 결정).
     expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
     expect(next()).toBeDisabled();
     await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
@@ -196,8 +202,9 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
     expect(screen.getByText('7 / 7')).toBeOnTheScreen();
     await fireEvent.press(radio('기타'));
+    await fireEvent.press(done());
+    expect(screen.getByText('어디서 알게 됐는지 적어 주세요')).toBeOnTheScreen();
     expect(saveProfile).not.toHaveBeenCalled();
-    expect(done()).toBeDisabled();
     await fireEvent.changeText(screen.getByPlaceholderText('어디서 알게 됐는지 적어주세요 (30자까지)'), '연기 학원 선생님');
     await fireEvent.press(done());
 
@@ -308,7 +315,10 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.changeText(screen.getByDisplayValue('민지'), '가'.repeat(21));
 
     expect(screen.getByText('이름은 20자까지 쓸 수 있어요.')).toBeOnTheScreen();
-    expect(next()).toBeDisabled();
+    await fireEvent.press(next());
+    // 칸 아래 오류 줄이 이미 이유를 말해 한 줄을 더하지 않고, 이름 질문에 머문다.
+    expect(screen.getAllByText('이름은 20자까지 쓸 수 있어요.')).toHaveLength(1);
+    expect(screen.getByText('1 / 7')).toBeOnTheScreen();
   });
 
   test('추구하는 방향은 다시 누르면 뺀다', async () => {
@@ -319,6 +329,21 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
 
     expect(checkbox('매체 (TV·영화)')).not.toBeChecked();
     expect(next()).toBeDisabled();
+  });
+
+  test('「완료」를 빠르게 두 번 눌러도 한 번만 저장한다(SOMA-1057)', async () => {
+    let finish: () => void = () => undefined;
+    saveProfile.mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)));
+    await startWithoutDiscovery();
+    await answerToDirections();
+    const button = done();
+    // 다시 그리기 전에 두 번 누른다 — 버튼이 「저장하는 중」으로 막히기 전이다.
+    await act(async () => {
+      void fireEvent.press(button);
+      void fireEvent.press(button);
+    });
+    expect(saveProfile).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
   });
 
   test('만 14세 미만으로 계정이 닫히면 닫힘 처리로 넘긴다', async () => {

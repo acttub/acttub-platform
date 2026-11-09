@@ -254,6 +254,15 @@ export function shownText(text: string, hidden: boolean, aid: LineAid): string |
   return null;
 }
 
+/** 가린 대사 줄 한 줄에 드는 대략 글자 수 — 리딩 카드 폭(약 320pt)에 title2(20) 글자가 들어가는 수. */
+export const HIDDEN_CHARS_PER_LINE = 18;
+
+/** 가린 대사 자리에 그을 줄 수(1~3). 대사 길이만 짐작하게 하고 3줄을 넘기지 않는다(SOMA-1047). */
+export function hiddenLineCount(text: string): number {
+  const length = Math.max(1, [...text.trim()].length);
+  return Math.min(3, Math.ceil(length / HIDDEN_CHARS_PER_LINE));
+}
+
 /** 이어하기 — current_line 부터 시작하되 그 줄 직전의 상대 대사 하나를 먼저 읽어 흐름을 잡아 준다. */
 export function resumeRun(run: RunState, currentLineId: string): RunState {
   const at = run.lineIds.indexOf(currentLineId);

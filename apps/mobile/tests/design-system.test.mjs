@@ -82,7 +82,7 @@ const FONT_SIZE_ALLOWED = {
   'components/birth-wheel.tsx': 2,
   'components/launch-splash-screen.tsx': 1,
   'components/markdown.tsx': 5,
-  'components/practice-chrome.tsx': 9,
+  'components/practice-chrome.tsx': 7,
   'components/practice-video-modal.tsx': 1,
   'components/streak-celebration-screen.tsx': 7,
   'components/ui/loading-text.tsx': 1,

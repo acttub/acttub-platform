@@ -343,11 +343,19 @@ describe('답 보내기', () => {
         }),
     );
     await renderOpen();
-    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
+    // 빈 칸에도 보내기는 눌린다 — 보내지 않고 입력칸 아래에 이유 한 줄(SOMA-1057). 적으면 바로 사라진다.
+    await fireEvent.press(screen.getByRole('button', { name: SEND }));
+    expect(screen.getByText('답을 적거나 마이크로 말해 주세요')).toBeOnTheScreen();
+    expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
+    await fireEvent.changeText(input(), '더');
+    expect(screen.queryByText('답을 적거나 마이크로 말해 주세요')).not.toBeOnTheScreen();
 
     await typeAndSend('  더는 미루지 않기로요  ');
-    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
     expect(screen.getByText('답을 듣고 생각 중이에요…')).toBeOnTheScreen();
+    // 코치 답을 기다리는 동안 누르면 입력칸 위에 기다리라는 한 줄만 보이고 더 보내지 않는다.
+    await fireEvent.press(screen.getByRole('button', { name: SEND }));
+    expect(screen.getByText('코치 답이 오면 보낼 수 있어요')).toBeOnTheScreen();
+    expect(mockLoop.replyToCoach).toHaveBeenCalledTimes(1);
     expect(input()).toBeDisabled();
     // 보낸 답은 코치 답을 기다리는 동안 바로 오른쪽 말풍선으로 올라가고 입력칸은 빈다.
     expect(screen.getByTestId('coach-bubble-pending')).toBeOnTheScreen();
@@ -357,6 +365,7 @@ describe('답 보내기', () => {
 
     await act(async () => resolveReply(turn(ANSWERED)));
     expect(screen.getByText('그때 시선은 어디에 있었나요?')).toBeOnTheScreen();
+    expect(screen.queryByText('코치 답이 오면 보낼 수 있어요')).not.toBeOnTheScreen();
     expect(input()).toHaveDisplayValue('');
     expect(screen.queryByTestId('coach-bubble-pending')).not.toBeOnTheScreen();
     expect(screen.getByText('더는 미루지 않기로요')).toBeOnTheScreen();
@@ -367,8 +376,22 @@ describe('답 보내기', () => {
 
     await fireEvent.changeText(input(), '가'.repeat(301));
     expect(input().props.maxLength).toBe(300);
-    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
     expect(screen.getByText('답은 300자까지 쓸 수 있어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: SEND }));
+    expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
+    expect(screen.getAllByText('답은 300자까지 쓸 수 있어요.')).toHaveLength(1);
+  });
+
+  test('보내기를 빠르게 두 번 눌러도 한 번만 보낸다(SOMA-1057)', async () => {
+    mockLoop.replyToCoach.mockImplementation(() => new Promise(() => undefined));
+    await renderOpen();
+    await fireEvent.changeText(input(), '한 번만');
+    const send = screen.getByRole('button', { name: SEND });
+    await act(async () => {
+      void fireEvent.press(send);
+      void fireEvent.press(send);
+    });
+    expect(mockLoop.replyToCoach).toHaveBeenCalledTimes(1);
   });
 
   test('같은 답을 다시 보내면 같은 요청 id 를, 고쳐 쓰면 새 id 를 쓴다', async () => {

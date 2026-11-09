@@ -83,6 +83,18 @@ describe('버튼', () => {
     await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
     expect(press).toHaveBeenCalledTimes(1);
   });
+
+  test('글자 버튼은 앞 아이콘을 두고, 처리 중이면 아이콘 없이 문구만 보이며 눌리지 않는다(SOMA-1048)', async () => {
+    const press = jest.fn();
+    const view = await render(<TextButton label="다시 읽기" tone="accent" icon={<Text>↻</Text>} onPress={press} />);
+    expect(screen.getByText('↻')).toBeOnTheScreen();
+    await view.rerender(<TextButton label="다시 읽기" tone="accent" icon={<Text>↻</Text>} loading loadingLabel="준비하는 중…" onPress={press} />);
+    expect(screen.queryByText('↻')).not.toBeOnTheScreen();
+    expect(screen.getByText('준비하는 중…')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '다시 읽기' })).toBeDisabled();
+    await fireEvent.press(screen.getByRole('button', { name: '다시 읽기' }));
+    expect(press).not.toHaveBeenCalled();
+  });
 });
 
 describe('머리', () => {

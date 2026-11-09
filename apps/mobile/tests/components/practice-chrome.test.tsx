@@ -4,7 +4,6 @@ import {
   SceneFoldBody,
   SceneFoldLink,
   SceneSummary,
-  Stepper,
   logFoldOpen,
 } from '@/components/practice-chrome';
 import { logEvent } from '@/lib/analytics';
@@ -52,29 +51,6 @@ const lastPlayer = () => mockPlayers[mockPlayers.length - 1];
 beforeEach(() => {
   log.mockClear();
   mockPlayers.length = 0;
-});
-
-describe('Stepper', () => {
-  // pen P/Stepper(SOMA-748) — 지나온 단계도 체크 대신 파란 동그라미에 번호를 둔다. 장면 단계를 뺀 뒤(SOMA-778) 단계 이름은 목적 · 영상 둘이다.
-  test('지나온·지금 단계 모두 번호로 보이고, 이름은 진한 14/700(pen 03)', async () => {
-    await render(<Stepper current={2} />);
-    expect(screen.getByText('목적')).toBeOnTheScreen();
-    expect(screen.getByText('영상')).toBeOnTheScreen();
-    expect(screen.queryByText('장면 · 질문')).not.toBeOnTheScreen();
-    expect(screen.queryByText('✓')).not.toBeOnTheScreen();
-    expect(screen.getByText('1')).toBeOnTheScreen();
-    expect(screen.getByText('2')).toBeOnTheScreen();
-    expect(screen.queryByText('3')).not.toBeOnTheScreen();
-    expect(screen.getByText('영상')).toHaveStyle({ fontSize: 14, fontWeight: '700', color: '#191F28' });
-    expect(screen.getByText('목적')).toHaveStyle({ fontWeight: '700', color: '#191F28' });
-  });
-
-  test('첫 단계에서는 지나온 단계가 없고 다음 단계는 흐리다', async () => {
-    await render(<Stepper current={1} />);
-    expect(screen.queryByText('✓')).not.toBeOnTheScreen();
-    expect(screen.getByText('1')).toBeOnTheScreen();
-    expect(screen.getByText('영상')).toHaveStyle({ color: '#6B7684' });
-  });
 });
 
 describe('SceneFoldLink', () => {

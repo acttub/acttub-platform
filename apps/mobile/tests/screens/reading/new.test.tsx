@@ -82,7 +82,7 @@ async function paste(text = PASTED) {
   await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), text);
 }
 
-test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 누를 수 없다', async () => {
+test('처음에는 파일 탭을 보이고 파일이 없으면 다음이 막혀 있으며, 붙여넣기 칸이 비면 누를 때 이유를 보인다', async () => {
   await render(<ReadingNew />);
 
   expect(screen.getByRole('tab', { name: /파일 업로드/ })).toBeSelected();
@@ -94,7 +94,14 @@ test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 �
   expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   // 예시 대본은 「대본 같이 만들기」에서 고른다 — 이 화면에는 링크가 없다(10/25).
   expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
+  // 파일은 고르는 칸이라 「다음」이 회색으로 막힌다. 글을 적는 붙여넣기 칸만 눌러서 이유를 본다(SOMA-1057 11/9 결정).
   expect(screen.getByText('다음')).toBeDisabled();
+  await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
+  expect(screen.getByText('다음')).toBeEnabled();
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText('대본 글을 붙여 넣어 주세요')).toBeOnTheScreen();
+  await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), '민지: 안녕');
+  expect(screen.queryByText('대본 글을 붙여 넣어 주세요')).not.toBeOnTheScreen();
 });
 
 test('붙여넣은 글과 제목을 보내 나누고, 목소리 정하기(2단계)로 간다', async () => {
@@ -114,6 +121,18 @@ test('붙여넣은 글과 제목을 보내 나누고, 목소리 정하기(2단�
     raw_text: PASTED,
   });
   expect(server.get).toHaveBeenCalledWith('s1');
+});
+
+test('「다음」을 빠르게 두 번 눌러도 대본을 한 번만 나눈다(SOMA-1057)', async () => {
+  await render(<ReadingNew />);
+  await paste();
+  const next = screen.getByText('다음');
+  await act(async () => {
+    void fireEvent.press(next);
+    void fireEvent.press(next);
+  });
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  expect(api.importScript).toHaveBeenCalledTimes(1);
 });
 
 test('배역이 하나뿐인 대본도 나눈 뒤 목소리 정하기로 간다', async () => {

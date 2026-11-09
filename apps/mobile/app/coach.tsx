@@ -117,6 +117,8 @@ function CoachTalk() {
   const startInFlightRef = useRef(false);
   /** 이번 답의 요청 id — 같은 답을 다시 보내면 그대로 쓴다(메시지가 늘지 않는다). */
   const attemptRef = useRef<{ text: string; requestId: string } | null>(null);
+  // 보내기를 빠르게 두 번 눌러도 한 번만 보낸다 — 화면이 「생각 중」으로 바뀌기 전에 들어온 두 번째 누름을 막는다.
+  const sendingRef = useRef(false);
   const startRequestIdRef = useRef<string>(newRequestId());
 
   const [conversation, setConversation] = useState<CoachConversation | null>(null);
@@ -127,6 +129,10 @@ function CoachTalk() {
   const inputRef = useRef<TextInput>(null);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
+  // 못 보내는 보내기를 눌렀나(SOMA-1057). 이유가 바뀌거나 풀리면 다시 누를 때까지 줄을 숨긴다.
+  const [sendBlocked, setSendBlocked] = useState(false);
+  const sendBlock = waiting || connecting || !conversation ? 'waiting' : !input.trim() ? 'empty' : null;
+  useEffect(() => setSendBlocked(false), [sendBlock]);
   /** 코치가 지금 쓰고 있는 답(스트리밍). 비어 있으면 아직 첫 글자 전이거나 스트리밍이 아니다. */
   const [streamText, setStreamText] = useState('');
   const streamCallbacks = useMemo(
@@ -230,6 +236,8 @@ function CoachTalk() {
         if (answerTooLong(trimmed)) setError(t('coach.answerTooLong'));
         return;
       }
+      if (sendingRef.current) return;
+      sendingRef.current = true;
       // 같은 답의 재전송은 같은 요청 id 다 — 본문이 바뀌면 새로 만든다.
       const attempt =
         attemptRef.current?.text === trimmed
@@ -263,6 +271,7 @@ function CoachTalk() {
         if (failure.kind === 'conflict' || failure.kind === 'closed') await reloadConversation();
         if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       } finally {
+        sendingRef.current = false;
         if (mountedRef.current) {
           setStreamText('');
           setPendingText(null);
@@ -435,6 +444,14 @@ function CoachTalk() {
   const latestQuestion = latestCoachIndex >= 0 ? messages[latestCoachIndex].text : null;
   const choices = answerChoices(conversation, { busy: waiting || connecting || !!streamText || !!pendingText });
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
+  // 보내기는 막지 않고 늘 둔다(SOMA-1057). 못 보낼 때 누르면 보내지 않고 이유를 한 줄로 알린다 — 코치를 기다리는 중이면 입력칸 위,
+  // 입력이 비었으면 입력칸 아래. 조건이 채워지면 줄은 바로 사라진다. 너무 길거나 읽을 수 없는 글은 아래에 이미 줄이 있다.
+  const pressSend = () => {
+    // 너무 길거나 읽을 수 없는 글은 입력칸 아래에 이미 이유가 있다 — 보내지 않고 칸으로 돌아간다.
+    if (!sendBlock) return canSend ? void sendText(input) : inputRef.current?.focus();
+    setSendBlocked(true);
+    if (sendBlock === 'empty') inputRef.current?.focus();
+  };
   const wrapping = conversation ? nextReplyWraps(conversation) : false;
   const sceneVideo = practice.videoUri || practice.playbackUrl;
   const sceneWritten = [practice.scene.situation, practice.scene.character, practice.scene.goal].some((v) => v?.trim());
@@ -692,6 +709,7 @@ function CoachTalk() {
                 ))}
               </View>
             )}
+            {sendBlocked && sendBlock === 'waiting' && <InlineErrorLine message={t('coach.blockWaiting')} />}
             <View style={styles.inputRow}>
               {MicButton && !sample && <MicButton onText={changeInput} disabled={connecting || waiting || !conversation} />}
               <ChatComposer
@@ -703,12 +721,14 @@ function CoachTalk() {
                 onChangeText={changeInput}
                 maxLength={COACH_ANSWER_MAX}
                 editable={!connecting && !waiting && !!conversation}
-                canSend={canSend}
-                onSend={() => void sendText(input)}
+                canSend
+                onSend={pressSend}
                 sendLabel={t('coach.send')}
               />
             </View>
-            {answerTooLong(input.trim()) ? (
+            {sendBlocked && sendBlock === 'empty' ? (
+              <InlineErrorLine message={t('coach.blockEmpty')} />
+            ) : answerTooLong(input.trim()) ? (
               <InlineErrorLine message={t('coach.answerTooLong')} />
             ) : strippedHint && input.trim() ? (
               <InlineErrorLine message={t('coach.answerStripped')} />
