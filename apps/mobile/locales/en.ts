@@ -1738,6 +1738,7 @@ const en: DeepStringShape<typeof ko> = {
     lineEditRename: "Rename '{{name}}'",
     lineEditText: 'Text',
     lineEditFailed: "Couldn't save. Please try again in a moment.",
+    lineMenuReadFrom: 'Read from here',
     lineMenuEdit: 'Edit',
     lineMenuSplit: 'Split',
     lineMenuInsert: 'Add below',
