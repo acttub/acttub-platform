@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -16,6 +15,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { NoticeBand } from '@/components/ui/notice-band';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -148,10 +148,7 @@ export default function ReportDetailScreen() {
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.date}>{formatKoreanDate(note.created_at, { month: 'long', day: 'numeric' })}</Text>
             {fallbackNotice && (
-              <View style={styles.fallback}>
-                <Feather name="alert-circle" size={14} color={palette.amber} />
-                <Text style={styles.fallbackText}>{fallbackNotice}</Text>
-              </View>
+              <NoticeBand compact icon="alert-circle" message={fallbackNotice} style={styles.fallback} />
             )}
           </View>
 
@@ -177,6 +174,5 @@ const styles = StyleSheet.create({
   kind: { ...type.micro, color: palette.blueDeep },
   title: { ...type.title2, color: palette.text },
   date: { ...type.caption, color: palette.textMeta },
-  fallback: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[2], padding: space[3], borderRadius: radius.md, backgroundColor: palette.amberSoft },
-  fallbackText: { flex: 1, ...type.captionBold, color: palette.amber },
+  fallback: { marginTop: space[2] },
 });
