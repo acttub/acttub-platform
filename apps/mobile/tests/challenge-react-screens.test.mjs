@@ -48,9 +48,8 @@ test('challenge.react: 댓글은 서버에서 읽고 500자·본인 삭제·확�
 test('challenge.report: 신고 시트는 사유 다섯과 기타 메모를 받는다', () => {
   const sheet = read('components/challenge-report-sheet.tsx');
 
-  assert.match(sheet, /REPORT_REASONS\.map/);
-  assert.match(sheet, /needsNote\(reason\)/);
-  assert.match(sheet, /maxLength=\{REPORT_NOTE_MAX\}/);
+  assert.match(sheet, /reasons=\{REPORT_REASONS\}/);
+  assert.match(sheet, /noteMax=\{REPORT_NOTE_MAX\}/);
   assert.match(read('locales/ko.ts'), /중복 업로드/);
   // 사유는 요구사항의 다섯이다.
   assert.doesNotMatch(read('lib/challenge/types.ts'), /'sexual'|'violence'/);
