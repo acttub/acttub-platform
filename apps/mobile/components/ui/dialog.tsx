@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { Button } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -16,6 +17,37 @@ export function DialogCard({ title, message, children }: { title: string; messag
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {children}
     </View>
+  );
+}
+
+/**
+ * 확인창 덮개 — 투명 Modal 위 scrim, 가운데에 DialogCard 를 놓는다. 키보드가 뜨면 남은 칸 가운데로 올라간다(KeyboardLift).
+ * `onBackdropPress`가 있을 때만 바깥을 눌러 닫는다. 안드로이드 뒤로 가기는 `onRequestClose`가 받는다.
+ */
+export function DialogModal({
+  visible = true,
+  onRequestClose,
+  onBackdropPress,
+  backdropTestID,
+  children,
+}: {
+  visible?: boolean;
+  onRequestClose: () => void;
+  onBackdropPress?: () => void;
+  backdropTestID?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Modal transparent statusBarTranslucent visible={visible} animationType="fade" onRequestClose={onRequestClose}>
+      <KeyboardLift>
+        {/* 덮개와 카드 칸은 화면 읽기에서 한 덩어리가 되지 않게 접근 요소로 두지 않는다 — 안의 글·버튼을 하나씩 읽는다. */}
+        <Pressable style={styles.backdrop} onPress={onBackdropPress} disabled={!onBackdropPress} testID={backdropTestID} accessible={false}>
+          <Pressable style={styles.stop} onPress={(e) => e.stopPropagation()} accessible={false}>
+            {children}
+          </Pressable>
+        </Pressable>
+      </KeyboardLift>
+    </Modal>
   );
 }
 
@@ -65,4 +97,6 @@ const styles = StyleSheet.create({
   message: { ...type.body2, color: palette.textSub, textAlign: 'center' },
   buttonRow: { flexDirection: 'row', gap: space[2], paddingTop: space[4] },
   fill: { flex: 1 },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
+  stop: { width: '100%', alignItems: 'center' },
 });

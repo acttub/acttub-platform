@@ -1,17 +1,16 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Image, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { DragReorderList } from '@/components/drag-reorder';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { KeyboardLift } from '@/components/keyboard-lift';
 import { Button } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
-import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
 import { LoadingText } from '@/components/ui/loading-text';
@@ -380,76 +379,74 @@ export default function PortfolioEditScreen() {
       </KeyboardAwareScroll>
 
       {/* 경력 추가·수정 */}
-      <Modal visible={editing !== null} transparent statusBarTranslucent animationType="fade" onRequestClose={() => setEditing(null)}>
-        <KeyboardLift>
-          <Pressable testID="credit-dialog-backdrop" style={styles.backdrop} onPress={() => setEditing(null)}>
-            {editing && (
-              <Pressable style={styles.stop} onPress={(e) => e.stopPropagation()}>
-                <DialogCard title={t(editing.id ? 'portfolio.creditEditTitle' : 'portfolio.creditAddTitle')}>
-                  <View style={styles.form}>
-                    <TextField
-                      label={t('portfolio.creditTitleLabel')}
-                      placeholder={t('portfolio.creditTitlePlaceholder')}
-                      value={editing.draft.title}
-                      error={editing.errors.title ? t(`portfolio.fieldError.${editing.errors.title}`) : null}
-                      onChangeText={(title) =>
-                        setEditing({ ...editing, draft: { ...editing.draft, title }, errors: { ...editing.errors, title: undefined } })
-                      }
-                    />
-                    <TextField
-                      label={t('portfolio.creditRoleLabel')}
-                      placeholder={t('portfolio.creditRolePlaceholder')}
-                      value={editing.draft.role}
-                      error={editing.errors.role ? t(`portfolio.fieldError.${editing.errors.role}`) : null}
-                      onChangeText={(role) =>
-                        setEditing({ ...editing, draft: { ...editing.draft, role }, errors: { ...editing.errors, role: undefined } })
-                      }
-                    />
-                    <TextField
-                      label={t('portfolio.creditYearLabel')}
-                      placeholder={t('portfolio.creditYearPlaceholder')}
-                      value={editing.draft.year}
-                      keyboardType="number-pad"
-                      maxLength={4}
-                      error={editing.errors.year ? t(`portfolio.fieldError.${editing.errors.year}`) : null}
-                      onChangeText={(text) =>
-                        setEditing({
-                          ...editing,
-                          draft: { ...editing.draft, year: text.replace(/[^0-9]/g, '').slice(0, 4) },
-                          errors: { ...editing.errors, year: undefined },
-                        })
-                      }
-                    />
-                    <Text style={styles.fieldLabel}>{t('portfolio.creditKindLabel')}</Text>
-                    <View style={styles.chips}>
-                      {CREDIT_KINDS.map((kind) => (
-                        <Chip
-                          key={kind}
-                          label={kindLabel(kind)}
-                          role="radio"
-                          selected={editing.draft.kind === kind}
-                          onPress={() =>
-                            setEditing({ ...editing, draft: { ...editing.draft, kind }, errors: { ...editing.errors, kind: undefined } })
-                          }
-                        />
-                      ))}
-                    </View>
-                    {editing.errors.kind && <InlineErrorLine message={t('portfolio.fieldError.required')} />}
-                    {editing.failure ? <InlineErrorLine message={editing.failure} /> : null}
-                  </View>
-                  <DialogButtons
-                    cancelLabel={t('common.cancel')}
-                    onCancel={() => setEditing(null)}
-                    confirmLabel={t('portfolio.save')}
-                    onConfirm={saveCredit}
-                    busy={busy !== null}
-                  />
-                </DialogCard>
-              </Pressable>
-            )}
-          </Pressable>
-        </KeyboardLift>
-      </Modal>
+      <DialogModal
+        visible={editing !== null}
+        onRequestClose={() => setEditing(null)}
+        onBackdropPress={() => setEditing(null)}
+        backdropTestID="credit-dialog-backdrop">
+        {editing && (
+        <DialogCard title={t(editing.id ? 'portfolio.creditEditTitle' : 'portfolio.creditAddTitle')}>
+          <View style={styles.form}>
+            <TextField
+              label={t('portfolio.creditTitleLabel')}
+              placeholder={t('portfolio.creditTitlePlaceholder')}
+              value={editing.draft.title}
+              error={editing.errors.title ? t(`portfolio.fieldError.${editing.errors.title}`) : null}
+              onChangeText={(title) =>
+                setEditing({ ...editing, draft: { ...editing.draft, title }, errors: { ...editing.errors, title: undefined } })
+              }
+            />
+            <TextField
+              label={t('portfolio.creditRoleLabel')}
+              placeholder={t('portfolio.creditRolePlaceholder')}
+              value={editing.draft.role}
+              error={editing.errors.role ? t(`portfolio.fieldError.${editing.errors.role}`) : null}
+              onChangeText={(role) =>
+                setEditing({ ...editing, draft: { ...editing.draft, role }, errors: { ...editing.errors, role: undefined } })
+              }
+            />
+            <TextField
+              label={t('portfolio.creditYearLabel')}
+              placeholder={t('portfolio.creditYearPlaceholder')}
+              value={editing.draft.year}
+              keyboardType="number-pad"
+              maxLength={4}
+              error={editing.errors.year ? t(`portfolio.fieldError.${editing.errors.year}`) : null}
+              onChangeText={(text) =>
+                setEditing({
+                  ...editing,
+                  draft: { ...editing.draft, year: text.replace(/[^0-9]/g, '').slice(0, 4) },
+                  errors: { ...editing.errors, year: undefined },
+                })
+              }
+            />
+            <Text style={styles.fieldLabel}>{t('portfolio.creditKindLabel')}</Text>
+            <View style={styles.chips}>
+              {CREDIT_KINDS.map((kind) => (
+                <Chip
+                  key={kind}
+                  label={kindLabel(kind)}
+                  role="radio"
+                  selected={editing.draft.kind === kind}
+                  onPress={() =>
+                    setEditing({ ...editing, draft: { ...editing.draft, kind }, errors: { ...editing.errors, kind: undefined } })
+                  }
+                />
+              ))}
+            </View>
+            {editing.errors.kind && <InlineErrorLine message={t('portfolio.fieldError.required')} />}
+            {editing.failure ? <InlineErrorLine message={editing.failure} /> : null}
+          </View>
+          <DialogButtons
+            cancelLabel={t('common.cancel')}
+            onCancel={() => setEditing(null)}
+            confirmLabel={t('portfolio.save')}
+            onConfirm={saveCredit}
+            busy={busy !== null}
+          />
+        </DialogCard>
+        )}
+      </DialogModal>
       {dialog}
     </SafeAreaView>
     </GestureHandlerRootView>
@@ -554,8 +551,6 @@ const styles = StyleSheet.create({
   },
   photoAddText: { ...type.captionBold, color: palette.blueDeep },
   url: { ...type.body2Bold, color: palette.text },
-  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space[5] },
-  stop: { width: '100%', alignItems: 'center' },
   form: { gap: space[3], paddingTop: space[2] },
   fieldLabel: { ...type.body2Bold, color: palette.textSub },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
