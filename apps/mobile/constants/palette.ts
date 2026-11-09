@@ -20,7 +20,7 @@ export const palette = {
   blue: '#4880EE',
   blueDeep: '#3268D8',
   blueSoft: '#EAF3FE',
-  // 리딩 가린 대사 줄(blue-soft 카드 위 연한 파랑, SOMA-1047). pen 변수는 아직 없다 — tests/design-system 의 PEN_PENDING.
+  // 리딩 가린 대사 줄(blue-soft 카드 위 연한 파랑, SOMA-1047).
   blueMask: '#BCD6F7',
 
   danger: '#E42939',
