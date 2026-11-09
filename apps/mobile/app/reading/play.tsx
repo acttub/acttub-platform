@@ -115,7 +115,6 @@ import {
 } from '@/lib/reading/voice-capability';
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { ReadingNoScript } from '@/components/reading/no-script';
-import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
@@ -1920,29 +1919,19 @@ export default function ReadingPlay() {
     const roles = listenAll ? t('reading.listenAllRole') : config.myNames.join(', ');
     // 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서, 이미 있는 탭까지 내려간다(SOMA-853).
     const goHome = () => router.dismissTo('/(tabs)');
-    const links = (
-      <View style={styles.doneLinks}>
-        <Pressable
-          style={[styles.doneLink, busy && styles.doneLinkOff]}
-          onPress={() => void readAgain()}
-          disabled={busy}
-          accessibilityRole="button"
-          accessibilityLabel={t('reading.readAgain')}
-          accessibilityState={{ disabled: busy }}>
-          {restarting ? (
-            <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-          ) : (
-            <>
-              <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-              <Text style={[styles.doneLinkText, styles.doneLinkAccent]}>{t('reading.readAgain')}</Text>
-            </>
-          )}
-        </Pressable>
-        <Pressable style={styles.doneLink} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
-          <Feather name="file-text" size={16} color={palette.textSub} />
-          <Text style={styles.doneLinkText}>{t('reading.otherScript')}</Text>
-        </Pressable>
-      </View>
+    // 다음 행동 순서(SOMA-1048 D안): 요약 바로 아래 「다른 대본으로」(Button/Text), 아래 고정 바에 「↻ 다시 읽기」(Button/Text-link)와
+    // 맨 아래 주 버튼 「홈으로 가기」. 다시 읽기가 있는 끝 상태는 모두 이 규칙을 쓴다.
+    const otherScript = <TextButton label={t('reading.otherScript')} onPress={() => router.dismissTo('/reading')} />;
+    const readAgainButton = (
+      <TextButton
+        tone="accent"
+        label={t('reading.readAgain')}
+        icon={<Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
+        onPress={() => void readAgain()}
+        disabled={busy}
+        loading={restarting}
+        loadingLabel={t('loadingText.preparing')}
+      />
     );
     const summary = (line: string) => (
       <View style={styles.doneSummary}>
@@ -1960,14 +1949,14 @@ export default function ReadingPlay() {
     if (!completed && !firstStopped) {
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} mascotMotion="none" title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} mascotMotion="none" title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked} footer={readAgainButton}>
             <View style={styles.doneBody}>
               <View style={styles.doneHead}>
                 <Text style={styles.doneDesc}>{t('reading.notCountedBody')}</Text>
                 <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
-              {links}
+              {otherScript}
               {ratingCard}
             </View>
           </DoneScreen>
@@ -1989,10 +1978,10 @@ export default function ReadingPlay() {
       };
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={() => void homeAfterFirst()} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={() => void homeAfterFirst()} homeDisabled={doneLocked} footer={readAgainButton}>
             <View style={styles.doneBody}>
               {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
-              {links}
+              {otherScript}
               {ratingCard}
             </View>
           </DoneScreen>
@@ -2017,7 +2006,7 @@ export default function ReadingPlay() {
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.monologueDoneTitle')} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+          <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.monologueDoneTitle')} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={<>{reportRow}{readAgainButton}</>}>
             <View style={styles.doneBody}>
               <View style={styles.doneHead}>
                 {compared && (
@@ -2028,7 +2017,7 @@ export default function ReadingPlay() {
                 <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
-              {links}
+              {otherScript}
               {coaching && (
                 <>
                   <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
@@ -2083,11 +2072,11 @@ export default function ReadingPlay() {
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
       <>
-        <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.completeTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+        <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.completeTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={<>{reportRow}{readAgainButton}</>}>
           <View style={styles.doneBody}>
             {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
-            {links}
+            {otherScript}
             {coaching && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
             {listened ? (
               note(t('reading.listenDoneNote'), 'info')
@@ -2560,11 +2549,6 @@ const styles = StyleSheet.create({
   doneMeta: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
   doneSummary: { backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], gap: space[1], alignItems: 'center' },
   doneSummaryText: { ...type.body2, color: palette.textSub, textAlign: 'center' },
-  doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[6] },
-  doneLink: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], height: 40 },
-  doneLinkOff: { opacity: 0.4 },
-  doneLinkText: { ...type.body2Bold, color: palette.textSub },
-  doneLinkAccent: { color: palette.blueDeep },
   doneCoach: { alignSelf: 'center' },
   resultCard: { borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: space[4], paddingVertical: space[2], gap: space[2] },
   diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingVertical: space[2] },
