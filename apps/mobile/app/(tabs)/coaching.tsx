@@ -55,6 +55,8 @@ export default function CoachingTab() {
   // 묶음을 못 받아 처음 화면으로 넘어간 경우 — 뼈대 기억(lib/skeleton-hint)에 적지 않는다.
   const [entryFailed, setEntryFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // 다시 시도를 눌러 받는 중 — 같은 오류 화면이 그대로라 버튼이 눌렸는지 보이게 한다.
+  const [retrying, setRetrying] = useState(false);
   const [groups, setGroups] = useState<PracticeGroup[]>(() => shared ?? []);
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
@@ -67,12 +69,14 @@ export default function CoachingTab() {
         .listPracticeGroups('all')
         .then(({ groups: list }) => {
           if (cancelled) return;
+          setRetrying(false);
           setGroups(list);
           setEntry(coachingEntry(list));
           setEntryFailed(false);
         })
         .catch(() => {
           if (cancelled) return;
+          setRetrying(false);
           setEntry({ kind: 'first' });
           setEntryFailed(true);
         });
@@ -140,7 +144,14 @@ export default function CoachingTab() {
       />
       {/* 못 받았을 때 처음 화면으로 넘어가지 않는다 — 첫 사용자 화면은 받을 것이 없어 그대로 둔다. */}
       {entryFailed && !firstHint ? (
-        <StatusScreen title={t('history.loadFail')} body={t('settings.retryLater')} primary={{ label: t('common.retry'), onPress: () => setAttempt((n) => n + 1) }} />
+        <StatusScreen title={t('history.loadFail')} body={t('settings.retryLater')} primary={{
+            label: t('common.retry'),
+            loading: retrying,
+            onPress: () => {
+              setRetrying(true);
+              setAttempt((n) => n + 1);
+            },
+          }} />
       ) : !entry && !first ? (
         skeletonHints.coaching === 'next' ? (
           <CoachingNextSkeleton rows={skeletonHints.coachingRows ?? RECENT_COUNT} bottomSpace={tabBarSpace + space[5]} />

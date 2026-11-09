@@ -151,8 +151,14 @@ test('탭바가 보이면 하단 탭으로 홈에 가므로 뒤로 꺾쇠를 두
   expect(screen.queryByText('코칭이 처음이죠?')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
 
+  // 다시 받는 동안 버튼이 받는 중으로 바뀌어 눌린 것이 보인다.
+  let answer: (value: { groups: PracticeGroup[] }) => void = () => {};
+  listPracticeGroups.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
   await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
   expect(listPracticeGroups).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole('button', { name: '다시 시도' })).toBeBusy();
+  await act(async () => answer({ groups: [] }));
+  expect(await screen.findByText('코칭이 처음이죠?')).toBeOnTheScreen();
 });
 
 describe('첫 사용자라 탭바가 숨으면', () => {
