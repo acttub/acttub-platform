@@ -8,6 +8,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { Image } from 'expo-image';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT as MASCOT_IMG, MASCOT_SIZE } from '@/components/ui/mascot';
@@ -307,7 +308,7 @@ export default function ReadingRange() {
           <Text style={[styles.cardTitle, on && styles.titleOn]}>{title}</Text>
           <Text style={styles.cardSub} numberOfLines={1}>{sub}</Text>
         </View>
-        {on && <Feather name="check-circle" size={22} color={palette.blue} />}
+        {on && <Checkbox checked />}
       </Pressable>
     );
   };
@@ -318,7 +319,7 @@ export default function ReadingRange() {
       <Pressable key={key} style={[styles.recentRow, on && styles.recentRowOn]} onPress={() => pickRange(r)} accessibilityRole="radio" accessibilityState={{ checked: on }}>
         <Text style={[styles.recentTitle, on && styles.titleOn]} numberOfLines={1}>{title}</Text>
         <Text style={styles.recentMeta} numberOfLines={1}>{meta}</Text>
-        {on && <Feather name="check-circle" size={22} color={palette.blue} />}
+        {on && <Checkbox checked />}
       </Pressable>
     );
   };
@@ -382,7 +383,7 @@ export default function ReadingRange() {
                     <Text style={[styles.cardTitle, on && styles.titleOn]}>{c.name}</Text>
                     <Text style={styles.cardSub} numberOfLines={1}>{sub}</Text>
                   </View>
-                  {on && <Feather name="check-circle" size={22} color={palette.blue} />}
+                  {on && <Checkbox checked />}
                 </Pressable>
               );
             })}
