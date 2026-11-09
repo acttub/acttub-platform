@@ -8,6 +8,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { Image } from 'expo-image';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT as MASCOT_IMG, MASCOT_SIZE } from '@/components/ui/mascot';
 import { useAppDialog } from '@/components/app-dialog';
@@ -396,15 +397,14 @@ export default function ReadingRange() {
           {cast.map((c) => {
             const on = selected.includes(c.id);
             return (
-              <Pressable
+              <Chip
                 key={c.id}
-                style={[styles.roleChip, on && styles.roleChipOn]}
+                label={c.name}
+                count={mono ? undefined : roleLineCount(c, lines, script.characters)}
+                role="checkbox"
+                selected={on}
                 onPress={() => toggleRole(c.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: on }}>
-                <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{c.name}</Text>
-                {!mono && <Text style={styles.roleChipCount}>{roleLineCount(c, lines, script.characters)}</Text>}
-              </Pressable>
+              />
             );
           })}
         </ScrollView>
@@ -479,15 +479,16 @@ export default function ReadingRange() {
             {READING_RATES.map((r) => {
               const on = listen.rate === r;
               return (
-                <Pressable
+                <Chip
                   key={r}
-                  style={[styles.rateChip, on && styles.rateChipOn]}
+                  size="sm"
+                  style={styles.rateChip}
+                  label={t('reading.rateValue', { rate: rateLabel(r) })}
+                  accessibilityLabel={t('reading.rateA11y', { rate: t('reading.rateValue', { rate: rateLabel(r) }) })}
+                  role="radio"
+                  selected={on}
                   onPress={() => updateListen({ rate: r })}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  accessibilityLabel={t('reading.rateA11y', { rate: t('reading.rateValue', { rate: rateLabel(r) }) })}>
-                  <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{t('reading.rateValue', { rate: rateLabel(r) })}</Text>
-                </Pressable>
+                />
               );
             })}
           </View>
@@ -612,14 +613,8 @@ const styles = StyleSheet.create({
   pauseInput: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   pauseField: { width: 72, minHeight: 40, textAlign: 'center' },
   pauseFieldError: { borderWidth: 1.5, borderColor: palette.danger },
-  rateChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
-  rateChip: { alignItems: 'center', justifyContent: 'center', minHeight: 32, minWidth: 48, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[2] },
+  rateChip: { minWidth: 48, alignItems: 'center' },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },
-  roleChip: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 40, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[4] },
-  roleChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },
-  roleChipText: { ...type.body2Bold, color: palette.textSub },
-  roleChipTextOn: { color: palette.blueDeep },
-  roleChipCount: { ...type.body2, color: palette.textMeta },
   list: { gap: space[3] },
   preview: { borderRadius: radius.lg, backgroundColor: palette.bgSoft, overflow: 'hidden' },
   previewScroll: { maxHeight: 320 },

@@ -7,7 +7,7 @@ import { radius, space, type } from '@/constants/tokens';
  * 디자인 시스템 pen 「Chip/Off」·「Chip/On」 — 높이 40(긴 글자는 늘어남) 알약, 흰 바탕 · 1px border, 안쪽 좌우 16, body2-bold text-sub.
  * 고르면 blue-soft 바탕 · 1.5px blue 테두리 · blue-deep 글자. 감정·필터·답 칩이 같이 쓴다.
  * 고르는 칩이면 `role`로 radio(하나)·checkbox(여럿)를 알려 화면 읽기가 고른 상태를 읽게 한다.
- * `size="sm"`은 목록 위 필터·정렬 칩(높이 32, 안쪽 좌우 12)이다.
+ * `size="sm"`은 목록 위 필터·정렬 칩(높이 32, 안쪽 좌우 12)이다. `count`는 이름 뒤 흐린 숫자(배역 칩의 대사 수)다.
  */
 export function Chip({
   label,
@@ -18,6 +18,8 @@ export function Chip({
   role = 'button',
   size = 'md',
   style,
+  count,
+  accessibilityLabel,
 }: {
   label: string;
   selected?: boolean;
@@ -27,6 +29,8 @@ export function Chip({
   role?: 'button' | 'radio' | 'checkbox';
   size?: 'md' | 'sm';
   style?: StyleProp<ViewStyle>;
+  count?: number;
+  accessibilityLabel?: string;
 }) {
   const state =
     role === 'checkbox'
@@ -37,11 +41,12 @@ export function Chip({
       onPress={onPress}
       disabled={disabled || !onPress}
       accessibilityRole={role}
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? (count === undefined ? label : `${label} ${count}`)}
       accessibilityState={state}
       ph-label={phLabel}
-      style={({ pressed }) => [styles.chip, size === 'sm' && styles.sm, selected && (size === 'sm' ? styles.onSm : styles.on), pressed && styles.pressed, disabled && styles.dim, style]}>
+      style={({ pressed }) => [styles.chip, count !== undefined && styles.withCount, size === 'sm' && styles.sm, selected && (size === 'sm' ? styles.onSm : styles.on), pressed && styles.pressed, disabled && styles.dim, style]}>
       <Text style={[styles.label, selected && styles.labelOn]}>{label}</Text>
+      {count !== undefined && <Text style={styles.count}>{count}</Text>}
     </Pressable>
   );
 }
@@ -73,8 +78,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3] - 0.5,
     paddingVertical: space[1] - 0.5,
   },
+  withCount: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   pressed: { opacity: 0.7 },
   dim: { opacity: 0.5 },
   label: { ...type.body2Bold, color: palette.textSub },
   labelOn: { color: palette.blueDeep },
+  count: { ...type.body2, color: palette.textMeta },
 });

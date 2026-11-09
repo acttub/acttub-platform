@@ -25,6 +25,7 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
+import { Button } from '@/components/ui/buttons';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { MASCOT } from '@/components/ui/mascot';
@@ -583,13 +584,12 @@ export default function ChallengePlayScreen() {
             </View>
 
             {challenge && !isEnded(challenge) && (
-              <Pressable
-                style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
+              <Button
+                style={styles.perform}
+                label={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}
+                icon={<Feather name="video" size={16} color={palette.onAccent} />}
                 onPress={perform}
-                accessibilityRole="button">
-                <Feather name="video" size={16} color={palette.onAccent} />
-                <Text style={styles.performText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
-              </Pressable>
+              />
             )}
           </View>
         </View>
@@ -780,16 +780,5 @@ const styles = StyleSheet.create({
   action: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   actionOff: { opacity: 0.4 },
   actionText: { ...type.body2Bold, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
-  performBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[2],
-    backgroundColor: palette.blue,
-    borderRadius: radius.lg,
-    height: 48,
-    marginTop: space[1],
-  },
-  pressed: { opacity: 0.85 },
-  performText: { ...type.headline, color: palette.onAccent },
+  perform: { marginTop: space[1] },
 });
