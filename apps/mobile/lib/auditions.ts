@@ -5,6 +5,7 @@
  * 순수 계산뿐이다 — D-day, 마감 구간, 분야 묶음, 검색, 홈 카드용 임박 공고.
  * CI mobile 잡이 설치 없이 node --test로 돌리므로 이 파일은 아무것도 import하지 않는다.
  */
+import { DAY_MS, kstDayKey } from './kst.ts';
 
 export type AuditionCategory =
   | 'film'
@@ -52,15 +53,13 @@ export function normalizeAuditions(
   };
 }
 
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const DAY_MS = 86_400_000;
 
 /**
  * 한국 시간의 오늘(YYYY-MM-DD). 공고의 날짜가 전부 KST라 기기 시간대가 아니라 KST로 자른다 —
  * 해외에 있는 한국어 사용자도 서버와 같은 날짜로 D-day를 본다.
  */
 export function kstDate(now: Date = new Date()): string {
-  return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
+  return kstDayKey(now);
 }
 
 /** target까지 남은 날. 오늘이면 0, 지났으면 음수, 날짜가 없으면 null. */

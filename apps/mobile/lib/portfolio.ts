@@ -1,4 +1,5 @@
 import { ApiError, classifyUnprocessable } from './api-request.ts';
+import { KST_OFFSET_MS } from './kst.ts';
 
 /**
  * 포트폴리오 편집의 순수 로직(account.portfolio). 배우가 오디션에 낼 소개글·경력·사진을 적어
@@ -68,7 +69,7 @@ export function creditDraftFrom(credit: PortfolioCredit): CreditDraft {
 
 /** 서버는 한국 시간으로 센다. 연도는 1900년부터 내년까지다. */
 function maxCreditYear(now: Date): number {
-  return new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCFullYear() + 1;
+  return new Date(now.getTime() + KST_OFFSET_MS).getUTCFullYear() + 1;
 }
 
 function textError(value: string): CreditFieldError | null {

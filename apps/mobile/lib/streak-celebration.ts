@@ -11,14 +11,15 @@
  * 순수 함수 테스트조차 모듈 로드에서 깨진다(lib/device-storage).
  */
 import { deviceStorage as storage } from './device-storage.ts';
+import { kstDayKey } from './kst.ts';
 
 const LAST_SEEN_KEY = 'acttub.streak.lastSeen';
 /** 마지막으로 본 연속일을 적은 날(한국 시간 YYYY-MM-DD). 같은 날에는 그 값을 낮추지 않는다(11/2 폰 QA). */
 const LAST_SEEN_DAY_KEY = 'acttub.streak.lastSeenDay';
 
-/** 한국 시간 날짜 키. lib/practice/groups 의 kstDayKey 와 같은 규칙이지만 이 파일은 순수 node 테스트라 따로 둔다. */
+/** 한국 시간 오늘(YYYY-MM-DD). */
 export function kstToday(now: number = Date.now()): string {
-  return new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  return kstDayKey(now);
 }
 
 /** 지금 연속일이 마지막으로 본 값보다 크면(=오늘 늘었으면) 축하한다. */

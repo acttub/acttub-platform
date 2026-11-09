@@ -3,6 +3,7 @@ import { coachingEntry } from './practice/coaching-entry.ts';
 import type { CountedPractice, PracticeKind } from './practice/counted.ts';
 import type { PracticeGroup } from './practice/types.ts';
 import type { ScriptCard } from './reading/types.ts';
+import { DAY_MS, kstDayIndex } from './kst.ts';
 
 /**
  * 홈 「오늘 할 것」(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
@@ -23,12 +24,6 @@ export type TodayItem =
 
 export type TodayPick = { main: TodayItem; also: TodayItem | null };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-function kstDayIndex(ms: number): number {
-  return Math.floor((ms + KST_OFFSET_MS) / DAY_MS);
-}
 
 function timeOf(iso: string | null | undefined): number {
   const ms = iso ? Date.parse(iso) : Number.NaN;

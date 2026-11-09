@@ -1,6 +1,7 @@
 import { classifyUnprocessable } from './api-request.ts';
 import type { ProfileGateStatus } from './app-bootstrap.ts';
 import { translate } from './i18n.ts';
+import { kstDayKey } from './kst.ts';
 
 /**
  * 프로필 여섯 항목의 순수 로직(account.profile). 가입 게이트의 입력 화면(A0.2)과 설정의
@@ -88,10 +89,6 @@ export function formatBirthDateInput(text: string): string {
     .join('-');
 }
 
-function koreaDate(now: Date): string {
-  return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
-
 /** 서버(KoreanAge)와 같은 기준. 이보다 어린 생년월일은 앱이 칸에서 막는다. */
 export const MINIMUM_AGE = 14;
 
@@ -121,7 +118,7 @@ export function checkBirthDate(text: string, now: Date): BirthDateCheck {
     date.getUTCFullYear() === year &&
     date.getUTCMonth() === month - 1 &&
     date.getUTCDate() === day;
-  const today = koreaDate(now);
+  const today = kstDayKey(now);
   if (year < 1900 || !exists || trimmed > today) return { kind: 'invalid' };
   if (fullYearsOn(trimmed, today) < MINIMUM_AGE) return { kind: 'under_minimum' };
   return { kind: 'ok', value: trimmed };

@@ -7,8 +7,8 @@
  */
 
 import { DEFAULT_APP_CONFIG, getAppConfig } from './app-config.ts';
+import { DAY_MS } from './kst.ts';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 // 아래 상수는 기본값이다. 판정은 쓰는 순간 서버 설정(getAppConfig().rating)을 읽는다(SOMA-939).
 export const RATING_READING_EVERY = DEFAULT_APP_CONFIG.rating.readingEvery;
 export const RATING_MIN_GAP_MS = DEFAULT_APP_CONFIG.rating.minGapDays * DAY_MS;

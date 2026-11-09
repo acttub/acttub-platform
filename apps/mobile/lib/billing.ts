@@ -8,6 +8,7 @@
 import { errorCode, errorStatus } from './api-request.ts';
 import { translate as t } from './i18n.ts';
 import type { StorePlan } from './store-billing.ts';
+import { KST_OFFSET_MS } from './kst.ts';
 
 export type BillingStatus = 'none' | 'active' | 'canceled' | 'past_due' | 'expired';
 
@@ -38,7 +39,6 @@ export function billingClosed(error: unknown): boolean {
   return errorStatus(error) === 404 || errorCode(error) === 'billing_unavailable';
 }
 
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 /** 「11월 23일」 — 한국 시간 날짜. 비면 null. */
 export function monthDay(iso: string | null | undefined): string | null {
