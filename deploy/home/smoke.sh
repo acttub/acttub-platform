@@ -4,6 +4,7 @@
 #   deploy/home/smoke.sh                # 어느 디렉토리에서 실행해도 된다
 #   SMOKE_KEEP=1 deploy/home/smoke.sh   # 실패 원인을 보려고 스택·이미지·디렉토리를 남긴다
 #   SMOKE_RESTORE=false deploy/home/smoke.sh  # 10 단계(restore-db.sh 왕복)를 건너뛴다 — CI 가 복원과 무관한 PR 에서 쓴다
+#   SMOKE_BUILD_CACHE=gha deploy/home/smoke.sh  # 이미지 레이어를 GitHub Actions 캐시에서 읽고 쓴다 — CI 전용(러너 토큰 필요)
 #
 # 로컬과 CI(ci.yml 의 smoke 잡)가 같은 명령으로 돈다. 임시 디렉토리가 서버의 프로젝트 디렉토리
 # (/svc/acttub/<env>: compose.yml·.env·release.env) 노릇을 하고, 스택은 맨손 compose 가 아니라
@@ -106,9 +107,13 @@ docker compose version >/dev/null 2>&1 || fail "docker compose 가 없다"
 
 # build_image <태그> <docker build 인자...> — 진행 로그는 파일로 받고, 실패했을 때만 끝부분을 보여 준다
 # (CI 에서 --quiet 로 지우면 어느 RUN 이 왜 죽었는지 알 수 없다).
+# SMOKE_BUILD_CACHE=gha 면 레이어를 이미지 이름(acttub-api·acttub-web) 범위의 Actions 캐시에 둔다 — deploy.yml 과 같은 범위라
+# dev 에서 구운 레이어(apt·pnpm install)를 PR 이 읽는다.
 build_image() {
-  local tag="$1" log="$WORK/build-${1%%:*}.log"; shift
-  if ! docker build --progress=plain -t "$tag" "$@" >"$log" 2>&1; then
+  local tag="$1" log="$WORK/build-${1%%:*}.log" cache=(); shift
+  [ "${SMOKE_BUILD_CACHE:-}" = gha ] \
+    && cache=(--cache-from "type=gha,scope=${tag%%:*}" --cache-to "type=gha,mode=max,ignore-error=true,scope=${tag%%:*}")
+  if ! docker build --progress=plain ${cache[@]+"${cache[@]}"} -t "$tag" "$@" >"$log" 2>&1; then
     tail -80 "$log" >&2
     # 로그 파일은 정리(rm -rf $WORK)와 함께 사라진다 — 경로를 알려 줘도 소용없다.
     fail "이미지 빌드 실패: $tag (위는 로그 끝 80줄. 전체는 SMOKE_KEEP=1 로 다시 돌리면 임시 디렉토리의 build-*.log 에 남는다)"
