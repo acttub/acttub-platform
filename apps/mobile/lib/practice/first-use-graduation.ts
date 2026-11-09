@@ -1,4 +1,5 @@
 import { setFirstTimeState } from './first-time.ts';
+import { deviceStorage as storage } from '../device-storage.ts';
 
 /**
  * 첫 사용자 졸업 표시(SOMA-827) — 리딩을 마지막 줄까지 가 봤거나 코칭을 노트·일지까지 가 본 계정.
@@ -9,15 +10,6 @@ import { setFirstTimeState } from './first-time.ts';
  *
  * ⚠️ 네이티브 모듈이 없는 환경(Node 테스트)에서 조용히 넘어가도록 함수 안 require 로만 저장소에 닿는다.
  */
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-};
-
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
 
 const keyFor = (userId: string) => `acttub.firstUse.graduated.${userId}`;
 

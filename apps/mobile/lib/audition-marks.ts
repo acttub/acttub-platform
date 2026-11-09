@@ -1,3 +1,5 @@
+import { deviceStorage as storage } from './device-storage.ts';
+
 /**
  * 오디션 공고의 찜·봤음 표시 (app.audition). 서버에 저장하지 않는다(스펙 「범위 밖」) — 기기 AsyncStorage뿐이다.
  * 저장소를 못 읽거나 못 써도 화면은 그대로 동작한다: 읽기 실패는 빈 목록, 쓰기 실패는 조용히 넘긴다.
@@ -11,16 +13,6 @@ const SEEN_KEY = 'acttub.auditions.seen';
 const SEEN_LIMIT = 500;
 
 export type AuditionMark = 'starred' | 'seen';
-
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-};
-
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
 
 function keyOf(mark: AuditionMark): string {
   return mark === 'starred' ? STARRED_KEY : SEEN_KEY;

@@ -11,6 +11,7 @@
  */
 
 import { dayKey } from './practice-activity.ts';
+import { deviceStorage as storage } from './device-storage.ts';
 
 /**
  * 계정별 키(10/25). 예전 v1 은 계정을 가리지 않고 로그아웃해도 남아, 같은 폰에서 새 계정으로 들어가면 앞 계정의
@@ -18,17 +19,6 @@ import { dayKey } from './practice-activity.ts';
  */
 const LEGACY_KEY = 'acttub.practiceDays.v1';
 const keyFor = (userId: string) => `acttub.practiceDays.v2.${userId}`;
-
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-  removeItem(key: string): Promise<void>;
-};
-
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
 
 /** 저장된 {dayKey → 대표 ISO 시각}. 값은 buildRecentActivity 에 그대로 먹일 created_at. */
 type Stored = Record<string, string>;

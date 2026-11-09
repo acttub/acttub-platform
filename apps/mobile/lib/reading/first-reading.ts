@@ -1,4 +1,7 @@
 import { firstUseOwnerReady } from '../practice/first-use-graduation.ts';
+import { deviceStorage as storage, type DeviceStorage } from '../device-storage.ts';
+
+type Storage = Pick<DeviceStorage, 'getItem' | 'setItem'>;
 
 /**
  * 첫 리딩(10/29) — 리딩을 한 번도 끝까지 해 보지 않은 계정. 이 사람에게는 대본을 넣자마자 대본 상세·목소리·구간을 건너뛰고
@@ -9,14 +12,6 @@ import { firstUseOwnerReady } from '../practice/first-use-graduation.ts';
  *
  * ⚠️ 네이티브 모듈이 없는 환경(Node 테스트)에서도 불러올 수 있게 저장소는 함수 안 require 로만 닿는다.
  */
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-};
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
 const keyFor = (userId: string) => `acttub.reading.finishedOnce.${userId}`;
 /** 계정 id — 못 얻으면 null(로그인 전·저장소 없음). 여기서 실패해도 리딩 흐름은 막지 않는다. */
 async function ownerId(): Promise<string | null> {
