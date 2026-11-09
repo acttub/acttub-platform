@@ -8,6 +8,9 @@ import { apiFetch } from "./client";
 
 export type BillingStatus = "none" | "active" | "canceled" | "past_due" | "expired";
 
+/** 요금제(SOMA-1068). 웹 연 구독은 서버·웹 빌드 스위치가 모두 켜졌을 때만 고를 수 있다. */
+export type BillingPlan = "monthly" | "yearly";
+
 export type BillingMe = {
   status: BillingStatus;
   pro: boolean;
@@ -18,6 +21,7 @@ export type BillingMe = {
   card_last4: string | null;
   provider?: "toss" | "apple" | "google" | null;
   grant_ends_at?: string | null;
+  plan?: BillingPlan;
 };
 
 export type BillingCheckout = { checkout_url: string; return_url: string; expires_at: string };
@@ -32,11 +36,16 @@ export async function fetchBillingMe(options: { signal?: AbortSignal } = {}): Pr
   return data;
 }
 
-/** 일회용 카드 등록 창 주소를 받는다. 게스트는 403 billing_member_required 다. */
-export async function startBillingCheckout(options: { signal?: AbortSignal } = {}): Promise<BillingCheckout> {
+/**
+ * 일회용 카드 등록 창 주소를 받는다. 게스트는 403 billing_member_required 다. plan 을 주지 않으면 본문은 지금처럼
+ * {purpose} 뿐이고 서버가 월 구독으로 연다. 서버 연 구독 스위치가 꺼져 있으면 yearly 는 422 plan_unavailable 이다.
+ */
+export async function startBillingCheckout(
+  options: { signal?: AbortSignal; plan?: BillingPlan } = {},
+): Promise<BillingCheckout> {
   const { data } = await apiFetch<BillingCheckout>("/v2/billing/checkout", {
     method: "POST",
-    body: { purpose: "subscribe" },
+    body: options.plan ? { purpose: "subscribe", plan: options.plan } : { purpose: "subscribe" },
     auth: true,
     startGuest: false,
     consentPrompt: false,

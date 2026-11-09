@@ -200,6 +200,31 @@ class BillingEndpointIT {
     }
 
     @Test
+    @DisplayName("웹 연 구독 스위치가 꺼져 있으면(기본) yearly 창은 422 plan_unavailable 이고, plan 을 생략하거나 monthly 면 월 구독 그대로다")
+    void yearlyClosedByDefault() throws Exception {
+        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"yearly\"}"), 422)
+                .path("detail").asText()).contains("plan_unavailable");
+        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"weekly\"}"), 422)
+                .path("detail").asText()).contains("invalid_plan");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_checkouts", Integer.class)).isZero();
+
+        JsonNode started = json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"monthly\"}"), 200);
+        String url = started.path("checkout_url").textValue();
+        String state = url.substring(url.lastIndexOf('/') + 1);
+        assertThat(jdbc.queryForObject("SELECT plan FROM billing_checkouts", String.class)).isEqualTo("monthly");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=done");
+
+        JsonNode active = me();
+        assertThat(active.path("plan").textValue()).isEqualTo("monthly");
+        assertThat(active.path("amount").longValue()).isEqualTo(3900L);
+        assertThat(jdbc.queryForObject("SELECT plan FROM billing_subscriptions", String.class)).isEqualTo("monthly");
+        assertThat(jdbc.queryForObject("SELECT amount FROM billing_payments", Integer.class)).isEqualTo(3900);
+        org.mockito.Mockito.verify(gateway).approve(anyString(), anyString(), anyString(),
+                org.mockito.ArgumentMatchers.eq(3900L), org.mockito.ArgumentMatchers.eq("ACTTUB Pro 월 구독"), any(), anyString());
+    }
+
+    @Test
     @DisplayName("카드 바꾸기·실패 콜백·잘못된 창, 게스트·잘못된 목적")
     void changeCardAndFailures() throws Exception {
         assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"change_card\"}"), 409).path("detail").asText())

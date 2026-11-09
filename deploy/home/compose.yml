@@ -115,6 +115,8 @@ services:
       ACTTUB_PG_REVIEW_TOSS_SECRET_KEY: ${ACTTUB_PG_REVIEW_TOSS_SECRET_KEY:-}
       # ACTTUB Pro 결제(SOMA-818). 기본은 둘 다 꺼짐 — WEB 이 꺼져 있으면 토스 실결제가 나가지 않는다. 키·시크릿은 .env 에만 둔다.
       BILLING_WEB_ENABLED: ${BILLING_WEB_ENABLED:-false}
+      # 웹 연 구독(SOMA-1068). 토스 계약 변경 승인 전이라 기본 꺼짐.
+      BILLING_WEB_YEARLY_ENABLED: ${BILLING_WEB_YEARLY_ENABLED:-false}
       BILLING_APP_ENABLED: ${BILLING_APP_ENABLED:-false}
       BILLING_FREE_LIMITS_ENABLED: ${BILLING_FREE_LIMITS_ENABLED:-false}
       BILLING_PUBLIC_ORIGIN: ${BILLING_PUBLIC_ORIGIN:-}

@@ -14,7 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 매월 자동결제(SOMA-818). 스케줄러가 {@link #runOnce()} 를 할 일이 없을 때까지 부른다. 한 번에 구독 하나를
+ * 자동결제(SOMA-818). 구독의 요금제 주기(월 구독은 매월, 연 구독은 매년, SOMA-1068)와 장부 금액으로 청구한다. 스케줄러가 {@link #runOnce()} 를 할 일이 없을 때까지 부른다. 한 번에 구독 하나를
  * {@code FOR UPDATE SKIP LOCKED} 로 점유하므로 서버가 둘 떠 있어도(무중단 배포) 같은 구독을 함께 결제하지 않고,
  * 점유가 풀리지 않은 채 죽어도 {@link #LEASE} 뒤에 다시 집힌다. 그때도 주문 ID 가 같아 두 번 결제되지 않는다.
  *

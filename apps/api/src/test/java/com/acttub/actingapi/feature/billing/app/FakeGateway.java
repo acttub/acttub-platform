@@ -10,6 +10,9 @@ class FakeGateway implements AppBillingGateway {
     final List<String> approvedOrders = new ArrayList<>();
     final List<String> idempotencyKeys = new ArrayList<>();
     final List<String> customerEmails = new ArrayList<>();
+    /** 승인 요청마다 보낸 주문명과 금액(거절된 요청 포함). */
+    final List<String> orderNames = new ArrayList<>();
+    final List<Long> amounts = new ArrayList<>();
     String approvedAt = "2026-10-23T10:00:00+09:00";
     final Deque<RuntimeException> nextFailures = new ArrayDeque<>();
     RuntimeException issueFailure;
@@ -29,6 +32,8 @@ class FakeGateway implements AppBillingGateway {
             String customerEmail, String idempotencyKey) {
         idempotencyKeys.add(idempotencyKey);
         customerEmails.add(customerEmail);
+        orderNames.add(orderName);
+        amounts.add(amount);
         if (!nextFailures.isEmpty()) {
             throw nextFailures.pop();
         }

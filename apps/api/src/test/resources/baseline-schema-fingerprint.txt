@@ -157,6 +157,7 @@ COLUMN billing_checkouts.customer_key ord=5 type=text len=- null=NO default=-
 COLUMN billing_checkouts.expires_at ord=9 type=timestamptz len=- null=NO default=-
 COLUMN billing_checkouts.id ord=1 type=uuid len=- null=NO default=-
 COLUMN billing_checkouts.order_id ord=6 type=text len=- null=NO default=-
+COLUMN billing_checkouts.plan ord=12 type=text len=- null=NO default='monthly'::text
 COLUMN billing_checkouts.purpose ord=4 type=text len=- null=NO default=-
 COLUMN billing_checkouts.result_code ord=8 type=text len=- null=YES default=-
 COLUMN billing_checkouts.state_hash ord=3 type=text len=- null=NO default=-
@@ -196,6 +197,7 @@ COLUMN billing_subscriptions.customer_key ord=5 type=text len=- null=YES default
 COLUMN billing_subscriptions.id ord=1 type=uuid len=- null=NO default=-
 COLUMN billing_subscriptions.lease_until ord=17 type=timestamptz len=- null=YES default=-
 COLUMN billing_subscriptions.next_retry_at ord=16 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.plan ord=20 type=text len=- null=NO default='monthly'::text
 COLUMN billing_subscriptions.provider ord=4 type=text len=- null=NO default='toss'::text
 COLUMN billing_subscriptions.retry_count ord=15 type=int4 len=- null=NO default=0
 COLUMN billing_subscriptions.status ord=3 type=text len=- null=NO default=-
@@ -1137,6 +1139,7 @@ CONSTRAINT billing_checkouts billing_checkouts_expires_at_not_null NOT NULL expi
 CONSTRAINT billing_checkouts billing_checkouts_id_not_null NOT NULL id
 CONSTRAINT billing_checkouts billing_checkouts_order_id_not_null NOT NULL order_id
 CONSTRAINT billing_checkouts billing_checkouts_pkey PRIMARY KEY (id)
+CONSTRAINT billing_checkouts billing_checkouts_plan_not_null NOT NULL plan
 CONSTRAINT billing_checkouts billing_checkouts_purpose_not_null NOT NULL purpose
 CONSTRAINT billing_checkouts billing_checkouts_state_hash_not_null NOT NULL state_hash
 CONSTRAINT billing_checkouts billing_checkouts_status_not_null NOT NULL status
@@ -1173,6 +1176,7 @@ CONSTRAINT billing_subscriptions billing_subscriptions_amount_not_null NOT NULL 
 CONSTRAINT billing_subscriptions billing_subscriptions_created_at_not_null NOT NULL created_at
 CONSTRAINT billing_subscriptions billing_subscriptions_id_not_null NOT NULL id
 CONSTRAINT billing_subscriptions billing_subscriptions_pkey PRIMARY KEY (id)
+CONSTRAINT billing_subscriptions billing_subscriptions_plan_not_null NOT NULL plan
 CONSTRAINT billing_subscriptions billing_subscriptions_provider_not_null NOT NULL provider
 CONSTRAINT billing_subscriptions billing_subscriptions_retry_count_not_null NOT NULL retry_count
 CONSTRAINT billing_subscriptions billing_subscriptions_status_not_null NOT NULL status

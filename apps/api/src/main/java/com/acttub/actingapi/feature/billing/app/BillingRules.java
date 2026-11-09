@@ -17,7 +17,10 @@ public final class BillingRules {
     /** 양 스토어 공통 상품 ID. 구글은 구독 ID 이고 기본 요금제(base plan)는 {@link #GOOGLE_BASE_PLAN_ID}. */
     public static final String STORE_PRODUCT_ID = "acttub_pro_monthly";
     public static final String GOOGLE_BASE_PLAN_ID = "monthly";
-    /** 연 구독(앱 스토어 전용). 월 3,900원 × 12개월에서 30% 할인한 연 32,500원(46,800원의 69.4%). 구글 기본 요금제는 yearly. 웹 토스는 아직 월 구독만 판다. */
+    /**
+     * 연 구독. 월 3,900원 × 12개월에서 30% 할인한 연 32,500원(46,800원의 69.4%). 구글 기본 요금제는 yearly. 웹 토스 연 구독(SOMA-1068)은
+     * BILLING_WEB_YEARLY_ENABLED 뒤에 있다.
+     */
     public static final String STORE_PRODUCT_YEARLY_ID = "acttub_pro_yearly";
     public static final String GOOGLE_BASE_PLAN_YEARLY_ID = "yearly";
     public static final long YEARLY_AMOUNT = 32500L;
@@ -41,6 +44,7 @@ public final class BillingRules {
         return signedUpAt.isBefore(LAUNCH_WEEK_START) ? LAUNCH_WEEK_END : null;
     }
     public static final String ORDER_NAME = "ACTTUB Pro 월 구독";
+    public static final String YEARLY_ORDER_NAME = "ACTTUB Pro 연 구독";
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     /** 무료 코칭은 한국 시간 하루에 회차 3개. */
     public static final int FREE_DAILY_COACHING = 3;
@@ -65,6 +69,110 @@ public final class BillingRules {
     /** 스토어 구독 상품의 정가(부가세 포함). 장부의 amount 와 구독 관리 화면에 쓴다 — 실제 청구액은 스토어가 정한다. */
     public static long storeAmount(String productId) {
         return STORE_PRODUCT_YEARLY_ID.equals(productId) ? YEARLY_AMOUNT : AMOUNT;
+    }
+
+    /** 요금제. 토스 구독은 고른 요금제의 금액·주문명·기간으로 첫 결제와 자동결제를 한다. */
+    public enum Plan {
+        MONTHLY("monthly", AMOUNT, ORDER_NAME),
+        YEARLY("yearly", YEARLY_AMOUNT, YEARLY_ORDER_NAME);
+
+        private final String db;
+        private final long amount;
+        private final String orderName;
+
+        Plan(String db, long amount, String orderName) {
+            this.db = db;
+            this.amount = amount;
+            this.orderName = orderName;
+        }
+
+        public String db() {
+            return db;
+        }
+
+        public long amount() {
+            return amount;
+        }
+
+        public String orderName() {
+            return orderName;
+        }
+
+        /** 이 기간의 끝(= 다음 결제일). 월은 다음 달 같은 날(31일 → 말일), 연은 다음 해 같은 날(2월 29일 → 2월 28일). 한국 시간 기준. */
+        public Instant nextPeriodEnd(Instant periodStart) {
+            return this == YEARLY ? periodStart.atZone(SEOUL).plusYears(1).toInstant() : BillingRules.nextPeriodEnd(periodStart);
+        }
+
+        /** 알 수 없는 값이면 null. */
+        public static Plan of(String value) {
+            for (Plan plan : values()) {
+                if (plan.db.equals(value)) {
+                    return plan;
+                }
+            }
+            return null;
+        }
+
+        /** 장부 값. 모르는 값은 기존 행과 같이 monthly 로 읽는다. */
+        public static Plan ofDb(String value) {
+            Plan plan = of(value);
+            return plan == null ? MONTHLY : plan;
+        }
+
+        /** 스토어 상품의 요금제. */
+        public static Plan ofStoreProduct(String productId) {
+            return STORE_PRODUCT_YEARLY_ID.equals(productId) ? YEARLY : MONTHLY;
+        }
+    }
+
+    /** 웹 결제의 청약철회 기간 — 결제 후 이 기간 안이고 유료 기능을 쓰지 않았으면 전액 환불(약관 제14조). */
+    public static final Duration REFUND_FULL_WINDOW = Duration.ofDays(7);
+
+    /**
+     * 웹(토스) 결제 한 건의 환불액(약관 제14조 제1항·제2항). 결제주기의 길이(월 28~31일, 연 365·366일)를 그대로 쓰므로 월·연 구독에 같은
+     * 규칙이 맞는다.
+     *
+     * <ul>
+     *   <li>결제 후 7일 이내이고 유료 기능을 쓰지 않았다 → 전액</li>
+     *   <li>결제 후 7일 이내이고 썼다 → 이용한 날짜만큼 뺀다</li>
+     *   <li>결제 후 7일이 지났다 → 이용한 날짜만큼 빼고, 남은 금액의 10%를 더 뺀다</li>
+     * </ul>
+     *
+     * 이용일수는 기간 시작부터 요청 시각까지이고 24시간이 안 되는 시간도 1일이다. 하루 이용료는 결제금액 ÷ 결제주기 전체 일수이며, 1원
+     * 미만은 올려서 환불하고 결제금액을 넘지 않는다. 회사 잘못으로 해지하는 경우(남은 금액의 10%를 더함)는 사람이 판정하므로 여기에 없다.
+     *
+     * @param amount      실제 결제금액(원)
+     * @param periodStart 이 결제로 열린 이용 기간의 시작(= 결제 시각)
+     * @param periodEnd   이용 기간의 끝(= 다음 결제일)
+     * @param requestedAt 환불 요청을 받은 시각
+     * @param usedPaidFeatures 이 기간에 유료 기능을 썼는가
+     */
+    public static long refundAmount(long amount, Instant periodStart, Instant periodEnd, Instant requestedAt,
+            boolean usedPaidFeatures) {
+        if (amount <= 0 || !periodEnd.isAfter(periodStart)) {
+            return 0L;
+        }
+        Duration elapsed = Duration.between(periodStart, requestedAt);
+        if (elapsed.isNegative()) {
+            elapsed = Duration.ZERO;
+        }
+        boolean withinWindow = elapsed.compareTo(REFUND_FULL_WINDOW) <= 0;
+        if (withinWindow && !usedPaidFeatures) {
+            return amount;
+        }
+        long totalDays = ceilDays(Duration.between(periodStart, periodEnd));
+        long usedDays = Math.min(ceilDays(elapsed), totalDays);
+        long leftDays = totalDays - usedDays;
+        // 남은 금액 = amount × leftDays / totalDays. 7일이 지났으면 그 90%.
+        long refund = withinWindow
+                ? Math.ceilDiv(amount * leftDays, totalDays)
+                : Math.ceilDiv(amount * leftDays * 9, totalDays * 10);
+        return Math.min(refund, amount);
+    }
+
+    private static long ceilDays(Duration duration) {
+        long millis = duration.toMillis();
+        return Math.ceilDiv(millis, Duration.ofDays(1).toMillis());
     }
 
     public enum Status {

@@ -10,6 +10,8 @@ import java.time.Instant;
  *   <li>{@code BILLING_WEB_ENABLED}(기본 false) — 웹 토스 정기결제(카드 등록·첫 결제·자동결제 스케줄러). 값이 하나라도 틀리면
  *       {@link #invalidReason()} 이 이유를 돌려주고 닫힌다. 토스 키는 테스트·라이브 둘 다 받되 두 키의 종류가 같아야 한다.
  *       이 플래그가 꺼져 있으면 결제는 단 한 건도 나가지 않는다.</li>
+ *   <li>{@code BILLING_WEB_YEARLY_ENABLED}(기본 false, SOMA-1068) — 웹 토스 연 구독(32,500원) 새 결제. 꺼져 있으면 yearly 결제 창 요청을
+ *       거절하고 웹은 월 구독만 판다. 이미 연 구독인 사람의 자동결제·해지는 이 스위치와 상관없다.</li>
  *   <li>{@code BILLING_APP_ENABLED}(기본 false) — 앱이 Pro 화면·구독 상태를 보게 하는 스위치. 스토어 결제(2단계)가 이 뒤에 붙는다.
  *       토스를 열지는 않는다.</li>
  * </ul>
@@ -31,7 +33,8 @@ public record BillingSettings(
         String clientKey,
         String secretKey,
         Instant legacySignupBefore,
-        Instant legacyLimitsFrom) {
+        Instant legacyLimitsFrom,
+        boolean webYearlyEnabled) {
 
     /** 기존 회원에게도 무료 한도가 걸리기 시작하는 시각(2026-12-01 00:00 KST). */
     public static final Instant DEFAULT_LEGACY_LIMITS_FROM = Instant.parse("2026-11-30T15:00:00Z");
@@ -40,6 +43,19 @@ public record BillingSettings(
             String returnUrl, String clientKey, String secretKey) {
         this(enabled, appEnabled, freeLimitsEnabled, origin, returnUrl, clientKey, secretKey,
                 null, DEFAULT_LEGACY_LIMITS_FROM);
+    }
+
+    /** 웹 연 구독을 끈 설정(기본). */
+    public BillingSettings(boolean enabled, boolean appEnabled, boolean freeLimitsEnabled, String origin,
+            String returnUrl, String clientKey, String secretKey, Instant legacySignupBefore, Instant legacyLimitsFrom) {
+        this(enabled, appEnabled, freeLimitsEnabled, origin, returnUrl, clientKey, secretKey,
+                legacySignupBefore, legacyLimitsFrom, false);
+    }
+
+    /** 같은 설정에서 웹 연 구독 스위치만 바꾼 것. */
+    public BillingSettings withWebYearly(boolean yearly) {
+        return new BillingSettings(enabled, appEnabled, freeLimitsEnabled, origin, returnUrl, clientKey, secretKey,
+                legacySignupBefore, legacyLimitsFrom, yearly);
     }
 
     public BillingSettings {
@@ -90,6 +106,11 @@ public record BillingSettings(
         return invalidReason() == null;
     }
 
+    /** 웹에서 연 구독을 새로 팔 수 있는가 — 웹 결제가 열려 있고 {@code BILLING_WEB_YEARLY_ENABLED} 도 켜졌을 때. 이미 있는 연 구독의 자동결제와는 무관하다. */
+    public boolean webYearlyUsable() {
+        return webYearlyEnabled && webUsable();
+    }
+
     /** 구독 상태를 보여 주고 Pro 를 판정하는가 — 웹 결제가 열렸거나 앱 스위치가 켜졌을 때. */
     public boolean usable() {
         return webUsable() || appEnabled;
@@ -119,7 +140,8 @@ public record BillingSettings(
 
     @Override
     public String toString() {
-        return "BillingSettings[web=" + enabled + ", app=" + appEnabled + ", freeLimitsEnabled=" + freeLimitsEnabled
+        return "BillingSettings[web=" + enabled + ", webYearly=" + webYearlyEnabled + ", app=" + appEnabled
+                + ", freeLimitsEnabled=" + freeLimitsEnabled
                 + ", origin=" + origin + ", returnUrl=" + returnUrl + ", secrets=redacted]";
     }
 }

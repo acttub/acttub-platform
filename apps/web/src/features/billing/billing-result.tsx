@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
-import { fetchBillingMe } from "@/lib/api/v2/billing";
+import { fetchBillingMe, type BillingMe } from "@/lib/api/v2/billing";
 import { resultViewOf, returnStatusOf } from "./billing-flow";
 
 const subscribe = () => () => {};
@@ -14,16 +14,20 @@ const serverSearch = () => "";
 export function BillingResultApp() {
   const status = returnStatusOf(useSyncExternalStore(subscribe, readSearch, serverSearch));
   const [pro, setPro] = useState(false);
+  const [paid, setPaid] = useState<{ plan?: BillingMe["plan"]; amount: number } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     fetchBillingMe({ signal: controller.signal })
-      .then((me) => setPro(me.pro && me.status === "active"))
+      .then((me) => {
+        setPro(me.pro && me.status === "active");
+        setPaid({ plan: me.plan, amount: me.amount });
+      })
       .catch(() => setPro(false));
     return () => controller.abort();
   }, []);
 
-  const view = resultViewOf(status, pro);
+  const view = resultViewOf(status, pro, paid);
   return (
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-6 text-center text-[#191f28]">
       <h1 className="text-2xl font-black">{view.title}</h1>
