@@ -68,9 +68,11 @@ public class DirectVideoConfiguration {
             // false 면 예전처럼 분석 작업에서만 시작한다(롤백).
             @Value("${ACTTUB_COACH_VIDEO_UPLOAD_WARMUP:true}") boolean uploadWarmup,
             @Value("${ACTTUB_COACH_WARM_DIR:${java.io.tmpdir}}") String warmDir,
-            com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne) {
+            com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne,
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.ScriptedCoach> scripted) {
         return new com.acttub.actingapi.feature.coach.app.CoachVideoWarmup(model, videoCache,
-                uploadWarmup ? storage : null, uploadWarmup ? java.nio.file.Path.of(warmDir) : null).withLayerOne(layerOne);
+                uploadWarmup ? storage : null, uploadWarmup ? java.nio.file.Path.of(warmDir) : null).withLayerOne(layerOne)
+                .withScripted(scripted.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.ScriptedCoach.NONE));
     }
 
     // 코칭 1층 관찰 A/B(SOMA-815). 새 연습의 SHARE% 는 분석 작업 때 받아쓰기+관찰 모델을 뒤에서 돌리고 코치 지시문에 칸을 붙인다.
