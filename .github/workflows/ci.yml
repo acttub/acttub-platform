@@ -198,7 +198,8 @@ jobs:
 
       - name: Smoke (docker build ×2 · deploy.sh · compose)
         env:
-          SMOKE_BUILD_CACHE: gha
+          # PR 은 읽기만 한다. 매일 dev schedule·수동 실행이 dev 범위 캐시를 쓴다(deploy.yml 도 쓴다).
+          SMOKE_BUILD_CACHE: ${{ github.event_name == 'pull_request' && 'read' || 'write' }}
           SMOKE_RESTORE: ${{ steps.changes.outputs.restore }}
           SMOKE_EXPORT_API_IMAGE: acttub-api:monitoring-ci
           SMOKE_EXPORT_WEB_IMAGE: acttub-web:monitoring-ci
