@@ -32,7 +32,6 @@ import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.video.schema.VideoEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
 import com.acttub.actingapi.feature.transfer.schema.GuestTransferCodeEntity;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Table;
@@ -45,8 +44,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -65,14 +62,6 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(properties = {"spring.jpa.properties.hibernate.session_factory.statement_inspector="
         + "com.acttub.actingapi.platform.schema.EntityMappingIT$RecordingInspector", "JWT_SECRET=test-secret"})
 class EntityMappingIT {
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("entity_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     /** 실행된 SQL 을 모은다. "INSERT 앞에 SELECT 가 없다"를 주장하려면 실제 SQL 을 봐야 한다. */
     public static class RecordingInspector implements StatementInspector {

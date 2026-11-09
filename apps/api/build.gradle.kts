@@ -105,7 +105,7 @@ tasks.withType<Test>().configureEach {
     // CI 정본 명령(./gradlew test)이 추적되지 않는 로컬 init script 없이 완주하게 고정한다.
     // 1g 에서도 블로그 IT 가 더해진 뒤 종료 단계 OOM(memory-worker)이 났다(2026-11-01).
     maxHeapSize = "1536m"
-    // 클래스마다 Spring 컨텍스트·Flyway 가 새로 떠서 한 줄로 돌면 7분이 넘는다(SOMA-552).
+    // 설정(@Import·properties)이 다른 클래스마다 Spring 컨텍스트가 새로 떠서 한 줄로 돌면 느리다(SOMA-552).
     // fork 마다 JVM 이 따로라 PostgresContainerSupport 의 컨테이너도 fork 마다 따로 뜬다.
     maxParallelForks = 2
     systemProperty("file.encoding", "UTF-8")

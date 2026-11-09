@@ -16,7 +16,6 @@ import com.acttub.actingapi.feature.audition.app.AuditionService;
 import com.acttub.actingapi.feature.audition.app.AuditionSources;
 import com.acttub.actingapi.feature.audition.domain.AuditionPosting;
 import com.acttub.actingapi.support.MutableClock;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,8 +29,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -49,14 +46,6 @@ class AuditionEndpointIT {
     /** 2026-10-08 09:00 KST. */
     private static final Instant NOW = Instant.parse("2026-10-08T00:00:00Z");
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 8);
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("audition_endpoint");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;

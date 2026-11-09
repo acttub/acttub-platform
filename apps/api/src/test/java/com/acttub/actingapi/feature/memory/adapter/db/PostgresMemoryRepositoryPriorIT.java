@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -23,8 +22,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * "같은 연습 다시 열기" 가 실제 데이터베이스에서 진짜 재료를 꺼내는지.
@@ -36,14 +33,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @Import(PostgresMemoryRepositoryPriorIT.FailureReporterFixture.class)
 class PostgresMemoryRepositoryPriorIT {
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("memory_prior_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     JdbcTemplate jdbc;

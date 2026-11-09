@@ -9,7 +9,6 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.oidc.ProviderConfigurationError;
 import com.acttub.actingapi.platform.observability.FailureKind;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,8 +21,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -38,14 +35,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @Import(AuthErrorContractIT.FailureReporterFixture.class)
 class AuthErrorContractIT {
     private static final ObjectMapper JSON = new ObjectMapper();
-
-    @DynamicPropertySource
-    static void db(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("auth_error");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;
