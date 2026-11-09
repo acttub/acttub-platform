@@ -12,9 +12,36 @@ jest.mock('@react-native-async-storage/async-storage', () => {
 });
 const mockReplace = jest.fn();
 const mockDismissTo = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, dismissTo: mockDismissTo }) }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, dismissTo: mockDismissTo, push: mockPush }) }));
 
-beforeEach(() => mockReplace.mockClear());
+beforeEach(() => {
+  mockReplace.mockClear();
+  mockPush.mockClear();
+});
+
+test('SOMA-1071: 대사 줄의 「여기서부터 읽기」는 그 줄부터 대본 끝까지를 구간으로 새 연습 화면을 바로 시작하게 연다', async () => {
+  await openFixtureScript();
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  expect(screen.getByText('고치기')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('여기서부터 읽기'));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/reading/range', params: { start: 'l4', end: 'l5', go: '1' } });
+});
+
+test('SOMA-1071: 지문·장면 줄은 다음 대사부터 읽고, 뒤에 대사가 없으면 「여기서부터 읽기」를 두지 않는다', async () => {
+  await openFixtureScript(scriptDetail([...TWO_ROLE_LINES, ['direction', '둘이 함께 나간다.']]));
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('서연이 자리에 앉는다.'));
+  await fireEvent.press(screen.getByText('여기서부터 읽기'));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/reading/range', params: { start: 'l4', end: 'l5', go: '1' } });
+
+  await fireEvent.press(screen.getByText('둘이 함께 나간다.'));
+  expect(screen.getByText('고치기')).toBeOnTheScreen();
+  expect(screen.queryByText('여기서부터 읽기')).not.toBeOnTheScreen();
+});
 
 test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준다', async () => {
   resetReadingState();
