@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,6 +15,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 import { api } from '@/lib/api';
 import { dateLocale, translate as t } from '@/lib/i18n';
 import { coachingEntry, type CoachingEntry } from '@/lib/practice/coaching-entry';
@@ -62,28 +63,25 @@ export default function CoachingTab() {
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
   const visible = useMemo(() => recentGroups(groups, groups.length), [groups]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
+  useFocusLoad(
+    (alive) => {
       api
         .listPracticeGroups('all')
         .then(({ groups: list }) => {
-          if (cancelled) return;
+          if (!alive()) return;
           setRetrying(false);
           setGroups(list);
           setEntry(coachingEntry(list));
           setEntryFailed(false);
         })
         .catch(() => {
-          if (cancelled) return;
+          if (!alive()) return;
           setRetrying(false);
           setEntry({ kind: 'first' });
           setEntryFailed(true);
         });
-      return () => {
-        cancelled = true;
-      };
-    }, [attempt]),
+    },
+    [attempt],
   );
 
   // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 모양(lib/skeleton-hint)을 따른다.

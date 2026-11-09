@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { NoticeBand } from '@/components/ui/notice-band';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -89,20 +90,17 @@ export default function ReportDetailScreen() {
 
   // 대화를 마치고 돌아오면 버튼이 바뀌어야 하므로 포커스마다 다시 읽는다.
   const rootId = practice?.root_id;
-  useFocusEffect(
-    useCallback(() => {
+  useFocusLoad(
+    (alive) => {
       if (!rootId) return;
-      let alive = true;
       api
         .getPracticeGroup(rootId)
         .then((loaded) => {
-          if (alive) setGroup(loaded);
+          if (alive()) setGroup(loaded);
         })
         .catch(() => undefined);
-      return () => {
-        alive = false;
-      };
-    }, [rootId]),
+    },
+    [rootId],
   );
 
   const action = continueActionFor(group);
