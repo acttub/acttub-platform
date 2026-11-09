@@ -86,6 +86,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
         rootId: practice.root_id,
         ordinal: practice.ordinal,
         conversationId: null,
+        createdAt: practice.created_at,
         scene: { situation: '', character: '', goal: '' },
         videoUri: '',
         playbackUrl: null,

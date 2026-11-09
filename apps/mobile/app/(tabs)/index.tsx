@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode, type Ref } from 'react';
 import { BackHandler, type LayoutChangeEvent, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,7 +21,7 @@ import { practiceDayTotal, practiceStreak, sceneTitle } from '@/lib/practice/gro
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
-import { rememberPracticeDays, serverPracticeDayRecords } from '@/lib/practice-days';
+import { rememberPracticeDays, serverPracticeDayRecords, sessionPracticeDays, subscribeSessionPracticeDays } from '@/lib/practice-days';
 import { dDayLabel } from '@/lib/challenge/browse';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { skipsHomeGuide } from '@/lib/returning-account';
@@ -30,7 +30,7 @@ import { currentTutorial } from '@/lib/tutorial';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
 import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
-import { firstTimeStateFrom, setFirstTimeProvisional, setFirstTimeState, shouldRememberGraduation } from '@/lib/practice/first-time';
+import { firstTimeStateFrom, setFirstTimeProvisional, setFirstTimeState, shouldRememberGraduation, subscribeFirstTimeState } from '@/lib/practice/first-time';
 import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
 import { currentFirstUseOwner, graduatedInMemory, hasGraduatedFirstUse, markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
@@ -179,6 +179,19 @@ export default function HomeScreen() {
   const firstName = profile.me?.profile?.name?.trim() ?? '';
   // 졸업 표시(SOMA-827)는 계정별이라 내 계정을 알고 나서 읽는다. 앱을 막 켰을 때 계정보다 먼저 읽으면 「아니」로 굳었다.
   const meId = profile.me?.id ?? null;
+  // 코칭 끝·리딩 끝 화면이 졸업을 적으면 뒤에 숨은 홈도 바로 다시 그린다(SOMA-1075). 탭바 모양(useTabBarSpace)이 바뀌어
+  // 우연히 다시 그려지는 데 기대지 않고 졸업 신호를 직접 듣는다. 같은 신호를 탭바도 듣는다.
+  const graduatedSignal = useSyncExternalStore(subscribeFirstTimeState, () => graduatedInMemory(meId));
+  // 이번 실행에서 막 끝낸 코칭의 날(코칭 끝 화면이 노트를 확인하고 적는다) — 서버 기록을 다시 받기 전에도 연속일에 센다.
+  const sessionDays = useSyncExternalStore(subscribeSessionPracticeDays, () => sessionPracticeDays(meId));
+  // 홈이 보이는지 — 숨어 있을 때(코칭 끝 화면 뒤) 불꽃 축하를 따지면 보지 못한 축하를 본 것으로 남긴다.
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
   const [graduationCheck, setGraduationCheck] = useState(0);
   useFocusEffect(useCallback(() => setGraduationCheck((n) => n + 1), []));
   useEffect(() => {
@@ -447,21 +460,27 @@ export default function HomeScreen() {
   const sections = homeDeadlineSections(profile.me?.profile, kstDate());
 
 
+  // 화면에 그리는 연습한 날 — 받은 기록에 이번 실행에서 막 끝낸 코칭의 날을 더한다. 기기 누적분에는 넣지 않는다(SOMA-1075).
+  const shownDays = useMemo(
+    () => (activityDays && sessionDays.length > 0 ? [...activityDays, ...sessionDays] : activityDays),
+    [activityDays, sessionDays],
+  );
   // 오늘이 맨 오른쪽인 최근 7일.
-  const { days } = useMemo(() => buildRecentActivity(activityDays ?? []), [activityDays]);
+  const { days } = useMemo(() => buildRecentActivity(shownDays ?? []), [shownDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
-  const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
+  const streak = useMemo(() => practiceStreak((shownDays ?? []).map((d) => d.created_at)), [shownDays]);
   // 누적 연습일(SOMA-1003) — 연속이 끊겨도 줄지 않는 숫자. 같은 날 여러 번 해도 하루다.
-  const totalDays = useMemo(() => practiceDayTotal((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
-  const activityLoaded = activityDays !== null;
+  const totalDays = useMemo(() => practiceDayTotal((shownDays ?? []).map((d) => d.created_at)), [shownDays]);
+  const activityLoaded = shownDays !== null;
   // 「첫 연습 끝!」 안내는 연습 1회(노트 생긴 코칭·끝낸 리딩·올린 참여작)를 한 뒤에만 띄운다(SOMA-773).
-  const practiced = (activityDays?.length ?? 0) > 0;
+  const practiced = (shownDays?.length ?? 0) > 0;
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
   // 기록을 받기 전엔 판단하지 않는다 — 그 판정은 streakCelebrationStep 이 한다(SOMA-494).
   // 오늘 연습이 없으면 축하하지 않는다 — 앱을 새로 깔아 저장값이 0 이 돼도 어제까지의 연속일로 다시 뜨지 않게.
   const practicedToday = days.some((d) => d.isToday && d.count > 0);
   useEffect(() => {
+    if (!focused) return;
     let cancelled = false;
     void Promise.all([readLastSeenStreak(), readLastSeenStreakDay()]).then(([lastSeen, lastSeenDay]) => {
       if (cancelled) return;
@@ -481,10 +500,10 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [activityLoaded, streak, practicedToday, recordsFailed]);
+  }, [focused, activityLoaded, streak, practicedToday, recordsFailed]);
 
   // 방금 끝낸 연습으로 졸업했으면 저장값을 다시 읽기 전에도 안다 — 첫 사용자 홈이 잠깐 보이지 않게(11/2 QA).
-  const graduatedNow = graduated === true || graduatedInMemory(meId);
+  const graduatedNow = graduated === true || graduatedSignal;
   const loaded = groupsLoaded && scripts !== null && activityLoaded && (graduated !== null || graduatedNow);
   // 첫 사용자 화면(뭐부터 해 볼까요?)과 탭바 숨김은 같은 판단 하나다(lib/practice/first-time) — 묶음·대본·연습한 날이 모두 없는 사람.
   // 묶음을 못 받았으면 첫 사용자로 보지 않는다 — 시작한 사람에게 첫 화면을 보이는 쪽이 더 이상하다.
@@ -494,7 +513,7 @@ export default function HomeScreen() {
     recordsFailed,
     groups,
     scripts: scripts ?? [],
-    practicedDays: activityDays?.length ?? 0,
+    practicedDays: shownDays?.length ?? 0,
     graduated: graduatedNow,
   });
   const firstUser = firstTime === 'first';

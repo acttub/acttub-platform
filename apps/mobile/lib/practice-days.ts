@@ -72,4 +72,33 @@ export async function rememberPracticeDays(
   return Object.values(merged).map((created_at) => ({ created_at }));
 }
 
+/**
+ * 이번 실행에서 막 끝낸 코칭 회차의 시작 시각(SOMA-1075) — 계정별, 메모리에만 둔다. 코칭 끝 화면이 노트를 확인했을 때만 적고,
+ * 홈은 서버 기록을 다시 받기 전에도 이 날로 연속일·주간 원·불꽃을 그린다. 기기 누적분(rememberPracticeDays)에는 섞지 않는다 —
+ * 서버가 끝내 세지 않아도 앱을 다시 켜면 사라진다.
+ */
+const NO_SESSION_DAYS: readonly { created_at: string }[] = [];
+const sessionDays = new Map<string, readonly { created_at: string }[]>();
+const sessionListeners = new Set<() => void>();
+
+export function rememberSessionPracticeDay(startedAt: string | null | undefined, userId: string | null | undefined): void {
+  if (!userId || !startedAt || Number.isNaN(Date.parse(startedAt))) return;
+  const list = sessionDays.get(userId) ?? NO_SESSION_DAYS;
+  if (list.some((d) => d.created_at === startedAt)) return;
+  sessionDays.set(userId, [...list, { created_at: startedAt }]);
+  sessionListeners.forEach((listener) => listener());
+}
+
+/** 같은 값이면 같은 배열을 돌려준다(useSyncExternalStore 스냅샷). */
+export function sessionPracticeDays(userId: string | null | undefined): readonly { created_at: string }[] {
+  return (userId && sessionDays.get(userId)) || NO_SESSION_DAYS;
+}
+
+export function subscribeSessionPracticeDays(listener: () => void): () => void {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+
 // 탈퇴 시 삭제는 local-account-data 가 'acttub.' 접두사 키를 통째로 지우며 함께 처리한다.

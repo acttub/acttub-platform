@@ -640,16 +640,19 @@ describe('닫힌 대화', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '코칭 마치기' }));
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace.mock.calls).toEqual([[{ pathname: '/coaching-done', params: { practiceId: 'p1' } }]]);
+    expect(mockRouter.replace.mock.calls).toEqual([[{ pathname: '/coaching-done', params: { practiceId: 'p1', startedAt: '' } }]]);
   });
 
   test('닫힌 대화로 다시 들어오면 노트를 읽어 정리 화면으로 넘어간다', async () => {
     mockLoop.getConversation.mockResolvedValue(conv({ status: 'closed', close_reason: 'exhausted' }));
     mockLoop.getPracticeNote.mockResolvedValue(NOTE);
-    begin({ conversationId: 'c1' });
+    // 회차를 시작한 시각을 같이 넘긴다 — 코칭 끝 화면이 노트를 확인하면 그 날을 홈 연속일에 미리 더한다(SOMA-1075).
+    begin({ conversationId: 'c1', createdAt: '2026-10-31T14:50:00Z' });
     await render(<CoachScreen />);
 
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coaching-done', params: { practiceId: 'p1' } }));
+    await waitFor(() =>
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coaching-done', params: { practiceId: 'p1', startedAt: '2026-10-31T14:50:00Z' } }),
+    );
     expect(mockLoop.getPracticeNote).toHaveBeenCalledWith('p1');
     expect(mockLoop.startConversation).not.toHaveBeenCalled();
   });

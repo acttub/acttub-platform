@@ -1,3 +1,4 @@
+import { useIsFocused } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
@@ -98,11 +99,25 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
   const [failed, setFailed] = useState(false);
   const [fallbackFailed, setFallbackFailed] = useState(false);
   const impressed = useRef<string | null>(null);
+  // 화면이 한 번이라도 보였는지(SOMA-1075). 숨은 화면(코칭 끝 뒤의 홈 등)에서는 어떤 광고인지(getAdSlot)만 미리 받고,
+  // 우리 광고 노출 기록·AdMob 배너 붙이기·채움 시간 재기는 보인 뒤에 한다 — 보지 않은 광고를 노출로 세지 않게.
+  const focused = useIsFocused();
+  const [seen, setSeen] = useState(focused);
+  useEffect(() => {
+    if (focused) setSeen(true);
+  }, [focused]);
+  // 이미지(또는 글) 광고가 그려진 광고 id — 보인 뒤에 노출 1회로 센다.
+  const [drawn, setDrawn] = useState<string | null>(null);
+  useEffect(() => {
+    if (!seen || !drawn || impressed.current === drawn) return;
+    impressed.current = drawn;
+    api.recordAdEvent(drawn, slot, 'impression').catch(() => undefined);
+  }, [seen, drawn, slot]);
   const request = shouldRequestSlot(firstTime) && !held;
   // AdMob 배너가 채워지지 않으면 실패 신호 없이 빈 상자만 남아 화면 위에 빈 공간이 생겼다(11/2 폰 QA).
   // 정해진 시간 안에 안 채워지면 칸을 접는다. 채워진 배너는 그대로 둔다.
   const [networkFilled, setNetworkFilled] = useState(false);
-  const waitingNetwork = request && loaded && !failed && !networkFilled && renderableKind(pick, { korean: isKorean() }) === 'NETWORK';
+  const waitingNetwork = seen && request && loaded && !failed && !networkFilled && renderableKind(pick, { korean: isKorean() }) === 'NETWORK';
   // AdMob 이 못 채웠다 — 대체 광고가 없으면 접히므로, 잠시 다시 열지 않게 적어 둔다.
   const failNetwork = () => {
     if (!pick?.fallback) networkFailedAt.set(slot, Date.now());
@@ -188,8 +203,8 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
     return (
       <FullBleed on={bleed}>
         <View style={[bleed ? [styles.box, styles.band, { height: spec.height }] : box, styles.network, style]} ph-no-capture>
-          {/* AdMob 초기화가 끝나기 전에는 띄만 깔아 자리를 지킨다(위 isAdMobReady). */}
-          {adMobReady && (
+          {/* AdMob 초기화가 끝나기 전이나 화면이 아직 안 보였으면 띄만 깔아 자리를 지킨다. */}
+          {adMobReady && seen && (
             <BannerAd
               unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
               size={bannerSize}
@@ -211,11 +226,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
   }
 
   const ad = fallback ?? pick.ad!;
-  const onImpression = () => {
-    if (impressed.current === ad.id) return;
-    impressed.current = ad.id;
-    api.recordAdEvent(ad.id, slot, 'impression').catch(() => undefined);
-  };
+  const onImpression = () => setDrawn(ad.id);
   const onPress = () => {
     api.recordAdEvent(ad.id, slot, 'click').catch(() => undefined);
     if (kind === 'DIRECT') {

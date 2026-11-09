@@ -153,6 +153,7 @@ export function CoachWaiting({
         rootId: loaded.root_id ?? practiceId,
         ordinal: loaded.ordinal ?? 1,
         conversationId: loaded.conversation_id,
+        createdAt: loaded.created_at,
         scene: {
           situation: loaded.scene.situation ?? '',
           character: loaded.scene.character ?? '',
