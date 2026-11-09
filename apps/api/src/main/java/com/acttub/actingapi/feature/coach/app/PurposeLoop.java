@@ -677,6 +677,47 @@ final class PurposeLoop {
         answers.put(step, actorText.strip().replaceAll("\\s+", " "));
     }
 
+    // ---- 노트 ----
+
+    /** 노트 요약에 먼저 올리는 인물 카드 칸. 바라는 것·막는 것이 장면에 가장 쓸모 있다. 나머지는 화면 순서. */
+    private static final List<String> NOTE_CELLS = List.of("want", "obstacle", "who", "before", "relation", "action");
+    /** 배우가 말했거나 같이 찾은 칸만 배우 말로 인용한다. 대본·영상에서 온 칸은 배우 말이 아니다. */
+    private static final List<String> ACTOR_SOURCES = List.of("내 말", "같이 찾음");
+
+    /**
+     * 목적별 코칭 노트의 요약 인용을 {@code max} 개까지 채운다(SOMA-1051). 연습 루프 분류의 인용이 이미 있으면 그 뒤에 붙는다.
+     * 인물 이해하기는 배우가 채운 인물 카드 칸(「바라는 것: …」), 다른 목적은 단계별 배우 답(「잘 모르겠어요」 같은 짧은 답·정리 뒤 물음 제외).
+     * {@code source_ref} 는 그 말이 든 배우 턴, 없으면 마지막 코치 턴.
+     */
+    static void addNoteQuotes(CoachSessionSnapshot session, ArrayNode quotes, int max) {
+        JsonNode loop = loop(session.coachingState());
+        var picked = new ArrayList<String[]>(); // {인용, 배우 턴에서 찾을 말}
+        for (String key : NOTE_CELLS) {
+            for (JsonNode cell : loop.path("character_card").path("cells")) {
+                if (!key.equals(cell.path("key").asText()) || !ACTOR_SOURCES.contains(cell.path("source").asText())) continue;
+                String value = cell.path("value").asText();
+                picked.add(new String[] {cell.path("label").asText() + ": " + value, value});
+            }
+        }
+        for (var answer : loop.path("answers").properties()) {
+            String text = answer.getValue().asText("").strip();
+            if ("wrap".equals(answer.getKey()) || text.isEmpty() || DirectVideoPracticeLoop.isVague(text)) continue;
+            picked.add(new String[] {text, text});
+        }
+        var turns = session.turns();
+        for (String[] quote : picked) {
+            if (quotes.size() >= max) return;
+            int at = -1;
+            for (int i = turns.size() - 1; i >= 0 && at < 0; i--) {
+                var turn = turns.get(i);
+                if ("actor".equals(turn.role()) && turn.text() != null && compact(turn.text()).contains(compact(quote[1]))) at = i;
+            }
+            for (int i = turns.size() - 1; i >= 0 && at < 0; i--) if ("ai".equals(turns.get(i).role())) at = i;
+            quotes.addObject().put("quote", quote[0]).put("kind", "actor")
+                    .put("source_ref", StructuredCoachEngine.turnId(session, Math.max(at, 0)));
+        }
+    }
+
     private static List<PurposeView.Choice> cardChoices(JsonNode loop) {
         var choices = new ArrayList<PurposeView.Choice>();
         choices.add(new PurposeView.Choice(FIX_TOGETHER, null));

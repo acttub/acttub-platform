@@ -319,4 +319,55 @@ class DirectVideoPracticeLoopTest {
         assertThat(DirectVideoPracticeLoop.noneAsBlank(" 없음 ")).isEmpty();
         assertThat(DirectVideoPracticeLoop.noneAsBlank("끝을 늦춘다")).isEqualTo("끝을 늦춘다");
     }
+
+    @Test void purposeNotesQuoteTheCharacterCardTheActorFilled() {
+        // SOMA-1051: 말로 인물 이해하기 노트의 요약이 기본 문구뿐이었다 — 인용은 영상 루프 분류만 읽었다.
+        String talkDesign = "입력: 영상 없음 (말로 하는 코칭)\n장면: 모름 | 모름 | 모름\n다음 테이크: 없음";
+        ObjectNode state = state(talkDesign, "",
+                "목적: character\n배우의 말: 버튼\n단계: cell\n할 일: cell\n다음 테이크: 없음",
+                "목적: character\n배우의 말: 답\n단계: wrap\n할 일: 정리하기\n다음 테이크: 의심받을 때 더 당당하게 몰아붙이기");
+        ArrayNode cells = state.putObject(PurposeLoop.STATE_KEY)
+                .putObject("character_card").putArray("cells");
+        cells.addObject().put("key", "who").put("label", "누구").put("value", "속을 감추는 사람").put("source", "내 말");
+        cells.addObject().put("key", "before").put("label", "직전 상황").put("value", "들킬 뻔했다").put("source", "대본");
+        cells.addObject().put("key", "want").put("label", "바라는 것").put("value", "상대를 안심시키기").put("source", "같이 찾음");
+        cells.addObject().put("key", "obstacle").put("label", "막는 것").put("value", "떨리는 손").put("source", "영상");
+        CoachSessionSnapshot session = session(state, "", "그 외", "그 외", "",
+                "어떤 사람으로 봤어요?", "속을 감추는 사람 같아요", "무엇을 바라요?", "안심시키고 싶어요", "정리할게요");
+        var quotes = DirectVideoPracticeLoop.note(session, 3).summaryQuotes();
+        assertThat(quotes).hasSize(2);
+        assertThat(quotes.get(0).path("quote").asText()).isEqualTo("바라는 것: 상대를 안심시키기");
+        assertThat(quotes.get(0).path("kind").asText()).isEqualTo("actor");
+        assertThat(quotes.get(0).path("source_ref").asText()).as("값이 든 배우 턴이 없으면 마지막 코치 턴")
+                .isEqualTo(StructuredCoachEngine.turnId(session, 4));
+        assertThat(quotes.get(1).path("quote").asText()).isEqualTo("누구: 속을 감추는 사람");
+        assertThat(quotes.get(1).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(session, 1));
+    }
+
+    @Test void otherPurposeNotesQuoteTheActorsStepAnswers() {
+        String stuckDesign = "입력: 영상 없음 (말로 하는 코칭)\n장면: 모름 | 모름 | 모름";
+        ObjectNode state = state(stuckDesign, "",
+                "목적: stuck\n배우의 말: 답\n단계: line\n할 일: line\n다음 테이크: 없음",
+                "목적: stuck\n배우의 말: 답\n단계: method\n할 일: method\n다음 테이크: 없음",
+                "목적: stuck\n배우의 말: 답\n단계: wrap\n할 일: 정리하기\n다음 테이크: 뜸을 들이며 분위기를 띄우기");
+        ObjectNode answers = state.putObject(PurposeLoop.STATE_KEY).putObject("answers");
+        answers.put("reason", "끝에서 힘이 빠져요");
+        answers.put("line", PurposeLoop.DONT_KNOW);
+        answers.put("method", "몰라요");
+        answers.put("wrap", "다음엔 뭐 해요?");
+        CoachSessionSnapshot session = session(state, "", "그 외", "그 외", "",
+                "어떻게 막혔어요?", "끝에서 힘이 빠져요", "어느 대사요?", PurposeLoop.DONT_KNOW, "방법은요?", "몰라요", "정리");
+        var quotes = DirectVideoPracticeLoop.note(session, 4).summaryQuotes();
+        assertThat(quotes).hasSize(1);
+        assertThat(quotes.get(0).path("quote").asText()).isEqualTo("끝에서 힘이 빠져요");
+        assertThat(quotes.get(0).path("kind").asText()).isEqualTo("actor");
+        assertThat(quotes.get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(session, 1));
+    }
+
+    @Test void purposeNotesWithoutCardOrAnswersKeepAnEmptySummary() {
+        String stuckDesign = "입력: 영상 없음 (말로 하는 코칭)\n장면: 모름 | 모름 | 모름";
+        ObjectNode state = state(stuckDesign, "", "목적: stuck\n배우의 말: 답\n단계: wrap\n할 일: 정리하기\n다음 테이크: 뜸 들이기");
+        state.putObject(PurposeLoop.STATE_KEY).put("purpose", "stuck");
+        assertThat(DirectVideoPracticeLoop.note(session(state, "", "그 외", "그 외", "", "첫 말", "톤"), 2).summaryQuotes()).isEmpty();
+    }
 }
