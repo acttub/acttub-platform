@@ -1894,6 +1894,7 @@ const ko = {
     lineEditRename: "'{{name}}' 이름 고치기",
     lineEditText: '글',
     lineEditFailed: '저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+    lineMenuReadFrom: '여기서부터 읽기',
     lineMenuEdit: '고치기',
     lineMenuSplit: '나누기',
     lineMenuInsert: '아래에 추가',
