@@ -59,7 +59,7 @@ test('challenge.browse: 피드는 3초 재생 사건을 보내고 실패해도 �
 
   assert.match(feed, /createViewTracker/);
   assert.match(feed, /api\.recordEntryView/);
-  assert.match(feed, /isOwn: Boolean\(entry\.is_mine\)/);
+  assert.match(feed, /isOwn: currentIsMine/);
   assert.match(feed, /VIEW_THRESHOLD_MS/);
   // 보내기를 기다리지 않는다.
   assert.match(feed, /void viewTracker\.onProgress/);

@@ -656,6 +656,32 @@ describe('좋아요·저장', () => {
     expect(await screen.findByText('6')).toBeOnTheScreen();
   });
 
+  test('좋아요·취소·저장을 눌러도 영상을 다시 불러오지 않아 보던 자리에서 이어진다 (SOMA-1073)', async () => {
+    await renderFeed();
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenCalledTimes(1));
+    mocked.likeEntry.mockResolvedValueOnce({ liked: true, like_count: 4 });
+    await fireEvent.press(screen.getByRole('button', { name: '좋아요' }));
+    expect(await screen.findByText('4')).toBeOnTheScreen();
+    mocked.likeEntry.mockResolvedValueOnce({ liked: false, like_count: 3 });
+    await fireEvent.press(screen.getByRole('button', { name: '좋아요' }));
+    expect(await screen.findByText('3')).toBeOnTheScreen();
+    mocked.saveEntry.mockResolvedValueOnce({ saved: true });
+    await fireEvent.press(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(mocked.saveEntry).toHaveBeenCalled());
+
+    expect(mockPlayer.replaceAsync).toHaveBeenCalledTimes(1);
+    expect(logged('challenge_swipe')).toHaveLength(1);
+  });
+
+  test('다음 참여작을 이어 받아도 보던 영상을 다시 불러오지 않는다', async () => {
+    await renderFeed([entry(), second()], 'next');
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenCalledTimes(1));
+    mocked.listChallengeEntries.mockResolvedValueOnce(entriesPage([entry({ id: 'e3', playback_url: 'https://play/e3' })]));
+    await swipeTo(0, '첫 테이크');
+    await waitFor(() => expect(mocked.listChallengeEntries).toHaveBeenCalledTimes(2));
+    expect(mockPlayer.replaceAsync).toHaveBeenCalledTimes(1);
+  });
+
   test('좋아요가 실패하면 되돌리고 이유를 알린다', async () => {
     mocked.likeEntry.mockRejectedValue(serverError(404, 'entry_not_found'));
     await renderFeed();
