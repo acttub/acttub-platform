@@ -1464,9 +1464,11 @@ export default function ReadingPlay() {
     queueRef.current?.push(progressPayload(next));
   }, []);
   // 배경으로 가면(화면 끔·다른 앱) 어느 회차든 멈춘다 — 리딩 백그라운드 재생은 1.1.1 출시 전에 iOS·안드로이드 모두 뺐다(11/3 사용자 결정).
+  // iOS 의 inactive 는 멈추지 않는다 — 권한 창이 만든 inactive 가 권한 응답 뒤 시작한 다음에야 와서 첫 리딩이 멈춘 채 시작했다(SOMA-1052,
+  // 시뮬레이터 로그로 확인). 화면 끔·다른 앱은 background 까지 가고, 전화는 소리가 끊겨 onInterrupt 가 멈춘다.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' && phase.kind === 'running') doPause();
+      if (state === 'background' && phase.kind === 'running') doPause();
     });
     return () => sub.remove();
   }, [phase.kind, doPause]);

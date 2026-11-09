@@ -1,14 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
@@ -156,44 +156,41 @@ export default function GuestTransferScreen() {
       )}
 
       {/* 기억 선택 팝업 — 기본은 회원 것이고 고른 쪽만 남는다. */}
-      <Modal visible={choosing} transparent statusBarTranslucent animationType="fade" onRequestClose={dismissChoice}>
-        <View style={styles.scrim}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={dismissChoice} accessibilityRole="button" />
-          <DialogCard title={t('guestTransfer.memoryTitle')} message={t('guestTransfer.memoryBody')}>
-            <View accessibilityRole="radiogroup" style={styles.options}>
-              {(['member', 'guest'] as MemoryChoice[]).map((option) => {
-                const selected = choice === option;
-                return (
-                  <Pressable
-                    key={option}
-                    style={[styles.option, selected && styles.optionOn]}
-                    onPress={() => setChoice(option)}
-                    disabled={busy}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected, disabled: busy }}>
-                    <Checkbox checked={selected} />
-                    <View style={styles.optionBody}>
-                      <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>
-                        {t(option === 'member' ? 'guestTransfer.memoryMember' : 'guestTransfer.memoryGuest')}
-                      </Text>
-                      <Text style={styles.hint}>
-                        {t(option === 'member' ? 'guestTransfer.memoryMemberSub' : 'guestTransfer.memoryGuestSub')}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <DialogButtons
-              cancelLabel={t('guestTransfer.memoryClose')}
-              onCancel={dismissChoice}
-              confirmLabel={t('guestTransfer.memoryConfirm')}
-              onConfirm={() => void confirmChoice()}
-              busy={busy}
-            />
-          </DialogCard>
-        </View>
-      </Modal>
+      <DialogModal visible={choosing} onRequestClose={dismissChoice} onBackdropPress={dismissChoice}>
+        <DialogCard title={t('guestTransfer.memoryTitle')} message={t('guestTransfer.memoryBody')}>
+          <View accessibilityRole="radiogroup" style={styles.options}>
+            {(['member', 'guest'] as MemoryChoice[]).map((option) => {
+              const selected = choice === option;
+              return (
+                <Pressable
+                  key={option}
+                  style={[styles.option, selected && styles.optionOn]}
+                  onPress={() => setChoice(option)}
+                  disabled={busy}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected, disabled: busy }}>
+                  <Checkbox checked={selected} />
+                  <View style={styles.optionBody}>
+                    <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>
+                      {t(option === 'member' ? 'guestTransfer.memoryMember' : 'guestTransfer.memoryGuest')}
+                    </Text>
+                    <Text style={styles.hint}>
+                      {t(option === 'member' ? 'guestTransfer.memoryMemberSub' : 'guestTransfer.memoryGuestSub')}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          <DialogButtons
+            cancelLabel={t('guestTransfer.memoryClose')}
+            onCancel={dismissChoice}
+            confirmLabel={t('guestTransfer.memoryConfirm')}
+            onConfirm={() => void confirmChoice()}
+            busy={busy}
+          />
+        </DialogCard>
+      </DialogModal>
     </SafeAreaView>
   );
 }
@@ -216,7 +213,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scrim: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
   options: { gap: space[2], paddingTop: space[2] },
   option: {
     flexDirection: 'row',

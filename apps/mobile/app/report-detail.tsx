@@ -1,5 +1,4 @@
-import Feather from '@expo/vector-icons/Feather';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,8 +15,10 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { NoticeBand } from '@/components/ui/notice-band';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
+import { space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
@@ -89,20 +90,17 @@ export default function ReportDetailScreen() {
 
   // 대화를 마치고 돌아오면 버튼이 바뀌어야 하므로 포커스마다 다시 읽는다.
   const rootId = practice?.root_id;
-  useFocusEffect(
-    useCallback(() => {
+  useFocusLoad(
+    (alive) => {
       if (!rootId) return;
-      let alive = true;
       api
         .getPracticeGroup(rootId)
         .then((loaded) => {
-          if (alive) setGroup(loaded);
+          if (alive()) setGroup(loaded);
         })
         .catch(() => undefined);
-      return () => {
-        alive = false;
-      };
-    }, [rootId]),
+    },
+    [rootId],
   );
 
   const action = continueActionFor(group);
@@ -148,10 +146,7 @@ export default function ReportDetailScreen() {
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.date}>{formatKoreanDate(note.created_at, { month: 'long', day: 'numeric' })}</Text>
             {fallbackNotice && (
-              <View style={styles.fallback}>
-                <Feather name="alert-circle" size={14} color={palette.amber} />
-                <Text style={styles.fallbackText}>{fallbackNotice}</Text>
-              </View>
+              <NoticeBand compact icon="alert-circle" message={fallbackNotice} style={styles.fallback} />
             )}
           </View>
 
@@ -177,6 +172,5 @@ const styles = StyleSheet.create({
   kind: { ...type.micro, color: palette.blueDeep },
   title: { ...type.title2, color: palette.text },
   date: { ...type.caption, color: palette.textMeta },
-  fallback: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[2], padding: space[3], borderRadius: radius.md, backgroundColor: palette.amberSoft },
-  fallbackText: { flex: 1, ...type.captionBold, color: palette.amber },
+  fallback: { marginTop: space[2] },
 });

@@ -10,7 +10,8 @@ import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 
-export type StatusAction = { label: string; onPress: () => void; loading?: boolean };
+/** `phLabel` 은 탭 기록(lib/touch-capture)의 이름이다. */
+export type StatusAction = { label: string; onPress: () => void; loading?: boolean; phLabel?: string };
 
 /**
  * 화면 전체가 오류·빈 상태·불러오는 중일 때의 틀 — 디자인 시스템 pen 「StatusScreen」.
@@ -80,9 +81,9 @@ export function StatusScreen({
           {children}
           {primary || secondary ? (
             <View style={styles.actions}>
-              {primary ? <Button size="md" label={primary.label} onPress={primary.onPress} loading={primary.loading} /> : null}
+              {primary ? <Button size="md" label={primary.label} onPress={primary.onPress} loading={primary.loading} phLabel={primary.phLabel} /> : null}
               {secondary ? (
-                <Button size="md" variant="secondary" label={secondary.label} onPress={secondary.onPress} loading={secondary.loading} />
+                <Button size="md" variant="secondary" label={secondary.label} onPress={secondary.onPress} loading={secondary.loading} phLabel={secondary.phLabel} />
               ) : null}
             </View>
           ) : null}

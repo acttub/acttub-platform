@@ -71,22 +71,11 @@ export function buildEntryBody(input: {
   return body;
 }
 
-export type EntryAttempt = { requestId: string; fingerprint: string };
-
 export function entryFingerprint(body: CreateEntryBody): string {
   // 모자이크를 켠 요청만 지문에 더한다 — 이 필드 전에 만든 지문과 글자가 같다.
   const parts: string[] = [body.video_id, body.caption ?? '', body.visibility];
   if (body.face_mosaic) parts.push('face_mosaic');
   return JSON.stringify(parts);
-}
-
-export function entryAttemptFor(
-  previous: EntryAttempt | null,
-  fingerprint: string,
-  makeId: () => string,
-): EntryAttempt {
-  if (previous && previous.fingerprint === fingerprint) return previous;
-  return { requestId: makeId(), fingerprint };
 }
 
 export type EntryFailure =

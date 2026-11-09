@@ -8,11 +8,14 @@
  * 압축·크기 재기(prepare)·API·파일 삭제는 넣어 받는다 — 네이티브 없이 성립한다.
  */
 import { ApiError, NetworkError, RequestAbortError } from '../api-request.ts';
+import type { DeviceStorage } from '../device-storage.ts';
+import { DAY_MS } from '../kst.ts';
+import { dropStale, storedList } from '../stored-queue.ts';
 import type { Video, VideoIntentResponse } from './types.ts';
 import { videoErrorCodeOf } from './video-checks.ts';
 
 export const LIBRARY_QUEUE_KEY = 'acttub.library.uploadQueue';
-export const LIBRARY_QUEUE_TTL_MS = 7 * 86_400_000;
+export const LIBRARY_QUEUE_TTL_MS = 7 * DAY_MS;
 
 export type QueuedVideoStatus = 'queued' | 'uploading' | 'failed';
 
@@ -36,11 +39,7 @@ export type QueuedVideo = {
 export type PreparedUpload = { uri: string; byteSize: number; contentType: string; durationMs?: number | null };
 
 export type UploadQueueDependencies = {
-  storage: {
-    getItem(key: string): Promise<string | null>;
-    setItem(key: string, value: string): Promise<void>;
-    removeItem(key: string): Promise<void>;
-  };
+  storage: DeviceStorage;
   /** 올릴 파일을 만든다(압축·크기 검사). 한도를 넘으면 code 가 video_too_large·video_too_long 인 오류를 던진다. */
   prepare: (entry: QueuedVideo) => Promise<PreparedUpload>;
   intent: (entry: QueuedVideo, prepared: PreparedUpload) => Promise<VideoIntentResponse>;
@@ -75,22 +74,7 @@ export function createUploadQueue(deps: UploadQueueDependencies) {
   const flushing = new Map<string, Promise<FlushResult>>();
   /** 도는 중에 다시 불린 계정 — 그 사이 들어온 항목은 돌던 목록에 없으니 끝난 뒤 한 번 더 돈다(SOMA-734). */
   const rerun = new Set<string>();
-
-  async function read(): Promise<QueuedVideo[]> {
-    try {
-      const raw = await deps.storage.getItem(LIBRARY_QUEUE_KEY);
-      const list = raw ? (JSON.parse(raw) as unknown) : [];
-      return Array.isArray(list) ? (list as QueuedVideo[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  async function write(list: QueuedVideo[]): Promise<void> {
-    if (list.length === 0) await deps.storage.removeItem(LIBRARY_QUEUE_KEY);
-    else await deps.storage.setItem(LIBRARY_QUEUE_KEY, JSON.stringify(list));
-    deps.onChange?.();
-  }
+  const { read, write } = storedList<QueuedVideo>(deps.storage, LIBRARY_QUEUE_KEY, () => deps.onChange?.());
 
   async function patch(id: string, change: Partial<QueuedVideo>): Promise<void> {
     const list = await read();
@@ -182,11 +166,9 @@ export function createUploadQueue(deps: UploadQueueDependencies) {
   async function runFlush(owner: string): Promise<FlushResult> {
     const result: FlushResult = { uploaded: 0, failed: 0, discarded: 0 };
     let list = await read();
-    const cutoff = now() - LIBRARY_QUEUE_TTL_MS;
-    const stale = list.filter((e) => e.owner === owner && e.createdAt < cutoff);
+    const { stale, fresh } = await dropStale(list, now() - LIBRARY_QUEUE_TTL_MS, deps.deleteFile, (e) => e.owner === owner);
     if (stale.length > 0) {
-      await Promise.allSettled(stale.map((e) => deps.deleteFile(e.uri)));
-      list = list.filter((e) => !stale.includes(e));
+      list = fresh;
       await write(list);
       result.discarded += stale.length;
       deps.onDiscarded?.(stale);

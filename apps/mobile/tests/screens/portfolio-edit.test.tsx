@@ -191,6 +191,23 @@ describe('경력', () => {
     expect(screen.queryByText('작품명')).not.toBeOnTheScreen();
   });
 
+  test('저장에 실패하면 대화상자를 연 채 그 안에 사유를 적는다 — 위에 겹친 알림은 iOS 에서 안 보였다', async () => {
+    a.createPortfolioCredit.mockRejectedValue(new Error('잠깐 연결이 끊겼어요.'));
+    await loaded();
+    await fireEvent.press(screen.getByRole('button', { name: '경력 추가' }));
+    const [titleInput, roleInput, yearInput] = screen.getAllByDisplayValue('');
+    await fireEvent.changeText(titleInput, '기생충');
+    await fireEvent.changeText(roleInput, '기정 친구');
+    await fireEvent.changeText(yearInput, '2019');
+    await fireEvent.press(screen.getByRole('radio', { name: '영화' }));
+    const dialogSave = buttons('저장');
+    await fireEvent.press(dialogSave[dialogSave.length - 1]);
+
+    expect(await screen.findByText('잠깐 연결이 끊겼어요.')).toBeOnTheScreen();
+    expect(screen.queryByText('저장하지 못했어요')).not.toBeOnTheScreen();
+    expect(screen.getByDisplayValue('기생충')).toBeOnTheScreen();
+  });
+
   test('저장하는 동안 대화상자의 저장을 막는다', async () => {
     let finish!: () => void;
     a.updatePortfolioCredit.mockReturnValue(new Promise<void>((r) => (finish = r)));
@@ -326,6 +343,25 @@ describe('사진', () => {
     expect(await screen.findByLabelText('3번째 사진')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '사진 추가' }));
     expect(screen.getByText('3 / 10')).toBeOnTheScreen();
+  });
+
+  test('고르기 창이 열린 동안은 「올리는 중」이 아니고, 고른 뒤에야 보인다', async () => {
+    let picked!: () => void;
+    let finish!: (v: null) => void;
+    (pickAndUploadPortfolioPhoto as jest.Mock).mockImplementation((onPicked: () => void) => {
+      picked = onPicked;
+      return new Promise((r) => (finish = r));
+    });
+    await loaded();
+
+    // 누름 처리가 올리기 끝까지 기다리는 약속을 돌려주므로 기다리지 않고 누른다.
+    void fireEvent.press(screen.getByRole('button', { name: '사진 추가' }));
+    await waitFor(() => expect(picked).toBeDefined());
+    expect(screen.queryByText(/올리는 중/)).not.toBeOnTheScreen();
+    await act(async () => picked());
+    expect(screen.getByText(/올리는 중/)).toBeOnTheScreen();
+    await act(async () => finish(null));
+    expect(screen.queryByText(/올리는 중/)).not.toBeOnTheScreen();
   });
 
   test('지우기는 확인 뒤 지운다', async () => {

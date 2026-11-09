@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type GestureResponderEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog, type DialogAction } from '@/components/app-dialog';
@@ -10,6 +10,7 @@ import { CommunityReportPage } from '@/components/community/community-report-pag
 import { PostImages } from '@/components/community/post-images';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { pt } from '@/components/ui/anchored-menu';
+import { ChatComposer } from '@/components/ui/chat-composer';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineErrorLine } from '@/components/ui/inline-error';
@@ -65,7 +66,6 @@ export default function CommunityPostScreen() {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [focused, setFocused] = useState(false);
   const [reportTarget, setReportTarget] = useState<Target | null>(null);
   const [reporting, setReporting] = useState(false);
   /** 글 열기 기록은 처음 받았을 때 한 번만 — 돌아와 다시 받을 때는 남기지 않는다. */
@@ -394,34 +394,21 @@ export default function CommunityPostScreen() {
 
         <View style={styles.bar}>
           {sendError || readable.hint ? <InlineErrorLine message={sendError ?? readable.hint ?? ''} /> : null}
-          <View style={styles.barRow}>
-            <TextInput
-              style={[styles.input, focused && styles.inputFocus]}
-              value={draft}
-              onChangeText={readable.onChangeText}
-              onFocus={() => {
-                setFocused(true);
-                if (!user) router.push('/login');
-              }}
-              onBlur={() => setFocused(false)}
-              placeholder={t('communityPost.commentPh')}
-              placeholderTextColor={palette.textDisabled}
-              maxLength={COMMENT_MAX}
-              accessibilityLabel={t('communityPost.commentPh')}
-              returnKeyType="send"
-              onSubmitEditing={() => void submitComment()}
-            />
-            <Pressable
-              onPress={() => void submitComment()}
-              disabled={!canSend}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !canSend, busy: sending }}
-              accessibilityLabel={t('communityPost.send')}
-              ph-label="community_comment_send">
-              <Text style={[styles.send, canSend && styles.sendOn]}>{t('communityPost.send')}</Text>
-            </Pressable>
-          </View>
+          {/* 댓글 입력은 챌린지 댓글과 같은 Chat/Composer 다(SOMA-1052) — 보낼 수 없으면 보내기를 그리지 않는다. */}
+          <ChatComposer
+            value={draft}
+            onChangeText={readable.onChangeText}
+            onFocus={() => {
+              if (!user) router.push('/login');
+            }}
+            placeholder={t('communityPost.commentPh')}
+            label={t('communityPost.commentPh')}
+            maxLength={COMMENT_MAX}
+            canSend={canSend}
+            onSend={() => void submitComment()}
+            sendLabel={t('communityPost.send')}
+            sendPhLabel="community_comment_send"
+          />
         </View>
       </KeyboardLift>
       <CommunityReportPage
@@ -496,19 +483,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.gutter,
     gap: space[2],
   },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
-  input: {
-    flex: 1,
-    height: 48,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-    paddingHorizontal: space[4] - 2,
-    ...type.body1,
-    color: palette.text,
-  },
-  inputFocus: { borderWidth: 1.5, borderColor: palette.blue, paddingHorizontal: space[4] - 2.5 },
-  send: { ...type.body2Bold, color: palette.textMeta },
-  sendOn: { color: palette.blueDeep },
 });

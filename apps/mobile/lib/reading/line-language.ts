@@ -7,9 +7,6 @@
  */
 import { currentLanguage } from '../i18n.ts';
 
-/** 앱 목소리(Supertonic 3)가 읽는 말. 'na' 는 말을 모를 때 모델이 쓰는 값이다. */
-export const VOICE_LANGS = ['en', 'ko', 'ja', 'ar', 'bg', 'cs', 'da', 'de', 'el', 'es', 'et', 'fi', 'fr', 'hi', 'hr', 'hu', 'id', 'it', 'lt', 'lv', 'nl', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sv', 'tr', 'uk', 'vi'] as const;
-
 /** 받아쓰기·기기 음성에 넘길 지역 코드. 아랍어는 iOS·Android 모두 받는 사우디(ar-SA)로 둔다. */
 const LOCALES: Record<string, string> = {
   ko: 'ko-KR', en: 'en-US', ja: 'ja-JP', ar: 'ar-SA', bg: 'bg-BG', cs: 'cs-CZ', da: 'da-DK', de: 'de-DE', el: 'el-GR',

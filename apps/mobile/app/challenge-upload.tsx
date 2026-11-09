@@ -27,13 +27,11 @@ import {
   buildEntryBody,
   canSubmitEntry,
   captionTooLong,
-  entryAttemptFor,
   entryFailure,
   entryFailureMessage,
   entryFingerprint,
   videoTooLong,
   videoTooShort,
-  type EntryAttempt,
 } from '@/lib/challenge/entry';
 import {
   CHALLENGE_FUNNEL_EVENTS,
@@ -49,7 +47,9 @@ import { useAuth } from '@/lib/auth';
 import { resultDay } from '@/lib/challenge/week-result';
 import { translate as t, translateList } from '@/lib/i18n';
 import { confirmedVideoFor, flushLibraryUploads, localCopyFor, onLibraryChange, saveRecordingToLibrary } from '@/lib/library/library-runner';
+import { videoRejectDialog } from '@/lib/library/video-checks';
 import { takeRecordedVideo } from '@/lib/recorded-video';
+import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
 
 /**
@@ -87,7 +87,7 @@ export default function ChallengeUploadScreen() {
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean; first: boolean } | null>(null);
   const { alert, dialog } = useAppDialog();
   const entryShare = useEntryShare(params.line ?? '', () => void alert({ title: t('entryShare.title'), message: t('entryShare.none') }));
-  const attemptRef = useRef<EntryAttempt | null>(null);
+  const attemptRef = useRef<RequestAttempt | null>(null);
   const lockRef = useRef(false);
 
   // 제출 없이 떠나면 어디까지 왔는지 남긴다(SOMA-698). 마지막 상태를 ref 에 두고 화면이 정리될 때 보낸다.
@@ -146,7 +146,7 @@ export default function ChallengeUploadScreen() {
         return;
       }
       logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams(outcome.code));
-      setError(t('challengeUpload.errTooLong'));
+      setError(outcome.code === 'video_empty' ? videoRejectDialog('video_empty').title : t('challengeUpload.errTooLong'));
     });
   }, [params.videoId, user?.id]);
 
@@ -216,7 +216,7 @@ export default function ChallengeUploadScreen() {
     setError(null);
     try {
       const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility, faceMosaic });
-      const attempt = entryAttemptFor(attemptRef.current, entryFingerprint(body), () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+      const attempt = attemptFor(attemptRef.current, entryFingerprint(body), newRequestId);
       attemptRef.current = attempt;
       const entry = await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
       logEvent('challenge_entry_created', { visibility });

@@ -15,7 +15,7 @@ test('challenge.entry: 올리기는 서버로 참여작을 만들고 공개 범�
   const upload = read('app/challenge-upload.tsx');
 
   assert.match(upload, /api\.createEntry/);
-  assert.match(upload, /entryAttemptFor/);
+  assert.match(upload, /attemptFor\(attemptRef\.current, entryFingerprint\(body\), newRequestId\)/);
   assert.match(upload, /useState<EntryVisibility \| null>\('public'\)/);
   assert.match(upload, /canSubmitEntry/);
   // 「공개」 줄이 「나만 보기」 줄보다 위에 있다.

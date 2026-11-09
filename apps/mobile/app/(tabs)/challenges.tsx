@@ -15,7 +15,7 @@ import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { FloatingAdd } from '@/components/ui/floating-add';
+import { FLOATING_ADD_HEIGHT, FloatingAdd, useTabFloatingAddBottom } from '@/components/ui/floating-add';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
@@ -96,6 +96,7 @@ function pinFeatured(
 
 export default function ChallengesScreen() {
   const tabBarSpace = useTabBarSpace();
+  const floatingAddBottom = useTabFloatingAddBottom();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const { section: sectionParam } = useLocalSearchParams<{ section?: string }>();
@@ -382,7 +383,7 @@ export default function ChallengesScreen() {
           </CtaBar>
         </>
       ) : (
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 48 + space[6] }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + FLOATING_ADD_HEIGHT + space[6] }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
         {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
@@ -478,7 +479,7 @@ export default function ChallengesScreen() {
       {section === 'challenge' && !selectMode && !deciding && (
         <FloatingAdd
           label={t('challenges.addLine')}
-          bottom={tabBarSpace + (firstTime ? space[3] : 0)}
+          bottom={floatingAddBottom}
           phLabel="challenges_add_line"
           onPress={() => router.push('/line-new')}
         />

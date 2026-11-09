@@ -7,9 +7,6 @@ import {
   blockedLabel,
   buildReportBody,
   canBlock,
-  canSendReport,
-  needsNote,
-  noteTooLong,
   removeAuthored,
   reportDoneMessage,
   reportFailure,
@@ -18,20 +15,10 @@ import { REPORT_NOTE_MAX } from '../lib/challenge/types.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
 
-test('challenge.report: 사유는 다섯이고 기타를 고르면 메모를 받는다', () => {
+// 메모 칸·고르기 전 막기·길이 넘침은 신고 페이지(tests/components/challenge-report-sheet.test.tsx)가 본다.
+test('challenge.report: 사유는 다섯이고 메모는 200자까지다', () => {
   assert.deepEqual([...REPORT_REASONS], ['copyright', 'inappropriate', 'spam', 'duplicate', 'other']);
-  assert.equal(needsNote('other'), true);
-  assert.equal(needsNote('spam'), false);
-  // 사유를 고르기 전에는 보낼 수 없다.
-  assert.equal(canSendReport({ reason: null, note: '' }), false);
-  assert.equal(canSendReport({ reason: 'spam', note: '' }), true);
-});
-
-test('challenge.report: 메모는 200자까지이고 넘치면 화면이 먼저 막는다', () => {
   assert.equal(REPORT_NOTE_MAX, 200);
-  assert.equal(noteTooLong('가'.repeat(REPORT_NOTE_MAX)), false);
-  assert.equal(noteTooLong('가'.repeat(REPORT_NOTE_MAX + 1)), true);
-  assert.equal(canSendReport({ reason: 'other', note: '가'.repeat(REPORT_NOTE_MAX + 1) }), false);
 });
 
 test('challenge.report: 참여작·댓글·챌린지를 대상으로 접수한다', () => {

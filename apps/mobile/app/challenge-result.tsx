@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChallengeLoadFail } from '@/components/challenge-load-fail';
-import { ChallengeNotice } from '@/components/challenge-notice';
+import { NoticeBand } from '@/components/ui/notice-band';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
@@ -99,7 +99,7 @@ export default function ChallengeResultScreen() {
             </View>
 
             <Text style={styles.section}>{t('challengeResult.picked', { count: picked?.length ?? 0 })}</Text>
-            {!!notice && ranksHidden(challenge) && <ChallengeNotice message={notice} />}
+            {!!notice && ranksHidden(challenge) && <NoticeBand message={notice} />}
             {picked === null && <SkeletonRows count={2} avatar card={false} style={styles.flush} />}
             {picked?.length === 0 && !ranksHidden(challenge) && (
               <InlineEmpty title={t('challengeResult.noPicked')} />

@@ -486,13 +486,20 @@ describe('설정의 프로필 편집', () => {
     expect(setMe).not.toHaveBeenCalled();
   });
 
-  test('올리는 동안 사진 편집을 막는다', async () => {
+  test('올리는 동안 사진 편집을 막고, 「올리는 중」은 사진을 고른 뒤에만 보인다', async () => {
     let finish!: (v: null) => void;
-    (pickAndUploadProfilePhoto as jest.Mock).mockReturnValue(new Promise((r) => (finish = r)));
+    let picked!: () => void;
+    (pickAndUploadProfilePhoto as jest.Mock).mockImplementation((onPicked: () => void) => {
+      picked = onPicked;
+      return new Promise((r) => (finish = r));
+    });
     await render(<ProfileEditScreen />);
 
     await photoMenu('사진 바꾸기');
     expect(button('사진 편집')).toBeDisabled();
+    expect(screen.queryByText(/올리는 중/)).not.toBeOnTheScreen();
+    await act(async () => picked());
+    expect(screen.getByText(/올리는 중/)).toBeOnTheScreen();
     await act(async () => finish(null));
     expect(button('사진 편집')).toBeEnabled();
   });

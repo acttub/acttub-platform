@@ -18,6 +18,7 @@ import { InlineEmpty } from '@/components/ui/inline-empty';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { NoticeBand } from '@/components/ui/notice-band';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -89,12 +90,7 @@ export default function AdmissionsScreen() {
       {payload && (
         <ScrollView contentContainerStyle={styles.list}>
           <AdSlot slot="admissions_top" />
-          <View style={styles.notice}>
-            {/* Pretendard 서브셋에 원문자(U+2460~24FF)가 없어 'ⓘ'는 두부로 나온다.
-                아이콘 폰트는 서브셋 대상이 아니라서 Feather 로 그린다. */}
-            <Feather name="info" size={14} color={palette.amber} />
-            <Text style={styles.noticeText}>{payload.disclaimer}</Text>
-          </View>
+          <NoticeBand compact message={payload.disclaimer} />
 
           <View style={styles.searchBox}>
             <Feather name="search" size={15} color={palette.iconFaint} />
@@ -314,16 +310,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },
   list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[3] },
-  notice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space[2],
-    paddingVertical: space[3],
-    paddingHorizontal: space[4],
-    borderRadius: radius.md,
-    backgroundColor: palette.amberSoft,
-  },
-  noticeText: { flex: 1, ...type.captionBold, color: palette.amber },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',

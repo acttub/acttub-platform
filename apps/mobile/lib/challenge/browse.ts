@@ -1,6 +1,7 @@
 import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import { SEARCH_MIN_LENGTH, type ChallengeCard, type ChallengeDetail, type ChallengeTab, type EntryCard, type EntrySort, type Participant } from './types.ts';
+import { kstDayIndex } from '../kst.ts';
 
 /**
  * 대사 목록·상세·랭킹의 표시 규칙(challenge.browse).
@@ -10,7 +11,6 @@ import { SEARCH_MIN_LENGTH, type ChallengeCard, type ChallengeDetail, type Chall
  * 최신순에는 순위 숫자가 없고 가장 최근 하나에만 NEW 가 붙는다. 좋아요가 모두 0이면 1위 배지가
  * 없다. 종료된 챌린지는 굳은 값을 보여 주고, 확정 전에는 "집계 중"이다.
  */
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** 오늘의 챌린지는 인기·최신 탭 맨 위에만 고정한다(종료·내 챌린지에는 없다). */
 export function pinsFeatured(tab: ChallengeTab): boolean {
@@ -58,11 +58,6 @@ export function dDayLabel(challenge: Pick<ChallengeCard, 'ends_at'>, now: number
   return days === 0 ? translate('challenges.ddayToday') : translate('challenges.dday', { days });
 }
 
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-function kstDayIndex(ms: number): number {
-  return Math.floor((ms + KST_OFFSET_MS) / DAY_MS);
-}
 
 /** 주최자 줄 — 기획팀 챌린지는 주최자가 없고, 탈퇴한 주최자는 그렇게 보인다. */
 export function hostLabel(challenge: Pick<ChallengeCard, 'origin' | 'host_name'>): string {

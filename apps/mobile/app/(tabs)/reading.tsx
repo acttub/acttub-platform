@@ -10,7 +10,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SplitJobRow } from '@/components/reading/split-job-row';
 import { BandGradient } from '@/components/ui/band-gradient';
-import { FLOATING_ADD_HEIGHT, FloatingAdd } from '@/components/ui/floating-add';
+import { FLOATING_ADD_HEIGHT, FloatingAdd, useTabFloatingAddBottom } from '@/components/ui/floating-add';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
@@ -73,6 +73,7 @@ const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guid
 
 export default function ReadingList() {
   const tabBarSpace = useTabBarSpace();
+  const floatingAddBottom = useTabFloatingAddBottom();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const insets = useSafeAreaInsets();
@@ -502,8 +503,7 @@ export default function ReadingList() {
       {!showEntry && !entrySkeleton && (
         <FloatingAdd
           label={t('reading.titleNew')}
-          // useTabBarSpace 는 탭바가 있으면 탭바 위 12까지 포함하고, 숨기면 안전영역뿐이다.
-          bottom={tabBarSpace === insets.bottom ? insets.bottom + space[3] : tabBarSpace}
+          bottom={floatingAddBottom}
           phLabel="reading_new"
           target={newTarget}
           onPress={() => router.push('/reading/new')}

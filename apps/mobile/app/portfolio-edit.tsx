@@ -1,17 +1,16 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Image, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { DragReorderList } from '@/components/drag-reorder';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { KeyboardLift } from '@/components/keyboard-lift';
 import { Button } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
-import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
 import { LoadingText } from '@/components/ui/loading-text';
@@ -48,7 +47,8 @@ import {
 import { pickAndUploadPortfolioPhoto } from '@/lib/profile-photo-upload';
 
 /** 편집 중인 경력. id 가 null 이면 새 경력이다. */
-type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors };
+/** `failure` 는 저장 실패 사유 — 대화상자 위에 알림을 겹쳐 띄우면 iOS 에서 안 보여 대화상자 안에 적는다. */
+type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors; failure?: string | null };
 
 /**
  * 포트폴리오 편집 — 배우가 오디션에 낼 소개글·경력·사진을 적어 두고 공유 링크로 보여 준다.
@@ -87,9 +87,12 @@ export default function PortfolioEditScreen() {
     void load();
   }, [load]);
 
-  /** 요청 하나를 돌린다. 실패하면 `undo`로 되돌리고 사유에 맞는 안내를 띄우며, 필요하면 목록을 다시 받는다. */
+  /**
+   * 요청 하나를 돌린다. 실패하면 `undo`로 되돌리고 사유에 맞는 안내를 띄우며(`report`가 있으면 그쪽에 넘긴다),
+   * 필요하면 목록을 다시 받는다.
+   */
   const run = useCallback(
-    async (key: string, task: () => Promise<void>, undo?: () => void) => {
+    async (key: string, task: () => Promise<void>, undo?: () => void, report?: (message: string) => void) => {
       if (busy) return;
       setBusy(key);
       try {
@@ -98,13 +101,9 @@ export default function PortfolioEditScreen() {
         undo?.();
         const failure = portfolioFailure(error);
         if (failure.reload) await load();
-        void alert({
-          title: t('portfolio.failTitle'),
-          message:
-            failure.kind === 'retry' && error instanceof Error
-              ? error.message
-              : t(`portfolio.fail.${failure.kind}`),
-        });
+        const message = failure.kind === 'retry' && error instanceof Error ? error.message : t(`portfolio.fail.${failure.kind}`);
+        if (report) report(message);
+        else void alert({ title: t('portfolio.failTitle'), message });
       } finally {
         setBusy(null);
       }
@@ -141,17 +140,23 @@ export default function PortfolioEditScreen() {
       return;
     }
     const original = portfolio.credits.find((credit) => credit.id === editing.id) ?? null;
-    void run('credit', async () => {
-      if (original) {
-        // 보낸 항목만 바뀐다. 바뀐 것이 없으면 요청을 보내지 않는다.
-        const patch = creditPatch(original, result.payload);
-        if (patch) await api.updatePortfolioCredit(original.id, patch);
-      } else {
-        await api.createPortfolioCredit(result.payload);
-      }
-      setEditing(null);
-      apply(await api.portfolio());
-    });
+    setEditing({ ...editing, failure: null });
+    void run(
+      'credit',
+      async () => {
+        if (original) {
+          // 보낸 항목만 바뀐다. 바뀐 것이 없으면 요청을 보내지 않는다.
+          const patch = creditPatch(original, result.payload);
+          if (patch) await api.updatePortfolioCredit(original.id, patch);
+        } else {
+          await api.createPortfolioCredit(result.payload);
+        }
+        setEditing(null);
+        apply(await api.portfolio());
+      },
+      undefined,
+      (failure) => setEditing((current) => (current ? { ...current, failure } : current)),
+    );
   };
 
   const removeCredit = async (credit: PortfolioCredit) => {
@@ -189,9 +194,10 @@ export default function PortfolioEditScreen() {
     );
   };
 
+  // 고르기 창이 열린 동안은 'photo-pick' 이라 「올리는 중」을 보이지 않는다. 고른 뒤에 'photo' 로 바꾼다.
   const addPhoto = () =>
-    run('photo', async () => {
-      const next = await pickAndUploadPortfolioPhoto();
+    run('photo-pick', async () => {
+      const next = await pickAndUploadPortfolioPhoto(() => setBusy('photo'));
       if (next) apply(next);
     });
 
@@ -373,75 +379,74 @@ export default function PortfolioEditScreen() {
       </KeyboardAwareScroll>
 
       {/* 경력 추가·수정 */}
-      <Modal visible={editing !== null} transparent statusBarTranslucent animationType="fade" onRequestClose={() => setEditing(null)}>
-        <KeyboardLift>
-          <Pressable testID="credit-dialog-backdrop" style={styles.backdrop} onPress={() => setEditing(null)}>
-            {editing && (
-              <Pressable style={styles.stop} onPress={(e) => e.stopPropagation()}>
-                <DialogCard title={t(editing.id ? 'portfolio.creditEditTitle' : 'portfolio.creditAddTitle')}>
-                  <View style={styles.form}>
-                    <TextField
-                      label={t('portfolio.creditTitleLabel')}
-                      placeholder={t('portfolio.creditTitlePlaceholder')}
-                      value={editing.draft.title}
-                      error={editing.errors.title ? t(`portfolio.fieldError.${editing.errors.title}`) : null}
-                      onChangeText={(title) =>
-                        setEditing({ ...editing, draft: { ...editing.draft, title }, errors: { ...editing.errors, title: undefined } })
-                      }
-                    />
-                    <TextField
-                      label={t('portfolio.creditRoleLabel')}
-                      placeholder={t('portfolio.creditRolePlaceholder')}
-                      value={editing.draft.role}
-                      error={editing.errors.role ? t(`portfolio.fieldError.${editing.errors.role}`) : null}
-                      onChangeText={(role) =>
-                        setEditing({ ...editing, draft: { ...editing.draft, role }, errors: { ...editing.errors, role: undefined } })
-                      }
-                    />
-                    <TextField
-                      label={t('portfolio.creditYearLabel')}
-                      placeholder={t('portfolio.creditYearPlaceholder')}
-                      value={editing.draft.year}
-                      keyboardType="number-pad"
-                      maxLength={4}
-                      error={editing.errors.year ? t(`portfolio.fieldError.${editing.errors.year}`) : null}
-                      onChangeText={(text) =>
-                        setEditing({
-                          ...editing,
-                          draft: { ...editing.draft, year: text.replace(/[^0-9]/g, '').slice(0, 4) },
-                          errors: { ...editing.errors, year: undefined },
-                        })
-                      }
-                    />
-                    <Text style={styles.fieldLabel}>{t('portfolio.creditKindLabel')}</Text>
-                    <View style={styles.chips}>
-                      {CREDIT_KINDS.map((kind) => (
-                        <Chip
-                          key={kind}
-                          label={kindLabel(kind)}
-                          role="radio"
-                          selected={editing.draft.kind === kind}
-                          onPress={() =>
-                            setEditing({ ...editing, draft: { ...editing.draft, kind }, errors: { ...editing.errors, kind: undefined } })
-                          }
-                        />
-                      ))}
-                    </View>
-                    {editing.errors.kind && <InlineErrorLine message={t('portfolio.fieldError.required')} />}
-                  </View>
-                  <DialogButtons
-                    cancelLabel={t('common.cancel')}
-                    onCancel={() => setEditing(null)}
-                    confirmLabel={t('portfolio.save')}
-                    onConfirm={saveCredit}
-                    busy={busy !== null}
-                  />
-                </DialogCard>
-              </Pressable>
-            )}
-          </Pressable>
-        </KeyboardLift>
-      </Modal>
+      <DialogModal
+        visible={editing !== null}
+        onRequestClose={() => setEditing(null)}
+        onBackdropPress={() => setEditing(null)}
+        backdropTestID="credit-dialog-backdrop">
+        {editing && (
+        <DialogCard title={t(editing.id ? 'portfolio.creditEditTitle' : 'portfolio.creditAddTitle')}>
+          <View style={styles.form}>
+            <TextField
+              label={t('portfolio.creditTitleLabel')}
+              placeholder={t('portfolio.creditTitlePlaceholder')}
+              value={editing.draft.title}
+              error={editing.errors.title ? t(`portfolio.fieldError.${editing.errors.title}`) : null}
+              onChangeText={(title) =>
+                setEditing({ ...editing, draft: { ...editing.draft, title }, errors: { ...editing.errors, title: undefined } })
+              }
+            />
+            <TextField
+              label={t('portfolio.creditRoleLabel')}
+              placeholder={t('portfolio.creditRolePlaceholder')}
+              value={editing.draft.role}
+              error={editing.errors.role ? t(`portfolio.fieldError.${editing.errors.role}`) : null}
+              onChangeText={(role) =>
+                setEditing({ ...editing, draft: { ...editing.draft, role }, errors: { ...editing.errors, role: undefined } })
+              }
+            />
+            <TextField
+              label={t('portfolio.creditYearLabel')}
+              placeholder={t('portfolio.creditYearPlaceholder')}
+              value={editing.draft.year}
+              keyboardType="number-pad"
+              maxLength={4}
+              error={editing.errors.year ? t(`portfolio.fieldError.${editing.errors.year}`) : null}
+              onChangeText={(text) =>
+                setEditing({
+                  ...editing,
+                  draft: { ...editing.draft, year: text.replace(/[^0-9]/g, '').slice(0, 4) },
+                  errors: { ...editing.errors, year: undefined },
+                })
+              }
+            />
+            <Text style={styles.fieldLabel}>{t('portfolio.creditKindLabel')}</Text>
+            <View style={styles.chips}>
+              {CREDIT_KINDS.map((kind) => (
+                <Chip
+                  key={kind}
+                  label={kindLabel(kind)}
+                  role="radio"
+                  selected={editing.draft.kind === kind}
+                  onPress={() =>
+                    setEditing({ ...editing, draft: { ...editing.draft, kind }, errors: { ...editing.errors, kind: undefined } })
+                  }
+                />
+              ))}
+            </View>
+            {editing.errors.kind && <InlineErrorLine message={t('portfolio.fieldError.required')} />}
+            {editing.failure ? <InlineErrorLine message={editing.failure} /> : null}
+          </View>
+          <DialogButtons
+            cancelLabel={t('common.cancel')}
+            onCancel={() => setEditing(null)}
+            confirmLabel={t('portfolio.save')}
+            onConfirm={saveCredit}
+            busy={busy !== null}
+          />
+        </DialogCard>
+        )}
+      </DialogModal>
       {dialog}
     </SafeAreaView>
     </GestureHandlerRootView>
@@ -546,8 +551,6 @@ const styles = StyleSheet.create({
   },
   photoAddText: { ...type.captionBold, color: palette.blueDeep },
   url: { ...type.body2Bold, color: palette.text },
-  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space[5] },
-  stop: { width: '100%', alignItems: 'center' },
   form: { gap: space[3], paddingTop: space[2] },
   fieldLabel: { ...type.body2Bold, color: palette.textSub },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },

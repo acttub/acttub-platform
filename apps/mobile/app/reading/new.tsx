@@ -3,7 +3,7 @@ import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -14,7 +14,7 @@ import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { Button, PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { MASCOT_SIZE } from '@/components/ui/mascot';
 import { ReadingStatus } from '@/components/ui/reading-status';
@@ -503,95 +503,91 @@ export default function ReadingNew() {
           router.replace(firstReadingRef.current ? FIRST_READING_HREF : '/reading/detail');
         }}
       />
-      <Modal transparent statusBarTranslucent visible={!!leaveAsk && !leaveOk} animationType="fade" onRequestClose={() => setLeaveAsk(null)}>
-        <View style={styles.backdrop}>
-          <DialogCard title={t('reading.pasteLeaveTitle')} message={t('reading.pasteLeaveBody')}>
+      <DialogModal visible={!!leaveAsk && !leaveOk} onRequestClose={() => setLeaveAsk(null)}>
+        <DialogCard title={t('reading.pasteLeaveTitle')} message={t('reading.pasteLeaveBody')}>
+          <DialogButtons
+            cancelLabel={t('reading.pasteLeaveStay')}
+            onCancel={() => setLeaveAsk(null)}
+            confirmLabel={t('reading.pasteLeaveGo')}
+            destructive
+            onConfirm={() => setLeaveOk(true)}
+          />
+        </DialogCard>
+      </DialogModal>
+      <DialogModal visible={!!popup && (popup.kind !== 'checking' || popup.keepModal)} onRequestClose={() => !checking && setPopup(null)}>
+        {popup?.kind === 'alert' && (
+          <DialogCard title={popup.title} message={popup.message}>
+            <DialogButtons confirmLabel={t('common.confirm')} onConfirm={() => setPopup(null)} />
+          </DialogCard>
+        )}
+        {popup?.kind === 'duplicate' && (
+          <DialogCard title={t('reading.duplicateTitle')} message={t('reading.duplicateBody', { title: popup.title })}>
             <DialogButtons
-              cancelLabel={t('reading.pasteLeaveStay')}
-              onCancel={() => setLeaveAsk(null)}
-              confirmLabel={t('reading.pasteLeaveGo')}
-              destructive
-              onConfirm={() => setLeaveOk(true)}
+              cancelLabel={t('reading.duplicateNew')}
+              onCancel={() => void split(popup.input, popup.flags)}
+              confirmLabel={t('reading.duplicateOpen')}
+              onConfirm={() => {
+                setPopup(null);
+                router.replace('/reading/detail');
+              }}
             />
           </DialogCard>
-        </View>
-      </Modal>
-      <Modal transparent statusBarTranslucent visible={!!popup && (popup.kind !== 'checking' || popup.keepModal)} animationType="fade" onRequestClose={() => !checking && setPopup(null)}>
-        <View style={styles.backdrop}>
-          {popup?.kind === 'alert' && (
-            <DialogCard title={popup.title} message={popup.message}>
-              <DialogButtons confirmLabel={t('common.confirm')} onConfirm={() => setPopup(null)} />
-            </DialogCard>
-          )}
-          {popup?.kind === 'duplicate' && (
-            <DialogCard title={t('reading.duplicateTitle')} message={t('reading.duplicateBody', { title: popup.title })}>
-              <DialogButtons
-                cancelLabel={t('reading.duplicateNew')}
-                onCancel={() => void split(popup.input, popup.flags)}
-                confirmLabel={t('reading.duplicateOpen')}
-                onConfirm={() => {
-                  setPopup(null);
-                  router.replace('/reading/detail');
-                }}
-              />
-            </DialogCard>
-          )}
-          {popup?.kind === 'free_limit' && (
-            <DialogCard title={t('pro.scriptLimitTitle')} message={t('pro.scriptLimitBody')}>
-              {/* 지울 대본 목록을 읽는 동안(busy)은 어느 버튼도 다시 받지 않는다. */}
-              <DialogButtons
-                cancelLabel={t('pro.scriptLimitReplace')}
-                onCancel={() => !popup.busy && void askReplace(popup.resume)}
-                confirmLabel={t('pro.scriptLimitPro')}
-                onConfirm={() => {
-                  setPopup(null);
-                  router.push({ pathname: '/pro', params: { from: 'script' } });
-                }}
-                confirmDisabled={popup.busy}
-              />
-            </DialogCard>
-          )}
-          {popup?.kind === 'free_pick' && (
-            <DialogCard title={t('pro.pickTitle')} message={t('pro.pickGuide')}>
-              {/* 11/1 전에 넣은 대본은 3개를 넘을 수 있어 목록은 스크롤한다. */}
-              <ScrollView style={styles.pickList}>
-                {popup.scripts.map((script) => (
-                  <Pressable
-                    key={script.id}
-                    style={({ pressed }) => [styles.pickRow, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                    onPress={() => setPopup({ kind: 'free_replace', resume: popup.resume, scriptId: script.id, title: script.title, busy: false })}>
-                    <Text style={styles.pickText} numberOfLines={1}>{script.title}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <TextButton label={t('pro.replaceCancel')} onPress={() => setPopup(null)} />
-            </DialogCard>
-          )}
-          {popup?.kind === 'free_replace' && (
-            <DialogCard title={t('pro.replaceTitle', { title: popup.title })} message={t('pro.replaceBody')}>
-              <DialogButtons
-                cancelLabel={t('pro.replaceCancel')}
-                onCancel={() => setPopup(null)}
-                confirmLabel={t('pro.replaceConfirm')}
-                onConfirm={() => void replaceAndRetry(popup)}
-                busy={popup.busy}
-                destructive
-              />
-            </DialogCard>
-          )}
-          {popup?.kind === 'not_script' && (
-            <DialogCard title={t('reading.notScriptTitle')} message={t('reading.notScriptBody')}>
-              <DialogButtons
-                cancelLabel={t('reading.notScriptSplit')}
-                onCancel={() => void split(popup.input, popup.flags)}
-                confirmLabel={t('reading.notScriptRepick')}
-                onConfirm={() => setPopup(null)}
-              />
-            </DialogCard>
-          )}
-        </View>
-      </Modal>
+        )}
+        {popup?.kind === 'free_limit' && (
+          <DialogCard title={t('pro.scriptLimitTitle')} message={t('pro.scriptLimitBody')}>
+            {/* 지울 대본 목록을 읽는 동안(busy)은 어느 버튼도 다시 받지 않는다. */}
+            <DialogButtons
+              cancelLabel={t('pro.scriptLimitReplace')}
+              onCancel={() => !popup.busy && void askReplace(popup.resume)}
+              confirmLabel={t('pro.scriptLimitPro')}
+              onConfirm={() => {
+                setPopup(null);
+                router.push({ pathname: '/pro', params: { from: 'script' } });
+              }}
+              confirmDisabled={popup.busy}
+            />
+          </DialogCard>
+        )}
+        {popup?.kind === 'free_pick' && (
+          <DialogCard title={t('pro.pickTitle')} message={t('pro.pickGuide')}>
+            {/* 11/1 전에 넣은 대본은 3개를 넘을 수 있어 목록은 스크롤한다. */}
+            <ScrollView style={styles.pickList}>
+              {popup.scripts.map((script) => (
+                <Pressable
+                  key={script.id}
+                  style={({ pressed }) => [styles.pickRow, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  onPress={() => setPopup({ kind: 'free_replace', resume: popup.resume, scriptId: script.id, title: script.title, busy: false })}>
+                  <Text style={styles.pickText} numberOfLines={1}>{script.title}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <TextButton label={t('pro.replaceCancel')} onPress={() => setPopup(null)} />
+          </DialogCard>
+        )}
+        {popup?.kind === 'free_replace' && (
+          <DialogCard title={t('pro.replaceTitle', { title: popup.title })} message={t('pro.replaceBody')}>
+            <DialogButtons
+              cancelLabel={t('pro.replaceCancel')}
+              onCancel={() => setPopup(null)}
+              confirmLabel={t('pro.replaceConfirm')}
+              onConfirm={() => void replaceAndRetry(popup)}
+              busy={popup.busy}
+              destructive
+            />
+          </DialogCard>
+        )}
+        {popup?.kind === 'not_script' && (
+          <DialogCard title={t('reading.notScriptTitle')} message={t('reading.notScriptBody')}>
+            <DialogButtons
+              cancelLabel={t('reading.notScriptSplit')}
+              onCancel={() => void split(popup.input, popup.flags)}
+              confirmLabel={t('reading.notScriptRepick')}
+              onConfirm={() => setPopup(null)}
+            />
+          </DialogCard>
+        )}
+      </DialogModal>
       {tutorialGuide.element}
     </KeyboardLift>
   );
@@ -671,7 +667,6 @@ const styles = StyleSheet.create({
   titleField: { gap: space[2] },
   titleHint: { ...type.caption, color: palette.textMeta },
   textArea: { minHeight: 240, paddingTop: space[3], paddingBottom: space[3] },
-  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
   pickList: { alignSelf: 'stretch', maxHeight: 264, marginTop: space[2] },
   pickRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space[1] },
   pickText: { ...type.body1Bold, color: palette.text },

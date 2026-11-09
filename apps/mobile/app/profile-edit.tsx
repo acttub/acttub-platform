@@ -33,34 +33,35 @@ import { SkeletonRows } from '@/components/ui/skeleton';
 export default function ProfileEditScreen() {
   const router = useRouter();
   const { user, profile, reloadProfile, setMe } = useAuth();
-  const [photoBusy, setPhotoBusy] = useState(false);
+  // 'pick' 은 사진 고르기 창이 열린 동안이다 — 고르기 전에는 「올리는 중」을 보이지 않는다.
+  const [photoBusy, setPhotoBusy] = useState<'pick' | 'upload' | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const { sheet, dialog } = useAppDialog();
   const me = profile.me;
   const p = me?.profile ?? null;
 
   const changePhoto = async () => {
-    setPhotoBusy(true);
+    setPhotoBusy('pick');
     setPhotoError(null);
     try {
-      const next = await pickAndUploadProfilePhoto();
+      const next = await pickAndUploadProfilePhoto(() => setPhotoBusy('upload'));
       if (next) setMe(next);
     } catch (cause) {
       setPhotoError(cause instanceof Error ? cause.message : t('profileName.photoFail'));
     } finally {
-      setPhotoBusy(false);
+      setPhotoBusy(null);
     }
   };
 
   const removePhoto = async () => {
-    setPhotoBusy(true);
+    setPhotoBusy('upload');
     setPhotoError(null);
     try {
       setMe(await removeProfilePhoto());
     } catch (cause) {
       setPhotoError(cause instanceof Error ? cause.message : t('profileName.photoFail'));
     } finally {
-      setPhotoBusy(false);
+      setPhotoBusy(null);
     }
   };
 
@@ -125,9 +126,9 @@ export default function ProfileEditScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.summary}>
           <View style={styles.summaryTop}>
-            <Pressable style={styles.photoBox} onPress={editPhoto} disabled={photoBusy} accessibilityRole="button" accessibilityLabel={t('profileName.editPhoto')}>
+            <Pressable style={styles.photoBox} onPress={editPhoto} disabled={photoBusy !== null} accessibilityRole="button" accessibilityLabel={t('profileName.editPhoto')}>
               <View style={styles.photo}>
-                {photoBusy ? (
+                {photoBusy === 'upload' ? (
                   <LoadingText label={t('loadingText.uploading')} style={styles.photoBusy} />
                 ) : photoUri ? (
                   <Image source={{ uri: photoUri }} style={styles.photoImg} contentFit="cover" />
