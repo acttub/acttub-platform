@@ -181,4 +181,17 @@ class ScriptSplitWorkerOutcomeTest {
         verify(ledger, never()).release(any(), any(), any(), any());
         verify(imports).fail(eq(job), any(), eq(importId), eq(ScriptImportFailure.FAILED), eq(true), any());
     }
+
+    @Test void aCutOffSeenOnlyInTheCauseIsReleasedAndALostLeaseThenIsReportedOnly() {
+        claimed(SHORT);
+        TextGenerator cutOff = (instructions, input) -> {
+            throw new IllegalStateException("read cut", new java.io.InterruptedIOException());
+        };
+        doThrow(new LeaseOwnershipException("lost")).when(ledger).release(eq(job), any(), eq("shutdown"), any());
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock);
+        assertThat(stopping.runOnce()).isTrue();
+        assertThat(Thread.currentThread().isInterrupted()).isFalse();
+        assertThat(failures.contexts()).singleElement().asString().startsWith("ScriptSplitWorker.release");
+        verify(imports, never()).fail(any(), any(), any(), any(), anyBoolean(), any());
+    }
 }
