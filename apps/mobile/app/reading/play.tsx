@@ -65,6 +65,7 @@ import {
   createRun,
   discardOnExit,
   formatProgress,
+  hiddenLineCount,
   isHidden,
   jumpTo,
   mmss,
@@ -2487,16 +2488,16 @@ export default function ReadingPlay() {
   );
 }
 
-/** 가린 대사 자리의 회색 막대. 글 길이만큼 줄을 나눠 대사가 얼마나 긴지만 짐작하게 한다. */
+/**
+ * 가린 대사 자리의 줄(SOMA-1047). 대사 길이만큼 1~3줄을 그어 「여기 대사가 있는데 가려져 있다」로 읽히게 한다.
+ * 지금 줄은 blue-soft 카드 위 연한 파랑(blueMask), 독백의 다음 줄은 bg-soft. 높이 10 · 모서리 5 · 줄 사이 10, 마지막 줄은 60%.
+ */
 function HiddenBars({ text, tone }: { text: string; tone: 'past' | 'current' }) {
-  const len = Math.max(1, [...text.trim()].length);
-  const perLine = 18;
-  const lines = Math.min(3, Math.ceil(len / perLine));
-  const lastWidth = `${Math.max(18, Math.round((((len - 1) % perLine) + 1) / perLine * 100))}%` as const;
+  const lines = hiddenLineCount(text);
   return (
     <View style={styles.bars}>
       {Array.from({ length: lines }, (_, i) => (
-        <View key={i} style={[tone === 'past' ? styles.barPast : styles.barCurrent, { width: i === lines - 1 ? lastWidth : '100%' }]} />
+        <View key={i} style={[styles.bar, tone === 'current' && styles.barCurrent, { width: i === lines - 1 ? '60%' : '100%' }]} />
       ))}
     </View>
   );
@@ -2633,9 +2634,9 @@ const styles = StyleSheet.create({
   aidRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bg, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 7 },
   aidText: { ...type.captionBold, color: palette.blueDeep },
-  bars: { gap: 8, justifyContent: 'center' },
-  barPast: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
-  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blue },
+  bars: { gap: 10, justifyContent: 'center' },
+  bar: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
+  barCurrent: { backgroundColor: palette.blueMask },
   listenBars: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
   listenBar: { width: 3, borderRadius: 2, backgroundColor: palette.blue },
   hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 },

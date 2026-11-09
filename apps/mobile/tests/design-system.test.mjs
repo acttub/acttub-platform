@@ -15,9 +15,15 @@ const penText = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 const camel = (name) => name.replace(/-(\w)/g, (_, c) => c.toUpperCase());
 
+// 앱에 먼저 넣고 pen 변수는 아직 없는 색. pen 을 다시 내보내 DESIGN-SYSTEM.html 에 들어오면 여기서 지운다.
+const PEN_PENDING = ['blueMask'];
+
 test('DESIGN-SYSTEM.html 의 색이 palette.ts 와 같다', () => {
   const rows = [...penText.matchAll(/\$([a-z-]+) (#[0-9A-Fa-f]{6,8})\b/g)].map((m) => [camel(m[1]), m[2]]);
-  assert.deepEqual(Object.fromEntries(rows), palette);
+  const fromPen = Object.fromEntries(rows);
+  assert.deepEqual(PEN_PENDING.filter((name) => name in fromPen), [], 'pen 에 들어온 색은 PEN_PENDING 에서 지운다');
+  const fromCode = Object.fromEntries(Object.entries(palette).filter(([name]) => !PEN_PENDING.includes(name)));
+  assert.deepEqual(fromPen, fromCode);
 });
 
 test('DESIGN-SYSTEM.html 의 글자가 tokens.ts type 과 같다', () => {
