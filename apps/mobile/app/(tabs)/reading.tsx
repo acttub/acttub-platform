@@ -62,7 +62,7 @@ const ENTRY_ART: Partial<Record<EntryKey, number>> = {
   sample: require('@/assets/images/reading/sample-script-3d.png'),
 };
 const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
-/** 입구 화면 위 띠. 24색 밖이라 이 파일 안에만 둔다(DESIGN-SYSTEM.html 「의도된 차이」). */
+/** 입구 화면 위 띠. 24색 밖이라 이 파일 안에만 둔다(디자인 시스템 pen 「의도된 차이」). */
 const ENTRY_TOP = '#E4EEFC';
 /** 띠가 흰색이 되는 화면 y. */
 const ENTRY_FADE_END = 310;
