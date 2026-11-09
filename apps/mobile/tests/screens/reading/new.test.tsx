@@ -82,7 +82,7 @@ async function paste(text = PASTED) {
   await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), text);
 }
 
-test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 누를 수 없다', async () => {
+test('처음에는 파일 탭을 보이고, 넣은 것이 없이 다음을 누르면 빠진 칸 아래에 이유를 보인다', async () => {
   await render(<ReadingNew />);
 
   expect(screen.getByRole('tab', { name: /파일 업로드/ })).toBeSelected();
@@ -94,7 +94,16 @@ test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 �
   expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   // 예시 대본은 「대본 같이 만들기」에서 고른다 — 이 화면에는 링크가 없다(10/25).
   expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
-  expect(screen.getByText('다음')).toBeDisabled();
+  // 「다음」은 눌린다 — 넘어가지 않고 파일 칸 아래에 이유 한 줄(SOMA-1057).
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText('파일을 골라 주세요')).toBeOnTheScreen();
+  // 붙여넣기 탭으로 가면 그 칸의 이유로 바뀐다 — 다시 누를 때까지 줄은 숨는다.
+  await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
+  expect(screen.queryByText('파일을 골라 주세요')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText('대본 글을 붙여 넣어 주세요')).toBeOnTheScreen();
+  await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), '민지: 안녕');
+  expect(screen.queryByText('대본 글을 붙여 넣어 주세요')).not.toBeOnTheScreen();
 });
 
 test('붙여넣은 글과 제목을 보내 나누고, 목소리 정하기(2단계)로 간다', async () => {
@@ -114,6 +123,18 @@ test('붙여넣은 글과 제목을 보내 나누고, 목소리 정하기(2단�
     raw_text: PASTED,
   });
   expect(server.get).toHaveBeenCalledWith('s1');
+});
+
+test('「다음」을 빠르게 두 번 눌러도 대본을 한 번만 나눈다(SOMA-1057)', async () => {
+  await render(<ReadingNew />);
+  await paste();
+  const next = screen.getByText('다음');
+  await act(async () => {
+    void fireEvent.press(next);
+    void fireEvent.press(next);
+  });
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  expect(api.importScript).toHaveBeenCalledTimes(1);
 });
 
 test('배역이 하나뿐인 대본도 나눈 뒤 목소리 정하기로 간다', async () => {
@@ -167,7 +188,9 @@ test('「대본 같이 만들기」는 화면을 넘기지 않고 아래에 예�
   await fireEvent.press(screen.getByRole('tab', { name: /같이 만들기/ }));
   expect(mockRouter.push).not.toHaveBeenCalled();
   expect(screen.queryByText('대본 파일 첨부')).not.toBeOnTheScreen();
-  expect(screen.getByText('다음')).toBeDisabled();
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText('예시 대본 고르기·새로 만들기 중 하나를 골라 주세요')).toBeOnTheScreen();
+  expect(mockRouter.push).not.toHaveBeenCalled();
 
   // 예시 대본 고르기 — 그 아래에 예시 카드와 고르기 칩이 바로 보인다.
   await fireEvent.press(screen.getByText('예시 대본 고르기'));
@@ -563,7 +586,8 @@ test('탭마다 넣은 것을 따로 들고, 보고 있는 탭의 것을 보낸�
   await fireEvent.press(screen.getByRole('tab', { name: /파일/ }));
 
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
-  expect(screen.getByText('다음')).toBeDisabled();
+  await fireEvent.press(screen.getByText('다음'));
+  expect(screen.getByText('파일을 골라 주세요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
   expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeEnabled();

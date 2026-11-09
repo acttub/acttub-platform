@@ -3,7 +3,7 @@ import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -15,6 +15,7 @@ import { Image } from 'expo-image';
 import { Button, PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { MASCOT_SIZE } from '@/components/ui/mascot';
 import { ReadingStatus } from '@/components/ui/reading-status';
@@ -70,6 +71,9 @@ import { translate as t } from '@/lib/i18n';
 const MASCOT = require('@/assets/images/mascot-reading.png');
 /** pen R2 「대본 읽는 액티」·「예시 대본 카드」 그림. */
 const HERO_ACTY = require('@/assets/images/reading/acty-reading-hero.png');
+
+/** 「다음」을 못 누르는 이유마다 빠진 칸 아래에 보일 한 줄(SOMA-1057). */
+const BLOCK_LINE = { method: 'reading.blockMakeMethod', paste: 'reading.blockPaste', file: 'reading.blockFile' } as const;
 
 const PICKER_TYPES = [
   'text/plain',
@@ -312,6 +316,35 @@ export default function ReadingNew() {
     setMakeOpen(false);
     dispatch({ type: 'tab', tab });
   };
+  // 「다음」은 막지 않는다(SOMA-1057). 채우기 전에 누르면 넘어가지 않고 빠진 칸 바로 아래에 이유 한 줄을 보이고 그 칸으로 옮긴다.
+  // 파일을 읽는 중에는 버튼이 그 상태를 말하므로 줄을 더하지 않는다. 채우면 줄은 바로 사라진다.
+  const block = makeOpen
+    ? makeChoice
+      ? null
+      : 'method'
+    : pending || input.file.kind === 'reading'
+      ? null
+      : input.tab === 'paste'
+        ? 'paste'
+        : 'file';
+  const [blockedTaps, setBlockedTaps] = useState(0);
+  useEffect(() => setBlockedTaps(0), [block]);
+  const scrollRef = useRef<ScrollView>(null);
+  const pasteRef = useRef<TextInput>(null);
+  // 「다음」을 빠르게 두 번 눌러도 대본을 한 번만 나눈다.
+  const splitLock = useRef(false);
+  const pressNext = (go: () => unknown) => {
+    if (!block) return void go();
+    setBlockedTaps((n) => n + 1);
+    if (block === 'paste') pasteRef.current?.focus();
+  };
+  const blockLine = (key: 'method' | 'paste' | 'file') =>
+    blockedTaps > 0 && block === key ? (
+      // 누를 때마다 새로 그려(key) 빠진 칸이 있는 아래까지 내린다.
+      <View key={blockedTaps} onLayout={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+        <InlineErrorLine message={t(BLOCK_LINE[key])} />
+      </View>
+    ) : null;
   const checking = popup?.kind === 'checking';
   // 안드로이드는 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
   // iOS 는 막지 않고 아래 화면으로 그대로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
@@ -373,7 +406,7 @@ export default function ReadingNew() {
     <KeyboardLift style={styles.root}>
       <Stack.Screen options={{ gestureEnabled: !(working || pasteDirty) }} />
       {/* 확인 중에 탭·파일을 바꾸면 보낸 입력과 어긋난다. */}
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" pointerEvents={checking ? 'none' : 'auto'}>
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" pointerEvents={checking ? 'none' : 'auto'}>
         <View style={styles.hero}>
           <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.heroText}>
@@ -406,6 +439,7 @@ export default function ReadingNew() {
                 onPress={() => setMakeChoice(key)}
               />
             ))}
+            {blockLine('method')}
             {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} inline />}
           </View>
         )}
@@ -422,6 +456,7 @@ export default function ReadingNew() {
             </View>
           </Pressable>
         )}
+        {!makeOpen && blockLine('file')}
 
         {!makeOpen && input.tab === 'file' && file.kind !== 'empty' && (
           <View style={styles.fileCard}>
@@ -456,6 +491,7 @@ export default function ReadingNew() {
 
         {!makeOpen && input.tab === 'paste' && (
           <TextField
+            ref={pasteRef}
             charset="loose"
             label={t('reading.pasteLabel')}
             style={styles.textArea}
@@ -466,6 +502,7 @@ export default function ReadingNew() {
             textAlignVertical="top"
           />
         )}
+        {!makeOpen && blockLine('paste')}
       </ScrollView>
 
       <CtaBar>
@@ -476,20 +513,28 @@ export default function ReadingNew() {
               phLabel="reading_new_make_next"
               loading={makeChoice === 'sample' && picker.busy}
               loadingLabel={t('loadingText.preparing')}
-              disabled={!makeChoice}
               onPress={() =>
-                makeChoice === 'sample'
-                  ? picker.confirm()
-                  : router.push({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } })
+                pressNext(() =>
+                  makeChoice === 'sample'
+                    ? picker.confirm()
+                    : router.push({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } }),
+                )
               }
             />
           ) : (
             <PrimaryButton
               label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
-              onPress={() => pending && void split(pending, { title })}
+              onPress={() =>
+                pressNext(() => {
+                  if (!pending || splitLock.current) return;
+                  splitLock.current = true;
+                  void split(pending, { title }).finally(() => (splitLock.current = false));
+                })
+              }
               loading={checking}
               loadingLabel={t('loadingText.checking')}
-              disabled={!pending || (!!popup && !checking)}
+              // 파일을 읽는 동안만 막는다 — 버튼 글자가 「읽는 중…」으로 이유를 말한다(SOMA-975).
+              disabled={input.file.kind === 'reading' || (!!popup && !checking)}
             />
           )}
         </View>

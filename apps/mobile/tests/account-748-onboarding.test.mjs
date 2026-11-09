@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { birthStepOutcome, nextOpenStep, onboardingSteps, stepAfter, stepBefore, stepReady } from '../lib/onboarding-steps.ts';
+import { birthStepOutcome, nextOpenStep, onboardingSteps, stepAfter, stepBefore, stepBlockReason, stepReady } from '../lib/onboarding-steps.ts';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 const NOW = new Date('2026-10-19T03:00:00Z');
@@ -59,4 +59,16 @@ test('nextOpenStep: 답하면 그 뒤 아직 안 답한 질문으로, 앞 칸을
   // 다 답했으면 끝(저장).
   assert.equal(nextOpenStep(steps, new Set(steps), 'directions'), null);
   assert.equal(nextOpenStep(onboardingSteps(false), new Set(['name', 'birth', 'gender', 'goal', 'career']), 'directions'), null);
+});
+
+test('stepBlockReason: 못 넘어가는 이유를 칸마다 하나로 말한다(SOMA-1057)', () => {
+  assert.equal(stepBlockReason('name', { ...EMPTY, name: '  ' }, NOW), 'name_empty');
+  assert.equal(stepBlockReason('name', { ...EMPTY, name: '가'.repeat(21) }, NOW), 'name_too_long');
+  assert.equal(stepBlockReason('name', { ...EMPTY, name: '김배우' }, NOW), null);
+  assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '' }, NOW), 'birth_incomplete');
+  assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '2004-02-30' }, NOW), 'birth_invalid');
+  assert.equal(stepBlockReason('birth', { ...EMPTY, birthDate: '2004-03-14' }, NOW), null);
+  assert.equal(stepBlockReason('directions', EMPTY, NOW), 'pick_one');
+  assert.equal(stepBlockReason('gender', EMPTY, NOW), 'pick_one');
+  assert.equal(stepBlockReason('discovery', EMPTY, NOW), null);
 });
