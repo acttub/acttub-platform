@@ -117,10 +117,9 @@ export default function CoachScriptsScreen() {
                   count: script.dialogue_count,
                   roles: script.my_character_names.length > 0 ? script.my_character_names.join(', ') : t('coachScripts.noRole'),
                 })}
-                // pen P13.8 — 왼쪽 문서 아이콘(파랑, 칸 없음), 오른쪽 빈 동그라미 → 고르면 파란 체크.
+                // pen P13.8 — 왼쪽 문서 아이콘(파랑, 칸 없음). 고르면 오른쪽에 채운 체크(SOMA-1065 고르기 카드 규칙).
                 icon="file-text"
                 tint="plain"
-                mark="radio"
                 selected={picked === script.id}
                 phLabel="coach_scripts_pick"
                 onPress={() => setPicked(script.id)}

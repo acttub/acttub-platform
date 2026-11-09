@@ -1705,7 +1705,6 @@ const en: DeepStringShape<typeof ko> = {
     report: 'Today’s summary',
   },
   practiceChrome: {
-    steps: ['Purpose', 'Video'],
     noVideo: 'No video available to rewatch.',
     rowSituation: 'Situation',
     rowCharacter: 'Character',

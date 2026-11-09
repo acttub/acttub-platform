@@ -163,15 +163,14 @@ describe('영상을 고르기 전', () => {
   test('세션 목적부터 묻고, 목적을 고르고 다음을 누르면 영상 고르기로 간다 — 나가면 영상 없이 나갔다고 센다', async () => {
     const view = await render(<UploadScreen />);
 
-    expect(screen.getByText('새 연습')).toBeOnTheScreen();
     expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
-    // 단계는 목적 · 영상 둘이다. 장면 단계와 「다음」 버튼은 없다.
-    expect(screen.getByText('목적')).toBeOnTheScreen();
-    expect(screen.getByText('영상')).toBeOnTheScreen();
-    expect(screen.queryByText('장면 · 질문')).not.toBeOnTheScreen();
+    // 단계는 목적 · 영상 둘이고, 다른 단계 화면처럼 StepHeader(뒤로 · 「1 / 2」 · 진행 막대)로 보인다(SOMA-1065).
+    expect(screen.getByText('1 / 2')).toBeOnTheScreen();
+    expect(screen.getByRole('progressbar')).toHaveProp('accessibilityValue', { min: 0, max: 2, now: 1 });
     // 첫 항목(평가 받기)을 미리 골라 둔다(UX 가이드 5절, 10/28) — 「다음」이 처음부터 켜져 있다.
     expect(screen.getByRole('radio', { name: '평가 받기' })).toBeSelected();
     await toSourceStep();
+    expect(screen.getByText('2 / 2')).toBeOnTheScreen();
     // 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있다 — 영상이 없으면 막혀 있다.
     expect(screen.getByRole('checkbox')).not.toBeChecked();
     await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
@@ -203,6 +202,13 @@ describe('영상을 고르기 전', () => {
     // 영상을 고르고 와도 같은 안내를 반복하지 않는다.
     await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
     expect(screen.queryByText('맨 아래 체크를 누른 뒤 「질문 받기」를 누르세요.')).not.toBeOnTheScreen();
+  });
+
+  test('머리의 뒤로는 화면 나가기로 보낸다 — 영상 단계면 막아 둔 나가기가 목적 단계로 돌린다', async () => {
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
   test('영상 없이 뒤로 가면 이유를 묻지 않고 목적 단계로 돌아간다(11/2)', async () => {
@@ -237,7 +243,7 @@ describe('첫 코칭(코칭 탭 「처음」에서 옴, SOMA-984)', () => {
     await render(<UploadScreen />);
     expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
     expect(screen.queryByText('오늘은 어떤 도움이 필요해요?')).not.toBeOnTheScreen();
-    expect(screen.queryByText('목적')).not.toBeOnTheScreen();
+    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
   });
 
   test('영상을 골라도 연습 제목 팝업 없이 기본 목적(평가 받기)으로 시작한다', async () => {
@@ -319,9 +325,9 @@ describe('갤러리에서 고르기', () => {
     expect(screen.getByText('영상 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
     expect(screen.getByText('화면을 나가도 영상은 계속 올라가요')).toBeOnTheScreen();
     expect(screen.getByText('홈에서 올라가는 모습을 이어서 볼 수 있어요.')).toBeOnTheScreen();
-    // 버튼·진행 막대 없이 기다린다. 올리던 영상을 버리는 길도 없다(10-27).
-    expect(screen.queryAllByRole('button')).toEqual([]);
-    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+    // 머리의 뒤로 말고는 버튼 없이, 업로드 진행 막대 없이 기다린다. 올리던 영상을 버리는 길도 없다(10-27).
+    expect(screen.queryAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['뒤로']);
+    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
     // 뒤로 가면 기다리는 업로드로 남기고 홈으로 간다(기다리는 업로드 카드가 홈에 있다) — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
@@ -340,7 +346,7 @@ describe('갤러리에서 고르기', () => {
     await fireEvent.press(screen.getByRole('button', { name: '올리는 중…' }));
 
     expect(await screen.findByText('영상을 다 올리지 못했어요')).toBeOnTheScreen();
-    expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['나중에 할게요', '다시 올리기']);
+    expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['뒤로', '나중에 할게요', '다시 올리기']);
     await fireEvent.press(screen.getByText('나중에 할게요'));
     await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(removePendingUpload).not.toHaveBeenCalled();

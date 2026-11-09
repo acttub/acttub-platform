@@ -1702,7 +1702,6 @@ const ko = {
     report: '오늘 정리',
   },
   practiceChrome: {
-    steps: ['목적', '영상'],
     noVideo: '다시 볼 수 있는 영상이 없어요.',
     rowSituation: '상황',
     rowCharacter: '인물',

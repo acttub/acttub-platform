@@ -15,10 +15,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { Stepper } from '@/components/practice-chrome';
 import { CoachingLimitSheet } from '@/components/pro-ui';
 import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { Checkbox } from '@/components/ui/checkbox';
+import { StepHeader } from '@/components/ui/step-header';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
@@ -607,33 +607,39 @@ export default function UploadScreen() {
     { key: 'gallery', icon: 'image' as const, title: t('upload.pickGallery'), sub: t('upload.gallerySub'), onPress: fromSheet(() => void pickFromGallery()) },
   ];
 
+  // pen 03 「새 연습」 머리 오른쪽 설정 아이콘(24). 탭바를 숨긴 첫 사용자에게만 둔다 — 그 밖에는 프로필 탭에 설정이 있다(SOMA-781·849).
+  const settingsButton = firstTimeUser ? (
+    <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="upload_settings" onPress={() => router.push('/settings')} />
+  ) : undefined;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe} edges={quickStart ? ['bottom'] : ['top', 'bottom']}>
       <Stack.Screen
         options={{
+          // 목적·영상 두 단계면 다른 단계 화면처럼 StepHeader(뒤로 · 「1 / 2」 · 진행 막대) 한 줄을 쓴다(SOMA-1065).
+          // 목적 단계가 없으면 단계가 하나뿐이라 단계 표시 없이 기본 머리를 둔다(SOMA-984).
+          headerShown: quickStart,
           // 뒤로 가기를 JS 가 받아 앞 단계·닫기로 처리하는 동안 iOS 밀어서 나가기는 꺼 둔다 — 아래 화면이 잠깐 보이다 되돌아온다(SOMA-966).
           gestureEnabled: !backBlocked,
           title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'),
           headerShadowVisible: false,
-          // pen 03 「새 연습」 머리 — 오른쪽 설정 아이콘(24). 탭바를 숨긴 첫 사용자에게만 둔다 — 그 밖에는 프로필 탭에 설정이 있다(SOMA-781·849).
-          headerRight: firstTimeUser
-            ? () => (
-                <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="upload_settings" onPress={() => router.push('/settings')} />
-              )
-            : undefined,
+          headerRight: quickStart && settingsButton ? () => settingsButton : undefined,
         }}
       />
-      {/* pen P3.1 — 영상을 고르기 전 영상 단계에는 스텝퍼 위에 「영상 올리기가 망설여지나요?」 링크(망설임 페이지). */}
+      {!quickStart && (
+        // 뒤로는 화면 나가기로 보낸다 — 영상 단계면 usePreventRemove 가 받아 목적 단계로 돌린다.
+        <StepHeader
+          step={stepperIndex(step)}
+          total={2}
+          onBack={() => router.back()}
+          right={settingsButton}
+        />
+      )}
+      {/* pen P3.1 — 영상을 고르기 전 영상 단계에는 머리 아래에 「영상 올리기가 망설여지나요?」 링크(망설임 페이지). */}
       {step === 'source' && !picked && !sample && !waitPanel && (
         <Pressable style={styles.hesitate} onPress={showReasonFromLink} accessibilityRole="link" ph-label="upload_hesitate_link">
           <Text style={styles.hesitateText}>{t('uploadReason.title')}</Text>
         </Pressable>
-      )}
-      {/* 목적 단계가 없으면 단계가 하나뿐이라 단계 표시를 두지 않는다(SOMA-984). */}
-      {!quickStart && (
-        <View style={styles.stepRow}>
-          <Stepper current={stepperIndex(step)} />
-        </View>
       )}
 
       {step === 'purpose' && (
@@ -826,8 +832,7 @@ export default function UploadScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  stepRow: { alignItems: 'center' },
-  hesitate: { alignSelf: 'center', paddingBottom: space[1] },
+  hesitate: { alignSelf: 'center', paddingTop: space[3] },
   hesitateText: { ...type.captionBold, color: palette.blueDeep },
   stepBody: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3] },
   choices: { gap: space[3], marginTop: space[1] },
