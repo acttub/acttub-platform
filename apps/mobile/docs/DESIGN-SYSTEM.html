@@ -39,7 +39,7 @@ html,body{height:100%;overflow:hidden;background:#fff}
 </style></head><body>
 <div id="app"><div id="bar"><b>acttub-design-system</b><button id="fit">전체 보기</button><button id="out" aria-label="축소">−</button><span id="pct">100%</span><button id="in" aria-label="확대">+</button><button id="one">100%</button></div>
 <nav id="side" aria-label="구역과 부품"><input id="q" placeholder="부품 찾기" aria-label="부품 찾기"><div id="list"></div></nav>
-<main id="view" tabindex="0"><div id="sizer"><div id="canvas"><div style="height: 5541px; position: relative; width: 7440px">
+<main id="view" tabindex="0"><div id="sizer"><div id="canvas"><div style="height: 5567px; position: relative; width: 7440px">
       <div
         data-pencil-id="BlcEE"
         data-pencil-name="0 개요"
@@ -3269,8 +3269,10 @@ html,body{height:100%;overflow:hidden;background:#fff}
               BottomCTA: 주 행동은 화면 아래에 고정한다. 안쪽 좌우 20. 보조 글자 버튼은 주 버튼 바로
               위, 주 버튼이 맨 아래.
               <br />
-              주 버튼 꺼짐(Button/Disabled)은 하나를 골라야 하는 곳(선택지 카드·칩, 날짜, 파일)에만
-              쓴다. 글을 적는 칸이 비었거나 잘못되면 끄지 않고 InlineError/Line 으로 이유를 보인다.
+              다음으로 넘어갈 조건(고르기·적기·기다림)이 채워지기 전에는 주 버튼을
+              끈다(Button/Disabled). 예외: 가입 정보의 적는 칸, 새 대본 붙여넣기, 코치 대화 보내기는
+              버튼을 켜 두고 누르면 InlineError/Line 으로 이유를 보인다(SOMA-1057, 꺼진 버튼 연타가
+              많던 곳).
               <br />
               FloatingButton/Add: 목록 화면의 「추가」 전용. 높이 48, r-full, 오른쪽 20. 목록 맨
               아래에 가리지 않을 여백을 둔다.
@@ -4747,9 +4749,9 @@ html,body{height:100%;overflow:hidden;background:#fff}
               바탕 32 버튼).
               <br />
               InlineError/Line: 누른 일·입력이 실패했을 때(저장·보내기·제출·입력 검사). 상자 없이
-              circle-alert 16 danger + caption danger 한 줄, 입력칸·버튼 바로 위아래. 글을 적는 칸이
-              비었거나 잘못돼 못 넘어갈 때, 기다리는 중이라 못 보낼 때도 버튼을 켜 두고 누르면 이 한
-              줄을 그 칸 아래에 보이고 그 칸으로 옮긴다.
+              circle-alert 16 danger + caption danger 한 줄, 입력칸·버튼 바로 위아래. BottomCTA 예외
+              화면(SOMA-1057)에서는 못 넘어가는 이유도 이 한 줄로 그 칸 아래에 보이고 그 칸으로
+              옮긴다.
               <br />
               InlineEmpty: 화면 일부가 비었을 때. Skeleton: 불러오는 중.
             </div>
@@ -5956,7 +5958,7 @@ html,body{height:100%;overflow:hidden;background:#fff}
     </div></div><div id="sel"></div></div></main>
 <aside id="info"><h2>선택 없음</h2><p>캔버스의 요소나 왼쪽 목록을 누르면 값이 보입니다.</p></aside></div>
 <script>
-const D={"W": 7440, "H": 5541, "sect": [["BlcEE", "0 개요"], ["PdGOD", "1 토큰 · 색"], ["isEH9", "2 토큰 · 글자"], ["ByajI", "3 토큰 · 모서리·간격·그림자"], ["MdifT", "4 부품"], ["f2x3mX", "5 화면 틀"]], "groups": [["SSSyn", "행동"], ["WJyI0", "이동"], ["biqj1", "내용"], ["O88vw8", "상태·알림"], ["RLp7j", "채팅"]], "comps": [["QDjZ4", "Button/Primary"], ["Z6OOIj", "Button/Secondary"], ["LlkkD", "Button/Danger"], ["a8Csz", "Button/Disabled"], ["BMP4O", "Button/Primary-md"], ["bMW5I", "Button/Primary-sm"], ["D43RaL", "Button/Text"], ["D9EPJO", "Button/Busy"], ["H6m2F", "IconButton"], ["XDlii", "Button/Text-link"], ["hvN24", "Chip/Off"], ["hZQE0", "Chip/On"], ["fBm9I", "Switch/On"], ["K5MBq", "Switch/Off"], ["ymCP6", "Checkbox/On"], ["Gv0Yx", "Checkbox/Off"], ["K7sqtW", "Checkbox/Danger"], ["FSocd", "SelectCard/Off"], ["MbRi0", "SelectCard/On"], ["eIsQm", "TextField/Default"], ["HZqLx", "TextField/Focus"], ["qrxv4", "TextField/Error"], ["JCMOc", "BottomCTA"], ["Yc9mQ", "FloatingButton/Add"], ["og2ZN", "NavHeader"], ["O0CPx", "NavHeader/Large"], ["uahWm", "StepHeader"], ["ANioq", "TabBar/iOS"], ["Lpf9H", "TabBar/Android"], ["lfM6u", "Tabs/Underline"], ["e42CY", "ListRow"], ["u37OO", "Card"], ["e23g0", "Badge"], ["RBHgs", "PlanBadge/Pro"], ["vWuQd", "PlanBadge/Free"], ["HSKqv", "ProCard"], ["brETZ", "ProCard/Free"], ["osH8S", "InlineError"], ["x5VS53", "InlineError/Line"], ["AzPXr", "InlineEmpty"], ["C3RsC", "Skeleton/Row"], ["NRNOt", "Skeleton/Number"], ["pqonA", "Dialog"], ["mZtGl", "Sheet"], ["qU7J9", "Menu"], ["vz8m5", "Toast"], ["zAXNi", "Chat/Composer"], ["UqO8F", "Chat/Bubble/Coach"], ["FePRg", "Chat/Bubble/Me"], ["Ujvmw", "Chat/Guide"], ["jjji3", "StatusScreen/Error"], ["Ihlri", "StatusScreen/Empty"], ["I6BfvL", "StatusScreen/Loading"], ["UFaGj", "DoneScreen"]]},$=s=>document.querySelector(s),view=$('#view'),canvas=$('#canvas'),sizer=$('#sizer'),sel=$('#sel'),PAD=40;
+const D={"W": 7440, "H": 5567, "sect": [["BlcEE", "0 개요"], ["PdGOD", "1 토큰 · 색"], ["isEH9", "2 토큰 · 글자"], ["ByajI", "3 토큰 · 모서리·간격·그림자"], ["MdifT", "4 부품"], ["f2x3mX", "5 화면 틀"]], "groups": [["SSSyn", "행동"], ["WJyI0", "이동"], ["biqj1", "내용"], ["O88vw8", "상태·알림"], ["RLp7j", "채팅"]], "comps": [["QDjZ4", "Button/Primary"], ["Z6OOIj", "Button/Secondary"], ["LlkkD", "Button/Danger"], ["a8Csz", "Button/Disabled"], ["BMP4O", "Button/Primary-md"], ["bMW5I", "Button/Primary-sm"], ["D43RaL", "Button/Text"], ["D9EPJO", "Button/Busy"], ["H6m2F", "IconButton"], ["XDlii", "Button/Text-link"], ["hvN24", "Chip/Off"], ["hZQE0", "Chip/On"], ["fBm9I", "Switch/On"], ["K5MBq", "Switch/Off"], ["ymCP6", "Checkbox/On"], ["Gv0Yx", "Checkbox/Off"], ["K7sqtW", "Checkbox/Danger"], ["FSocd", "SelectCard/Off"], ["MbRi0", "SelectCard/On"], ["eIsQm", "TextField/Default"], ["HZqLx", "TextField/Focus"], ["qrxv4", "TextField/Error"], ["JCMOc", "BottomCTA"], ["Yc9mQ", "FloatingButton/Add"], ["og2ZN", "NavHeader"], ["O0CPx", "NavHeader/Large"], ["uahWm", "StepHeader"], ["ANioq", "TabBar/iOS"], ["Lpf9H", "TabBar/Android"], ["lfM6u", "Tabs/Underline"], ["e42CY", "ListRow"], ["u37OO", "Card"], ["e23g0", "Badge"], ["RBHgs", "PlanBadge/Pro"], ["vWuQd", "PlanBadge/Free"], ["HSKqv", "ProCard"], ["brETZ", "ProCard/Free"], ["osH8S", "InlineError"], ["x5VS53", "InlineError/Line"], ["AzPXr", "InlineEmpty"], ["C3RsC", "Skeleton/Row"], ["NRNOt", "Skeleton/Number"], ["pqonA", "Dialog"], ["mZtGl", "Sheet"], ["qU7J9", "Menu"], ["vz8m5", "Toast"], ["zAXNi", "Chat/Composer"], ["UqO8F", "Chat/Bubble/Coach"], ["FePRg", "Chat/Bubble/Me"], ["Ujvmw", "Chat/Guide"], ["jjji3", "StatusScreen/Error"], ["Ihlri", "StatusScreen/Empty"], ["I6BfvL", "StatusScreen/Loading"], ["UFaGj", "DoneScreen"]]},$=s=>document.querySelector(s),view=$('#view'),canvas=$('#canvas'),sizer=$('#sizer'),sel=$('#sel'),PAD=40;
 let z=1,cur=null;const node=id=>canvas.querySelector('[data-pencil-id="'+id+'"]');
 function setZoom(n,cx,cy){const r=view.getBoundingClientRect();cx=cx??view.clientWidth/2;cy=cy??view.clientHeight/2;const px=(view.scrollLeft+cx-PAD)/z,py=(view.scrollTop+cy-PAD)/z;z=Math.min(2,Math.max(.05,n));canvas.style.transform='translate('+PAD+'px,'+PAD+'px) scale('+z+')';sizer.style.width=D.W*z+PAD*2+'px';sizer.style.height=D.H*z+PAD*2+'px';view.scrollLeft=px*z+PAD-cx;view.scrollTop=py*z+PAD-cy;$('#pct').textContent=Math.round(z*100)+'%';paint()}
 function rectOf(el){const c=canvas.getBoundingClientRect(),r=el.getBoundingClientRect();return{x:(r.left-c.left)/z,y:(r.top-c.top)/z,w:r.width/z,h:r.height/z}}
