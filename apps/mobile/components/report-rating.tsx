@@ -1,9 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useReadableInput } from '@/hooks/use-readable-input';
-import { InlineErrorLine } from '@/components/ui/inline-error';
+import { Button } from '@/components/ui/buttons';
+import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -71,9 +71,7 @@ export function RatingBox<Value extends string>({
   // 서버에 붙어 있는(또는 보내는 중인) 한 줄. 칩을 바꿔도 이 한 줄은 그대로 함께 보낸다.
   const [comment, setComment] = useState<string | null>(initial?.comment ?? null);
   const [draft, setDraft] = useState(initial?.comment ?? '');
-  const readable = useReadableInput(setDraft);
   const [thanked, setThanked] = useState(false);
-  const [focused, setFocused] = useState(false);
   // 겹쳐 누른 칩의 늦은 실패가 나중 선택을 되돌리지 않게, 마지막 요청만 화면을 바꾼다.
   const latest = useRef<string | null>(null);
 
@@ -124,25 +122,13 @@ export function RatingBox<Value extends string>({
       {rating && thanked && <Text style={styles.thanks}>{thanks}</Text>}
       {rating && !thanked && (
         <View style={styles.inputRow}>
-          <TextInput
-            style={[styles.input, focused && styles.inputFocus]}
-            value={draft}
-            onChangeText={readable.onChangeText}
-            placeholder={placeholder}
-            placeholderTextColor={palette.textMeta}
-            maxLength={commentMax}
-            onFocus={() => {
-              setFocused(true);
-              onInputFocus?.();
-            }}
-            onBlur={() => setFocused(false)}
-          />
-          <Pressable style={styles.send} onPress={send} accessibilityRole="button">
-            <Text style={styles.sendText}>{sendLabel}</Text>
-          </Pressable>
+          {/* 허용 범위 밖 글자는 TextField 가 거르고 칸 아래에 알린다. */}
+          <View style={styles.inputCell}>
+            <TextField value={draft} onChangeText={setDraft} placeholder={placeholder} maxLength={commentMax} onFocus={() => onInputFocus?.()} />
+          </View>
+          <Button size="sm" label={sendLabel} onPress={send} style={styles.send} />
         </View>
       )}
-      {rating && !thanked && readable.hint ? <InlineErrorLine message={readable.hint} /> : null}
     </View>
   );
 }
@@ -166,20 +152,9 @@ const styles = StyleSheet.create({
   chipOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, paddingHorizontal: space[4] - 0.5 },
   chipText: { ...type.body2Bold, color: palette.textSub },
   chipTextOn: { color: palette.blueDeep },
-  inputRow: { flexDirection: 'row', gap: space[2], alignItems: 'center' },
-  input: {
-    flex: 1,
-    height: 48,
-    backgroundColor: palette.bg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.md,
-    paddingHorizontal: space[4],
-    ...type.body2,
-    color: palette.text,
-  },
-  inputFocus: { borderWidth: 1.5, borderColor: palette.blue },
-  send: { height: 32, justifyContent: 'center', backgroundColor: palette.blue, borderRadius: radius.md, paddingHorizontal: space[3] },
-  sendText: { ...type.body2Bold, color: palette.onAccent },
+  inputRow: { flexDirection: 'row', gap: space[2], alignItems: 'flex-start' },
+  inputCell: { flex: 1 },
+  // 버튼(32)을 입력칸(48) 가운데에 맞춘다 — 칸 아래 알림 줄이 생겨도 버튼은 칸 옆에 남는다.
+  send: { marginTop: space[2] },
   thanks: { ...type.captionBold, color: palette.blueDeep },
 });
