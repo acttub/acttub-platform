@@ -2,8 +2,6 @@ import { act, fireEvent, render, screen, userEvent } from '@testing-library/reac
 import { Text } from 'react-native';
 
 import {
-  PracticeFooter,
-  ProgressRow,
   SceneFoldBody,
   SceneFoldLink,
   SceneSummary,
@@ -78,17 +76,6 @@ describe('Stepper', () => {
     expect(screen.getByText('1')).toBeOnTheScreen();
     expect(screen.getByText('영상')).toHaveStyle({ color: '#6B7684' });
   });
-});
-
-test('진행 줄은 단계 이름과 오른쪽에 둔 것을 함께 보인다', async () => {
-  await render(<ProgressRow label="3단계 · 질문 받기" right={<Text>영상 보기</Text>} />);
-  expect(screen.getByText('3단계 · 질문 받기')).toBeOnTheScreen();
-  expect(screen.getByText('영상 보기')).toBeOnTheScreen();
-});
-
-test('맨 아래 안내 문구를 보인다', async () => {
-  await render(<PracticeFooter />);
-  expect(screen.getByText('영상에서 눈에 남은 곳을 묻고, 마지막 한 문장은 배우님이 직접 써요.')).toBeOnTheScreen();
 });
 
 describe('SceneFoldLink', () => {

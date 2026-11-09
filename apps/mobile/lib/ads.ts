@@ -79,8 +79,6 @@ export const AD_LABEL = {
   fontSize: 10,
   inset: 6,
 } as const;
-/** 연습 중 칸과 아래쪽 버튼 묶음 사이 간격. */
-export const AD_BUTTON_GAP = 24;
 
 /** 만 19세 미만은 청소년이다(청소년 보호법 기준). */
 export const AD_ADULT_AGE = 19;

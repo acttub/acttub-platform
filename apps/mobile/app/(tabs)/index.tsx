@@ -1353,10 +1353,6 @@ const styles = StyleSheet.create({
   heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
   overscrollFill: { position: 'absolute', top: -1000, left: 0, right: 0, height: 1000, backgroundColor: '#E4EEFC' },
   heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
-  skeleton: { flex: 1, gap: space[3], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
-  skeletonHero: { gap: space[2], paddingBottom: space[4] },
-  skeletonGap: { marginTop: space[1.5] },
-  skeletonCard: { gap: space[3], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   flex: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.85 },
 

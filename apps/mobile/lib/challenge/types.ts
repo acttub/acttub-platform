@@ -108,8 +108,6 @@ export type EntryStatus = 'visible' | 'hidden_by_report' | 'deleted';
 
 /** 챌린지 영상은 60초 이내다(촬영 상한도 같다). 기본값이고, 판정은 서버 설정을 쓰는 순간 읽는다(SOMA-939). */
 export const ENTRY_VIDEO_MAX_SEC = DEFAULT_APP_CONFIG.challenge.entryMaxSeconds;
-/** 참여 영상 최소 길이(초). 사용자 결정으로 3초다(SOMA-738). 기본값이다(SOMA-939). */
-export const ENTRY_VIDEO_MIN_SEC = DEFAULT_APP_CONFIG.challenge.entryMinSeconds;
 
 /** 캡션은 300자까지, 선택이다. */
 export const CAPTION_MAX = 300;

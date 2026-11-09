@@ -1,7 +1,5 @@
 import type { ImageSourcePropType } from 'react-native';
 
-import { dailyIndex } from '@/lib/mascot-day';
-
 /**
  * 액티(마스코트) 자세 — pen images/app 의 그림 그대로(SOMA-770). 화면마다 디자인이 쓰는 자세를 고른다.
  * - home: 두 팔 들고 웃는 액티 — 홈·온보딩 시작·첫 가이드 1·4·완료/마무리 화면
@@ -9,7 +7,7 @@ import { dailyIndex } from '@/lib/mascot-day';
  * - reading: 대본 든 액티 — 리딩 화면 전부, 첫 가이드 2
  * - cheer: 손 흔드는 액티 — 노트 응원(디자인 프레임에는 없음, 1차부터 쓰던 것)
  * - 그 밖(10/22 20종): 코칭 끝 jump, 코칭 탭 첫 화면 slate, 알림 꺼짐 whisper, 챌린지 소개 bow·참여 끝 dance,
- *   리딩 마무리 love, 홈 머리는 HOME_POSES 를 날마다 돌린다.
+ *   리딩 마무리 love.
  */
 export type MascotPose = 'home' | 'coach' | 'reading' | 'cheer' | 'jump' | 'run' | 'dizzy' | 'breathe' | 'shy' | 'hamlet' | 'sob' | 'angry' | 'surprised' | 'smug' | 'love' | 'wink' | 'flat' | 'dance' | 'whisper' | 'bow' | 'slate' | 'selfie' | 'nervous' | 'yawn';
 
@@ -42,14 +40,6 @@ export const MASCOT: Record<MascotPose, ImageSourcePropType> = {
   nervous: require('@/assets/images/acty/19-nervous.png'), // 19 대본뒤 덜덜
   yawn: require('@/assets/images/acty/20-yawn.png'), // 20 하품 기지개
 };
-
-/** 홈 머리에서 날마다 돌아가며 나오는 밝은 자세들. */
-export const HOME_POSES: readonly MascotPose[] = ['home', 'jump', 'wink', 'dance', 'bow', 'smug'];
-
-/** 기기 시간대 기준 오늘의 자세 — 하루 동안은 같다. */
-export function dailyPose(poses: readonly MascotPose[], now: Date = new Date()): MascotPose {
-  return poses[dailyIndex(poses.length, now)];
-}
 
 /** pen 에서 쓰는 크기 — 그림 비율(약 9:10)을 지킨다. */
 export const MASCOT_SIZE = {

@@ -545,6 +545,4 @@ const styles = StyleSheet.create({
   titleBelow: { ...type.captionBold, color: palette.text },
   likes: { ...type.micro, color: palette.textMeta },
   metaBelow: { flexShrink: 1, ...type.micro, color: palette.textMeta },
-  more: { alignSelf: 'center' },
-  moreText: { ...type.body2Bold, color: palette.blueDeep },
 });

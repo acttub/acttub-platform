@@ -32,7 +32,6 @@ export function purposeFor(category: BlockageCategory | null): SessionPurpose {
 export type TalkPurpose = 'stuck' | 'character' | 'concern';
 
 export const TALK_PURPOSES: readonly TalkPurpose[] = ['stuck', 'character', 'concern'];
-export const DEFAULT_TALK_PURPOSE: TalkPurpose = 'stuck';
 
 /** 준비 화면의 두 단계 — 목적 → 영상(권리 체크·시작 포함). 장면 단계는 없앴다(SOMA-778). */
 export type UploadStep = 'purpose' | 'source';

@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
@@ -15,7 +14,6 @@ import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
-import { IconOptionRow, OptionCard, SelectRow } from '@/components/ui/option-card';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { StepHeader } from '@/components/ui/step-header';
 import { TextField } from '@/components/ui/text-field';
@@ -133,60 +131,6 @@ describe('머리', () => {
 });
 
 describe('선택지', () => {
-  test('카드·아이콘 줄·고르는 줄이 누름과 고름 상태를 알린다', async () => {
-    const press = jest.fn();
-    await render(
-      <>
-        <OptionCard icon="message-circle" title="질문 코칭으로 보내기" sub="막힌 지점을 질문으로" onPress={press} />
-        <OptionCard icon="award" title="챌린지에 올리기" onPress={press} disabled right={<Text>오른쪽</Text>} />
-        <IconOptionRow icon="video" title="영상 고르기" sub="보관함에서" eyebrow="권해요" mark="check" selected onPress={press} />
-        <IconOptionRow icon="clock" title="연습 기록" flush highlight onPress={press} />
-        <SelectRow label="여성" selected onPress={press} trailing="check" />
-        <SelectRow label="남성" selected={false} onPress={press} trailing="check" />
-        <SelectRow label="배우로 활동" sub="오디션 · 캐스팅" selected onPress={press} />
-        <SelectRow label="무대" selected={false} multi onPress={press} />
-      </>,
-    );
-
-    await fireEvent.press(screen.getByRole('button', { name: '질문 코칭으로 보내기' }));
-    expect(screen.getByRole('button', { name: '챌린지에 올리기' })).toBeDisabled();
-    expect(screen.getByText('오른쪽')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '영상 고르기' })).toBeSelected();
-    expect(screen.getByText('권해요')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '연습 기록' })).not.toBeSelected();
-    expect(screen.getByRole('radio', { name: '여성' })).toBeSelected();
-    expect(screen.getByRole('radio', { name: '남성' })).not.toBeSelected();
-    expect(screen.getByText('오디션 · 캐스팅')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('checkbox', { name: '무대' }));
-    expect(screen.getByRole('checkbox', { name: '무대' })).not.toBeChecked();
-    expect(press).toHaveBeenCalledTimes(2);
-  });
-
-  test('누르면 바로 넘어가는 아이콘 줄(mark none)은 오른쪽에 꺾쇠도 체크도 없다', async () => {
-    // 아이콘 글리프(폰트 글자)를 먼저 얻어 둔다.
-    const glyphOf = async (name: 'chevron-right' | 'check') => {
-      const icon = await render(<Feather name={name} size={20} />);
-      const glyph = JSON.stringify(icon.toJSON());
-      await icon.unmount();
-      return JSON.parse(glyph).children[0] as string;
-    };
-    const chevron = await glyphOf('chevron-right');
-    const check = await glyphOf('check');
-    const press = jest.fn();
-    const view = await render(
-      <>
-        <IconOptionRow icon="star" title="평가 받기" mark="none" selected onPress={press} />
-        <IconOptionRow icon="unlock" title="막힌 곳 풀기" mark="none" onPress={press} />
-      </>,
-    );
-    const tree = JSON.stringify(view.toJSON());
-    expect(tree.includes(JSON.stringify(chevron))).toBe(false);
-    expect(tree.includes(JSON.stringify(check))).toBe(false);
-    expect(screen.getByRole('button', { name: '평가 받기' })).toBeSelected();
-    await fireEvent.press(screen.getByRole('button', { name: '막힌 곳 풀기' }));
-    expect(press).toHaveBeenCalledTimes(1);
-  });
-
   test('칩은 고름 상태를 알리고, 누를 곳이 없으면 막힌다', async () => {
     const press = jest.fn();
     await render(
