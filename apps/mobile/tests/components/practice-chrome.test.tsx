@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
-import { Text } from 'react-native';
 
 import {
   SceneFoldBody,

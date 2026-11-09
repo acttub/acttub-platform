@@ -18,7 +18,7 @@ import { StatusScreen } from '@/components/ui/status-screen';
 import { NoticeBand } from '@/components/ui/notice-band';
 import { useFocusLoad } from '@/hooks/use-focus-load';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
+import { space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';

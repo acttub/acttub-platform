@@ -1,7 +1,7 @@
 import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import { SEARCH_MIN_LENGTH, type ChallengeCard, type ChallengeDetail, type ChallengeTab, type EntryCard, type EntrySort, type Participant } from './types.ts';
-import { DAY_MS, kstDayIndex } from '../kst.ts';
+import { kstDayIndex } from '../kst.ts';
 
 /**
  * 대사 목록·상세·랭킹의 표시 규칙(challenge.browse).
