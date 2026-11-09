@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 
@@ -15,6 +16,7 @@ import { deleteScriptLine, getCurrent, isMyRole, type SavedScript } from '@/lib/
 import { translate as t } from '@/lib/i18n';
 import { isMonologue } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
+import { snapRangeToDialogues } from '@/lib/reading/session-plan';
 import type { GestureResponderEvent } from 'react-native';
 
 import { pt } from '@/components/ui/anchored-menu';
@@ -28,9 +30,11 @@ const DELETE_REFUSED: Record<string, string> = {
 /**
  * 대본 전체(R3.4). 목소리 정하기의 [전체 보기]와 대본 상세의 「대본 보기」가 같이 연다. 줄을 누르면 메뉴가 뜬다(SOMA-785) —
  * 고치기(SOMA-669, 종류·배역·글만 고치고 줄 id 는 그대로), 나누기(앞 조각이 그 줄 id 에 남는다), 아래에 추가(SOMA-816, 그 줄
- * 바로 아래 빈 칸에 새 대사), 지우기(한 번 묻는다).
+ * 바로 아래 빈 칸에 새 대사), 지우기(한 번 묻는다). 맨 위 「여기서부터 읽기」(SOMA-1071)는 그 줄(지문·장면이면 다음 대사)부터
+ * 대본 끝까지를 구간으로 새 연습 화면을 연다 — 지난 배역이 골라져 있으면 그 화면이 바로 시작한다.
  */
 export default function ReadingFull() {
+  const router = useRouter();
   const [script, setScript] = useState<SavedScript | null>(getCurrent);
   const [editing, setEditing] = useState<{ index: number; draft: LineDraft } | null>(null);
   const [splitting, setSplitting] = useState<number | null>(null);
@@ -61,10 +65,22 @@ export default function ReadingFull() {
 
   const openMenu = (index: number, e?: GestureResponderEvent) => {
     const line = script.lines[index];
+    // 이 줄부터 대본 끝까지의 대사 구간(SOMA-1071). 지문·장면이면 다음 대사부터, 뒤에 대사가 없으면 항목을 두지 않는다.
+    const from = snapRangeToDialogues(script.lines, index, script.lines.length - 1);
+    const startId = from ? script.lineIds[from.startIndex] : undefined;
+    const endId = from ? script.lineIds[from.endIndex] : undefined;
+    const readFrom = startId && endId
+      ? [{
+          label: t('reading.lineMenuReadFrom'),
+          icon: 'play' as const,
+          onPress: () => router.push({ pathname: '/reading/range', params: { start: startId, end: endId, go: '1' } }),
+        }]
+      : [];
     sheet({
       anchor: pt(e),
       title: line.type === 'dialogue' ? `${line.role} · ${line.text}` : line.text,
       actions: [
+        ...readFrom,
         { label: t('reading.lineMenuEdit'), icon: 'edit-2', onPress: () => openEditor(index) },
         { label: t('reading.lineMenuSplit'), icon: 'scissors', onPress: () => setSplitting(index) },
         { label: t('reading.lineMenuInsert'), icon: 'plus', onPress: () => setInserting(index) },
