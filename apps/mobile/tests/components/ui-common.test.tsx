@@ -222,11 +222,14 @@ describe('상태 화면·말풍선·아래 칸', () => {
         body="인터넷 연결을 확인해 주세요."
         note="오류 503"
         onBack={back}
-        primary={{ label: '다시 시도', onPress: retry }}
-        secondary={{ label: '닫기', onPress: back }}
+        primary={{ label: '다시 시도', onPress: retry, phLabel: 'status_retry' }}
+        secondary={{ label: '닫기', onPress: back, phLabel: 'status_close' }}
       />,
     );
     expect(screen.getByRole('header')).toHaveTextContent('오디션 공고');
+    // 버튼 탭 기록 이름이 버튼까지 내려간다.
+    expect(screen.getByRole('button', { name: '다시 시도' }).props['ph-label']).toBe('status_retry');
+    expect(screen.getByRole('button', { name: '닫기' }).props['ph-label']).toBe('status_close');
     expect(StyleSheet.flatten(screen.getByText('공고를 불러오지 못했어요').props.style).fontSize).toBe(24);
     expect(screen.getByText('오류 503')).toBeOnTheScreen();
     expect(StyleSheet.flatten(screen.getByRole('button', { name: '다시 시도' }).props.style).height).toBe(40);

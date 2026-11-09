@@ -375,8 +375,8 @@ export function CoachWaiting({
           body={`${error} ${recovery !== 'none' ? t('analyzing.errorBody') : ''}`.trim()}
           primary={
             recovery !== 'none'
-              ? { label: t('common.retry'), onPress: () => void retry(), loading: retrying }
-              : { label: t('analyzing.leaveLater'), onPress: () => router.dismissTo('/(tabs)') }
+              ? { label: t('common.retry'), onPress: () => void retry(), loading: retrying, phLabel: 'analyzing_retry' }
+              : { label: t('analyzing.leaveLater'), onPress: () => router.dismissTo('/(tabs)'), phLabel: 'analyzing_leave_later' }
           }
         />
         {dialog}

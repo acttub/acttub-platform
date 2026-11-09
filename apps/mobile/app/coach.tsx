@@ -479,7 +479,7 @@ function CoachTalk() {
           mascot={MASCOT.coach}
           title={t('coach.interruptedTitle')}
           body={t('coach.interruptedBody')}
-          primary={{ label: t('coach.interruptedResume'), onPress: () => void startConversation() }}
+          primary={{ label: t('coach.interruptedResume'), onPress: () => void startConversation(), phLabel: 'coach_interrupted_resume' }}
         />
         {dialog}
       </SafeAreaView>

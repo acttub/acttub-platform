@@ -163,9 +163,13 @@ export default function ReportScreen() {
           mascot={MASCOT[NOTE_PROBLEM[error].mascot]}
           title={t(NOTE_PROBLEM[error].title)}
           body={t(NOTE_PROBLEM[error].body)}
-          primary={NOTE_PROBLEM[error].retry ? { label: t('common.retry'), onPress: () => void loadNote() } : { label: t('common.goHome'), onPress: finish }}
+          primary={
+            NOTE_PROBLEM[error].retry
+              ? { label: t('common.retry'), onPress: () => void loadNote(), phLabel: 'report_retry' }
+              : { label: t('common.goHome'), onPress: finish, phLabel: 'report_go_home' }
+          }
           // 이 화면은 머리에 뒤로가 없어 집으로 갈 길을 버튼으로 남긴다.
-          secondary={NOTE_PROBLEM[error].retry ? { label: t('common.goHome'), onPress: finish } : undefined}
+          secondary={NOTE_PROBLEM[error].retry ? { label: t('common.goHome'), onPress: finish, phLabel: 'report_go_home' } : undefined}
         />
       )}
 
