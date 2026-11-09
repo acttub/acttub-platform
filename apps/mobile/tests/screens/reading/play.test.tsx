@@ -462,6 +462,16 @@ test('다른 앱으로 넘어가면 멈춘다 — 리딩 백그라운드 재생�
   expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
+test('권한 창 같은 iOS inactive 는 멈추지 않는다 — 권한 응답 뒤 늦게 와 첫 리딩이 멈춘 채 시작했다(SOMA-1052)', async () => {
+  await startPlay();
+  await screen.findByText('듣는 중');
+
+  await act(async () => appStateListeners.forEach((l) => l('inactive')));
+  await act(async () => appStateListeners.forEach((l) => l('active')));
+  expect(screen.getByText('듣는 중')).toBeOnTheScreen();
+  expect(screen.queryByText('이어서')).not.toBeOnTheScreen();
+});
+
 test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배경으로 가면 멈춘다', async () => {
   mockLive.keepsRunning.mockReturnValue(false);
   await startPlay();
