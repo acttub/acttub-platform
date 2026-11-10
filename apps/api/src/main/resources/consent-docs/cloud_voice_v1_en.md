@@ -1,7 +1,5 @@
 # Consent to Premium Reading Voice (Optional)
 
-Effective Date: The date this version is published (shown when turning on the premium voice and in the consent list in Settings)
-
 This consent is **optional**. Without it, script reading works exactly the same with the on-device voice.
 
 ## 1. What You Are Consenting To

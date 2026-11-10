@@ -1,7 +1,5 @@
 # Consent to AI Analysis and Processing of Facial/Emotion Information
 
-Effective Date: The date this version is published (shown on the app's consent screen and in the consent list in Settings)
-
 This consent is a separate consent to the processing of videos, recordings, and scripts uploaded by the user, and the **facial expression, emotion, and other information** generated therefrom, for the AI acting analysis and coaching provided by Acttub (hereinafter the "Service"). This consent is required to provide the Service's core functionality, and if you do not consent, you will not be able to use the AI analysis feature.
 
 ## 1. Information Processed

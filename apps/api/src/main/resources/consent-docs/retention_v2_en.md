@@ -1,7 +1,5 @@
 # Consent to Retention and Use of Video/Recordings (Optional)
 
-Effective Date: The date this version is published (shown on the app's consent screen and in the consent list in Settings)
-
 This consent is **optional**. Even without consenting, the user can use every feature of the Service exactly the same.
 
 ## 1. What You Are Consenting To
