@@ -37,22 +37,28 @@ test('닫혀 있으면 아무것도 보이지 않는다', async () => {
 test('사유 다섯 개를 선택지로 두고, 고르기 전에는 신고하기가 꺼져 있다', async () => {
   await setup();
   expect(screen.getAllByRole('radio')).toHaveLength(5);
-  for (const name of ['저작권 침해 — 대사·영상 출처 문제', '부적절한 콘텐츠', '스팸·중복 업로드', '중복 업로드', '기타']) {
+  for (const name of ['저작권 침해 — 대사·영상 출처 문제', '부적절한 콘텐츠', '스팸', '중복 업로드', '기타']) {
     expect(radio(name)).not.toBeSelected();
   }
   expect(screen.getByRole('button', { name: '신고하기' })).toBeDisabled();
 });
 
+test('댓글 신고에는 「중복 업로드」가 없이 사유 넷만 둔다', async () => {
+  await setup('comment');
+  expect(screen.getAllByRole('radio')).toHaveLength(4);
+  expect(screen.queryByRole('radio', { name: /^중복 업로드/ })).not.toBeOnTheScreen();
+});
+
 test('스팸을 골라 신고하면 사유와 빈 메모를 넘기고 선택을 비운다', async () => {
   const { onSubmit } = await setup('comment');
-  await fireEvent.press(radio('스팸·중복 업로드'));
-  expect(radio('스팸·중복 업로드')).toBeSelected();
+  await fireEvent.press(radio('스팸'));
+  expect(radio('스팸')).toBeSelected();
   expect(screen.queryByText('무엇이 문제인지 알려 주세요 (선택)')).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
 
   expect(onSubmit.mock.calls).toEqual([['spam', '']]);
-  expect(radio('스팸·중복 업로드')).not.toBeSelected();
+  expect(radio('스팸')).not.toBeSelected();
   expect(screen.getByRole('button', { name: '신고하기' })).toBeDisabled();
 });
 

@@ -197,7 +197,8 @@ describe('불러오기', () => {
     expect(mockPlayer.loop).toBe(true);
     expect(logged('challenge_swipe')).toEqual([{ index: 0 }]);
     expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: '닫기' })).not.toBeOnTheScreen();
+    // 불러오는 동안의 닫기는 사라지고, 영상 위 닫기만 남는다(참여작마다 하나).
+    expect(screen.getAllByRole('button', { name: '닫기' })).toHaveLength(screen.getAllByRole('button', { name: '영상 멈춤' }).length);
   });
 
   test('불러오는 동안에도 닫을 수 있다', async () => {
@@ -814,7 +815,7 @@ describe('댓글', () => {
     expect(screen.queryByText('댓글 1')).not.toBeOnTheScreen();
     expect(screen.getByText('이 댓글을 신고할까요?')).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByRole('radio', { name: startsWith('스팸·중복 업로드') }));
+    await fireEvent.press(screen.getByRole('radio', { name: startsWith('스팸') }));
     await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
 
     expect(await screen.findByText('신고를 접수했어요')).toBeOnTheScreen();
@@ -851,7 +852,7 @@ describe('공유', () => {
     expect(screen.queryByText('영상으로 저장')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '카카오톡' }));
     expect(mockSystemShare).toHaveBeenCalledWith(
-      '민지의 “나는 아직 여기 있어” 연기 — acttub 챌린지\nhttps://acttub.com/e/e%201',
+      '민지의 “나는 아직 여기 있어” 연기 — Acttub 챌린지\nhttps://acttub.com/e/e%201',
     );
   });
 
@@ -970,7 +971,8 @@ describe('반응 메뉴', () => {
     await renderFeed();
     await openMenu();
     await fireEvent.press(screen.getByText('영상 신고'));
-    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+    // 신고 창의 닫기는 맨 위에 덮인 마지막 것이다(영상 위 닫기도 같은 이름).
+    await fireEvent.press(screen.getAllByRole('button', { name: '닫기' }).at(-1)!);
     expect(screen.queryByText('이 영상을 신고할까요?')).not.toBeOnTheScreen();
     expect(mocked.createReport).not.toHaveBeenCalled();
   });
@@ -1012,7 +1014,7 @@ describe('반응 메뉴', () => {
 
     await fireEvent.press(iconButtonsAt(1).menu);
     await fireEvent.press(screen.getByText('영상 신고'));
-    await fireEvent.press(screen.getByRole('radio', { name: startsWith('스팸·중복 업로드') }));
+    await fireEvent.press(screen.getByRole('radio', { name: startsWith('스팸') }));
     await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
     expect(await screen.findByText('1 / 1')).toBeOnTheScreen();
 

@@ -14,6 +14,7 @@
  */
 import { deviceStorage as storage } from '../device-storage.ts';
 import { LEGACY_SCRIPTS_KEY } from './legacy-migration.ts';
+import { scriptTitle } from './script-cards.ts';
 import type {
   DifferentLine,
   LineKind,
@@ -186,7 +187,7 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
   return {
     ...merged,
     id: detail.id,
-    title: detail.title,
+    title: scriptTitle(detail.title),
     source: detail.source,
     roles: characters.map((c) => c.name),
     characters,

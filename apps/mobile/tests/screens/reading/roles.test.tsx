@@ -76,9 +76,9 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
 test('배역마다 대사 수와 서버가 정한 목소리를 보이고, 전체 보기로 대본을 연다', async () => {
   await show();
 
-  expect(screen.getByText('배역 2명 · 대사 3줄')).toBeOnTheScreen();
-  expect(screen.getByText('대사 2줄')).toBeOnTheScreen();
-  expect(screen.getByText('대사 1줄')).toBeOnTheScreen();
+  expect(screen.getByText('배역 2명 · 대사 3개')).toBeOnTheScreen();
+  expect(screen.getByText('대사 2개')).toBeOnTheScreen();
+  expect(screen.getByText('대사 1개')).toBeOnTheScreen();
   expect(screen.getByText('남성')).toBeOnTheScreen();
   expect(screen.getByText('10대')).toBeOnTheScreen();
   expect(screen.getByText('여성')).toBeOnTheScreen();
@@ -190,7 +190,7 @@ test('미리 듣기를 누르면 듣는 중으로 바뀌고, 다시 누르면 �
   await fireEvent.press(previewButtons()[0]);
   expect(screen.queryByText('미리 듣는 중…')).not.toBeOnTheScreen();
   await act(async () => finish());
-  expect(screen.getByText('대사 2줄')).toBeOnTheScreen();
+  expect(screen.getByText('대사 2개')).toBeOnTheScreen();
 });
 
 test('미리 듣기가 끝나면 듣는 중 표시를 지운다', async () => {

@@ -244,7 +244,7 @@ test('안드로이드는 나누는 동안 서버가 알려 주는 줄 수와 나
 
   const pressing = fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('배역과 대사를 찾고 있어요')).toBeOnTheScreen();
-  expect(await screen.findByText('30% · 3 / 10줄')).toBeOnTheScreen();
+  expect(await screen.findByText('30% · 3 / 10개')).toBeOnTheScreen();
   expect(screen.getByText('대본 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
   expect(screen.getByText('화면을 나가도 나누기는 계속돼요')).toBeOnTheScreen();
   expect(screen.getByText('리딩 탭에서 진행 상황을 볼 수 있고, 다 되면 알림으로 알려 드릴게요.')).toBeOnTheScreen();
@@ -287,7 +287,7 @@ test('나누는 중에 화면을 떠나면 기록이 남는다', async () => {
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
-  await screen.findByText('25% · 1 / 4줄');
+  await screen.findByText('25% · 1 / 4개');
   await unmount();
   await act(async () => new Promise((resolve) => setTimeout(resolve, 1100)));
   expect(await readSplitJobs()).toEqual([{ importId: 'i1', title: expect.any(String) }]);

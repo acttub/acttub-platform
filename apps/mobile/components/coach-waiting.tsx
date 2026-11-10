@@ -44,9 +44,6 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { isSamplePracticeId, SAMPLE_ANALYZING_STEP_MS, sampleDetail, sampleScene } from '@/lib/tutorial-sample';
 
-/** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않는다). */
-const STAGES = translateList('analyzing.stages');
-
 /**
  * 코치 화면의 「영상 보는 중」(practice.analyze, SOMA-778). 옛 A10 분석 화면을 대화 화면 안으로 옮겼다.
  *
@@ -103,7 +100,7 @@ export function CoachWaiting({
     let alive = true;
     void (async () => {
       for (let i = 0; i < SAMPLE_ANALYZING_STEP_MS.length; i += 1) {
-        setStage(Math.min(i, STAGES.length - 1));
+        setStage(Math.min(i, translateList('analyzing.stages').length - 1));
         await new Promise((resolve) => setTimeout(resolve, SAMPLE_ANALYZING_STEP_MS[i]));
         if (!alive) return;
       }
@@ -285,7 +282,7 @@ export function CoachWaiting({
 
   useEffect(() => {
     if (error) return;
-    const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 20_000);
+    const timer = setInterval(() => setStage((s) => Math.min(s + 1, translateList('analyzing.stages').length - 1)), 20_000);
     return () => clearInterval(timer);
   }, [error]);
 
@@ -363,7 +360,7 @@ export function CoachWaiting({
   }, [detail?.root_id, practiceId, retrying, router, run, status]);
 
   const jobStatus = status?.job?.status ?? 'pending';
-  const stageText = jobStatus === 'pending' && !sample ? t('analyzing.queued') : STAGES[stage];
+  const stageText = jobStatus === 'pending' && !sample ? t('analyzing.queued') : translateList('analyzing.stages')[stage];
   const recovery = analysisRecoveryAction(status);
 
   // 실패는 말풍선 안 빨간 글 대신 StatusScreen/Error — 할 수 있는 행동 하나, 나가기는 머리의 뒤로.

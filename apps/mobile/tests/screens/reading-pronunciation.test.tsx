@@ -53,7 +53,7 @@ test('채점이 끝나면 다르게 들린 어절을 칠한 줄·습관·다른 
   getReport.mockResolvedValue(done);
   await render(<PronunciationReportScreen />);
 
-  expect(await screen.findByText('1줄에서 다르게 들린 말이 있어요')).toBeOnTheScreen();
+  expect(await screen.findByText('대사 1개에서 다르게 들린 말이 있어요')).toBeOnTheScreen();
   expect(screen.getByText('받침 소리가 흐려요')).toBeOnTheScreen();
   expect(screen.getByText('힘들면')).toBeOnTheScreen();
   expect(screen.getByText('어떡해 → 어떻게')).toBeOnTheScreen();
@@ -73,7 +73,7 @@ test('채점 중이면 기다림을 보이고 다시 물어 끝나면 보고서�
   await act(async () => {
     jest.advanceTimersByTime(4_000);
   });
-  expect(await screen.findByText('1줄에서 다르게 들린 말이 있어요')).toBeOnTheScreen();
+  expect(await screen.findByText('대사 1개에서 다르게 들린 말이 있어요')).toBeOnTheScreen();
   expect(getReport).toHaveBeenCalledTimes(2);
 });
 

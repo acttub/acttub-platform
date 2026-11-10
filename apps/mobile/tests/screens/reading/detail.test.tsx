@@ -66,7 +66,7 @@ test('대본 제목·대사 수와 연습 기록을 보이고, 회차를 누르�
 
   expect(await screen.findByText('1회차')).toBeOnTheScreen();
   expect(screen.getByText('봄날의 대화')).toBeOnTheScreen();
-  expect(screen.getByText('3개 대사')).toBeOnTheScreen();
+  expect(screen.getByText('대사 3개')).toBeOnTheScreen();
   expect(screen.getByText('오늘')).toBeOnTheScreen();
   expect(screen.getByText('처음부터 끝까지')).toBeOnTheScreen();
   expect(screen.getByText('민재 · 녹음 0개 · 1:05')).toBeOnTheScreen();

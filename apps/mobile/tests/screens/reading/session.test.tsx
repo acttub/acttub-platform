@@ -120,7 +120,7 @@ test('진행 중 회차는 구간·배역·시간과 이어 할 줄을 보이고
   expect(screen.getByText('오늘 왔니')).toBeOnTheScreen();
   expect(screen.queryByText('전체 듣기')).not.toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByText('이어서 연습 · 1/3줄'));
+  await fireEvent.press(screen.getByText('이어서 연습 · 1/3개'));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/play');
   expect(getCurrentSession()).toEqual(detail);
 });

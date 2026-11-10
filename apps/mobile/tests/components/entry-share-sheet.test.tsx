@@ -127,7 +127,7 @@ describe('EntryShareSheet', () => {
     await waitFor(() =>
       expect(m.shareKakaoFeed).toHaveBeenCalledWith({
         title: '지성의 연기',
-        description: '“잘 지내, 진짜로.” — acttub 챌린지',
+        description: '“잘 지내, 진짜로.” — Acttub 챌린지',
         imageUrl: 'https://acttub.com/opengraph-image',
         linkUrl: 'https://acttub.com/e/e1',
         buttonTitle: '영상 보기',

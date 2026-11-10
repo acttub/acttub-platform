@@ -45,10 +45,10 @@ test('challenge.react: 댓글은 서버에서 읽고 500자·본인 삭제·확�
   assert.doesNotMatch(sheet, /name="heart"/);
 });
 
-test('challenge.report: 신고 시트는 사유 다섯과 기타 메모를 받는다', () => {
+test('challenge.report: 신고 시트는 사유 다섯(댓글은 중복 업로드 뺀 넷)과 기타 메모를 받는다', () => {
   const sheet = read('components/challenge-report-sheet.tsx');
 
-  assert.match(sheet, /reasons=\{REPORT_REASONS\}/);
+  assert.match(sheet, /reasons=\{target === 'comment' \? REPORT_REASONS\.filter\(\(r\) => r !== 'duplicate'\) : REPORT_REASONS\}/);
   assert.match(sheet, /noteMax=\{REPORT_NOTE_MAX\}/);
   assert.match(read('locales/ko.ts'), /중복 업로드/);
   // 사유는 요구사항의 다섯이다.

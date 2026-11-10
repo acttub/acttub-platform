@@ -91,6 +91,8 @@ export function RatingBox<Value extends string>({
     if (next === rating) return;
     const previous = { rating, comment };
     setRating(next);
+    // 처음 고르면 한 줄 칸이 새로 생긴다 — 아래 광고·버튼에 가리지 않게 부른 화면이 칸까지 올린다.
+    if (!previous.rating) onInputFocus?.();
     void save(next, comment, previous);
   };
 
