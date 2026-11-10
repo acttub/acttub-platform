@@ -4,6 +4,8 @@
 #   deploy/home/smoke.sh                # 어느 디렉토리에서 실행해도 된다
 #   SMOKE_KEEP=1 deploy/home/smoke.sh   # 실패 원인을 보려고 스택·이미지·디렉토리를 남긴다
 #   SMOKE_RESTORE=false deploy/home/smoke.sh  # 10 단계(restore-db.sh 왕복)를 건너뛴다 — CI 가 복원과 무관한 PR 에서 쓴다
+#   SMOKE_BUILD_ONLY=1 SMOKE_EXPORT_API_IMAGE=… SMOKE_EXPORT_WEB_IMAGE=… deploy/home/smoke.sh
+#                                       # 1·2 단계(이미지 빌드·검사)만 하고 이미지를 남긴다 — CI 모니터링 잡이 쓴다
 #   SMOKE_BUILD_CACHE=read|write deploy/home/smoke.sh  # API 이미지 레이어를 GitHub Actions 캐시에서 읽는다(write 는 쓰기도) — CI 전용(러너 토큰 필요)
 #
 # 로컬과 CI(ci.yml 의 smoke 잡)가 같은 명령으로 돈다. 임시 디렉토리가 서버의 프로젝트 디렉토리
@@ -195,6 +197,14 @@ leaked="$(web_sh 'find /app/apps -path "*/node_modules" -prune -o \( -name "*.ts
 [ -z "$leaked" ] || fail "이미지에 소스·설정·.env 가 들어갔다: $leaked"
 echo "  소스·설정·.env 없음"
 assert_non_root "$WEB_IMAGE"
+
+if [ "${SMOKE_BUILD_ONLY:-}" = 1 ]; then
+  [ -n "${SMOKE_EXPORT_API_IMAGE:-}" ] || fail "SMOKE_BUILD_ONLY=1 은 SMOKE_EXPORT_API_IMAGE·SMOKE_EXPORT_WEB_IMAGE 와 함께 쓴다"
+  docker tag "$IMAGE" "$SMOKE_EXPORT_API_IMAGE"
+  docker tag "$WEB_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
+  printf '\n✔ 이미지 빌드·검사 통과 (SMOKE_BUILD_ONLY=1) — 보존: %s · %s\n' "$SMOKE_EXPORT_API_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
+  exit 0
+fi
 
 # ── 3. 프로젝트 디렉토리 흉내: compose.yml 사본 + 테스트용 .env ─────────────────
 # 가짜 값으로 충분해야 한다 — 기동에 실제 외부 호출이 필요하면 이 단계에서 드러난다.
