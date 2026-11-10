@@ -101,7 +101,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     @Override
     public InputInspection inspect(Path path) {
         boolean audio = audioProbe.test(path);
-        // A track is not proof of sound. Full decode failure blocks upload, never becomes silence.
+        // A track is not proof of sound. Undecodable audio is reported as no signal; other inspection failures throw.
         // Real audio signal preserves audio-only acting regardless of black frames.
         return audio ? new InputInspection(true, null, audioSignalProbe.test(path))
                 : new InputInspection(false, blackFrameProbe.test(path), null);

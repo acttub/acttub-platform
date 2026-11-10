@@ -56,7 +56,7 @@ class DirectVideoPracticeLoopRoundTest {
         assertThat(DirectVideoPracticeLoop.emptyRetryNote(Locale.KOREAN)).startsWith("[다시 쓰기]\n방금 답에 배우에게 보일 코치의 말이 없었다.");
         assertThat(DirectVideoPracticeLoop.timestampRetryNote(Locale.KOREAN)).startsWith("[다시 쓰기]\n방금 쓴 답에 영상 시간");
         assertThat(DirectVideoPracticeLoop.notActingMessage(Locale.KOREAN)).startsWith("이 영상에서는 연기 장면을 찾지 못했어요.");
-        assertThat(DirectVideoPracticeLoop.audioUnavailableMessage(Locale.KOREAN)).startsWith("영상의 소리가 녹음되지 않았어요.");
+        assertThat(DirectVideoPracticeLoop.audioUnavailableMessage(Locale.KOREAN)).startsWith("영상의 소리를 들을 수 없어요.");
         assertThat(DirectVideoPracticeLoop.looksBroken("ㅋㅋ 좋아요 정말", null)).isFalse();
         assertThat(DirectVideoPracticeLoop.withoutQuestions("")).isEmpty();
         assertThat(DirectVideoPracticeLoop.actorLanguage(null, "영어로 해줘")).isEqualTo(Locale.ENGLISH);

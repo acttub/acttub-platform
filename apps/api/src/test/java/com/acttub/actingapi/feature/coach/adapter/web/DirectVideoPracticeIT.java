@@ -117,7 +117,7 @@ class DirectVideoPracticeIT {
         JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", request));
         assertThat(opened.at("/conversation/status").asText()).isEqualTo("closed");
         assertThat(opened.at("/conversation/revision").asLong()).isEqualTo(1);
-        assertThat(opened.path("message").asText()).contains("소리가 녹음되지", "다시 올려").doesNotContain("연기 장면");
+        assertThat(opened.path("message").asText()).contains("소리를 들을 수 없어요", "다시 올려").doesNotContain("연기 장면");
         assertThat(opened.path("note").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("closed");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_notes", Integer.class)).isZero();

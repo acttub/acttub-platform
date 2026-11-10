@@ -1,7 +1,5 @@
 # Consent to Script Splitting (Optional)
 
-Effective Date: The date this version is published (shown on the consent screen when you add a script and in the consent list in Settings)
-
 This consent is **optional**. Without it, you can still use script reading with the sample script. To paste your own script or add one from a file, this consent is required.
 
 ## 1. What You Are Consenting To
