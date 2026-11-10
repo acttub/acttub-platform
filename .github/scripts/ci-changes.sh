@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci.yml 의 경로 판정(SOMA-552). api·smoke 잡이 각각 부르고 결과를 $GITHUB_OUTPUT 에 쓴다.
+# ci.yml 의 경로 판정(SOMA-552). api·smoke·smoke-monitoring·smoke-restore 잡이 각각 부르고 결과를 $GITHUB_OUTPUT 에 쓴다.
 #   api        — apps/api 의 Gradle 테스트
 #   monitoring — 모니터링 설정·스모크
 #   restore    — 복원 왕복·Restore·Backup
