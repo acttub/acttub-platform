@@ -115,21 +115,23 @@ describe('동의 내역', () => {
     expect(screen.queryByRole('switch')).not.toBeOnTheScreen();
   });
 
-  test('문서를 누르면 판·시행일과 본문을 펼치고 다시 누르면 접는다 — 필수 문서엔 스위치가 없다', async () => {
+  test('문서를 누르면 시행일과 본문을 펼치고 다시 누르면 접는다 — 필수 문서엔 스위치가 없다', async () => {
     await consentLoaded();
 
     await fireEvent.press(screen.getByRole('button', { name: '이용약관' }));
     expect(screen.getByText('이용약관 본문')).toBeOnTheScreen();
-    expect(screen.getByText('판 v3 · 시행 2026.01.01')).toBeOnTheScreen();
+    expect(screen.getByText('시행 2026.01.01')).toBeOnTheScreen();
+    // 판 번호는 사용자에게 보이지 않는다(SOMA-1080 B16).
+    expect(screen.queryByText(/판/)).not.toBeOnTheScreen();
     expect(screen.queryByRole('switch')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '이용약관' }));
     expect(screen.queryByText('이용약관 본문')).not.toBeOnTheScreen();
   });
 
-  test('시행일이 없는 문서는 판만 쓴다', async () => {
+  test('시행일이 없는 문서는 머리 줄을 비운다', async () => {
     await consentLoaded();
     await openOptional('AI 분석 보관 (선택)');
-    expect(screen.getByText('판 v3')).toBeOnTheScreen();
+    expect(screen.queryByText(/판|시행/)).not.toBeOnTheScreen();
   });
 
   test('광고성 정보 수신을 바꾸면 저장하고 처리 결과를 알린다', async () => {

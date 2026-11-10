@@ -10,6 +10,8 @@ import { subscribeMarketingNotice } from '@/lib/marketing-notice';
 
 /** 처리 결과를 읽을 시간. 누르면 바로 닫는다. */
 const NOTICE_VISIBLE_MS = 7000;
+/** 다음 화면의 아래 고정 바(CtaBar 위아래 12 + 버튼 48) 위 12 — 다른 토스트와 같은 자리(challenge-detail). */
+const TOAST_ABOVE_CTA = space[3] * 3 + 48;
 
 /**
  * S5.13 광고성 정보 수신 동의 결과 안내 — 다음 화면 아래쪽에 뜨는 어두운 토스트(제목 · 「이메일 · 앱 푸시 · Acttub · 처리일」 · 바꾸는 곳 안내).
@@ -28,7 +30,7 @@ export function MarketingNoticeDialog({ notice, onClose }: { notice: MarketingNo
   const channels = notice.rows.map((row) => (same ? row.channel : `${row.channel} ${row.result}`)).join(' · ');
   const detail = [channels, notice.sender, notice.date].filter(Boolean).join(' · ');
   return (
-    <View style={[styles.wrap, { bottom: space[10] + insets.bottom }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { bottom: TOAST_ABOVE_CTA + insets.bottom }]} pointerEvents="box-none">
       <Pressable
         style={styles.toast}
         testID="marketing-notice-card"

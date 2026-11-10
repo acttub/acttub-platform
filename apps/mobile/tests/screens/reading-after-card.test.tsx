@@ -96,5 +96,5 @@ test('시작이 실패하면 카드 안에 이유를 알린다', async () => {
   create.mockRejectedValue(Object.assign(new Error('x'), { code: 'reading_voice_not_enough_audio' }));
   await render(<ReadingAfterCard sessionId="s1" ready part="coach" />);
   await fireEvent.press(await screen.findByRole('button', { name: '코칭 받기' }));
-  expect(await screen.findByText('소리가 든 내 대사 녹음이 3줄 이상 있어야 해요.')).toBeOnTheScreen();
+  expect(await screen.findByText('소리가 든 내 대사 녹음이 3개 이상 있어야 해요.')).toBeOnTheScreen();
 });

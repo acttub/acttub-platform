@@ -5,7 +5,7 @@ import { translate as t } from '@/lib/i18n';
 
 /**
  * A15.4 신고(challenge.report) — 참여작·댓글·챌린지를 사유와 함께 신고한다. 틀은 ReportPage(전체 화면 페이지)다.
- * 사유 다섯 개를 각각 선택지로 두고, 기타를 고르면 메모(200자, 선택)를 받는다. 참여작·댓글은
+ * 사유 다섯 개를 각각 선택지로 두고(댓글은 「중복 업로드」를 빼고 넷), 기타를 고르면 메모(200자, 선택)를 받는다. 참여작·댓글은
  * 접수 즉시 숨겨지고 챌린지는 신고가 쌓이면 운영이 본다 — 안내 문구가 다르다.
  */
 export function ChallengeReportSheet({
@@ -28,7 +28,8 @@ export function ChallengeReportSheet({
   return (
     <ReportPage
       visible={visible}
-      reasons={REPORT_REASONS}
+      // 댓글에는 「중복 업로드」가 맞지 않아 뺀다.
+      reasons={target === 'comment' ? REPORT_REASONS.filter((r) => r !== 'duplicate') : REPORT_REASONS}
       copy={{
         pageTitle: t('videoReport.pageTitle'),
         title,

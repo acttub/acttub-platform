@@ -380,7 +380,7 @@ describe('첫 사용자', () => {
     openResume.mockResolvedValueOnce('play');
     await render(<HomeScreen />);
     await waitFor(() => expect(api.listReadingSessions).toHaveBeenCalledWith('sc1'));
-    expect(await screen.findByText(/^8\/21줄/)).toBeOnTheScreen();
+    expect(await screen.findByText(/^8\/21개/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: /읽기/ }));
     await waitFor(() => expect(openResume).toHaveBeenLastCalledWith('sc1', 's-14'));
   });
@@ -484,7 +484,7 @@ describe('오늘 할 것 · 코칭 숙제', () => {
     await render(<HomeScreen />);
 
     // 메인은 이어 읽기 카드(18/42줄 · 남은 시간 한 줄, pen P1.15), 코칭 숙제는 「이것도 해 볼래요?」 줄이다.
-    expect(await screen.findByText(/^18\/42줄 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
+    expect(await screen.findByText(/^18\/42개 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
     expect(screen.getByText('이것도 해 볼까요?')).toBeOnTheScreen();
     expect(await screen.findByText('시선 거두기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('코칭 숙제'));
@@ -500,7 +500,7 @@ describe('연속 연습', () => {
     });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 찍으면 2일이에요')).toBeOnTheScreen();
+    expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 연습하면 2일이에요')).toBeOnTheScreen();
     expect(rememberPracticeDays).toHaveBeenCalledWith([{ created_at: expect.any(String) }], 'u1');
     expect(writeLastSeenStreak).toHaveBeenLastCalledWith(1);
     expect(posterProps().blocked).toBe(true);
@@ -649,7 +649,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     expect(screen.getByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     // pen P1.1 — 리딩 줄 제목은 「대사 이어 읽기」, 아래는 멈춘 줄. 챌린지 줄은 ‘대사’ · D-day.
     expect(await screen.findByText('대사 이어 읽기')).toBeOnTheScreen();
-    expect(await screen.findByText('3/10줄에서 멈췄어요')).toBeOnTheScreen();
+    expect(await screen.findByText('대사 3/10개에서 멈췄어요')).toBeOnTheScreen();
     expect(await screen.findByText('‘잘 지내, 진짜로.’ · D-3')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('이번 주 챌린지'));
@@ -664,7 +664,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
     // 하루 전에 읽었으니 「어제」.
     expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
-    expect(await screen.findByText(/^3\/10줄 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
+    expect(await screen.findByText(/^3\/10개 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
     // 진행 막대는 없다(pen P1.15).
     expect(screen.getByText('읽은 장면 찍어서 코칭')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지')).toBeOnTheScreen();
@@ -1049,7 +1049,7 @@ describe('첫 코칭을 마치고 돌아올 때', () => {
     await act(async () => mockSessionDaysChanged());
     await graduateInMemory();
 
-    expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 찍으면 2일이에요')).toBeOnTheScreen();
+    expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 연습하면 2일이에요')).toBeOnTheScreen();
     expect(rememberPracticeDays).toHaveBeenCalledTimes(1);
     expect(rememberPracticeDays).toHaveBeenCalledWith([], 'u1');
   });
@@ -1066,6 +1066,6 @@ describe('첫 코칭을 마치고 돌아올 때', () => {
 
     await screen.findByText('오늘도\n연기하는 하루,\n멋져요!');
     await waitFor(() => expect(writeLastSeenStreak).toHaveBeenLastCalledWith(1));
-    expect(screen.queryByText('첫 불꽃이 켜졌어요\n내일도 찍으면 2일이에요')).not.toBeOnTheScreen();
+    expect(screen.queryByText('첫 불꽃이 켜졌어요\n내일도 연습하면 2일이에요')).not.toBeOnTheScreen();
   });
 });

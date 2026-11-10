@@ -458,6 +458,8 @@ function CoachTalk() {
   const sceneVideo = practice.videoUri || practice.playbackUrl;
   const sceneWritten = [practice.scene.situation, practice.scene.character, practice.scene.goal].some((v) => v?.trim());
   // 대화를 열지 못하고 연결만 끊겼으면(pen 「추가 · 끊긴 코칭 이어 하기」) 한 장 안내로 바꾼다. 답한 것은 서버에 남아 있다.
+  // 대화 id가 없으면 첫 질문부터 실패한 것이라 「답한 건 저장돼 있어요」가 틀린다.
+  const firstFailed = !practice.conversationId;
   const interrupted = !!error && !conversation && !waiting && !connecting && (startFailureKind === 'offline' || startFailureKind === 'other');
 
   /** 코치 말 속 「0:12」를 누르면 위 영상을 펼쳐 그 초부터 튼다. */
@@ -493,8 +495,8 @@ function CoachTalk() {
           onBack={() => leaveThen(() => router.dismissAll())}
           mascot={MASCOT.coach}
           title={t('coach.interruptedTitle')}
-          body={t('coach.interruptedBody')}
-          primary={{ label: t('coach.interruptedResume'), onPress: () => void startConversation(), phLabel: 'coach_interrupted_resume' }}
+          body={t(firstFailed ? 'coach.interruptedBodyFirst' : 'coach.interruptedBody')}
+          primary={{ label: t(firstFailed ? 'common.retry' : 'coach.interruptedResume'), onPress: () => void startConversation(), phLabel: 'coach_interrupted_resume' }}
         />
         {dialog}
       </SafeAreaView>

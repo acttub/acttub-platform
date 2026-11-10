@@ -35,7 +35,7 @@ export function productPlan(productId: string | null | undefined): StorePlan | n
 /** RevenueCat 패키지 중 우리가 읽는 값. */
 export type PackageLike = {
   identifier: string;
-  product: { identifier: string; priceString: string };
+  product: { identifier: string; priceString: string; price?: number; pricePerMonthString?: string | null };
 };
 
 /** RevenueCat 오퍼링 중 우리가 읽는 값. monthly·annual 은 SDK 가 채워 주는 바로가기다. */
@@ -62,6 +62,17 @@ export function planPrices(offering: OfferingLike | null | undefined): Record<St
     monthly: planPackage(offering, 'monthly')?.product.priceString ?? null,
     yearly: planPackage(offering, 'yearly')?.product.priceString ?? null,
   };
+}
+
+/**
+ * 연 구독의 월 환산 가격과 월 구독 대비 할인율 — 둘 다 스토어가 준 현지 통화 값으로 계산한다(원화 고정 문구는 다른 나라 스토어에서 틀린다).
+ * 할인율은 부풀리지 않게 내림한다. 값이 없으면 null(문구를 감춘다).
+ */
+export function yearlyDeal(offering: OfferingLike | null | undefined): { perMonth: string | null; off: number | null } {
+  const month = planPackage(offering, 'monthly')?.product;
+  const year = planPackage(offering, 'yearly')?.product;
+  const off = month?.price && year?.price ? Math.floor((1 - year.price / (month.price * 12)) * 100) : null;
+  return { perMonth: year?.pricePerMonthString ?? null, off: off !== null && off > 0 ? off : null };
 }
 
 /** 플랫폼별 RevenueCat 공개 SDK 키. 비어 있으면 null — 그 빌드에서는 스토어 구매를 열지 않는다. */

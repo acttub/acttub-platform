@@ -6,6 +6,14 @@ import type { ScriptCard, ScriptCardStatus, ScriptListResponse } from './types.t
 import { palette } from '../../constants/palette.ts';
 import { dateLocale, translate as t } from '../i18n.ts';
 
+/** 서버가 제목 없이 나눈 대본에 붙이는 제목. 서버는 요청 언어를 몰라 늘 한국어로 저장한다(SplitDraft). */
+const SERVER_UNTITLED = '제목 없는 대본';
+
+/** 화면에 보일 대본 제목 — 서버의 한국어 기본 제목만 지금 언어로 바꾼다. */
+export function scriptTitle(title: string): string {
+  return title === SERVER_UNTITLED ? t('reading.untitled') : title;
+}
+
 export type StatusChip = { label: string; tone: ScriptCardStatus };
 
 /** 칩 색. 목록 카드와 대본 상세가 같은 색을 쓴다(상세는 진행 막대에도 쓴다). */

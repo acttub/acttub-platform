@@ -484,6 +484,7 @@ export default function ChallengePlayScreen() {
           style={StyleSheet.absoluteFill}
           onPress={(e) => onVideoPress(item, e)}
           accessibilityRole="button"
+          accessibilityLabel={t(playing ? 'react.pauseA11y' : 'react.playA11y')}
           ph-label="challenge_play_toggle">
           {isActive && !playing && (
             <View style={styles.pauseCenter}>
@@ -500,7 +501,7 @@ export default function ChallengePlayScreen() {
 
         <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
           <View style={styles.top}>
-            <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close">
+            <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="challenge_play_close">
               <Feather name="x" size={24} color={palette.onAccent} />
             </Pressable>
             <View style={styles.author}>

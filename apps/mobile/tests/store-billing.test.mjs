@@ -6,6 +6,7 @@ import {
   needsRecovery,
   planPackage,
   planPrices,
+  yearlyDeal,
   productPlan,
   purchaseCancelled,
   purchasePending,
@@ -153,4 +154,12 @@ test('시작 복구 — 서버가 앱 결제를 열었고 아직 Pro 가 아닐 
   assert.equal(recoveryDue(null, 1000), true);
   assert.equal(recoveryDue(1000, 20_000), false);
   assert.equal(recoveryDue(1000, 31_000), true);
+});
+
+test('연 구독 할인율·월 환산은 스토어 현지 통화로 — 원화 30%, 달러 16%(내림), 값이 없으면 null', () => {
+  const krw = (m, y, per) => ({ monthly: { identifier: '$rc_monthly', product: { identifier: 'm', priceString: '', price: m } }, annual: { identifier: '$rc_annual', product: { identifier: 'y', priceString: '', price: y, pricePerMonthString: per } } });
+  assert.deepEqual(yearlyDeal(krw(3900, 32500, '₩2,708')), { perMonth: '₩2,708', off: 30 });
+  assert.deepEqual(yearlyDeal(krw(1.99, 19.99, '$1.67')), { perMonth: '$1.67', off: 16 });
+  assert.deepEqual(yearlyDeal({ monthly, annual }), { perMonth: null, off: null });
+  assert.deepEqual(yearlyDeal(null), { perMonth: null, off: null });
 });

@@ -124,7 +124,7 @@ export default function ProScreen() {
         )}
         {state.kind === 'prices_failed' && <InlineError message={t('pro.pricesFailed')} />}
         {selling && state.kind !== 'prices_failed' && (
-          <PlanPicker plan={plan} prices={purchase.prices} onPick={setPlan} disabled={state.kind === 'busy'} />
+          <PlanPicker plan={plan} prices={purchase.prices} deal={purchase.deal} onPick={setPlan} disabled={state.kind === 'busy'} />
         )}
         {selling && (
           <View style={styles.legal}>
@@ -165,18 +165,19 @@ function LegalLink({ label, onPress, disabled }: { label: string; onPress: () =>
   );
 }
 
-const PLANS: { key: StorePlan; title: string; desc: string; descPriced: string; unit: string }[] = [
-  { key: 'monthly', title: 'pro.planMonthly', desc: 'pro.planMonthlyDesc', descPriced: 'pro.planMonthlyDesc', unit: 'pro.unitMonth' },
-  { key: 'yearly', title: 'pro.planYearly', desc: 'pro.planYearlyDesc', descPriced: 'pro.planYearlyPerMonth', unit: 'pro.unitYear' },
+const PLANS: { key: StorePlan; title: string; desc: string; unit: string }[] = [
+  { key: 'monthly', title: 'pro.planMonthly', desc: 'pro.planMonthlyDesc', unit: 'pro.unitMonth' },
+  { key: 'yearly', title: 'pro.planYearly', desc: 'pro.planYearlyDesc', unit: 'pro.unitYear' },
 ];
 
 /**
  * 월·연 요금제 고르기(기본 월). 가격은 스토어가 준 현지화 값이고, 받는 동안은 가격 자리에 뼈대를 둔다. 가격을 받았는데 오퍼링에 없는
  * 요금제는 흐리게 두고 고를 수 없다.
  */
-function PlanPicker({ plan, prices, onPick, disabled }: {
+function PlanPicker({ plan, prices, deal, onPick, disabled }: {
   plan: StorePlan;
   prices: Record<StorePlan, string | null>;
+  deal: { perMonth: string | null; off: number | null };
   onPick: (plan: StorePlan) => void;
   disabled: boolean;
 }) {
@@ -195,11 +196,13 @@ function PlanPicker({ plan, prices, onPick, disabled }: {
             <View style={styles.planBody}>
               <View style={styles.planHead}>
                 <Text style={[styles.planTitle, selected && styles.planTitleOn]}>{t(o.title)}</Text>
-                {o.key === 'yearly' && (
-                  <Text style={[styles.planTag, selected && styles.planTagOn]}>{t('pro.planYearlyBadge')}</Text>
+                {o.key === 'yearly' && deal.off !== null && (
+                  <Text style={[styles.planTag, selected && styles.planTagOn]}>{t('pro.planYearlyBadge', { off: deal.off })}</Text>
                 )}
               </View>
-              <Text style={styles.planDesc}>{t(price ? o.descPriced : o.desc)}</Text>
+              <Text style={styles.planDesc}>
+                {o.key === 'yearly' && price && deal.perMonth ? t('pro.planYearlyPerMonth', { price: deal.perMonth }) : t(o.desc)}
+              </Text>
             </View>
             {price ? (
               <View style={styles.planPrice}>

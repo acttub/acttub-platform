@@ -333,6 +333,28 @@ describe('대화 시작', () => {
   });
 });
 
+describe('끊긴 대화 안내', () => {
+  test('첫 질문부터 실패하면(대화 id 없음) 답한 게 없다고 하고 「다시 시도」로 첫 질문을 다시 받는다(SOMA-1080 B19)', async () => {
+    mockLoop.startConversation.mockRejectedValueOnce(serverError(500, 'internal_error'));
+    begin();
+    await render(<CoachScreen />);
+
+    expect(await screen.findByText('아직 답한 건 없어요. 「다시 시도」를 누르면 첫 질문부터 다시 해요.')).toBeOnTheScreen();
+    expect(screen.queryByText(/답한 건 저장돼 있어요/)).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
+  });
+
+  test('이어 하던 대화를 다시 못 열면 답한 것은 저장돼 있다고 한다', async () => {
+    mockLoop.getConversation.mockRejectedValueOnce(serverError(500, 'internal_error'));
+    begin({ conversationId: 'c1' });
+    await render(<CoachScreen />);
+
+    expect(await screen.findByText('답한 건 저장돼 있어요. 「이어서 하기」를 누르면 같은 질문부터 다시 해요.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '이어서 하기' })).toBeOnTheScreen();
+  });
+});
+
 describe('답 보내기', () => {
   test('빈 칸이면 보낼 수 없고, 쓴 답을 다듬어 보내면 다음 질문을 보이고 칸을 비운다', async () => {
     let resolveReply: (r: CoachTurnResult) => void = () => undefined;

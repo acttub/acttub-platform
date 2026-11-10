@@ -6,8 +6,10 @@ import {
   lastActivityLabel,
   listHeader,
   myCharactersLabel,
+  scriptTitle,
   statusChip,
 } from '../lib/reading/script-cards.ts';
+import { translate } from '../lib/i18n.ts';
 
 const NOW = Date.parse('2026-09-21T12:00:00+09:00');
 
@@ -66,4 +68,9 @@ test('reading.script: 마지막 활동 날짜 — "어제 연습", "5월 25일 �
     lastActivityLabel(card({ my_character_names: ['니나'], last_practiced_at: null, last_activity_at: '2026-05-25T09:00:00+09:00' }), NOW),
     '5월 25일 업로드',
   );
+});
+
+test('reading.script: 서버의 한국어 기본 제목만 지금 언어의 「제목 없는 대본」으로 바꾸고 다른 제목은 그대로 둔다(SOMA-1080 B15)', () => {
+  assert.equal(scriptTitle('제목 없는 대본'), translate('reading.untitled'));
+  assert.equal(scriptTitle('갈매기'), '갈매기');
 });

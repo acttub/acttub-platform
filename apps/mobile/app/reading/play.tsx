@@ -1979,7 +1979,7 @@ export default function ReadingPlay() {
       };
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={() => void homeAfterFirst()} homeDisabled={doneLocked} footer={readAgainButton}>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed && !stoppedEarlyRef.current ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={() => void homeAfterFirst()} homeDisabled={doneLocked} footer={readAgainButton}>
             <View style={styles.doneBody}>
               {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
               {otherScript}
