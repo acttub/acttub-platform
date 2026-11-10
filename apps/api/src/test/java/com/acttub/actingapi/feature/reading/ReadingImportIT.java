@@ -45,7 +45,6 @@ import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -63,8 +62,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -203,14 +200,6 @@ class ReadingImportIT {
         }
     }
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("reading_import");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
-
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper mapper;
@@ -299,6 +288,31 @@ class ReadingImportIT {
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(text);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_imports", String.class)).as("끝난 요청의 원문은 비운다").isEmpty();
         assertThat(worker.runOnce(clock.instant())).as("남은 작업이 없다").isFalse();
+    }
+
+    @Test
+    @DisplayName("reading.script 나누기: 배포로 끊긴 작업은 실패가 아니라 대기로 돌아가고, 다음 워커가 같은 작업을 집어 저장한다(SOMA-930)")
+    void aJobCutOffByShutdownIsPickedUpAgain() throws Exception {
+        JsonNode ticket = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), "갈매기", "니나: 가요.\n트레플레프: 그래요.", "paste")), 202);
+        String importId = ticket.path("import_id").textValue();
+        Model.answer = call -> {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("OpenAI 호출이 중단됐습니다.", new InterruptedException());
+        };
+        try {
+            assertThat(worker.runOnce(clock.instant())).isTrue();
+        } finally {
+            assertThat(Thread.interrupted()).isTrue();
+        }
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("pending");
+        assertThat(jdbc.queryForObject("SELECT failure IS NULL FROM script_imports", Boolean.class)).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("pending");
+        assertThat(failures.reports()).isEmpty();
+
+        Model.answer = Model::oracle;
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForObject("SELECT attempt_count FROM ai_jobs", Integer.class)).isEqualTo(2);
     }
 
     @Test

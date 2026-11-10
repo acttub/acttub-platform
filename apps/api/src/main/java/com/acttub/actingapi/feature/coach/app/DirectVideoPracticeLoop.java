@@ -663,6 +663,11 @@ final class DirectVideoPracticeLoop {
     private static final Pattern VAGUE = Pattern.compile("(?:잘\\s*)?(?:모르겠(?:어|어요|다|음)?|몰라(?:요)?|ㅇㅇ|ㅇㅋ|네|넵|응|아 네)[.!?~\\s]*");
     private static final int TITLE_MAX = 40;
 
+    /** 「모르겠어요」「네」처럼 내용 없는 짧은 답인가. */
+    static boolean isVague(String text) {
+        return VAGUE.matcher(text).matches();
+    }
+
     /**
      * 연습 루프 세션의 노트(3층). 코치가 이미 정리해 둔 것으로 채운다 — 영상 직접 코칭은 구조화된
      * 방향·초점을 만들지 않아 기존 노트 생성기는 record_only 로 떨어진다.
@@ -692,6 +697,8 @@ final class DirectVideoPracticeLoop {
                 .put("source_ref", StructuredCoachEngine.turnId(session, 0));
         if (round.reason() != null) quotes.addObject().put("quote", round.reason()).put("kind", "actor")
                 .put("source_ref", StructuredCoachEngine.turnId(session, round.reasonIndex()));
+        // 목적별 코칭은 상태 줄이 위 분류를 거의 남기지 않는다 — 배우가 채운 인물 카드·단계 답으로 요약을 채운다(SOMA-1051).
+        PurposeLoop.addNoteQuotes(session, quotes, 2);
         String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
         // 마무리2의 상태 칸에 다시 정한 다음 테이크가 있으면 그것을 쓴다 — 배우가 그 버릇을 지키겠다고 했으면 설계의 "반대쪽"과 다르다.
         if (!closingNext.isBlank()) next = closingNext;
@@ -737,7 +744,7 @@ final class DirectVideoPracticeLoop {
                 continue;
             }
             String text = turn.text() == null ? "" : turn.text().strip();
-            if (text.isEmpty() || VAGUE.matcher(text).matches()
+            if (text.isEmpty() || isVague(text)
                     || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
             // 이 답을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
             String status = statuses.path(coachIndex).asText("");

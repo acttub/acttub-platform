@@ -7,22 +7,13 @@ import java.time.LocalDate;
 import java.util.UUID;
 import com.acttub.actingapi.feature.push.app.EveningReminderRepository;
 import com.acttub.actingapi.feature.push.app.PushTarget;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "EVENING_REMINDER_ENABLED=false"})
 class EveningReminderRepositoryIT {
-    @DynamicPropertySource static void datasource(DynamicPropertyRegistry registry) {
-        String db = PostgresContainerSupport.createDatabaseName("evening_reminder_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(db));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
     @Autowired JdbcTemplate jdbc;
     @Autowired EveningReminderRepository reminders;
 

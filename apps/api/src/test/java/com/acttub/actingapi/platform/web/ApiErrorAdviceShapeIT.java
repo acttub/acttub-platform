@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -32,8 +31,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,14 +51,6 @@ import org.springframework.web.bind.annotation.RestController;
 @Import(ApiErrorAdviceShapeIT.ShapeController.class)
 class ApiErrorAdviceShapeIT {
     private static final ObjectMapper JSON = new ObjectMapper();
-
-    @DynamicPropertySource
-    static void db(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("api_error_advice_shape");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;
@@ -420,7 +409,6 @@ class ApiErrorAdviceShapeIT {
             return value;
         }
     }
-
 
     record NullsBody(
             String s,

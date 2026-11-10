@@ -110,15 +110,27 @@ test('영상·장면 보기를 펼치면 장면 요약이 보인다', async () =
 });
 
 test('다음 테이크 찍기는 이 회차의 장면을 넘기고 업로드로 간다', async () => {
-  (getPractice as jest.Mock).mockReturnValue(practice({ note: practiceNote() }));
+  (getPractice as jest.Mock).mockReturnValue(practice({ note: practiceNote(), playbackUrl: 'https://v/1.mp4' }));
   await render(<ReportScreen />);
 
+  expect(screen.queryByText('영상 찍어 코칭받기')).toBeNull();
   await fireEvent.press(screen.getByText('다음 테이크 찍기'));
 
   expect(finishTutorial).toHaveBeenCalledWith('done');
   expect(setContinueOrigin).toHaveBeenCalledWith({ kind: 'note', rootId: 'root1', practiceId: 'p1', scene });
   expect(clearPractice).toHaveBeenCalledTimes(1);
   expect(mockRouter.dismissAll).toHaveBeenCalledTimes(1);
+  expect(mockRouter.push).toHaveBeenCalledWith('/upload');
+});
+
+test('영상 없이 말로 한 회차는 다음 테이크 대신 영상 찍어 코칭받기로 같은 장면의 업로드에 간다', async () => {
+  (getPractice as jest.Mock).mockReturnValue(practice({ note: practiceNote() }));
+  await render(<ReportScreen />);
+
+  expect(screen.queryByText('다음 테이크 찍기')).toBeNull();
+  await fireEvent.press(screen.getByText('영상 찍어 코칭받기'));
+
+  expect(setContinueOrigin).toHaveBeenCalledWith({ kind: 'note', rootId: 'root1', practiceId: 'p1', scene });
   expect(mockRouter.push).toHaveBeenCalledWith('/upload');
 });
 
