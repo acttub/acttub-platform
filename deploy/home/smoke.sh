@@ -4,6 +4,7 @@
 #   deploy/home/smoke.sh                # 어느 디렉토리에서 실행해도 된다
 #   SMOKE_KEEP=1 deploy/home/smoke.sh   # 실패 원인을 보려고 스택·이미지·디렉토리를 남긴다
 #   SMOKE_RESTORE=false deploy/home/smoke.sh  # 10 단계(restore-db.sh 왕복)를 건너뛴다 — CI 가 복원과 무관한 PR 에서 쓴다
+#   SMOKE_BUILD_CACHE=read|write deploy/home/smoke.sh  # API 이미지 레이어를 GitHub Actions 캐시에서 읽는다(write 는 쓰기도) — CI 전용(러너 토큰 필요)
 #
 # 로컬과 CI(ci.yml 의 smoke 잡)가 같은 명령으로 돈다. 임시 디렉토리가 서버의 프로젝트 디렉토리
 # (/svc/acttub/<env>: compose.yml·.env·release.env) 노릇을 하고, 스택은 맨손 compose 가 아니라
@@ -122,7 +123,15 @@ step "jar 빌드 (apps/api ./gradlew bootJar)"
 [ -f "$API_DIR/build/libs/acting-api.jar" ] || fail "jar 가 없다: apps/api/build/libs/acting-api.jar"
 
 step "API 이미지 빌드 → $IMAGE (컨텍스트 apps/api)"
-build_image "$IMAGE" "$API_DIR"
+# SMOKE_BUILD_CACHE 가 있으면 apt(ffmpeg·tesseract) 레이어를 Actions 캐시(범위 acttub-api, deploy.yml 과 같다)에서 읽는다.
+# 쓰기(write)는 매일 dev schedule 만 한다 — 바뀌는 jar 레이어까지 올려 쓰는 실행은 아끼는 만큼 느려진다. 웹 이미지는 캐시하지
+# 않는다 — node_modules 레이어를 받는 시간이 pnpm install 보다 길다(SOMA-1076 실측).
+api_cache=()
+case "${SMOKE_BUILD_CACHE:-}" in
+  read) api_cache=(--cache-from type=gha,scope=acttub-api) ;;
+  write) api_cache=(--cache-from type=gha,scope=acttub-api --cache-to type=gha,mode=max,ignore-error=true,scope=acttub-api) ;;
+esac
+build_image "$IMAGE" ${api_cache[@]+"${api_cache[@]}"} "$API_DIR"
 
 step "이미지 안에 ffmpeg·ffprobe·curl·tesseract(한국어) 가 있고 non-root 로 돈다"
 # ENTRYPOINT 가 java 라 --entrypoint 로 바꿔 부른다. 첫 줄만 보여 준다(head 는 pipefail 과 충돌).
