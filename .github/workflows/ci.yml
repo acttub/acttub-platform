@@ -188,7 +188,7 @@ jobs:
 
       # docker build 의 --cache-to/--cache-from type=gha 가 쓸 러너 토큰(ACTIONS_RUNTIME_TOKEN·ACTIONS_RESULTS_URL)을
       # 셸 스텝에 내놓는다. 이 토큰은 원래 action 에만 보인다(SOMA-1076).
-      - uses: crazy-max/ghaction-github-runtime@v3
+      - uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3
 
       # 배포 산출물 검증(SOMA-489)입니다. api·web 컨테이너 이미지를 굽고(push 없음) deploy/home/compose.yml 을
       # 실제 배포 스크립트(deploy/home/deploy.sh)로 임시 프로젝트에 띄워 web·proxy 경유 /·/health 와 commit 대조,

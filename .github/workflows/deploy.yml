@@ -124,7 +124,7 @@ jobs:
 
       # docker build 의 type=gha 캐시가 쓸 러너 토큰을 셸 스텝에 내놓는다. 캐시는 ci.yml 의 매일 smoke 가 쓰고(범위
       # acttub-api) 여기서는 apt 레이어를 읽기만 한다 — 바뀌는 jar 레이어까지 올리면 아낀 만큼 느려진다(SOMA-1076).
-      - uses: crazy-max/ghaction-github-runtime@v3
+      - uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3
         if: ${{ steps.exists.outputs.exists != 'true' }}
 
       # jar 는 러너에서 만들고 Dockerfile 은 COPY 만 합니다(apps/api/Dockerfile 머리 주석). 테스트는
