@@ -107,7 +107,7 @@ export default function ReportScreen() {
     router.dismissAll();
   };
 
-  /** A13 「다음 테이크 찍기」 — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. 영상은 새로 고른다(SOMA-672). */
+  /** A13 「다음 테이크 찍기」(말로 한 회차는 「영상 찍어 코칭받기」) — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. 영상은 새로 고른다(SOMA-672). */
   const nextTake = () => {
     finishTutorial('done');
     if (practice) {
@@ -218,7 +218,8 @@ export default function ReportScreen() {
           {/* 저장하고 마치기·다음 테이크는 노트 길이와 상관없이 화면 아래에 붙여 둔다(pen OL9mWG, SOMA-770 피드백 14). */}
           {!sample && (
             <CtaBar safeBottom={false}>
-              <SecondaryButton label={t('history.nextTake')} onPress={nextTake} />
+              {/* 영상 없이 말로 한 회차는 다음 「테이크」가 없다 — 같은 장면을 영상으로 찍어 코칭받는 길을 둔다(SOMA-1051). */}
+              <SecondaryButton label={t(sceneVideo ? 'history.nextTake' : 'note.recordForCoach')} onPress={nextTake} />
               <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
             </CtaBar>
           )}
