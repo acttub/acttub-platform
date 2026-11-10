@@ -33,14 +33,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -62,17 +61,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class AccountGuestIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final long ANALYSIS_GATE = 528_006L;
-    private static String database;
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("account_guest");
-        database = name;
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
+    @Value("${spring.datasource.url}")
+    private String databaseUrl;
 
     @Autowired
     MockMvc mvc;
@@ -341,7 +333,7 @@ class AccountGuestIT {
                 FOR EACH ROW EXECUTE FUNCTION hold_analysis_insert()
                 """);
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        try (Connection gate = DriverManager.getConnection(PostgresContainerSupport.jdbcUrlFor(database),
+        try (Connection gate = DriverManager.getConnection(databaseUrl,
                 PostgresContainerSupport.POSTGRES.getUsername(), PostgresContainerSupport.POSTGRES.getPassword())) {
             try (Statement statement = gate.createStatement()) {
                 statement.execute("SELECT pg_advisory_lock(" + ANALYSIS_GATE + ")");

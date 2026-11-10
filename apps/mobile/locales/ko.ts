@@ -1267,6 +1267,7 @@ const ko = {
     finish: '연습 마치기',
     // 배우 일지·코칭 마무리(SOMA-748)
     saveFinish: '저장하고 마치기',
+    recordForCoach: '영상 찍어 코칭받기',
     doneTitle: '수고했어요! 다음 테이크에서 이거 하나만 해 봐요',
     doneTitleNoNext: '수고했어요! 오늘 코칭을 마쳤어요',
     doneNextLabel: '다음에 해 볼 것',

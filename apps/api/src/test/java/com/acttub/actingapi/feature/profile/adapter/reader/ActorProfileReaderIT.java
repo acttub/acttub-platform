@@ -10,7 +10,6 @@ import com.acttub.actingapi.feature.coach.app.ActorProfile;
 import com.acttub.actingapi.feature.coach.app.CoachProfile;
 import com.acttub.actingapi.feature.report.app.ReportProfile;
 import com.acttub.actingapi.support.MutableClock;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,8 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * account.profile: 코치와 노트가 프로필을 읽는 포트 둘의 구현을 실제 Postgres 로 본다.
@@ -31,14 +28,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @Import(MutableClock.Fixture.class)
 class ActorProfileReaderIT {
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("actor_profile_reader");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     CoachProfile coach;

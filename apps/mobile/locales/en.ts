@@ -1272,6 +1272,7 @@ const en: DeepStringShape<typeof ko> = {
     finish: 'Finish practice',
     // Actor journal and wrap-up (SOMA-748)
     saveFinish: 'Save and finish',
+    recordForCoach: 'Record a video for coaching',
     doneTitle: 'Nice work! Try just this one thing in your next take',
     doneTitleNoNext: 'Nice work! You finished today’s coaching',
     doneNextLabel: 'Try next',

@@ -9,15 +9,12 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.app.ProfileService;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * 탈퇴의 파기를 서비스와 실제 Postgres 로 본다. 내 계정 조회와 프로필 저장은 {@code AccountProfileIT} 가 본다.
@@ -26,14 +23,6 @@ import org.springframework.test.context.DynamicPropertySource;
 class ProfileEndpointIT {
     private static final UUID USER_ID =
             UUID.fromString("00000000-0000-4000-8000-000000000101");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("profile_endpoint");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     JdbcTemplate jdbc;

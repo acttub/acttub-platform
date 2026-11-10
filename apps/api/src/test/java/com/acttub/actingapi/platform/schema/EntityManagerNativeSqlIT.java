@@ -12,7 +12,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.acttub.actingapi.feature.auth.schema.UserEntity;
 import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -21,8 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -31,14 +28,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 class EntityManagerNativeSqlIT {
 
     private static final String LOCK_WAITER_APPLICATION_NAME = "soma460-native-lock-waiter";
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("entity_manager_native_sql_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @PersistenceContext
     EntityManager entityManager;
