@@ -39,14 +39,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -67,16 +66,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @Import({StubProviders.class, MutableClock.Fixture.class, AccountWithdrawIT.Fixture.class})
 class AccountWritesAndPhotoCleanupIT {
     private static final long SAVE_GATE = 528_001L;
-    private static String database;
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("account_writes");
-        database = name;
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
+    @Value("${spring.datasource.url}")
+    private String databaseUrl;
 
     @Autowired
     MockMvc mvc;
@@ -157,7 +149,7 @@ class AccountWritesAndPhotoCleanupIT {
                 FOR EACH ROW EXECUTE FUNCTION hold_profile_save()
                 """);
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        try (Connection gate = DriverManager.getConnection(PostgresContainerSupport.jdbcUrlFor(database),
+        try (Connection gate = DriverManager.getConnection(databaseUrl,
                 PostgresContainerSupport.POSTGRES.getUsername(), PostgresContainerSupport.POSTGRES.getPassword())) {
             try (Statement statement = gate.createStatement()) {
                 statement.execute("SELECT pg_advisory_lock(" + SAVE_GATE + ")");

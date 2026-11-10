@@ -10,14 +10,11 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AuthRepository;
 import com.acttub.actingapi.feature.auth.app.IdentityAlreadyLinkedError;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 class AuthRepositoryIT {
@@ -25,14 +22,6 @@ class AuthRepositoryIT {
             UUID.fromString("00000000-0000-4000-8000-000000000701");
     private static final UUID SECOND_USER =
             UUID.fromString("00000000-0000-4000-8000-000000000702");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("auth_repository_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     AuthRepository accounts;
