@@ -67,7 +67,7 @@ class DirectVideoPracticeLoopTest {
         assertThat(DirectVideoPracticeLoop.notActingMessage(Locale.ENGLISH))
                 .isEqualTo("I couldn't find an acting scene in this video.\nPlease upload a video with your acting in it.");
         assertThat(DirectVideoPracticeLoop.audioUnavailableMessage(Locale.ENGLISH))
-                .isEqualTo("The video's audio is silent.\nPlease upload a video with audible sound.");
+                .isEqualTo("We can't hear the video's audio.\nPlease upload a video with audible sound.");
         assertThat(DirectVideoPracticeLoop.brokenRetryNote(Locale.KOREAN)).startsWith("[다시 쓰기]");
     }
 

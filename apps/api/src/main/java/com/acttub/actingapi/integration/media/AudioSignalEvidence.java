@@ -16,13 +16,29 @@ public final class AudioSignalEvidence {
             java.util.logging.Logger.getLogger(AudioSignalEvidence.class.getName());
     private static final int ATTEMPTS = 2;
 
-    /** 일시적인 ffmpeg 실패(자원 부족·시간 초과)로 배우 흐름이 막히지 않게 한 번 더 검사한다. 끝까지 실패하면 소리 없음으로 바꾸지 않고 예외를 낸다. */
+    /** 파일은 읽었지만 ffmpeg 가 소리를 풀지 못함(오류 종료·소리 프레임 0개). 들을 소리가 없으니 무음과 같은 길로 보낸다. */
+    static final class Undecodable extends IOException {
+        Undecodable(String message) { super(message); }
+    }
+
+    /**
+     * 일시적인 ffmpeg 실패(자원 부족·시간 초과)로 배우 흐름이 막히지 않게 한 번 더 검사한다. 끝까지 소리를 풀지 못하면
+     * ({@link Undecodable}) 들을 수 있는 소리가 없다고 본다(false). 시간 초과·파일 없음·측정 이상은 예외를 낸다.
+     */
     public boolean hasSignal(Path source) {
+        if (!Files.isReadable(source)) throw new IllegalStateException("audio signal inspection failed",
+                new IOException("audio source is not readable"));
         for (int attempt = 1; ; attempt++) {
             try {
                 return inspectOnce(source);
             } catch (IllegalStateException failure) {
-                if (Thread.currentThread().isInterrupted() || attempt >= ATTEMPTS) throw failure;
+                if (Thread.currentThread().isInterrupted()) throw failure;
+                if (attempt >= ATTEMPTS) {
+                    if (!(failure.getCause() instanceof Undecodable)) throw failure;
+                    LOGGER.log(java.util.logging.Level.WARNING,
+                            "audio could not be decoded, treating as no audible sound: " + failure.getCause().getMessage());
+                    return false;
+                }
                 LOGGER.log(java.util.logging.Level.WARNING,
                         "audio signal inspection failed, retrying: " + failure.getCause(), failure);
             }
@@ -95,7 +111,7 @@ public final class AudioSignalEvidence {
                 if (invalid != 0) throw new IOException("non-finite audio samples");
             }
         }
-        if (frames == 0) throw new IOException("no decoded audio frames");
+        if (frames == 0) throw new Undecodable("no decoded audio frames");
         if (frames != peaks || frames != counts || !framePeak || !frameSamples) {
             throw new IOException("incomplete audio measurements");
         }
@@ -119,7 +135,7 @@ public final class AudioSignalEvidence {
         try {
             if (!process.waitFor(90, TimeUnit.SECONDS)) throw new IOException("audio signal command timed out");
             if (process.exitValue() != 0) {
-                throw new IOException("audio signal command failed: exit " + process.exitValue() + " " + tail(errors));
+                throw new Undecodable("audio signal command failed: exit " + process.exitValue() + " " + tail(errors));
             }
         } finally {
             if (process.isAlive()) {

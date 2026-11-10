@@ -480,12 +480,12 @@ final class DirectVideoPracticeLoop {
         loop.put(NOT_ACTING, reason);
     }
 
-    /** 오디오가 완전 무음인 입력의 안내. 연기 여부를 거짓 판정하지 않는다. */
+    /** 오디오가 완전 무음이거나 소리를 풀 수 없는 입력의 안내. 연기 여부를 거짓 판정하지 않는다. */
     static String audioUnavailableMessage(java.util.Locale language) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
         return korean
-                ? "영상의 소리가 녹음되지 않았어요.\n소리가 들리는 영상으로 다시 올려 주세요."
-                : "The video's audio is silent.\nPlease upload a video with audible sound.";
+                ? "영상의 소리를 들을 수 없어요.\n소리가 들리는 영상으로 다시 올려 주세요."
+                : "We can't hear the video's audio.\nPlease upload a video with audible sound.";
     }
 
     static void markInputIssue(ObjectNode state, String reason) {
