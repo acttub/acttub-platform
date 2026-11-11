@@ -35,10 +35,10 @@ class ScriptedCoachTest {
     static final String DEMO = "/coaching/scripted/demo.json";
     static final String EMAIL = "sukpower198919@gmail.com";
     static final List<String> LINES = List.of(
-            "이 장면에서 태오는 윤서한테서 결국 뭘 얻어 내고 싶었어요?",
-            "\"말하면 뭐가 달라져\"에서도, \"그래서 더 말하기 싫었어\"에서도 투덜거리듯 털어놓기만 해요. 그러면 윤서가 정말 내버려 뒀을까요?",
-            "윤서가 더 묻지 않게 하려면, 장면 내내 윤서한테 뭘 해 볼래요?",
-            "맞아요, 그거예요. 괜찮은 척 웃으면서 윤서를 밀어내 봐도 좋아요. 특히 \"그래서 더 말하기 싫었어\"에서요.");
+            "이 사람은 상대에게서 결국 뭘 얻어 내고 싶어요?",
+            "\"혼자 해야 했죠\"에서도 \"기회를 주실 수 있잖아요\"에서도 내 억울함만 쏟아내요. 그러면 상대가 다시 기회를 줬을까요?",
+            "다시 기회를 얻으려면, 장면 내내 상대한테 뭘 해 볼래요?",
+            "맞아요, 그거예요. 상대한테 간절하게 매달려 봐도 좋아요. 특히 \"기회를 주실 수 있잖아요\"에서요.");
 
     final ConversationRepository conversations = mock(ConversationRepository.class);
     final CoachEngine coach = mock(CoachEngine.class);
@@ -112,7 +112,7 @@ class ScriptedCoachTest {
         assertThat(turns).extracting(ConversationService.Turn::status)
                 .containsExactly("open", "open", "open", "closed");
         assertThat(turns.getLast().closeReason()).as("연습 루프가 마무리를 마칠 때와 같은 사유").isEqualTo("exhausted");
-        assertThat(turns.getFirst().answerExamples()).containsExactly("그냥 혼자 내버려 두길 바랐어요");
+        assertThat(turns.getFirst().answerExamples()).containsExactly("다시 기회를 얻고 싶어요");
         assertThat(turns.get(2).replyLimit()).as("마지막 앞 줄에서 평소처럼 '다음 답으로 마무리'를 띄운다").isEqualTo(4);
         assertThat(turns.getLast().answerExamples()).isEmpty();
 
@@ -121,8 +121,8 @@ class ScriptedCoachTest {
         verify(conversations).saveNote(eq(conversation), note.capture(), any());
         assertThat(note.getValue().format()).isEqualTo("v2");
         assertThat(note.getValue().kind()).isEqualTo("action");
-        assertThat(note.getValue().title()).isEqualTo("괜찮은 척 웃으면서 윤서를 밀어내 더 묻지 않게 한다");
-        assertThat(note.getValue().nextTake()).isEqualTo("\"그래서 더 말하기 싫었어\"에서 괜찮은 척 웃으면서 윤서를 밀어내 보기");
+        assertThat(note.getValue().title()).isEqualTo("상대한테 간절하게 매달려 다시 기회를 얻는다");
+        assertThat(note.getValue().nextTake()).isEqualTo("\"기회를 주실 수 있잖아요\"에서 간절하게 매달려 보기");
         assertThat(note.getValue().summaryQuotes()).extracting(quote -> quote.path("quote").asText())
                 .as("배우가 실제로 한 첫 답과 마지막 답만 인용한다").containsExactly("음 글쎄요", "그냥 화내요");
         assertThat(note.getValue().sourceRevision()).isEqualTo(4);
