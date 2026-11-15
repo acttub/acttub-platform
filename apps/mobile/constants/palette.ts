@@ -1,5 +1,5 @@
 /**
- * 앱 색 토큰 24개. 이름과 값은 디자인 시스템 pen 변수(`docs/DESIGN-SYSTEM.html` 「색」)와 같다.
+ * 앱 색 토큰 24개. 이름과 값은 pen 저장소 `acttub-design-system.pen` 변수(「색」)와 같다.
  *
  * 화면에서 색을 직접 적지 않는다. pen 값이 바뀌면 여기만 고친다.
  */
@@ -20,6 +20,8 @@ export const palette = {
   blue: '#4880EE',
   blueDeep: '#3268D8',
   blueSoft: '#EAF3FE',
+  // 리딩 가린 대사 줄(blue-soft 카드 위 연한 파랑, SOMA-1047).
+  blueMask: '#BCD6F7',
 
   danger: '#E42939',
   dangerSoft: '#FFF0F0',

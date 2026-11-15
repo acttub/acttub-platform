@@ -1,10 +1,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { PRO_STOPS } from '@/components/home-plan-badge';
 import { BandGradient } from '@/components/ui/band-gradient';
-import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
@@ -27,29 +27,23 @@ export function ProBadge() {
 export function CoachingLimitSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
   return (
-    <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.full} onPress={(e) => e.stopPropagation()}>
-          <DialogCard title={t('pro.coachingLimitTitle')} message={t('pro.coachingLimitBody')}>
-            <DialogButtons
-              cancelLabel={t('pro.coachingLimitLater')}
-              onCancel={onClose}
-              confirmLabel={t('pro.explore')}
-              onConfirm={() => {
-                onClose();
-                router.push({ pathname: '/pro', params: { from: 'coaching' } });
-              }}
-            />
-          </DialogCard>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <DialogModal visible={visible} onRequestClose={onClose} onBackdropPress={onClose}>
+      <DialogCard title={t('pro.coachingLimitTitle')} message={t('pro.coachingLimitBody')}>
+        <DialogButtons
+          cancelLabel={t('pro.coachingLimitLater')}
+          onCancel={onClose}
+          confirmLabel={t('pro.explore')}
+          onConfirm={() => {
+            onClose();
+            router.push({ pathname: '/pro', params: { from: 'coaching' } });
+          }}
+        />
+      </DialogCard>
+    </DialogModal>
   );
 }
 
 const styles = StyleSheet.create({
   badge: { alignSelf: 'flex-start', height: 28, flexDirection: 'row', alignItems: 'center', gap: space[1], paddingHorizontal: space[3], borderRadius: radius.full, overflow: 'hidden' },
   badgeText: { ...type.micro, color: palette.onAccent },
-  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
-  full: { width: '100%', alignItems: 'center' },
 });

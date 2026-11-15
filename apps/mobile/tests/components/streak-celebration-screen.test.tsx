@@ -42,7 +42,7 @@ test('어제 연속일을 먼저 보이고, 잠시 뒤 오늘 연속일로 바�
   expect(screen.queryByText('4')).toBeNull();
   expect(notify.mock.calls).toEqual([['success']]);
   expect(screen.getByText('일 연속 연습!')).toBeOnTheScreen();
-  expect(screen.getByText('내일도 찍으면 6일이에요')).toBeOnTheScreen();
+  expect(screen.getByText('내일도 연습하면 6일이에요')).toBeOnTheScreen();
 });
 
 test('이번 주 요일을 모두 보이고, 연습한 날과 오늘에만 체크를 단다', async () => {
@@ -58,7 +58,7 @@ test('첫 연속일이면 0에서 1로 바뀌고 첫 불꽃 문구를 함께 보
   await render(<StreakCelebrationScreen streak={1} dots={[]} onDone={jest.fn()} />);
 
   expect(screen.getByText('0')).toBeOnTheScreen();
-  expect(screen.getByText('첫 불꽃이 켜졌어요\n내일도 찍으면 2일이에요')).toBeOnTheScreen();
+  expect(screen.getByText('첫 불꽃이 켜졌어요\n내일도 연습하면 2일이에요')).toBeOnTheScreen();
 
   await act(async () => {
     jest.advanceTimersByTime(650);

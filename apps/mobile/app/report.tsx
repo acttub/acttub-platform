@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -12,6 +11,7 @@ import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { NoticeBand } from '@/components/ui/notice-band';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useAppRating } from '@/hooks/use-app-rating';
@@ -107,7 +107,7 @@ export default function ReportScreen() {
     router.dismissAll();
   };
 
-  /** A13 「다음 테이크 찍기」 — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. 영상은 새로 고른다(SOMA-672). */
+  /** A13 「다음 테이크 찍기」(말로 한 회차는 「영상 찍어 코칭받기」) — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. 영상은 새로 고른다(SOMA-672). */
   const nextTake = () => {
     finishTutorial('done');
     if (practice) {
@@ -163,9 +163,13 @@ export default function ReportScreen() {
           mascot={MASCOT[NOTE_PROBLEM[error].mascot]}
           title={t(NOTE_PROBLEM[error].title)}
           body={t(NOTE_PROBLEM[error].body)}
-          primary={NOTE_PROBLEM[error].retry ? { label: t('common.retry'), onPress: () => void loadNote() } : { label: t('common.goHome'), onPress: finish }}
+          primary={
+            NOTE_PROBLEM[error].retry
+              ? { label: t('common.retry'), onPress: () => void loadNote(), phLabel: 'report_retry' }
+              : { label: t('common.goHome'), onPress: finish, phLabel: 'report_go_home' }
+          }
           // 이 화면은 머리에 뒤로가 없어 집으로 갈 길을 버튼으로 남긴다.
-          secondary={NOTE_PROBLEM[error].retry ? { label: t('common.goHome'), onPress: finish } : undefined}
+          secondary={NOTE_PROBLEM[error].retry ? { label: t('common.goHome'), onPress: finish, phLabel: 'report_go_home' } : undefined}
         />
       )}
 
@@ -187,10 +191,7 @@ export default function ReportScreen() {
             <View style={styles.heading}>
               <Text style={styles.title}>{title}</Text>
               {fallbackNotice && (
-                <View style={styles.fallback}>
-                  <Feather name="alert-circle" size={14} color={palette.amber} />
-                  <Text style={styles.fallbackText}>{fallbackNotice}</Text>
-                </View>
+                <NoticeBand compact icon="alert-circle" message={fallbackNotice}/>
               )}
             </View>
 
@@ -217,7 +218,8 @@ export default function ReportScreen() {
           {/* 저장하고 마치기·다음 테이크는 노트 길이와 상관없이 화면 아래에 붙여 둔다(pen OL9mWG, SOMA-770 피드백 14). */}
           {!sample && (
             <CtaBar safeBottom={false}>
-              <SecondaryButton label={t('history.nextTake')} onPress={nextTake} />
+              {/* 영상 없이 말로 한 회차는 다음 「테이크」가 없다 — 같은 장면을 영상으로 찍어 코칭받는 길을 둔다(SOMA-1051). */}
+              <SecondaryButton label={t(sceneVideo ? 'history.nextTake' : 'note.recordForCoach')} onPress={nextTake} />
               <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
             </CtaBar>
           )}
@@ -247,8 +249,6 @@ const styles = StyleSheet.create({
   ad: { marginBottom: space[4] },
   heading: { gap: space[3] },
   title: { ...type.title2, color: palette.text },
-  fallback: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], padding: space[3], borderRadius: radius.md, backgroundColor: palette.amberSoft },
-  fallbackText: { flex: 1, ...type.captionBold, color: palette.amber },
 
   buttonRow: { gap: space[2], marginTop: space[2] },
   // 스크롤 본문의 gap(섹션 사이)을 노트 안에서도 그대로 둔다 — 비추려고 한 번 감쌌을 뿐이다.

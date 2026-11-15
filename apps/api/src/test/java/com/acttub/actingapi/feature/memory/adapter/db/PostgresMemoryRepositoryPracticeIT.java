@@ -5,14 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.PriorContext;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * 0.1.0 이어하기의 장면 이력 — 같은 묶음 앞 회차의 노트를 차수별 한 줄로 싣는다 (practice.resume). 노트가 없는 회차,
@@ -25,14 +22,6 @@ import org.springframework.test.context.DynamicPropertySource;
     "ANALYSIS_WORKER_ENABLED=false"
 })
 class PostgresMemoryRepositoryPracticeIT {
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("memory_practice_context");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     PostgresMemoryRepository repository;

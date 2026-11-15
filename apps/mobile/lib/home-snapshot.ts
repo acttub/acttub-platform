@@ -7,11 +7,9 @@
  *
  * ⚠️ 네이티브 모듈이 없는 환경(Node 테스트)에서도 불러올 수 있게 저장소는 함수 안 require 로만 닿는다.
  */
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-  removeItem?(key: string): Promise<void>;
-};
+import { deviceStorage, type DeviceStorage } from './device-storage.ts';
+
+type Storage = Pick<DeviceStorage, 'getItem' | 'setItem'> & Partial<Pick<DeviceStorage, 'removeItem'>>;
 
 export const HOME_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const keyFor = (owner: string) => `acttub.homeSnapshot.${owner}`;
@@ -26,11 +24,9 @@ export type HomeSnapshot<G, S, P> = {
   enteredChallengeIds: string[];
 };
 
-function storage(): Storage | null {
+function storage(): DeviceStorage | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require('@react-native-async-storage/async-storage') as { default?: Storage } | undefined;
-    return mod?.default ?? null;
+    return deviceStorage() ?? null;
   } catch {
     return null;
   }

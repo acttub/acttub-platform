@@ -9,7 +9,7 @@ import { LoadingText } from '@/components/ui/loading-text';
 import { useAppDialog, type DialogAction } from '@/components/app-dialog';
 import { ChallengeLineCard } from '@/components/challenge-line-card';
 import { ChallengeLoadFail } from '@/components/challenge-load-fail';
-import { ChallengeNotice } from '@/components/challenge-notice';
+import { NoticeBand } from '@/components/ui/notice-band';
 import { pt } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
@@ -276,9 +276,9 @@ export default function ChallengeDetailScreen() {
 
             <AdSlot slot="challenge_detail_top" />
 
-            {!!moderation && <ChallengeNotice message={moderation} tone={challenge.moderation === 'hidden' ? 'danger' : 'amber'} />}
-            {!!notice && <ChallengeNotice message={notice} />}
-            {myReview && <ChallengeNotice message={t('challenges.myEntryReview')} tone="amber" />}
+            {!!moderation && <NoticeBand message={moderation} tone={challenge.moderation === 'hidden' ? 'danger' : 'amber'} />}
+            {!!notice && <NoticeBand message={notice} />}
+            {myReview && <NoticeBand message={t('challenges.myEntryReview')} tone="amber" />}
 
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>{t('challenges.otherActors')}</Text>

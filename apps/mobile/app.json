@@ -66,7 +66,8 @@
         {
           "ios": {
             "useFrameworks": "static",
-            "deploymentTarget": "16.4"
+            "deploymentTarget": "16.4",
+            "ccacheEnabled": true
           },
           "android": {
             "enableProguardInReleaseBuilds": true,
@@ -126,6 +127,7 @@
       "expo-apple-authentication",
       "./plugins/with-rnfirebase-static.js",
       "./plugins/with-non-modular-headers.js",
+      "./plugins/with-ccache-extension-path.js",
       [
         "expo-camera",
         {

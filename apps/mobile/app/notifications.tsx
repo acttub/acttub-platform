@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -28,6 +27,7 @@ import { translate as t } from '@/lib/i18n';
 import { loadNotificationSettings } from '@/lib/notifications';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { NoticeBand } from '@/components/ui/notice-band';
 
 /**
  * 알림함(challenge.notification) — 묶음 20개씩, 묶음의 최신 사건 순.
@@ -103,12 +103,8 @@ export default function NotificationsScreen() {
       .catch(() => undefined);
   };
 
-  const pushOff = !pushEnabled && (
-    <View style={styles.pushOff}>
-      <Feather name="bell-off" size={16} color={palette.amber} />
-      <Text style={styles.pushOffText}>{toggleOffNotice(pushEnabled)}</Text>
-    </View>
-  );
+  const pushOffNotice = toggleOffNotice(pushEnabled);
+  const pushOff = pushOffNotice ? <NoticeBand compact icon="bell-off" message={pushOffNotice} /> : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -138,7 +134,7 @@ export default function NotificationsScreen() {
                 style={[styles.row, i > 0 && styles.divider]}
                 onPress={() => void open(group)}
                 accessibilityRole="button">
-                {/* 알림함은 모든 알림에 민트 기본 얼굴(DESIGN-SYSTEM.html 「의도된 차이」). */}
+                {/* 알림함은 모든 알림에 민트 기본 얼굴(디자인 시스템 pen 「의도된 차이」). */}
                 <DefaultAvatar size={40} radius={20} />
                 <View style={styles.rowBody}>
                   <Text style={[styles.rowText, !group.read && styles.rowTextUnread]} numberOfLines={2}>
@@ -163,16 +159,6 @@ const styles = StyleSheet.create({
   skeletonFlush: { paddingHorizontal: 0 },
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[2] },
-  pushOff: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    paddingVertical: space[3],
-    paddingHorizontal: space[4],
-    borderRadius: radius.md,
-    backgroundColor: palette.amberSoft,
-  },
-  pushOffText: { flex: 1, ...type.captionBold, color: palette.amber },
   row: { minHeight: 80, flexDirection: 'row', alignItems: 'center', gap: space[3] },
   divider: { borderTopWidth: 1, borderTopColor: palette.border },
   rowBody: { flex: 1, gap: 2 },

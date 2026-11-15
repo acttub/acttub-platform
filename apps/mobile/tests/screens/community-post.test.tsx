@@ -14,7 +14,8 @@ jest.mock('expo-router', () => {
     useFocusEffect: (effect: () => void) => useEffect(effect, [effect]),
   };
 });
-jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'me' } }) }));
+let mockUser: { id: string } | null = { id: 'me' };
+jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   api: {
@@ -188,17 +189,27 @@ test('댓글은 적어야 등록이 켜지고, 올리면 목록 끝에 붙는다
   communityPost.mockResolvedValue(post());
   (api.createCommunityComment as jest.Mock).mockResolvedValue(comment({ id: 'c3', body: '저도 궁금해요', author_name: '나', is_mine: true }));
   await render(<CommunityPostScreen />);
-  const send = await screen.findByRole('button', { name: '등록' });
-  expect(send).toBeDisabled();
+  // 챌린지 댓글과 같은 Chat/Composer — 보낼 수 없으면 보내기를 그리지 않는다.
+  await screen.findByPlaceholderText('댓글을 남겨 주세요');
+  expect(screen.queryByRole('button', { name: '등록' })).not.toBeOnTheScreen();
 
   await fireEvent.changeText(screen.getByPlaceholderText('댓글을 남겨 주세요'), '저도 궁금해요');
-  expect(screen.getByRole('button', { name: '등록' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: '등록' }).props['ph-label']).toBe('community_comment_send');
   await fireEvent.press(screen.getByRole('button', { name: '등록' }));
 
   await waitFor(() => expect(api.createCommunityComment).toHaveBeenCalledWith('p1', { body: '저도 궁금해요' }));
   expect(await screen.findByText('저도 궁금해요')).toBeOnTheScreen();
   expect(screen.getByText('댓글 3')).toBeOnTheScreen();
   expect(logEvent).toHaveBeenCalledWith('community_comment_create', { post_id: 'p1' });
+});
+
+test('로그인하지 않았으면 댓글 칸을 누를 때 로그인으로 보낸다', async () => {
+  mockUser = null;
+  communityPost.mockResolvedValue(post());
+  await render(<CommunityPostScreen />);
+  await fireEvent(await screen.findByPlaceholderText('댓글을 남겨 주세요'), 'focus');
+  expect(mockRouter.push).toHaveBeenCalledWith('/login');
+  mockUser = { id: 'me' };
 });
 
 test('지워진 글은 상태 화면과 목록으로 버튼을 보인다', async () => {

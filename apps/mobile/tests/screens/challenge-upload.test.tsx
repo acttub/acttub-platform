@@ -108,7 +108,7 @@ test('보관함 영상으로 올리면 「공개」가 위에 먼저 골라져 �
   await fireEvent.press(submitButton());
 
   expect(createEntry).toHaveBeenCalledWith('c1', {
-    request_id: expect.stringMatching(/^\d+-[a-z0-9]+$/),
+    request_id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/),
     video_id: 'v1',
     visibility: 'public',
     caption: '첫 도전',
@@ -289,7 +289,8 @@ describe('방금 찍은 영상', () => {
     (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'rejected', code: 'video_empty' });
     await render(<ChallengeUploadScreen />);
 
-    expect(await screen.findByText('챌린지 영상은 60초까지예요.')).toBeOnTheScreen();
+    // 빈 영상은 길이 문구가 아니라 읽지 못했다고 알린다.
+    expect(await screen.findByText('영상을 읽지 못했어요')).toBeOnTheScreen();
     expect(events()).toContainEqual(['challenge_upload_failed', { reason: 'video_empty' }]);
   });
 

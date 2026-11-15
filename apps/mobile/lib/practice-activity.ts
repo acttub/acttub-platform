@@ -1,7 +1,5 @@
 import { translateList } from './i18n.ts';
 
-const WEEKDAY_LABELS = translateList('home.weekdays');
-
 export type ActivityDay = {
   /** 로컬 자정 기준 날짜 키 (YYYY-M-D). */
   key: string;
@@ -49,7 +47,7 @@ export function buildRecentActivity(
     const date = new Date(today.getTime());
     date.setDate(today.getDate() - back);
     const key = dayKey(date);
-    days.push({ key, label: WEEKDAY_LABELS[(date.getDay() + 6) % 7], count: counts.get(key) ?? 0, isToday: back === 0, isFuture: false });
+    days.push({ key, label: translateList('home.weekdays')[(date.getDay() + 6) % 7], count: counts.get(key) ?? 0, isToday: back === 0, isFuture: false });
   }
   return { days };
 }

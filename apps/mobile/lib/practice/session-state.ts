@@ -22,6 +22,8 @@ export type Practice = {
   playbackUrl: string | null;
   /** 대화가 닫히며 함께 온 노트. 없으면 노트 화면이 서버에서 읽는다. */
   note: PracticeNote | null;
+  /** 회차를 시작한 시각(서버 created_at). 모르면 null — 코칭 끝 화면이 연습한 날을 미리 적을지 정한다. */
+  createdAt: string | null;
 };
 
 let current: Practice | null = null;
@@ -47,6 +49,7 @@ export function startPractice(input: {
   videoUri: string;
   playbackUrl: string | null;
   conversationId?: string | null;
+  createdAt?: string | null;
 }): Practice {
   current = {
     practiceId: input.practiceId,
@@ -57,6 +60,7 @@ export function startPractice(input: {
     videoUri: input.videoUri,
     playbackUrl: input.playbackUrl,
     note: null,
+    createdAt: input.createdAt ?? null,
   };
   return current;
 }

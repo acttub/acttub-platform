@@ -1,5 +1,6 @@
 import { translate } from '../i18n.ts';
 import type { PracticeGroup, PracticeGroupDetail, PracticeGroupFilter, PracticeGroupResponse, PracticeRound } from './types.ts';
+import { DAY_MS, kstDayKey } from '../kst.ts';
 
 /** 목록과 PATCH가 같은 서버 묶음 DTO를 준다. 화면에 필요한 요약은 회차에서 얻는다. */
 export function practiceGroupFromResponse(group: PracticeGroupResponse): PracticeGroupDetail {
@@ -31,8 +32,6 @@ export function practiceGroupFromResponse(group: PracticeGroupResponse): Practic
  * 연습"이다. 숨김은 묶음 전체이고 노트·대화·기억은 지우지 않으며 영상은 보관함에 남는다.
  * 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 세어 자정을 넘긴 회차가 다음 날로 간다.
  */
-const DAY_MS = 24 * 60 * 60 * 1000;
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 export function groupTitle(group: Pick<PracticeGroup, 'title' | 'note_title' | 'situation'>): string {
   const fromServer = group.title?.trim();
@@ -103,12 +102,6 @@ export function recentGroups(groups: readonly PracticeGroup[], limit = 3): Pract
     .slice(0, limit);
 }
 
-/** 한국 시간 기준 날짜 키(YYYY-MM-DD). 자정을 넘긴 회차는 다음 날로 센다. */
-export function kstDayKey(value: string | number | Date): string {
-  const at = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(at.getTime())) return '';
-  return new Date(at.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
-}
 
 /**
  * 연속 연습 일수. 오늘(한국 시간)부터 거슬러 세고, 오늘 아직 안 했으면 어제까지의 연속을 지킨다.

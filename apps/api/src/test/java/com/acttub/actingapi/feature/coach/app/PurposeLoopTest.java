@@ -238,6 +238,34 @@ class PurposeLoopTest {
                 .containsExactly("연습 방법을 바꾸고 싶어요", "객관적인 상태가 궁금해요", "웃겨요 ㅋㅋ");
     }
 
+    @Test void anUnclosedChoiceBlockStopsAtTheNextTag() {
+        var out = PurposeLoop.extract("""
+                <보기>
+                - 엄마를 붙잡고 싶어요
+                - 상대가 의심이 많아요
+                - 무슨 생각인지 알고 싶어요<인물 카드>
+                누구: 상처 줄까 봐 망설이는 사람 (내 말)
+                </인물 카드>""");
+        assertThat(out.choices()).extracting(PurposeView.Choice::label)
+                .containsExactly("엄마를 붙잡고 싶어요", "상대가 의심이 많아요", "무슨 생각인지 알고 싶어요");
+        assertThat(out.characterCard().path("cells").get(0).path("value").asText()).isEqualTo("상처 줄까 봐 망설이는 사람");
+
+        assertThat(PurposeLoop.extract("<보기>\n- 하나요\n- 둘이요\n<인물 카드>\n누구: 망설이는 사람\n</인물 카드>").choices())
+                .extracting(PurposeView.Choice::label).as("다음 줄 태그도 버튼이 되지 않는다").containsExactly("하나요", "둘이요");
+    }
+
+    @Test void emojiAndSymbolsAreDroppedFromChoices() {
+        var out = PurposeLoop.extract("""
+                <보기>
+                - 상대가 의심이 많아요 📂
+                - 👍
+                - 좋아요~ ❤️
+                - 정말요?!
+                </보기>""");
+        assertThat(out.choices()).extracting(PurposeView.Choice::label)
+                .containsExactly("상대가 의심이 많아요", "좋아요~", "정말요?!");
+    }
+
     @Test void theResultCardAndTheCharacterCardAreParsed() {
         var card = PurposeLoop.extract("""
                 붙잡는 게 보였어요.

@@ -1,3 +1,20 @@
+diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt
+index 2b7dcff..481015c 100644
+--- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt
++++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt
+@@ -497,8 +497,11 @@ class Screen(
+                     // It has a custom `getChildDrawingOrder` method which returns
+                     // wrong index if we called `startViewTransition` on the views on new arch.
+                     // We add a simple View to bump the number of children to make it work.
++                    // Appended, not inserted at `i`: a filler before the circle inflates the
++                    // index `onMeasure` caches for it, which then outlives the child it points at.
++                    // (acttub SOMA-1070: react-native-screens 4.28.0 의 수정을 옮겨 온다.)
+                     // TODO: find a better way to handle this scenario
+-                    it.addView(View(context), i)
++                    it.addView(View(context))
+                 } else {
+                     child?.let { view -> it.startViewTransition(view) }
+                 }
 diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt
 index 89a9580..76b9446 100644
 --- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt

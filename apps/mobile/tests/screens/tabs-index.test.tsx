@@ -8,7 +8,7 @@ import { localDate } from '@/lib/admissions';
 import { kstDate } from '@/lib/auditions';
 import { api } from '@/lib/api';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
-import { rememberPracticeDays } from '@/lib/practice-days';
+import { rememberPracticeDays, sessionPracticeDays } from '@/lib/practice-days';
 import type { PracticeGroup, PracticeRound } from '@/lib/practice/types';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { ScriptCard } from '@/lib/reading/types';
@@ -69,9 +69,18 @@ jest.mock('@/lib/guide-state', () => ({
   markTutorialSeen: jest.fn(async () => undefined),
   markReadingTutorialSeen: jest.fn(async () => undefined),
 }));
+// 코칭 끝 화면이 적는 이번 실행의 연습한 날(SOMA-1075). 테스트가 값을 바꾸고 mockSessionDaysChanged 로 알린다.
+const mockNoSessionDays: { created_at: string }[] = [];
+const mockSessionListeners = new Set<() => void>();
+const mockSessionDaysChanged = () => mockSessionListeners.forEach((listener) => listener());
 jest.mock('@/lib/practice-days', () => ({
   rememberPracticeDays: jest.fn(),
   serverPracticeDayRecords: jest.requireActual('@/lib/practice-days').serverPracticeDayRecords,
+  sessionPracticeDays: jest.fn(() => mockNoSessionDays),
+  subscribeSessionPracticeDays: (listener: () => void) => {
+    mockSessionListeners.add(listener);
+    return () => mockSessionListeners.delete(listener);
+  },
 }));
 jest.mock('@/lib/practice/first-use-graduation', () => ({
   hasGraduatedFirstUse: jest.fn(async () => false),
@@ -212,6 +221,8 @@ beforeEach(() => {
   (hasSeenSpotlight as jest.Mock).mockResolvedValue(true);
   (rememberPracticeDays as jest.Mock).mockImplementation(async (records: { created_at: string }[]) => records);
   (readLastSeenStreak as jest.Mock).mockResolvedValue(0);
+  (sessionPracticeDays as jest.Mock).mockImplementation(() => mockNoSessionDays);
+  (jest.requireMock('@/lib/practice/first-use-graduation').graduatedInMemory as jest.Mock).mockImplementation(() => false);
 });
 
 describe('첫 사용자', () => {
@@ -369,7 +380,7 @@ describe('첫 사용자', () => {
     openResume.mockResolvedValueOnce('play');
     await render(<HomeScreen />);
     await waitFor(() => expect(api.listReadingSessions).toHaveBeenCalledWith('sc1'));
-    expect(await screen.findByText(/^8\/21줄/)).toBeOnTheScreen();
+    expect(await screen.findByText(/^8\/21개/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: /읽기/ }));
     await waitFor(() => expect(openResume).toHaveBeenLastCalledWith('sc1', 's-14'));
   });
@@ -473,7 +484,7 @@ describe('오늘 할 것 · 코칭 숙제', () => {
     await render(<HomeScreen />);
 
     // 메인은 이어 읽기 카드(18/42줄 · 남은 시간 한 줄, pen P1.15), 코칭 숙제는 「이것도 해 볼래요?」 줄이다.
-    expect(await screen.findByText(/^18\/42줄 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
+    expect(await screen.findByText(/^18\/42개 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
     expect(screen.getByText('이것도 해 볼까요?')).toBeOnTheScreen();
     expect(await screen.findByText('시선 거두기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('코칭 숙제'));
@@ -489,7 +500,7 @@ describe('연속 연습', () => {
     });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 찍으면 2일이에요')).toBeOnTheScreen();
+    expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 연습하면 2일이에요')).toBeOnTheScreen();
     expect(rememberPracticeDays).toHaveBeenCalledWith([{ created_at: expect.any(String) }], 'u1');
     expect(writeLastSeenStreak).toHaveBeenLastCalledWith(1);
     expect(posterProps().blocked).toBe(true);
@@ -638,7 +649,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     expect(screen.getByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     // pen P1.1 — 리딩 줄 제목은 「대사 이어 읽기」, 아래는 멈춘 줄. 챌린지 줄은 ‘대사’ · D-day.
     expect(await screen.findByText('대사 이어 읽기')).toBeOnTheScreen();
-    expect(await screen.findByText('3/10줄에서 멈췄어요')).toBeOnTheScreen();
+    expect(await screen.findByText('대사 3/10개에서 멈췄어요')).toBeOnTheScreen();
     expect(await screen.findByText('‘잘 지내, 진짜로.’ · D-3')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('이번 주 챌린지'));
@@ -653,7 +664,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
     // 하루 전에 읽었으니 「어제」.
     expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
-    expect(await screen.findByText(/^3\/10줄 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
+    expect(await screen.findByText(/^3\/10개 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
     // 진행 막대는 없다(pen P1.15).
     expect(screen.getByText('읽은 장면 찍어서 코칭')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지')).toBeOnTheScreen();
@@ -1004,4 +1015,57 @@ test('기본 홈 맨 위에서 당기면 기록만 다시 읽고 표시가 사�
   await waitFor(() => expect(homeRefresh().props.refreshing).toBe(false));
   expect(screen.getAllByText('바다 장면').length).toBeGreaterThan(0);
   expect((hasSeenTutorial as jest.Mock).mock.calls.length).toBe(tutorialAsks);
+});
+
+// SOMA-1075 — 첫 코칭을 마치고 홈으로 오면 첫 사용자 홈이 잠깐 보이고 불꽃이 늦게 떴다.
+describe('첫 코칭을 마치고 돌아올 때', () => {
+  const graduateInMemory = async () => {
+    const graduation = jest.requireMock('@/lib/practice/first-use-graduation');
+    const actual = jest.requireActual('@/lib/practice/first-use-graduation');
+    graduation.graduatedInMemory.mockImplementation((id: string) => id === 'u1');
+    // 코칭 끝 화면이 부르는 것과 같은 신호 — 탭바와 홈이 같이 듣는다.
+    await act(async () => actual.markFirstUseGraduated('u1'));
+  };
+
+  test('홈이 다시 포커스를 받지 않아도 졸업 신호로 첫 사용자 홈이 사라진다', async () => {
+    await render(<HomeScreen />);
+    await screen.findByText('뭐부터 해 볼까요?');
+    const focusRuns = (hasSeenTutorial as jest.Mock).mock.calls.length;
+
+    await graduateInMemory();
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
+    // 포커스 효과(기록 다시 받기)를 거치지 않았다.
+    expect(hasSeenTutorial).toHaveBeenCalledTimes(focusRuns);
+  });
+
+  test('코칭 끝 화면이 적은 오늘 시작한 회차로 서버 기록을 다시 받기 전에 불꽃을 띄우고, 기기 저장소에는 넣지 않는다', async () => {
+    await render(<HomeScreen />);
+    await screen.findByText('뭐부터 해 볼까요?');
+    const today = [{ created_at: isoDaysAgo(0) }];
+
+    (sessionPracticeDays as jest.Mock).mockImplementation((id: string) => (id === 'u1' ? today : mockNoSessionDays));
+    await act(async () => mockSessionDaysChanged());
+    await graduateInMemory();
+
+    expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 연습하면 2일이에요')).toBeOnTheScreen();
+    expect(rememberPracticeDays).toHaveBeenCalledTimes(1);
+    expect(rememberPracticeDays).toHaveBeenCalledWith([], 'u1');
+  });
+
+  test('자정 전에 시작한 회차면 그 날로 세고, 오늘 연습이 아니라 불꽃은 띄우지 않는다', async () => {
+    (readLastSeenStreak as jest.Mock).mockResolvedValue(0);
+    await render(<HomeScreen />);
+    await screen.findByText('뭐부터 해 볼까요?');
+    const yesterday = [{ created_at: isoDaysAgo(1) }];
+
+    (sessionPracticeDays as jest.Mock).mockImplementation((id: string) => (id === 'u1' ? yesterday : mockNoSessionDays));
+    await act(async () => mockSessionDaysChanged());
+    await graduateInMemory();
+
+    await screen.findByText('오늘도\n연기하는 하루,\n멋져요!');
+    await waitFor(() => expect(writeLastSeenStreak).toHaveBeenLastCalledWith(1));
+    expect(screen.queryByText('첫 불꽃이 켜졌어요\n내일도 연습하면 2일이에요')).not.toBeOnTheScreen();
+  });
 });

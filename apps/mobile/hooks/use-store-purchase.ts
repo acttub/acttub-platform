@@ -22,6 +22,7 @@ import {
   confirmMessage,
   planPackage,
   planPrices,
+  yearlyDeal,
   purchaseCancelled,
   purchasePending,
   STORE_PLANS,
@@ -40,6 +41,8 @@ export type StorePurchase = {
   price: string | null;
   /** 요금제별 현지화 가격(월·연). 오퍼링에 없거나 불러오기 전이면 null. */
   prices: Record<StorePlan, string | null>;
+  /** 연 구독의 월 환산 가격·할인율(스토어 현지 통화). 모르면 null. */
+  deal: { perMonth: string | null; off: number | null };
   busy: boolean;
   /** 진행 중일 때 보일 짧은 상태 문구. */
   status: string | null;
@@ -85,6 +88,7 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
   const platform = storePlatform();
   const ready = enabled && !!platform && !!userId && revenueCatAvailable();
   const [prices, setPrices] = useState<Record<StorePlan, string | null>>({ monthly: null, yearly: null });
+  const [deal, setDeal] = useState<StorePurchase['deal']>({ perMonth: null, off: null });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +122,7 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
         if (!alive) return;
         for (const plan of STORE_PLANS) packages.current[plan] = planPackage(offering, plan);
         setPrices(planPrices(offering));
+        setDeal(yearlyDeal(offering));
       } catch {
         if (alive) setError(t('pro.errStore'));
       }
@@ -175,5 +180,5 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
   }, []);
 
   const available = ready && (prices.monthly !== null || prices.yearly !== null);
-  return { available, price: prices.monthly, prices, busy, status, error, begin, restore, manage };
+  return { available, price: prices.monthly, prices, deal, busy, status, error, begin, restore, manage };
 }

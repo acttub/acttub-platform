@@ -22,14 +22,11 @@ import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.feature.push.app.ReminderContent;
 import com.acttub.actingapi.feature.push.app.ReminderCopy;
 import com.acttub.actingapi.feature.push.app.ReminderKind;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * 개인화 연습 알림의 SQL(후보 고르기·이어 하기·숙제·연속 일수·선점)을 실제 Postgres에서 확인한다 (SOMA-720).
@@ -37,12 +34,6 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "EVENING_REMINDER_ENABLED=false"})
 class PracticeReminderRepositoryIT {
-    @DynamicPropertySource static void datasource(DynamicPropertyRegistry registry) {
-        String db = PostgresContainerSupport.createDatabaseName("practice_reminder_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(db));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 21);
     private static final Instant WINDOW = TODAY.minusDays(7).atStartOfDay(PracticeReminderPolicy.SEOUL).toInstant();

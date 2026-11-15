@@ -1,12 +1,4 @@
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-};
-
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
+import { deviceStorage as storage } from '../device-storage.ts';
 
 /**
  * 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만 보인다(SOMA-748 최종.pen 화면 메모).

@@ -1,4 +1,5 @@
 import { setFirstTimeState } from './first-time.ts';
+import { deviceStorage as storage } from '../device-storage.ts';
 
 /**
  * 첫 사용자 졸업 표시(SOMA-827) — 리딩을 마지막 줄까지 가 봤거나 코칭을 노트·일지까지 가 본 계정.
@@ -9,15 +10,6 @@ import { setFirstTimeState } from './first-time.ts';
  *
  * ⚠️ 네이티브 모듈이 없는 환경(Node 테스트)에서 조용히 넘어가도록 함수 안 require 로만 저장소에 닿는다.
  */
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-};
-
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
 
 const keyFor = (userId: string) => `acttub.firstUse.graduated.${userId}`;
 
@@ -78,7 +70,7 @@ export async function hasGraduatedFirstUse(userId: string | null | undefined = o
   }
 }
 
-/** 끝까지 해 본 순간 부른다. 탭바는 바로 보이게 하고, 홈은 다음에 그려질 때 이 표시를 읽는다. */
+/** 끝까지 해 본 순간 부른다. 탭바와 (뒤에 숨은) 홈이 subscribeFirstTimeState 로 바로 다시 그린다(SOMA-1075). */
 export async function markFirstUseGraduated(userId: string | null | undefined = owner): Promise<void> {
   if (!userId) return;
   graduatedNow.add(userId);

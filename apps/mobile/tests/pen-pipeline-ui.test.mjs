@@ -19,18 +19,7 @@ test('공통 부품: 말풍선이 pen 00-components 수치다', () => {
   assert.match(bubble, /guide: \{ fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette\.blueDeep \}/);
 });
 
-test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 카드', () => {
-  const option = read('components/ui/option-card.tsx');
-  assert.match(option, /minHeight: 49,/);
-  assert.match(option, /radio: \{ width: 18, height: 18, borderRadius: 9, borderWidth: 1\.5/);
-  assert.match(option, /gap: 21,\s*paddingVertical: 13,\s*paddingLeft: 19,\s*paddingRight: 14,/);
-  assert.match(option, /title: \{ fontSize: 18, fontWeight: '700', lineHeight: 23/);
-
-  const summary = read('components/ui/summary-row.tsx');
-  assert.match(summary, /padding: 15,\s*borderRadius: 16,\s*borderWidth: 1,\s*borderColor: palette\.border,/);
-  assert.match(summary, /label: \{ fontSize: 14, fontWeight: '600', color: palette\.textMeta \}/);
-  assert.match(summary, /value: \{ flexShrink: 1, fontSize: 16, fontWeight: '700'/);
-
+test('공통 부품: 동의 행·선택 카드·설정 카드', () => {
   const consent = read('components/consent-row.tsx');
   // 긴 제목(「[선택] 광고성 정보 (이메일 · 앱 푸시)」)이 잘리지 않게 두 줄까지 내린다(10/22 피드백).
   assert.match(consent, /numberOfLines=\{2\}/);

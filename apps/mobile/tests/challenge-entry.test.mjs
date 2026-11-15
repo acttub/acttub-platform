@@ -7,12 +7,12 @@ import {
   canSubmitEntry,
   captionTooLong,
   doneCopy,
-  entryAttemptFor,
   entryFailure,
   entryFingerprint,
   mosaicNotice,
   videoTooLong,
 } from '../lib/challenge/entry.ts';
+import { attemptFor } from '../lib/request-id.ts';
 import { CAPTION_MAX, ENTRY_VIDEO_MAX_SEC } from '../lib/challenge/types.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
@@ -77,14 +77,14 @@ test('challenge.entry: 같은 시도의 재전송은 같은 요청 id 다 — �
   const makeId = () => `req-${(n += 1)}`;
   const body = buildEntryBody({ requestId: 'ignored', videoId: 'video-1', caption: '한 줄', visibility: 'public' });
 
-  const first = entryAttemptFor(null, entryFingerprint(body), makeId);
-  const again = entryAttemptFor(first, entryFingerprint(body), makeId);
+  const first = attemptFor(null, entryFingerprint(body), makeId);
+  const again = attemptFor(first, entryFingerprint(body), makeId);
   assert.deepEqual(again, first);
   assert.equal(n, 1);
 
   // 공개 범위를 바꿔 다시 보내면 새 요청 id 다.
   const changed = buildEntryBody({ requestId: 'ignored', videoId: 'video-1', caption: '한 줄', visibility: 'private' });
-  assert.notEqual(entryAttemptFor(again, entryFingerprint(changed), makeId).requestId, first.requestId);
+  assert.notEqual(attemptFor(again, entryFingerprint(changed), makeId).requestId, first.requestId);
 });
 
 test('challenge.entry: 종료·중복·길이·한도·미확정 영상을 갈라 본다', () => {

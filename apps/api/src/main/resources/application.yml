@@ -69,6 +69,15 @@ sentry:
   # 1단계는 에러만 본다. 트레이싱은 켜지 않는다.
   traces-sample-rate: 0.0
 
+acttub:
+  coach:
+    # 발표 시연용 정해진 코칭(coaching/scripted/demo.json). 이 이메일의 영상 코칭은 모델을 부르지 않고 대본을 순서대로 낸다.
+    scripted:
+      enabled: ${ACTTUB_COACH_SCRIPTED_ENABLED:true}
+      emails: ${ACTTUB_COACH_SCRIPTED_EMAILS:sukpower198919@gmail.com}
+      first-delay-ms: ${ACTTUB_COACH_SCRIPTED_FIRST_DELAY_MS:4000}
+      next-delay-ms: ${ACTTUB_COACH_SCRIPTED_NEXT_DELAY_MS:1500}
+
 springdoc:
   api-docs:
     # 기존 spec 이 3.1.0 이다. const/anyOf 표현이 3.0 과 다르므로 맞춘다.

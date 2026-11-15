@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.reading.app;
 
+import java.io.InterruptedIOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -66,7 +67,7 @@ import org.slf4j.LoggerFactory;
  * 그 줄은 원문으로 둔다. 줄 번호를 붙인 원문을 150줄 조각으로 동시에 보내고, 조각이 둘 이상이면 앞 400줄로 배역 목록을 먼저
  * 받는다(배역마다 성별·나이대도 — 조각이 하나면 그 호출의 답 끝 「배역」 블록으로, SOMA-670). 첫 호출의 첫 줄이 「대본이 아니다」거나 나눈 결과에 배역이 없으면 이름 없는 대사 규칙(독백은 「화자」)으로 한 번 더 나누고, 그래도 대본이 아니면 거기서 멈춘다. 배역이 빈 대사는 앞 대사에 잇고({@link SplitResponse#fillSpeakers}), 잇지 못했거나 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 배역이 하나뿐인 독백은 대사 줄을 문장마다 한 줄로 나눈다({@link Monologue}, SOMA-597). 번호 줄도 판단 줄도 없는 답(설명·다른 작업의 답)은 형식 안내를 붙여 그 호출만 한 번 더 묻는다. 호출 하나는
  * 연결 실패·붐빔·서버 실패·미완료 답에 두 번까지 다시 시도하고, 그래도 안 되면 작업은 {@code failed} 로 끝난다 — 기기 파서
- * 대비 경로는 두지 않기로 했다(계획 「정한 것」 1). 사용자가 팝업에서 기다리므로 작업을 다시 큐에 넣지 않는다.
+ * 대비 경로는 두지 않기로 했다(계획 「정한 것」 1). 사용자가 팝업에서 기다리므로 작업을 다시 큐에 넣지 않는다 — 서버가 꺼지며 끊긴 작업만 대기로 돌린다(SOMA-930).
  */
 public class ScriptSplitWorker {
     private static final Logger LOG = LoggerFactory.getLogger(ScriptSplitWorker.class);
@@ -150,6 +151,9 @@ public class ScriptSplitWorker {
                 return true;
             }
             Split split = split(claimed.id(), importId, material);
+            if (cutOffByShutdown(claimed, token, null)) {
+                return true;
+            }
             if (split.failure() != null) {
                 imports.fail(claimed.id(), token, importId, split.failure(),
                         ScriptFileRules.KEPT_SPLIT_FAILURES.contains(split.failure()), clock.instant());
@@ -167,6 +171,9 @@ public class ScriptSplitWorker {
         } catch (LeaseOwnershipException lost) {
             failures.report(lost, new FailureContext("ScriptSplitWorker.complete", claimed.id()));
         } catch (RuntimeException failure) {
+            if (cutOffByShutdown(claimed, token, failure)) {
+                return true;
+            }
             // 모델 호출의 실패와 쓸 수 없는 답은 바깥 의존의 실패다.
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.run", claimed.id()));
             try {
@@ -176,6 +183,40 @@ public class ScriptSplitWorker {
             }
         }
         return true;
+    }
+
+    /**
+     * 서버가 꺼지며(스케줄러가 인터럽트) 끊긴 작업이면 실패로 닫지 않고 대기로 돌려 다음 서버가 처음부터 다시 나누게 한다(SOMA-930).
+     * 시도 수를 다 쓴 작업은 아무도 다시 집지 않으므로 반납하지 않고 평소처럼 실패로 닫게 둔다. 인터럽트 표시가 켜져 있으면 DB 호출이
+     * 실패할 수 있어 반납하는 동안만 끈다.
+     */
+    private boolean cutOffByShutdown(AiJobLedger.Claimed claimed, UUID token, Throwable failure) {
+        if (!Thread.currentThread().isInterrupted() && !causedByInterrupt(failure)) {
+            return false;
+        }
+        if (claimed.attemptCount() >= AiJobLedger.MAX_ATTEMPTS) {
+            return false;
+        }
+        boolean interrupted = Thread.interrupted();
+        try {
+            ledger.release(claimed.id(), token, "shutdown", clock.instant());
+        } catch (LeaseOwnershipException lost) {
+            failures.report(lost, new FailureContext("ScriptSplitWorker.release", claimed.id()));
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        return true;
+    }
+
+    private static boolean causedByInterrupt(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof InterruptedException || cause instanceof InterruptedIOException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 저장한 대본을 알린다. 알림이 실패해도 나누기는 성공이다 — 보고만 한다. */

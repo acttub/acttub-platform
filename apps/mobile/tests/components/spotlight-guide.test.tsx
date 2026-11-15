@@ -11,8 +11,8 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 const log = logEvent as jest.Mock;
 
 const STEPS: SpotlightStep[] = [
-  { target: TARGET.homeStart, text: 'guide.spotHomeStart' },
-  { target: TARGET.shoot, text: 'guide.spotShoot', round: true },
+  { target: TARGET.homeStart, text: 'guide.spotFirstDone' },
+  { target: TARGET.shoot, text: 'guide.spotReadingTab', round: true },
 ];
 const HOME_START = { x: 20, y: 300, width: 200, height: 60 };
 const SHOOT = { x: 170, y: 780, width: 56, height: 56 };
@@ -43,13 +43,13 @@ test('단계마다 설명과 진행을 보이고, 다음·알겠어요로 끝까
   await render(<App onDone={onDone} />);
 
   expect(screen.getByText('액티 · 1/2')).toBeOnTheScreen();
-  expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
-  expect(screen.getByText('찍어 둔 연기 영상을 올리면 질문으로 되짚어 주고, 다음 테이크에서 해 볼 한 가지를 남겨요.')).toBeOnTheScreen();
+  expect(screen.getByText('첫 연습 끝!')).toBeOnTheScreen();
+  expect(screen.getByText('잘했어요. 다음에 할 연습은 제가 여기 띄워 둘게요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
 
   expect(screen.getByText('액티 · 2/2')).toBeOnTheScreen();
-  expect(screen.getByText('코칭은 여기서 시작해요')).toBeOnTheScreen();
+  expect(screen.getByText('대본 리딩')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '알겠어요' }));
@@ -64,10 +64,10 @@ test('비친 자리를 누르면 다음 단계로 넘어간다', async () => {
   const onDone = jest.fn();
   await render(<App onDone={onDone} />);
 
-  await fireEvent.press(screen.getByRole('button', { name: '여기서 연습을 시작해요' }));
+  await fireEvent.press(screen.getByRole('button', { name: '첫 연습 끝!' }));
   expect(screen.getByText('액티 · 2/2')).toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('button', { name: '코칭은 여기서 시작해요' }));
+  await fireEvent.press(screen.getByRole('button', { name: '대본 리딩' }));
   expect(onDone.mock.calls).toEqual([['done']]);
 });
 
@@ -86,12 +86,12 @@ test('건너뛰기를 누르면 그 단계에서 skip 으로 끝난다', async (
 test('자리를 아직 못 쟀으면 설명만 보이고 누를 구멍이 없다가, 자리가 잡히면 비춘다', async () => {
   await render(<App onDone={jest.fn()} />);
 
-  expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
-  expect(screen.queryByRole('button', { name: '여기서 연습을 시작해요' })).not.toBeOnTheScreen();
+  expect(screen.getByText('첫 연습 끝!')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '첫 연습 끝!' })).not.toBeOnTheScreen();
 
   await act(async () => setTargetRect(TARGET.homeStart, HOME_START));
 
-  expect(screen.getByRole('button', { name: '여기서 연습을 시작해요' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '첫 연습 끝!' })).toBeOnTheScreen();
 });
 
 test('띄우는 순간과 한 박자 뒤에 비출 자리를 다시 잰다', async () => {
@@ -104,7 +104,7 @@ test('띄우는 순간과 한 박자 뒤에 비출 자리를 다시 잰다', asy
     await render(<App onDone={jest.fn()} />);
 
     expect(measured).toBe(1);
-    expect(screen.getByRole('button', { name: '여기서 연습을 시작해요' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '첫 연습 끝!' })).toBeOnTheScreen();
     await waitFor(() => expect(measured).toBe(2));
   } finally {
     unregister();
@@ -119,12 +119,12 @@ test('가이드를 내리면 사라지고, 다시 띄우면 첫 단계부터 보
   expect(screen.getByText('액티 · 2/2')).toBeOnTheScreen();
 
   await view.rerender(<App visible={false} onDone={onDone} />);
-  expect(screen.queryByText('코칭은 여기서 시작해요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('대본 리딩')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button')).not.toBeOnTheScreen();
 
   await view.rerender(<App onDone={onDone} />);
   expect(screen.getByText('액티 · 1/2')).toBeOnTheScreen();
-  expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
+  expect(screen.getByText('첫 연습 끝!')).toBeOnTheScreen();
 });
 
 test('단계가 없으면 띄우지 않는다', async () => {

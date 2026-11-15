@@ -19,6 +19,8 @@ async function pickAndUpload<Result, Intent extends PhotoUploadIntent>(options: 
   square: boolean;
   createIntent: (input: { content_type: string; size_bytes: number }) => Promise<Intent>;
   complete: (intent: Intent) => Promise<Result>;
+  /** 사진을 고른 뒤 올리기 직전에 부른다 — 화면은 이때부터 「올리는 중」을 보인다. */
+  onPicked?: () => void;
 }): Promise<Result | null> {
   const picked = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
@@ -27,6 +29,7 @@ async function pickAndUpload<Result, Intent extends PhotoUploadIntent>(options: 
     quality: 1,
   });
   if (picked.canceled || !picked.assets[0]) return null;
+  options.onPicked?.();
 
   let compressor: typeof import('react-native-compressor');
   try {
@@ -55,18 +58,20 @@ async function pickAndUpload<Result, Intent extends PhotoUploadIntent>(options: 
 }
 
 /** 프로필 사진 — 정사각으로 잘라 올린다. 서버가 옛 사진을 바꾼다. */
-export function pickAndUploadProfilePhoto(): Promise<MeResponse | null> {
+export function pickAndUploadProfilePhoto(onPicked?: () => void): Promise<MeResponse | null> {
   return pickAndUpload({
     square: true,
+    onPicked,
     createIntent: (input) => api.createProfilePhotoIntent(input),
     complete: () => api.completeProfilePhoto(),
   });
 }
 
 /** 포트폴리오 사진 — 목록 맨 끝에 붙는다. 바뀐 포트폴리오 전체를 돌려준다. */
-export function pickAndUploadPortfolioPhoto(): Promise<Portfolio | null> {
+export function pickAndUploadPortfolioPhoto(onPicked?: () => void): Promise<Portfolio | null> {
   return pickAndUpload({
     square: false,
+    onPicked,
     createIntent: (input) => api.createPortfolioPhotoIntent(input),
     complete: (intent) => api.completePortfolioPhoto(intent.photo_id),
   });

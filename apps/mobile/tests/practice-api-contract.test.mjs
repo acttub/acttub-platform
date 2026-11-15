@@ -4,7 +4,6 @@ import { api, httpResponses, id, practice, video } from './helpers/practice-api.
 import { analysisRecoveryAction, watchAnalysis } from '../lib/practice/analysis-run.ts';
 import { groupTitle, roundSummary } from '../lib/practice/groups.ts';
 import { noteKindLabel, noteSections, quoteSourceLabel, readOptionalPracticeNote } from '../lib/practice/note.ts';
-import { videoPlaybackSource } from '../lib/library/library-view.ts';
 import { buildContinueBody, buildStartBody, emptyBlockageDraft, emptySceneDraft } from '../lib/practice/start.ts';
 import { buildNoteRatingBody } from '../lib/practice/note-rating.ts';
 import { buildReplyBody, coachFailure, coachFailureMessage, isClosed, loadCoachSession, orderedMessages, remainingCoachReplies } from '../lib/practice/coach.ts';
@@ -87,12 +86,6 @@ test('노트 없음은 note_not_found만이며 조회 실패를 짧은 대화로
   ]);
   assert.equal(await readOptionalPracticeNote(api.getPracticeNote, id(1)), null);
   await assert.rejects(readOptionalPracticeNote(api.getPracticeNote, id(1)), error => error.status === 503);
-});
-
-test('파일 파기 뒤에는 기기 복사본이 있어도 보관함에서 재생하지 않는다', async t => {
-  httpResponses(t, [{ body: video({ purged_at: '2026-09-22T02:00:00Z', playback_url: null }) }]);
-  const purged = await api.getVideo(id(2));
-  assert.equal(videoPlaybackSource(purged, 'file:///local-copy.mp4'), null);
 });
 
 test('보관함 다음 쪽은 서버의 불투명 커서를 그대로 보내고 201·200 확정을 모두 받는다', async t => {

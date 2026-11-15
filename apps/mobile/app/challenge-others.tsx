@@ -62,6 +62,7 @@ export default function ChallengeOthersScreen() {
 
   const perform = () => {
     if (!challenge || !canPerform(challenge)) return;
+    logEvent('challenge_perform_tap', { id: challenge.id });
     router.push({
       pathname: '/record-video',
       params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },

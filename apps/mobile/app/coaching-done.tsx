@@ -14,7 +14,8 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '@/lib/push-policy';
 import { translate as t } from '@/lib/i18n';
 import { readOptionalPracticeNote } from '@/lib/practice/note';
 import type { PracticeNote } from '@/lib/practice/types';
-import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
+import { currentFirstUseOwner, markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
+import { rememberSessionPracticeDay } from '@/lib/practice-days';
 
 /**
  * 오늘 코칭 끝(pen ⑧ 「오늘 코칭 끝」 TFZ59, SOMA-720) — 배우 일지에서 「저장하기」를 누른 뒤 한 번 보인다.
@@ -29,8 +30,9 @@ export default function CoachingDoneScreen() {
   useEffect(() => {
     void markFirstUseGraduated();
   }, []);
-  const params = useLocalSearchParams<{ practiceId?: string; saved?: string; next?: string }>();
+  const params = useLocalSearchParams<{ practiceId?: string; saved?: string; next?: string; startedAt?: string }>();
   const practiceId = params.practiceId?.trim() || null;
+  const startedAt = params.startedAt?.trim() || null;
   const [note, setNote] = useState<PracticeNote | null>(null);
   const [reminderOn, setReminderOn] = useState(DEFAULT_NOTIFICATION_SETTINGS.evening_reminder);
 
@@ -39,13 +41,17 @@ export default function CoachingDoneScreen() {
     let alive = true;
     readOptionalPracticeNote(api.getPracticeNote, practiceId)
       .then((found) => {
-        if (alive) setNote(found);
+        // 노트가 있으면 서버도 이 회차를 연습 1회로 센다 — 시작한 날을 메모리에 적어 홈이 서버를 기다리지 않고 불꽃을 띄우게(SOMA-1075).
+        // 그만·영상 아님·생성 실패로 노트가 없거나 시작 시각을 모르면 적지 않는다. 읽기 전에 떠났으면 홈이 서버 기록으로 센다.
+        if (!alive) return;
+        if (found) rememberSessionPracticeDay(startedAt, currentFirstUseOwner());
+        setNote(found);
       })
       .catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, [practiceId]);
+  }, [practiceId, startedAt]);
 
   // 저녁 알림 안내는 알림이 켜져 있을 때만 보인다(pen P16.2). 설정을 못 읽으면 기본값(켜짐)을 쓴다.
   useEffect(() => {

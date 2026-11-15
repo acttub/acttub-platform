@@ -4,7 +4,6 @@ import test from 'node:test';
 import {
   filterGroups,
   groupTitle,
-  kstDayKey,
   lastNotePracticeId,
   sceneTitle,
   practiceDayTotal,
@@ -12,6 +11,7 @@ import {
   recentGroups,
   roundSummary,
 } from '../lib/practice/groups.ts';
+import { kstDayKey } from '../lib/kst.ts';
 
 const group = (over = {}) => ({
   root_id: 'root-1',

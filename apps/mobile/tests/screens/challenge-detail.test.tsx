@@ -341,7 +341,7 @@ test('참여작이 있는 내 챌린지는 지울 수 없어 머리 오른쪽이
 
   expect(header().getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['이 챌린지 공유하기']);
   await fireEvent.press(header().getByRole('button', { name: '이 챌린지 공유하기' }));
-  expect(share).toHaveBeenCalledWith({ message: '햄릿의 “사느냐 죽느냐” 연기 — acttub 챌린지' });
+  expect(share).toHaveBeenCalledWith({ message: '햄릿의 “사느냐 죽느냐” 연기 — Acttub 챌린지' });
 });
 
 test('등록하고 들어오면 토스트로 알린다', async () => {
@@ -408,7 +408,7 @@ test('공유는 작품과 대사를 담은 문구를 보낸다', async () => {
   await fireEvent.press(screen.getByRole('button', { name: '공유' }));
 
   expect(logEvent).toHaveBeenCalledWith('challenge_share', { id: 'c1' });
-  expect(share).toHaveBeenCalledWith({ message: '햄릿의 “사느냐 죽느냐” 연기 — acttub 챌린지' });
+  expect(share).toHaveBeenCalledWith({ message: '햄릿의 “사느냐 죽느냐” 연기 — Acttub 챌린지' });
 });
 
 test('불러오기 전에는 머리 오른쪽을 비운다', async () => {

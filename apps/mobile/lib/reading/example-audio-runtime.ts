@@ -10,10 +10,6 @@ export function loadExampleAudio(scriptId: string, options: { fresh?: boolean } 
   return loader.load(scriptId, options);
 }
 
-export function cachedExampleAudio(scriptId: string): ExampleAudio | null | undefined {
-  return loader.cached(scriptId);
-}
-
 /** 한 줄을 받는 데 이보다 오래 걸리면 그 줄은 기기 목소리로 읽는다 — 재생이 끝없이 매달리지 않게. */
 const DOWNLOAD_TIMEOUT_MS = 15_000;
 const inFlight = new Map<string, Promise<string>>();

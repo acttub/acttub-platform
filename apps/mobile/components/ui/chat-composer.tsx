@@ -20,6 +20,8 @@ export function ChatComposer({
   maxLength,
   editable,
   inputRef,
+  onFocus,
+  sendPhLabel,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -31,6 +33,9 @@ export function ChatComposer({
   maxLength: number;
   editable?: boolean;
   inputRef?: Ref<TextInput>;
+  onFocus?: () => void;
+  /** 보내기 탭 기록 이름(lib/touch-capture). */
+  sendPhLabel?: string;
 }) {
   return (
     <View style={[styles.box, canSend && styles.boxWithSend]}>
@@ -45,9 +50,10 @@ export function ChatComposer({
         maxLength={maxLength}
         multiline
         editable={editable}
+        onFocus={onFocus}
       />
       {canSend && (
-        <Pressable style={styles.send} onPress={onSend} hitSlop={4} accessibilityRole="button" accessibilityLabel={sendLabel}>
+        <Pressable style={styles.send} onPress={onSend} hitSlop={4} accessibilityRole="button" accessibilityLabel={sendLabel} ph-label={sendPhLabel}>
           <Feather name="arrow-up" size={18} color={palette.onAccent} />
         </Pressable>
       )}

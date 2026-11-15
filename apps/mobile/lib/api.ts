@@ -3,6 +3,7 @@ import type {
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
 import { readGeneration, rememberReadIfCurrent } from './last-reads';
+import { scriptTitle } from './reading/script-cards';
 import { normalizeAuditions, type AuditionPostingList } from './auditions';
 import type { CreateSampleScriptBody, ReviseSampleScriptBody, SampleScript } from './script-cocreate';
 import type { JournalAnswers, JournalUpdateBody, PracticeJournal } from './practice/journal';
@@ -649,7 +650,10 @@ export const api = {
   listReadingScripts(q?: string): Promise<ScriptListResponse> {
     const query = q ? `?q=${encodeURIComponent(q)}` : '';
     const askedAt = readGeneration();
-    const read = request<ScriptListResponse>(`/v2/reading/scripts${query}`, {}, { timeoutMs: 20_000 });
+    const read = request<ScriptListResponse>(`/v2/reading/scripts${query}`, {}, { timeoutMs: 20_000 }).then((r) => ({
+      ...r,
+      scripts: r.scripts.map((s) => ({ ...s, title: scriptTitle(s.title) })),
+    }));
     // 검색 없는 전체 목록만 탭끼리 같이 쓴다(lib/last-reads).
     return q ? read : read.then((r) => rememberReadIfCurrent('readingScripts', r, askedAt));
   },

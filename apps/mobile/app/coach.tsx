@@ -46,8 +46,9 @@ import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/se
 import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
 import { readingNextLine } from '@/lib/reading/voice-coaching';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
-import { hasUnreadableText, stripUnreadable } from '@/lib/practice/readable-text';
+import { hasUnreadableText } from '@/lib/practice/readable-text';
 import { newRequestId } from '@/lib/request-id';
+import { useReadableInput } from '@/hooks/use-readable-input';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -116,21 +117,22 @@ function CoachTalk() {
   const startInFlightRef = useRef(false);
   /** 이번 답의 요청 id — 같은 답을 다시 보내면 그대로 쓴다(메시지가 늘지 않는다). */
   const attemptRef = useRef<{ text: string; requestId: string } | null>(null);
+  // 보내기를 빠르게 두 번 눌러도 한 번만 보낸다 — 화면이 「생각 중」으로 바뀌기 전에 들어온 두 번째 누름을 막는다.
+  const sendingRef = useRef(false);
   const startRequestIdRef = useRef<string>(newRequestId());
 
   const [conversation, setConversation] = useState<CoachConversation | null>(null);
   const messages = useMemo(() => (conversation ? orderedMessages(conversation) : []), [conversation]);
   const [input, setInput] = useState('');
   // 허용 범위 밖 글자(결합 기호를 쌓은 글 등)는 입력칸에 들어오지 않는다(SOMA-905). 뺀 게 있으면 한 줄 알린다.
-  const [strippedInput, setStrippedInput] = useState(false);
-  const changeInput = useCallback((text: string) => {
-    const kept = stripUnreadable(text);
-    setStrippedInput(kept !== text);
-    setInput(kept);
-  }, []);
+  const { onChangeText: changeInput, hint: strippedHint } = useReadableInput(setInput);
   const inputRef = useRef<TextInput>(null);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
+  // 못 보내는 보내기를 눌렀나(SOMA-1057). 이유가 바뀌거나 풀리면 다시 누를 때까지 줄을 숨긴다.
+  const [sendBlocked, setSendBlocked] = useState(false);
+  const sendBlock = waiting || connecting || !conversation ? 'waiting' : !input.trim() ? 'empty' : null;
+  useEffect(() => setSendBlocked(false), [sendBlock]);
   /** 코치가 지금 쓰고 있는 답(스트리밍). 비어 있으면 아직 첫 글자 전이거나 스트리밍이 아니다. */
   const [streamText, setStreamText] = useState('');
   const streamCallbacks = useMemo(
@@ -174,10 +176,12 @@ function CoachTalk() {
 
   // 코칭이 끝나면 배우 일지 없이 바로 「오늘 코칭 끝」으로 가서 코치가 정한 「다음에 해 볼 것」으로 마무리한다(11/2 우영: 배우 일지 없애기).
   // 튜토리얼 예시 회차는 서버에 없어 지금처럼 미리 쓴 노트(/report)다. 예전에 쓴 일지는 기록에서 그대로 볼 수 있다.
+  // 시작 시각을 같이 넘긴다 — 코칭 끝 화면이 노트를 확인하면 그 날을 홈 연속일에 미리 더한다(SOMA-1075).
   const goToNote = useCallback(() => {
     const practiceId = practice?.practiceId ?? '';
-    leaveThen(() => router.replace(sample ? '/report' : { pathname: '/coaching-done', params: { practiceId } }));
-  }, [leaveThen, router, sample, practice?.practiceId]);
+    const startedAt = practice?.createdAt ?? '';
+    leaveThen(() => router.replace(sample ? '/report' : { pathname: '/coaching-done', params: { practiceId, startedAt } }));
+  }, [leaveThen, router, sample, practice?.practiceId, practice?.createdAt]);
 
   const applyResult = useCallback(
     (result: CoachTurnResult) => {
@@ -234,6 +238,8 @@ function CoachTalk() {
         if (answerTooLong(trimmed)) setError(t('coach.answerTooLong'));
         return;
       }
+      if (sendingRef.current) return;
+      sendingRef.current = true;
       // 같은 답의 재전송은 같은 요청 id 다 — 본문이 바뀌면 새로 만든다.
       const attempt =
         attemptRef.current?.text === trimmed
@@ -267,6 +273,7 @@ function CoachTalk() {
         if (failure.kind === 'conflict' || failure.kind === 'closed') await reloadConversation();
         if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       } finally {
+        sendingRef.current = false;
         if (mountedRef.current) {
           setStreamText('');
           setPendingText(null);
@@ -439,10 +446,20 @@ function CoachTalk() {
   const latestQuestion = latestCoachIndex >= 0 ? messages[latestCoachIndex].text : null;
   const choices = answerChoices(conversation, { busy: waiting || connecting || !!streamText || !!pendingText });
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
+  // 보내기는 막지 않고 늘 둔다(SOMA-1057). 못 보낼 때 누르면 보내지 않고 이유를 한 줄로 알린다 — 코치를 기다리는 중이면 입력칸 위,
+  // 입력이 비었으면 입력칸 아래. 조건이 채워지면 줄은 바로 사라진다. 너무 길거나 읽을 수 없는 글은 아래에 이미 줄이 있다.
+  const pressSend = () => {
+    // 너무 길거나 읽을 수 없는 글은 입력칸 아래에 이미 이유가 있다 — 보내지 않고 칸으로 돌아간다.
+    if (!sendBlock) return canSend ? void sendText(input) : inputRef.current?.focus();
+    setSendBlocked(true);
+    if (sendBlock === 'empty') inputRef.current?.focus();
+  };
   const wrapping = conversation ? nextReplyWraps(conversation) : false;
   const sceneVideo = practice.videoUri || practice.playbackUrl;
   const sceneWritten = [practice.scene.situation, practice.scene.character, practice.scene.goal].some((v) => v?.trim());
   // 대화를 열지 못하고 연결만 끊겼으면(pen 「추가 · 끊긴 코칭 이어 하기」) 한 장 안내로 바꾼다. 답한 것은 서버에 남아 있다.
+  // 대화 id가 없으면 첫 질문부터 실패한 것이라 「답한 건 저장돼 있어요」가 틀린다.
+  const firstFailed = !practice.conversationId;
   const interrupted = !!error && !conversation && !waiting && !connecting && (startFailureKind === 'offline' || startFailureKind === 'other');
 
   /** 코치 말 속 「0:12」를 누르면 위 영상을 펼쳐 그 초부터 튼다. */
@@ -478,8 +495,8 @@ function CoachTalk() {
           onBack={() => leaveThen(() => router.dismissAll())}
           mascot={MASCOT.coach}
           title={t('coach.interruptedTitle')}
-          body={t('coach.interruptedBody')}
-          primary={{ label: t('coach.interruptedResume'), onPress: () => void startConversation() }}
+          body={t(firstFailed ? 'coach.interruptedBodyFirst' : 'coach.interruptedBody')}
+          primary={{ label: t(firstFailed ? 'common.retry' : 'coach.interruptedResume'), onPress: () => void startConversation(), phLabel: 'coach_interrupted_resume' }}
         />
         {dialog}
       </SafeAreaView>
@@ -696,6 +713,7 @@ function CoachTalk() {
                 ))}
               </View>
             )}
+            {sendBlocked && sendBlock === 'waiting' && <InlineErrorLine message={t('coach.blockWaiting')} />}
             <View style={styles.inputRow}>
               {MicButton && !sample && <MicButton onText={changeInput} disabled={connecting || waiting || !conversation} />}
               <ChatComposer
@@ -707,14 +725,16 @@ function CoachTalk() {
                 onChangeText={changeInput}
                 maxLength={COACH_ANSWER_MAX}
                 editable={!connecting && !waiting && !!conversation}
-                canSend={canSend}
-                onSend={() => void sendText(input)}
+                canSend
+                onSend={pressSend}
                 sendLabel={t('coach.send')}
               />
             </View>
-            {answerTooLong(input.trim()) ? (
+            {sendBlocked && sendBlock === 'empty' ? (
+              <InlineErrorLine message={t('coach.blockEmpty')} />
+            ) : answerTooLong(input.trim()) ? (
               <InlineErrorLine message={t('coach.answerTooLong')} />
-            ) : strippedInput && input.trim() ? (
+            ) : strippedHint && input.trim() ? (
               <InlineErrorLine message={t('coach.answerStripped')} />
             ) : (
               hasUnreadableText(input) && <InlineErrorLine message={t('coach.answerUnreadable')} />

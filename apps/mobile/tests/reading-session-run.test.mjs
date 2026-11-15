@@ -10,6 +10,7 @@ import {
   currentLineIdOf,
   exitMessage,
   formatProgress,
+  hiddenLineCount,
   isHidden,
   jumpTo,
   progressOf,
@@ -324,4 +325,14 @@ test('reading.session: 그만하기 저장 — 첫 줄에서 아무것도 안 �
   const first = pause(run());
   const body = stoppedProgressPayload(first, stopRun(first));
   assert.equal(body.current_line_id, 'l1');
+});
+
+test('가린 대사 줄 수는 18자마다 한 줄, 1~3줄이다(SOMA-1047)', () => {
+  assert.equal(hiddenLineCount(''), 1);
+  assert.equal(hiddenLineCount('  네.  '), 1);
+  assert.equal(hiddenLineCount('가'.repeat(18)), 1);
+  assert.equal(hiddenLineCount('가'.repeat(19)), 2);
+  assert.equal(hiddenLineCount('가'.repeat(36)), 2);
+  assert.equal(hiddenLineCount('가'.repeat(37)), 3);
+  assert.equal(hiddenLineCount('가'.repeat(200)), 3);
 });

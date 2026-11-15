@@ -215,7 +215,7 @@ class CoachVideoCacheTest {
 
         var result = loopEngine(cache).start(session, UUID.randomUUID());
 
-        assertThat(result.reply().message()).isEqualTo("영상의 소리가 녹음되지 않았어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
+        assertThat(result.reply().message()).isEqualTo("영상의 소리를 들을 수 없어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
         assertThat(result.session().coachingState().path("practice_loop").path("input_issue").asText()).isEqualTo("silent_audio");
         verify(storage, never()).downloadToPath(any(), any());
         verify(model, never()).inspect(any());

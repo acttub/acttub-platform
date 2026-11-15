@@ -1,10 +1,10 @@
-import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { api } from '@/lib/api';
 import { POLL_MS } from '@/lib/reading/script-import';
 import { checkSplitJob, readSplitJobs, removeSplitJob, type SplitJob } from '@/lib/reading/split-jobs';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 
 export type SplitJobRow = SplitJob & { failed: boolean; pct: number };
 
@@ -19,39 +19,33 @@ export function useSplitJobs(onSucceeded: () => Promise<void>) {
   const refresh = useRef(onSucceeded);
   refresh.current = onSucceeded;
 
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      void (async () => {
-        let turn = 0;
-        while (alive) {
-          const jobs = await readSplitJobs();
-          // 실패는 서버에서 바뀌지 않으므로 [지우기]까지 다시 묻지 않는다.
-          const open = jobs.filter((job) => !known.current.get(job.importId)?.failed);
-          const job = open[turn++ % open.length];
-          if (job && AppState.currentState !== 'background') {
-            const check = await checkSplitJob(job.importId, (id) => api.getScriptImport(id));
-            if (!alive) return;
-            if (check.kind === 'running') known.current.set(job.importId, { ...job, failed: false, pct: check.pct });
-            if (check.kind === 'failed') known.current.set(job.importId, { ...job, failed: true, pct: 0 });
-            // 목록을 받은 뒤에 행을 뺀다 — 행이 사라지고 대본이 뒤늦게 나타나지 않게.
-            if (check.kind === 'succeeded') await refresh.current();
-            if (check.kind === 'succeeded' || check.kind === 'gone') {
-              known.current.delete(job.importId);
-              await removeSplitJob(job.importId);
-            }
-            if (!alive) return;
+  useFocusLoad((alive) => {
+    void (async () => {
+      let turn = 0;
+      while (alive()) {
+        const jobs = await readSplitJobs();
+        // 실패는 서버에서 바뀌지 않으므로 [지우기]까지 다시 묻지 않는다.
+        const open = jobs.filter((job) => !known.current.get(job.importId)?.failed);
+        const job = open[turn++ % open.length];
+        if (job && AppState.currentState !== 'background') {
+          const check = await checkSplitJob(job.importId, (id) => api.getScriptImport(id));
+          if (!alive()) return;
+          if (check.kind === 'running') known.current.set(job.importId, { ...job, failed: false, pct: check.pct });
+          if (check.kind === 'failed') known.current.set(job.importId, { ...job, failed: true, pct: 0 });
+          // 목록을 받은 뒤에 행을 뺀다 — 행이 사라지고 대본이 뒤늦게 나타나지 않게.
+          if (check.kind === 'succeeded') await refresh.current();
+          if (check.kind === 'succeeded' || check.kind === 'gone') {
+            known.current.delete(job.importId);
+            await removeSplitJob(job.importId);
           }
-          const next = jobs.flatMap((one) => known.current.get(one.importId) ?? []);
-          setRows((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
-          await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+          if (!alive()) return;
         }
-      })();
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
+        const next = jobs.flatMap((one) => known.current.get(one.importId) ?? []);
+        setRows((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      }
+    })();
+  }, []);
 
   const dismiss = useCallback((importId: string) => {
     known.current.delete(importId);

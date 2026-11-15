@@ -7,10 +7,13 @@
  * 네이티브 모듈 없이 성립하도록 저장소·올리기·파일 삭제를 넣어 받는다.
  */
 import { ApiError, NetworkError, RequestAbortError } from '../api-request.ts';
+import type { DeviceStorage } from '../device-storage.ts';
+import { DAY_MS } from '../kst.ts';
+import { dropStale, storedList } from '../stored-queue.ts';
 import type { SessionRecording } from './types.ts';
 
 export const RECORDING_QUEUE_KEY = 'acttub.reading.recordingQueue';
-export const RECORDING_QUEUE_TTL_MS = 7 * 86_400_000;
+export const RECORDING_QUEUE_TTL_MS = 7 * DAY_MS;
 
 export type QueuedRecording = {
   requestId: string;
@@ -26,11 +29,7 @@ export type QueuedRecording = {
 };
 
 export type RecordingQueueDependencies = {
-  storage: {
-    getItem(key: string): Promise<string | null>;
-    setItem(key: string, value: string): Promise<void>;
-    removeItem(key: string): Promise<void>;
-  };
+  storage: DeviceStorage;
   upload: (entry: QueuedRecording) => Promise<Pick<SessionRecording, 'id' | 'line_id' | 'attempt_no'> | unknown>;
   /** 없는 파일이어도 던지지 않는다. */
   deleteFile: (uri: string) => Promise<void>;
@@ -50,31 +49,15 @@ function isPermanent(error: unknown): boolean {
 export function createRecordingQueue(deps: RecordingQueueDependencies) {
   const now = deps.now ?? Date.now;
   let flushing: Promise<FlushResult> | null = null;
-
-  async function read(): Promise<QueuedRecording[]> {
-    try {
-      const raw = await deps.storage.getItem(RECORDING_QUEUE_KEY);
-      const list = raw ? (JSON.parse(raw) as unknown) : [];
-      return Array.isArray(list) ? (list as QueuedRecording[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  async function write(list: QueuedRecording[]): Promise<void> {
-    if (list.length === 0) await deps.storage.removeItem(RECORDING_QUEUE_KEY);
-    else await deps.storage.setItem(RECORDING_QUEUE_KEY, JSON.stringify(list));
-  }
+  const { read, write } = storedList<QueuedRecording>(deps.storage, RECORDING_QUEUE_KEY);
 
   async function runFlush(): Promise<FlushResult> {
     const result: FlushResult = { sent: 0, dropped: 0, failed: 0 };
     let list = await read();
-    const cutoff = now() - RECORDING_QUEUE_TTL_MS;
     // 7일 지난 파일은 버린다.
-    const stale = list.filter((e) => e.createdAt < cutoff);
+    const { stale, fresh } = await dropStale(list, now() - RECORDING_QUEUE_TTL_MS, deps.deleteFile);
     if (stale.length > 0) {
-      await Promise.allSettled(stale.map((e) => deps.deleteFile(e.uri)));
-      list = list.filter((e) => e.createdAt >= cutoff);
+      list = fresh;
       result.dropped += stale.length;
       await write(list);
     }

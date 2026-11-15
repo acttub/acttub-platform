@@ -1,4 +1,5 @@
 import type { ChallengeCard, EntryCard } from './types.ts';
+import { DAY_MS, KST_OFFSET_MS } from '../kst.ts';
 
 /**
  * 「지난주 결과」(SOMA-748 ljrKJM)와 「챌린지 마무리」(Ttlo3)의 표시 규칙.
@@ -6,8 +7,6 @@ import type { ChallengeCard, EntryCard } from './types.ts';
  * 서버 새 필드 없이 종료 탭 목록·확정 순위(rank)·마감 시각(ends_at)으로만 만든다. 상품 지급 기록은 서버에 없어
  * 선정작은 확정 순위 3위 안의 참여작이다.
  */
-const DAY_MS = 24 * 60 * 60 * 1000;
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 /** 끝난 지 이만큼 안이면 「지난주 결과」로 띄운다. */
 export const LAST_WEEK_WINDOW_MS = 7 * DAY_MS;
 /** 선정작 수. */

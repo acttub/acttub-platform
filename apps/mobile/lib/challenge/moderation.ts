@@ -1,7 +1,6 @@
 import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import {
-  REPORT_NOTE_MAX,
   REPORT_REASONS,
   type BlockedUser,
   type ReportBody,
@@ -20,19 +19,6 @@ import {
 // ─── 신고 ─────────────────────────────────────────────────────────────────────
 
 export { REPORT_REASONS };
-
-/** 기타를 고르면 메모를 받는다(200자, 선택). */
-export function needsNote(reason: ReportReason): boolean {
-  return reason === 'other';
-}
-
-export function noteTooLong(note: string): boolean {
-  return [...note.trim()].length > REPORT_NOTE_MAX;
-}
-
-export function canSendReport(input: { reason: ReportReason | null; note: string }): boolean {
-  return input.reason !== null && !noteTooLong(input.note);
-}
 
 export function buildReportBody(input: {
   requestId: string;

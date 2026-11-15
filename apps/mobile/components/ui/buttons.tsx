@@ -106,31 +106,39 @@ export function DangerButton(props: ButtonProps) {
  * 글자 버튼 — pen 「Button/Text」·「Button/Text-link」. 높이 40, 안쪽 좌우 16, body2-bold.
  * 보조 선택지는 text-sub, tone="accent"(링크·강조)는 blue-deep.
  * size="large"는 버튼 자리를 대신하는 글자 — pen 가입 7/7 「건너뛰기」(높이 56 · headline).
+ * `icon`은 글자 앞 아이콘 16(「↻ 다시 읽기」), 아이콘–글자 사이 6. 처리 중이면 아이콘 없이 「~하는 중…」 문구, 막히면 흐리게.
  */
 export function TextButton({
   label,
   onPress,
   disabled,
+  loading,
+  loadingLabel,
+  icon,
   accessibilityLabel,
   phLabel,
   tone = 'muted',
   size = 'small',
 }: ButtonProps & { tone?: 'muted' | 'accent'; size?: 'small' | 'large' }) {
+  const off = disabled || loading;
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={off}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled: !!off, busy: !!loading }}
       ph-label={phLabel}
       hitSlop={8}
       style={({ pressed }) => [
         styles.text,
         size === 'large' && styles.textLarge,
+        disabled && !loading && styles.textOff,
         pressed && styles.pressed,
       ]}>
+      {loading ? null : icon}
       <Text style={[styles.textLabel, tone === 'accent' && styles.textLabelAccent, size === 'large' && styles.textLabelLarge]}>
-        {label}
+        {loading ? (loadingLabel ?? t('loadingText.wait')) : label}
       </Text>
     </Pressable>
   );
@@ -160,7 +168,8 @@ const styles = StyleSheet.create({
   secondaryLabel: { color: palette.textSub },
   smLabel: { color: palette.blueDeep },
   disabledLabel: { color: palette.textDisabled },
-  text: { alignSelf: 'center', height: 40, justifyContent: 'center', paddingHorizontal: space[4] },
+  text: { alignSelf: 'center', height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], paddingHorizontal: space[4] },
+  textOff: { opacity: 0.4 },
   textLabel: { ...type.body2Bold, color: palette.textSub },
   textLabelAccent: { color: palette.blueDeep },
   textLarge: { height: 56 },

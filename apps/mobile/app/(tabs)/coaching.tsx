@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,6 +15,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 import { api } from '@/lib/api';
 import { dateLocale, translate as t } from '@/lib/i18n';
 import { coachingEntry, type CoachingEntry } from '@/lib/practice/coaching-entry';
@@ -55,31 +56,32 @@ export default function CoachingTab() {
   // 묶음을 못 받아 처음 화면으로 넘어간 경우 — 뼈대 기억(lib/skeleton-hint)에 적지 않는다.
   const [entryFailed, setEntryFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // 다시 시도를 눌러 받는 중 — 같은 오류 화면이 그대로라 버튼이 눌렸는지 보이게 한다.
+  const [retrying, setRetrying] = useState(false);
   const [groups, setGroups] = useState<PracticeGroup[]>(() => shared ?? []);
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
   const nextTake = entry?.kind === 'next' ? (takes[entry.notePracticeId] ?? null) : null;
   const visible = useMemo(() => recentGroups(groups, groups.length), [groups]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
+  useFocusLoad(
+    (alive) => {
       api
         .listPracticeGroups('all')
         .then(({ groups: list }) => {
-          if (cancelled) return;
+          if (!alive()) return;
+          setRetrying(false);
           setGroups(list);
           setEntry(coachingEntry(list));
           setEntryFailed(false);
         })
         .catch(() => {
-          if (cancelled) return;
+          if (!alive()) return;
+          setRetrying(false);
           setEntry({ kind: 'first' });
           setEntryFailed(true);
         });
-      return () => {
-        cancelled = true;
-      };
-    }, [attempt]),
+    },
+    [attempt],
   );
 
   // 받기 전 화면은 이 기기에서 지난번에 실제로 그린 모양(lib/skeleton-hint)을 따른다.
@@ -140,7 +142,14 @@ export default function CoachingTab() {
       />
       {/* 못 받았을 때 처음 화면으로 넘어가지 않는다 — 첫 사용자 화면은 받을 것이 없어 그대로 둔다. */}
       {entryFailed && !firstHint ? (
-        <StatusScreen title={t('history.loadFail')} body={t('settings.retryLater')} primary={{ label: t('common.retry'), onPress: () => setAttempt((n) => n + 1) }} />
+        <StatusScreen title={t('history.loadFail')} body={t('settings.retryLater')} primary={{
+            label: t('common.retry'),
+            loading: retrying,
+            onPress: () => {
+              setRetrying(true);
+              setAttempt((n) => n + 1);
+            },
+          }} />
       ) : !entry && !first ? (
         skeletonHints.coaching === 'next' ? (
           <CoachingNextSkeleton rows={skeletonHints.coachingRows ?? RECENT_COUNT} bottomSpace={tabBarSpace + space[5]} />

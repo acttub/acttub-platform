@@ -65,6 +65,8 @@ public class ConversationService {
     private final java.util.Map<UUID, java.util.concurrent.CompletableFuture<Void>> starting = new ConcurrentHashMap<>();
     /** 다른 시작을 기다리는 최대 시간. 영상 처리 대기(180초)와 첫 질문 쓰기를 넉넉히 덮는다. 넘으면 기다리지 않고 직접 쓴다. */
     private java.time.Duration startWait = java.time.Duration.ofSeconds(200);
+    /** 발표 시연용 정해진 코칭. 대상 계정의 영상 코칭은 모델 대신 대본을 낸다. */
+    private ScriptedCoach scripted = ScriptedCoach.NONE;
 
     private record RequestKey(String operation, UUID userId, UUID targetId, UUID requestId) { }
 
@@ -99,6 +101,12 @@ public class ConversationService {
         this.profiles = profiles;
         this.memory = memory;
         this.failureReporter = failureReporter;
+    }
+
+    /** 정해진 코칭(발표 시연)을 붙인다. null 이면 끔. */
+    public ConversationService withScripted(ScriptedCoach scripted) {
+        this.scripted = scripted == null ? ScriptedCoach.NONE : scripted;
+        return this;
     }
 
     /** 노트가 저장된 뒤 Pro 의 「대사별로 본 것」을 배경에서 쓰게 맡긴다. 기다리지 않고 실패해도 대화에 영향이 없다. */
@@ -215,8 +223,10 @@ public class ConversationService {
             return turn(opened.session(), conversationId, null);
         }
         if (stream != null) stream.begin();
-        CoachResult result = generate(() -> stream == null ? coach.start(withContext(opened.session()), conversationId)
-                : coach.start(withContext(opened.session()), conversationId, stream));
+        boolean script = scripted.appliesTo(opened.session());
+        CoachResult result = script ? scripted.turn(opened.session(), null, stream)
+                : generate(() -> stream == null ? coach.start(withContext(opened.session()), conversationId)
+                        : coach.start(withContext(opened.session()), conversationId, stream));
         boolean closing = COMPLETE.equals(result.reply().status());
         boolean rejected = DirectVideoPracticeLoop.wasCut(result.session().coachingState());
         activeOnly(() -> {
@@ -226,9 +236,11 @@ public class ConversationService {
         });
         Loaded saved = require(conversations.loadByConversation(userId, conversationId));
         NoteView note = closing && !rejected
-                ? activeOnly(() -> notes.write(opened, result, saved.session().stateRevision(), clock.instant())) : null;
-        scheduleLineNotes(result, conversationId, note);
-        if (closing && !rejected && closedListener != null) closedListener.onConversationClosed(userId, practiceId);
+                ? activeOnly(() -> script
+                        ? conversations.saveNote(conversationId, scripted.note(result.session(), saved.session().stateRevision()), clock.instant())
+                        : notes.write(opened, result, saved.session().stateRevision(), clock.instant())) : null;
+        if (!script) scheduleLineNotes(result, conversationId, note);
+        if (closing && !rejected && !script && closedListener != null) closedListener.onConversationClosed(userId, practiceId);
         return turn(saved.session(), conversationId, note);
     }
 
@@ -279,8 +291,10 @@ public class ConversationService {
             throw new ApiException(409, "conversation_conflict");
         }
         if (stream != null) stream.begin();
-        CoachResult result = generate(() -> stream == null ? coach.reply(withContext(loaded.session()), text, conversationId)
-                : coach.reply(withContext(loaded.session()), text, conversationId, stream));
+        boolean script = scripted.appliesTo(loaded.session());
+        CoachResult result = script ? scripted.turn(loaded.session(), text, stream)
+                : generate(() -> stream == null ? coach.reply(withContext(loaded.session()), text, conversationId)
+                        : coach.reply(withContext(loaded.session()), text, conversationId, stream));
         boolean closing = COMPLETE.equals(result.reply().status());
         Saved saved = activeOnly(() -> conversations.appendTurn(
                 conversationId,
@@ -298,14 +312,18 @@ public class ConversationService {
         }
         // 이어 가던 대화가 다시 정리되면 있던 노트를 고친다. 새로 만들지 못하면 있던 노트를 그대로 보여 준다.
         boolean resumed = isResumed(loaded.session().coachingState());
-        NoteView note = closing
+        NoteView note = closing && script
+                ? activeOnly(() -> resumed
+                        ? conversations.replaceNote(conversationId, scripted.note(result.session(), saved.revision()), clock.instant())
+                        : conversations.saveNote(conversationId, scripted.note(result.session(), saved.revision()), clock.instant()))
+                : closing
                 ? activeOnly(() -> resumed ? notes.write(loaded, result, saved.revision(), clock.instant(), true)
                         : notes.write(loaded, result, saved.revision(), clock.instant()))
                 : null;
         // 방금 쓴 노트에만 붙인다 — 이어 가던 대화에서 새로 못 만들어 옛 노트를 보여 주는 경우는 그대로 둔다.
-        scheduleLineNotes(result, conversationId, note);
+        if (!script) scheduleLineNotes(result, conversationId, note);
         if (closing && resumed && note == null) note = conversations.note(userId, loaded.practiceId());
-        if (closing && !resumed && closedListener != null) {
+        if (closing && !resumed && !script && closedListener != null) {
             // 노트가 남은 뒤에 알린다 — 확인 연습을 세는 쪽이 이번 회차의 노트를 보아야 한다.
             closedListener.onConversationClosed(userId, loaded.practiceId());
         }

@@ -47,7 +47,7 @@ test('공유 대상: 재생 주소가 없으면 영상 길이 닫히고 길이 �
 
 test('링크 문장과 스레드 intent 는 같은 문장을 쓰고 주소를 인코딩한다', () => {
   const message = shareMessage({ id: 'e 1' }, '지성', '잘 지내');
-  assert.match(message, /^지성의 “잘 지내” 연기 — acttub 챌린지\nhttps:\/\/acttub\.com\/e\/e%201$/);
+  assert.match(message, /^지성의 “잘 지내” 연기 — Acttub 챌린지\nhttps:\/\/acttub\.com\/e\/e%201$/);
   const url = threadsIntentUrl({ id: 'e1' }, '지성', '잘 지내');
   assert.ok(url.startsWith('https://www.threads.net/intent/post?text='));
   assert.equal(decodeURIComponent(url.split('text=')[1]), shareMessage({ id: 'e1' }, '지성', '잘 지내'));
@@ -127,7 +127,7 @@ test('설정: 스토리 App ID 는 fbsdk appID 와 같고 쿼리 스킴·사진�
 test('카카오톡 공유 카드: 제목·대사·「영상 보기」 버튼이 모두 참여작 공유 페이지로 간다', () => {
   assert.deepEqual(kakaoFeed({ id: 'e 1' }, '지성', '잘 지내.'), {
     title: '지성의 연기',
-    description: '“잘 지내.” — acttub 챌린지',
+    description: '“잘 지내.” — Acttub 챌린지',
     imageUrl: 'https://acttub.com/opengraph-image',
     linkUrl: 'https://acttub.com/e/e%201',
     buttonTitle: '영상 보기',

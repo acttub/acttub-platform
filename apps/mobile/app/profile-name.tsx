@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,8 +40,9 @@ import {
   onboardingSteps,
   stepAfter,
   stepBefore,
-  stepReady,
+  stepBlockReason,
   type OnboardingStep,
+  type StepBlock,
 } from '@/lib/onboarding-steps';
 import { takeProviderNameHint } from '@/lib/profile';
 import { DIRECTION_LABEL_KEYS, GENDER_LABEL_KEYS } from '@/lib/profile-labels';
@@ -99,6 +100,13 @@ export default function ProfileNameScreen() {
   const steps = onboardingSteps(askDiscovery);
   const prefilled = useRef(false);
   const me = profile.me;
+  // 못 넘어가는 「다음」을 누른 횟수(SOMA-1057). 0 이면 이유 줄을 숨긴다. 누를 때마다 줄을 다시 그려 그 자리로 스크롤한다.
+  const [blockedTaps, setBlockedTaps] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const nameRef = useRef<TextInput>(null);
+  const otherRef = useRef<TextInput>(null);
+  const submittingRef = useRef(false);
+  useEffect(() => setBlockedTaps(0), [screen]);
 
   useEffect(() => {
     let alive = true;
@@ -138,6 +146,9 @@ export default function ProfileNameScreen() {
   const update = (patch: Partial<ProfileFormState>) => setForm((prev) => ({ ...prev, ...patch }));
 
   const submit = async (answer: DiscoveryState = discovery) => {
+    // 「완료」를 빠르게 두 번 눌러도 한 번만 저장한다.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -167,6 +178,7 @@ export default function ProfileNameScreen() {
       else if (failure.kind === 'client_bug') setError(t('profileName.appBug'));
       else setError(cause instanceof Error ? cause.message : t('profileName.fail'));
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
@@ -260,7 +272,18 @@ export default function ProfileNameScreen() {
   const step = screen;
   const index = steps.indexOf(step) + 1;
   const name = form.name.trim();
-  const ready = stepReady(step, form, new Date());
+  // 마지막 「어디서 알게 됐나요」는 서버 필수 항목이 아니라 화면이 따로 본다 — 고르거나(「기타」면 적어야) 「완료」, 아니면 「건너뛰기」.
+  const block: StepBlock | 'discovery_other' | null =
+    step !== 'discovery'
+      ? stepBlockReason(step, form, new Date())
+      : discovery.source === null
+        ? 'pick_one'
+        : discovery.source === 'other' && !discovery.otherText.trim()
+          ? 'discovery_other'
+          : null;
+  // 고르는 칸(생년월일·고르기)은 버튼을 회색으로 막는다. 글을 적는 칸만 버튼을 열어 두고 누르면 이유를 한 줄로 알린다(11/9 결정).
+  const nextOff = block === 'pick_one' || block === 'birth';
+  const blockKey = blockedTaps > 0 && block ? BLOCK_LINE[block] : undefined;
   const careers = translateList('profileName.careerOptions');
   const goals = translateList('profileName.goalOptions');
   const nameTooLong = [...name].length > NAME_MAX_LENGTH;
@@ -269,14 +292,18 @@ export default function ProfileNameScreen() {
 
   let body: ReactNode = null;
   let footer: ReactNode = null;
-  /** 한 화면에 질문 하나 — 고르거나 적고 아래 「다음」(마지막이면 「완료」)을 눌러야 넘어간다. */
-  const nextButton = (onPress: () => void, enabled: boolean) => (
-    <PrimaryButton
-      label={isLast ? t('profileName.done') : t('profileName.next')}
-      onPress={onPress}
-      disabled={!enabled}
-      loading={busy}
-    />
+  /**
+   * 한 화면에 질문 하나 — 고르거나 적고 아래 「다음」(마지막이면 「완료」)을 눌러야 넘어간다.
+   * 글을 적는 칸이 비었거나 잘못돼도 버튼은 눌린다. 누르면 넘어가지 않고 칸 아래에 이유 한 줄을 보이고 그 칸으로 옮긴다(SOMA-1057).
+   */
+  const pressNext = (go: () => void) => {
+    if (!block) return go();
+    setBlockedTaps((n) => n + 1);
+    if (block === 'name_empty' || block === 'name_too_long') nameRef.current?.focus();
+    if (block === 'discovery_other') otherRef.current?.focus();
+  };
+  const nextButton = (onPress: () => void) => (
+    <PrimaryButton label={isLast ? t('profileName.done') : t('profileName.next')} onPress={() => pressNext(onPress)} disabled={nextOff} loading={busy} />
   );
 
   switch (step) {
@@ -284,18 +311,19 @@ export default function ProfileNameScreen() {
       body = (
         <>
           <TextField
+            ref={nameRef}
             placeholder={t('profileName.placeholder')}
             value={form.name}
             onChangeText={(value) => update({ name: value })}
             error={nameTooLong ? t('profileName.nameTooLong') : null}
             autoFocus
             returnKeyType="next"
-            onSubmitEditing={() => ready && advance('name')}
+            onSubmitEditing={() => pressNext(() => advance('name'))}
             accessibilityLabel={t('profileName.nicknameLabel')}
           />
         </>
       );
-      footer = nextButton(() => advance('name'), ready);
+      footer = nextButton(() => advance('name'));
       break;
     case 'birth':
       body = (
@@ -316,7 +344,7 @@ export default function ProfileNameScreen() {
           )}
         </>
       );
-      footer = nextButton(() => advance('birth'), ready);
+      footer = nextButton(() => advance('birth'));
       break;
     case 'gender':
       // 「선택 안 함」이 있어 건너뛰기는 두지 않는다 — 서버 값 그대로(unspecified).
@@ -381,7 +409,7 @@ export default function ProfileNameScreen() {
           ))}
         </View>
       );
-      footer = nextButton(() => advance('directions'), ready);
+      footer = nextButton(() => advance('directions'));
       break;
     case 'discovery':
       // 마지막 질문이라 고르고 「완료」를 눌러야 저장한다(SOMA-827 후속 — 바로 저장하지 않는다). 「기타」는 직접 적는다. 건너뛰면 고르지 않은 것으로 적는다.
@@ -400,6 +428,7 @@ export default function ProfileNameScreen() {
           {discovery.source === 'other' && (
             <View style={styles.otherInput}>
               <TextField
+                ref={otherRef}
                 placeholder={t('profileName.discoveryOtherPlaceholder')}
                 value={discovery.otherText}
                 onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
@@ -420,10 +449,7 @@ export default function ProfileNameScreen() {
             }}
             disabled={busy}
           />
-          {nextButton(
-            () => advance('discovery'),
-            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
-          )}
+          {nextButton(() => advance('discovery'))}
         </>
       );
       break;
@@ -435,7 +461,7 @@ export default function ProfileNameScreen() {
       <StepHeader step={index} total={steps.length} onBack={goBack} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         {/* 생년월일 휠을 만지는 동안은 화면이 같이 움직이지 않게 멈춘다(10/25). */}
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>
           {/* 하나 고르는 질문은 누르면 바로 넘어간다(SOMA-827) — 그 사실을 말풍선 아래 줄로 알린다. */}
           <MascotBubble question title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
           <Animated.View
@@ -443,6 +469,12 @@ export default function ProfileNameScreen() {
             entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
             style={styles.current}>
             {body}
+            {blockKey && (
+              // 누를 때마다 새로 그려(key) 줄이 보이는 자리까지 내린다.
+              <View key={blockedTaps} style={styles.fieldError} onLayout={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+                <InlineErrorLine message={t(blockKey)} />
+              </View>
+            )}
           </Animated.View>
           {error && (
             <View style={styles.error}>
@@ -486,6 +518,18 @@ function ChoiceRow({
     </Pressable>
   );
 }
+
+/**
+ * 글을 적는 칸이 비었을 때 칸 아래에 보일 한 줄. 이름이 너무 길면 칸 아래에 이미 오류 줄이 있어 더하지 않는다.
+ * 고르는 칸(생년월일·고르기)은 버튼이 막혀 있어 줄이 없다.
+ */
+const BLOCK_LINE: Record<StepBlock | 'discovery_other', string | undefined> = {
+  name_empty: 'profileName.blockNameEmpty',
+  name_too_long: undefined,
+  birth: undefined,
+  pick_one: undefined,
+  discovery_other: 'profileName.blockDiscoveryOther',
+};
 
 /** 질문마다 캐릭터 말풍선 제목. */
 /** 누르면 바로 넘어가는 질문의 안내 줄. 닉네임·생년월일·추구 방향(여러 개)은 「다음」으로 간다. */

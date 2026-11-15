@@ -7,15 +7,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -47,14 +44,6 @@ class OpenApiSnapshotIT {
 
     /** 테스트의 작업 디렉토리는 {@code apps/api} 다. 웹이 {@code ../api/spec/openapi.json} 으로 읽는 그 파일. */
     private static final Path SNAPSHOT = Path.of("spec/openapi.json");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("openapi_snapshot");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;
