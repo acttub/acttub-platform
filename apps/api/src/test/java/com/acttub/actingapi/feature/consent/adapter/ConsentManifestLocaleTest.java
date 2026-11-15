@@ -113,17 +113,19 @@ class ConsentManifestLocaleTest {
     }
 
     @Test
-    @DisplayName("이용약관 v2와 동의 v11은 2026-11-01 0시(KST)에 재동의를 시작하고, reconsentFrom 은 오프셋이 있는 ISO-8601 이다")
-    void termsV2AndPrivacyV11TakeEffectAtNovemberFirstMidnightKst() throws Exception {
-        java.time.Instant expected = java.time.Instant.parse("2026-10-31T15:00:00Z");
+    @DisplayName("이용약관 v3은 2026-11-23 0시(KST), 그 밖의 판은 2026-11-01 0시(KST)에 재동의를 시작하고, reconsentFrom 은 오프셋이 있는 ISO-8601 이다")
+    void reconsentStartsAtTheAnnouncedMidnightKst() throws Exception {
+        java.time.Instant novemberFirst = java.time.Instant.parse("2026-10-31T15:00:00Z");
+        java.time.Instant termsV3 = java.time.Instant.parse("2026-11-22T15:00:00Z");
         for (Entry entry : manifest()) {
             if (entry.reconsentFrom() != null) {
+                java.time.Instant expected = entry.edition().equals("terms:v3") ? termsV3 : novemberFirst;
                 assertThat(java.time.OffsetDateTime.parse(entry.reconsentFrom()).toInstant())
                         .as(entry.file()).isEqualTo(expected);
             }
         }
         assertThat(manifest())
-                .filteredOn(entry -> entry.edition().equals("terms:v2") || entry.edition().equals("privacy:v11"))
+                .filteredOn(entry -> entry.edition().equals("terms:v3") || entry.edition().equals("privacy:v11"))
                 .isNotEmpty()
                 .allSatisfy(entry -> assertThat(entry.reconsentFrom()).as(entry.file()).isNotNull());
     }
