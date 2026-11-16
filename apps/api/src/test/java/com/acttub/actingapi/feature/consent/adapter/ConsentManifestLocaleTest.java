@@ -113,10 +113,10 @@ class ConsentManifestLocaleTest {
     }
 
     @Test
-    @DisplayName("이용약관 v3은 2026-11-23 0시(KST), 그 밖의 판은 2026-11-01 0시(KST)에 재동의를 시작하고, reconsentFrom 은 오프셋이 있는 ISO-8601 이다")
+    @DisplayName("이용약관 v3은 기존 회원에게 다시 묻지 않고(2099-12-31 0시 KST, 제3조 제3항 공지 후 동의 간주), 그 밖의 판은 2026-11-01 0시(KST)에 재동의를 시작하고, reconsentFrom 은 오프셋이 있는 ISO-8601 이다")
     void reconsentStartsAtTheAnnouncedMidnightKst() throws Exception {
         java.time.Instant novemberFirst = java.time.Instant.parse("2026-10-31T15:00:00Z");
-        java.time.Instant termsV3 = java.time.Instant.parse("2026-11-22T15:00:00Z");
+        java.time.Instant termsV3 = java.time.Instant.parse("2099-12-30T15:00:00Z");
         for (Entry entry : manifest()) {
             if (entry.reconsentFrom() != null) {
                 java.time.Instant expected = entry.edition().equals("terms:v3") ? termsV3 : novemberFirst;

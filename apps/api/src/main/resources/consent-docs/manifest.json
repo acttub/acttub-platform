@@ -6,7 +6,7 @@
     "locale": "ko",
     "title": "이용약관",
     "required": true,
-    "reconsentFrom": "2026-11-23T00:00:00+09:00"
+    "reconsentFrom": "2099-12-31T00:00:00+09:00"
   },
   {
     "file": "privacy_v12.md",
@@ -71,7 +71,7 @@
     "locale": "en",
     "title": "Terms of Service",
     "required": true,
-    "reconsentFrom": "2026-11-23T00:00:00+09:00"
+    "reconsentFrom": "2099-12-31T00:00:00+09:00"
   },
   {
     "file": "ai_analysis_v2_en.md",
