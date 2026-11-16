@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <ul>
  *   <li>{@code GET /v2/billing/me} — 구독 상태와 Pro 권한(앱 화면 분기용)</li>
- *   <li>{@code POST /v2/billing/checkout} {@code {purpose: subscribe|change_card}} — 일회용 카드 등록 창 주소</li>
+ *   <li>{@code POST /v2/billing/checkout} {@code {purpose: subscribe|change_card, plan: monthly|yearly}} — 일회용 카드 등록 창 주소</li>
  *   <li>{@code POST /v2/billing/subscription/cancel} — 자동결제 해지(이번 기간 끝까지 Pro)</li>
  *   <li>{@code POST /v2/billing/subscription/retry} — 자동결제 실패 뒤 지금 다시 결제</li>
  * </ul>
@@ -59,7 +59,8 @@ class BillingController {
         AuthenticatedUser user = auth.gatedUser(request);
         throttle("billing-checkout:" + user.id(), 20);
         SubscriptionService.StartedCheckout started =
-                service.startCheckout(user.id(), user.guest(), body == null ? null : body.purpose());
+                service.startCheckout(user.id(), user.guest(), body == null ? null : body.purpose(),
+                        body == null ? null : body.plan());
         return new CheckoutResponse(started.checkoutUrl(), started.returnUrl(), started.expiresAt());
     }
 

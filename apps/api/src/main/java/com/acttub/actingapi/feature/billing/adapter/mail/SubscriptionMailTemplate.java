@@ -41,9 +41,12 @@ public final class SubscriptionMailTemplate {
         String preheader = next == null ? "언제든 해지할 수 있어요." : "다음 결제일은 " + MONTH_DAY.format(next) + "이에요. 언제든 해지할 수 있어요.";
         String card = card(mail.cardCompany(), mail.cardNumber());
         String paidAt = mail.paidAt() == null ? "" : DAY_TIME.format(mail.paidAt().atZone(BillingRules.SEOUL));
+        BillingRules.Plan plan = mail.plan() == null ? BillingRules.Plan.MONTHLY : mail.plan();
+        String every = plan == BillingRules.Plan.YEARLY ? "매년" : "매달";
+        String autoRenew = "해지하지 않으면 " + every + " 결제일에 같은 카드로 자동 결제돼요.";
 
         String[][] rows = {
-            {"상품", "ACTTUB Pro 월 구독"},
+            {"상품", plan.orderName()},
             {"결제 금액", won + " (부가세 포함)"},
             {"결제 수단", card},
             {"결제 일시", paidAt},
@@ -84,7 +87,7 @@ public final class SubscriptionMailTemplate {
                 + "<a href=\"https://acttub.com/account\" style=\"display:block;text-align:center;background:" + BLUE
                 + ";color:#FFFFFF;text-decoration:none;font-weight:600;font-size:15px;padding:14px;border-radius:14px;margin:0 0 24px;\">구독 관리</a>"
                 + "<ul style=\"font-size:13px;color:#4E5968;line-height:1.7;margin:0 0 24px;padding:0 0 0 16px;\">"
-                + "<li style=\"margin-bottom:6px;\">해지하지 않으면 매달 결제일에 같은 카드로 자동 결제돼요. 해지는 <a href=\"https://acttub.com/account\" style=\"" + link
+                + "<li style=\"margin-bottom:6px;\">" + autoRenew + " 해지는 <a href=\"https://acttub.com/account\" style=\"" + link
                 + "\">내 계정</a>에서 바로 할 수 있고, 해지해도 이번 이용 기간이 끝날 때까지 Pro를 쓸 수 있어요.</li>"
                 + "<li>유료 기능을 쓰지 않았다면 결제 후 7일 안에 전액 환불해요. 쓴 뒤에는 쓴 날짜만큼 빼고 환불해요. <a href=\"https://acttub.com/refund\" style=\""
                 + link + "\">해지·환불 정책</a></li></ul>"
@@ -99,7 +102,7 @@ public final class SubscriptionMailTemplate {
                 + "- AI 연기 코칭 횟수 제한 없음, 상위 AI 모델로 코칭\n- 회차를 넘어 반복되는 버릇을 기억하는 코칭\n- 리딩 대본 개수 제한 없음\n\n"
                 + "[결제 정보]\n" + rowsText(rows) + "\n"
                 + "구독 관리: https://acttub.com/account\n\n"
-                + "해지하지 않으면 매달 결제일에 같은 카드로 자동 결제돼요. 해지는 내 계정에서 바로 할 수 있고, 해지해도 이번 이용 기간이 끝날 때까지 Pro를 쓸 수 있어요.\n"
+                + autoRenew + " 해지는 내 계정에서 바로 할 수 있고, 해지해도 이번 이용 기간이 끝날 때까지 Pro를 쓸 수 있어요.\n"
                 + "유료 기능을 쓰지 않았다면 결제 후 7일 안에 전액 환불해요. 쓴 뒤에는 쓴 날짜만큼 빼고 환불해요. 해지·환불 정책: https://acttub.com/refund\n\n"
                 + "문의: acttub0527@gmail.com\n"
                 + "액터브(ACTTUB) · 대표자 최우영 · 사업자등록번호 796-11-03104 · 통신판매업 2026-서울동대문-1884\n"

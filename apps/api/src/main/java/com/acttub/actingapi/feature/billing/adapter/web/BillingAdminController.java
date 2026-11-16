@@ -117,7 +117,7 @@ class BillingAdminController {
         List<Subscriber> subscriptions = reader.subscriptions(teamEmails, teamActors).stream()
                 .map(row -> new Subscriber(row.actor(), row.name(), row.nickname(), row.team(), at(row.signedUpAt()),
                         row.provider(),
-                        BillingRules.STORE_PRODUCT_YEARLY_ID.equals(row.productId()) ? "yearly" : "monthly",
+                        plan(row),
                         row.amount(), row.status(),
                         BillingRules.pro(BillingRules.Status.of(row.status()), row.periodEnd(), now, row.provider()),
                         at(row.periodStart()), at(row.periodEnd()), at(row.canceledAt()), at(row.createdAt()),
@@ -135,6 +135,14 @@ class BillingAdminController {
                 launch.users(), launch.team());
         return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "private, no-store")
                 .body(new Subscribers(at(now), subscriptions, grants, launchWeek));
+    }
+
+    /** 토스 구독은 장부의 요금제(SOMA-1068 웹 연 구독), 스토어 구독은 상품 ID 로 정한다. */
+    static String plan(BillingAdminReader.SubscriptionRow row) {
+        BillingRules.Plan plan = BillingRules.PROVIDER_TOSS.equals(row.provider())
+                ? BillingRules.Plan.ofDb(row.plan())
+                : BillingRules.Plan.ofStoreProduct(row.productId());
+        return plan.db();
     }
 
     private static List<String> parseActors(String raw) {

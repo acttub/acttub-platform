@@ -114,6 +114,11 @@ class ErrorContractInventoryTest {
                     "feature.billing.app.SubscriptionServiceTest"),
             covered("feature.billing.app.SubscriptionService|422|invalid_purpose", 1,
                     "feature.billing.app.SubscriptionServiceTest"),
+            // 웹 연 구독(SOMA-1068).
+            covered("feature.billing.app.SubscriptionService|422|invalid_plan", 1,
+                    "feature.billing.app.WebYearlyPlanTest"),
+            covered("feature.billing.app.SubscriptionService|422|plan_unavailable", 1,
+                    "feature.billing.app.WebYearlyPlanTest"),
             covered("feature.practice.app.PracticeService|429|free_daily_coaching_limit", 1,
                     "feature.practice.app.FreeCoachingLimitTest"),
             covered("feature.reading.app.ScriptImportService|403|free_script_limit", 1,
