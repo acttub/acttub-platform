@@ -114,6 +114,9 @@ test("빠른 시작 회차 요청은 고른 배역 하나, 읽어주기, 전체 
   const taeoNoMic = quick.quickStartRequest(sampleScript, "태오", false);
   assert.deepEqual([taeoNoMic.my_character_ids, taeoNoMic.advance, taeoNoMic.record], [["c-teo"], "manual", false]);
   assert.equal(quick.quickStartRequest({ ...sampleScript, characters: [] }, "윤서", true), null);
+  // 아이폰 웹: 마이크(침묵 감지)는 쓰지만 녹음은 끈다(SOMA-1083).
+  const appleWeb = quick.quickStartRequest(sampleScript, "윤서", true, false);
+  assert.deepEqual([appleWeb.advance, appleWeb.record], ["silence", false]);
 });
 
 function memoryStore(initial = {}) {

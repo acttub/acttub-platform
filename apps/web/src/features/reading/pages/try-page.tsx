@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { micSupported } from "@/lib/reading/audio/mic";
+import { appleMobileWebKit } from "@/lib/reading/recording/recorder";
 import { trackTrialStart } from "@/lib/analytics/ga";
 import { trialEntryFromSearch } from "@/features/trial/trial-paths";
 import {
@@ -43,7 +44,7 @@ export function TryPage() {
       try {
         const script = await prepareSampleScript({ importDeps: apiDeps, cached: storage.loadScript(), signal: ac.signal });
         if (ac.signal.aborted) return;
-        const body = quickStartRequest(script, quickStartRoleFromSearch(window.location.search), micSupported());
+        const body = quickStartRequest(script, quickStartRoleFromSearch(window.location.search), micSupported(), micSupported() && !appleMobileWebKit());
         if (!body) throw new Error("no_lines");
         await startRef.current(script.id, body, { partnerVoice: "supertonic" });
       } catch {
