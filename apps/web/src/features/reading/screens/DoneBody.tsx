@@ -8,7 +8,8 @@
  */
 import { quizSummaryLabel, reviewFor } from "@/lib/reading/session/results";
 import type { RunStats, StoredScript } from "@/lib/reading/storage";
-import { clockLabel } from "@/features/reading/session-copy";
+import { APPLE_WEB_RECORD_NOTICE, clockLabel } from "@/features/reading/session-copy";
+import { appleMobileWebKit } from "@/lib/reading/recording/recorder";
 import { SessionRecordings } from "@/features/reading/screens/SessionRecordings";
 import { Button, Icon } from "@/features/reading/ui";
 import { AppHandoff } from "@/features/trial/app-handoff";
@@ -82,6 +83,10 @@ export function DoneBody({
           </div>
         ))}
       </div>
+
+      {guest && !recordingsSessionId && appleMobileWebKit() && (
+        <p className="w-full rounded-[14px] bg-gray-bg px-4 py-3 text-[13px] font-bold text-ink-3 break-keep">{APPLE_WEB_RECORD_NOTICE}</p>
+      )}
 
       {guest && recordingsSessionId && (
         <section className="w-full bg-surface border border-line rounded-[18px] p-4 flex flex-col gap-2">
