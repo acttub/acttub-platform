@@ -7,6 +7,8 @@ import { webStorage } from "@/lib/reading/storage";
 
 /** 시작 화면의 녹음 안내. "소리는 어디에도 안 나가요"는 없앴다(처리방침). */
 export const RECORD_NOTICE = "내 차례 녹음은 내 계정에 저장돼요";
+/** 아이폰·아이패드 웹은 녹음을 끈다(SOMA-1083). */
+export const APPLE_WEB_RECORD_NOTICE = "아이폰 웹에서는 녹음이 안 돼요. 녹음은 앱에서 할 수 있어요";
 /** 60초 무발화. 넘기지 않고 계속 기다린다. */
 export const NO_SPEECH_NOTICE = "다음을 눌러 넘길 수 있어요";
 /** 마이크 권한 거부 */
