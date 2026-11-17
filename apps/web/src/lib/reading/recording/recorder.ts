@@ -17,9 +17,22 @@ export interface LineRecorder {
   cancel(): void;
 }
 
+/**
+ * 아이폰·아이패드의 브라우저(사파리·크롬 모두 WebKit). 여기서는 첫 줄 뒤 녹음 파일이 깨져 서버 변환이 실패한다
+ * (2026-11-16 운영, SOMA-1083). 원인을 고치기 전까지 웹 녹음을 끄고 앱으로 안내한다.
+ */
+export function appleMobileWebKit(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPad|iPod/.test(ua)) return true;
+  // iPadOS 는 맥처럼 보이므로 터치 지점 수로 가른다.
+  return /Macintosh/.test(ua) && (navigator.maxTouchPoints ?? 0) > 1;
+}
+
 export function recorderSupported(): boolean {
   return (
     typeof navigator !== "undefined" &&
+    !appleMobileWebKit() &&
     !!navigator.mediaDevices?.getUserMedia &&
     typeof MediaRecorder !== "undefined" &&
     pickRecordingMimeType((t) => MediaRecorder.isTypeSupported(t)) !== null
