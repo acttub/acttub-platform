@@ -7,7 +7,7 @@ import "./ts-module-loader.mjs";
 
 import { FakeMediaRecorder, installRecorder, uninstallRecorder } from "./fixtures/reading-media-recorder-fake.mjs";
 
-const { recorderSupported, startLineRecording } = await import("../src/lib/reading/recording/recorder.ts");
+const { appleMobileWebKit, recorderSupported, startLineRecording } = await import("../src/lib/reading/recording/recorder.ts");
 
 let mic;
 
@@ -34,6 +34,33 @@ test("reading.recording: 마이크와 MediaRecorder 가 있고 낼 수 있는 �
   installRecorder();
   delete globalThis.MediaRecorder;
   assert.equal(recorderSupported(), false);
+});
+
+test("reading.recording: 아이폰·아이패드 웹(사파리·크롬)은 녹음을 끈다 — 첫 줄 뒤 파일이 깨진다(SOMA-1083)", () => {
+  const ua = Object.getOwnPropertyDescriptor(globalThis.navigator, "userAgent");
+  const touch = Object.getOwnPropertyDescriptor(globalThis.navigator, "maxTouchPoints");
+  const setNav = (userAgent, maxTouchPoints = 0) => {
+    Object.defineProperty(globalThis.navigator, "userAgent", { value: userAgent, configurable: true });
+    Object.defineProperty(globalThis.navigator, "maxTouchPoints", { value: maxTouchPoints, configurable: true });
+  };
+  try {
+    setNav("Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0 Mobile/15E148 Safari/604.1", 5);
+    assert.equal(appleMobileWebKit(), true);
+    assert.equal(recorderSupported(), false);
+    setNav("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15", 5);
+    assert.equal(appleMobileWebKit(), true);
+    setNav("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15", 0);
+    assert.equal(appleMobileWebKit(), false);
+    assert.equal(recorderSupported(), true);
+    setNav("Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0 Mobile Safari/537.36", 5);
+    assert.equal(appleMobileWebKit(), false);
+    assert.equal(recorderSupported(), true);
+  } finally {
+    if (ua) Object.defineProperty(globalThis.navigator, "userAgent", ua);
+    else delete globalThis.navigator.userAgent;
+    if (touch) Object.defineProperty(globalThis.navigator, "maxTouchPoints", touch);
+    else delete globalThis.navigator.maxTouchPoints;
+  }
 });
 
 test("reading.recording: 녹음은 잡음·울림을 줄인 마이크를 열고 브라우저가 내는 webm/opus 로 1초마다 조각을 받아, 멈추면 조각을 합친 파일과 길이를 준다", async () => {
