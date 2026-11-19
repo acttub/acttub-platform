@@ -73,7 +73,7 @@ public final class RuleSplit {
 
     /** 보이지 않거나 공백 노릇만 하는 글자 — 폭 없는 공백, BOM, 단어 결합자, 한글 채움 문자(ㅤ·ﾠ·초성·중성 채움), 줄바꿈 없는 공백들. */
     private static final Pattern INVISIBLE = Pattern.compile("[\\u0000\\u200B-\\u200D\\uFEFF\\u2060\\u3164\\uFFA0\\u115F\\u1160\\u00A0\\u2007\\u202F]");
-    private static final Pattern PAGE = Pattern.compile("(?i)[-–—(\\[]?\\s*(?:p\\.?|page|쪽)?\\s*\\d{1,3}\\s*(?:쪽|/\\s*\\d{1,3})?\\s*[-–—)\\]]?");
+    private static final Pattern PAGE = Pattern.compile("(?iu)[-–—(\\[]?\\s*(?:p\\.?|page|쪽)?\\s*\\d{1,3}\\s*(?:쪽|/\\s*\\d{1,3})?\\s*[-–—)\\]]?");
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     private static final Pattern SCENE = Pattern.compile(
             "(?iu)(?:s\\s*#\\s*\\d+|#\\s*\\d+|씬\\s*\\d+|scene\\s+[0-9ivx]+|act\\s+[0-9ivx]+|int\\.|ext\\.|"
@@ -110,8 +110,8 @@ public final class RuleSplit {
     private static final Pattern MINOR_NOT = Pattern.compile(".*(?:이|서|고|도|만|지|니|나|한테|에게|께|랑|와|과|로|의|면|며|데|게|는|은|가|를|을|에|요|다|야|어|아)");
     /** 탭으로 나눈 머리: 「택배⇥…」. 표에서 옮긴 대본이 이 모양이다. */
     private static final Pattern TAB_HEAD = Pattern.compile("([^\\t]{1,12}?)\\s*\\t\\s*(?=\\S)");
-    /** 띄어쓰기 두 칸 이상으로 나눈 머리. 탭과 함께 강한 구분이다. */
-    private static final Pattern WIDE_HEAD = Pattern.compile("(\\S{1,8})(\\s{2,}|\\t)(?=\\S)");
+    /** 띄어쓰기 두 칸 이상이나 탭으로 나눈 머리({@link #wideName}). 강한 구분이다. */
+    private static final Pattern WIDE_HEAD = Pattern.compile("(\\S{1,8})(\\s+)(?=\\S)");
     /** 마침표·서술 끝으로 닫힌 줄. */
     private static final Pattern CLOSED = Pattern.compile(".*(?:[.。]|다|음|함|중)[\"”’')）]*");
     /** 서술 지문 끝 — 「~한다.」「~선다.」「~있다.」 */
@@ -121,7 +121,7 @@ public final class RuleSplit {
     /** 「[페이지] 12」처럼 쪽을 대괄호로 적은 줄. */
     private static final Pattern BRACKET_PAGE = Pattern.compile("\\[[^\\]]{1,10}]\\s*\\d{1,4}\\s*");
     /** 「[막] 1장」「[씬 3]」처럼 장면을 대괄호로 적은 줄. */
-    private static final Pattern BRACKET_SCENE = Pattern.compile("\\[\\s*(?:막|장|씬|장면|scene|act)\\s*[0-9]*\\s*]\\s*.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BRACKET_SCENE = Pattern.compile("\\[\\s*(?:막|장|씬|장면|scene|act)\\s*[0-9]*\\s*]\\s*.*", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     /** 블록 이름 줄: 짧은 이름 하나(괄호 꼬리 허용 — 「민수 (V.O.)」). */
     private static final Pattern NAME_LINE = Pattern.compile("([\\p{L}\\p{N}][\\p{L}\\p{N} ]{0,10}?)\\s*(?:[(（][^)）]{1,12}[)）])?");
     /** 문장으로 끝나거나 말을 담은 글 — 이름이 아니다. */
@@ -205,7 +205,7 @@ public final class RuleSplit {
             if (name != null && nameLike(name) && !spacedLine) first.merge(name, 1, Integer::sum);
             name = group(TAB_HEAD, t);
             if (name != null && nameLike(name.strip())) tab.merge(name.strip(), 1, Integer::sum);
-            name = group(WIDE_HEAD, t);
+            name = wideName(t);
             if (name != null && nameLike(name)) wide.merge(name, 1, Integer::sum);
         }
         String firstLine = firstIndex < 0 ? "" : text.get(firstIndex);
@@ -761,6 +761,14 @@ public final class RuleSplit {
             out.add(b.toString());
         }
         return out;
+    }
+
+    /** 두 칸 이상 띄우거나 탭으로 떨어진 줄 앞 낱말. */
+    private static String wideName(String t) {
+        Matcher m = WIDE_HEAD.matcher(t);
+        if (!m.lookingAt()) return null;
+        String gap = m.group(2);
+        return gap.length() >= 2 || gap.indexOf('\t') >= 0 ? m.group(1) : null;
     }
 
     /** 장면 표기 줄인가. */
