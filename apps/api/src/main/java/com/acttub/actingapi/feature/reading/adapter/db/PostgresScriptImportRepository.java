@@ -11,6 +11,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
+import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
@@ -29,6 +30,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class PostgresScriptImportRepository implements ScriptImportRepository {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(PostgresScriptImportRepository.class);
     private static final String KIND = com.acttub.actingapi.platform.schema.AiJobKind.SCRIPT_SPLIT.dbValue();
     /** 하루 한도의 날짜 경계는 한국 자정이다(고품질 목소리·챌린지 리포트와 같다). */
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -37,14 +39,26 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     private final ScriptRepository scripts;
     private final ScriptUploadRepository uploads;
     private final AiJobLedger ledger;
+    private final boolean reuseEnabled;
+    private final int reuseMaxAgeDays;
 
+    @org.springframework.beans.factory.annotation.Autowired
     PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
-            ScriptUploadRepository uploads, AiJobLedger ledger) {
+            ScriptUploadRepository uploads, AiJobLedger ledger,
+            @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_ENABLED:true}") boolean reuseEnabled,
+            @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS:30}") int reuseMaxAgeDays) {
         this.em = em;
         this.transaction = new TransactionTemplate(manager);
         this.scripts = scripts;
         this.uploads = uploads;
         this.ledger = ledger;
+        this.reuseEnabled = reuseEnabled;
+        this.reuseMaxAgeDays = reuseMaxAgeDays;
+    }
+
+    PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
+            ScriptUploadRepository uploads, AiJobLedger ledger) {
+        this(em, manager, scripts, uploads, ledger, true, 30);
     }
 
     /**
@@ -139,13 +153,19 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             UUID jobId = null;
             UUID scriptId = null;
             int lines = 0;
-            if (sample != null) {
-                ScriptRepository.Creation created = scripts.create(userId, requestId, fingerprint, sample, scriptLimit);
+            boolean reused = false;
+            ScriptDraft ready = sample;
+            if (ready == null && !submission.allowDuplicate() && reuseEnabled && reuseMaxAgeDays > 0) {
+                ready = reusable(submission, userId, now);
+                reused = ready != null;
+            }
+            if (ready != null) {
+                ScriptRepository.Creation created = scripts.create(userId, requestId, fingerprint, ready, scriptLimit);
                 if (created.outcome() == ScriptRepository.Outcome.OVER_LIMIT) {
                     return new Requested(null, null, Outcome.OVER_SCRIPT_LIMIT);
                 }
                 scriptId = created.scriptId();
-                lines = sample.lines().size();
+                lines = ready.lines().size();
             } else {
                 long today = ((Number) em.createNativeQuery(
                         "SELECT count(*) FROM ai_jobs WHERE user_id=:userId AND kind=:kind AND created_at>=:since")
@@ -173,8 +193,63 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                     .setParameter("hash", submission.rawHash()).setParameter("jobId", jobId).setParameter("scriptId", scriptId)
                     .setParameter("lines", lines).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
             if (scriptId != null) linkUpload(importId, scriptId, now);
+            if (reused) {
+                LOG.info("script split reused: reused=true importId={} scriptId={} lines={}", importId, scriptId, lines);
+                return new Requested(importId, null, Outcome.REUSED);
+            }
             return new Requested(importId, null, Outcome.ACCEPTED);
         });
+    }
+
+    /**
+     * 같은 글(raw_hash)로 서버가 이미 나눠 둔, 아무도 고치지 않은 가장 최근 대본의 구조(배역·줄)를 요청자의 제목·원문으로 새 초안으로 만든다. 없으면 {@code null}.
+     *
+     * <p>원본 조건: ① {@code script_imports.script_id} 로 이어진 서버 나누기 결과(기기가 보낸 구조·예시 제외) ② {@code updated_at = created_at}
+     * — 제목·배역·줄을 고치는 모든 길이 {@code scripts.updated_at} 을 올리고, 만들 때는 한 트랜잭션의 {@code now()} 라 같다. 편집 흔적이 있으면
+     * 쓰지 않는다 ③ 나이 상한 이내. 줄·배역만 읽는다 — 메모·회차·녹음·목소리 설정은 만지지 않는다(배역 목소리는 새로 비움).
+     */
+    private ScriptDraft reusable(Submission submission, UUID userId, Instant now) {
+        var found = list(em.createNativeQuery("""
+                SELECT s.id FROM scripts s
+                WHERE s.raw_hash=:hash AND s.source IN ('file','paste','typed') AND s.updated_at=s.created_at
+                  AND s.created_at>=:since AND s.user_id<>:userId
+                  AND EXISTS (SELECT 1 FROM script_imports i WHERE i.script_id=s.id)
+                ORDER BY s.created_at DESC,s.id DESC LIMIT 1
+                """, Tuple.class).setParameter("hash", submission.rawHash()).setParameter("userId", userId)
+                .setParameter("since", now.minus(java.time.Duration.ofDays(reuseMaxAgeDays)).atOffset(ZoneOffset.UTC)));
+        if (found.isEmpty()) return null;
+        UUID source = found.getFirst().get("id", UUID.class);
+        var characters = list(em.createNativeQuery("""
+                SELECT c.id,c.name,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,c.unnamed
+                FROM script_characters c WHERE c.script_id=:id ORDER BY c.sort_order
+                """, Tuple.class).setParameter("id", source));
+        var lines = list(em.createNativeQuery("""
+                SELECT l.ordinal,l.kind,l.character_id,l.text,l.lang,l.speech
+                FROM script_lines l WHERE l.script_id=:id ORDER BY l.ordinal
+                """, Tuple.class).setParameter("id", source));
+        if (lines.isEmpty()) return null;
+        java.util.Map<UUID, Integer> index = new java.util.HashMap<>();
+        for (int i = 0; i < characters.size(); i++) index.put(characters.get(i).get("id", UUID.class), i);
+        List<String> names = new java.util.ArrayList<>();
+        List<CharacterTraits> traits = new java.util.ArrayList<>();
+        List<List<Integer>> members = new java.util.ArrayList<>();
+        boolean unnamed = false;
+        for (Tuple c : characters) {
+            names.add(c.get("name", String.class));
+            traits.add(CharacterTraits.parse(c.get("gender", String.class), c.get("age_band", String.class)));
+            String ids = c.get("member_ids", String.class);
+            members.add(ids == null || ids.isEmpty() ? List.of()
+                    : java.util.stream.Stream.of(ids.split(",")).map(id -> index.get(UUID.fromString(id))).toList());
+            unnamed |= Boolean.TRUE.equals(c.get("unnamed", Boolean.class));
+        }
+        List<ScriptDraft.Line> draftLines = new java.util.ArrayList<>();
+        for (Tuple l : lines) {
+            UUID character = l.get("character_id", UUID.class);
+            draftLines.add(new ScriptDraft.Line(((Number) l.get("ordinal")).intValue(), l.get("kind", String.class),
+                    character == null ? null : index.get(character), l.get("text", String.class), l.get("lang", String.class),
+                    l.get("speech", String.class)));
+        }
+        return new ScriptDraft(submission.title(), submission.rawText(), submission.source(), names, draftLines, traits, members, unnamed);
     }
 
     @Override
