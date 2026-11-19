@@ -15,9 +15,6 @@ import { BusinessInfo } from "@/features/business-info/business-info";
  * 웹은 앱 탭을 옮기지 않는다 — 가입 없이 해 보는 체험(리딩·코칭), 챌린지 소개, 요금, 고객센터, 계정, 앱 받기만 둔다.
  */
 export const SITE_NAV = [
-  { href: "/?intro=1#reading", label: "대본 리딩" },
-  { href: "/?intro=1#coaching", label: "연기 코칭" },
-  { href: "/?intro=1#challenge", label: "챌린지" },
   { href: "/pricing", label: "요금" },
   { href: "/blog", label: "블로그" },
 ] as const;
