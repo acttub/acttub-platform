@@ -45,6 +45,8 @@ public interface ScriptImportRepository {
 
     enum Outcome {
         ACCEPTED,
+        /** 같은 글의 편집 없는 나누기 결과를 복사해 모델 없이 대본까지 만들었다(202 와 같고 하루 한도에 세지 않는다). */
+        REUSED,
         REPLAYED,
         IN_FLIGHT,
         DUPLICATE,

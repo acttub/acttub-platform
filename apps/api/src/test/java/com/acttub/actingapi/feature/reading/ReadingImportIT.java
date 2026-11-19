@@ -365,6 +365,57 @@ class ReadingImportIT {
         assertThat(count("ai_jobs")).isEqualTo(1);
     }
 
+    private JsonNode requestAs(UUID user, String title, String text) throws Exception {
+        var response = perform(post("/v2/reading/imports").contentType(MediaType.APPLICATION_JSON)
+                .content(request(UUID.randomUUID(), title, text, "paste")), "Bearer " + jwt.issueAccessToken(user).value());
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(202);
+        return mapper.readTree(response.getContentAsString());
+    }
+
+    @Test
+    @DisplayName("나누기 재사용: 다른 사람이 같은 글을 이미 나눴고 고치지 않았으면 모델·장부 없이 구조만 복사해 요청자 제목의 새 대본이 곧 succeeded 이고 하루 한도에 세지 않는다")
+    void reusesAnUntouchedSplitOfAnotherUser() throws Exception {
+        String text = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
+        String original = split(text);
+        assertThat(Model.CALLS).hasSize(1);
+        UUID other = member();
+        JsonNode ticket = requestAs(other, "내 제목", text);
+        JsonNode status = mapper.readTree(perform(get("/v2/reading/imports/{id}", ticket.path("import_id").textValue()),
+                "Bearer " + jwt.issueAccessToken(other).value()).getContentAsString());
+        assertThat(status.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(Model.CALLS).hasSize(1);
+        assertThat(count("ai_jobs")).isEqualTo(1);
+        String copied = status.path("script_id").textValue();
+        assertThat(copied).isNotEqualTo(original);
+        assertThat(jdbc.queryForObject("SELECT user_id FROM scripts WHERE id=?::uuid", UUID.class, copied)).isEqualTo(other);
+        assertThat(jdbc.queryForObject("SELECT title FROM scripts WHERE id=?::uuid", String.class, copied)).isEqualTo("내 제목");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM script_lines WHERE script_id=?::uuid", Integer.class, copied))
+                .isEqualTo(jdbc.queryForObject("SELECT count(*) FROM script_lines WHERE script_id=?::uuid", Integer.class, original));
+        assertThat(jdbc.queryForObject("SELECT string_agg(name,',' ORDER BY sort_order) FROM script_characters WHERE script_id=?::uuid",
+                String.class, copied)).isEqualTo(jdbc.queryForObject(
+                "SELECT string_agg(name,',' ORDER BY sort_order) FROM script_characters WHERE script_id=?::uuid", String.class, original));
+    }
+
+    @Test
+    @DisplayName("나누기 재사용: 원본을 고쳤거나(줄·제목 편집으로 updated_at 이 오름) 나이 상한을 넘었으면 쓰지 않고 새로 나눈다")
+    void doesNotReuseEditedOrStaleSplits() throws Exception {
+        String text = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
+        String original = split(text);
+        jdbc.update("UPDATE scripts SET updated_at=now()+interval '1 second' WHERE id=?::uuid", original);
+        assertThat(requestAs(member(), null, text).path("import_id").isTextual()).isTrue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(Model.CALLS).hasSize(2);
+
+        jdbc.update("UPDATE scripts SET updated_at=created_at WHERE id=?::uuid", original);
+        jdbc.update("UPDATE scripts SET created_at=?, updated_at=? WHERE id=?::uuid",
+                java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), original);
+        jdbc.update("UPDATE scripts SET created_at=?, updated_at=? WHERE id<>?::uuid AND raw_hash=(SELECT raw_hash FROM scripts WHERE id=?::uuid)",
+                java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), original, original);
+        requestAs(member(), null, text);
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(Model.CALLS).hasSize(3);
+    }
+
     @Test
     @DisplayName("SOMA-593 7-2 0번: 예시 대본과 같은 글은 모델 없이 바로 저장돼 곧 succeeded 이고 하루 한도에 세지 않는다")
     void sampleScriptSkipsTheModel() throws Exception {
