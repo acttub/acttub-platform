@@ -87,7 +87,7 @@ public class ScriptImportService {
             case OVER_DAILY_LIMIT -> throw new ApiException(429, "script_split_daily_limit");
             case DUPLICATE -> new Ticket(null, requested.duplicateScriptId(), false);
             case REPLAYED, IN_FLIGHT -> new Ticket(requested.importId(), null, false);
-            case ACCEPTED -> new Ticket(requested.importId(), null, true);
+            case ACCEPTED, REUSED -> new Ticket(requested.importId(), null, true);
         };
     }
 
