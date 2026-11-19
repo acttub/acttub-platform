@@ -73,7 +73,7 @@ public final class RuleSplit {
 
     /** 보이지 않거나 공백 노릇만 하는 글자 — 폭 없는 공백, BOM, 단어 결합자, 한글 채움 문자(ㅤ·ﾠ·초성·중성 채움), 줄바꿈 없는 공백들. */
     private static final Pattern INVISIBLE = Pattern.compile("[\\u0000\\u200B-\\u200D\\uFEFF\\u2060\\u3164\\uFFA0\\u115F\\u1160\\u00A0\\u2007\\u202F]");
-    private static final Pattern PAGE = Pattern.compile("(?iu)[-–—(\\[]?\\s*(?:p\\.?|page|쪽)?\\s*\\d{1,3}\\s*(?:쪽|/\\s*\\d{1,3})?\\s*[-–—)\\]]?");
+    private static final Pattern PAGE = Pattern.compile("(?iu)[-–—(\\[]?\\s*+(?:p\\.?|page|쪽)?\\s*+\\d{1,3}\\s*+(?:쪽|/\\s*+\\d{1,3})?\\s*+[-–—)\\]]?");
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     private static final Pattern SCENE = Pattern.compile(
             "(?iu)(?:s\\s*#\\s*\\d+|#\\s*\\d+|씬\\s*\\d+|scene\\s+[0-9ivx]+|act\\s+[0-9ivx]+|int\\.|ext\\.|"
@@ -83,23 +83,22 @@ public final class RuleSplit {
     /** 이름 줄 괄호 속 목소리 표시 — 「민수 (V.O.)」는 이름 줄이고, 「민수 (창밖을 본다)」는 그 사람의 행동 지문이다. */
     private static final Pattern VOICE_MARK = Pattern.compile(
             "(?iu)\\s*(?:v\\.?\\s*o\\.?|o\\.?\\s*s\\.?|o\\.?\\s*c\\.?|e|f|off|cont'?d|소리|목소리|전화|전화\\s*목소리|내레이션|나레이션|독백|방백|노래|이어서|계속|속마음|생각|화면|영상|녹음|음성)\\s*");
-    private static final Pattern NAME_PAREN = Pattern.compile(".*?[(（]([^)）]*)[)）]\\s*");
     /** 장면 표기 더 — 「12. 거실, 밤」「- 암전 -」「장면 2」「S# 골목 - 밤」. */
     private static final Pattern SCENE_MORE = Pattern.compile(
             "(?iu)\\d{1,3}\\.\\s*[^.!?]{1,20}?[,/\\-–].*|[-–—=~*]\\s*[가-힣A-Za-z]{1,4}\\s*[-–—=~*]|"
                     + "(?:장면|막|장|씬|신|에피소드|챕터|파트|part|chapter|episode)\\s*\\d{1,3}\\s*[.:]?|s\\s*#.*");
     /** 작가·연출 표기 줄. 「작」「글」은 쌍점이 있을 때만(「글쎄, …」는 대사다). */
     private static final Pattern AUTHOR = Pattern.compile(
-            "(?iu)(?:(?:작|글)\\s*[:：]|(?:극본|각본|각색|원작|연출|작가|지은이)\\s*[:：]?|written by\\b|by\\s)\\s*\\S.*");
+            "(?iu)(?:(?:작|글)\\s*+[:：]|(?:극본|각본|각색|원작|연출|작가|지은이)\\s*+[:：]?+|written by\\b|by(?=\\s))\\s*+\\S.*");
     /** 만든 사람 표기 — 「지도교사 : …」「무대감독: …」. 대사 앞이면 제목 묶음이다. */
     private static final Pattern CREDIT = Pattern.compile(
             "(?iu)(?:지도\\s*(?:교사|선생님?)|학생\\s*연출|조연출|연출|무대\\s*감독|기획(?:\\s*팀장)?|제작|프로듀서|pd|촬영|편집|안무|"
                     + "음악\\s*감독|음향|조명|의상|분장|소품|무대|무대\\s*디자인|드라마투르그|각색|극본|작가|원작|번역|출연)"
                     + "(?:\\s*(?:감독|팀장|담당|팀|디자이너|디자인|크루))?");
     private static final Pattern CAST_HEADER = Pattern.compile(
-            "(?iu)(?:등장\\s*인물|나오는\\s*(?:사람들?|이들?|인물들?)|등장인물\\s*소개|배역|인물|cast|characters)\\s*(?:[:：]\\s*(.*))?");
+            "(?iu)(?:등장\\s*+인물|나오는\\s*+(?:사람들?|이들?|인물들?)|등장인물\\s*+소개|배역|인물|cast|characters)\\s*+(?:[:：]\\s*+(.*))?");
     /** 소개 줄: 「윤기 --- 서른둘」「민재: 스물일곱, …」「세라(29) …」「아이, 일곱 살」. */
-    private static final Pattern CAST_LINE = Pattern.compile("([^\\s:：,(（\\-–—]{1,12}(?: [0-9A-Za-z]{1,3})?)\\s*(?:[-–—]{1,3}|[:：]|[,(（]|\\s{2,})\\s*\\S.*");
+    private static final Pattern CAST_LINE = Pattern.compile("([^\\s:：,(（\\-–—]{1,12}(?: [0-9A-Za-z]{1,3})?)(?:\\s*+(?:[-–—]{1,3}|[:：]|[,(（])|\\s{2,}+)\\s*+\\S.*");
     private static final Pattern COLON_HEAD = Pattern.compile("([^\\s:：()（）\\[\\]][^:：]{0,13}?)\\s*[:：]\\s*(?=\\S)");
     private static final Pattern BRACKET_HEAD = Pattern.compile("\\[\\s*([^\\]]{1,12}?)\\s*]\\s*(?=\\S)");
     private static final Pattern PERIOD_HEAD = Pattern.compile("([A-Z][A-Z'\\- ]{0,18}[A-Z])\\.\\s+(?=\\S)");
@@ -116,12 +115,13 @@ public final class RuleSplit {
     private static final Pattern CLOSED = Pattern.compile(".*(?:[.。]|다|음|함|중)[\"”’')）]*");
     /** 서술 지문 끝 — 「~한다.」「~선다.」「~있다.」 */
     private static final Pattern NARRATIVE = Pattern.compile(".*(?:[는ㄴ]다|한다|있다|없다|된다|본다|간다|온다|선다|앉는다|든다|난다|진다|켠다|끈다)[.。]?[\"”’']?");
-    /** 대사 말투로 끝나는 줄. */
-    private static final Pattern SPEECH_END = Pattern.compile(".*(?:[?!~♪]|요|야|아|어|여|해|워|와|라|냐|지|니|까|네|래|게|줘|자|죠|군|구나|거든|잖아|라고|는데|는걸|ㅋ|ㅎ)[.!?…~]*[\"”’']?");
+    /** 대사 말투 끝말 — {@link #speechEnd}. */
+    private static final List<String> SPEECH_ENDINGS = List.of("♪", "요", "야", "아", "어", "여", "해", "워", "와", "라", "냐", "지", "니", "까", "네",
+            "래", "게", "줘", "자", "죠", "군", "구나", "거든", "잖아", "라고", "는데", "는걸", "ㅋ", "ㅎ");
     /** 「[페이지] 12」처럼 쪽을 대괄호로 적은 줄. */
     private static final Pattern BRACKET_PAGE = Pattern.compile("\\[[^\\]]{1,10}]\\s*\\d{1,4}\\s*");
     /** 「[막] 1장」「[씬 3]」처럼 장면을 대괄호로 적은 줄. */
-    private static final Pattern BRACKET_SCENE = Pattern.compile("\\[\\s*(?:막|장|씬|장면|scene|act)\\s*[0-9]*\\s*]\\s*.*", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern BRACKET_SCENE = Pattern.compile("\\[\\s*+(?:막|장|씬|장면|scene|act)\\s*+[0-9]*+\\s*+]\\s*+.*", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     /** 블록 이름 줄: 짧은 이름 하나(괄호 꼬리 허용 — 「민수 (V.O.)」). */
     private static final Pattern NAME_LINE = Pattern.compile("([\\p{L}\\p{N}][\\p{L}\\p{N} ]{0,10}?)\\s*(?:[(（][^)）]{1,12}[)）])?");
     /** 문장으로 끝나거나 말을 담은 글 — 이름이 아니다. */
@@ -433,7 +433,8 @@ public final class RuleSplit {
                 if (text.blank(i)) continue;
                 seen++;
                 String t = text.get(i);
-                String alone = t.replaceFirst("\\s*[:：]\\s*$", "");
+                String trimmed = t.stripTrailing();
+                String alone = trimmed.endsWith(":") || trimmed.endsWith("：") ? trimmed.substring(0, trimmed.length() - 1).stripTrailing() : t;
                 String name = seen > 1 ? standaloneName(alone) : null;
                 if (name != null && hangulName(name.replace(" ", ""))) {
                     monologueName = name;
@@ -606,8 +607,11 @@ public final class RuleSplit {
      */
     private static boolean told(String t) {
         if (narrative(t)) return true;
-        if (SPEECH_END.matcher(t).matches()) return false;
-        String bare = t.replaceAll("[\\s.。…\"”’')）]+$", "");
+        if (speechEnd(t)) return false;
+        int stop = t.length();
+        // 공백은 정규식 \\s 와 같은 ASCII 공백만 — 끝의 공백·마침표·말줄임·따옴표·닫는 괄호를 걷는다
+        while (stop > 0 && " \t\n\u000B\f\r.。…\"”’')）".indexOf(t.charAt(stop - 1)) >= 0) stop--;
+        String bare = t.substring(0, stop);
         if (bare.length() < 2 || !bare.endsWith("다")) return false;
         char before = bare.charAt(bare.length() - 2);
         boolean finalN = before >= 0xAC00 && before <= 0xD7A3 && (before - 0xAC00) % 28 == 4;
@@ -682,7 +686,7 @@ public final class RuleSplit {
             cast.add(i);
             String inline = header.group(1);
             if (inline != null && !inline.isBlank()) {
-                for (String name : inline.split("\\s*[,，、/·]\\s*")) {
+                for (String name : inline.split("[,，、/·]")) {
                     String n = name.strip();
                     if (nameLike(n)) names.add(n);
                 }
@@ -809,7 +813,7 @@ public final class RuleSplit {
             return !t.contains("?") && !t.contains("!");
         }
         // 「~다.」「~국.」처럼 마침표나 서술로 끝나면 지문. 대사 말투로 끝나거나 부호 없이 끝나는 줄(노랫말)은 아니다.
-        return !SPEECH_END.matcher(t).matches() && CLOSED.matcher(t).matches();
+        return !speechEnd(t) && CLOSED.matcher(t).matches();
     }
 
     /** 줄 앞 한 글자씩 띄운 글의 이어 붙인 앞부분들(2글자 이상). 「베 티 가 …」→ 베티, 베티가. */
@@ -841,13 +845,45 @@ public final class RuleSplit {
 
     /** 이름 줄의 괄호가 목소리 표시가 아닌 행동인가 — 「도윤 (창밖을 본다)」. 괄호가 없으면 아니다. */
     private static boolean actionParen(String t) {
-        Matcher m = NAME_PAREN.matcher(t);
-        return m.matches() && !m.group(1).isBlank() && !VOICE_MARK.matcher(m.group(1)).matches();
+        String inside = tailParen(t);
+        return inside != null && !inside.isBlank() && !VOICE_MARK.matcher(inside).matches();
+    }
+
+    /**
+     * 줄 끝 괄호의 안쪽 — 끝이 닫는 괄호(뒤 공백 허용)이고, 그 앞 마지막 닫는 괄호 뒤에서 처음 여는 괄호부터 끝 괄호 앞까지다. 없으면 null.
+     * 「도윤 (창밖을 본다)」→「창밖을 본다」. 정규식 「.*?[(（]([^)）]*)[)）]\\s*」와 같고 되짚기가 없다.
+     */
+    static String tailParen(String t) {
+        String s = t.stripTrailing();
+        if (s.isEmpty() || ")）".indexOf(s.charAt(s.length() - 1)) < 0) return null;
+        int close = s.length() - 1;
+        int from = Math.max(s.lastIndexOf(')', close - 1), s.lastIndexOf('）', close - 1)) + 1;
+        for (int k = from; k < close; k++) {
+            if (s.charAt(k) == '(' || s.charAt(k) == '（') return s.substring(k + 1, close);
+        }
+        return null;
+    }
+
+    /**
+     * 대사 말투로 끝나는가 — 끝 따옴표 하나와 끝의 「.!?…~」를 걷은 뒤, 걷은 것에 「?!~」가 있거나 남은 글이 대사 끝말(「~요」「~야」「♪」…)로
+     * 끝난다. 정규식 「.*(?:[?!~♪]|요|…)[.!?…~]*["”’']?」와 같고 되짚기가 없다 — 다만 줄 가운데 유니코드 줄 구분(U+2028)이 있어도
+     * 판정한다(정규식의 「.」이 그 글자를 넘지 못해 늘 아니라고 했다, 운영 대본 4줄).
+     */
+    static boolean speechEnd(String t) {
+        String s = t;
+        if (!s.isEmpty() && "\"”’'".indexOf(s.charAt(s.length() - 1)) >= 0) s = s.substring(0, s.length() - 1);
+        int end = s.length();
+        while (end > 0 && ".!?…~".indexOf(s.charAt(end - 1)) >= 0) end--;
+        for (int k = end; k < s.length(); k++) {
+            if ("?!~".indexOf(s.charAt(k)) >= 0) return true;
+        }
+        String head = s.substring(0, end);
+        return SPEECH_ENDINGS.stream().anyMatch(head::endsWith);
     }
 
     /** 서술 지문 말투인가(이름으로 시작하는 줄의 나머지). */
     private static boolean narrative(String body) {
-        return NARRATIVE.matcher(body).matches() && !SPEECH_END.matcher(body).matches();
+        return NARRATIVE.matcher(body).matches() && !speechEnd(body);
     }
 
     /** 쪽 번호 줄 바로 앞뒤인가. */
