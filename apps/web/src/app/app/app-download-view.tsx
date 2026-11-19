@@ -4,18 +4,11 @@ import Image from "next/image";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StoreBadges } from "@/features/app-download/store-badges";
-import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
-import { SiteLink } from "@/features/site/site-link";
-import {
-  COACHING_TRIAL_PATH,
-  READING_TRIAL_PATH,
-  trialHref,
-} from "@/features/trial/trial-paths";
 
 // 인스타그램 프로필 링크와 네이버 검색광고가 이 주소를 가리킨다.
 // 사진·앱 화면 없이 글과 QR만 둔다. 컴퓨터에서는 QR과 두 스토어 배지, 폰에서는 큰 버튼 하나로
-// 설치까지 닿게 하고, 설치 전에 써 보고 싶은 사람에게는 가입 없이 해 보는 웹 체험을 건넨다(SOMA-834).
+// 설치까지 닿게 한다. 웹에서는 코칭·리딩을 하지 않는다(SOMA-1087).
 // 스토어 배지는 `/go/<os>/app_page` 로 나가므로 UTM 귀속과 클릭 집계 이벤트가 그대로 이어진다.
 
 const FOCUS =
@@ -26,26 +19,21 @@ const COLUMNS = [
     kicker: "대본 리딩",
     title: ["상대 대사는 AI가 읽고,", "내 차례엔 멈춰 기다려요"],
     body: "대본을 넣고 내 배역만 고르면 돼요. 내 대사는 가려 두고 외운 대로 말해 봐요.",
-    trial: READING_TRIAL_PATH,
   },
   {
     kicker: "연기 코칭",
     title: ["영상을 올리면", "코치가 보고 물어봐요"],
     body: "정답을 알려 주지 않아요. 질문에 답하다 보면 내가 무엇을 하고 있었는지 보여요.",
-    trial: COACHING_TRIAL_PATH,
   },
   {
     kicker: "대사 챌린지",
     title: ["매주 같은 대사를", "다른 배우들과 해 봐요"],
     body: "같은 한 줄을 사람마다 어떻게 하는지 보고 내 영상도 올려요. 챌린지는 앱에서만 돼요.",
-    trial: null,
   },
 ] as const;
 
 export default function AppDownloadView() {
-  const search = useCampaignSearch();
   const mobileHref = useAppDownloadHref("app_page");
-  const readingHref = trialHref(READING_TRIAL_PATH, "app_page", search);
 
   return (
     <div className="flex min-h-dvh flex-col bg-white text-[#191f28]">
@@ -97,23 +85,8 @@ export default function AppDownloadView() {
             >
               앱 받기
             </a>
-            <SiteLink
-              href={readingHref}
-              className={`mt-4 inline-block rounded text-sm font-semibold text-[#4e5968] underline underline-offset-4 ${FOCUS}`}
-            >
-              웹에서 먼저 해 보기
-            </SiteLink>
           </div>
 
-          <p className="mt-6 hidden text-sm text-[#6b7684] md:block">
-            설치 전에 먼저 해 보고 싶다면 ·{" "}
-            <SiteLink
-              href={readingHref}
-              className={`rounded font-bold text-[#191f28] underline underline-offset-4 ${FOCUS}`}
-            >
-              웹에서 리딩 해 보기
-            </SiteLink>
-          </p>
         </section>
 
         <section className="mx-auto max-w-[1200px] px-5 sm:px-8">
@@ -129,14 +102,6 @@ export default function AppDownloadView() {
                   <br className="hidden md:block" /> {column.title[1]}
                 </h2>
                 <p className="mt-3 text-[15px] leading-[1.7] text-[#6b7684]">{column.body}</p>
-                {column.trial ? (
-                  <SiteLink
-                    href={trialHref(column.trial, "app_page", search)}
-                    className={`mt-5 inline-block rounded text-[15px] font-bold text-[#191f28] underline underline-offset-4 ${FOCUS}`}
-                  >
-                    웹에서 먼저 해 보기
-                  </SiteLink>
-                ) : null}
               </div>
             ))}
           </div>
