@@ -29,9 +29,11 @@ import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
 import com.acttub.actingapi.feature.reading.domain.Monologue;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
+import com.acttub.actingapi.feature.reading.domain.RuleSplit;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitProgress;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.feature.reading.domain.SplitDraft;
@@ -95,6 +97,7 @@ public class ScriptSplitWorker {
     private final LineReview.Settings review;
     private final Double sameSpeaker;
     private final ScriptSplitListener listener;
+    private final ScriptSplitMode mode;
 
     public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
@@ -118,6 +121,14 @@ public class ScriptSplitWorker {
     public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
             Double sameSpeaker, ScriptSplitListener listener) {
+        this(ledger, imports, generator, telemetry, failures, clock, decider, review, sameSpeaker, listener, ScriptSplitMode.LLM);
+    }
+
+    /** @param mode 나누기 방식(SOMA-1090). {@link ScriptSplitMode#HYBRID} 면 규칙이 확신하는 대본은 모델 첫 판·줄 검토를 건너뛴다 */
+    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
+            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
+            Double sameSpeaker, ScriptSplitListener listener, ScriptSplitMode mode) {
+        this.mode = mode == null ? ScriptSplitMode.LLM : mode;
         this.listener = listener;
         this.decider = decider;
         this.review = review;
@@ -212,6 +223,13 @@ public class ScriptSplitWorker {
         Calls calls = new Calls(jobId, material.userId());
         // 다시 나누는 판과 그 뒤 문지기까지 합쳐 작업당 단계별 한 건이 되도록 작업 끝에서 남긴다 — 실패로 빠져나가도 남는다.
         try {
+            if (mode == ScriptSplitMode.RULES) {
+                // 풀규칙(SOMA-1090): 띄어쓰기 복원·이름 없는 대사로 다시 나누기·Jev 문지기 없이 규칙 한 번으로 끝낸다. 독백이면 「화자」 규칙으로.
+                List<NumberedLine> lines = NumberedLine.of(material.rawText());
+                imports.percent(importId, ScriptSplitProgress.SPACED);
+                boolean monologue = RuleSplit.full(lines, !material.skipScriptCheck()).roster().equals(List.of(Monologue.PLACEHOLDER));
+                return split(calls, importId, material, lines, UnaryOperator.identity(), !monologue);
+            }
             List<NumberedLine> lines = restoreSpacing(jobId, calls, NumberedLine.of(material.rawText()));
             imports.percent(importId, ScriptSplitProgress.SPACED);
             Split split = split(calls, importId, material, lines, UnaryOperator.identity(), true);
@@ -261,7 +279,35 @@ public class ScriptSplitWorker {
         Map<String, CharacterTraits> traits = Map.of();
         AtomicInteger done = new AtomicInteger();
         boolean judge = !material.skipScriptCheck();
-        if (chunks.size() == 1) {
+        // 규칙 나누기(SOMA-1090): 규칙이 확신하면 모델 첫 판을 건너뛰고, 규칙이 답하지 못한 줄만 아래 「빠진 줄 다시 묻기」로 모델에 보낸다.
+        boolean ruled = false;
+        if (mode == ScriptSplitMode.RULES) {
+            RuleSplit.Result rule = RuleSplit.full(lines, judge);
+            LOG.info("script split rules job={} format={} lines={} dialogues={} roster={}", calls.jobId, rule.format(), rule.total(),
+                    rule.dialogues(), rule.roster().size());
+            if (rule.dialogues() == 0) {
+                return Split.failed(ScriptImportFailure.NOT_SCRIPT);
+            }
+            rows.putAll(rule.rows());
+            roster = rule.roster();
+            ruled = true;
+            imports.progress(importId, lines.size(), lines.size());
+            imports.percent(importId, ScriptSplitProgress.SPLIT);
+        } else if (named && mode == ScriptSplitMode.HYBRID) {
+            RuleSplit.Result rule = RuleSplit.of(lines);
+            ruled = rule.confident();
+            LOG.info("script split rule job={} format={} lines={} answered={} dialogues={} roster={} ruled={}", calls.jobId, rule.format(),
+                    rule.total(), rule.rows().size(), rule.dialogues(), rule.roster().size(), ruled);
+            if (ruled) {
+                rows.putAll(rule.rows());
+                roster = rule.roster();
+                imports.progress(importId, rule.rows().size(), lines.size());
+                imports.percent(importId, ScriptSplitProgress.SPLIT);
+            }
+        }
+        if (ruled) {
+            // 첫 판은 규칙이 답했다
+        } else if (chunks.size() == 1) {
             SplitResponse first = calls.rows(prompt.apply(ScriptSplitPrompt.split(judge, roster, true)), chunks.getFirst(), NumberedLine.format(chunks.getFirst()));
             if (judge && first.notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
@@ -293,9 +339,11 @@ public class ScriptSplitWorker {
         Set<Integer> dropped = lines.stream().map(NumberedLine::no).filter(no -> !rows.containsKey(no)).collect(Collectors.toSet());
         // 효과음은 지문으로, 이름 조각은 원문 머리의 배역으로 고치거나 빠진 줄과 함께 다시 묻는다(SOMA-709) — 끝내 답이 없으면 첫 답으로 되돌린다.
         SplitResponse.sounds(rows);
-        Map<Integer, SplitResponse.Row> asked = named ? SplitResponse.fragments(lines, rows, roster) : Map.of();
+        // 풀규칙은 모든 줄에 답했다 — 이름 조각 다시 묻기·빠진 줄 다시 묻기를 하지 않는다
+        boolean rules = mode == ScriptSplitMode.RULES;
+        Map<Integer, SplitResponse.Row> asked = named && !rules ? SplitResponse.fragments(lines, rows, roster) : Map.of();
         String instructions = prompt.apply(ScriptSplitPrompt.missing(roster));
-        for (int round = 0; round < ScriptSplitRules.MISSING_ROUNDS; round++) {
+        for (int round = 0; round < (rules ? 0 : ScriptSplitRules.MISSING_ROUNDS); round++) {
             SplitResponse.fillSpeakers(lines, rows);
             List<NumberedLine> missing = lines.stream().filter(line -> !rows.containsKey(line.no())).toList();
             if (missing.isEmpty()) {
@@ -319,7 +367,8 @@ public class ScriptSplitWorker {
         ScriptDraft draft = first.draft();
         Map<Integer, String> speakers = first.speakers();
         Map<Integer, String> heads = first.heads();
-        if (decider != null && review != null) {
+        // 규칙이 나눈 대본은 줄 검토(Jev)를 건너뛴다 — 비용의 대부분이 여기다(SOMA-1090).
+        if (decider != null && review != null && !ruled) {
             Map<Integer, SplitResponse.Row> changed = first.assembledNames(review(calls.review, calls.jobId, importId, lines, rows, dropped, draft.characterNames()), rows);
             // 보기는 조립 이름(머리 이름 앞세우기 뒤 「은서」)인데 줄은 모델 이름(「강은서」)이다. Jev 가 바꾼 줄만 조립 이름이 되면 다시 조립할 때
             // 안 바뀐 줄이 모델 이름으로 남아 한 사람이 갈린다(SOMA-663 통합, 215). Jev 가 안 바꾼 대사 줄도 조립 이름으로 맞춘다 — 조립 이름으로
@@ -349,7 +398,7 @@ public class ScriptSplitWorker {
             speakers = again.speakers();
             heads = again.heads();
         }
-        if (decider != null && sameSpeaker != null) {
+        if (decider != null && sameSpeaker != null && !ruled) {
             Set<Integer> scenes = rows.values().stream().filter(row -> row.kind() == SplitResponse.Kind.SCENE).map(SplitResponse.Row::no)
                     .collect(Collectors.toSet());
             draft = sameSpeakers(calls.sameSpeaker, calls.jobId, lines, draft, speakers, heads, scenes);
@@ -360,7 +409,10 @@ public class ScriptSplitWorker {
         draft = Monologue.split(draft);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
-            Split finished = Split.of(languages(calls.jobId, calls, chunks.size() > 1 ? lateTraits(calls.jobId, calls, draft) : draft));
+            // 규칙이 나눈 대본은 첫 판의 「배역」 블록(성별·나이대)이 없어 길이와 상관없이 성별을 따로 묻는다(짧은 호출 하나).
+            ScriptDraft cast = chunks.size() > 1 || ruled ? lateTraits(calls.jobId, calls, draft) : draft;
+            // 풀규칙은 배역 성별만 묻는다 — 외국어 줄 판정은 하지 않는다
+            Split finished = Split.of(rules ? cast : languages(calls.jobId, calls, cast));
             imports.percent(importId, ScriptSplitProgress.SAVING);
             return finished;
         }
