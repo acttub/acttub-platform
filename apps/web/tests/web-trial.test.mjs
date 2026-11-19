@@ -61,13 +61,10 @@ test("체험 주소는 캠페인 값(UTM)을 그대로 싣고 from 으로 들어
   assert.equal(trialEntryFromSearch("?from=evil"), "quick_start");
 });
 
-test("머리 메뉴는 대본 리딩·연기 코칭이 랜딩 소개 구간으로 가고 순서가 정해져 있다", () => {
+test("머리 메뉴는 요금·블로그만 둔다", () => {
   assert.deepEqual(
     SITE_NAV.map((item) => [item.label, item.href]),
     [
-      ["대본 리딩", "/?intro=1#reading"],
-      ["연기 코칭", "/?intro=1#coaching"],
-      ["챌린지", "/?intro=1#challenge"],
       ["요금", "/pricing"],
       ["블로그", "/blog"],
     ],
