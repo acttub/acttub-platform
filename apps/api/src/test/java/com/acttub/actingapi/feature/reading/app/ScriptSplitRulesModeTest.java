@@ -23,6 +23,23 @@ class ScriptSplitRulesModeTest {
         return ScriptSplitRuleFixtureTest.fixtures().toList();
     }
 
+    @org.junit.jupiter.api.Test
+    void rulesModeMergesSurnamedAndGivenNamesAndStripsBothHeads() {
+        ScriptSplitFakes.Run run = ScriptSplitFakes.run("""
+                김민수: 안녕.
+                지수: 응.
+                민수: 왜 그렇게 봐?
+                지수: 그냥.
+                민수: 말해 봐.
+                김민수: 가자.""", ScriptSplitMode.RULES);
+
+        assertThat(run.saved().characterNames()).containsExactly("민수", "지수");
+        assertThat(run.keys(true)).containsExactly(ScriptSplitFakes.key("dialogue", "민수", "안녕."),
+                ScriptSplitFakes.key("dialogue", "지수", "응."), ScriptSplitFakes.key("dialogue", "민수", "왜 그렇게 봐?"),
+                ScriptSplitFakes.key("dialogue", "지수", "그냥."), ScriptSplitFakes.key("dialogue", "민수", "말해 봐."),
+                ScriptSplitFakes.key("dialogue", "민수", "가자."));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("fixtures")
     void rulesModeSplitsWithoutAskingTheModelExceptForCastTraits(String name) throws IOException {

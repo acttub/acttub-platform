@@ -404,6 +404,10 @@ public final class RuleSplit {
      * @param rejectProse 이름을 못 찾은 산문을 대본 아님(대사 0)으로 둘지. 사용자가 「그래도 나누기」를 골랐으면 false — 한 사람 독백으로 본다.
      */
     public static Result full(List<NumberedLine> lines, boolean rejectProse) {
+        return full(lines, rejectProse, true);
+    }
+
+    static Result full(List<NumberedLine> lines, boolean rejectProse, boolean mergeSurnames) {
         Result base = of(lines);
         Text text = new Text(lines);
         Map<Integer, Row> rows = new LinkedHashMap<>(base.rows());
@@ -518,10 +522,69 @@ public final class RuleSplit {
                 chain = null;
             }
         }
+        Map<String, String> merged = !mergeSurnames ? Map.of()
+                : surnameMerges(rows.values().stream().filter(row -> row.kind() == Kind.DIALOGUE).map(Row::speaker).toList());
+        if (!merged.isEmpty()) {
+            rows.replaceAll((no, row) -> row.kind() == Kind.DIALOGUE && merged.containsKey(row.speaker())
+                    ? new Row(no, Kind.DIALOGUE, merged.get(row.speaker()), row.header()) : row);
+        }
         List<String> roster = new ArrayList<>();
         rows.values().stream().sorted(java.util.Comparator.comparingInt(Row::no)).filter(row -> row.kind() == Kind.DIALOGUE)
                 .map(Row::speaker).distinct().forEach(roster::add);
         return new Result(rows, roster, base.format(), lines.size());
+    }
+
+    /** 흔한 한국 성씨 — 「김민수」의 「김」. 두 글자 성은 {@link #COMPOUND_SURNAMES}. 역할 이름 앞 글자로 흔한 「부」(부반장)는 뺐다. */
+    private static final Set<String> SURNAMES = Set.copyOf(List.of(("김 이 박 최 정 강 조 윤 장 임 한 오 서 신 권 황 안 송 류 유 전 홍 고 문 양 손"
+            + " 배 백 허 남 심 노 하 곽 성 차 주 우 구 민 진 나 지 엄 채 원 천 방 공 현 함 변 염 여 추 도 소 석 선 설 마 길 연 위 표 명 기 반 왕"
+            + " 금 옥 육 인 맹 제 모 탁 국 어 은 편 용 예 경 봉").split(" ")));
+    /** 성 뒤에 와도 사람 이름이 아니라 역할인 말 — 「여학생」·「학생」, 「전남편」·「남편」은 다른 사람이거나 묶을 근거가 없다. */
+    private static final Set<String> ROLE_WORDS = Set.of("학생", "남편", "아내", "원장", "반장", "대장", "주인", "부인", "사장", "회장", "선생",
+            "선생님", "형사", "의사", "기자", "직원", "손님", "경찰", "간호사", "교수", "교사", "군인", "병사", "장교", "소녀", "소년", "여자", "남자",
+            "아이", "아저씨", "아줌마", "할머니", "할아버지", "엄마", "아빠", "어머니", "아버지", "언니", "오빠", "누나", "동생", "친구", "사람", "청년",
+            "노인", "부장", "과장", "대리", "실장", "팀장", "국장", "비서", "기사", "배우", "감독", "작가", "가수", "점원", "사원", "신입", "주임",
+            "이장", "마님", "도령", "공주", "왕자", "대감", "영감", "상궁", "내관", "판사", "검사", "변호사", "목사", "신부", "수녀", "스님", "의원",
+            "시장", "소장", "차장", "부대장", "중대장", "소대장");
+    private static final Set<String> COMPOUND_SURNAMES = Set.of("남궁", "제갈", "선우", "황보", "독고", "사공", "서문", "동방", "어금", "망절");
+
+    /**
+     * 성 + 이름(「김민수」「김 민수」)과 이름만(「민수」「민 수」)으로 갈린 같은 사람을 하나로 묶는다(풀규칙). 이름 2~3글자만 본다. 같은 이름에
+     * 성이 둘 이상 붙어 있으면(「김민수」·「이민수」) 누가 누군지 몰라 묶지 않고, 성 뒤가 역할 낱말이면(「여학생」·「학생」) 묶지 않는다.
+     * 「민수 엄마」처럼 뒤에 말이 붙은 이름은 성 조합이 아니라 그대로다. 남기는 표기는 조립의 같은 사람 묶기와 같이 대사가 많은 쪽, 같으면 짧은 쪽,
+     * 그다음 먼저 나온 쪽이다 — 2026-11-19 운영 대본에서 AI가 하나로 둔 126쌍 중 99쌍이 이름만 쪽을 남겼다.
+     *
+     * @param speakers 대사 줄마다의 화자(같은 이름이 여러 번 — 대사 수를 센다)
+     * @return 바꿀 화자 표기 → 남길 화자 표기
+     */
+    public static Map<String, String> surnameMerges(List<String> speakers) {
+        Map<String, Integer> count = new LinkedHashMap<>();
+        speakers.forEach(speaker -> count.merge(speaker, 1, Integer::sum));
+        Map<String, List<String>> bySquash = new LinkedHashMap<>();
+        for (String speaker : count.keySet()) {
+            bySquash.computeIfAbsent(CharacterNames.squash(speaker), key -> new ArrayList<>()).add(speaker);
+        }
+        Map<String, List<String>> fullsByGiven = new HashMap<>();
+        for (String squashed : bySquash.keySet()) {
+            for (String surname : List.of(squashed.length() > 2 ? squashed.substring(0, 2) : "", squashed.substring(0, Math.min(1, squashed.length())))) {
+                if (surname.isEmpty() || !(SURNAMES.contains(surname) || COMPOUND_SURNAMES.contains(surname))) continue;
+                String given = squashed.substring(surname.length());
+                if (given.matches("\\p{IsHangul}{2,3}") && !ROLE_WORDS.contains(given) && bySquash.containsKey(given)) {
+                    fullsByGiven.computeIfAbsent(given, key -> new ArrayList<>()).add(squashed);
+                    break;
+                }
+            }
+        }
+        List<String> order = new ArrayList<>(count.keySet());
+        Map<String, String> merged = new HashMap<>();
+        fullsByGiven.forEach((given, fulls) -> {
+            if (fulls.size() != 1) return;
+            List<String> group = new ArrayList<>(bySquash.get(fulls.getFirst()));
+            group.addAll(bySquash.get(given));
+            String kept = java.util.Collections.min(group, java.util.Comparator.comparing((String name) -> -count.get(name))
+                    .thenComparing(name -> name.codePointCount(0, name.length())).thenComparing(order::indexOf));
+            group.stream().filter(name -> !name.equals(kept)).forEach(name -> merged.put(name, kept));
+        });
+        return merged;
     }
 
     /** 비운 줄 앞의 이름 같은 낱말 — 쌍점·대괄호 머리, 또는 조사로 끝나지 않는 한글 2~5자 첫 낱말. */
