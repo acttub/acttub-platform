@@ -314,6 +314,55 @@ class RuleSplitTest {
         assertThat(result.roster()).containsExactly("윤서", "미정");
     }
 
+    // ── 성 + 이름 묶기 (풀규칙) ──────────────────────────
+
+    @Test
+    void fullMergesASurnamedNameWithTheGivenName() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                김민수: 안녕.
+                지수: 응.
+                민수: 왜 그렇게 봐?
+                지수: 그냥.
+                민 수: 아니야.
+                김민수: 가자."""));
+
+        // 대사가 많은 쪽(「김민수」 2·「민수」 1·「민 수」 1)을 남긴다
+        assertThat(result.roster()).containsExactly("김민수", "지수");
+        assertThat(row(result, 3).speaker()).isEqualTo("김민수");
+        assertThat(row(result, 5).speaker()).isEqualTo("김민수");
+    }
+
+    @Test
+    void fullKeepsTwoSurnamesForTheSameGivenNameApart() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                김민수: 안녕.
+                이민수: 응.
+                민수: 누구 불렀어?
+                김민수: 너 말고.
+                이민수: 나?"""));
+
+        assertThat(result.roster()).containsExactly("김민수", "이민수", "민수");
+    }
+
+    @Test
+    void fullDoesNotMergeANameWithSomethingAfterIt() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                민수: 엄마 왔어?
+                민수 엄마: 그래.
+                민수: 배고파.
+                민수 엄마: 밥 먹자."""));
+
+        assertThat(result.roster()).containsExactly("민수", "민수 엄마");
+    }
+
+    @Test
+    void surnameMergesSkipRoleWords() {
+        assertThat(RuleSplit.surnameMerges(java.util.List.of("여학생", "학생", "전남편", "남편"))).isEmpty();
+        assertThat(RuleSplit.surnameMerges(java.util.List.of("남궁민수", "민수", "민수"))).containsEntry("남궁민수", "민수");
+        // 대사 수가 같으면 짧은 쪽
+        assertThat(RuleSplit.surnameMerges(java.util.List.of("김민수", "민수"))).containsEntry("김민수", "민수");
+    }
+
     // ── 풀규칙(모델 없이 모든 줄) ─────────────────────────
 
     @Test

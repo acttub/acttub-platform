@@ -73,7 +73,7 @@ public final class RuleSplit {
 
     /** 보이지 않거나 공백 노릇만 하는 글자 — 폭 없는 공백, BOM, 단어 결합자, 한글 채움 문자(ㅤ·ﾠ·초성·중성 채움), 줄바꿈 없는 공백들. */
     private static final Pattern INVISIBLE = Pattern.compile("[\\u0000\\u200B-\\u200D\\uFEFF\\u2060\\u3164\\uFFA0\\u115F\\u1160\\u00A0\\u2007\\u202F]");
-    private static final Pattern PAGE = Pattern.compile("(?iu)[-–—(\\[]?\\s*(?:p\\.?|page|쪽)?\\s*\\d{1,3}\\s*(?:쪽|/\\s*\\d{1,3})?\\s*[-–—)\\]]?");
+    private static final Pattern PAGE = Pattern.compile("(?iu)[-–—(\\[]?\\s*+(?:p\\.?|page|쪽)?\\s*+\\d{1,3}\\s*+(?:쪽|/\\s*+\\d{1,3})?\\s*+[-–—)\\]]?");
     private static final Pattern DIGITS = Pattern.compile("\\d+");
     private static final Pattern SCENE = Pattern.compile(
             "(?iu)(?:s\\s*#\\s*\\d+|#\\s*\\d+|씬\\s*\\d+|scene\\s+[0-9ivx]+|act\\s+[0-9ivx]+|int\\.|ext\\.|"
@@ -83,23 +83,22 @@ public final class RuleSplit {
     /** 이름 줄 괄호 속 목소리 표시 — 「민수 (V.O.)」는 이름 줄이고, 「민수 (창밖을 본다)」는 그 사람의 행동 지문이다. */
     private static final Pattern VOICE_MARK = Pattern.compile(
             "(?iu)\\s*(?:v\\.?\\s*o\\.?|o\\.?\\s*s\\.?|o\\.?\\s*c\\.?|e|f|off|cont'?d|소리|목소리|전화|전화\\s*목소리|내레이션|나레이션|독백|방백|노래|이어서|계속|속마음|생각|화면|영상|녹음|음성)\\s*");
-    private static final Pattern NAME_PAREN = Pattern.compile(".*?[(（]([^)）]*)[)）]\\s*");
     /** 장면 표기 더 — 「12. 거실, 밤」「- 암전 -」「장면 2」「S# 골목 - 밤」. */
     private static final Pattern SCENE_MORE = Pattern.compile(
             "(?iu)\\d{1,3}\\.\\s*[^.!?]{1,20}?[,/\\-–].*|[-–—=~*]\\s*[가-힣A-Za-z]{1,4}\\s*[-–—=~*]|"
                     + "(?:장면|막|장|씬|신|에피소드|챕터|파트|part|chapter|episode)\\s*\\d{1,3}\\s*[.:]?|s\\s*#.*");
     /** 작가·연출 표기 줄. 「작」「글」은 쌍점이 있을 때만(「글쎄, …」는 대사다). */
     private static final Pattern AUTHOR = Pattern.compile(
-            "(?iu)(?:(?:작|글)\\s*[:：]|(?:극본|각본|각색|원작|연출|작가|지은이)\\s*[:：]?|written by\\b|by\\s)\\s*\\S.*");
+            "(?iu)(?:(?:작|글)\\s*+[:：]|(?:극본|각본|각색|원작|연출|작가|지은이)\\s*+[:：]?+|written by\\b|by(?=\\s))\\s*+\\S.*");
     /** 만든 사람 표기 — 「지도교사 : …」「무대감독: …」. 대사 앞이면 제목 묶음이다. */
     private static final Pattern CREDIT = Pattern.compile(
             "(?iu)(?:지도\\s*(?:교사|선생님?)|학생\\s*연출|조연출|연출|무대\\s*감독|기획(?:\\s*팀장)?|제작|프로듀서|pd|촬영|편집|안무|"
                     + "음악\\s*감독|음향|조명|의상|분장|소품|무대|무대\\s*디자인|드라마투르그|각색|극본|작가|원작|번역|출연)"
                     + "(?:\\s*(?:감독|팀장|담당|팀|디자이너|디자인|크루))?");
     private static final Pattern CAST_HEADER = Pattern.compile(
-            "(?iu)(?:등장\\s*인물|나오는\\s*(?:사람들?|이들?|인물들?)|등장인물\\s*소개|배역|인물|cast|characters)\\s*(?:[:：]\\s*(.*))?");
+            "(?iu)(?:등장\\s*+인물|나오는\\s*+(?:사람들?|이들?|인물들?)|등장인물\\s*+소개|배역|인물|cast|characters)\\s*+(?:[:：]\\s*+(.*))?");
     /** 소개 줄: 「윤기 --- 서른둘」「민재: 스물일곱, …」「세라(29) …」「아이, 일곱 살」. */
-    private static final Pattern CAST_LINE = Pattern.compile("([^\\s:：,(（\\-–—]{1,12}(?: [0-9A-Za-z]{1,3})?)\\s*(?:[-–—]{1,3}|[:：]|[,(（]|\\s{2,})\\s*\\S.*");
+    private static final Pattern CAST_LINE = Pattern.compile("([^\\s:：,(（\\-–—]{1,12}(?: [0-9A-Za-z]{1,3})?)(?:\\s*+(?:[-–—]{1,3}|[:：]|[,(（])|\\s{2,}+)\\s*+\\S.*");
     private static final Pattern COLON_HEAD = Pattern.compile("([^\\s:：()（）\\[\\]][^:：]{0,13}?)\\s*[:：]\\s*(?=\\S)");
     private static final Pattern BRACKET_HEAD = Pattern.compile("\\[\\s*([^\\]]{1,12}?)\\s*]\\s*(?=\\S)");
     private static final Pattern PERIOD_HEAD = Pattern.compile("([A-Z][A-Z'\\- ]{0,18}[A-Z])\\.\\s+(?=\\S)");
@@ -116,12 +115,13 @@ public final class RuleSplit {
     private static final Pattern CLOSED = Pattern.compile(".*(?:[.。]|다|음|함|중)[\"”’')）]*");
     /** 서술 지문 끝 — 「~한다.」「~선다.」「~있다.」 */
     private static final Pattern NARRATIVE = Pattern.compile(".*(?:[는ㄴ]다|한다|있다|없다|된다|본다|간다|온다|선다|앉는다|든다|난다|진다|켠다|끈다)[.。]?[\"”’']?");
-    /** 대사 말투로 끝나는 줄. */
-    private static final Pattern SPEECH_END = Pattern.compile(".*(?:[?!~♪]|요|야|아|어|여|해|워|와|라|냐|지|니|까|네|래|게|줘|자|죠|군|구나|거든|잖아|라고|는데|는걸|ㅋ|ㅎ)[.!?…~]*[\"”’']?");
+    /** 대사 말투 끝말 — {@link #speechEnd}. */
+    private static final List<String> SPEECH_ENDINGS = List.of("♪", "요", "야", "아", "어", "여", "해", "워", "와", "라", "냐", "지", "니", "까", "네",
+            "래", "게", "줘", "자", "죠", "군", "구나", "거든", "잖아", "라고", "는데", "는걸", "ㅋ", "ㅎ");
     /** 「[페이지] 12」처럼 쪽을 대괄호로 적은 줄. */
     private static final Pattern BRACKET_PAGE = Pattern.compile("\\[[^\\]]{1,10}]\\s*\\d{1,4}\\s*");
     /** 「[막] 1장」「[씬 3]」처럼 장면을 대괄호로 적은 줄. */
-    private static final Pattern BRACKET_SCENE = Pattern.compile("\\[\\s*(?:막|장|씬|장면|scene|act)\\s*[0-9]*\\s*]\\s*.*", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern BRACKET_SCENE = Pattern.compile("\\[\\s*+(?:막|장|씬|장면|scene|act)\\s*+[0-9]*+\\s*+]\\s*+.*", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     /** 블록 이름 줄: 짧은 이름 하나(괄호 꼬리 허용 — 「민수 (V.O.)」). */
     private static final Pattern NAME_LINE = Pattern.compile("([\\p{L}\\p{N}][\\p{L}\\p{N} ]{0,10}?)\\s*(?:[(（][^)）]{1,12}[)）])?");
     /** 문장으로 끝나거나 말을 담은 글 — 이름이 아니다. */
@@ -404,6 +404,10 @@ public final class RuleSplit {
      * @param rejectProse 이름을 못 찾은 산문을 대본 아님(대사 0)으로 둘지. 사용자가 「그래도 나누기」를 골랐으면 false — 한 사람 독백으로 본다.
      */
     public static Result full(List<NumberedLine> lines, boolean rejectProse) {
+        return full(lines, rejectProse, true);
+    }
+
+    static Result full(List<NumberedLine> lines, boolean rejectProse, boolean mergeSurnames) {
         Result base = of(lines);
         Text text = new Text(lines);
         Map<Integer, Row> rows = new LinkedHashMap<>(base.rows());
@@ -429,7 +433,8 @@ public final class RuleSplit {
                 if (text.blank(i)) continue;
                 seen++;
                 String t = text.get(i);
-                String alone = t.replaceFirst("\\s*[:：]\\s*$", "");
+                String trimmed = t.stripTrailing();
+                String alone = trimmed.endsWith(":") || trimmed.endsWith("：") ? trimmed.substring(0, trimmed.length() - 1).stripTrailing() : t;
                 String name = seen > 1 ? standaloneName(alone) : null;
                 if (name != null && hangulName(name.replace(" ", ""))) {
                     monologueName = name;
@@ -518,10 +523,69 @@ public final class RuleSplit {
                 chain = null;
             }
         }
+        Map<String, String> merged = !mergeSurnames ? Map.of()
+                : surnameMerges(rows.values().stream().filter(row -> row.kind() == Kind.DIALOGUE).map(Row::speaker).toList());
+        if (!merged.isEmpty()) {
+            rows.replaceAll((no, row) -> row.kind() == Kind.DIALOGUE && merged.containsKey(row.speaker())
+                    ? new Row(no, Kind.DIALOGUE, merged.get(row.speaker()), row.header()) : row);
+        }
         List<String> roster = new ArrayList<>();
         rows.values().stream().sorted(java.util.Comparator.comparingInt(Row::no)).filter(row -> row.kind() == Kind.DIALOGUE)
                 .map(Row::speaker).distinct().forEach(roster::add);
         return new Result(rows, roster, base.format(), lines.size());
+    }
+
+    /** 흔한 한국 성씨 — 「김민수」의 「김」. 두 글자 성은 {@link #COMPOUND_SURNAMES}. 역할 이름 앞 글자로 흔한 「부」(부반장)는 뺐다. */
+    private static final Set<String> SURNAMES = Set.copyOf(List.of(("김 이 박 최 정 강 조 윤 장 임 한 오 서 신 권 황 안 송 류 유 전 홍 고 문 양 손"
+            + " 배 백 허 남 심 노 하 곽 성 차 주 우 구 민 진 나 지 엄 채 원 천 방 공 현 함 변 염 여 추 도 소 석 선 설 마 길 연 위 표 명 기 반 왕"
+            + " 금 옥 육 인 맹 제 모 탁 국 어 은 편 용 예 경 봉").split(" ")));
+    /** 성 뒤에 와도 사람 이름이 아니라 역할인 말 — 「여학생」·「학생」, 「전남편」·「남편」은 다른 사람이거나 묶을 근거가 없다. */
+    private static final Set<String> ROLE_WORDS = Set.of("학생", "남편", "아내", "원장", "반장", "대장", "주인", "부인", "사장", "회장", "선생",
+            "선생님", "형사", "의사", "기자", "직원", "손님", "경찰", "간호사", "교수", "교사", "군인", "병사", "장교", "소녀", "소년", "여자", "남자",
+            "아이", "아저씨", "아줌마", "할머니", "할아버지", "엄마", "아빠", "어머니", "아버지", "언니", "오빠", "누나", "동생", "친구", "사람", "청년",
+            "노인", "부장", "과장", "대리", "실장", "팀장", "국장", "비서", "기사", "배우", "감독", "작가", "가수", "점원", "사원", "신입", "주임",
+            "이장", "마님", "도령", "공주", "왕자", "대감", "영감", "상궁", "내관", "판사", "검사", "변호사", "목사", "신부", "수녀", "스님", "의원",
+            "시장", "소장", "차장", "부대장", "중대장", "소대장");
+    private static final Set<String> COMPOUND_SURNAMES = Set.of("남궁", "제갈", "선우", "황보", "독고", "사공", "서문", "동방", "어금", "망절");
+
+    /**
+     * 성 + 이름(「김민수」「김 민수」)과 이름만(「민수」「민 수」)으로 갈린 같은 사람을 하나로 묶는다(풀규칙). 이름 2~3글자만 본다. 같은 이름에
+     * 성이 둘 이상 붙어 있으면(「김민수」·「이민수」) 누가 누군지 몰라 묶지 않고, 성 뒤가 역할 낱말이면(「여학생」·「학생」) 묶지 않는다.
+     * 「민수 엄마」처럼 뒤에 말이 붙은 이름은 성 조합이 아니라 그대로다. 남기는 표기는 조립의 같은 사람 묶기와 같이 대사가 많은 쪽, 같으면 짧은 쪽,
+     * 그다음 먼저 나온 쪽이다 — 2026-11-19 운영 대본에서 AI가 하나로 둔 126쌍 중 99쌍이 이름만 쪽을 남겼다.
+     *
+     * @param speakers 대사 줄마다의 화자(같은 이름이 여러 번 — 대사 수를 센다)
+     * @return 바꿀 화자 표기 → 남길 화자 표기
+     */
+    public static Map<String, String> surnameMerges(List<String> speakers) {
+        Map<String, Integer> count = new LinkedHashMap<>();
+        speakers.forEach(speaker -> count.merge(speaker, 1, Integer::sum));
+        Map<String, List<String>> bySquash = new LinkedHashMap<>();
+        for (String speaker : count.keySet()) {
+            bySquash.computeIfAbsent(CharacterNames.squash(speaker), key -> new ArrayList<>()).add(speaker);
+        }
+        Map<String, List<String>> fullsByGiven = new HashMap<>();
+        for (String squashed : bySquash.keySet()) {
+            for (String surname : List.of(squashed.length() > 2 ? squashed.substring(0, 2) : "", squashed.substring(0, Math.min(1, squashed.length())))) {
+                if (surname.isEmpty() || !(SURNAMES.contains(surname) || COMPOUND_SURNAMES.contains(surname))) continue;
+                String given = squashed.substring(surname.length());
+                if (given.matches("\\p{IsHangul}{2,3}") && !ROLE_WORDS.contains(given) && bySquash.containsKey(given)) {
+                    fullsByGiven.computeIfAbsent(given, key -> new ArrayList<>()).add(squashed);
+                    break;
+                }
+            }
+        }
+        List<String> order = new ArrayList<>(count.keySet());
+        Map<String, String> merged = new HashMap<>();
+        fullsByGiven.forEach((given, fulls) -> {
+            if (fulls.size() != 1) return;
+            List<String> group = new ArrayList<>(bySquash.get(fulls.getFirst()));
+            group.addAll(bySquash.get(given));
+            String kept = java.util.Collections.min(group, java.util.Comparator.comparing((String name) -> -count.get(name))
+                    .thenComparing(name -> name.codePointCount(0, name.length())).thenComparing(order::indexOf));
+            group.stream().filter(name -> !name.equals(kept)).forEach(name -> merged.put(name, kept));
+        });
+        return merged;
     }
 
     /** 비운 줄 앞의 이름 같은 낱말 — 쌍점·대괄호 머리, 또는 조사로 끝나지 않는 한글 2~5자 첫 낱말. */
@@ -543,8 +607,11 @@ public final class RuleSplit {
      */
     private static boolean told(String t) {
         if (narrative(t)) return true;
-        if (SPEECH_END.matcher(t).matches()) return false;
-        String bare = t.replaceAll("[\\s.。…\"”’')）]+$", "");
+        if (speechEnd(t)) return false;
+        int stop = t.length();
+        // 공백은 정규식 \\s 와 같은 ASCII 공백만 — 끝의 공백·마침표·말줄임·따옴표·닫는 괄호를 걷는다
+        while (stop > 0 && " \t\n\u000B\f\r.。…\"”’')）".indexOf(t.charAt(stop - 1)) >= 0) stop--;
+        String bare = t.substring(0, stop);
         if (bare.length() < 2 || !bare.endsWith("다")) return false;
         char before = bare.charAt(bare.length() - 2);
         boolean finalN = before >= 0xAC00 && before <= 0xD7A3 && (before - 0xAC00) % 28 == 4;
@@ -619,7 +686,7 @@ public final class RuleSplit {
             cast.add(i);
             String inline = header.group(1);
             if (inline != null && !inline.isBlank()) {
-                for (String name : inline.split("\\s*[,，、/·]\\s*")) {
+                for (String name : inline.split("[,，、/·]")) {
                     String n = name.strip();
                     if (nameLike(n)) names.add(n);
                 }
@@ -746,7 +813,7 @@ public final class RuleSplit {
             return !t.contains("?") && !t.contains("!");
         }
         // 「~다.」「~국.」처럼 마침표나 서술로 끝나면 지문. 대사 말투로 끝나거나 부호 없이 끝나는 줄(노랫말)은 아니다.
-        return !SPEECH_END.matcher(t).matches() && CLOSED.matcher(t).matches();
+        return !speechEnd(t) && CLOSED.matcher(t).matches();
     }
 
     /** 줄 앞 한 글자씩 띄운 글의 이어 붙인 앞부분들(2글자 이상). 「베 티 가 …」→ 베티, 베티가. */
@@ -778,13 +845,45 @@ public final class RuleSplit {
 
     /** 이름 줄의 괄호가 목소리 표시가 아닌 행동인가 — 「도윤 (창밖을 본다)」. 괄호가 없으면 아니다. */
     private static boolean actionParen(String t) {
-        Matcher m = NAME_PAREN.matcher(t);
-        return m.matches() && !m.group(1).isBlank() && !VOICE_MARK.matcher(m.group(1)).matches();
+        String inside = tailParen(t);
+        return inside != null && !inside.isBlank() && !VOICE_MARK.matcher(inside).matches();
+    }
+
+    /**
+     * 줄 끝 괄호의 안쪽 — 끝이 닫는 괄호(뒤 공백 허용)이고, 그 앞 마지막 닫는 괄호 뒤에서 처음 여는 괄호부터 끝 괄호 앞까지다. 없으면 null.
+     * 「도윤 (창밖을 본다)」→「창밖을 본다」. 정규식 「.*?[(（]([^)）]*)[)）]\\s*」와 같고 되짚기가 없다.
+     */
+    static String tailParen(String t) {
+        String s = t.stripTrailing();
+        if (s.isEmpty() || ")）".indexOf(s.charAt(s.length() - 1)) < 0) return null;
+        int close = s.length() - 1;
+        int from = Math.max(s.lastIndexOf(')', close - 1), s.lastIndexOf('）', close - 1)) + 1;
+        for (int k = from; k < close; k++) {
+            if (s.charAt(k) == '(' || s.charAt(k) == '（') return s.substring(k + 1, close);
+        }
+        return null;
+    }
+
+    /**
+     * 대사 말투로 끝나는가 — 끝 따옴표 하나와 끝의 「.!?…~」를 걷은 뒤, 걷은 것에 「?!~」가 있거나 남은 글이 대사 끝말(「~요」「~야」「♪」…)로
+     * 끝난다. 정규식 「.*(?:[?!~♪]|요|…)[.!?…~]*["”’']?」와 같고 되짚기가 없다 — 다만 줄 가운데 유니코드 줄 구분(U+2028)이 있어도
+     * 판정한다(정규식의 「.」이 그 글자를 넘지 못해 늘 아니라고 했다, 운영 대본 4줄).
+     */
+    static boolean speechEnd(String t) {
+        String s = t;
+        if (!s.isEmpty() && "\"”’'".indexOf(s.charAt(s.length() - 1)) >= 0) s = s.substring(0, s.length() - 1);
+        int end = s.length();
+        while (end > 0 && ".!?…~".indexOf(s.charAt(end - 1)) >= 0) end--;
+        for (int k = end; k < s.length(); k++) {
+            if ("?!~".indexOf(s.charAt(k)) >= 0) return true;
+        }
+        String head = s.substring(0, end);
+        return SPEECH_ENDINGS.stream().anyMatch(head::endsWith);
     }
 
     /** 서술 지문 말투인가(이름으로 시작하는 줄의 나머지). */
     private static boolean narrative(String body) {
-        return NARRATIVE.matcher(body).matches() && !SPEECH_END.matcher(body).matches();
+        return NARRATIVE.matcher(body).matches() && !speechEnd(body);
     }
 
     /** 쪽 번호 줄 바로 앞뒤인가. */
