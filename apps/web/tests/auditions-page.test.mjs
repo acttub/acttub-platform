@@ -106,9 +106,6 @@ test("app.audition: 공용 상단 바 아래에서 공고를 로그인 없이 �
   assert.deepEqual(
     within(nav).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href"), link.getAttribute("aria-current")]),
     [
-      ["대본 리딩", "/?intro=1#reading", null],
-      ["연기 코칭", "/?intro=1#coaching", null],
-      ["챌린지", "/?intro=1#challenge", null],
       ["요금", "/pricing", null],
       ["블로그", "/blog", null],
     ],
