@@ -108,6 +108,10 @@ public class DirectVideoConfiguration {
             // 사용자가 3.8 로 바꾸기로 정했다. 배우 말 분류·줄이기는 그대로 기본 모델이다. 되돌리려면 SHARE=0.
             @Value("${GEMINI_COACH_MODEL_B:gemini-3.8-flash}") String modelB,
             @Value("${ACTTUB_COACH_MODEL_B_SHARE:100}") int modelBShare,
+            // 2026-11-19 무료는 기본 모델(3 Flash), Pro 만 3.8(SOMA-657). 코칭 대화 95%가 무료라 비용과 답 시간을 줄인다.
+            // 실제 대화 6개 재생에서 3 Flash 답장 중간값 5.6초·90% 9.5초(3.8 7.1초·11.6초), 대사 인용과 흐름은 비슷했다.
+            // false 면 예전처럼 SHARE% 로 모두에게 정한다(롤백).
+            @Value("${ACTTUB_COACH_MODEL_B_PRO_ONLY:true}") boolean modelBProOnly,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFlows> flows,
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
             @Value("${ACTTUB_COACH_FLOW_AB:false}") boolean flowAb,
@@ -157,6 +161,7 @@ public class DirectVideoConfiguration {
                 .withEvidenceShare(alreadyShare(evidenceShare, siteUrl))
                 .withStablePrefix(stablePrefix)
                 .withVideoTokenBudget(videoTokenBudget)
+                .withAlternateProOnly(modelBProOnly)
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
                         proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
                 .withOpenings(openingAb(openingAb, siteUrl)
