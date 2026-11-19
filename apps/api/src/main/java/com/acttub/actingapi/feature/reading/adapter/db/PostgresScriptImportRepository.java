@@ -210,15 +210,28 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
      */
     private ScriptDraft reusable(Submission submission, UUID userId, Instant now) {
         var found = list(em.createNativeQuery("""
-                SELECT s.id FROM scripts s
+                SELECT s.id,s.title,i.title AS requested_title,u.file_name
+                FROM scripts s
+                JOIN LATERAL (SELECT i.title,i.upload_id FROM script_imports i WHERE i.script_id=s.id
+                              ORDER BY i.created_at LIMIT 1) i ON true
+                LEFT JOIN script_uploads u ON u.id=i.upload_id
                 WHERE s.raw_hash=:hash AND s.source IN ('file','paste','typed') AND s.updated_at=s.created_at
                   AND s.created_at>=:since AND s.user_id<>:userId
-                  AND EXISTS (SELECT 1 FROM script_imports i WHERE i.script_id=s.id)
                 ORDER BY s.created_at DESC,s.id DESC LIMIT 1
                 """, Tuple.class).setParameter("hash", submission.rawHash()).setParameter("userId", userId)
                 .setParameter("since", now.minus(java.time.Duration.ofDays(reuseMaxAgeDays)).atOffset(ZoneOffset.UTC)));
         if (found.isEmpty()) return null;
-        UUID source = found.getFirst().get("id", UUID.class);
+        Tuple origin = found.getFirst();
+        UUID source = origin.get("id", UUID.class);
+        String fileName = null;
+        if (submission.uploadId() != null) {
+            var own = list(em.createNativeQuery("SELECT file_name FROM script_uploads WHERE id=:id AND user_id=:userId", Tuple.class)
+                    .setParameter("id", submission.uploadId()).setParameter("userId", userId));
+            if (!own.isEmpty()) fileName = own.getFirst().get("file_name", String.class);
+        }
+        String title = com.acttub.actingapi.feature.reading.domain.SplitDraft.reusedTitle(submission.title(),
+                origin.get("title", String.class), origin.get("requested_title", String.class),
+                origin.get("file_name", String.class), fileName);
         var characters = list(em.createNativeQuery("""
                 SELECT c.id,c.name,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,c.unnamed
                 FROM script_characters c WHERE c.script_id=:id ORDER BY c.sort_order
@@ -249,7 +262,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                     character == null ? null : index.get(character), l.get("text", String.class), l.get("lang", String.class),
                     l.get("speech", String.class)));
         }
-        return new ScriptDraft(submission.title(), submission.rawText(), submission.source(), names, draftLines, traits, members, unnamed);
+        return new ScriptDraft(title, submission.rawText(), submission.source(), names, draftLines, traits, members, unnamed);
     }
 
     @Override

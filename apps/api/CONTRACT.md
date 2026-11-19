@@ -873,7 +873,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   (제목·배역·줄 편집이 모두 `updated_at` 을 올리므로 편집 흔적 없는 것) ③ 생성이 `SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS`(기본 30일) 이내인 가장 최근 것의
   배역·줄(성별·나이대·묶음 배역·말·소리 낼 글)만 읽어 `ScriptRepository.create` 로 요청자 소유 새 대본을 만든다 — 제목·원문·source 는 요청자 것이고
   메모·회차·녹음·배역 목소리는 복사하지 않는다. 예시 대본처럼 `ai_jobs` 행 없이 `script_imports`(script_id 채움)만 만들어 하루 한도에 세지 않고 응답은 202,
-  곧 `succeeded` 다. 로그 `script split reused: reused=true`. 끄기: `SCRIPT_SPLIT_REUSE_ENABLED=false`(기본 켬). 인덱스 V93 `idx_scripts_raw_hash_created`.
+  곧 `succeeded` 다. 로그 `script split reused: reused=true`. 끄기: `SCRIPT_SPLIT_REUSE_ENABLED=false`(기본 켬).
 - 같은 글의 해시 `scripts.raw_hash`·`script_imports.raw_hash` 는 Java `ScriptText.hash` 가 정본이다. V33 이 기존 행을 같은 식의
   SQL 로 한 번 채웠고 `ReadingSchemaMigrationTest` 가 두 식의 일치를 실제 Postgres 로 대조한다. 공백류는 로케일에 기대지 않게
   목록으로 적었다.
