@@ -86,18 +86,14 @@ test("폰에서는 앱 받기 버튼 하나가 app_page 귀속 표식을 달고 
   assert.equal(button.getAttribute("href"), "/app");
 });
 
-test("체험 링크는 리딩·코칭으로 from=app_page 와 함께 간다", () => {
-  render(react.createElement(AppDownloadView));
+test("웹 체험으로 가는 링크는 없고 설치 진입만 있다", () => {
+  const { container } = render(react.createElement(AppDownloadView));
 
-  assert.equal(
-    screen.getByRole("link", { name: "웹에서 리딩 해 보기" }).getAttribute("href"),
-    "/reading/try?from=app_page",
-  );
-  assert.deepEqual(hrefs(screen.getAllByRole("link", { name: "웹에서 먼저 해 보기" })), [
-    "/reading/try?from=app_page",
-    "/reading/try?from=app_page",
-    "/practice/new?from=app_page",
-  ]);
+  assert.equal(screen.queryAllByRole("link", { name: /웹에서/ }).length, 0);
+  for (const a of container.querySelectorAll("a")) {
+    assert.doesNotMatch(a.getAttribute("href") ?? "", /^\/(reading|practice|home|library|memory)/);
+  }
+  assert.ok(screen.getAllByRole("link", { name: "앱 받기" }).length >= 1);
 });
 
 test("세 칸 소개와 무료 안내 한 줄이 있다", () => {
@@ -114,7 +110,7 @@ test("세 칸 소개와 무료 안내 한 줄이 있다", () => {
   assert.ok(screen.getByText(/더 쓰려면 Pro\(월 3,900원\)가 있어요/));
 });
 
-test("주소의 UTM 이 바뀌면(뒤로 가기) 배지와 체험 링크가 새 캠페인으로 다시 걸린다", () => {
+test("주소의 UTM 이 바뀌면(뒤로 가기) 배지가 새 캠페인으로 다시 걸린다", () => {
   render(react.createElement(AppDownloadView));
 
   act(() => {
@@ -125,10 +121,6 @@ test("주소의 UTM 이 바뀌면(뒤로 가기) 배지와 체험 링크가 새 
   assert.deepEqual(hrefs(screen.getAllByRole("link", { name: "App Store에서 다운로드" })), [
     "/go/ios/app_page/instagram_ad?utm_source=instagram&utm_medium=paid_social",
   ]);
-  assert.equal(
-    screen.getByRole("link", { name: "웹에서 리딩 해 보기" }).getAttribute("href"),
-    "/reading/try?utm_source=instagram&utm_medium=paid_social&from=app_page",
-  );
 });
 
 test("/app 페이지는 앱과 운영사 구조화 데이터를 싣고 주소를 /app 으로 알린다", () => {

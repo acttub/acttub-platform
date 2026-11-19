@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
-import { HomeTrialCards } from "@/features/trial/home-trial-cards";
+import { HeroAppInstall } from "@/features/app-download/hero-app-install";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
@@ -179,16 +179,12 @@ export default function LandingClient({
                   내 연기를 같이 봐 줄<br className="hidden sm:block" /> 사람이 없을 때,{" "}
                   <span className="text-[#4880ee]">액터브</span>
                 </h1>
-                <p className="mt-5 text-base leading-[1.6] text-[#4e5968] sm:text-xl">설치 없이 지금 여기서 해 보세요.</p>
-
-                <HomeTrialCards />
-
-                <p className="mt-5 text-center text-[15px] font-semibold text-[#4e5968] lg:text-left lg:text-base">
-                  계정이 있나요?{" "}
-                  <Link href="/login" className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
-                    로그인
-                  </Link>
+                <p className="mt-5 text-base leading-[1.6] text-[#4e5968] sm:text-xl">
+                  연기 영상을 올리면 코치가 장면을 보고 질문해요.
+                  <br className="hidden sm:block" /> 대본을 넣으면 상대역 대사를 소리 내 읽어 줘요.
                 </p>
+
+                <HeroAppInstall />
               </div>
               <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
                 <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
