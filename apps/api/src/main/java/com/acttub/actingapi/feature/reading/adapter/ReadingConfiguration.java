@@ -42,6 +42,7 @@ import com.acttub.actingapi.feature.reading.app.VoiceModelService;
 import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.integration.llm.OpenAiTextGenerators;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
@@ -132,13 +133,14 @@ class ReadingConfiguration {
             LlmTelemetry telemetry, FailureReporter failures, Clock clock, ObjectMapper json,
             @Value("${OPENROUTER_SCRIPT_REVIEW_API_KEY:}") String reviewKey,
             @Value("${SCRIPT_REVIEW_MODEL:" + ScriptSplitRules.REVIEW_MODEL + "}") String reviewModel,
+            @Value("${SCRIPT_SPLIT_MODE:llm}") String splitMode,
             ObjectProvider<ScriptSplitListener> listener) {
         LineDecider decider = reviewKey.isBlank() ? null
                 : new OpenRouterLineDecider(json,
                 reviewModel.isBlank() ? ScriptSplitRules.REVIEW_MODEL : reviewModel.strip(), reviewKey.strip(), Duration.ofSeconds(20),
                 ScriptSplitRules.REVIEW_IN_FLIGHT);
         return new ScriptSplitWorker(ledger, imports, generators.scriptSplit(), telemetry, failures, clock, decider,
-                ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN, listener.getIfAvailable());
+                ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN, listener.getIfAvailable(), ScriptSplitMode.parse(splitMode));
     }
 
     @Bean
