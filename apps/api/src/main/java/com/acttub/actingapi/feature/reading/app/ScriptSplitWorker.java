@@ -267,6 +267,10 @@ public class ScriptSplitWorker {
             if (mode == ScriptSplitMode.RULES) {
                 // 풀규칙(SOMA-1090): 띄어쓰기 복원·이름 없는 대사로 다시 나누기·Jev 문지기 없이 규칙 한 번으로 끝낸다. 독백이면 「화자」 규칙으로.
                 List<NumberedLine> lines = NumberedLine.of(material.rawText());
+                // PDF 원본은 화면 폭에서 잘린 줄을 먼저 잇는다(2026-11-21 희곡 재생: 끊긴 줄 첫 글자가 배역이 됐다)
+                if (material.fileName() != null && material.fileName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+                    lines = RuleSplit.unwrap(lines);
+                }
                 imports.percent(importId, ScriptSplitProgress.SPACED);
                 boolean monologue = RuleSplit.full(lines, !material.skipScriptCheck()).roster().equals(List.of(Monologue.PLACEHOLDER));
                 return split(calls, importId, material, lines, UnaryOperator.identity(), !monologue);

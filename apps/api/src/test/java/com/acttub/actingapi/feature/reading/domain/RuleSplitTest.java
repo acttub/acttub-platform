@@ -314,6 +314,103 @@ class RuleSplitTest {
         assertThat(result.roster()).containsExactly("윤서", "미정");
     }
 
+    // ── 희곡 43편 재생에서 고침 (2026-11-21) ─────────────
+
+    @Test
+    void tabHeadsWithSpacedNamesAreDialogue() {
+        RuleSplit.Result result = split("7번 배심원\t하나 드릴까?\n8번 배심원\t(웃으며) 아니요, 됐습니다.\n7번 배심원(창밖을 보며)\t덥네요.\n"
+                + "경비 \t\t자, 모두 이쪽으로 들어오십시오.\n8번 배심원\t그러게요.\n경비\t\t문 잠급니다.");
+
+        assertThat(row(result, 1).speaker()).isEqualTo("7번 배심원");
+        assertThat(row(result, 3).speaker()).isEqualTo("7번 배심원");
+        assertThat(row(result, 4).speaker()).isEqualTo("경비");
+        assertThat(result.roster()).containsExactly("7번 배심원", "8번 배심원", "경비");
+    }
+
+    @Test
+    void formalSpeechEndingIsSpeech() {
+        assertThat(RuleSplit.speechEnd("여러분은 막중한 책임을 지고 있습니다. 고맙습니다.")).isTrue();
+        assertThat(RuleSplit.speechEnd("모두 이쪽으로 들어오십시오.")).isTrue();
+    }
+
+    @Test
+    void fullDoesNotTakeWordFragmentsAndCommonWordsAsNames() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                극작가 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가 시작하려
+                고 하는 것 같아.
+                지하인 무엇을 찾고 있는지 아직은 잘 모르겠지만 계속 찾
+                고 있어.
+                극작가 그럼 같이 찾아보는 건 어때? 처음부터 다시 천천히 시작하
+                고 싶어.
+                지하인 좋아. 잠시 쉬었다가 하자.
+                잠시 숨을 고른다.
+                극작가 그래.
+                잠시 침묵이 흐른다.
+                지하인 이제 가자."""));
+
+        assertThat(result.roster()).containsExactly("극작가", "지하인");
+    }
+
+    @Test
+    void twoWordPhrasesAreNotBlockNames() {
+        assertThat(RuleSplit.standaloneNameForTest("모두 신나게")).isNull();
+        assertThat(RuleSplit.standaloneNameForTest("에이코 왜")).isNull();
+        assertThat(RuleSplit.standaloneNameForTest("김 형사")).isEqualTo("김 형사");
+        assertThat(RuleSplit.standaloneNameForTest("남자 2")).isEqualTo("남자 2");
+        assertThat(RuleSplit.standaloneNameForTest("7번 배심원")).isEqualTo("7번 배심원");
+    }
+
+    @Test
+    void creditLinesAtTheEndAreNotCast() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                민수: 안녕.
+                영희: 응.
+                민수: 가자.
+                영희: 그래.
+
+                연출 홍길동
+                무대감독 김철수
+                조명 이영희
+                기획 박민지"""));
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+    }
+
+    @Test
+    void stageLabelLinesAreDirections() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                에이코 뭐고, 드라마 안 봤나?
+                준코 띄엄띄엄 보고 있다.
+                무대 자매들, 크게 웃는다.
+                에이코 재밌다 아이가.
+                무대, 잠시 암전.
+                준코 그래."""));
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(result.roster()).containsExactly("에이코", "준코");
+    }
+
+    @Test
+    void letterSpacedNamesAreJoined() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("칠    수: 안녕.\n만    수: 응.\n칠    수: 가자.\n만 수: 그래."));
+
+        assertThat(result.roster()).containsExactly("칠수", "만수");
+    }
+
+    @Test
+    void unwrapJoinsLinesCutAtThePageWidth() {
+        // 폭 30자에서 잘린 줄: 끝에 공백이 있으면 띄어 잇고, 없으면 붙여 잇는다. 다음 줄이 배역 이름으로 시작하면 잇지 않는다.
+        java.util.List<NumberedLine> lines = NumberedLine.of("극작가 오늘은 무대가 아주 넓어 보이고 조명도 \n밝아서 무언가를 시작하려는 느낌이 드는데 시작하\n고 싶은 마음이 있어.\n"
+                + "지하인 무엇을 찾고 있는지 아직은 모르겠다.\n극작가 그럼 같이 찾자.");
+        java.util.List<NumberedLine> joined = RuleSplit.unwrap(lines, 30, java.util.Set.of("극작가", "지하인"));
+
+        assertThat(joined).extracting(NumberedLine::text).containsExactly(
+                "극작가 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하려는 느낌이 드는데 시작하고 싶은 마음이 있어.",
+                "지하인 무엇을 찾고 있는지 아직은 모르겠다.", "극작가 그럼 같이 찾자.");
+        assertThat(joined.getFirst().no()).isEqualTo(1);
+    }
+
     // ── 성 + 이름 묶기 (풀규칙) ──────────────────────────
 
     @Test
@@ -326,10 +423,10 @@ class RuleSplitTest {
                 민 수: 아니야.
                 김민수: 가자."""));
 
-        // 대사가 많은 쪽(「김민수」 2·「민수」 1·「민 수」 1)을 남긴다
-        assertThat(result.roster()).containsExactly("김민수", "지수");
-        assertThat(row(result, 3).speaker()).isEqualTo("김민수");
-        assertThat(row(result, 5).speaker()).isEqualTo("김민수");
+        // 띄운 「민 수」를 먼저 붙여 「민수」 2·「김민수」 2 — 같으면 짧은 쪽을 남긴다
+        assertThat(result.roster()).containsExactly("민수", "지수");
+        assertThat(row(result, 1).speaker()).isEqualTo("민수");
+        assertThat(row(result, 5).speaker()).isEqualTo("민수");
     }
 
     @Test

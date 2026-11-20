@@ -40,6 +40,23 @@ class ScriptSplitRulesModeTest {
                 ScriptSplitFakes.key("dialogue", "민수", "가자."));
     }
 
+    @org.junit.jupiter.api.Test
+    void rulesModeJoinsPdfLinesCutAtThePageWidth() {
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 10; k++) {
+            raw.append("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하\n");
+            raw.append("고 싶은 마음이 들어.\n");
+            raw.append("영희 그럼 같이 시작해 보자.\n");
+        }
+        ScriptSplitFakes.Run pdf = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, "play.pdf");
+        ScriptSplitFakes.Run txt = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, "play.txt");
+
+        // PDF 원본만 화면 폭에서 잘린 줄을 잇는다 — 「시작하」+「고 싶은…」은 띄어쓰기 없이 붙는다
+        assertThat(pdf.saved().characterNames()).containsExactly("민수", "영희");
+        assertThat(pdf.saved().lines()).anyMatch(line -> line.text().contains("시작하고 싶은 마음이 들어."));
+        assertThat(txt.saved().lines()).noneMatch(line -> line.text().contains("시작하고 싶은"));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("fixtures")
     void rulesModeSplitsWithoutAskingTheModelExceptForCastTraits(String name) throws IOException {
