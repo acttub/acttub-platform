@@ -29,6 +29,7 @@ import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
 import com.acttub.actingapi.feature.reading.domain.Monologue;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
+import com.acttub.actingapi.feature.reading.domain.RuleLanguage;
 import com.acttub.actingapi.feature.reading.domain.RuleSplit;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
@@ -219,6 +220,13 @@ public class ScriptSplitWorker {
         }
     }
 
+    /**
+     * 풀규칙이 글(산문)을 대본 아님으로 거를까 — 이름 없이 산문처럼 쓴 글은 거르지만, 제목이 「○○ 독백」이면 걸르지 않고 그 사람 독백으로 나눈다.
+     */
+    private static boolean rulesJudge(ScriptImportRepository.Material material) {
+        return !material.skipScriptCheck() && RuleSplit.monologueName(material.title()) == null;
+    }
+
     private Split split(UUID jobId, UUID importId, Material material) {
         Calls calls = new Calls(jobId, material.userId());
         // 다시 나누는 판과 그 뒤 문지기까지 합쳐 작업당 단계별 한 건이 되도록 작업 끝에서 남긴다 — 실패로 빠져나가도 남는다.
@@ -226,8 +234,14 @@ public class ScriptSplitWorker {
             if (mode == ScriptSplitMode.RULES) {
                 // 풀규칙(SOMA-1090): 띄어쓰기 복원·이름 없는 대사로 다시 나누기·Jev 문지기 없이 규칙 한 번으로 끝낸다. 독백이면 「화자」 규칙으로.
                 List<NumberedLine> lines = NumberedLine.of(material.rawText());
+                // PDF 원본은 화면 폭에서 잘린 줄을 먼저 잇는다(2026-11-21 희곡 재생: 끊긴 줄 첫 글자가 배역이 됐다)
+                if (material.fileName() != null && material.fileName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+                    lines = RuleSplit.unwrap(lines);
+                }
+                // 한 줄에 여러 사람 대사를 이어 쓴 원문은 사람마다 줄을 나눈다(배역은 먼저 한 번 나눠 본 이름)
+                lines = RuleSplit.splitTurns(lines, new java.util.HashSet<>(RuleSplit.full(lines, rulesJudge(material)).roster()));
                 imports.percent(importId, ScriptSplitProgress.SPACED);
-                boolean monologue = RuleSplit.full(lines, !material.skipScriptCheck()).roster().equals(List.of(Monologue.PLACEHOLDER));
+                boolean monologue = RuleSplit.full(lines, rulesJudge(material)).roster().equals(List.of(Monologue.PLACEHOLDER));
                 return split(calls, importId, material, lines, UnaryOperator.identity(), !monologue);
             }
             List<NumberedLine> lines = restoreSpacing(jobId, calls, NumberedLine.of(material.rawText()));
@@ -282,7 +296,7 @@ public class ScriptSplitWorker {
         // 규칙 나누기(SOMA-1090): 규칙이 확신하면 모델 첫 판을 건너뛰고, 규칙이 답하지 못한 줄만 아래 「빠진 줄 다시 묻기」로 모델에 보낸다.
         boolean ruled = false;
         if (mode == ScriptSplitMode.RULES) {
-            RuleSplit.Result rule = RuleSplit.full(lines, judge);
+            RuleSplit.Result rule = RuleSplit.full(lines, rulesJudge(material));
             LOG.info("script split rules job={} format={} lines={} dialogues={} roster={}", calls.jobId, rule.format(), rule.total(),
                     rule.dialogues(), rule.roster().size());
             if (rule.dialogues() == 0) {
@@ -290,6 +304,13 @@ public class ScriptSplitWorker {
             }
             rows.putAll(rule.rows());
             roster = rule.roster();
+            // 이름을 못 찾은 독백은 제목의 이름(「햄릿 독백」→ 햄릿)을 화자로 쓴다
+            String titled = RuleSplit.monologueName(material.title());
+            if (titled != null && roster.equals(List.of(Monologue.PLACEHOLDER))) {
+                rows.replaceAll((no, row) -> row.kind() == SplitResponse.Kind.DIALOGUE
+                        ? new SplitResponse.Row(no, SplitResponse.Kind.DIALOGUE, titled, row.header()) : row);
+                roster = List.of(titled);
+            }
             ruled = true;
             imports.progress(importId, lines.size(), lines.size());
             imports.percent(importId, ScriptSplitProgress.SPLIT);
@@ -411,8 +432,8 @@ public class ScriptSplitWorker {
         if (rejection == null) {
             // 규칙이 나눈 대본은 첫 판의 「배역」 블록(성별·나이대)이 없어 길이와 상관없이 성별을 따로 묻는다(짧은 호출 하나).
             ScriptDraft cast = chunks.size() > 1 || ruled ? lateTraits(calls.jobId, calls, draft) : draft;
-            // 풀규칙은 배역 성별만 묻는다 — 외국어 줄 판정은 하지 않는다
-            Split finished = Split.of(rules ? cast : languages(calls.jobId, calls, cast));
+            // 풀규칙은 배역 성별만 모델에 묻는다 — 줄의 말은 글자 종류로 정한다(RuleLanguage)
+            Split finished = Split.of(rules ? RuleLanguage.tag(cast) : languages(calls.jobId, calls, cast));
             imports.percent(importId, ScriptSplitProgress.SAVING);
             return finished;
         }

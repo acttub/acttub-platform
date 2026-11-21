@@ -314,6 +314,211 @@ class RuleSplitTest {
         assertThat(result.roster()).containsExactly("윤서", "미정");
     }
 
+    // ── 희곡 43편 재생에서 고침 (2026-11-21) ─────────────
+
+    @Test
+    void tabHeadsWithSpacedNamesAreDialogue() {
+        RuleSplit.Result result = split("7번 배심원\t하나 드릴까?\n8번 배심원\t(웃으며) 아니요, 됐습니다.\n7번 배심원(창밖을 보며)\t덥네요.\n"
+                + "경비 \t\t자, 모두 이쪽으로 들어오십시오.\n8번 배심원\t그러게요.\n경비\t\t문 잠급니다.");
+
+        assertThat(row(result, 1).speaker()).isEqualTo("7번 배심원");
+        assertThat(row(result, 3).speaker()).isEqualTo("7번 배심원");
+        assertThat(row(result, 4).speaker()).isEqualTo("경비");
+        assertThat(result.roster()).containsExactly("7번 배심원", "8번 배심원", "경비");
+    }
+
+    @Test
+    void formalSpeechEndingIsSpeech() {
+        assertThat(RuleSplit.speechEnd("여러분은 막중한 책임을 지고 있습니다. 고맙습니다.")).isTrue();
+        assertThat(RuleSplit.speechEnd("모두 이쪽으로 들어오십시오.")).isTrue();
+    }
+
+    @Test
+    void fullDoesNotTakeWordFragmentsAndCommonWordsAsNames() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                극작가 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가 시작하려
+                고 하는 것 같아.
+                지하인 무엇을 찾고 있는지 아직은 잘 모르겠지만 계속 찾
+                고 있어.
+                극작가 그럼 같이 찾아보는 건 어때? 처음부터 다시 천천히 시작하
+                고 싶어.
+                지하인 좋아. 잠시 쉬었다가 하자.
+                잠시 숨을 고른다.
+                극작가 그래.
+                잠시 침묵이 흐른다.
+                지하인 이제 가자."""));
+
+        assertThat(result.roster()).containsExactly("극작가", "지하인");
+    }
+
+    @Test
+    void twoWordPhrasesAreNotBlockNames() {
+        assertThat(RuleSplit.standaloneNameForTest("모두 신나게")).isNull();
+        assertThat(RuleSplit.standaloneNameForTest("에이코 왜")).isNull();
+        assertThat(RuleSplit.standaloneNameForTest("김 형사")).isEqualTo("김 형사");
+        assertThat(RuleSplit.standaloneNameForTest("남자 2")).isEqualTo("남자 2");
+        assertThat(RuleSplit.standaloneNameForTest("7번 배심원")).isEqualTo("7번 배심원");
+    }
+
+    @Test
+    void creditLinesAtTheEndAreNotCast() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                민수: 안녕.
+                영희: 응.
+                민수: 가자.
+                영희: 그래.
+
+                연출 홍길동
+                무대감독 김철수
+                조명 이영희
+                기획 박민지"""));
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+    }
+
+    @Test
+    void stageLabelLinesAreDirections() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                에이코 뭐고, 드라마 안 봤나?
+                준코 띄엄띄엄 보고 있다.
+                무대 자매들, 크게 웃는다.
+                에이코 재밌다 아이가.
+                무대, 잠시 암전.
+                준코 그래."""));
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(result.roster()).containsExactly("에이코", "준코");
+    }
+
+    @Test
+    void letterSpacedNamesAreJoined() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("칠    수: 안녕.\n만    수: 응.\n칠    수: 가자.\n만 수: 그래."));
+
+        assertThat(result.roster()).containsExactly("칠수", "만수");
+    }
+
+    @Test
+    void unwrapJoinsLinesCutAtThePageWidth() {
+        // 폭 30자에서 잘린 줄: 끝에 공백이 있으면 띄어 잇고, 없으면 붙여 잇는다. 다음 줄이 배역 이름으로 시작하면 잇지 않는다.
+        java.util.List<NumberedLine> lines = NumberedLine.of("극작가 오늘은 무대가 아주 넓어 보이고 조명도 \n밝아서 무언가를 시작하려는 느낌이 드는데 시작하\n고 싶은 마음이 있어.\n"
+                + "지하인 무엇을 찾고 있는지 아직은 모르겠다.\n극작가 그럼 같이 찾자.");
+        java.util.List<NumberedLine> joined = RuleSplit.unwrap(lines, 30, java.util.Set.of("극작가", "지하인"));
+
+        assertThat(joined).extracting(NumberedLine::text).containsExactly(
+                "극작가 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하려는 느낌이 드는데 시작하고 싶은 마음이 있어.",
+                "지하인 무엇을 찾고 있는지 아직은 모르겠다.", "극작가 그럼 같이 찾자.");
+        assertThat(joined.getFirst().no()).isEqualTo(1);
+    }
+
+    // ── 남은 쉬운 오류·독백 이름·한 줄 여러 대사 (2026-11-21) ──
+
+    @Test
+    void decorationMemoAndMusicLinesAreIgnored() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n⸻\n영희: 응.\n* **메모(3막):** 조명 바꿀 것\n민수: 가자.\n🎼 빗소리가 흐른다\n영희: 그래."));
+
+        assertThat(row(result, 2).kind()).isEqualTo(Kind.IGNORE);
+        assertThat(row(result, 4).kind()).isEqualTo(Kind.IGNORE);
+        assertThat(row(result, 6).kind()).isEqualTo(Kind.IGNORE);
+    }
+
+    @Test
+    void aSpeechLineEndingInAnActionParenthesisIsDialogue() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n영희: 응.\n민수: 가자.\n\n같이 가자! (손을 내민다)\n\n영희: 그래."));
+
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.DIALOGUE);
+    }
+
+    @Test
+    void lyricsInParenthesesWithSlashesAreDialogue() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 노래하자.\n영희: 좋아.\n(가자! / 저 끝까지 / 멈추지 마!)\n민수: 그래.\n영희: 응."));
+
+        assertThat(row(result, 3)).isEqualTo(new Row(3, Kind.DIALOGUE, "영희", ""));
+    }
+
+    @Test
+    void aDirectionInParenthesesSpanningLinesIsOneDirection() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n영희: 응.\n(창밖을 오래 보다가,\n천천히 돌아선다)\n민수: 가자."));
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(row(result, 4).kind()).isEqualTo(Kind.DIRECTION);
+    }
+
+    @Test
+    void anUnclosedParenthesisDoesNotSwallowTheLinesAfterIt() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n영희: 응.\n(창밖을 오래 본다\n민수: 가자.\n영희: 그래.\n민수: 응."));
+
+        assertThat(row(result, 4).kind()).isEqualTo(Kind.DIALOGUE);
+    }
+
+    @Test
+    void wordsWithAParticleAreNotNames() {
+        assertThat(RuleSplit.spaceName("얀은", 5)).isFalse();
+        assertThat(RuleSplit.spaceName("문이", 5)).isFalse();
+        assertThat(RuleSplit.spaceName("지은", 3)).isTrue();
+        assertThat(RuleSplit.spaceName("윤서", 3)).isTrue();
+        assertThat(RuleSplit.spaceName("민수", 2)).isTrue();
+        assertThat(RuleSplit.spaceName("작은", 9)).isFalse();
+    }
+
+    @Test
+    void anAuthorUnderTheTitleIsNotTheMonologueSpeaker() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("<담배의 해로움에 대해>\n체호프\n\n뉴힌\t(인사한다) 친애하는 여러분.\n\n제 아내가 강연을 하라고 했습니다."));
+
+        assertThat(result.roster()).containsExactly("뉴힌");
+    }
+
+    @Test
+    void monologueSpeakerComesFromTheTitle() {
+        assertThat(RuleSplit.monologueName("햄릿 독백")).isEqualTo("햄릿");
+        assertThat(RuleSplit.monologueName("오필리어의 독백")).isEqualTo("오필리어");
+        assertThat(RuleSplit.monologueName("[독백] 서진")).isEqualTo("서진");
+        assertThat(RuleSplit.monologueName("독백 - 문 앞에서")).isNull();
+        assertThat(RuleSplit.monologueName("마지막 버스")).isNull();
+        assertThat(RuleSplit.monologueName(null)).isNull();
+    }
+
+    @Test
+    void turnsWrittenOnOneLineAreSplit() {
+        String raw = """
+                에이코 뭐고, 준코 너 그 드라마 안 봤나?  준코 띄엄띄엄 보고 있다. 키요코 그거 재밌다 아이가.
+                준코 그래?  에이코 그렇다.
+                키요코 나는 몰라.  준코 왜?
+                에이코 몰라도 된다.
+                준코 알았다.""";
+        java.util.List<NumberedLine> split = RuleSplit.splitTurns(NumberedLine.of(raw), java.util.Set.of("에이코", "준코", "키요코"));
+
+        assertThat(split).extracting(NumberedLine::text).containsExactly("에이코 뭐고, 준코 너 그 드라마 안 봤나?", "준코 띄엄띄엄 보고 있다.",
+                "키요코 그거 재밌다 아이가.", "준코 그래?", "에이코 그렇다.", "키요코 나는 몰라.", "준코 왜?", "에이코 몰라도 된다.", "준코 알았다.");
+        // 나뉜 조각은 서로 붙은 줄이다(번호가 이어진다)
+        assertThat(split.get(1).no()).isEqualTo(split.get(0).no() + 1);
+    }
+
+    @Test
+    void ordinaryLinesAreNotSplitAtANameInsideTheSentence() {
+        String raw = "민수 영희 어디 갔어?\n영희 몰라. 민수 너는 알아?\n민수 나도 몰라.\n영희 그래.";
+        java.util.List<NumberedLine> split = RuleSplit.splitTurns(NumberedLine.of(raw), java.util.Set.of("민수", "영희"));
+
+        assertThat(split).hasSize(4);
+    }
+
+    // ── 줄 언어(규칙) ─────────────────────────────────────
+
+    @Test
+    void lineLanguagesByScript() {
+        assertThat(RuleLanguage.of("I never left you.")).isEqualTo(new LineLanguage.Result("en", null));
+        assertThat(RuleLanguage.of("Merci beaucoup, je suis très content.")).isEqualTo(new LineLanguage.Result("fr", null));
+        assertThat(RuleLanguage.of("ありがとうございます")).isEqualTo(new LineLanguage.Result("ja", null));
+        assertThat(RuleLanguage.of("고맙습니다. Thank you so much.")).isEqualTo(new LineLanguage.Result("en", "⟦ko⟧고맙습니다. ⟦en⟧Thank you so much."));
+        // 한국어 줄에 짧은 영어 낱말이 섞이면 한국어로 둔다(받아쓰기가 한국어로 듣게)
+        assertThat(RuleLanguage.of("오늘 CEO 회의가 있어서 늦었어.")).isNull();
+        assertThat(RuleLanguage.of("안녕")).isNull();
+        assertThat(RuleLanguage.of("HIV면 에이즈요?")).isNull();
+        assertThat(RuleLanguage.of("(진료실을 치우며) Day three. 책상부터 정리하라!"))
+                .isEqualTo(new LineLanguage.Result("en", "⟦en⟧Day three. ⟦ko⟧책상부터 정리하라!"));
+        assertThat(RuleLanguage.of("(손을 들며) You win!")).isEqualTo(new LineLanguage.Result("en", "You win!"));
+    }
+
     // ── 성 + 이름 묶기 (풀규칙) ──────────────────────────
 
     @Test
@@ -326,10 +531,10 @@ class RuleSplitTest {
                 민 수: 아니야.
                 김민수: 가자."""));
 
-        // 대사가 많은 쪽(「김민수」 2·「민수」 1·「민 수」 1)을 남긴다
-        assertThat(result.roster()).containsExactly("김민수", "지수");
-        assertThat(row(result, 3).speaker()).isEqualTo("김민수");
-        assertThat(row(result, 5).speaker()).isEqualTo("김민수");
+        // 띄운 「민 수」를 먼저 붙여 「민수」 2·「김민수」 2 — 같으면 짧은 쪽을 남긴다
+        assertThat(result.roster()).containsExactly("민수", "지수");
+        assertThat(row(result, 1).speaker()).isEqualTo("민수");
+        assertThat(row(result, 5).speaker()).isEqualTo("민수");
     }
 
     @Test
