@@ -57,6 +57,38 @@ class ScriptSplitRulesModeTest {
         assertThat(txt.saved().lines()).noneMatch(line -> line.text().contains("시작하고 싶은"));
     }
 
+    @org.junit.jupiter.api.Test
+    void rulesModeTagsForeignLinesWithoutAskingTheModel() {
+        ScriptSplitFakes.Run run = ScriptSplitFakes.run("민수: 안녕.\n영희: I never left you.\n민수: 고맙습니다. Thank you so much.\n영희: 그래.",
+                ScriptSplitMode.RULES, null);
+
+        assertThat(run.generator().instructions()).isSubsetOf(List.of(ScriptSplitPrompt.lateTraits()));
+        assertThat(run.saved().lines()).filteredOn(line -> line.lang() != null)
+                .extracting(line -> line.lang() + "|" + line.speech())
+                .containsExactly("en|null", "en|⟦ko⟧고맙습니다. ⟦en⟧Thank you so much.");
+    }
+
+    @org.junit.jupiter.api.Test
+    void rulesModeSplitsTurnsWrittenOnOneLine() {
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 5; k++) {
+            raw.append("에이코 뭐고, 준코 너 그거 봤나?  준코 띄엄띄엄 봤다.  키요코 재밌다 아이가.\n\n");
+            raw.append("준코 그래?\n\n키요코 나는 몰라.\n\n에이코 몰라도 된다.\n\n");
+        }
+        ScriptSplitFakes.Run run = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, null);
+
+        assertThat(run.saved().characterNames()).containsExactlyInAnyOrder("에이코", "준코", "키요코");
+        assertThat(run.keys(true)).contains(ScriptSplitFakes.key("dialogue", "키요코", "재밌다 아이가."));
+    }
+
+    @org.junit.jupiter.api.Test
+    void rulesModeTakesTheMonologueSpeakerFromTheTitle() {
+        ScriptSplitFakes.Run run = ScriptSplitFakes.runTitled("사느냐 죽느냐, 그것이 문제로다.\n\n가혹한 운명의 화살을 견디는 것이 고귀한가.", ScriptSplitMode.RULES,
+                "햄릿 독백");
+
+        assertThat(run.saved().characterNames()).containsExactly("햄릿");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("fixtures")
     void rulesModeSplitsWithoutAskingTheModelExceptForCastTraits(String name) throws IOException {

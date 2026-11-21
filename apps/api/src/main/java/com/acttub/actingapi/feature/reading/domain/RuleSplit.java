@@ -190,6 +190,7 @@ public final class RuleSplit {
         Map<String, Integer> standalone = new LinkedHashMap<>();
         Set<String> headerish = new HashSet<>();
         Map<String, Integer> first = new LinkedHashMap<>();
+        Map<String, Integer> labeled = new LinkedHashMap<>();
         Map<String, Integer> tab = new LinkedHashMap<>();
         Map<String, Integer> wide = new LinkedHashMap<>();
         int nonEmpty = text.contentCount();
@@ -225,9 +226,12 @@ public final class RuleSplit {
             }
             name = group(SPACE_HEAD, t);
             boolean spacedLine = spacedPrefixes(t).stream().anyMatch(spacedNames::contains);
-            // 문장 중간에서 끊긴 줄 다음 줄의 첫 낱말(PDF 의 「고」「게」)은 이름 후보로 세지 않는다
+            // 문장 중간에서 끊긴 줄 다음 줄의 첫 낱말(PDF 의 「고」「게」)은 이름 후보로 세지 않는다. 화면 폭 기준(앞 줄이 폭까지 찼을 때만)으로
+            // 좁히면 놓친 이름은 되찾지만 가짜 이름이 더 들어와 운영 대본 일치가 75.8→75.1% 로 떨어졌다(2026-11-21) — 끝 부호 기준을 둔다.
             boolean cut = i > 0 && text.adjacent(i - 1, i) && !TERMINAL.matcher(text.get(i - 1)).matches();
             if (name != null && nameLike(name) && !spacedLine && !cut) first.merge(name, 1, Integer::sum);
+            Matcher numbered = LABELED_HEAD.matcher(t);
+            if (numbered.lookingAt() && !cut && numbered.group(1).length() > 1) labeled.merge(numbered.group(1), 1, Integer::sum);
             name = group(TAB_HEAD, t);
             if (name != null && nameLike(name.strip())) tab.merge(name.strip(), 1, Integer::sum);
             name = wideName(t);
@@ -260,7 +264,12 @@ public final class RuleSplit {
         standalone.keySet().removeAll(headerish);
         long repeatedNames = standalone.values().stream().filter(n -> n >= 2).count();
         int blockTotal = standalone.values().stream().mapToInt(Integer::intValue).sum();
-        boolean blockFormat = !colonFormat && !bracketFormat && !periodFormat && !tabFormat && repeatedNames >= 2 && blockTotal >= 4;
+        // 띄어쓰기 머리가 이름 줄보다 훨씬 많으면(세 배) 블록이 아니다 — 소개·장면 머리에 이름만 쓴 줄 몇 개로 블록이 되어 띄어쓰기 이름을
+        // 아예 보지 않던 자리다(2026-11-21 운영 대본: 블록으로 판정돼 배역 0 인 띄어쓰기 대본 34편)
+        int spaceHeads = first.entrySet().stream().filter(e -> e.getValue() >= SPACE_HEAD_MIN && spaceName(e.getKey(), e.getValue()))
+                .mapToInt(Map.Entry::getValue).sum();
+        boolean blockFormat = !colonFormat && !bracketFormat && !periodFormat && !tabFormat && repeatedNames >= 2 && blockTotal >= 4
+                && spaceHeads <= blockTotal * 3;
         standalone.forEach((name, n) -> {
             if (castNames.contains(name) || blockFormat && n >= 2) names.add(name);
         });
@@ -270,8 +279,7 @@ public final class RuleSplit {
             List<String> candidates = new ArrayList<>();
             for (Map.Entry<String, Integer> e : first.entrySet()) {
                 if (!names.contains(e.getKey()) && e.getValue() >= SPACE_HEAD_MIN && e.getValue() * 50 >= nonEmpty
-                        && hangulName(e.getKey()) && !CREDIT.matcher(e.getKey()).matches()
-                        && (e.getKey().length() >= 2 || castNames.contains(e.getKey())) && !WORD_END.matcher(e.getKey()).matches()) {
+                        && (spaceName(e.getKey(), e.getValue()) || castNames.contains(e.getKey()))) {
                     candidates.add(e.getKey());
                 }
             }
@@ -279,10 +287,9 @@ public final class RuleSplit {
             if (candidates.size() >= 2 || !castNames.isEmpty()) {
                 names.addAll(candidates);
                 // 주연이 섰으면 두 번 이상 줄 앞에 나온 이름도 받는다(조연). 조사·어미로 끝나는 낱말은 말이라 뺀다.
-                first.forEach((name, n) -> {
-                    if (n >= 2 && hangulName(name) && name.length() >= 2 && !MINOR_NOT.matcher(name).matches()
-                            && !CREDIT.matcher(name).matches()) names.add(name);
-                });
+                first.forEach((name, n) -> { if (n >= 2 && spaceName(name, n)) names.add(name); });
+                // 번호·기호가 붙은 이름(「남자1」「기자 1」)도 두 번 넘게 줄 앞에 나오면 받는다
+                labeled.forEach((name, n) -> { if (n >= 2 && !CREDIT.matcher(name).matches()) names.add(name); });
                 // 띄어쓰기형이 섰으면 두 칸 이상·탭으로 떨어진 머리는 한 번만 나와도 이름이다(조연 「택배」)
                 wide.forEach((name, n) -> { if (hangulName(name) && !CREDIT.matcher(name).matches()) names.add(name); });
             }
@@ -291,6 +298,7 @@ public final class RuleSplit {
         // 4. 줄마다 판정
         String block = null;
         boolean unknownBlock = false;
+        int parenUntil = -1;
         boolean seenBody = false;
         int previous = -1;
         int[] hits = new int[Format.values().length];
@@ -312,8 +320,20 @@ public final class RuleSplit {
                 rows.put(no, row(no, Kind.CAST));
                 continue;
             }
-            if (PAGE.matcher(t).matches() || BRACKET_PAGE.matcher(t).matches()) {
+            if (PAGE.matcher(t).matches() || BRACKET_PAGE.matcher(t).matches() || IGNORABLE.matcher(t).matches()) {
                 rows.put(no, row(no, Kind.IGNORE));
+                continue;
+            }
+            // 여러 줄에 걸친 괄호 지문 — 여는 줄부터 닫는 줄까지(「/」로 나눈 노랫말 괄호는 빼고). 빈 줄 없이 네 줄 안에 닫혀야 한다 —
+            // 닫는 괄호를 빠뜨린 줄이 뒤를 전부 지문으로 삼키지 않게.
+            if (parenUntil >= i) {
+                rows.put(no, row(no, Kind.DIRECTION));
+                continue;
+            }
+            int closing = opensParen(t) ? parenClose(text, i) : -1;
+            if (closing > i) {
+                rows.put(no, row(no, Kind.DIRECTION));
+                parenUntil = closing;
                 continue;
             }
             String key = digitless(t);
@@ -337,7 +357,8 @@ public final class RuleSplit {
                 continue;
             }
             if (PAREN_ONLY.matcher(t).matches()) {
-                rows.put(no, row(no, Kind.DIRECTION));
+                // 「(가자! / 저 끝까지 / …)」 노랫말은 대사다 — 하이브리드는 모델에 맡긴다
+                if (!lyrics(t)) rows.put(no, row(no, Kind.DIRECTION));
                 continue;
             }
             if (STAGE.matcher(t).matches() && !names.contains("무대")) {
@@ -410,7 +431,7 @@ public final class RuleSplit {
             }
             // 머리 모양이 분명한 대본에서 따로 떨어진 머리 없는 줄은 지문 말투일 때만 지문이다. 대사 말투(?·!·「~요」)거나 애매하면
             // 모델에 맡긴다 — 빈 줄 뒤에 이어 쓴 대사를 지문으로 단정하던 자리다(2026-11-19 재생: 지문→대사 3만 8천 줄).
-            if (!names.isEmpty() && directionLike(t)) {
+            if (!names.isEmpty() && directionLike(withoutTailParen(t))) {
                 rows.put(no, row(no, Kind.DIRECTION));
             }
         }
@@ -447,16 +468,21 @@ public final class RuleSplit {
         Map<Integer, Row> rows = new LinkedHashMap<>(base.rows());
         Set<String> known = new LinkedHashSet<>(base.roster());
         Map<String, Integer> fresh = new HashMap<>();
+        Set<String> colonSeen = new HashSet<>();
         for (int i = 0; i < text.size(); i++) {
             if (text.blank(i) || rows.containsKey(lines.get(i).no())) continue;
+            String colonHead = colonName(text.get(i));
+            if (colonHead != null) colonSeen.add(colonHead);
             if (i > 0 && text.adjacent(i - 1, i) && !TERMINAL.matcher(text.get(i - 1)).matches()) continue;
             String name = leadingName(text.get(i));
             if (name != null) fresh.merge(name, 1, Integer::sum);
         }
         fresh.forEach((name, n) -> {
-            // 두 번 이상이면 받는다. 끝 글자 걸러내기(「민서」「은지」)에 걸리는 낱말은 세 번, 한 글자 이름(「준」)은 네 번 이상 나와야 받는다.
-            boolean plain = name.length() >= 2 && !MINOR_NOT.matcher(name).matches();
-            if (plain ? n >= 2 : n >= (name.length() == 1 ? 4 : 3)) known.add(name);
+            // 쌍점·대괄호·번호 이름은 두 번, 줄 앞 첫 낱말은 띄어쓰기 이름 기준({@link #spaceName})
+            boolean strongHead = !name.matches("\\p{IsHangul}+") || colonSeen.contains(name);
+            boolean particled = name.length() >= 2 && known.contains(name.substring(0, name.length() - 1))
+                    && "이가은는을를도의와과랑".indexOf(name.charAt(name.length() - 1)) >= 0;
+            if (!particled && (strongHead ? n >= 2 : spaceName(name, n))) known.add(name);
         });
         boolean prose = rejectProse && known.isEmpty() && proseLike(text);
         boolean monologue = known.isEmpty() && !prose;
@@ -471,9 +497,25 @@ public final class RuleSplit {
                 String trimmed = t.stripTrailing();
                 String alone = trimmed.endsWith(":") || trimmed.endsWith("：") ? trimmed.substring(0, trimmed.length() - 1).stripTrailing() : t;
                 String name = seen > 1 ? standaloneName(alone) : null;
-                if (name != null && hangulName(name.replace(" ", ""))) {
+                // 제목 바로 밑에 붙고 뒤가 빈 줄인 이름은 작가다(「<담배의 해로움에 대해>⏎체호프⏎⏎」)
+                boolean byline = seen == 2 && i == firstContent(text) + 1 && text.adjacent(i - 1, i) && !text.adjacent(i, i + 1);
+                if (name != null && !byline && hangulName(name.replace(" ", ""))) {
                     monologueName = name;
                     rows.put(lines.get(i).no(), row(lines.get(i).no(), Kind.IGNORE));
+                    break;
+                }
+            }
+        }
+
+        if (monologue && monologueName.equals(Monologue.PLACEHOLDER)) {
+            // 첫 본문 줄들의 탭 머리(「뉴힌⇥(콧수염은 …) 친애하는 …」)
+            int seen = 0;
+            for (int i = 0; i < text.size() && seen < 12; i++) {
+                if (text.blank(i)) continue;
+                seen++;
+                String tabbed = group(TAB_HEAD, text.get(i));
+                if (tabbed != null && nameLike(tabbed.strip()) && hangulName(tabbed.strip())) {
+                    monologueName = tabbed.strip();
                     break;
                 }
             }
@@ -520,6 +562,8 @@ public final class RuleSplit {
                 String bracketed = group(BRACKET_HEAD, t);
                 strong = bracketed != null && nameLike(bracketed.strip()) ? bracketed.strip() : null;
             }
+            // 말투는 끝 괄호 지시(「같이 가자! (손을 내민다)」)를 빼고 본다
+            String spoken = withoutTailParen(t);
             String first = group(SPACE_HEAD, t);
             boolean credit = first != null && CREDIT.matcher(first).matches() && !known.contains(first) && t.codePointCount(0, t.length()) <= 30;
             if (prose) {
@@ -530,7 +574,8 @@ public final class RuleSplit {
                 // 대본 끝 크레딧(「연출 홍길동」) — 배역이 아니다
                 filled = row(no, Kind.IGNORE);
             } else if (PAREN_ONLY.matcher(t).matches()) {
-                filled = row(no, Kind.DIRECTION);
+                String singer = chain != null ? chain : last;
+                filled = lyrics(t) && singer != null ? new Row(no, Kind.DIALOGUE, singer, "") : row(no, Kind.DIRECTION);
             } else if (!monologue && nameLine != null && text.adjacent(i, i + 1) && standaloneName(text.get(i + 1)) == null) {
                 // 모르는 이름 줄 — 블록 형식의 새 배역(행동 괄호가 붙으면 그 줄은 지문)
                 filled = row(no, actionParen(t) ? Kind.DIRECTION : Kind.IGNORE);
@@ -549,10 +594,10 @@ public final class RuleSplit {
                 known.add(strong);
                 filled = new Row(no, Kind.DIALOGUE, strong, "");
             } else if (monologue) {
-                filled = told(t) ? row(no, Kind.DIRECTION) : new Row(no, Kind.DIALOGUE, monologueName, "");
+                filled = told(spoken) ? row(no, Kind.DIRECTION) : new Row(no, Kind.DIALOGUE, monologueName, "");
             } else if (chain != null) {
-                filled = told(t) ? row(no, Kind.DIRECTION) : new Row(no, Kind.DIALOGUE, chain, "");
-            } else if (directionLike(t) || last == null) {
+                filled = told(spoken) ? row(no, Kind.DIRECTION) : new Row(no, Kind.DIALOGUE, chain, "");
+            } else if (directionLike(spoken) || last == null) {
                 filled = row(no, Kind.DIRECTION);
             } else {
                 filled = new Row(no, Kind.DIALOGUE, last, "");
@@ -647,6 +692,13 @@ public final class RuleSplit {
         return head(c, names) != null || alone != null && names.contains(alone);
     }
 
+    /** 무시할 줄 — 꾸밈 선(「⸻」「*****」), 마크다운 메모(「* **메모:** …」), 음악 그림 글자로 시작하는 줄(「🎼 …」). */
+    private static final Pattern IGNORABLE = Pattern.compile(
+            "[-–—―─━═=*~_·•■□◆◇○●◎⸺⸻]{3,}+|⸻++|[*\\-•][^\\S\\n]*+\\*\\*.*|[\\x{1F3B5}\\x{1F3B6}\\x{1F3BC}].*");
+    /** 독백 제목 — 「햄릿 독백」「오필리어의 독백」 / 「[독백] 서진」「독백: 서진」. */
+    private static final Pattern TITLE_BEFORE = Pattern.compile("([\\p{IsHangul}A-Za-z]{1,8}?)(?:의)?[^\\S\\n]*+독백");
+    private static final Pattern TITLE_AFTER = Pattern.compile("독백[^\\S\\n]*+[\\])】:：\\-–—]*+[^\\S\\n]*+([\\p{IsHangul}A-Za-z]{1,8})[^\\S\\n]*+");
+
     /** 확실한 대사 말끝 — 이름에는 오지 않는다. */
     private static final Pattern SURE_SPEECH_END = Pattern.compile(".*(?:요|니다|까|죠|네|래|세요|군요|구나|거든|잖아|는데|라고)[.!?…~]*");
     /** 블록 이름 줄로 받지 않는 조사 끝(「법정에」「무대에는」「허공에다가」). 「하은」「지은」처럼 이름에 흔한 끝은 둔다. */
@@ -720,10 +772,9 @@ public final class RuleSplit {
         name = group(BRACKET_HEAD, t);
         if (name != null && nameLike(name.strip())) return name.strip();
         name = group(SPACE_HEAD, t);
-        // 줄 앞 첫 낱말은 2~4글자 한글이고 조사·어미 꼴이 아니며 만든 사람 말(연출·기획…)이 아닐 때만 — PDF 에서 잘린 줄의 「고」「게」, 흔한 말
-        // 「잠시」「그런」이 배역이 됐다(2026-11-21 희곡 재생)
-        return name != null && hangulName(name) && name.length() <= 4 && !WORD_END.matcher(name).matches()
-                && !CREDIT.matcher(name).matches() ? name : null;
+        // 줄 앞 첫 낱말은 띄어쓰기 이름 모양일 때만(횟수 기준은 부르는 쪽) — PDF 에서 잘린 줄의 「고」「게」, 흔한 말 「잠시」「그런」이
+        // 배역이 됐다(2026-11-21 희곡 재생)
+        return name != null && spaceName(name, Integer.MAX_VALUE) ? name : null;
     }
 
     /**
@@ -869,6 +920,10 @@ public final class RuleSplit {
         if (m.lookingAt() && names.contains(m.group(1))) {
             return new Head(m.group(1), m.group(1), Format.SPACE);
         }
+        m = LABELED_HEAD.matcher(t);
+        if (m.lookingAt() && names.contains(m.group(1))) {
+            return new Head(m.group(1), m.group(), Format.SPACE);
+        }
         m = SPACE_HEAD.matcher(t);
         if (m.lookingAt() && names.contains(m.group(1))) {
             return new Head(m.group(1), m.group(), Format.SPACE);
@@ -937,6 +992,42 @@ public final class RuleSplit {
     }
 
     /** 소개 없이 「이름 + 띄어쓰기」로 받을 이름 — 한글 1~5자, 조사·어미로 끝나지 않음. */
+    /** 줄 앞에 와도 이름이 아닌 꾸밈말(「작은 방」「젊은 여자」의 「작은」). */
+    private static final Set<String> ADJECTIVES = Set.of("작은", "많은", "좋은", "같은", "높은", "젊은", "늙은", "남은", "죽은", "붉은", "검은",
+            "깊은", "넓은", "얇은", "적은", "낡은", "굵은", "밝은", "맑은", "짧은", "옅은", "싫은", "옳은", "굳은", "그런", "이런", "저런");
+    /** 이름에도 흔한 끝 글자 — 이 끝이면 세 번 넘게 나와야 이름으로 받는다(「윤서」「은지」「하나」「수아」). */
+    private static final List<String> NAME_OR_WORD_END = List.of("이", "서", "지", "나", "아", "야", "어", "니");
+    /** 이름에는 오지 않는 조사·어미 끝. */
+    private static final List<String> PARTICLE_END = List.of("는", "를", "을", "에", "요", "다", "도", "만", "고", "며", "면", "데", "게", "께",
+            "랑", "와", "과", "로", "의", "처럼");
+
+    /**
+     * 띄어쓰기형 머리 낱말을 이름으로 받을까 — 줄 앞에 {@code count} 번 나온 낱말. 한글 7자까지(「싸이먼스팀슨」), 대문자 로마자(「JOHN」), 흔한 말·
+     * 꾸밈말·만든 사람 말은 빼고, 한 글자는 다섯 번, 「~은」은 두 글자(「하은」「지은」)만 세 번, 이름에도 흔한 끝(「윤서」「은지」)은 세 번, 조사·어미
+     * 끝은 받지 않는다. 2026-11-21 운영 대본: 띄어쓰기형인데 하이브리드가 못 맡은 대본의 놓친 이름 4만 2천 줄 중 2만 5천 줄이 「이·서·지·나·아」
+     * 끝 이름이었다.
+     */
+    static boolean spaceName(String name, int count) {
+        if (name == null || NOT_NAMES.contains(name) || CREDIT.matcher(name).matches() || ADJECTIVES.contains(name)) return false;
+        if (name.matches("[A-Z][A-Z'.\\-]{1,15}")) return count >= 3;
+        if (!name.matches("\\p{IsHangul}{1,7}")) return false;
+        int length = name.length();
+        if (length == 1) return count >= 5;
+        // 받침 뒤 「은」「이」는 조사다(「얀은」「문이」「경찰이」). 받침 없는 끝(「지은」「하은」「윤서」)은 이름일 수 있다.
+        if (name.endsWith("은")) return length == 2 && !batchim(name, length - 2) && count >= 3;
+        if (name.endsWith("이") && length >= 2 && batchim(name, length - 2)) return count >= 8;
+        if (name.endsWith("가")) return GA_ROLES.stream().anyMatch(name::endsWith) && count >= 2;
+        if (PARTICLE_END.stream().anyMatch(name::endsWith)) return false;
+        if (NAME_OR_WORD_END.stream().anyMatch(name::endsWith)) return count >= 3;
+        return count >= 2;
+    }
+
+    /** {@code at} 자리 한글 음절에 받침이 있나. */
+    private static boolean batchim(String s, int at) {
+        char c = s.charAt(at);
+        return c >= '\uAC00' && c <= '\uD7A3' && (c - 0xAC00) % 28 != 0;
+    }
+
     /** 「~가」로 끝나는 직업 이름. */
     private static final List<String> GA_ROLES = List.of("작가", "화가", "소설가", "전문가", "사업가", "정치가", "평론가", "음악가", "성악가",
             "건축가", "탐험가", "여행가", "예술가", "혁명가", "작곡가", "연출가", "만화가", "번역가", "수집가", "애호가", "자본가", "법률가");
@@ -981,6 +1072,99 @@ public final class RuleSplit {
         if (!m.lookingAt()) return null;
         String gap = m.group(2);
         return gap.length() >= 2 || gap.indexOf('\t') >= 0 ? m.group(1) : null;
+    }
+
+    private static int firstContent(Text text) {
+        for (int i = 0; i < text.size(); i++) {
+            if (!text.blank(i)) return i;
+        }
+        return -1;
+    }
+
+    /** 「/」로 두 번 넘게 나눈 괄호 — 노랫말. */
+    private static boolean lyrics(String t) {
+        return t.chars().filter(c -> c == '/').count() >= 2;
+    }
+
+    /** 괄호를 열고 닫지 않은 줄(여러 줄 괄호 지문의 시작). 노랫말 괄호는 아니다. */
+    private static boolean opensParen(String t) {
+        if (!(t.startsWith("(") || t.startsWith("（")) || lyrics(t)) return false;
+        long open = t.chars().filter(c -> c == '(' || c == '（').count();
+        long close = t.chars().filter(c -> c == ')' || c == '）').count();
+        return open > close;
+    }
+
+    /** {@code from} 줄에서 연 괄호가 빈 줄 없이 네 줄 안에서 닫히는 줄. 없으면 -1. */
+    private static int parenClose(Text text, int from) {
+        for (int j = from + 1; j < text.size() && j <= from + 4 && text.adjacent(j - 1, j); j++) {
+            String t = text.get(j);
+            if (t.indexOf(')') >= 0 || t.indexOf('）') >= 0) return j;
+        }
+        return -1;
+    }
+
+    /** 끝 괄호 지시를 뗀 말 — 「같이 가자! (손을 내민다)」→「같이 가자!」. 괄호뿐이면 그대로. */
+    static String withoutTailParen(String t) {
+        String inside = tailParen(t);
+        if (inside == null) return t;
+        String s = t.stripTrailing();
+        String head = s.substring(0, s.length() - inside.length() - 2).strip();
+        return head.isEmpty() ? t : head;
+    }
+
+    /**
+     * 독백 대본 제목에서 화자 이름을 꺼낸다 — 「햄릿 독백」「오필리어의 독백」→ 햄릿·오필리어, 「[독백] 서진」「독백: 서진」→ 서진. 없으면 null.
+     * 풀규칙에서 이름을 못 찾은 독백이 「화자」로 남던 자리다(정답 셋 7지점은 이름이 제목에만 있었다).
+     */
+    public static String monologueName(String title) {
+        if (title == null) return null;
+        String t = clean(title);
+        Matcher before = TITLE_BEFORE.matcher(t);
+        String name = null;
+        if (before.find()) {
+            name = before.group(1);
+        } else {
+            Matcher after = TITLE_AFTER.matcher(t);
+            if (after.find() && after.end() == t.length()) name = after.group(1);
+        }
+        return name != null && nameLike(name) && !name.equals("독백") ? name : null;
+    }
+
+    /**
+     * 한 줄에 여러 사람 대사를 이어 쓴 원문을 나눈다(풀규칙) — 「에이코 뭐고?  준코 띄엄띄엄 보고 있다. 키요코 …」. 줄 안에서 두 칸 이상 띄운 뒤나
+     * 문장 끝 부호 뒤에 아는 배역 이름 + 띄어쓰기가 오면 거기서 자른다. 두 칸 띄운 자리가 대본에 세 번 이상 있을 때만 한다 — 보통 대본의
+     * 「몰라. 민수 너는 알아?」를 자르지 않으려는 것이다(그런 줄이 글 줄의 2% 이상일 때만). 나뉜 조각은 이어진 번호를 받는다(빈 줄 자리는 번호를 하나 건너뛴다).
+     */
+    public static List<NumberedLine> splitTurns(List<NumberedLine> lines, Set<String> names) {
+        List<String> sorted = names.stream().filter(n -> !n.isBlank()).sorted((a, b) -> b.length() - a.length()).toList();
+        if (sorted.isEmpty()) return lines;
+        String alternation = String.join("|", sorted.stream().map(Pattern::quote).toList());
+        Pattern wide = Pattern.compile("(?<=\\S)[^\\S\\n]{2,}+(?=(?:" + alternation + ")[\\s(（:：])");
+        Pattern boundary = Pattern.compile("(?<=\\S)[^\\S\\n]{2,}+(?=(?:" + alternation + ")[\\s(（:：])|(?<=[.?!…~])[^\\S\\n]++(?=(?:" + alternation + ")[\\s(（:：])");
+        int wideLines = 0;
+        int content = 0;
+        for (NumberedLine line : lines) {
+            String c = clean(line.text());
+            if (!c.isEmpty()) content++;
+            if (wide.matcher(c).find()) wideLines++;
+        }
+        if (wideLines < 3 || wideLines * 50 < content) return lines;
+        List<NumberedLine> out = new ArrayList<>();
+        int next = 0;
+        int previousNo = Integer.MIN_VALUE;
+        for (NumberedLine line : lines) {
+            if (previousNo != Integer.MIN_VALUE && line.no() != previousNo + 1) next++;
+            previousNo = line.no();
+            String[] pieces = boundary.split(clean(line.text()));
+            if (pieces.length <= 1) {
+                out.add(new NumberedLine(++next, line.text()));
+                continue;
+            }
+            for (String piece : pieces) {
+                if (!piece.isBlank()) out.add(new NumberedLine(++next, piece.strip()));
+            }
+        }
+        return out;
     }
 
     /** 장면 표기 줄인가. */

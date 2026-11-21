@@ -41,8 +41,17 @@ final class ScriptSplitFakes {
 
     /** 원본 파일 이름(확장자로 PDF 줄 잇기를 가른다)까지 주고 나눈다. */
     static Run run(String raw, ScriptSplitMode mode, String fileName) {
+        return run(raw, mode, fileName, null);
+    }
+
+    /** 대본 제목(독백 화자를 제목에서 찾는다)까지 주고 나눈다. */
+    static Run runTitled(String raw, ScriptSplitMode mode, String title) {
+        return run(raw, mode, null, title);
+    }
+
+    private static Run run(String raw, ScriptSplitMode mode, String fileName, String title) {
         RecordingGenerator generator = new RecordingGenerator();
-        FakeImports imports = new FakeImports(raw, fileName);
+        FakeImports imports = new FakeImports(raw, fileName, title);
         ScriptSplitWorker worker = new ScriptSplitWorker(new FakeLedger(), imports, generator, new RecordingLlmTelemetry(),
                 new RecordingFailureReporter(), Clock.systemUTC(), null, null, null, null, mode);
         worker.runOnce();
@@ -134,10 +143,12 @@ final class ScriptSplitFakes {
         static final UUID IMPORT = UUID.randomUUID();
         private final String rawText;
         private final String fileName;
+        private final String title;
         ScriptDraft saved;
         ScriptImportFailure failure;
 
-        FakeImports(String rawText, String fileName) {
+        FakeImports(String rawText, String fileName, String title) {
+            this.title = title;
             this.rawText = rawText;
             this.fileName = fileName;
         }
@@ -147,7 +158,7 @@ final class ScriptSplitFakes {
                 int scriptLimit, int dailyLimit, Instant now) { throw new UnsupportedOperationException(); }
         @Override public ImportView find(UUID userId, UUID importId) { throw new UnsupportedOperationException(); }
         @Override public Material material(UUID jobId, UUID importId) {
-            return new Material(USER, false, UUID.randomUUID(), "f".repeat(64), null, rawText, fileName == null ? "paste" : "file", false, fileName);
+            return new Material(USER, false, UUID.randomUUID(), "f".repeat(64), title, rawText, fileName == null ? "paste" : "file", false, fileName);
         }
         @Override public void progress(UUID importId, int doneLines, int totalLines) { }
         @Override public void percent(UUID importId, int percent) { }

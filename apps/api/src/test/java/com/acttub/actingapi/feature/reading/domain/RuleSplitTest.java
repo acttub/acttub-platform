@@ -411,6 +411,114 @@ class RuleSplitTest {
         assertThat(joined.getFirst().no()).isEqualTo(1);
     }
 
+    // ── 남은 쉬운 오류·독백 이름·한 줄 여러 대사 (2026-11-21) ──
+
+    @Test
+    void decorationMemoAndMusicLinesAreIgnored() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n⸻\n영희: 응.\n* **메모(3막):** 조명 바꿀 것\n민수: 가자.\n🎼 빗소리가 흐른다\n영희: 그래."));
+
+        assertThat(row(result, 2).kind()).isEqualTo(Kind.IGNORE);
+        assertThat(row(result, 4).kind()).isEqualTo(Kind.IGNORE);
+        assertThat(row(result, 6).kind()).isEqualTo(Kind.IGNORE);
+    }
+
+    @Test
+    void aSpeechLineEndingInAnActionParenthesisIsDialogue() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n영희: 응.\n민수: 가자.\n\n같이 가자! (손을 내민다)\n\n영희: 그래."));
+
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.DIALOGUE);
+    }
+
+    @Test
+    void lyricsInParenthesesWithSlashesAreDialogue() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 노래하자.\n영희: 좋아.\n(가자! / 저 끝까지 / 멈추지 마!)\n민수: 그래.\n영희: 응."));
+
+        assertThat(row(result, 3)).isEqualTo(new Row(3, Kind.DIALOGUE, "영희", ""));
+    }
+
+    @Test
+    void aDirectionInParenthesesSpanningLinesIsOneDirection() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n영희: 응.\n(창밖을 오래 보다가,\n천천히 돌아선다)\n민수: 가자."));
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(row(result, 4).kind()).isEqualTo(Kind.DIRECTION);
+    }
+
+    @Test
+    void anUnclosedParenthesisDoesNotSwallowTheLinesAfterIt() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n영희: 응.\n(창밖을 오래 본다\n민수: 가자.\n영희: 그래.\n민수: 응."));
+
+        assertThat(row(result, 4).kind()).isEqualTo(Kind.DIALOGUE);
+    }
+
+    @Test
+    void wordsWithAParticleAreNotNames() {
+        assertThat(RuleSplit.spaceName("얀은", 5)).isFalse();
+        assertThat(RuleSplit.spaceName("문이", 5)).isFalse();
+        assertThat(RuleSplit.spaceName("지은", 3)).isTrue();
+        assertThat(RuleSplit.spaceName("윤서", 3)).isTrue();
+        assertThat(RuleSplit.spaceName("민수", 2)).isTrue();
+        assertThat(RuleSplit.spaceName("작은", 9)).isFalse();
+    }
+
+    @Test
+    void anAuthorUnderTheTitleIsNotTheMonologueSpeaker() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("<담배의 해로움에 대해>\n체호프\n\n뉴힌\t(인사한다) 친애하는 여러분.\n\n제 아내가 강연을 하라고 했습니다."));
+
+        assertThat(result.roster()).containsExactly("뉴힌");
+    }
+
+    @Test
+    void monologueSpeakerComesFromTheTitle() {
+        assertThat(RuleSplit.monologueName("햄릿 독백")).isEqualTo("햄릿");
+        assertThat(RuleSplit.monologueName("오필리어의 독백")).isEqualTo("오필리어");
+        assertThat(RuleSplit.monologueName("[독백] 서진")).isEqualTo("서진");
+        assertThat(RuleSplit.monologueName("독백 - 문 앞에서")).isNull();
+        assertThat(RuleSplit.monologueName("마지막 버스")).isNull();
+        assertThat(RuleSplit.monologueName(null)).isNull();
+    }
+
+    @Test
+    void turnsWrittenOnOneLineAreSplit() {
+        String raw = """
+                에이코 뭐고, 준코 너 그 드라마 안 봤나?  준코 띄엄띄엄 보고 있다. 키요코 그거 재밌다 아이가.
+                준코 그래?  에이코 그렇다.
+                키요코 나는 몰라.  준코 왜?
+                에이코 몰라도 된다.
+                준코 알았다.""";
+        java.util.List<NumberedLine> split = RuleSplit.splitTurns(NumberedLine.of(raw), java.util.Set.of("에이코", "준코", "키요코"));
+
+        assertThat(split).extracting(NumberedLine::text).containsExactly("에이코 뭐고, 준코 너 그 드라마 안 봤나?", "준코 띄엄띄엄 보고 있다.",
+                "키요코 그거 재밌다 아이가.", "준코 그래?", "에이코 그렇다.", "키요코 나는 몰라.", "준코 왜?", "에이코 몰라도 된다.", "준코 알았다.");
+        // 나뉜 조각은 서로 붙은 줄이다(번호가 이어진다)
+        assertThat(split.get(1).no()).isEqualTo(split.get(0).no() + 1);
+    }
+
+    @Test
+    void ordinaryLinesAreNotSplitAtANameInsideTheSentence() {
+        String raw = "민수 영희 어디 갔어?\n영희 몰라. 민수 너는 알아?\n민수 나도 몰라.\n영희 그래.";
+        java.util.List<NumberedLine> split = RuleSplit.splitTurns(NumberedLine.of(raw), java.util.Set.of("민수", "영희"));
+
+        assertThat(split).hasSize(4);
+    }
+
+    // ── 줄 언어(규칙) ─────────────────────────────────────
+
+    @Test
+    void lineLanguagesByScript() {
+        assertThat(RuleLanguage.of("I never left you.")).isEqualTo(new LineLanguage.Result("en", null));
+        assertThat(RuleLanguage.of("Merci beaucoup, je suis très content.")).isEqualTo(new LineLanguage.Result("fr", null));
+        assertThat(RuleLanguage.of("ありがとうございます")).isEqualTo(new LineLanguage.Result("ja", null));
+        assertThat(RuleLanguage.of("고맙습니다. Thank you so much.")).isEqualTo(new LineLanguage.Result("en", "⟦ko⟧고맙습니다. ⟦en⟧Thank you so much."));
+        // 한국어 줄에 짧은 영어 낱말이 섞이면 한국어로 둔다(받아쓰기가 한국어로 듣게)
+        assertThat(RuleLanguage.of("오늘 CEO 회의가 있어서 늦었어.")).isNull();
+        assertThat(RuleLanguage.of("안녕")).isNull();
+        assertThat(RuleLanguage.of("HIV면 에이즈요?")).isNull();
+        assertThat(RuleLanguage.of("(진료실을 치우며) Day three. 책상부터 정리하라!"))
+                .isEqualTo(new LineLanguage.Result("en", "⟦en⟧Day three. ⟦ko⟧책상부터 정리하라!"));
+        assertThat(RuleLanguage.of("(손을 들며) You win!")).isEqualTo(new LineLanguage.Result("en", "You win!"));
+    }
+
     // ── 성 + 이름 묶기 (풀규칙) ──────────────────────────
 
     @Test
