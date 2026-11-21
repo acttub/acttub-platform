@@ -53,6 +53,12 @@ class EntryModerationParserTest {
         assertThatThrownBy(() -> EntryModerationParser.parseFace("모르겠어요")).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test void voiceOnlyActingPassesInsteadOfReview() {
+        String instruction = EntryModerationPrompt.instruction("가지 마", "첫 참여");
+        assertThat(instruction).contains("음성 연기이므로 pass")
+                .contains("연기하는 목소리도 없는 빈 화면").doesNotContain("연기가 아닌 영상(빈 화면·");
+    }
+
     @Test void bothInstructionsAskForTheFaceWithoutDescribingPeople() {
         assertThat(EntryModerationPrompt.instruction("가지 마", "첫 참여")).contains("\"face\":true|false").contains("모자이크·흐림")
                 .contains("외모·신원을 묘사하지 않는다");

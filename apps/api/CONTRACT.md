@@ -1204,6 +1204,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   서로 다른 `PASSED_ENTRY_REPORT_THRESHOLD` 명에게서 모여야 숨기고, 그 밖의 참여작은 지금처럼 신고 하나에 숨긴다. 스위치는
   `ANALYSIS_WORKER_ENABLED` 와 `CHALLENGE_MODERATION_ENABLED`(테스트는 후자를 전역으로 끈다), 모델은
   `CHALLENGE_MODERATION_MODEL`(없으면 `GEMINI_MODEL`)이다. V70 은 이미 공개된 참여작을 한 번 검사 차례로 둔다.
+  화면이 검거나 배우가 보이지 않아도 대사를 연기하는 목소리가 들리면 `passed` 다(face 만 false, SOMA-1082). 목소리 연기도
+  없는 빈 화면·화면 녹화·무관한 내용만 `review` 로 올린다.
 
 ### 6-19. 챌린지 AI 리포트 (0.1.0)
 
