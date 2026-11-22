@@ -52,3 +52,23 @@ export function markScreen(screen: string): void {
     // 모듈이 없는 빌드 — 남기지 않고 간다.
   }
 }
+
+/** 크래시 기록에 남길 들어온 주소. 질의·조각(로그인 code 등)은 떼고 120자까지만. */
+const ENTRY_PATH_MAX = 120;
+
+/**
+ * 바깥(딥링크·알림·로그인 복귀)에서 앱으로 들어온 주소를 크래시 기록에 남긴다(+native-intent).
+ * 없는 주소로 앱이 켜지면 expo-router 기본 화면이 우리 레이아웃 밖에서 떠 화면 기록이 하나도 안 남았다(SOMA-1091).
+ */
+export function markEntryPath(path: string, initial: boolean): void {
+  try {
+    const entry = path.split(/[?#]/, 1)[0].slice(0, ENTRY_PATH_MAX);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getCrashlytics, log, setAttribute } = require('@react-native-firebase/crashlytics');
+    const crashlytics = getCrashlytics();
+    void setAttribute(crashlytics, 'entry_path', entry);
+    log(crashlytics, `entry ${initial ? 'cold' : 'warm'} ${entry}`);
+  } catch {
+    // 모듈이 없는 빌드 — 남기지 않고 간다.
+  }
+}

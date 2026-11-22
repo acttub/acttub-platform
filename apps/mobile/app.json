@@ -59,7 +59,12 @@
     },
     "plugins": [
       "./plugins/with-ios-only-locales.js",
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "sitemap": false
+        }
+      ],
       "./plugins/with-splash-adaptive-icon.js",
       [
         "expo-build-properties",
