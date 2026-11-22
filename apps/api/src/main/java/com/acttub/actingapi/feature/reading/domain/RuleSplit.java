@@ -568,8 +568,9 @@ public final class RuleSplit {
                 } else if (existing.kind() != Kind.IGNORE) {
                     // 「민수 (창밖을 본다)」「민수 : (한숨)」 — 지문이지만 다음 줄부터 그 사람 대사다
                     String acting = existing.kind() == Kind.DIRECTION ? actionHeadName(t, known) : null;
-                    chain = acting != null && !blockFormat ? acting : null;
-                    block = acting != null && blockFormat ? acting : null;
+                    Handover next = Handover.to(acting, blockFormat);
+                    chain = next.chain();
+                    block = next.block();
                     if (acting != null) last = acting;
                 }
                 continue;
@@ -614,7 +615,7 @@ public final class RuleSplit {
                 filled = PAREN_ONLY.matcher(body).matches() || told(body) ? row(no, Kind.DIRECTION)
                         : new Row(no, Kind.DIALOGUE, head.name, head.header);
                 block = null;
-                if (PAREN_ONLY.matcher(body).matches() && known.contains(head.name)) acting = head.name;
+                if (PAREN_ONLY.matcher(body).matches()) acting = head.name;
             } else if (block != null) {
                 filled = new Row(no, Kind.DIALOGUE, block, "");
             } else if (!monologue && strong != null) {
@@ -637,8 +638,9 @@ public final class RuleSplit {
                 chain = null;
             }
             if (acting != null) {
-                if (blockFormat) block = acting;
-                else chain = acting;
+                Handover next = Handover.to(acting, blockFormat);
+                chain = next.chain();
+                block = next.block();
                 last = acting;
             }
         }
@@ -1123,7 +1125,7 @@ public final class RuleSplit {
      * 「민수 (창밖을 본다)」「민수 : (한숨)」「[민수] (웃는다)」 — 아는 이름 머리 뒤가 괄호 지시 하나뿐인 줄의 이름. 아니면 null. 괄호 길이는
      * 묻지 않는다(블록 이름 줄 판정은 괄호 12자까지라 긴 행동 지시 뒤 대사가 앞 사람 몫이 됐다 — 2026-11-22 r4 대조).
      */
-    private static String actionHeadName(String t, Set<String> known) {
+    static String actionHeadName(String t, Set<String> known) {
         String inside = tailParen(t);
         if (inside == null) return null;
         String s = t.stripTrailing();
@@ -1136,7 +1138,7 @@ public final class RuleSplit {
     }
 
     /** 「[민수]」「[어린 민수]」만 있는 줄의 아는 이름(괄호 안 끝 이름). 아니면 null. */
-    private static String bracketNameLine(String t, Set<String> known) {
+    static String bracketNameLine(String t, Set<String> known) {
         Matcher m = BRACKET_NAME_LINE.matcher(t);
         if (!m.matches()) return null;
         String inside = m.group(1).strip();
@@ -1145,6 +1147,14 @@ public final class RuleSplit {
             if (name.codePointCount(0, name.length()) >= 2 && inside.endsWith(name)) return name;
         }
         return null;
+    }
+
+    /** 이름 + 괄호 지시 줄 뒤 이어 받을 사람 — 블록 대본은 블록, 아니면 이어지는 말(지문 말투면 지문). 이름이 없으면 둘 다 끊는다. */
+    private record Handover(String block, String chain) {
+        static Handover to(String acting, boolean blockFormat) {
+            if (acting == null) return new Handover(null, null);
+            return blockFormat ? new Handover(acting, null) : new Handover(null, acting);
+        }
     }
 
     /** 「/」로 두 번 넘게 나눈 괄호 — 노랫말. */
