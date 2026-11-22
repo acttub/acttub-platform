@@ -502,6 +502,106 @@ class RuleSplitTest {
         assertThat(split).hasSize(4);
     }
 
+    // ── r4 대조에서 찾은 오류 (2026-11-22) ───────────────────
+
+    @Test
+    void anActionLineWithALongParenthesisHandsTheNextLinesToThatPerson() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                민수
+                안녕.
+
+                영희
+                응.
+
+                민수
+                오늘 어땠어?
+
+                영희
+                별로.
+
+                영희 (고개를 끄덕이며 가방을 챙겨 들고 문 쪽으로 천천히 걸어간다)
+                그냥 그랬어.
+
+                민수 (창밖을 오래 바라보다가, 천천히 돌아서며 낮게 웃는다)
+                그래, 가자."""));
+
+        assertThat(row(result, 14)).isEqualTo(new Row(14, Kind.DIALOGUE, "영희", ""));
+        assertThat(row(result, 17)).isEqualTo(new Row(17, Kind.DIALOGUE, "민수", ""));
+    }
+
+    @Test
+    void aColonHeadWithOnlyAnActionHandsTheNextLineToThatPerson() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수 : 안녕.\n영희 : 응.\n민수 : 오늘 어땠어?\n영희 : (한숨을 쉰다)\n그냥 그랬어. 너는?\n민수 : 나도."));
+
+        assertThat(row(result, 5)).isEqualTo(new Row(5, Kind.DIALOGUE, "영희", ""));
+    }
+
+    @Test
+    void aBracketedNameAloneOnALineStartsThatPersonsLines() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수: 안녕.\n영희: 응.\n민수: 가자.\n\n[영희]\n잠깐만 기다려 줘.\n민수: 그래."));
+
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.IGNORE);
+        assertThat(row(result, 6)).isEqualTo(new Row(6, Kind.DIALOGUE, "영희", ""));
+    }
+
+    @Test
+    void aLongActionLineOfANameOnlyTheFullRulesKnowHandsOverTheNextLine() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수 안녕.\n영희 응.\n민수 (창밖을 오래 바라보며 천천히 웃는다)\n그래, 가자.\n영희 좋아."));
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(row(result, 4)).isEqualTo(new Row(4, Kind.DIALOGUE, "민수", ""));
+    }
+
+    @Test
+    void actionHeadNamesAndBracketNameLines() {
+        java.util.Set<String> known = java.util.Set.of("민수", "준");
+        assertThat(RuleSplit.actionHeadName("민수 (웃는다)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("민수 ： (한숨)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("민수: (한숨)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("[민수] (웃는다)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("철수 (웃는다)", known)).isNull();
+        assertThat(RuleSplit.actionHeadName("(웃는다)", known)).isNull();
+        assertThat(RuleSplit.actionHeadName("민수 웃는다", known)).isNull();
+        assertThat(RuleSplit.bracketNameLine("[민수]", known)).isEqualTo("민수");
+        assertThat(RuleSplit.bracketNameLine("[어린 민수]", known)).isEqualTo("민수");
+        assertThat(RuleSplit.bracketNameLine("[어린 준]", known)).isNull();
+        assertThat(RuleSplit.bracketNameLine("[철수]", known)).isNull();
+        assertThat(RuleSplit.bracketNameLine("[민수] 안녕", known)).isNull();
+    }
+
+    @Test
+    void aTitleWhoseNamePartIsSpeechIsNotTheMonologueSpeaker() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("마지막 버스_오늘은요(20대)\n오늘도 늦었네.\n왜 나만 이렇게 바쁠까?"));
+
+        assertThat(result.roster()).doesNotContain("오늘은요");
+    }
+
+    @Test
+    void shortColonScriptsSkipTitlesAndLongNames() {
+        assertThat(RuleSplit.full(NumberedLine.of("독백: 문 앞에서\n서진: 열쇠는 맞는데 손이 안 움직여.")).roster()).doesNotContain("독백");
+        assertThat(RuleSplit.full(NumberedLine.of("가나다라마바사아자: 안녕\n민호: 응 오랜만이야")).roster()).doesNotContain("가나다라마바사아자");
+        assertThat(RuleSplit.full(NumberedLine.of("\n\n")).rows().values()).allMatch(r -> r.kind() == Kind.IGNORE);
+    }
+
+    @Test
+    void aMonologueSpeakerAfterAnUnderscoreInTheFirstLine() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("마지막 버스_서진(20대 여성)\n오늘도 늦었네.\n왜 나만 이렇게 바쁠까?"));
+
+        assertThat(result.roster()).containsExactly("서진");
+        assertThat(row(result, 1).kind()).isEqualTo(Kind.TITLE);
+        assertThat(row(result, 2)).isEqualTo(new Row(2, Kind.DIALOGUE, "서진", ""));
+    }
+
+    @Test
+    void aShortScriptMadeOnlyOfColonHeadsKeepsItsFirstSpeaker() {
+        RuleSplit.Result two = RuleSplit.full(NumberedLine.of("지수:안녕 잘 지냈어\n민호:응 오랜만이야"));
+        RuleSplit.Result one = RuleSplit.full(NumberedLine.of("지수: 오늘 정말 하고 싶은 말이 많아. 들어줄래?"));
+
+        assertThat(two.roster()).containsExactly("지수", "민호");
+        assertThat(row(two, 1).speaker()).isEqualTo("지수");
+        assertThat(one.roster()).containsExactly("지수");
+    }
+
     // ── 줄 언어(규칙) ─────────────────────────────────────
 
     @Test
