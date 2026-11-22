@@ -545,6 +545,45 @@ class RuleSplitTest {
     }
 
     @Test
+    void aLongActionLineOfANameOnlyTheFullRulesKnowHandsOverTheNextLine() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("민수 안녕.\n영희 응.\n민수 (창밖을 오래 바라보며 천천히 웃는다)\n그래, 가자.\n영희 좋아."));
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(row(result, 4)).isEqualTo(new Row(4, Kind.DIALOGUE, "민수", ""));
+    }
+
+    @Test
+    void actionHeadNamesAndBracketNameLines() {
+        java.util.Set<String> known = java.util.Set.of("민수", "준");
+        assertThat(RuleSplit.actionHeadName("민수 (웃는다)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("민수 ： (한숨)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("민수: (한숨)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("[민수] (웃는다)", known)).isEqualTo("민수");
+        assertThat(RuleSplit.actionHeadName("철수 (웃는다)", known)).isNull();
+        assertThat(RuleSplit.actionHeadName("(웃는다)", known)).isNull();
+        assertThat(RuleSplit.actionHeadName("민수 웃는다", known)).isNull();
+        assertThat(RuleSplit.bracketNameLine("[민수]", known)).isEqualTo("민수");
+        assertThat(RuleSplit.bracketNameLine("[어린 민수]", known)).isEqualTo("민수");
+        assertThat(RuleSplit.bracketNameLine("[어린 준]", known)).isNull();
+        assertThat(RuleSplit.bracketNameLine("[철수]", known)).isNull();
+        assertThat(RuleSplit.bracketNameLine("[민수] 안녕", known)).isNull();
+    }
+
+    @Test
+    void aTitleWhoseNamePartIsSpeechIsNotTheMonologueSpeaker() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("마지막 버스_오늘은요(20대)\n오늘도 늦었네.\n왜 나만 이렇게 바쁠까?"));
+
+        assertThat(result.roster()).doesNotContain("오늘은요");
+    }
+
+    @Test
+    void shortColonScriptsSkipTitlesAndLongNames() {
+        assertThat(RuleSplit.full(NumberedLine.of("독백: 문 앞에서\n서진: 열쇠는 맞는데 손이 안 움직여.")).roster()).doesNotContain("독백");
+        assertThat(RuleSplit.full(NumberedLine.of("가나다라마바사아자: 안녕\n민호: 응 오랜만이야")).roster()).doesNotContain("가나다라마바사아자");
+        assertThat(RuleSplit.full(NumberedLine.of("\n\n")).rows().values()).allMatch(r -> r.kind() == Kind.IGNORE);
+    }
+
+    @Test
     void aMonologueSpeakerAfterAnUnderscoreInTheFirstLine() {
         RuleSplit.Result result = RuleSplit.full(NumberedLine.of("마지막 버스_서진(20대 여성)\n오늘도 늦었네.\n왜 나만 이렇게 바쁠까?"));
 
