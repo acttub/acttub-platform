@@ -134,6 +134,24 @@ class AdEndpointIT {
     }
 
     @Test
+    @DisplayName("전면 칸은 스위치 줄이 없으면 NONE, enabled=true 줄을 넣으면 AdMob(NETWORK) — 학원 광고가 있어도 붙이지 않는다 (SOMA-1085)")
+    void fullScreenSlotNeedsASwitchRow() throws Exception {
+        insertAd("direct", "{reading_done_full}", "all", "https://cdn/banner.png", null);
+        finishReading();
+        try {
+            assertThat(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind").asText()).isEqualTo("NONE");
+            jdbc.update("INSERT INTO ad_slot_switches(slot_key, enabled) VALUES ('reading_done_full', true)");
+            var pick = json(get("/v2/ads").param("slot", "reading_done_full"), 200);
+            assertThat(pick.path("kind").asText()).isEqualTo("NETWORK");
+            assertThat(pick.path("ad").isNull()).isTrue();
+            jdbc.update("UPDATE ad_slot_switches SET enabled=false WHERE slot_key='reading_done_full'");
+            assertThat(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind").asText()).isEqualTo("NONE");
+        } finally {
+            jdbc.update("DELETE FROM ad_slot_switches WHERE slot_key='reading_done_full'");
+        }
+    }
+
+    @Test
     @DisplayName("노출은 하루 한 번, 클릭은 누를 때마다 남는다. 없는 광고 404, 모르는 칸·사건 422")
     void events() throws Exception {
         UUID ad = insertAd("direct", "{home_top}", "all", "https://cdn/b.png", null);

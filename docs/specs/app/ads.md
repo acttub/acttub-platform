@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: SOMA-876 (게시판 칸 키는 SOMA-873 용으로 예약)
+- 도입: SOMA-876 (게시판 칸 키는 SOMA-873 용으로 예약), 전면 칸 SOMA-1085
 - 화면: 둘러보기 화면 위쪽 칸, 연습 중 기다리는 화면의 칸 (앱 안 광고 상세 화면은 없다 — 상세는 광고주 쪽 페이지)
 - 테이블: ads, ad_events
 
@@ -19,6 +19,19 @@
 - 칸 하나만 끄려면 `ad_slot_switches`(V76)에서 그 칸을 `enabled=false` 로 둔다. 그 칸은 누구에게나 NONE 이라 직접·자체 광고도 AdMob 도 나오지 않는다. 줄이 없는 칸은 켜진 것이다. 앱 빌드 없이 다음 화면 진입부터 적용된다.
 - 같은 단계 후보가 여럿이면 priority 가 가장 큰 것들 중 사람·칸·한국 날짜마다 하나로 고정해 돌린다.
 
+## 전면 칸 (SOMA-1085)
+화면 전체를 덮는 AdMob 전면 광고 자리다. 앱이 화면에 들어올 때 서버에 칸을 묻고, NETWORK 면 AdMob 전면 광고를 불러와 띄운다.
+- 칸: `analyzing_wait_full`(코칭 영상 분석을 기다리기 시작할 때, 예시 영상 제외), `script_parse_full`(리딩 대본 나누기를 시작할 때),
+  `reading_done_full`(리딩을 끝내고 결과로 넘어갈 때, 튜토리얼 제외 — 별점 묻기는 광고를 닫은 뒤).
+- 서버는 이 칸에 NETWORK 아니면 NONE 만 준다(직접·자체 광고 없음). 첫 연습 전·Pro 는 NONE 이고, 연습 중 배너 A/B 비율은 따르지 않는다.
+- **켜기**: 다른 칸과 달리 `ad_slot_switches` 에 `enabled=true` 줄을 넣어야 켜진다. 줄이 없으면 꺼짐이다.
+  예: `INSERT INTO ad_slot_switches(slot_key, enabled) VALUES ('analyzing_wait_full', true), ('script_parse_full', true), ('reading_done_full', true);`
+- 앱: 같은 사람에게 3분에 한 번까지(앱을 켜 둔 동안), 화면에 들어올 때 첫 사용자였으면 띄우지 않는다, AdMob 초기화 전이거나 4초 안에 못 불러오면
+  광고 없이 지나간다(그 뒤에 불러와져도 띄우지 않는다). 나이별 요청 설정(청소년 비맞춤)은 배너와 같다.
+- 광고 단위: dev·개발 빌드는 Google 테스트 전면 단위, 운영 빌드는 `PRODUCTION_INTERSTITIAL_UNITS` — 비어 있으면 운영 빌드는 띄우지 않는다.
+- 건너뛰기 5초는 AdMob 설정으로 정한다: 앱 설정 「높은 참여도 광고」 끔(켜면 최대 12초), 계정 설정 「전면 광고의 건너뛸 수 없는 동영상」 끔
+  (켜 두면 최대 30초 광고가 올 수 있다). 앱은 건너뛰기 시간을 정하지 못한다.
+
 ## 광고 콘텐츠 등급(AdMob)
 앱은 프로필 생년월일의 만 나이로 AdMob 요청 설정을 고른다(`adRequestConfigFor`). 만 19세 이상은 `maxAdContentRating` T 이고 그 밖의 설정은 기본이다.
 만 19세 미만은 G + `tagForUnderAgeOfConsent` + 비맞춤 광고(`requestNonPersonalizedAdsOnly`)이며, 만 13세 미만이면 `tagForChildDirectedTreatment` 도 켠다.
@@ -31,6 +44,7 @@
 | BANNER | 320x50 | home_top, profile_top, settings_top, analyzing_top, report_top, notifications_top, line_search_top, community_post_top(예약) |
 | MEDIUM_RECTANGLE | 300x250 | analyzing_wait, voice_prepare_wait (연습 중) |
 | LARGE_BANNER | 320x100 | upload_wait, script_parse_wait, coaching_done, challenge_upload_done (연습 중) |
+| (전면) | 화면 전체 | analyzing_wait_full, script_parse_full, reading_done_full — 응답 size 는 MEDIUM_RECTANGLE 로 오지만 쓰지 않는다 |
 
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |

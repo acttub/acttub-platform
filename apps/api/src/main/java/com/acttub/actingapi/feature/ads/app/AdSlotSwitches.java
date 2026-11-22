@@ -7,4 +7,12 @@ public interface AdSlotSwitches {
 
     /** 이 칸을 서버에서 꺼 뒀는가. */
     boolean off(String slotKey);
+
+    /**
+     * 이 칸을 enabled=true 줄로 켜 뒀는가 — 줄이 있어야 켜지는 전면 칸(SOMA-1085)이 쓴다. 기본은 {@code !off}(줄 없음 = 켜짐)이고,
+     * 저장소 구현은 줄이 실제로 있는지 본다.
+     */
+    default boolean switchedOn(String slotKey) {
+        return !off(slotKey);
+    }
 }

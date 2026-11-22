@@ -129,6 +129,7 @@ import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/re
 import { newRequestId } from '@/lib/request-id';
 import { loadListenPrefs, pauseMsFor } from '@/lib/reading/listen-prefs';
 import { setReadingPlaybackRate } from '@/lib/reading/tts/playback-rate';
+import { useFullScreenAd } from '@/lib/full-screen-ad';
 
 /**
  * 연습 실행(R9, reading.session). R8 시작·회차 상세 [이어서 연습]·완료의 [다시 연습]으로 들어온다.
@@ -337,6 +338,7 @@ export default function ReadingPlay() {
   // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494). 튜토리얼 대본은 세지 않는다.
   const { after: askRating, element: ratingCard } = useAppRating();
   const fromTutorialRef = useRef(false);
+  const showFullScreenAd = useFullScreenAd();
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
   const attempts = useRef<Record<string, number>>({});
@@ -542,7 +544,11 @@ export default function ReadingPlay() {
         void markReadingFinished();
       }
       setPhase({ kind: 'done' });
-      if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
+      // 결과로 넘어갈 때 전면 광고(SOMA-1085, 튜토리얼은 빼고) — 별점 묻기는 광고를 닫은 뒤에 한다(둘이 겹치지 않게).
+      void (async () => {
+        if (!fromTutorialRef.current) await showFullScreenAd('reading_done_full');
+        if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
+      })();
       return;
     }
     // 이어하기의 앞 상대 대사(leadIn)는 저장하지 않는다 — 서버 위치가 뒤로 가지 않게.
@@ -723,7 +729,7 @@ export default function ReadingPlay() {
       const neededBytes = (e as { neededBytes?: unknown } | null)?.neededBytes;
       setPhase({ kind: 'voice_failed', failure: { kind, neededBytes: typeof neededBytes === 'number' ? neededBytes : undefined } });
     }
-  }, [confirm, session, hasPartnerLines, primeSpeech, startRunning, chooseEngine, script, config, presetFor]);
+  }, [confirm, session, hasPartnerLines, primeSpeech, startRunning, chooseEngine, script, config, presetFor, showFullScreenAd]);
 
   useEffect(() => {
     mounted.current = true;

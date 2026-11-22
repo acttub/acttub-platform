@@ -37,6 +37,23 @@ class AdPickerTest {
     }
 
     @Test
+    @DisplayName("전면 칸은 학원·우리 앱 광고가 있어도 AdMob 만 — 첫 연습 전·Pro 는 NONE (SOMA-1085)")
+    void fullScreenSlotsAreAdMobOnly() {
+        List<Ad> both = List.of(direct("analyzing_wait_full", "l.png", "b.png", 9), house("analyzing_wait_full", "all", "Pro", "/pro"));
+        var free = AdPicker.pick(AdSlot.ANALYZING_WAIT_FULL, viewer(true, false, true), both, DAY);
+        assertThat(free.kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(free.ad()).isNull();
+        assertThat(free.fallback()).isNull();
+        assertThat(AdPicker.pick(AdSlot.SCRIPT_PARSE_FULL, viewer(false, false, true), both, DAY).kind()).isEqualTo(AdPicker.Kind.NONE);
+        // 연습 중 배너 A/B 에서 끈 사람도 전면 칸은 받는다 — 전면 칸은 칸 스위치로만 켜고 끈다
+        assertThat(AdPicker.pick(AdSlot.SCRIPT_PARSE_FULL, viewer(true, false, false), both, DAY).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(AdPicker.pick(AdSlot.READING_DONE_FULL, viewer(true, true, true), both, DAY).kind()).isEqualTo(AdPicker.Kind.NONE);
+        assertThat(AdSlot.of("reading_done_full")).contains(AdSlot.READING_DONE_FULL);
+        assertThat(AdSlot.READING_DONE_FULL.fullScreen()).isTrue();
+        assertThat(AdSlot.ANALYZING_WAIT.fullScreen()).isFalse();
+    }
+
+    @Test
     @DisplayName("첫 연습 전이면 어떤 칸이든 NONE")
     void noneBeforeFirstPractice() {
         var pick = AdPicker.pick(AdSlot.HOME_TOP, viewer(false, false, true),
