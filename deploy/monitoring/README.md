@@ -229,8 +229,8 @@ DB 점검 컨테이너의 CPU 상한은 짧은 프로세스 초기화가 실행 
 python3 -m unittest discover -s deploy/monitoring/tests -v
 deploy/home/deploy-test.sh
 
-# 기존 앱 스모크의 모든 검증이 성공한 이미지에만 재사용 태그를 만든다.
-SMOKE_EXPORT_API_IMAGE=acttub-api:monitoring-ci \
+# 앱 스모크의 이미지 빌드·검사(1·2 단계)만 돌리고 재사용 태그를 만든다. CI 의 smoke-monitoring 잡과 같다.
+SMOKE_BUILD_ONLY=1 SMOKE_EXPORT_API_IMAGE=acttub-api:monitoring-ci \
 SMOKE_EXPORT_WEB_IMAGE=acttub-web:monitoring-ci deploy/home/smoke.sh
 
 # 앱을 재빌드하지 않는다. 운영/Cloud 자격증명 없이 격리 프로젝트만 만든다.
