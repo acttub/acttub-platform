@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 
 import { AdSlot } from '@/components/ad-slot';
+import { useFullScreenAd } from '@/lib/full-screen-ad';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
@@ -627,6 +628,12 @@ function isScriptSplitPush(data: unknown): boolean {
 }
 
 function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
+  // 대본 나누기를 시작할 때 전면 광고(SOMA-1085). 광고를 보는 동안에도 나누기는 이어지고, 끝나면 광고를 닫자마자 다음 화면이다.
+  const showFullScreenAd = useFullScreenAd();
+  useEffect(() => {
+    void showFullScreenAd('script_parse_full');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
   const { pct, checking } = progress ? splitProgressView(progress) : { pct: 0, checking: false };

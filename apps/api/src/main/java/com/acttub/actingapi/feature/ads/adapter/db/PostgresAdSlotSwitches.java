@@ -21,4 +21,13 @@ class PostgresAdSlotSwitches implements AdSlotSwitches {
                 .getSingleResult();
         return Boolean.TRUE.equals(result);
     }
+
+    @Override
+    public boolean switchedOn(String slotKey) {
+        Object result = entityManager.createNativeQuery(
+                        "SELECT EXISTS (SELECT 1 FROM ad_slot_switches WHERE slot_key=:slot AND enabled)")
+                .setParameter("slot", slotKey)
+                .getSingleResult();
+        return Boolean.TRUE.equals(result);
+    }
 }

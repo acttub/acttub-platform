@@ -15,6 +15,7 @@ import com.acttub.actingapi.feature.ads.domain.AdSlot;
  * 광고 칸 고르기와 노출·클릭 기록(SOMA-876).
  * {@code ADS_ENABLED=false} 면 모든 칸이 NONE 이다(앱 빌드 없이 끄는 길). 연습 중 칸은 {@code ADS_PRACTICE_SLOT_PERCENT}
  * (기본 100)% 의 무료 사용자에게 켠다. 기본값이면 무료 사용자 전원이다. 칸 하나만 끄려면 {@code ad_slot_switches} 에서 그 칸을 enabled=false 로 둔다.
+ * 전면 칸(SOMA-1085)은 거꾸로 enabled=true 줄을 넣어야 켜진다.
  * 한 사람에게 너무 자주 나가지 않게, 최근 windowMinutes 분 동안 내보낸 광고(HOUSE·NETWORK·DIRECT)가 상한 이상이면 NONE 이다
  * ({@link AdFrequency}). 가입 24시간 이내는 더 낮은 첫날 상한을 쓴다. NONE 은 세지 않는다.
  */
@@ -54,7 +55,9 @@ public class AdService {
     }
 
     public AdPicker.Pick pick(UUID userId, AdSlot slot) {
-        if (!settings.enabled() || switches.off(slot.key())) {
+        // 전면 칸은 스위치 줄을 켜 둬야 나간다(SOMA-1085) — 운영에서 앱이 먼저 나가도 줄을 넣기 전까지는 NONE
+        boolean off = slot.fullScreen() ? !switches.switchedOn(slot.key()) : switches.off(slot.key());
+        if (!settings.enabled() || off) {
             return new AdPicker.Pick(AdPicker.Kind.NONE, slot, null);
         }
         boolean practiced = repository.practiced(userId);

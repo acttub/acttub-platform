@@ -108,3 +108,42 @@ test('영어로 쓰는 사람에게는 한국어로 만든 직접·우리 앱 �
   assert.equal(renderableKind(direct, { korean: true }), 'DIRECT');
   assert.equal(renderableKind(pick('NETWORK'), { korean: false }), 'NETWORK');
 });
+
+// ── 전면 광고(SOMA-1085) ─────────────────────────────────
+
+import {
+  FULL_SCREEN_GAP_MS,
+  PRODUCTION_INTERSTITIAL_UNITS,
+  TEST_INTERSTITIAL_UNIT,
+  fullScreenAllowed,
+  interstitialUnitFor,
+  isFullScreenSlot,
+} from '../lib/ads.ts';
+
+test('전면 칸은 세 곳이고 서버 키와 같다', () => {
+  for (const slot of ['analyzing_wait_full', 'script_parse_full', 'reading_done_full']) {
+    assert.ok(slot in AD_SLOTS, slot);
+    assert.equal(isFullScreenSlot(slot), true, slot);
+  }
+  assert.equal(isFullScreenSlot('analyzing_wait'), false);
+});
+
+test('전면 광고 단위 — dev·개발 빌드는 Google 테스트 전면 단위, 운영 단위가 비어 있으면 띄우지 않는다', () => {
+  assert.equal(interstitialUnitFor('android', 'https://dev.acttub.com'), TEST_INTERSTITIAL_UNIT.android);
+  assert.equal(interstitialUnitFor('ios', undefined), TEST_INTERSTITIAL_UNIT.ios);
+  const expected = PRODUCTION_INTERSTITIAL_UNITS.android || null;
+  assert.equal(interstitialUnitFor('android', 'https://acttub.com'), expected);
+});
+
+test('전면 광고는 서버가 NETWORK 를 줄 때만, 첫 사용자가 아니고 3분 안에 띄운 적이 없을 때만 띄운다', () => {
+  const now = 1_000_000_000;
+  const network = { kind: 'NETWORK', slot: 'reading_done_full', size: 'MEDIUM_RECTANGLE', width: 300, height: 250, ad: null };
+  assert.equal(FULL_SCREEN_GAP_MS, 3 * 60_000);
+  assert.equal(fullScreenAllowed({ pick: network, firstTime: 'practiced', lastShownAt: null, now }), true);
+  assert.equal(fullScreenAllowed({ pick: network, firstTime: 'unknown', lastShownAt: null, now }), true);
+  assert.equal(fullScreenAllowed({ pick: network, firstTime: 'first', lastShownAt: null, now }), false);
+  assert.equal(fullScreenAllowed({ pick: { ...network, kind: 'NONE' }, firstTime: 'practiced', lastShownAt: null, now }), false);
+  assert.equal(fullScreenAllowed({ pick: null, firstTime: 'practiced', lastShownAt: null, now }), false);
+  assert.equal(fullScreenAllowed({ pick: network, firstTime: 'practiced', lastShownAt: now - FULL_SCREEN_GAP_MS + 1, now }), false);
+  assert.equal(fullScreenAllowed({ pick: network, firstTime: 'practiced', lastShownAt: now - FULL_SCREEN_GAP_MS, now }), true);
+});

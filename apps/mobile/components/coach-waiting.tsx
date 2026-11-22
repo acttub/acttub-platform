@@ -43,6 +43,7 @@ import { newRequestId } from '@/lib/request-id';
 import { TARGET } from '@/lib/spotlight-targets';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { isSamplePracticeId, SAMPLE_ANALYZING_STEP_MS, sampleDetail, sampleScene } from '@/lib/tutorial-sample';
+import { useFullScreenAd } from '@/lib/full-screen-ad';
 
 /**
  * 코치 화면의 「영상 보는 중」(practice.analyze, SOMA-778). 옛 A10 분석 화면을 대화 화면 안으로 옮겼다.
@@ -86,6 +87,12 @@ export function CoachWaiting({
   // 튜토리얼 예시(SOMA-494) — 조회도 분석도 없이 몇 초 뒤 대화를 연다.
   // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
   const sample = isSamplePracticeId(practiceId);
+  // 분석을 기다리기 시작할 때 전면 광고(SOMA-1085) — 예시 영상은 빼고, 들어올 때 한 번.
+  const showFullScreenAd = useFullScreenAd();
+  useEffect(() => {
+    if (!sample) void showFullScreenAd('analyzing_wait_full');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // 영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 분석은 서버에서 계속되고 끝나면 완료 푸시가 온다.
   // iOS 밀어서 나가기는 막지 않고 아래 화면으로 내려간다(SOMA-966). 화면 안 버튼은 그대로 코칭 탭으로 간다.
   // 프로필·홈에서 바로 연 하던 코칭이면 들어온 탭으로 돌아간다(SOMA-1002).

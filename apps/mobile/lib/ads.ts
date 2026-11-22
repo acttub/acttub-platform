@@ -44,6 +44,10 @@ export const AD_SLOTS = {
   challenge_upload_done: { size: 'LARGE_BANNER', phase: 'practice' },
   community_list_top: { size: 'BANNER', phase: 'community' },
   community_post_top: { size: 'BANNER', phase: 'community' },
+  // 전면 칸(SOMA-1085) — 배너가 아니라 화면 전체를 덮는 AdMob 전면 광고. 규격은 서버 응답 모양을 맞추려고 둘 뿐 쓰지 않는다.
+  analyzing_wait_full: { size: 'MEDIUM_RECTANGLE', phase: 'practice' },
+  script_parse_full: { size: 'MEDIUM_RECTANGLE', phase: 'practice' },
+  reading_done_full: { size: 'MEDIUM_RECTANGLE', phase: 'practice' },
 } as const satisfies Record<string, { size: AdSize; phase: AdPhase }>;
 
 export type AdSlotKey = keyof typeof AD_SLOTS;
@@ -150,6 +154,53 @@ export function bannerUnitFor(
 ): string {
   if (!isProductionApiUrl(apiUrl)) return TEST_BANNER_UNIT[platform];
   return PRODUCTION_BANNER_UNITS[AD_SLOTS[slot].phase][platform];
+}
+
+/** 전면 칸(SOMA-1085). 서버는 이 칸에 NETWORK(AdMob 전면) 아니면 NONE 만 준다. */
+export const FULL_SCREEN_SLOTS = ['analyzing_wait_full', 'script_parse_full', 'reading_done_full'] as const;
+export type FullScreenSlotKey = (typeof FULL_SCREEN_SLOTS)[number];
+
+export function isFullScreenSlot(slot: string): slot is FullScreenSlotKey {
+  return (FULL_SCREEN_SLOTS as readonly string[]).includes(slot);
+}
+
+/** Google 공식 테스트 전면 광고 단위. 개발·dev 빌드는 늘 이것만 쓴다. */
+export const TEST_INTERSTITIAL_UNIT = {
+  android: 'ca-app-pub-3940256099942544/1033173712',
+  ios: 'ca-app-pub-3940256099942544/4411468910',
+} as const;
+
+/**
+ * 운영 AdMob 전면 광고 단위. AdMob 콘솔에서 만들기 전에는 비워 둔다 — 비어 있으면 운영 빌드는 전면 광고를 띄우지 않는다.
+ * AdMob 앱 설정은 「높은 참여도 광고」 끔(건너뛰기 5초), 계정 설정은 「전면 광고의 건너뛸 수 없는 동영상」 끔으로 둔다.
+ */
+export const PRODUCTION_INTERSTITIAL_UNITS: { android: string; ios: string } = {
+  android: '',
+  ios: '',
+};
+
+/** 전면 광고 단위. 운영 API 를 보는 빌드만 실제 단위(없으면 null — 띄우지 않는다), 나머지는 Google 테스트 단위다. */
+export function interstitialUnitFor(platform: 'ios' | 'android', apiUrl: string | undefined): string | null {
+  if (!isProductionApiUrl(apiUrl)) return TEST_INTERSTITIAL_UNIT[platform];
+  return PRODUCTION_INTERSTITIAL_UNITS[platform] || null;
+}
+
+/** 같은 사람에게 전면 광고는 3분에 한 번까지(11/19 수익 모델 확정). */
+export const FULL_SCREEN_GAP_MS = 3 * 60_000;
+
+/**
+ * 전면 광고를 띄울지 — 서버가 NETWORK 를 줬고(무료·첫 연습 뒤·칸 켜짐), 첫 사용자로 확인되지 않았고, 3분 안에 띄운 적이 없을 때.
+ * firstTime 은 화면에 들어왔을 때(연습을 시작할 때) 값을 넘긴다 — 첫 리딩을 막 끝낸 순간에는 이미 'practiced' 로 바뀌어 있다.
+ */
+export function fullScreenAllowed(input: {
+  pick: AdSlotPick | null;
+  firstTime: 'unknown' | 'first' | 'practiced';
+  lastShownAt: number | null;
+  now: number;
+}): boolean {
+  if (!input.pick || input.pick.kind !== 'NETWORK') return false;
+  if (input.firstTime === 'first') return false;
+  return input.lastShownAt === null || input.now - input.lastShownAt >= FULL_SCREEN_GAP_MS;
 }
 
 /**
