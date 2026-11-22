@@ -244,9 +244,14 @@ public final class RuleSplit {
         boolean periodFormat = dominant(period, nonEmpty);
         String firstColon = colonName(firstLine);
         String firstBracket = group(BRACKET_HEAD, firstLine);
+        // 세 줄 이하 짧은 글이 전부 「이름: …」이면 첫 줄도 대사다(「독백: 문 앞에서」 제목은 빼고) — 「지수: 안녕⏎민호: 응」 두 줄 대본의 첫 사람이 빠지고 독백이 됐다
+        // (2026-11-22 r4 대조)
+        int colonTotal = colon.values().stream().mapToInt(Integer::intValue).sum();
+        boolean tinyColon = nonEmpty <= 3 && colonTotal == nonEmpty && !colon.containsKey("독백");
         colon.forEach((name, n) -> {
             if (n == 1 && CREDIT.matcher(name).matches()) return;
-            if (n >= 2 || castNames.contains(name) || colonFormat && !name.equals(firstColon) && shortName(name)) names.add(name);
+            if (n >= 2 || castNames.contains(name) || colonFormat && !name.equals(firstColon) && shortName(name)
+                    || tinyColon && shortName(name) && nameLike(name)) names.add(name);
         });
         bracket.forEach((name, n) -> {
             if (n >= 2 || castNames.contains(name) || bracketFormat && !name.equals(firstBracket) && shortName(name)) names.add(name);
@@ -464,6 +469,7 @@ public final class RuleSplit {
 
     static Result full(List<NumberedLine> lines, boolean rejectProse, boolean mergeSurnames) {
         Result base = of(lines);
+        boolean blockFormat = base.format() == Format.BLOCK;
         Text text = new Text(lines);
         Map<Integer, Row> rows = new LinkedHashMap<>(base.rows());
         Set<String> known = new LinkedHashSet<>(base.roster());
@@ -489,6 +495,14 @@ public final class RuleSplit {
         // 독백 화자: 맨 위 세 줄 안에 이름 줄(첫 줄 제목은 빼고)이나 「이름:」만 있는 줄이 있으면 그 이름
         String monologueName = Monologue.PLACEHOLDER;
         if (monologue) {
+            int top = firstContent(text);
+            Matcher titled = top < 0 ? null : TITLE_NAME_LINE.matcher(text.get(top));
+            if (titled != null && titled.matches() && nameLike(titled.group(1))) {
+                monologueName = titled.group(1);
+                rows.put(lines.get(top).no(), row(lines.get(top).no(), Kind.TITLE));
+            }
+        }
+        if (monologue && monologueName.equals(Monologue.PLACEHOLDER)) {
             int seen = 0;
             for (int i = 0; i < text.size() && seen < 3; i++) {
                 if (text.blank(i)) continue;
@@ -539,17 +553,29 @@ public final class RuleSplit {
             }
             String t = text.get(i);
             Row existing = rows.get(no);
+            String bracketName = existing == null || existing.kind() != Kind.DIALOGUE ? bracketNameLine(t, known) : null;
+            if (bracketName != null) {
+                // 「[민수]」만 있는 줄 — 다음 줄부터 그 사람 대사다(쌍점 대본 안에 섞인 블록 머리)
+                rows.put(no, row(no, Kind.IGNORE));
+                block = bracketName;
+                chain = null;
+                continue;
+            }
             if (existing != null) {
                 if (existing.kind() == Kind.DIALOGUE) {
                     chain = existing.speaker();
                     last = chain;
                 } else if (existing.kind() != Kind.IGNORE) {
-                    chain = null;
-                    block = null;
+                    // 「민수 (창밖을 본다)」「민수 : (한숨)」 — 지문이지만 다음 줄부터 그 사람 대사다
+                    String acting = existing.kind() == Kind.DIRECTION ? actionHeadName(t, known) : null;
+                    chain = acting != null && !blockFormat ? acting : null;
+                    block = acting != null && blockFormat ? acting : null;
+                    if (acting != null) last = acting;
                 }
                 continue;
             }
             Row filled;
+            String acting = null;
             String nameLine = standaloneName(t);
             Head head = head(t, known);
             if (head == null) {
@@ -588,6 +614,7 @@ public final class RuleSplit {
                 filled = PAREN_ONLY.matcher(body).matches() || told(body) ? row(no, Kind.DIRECTION)
                         : new Row(no, Kind.DIALOGUE, head.name, head.header);
                 block = null;
+                if (PAREN_ONLY.matcher(body).matches() && known.contains(head.name)) acting = head.name;
             } else if (block != null) {
                 filled = new Row(no, Kind.DIALOGUE, block, "");
             } else if (!monologue && strong != null) {
@@ -608,6 +635,11 @@ public final class RuleSplit {
                 last = chain;
             } else if (filled.kind() != Kind.IGNORE) {
                 chain = null;
+            }
+            if (acting != null) {
+                if (blockFormat) block = acting;
+                else chain = acting;
+                last = acting;
             }
         }
         // 글자 사이를 띄운 이름(「칠    수」「에 밀 리」)은 붙여 쓴다 — 머리는 조립이 띄어쓰기 무시로 다시 찾는다
@@ -698,6 +730,12 @@ public final class RuleSplit {
     /** 독백 제목 — 「햄릿 독백」「오필리어의 독백」 / 「[독백] 서진」「독백: 서진」. */
     private static final Pattern TITLE_BEFORE = Pattern.compile("([\\p{IsHangul}A-Za-z]{1,8}?)(?:의)?[^\\S\\n]*+독백");
     private static final Pattern TITLE_AFTER = Pattern.compile("독백[^\\S\\n]*+[\\])】:：\\-–—]*+[^\\S\\n]*+([\\p{IsHangul}A-Za-z]{1,8})[^\\S\\n]*+");
+
+    /** 첫 줄 「작품_이름(설명)」「작품 - 이름(20대)」 — 독백 대본 머리. 이름은 구분 부호 뒤, 괄호 앞. */
+    private static final Pattern TITLE_NAME_LINE = Pattern.compile(
+            "[^\\n]{1,30}?[_\\-–—·][^\\S\\n]*+([\\p{IsHangul}A-Za-z]{1,8})[^\\S\\n]*+[(（][^)）\\n]{1,20}+[)）][^\\S\\n]*+");
+    /** 대괄호 안 이름만 있는 줄 — 「[민수]」. */
+    private static final Pattern BRACKET_NAME_LINE = Pattern.compile("\\[[^\\S\\n]*+([^\\]\\n]{1,14}?)[^\\S\\n]*+]");
 
     /** 확실한 대사 말끝 — 이름에는 오지 않는다. */
     private static final Pattern SURE_SPEECH_END = Pattern.compile(".*(?:요|니다|까|죠|네|래|세요|군요|구나|거든|잖아|는데|라고)[.!?…~]*");
@@ -1079,6 +1117,34 @@ public final class RuleSplit {
             if (!text.blank(i)) return i;
         }
         return -1;
+    }
+
+    /**
+     * 「민수 (창밖을 본다)」「민수 : (한숨)」「[민수] (웃는다)」 — 아는 이름 머리 뒤가 괄호 지시 하나뿐인 줄의 이름. 아니면 null. 괄호 길이는
+     * 묻지 않는다(블록 이름 줄 판정은 괄호 12자까지라 긴 행동 지시 뒤 대사가 앞 사람 몫이 됐다 — 2026-11-22 r4 대조).
+     */
+    private static String actionHeadName(String t, Set<String> known) {
+        String inside = tailParen(t);
+        if (inside == null) return null;
+        String s = t.stripTrailing();
+        int open = s.length() - inside.length() - 2;
+        if (open <= 0) return null;
+        String head = s.substring(0, open).strip();
+        if (head.endsWith(":") || head.endsWith("：")) head = head.substring(0, head.length() - 1).strip();
+        if (head.startsWith("[") && head.endsWith("]")) head = head.substring(1, head.length() - 1).strip();
+        return known.contains(head) ? head : null;
+    }
+
+    /** 「[민수]」「[어린 민수]」만 있는 줄의 아는 이름(괄호 안 끝 이름). 아니면 null. */
+    private static String bracketNameLine(String t, Set<String> known) {
+        Matcher m = BRACKET_NAME_LINE.matcher(t);
+        if (!m.matches()) return null;
+        String inside = m.group(1).strip();
+        if (known.contains(inside)) return inside;
+        for (String name : known) {
+            if (name.codePointCount(0, name.length()) >= 2 && inside.endsWith(name)) return name;
+        }
+        return null;
     }
 
     /** 「/」로 두 번 넘게 나눈 괄호 — 노랫말. */
