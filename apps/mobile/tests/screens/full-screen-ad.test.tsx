@@ -39,6 +39,7 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({ api: { getAdSlot: jest.fn() } }));
 
 const native = jest.requireActual('@/lib/ads-native') as typeof import('@/lib/ads-native');
+const { showInterstitial } = jest.requireActual('@/lib/full-screen-ad') as typeof import('@/lib/full-screen-ad');
 const pick = (kind: string) => ({ kind, slot: 'reading_done_full', size: 'MEDIUM_RECTANGLE', width: 300, height: 250, ad: null });
 
 beforeEach(() => {
@@ -49,7 +50,7 @@ beforeEach(() => {
 
 describe('showInterstitial', () => {
   test('불러오면 띄우고, 닫으면 shown — 청소년이면 비맞춤으로 요청한다', async () => {
-    await expect(native.showInterstitial('unit', true)).resolves.toBe('shown');
+    await expect(showInterstitial('unit', true)).resolves.toBe('shown');
     expect(mockAds[0].show).toHaveBeenCalled();
     expect(mockAds[0].options).toEqual({ requestNonPersonalizedAdsOnly: true });
     expect(mockAds[0].listeners.size).toBe(0);
@@ -57,16 +58,16 @@ describe('showInterstitial', () => {
 
   test('못 불러오거나 띄우지 못하면 skipped', async () => {
     mockBehavior = 'error';
-    await expect(native.showInterstitial('unit', false)).resolves.toBe('skipped');
+    await expect(showInterstitial('unit', false)).resolves.toBe('skipped');
     mockBehavior = 'show-fails';
-    await expect(native.showInterstitial('unit', false)).resolves.toBe('skipped');
+    await expect(showInterstitial('unit', false)).resolves.toBe('skipped');
   });
 
   test('시간 안에 못 불러오면 skipped, 그 뒤에 불러와져도 띄우지 않는다', async () => {
     jest.useFakeTimers();
     try {
       mockBehavior = 'never';
-      const result = native.showInterstitial('unit', false, 1000);
+      const result = showInterstitial('unit', false, 1000);
       jest.advanceTimersByTime(1000);
       await expect(result).resolves.toBe('skipped');
       mockAds[0].listeners.get('loaded')?.();
