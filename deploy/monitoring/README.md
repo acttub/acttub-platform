@@ -134,7 +134,7 @@ chmod 600 secrets/dev-token secrets/pdc-token
 운영도 선택했다면 `chmod 600 secrets/prod-token`을 추가로 실행한다.
 
 도구가 생성하는 `/svc/acttub/monitoring`은 `700`이다. 그 안의 버전별 설정·시크릿 사본은
-컨테이너의 서로 다른 UID가 자기 bind mount를 읽을 수 있도록 파일 `444`·하위 디렉터리 `755`를
+컨테이너의 서로 다른 UID가 자기 bind mount를 읽을 수 있도록 파일 `444`·하위 디렉터리 `755`(렌더하는 셸의 umask와 무관)를
 쓴다. 호스트의 다른 사용자는 바깥 `700` 디렉터리를 통과할 수 없다. 이 바깥 권한을 넓히지 않는다.
 각 서비스는 필요한 하위 디렉터리만 읽기 전용으로 받고, PDC token은 실행 시 환경변수로 읽어
 컨테이너 명령 인자나 `docker compose config`에 남기지 않는다.
@@ -270,6 +270,8 @@ SOMA-1095 구성(Alloy가 root, `alloy` 볼륨)으로 켠 서버에 이 버전�
 5. 하루 뒤 서버에서 `sudo journalctl -k --since yesterday --until today | wc -c`와
    `sudo journalctl -u docker.service --since yesterday --until today | wc -c`로 하루 양을 재고 Cloud 사용량 증가와 맞춘다.
 6. 새 Alloy가 잘 돌면 옛 위치 볼륨 `<프로젝트>_alloy`를 `docker volume rm`으로 지운다. 지우면 되돌릴 수 없으므로 4번 확인 뒤에 한다.
+   지우기 전까지는 `rollback`으로 `journal_gid` 없는 이전 릴리스(root Alloy, `alloy` 볼륨)에 돌아갈 수 있다. 지운 뒤 되돌리면
+   그 릴리스의 Alloy는 빈 `alloy` 볼륨으로 시작해 컨테이너 로그를 처음부터 다시 읽는다.
 
 ## 지표 계약
 

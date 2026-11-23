@@ -31,7 +31,17 @@ def require(condition: bool, message: str) -> None:
         raise ConfigError(message)
 
 
-def read_config(path: Path) -> dict:
+def alloy_layout(logs: dict) -> dict:
+    """Alloy's expected container shape for a release's logs config."""
+    if "journal_gid" in logs:
+        return {"user": "473:473", "group_add": [str(logs["journal_gid"])], "storage": "/var/lib/alloy/data",
+                "volume": "alloy-data", "binds": {"/etc/acttub", "/var/log/journal"}}
+    # Releases rendered before SOMA-1097 (root Alloy, no host journal) must still validate,
+    # so apply/verify/version/rollback keep working while one of them is current or previous.
+    return {"user": None, "group_add": None, "storage": "/data", "volume": "alloy", "binds": {"/etc/acttub"}}
+
+
+def read_config(path: Path, new_release: bool = False) -> dict:
     config = json.loads(path.read_text())
     require(isinstance(config, dict), "config must be an object")
     require(re.fullmatch(r"[1-9][0-9]*(MB|GB|TB)", str(config.get("retention_size", ""))),
@@ -59,7 +69,9 @@ def read_config(path: Path) -> dict:
         require(isinstance(selected, list) and bool(selected) and len(set(selected)) == len(selected)
                 and set(selected) <= set(envs), "logs.environments must be a nonempty subset of environments")
         gid = logs.get("journal_gid")
-        require(type(gid) is int and 0 < gid < 65536, "logs.journal_gid must be the host systemd-journal group id")
+        # Required for new releases only; older rendered releases have no journal_gid.
+        require((gid is None and not new_release) or (type(gid) is int and 0 < gid < 65536),
+                "logs.journal_gid must be the host systemd-journal group id")
     return config
 
 
@@ -104,7 +116,7 @@ def render_compose(config: dict) -> str:
 
 
 def render(args, release: Path) -> None:
-    config = read_config(args.config)
+    config = read_config(args.config, new_release=True)
     require(not release.exists(), "release already exists; use a new version to change configuration")
     tokens = {}
     logs = "logs" in config
@@ -117,16 +129,18 @@ def render(args, release: Path) -> None:
         tokens[name] = value
     args.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     args.state_dir.chmod(0o700)
-    release.mkdir(parents=True)
-    for name in ("prometheus", "db", "backup", "pdc"):
-        (release / name).mkdir(mode=0o755)
+    # Container users read their bound subdirectory, so directory modes must not follow the caller's umask.
+    for directory in (release.parent, release, *(release / name for name in ("prometheus", "db", "backup", "pdc"))):
+        directory.mkdir(exist_ok=directory == release.parent)
+        directory.chmod(0o755)
     write_file(release / "compose.yml", render_compose(config))
     write_file(release / "exporter.py", (ROOT / "exporter.py").read_text())
     write_file(release / "pdc/pdc-entrypoint.sh", (ROOT / "pdc-entrypoint.sh").read_text())
     write_file(release / "pdc/pdc-token", tokens["pdc-token"])
     write_json(release / "config.json", config)
     if logs:
-        (release / "alloy").mkdir(mode=0o755)
+        (release / "alloy").mkdir()
+        (release / "alloy").chmod(0o755)
         write_file(release / "compose.logs.yml", (ROOT / "compose.logs.yml").read_text())
         write_file(release / "alloy/config.alloy", render_alloy(config))
         write_file(release / "alloy/loki-token", tokens["loki-token"])
@@ -189,6 +203,7 @@ def validate(release: Path) -> dict:
                 "pdc": {"query"}, "node": {"collectors"}, "backup-exporter": {"collectors"},
                 "db-health": {"collectors"} | scrape_networks}
     logs = "logs" in cfg
+    layout = alloy_layout(cfg["logs"]) if logs else {}
     if logs:
         topology.update({"alloy": {"logs", "docker-api"}, "socket-proxy": {"docker-api"}})
     require(set(model["services"]) == set(topology), "unexpected monitoring services")
@@ -205,7 +220,7 @@ def validate(release: Path) -> dict:
                       and volume["target"] == "/var/run/docker.sock" and volume.get("read_only"))
             require("docker.sock" not in volume["source"] or socket, "Docker socket is only for socket-proxy, read-only")
             require(volume.get("read_only") or (name, volume["type"], volume["target"]) in {
-                        ("prometheus", "volume", "/prometheus"), ("alloy", "volume", "/var/lib/alloy/data")},
+                        ("prometheus", "volume", "/prometheus"), ("alloy", "volume", layout.get("storage"))},
                     "only metrics and log position storage may be writable")
     pdc = model["services"]["pdc"]
     expected = ["-cluster=" + cfg["pdc_cluster"], "-gcloud-hosted-grafana-id=" + cfg["grafana_id"],
@@ -217,16 +232,16 @@ def validate(release: Path) -> dict:
             "PDC SSH tmpfs must be /home/pdc/.ssh with uid=30000,gid=30000,mode=0700 as one mount")
     own_networks = {"query", "collectors"} | ({"logs", "docker-api"} if logs else set())
     require(set(model["networks"]) == own_networks | scrape_networks, "unexpected network")
-    require(set(model["volumes"]) == {"metrics"} | backup_volumes | ({"alloy-data"} if logs else set()), "unexpected volume")
+    require(set(model["volumes"]) == {"metrics"} | backup_volumes | ({layout["volume"]} if logs else set()), "unexpected volume")
     if logs:
         alloy = model["services"]["alloy"]
-        require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=/var/lib/alloy/data",
+        require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=" + layout["storage"],
                                      "--server.http.listen-addr=127.0.0.1:12345", "--disable-reporting"],
                 "Alloy must listen on loopback only and disable usage reporting")
-        require(alloy.get("user") == "473:473" and alloy.get("group_add") == [str(cfg["logs"]["journal_gid"])],
+        require(alloy.get("user") == layout["user"] and alloy.get("group_add") == layout["group_add"],
                 "Alloy must run as its non-root user with only the journal group added")
         binds = {v["target"]: v["source"] for v in alloy["volumes"] if v["type"] == "bind"}
-        require(set(binds) == {"/etc/acttub", "/var/log/journal"} and binds["/var/log/journal"] == "/var/log/journal"
+        require(set(binds) == layout["binds"] and binds.get("/var/log/journal", "/var/log/journal") == "/var/log/journal"
                 and binds["/etc/acttub"].endswith("/alloy"), "Alloy may bind only its release config and the host journal")
         proxy = model["services"]["socket-proxy"]
         require(proxy["command"] == SOCKET_PROXY_COMMAND, "socket-proxy must pass only Alloy's Docker API reads")
