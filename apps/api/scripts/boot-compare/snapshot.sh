@@ -98,6 +98,10 @@ req method-not-allowed DELETE /health
 req bad-json POST /v2/auth/login '{"provider":'
 req validation POST /v2/auth/login '{"provider":"development","id_token":1}'
 req unknown-provider POST /v2/auth/login '{"provider":"nope","id_token":"x"}'
+# JSON 라이브러리 기본값이 갈리는 입력(SOMA-1103): 같은 키 두 번, 값 뒤에 붙은 글자, 깊은 중첩.
+req duplicate-key POST /v2/auth/login '{"provider":"nope","provider":"development","id_token":"x"}'
+req trailing-token POST /v2/auth/login '{"provider":"nope","id_token":"x"} trailing'
+req deep-nesting POST /v2/auth/login "{\"provider\":\"nope\",\"id_token\":$(printf '[%.0s' $(seq 1 600))$(printf ']%.0s' $(seq 1 600))}"
 req root GET /
 req actuator-on-app GET /actuator/health
 req swagger-redirect GET /swagger-ui.html
@@ -124,6 +128,8 @@ req auth-bad-uuid GET /v2/practices/not-a-uuid
 req auth-missing-practice GET /v2/practices/00000000-0000-4000-8000-000000000000
 req auth-unknown-field PATCH /v2/me/notification-settings '{"nope":true}'
 req auth-wrong-type PATCH /v2/me/notification-settings '{"challenge":"yes"}'
+req auth-duplicate-key PATCH /v2/me/notification-settings '{"challenge":true,"challenge":false}'
+req auth-trailing-token PATCH /v2/me/notification-settings '{"challenge":true} trailing'
 TOKEN=
 
 MON=(-sS -H "Authorization: Bearer snapshot-monitoring-token")
