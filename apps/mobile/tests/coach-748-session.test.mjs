@@ -25,10 +25,9 @@ test('세션 목적 세 갈래는 기존 막힘 큰 갈래로 간다 — 평가=
   assert.equal(purposeFor(null), 'review');
 });
 
-test('새 연습 단계: 목적 → 영상(장면 단계 없음, SOMA-778), 예시·튜토리얼은 바로 영상 단계', () => {
-  assert.equal(firstUploadStep({ sample: false, tutorial: false }), 'purpose');
-  assert.equal(firstUploadStep({ sample: true, tutorial: false }), 'source');
-  assert.equal(firstUploadStep({ sample: false, tutorial: true }), 'source');
+test('새 연습 단계: 목적 → 영상(장면 단계 없음, SOMA-778), 첫 코칭은 바로 영상 단계', () => {
+  assert.equal(firstUploadStep(), 'purpose');
+  assert.equal(firstUploadStep({ quickStart: true }), 'source');
   assert.equal(previousUploadStep('source'), 'purpose');
   assert.equal(previousUploadStep('purpose'), null);
   assert.equal(stepperIndex('purpose'), 1);

@@ -132,11 +132,10 @@ test('coach 화면: 액티의 마지막 말을 질문·힌트로 나누지 않�
   assert.match(screen, /<Text style=\{styles\.question\}>\{withTimestamps\(streamText\.trim\(\)\)\}<\/Text>/);
 });
 
-test('대화 이어하기(SOMA-782): 닫힌 대화이고 예시 회차가 아닐 때만 보인다', () => {
-  assert.equal(canContinueConversation(conversation({ status: 'closed' }), false), true);
-  assert.equal(canContinueConversation(conversation({ status: 'open' }), false), false);
-  assert.equal(canContinueConversation(conversation({ status: 'closed' }), true), false);
-  assert.equal(canContinueConversation(null, false), false);
+test('대화 이어하기(SOMA-782): 닫힌 대화일 때만 보인다', () => {
+  assert.equal(canContinueConversation(conversation({ status: 'closed' })), true);
+  assert.equal(canContinueConversation(conversation({ status: 'open' })), false);
+  assert.equal(canContinueConversation(null), false);
 });
 
 test('대화 이어하기가 거절되는 까닭을 가른다', () => {

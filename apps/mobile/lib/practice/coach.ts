@@ -80,11 +80,11 @@ export function nextReplyWraps(conversation: Pick<CoachConversation, 'coach_repl
 }
 
 /**
- * 정리 화면의 「대화 이어하기」(SOMA-782, pen ⓐ4)를 보일 수 있는가. 닫힌 대화이고 예시 회차가 아닐 때만이다.
+ * 정리 화면의 「대화 이어하기」(SOMA-782, pen ⓐ4)를 보일 수 있는가. 닫힌 대화일 때만이다.
  * 코치 응답 상한에 가까우면 서버가 409 conversation_limit_reached 로 막고 화면은 안내만 한다.
  */
-export function canContinueConversation(conversation: Pick<CoachConversation, 'status' | 'id'> | null, sample: boolean): boolean {
-  return Boolean(conversation && isClosed(conversation) && !sample);
+export function canContinueConversation(conversation: Pick<CoachConversation, 'status' | 'id'> | null): boolean {
+  return Boolean(conversation && isClosed(conversation));
 }
 
 export function isClosed(conversation: Pick<CoachConversation, 'status'> | null): boolean {

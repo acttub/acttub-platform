@@ -1,6 +1,5 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useFirstReading } from '@/hooks/use-first-reading';
 import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 import { useRef, useState } from 'react';
@@ -224,7 +223,6 @@ export default function ScriptCocreateScreen() {
           return;
         }
         toReadingDetail();
-        if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
       } else {
         setStep('saved');
       }

@@ -8,7 +8,6 @@ import { ApiError } from '@/lib/api-request';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
 import { deleteScript, listScripts, listSessions, loadIntoCurrent, updateScriptMeta } from '@/lib/reading/store';
 import type { ScriptCard } from '@/lib/reading/types';
-import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn() };
 let mockFocusEffect: () => void | (() => void) = () => undefined;
@@ -85,7 +84,6 @@ const done = card({ id: 's3', title: '끝난 장면', status: 'completed', last_
 
 beforeEach(() => {
   jest.clearAllMocks();
-  endTutorial();
   Object.assign(voice, { status: null, enabled: false, busy: false });
   (useCloudVoice as jest.Mock).mockImplementation(() => voice);
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [rooftop, cafe, done], total_count: 3, in_progress_count: 1 });
@@ -440,17 +438,6 @@ describe('처음 온 사람', () => {
     } finally {
       setFirstTimeState('unknown');
     }
-  });
-
-  test('리딩 튜토리얼 중에 목록으로 돌아오면 튜토리얼을 끝낸다', async () => {
-    startTutorial('own', 'reading');
-    await render(<ReadingList />);
-    await screen.findByText('옥상 장면');
-    expect(currentTutorial()).toBeNull();
-
-    startTutorial('own', 'practice');
-    await act(async () => void mockFocusEffect());
-    expect(currentTutorial()).toEqual({ mode: 'own', track: 'practice' });
   });
 });
 

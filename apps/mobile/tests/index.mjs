@@ -26,7 +26,6 @@ import './portfolio.test.mjs';
 import './guest-transfer.test.mjs';
 import './continue-practice.test.mjs';
 import './i18n.test.mjs';
-import './tutorial.test.mjs';
 import './admissions.test.mjs';
 import './auditions.test.mjs';
 import './memory-screen.test.mjs';

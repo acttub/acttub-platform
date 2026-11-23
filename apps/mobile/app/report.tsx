@@ -13,13 +13,9 @@ import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { NoticeBand } from '@/components/ui/notice-band';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
+import { space, type } from '@/constants/tokens';
 import { useAppRating } from '@/hooks/use-app-rating';
-import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
-import { TARGET } from '@/lib/spotlight-targets';
-import { loopApiFor } from '@/lib/tutorial-loop';
-import { isSamplePracticeId } from '@/lib/tutorial-sample';
+import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
@@ -54,9 +50,6 @@ export default function ReportScreen() {
   }, []);
   // 마운트 때 한 번만 읽는다 — 마치기에서 clearPractice() 한 직후 다시 읽으면 null 이다.
   const [practice] = useState(() => getPractice());
-  // 튜토리얼 예시(SOMA-494) — 노트는 미리 써 둔 것이고, 서버에 남는 것이 없다.
-  const sample = isSamplePracticeId(practice?.practiceId);
-  const noteTarget = useSpotlightTarget(TARGET.reportNote);
   const rating = useAppRating();
   const [note, setNote] = useState<PracticeNote | null>(() => practice?.note ?? null);
   const [error, setError] = useState<NoteProblem | null>(null);
@@ -73,7 +66,7 @@ export default function ReportScreen() {
     }
     setError(null);
     try {
-      const loaded = await readOptionalPracticeNote(loopApiFor(practice.practiceId).getPracticeNote, practice.practiceId);
+      const loaded = await readOptionalPracticeNote(api.getPracticeNote, practice.practiceId);
       if (!mountedRef.current) return;
       practice.note = loaded;
       setNote(loaded);
@@ -91,25 +84,8 @@ export default function ReportScreen() {
     };
   }, [loadNote, practice?.note]);
 
-  const tutorialGuide = useTutorialSpotlight('report', { ready: !!note });
-
-  // 예시를 다 돈 사람 — 이번엔 내 영상으로.
-  const startOwn = () => {
-    finishTutorial('done');
-    clearPractice();
-    router.dismissAll();
-    router.push('/upload');
-  };
-
-  const finishSample = () => {
-    finishTutorial('done');
-    clearPractice();
-    router.dismissAll();
-  };
-
   /** A13 「다음 테이크 찍기」(말로 한 회차는 「영상 찍어 코칭받기」) — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. 영상은 새로 고른다(SOMA-672). */
   const nextTake = () => {
-    finishTutorial('done');
     if (practice) {
       setContinueOrigin({
         kind: 'note',
@@ -124,11 +100,6 @@ export default function ReportScreen() {
   };
 
   const finish = () => {
-    if (sample) {
-      finishSample();
-      return;
-    }
-    finishTutorial('done');
     // AI 코칭을 마칠 때 — 두 번에 한 번(7일 간격·최대 3번) 앱 평가를 묻고 닫힌 뒤 나간다 (SOMA-494).
     const nextSection = note ? noteSections(note).find((section) => section.kind === 'next') : undefined;
     const next = nextSection?.kind === 'next' && nextSection.hasProposal ? nextSection.text : null;
@@ -187,7 +158,6 @@ export default function ReportScreen() {
           )}
           <ScrollView contentContainerStyle={styles.body}>
             <AdSlot slot="report_top" style={styles.ad} />
-            <View ref={noteTarget.ref} onLayout={noteTarget.onLayout} style={styles.noteBlock}>
             <View style={styles.heading}>
               <Text style={styles.title}>{title}</Text>
               {fallbackNotice && (
@@ -196,36 +166,20 @@ export default function ReportScreen() {
             </View>
 
             <NoteSections note={note} />
-            </View>
 
-            {/* 노트 평가 — 누르는 순간 서버에 저장하고 한 줄(선택)을 덧붙인다. 이탈 설문과 다른 기능이다.
-                튜토리얼 예시 노트는 서버에 없어 평가를 받지 않는다(SOMA-494). */}
-            {!sample && <ReportRating practiceId={practice.practiceId} initial={note.my_rating} key={note.id} />}
+            {/* 노트 평가 — 누르는 순간 서버에 저장하고 한 줄(선택)을 덧붙인다. 이탈 설문과 다른 기능이다. */}
+            <ReportRating practiceId={practice.practiceId} initial={note.my_rating} key={note.id} />
 
             {rating.element}
-
-            {sample ? (
-              <View style={styles.sampleDone}>
-                <Text style={styles.sampleDoneTitle}>{t('tutorial.sampleDone')}</Text>
-                <Text style={styles.sampleDoneBody}>{t('tutorial.sampleDoneBody')}</Text>
-                <View style={styles.buttonRow}>
-                  <PrimaryButton label={t('tutorial.ownTitle')} onPress={startOwn} />
-                  <SecondaryButton label={t('common.goHome')} onPress={finishSample} />
-                </View>
-              </View>
-            ) : null}
           </ScrollView>
           {/* 저장하고 마치기·다음 테이크는 노트 길이와 상관없이 화면 아래에 붙여 둔다(pen OL9mWG, SOMA-770 피드백 14). */}
-          {!sample && (
-            <CtaBar safeBottom={false}>
-              {/* 영상 없이 말로 한 회차는 다음 「테이크」가 없다 — 같은 장면을 영상으로 찍어 코칭받는 길을 둔다(SOMA-1051). */}
-              <SecondaryButton label={t(sceneVideo ? 'history.nextTake' : 'note.recordForCoach')} onPress={nextTake} />
-              <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
-            </CtaBar>
-          )}
+          <CtaBar safeBottom={false}>
+            {/* 영상 없이 말로 한 회차는 다음 「테이크」가 없다 — 같은 장면을 영상으로 찍어 코칭받는 길을 둔다(SOMA-1051). */}
+            <SecondaryButton label={t(sceneVideo ? 'history.nextTake' : 'note.recordForCoach')} onPress={nextTake} />
+            <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
+          </CtaBar>
         </>
       )}
-      {tutorialGuide.element}
     </SafeAreaView>
   );
 }
@@ -249,11 +203,4 @@ const styles = StyleSheet.create({
   ad: { marginBottom: space[4] },
   heading: { gap: space[3] },
   title: { ...type.title2, color: palette.text },
-
-  buttonRow: { gap: space[2], marginTop: space[2] },
-  // 스크롤 본문의 gap(섹션 사이)을 노트 안에서도 그대로 둔다 — 비추려고 한 번 감쌌을 뿐이다.
-  noteBlock: { gap: space[3] },
-  sampleDone: { gap: space[2], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, padding: space[4] },
-  sampleDoneTitle: { ...type.headline, color: palette.text },
-  sampleDoneBody: { ...type.body2, color: palette.textSub, marginBottom: space[1.5] },
 });

@@ -13,9 +13,9 @@ import { currentFirstUseOwner, firstUseOwnerReady } from './practice/first-use-g
 import { AUTO_ADVANCE_TIP_KEY } from './reading/guide-flag';
 import { deviceStorage as storage } from './device-storage';
 
-/** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
+/** 홈의 첫 사용자 표시를 한 번 띄웠는지. 키 이름은 SOMA-494 연습 튜토리얼 때 것을 그대로 쓴다. */
 const TUTORIAL_KEY = 'acttub.tutorial.seen';
-/** 대본 리딩 한 바퀴 튜토리얼(SOMA-494). AI 연습 튜토리얼과 따로 센다. */
+/** 대본 탭을 처음 열었는지. 키 이름은 SOMA-494 대본 리딩 튜토리얼 때 것을 그대로 쓴다. */
 const READING_TUTORIAL_KEY = 'acttub.tutorial.reading.seen';
 
 /** 스포트라이트를 띄우는 화면들. "다시 보기"가 이만큼을 되돌린다. */

@@ -9,7 +9,6 @@ import { assetsPresent } from '@/lib/reading/tts/assets';
 import * as engine from '@/lib/reading/tts/engine';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
 import { exampleLineUri, loadExampleAudio } from '@/lib/reading/example-audio-runtime';
-import { endTutorial, startTutorial } from '@/lib/tutorial';
 
 import { openFixtureScript, scriptDetail, TWO_ROLE_LINES } from './fixtures';
 
@@ -39,7 +38,6 @@ let appStateListeners: ((state: string) => void)[] = [];
 beforeEach(async () => {
   jest.clearAllMocks();
   await AsyncStorage.clear();
-  endTutorial();
   mockParams = {};
   appStateListeners = [];
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, fn) => {
@@ -134,16 +132,6 @@ test('대본 넣기에서 왔으면 저장 뒤 대본 상세로 간다', async (
   await fireEvent.press(screen.getByText('저장'));
   expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
   expect(mockRouter.push).not.toHaveBeenCalled();
-});
-
-test('리딩 튜토리얼 중이면 저장 뒤 대본 상세를 거쳐 새 연습으로 간다', async () => {
-  mockParams = { from: 'new' };
-  startTutorial('sample', 'reading');
-  await show();
-
-  await fireEvent.press(screen.getByText('저장'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
-  expect(mockRouter.push).toHaveBeenCalledWith('/reading/range');
 });
 
 test('저장에 실패하면 알리고 고른 목소리를 그대로 두어 다시 저장할 수 있다', async () => {

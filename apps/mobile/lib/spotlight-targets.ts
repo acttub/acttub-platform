@@ -82,34 +82,4 @@ export const TARGET = {
   readingNew: 'reading.new',
   /** 연습 묶음 화면의 "이어서 연습하기" 버튼. */
   groupContinue: 'group.continue',
-  // 연습 루프 튜토리얼(SOMA-494)이 비추는 자리.
-  /** 업로드 — 영상 고르기·찍기. */
-  uploadPick: 'upload.pick',
-  /** 업로드 — 예시 영상이 들어간 미리보기. */
-  uploadSample: 'upload.sample',
-  /** 업로드 — 영상 단계 맨 아래 권리 체크. */
-  uploadRights: 'upload.rights',
-  /** 업로드 — 질문 받기 버튼. */
-  uploadStart: 'upload.start',
-  /** 분석 대기 — 진행 표시. */
-  analyzingProgress: 'analyzing.progress',
-  /** 코치 — 지금 받은 질문. */
-  coachQuestion: 'coach.question',
-  /** 코치 — 답 적는 칸. */
-  coachComposer: 'coach.composer',
-  /** 노트 — 연습 노트 본문. */
-  reportNote: 'report.note',
-  // 대본 리딩 튜토리얼(SOMA-494)이 비추는 자리.
-  /** 새 대본 — 「글로 붙여넣기」 탭. */
-  readingDrop: 'reading.drop',
-  /** 새 대본 — 다음 버튼. */
-  readingNext: 'reading.next',
-  /** 목소리 정하기 — 배역 목소리 목록. */
-  readingRoleList: 'reading.roles',
-  /** 목소리 정하기 — 저장 버튼. */
-  readingRoleStart: 'reading.roleStart',
-  /** 새 연습 — 구간 고르기(탭·목록). */
-  readingRangePick: 'reading.rangePick',
-  /** 새 연습 — 시작 버튼. */
-  readingRangeStart: 'reading.rangeStart',
 } as const;

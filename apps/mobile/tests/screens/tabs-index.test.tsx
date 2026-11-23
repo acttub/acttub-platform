@@ -13,7 +13,6 @@ import type { PracticeGroup, PracticeRound } from '@/lib/practice/types';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { ScriptCard } from '@/lib/reading/types';
 import { readLastSeenStreak, writeLastSeenStreak } from '@/lib/streak-celebration';
-import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 // 화면의 useFocusEffect 전부 — 다시 포커스는 모두 다시 부른다.
@@ -203,7 +202,6 @@ const auditionsPayload = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  endTutorial();
   mockAuth.user = { id: 'u1' };
   mockAuth.consentEntry = { status: 'allowed' };
   mockAuth.profile = { me: { id: 'u1' } };
@@ -885,13 +883,6 @@ describe('첫 안내', () => {
     expect(await screen.findByText('뭐부터 해 볼까요?')).toBeOnTheScreen();
     await act(async () => new Promise((r) => setTimeout(r, 900)));
     expect(screen.queryByText('건너뛰기')).not.toBeOnTheScreen();
-  });
-
-  test('튜토리얼 중에 홈으로 돌아오면 튜토리얼을 끝낸다', async () => {
-    startTutorial('own');
-    await render(<HomeScreen />);
-    await screen.findByText('뭐부터 해 볼까요?');
-    expect(currentTutorial()).toBeNull();
   });
 
   test('재동의 팝업이 떠 있는 동안은 첫 안내를 미루고, 닫힌 뒤에 띄운다', async () => {
