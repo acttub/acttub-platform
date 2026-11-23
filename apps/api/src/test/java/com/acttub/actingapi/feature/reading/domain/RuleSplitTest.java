@@ -411,6 +411,148 @@ class RuleSplitTest {
         assertThat(joined.getFirst().no()).isEqualTo(1);
     }
 
+    @Test
+    void unwrapLeavesTextWithoutVisibleCutsAlone() {
+        // 폭까지 찬 줄이 끝 부호로 닫히는 보통 대본 — 끊긴 자리가 없으니 그대로다
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 12; k++) raw.append("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 좋다.\n영희 그럼 같이 시작해 보자, 지금 바로.\n");
+        java.util.List<NumberedLine> lines = NumberedLine.of(raw.toString());
+
+        assertThat(RuleSplit.unwrap(lines)).isSameAs(lines);
+    }
+
+    @Test
+    void unwrapJoinsCutLinesInAnyText() {
+        // 끊긴 자리가 글 줄의 5% 넘게 보이면 파일 종류를 묻지 않고 잇는다
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 10; k++) raw.append("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하\n고 싶은 마음이 들어.\n영희 그럼 같이 시작해 보자.\n");
+
+        assertThat(RuleSplit.unwrap(NumberedLine.of(raw.toString()))).extracting(NumberedLine::text)
+                .contains("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하고 싶은 마음이 들어.").hasSize(20);
+    }
+
+    // ── 구분 부호 머리·쌍점 블록·인물 설명 (2026-11-23) ──
+
+    @Test
+    void spacedDashHeadsRepeatedByTwoNamesAreSpeakers() {
+        RuleSplit.Result result = full("혜정 - 살려줘.\n동은 - 왜 그래?\n혜정 - 누가 따라와.\n동은 - 어디?\n혜정 - 저기 골목.");
+
+        assertThat(result.roster()).containsExactly("혜정", "동은");
+        assertThat(row(result, 2).speaker()).isEqualTo("동은");
+    }
+
+    @Test
+    void slashHeadsWithASpaceAreSpeakersButPairedRolesStayWhole() {
+        RuleSplit.Result result = full("태하/ 그럼 내일 보자.\n서윤/ 내일은 안 돼.\n태하/ 왜?\n서윤/ 약속 있어.");
+
+        assertThat(result.roster()).containsExactly("태하", "서윤");
+        assertThat(full("해리/헤라 어디 가?\n민수 집에.\n해리/헤라 같이 가.\n민수 그래.\n해리/헤라 좋아.").roster()).contains("해리/헤라");
+    }
+
+    @Test
+    void closingParenAndNumberColonHeadsAreSpeakers() {
+        assertThat(full("장영철) 안녕하세요.\n김미진) 네, 오셨어요.\n장영철) 오늘 춥네요.\n김미진) 그러게요.").roster())
+                .containsExactly("장영철", "김미진");
+        assertThat(full("1 : 너 거기 있어?\n2 : 아니.\n1 : 그럼 어디야?\n2 : 비밀.").roster()).containsExactly("1", "2");
+    }
+
+    @Test
+    void nameColonLinesStartBlocks() {
+        RuleSplit.Result result = full("여자:\n오늘 늦었네.\n\n남자:\n차가 막혔어.\n\n여자:\n변명은.\n\n남자:\n미안해.");
+
+        assertThat(result.roster()).containsExactly("여자", "남자");
+        assertThat(row(result, 5).speaker()).isEqualTo("남자");
+    }
+
+    @Test
+    void aColonLineInsideParenthesesIsThatPersonsLine() {
+        RuleSplit.Result result = full("김부장: 자네 왔나.\n박대리: 네, 부장님.\n(김부장 : 믿어도 되겠지..)\n박대리: 걱정 마세요.\n김부장: 그래.");
+
+        assertThat(row(result, 3)).isEqualTo(new Row(3, Kind.DIALOGUE, "김부장", ""));
+    }
+
+    @Test
+    void castDescriptionsWithoutAHeaderAreCast() {
+        RuleSplit.Result result = full("""
+                봄날의 정류장
+
+                윤아 여, 20대 후반, 회사원
+                도현 남, 30대 초반, 버스 기사
+                미숙 여, 60대, 윤아의 엄마
+
+                S#1. 정류장 - 밤
+
+                윤아: 막차 끊겼어요?
+                도현: 아직 하나 남았어요.
+                윤아: 다행이다.
+                도현: 타세요.""");
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.CAST);
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.CAST);
+        assertThat(row(result, 9).speaker()).isEqualTo("윤아");
+    }
+
+    // ── 지난번 규칙 (2026-11-22) ──
+
+    @Test
+    void castSectionWithDescriptionParagraphsIsIgnoredAsCast() {
+        RuleSplit.Result result = full("""
+                등장인물
+                지우 - 열일곱, 고등학생
+                늘 무언가를 그리고 있다. 말수가 적다.
+                하린 - 지우의 단짝
+
+                무대, 텅 빈 미술실.
+
+                지우: 왔어?
+                하린: 응, 늦었지.
+                지우: 괜찮아.""");
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.CAST);
+        assertThat(result.roster()).containsExactlyInAnyOrder("지우", "하린");
+    }
+
+    @Test
+    void hangulNamePeriodHeadsAreSpeakers() {
+        RuleSplit.Result result = full("민수. 어디 가?\n영희. 시장에.\n민수. 같이 가.\n영희. 그래.\n민수. 좋아.\n영희. 빨리 와.");
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+        assertThat(row(result, 2).speaker()).isEqualTo("영희");
+    }
+
+    @Test
+    void attachedMarkHeadsAreSpeakers() {
+        assertThat(full("병사- 거기 서라!\n소년- 저요?\n병사- 그래, 너.\n소년- 왜요?").roster()).containsExactly("병사", "소년");
+        assertThat(full("현우; 해인아!\n해인; 응?\n현우; 가자.\n해인; 어디로?").roster()).containsExactly("현우", "해인");
+        assertThat(full("여)나 갈게.\n남)어디 가?\n여)집에.\n남)데려다줄게.").roster()).containsExactly("여", "남");
+    }
+
+    @Test
+    void numberSpeakersSeenOftenAreSpeakers() {
+        assertThat(full("1 응? 뭐가?\n2 저거 봐.\n3 뭔데.\n1 아무것도 없는데.\n2 다시 봐.\n3 정말이네.\n1 이상하다.\n2 그치?\n3 가자.").roster())
+                .containsExactly("1", "2", "3");
+    }
+
+    @Test
+    void runningHeadersBesidePageNumbersAreNotSpeakers() {
+        StringBuilder raw = new StringBuilder();
+        for (int page = 1; page <= 4; page++) {
+            raw.append("한빛대학교 26-").append(page).append(" 정기공연\n").append(page).append("\n");
+            raw.append("민수 오늘 연습 몇 시야?\n영희 일곱 시.\n민수 늦지 마.\n영희 알았어.\n\n");
+        }
+        RuleSplit.Result result = full(raw.toString());
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+        assertThat(row(result, 1).kind()).isNotEqualTo(Kind.DIALOGUE);
+    }
+
+    @Test
+    void directionMarksAroundNamesAreInvisible() {
+        RuleSplit.Result result = full("‭민수‬ 어디 가?\n‭영희‬ 집에.\n‭민수‬ 같이 가.\n‭영희‬ 그래.");
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+    }
+
     // ── 남은 쉬운 오류·독백 이름·한 줄 여러 대사 (2026-11-21) ──
 
     @Test
@@ -767,5 +909,443 @@ class RuleSplitTest {
                 RuleSplit.Format.COLON, 4);
         assertThat(result.coverage()).isEqualTo(0.25);
         assertThat(result.confident()).isFalse();
+    }
+    // ── 2026-11-21 풀규칙 보강 ─────────────────────────────
+
+    private static RuleSplit.Result full(String raw) {
+        return RuleSplit.full(NumberedLine.of(raw));
+    }
+
+    private static String label(RuleSplit.Result result, int no) {
+        Row r = result.rows().get(no);
+        return r == null ? "-" : r.kind() == Kind.DIALOGUE ? r.speaker() : r.kind().name();
+    }
+
+    @Test
+    void numberedTwoWordNamesAreReadAsOneHead() {
+        RuleSplit.Result result = full("""
+                등장인물
+                3번 위원
+                7번 위원
+
+                3번 위원 뭐가 문제죠?
+                7번 위원 시간이 없다고요.
+                3번 위원 그래도 말은 해야죠.
+                7번 위원 그럼 하세요.""");
+
+        assertThat(label(result, 5)).isEqualTo("3번 위원");
+        assertThat(label(result, 6)).isEqualTo("7번 위원");
+        assertThat(row(result, 6).header()).isEqualTo("7번 위원 ");
+    }
+
+    @Test
+    void bracketedNameLinesStartBlocks() {
+        RuleSplit.Result result = full("""
+                [하늘]
+                오늘은 바람이 차네.
+                [바다]
+                그러게, 겨울이 왔나 봐.
+                [하늘]
+                집에 가자.
+                [바다]
+                응, 가자.""");
+
+        assertThat(label(result, 1)).isEqualTo("IGNORE");
+        assertThat(label(result, 2)).isEqualTo("하늘");
+        assertThat(label(result, 4)).isEqualTo("바다");
+        assertThat(label(result, 8)).isEqualTo("바다");
+    }
+
+    @Test
+    void colonHeadsDropBulletsAndActorParens() {
+        RuleSplit.Result result = full("""
+                * 도담(배우1): 여기 앉아도 돼요?
+                * 세찬(배우2): 그럼요, 앉으세요.
+                * 도담(배우1): 고마워요.""");
+
+        assertThat(label(result, 1)).isEqualTo("도담");
+        assertThat(label(result, 2)).isEqualTo("세찬");
+    }
+
+    @Test
+    void stageBracketAndNameParenCommaAreDirections() {
+        RuleSplit.Result result = full("""
+                도담: 왔어?
+                세찬: 응, 방금.
+                [무대] 창밖으로 비가 내리고 있다
+                세찬(배우2), 우산을 접어 문 옆에 세워 두고
+                도담: 비 많이 와?""");
+
+        assertThat(label(result, 3)).isEqualTo("DIRECTION");
+        assertThat(label(result, 4)).isEqualTo("DIRECTION");
+    }
+
+    @Test
+    void namesEndingInDaNeedFiveHeads() {
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 5; k++) raw.append("로다 어디 가?\n\n미루 산책 가.\n\n");
+        RuleSplit.Result result = full(raw.toString());
+
+        assertThat(label(result, 1)).isEqualTo("로다");
+        assertThat(RuleSplit.spaceName("로다", 4)).isFalse();
+        assertThat(RuleSplit.spaceName("잠근다", 9)).isFalse();
+        assertThat(RuleSplit.spaceName("했다", 9)).isFalse();
+    }
+
+    @Test
+    void numberOnlySpeakersNeedThreeNumbers() {
+        RuleSplit.Result result = full("""
+                1 얼음!
+                2 땡!
+                3 너희 뭐 해?
+                1 놀고 있지.
+                2 같이 할래?
+                3 싫어.
+                1 왜?
+                2 재밌는데.
+                3 그래도 싫어.""");
+
+        assertThat(label(result, 3)).isEqualTo("3");
+        assertThat(label(result, 4)).isEqualTo("1");
+    }
+
+    @Test
+    void dashSemicolonAndParenMarksSplitHeads() {
+        RuleSplit.Result result = full("""
+                병사- 거기 서라!
+                도둑; 싫은데?
+                병사- 잡히면 끝이야.
+                도둑; 못 잡을걸.
+                여)나 갈게.
+                남)가지 마.
+                여)안녕.
+                남)잘 가.""");
+
+        assertThat(label(result, 1)).isEqualTo("병사");
+        assertThat(label(result, 2)).isEqualTo("도둑");
+        assertThat(label(result, 5)).isEqualTo("여");
+        assertThat(label(result, 6)).isEqualTo("남");
+    }
+
+    @Test
+    void onceSeenNameLinesBeforeTheFirstSpeechAreNotSpeakers() {
+        RuleSplit.Result result = full("""
+                연극
+
+                겨울 정류장
+                작 아무개
+
+                도담: 버스 언제 와?
+                세찬: 곧 오겠지.
+                도담: 추워.""");
+
+        assertThat(label(result, 3)).isNotEqualTo("겨울 정류장");
+        assertThat(result.roster()).containsExactly("도담", "세찬");
+    }
+
+    @Test
+    void shortStageCuesInsideBlocksAreDirections() {
+        RuleSplit.Result result = full("""
+                하늘
+                오늘은 춥다
+                긴 사이.
+                집에 가자
+                바다
+                그래, 가자
+                하늘 등장.
+                하늘
+                왔어?
+                바다
+                응""");
+
+        assertThat(label(result, 2)).isEqualTo("하늘");
+        assertThat(label(result, 3)).isEqualTo("DIRECTION");
+        assertThat(label(result, 7)).isEqualTo("DIRECTION");
+    }
+
+    @Test
+    void narrationUnderABlockNameIsADirection() {
+        RuleSplit.Result result = full("""
+                하늘
+                이제 그만 가자
+                하늘, 가방을 들고 문 쪽으로 걸어간다.
+                바다
+                잠깐만
+                바다
+                어디 가?
+                하늘
+                집에""");
+
+        assertThat(label(result, 2)).isEqualTo("하늘");
+        assertThat(label(result, 3)).isEqualTo("DIRECTION");
+    }
+
+    @Test
+    void spacedFullNamesAreJoined() {
+        RuleSplit.Result result = full("""
+                로이 버튼 어서 와요.
+                케이 모건 늦어서 미안해요.
+                로이 버튼 괜찮아요.
+                케이 모건 다들 기다렸죠?
+                로이 버튼 아니요, 조금만요.
+                케이 모건 다행이네요.""");
+
+        assertThat(label(result, 1)).isEqualTo("로이 버튼");
+        assertThat(label(result, 2)).isEqualTo("케이 모건");
+        assertThat(row(result, 1).header()).isEqualTo("로이 버튼 ");
+    }
+
+    @Test
+    void nameLinesWithATrailingMarkStartBlocks() {
+        RuleSplit.Result result = full("""
+                도담: 오늘도 아파?
+                세찬: 조금.
+                도담: 어디가?
+                세찬: 그냥 여기저기.
+
+                도담:
+                숨을 쉴 때만 아파
+
+                세찬 :
+                생각할 때만 아파""");
+
+        assertThat(label(result, 6)).isEqualTo("IGNORE");
+        assertThat(label(result, 7)).isEqualTo("도담");
+        assertThat(label(result, 9)).isEqualTo("IGNORE");
+        assertThat(label(result, 10)).isEqualTo("세찬");
+    }
+
+    @Test
+    void aNameLineNextToAPageNumberStaysAName() {
+        RuleSplit.Result result = full("""
+                하늘
+                오늘은 바람이 차
+                바다
+                겨울이니까
+                2
+                하늘
+                집에 가자
+                바다
+                그래
+                하늘
+                내일 봐
+                바다
+                잘 가""");
+
+        assertThat(label(result, 7)).isEqualTo("하늘");
+        assertThat(label(result, 9)).isEqualTo("바다");
+    }
+
+    @Test
+    void aHeadedLineEndsTheBlockBeforeIt() {
+        RuleSplit.Result result = full("""
+                도담: 거기 누구야?
+                세찬: 나야.
+                도담
+                놀랐잖아
+                세찬: 미안, 놀라게 하려던 건
+                아니었어.
+                도담: 됐어.""");
+
+        assertThat(label(result, 4)).isEqualTo("도담");
+        assertThat(label(result, 6)).isEqualTo("세찬");
+    }
+
+    @Test
+    void commonWordsWithAColonAreSpeakers() {
+        RuleSplit.Result result = full("""
+                나: 여기 누구 있어요?
+                엄마: 왜 그렇게 소리를 질러.
+                나: 아무도 없는 줄 알았지.
+                엄마: 밥은 먹었니?""");
+
+        assertThat(label(result, 1)).isEqualTo("나");
+        assertThat(label(result, 3)).isEqualTo("나");
+    }
+
+    @Test
+    void screenAndCaptionHeadsAreDirections() {
+        RuleSplit.Result result = full("""
+                도담: 이거 봤어?
+                화면: 낡은 사진 한 장이 비친다
+                세찬: 언제 찍은 거야?
+                자막: 십 년 전
+                도담: 기억 안 나?
+                화면: 사진 속 두 아이""");
+
+        assertThat(label(result, 2)).isEqualTo("DIRECTION");
+        assertThat(label(result, 4)).isEqualTo("DIRECTION");
+        assertThat(label(result, 3)).isEqualTo("세찬");
+    }
+
+    // ── 앞부분·악보 생략 ─────────────────────────────
+
+    @Test
+    void creditsShowInfoAndPageLinesBeforeTheFirstSpeechAreIgnored() {
+        RuleSplit.Result result = full("""
+                하얀 우산
+
+                한겨울 작
+                나무숲 옮김
+
+                푸른극회 제 12회 정기공연
+                WHITE UMBRELLA
+                - 1 -
+
+                작은 다락방. 창밖으로 눈이 내린다.
+
+                도담: 눈 온다.
+                세찬: 진짜네.
+                도담: 나가자.
+                세찬: 추워.""");
+
+        assertThat(label(result, 3)).isEqualTo("IGNORE");
+        assertThat(label(result, 4)).isEqualTo("IGNORE");
+        assertThat(label(result, 6)).isEqualTo("IGNORE");
+        assertThat(label(result, 7)).isEqualTo("IGNORE");
+        assertThat(label(result, 8)).isEqualTo("IGNORE");
+        assertThat(label(result, 10)).isEqualTo("DIRECTION");
+        assertThat(label(result, 12)).isEqualTo("도담");
+    }
+
+    @Test
+    void synopsisMetaAndNoticeAreIgnoredButTheSituationStays() {
+        RuleSplit.Result result = full("""
+                장르: 청춘 멜로
+                본 이야기는 허구이며 실제 인물과 관계없습니다.
+
+                [시놉시스]
+                두 친구가 마지막 버스를 기다린다.
+                서로 말하지 못한 비밀이 있다.
+
+                늦은 밤 정류장. 가로등 하나가 깜빡인다.
+
+                도담: 버스 왔어?
+                세찬: 아직.
+                도담: 늦네.
+                세찬: 그러게. 오디션은 어땠어?""");
+
+        assertThat(label(result, 1)).isEqualTo("IGNORE");
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 4)).isEqualTo("IGNORE");
+        assertThat(label(result, 5)).isEqualTo("IGNORE");
+        assertThat(label(result, 6)).isEqualTo("IGNORE");
+        assertThat(label(result, 8)).isEqualTo("DIRECTION");
+        assertThat(label(result, 10)).isEqualTo("도담");
+        assertThat(label(result, 13)).isEqualTo("세찬");
+    }
+
+    @Test
+    void auditionGuideAndRoleLinesBeforeTheFirstSpeechAreIgnored() {
+        RuleSplit.Result result = full("""
+                창작뮤지컬 〈초록 신호〉
+                ‘도담’ 역
+                대사는 입에 붙지 않으면 편하게 바꿔도 됩니다.
+
+                도담: 신호 바뀌었어.
+                세찬: 뛰자.
+                도담: 늦겠다.
+                세찬: 빨리.""");
+
+        assertThat(label(result, 1)).isEqualTo("IGNORE");
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("IGNORE");
+        assertThat(label(result, 5)).isEqualTo("도담");
+    }
+
+    @Test
+    void frontMatterStopsAtTheFirstSpeech() {
+        RuleSplit.Result result = full("""
+                도담: 버스 왔어?
+                세찬: 아직. 연출 선생님이 늦는대.
+                도담: 공연 날인데.
+                세찬: 그러게.""");
+
+        assertThat(label(result, 2)).isEqualTo("세찬");
+        assertThat(label(result, 3)).isEqualTo("도담");
+    }
+
+    @Test
+    void scoreChordsTempoAndSongPartsAreIgnoredButSungLinesStay() {
+        RuleSplit.Result result = full("""
+                M01. 첫눈
+                | Am | F | C | G |
+                Verse 1
+                ♩=96
+                도담: 눈이 와요
+                하얗게 내려와요
+                세찬: 손을 잡아요
+                따뜻하게 잡아요
+                도담: 같이 걸어요
+                세찬: 천천히 걸어요""");
+
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("IGNORE");
+        assertThat(label(result, 4)).isEqualTo("IGNORE");
+        assertThat(label(result, 5)).isEqualTo("도담");
+        assertThat(label(result, 6)).isEqualTo("도담");
+        assertThat(label(result, 7)).isEqualTo("세찬");
+        assertThat(label(result, 8)).isEqualTo("세찬");
+    }
+
+    @Test
+    void lyricsUnderANameLineStayThatRolesSpeech() {
+        RuleSplit.Result result = full("""
+                M02. 겨울밤
+
+                도담
+                별이 떠요
+                C  G  Am  F
+                하늘 가득 떠요
+
+                세찬
+                달도 떠요
+                우리 위에 떠요
+
+                도담
+                같이 봐요
+
+                세찬
+                그래요
+
+                도담
+                손 잡아요
+
+                세찬
+                꼭 잡아요""");
+
+        assertThat(label(result, 4)).isEqualTo("도담");
+        assertThat(label(result, 5)).isEqualTo("IGNORE");
+        assertThat(label(result, 6)).isEqualTo("도담");
+        assertThat(label(result, 9)).isEqualTo("세찬");
+        assertThat(label(result, 10)).isEqualTo("세찬");
+    }
+
+    @Test
+    void singerLineUnderASongHeadIsIgnored() {
+        RuleSplit.Result result = full("""
+                M03. 별
+                - 도담, 세찬
+                도담: 별이 떠요
+                세찬: 달도 떠요
+                도담: 같이 봐요
+                세찬: 그래요""");
+
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("도담");
+        assertThat(label(result, 4)).isEqualTo("세찬");
+    }
+
+    @Test
+    void brokenSymbolLinesAreIgnored() {
+        RuleSplit.Result result = full("""
+                도담: 여기야.
+                |      {   =   |
+                세찬: 어디?
+                도담: 여기라니까.
+                세찬: 안 보여.""");
+
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("세찬");
     }
 }
