@@ -101,6 +101,9 @@ req unknown-provider POST /v2/auth/login '{"provider":"nope","id_token":"x"}'
 # JSON 라이브러리 기본값이 갈리는 입력(SOMA-1103): 같은 키 두 번, 값 뒤에 붙은 글자, 깊은 중첩.
 req duplicate-key POST /v2/auth/login '{"provider":"nope","provider":"development","id_token":"x"}'
 req trailing-token POST /v2/auth/login '{"provider":"nope","id_token":"x"} trailing'
+req bad-json-property-name POST /v2/auth/login '{provider:"nope"}'
+req bad-json-unclosed POST /v2/auth/login '{"provider":"nope","id_token":"x"'
+req bad-json-escape POST /v2/auth/login '{"provider":"nope","id_token":"\😀"}'
 req deep-nesting POST /v2/auth/login "{\"provider\":\"nope\",\"id_token\":$(printf '[%.0s' $(seq 1 600))$(printf ']%.0s' $(seq 1 600))}"
 req root GET /
 req actuator-on-app GET /actuator/health
