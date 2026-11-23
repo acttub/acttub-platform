@@ -33,27 +33,42 @@ permissions:
   contents: read
 
 jobs:
+  # web 이 읽지 않는 경로만 바뀐 dev PR 은 단계를 건너뜁니다(규칙은 ci-changes.sh 머리말). 잡은 초록으로
+  # 끝나야 required check 가 옵니다. main 으로 가는 PR·매일 schedule·수동 실행은 항상 돕니다.
   web:
     name: web (lint · typecheck · test · build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: 변경 범위 판정
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: .github/scripts/ci-changes.sh
 
       # pnpm을 먼저 깔아야 setup-node의 cache:pnpm이 동작합니다.
       - uses: pnpm/action-setup@v6
+        if: steps.changes.outputs.web == 'true'
         with:
           version: 11.1.2
 
       - uses: actions/setup-node@v7
+        if: steps.changes.outputs.web == 'true'
         with:
           node-version: 24
           cache: pnpm
 
       # pnpm-workspace.yaml가 apps/mobile(Expo)을 제외하므로 웹만 설치됩니다.
       - name: Install
+        if: steps.changes.outputs.web == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Lint
+        if: steps.changes.outputs.web == 'true'
         run: pnpm lint
 
       # 빌드 모드는 하나뿐이고(standalone), 이것이 실제 배포 산출물입니다
@@ -63,15 +78,19 @@ jobs:
       # 이 산출물들은 gitignore라 클린 체크아웃엔 없습니다.
       # API_ORIGIN은 빌드 시점에 굳지만, 여기서는 컴파일 여부만 보므로 기본값을 씁니다.
       - name: Build
+        if: steps.changes.outputs.web == 'true'
         run: pnpm build
 
       - name: Typecheck
+        if: steps.changes.outputs.web == 'true'
         run: pnpm typecheck
 
       - name: Test
+        if: steps.changes.outputs.web == 'true'
         run: pnpm --filter web test:coverage
 
       - uses: actions/upload-artifact@v4
+        if: steps.changes.outputs.web == 'true'
         with:
           name: coverage-web
           retention-days: 1
@@ -145,7 +164,8 @@ jobs:
         with:
           fetch-depth: 2
 
-      # 앱 코드가 이미지 빌드를 깰 수 있어 Smoke 는 거르지 않고 항상 돕니다. restore 판정은 restore-db.sh 왕복만 켭니다.
+      # smoke 가 읽지 않는 경로(apps/mobile·deploy/monitoring·문서)만 바뀐 dev PR 은 단계를 건너뜁니다.
+      # restore 판정은 그와 따로 restore-db.sh 왕복만 켭니다.
       - name: 변경 범위 판정
         id: changes
         env:
@@ -155,15 +175,19 @@ jobs:
 
       # smoke.sh 가 bootJar 를 직접 굽습니다.
       - uses: ./.github/actions/setup-java-gradle
+        if: steps.changes.outputs.smoke == 'true'
 
       - name: Deploy guard tests
+        if: steps.changes.outputs.smoke == 'true'
         run: |
+          .github/scripts/ci-changes-test.sh
           deploy/guard-test.sh
           deploy/home/deploy-test.sh
 
       # docker build 의 --cache-to/--cache-from type=gha 가 쓸 러너 토큰(ACTIONS_RUNTIME_TOKEN·ACTIONS_RESULTS_URL)을
       # 셸 스텝에 내놓는다. 이 토큰은 원래 action 에만 보인다(SOMA-1076).
       - uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3
+        if: steps.changes.outputs.smoke == 'true'
 
       # 배포 산출물 검증(SOMA-489)입니다. api·web 컨테이너 이미지를 굽고(push 없음) deploy/home/compose.yml 을
       # 실제 배포 스크립트(deploy/home/deploy.sh)로 임시 프로젝트에 띄워 web·proxy 경유 /·/health 와 commit 대조,
@@ -172,6 +196,7 @@ jobs:
       # 실제 앱 위의 restore-db.sh 왕복은 restore 판정일 때만 돕니다(SMOKE_RESTORE).
       # 웹 이미지는 Docker 안에서 빌드되므로 이 잡에 node 가 없어도 됩니다. cloudflared·backup 프로필은 빠집니다.
       - name: Smoke (docker build ×2 · deploy.sh · compose)
+        if: steps.changes.outputs.smoke == 'true'
         env:
           # API 이미지 apt 레이어 캐시. PR 은 읽기만 하고 매일 dev schedule·수동 실행이 dev 범위에 쓴다(deploy.yml 은 읽기만).
           SMOKE_BUILD_CACHE: ${{ github.event_name == 'pull_request' && 'read' || 'write' }}
@@ -253,6 +278,7 @@ jobs:
 
   # 모바일은 pnpm 워크스페이스 밖이라(pnpm-workspace.yaml 의 !apps/mobile) 위 web
   # 잡이 설치조차 하지 않습니다. apps/mobile 은 이 잡만 검증합니다.
+  # mobile 이 읽지 않는 경로만 바뀐 dev PR 은 단계를 건너뛰고 초록으로 끝납니다(규칙은 ci-changes.sh 머리말).
   #
   # 테스트는 두 갈래입니다. node --test 는 lib 의 .ts 를 설치 없이 타입 스트리핑으로 돌리고,
   # jest(jest-expo)는 화면·컴포넌트·훅과 lib 의 .tsx 를 React Native 렌더러로 돌립니다(SOMA-750).
@@ -270,24 +296,39 @@ jobs:
         working-directory: apps/mobile
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: 변경 범위 판정
+        id: changes
+        working-directory: ${{ github.workspace }}
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: .github/scripts/ci-changes.sh
 
       - uses: actions/setup-node@v7
+        if: steps.changes.outputs.mobile == 'true'
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
 
       - name: Install
+        if: steps.changes.outputs.mobile == 'true'
         run: npm ci
 
       # .ts 를 그대로 import 합니다(Node 타입 스트리핑). 웹과 달리 커스텀 로더가 없습니다.
       - name: Test
+        if: steps.changes.outputs.mobile == 'true'
         run: npm run test:coverage
 
       - name: Test screens
+        if: steps.changes.outputs.mobile == 'true'
         run: npm run test:screens
 
       - uses: actions/upload-artifact@v4
+        if: steps.changes.outputs.mobile == 'true'
         with:
           name: coverage-mobile
           retention-days: 1
@@ -324,7 +365,7 @@ jobs:
         working-directory: apps/api
         run: ./gradlew classes --no-daemon
 
-      # api 테스트를 건너뛴 PR 에는 coverage-api 가 없습니다. Sonar 는 PR 에서 바뀐 줄만 보므로 괜찮습니다.
+      # 단계를 건너뛴 web·api·mobile 잡은 커버리지 파일을 올리지 않습니다. Sonar 는 PR 에서 바뀐 줄만 보므로 괜찮습니다.
       - uses: actions/download-artifact@v4
         if: env.SONAR_TOKEN != ''
         with:
@@ -332,11 +373,13 @@ jobs:
           path: coverage-reports
 
       # node --test 와 jest 의 lcov 경로는 앱 디렉터리 기준이라 저장소 루트 기준으로 바꿉니다.
+      # 세 잡이 모두 건너뛰면 내려받은 파일이 없어 폴더도 생기지 않으므로 먼저 만듭니다.
       - name: lcov 경로 보정
         if: env.SONAR_TOKEN != ''
         run: |
+          mkdir -p coverage-reports
           for app in web mobile; do
-            for f in coverage-reports/coverage-$app/*lcov.info; do
+            for f in "coverage-reports/coverage-$app"/*lcov.info; do
               [ -f "$f" ] && sed -i "s#^SF:#SF:apps/$app/#" "$f"
             done
           done
