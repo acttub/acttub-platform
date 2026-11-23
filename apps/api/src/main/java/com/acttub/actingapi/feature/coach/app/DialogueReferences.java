@@ -35,7 +35,7 @@ final class DialogueReferences {
         boolean reference = field.equals("id") || field.endsWith("_id") || field.endsWith("_ids")
                 || field.endsWith("_ref") || field.endsWith("_refs");
         if (value.isString() && reference) return StructuredJson.MAPPER.getNodeFactory()
-                .textNode(mapping.getOrDefault(LenientJson.asText(value), LenientJson.asText(value)));
+                .stringNode(mapping.getOrDefault(LenientJson.asText(value), LenientJson.asText(value)));
         if (value.isObject()) {
             var result = StructuredJson.MAPPER.createObjectNode();
             value.properties().forEach(entry -> result.set(entry.getKey(), replace(entry.getValue(), mapping, entry.getKey())));

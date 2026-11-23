@@ -193,7 +193,7 @@ class StructuredCoachEngineTest {
         request.putNull("continuation_token");
         request.putArray("dimensions").add("voice");
         assertThat(lookup.lookup(record, request).path("events")).isEmpty();
-        request.set("continuation_token", StructuredJson.MAPPER.getNodeFactory().textNode(cursors.iterator().next()));
+        request.set("continuation_token", StructuredJson.MAPPER.getNodeFactory().stringNode(cursors.iterator().next()));
         assertThatThrownBy(() -> lookup.lookup(record, request)).hasMessageContaining("invalid lookup continuation");
     }
 

@@ -90,7 +90,7 @@ public final class LenientJson {
             return node.booleanValue() ? 1.0 : 0.0;
         }
         if (node.isString()) {
-            return NumberInput.parseAsDouble(node.stringValue(), defaultValue);
+            return NumberInput.parseAsDouble(node.stringValue(), defaultValue, false);
         }
         return pojoNumber(node) instanceof Number number ? number.doubleValue() : defaultValue;
     }

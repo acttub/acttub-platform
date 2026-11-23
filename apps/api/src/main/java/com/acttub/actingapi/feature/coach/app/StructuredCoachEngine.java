@@ -170,7 +170,7 @@ final class StructuredCoachEngine {
                 String error = failure instanceof IllegalArgumentException
                         ? failure.getMessage() : "generation unavailable; return a valid response using available evidence";
                 input.put("validation_error", error);
-                if (!validationErrors.toString().contains(StructuredJson.MAPPER.getNodeFactory().textNode(error).toString())) {
+                if (!validationErrors.toString().contains(StructuredJson.MAPPER.getNodeFactory().stringNode(error).toString())) {
                     validationErrors.add(error);
                 }
             }
