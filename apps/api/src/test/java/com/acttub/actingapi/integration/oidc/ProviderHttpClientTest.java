@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
@@ -47,7 +48,7 @@ class ProviderHttpClientTest {
     @Test
     @DisplayName("account.login: 네이버 코드 교환은 OIDC 토큰 경로에 client secret·code·state·code_verifier 를 폼으로 보낸다")
     void naverExchangePostsTheDocumentedForm() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         MultiValueMap<String, String> expected = new LinkedMultiValueMap<>();
         expected.add("client_id", "naver-id");
@@ -76,7 +77,7 @@ class ProviderHttpClientTest {
     @Test
     @DisplayName("account.login: 앱이 state 를 주지 않으면 네이버 교환에 난수를 채워 보낸다(발급 때 필수)")
     void naverExchangeFillsInAStateWhenTheAppSentNone() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         AtomicReference<String> body = new AtomicReference<>();
         server.expect(requestTo(HttpNaverTokenClient.TOKEN_URL))
@@ -106,14 +107,14 @@ class ProviderHttpClientTest {
                     throw new IOException("connection reset");
                 }).exchange("c", "v", null, "s"))
                 .isInstanceOf(ProviderUnavailable.class);
-        assertThatThrownBy(() -> new HttpNaverTokenClient("", "", RestClient.builder()).exchange("c", "v", null, "s"))
+        assertThatThrownBy(() -> new HttpNaverTokenClient("", "", RestClients.builder()).exchange("c", "v", null, "s"))
                 .isInstanceOf(ProviderConfigurationError.class);
     }
 
     @Test
     @DisplayName("account.withdraw: 네이버 연동 해제는 refresh token 을 토큰 폐기 경로에 보내고 HTTP 200 을 성공으로 본다")
     void naverRevokePostsTheRefreshTokenToTheRevocationEndpoint() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         MultiValueMap<String, String> expected = new LinkedMultiValueMap<>();
         expected.add("client_id", "naver-id");
@@ -138,7 +139,7 @@ class ProviderHttpClientTest {
     @Test
     @DisplayName("account.login: 카카오 이메일 검증은 어드민 키와 회원번호로 사용자 정보 API 에 묻고 is_email_verified 를 본다")
     void kakaoEmailVerificationAsksTheUserApiWithTheAdminKey() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         MultiValueMap<String, String> expected = new LinkedMultiValueMap<>();
         expected.add("target_id_type", "user_id");
@@ -180,14 +181,14 @@ class ProviderHttpClientTest {
                 .isInstanceOf(ProviderUnavailable.class);
         assertThatThrownBy(() -> kakao(withStatus(HttpStatus.UNAUTHORIZED)).emailVerified("1", "a@example.test"))
                 .isInstanceOf(ProviderConfigurationError.class);
-        assertThatThrownBy(() -> new HttpKakaoUserClient("", RestClient.builder()).unlink("1"))
+        assertThatThrownBy(() -> new HttpKakaoUserClient("", RestClients.builder()).unlink("1"))
                 .isInstanceOf(ProviderConfigurationError.class);
     }
 
     @Test
     @DisplayName("account.withdraw: 카카오 연결 끊기는 어드민 키와 회원번호를 연결 해제 API 에 보낸다")
     void kakaoUnlinkPostsTheUserIdWithTheAdminKey() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         MultiValueMap<String, String> expected = new LinkedMultiValueMap<>();
         expected.add("target_id_type", "user_id");
@@ -211,7 +212,7 @@ class ProviderHttpClientTest {
     @DisplayName("account.login: 애플 코드 교환은 ES256 client secret 과 함께 보내고, 받은 refresh token 을 Client ID 와 묶어 돌려준다")
     void appleExchangeSendsASignedClientSecretAndKeepsTheClientId() throws Exception {
         KeyPair keys = ecKeys();
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         AtomicReference<String> body = new AtomicReference<>();
         server.expect(requestTo("https://appleid.apple.com/auth/token"))
@@ -247,7 +248,7 @@ class ProviderHttpClientTest {
     @DisplayName("account.withdraw: 애플 폐기는 저장해 둔 refresh token 을 그것을 받은 Client ID 로 폐기 경로에 보낸다")
     void appleRevokeSendsTheStoredRefreshTokenForItsClientId() throws Exception {
         KeyPair keys = ecKeys();
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         AtomicReference<String> body = new AtomicReference<>();
         server.expect(requestTo("https://appleid.apple.com/auth/revoke"))
@@ -285,7 +286,7 @@ class ProviderHttpClientTest {
         assertThatThrownBy(() -> apple(keys, now, responding(withStatus(HttpStatus.BAD_REQUEST)))
                 .revoke("{\"client_id\":\"com.acttub.app\",\"refresh_token\":\"rt\"}"))
                 .isInstanceOf(ProviderUnavailable.class);
-        assertThatThrownBy(() -> new HttpAppleTokenClient("", "", "", Clock.systemUTC(), RestClient.builder())
+        assertThatThrownBy(() -> new HttpAppleTokenClient("", "", "", Clock.systemUTC(), RestClients.builder())
                 .exchange("c", "com.acttub.app"))
                 .isInstanceOf(ProviderConfigurationError.class);
     }
@@ -301,7 +302,7 @@ class ProviderHttpClientTest {
     }
 
     private static RestClient.Builder responding(org.springframework.test.web.client.ResponseCreator response) {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer.bindTo(builder).build()
                 .expect(request -> { })
                 .andRespond(response);

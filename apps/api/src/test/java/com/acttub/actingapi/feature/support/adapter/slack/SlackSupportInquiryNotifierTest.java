@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.acttub.actingapi.feature.support.app.SupportInquiryNotifier.Notice;
 import com.acttub.actingapi.integration.slack.SupportSlackChannel;
+import com.acttub.actingapi.platform.http.RestClients;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,7 +40,7 @@ class SlackSupportInquiryNotifierTest {
 
     @Test
     void postsToWebhookAndSwallowsFailures() throws Exception {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(HOOK)).andExpect(method(HttpMethod.POST))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("새 문의가 들어왔어요")))
@@ -56,7 +57,7 @@ class SlackSupportInquiryNotifierTest {
 
     @Test
     void doesNothingWithoutWebhook() {
-        SupportSlackChannel channel = new SupportSlackChannel("", RestClient.builder(), Executors.newSingleThreadExecutor());
+        SupportSlackChannel channel = new SupportSlackChannel("", RestClients.builder(), Executors.newSingleThreadExecutor());
         assertThat(channel.enabled()).isFalse();
         SlackSupportInquiryNotifier notifier = new SlackSupportInquiryNotifier(channel);
         notifier.accepted(new Notice(ID, "other", "아무 일도 없어야 해요", false, null));

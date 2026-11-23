@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -26,7 +27,7 @@ class HttpRevenueCatCustomerClientTest {
     @Test
     @DisplayName("스위치가 꺼졌거나 비밀 키가 없으면 꺼진 것이고, 지우라고 하면 부르지 않고 거절한다")
     void offWithoutSwitchOrKey() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
         assertThat(new HttpRevenueCatCustomerClient(false, "sk_live", builder).enabled()).isFalse();
@@ -39,7 +40,7 @@ class HttpRevenueCatCustomerClientTest {
     @Test
     @DisplayName("DELETE /v1/subscribers/{app_user_id} 를 비밀 키 Bearer 로 부르고 200 이면 끝난다")
     void deletesCustomer() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(URL))
                 .andExpect(method(HttpMethod.DELETE))
@@ -55,7 +56,7 @@ class HttpRevenueCatCustomerClientTest {
     @Test
     @DisplayName("404(이미 없는 고객)도 성공이다 — 다시 시도해도 안전하다")
     void notFoundIsDone() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(URL)).andExpect(method(HttpMethod.DELETE)).andRespond(withStatus(HttpStatus.NOT_FOUND));
 
@@ -69,7 +70,7 @@ class HttpRevenueCatCustomerClientTest {
     void failuresAreRetried() {
         for (HttpStatus status : new HttpStatus[] {HttpStatus.UNAUTHORIZED, HttpStatus.INTERNAL_SERVER_ERROR,
                 HttpStatus.TOO_MANY_REQUESTS}) {
-            RestClient.Builder builder = RestClient.builder();
+            RestClient.Builder builder = RestClients.builder();
             MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
             server.expect(requestTo(URL)).andRespond(
                     status.is5xxServerError() ? withServerError() : withStatus(status));

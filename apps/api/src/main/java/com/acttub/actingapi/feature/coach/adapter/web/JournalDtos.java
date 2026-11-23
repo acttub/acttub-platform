@@ -106,9 +106,9 @@ final class JournalDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record UpdateRequest(
             @NotNull @Valid @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Answers answers,
-            @NotNull @Size(max = 5) @Valid @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PracticeItem> practice,
-            @NotNull @Size(max = 5) @Valid @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<CharacterItem> character,
-            @NotNull @Size(max = 5) @Valid @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<FeedbackItem> feedback) {
+            @NotNull @Size(max = 5) @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<@Valid PracticeItem> practice,
+            @NotNull @Size(max = 5) @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<@Valid CharacterItem> character,
+            @NotNull @Size(max = 5) @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<@Valid FeedbackItem> feedback) {
 
         ActorJournal.Draft draft() {
             return new ActorJournal.Draft(

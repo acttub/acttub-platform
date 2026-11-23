@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.time.Instant;
 
 import com.acttub.actingapi.feature.billing.app.BillingMailer.PaidMail;
+import com.acttub.actingapi.platform.http.RestClients;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -19,7 +20,7 @@ import org.springframework.web.client.RestClient;
 
 /** Resend 호출의 모양. 실제 네트워크는 쓰지 않는다. */
 class ResendBillingMailerTest {
-    private final RestClient.Builder builder = RestClient.builder().baseUrl(ResendBillingMailer.BASE_URL);
+    private final RestClient.Builder builder = RestClients.builder().baseUrl(ResendBillingMailer.BASE_URL);
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final ResendBillingMailer mailer = new ResendBillingMailer("re_test_key", "ACTTUB <no-reply@acttub.com>",
             builder.build(), Runnable::run);
@@ -48,7 +49,7 @@ class ResendBillingMailerTest {
     void swallowsRejectionsAndQueueFailures() {
         server.expect(requestTo("https://api.resend.com/emails"))
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withStatus(
-                        org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY));
+                        org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT));
         mailer.paymentDone(mail);
         server.verify();
         new ResendBillingMailer("re_test_key", "f", builder.build(), task -> {

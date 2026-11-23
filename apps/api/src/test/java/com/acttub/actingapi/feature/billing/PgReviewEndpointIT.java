@@ -14,7 +14,7 @@ import java.util.HexFormat;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -67,7 +67,7 @@ class PgReviewEndpointIT {
                         .header("Origin", ORIGIN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"reviewer\",\"password\":\"" + longPassword + "\"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andReturn();
         String body = tooLong.getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(body).contains("string_too_long", "[redacted]").doesNotContain("S3cret", longPassword);

@@ -5,7 +5,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -32,8 +32,8 @@ public final class PostgresContainerSupport {
 
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
 
-    public static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:18-alpine"))
+    public static final PostgreSQLContainer POSTGRES =
+            new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
                     .withCommand("postgres", "-c", "max_connections=500");
 
     static {

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import com.acttub.actingapi.support.Jackson2Converters;
 import com.acttub.actingapi.feature.coach.app.CoachStream;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -80,6 +81,7 @@ class CoachStreamControllerTest {
         when(auth.gatedUser(any())).thenReturn(new AuthenticatedUser(user, "a@b.c", UserStatus.ACTIVE, false));
         when(service.reply(any(), any(), any(), any(), any(), any())).thenThrow(new ApiException(409, "conversation_conflict"));
         MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
+                .setMessageConverters(Jackson2Converters.server())
                 .setControllerAdvice(new ApiErrorAdvice(new ObjectMapper(), failures))
                 .build();
         String json = new ObjectMapper().writeValueAsString(body());

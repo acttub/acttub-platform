@@ -3,6 +3,7 @@ package com.acttub.actingapi.integration.revenuecat;
 import java.net.http.HttpClient;
 import java.time.Duration;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -46,7 +47,7 @@ public class HttpRevenueCatCustomerClient implements RevenueCatCustomerClient {
                 .connectTimeout(Duration.ofSeconds(5))
                 .build());
         factory.setReadTimeout(TIMEOUT);
-        return RestClient.builder().requestFactory(factory);
+        return RestClients.builder().requestFactory(factory);
     }
 
     @Override

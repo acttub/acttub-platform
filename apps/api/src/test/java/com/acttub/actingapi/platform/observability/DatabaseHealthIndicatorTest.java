@@ -11,7 +11,7 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.actuate.health.Status;
+import org.springframework.boot.health.contributor.Status;
 
 /**
  * DB 상태 확인은 2초 안에 답하고, 확인 하나가 돌고 있으면 겹쳐 부르지 않는다 — DB 가 멈춰도 상태 엔드포인트가

@@ -1,7 +1,7 @@
 plugins {
     java
     jacoco
-    id("org.springframework.boot") version "3.5.16"
+    id("org.springframework.boot") version "4.2.0"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -17,11 +17,6 @@ java {
 repositories {
     mavenCentral()
 }
-
-// Boot 3.5.16 이 주는 42.7.11 에 CVE-2026-54291(HIGH)이 남아 있어 고친 판으로 올린다. Boot 를 올릴 때 지운다.
-extra["postgresql.version"] = "42.7.14"
-// Boot 3.5.16 이 주는 Tomcat 10.1.55 에 CVE-2026-65182·65637·65905·68525 가 남아 있어 고친 판으로 올린다. Boot 를 올릴 때 지운다.
-extra["tomcat.version"] = "10.1.61"
 
 /*
  * openpnp OpenCV 는 모든 플랫폼의 네이티브(약 110MB)를 한 jar 에 싣는다. 운영 서버는 x86_64 리눅스 하나라
@@ -46,16 +41,27 @@ val opencvLinuxJar = tasks.register<Jar>("opencvLinuxJar") {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    // JSON 은 Jackson 2 로 다룬다(com.fasterxml 를 쓰는 파일이 378개). Boot 4 는 Jackson 3 이 기본이라 Jackson 2
+    // 자동설정을 따로 붙이고, application.yml 의 spring.http.converters.preferred-json-mapper 로 MVC 가 이쪽을 쓰게 한다.
+    // Boot 4.x 안에서 지워질 예정인 모듈이다(Boot 4.0 이전 안내서 「Jackson 2 Compatibility」). Jackson 3 으로 옮기면 뺀다.
+    implementation("org.springframework.boot:spring-boot-jackson2")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
-    implementation("org.flywaydb:flyway-core")
+    implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
-    // shortcut: 2.8.9 이상은 spec/openapi.json 을 바꾼다(required·nullable 형태). 계약 스냅샷을 검토할 때(SOMA-1015) 올린다.
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
+    // shortcut: swagger-core 2.2.30 이상은 spec/openapi.json 을 바꾼다(nullable 을 anyOf 대신 type null 로 내는 등).
+    // springdoc 3.2.0 이 끌고 오는 2.2.55 를 2.8.6 시절의 2.2.29 로 묶어 스펙을 바이트째 그대로 둔다.
+    // 계약 스냅샷을 검토할 때(SOMA-1015) 이 묶음을 풀고 스펙 diff 를 본다.
+    constraints {
+        for (module in listOf("swagger-annotations-jakarta", "swagger-core-jakarta", "swagger-models-jakarta")) {
+            implementation("io.swagger.core.v3:$module") { version { strictly("2.2.29") } }
+        }
+    }
     implementation("com.nimbusds:nimbus-jose-jwt:10.10")
     implementation(platform("software.amazon.awssdk:bom:2.31.30"))
     implementation("software.amazon.awssdk:s3")
@@ -82,11 +88,11 @@ dependencies {
 
     // 파이썬 observability.py 대응(M5 §D). starter 가 MVC 예외를 자동으로 잡아 보내고
     // BeforeSendCallback 빈을 물어 간다. DSN 이 비면 SDK 스스로 꺼지므로 로컬·테스트는 조용하다.
-    implementation("io.sentry:sentry-spring-boot-starter-jakarta:8.53.0")
+    implementation("io.sentry:sentry-spring-boot-4-starter:8.65.0")
 
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
     // 패키지 순환을 CI 에서 빨간불로 잡는다 (ADR-016). 단일 모듈이라 컴파일러가
     // 방향을 강제하지 못하므로 이 검사가 유일한 관문이다.
     testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
