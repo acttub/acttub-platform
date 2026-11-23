@@ -27,8 +27,8 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 /**
  * 응답에 실리는 필드 이름과 OpenAPI 문서(웹 타입 생성원)의 필드 이름이 같은지 본다(SOMA-1103).
  *
- * <p>실제 응답은 앱의 JSON 매퍼가, 문서는 springdoc 이 쓰는 swagger-core 가 같은 DTO 주석을 각자 읽어 이름을 정한다.
- * 둘이 어긋나면 웹이 생성한 타입과 실제 응답이 조용히 달라진다. {@code @JsonNaming} 이 붙은 모든 클래스에서 두 쪽의
+ * <p>실제 응답은 앱의 JSON 매퍼(Jackson 3)가, 문서는 springdoc 이 쓰는 swagger-core(Jackson 2, {@link SwaggerJackson3Bridge}
+ * 를 거쳐)가 같은 DTO 주석을 각자 읽어 이름을 정한다. 둘이 어긋나면 웹이 생성한 타입과 실제 응답이 조용히 달라진다. {@code @JsonNaming} 이 붙은 모든 클래스에서 두 쪽의
  * 이름 목록을 견준다. {@code OpenApiSnapshotIT} 는 문서가 커밋된 스냅샷과 같은지만 보므로 이 대조를 하지 않는다.
  */
 @JsonTest
@@ -95,7 +95,11 @@ class WireNameParityTest {
 
     @SuppressWarnings("rawtypes")
     private static List<String> documentedNames(Class<?> type) {
-        Schema schema = new ModelConverters(true).resolveAsResolvedSchema(new AnnotatedType(type).resolveAsRef(false)).schema;
+        // springdoc 처럼 swagger-core 의 기본 변환기 앞에 앱의 변환기를 둔다.
+        ModelConverters converters = new ModelConverters(true);
+        converters.addConverter(new PydanticPgEnumModelConverter());
+        converters.addConverter(new SwaggerJackson3Bridge());
+        Schema schema = converters.resolveAsResolvedSchema(new AnnotatedType(type).resolveAsRef(false)).schema;
         return schema == null || schema.getProperties() == null ? List.of() : new ArrayList<String>(schema.getProperties().keySet());
     }
 }

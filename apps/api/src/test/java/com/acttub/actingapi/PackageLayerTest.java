@@ -126,6 +126,7 @@ class PackageLayerTest {
         "jakarta.persistence..",
         "jakarta.validation..",
         "com.fasterxml.jackson..",
+        "tools.jackson..",
         "io.swagger.."
     };
 

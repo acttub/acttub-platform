@@ -30,11 +30,18 @@ class PydanticOpenApiCustomizer {
         // Pydantic emits enum classes as titled components and uses pure $ref properties.
         // This applies the same rule to every enum Springdoc discovers, including later groups.
         ModelResolver.enumsAsRef = true;
+        // 아래 customizer 가 swagger 의 전역 변환기로 모델을 다시 읽을 때도 Jackson 3 이름 규칙을 쓴다.
+        SwaggerJackson3Bridge.installNaming();
     }
 
     @Bean
     ModelConverter pydanticPgEnumModelConverter() {
         return new PydanticPgEnumModelConverter();
+    }
+
+    @Bean
+    ModelConverter swaggerJackson3Bridge() {
+        return new SwaggerJackson3Bridge();
     }
 
     /**
