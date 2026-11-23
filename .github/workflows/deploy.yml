@@ -90,28 +90,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: GHCR 로그인
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-      # deploy/ghcr-image-exists.sh — 0 있다 · 1 없다 · 2 판정 불가(레지스트리 오류는 다시 굽지 않고 실패).
-      - name: 같은 sha 이미지가 이미 있는지
+      - uses: ./.github/actions/ghcr-image-exists
         id: exists
-        env:
-          IMAGE: ${{ needs.guard.outputs.api_image }}
-          REBUILD: ${{ inputs.rebuild_images }}
-        run: |
-          set -euo pipefail
-          if [ "$REBUILD" = "true" ]; then
-            echo "rebuild_images — 있어도 다시 굽습니다: $IMAGE"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          elif deploy/ghcr-image-exists.sh "$IMAGE"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            rc=$?; [ "$rc" = 1 ] || exit "$rc"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+        with:
+          image: ${{ needs.guard.outputs.api_image }}
+          rebuild: ${{ inputs.rebuild_images }}
 
       - uses: ./.github/actions/setup-java-gradle
         if: ${{ steps.exists.outputs.exists != 'true' }}
@@ -164,28 +147,11 @@ jobs:
           POSTHOG_KEY: ${{ vars.POSTHOG_KEY_WEB }}
         run: deploy/consent-gate.sh
 
-      - name: GHCR 로그인
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-      # deploy/ghcr-image-exists.sh — 0 있다 · 1 없다 · 2 판정 불가(레지스트리 오류는 다시 굽지 않고 실패).
-      - name: 같은 sha 이미지가 이미 있는지
+      - uses: ./.github/actions/ghcr-image-exists
         id: exists
-        env:
-          IMAGE: ${{ needs.guard.outputs.web_image }}
-          REBUILD: ${{ inputs.rebuild_images }}
-        run: |
-          set -euo pipefail
-          if [ "$REBUILD" = "true" ]; then
-            echo "rebuild_images — 있어도 다시 굽습니다: $IMAGE"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          elif deploy/ghcr-image-exists.sh "$IMAGE"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            rc=$?; [ "$rc" = 1 ] || exit "$rc"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+        with:
+          image: ${{ needs.guard.outputs.web_image }}
+          rebuild: ${{ inputs.rebuild_images }}
 
       # 빌드는 Docker 안에서 돕니다(apps/web/Dockerfile: pnpm install → prebuild → next build) — 러너에
       # node 가 필요 없습니다. build-arg 는 브라우저에 내려가는 공개값뿐이고 SENTRY_AUTH_TOKEN 만
@@ -244,26 +210,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: GHCR 로그인
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-      - name: 같은 sha 이미지가 이미 있는지
+      - uses: ./.github/actions/ghcr-image-exists
         id: exists
-        env:
-          IMAGE: ${{ needs.guard.outputs.backup_image }}
-          REBUILD: ${{ inputs.rebuild_images }}
-        run: |
-          set -euo pipefail
-          if [ "$REBUILD" = "true" ]; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          elif deploy/ghcr-image-exists.sh "$IMAGE"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            rc=$?; [ "$rc" = 1 ] || exit "$rc"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+        with:
+          image: ${{ needs.guard.outputs.backup_image }}
+          rebuild: ${{ inputs.rebuild_images }}
 
       - name: docker build → push
         if: ${{ steps.exists.outputs.exists != 'true' }}
