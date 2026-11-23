@@ -22,8 +22,8 @@ import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.DefaultClientHeader;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -31,6 +31,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 구형 저장 구조와의 결합을 기동·HTTP·실제 PostgreSQL 경계에서 검증한다. */
 class LegacyStorageCompatibilityIT {
@@ -75,15 +76,15 @@ class LegacyStorageCompatibilityIT {
                     """, user);
             AccountFixtures.completeProfile(jdbc, user);
             String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
-            assertThat(get(port, "/health", bearer).path("status").asText()).isEqualTo("ok");
+            assertThat(LenientJson.asText(get(port, "/health", bearer).path("status"))).isEqualTo("ok");
             // 옛 쓰기 경로(`POST /v2/practice-sessions`)는 내렸다(§6-15). 옛 자료는 그대로 심고 <b>호환 읽기
             // 경로</b>로 읽는다 — 이 시험의 주제가 "현재 흐름이 옛 자료를 그대로 보여 주는가" 이기 때문이다.
             String session = seedPending(jdbc, user, upload).toString();
-            assertThat(get(port, "/v2/practices/" + session + "/status", bearer)
-                    .path("stage").asText()).isEqualTo("analyzing");
+            assertThat(LenientJson.asText(get(port, "/v2/practices/" + session + "/status", bearer)
+                    .path("stage"))).isEqualTo("analyzing");
             assertThat(practiceIds(get(port, "/v2/practices", bearer)))
                     .containsExactlyInAnyOrder(session, historical.toString());
-            assertThat(get(port, "/v2/practices/" + historical + "/note", bearer).path("title").asText())
+            assertThat(LenientJson.asText(get(port, "/v2/practices/" + historical + "/note", bearer).path("title")))
                     .isEqualTo("현재 연습 노트");
 
             // 분석 저장 Port는 실제 JPA INSERT·Lease 완료를 사용한다. 외부 모델 호출은 없다.
@@ -95,8 +96,8 @@ class LegacyStorageCompatibilityIT {
                     new ObservationItem(0, 500, "새 관찰", "기다려", "호흡", 0.8)), List.of("새 불확실"));
             assertThat(store.complete(operation, lease, new AnalysisResult(pack, true, 900),
                     "fixture-model", Instant.now())).isNotNull();
-            assertThat(get(port, "/v2/practices/" + session + "/status", bearer)
-                    .path("stage").asText()).as("분석이 끝나면 대화로 넘어간다").isEqualTo("conversing");
+            assertThat(LenientJson.asText(get(port, "/v2/practices/" + session + "/status", bearer)
+                    .path("stage"))).as("분석이 끝나면 대화로 넘어간다").isEqualTo("conversing");
             PracticeSessionRepository practices = context.getBean(PracticeSessionRepository.class);
             assertThat(practices.detail(user, UUID.fromString(session)).summary().observations())
                     .singleElement().satisfies(item -> assertThat(item.label()).isEqualTo("새 관찰"));
@@ -204,7 +205,7 @@ class LegacyStorageCompatibilityIT {
     private static List<String> practiceIds(JsonNode groups) {
         List<String> ids = new java.util.ArrayList<>();
         groups.path("groups").forEach(group ->
-                group.path("practices").forEach(practice -> ids.add(practice.path("id").asText())));
+                group.path("practices").forEach(practice -> ids.add(LenientJson.asText(practice.path("id")))));
         return ids;
     }
 

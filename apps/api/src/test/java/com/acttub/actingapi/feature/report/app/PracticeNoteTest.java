@@ -2,7 +2,7 @@ package com.acttub.actingapi.feature.report.app;
 
 import static org.assertj.core.api.Assertions.*;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 class PracticeNoteTest {

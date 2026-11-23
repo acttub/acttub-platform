@@ -7,17 +7,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class DialogueNoteTest {
     @Test void aFollowupQuestionDoesNotEraseTheCurrentDirectionFromTheSummary() {
         ObjectNode source = handoff();
-        ((com.fasterxml.jackson.databind.node.ArrayNode) source.path("conversation")).addObject()
+        ((tools.jackson.databind.node.ArrayNode) source.path("conversation")).addObject()
                 .put("id", "question").put("role", "actor").put("text", "그래서 어떻게 하면 돼?");
         ObjectNode note = DialogueNote.assembleResult(source, text -> output().toString(), failure -> { }).note();
-        assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("애원하는 것처럼 보이긴 싫어");
+        assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).contains("애원하는 것처럼 보이긴 싫어");
         assertThat(note.path("practice").isObject()).isTrue();
     }
 
@@ -27,39 +28,39 @@ class DialogueNoteTest {
         var conversation = source.putArray("conversation");
         conversation.addObject().put("id", "experience").put("role", "actor").put("text", "상대에게 말을 건네는 느낌이 편했어.");
         conversation.addObject().put("id", "close").put("role", "actor").put("text", "여기까지 정리해줘");
-        ((com.fasterxml.jackson.databind.node.ArrayNode) source.path("source_catalog")).addObject()
+        ((tools.jackson.databind.node.ArrayNode) source.path("source_catalog")).addObject()
                 .put("id", "experience").put("kind", "actor_message").put("text", "상대에게 말을 건네는 느낌이 편했어.")
                 .putNull("record_id").putNull("record_version").putNull("start_ms").putNull("end_ms");
         ObjectNode generated = output();
         generated.putNull("next_take");
         generated.putArray("summary").addObject().put("source_ref", "experience").put("quote", "상대에게 말을 건네는 느낌이 편했어.");
         ObjectNode note = DialogueNote.assembleResult(source, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return generated.toString();
         }, failure -> { }).note();
-        assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("편했어", "라고 했어요");
+        assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).contains("편했어", "라고 했어요");
         assertThat(note.path("direction").isNull()).isTrue();
         assertThat(note.path("practice").isNull()).isTrue();
 
         ObjectNode omitted = generated.deepCopy();
         omitted.putArray("summary");
-        assertThat(PracticeNote.publicView(DialogueNote.assembleResult(source, text -> omitted.toString(), failure -> { }).note())
-                .path("summary").asText()).contains("편했어");
-        assertThat(PracticeNote.publicView(DialogueNote.assembleResult(source, text -> { throw new IllegalStateException("offline"); }, failure -> { }).note())
-                .path("summary").asText()).contains("편했어");
+        assertThat(LenientJson.asText(PracticeNote.publicView(DialogueNote.assembleResult(source, text -> omitted.toString(), failure -> { }).note())
+                .path("summary"))).contains("편했어");
+        assertThat(LenientJson.asText(PracticeNote.publicView(DialogueNote.assembleResult(source, text -> { throw new IllegalStateException("offline"); }, failure -> { }).note())
+                .path("summary"))).contains("편했어");
 
         conversation.insertObject(1).put("id", "correction").put("role", "actor").put("text", "아니, 편했던 건 아니야.");
         var errors = new ArrayList<RuntimeException>();
         ObjectNode corrected = DialogueNote.assembleResult(source, text -> generated.toString(), errors::add).note();
         assertThat(errors).hasSize(2);
-        assertThat(PracticeNote.publicView(corrected).path("summary").asText()).doesNotContain("편했어");
+        assertThat(LenientJson.asText(PracticeNote.publicView(corrected).path("summary"))).doesNotContain("편했어");
     }
 
     private ObjectNode handoff() {
         ObjectNode old = (ObjectNode) StructuredJson.resource("/coaching/handoff.json").deepCopy();
         ObjectNode next = old.deepCopy();
         next.put("schema_version", "acttub.coach_handoff.v2");
-        ObjectNode context = old.path("coaching_state").path("context").deepCopy();
+        ObjectNode context = (ObjectNode) old.path("coaching_state").path("context").deepCopy();
         context.putNull("reading");
         next.set("context", context);
         next.remove("coaching_state");
@@ -83,15 +84,15 @@ class DialogueNoteTest {
         ObjectNode note = DialogueNote.assembleResult(source, text -> {
             JsonNode input = StructuredJson.parse(text);
             assertThat(input.path("coach_handoff").path("conversation")).hasSize(1);
-            assertThat(input.path("controls").path("can_propose").asBoolean()).isTrue();
+            assertThat(LenientJson.asBoolean(input.path("controls").path("can_propose"))).isTrue();
             assertThat(input.has("note_data")).isFalse();
             return output().toString();
         }, failure -> { }).note();
         StructuredJson.validate("practice_note", note);
         JsonNode visible = PracticeNote.publicView(note);
-        assertThat(visible.path("summary").asText()).contains("라고 했어요", "마지막 음절");
-        assertThat(visible.path("practice").path("instruction").asText()).contains("찍어보세요");
-        assertThat(visible.path("practice").path("selection").asText()).isEqualTo("proposed");
+        assertThat(LenientJson.asText(visible.path("summary"))).contains("라고 했어요", "마지막 음절");
+        assertThat(LenientJson.asText(visible.path("practice").path("instruction"))).contains("찍어보세요");
+        assertThat(LenientJson.asText(visible.path("practice").path("selection"))).isEqualTo("proposed");
         assertThat(visible.path("attempts")).isEmpty();
         assertThat(visible.has("conversation")).isFalse();
         assertThat(visible.has("source_catalog")).isFalse();
@@ -109,7 +110,7 @@ class DialogueNoteTest {
             ObjectNode note = DialogueNote.assembleResult(handoff(), input -> invalid.toString(), failures::add).note();
             assertThat(failures).hasSize(2);
             assertThat(note.path("practice").isNull()).isTrue();
-            assertThat(note.path("copy").path("summary").path("text").asText()).doesNotContain("향상", "읽힐");
+            assertThat(LenientJson.asText(note.path("copy").path("summary").path("text"))).doesNotContain("향상", "읽힐");
         }
     }
 
@@ -117,14 +118,14 @@ class DialogueNoteTest {
         ObjectNode handoff = handoff();
         ((ObjectNode) handoff.path("context")).putNull("direction").putNull("focus");
         ObjectNode note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return "{\"summary\":[],\"next_take\":null}";
         }, failure -> { }).note();
-        assertThat(note.path("mode").asText()).isEqualTo("record_only");
+        assertThat(LenientJson.asText(note.path("mode"))).isEqualTo("record_only");
         assertThat(note.path("practice").isNull()).isTrue();
         ObjectNode failed = DialogueNote.assembleResult(handoff(), input -> { throw new IllegalStateException("offline"); }, failure -> { }).note();
         assertThat(failed.path("practice").isNull()).isTrue();
-        assertThat(failed.path("copy").path("summary").path("text").asText()).contains("애원하는 것처럼 보이긴 싫어");
+        assertThat(LenientJson.asText(failed.path("copy").path("summary").path("text"))).contains("애원하는 것처럼 보이긴 싫어");
     }
 
     @Test void invalidNextTakeRetriesWithoutPartiallySavingAndUsesTheCorrectPrompt() {
@@ -136,7 +137,7 @@ class DialogueNoteTest {
             return output.toString();
         }, failure -> { }).note();
         assertThat(calls).hasValue(2);
-        assertThat(note.path("practice").path("selection").asText()).isEqualTo("proposed");
+        assertThat(LenientJson.asText(note.path("practice").path("selection"))).isEqualTo("proposed");
         assertThat(OutputLanguage.apply(DialogueNote.PROMPT)).contains("여기서 처음 제안해도 된다");
     }
 
@@ -155,7 +156,7 @@ class DialogueNoteTest {
         JsonNode existingSources = early.path("source_catalog").deepCopy();
         var earlySources = early.putArray("source_catalog");
         existingSources.forEach(source -> {
-            if (source.path("kind").asText().startsWith("video_")) earlySources.add(source);
+            if (LenientJson.asText(source.path("kind")).startsWith("video_")) earlySources.add(source);
         });
         earlySources.addObject().put("id", "m-close").put("kind", "actor_message").put("text", "정리해줘")
                 .putNull("record_id").putNull("record_version").putNull("start_ms").putNull("end_ms");
@@ -163,12 +164,12 @@ class DialogueNoteTest {
         invalid.putArray("summary");
         var failures = new ArrayList<RuntimeException>();
         ObjectNode note = DialogueNote.assembleResult(early, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return invalid.toString(); // Even a model that supplies a plausible exercise is rejected.
         }, failures::add).note();
         assertThat(failures).hasSize(2).allSatisfy(failure -> assertThat(failure)
                 .hasMessageContaining("next take requires actor direction"));
-        assertThat(note.path("mode").asText()).isEqualTo("observation");
+        assertThat(LenientJson.asText(note.path("mode"))).isEqualTo("observation");
         assertThat(note.path("practice").isNull()).isTrue();
         assertThat(note.path("attempts")).isEmpty();
     }
@@ -176,11 +177,11 @@ class DialogueNoteTest {
     @Test void reportEngineRoutesV2HandoffToTheNewPromptAndInput() {
         var engine = new ReportEngine((system, text) -> {
             assertThat(system).contains("여기서 처음 제안해도 된다");
-            assertThat(StructuredJson.parse(text).path("coach_handoff").path("schema_version").asText())
+            assertThat(LenientJson.asText(StructuredJson.parse(text).path("coach_handoff").path("schema_version")))
                     .isEqualTo("acttub.coach_handoff.v2");
             return new com.acttub.actingapi.integration.llm.GeneratedText(output().toString(), null, "test");
         }, StructuredJson.MAPPER, new com.acttub.actingapi.support.RecordingLlmTelemetry());
         JsonNode note = engine.generateReport("coaching", null, handoff(), false, "handoff", null, null);
-        assertThat(note.path("practice").path("selection").asText()).isEqualTo("proposed");
+        assertThat(LenientJson.asText(note.path("practice").path("selection"))).isEqualTo("proposed");
     }
 }

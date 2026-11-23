@@ -1,14 +1,15 @@
 package com.acttub.actingapi.feature.coach.app;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 목적별 코칭(SOMA-719). 앱이 코칭을 시작할 때 고른 세션 목적(평가 받기·막힌 곳 풀기·인물 이해하기)마다 대화 단계와
@@ -155,7 +156,7 @@ final class PurposeLoop {
         String text = actorText.strip();
         if (text.isEmpty()) return null;
         for (JsonNode choice : loop(state).path("choices")) {
-            String label = choice.path("label").asText("");
+            String label = LenientJson.asText(choice.path("label"), "");
             if (!label.isEmpty() && (label.equals(text) || withoutTime(label).equals(withoutTime(text)))) return label;
         }
         return null;
@@ -175,7 +176,7 @@ final class PurposeLoop {
         ObjectNode loop = loop(state);
         int index = index(purpose, loop);
         String current = purpose.steps.get(index);
-        int stays = loop.path("stays").asInt(0);
+        int stays = LenientJson.asInt(loop.path("stays"), 0);
         boolean chip = pressed != null;
         PracticeLoopRouter.Kind kind = classified == null ? PracticeLoopRouter.Kind.ANSWER : classified.kind();
         String label = chip ? "버튼" : kind.label;
@@ -205,7 +206,7 @@ final class PurposeLoop {
                         && actorText != null && actorText.contains("모르");
         boolean wantsMethod = !chip && (kind == PracticeLoopRouter.Kind.METHOD
                 || classified != null && "method".equals(classified.respond()));
-        if (dontKnow && loop.path("dont_knows").asInt(0) >= 1 || wantsMethod) {
+        if (dontKnow && LenientJson.asInt(loop.path("dont_knows"), 0) >= 1 || wantsMethod) {
             return Turn.directing(purpose, label, chip, answerLike ? current : null, dontKnow);
         }
         if (chip) {
@@ -213,7 +214,7 @@ final class PurposeLoop {
             if (DONT_KNOW.equals(pressed)) {
                 return new Turn(purpose, current, "propose", false, false, label, true, null).notKnowing();
             }
-            if (ANOTHER.equals(pressed) && "card".equals(current) && loop.path("another").asInt(0) < 1) {
+            if (ANOTHER.equals(pressed) && "card".equals(current) && LenientJson.asInt(loop.path("another"), 0) < 1) {
                 return new Turn(purpose, current, "another", false, false, label, true, null);
             }
             return advance(purpose, loop, index, label, true, answerLike ? current : null, actorText);
@@ -232,7 +233,7 @@ final class PurposeLoop {
         // 질문 상한: 막힌 곳·인물은 코치가 두 번 물었으면 더 묻지 않고 정해 준다. 배우가 물은 것은 정리 첫 문장에서 답한다.
         // 영상 없이 말로는 배우가 물은 말이면 상한이어도 정리로 덮지 않고 답한다 — 영상이 없어 배우 물음이 코칭의 재료다. 응답 상한(REPLY_CAP)은 그대로 정리한다.
         boolean talkAnswer = purpose.conversational() && "answer".equals(turn.doing());
-        if (purpose != Purpose.EVALUATE && !turn.wrap() && !turn.end() && !talkAnswer && loop.path("questions").asInt(0) >= MAX_QUESTIONS) {
+        if (purpose != Purpose.EVALUATE && !turn.wrap() && !turn.end() && !talkAnswer && LenientJson.asInt(loop.path("questions"), 0) >= MAX_QUESTIONS) {
             turn = Turn.directing(purpose, label, false, turn.answeredStep(), dontKnow);
             if (kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION) turn = turn.asking();
         }
@@ -244,7 +245,7 @@ final class PurposeLoop {
 
     /** 대화를 다시 연 시점의 코치 응답 수. 다시 연 적이 없으면 -1. */
     static int resumedAt(JsonNode loop) {
-        return loop == null ? -1 : loop.path(PracticeLoopRouter.RESUMED_AT).asInt(-1);
+        return loop == null ? -1 : LenientJson.asInt(loop.path(PracticeLoopRouter.RESUMED_AT), -1);
     }
 
     /** 영상 없이 말로: 정리한 뒤 배우가 물어 답만 하는 응답. */
@@ -317,7 +318,7 @@ final class PurposeLoop {
             String answeredStep, String actorText) {
         String current = purpose.steps.get(index);
         if (purpose.character() && ("view".equals(current) || "cell".equals(current))) {
-            int cells = loop.path("cells").asInt(0);
+            int cells = LenientJson.asInt(loop.path("cells"), 0);
             if (cells < MAX_CELLS && filledCells(loop) < CELLS.size()) {
                 return new Turn(purpose, "cell", "cell", true, false, label, chip, answeredStep);
             }
@@ -336,7 +337,7 @@ final class PurposeLoop {
     }
 
     private static int index(Purpose purpose, JsonNode loop) {
-        return Math.max(0, Math.min(purpose.steps.size() - 1, loop.path("step").asInt(0)));
+        return Math.max(0, Math.min(purpose.steps.size() - 1, LenientJson.asInt(loop.path("step"), 0)));
     }
 
     private static String current(Purpose purpose, JsonNode loop) {
@@ -350,7 +351,7 @@ final class PurposeLoop {
         if (lines == null || !lines.isArray()) return false;
         String said = compact(actorText);
         for (JsonNode line : lines) {
-            String text = compact(line.path("text").asText(""));
+            String text = compact(LenientJson.asText(line.path("text"), ""));
             // 받아 적은 대사와 배우가 쓴 말이 조금 달라도("좀 가르쳐 줘" / "가르쳐 줘 비결이 뭐야") 네 글자 이상 겹치면 짚은 것이다.
             if (text.length() >= 2 && (said.contains(text) || commonRun(text, said) >= Math.min(4, text.length()))) return true;
         }
@@ -476,8 +477,8 @@ final class PurposeLoop {
             JsonNode before = old.path(key);
             // 정리는 대화에서 배우가 바로잡은 것을 반영해 줄을 고쳐 쓸 수 있다. 같은 곳이므로 시간이 빠졌으면 앞 시간을 살린다.
             if (item.path("at").isNull() && before.path("at").isNumber()
-                    && (wrap || before.path("text").asText("").equals(item.path("text").asText("")))) {
-                item.put("at", before.path("at").asInt());
+                    && (wrap || LenientJson.asText(before.path("text"), "").equals(LenientJson.asText(item.path("text"), "")))) {
+                item.put("at", LenientJson.asInt(before.path("at")));
             }
             merged.set(key, item);
         }
@@ -660,11 +661,11 @@ final class PurposeLoop {
         ObjectNode loop = writable(state);
         int index = turn.purpose().steps.indexOf(turn.step());
         if (index >= 0) loop.put("step", index);
-        loop.put("stays", turn.advanced() ? 0 : loop.path("stays").asInt(0) + 1);
-        if ("cell".equals(turn.doing())) loop.put("cells", loop.path("cells").asInt(0) + 1);
-        if (turn.dontKnow()) loop.put("dont_knows", loop.path("dont_knows").asInt(0) + 1);
-        if (!turn.wrap() && !turn.end()) loop.put("questions", loop.path("questions").asInt(0) + 1);
-        if ("another".equals(turn.doing())) loop.put("another", loop.path("another").asInt(0) + 1);
+        loop.put("stays", turn.advanced() ? 0 : LenientJson.asInt(loop.path("stays"), 0) + 1);
+        if ("cell".equals(turn.doing())) loop.put("cells", LenientJson.asInt(loop.path("cells"), 0) + 1);
+        if (turn.dontKnow()) loop.put("dont_knows", LenientJson.asInt(loop.path("dont_knows"), 0) + 1);
+        if (!turn.wrap() && !turn.end()) loop.put("questions", LenientJson.asInt(loop.path("questions"), 0) + 1);
+        if ("another".equals(turn.doing())) loop.put("another", LenientJson.asInt(loop.path("another"), 0) + 1);
         if (output.card() != null) loop.set("card", mergeCard(loop.get("card"), output.card(), turn.wrap()));
         if (output.characterCard() != null) loop.set("character_card", output.characterCard());
         if (output.scene() != null) loop.set("scene", output.scene());
@@ -700,13 +701,13 @@ final class PurposeLoop {
         var picked = new ArrayList<String[]>(); // {인용, 배우 턴에서 찾을 말}
         for (String key : NOTE_CELLS) {
             for (JsonNode cell : loop.path("character_card").path("cells")) {
-                if (!key.equals(cell.path("key").asText()) || !ACTOR_SOURCES.contains(cell.path("source").asText())) continue;
-                String value = cell.path("value").asText();
-                picked.add(new String[] {cell.path("label").asText() + ": " + value, value});
+                if (!key.equals(LenientJson.asText(cell.path("key"))) || !ACTOR_SOURCES.contains(LenientJson.asText(cell.path("source")))) continue;
+                String value = LenientJson.asText(cell.path("value"));
+                picked.add(new String[] {LenientJson.asText(cell.path("label")) + ": " + value, value});
             }
         }
         for (var answer : loop.path("answers").properties()) {
-            String text = answer.getValue().asText("").strip();
+            String text = LenientJson.asText(answer.getValue(), "").strip();
             if ("wrap".equals(answer.getKey()) || text.isEmpty() || DirectVideoPracticeLoop.isVague(text)) continue;
             picked.add(new String[] {text, text});
         }
@@ -727,7 +728,7 @@ final class PurposeLoop {
     private static List<PurposeView.Choice> cardChoices(JsonNode loop) {
         var choices = new ArrayList<PurposeView.Choice>();
         choices.add(new PurposeView.Choice(FIX_TOGETHER, null));
-        if (loop.path("another").asInt(0) < 1) choices.add(new PurposeView.Choice(ANOTHER, null));
+        if (LenientJson.asInt(loop.path("another"), 0) < 1) choices.add(new PurposeView.Choice(ANOTHER, null));
         return choices;
     }
 
@@ -830,12 +831,12 @@ final class PurposeLoop {
         lines.add("");
         lines.add("재료");
         JsonNode answers = loop.path("answers");
-        answers.fieldNames().forEachRemaining(step -> lines.add("- 배우가 「" + STEP_NAMES.getOrDefault(step, step)
-                + "」 질문에 한 답: " + answers.path(step).asText()));
+        answers.propertyNames().iterator().forEachRemaining(step -> lines.add("- 배우가 「" + STEP_NAMES.getOrDefault(step, step)
+                + "」 질문에 한 답: " + LenientJson.asText(answers.path(step))));
         if (loop.path("scene").isObject()) {
             JsonNode scene = loop.path("scene");
-            lines.add("- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): " + scene.path("situation").asText("") + " | "
-                    + scene.path("character").asText("") + " | " + scene.path("partner").asText(""));
+            lines.add("- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): " + LenientJson.asText(scene.path("situation"), "") + " | "
+                    + LenientJson.asText(scene.path("character"), "") + " | " + LenientJson.asText(scene.path("partner"), ""));
         }
         if (loop.path("card").isObject()) lines.add("- 지금 결과 카드: " + loop.path("card"));
         if (loop.path("character_card").isObject()) lines.add("- 지금 인물 카드: " + loop.path("character_card"));

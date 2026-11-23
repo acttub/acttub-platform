@@ -28,13 +28,14 @@ import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.Hashing;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 배우 기억의 Postgres 구현 — {@code actor_memories}·{@code users.memory_epoch}·{@code ai_jobs} (V14).
@@ -66,7 +67,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
      */
     private static final String LEGACY_FIELDS = "('goal','blockage','speech_self','speech_actual')";
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -685,8 +686,8 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
         List<String> texts = new ArrayList<>();
         for (JsonNode segment : json(rows.getFirst().get("segments", String.class))) {
             JsonNode text = segment.path("text");
-            if (text.isTextual() && !text.textValue().isBlank()) {
-                texts.add(text.textValue());
+            if (text.isString() && !text.stringValue(null).isBlank()) {
+                texts.add(text.stringValue(null));
             }
         }
         return List.copyOf(texts);
@@ -700,8 +701,8 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
         List<String> quotes = new ArrayList<>();
         for (JsonNode observation : json(record).path("observations")) {
             JsonNode quote = observation.path("quote");
-            if (quote.isTextual() && !quote.textValue().isBlank()) {
-                quotes.add(quote.textValue());
+            if (quote.isString() && !quote.stringValue(null).isBlank()) {
+                quotes.add(quote.stringValue(null));
             }
         }
         return List.copyOf(quotes);
@@ -713,7 +714,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
         }
         try {
             return JSON.readTree(raw);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException unreadable) {
+        } catch (tools.jackson.core.JacksonException unreadable) {
             throw new IllegalStateException("stored practice JSON could not be parsed", unreadable);
         }
     }

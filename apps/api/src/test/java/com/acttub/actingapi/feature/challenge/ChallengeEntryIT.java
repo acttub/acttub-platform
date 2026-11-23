@@ -18,8 +18,8 @@ import com.acttub.actingapi.feature.challenge.app.EntryMosaics;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 참여·랭킹·피드·조회수·종료 랭킹·P03 (challenge.entry, challenge.browse). 실제 HTTP 와 Postgres 를 쓰고 객체 저장소의
@@ -99,10 +100,10 @@ class ChallengeEntryIT {
         UUID video = video(user, 30_000);
         JsonNode entry = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "video_id", video, "visibility", "public", "face_mosaic", true))), 201);
-        String id = entry.path("id").asText();
-        assertThat(entry.path("face_mosaic").asBoolean()).isTrue();
-        assertThat(entry.path("mosaic_status").asText()).isEqualTo("pending");
-        assertThat(entry.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        String id = LenientJson.asText(entry.path("id"));
+        assertThat(LenientJson.asBoolean(entry.path("face_mosaic"))).isTrue();
+        assertThat(LenientJson.asText(entry.path("mosaic_status"))).isEqualTo("pending");
+        assertThat(LenientJson.asText(entry.path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
         assertThat(entry.path("original_playback_url").isNull()).isTrue();
         String other = token(member("다른 배우"));
         // 준비 전에는 다른 사람에게 어디서도 보이지 않는다.
@@ -110,8 +111,8 @@ class ChallengeEntryIT {
         assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200, other).path("entries")).isEmpty();
         response(get("/v2/entries/{id}", id), 404, other);
         response(get("/v2/public/entries/{id}", id), 404, other);
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("entry_count").asInt()).isZero();
-        assertThat(response(get("/v2/entries/{id}", id), 200).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asInt(response(get("/v2/challenges/{id}", challenge), 200).path("entry_count"))).isZero();
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}", id), 200).path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
 
         assertThat(mosaicWorker.runOnce()).isTrue();
         assertThat(mosaicWorker.runOnce()).isFalse();
@@ -119,30 +120,30 @@ class ChallengeEntryIT {
         assertThat(Media.RENDERED).containsExactly(mosaic);
         JsonNode page = response(get("/v2/challenges/{id}/entries", challenge), 200, other);
         assertThat(ids(page)).containsExactly(id);
-        assertThat(page.path("entries").get(0).path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(LenientJson.asText(page.path("entries").get(0).path("playback_url"))).isEqualTo("https://play.test/" + mosaic);
         assertThat(page.path("entries").get(0).path("original_playback_url").isNull()).isTrue();
         JsonNode seen = response(get("/v2/entries/{id}", id), 200, other);
-        assertThat(seen.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(LenientJson.asText(seen.path("playback_url"))).isEqualTo("https://play.test/" + mosaic);
         assertThat(seen.path("original_playback_url").isNull()).isTrue();
         response(get("/v2/public/entries/{id}", id), 200, other);
         // 본인도 모자이크본으로 보고, 원본 주소는 따로 받는다.
         JsonNode own = response(get("/v2/entries/{id}", id), 200);
-        assertThat(own.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
-        assertThat(own.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asText(own.path("playback_url"))).isEqualTo("https://play.test/" + mosaic);
+        assertThat(LenientJson.asText(own.path("original_playback_url"))).isEqualTo("https://play.test/videos/" + video);
         JsonNode ownCard = response(get("/v2/challenges/{id}/entries", challenge), 200).path("entries").get(0);
-        assertThat(ownCard.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
-        assertThat(ownCard.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asText(ownCard.path("playback_url"))).isEqualTo("https://play.test/" + mosaic);
+        assertThat(LenientJson.asText(ownCard.path("original_playback_url"))).isEqualTo("https://play.test/videos/" + video);
         JsonNode mine = response(get("/v2/me/challenge-entries"), 200).path("entries").get(0);
-        assertThat(mine.path("mosaic_status").asText()).isEqualTo("ready");
-        assertThat(mine.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
-        assertThat(mine.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asText(mine.path("mosaic_status"))).isEqualTo("ready");
+        assertThat(LenientJson.asText(mine.path("playback_url"))).isEqualTo("https://play.test/" + mosaic);
+        assertThat(LenientJson.asText(mine.path("original_playback_url"))).isEqualTo("https://play.test/videos/" + video);
 
         // 끄면 원본이 공개되고 사본은 정리 장부로 간다.
         JsonNode off = response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":false}"), 200);
-        assertThat(off.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(off.path("face_mosaic"))).isFalse();
         assertThat(off.path("mosaic_status").isNull()).isTrue();
-        assertThat(response(get("/v2/entries/{id}", id), 200, other).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
-        assertThat(off.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}", id), 200, other).path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asText(off.path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
         assertThat(off.path("original_playback_url").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations WHERE kind='object_delete'", Integer.class))
                 .isPositive();
@@ -152,28 +153,28 @@ class ChallengeEntryIT {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         UUID video = video(user, 30_000);
         JsonNode entry = enter(challenge, video, "private", 201);
-        String id = entry.path("id").asText();
-        assertThat(entry.path("face_mosaic").asBoolean()).isFalse();
+        String id = LenientJson.asText(entry.path("id"));
+        assertThat(LenientJson.asBoolean(entry.path("face_mosaic"))).isFalse();
         assertThat(entry.path("mosaic_status").isNull()).isTrue();
         // 나중에 공개로 바꾸며 모자이크를 켠다.
         Media.FACE = false;
         JsonNode published = response(patch("/v2/entries/{id}", id).content("{\"visibility\":\"public\",\"face_mosaic\":true}"), 200);
-        assertThat(published.path("visibility").asText()).isEqualTo("public");
-        assertThat(published.path("mosaic_status").asText()).isEqualTo("pending");
+        assertThat(LenientJson.asText(published.path("visibility"))).isEqualTo("public");
+        assertThat(LenientJson.asText(published.path("mosaic_status"))).isEqualTo("pending");
         assertThat(mosaicWorker.runOnce()).isTrue();
         assertThat(mosaicWorker.runOnce()).isFalse();
         assertThat(Media.RENDERED).isEmpty();
         // 가릴 얼굴이 없으니 모자이크를 끄고 원본으로 공개한다.
         JsonNode mine = edit(id, Map.of("caption", "그대로"), 200);
-        assertThat(mine.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(mine.path("face_mosaic"))).isFalse();
         assertThat(mine.path("mosaic_status").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT mosaic_key FROM challenge_entries WHERE id=?::uuid", String.class, id)).isNull();
         String other = token(member("다른 배우"));
         JsonNode page = response(get("/v2/challenges/{id}/entries", challenge), 200, other);
         assertThat(ids(page)).containsExactly(id);
-        assertThat(page.path("entries").get(0).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asText(page.path("entries").get(0).path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
         JsonNode seen = response(get("/v2/entries/{id}", id), 200, other);
-        assertThat(seen.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(LenientJson.asText(seen.path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
         assertThat(seen.path("original_playback_url").isNull()).isTrue();
         response(get("/v2/public/entries/{id}", id), 200, other);
     }
@@ -181,9 +182,9 @@ class ChallengeEntryIT {
     @Test void faceMosaic_aLateNoFaceResultLeavesAnEntryTheOwnerChangedMeanwhile() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         UUID video = video(user, 30_000);
-        String id = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
+        String id = LenientJson.asText(response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "video_id", video, "visibility", "public", "face_mosaic", true))), 201)
-                .path("id").asText();
+                .path("id"));
         var stale = entryRepository.claimMosaic(3, NOW);
         assertThat(stale).isNotNull();
         // 그사이 본인이 끄고 다시 켰다 — 시도 수가 0으로 돌아가 늦게 온 결과는 이 참여작을 바꾸지 않는다.
@@ -205,9 +206,9 @@ class ChallengeEntryIT {
     @Test void faceMosaic_aDeletedEntryDropsItsMosaicAndALateRenderIsNotAttached() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         UUID video = video(user, 30_000);
-        String id = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
+        String id = LenientJson.asText(response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "video_id", video, "visibility", "public", "face_mosaic", true))), 201)
-                .path("id").asText();
+                .path("id"));
         var job = entryRepository.claimMosaic(3, NOW);
         assertThat(job).isNotNull();
         response(delete("/v2/entries/{id}", id), 204);
@@ -220,15 +221,15 @@ class ChallengeEntryIT {
     @Test void challengeEntry_publicEntryFromTheLibraryIsRankedAndExactlySixtySecondsIsAllowed() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         JsonNode entry = enter(challenge, video(user, 45_000), "public", 201);
-        assertThat(entry.path("visibility").asText()).isEqualTo("public");
-        assertThat(entry.path("status").asText()).isEqualTo("visible");
-        assertThat(entry.path("category").asText()).isEqualTo("public");
-        assertThat(Instant.parse(entry.path("published_at").asText())).isEqualTo(NOW);
-        assertThat(entry.path("challenge").path("id").asText()).isEqualTo(challenge.toString());
-        assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge), 200))).containsExactly(entry.path("id").asText());
+        assertThat(LenientJson.asText(entry.path("visibility"))).isEqualTo("public");
+        assertThat(LenientJson.asText(entry.path("status"))).isEqualTo("visible");
+        assertThat(LenientJson.asText(entry.path("category"))).isEqualTo("public");
+        assertThat(Instant.parse(LenientJson.asText(entry.path("published_at")))).isEqualTo(NOW);
+        assertThat(LenientJson.asText(entry.path("challenge").path("id"))).isEqualTo(challenge.toString());
+        assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge), 200))).containsExactly(LenientJson.asText(entry.path("id")));
         assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200)))
-                .containsExactly(entry.path("id").asText());
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("entry_count").asInt()).isEqualTo(1);
+                .containsExactly(LenientJson.asText(entry.path("id")));
+        assertThat(LenientJson.asInt(response(get("/v2/challenges/{id}", challenge), 200).path("entry_count"))).isEqualTo(1);
         UUID sixty = video(user, 60_000);
         Media.ACTUAL.put("videos/" + sixty, 60_000);
         enter(challenge, sixty, "public", 201);
@@ -238,16 +239,16 @@ class ChallengeEntryIT {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         JsonNode entry = enter(challenge, video(user, 30_000), "private", 201);
         assertThat(entry.path("published_at").isNull()).isTrue();
-        assertThat(entry.path("category").asText()).isEqualTo("private");
+        assertThat(LenientJson.asText(entry.path("category"))).isEqualTo("private");
         UUID other = member("다른 배우");
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, token(other)).path("entries")).isEmpty();
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("entry_count").asInt()).isZero();
-        assertThat(response(get("/v2/entries/{id}", entry.path("id").asText()), 404, token(other)).path("detail").asText())
+        assertThat(LenientJson.asInt(response(get("/v2/challenges/{id}", challenge), 200).path("entry_count"))).isZero();
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}", LenientJson.asText(entry.path("id"))), 404, token(other)).path("detail")))
                 .isEqualTo("entry_not_found");
         JsonNode mine = response(get("/v2/me/challenge-entries"), 200);
-        assertThat(mine.path("counts").path("private").asInt()).isEqualTo(1);
-        assertThat(mine.path("counts").path("all").asInt()).isEqualTo(1);
-        assertThat(ids(mine)).containsExactly(entry.path("id").asText());
+        assertThat(LenientJson.asInt(mine.path("counts").path("private"))).isEqualTo(1);
+        assertThat(LenientJson.asInt(mine.path("counts").path("all"))).isEqualTo(1);
+        assertThat(ids(mine)).containsExactly(LenientJson.asText(entry.path("id")));
     }
 
     @Test void myEntries_carryTheVideoPosterOnceItExists() throws Exception {
@@ -256,7 +257,7 @@ class ChallengeEntryIT {
         enter(challenge, video, "public", 201);
         assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").isNull()).isTrue();
         jdbc.update("UPDATE videos SET poster_key=? WHERE id=?", "videos/" + video + ".poster.jpg", video);
-        assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").asText())
+        assertThat(LenientJson.asText(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url")))
                 .isEqualTo("https://play.test/videos/" + video + ".poster.jpg");
         jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", video);
         assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").isNull()).isTrue();
@@ -271,73 +272,73 @@ class ChallengeEntryIT {
         enter(challenge, video(user, 30_000), "public", 201);
         enter(challenge, video(user, 30_000), "private", 201);
         assertThat(response(post("/v2/challenges/{id}/entries", challenge).content(body), 200).path("id")).isEqualTo(first.path("id"));
-        assertThat(response(post("/v2/challenges/{id}/entries", challenge).content(body.replace("public", "private")), 422)
-                .path("detail").asText()).isEqualTo("request_fingerprint_mismatch");
+        assertThat(LenientJson.asText(response(post("/v2/challenges/{id}/entries", challenge).content(body.replace("public", "private")), 422)
+                .path("detail"))).isEqualTo("request_fingerprint_mismatch");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM challenge_entries", Integer.class)).isEqualTo(3);
         clock.advance(Duration.ofDays(1));
-        assertThat(enter(challenge, video, "public", 422).path("detail").asText()).isEqualTo("duplicate_entry");
+        assertThat(LenientJson.asText(enter(challenge, video, "public", 422).path("detail"))).isEqualTo("duplicate_entry");
     }
 
     @Test void challengeEntry_rejectsAFourthEntryClosedHiddenLongUnreadyAndForeignVideos() throws Exception {
         UUID open = challenge(NOW.plus(Duration.ofDays(7)));
         for (int i = 0; i < 3; i++) enter(open, video(user, 30_000), "public", 201);
-        assertThat(enter(open, video(user, 30_000), "public", 429).path("detail").asText()).isEqualTo("daily_entry_limit");
+        assertThat(LenientJson.asText(enter(open, video(user, 30_000), "public", 429).path("detail"))).isEqualTo("daily_entry_limit");
         clock.advance(Duration.ofDays(1));
         UUID review = challenge(NOW.plus(Duration.ofDays(9)));
         jdbc.update("UPDATE challenges SET moderation='review' WHERE id=?", review);
-        assertThat(enter(review, video(user, 30_000), "public", 404).path("detail").asText()).isEqualTo("challenge_not_found");
-        assertThat(response(get("/v2/challenges/{id}/entries", review), 404).path("detail").asText()).isEqualTo("challenge_not_found");
+        assertThat(LenientJson.asText(enter(review, video(user, 30_000), "public", 404).path("detail"))).isEqualTo("challenge_not_found");
+        assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", review), 404).path("detail"))).isEqualTo("challenge_not_found");
         UUID declaredLong = video(user, 61_000);
-        assertThat(enter(open, declaredLong, "public", 422).path("detail").asText()).isEqualTo("video_too_long");
+        assertThat(LenientJson.asText(enter(open, declaredLong, "public", 422).path("detail"))).isEqualTo("video_too_long");
         UUID actuallyLong = video(user, 30_000);
         Media.ACTUAL.put("videos/" + actuallyLong, 61_000);
-        assertThat(enter(open, actuallyLong, "public", 422).path("detail").asText()).isEqualTo("video_too_long");
+        assertThat(LenientJson.asText(enter(open, actuallyLong, "public", 422).path("detail"))).isEqualTo("video_too_long");
         UUID purged = video(user, 30_000);
         jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", purged);
-        assertThat(enter(open, purged, "public", 422).path("detail").asText()).isEqualTo("video_not_ready");
+        assertThat(LenientJson.asText(enter(open, purged, "public", 422).path("detail"))).isEqualTo("video_not_ready");
         UUID pending = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO upload_intents(id,user_id,request_id,storage_provider,object_key,mime_type,size_bytes,duration_ms,
                                            expires_at,status)
                 VALUES (?,?,?,'s3',?,'video/mp4',100,30000,?,'pending')
                 """, pending, user, UUID.randomUUID(), "videos/" + pending, java.sql.Timestamp.from(NOW.plus(Duration.ofDays(2))));
-        assertThat(enter(open, pending, "public", 422).path("detail").asText()).isEqualTo("video_not_ready");
-        assertThat(enter(open, video(member("남"), 30_000), "public", 404).path("detail").asText()).isEqualTo("video_not_found");
+        assertThat(LenientJson.asText(enter(open, pending, "public", 422).path("detail"))).isEqualTo("video_not_ready");
+        assertThat(LenientJson.asText(enter(open, video(member("남"), 30_000), "public", 404).path("detail"))).isEqualTo("video_not_found");
         clock.set(NOW.plus(Duration.ofDays(7)).plusSeconds(1));
         UUID late = video(user, 30_000);
-        assertThat(enter(open, late, "public", 422).path("detail").asText()).isEqualTo("challenge_closed");
+        assertThat(LenientJson.asText(enter(open, late, "public", 422).path("detail"))).isEqualTo("challenge_closed");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM videos WHERE id=?", Integer.class, late)).isEqualTo(1);
     }
 
     @Test void challengeEntry_visibilityTogglesKeepReactionsAndTheFirstPublicationTime() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
-        String entry = enter(challenge, video(user, 30_000), "public", 201).path("id").asText();
+        String entry = LenientJson.asText(enter(challenge, video(user, 30_000), "public", 201).path("id"));
         likes(UUID.fromString(entry), 2);
         UUID other = member("관객");
         clock.advance(Duration.ofHours(1));
-        assertThat(edit(entry, Map.of("visibility", "private"), 200).path("visibility").asText()).isEqualTo("private");
+        assertThat(LenientJson.asText(edit(entry, Map.of("visibility", "private"), 200).path("visibility"))).isEqualTo("private");
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, token(other)).path("entries")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM entry_likes WHERE entry_id=?::uuid", Integer.class, entry)).isEqualTo(2);
         clock.advance(Duration.ofHours(1));
         JsonNode reopened = edit(entry, Map.of("visibility", "public"), 200);
-        assertThat(Instant.parse(reopened.path("published_at").asText())).isEqualTo(NOW);
-        assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, token(other)).at("/entries/0/like_count").asInt())
+        assertThat(Instant.parse(LenientJson.asText(reopened.path("published_at")))).isEqualTo(NOW);
+        assertThat(LenientJson.asInt(response(get("/v2/challenges/{id}/entries", challenge), 200, token(other)).at("/entries/0/like_count")))
                 .isEqualTo(2);
         jdbc.update("UPDATE challenge_entries SET visibility='private',status='hidden_by_report' WHERE id=?::uuid", entry);
-        assertThat(edit(entry, Map.of("visibility", "public"), 422).path("detail").asText()).isEqualTo("entry_hidden");
+        assertThat(LenientJson.asText(edit(entry, Map.of("visibility", "public"), 422).path("detail"))).isEqualTo("entry_hidden");
         jdbc.update("UPDATE challenge_entries SET status='visible' WHERE id=?::uuid", entry);
         jdbc.update("UPDATE videos SET purged_at=now() WHERE id=(SELECT video_id FROM challenge_entries WHERE id=?::uuid)", entry);
-        assertThat(edit(entry, Map.of("visibility", "public"), 422).path("detail").asText()).isEqualTo("video_not_ready");
+        assertThat(LenientJson.asText(edit(entry, Map.of("visibility", "public"), 422).path("detail"))).isEqualTo("video_not_ready");
         jdbc.update("UPDATE videos SET purged_at=NULL");
         clock.set(NOW.plus(Duration.ofDays(8)));
-        assertThat(edit(entry, Map.of("visibility", "public"), 422).path("detail").asText()).isEqualTo("challenge_closed");
-        assertThat(edit(entry, Map.of("visibility", "private"), 200).path("visibility").asText()).isEqualTo("private");
+        assertThat(LenientJson.asText(edit(entry, Map.of("visibility", "public"), 422).path("detail"))).isEqualTo("challenge_closed");
+        assertThat(LenientJson.asText(edit(entry, Map.of("visibility", "private"), 200).path("visibility"))).isEqualTo("private");
     }
 
     @Test void challengeEntry_publicEntriesShowAtOnceAndAreQueuedForTheAiCheck() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
-        String open = enter(challenge, video(user, 30_000), "public", 201).path("id").asText();
-        String closed = enter(challenge, video(user, 30_000), "private", 201).path("id").asText();
+        String open = LenientJson.asText(enter(challenge, video(user, 30_000), "public", 201).path("id"));
+        String closed = LenientJson.asText(enter(challenge, video(user, 30_000), "private", 201).path("id"));
         assertThat(moderationOf(open)).isEqualTo("pending");
         assertThat(moderationOf(closed)).isNull();
         assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge), 200, token(member("관객"))))).containsExactly(open);
@@ -361,14 +362,14 @@ class ChallengeEntryIT {
 
     @Test void challengeEntry_onlyTheAuthorEditsTheCaptionAndEachChangeBumpsTheVersion() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
-        String entry = enter(challenge, video(user, 30_000), "public", 201).path("id").asText();
+        String entry = LenientJson.asText(enter(challenge, video(user, 30_000), "public", 201).path("id"));
         JsonNode edited = edit(entry, Map.of("caption", "  두 번째 테이크  "), 200);
-        assertThat(edited.path("caption").asText()).isEqualTo("두 번째 테이크");
-        assertThat(edited.path("content_version").asInt()).isEqualTo(2);
-        assertThat(edit(entry, Map.of("caption", "두 번째 테이크"), 200).path("content_version").asInt()).isEqualTo(2);
+        assertThat(LenientJson.asText(edited.path("caption"))).isEqualTo("두 번째 테이크");
+        assertThat(LenientJson.asInt(edited.path("content_version"))).isEqualTo(2);
+        assertThat(LenientJson.asInt(edit(entry, Map.of("caption", "두 번째 테이크"), 200).path("content_version"))).isEqualTo(2);
         assertThat(edit(entry, Map.of("caption", ""), 200).path("caption").isNull()).isTrue();
-        assertThat(response(patch("/v2/entries/{id}", entry).content("{\"caption\":\"남의 것\"}"), 404, token(member("남")))
-                .path("detail").asText()).isEqualTo("entry_not_found");
+        assertThat(LenientJson.asText(response(patch("/v2/entries/{id}", entry).content("{\"caption\":\"남의 것\"}"), 404, token(member("남")))
+                .path("detail"))).isEqualTo("entry_not_found");
         edit(entry, Map.of("caption", "😀".repeat(300)), 200);
         edit(entry, Map.of("caption", "😀".repeat(301)), 422);
     }
@@ -378,9 +379,9 @@ class ChallengeEntryIT {
         UUID video = video(user, 30_000);
         UUID request = UUID.randomUUID();
         String body = json.writeValueAsString(Map.of("request_id", request, "video_id", video, "visibility", "public"));
-        String entry = response(post("/v2/challenges/{id}/entries", challenge).content(body), 201).path("id").asText();
+        String entry = LenientJson.asText(response(post("/v2/challenges/{id}/entries", challenge).content(body), 201).path("id"));
         likes(UUID.fromString(entry), 3);
-        assertThat(response(delete("/v2/videos/{id}", video), 422).path("detail").asText()).isEqualTo("video_in_use");
+        assertThat(LenientJson.asText(response(delete("/v2/videos/{id}", video), 422).path("detail"))).isEqualTo("video_in_use");
         response(delete("/v2/entries/{id}", entry), 204);
         response(delete("/v2/entries/{id}", entry), 204);
         var row = jdbc.queryForMap("SELECT status,video_id,caption,deleted_at FROM challenge_entries WHERE id=?::uuid", entry);
@@ -389,10 +390,10 @@ class ChallengeEntryIT {
         assertThat(row.get("deleted_at")).isNotNull();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM entry_likes WHERE entry_id=?::uuid", Integer.class, entry)).isZero();
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200).path("entries")).isEmpty();
-        assertThat(response(get("/v2/me/challenge-entries"), 200).path("counts").path("all").asInt()).isZero();
-        assertThat(response(post("/v2/challenges/{id}/entries", challenge).content(body), 200).path("status").asText())
+        assertThat(LenientJson.asInt(response(get("/v2/me/challenge-entries"), 200).path("counts").path("all"))).isZero();
+        assertThat(LenientJson.asText(response(post("/v2/challenges/{id}/entries", challenge).content(body), 200).path("status")))
                 .isEqualTo("deleted");
-        String again = enter(challenge, video, "public", 201).path("id").asText();
+        String again = LenientJson.asText(enter(challenge, video, "public", 201).path("id"));
         assertThat(again).isNotEqualTo(entry);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM challenge_entries", Integer.class)).isEqualTo(2);
         response(delete("/v2/entries/{id}", again), 204);
@@ -404,7 +405,7 @@ class ChallengeEntryIT {
             String host = token(member("주최 " + round));
             JsonNode opened = response(post("/v2/challenges").content(json.writeValueAsString(Map.of("request_id", UUID.randomUUID(),
                     "line", "경합 " + round, "work", "창작", "duration_days", 7))), 201, host);
-            UUID challenge = UUID.fromString(opened.path("id").asText());
+            UUID challenge = UUID.fromString(LenientJson.asText(opened.path("id")));
             UUID actor = member("참여 " + round);
             String entryBody = json.writeValueAsString(Map.of("request_id", UUID.randomUUID(), "video_id", video(actor, 30_000),
                     "visibility", "public"));
@@ -443,7 +444,7 @@ class ChallengeEntryIT {
                 return request;
             }).get(20, java.util.concurrent.TimeUnit.SECONDS);
             assertThat(late.getStatus()).isEqualTo(403);
-            assertThat(json.readTree(late.getContentAsString()).path("detail").asText()).isEqualTo("account_deactivated");
+            assertThat(LenientJson.asText(json.readTree(late.getContentAsString()).path("detail"))).isEqualTo("account_deactivated");
         }
         assertThat(jdbc.queryForObject("SELECT count(*) FROM challenge_entries", Integer.class)).isZero();
     }
@@ -458,25 +459,25 @@ class ChallengeEntryIT {
         JsonNode likes = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(ids(likes)).containsExactly(five.toString(), threeEarly.toString(), threeLate.toString());
         assertThat(ranks(likes)).containsExactly("1", "2", "2");
-        assertThat(likes.at("/entries/0/like_count").asInt()).isEqualTo(5);
-        assertThat(likes.at("/entries/0/author/name").asText()).isEqualTo("다섯");
+        assertThat(LenientJson.asInt(likes.at("/entries/0/like_count"))).isEqualTo(5);
+        assertThat(LenientJson.asText(likes.at("/entries/0/author/name"))).isEqualTo("다섯");
         // 작성자 사진: 없으면 null, 있으면 짧은 주소. 얼굴 가림을 켠 참여작은 목록·참여자 어디에도 사진을 싣지 않는다.
         assertThat(likes.at("/entries/0/author/photo_url").isNull()).isTrue();
         String photo = "users/five/profile/photo.jpg";
         jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=(SELECT user_id FROM challenge_entries WHERE id=?)", photo, five);
-        assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url").asText())
+        assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url")))
                 .isEqualTo("https://play.test/" + photo);
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
+        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsString("photo_url"))
                 .contains("https://play.test/" + photo);
         jdbc.update("UPDATE challenge_entries SET face_mosaic=true,mosaic_status='ready',mosaic_key='videos/five.mosaic.mp4' WHERE id=?", five);
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url").isNull()).isTrue();
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
+        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsString("photo_url"))
                 .doesNotContain("https://play.test/" + photo);
         jdbc.update("UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,mosaic_key=NULL WHERE id=?", five);
         JsonNode latest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200);
         assertThat(ids(latest)).containsExactly(threeLate.toString(), threeEarly.toString(), five.toString());
         assertThat(latest.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
-        assertThat(latest.path("entries").findValuesAsText("is_new")).containsExactly("true", "false", "false");
+        assertThat(latest.path("entries").findValuesAsString("is_new")).containsExactly("true", "false", "false");
         UUID zero = challenge(NOW.plus(Duration.ofDays(7)));
         seeded(zero, member("영 하나"), 1, 0);
         seeded(zero, member("영 둘"), 2, 0);
@@ -495,12 +496,12 @@ class ChallengeEntryIT {
         jdbc.update("INSERT INTO user_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)", UUID.randomUUID(), blockedMe, user);
         JsonNode mine = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(ids(mine)).containsExactly(second.toString());
-        assertThat(mine.at("/entries/0/rank").asInt()).isEqualTo(2);
+        assertThat(LenientJson.asInt(mine.at("/entries/0/rank"))).isEqualTo(2);
         assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge), 200, token(member("관객")))))
                 .containsExactly(leader.toString(), second.toString(), third.toString());
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("like_sum").asInt()).isEqualTo(9);
+        assertThat(LenientJson.asInt(response(get("/v2/challenges/{id}", challenge), 200).path("like_sum"))).isEqualTo(9);
         response(get("/v2/entries/{id}", leader), 404);
-        assertThat(response(post("/v2/entries/{id}/views", third).content(view(UUID.randomUUID())), 404).path("detail").asText())
+        assertThat(LenientJson.asText(response(post("/v2/entries/{id}/views", third).content(view(UUID.randomUUID())), 404).path("detail")))
                 .isEqualTo("entry_not_found");
     }
 
@@ -510,15 +511,15 @@ class ChallengeEntryIT {
         for (int i = 0; i < 25; i++) byRank.add(seeded(challenge, member("배우 " + i), i, 30 - i).toString());
         JsonNode first = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(ids(first)).containsExactlyElementsOf(byRank.subList(0, 20));
-        JsonNode second = response(get("/v2/challenges/{id}/entries", challenge).param("cursor", first.path("next_cursor").asText()), 200);
+        JsonNode second = response(get("/v2/challenges/{id}/entries", challenge).param("cursor", LenientJson.asText(first.path("next_cursor"))), 200);
         assertThat(ids(second)).containsExactlyElementsOf(byRank.subList(20, 25));
         assertThat(second.path("next_cursor").isNull()).isTrue();
         JsonNode fromThird = response(get("/v2/challenges/{id}/entries", challenge).param("from_entry", byRank.get(2)), 200);
         assertThat(ids(fromThird)).containsExactlyElementsOf(byRank.subList(2, 22));
-        assertThat(fromThird.at("/entries/0/rank").asInt()).isEqualTo(3);
+        assertThat(LenientJson.asInt(fromThird.at("/entries/0/rank"))).isEqualTo(3);
         JsonNode latest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200);
         JsonNode rest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
-                .param("cursor", latest.path("next_cursor").asText()), 200);
+                .param("cursor", LenientJson.asText(latest.path("next_cursor"))), 200);
         assertThat(ids(latest).size() + ids(rest).size()).isEqualTo(25);
         UUID empty = challenge(NOW.plus(Duration.ofDays(7)));
         assertThat(response(get("/v2/challenges/{id}/entries", empty), 200).path("entries")).isEmpty();
@@ -549,9 +550,9 @@ class ChallengeEntryIT {
         assertThat(likes.at("/entries/2/rank").isNull()).isTrue();
         assertThat(likes.at("/entries/5/rank").isNull()).isTrue();
         assertThat(likes.at("/entries/8/rank").isNull()).isTrue();
-        assertThat(likes.at("/entries/3/rank").asInt()).isEqualTo(3);
-        assertThat(likes.at("/entries/14/rank").asInt()).isEqualTo(12);
-        assertThat(likes.at("/entries/15/rank").asInt()).isEqualTo(13);
+        assertThat(LenientJson.asInt(likes.at("/entries/3/rank"))).isEqualTo(3);
+        assertThat(LenientJson.asInt(likes.at("/entries/14/rank"))).isEqualTo(12);
+        assertThat(LenientJson.asInt(likes.at("/entries/15/rank"))).isEqualTo(13);
         JsonNode fromNewest = response(get("/v2/challenges/{id}/entries", challenge).param("from_entry", newest), 200);
         assertThat(ids(fromNewest)).containsExactlyElementsOf(expected.subList(2, expected.size()));
         assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200)).getFirst())
@@ -579,7 +580,7 @@ class ChallengeEntryIT {
         clock.set(deadline.plus(Duration.ofMinutes(1)));
         entryRepository.settle(clock.instant());
         JsonNode settled = response(get("/v2/challenges/{id}/entries", challenge), 200);
-        assertThat(settled.path("ranking_state").asText()).isEqualTo("final");
+        assertThat(LenientJson.asText(settled.path("ranking_state"))).isEqualTo("final");
         var byLikes = List.of(many.toString(), mid.toString(), faceThree.toString(), unknown.toString(), faceZero.toString());
         assertThat(ids(settled)).containsExactlyElementsOf(byLikes);
         jdbc.update("UPDATE challenges SET ranking_state='pending' WHERE id=?", challenge);
@@ -603,8 +604,8 @@ class ChallengeEntryIT {
         expected.add(2 + 2, newer);
         expected.add(2 + 5, older);
         assertThat(ids(likes)).containsExactlyElementsOf(expected);
-        assertThat(likes.at("/entries/0/rank").asInt()).isEqualTo(13);
-        assertThat(likes.at("/entries/2/rank").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(likes.at("/entries/0/rank"))).isEqualTo(13);
+        assertThat(LenientJson.asInt(likes.at("/entries/2/rank"))).isEqualTo(1);
         assertThat(likes.at("/entries/4/rank").isNull()).isTrue();
         assertThat(likes.at("/entries/7/rank").isNull()).isTrue();
     }
@@ -614,26 +615,26 @@ class ChallengeEntryIT {
         var byRank = new ArrayList<UUID>();
         for (int i = 0; i < 22; i++) byRank.add(seeded(challenge, member("배우 " + i), i, 40 - i));
         JsonNode first = response(get("/v2/challenges/{id}/entries", challenge), 200);
-        String cursor = first.path("next_cursor").asText();
+        String cursor = LenientJson.asText(first.path("next_cursor"));
         likes(byRank.get(21), 100);
         jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", byRank.get(20));
         clock.advance(Duration.ofMinutes(9));
         JsonNode next = response(get("/v2/challenges/{id}/entries", challenge).param("cursor", cursor), 200);
         assertThat(ids(next)).containsExactly(byRank.get(21).toString());
-        assertThat(next.at("/entries/0/rank").asInt()).isEqualTo(22);
-        assertThat(next.at("/entries/0/like_count").asInt()).isEqualTo(119);
+        assertThat(LenientJson.asInt(next.at("/entries/0/rank"))).isEqualTo(22);
+        assertThat(LenientJson.asInt(next.at("/entries/0/like_count"))).isEqualTo(119);
         clock.advance(Duration.ofMinutes(2));
-        assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", cursor), 410).path("detail").asText())
+        assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", cursor), 410).path("detail")))
                 .isEqualTo("cursor_expired");
-        String fresh = response(get("/v2/challenges/{id}/entries", challenge), 200).path("next_cursor").asText();
+        String fresh = LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge), 200).path("next_cursor"));
         clock.set(NOW.plus(Duration.ofHours(1)));
-        assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", fresh), 410).path("detail").asText())
+        assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", fresh), 410).path("detail")))
                 .isEqualTo("cursor_expired");
     }
 
     @Test void challengeBrowse_countsViewsOncePerEventAndNeverForTheAuthor() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
-        String entry = enter(challenge, video(user, 30_000), "public", 201).path("id").asText();
+        String entry = LenientJson.asText(enter(challenge, video(user, 30_000), "public", 201).path("id"));
         String viewer = token(member("관객"));
         UUID event = UUID.randomUUID();
         response(post("/v2/entries/{id}/views", entry).content(view(event)), 204, viewer);
@@ -642,7 +643,7 @@ class ChallengeEntryIT {
         assertThat(jdbc.queryForObject("SELECT view_count FROM challenge_entries WHERE id=?::uuid", Long.class, entry)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM entry_view_events", Integer.class)).isEqualTo(1);
         response(post("/v2/entries/{id}/views", entry).content(view(UUID.randomUUID())), 204, viewer);
-        assertThat(response(get("/v2/entries/{id}", entry), 200, viewer).path("view_count").asInt()).isEqualTo(2);
+        assertThat(LenientJson.asInt(response(get("/v2/entries/{id}", entry), 200, viewer).path("view_count"))).isEqualTo(2);
         clock.advance(Duration.ofDays(8));
         entryRepository.settle(clock.instant());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM entry_view_events", Integer.class)).isZero();
@@ -651,7 +652,7 @@ class ChallengeEntryIT {
     @Test void challengeBrowse_firstChangeAfterTheDeadlineFreezesLikesAndPlacesAreNotPulledUp() throws Exception {
         Instant deadline = NOW.plus(Duration.ofHours(2));
         UUID challenge = challenge(deadline);
-        String mine = enter(challenge, video(user, 30_000), "public", 201).path("id").asText();
+        String mine = LenientJson.asText(enter(challenge, video(user, 30_000), "public", 201).path("id"));
         likes(UUID.fromString(mine), 4);
         UUID second = seeded(challenge, member("둘째"), 1, 3);
         UUID third = seeded(challenge, member("셋째"), 2, 1);
@@ -665,9 +666,9 @@ class ChallengeEntryIT {
         JsonNode ranking = response(get("/v2/challenges/{id}/entries", challenge), 200, token(member("관객")));
         assertThat(ids(ranking)).containsExactly(second.toString(), third.toString());
         assertThat(ranks(ranking)).containsExactly("2", "3");
-        assertThat(ranking.path("ranking_state").asText()).isEqualTo("final");
-        assertThat(ranking.at("/entries/1/final_like_count").asInt()).isEqualTo(1);
-        assertThat(ranking.at("/entries/1/like_count").asInt()).isEqualTo(11);
+        assertThat(LenientJson.asText(ranking.path("ranking_state"))).isEqualTo("final");
+        assertThat(LenientJson.asInt(ranking.at("/entries/1/final_like_count"))).isEqualTo(1);
+        assertThat(LenientJson.asInt(ranking.at("/entries/1/like_count"))).isEqualTo(11);
     }
 
     @Test void challengeBrowse_reviewAtTheDeadlineKeepsRanksPendingUntilItEnds() throws Exception {
@@ -684,7 +685,7 @@ class ChallengeEntryIT {
         clock.set(deadline.plus(Duration.ofMinutes(1)));
         assertThat(entryRepository.settle(clock.instant())).isEqualTo(1);
         JsonNode pending = response(get("/v2/challenges/{id}/entries", challenge), 200);
-        assertThat(pending.path("ranking_state").asText()).isEqualTo("pending");
+        assertThat(LenientJson.asText(pending.path("ranking_state"))).isEqualTo("pending");
         assertThat(pending.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
         response(patch("/v2/admin/reports/{id}", report).content("{\"resolution\":\"restored\",\"reviewer\":\"운영\"}"), 200,
                 "Bearer entry-test-ops");
@@ -707,7 +708,7 @@ class ChallengeEntryIT {
     @Test void challengeBrowse_myRecordCountsEachEntryInOneCategory() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         UUID other = challenge(NOW.plus(Duration.ofDays(7)));
-        String hiddenPrivate = enter(challenge, video(user, 30_000), "private", 201).path("id").asText();
+        String hiddenPrivate = LenientJson.asText(enter(challenge, video(user, 30_000), "private", 201).path("id"));
         jdbc.update("UPDATE challenge_entries SET status='hidden_by_report' WHERE id=?::uuid", hiddenPrivate);
         enter(challenge, video(user, 30_000), "public", 201);
         enter(other, video(user, 30_000), "private", 201);
@@ -715,12 +716,12 @@ class ChallengeEntryIT {
         enter(other, video(user, 30_000), "public", 201);
         jdbc.update("UPDATE challenges SET moderation='review' WHERE id=?", other);
         JsonNode record = response(get("/v2/me/challenge-entries"), 200);
-        assertThat(record.path("counts").path("all").asInt()).isEqualTo(4);
-        assertThat(record.path("counts").path("under_review").asInt()).isEqualTo(3);
-        assertThat(record.path("counts").path("public").asInt()).isEqualTo(1);
-        assertThat(record.path("counts").path("private").asInt()).isZero();
+        assertThat(LenientJson.asInt(record.path("counts").path("all"))).isEqualTo(4);
+        assertThat(LenientJson.asInt(record.path("counts").path("under_review"))).isEqualTo(3);
+        assertThat(LenientJson.asInt(record.path("counts").path("public"))).isEqualTo(1);
+        assertThat(LenientJson.asInt(record.path("counts").path("private"))).isZero();
         assertThat(ids(response(get("/v2/me/challenge-entries").param("visibility", "under_review"), 200))).hasSize(3);
-        assertThat(response(get("/v2/entries/{id}", hiddenPrivate), 200).path("id").asText()).isEqualTo(hiddenPrivate);
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}", hiddenPrivate), 200).path("id"))).isEqualTo(hiddenPrivate);
     }
 
     @Test void challengeBrowse_guestsAndWebClientsAreRefused() throws Exception {
@@ -728,7 +729,7 @@ class ChallengeEntryIT {
         var result = mvc.perform(get("/v2/challenges/{id}/entries", challenge).header("Authorization", bearer)
                 .header("X-Acttub-Client", "web/0.1.0").header("Accept-Language", "ko")).andReturn().getResponse();
         assertThat(result.getStatus()).isEqualTo(403);
-        assertThat(json.readTree(result.getContentAsString()).path("detail").asText()).isEqualTo("member_only");
+        assertThat(LenientJson.asText(json.readTree(result.getContentAsString()).path("detail"))).isEqualTo("member_only");
     }
 
     // ── challenge.share ────────────────────────────────────────────────────
@@ -775,7 +776,7 @@ class ChallengeEntryIT {
                 UUID.randomUUID())) {
             var missing = publicLookup(gone);
             assertThat(missing.getStatus()).as("%s", gone).isEqualTo(404);
-            assertThat(json.readTree(missing.getContentAsString()).path("detail").asText()).isEqualTo("entry_not_found");
+            assertThat(LenientJson.asText(json.readTree(missing.getContentAsString()).path("detail"))).isEqualTo("entry_not_found");
         }
     }
 
@@ -859,13 +860,13 @@ class ChallengeEntryIT {
 
     private static List<String> ids(JsonNode page) {
         var ids = new ArrayList<String>();
-        page.path("entries").forEach(entry -> ids.add(entry.path("id").asText()));
+        page.path("entries").forEach(entry -> ids.add(LenientJson.asText(entry.path("id"))));
         return ids;
     }
 
     private static List<String> ranks(JsonNode page) {
         var ranks = new ArrayList<String>();
-        page.path("entries").forEach(entry -> ranks.add(entry.path("rank").asText()));
+        page.path("entries").forEach(entry -> ranks.add(LenientJson.asText(entry.path("rank"))));
         return ranks;
     }
 

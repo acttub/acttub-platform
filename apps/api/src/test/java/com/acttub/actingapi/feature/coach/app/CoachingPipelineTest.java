@@ -12,11 +12,12 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class CoachingPipelineTest {
     static CoachSessionSnapshot session() {
@@ -46,13 +47,13 @@ class CoachingPipelineTest {
                     stages.add("classify");
                     assertThat(options.model()).isEqualTo(com.acttub.actingapi.integration.llm.OpenAiModels.CHAT);
                     assertThat(options.schema().path("properties").path("route").path("enum"))
-                            .extracting(JsonNode::asText).containsExactly("advance", "scaffold", "repair", "respond");
-                    assertThat(input.path("coaching_state").path("revision").asLong()).isZero();
-                    assertThat(input.path("last_exchange").path("coach_message").path("text").asText())
+                            .extracting(LenientJson::asText).containsExactly("advance", "scaffold", "repair", "respond");
+                    assertThat(LenientJson.asLong(input.path("coaching_state").path("revision"))).isZero();
+                    assertThat(LenientJson.asText(input.path("last_exchange").path("coach_message").path("text")))
                             .isEqualTo("어떤 뜻으로 말했어요?");
                     assertThat(input.path("video_record").path("events")).isNotEmpty();
-                    assertThat(input.path("conversation_history").get(0).path("text").asText()).isEqualTo("어떤 뜻으로 말했어요?");
-                    assertThat(input.path("user_message").path("text").asText()).isEqualTo("떠나지 말라는 뜻이에요");
+                    assertThat(LenientJson.asText(input.path("conversation_history").get(0).path("text"))).isEqualTo("어떤 뜻으로 말했어요?");
+                    assertThat(LenientJson.asText(input.path("user_message").path("text"))).isEqualTo("떠나지 말라는 뜻이에요");
                     return out(StructuredJson.MAPPER.createObjectNode().put("route", route.id));
                 }
                 stages.add("generate");
@@ -139,7 +140,7 @@ class CoachingPipelineTest {
 
     @Test void missingVideoCannotStartEvenWithAValidClassifier() {
         var source = session();
-        ObjectNode failed = source.observationPack().deepCopy();
+        ObjectNode failed = (ObjectNode) source.observationPack().deepCopy();
         ((ObjectNode) failed.path("processing")).putArray("processed_ranges");
         var noVideo = new CoachSessionSnapshot(source.sessionId(), source.practiceSessionId(), source.userId(),
                 failed, "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
@@ -174,7 +175,7 @@ class CoachingPipelineTest {
         assertThat(calls).hasValue(1);
         assertThat(result.reply().status()).isEqualTo("complete");
         StructuredJson.validate("coach_handoff_v2", result.reply().handoff());
-        assertThat(result.reply().handoff().path("conversation").get(1).path("text").asText()).isEqualTo(result.reply().message());
+        assertThat(LenientJson.asText(result.reply().handoff().path("conversation").get(1).path("text"))).isEqualTo(result.reply().message());
     }
 
     @Test void invalidEvidenceIsRetriedWithinTheSelectedRouteOnly() {
@@ -205,14 +206,14 @@ class CoachingPipelineTest {
         var result = engine((p,t) -> {
             JsonNode input = StructuredJson.parse(t);
             int stage = calls.getAndIncrement();
-            if (stage < 2) assertThat(input.path("user_message").path("text").asText()).isEqualTo(actor);
+            if (stage < 2) assertThat(LenientJson.asText(input.path("user_message").path("text"))).isEqualTo(actor);
             if (stage == 0) return out(StructuredJson.MAPPER.createObjectNode().put("route", "advance"));
             if (stage == 1) return out(draft(input, "붙잡는 이유와 열쇠를 돌려받으려는 목적을 함께 이야기했네요."));
             throw new AssertionError("unexpected extra model call");
         }).reply(session(), actor, UUID.randomUUID());
         assertThat(calls).hasValue(2);
         assertThat(result.session().turns().getFirst().text()).isEqualTo(actor);
-        assertThat(result.session().coachingState().path("last_reply").path("actor_quote").asText()).hasSize(100);
+        assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("actor_quote"))).hasSize(100);
     }
 
     @Test void springUsesRoutedPipelineByDefault() {
@@ -248,14 +249,14 @@ class CoachingPipelineTest {
             int call = calls.getAndIncrement();
             if (call == 0 || call == 2 || call == 4) {
                 if (call == 2) {
-                    assertThat(input.path("coaching_state").path("context").path("scene_context")
-                            .path("character_goal").path("text").asText()).isEqualTo(original);
-                    assertThat(input.path("user_message").path("text").asText()).isEqualTo(correction);
+                    assertThat(LenientJson.asText(input.path("coaching_state").path("context").path("scene_context")
+                            .path("character_goal").path("text"))).isEqualTo(original);
+                    assertThat(LenientJson.asText(input.path("user_message").path("text"))).isEqualTo(correction);
                 }
                 if (call == 4) {
-                    assertThat(input.path("coaching_state").path("context").path("scene_context")
-                            .path("character_goal").path("text").asText()).isEqualTo(correction);
-                    assertThat(input.path("last_exchange").path("coach_message").path("text").asText()).isEqualTo(repairedMessage);
+                    assertThat(LenientJson.asText(input.path("coaching_state").path("context").path("scene_context")
+                            .path("character_goal").path("text"))).isEqualTo(correction);
+                    assertThat(LenientJson.asText(input.path("last_exchange").path("coach_message").path("text"))).isEqualTo(repairedMessage);
                     assertThat(input.path("conversation_history")).hasSize(4);
                 }
                 return out(StructuredJson.MAPPER.createObjectNode().put("route", call == 2 ? "repair" : "advance"));
@@ -263,16 +264,16 @@ class CoachingPipelineTest {
             if (call == 1 || call == 3) {
                 assertThat(prompt).isEqualTo(CoachingPipeline.prompt(call == 3 ? CoachingRoute.REPAIR : CoachingRoute.ADVANCE, false, false));
                 ObjectNode result = draft(input, call == 3 ? repairedMessage : "잘못을 이해받고 싶다는 뜻이군요.");
-                ObjectNode context = input.path("coaching_state").path("context").deepCopy();
+                ObjectNode context = (ObjectNode) input.path("coaching_state").path("context").deepCopy();
                 ObjectNode goal = ((ObjectNode) context.path("scene_context")).putObject("character_goal");
-                goal.put("text", input.path("user_message").path("text").asText()).put("origin", "actor_stated");
-                goal.putArray("source_refs").add(input.path("user_message").path("id").asText());
+                goal.put("text", LenientJson.asText(input.path("user_message").path("text"))).put("origin", "actor_stated");
+                goal.putArray("source_refs").add(LenientJson.asText(input.path("user_message").path("id")));
                 result.set("context_update", context);
                 return out(result);
             }
             if (call == 5 || call == 6) {
-                assertThat(input.path("coaching_state").path("context").path("scene_context")
-                        .path("character_goal").path("text").asText()).isEqualTo(correction);
+                assertThat(LenientJson.asText(input.path("coaching_state").path("context").path("scene_context")
+                        .path("character_goal").path("text"))).isEqualTo(correction);
                 return out(draft(input, call == 6 ? "떠보려는 해석을 바탕으로 나눈 내용을 정리할게요." : "상대의 어떤 반응이 알고 있다는 신호가 될까요?"));
             }
             throw new AssertionError("unexpected extra model call");
@@ -282,9 +283,9 @@ class CoachingPipelineTest {
         var next = coach.reply(repaired.session(), "네, 떠보는 거예요", UUID.randomUUID());
         var closed = coach.reply(next.session(), "그만할게요", UUID.randomUUID());
         assertThat(calls).hasValue(7);
-        assertThat(closed.reply().handoff().path("context").path("scene_context").path("character_goal")
-                .path("text").asText()).isEqualTo(correction);
-        assertThat(closed.reply().handoff().path("conversation").get(3).path("text").asText()).isEqualTo(repairedMessage);
+        assertThat(LenientJson.asText(closed.reply().handoff().path("context").path("scene_context").path("character_goal")
+                .path("text"))).isEqualTo(correction);
+        assertThat(LenientJson.asText(closed.reply().handoff().path("conversation").get(3).path("text"))).isEqualTo(repairedMessage);
     }
 
     @Test void classificationFailureDoesNotGenerateOrSaveATurn() {

@@ -10,8 +10,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 챌린지 HTTP 의 값 검사와 참여작 쪽 넘기기: 모르는 정렬·탭·공개 범위·신고 대상·처리 상태는 저장소에 닿기 전에 422 배열로
@@ -96,9 +97,9 @@ class ChallengeValidationIT {
     }
 
     UUID challenge() throws Exception {
-        return UUID.fromString(response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of(
+        return UUID.fromString(LenientJson.asText(response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "line", "쪽 넘기기 " + UUID.randomUUID(), "work", "창작", "duration_days", 7))),
-                OPS, 201).path("id").asText());
+                OPS, 201).path("id")));
     }
 
     UUID entry(UUID challenge, UUID owner, int minutesAgo) {
@@ -119,15 +120,15 @@ class ChallengeValidationIT {
         for (int i = 0; i < 22; i++) entry(challenge, me, i + 1);
         JsonNode first = response(get("/v2/me/challenge-entries"), bearer, 200);
         assertThat(first.path("entries")).hasSize(20);
-        assertThat(first.path("counts").path("all").asLong()).isEqualTo(22);
-        JsonNode second = response(get("/v2/me/challenge-entries").param("cursor", first.path("next_cursor").asText()), bearer, 200);
+        assertThat(LenientJson.asLong(first.path("counts").path("all"))).isEqualTo(22);
+        JsonNode second = response(get("/v2/me/challenge-entries").param("cursor", LenientJson.asText(first.path("next_cursor"))), bearer, 200);
         assertThat(second.path("entries")).hasSize(2);
         assertThat(second.path("next_cursor").isNull()).isTrue();
 
         UUID other = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
         AccountFixtures.passGate(jdbc, other);
-        assertThat(location(response(get("/v2/me/challenge-entries").param("cursor", first.path("next_cursor").asText()),
+        assertThat(location(response(get("/v2/me/challenge-entries").param("cursor", LenientJson.asText(first.path("next_cursor"))),
                 "Bearer " + jwt.issueAccessToken(other).value(), 422))).isEqualTo("[\"query\",\"cursor\"]");
     }
 
@@ -137,16 +138,16 @@ class ChallengeValidationIT {
         for (int i = 0; i < 23; i++) entries.add(entry(challenge, me, i + 1));
         JsonNode fromThird = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
                 .param("from_entry", entries.get(2).toString()), bearer, 200);
-        assertThat(fromThird.path("entries").get(0).path("id").asText()).isEqualTo(entries.get(2).toString());
+        assertThat(LenientJson.asText(fromThird.path("entries").get(0).path("id"))).isEqualTo(entries.get(2).toString());
         assertThat(fromThird.path("entries")).hasSize(20);
         JsonNode rest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
-                .param("cursor", fromThird.path("next_cursor").asText()), bearer, 200);
-        assertThat(rest.path("entries").findValuesAsText("id")).containsExactly(entries.get(22).toString());
-        assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
-                .param("from_entry", UUID.randomUUID().toString()), bearer, 404).path("detail").asText()).isEqualTo("entry_not_found");
+                .param("cursor", LenientJson.asText(fromThird.path("next_cursor"))), bearer, 200);
+        assertThat(rest.path("entries").findValuesAsString("id")).containsExactly(entries.get(22).toString());
+        assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
+                .param("from_entry", UUID.randomUUID().toString()), bearer, 404).path("detail"))).isEqualTo("entry_not_found");
         UUID another = challenge();
         assertThat(location(response(get("/v2/challenges/{id}/entries", another).param("sort", "latest")
-                .param("cursor", fromThird.path("next_cursor").asText()), bearer, 422))).isEqualTo("[\"query\",\"cursor\"]");
+                .param("cursor", LenientJson.asText(fromThird.path("next_cursor"))), bearer, 422))).isEqualTo("[\"query\",\"cursor\"]");
     }
 
     @Test void theLikesListKeepsItsOrderAcrossPagesAndRejectsUnknownStarts() throws Exception {
@@ -155,13 +156,13 @@ class ChallengeValidationIT {
         for (int i = 0; i < 22; i++) entries.add(entry(challenge, me, i + 1));
         JsonNode first = response(get("/v2/challenges/{id}/entries", challenge), bearer, 200);
         assertThat(first.path("entries")).hasSize(20);
-        JsonNode second = response(get("/v2/challenges/{id}/entries", challenge).param("cursor", first.path("next_cursor").asText()), bearer, 200);
+        JsonNode second = response(get("/v2/challenges/{id}/entries", challenge).param("cursor", LenientJson.asText(first.path("next_cursor"))), bearer, 200);
         assertThat(second.path("entries")).hasSize(2);
-        var all = new java.util.ArrayList<String>(first.path("entries").findValuesAsText("id"));
-        all.addAll(second.path("entries").findValuesAsText("id"));
+        var all = new java.util.ArrayList<String>(first.path("entries").findValuesAsString("id"));
+        all.addAll(second.path("entries").findValuesAsString("id"));
         assertThat(all).doesNotHaveDuplicates().hasSize(22);
-        assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("from_entry", UUID.randomUUID().toString()), bearer, 404)
-                .path("detail").asText()).isEqualTo("entry_not_found");
+        assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge).param("from_entry", UUID.randomUUID().toString()), bearer, 404)
+                .path("detail"))).isEqualTo("entry_not_found");
         assertThat(location(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", "bm90LWEtY3Vyc29y"), bearer, 422)))
                 .isEqualTo("[\"query\",\"cursor\"]");
     }
@@ -182,10 +183,10 @@ class ChallengeValidationIT {
         }
         JsonNode first = response(get("/v2/me/saved-entries"), bearer, 200);
         assertThat(first.path("entries")).hasSize(20);
-        JsonNode second = response(get("/v2/me/saved-entries").param("cursor", first.path("next_cursor").asText()), bearer, 200);
+        JsonNode second = response(get("/v2/me/saved-entries").param("cursor", LenientJson.asText(first.path("next_cursor"))), bearer, 200);
         assertThat(second.path("entries")).hasSize(2);
         assertThat(second.path("next_cursor").isNull()).isTrue();
-        assertThat(location(response(get("/v2/me/saved-entries").param("cursor", first.path("next_cursor").asText()),
+        assertThat(location(response(get("/v2/me/saved-entries").param("cursor", LenientJson.asText(first.path("next_cursor"))),
                 "Bearer " + jwt.issueAccessToken(author).value(), 422))).isEqualTo("[\"query\",\"cursor\"]");
         String broken = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 ("V|" + me + "|어제|" + UUID.randomUUID()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -204,7 +205,7 @@ class ChallengeValidationIT {
         response(post("/v2/me/notifications/read").content("{\"group_keys\":[\"like:" + entry + "\"]}"), bearer, 204);
         response(post("/v2/me/notifications/read").content("{\"all_before\":{\"created_at\":\"2026-10-01T00:00:00Z\",\"id\":\""
                 + UUID.randomUUID() + "\"}}"), bearer, 204);
-        assertThat(response(get("/v2/me/notifications/unread-count"), bearer, 200).path("count").asLong()).isZero();
+        assertThat(LenientJson.asLong(response(get("/v2/me/notifications/unread-count"), bearer, 200).path("count"))).isZero();
     }
 
     @Test void adminReportsPageFiftyAtATimeWithACursorForTheirStatus() throws Exception {
@@ -218,11 +219,11 @@ class ChallengeValidationIT {
         }
         JsonNode first = response(get("/v2/admin/reports"), OPS, 200);
         assertThat(first.path("reports")).hasSize(50);
-        assertThat(first.path("reports").get(0).path("open_reports").asLong()).isEqualTo(52);
-        JsonNode second = response(get("/v2/admin/reports").param("cursor", first.path("next_cursor").asText()), OPS, 200);
+        assertThat(LenientJson.asLong(first.path("reports").get(0).path("open_reports"))).isEqualTo(52);
+        JsonNode second = response(get("/v2/admin/reports").param("cursor", LenientJson.asText(first.path("next_cursor"))), OPS, 200);
         assertThat(second.path("reports")).hasSize(2);
         assertThat(second.path("next_cursor").isNull()).isTrue();
-        assertThat(location(response(get("/v2/admin/reports").param("status", "reviewed").param("cursor", first.path("next_cursor").asText()),
+        assertThat(location(response(get("/v2/admin/reports").param("status", "reviewed").param("cursor", LenientJson.asText(first.path("next_cursor"))),
                 OPS, 422))).isEqualTo("[\"query\",\"cursor\"]");
         assertThat(location(response(get("/v2/admin/reports").param("cursor", "bm90LWEtY3Vyc29y"), OPS, 422))).isEqualTo("[\"query\",\"cursor\"]");
     }

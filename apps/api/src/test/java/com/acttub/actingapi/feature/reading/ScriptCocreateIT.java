@@ -15,10 +15,10 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.ScriptCocreateModel;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +34,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 찍을 대사 같이 만들기(SOMA-721) — 만들기·다시 보내기·고치기·되돌리기·확정을 HTTP 와 실제 Postgres 로 본다. 확정한 대본이
@@ -114,7 +115,7 @@ class ScriptCocreateIT {
     void saveSerializesWithRevisionAndRollsBackWithoutOrphan() throws Exception {
         UUID id = UUID.fromString(json(post("/v2/sample-scripts").content("""
                 {"request_id":"%s","character_count":1,"length_minutes":1}
-                """.formatted(UUID.randomUUID())), bearer, 201).path("id").textValue());
+                """.formatted(UUID.randomUUID())), bearer, 201).path("id").stringValue(null));
         Instant now = clock.instant();
         assertThat(cocreations.claim(member, id, 1, 3, now, now.minusSeconds(300))).isTrue();
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> cocreateService.save(member, false, id))
@@ -172,43 +173,43 @@ class ScriptCocreateIT {
                  "situation":"친구가 내 생일을 잊었어요","direction":null,"character_count":1,"length_minutes":1}
                 """.formatted(requestId);
         JsonNode created = json(post("/v2/sample-scripts").content(body), bearer, 201);
-        assertThat(created.path("title").textValue()).isEqualTo("잊어버린 생일");
-        assertThat(created.path("version").intValue()).isEqualTo(1);
-        assertThat(created.path("character_count").intValue()).isEqualTo(1);
-        assertThat(created.path("length_minutes").intValue()).isEqualTo(1);
-        assertThat(created.path("revisions_left").intValue()).isEqualTo(3);
+        assertThat(created.path("title").stringValue(null)).isEqualTo("잊어버린 생일");
+        assertThat(LenientJson.intValue(created.path("version"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("character_count"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("length_minutes"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("revisions_left"))).isEqualTo(3);
         assertThat(created.path("script_id").isNull()).isTrue();
-        assertThat(created.path("design").path("my_objective").textValue()).isEqualTo("사과를 받는다");
+        assertThat(created.path("design").path("my_objective").stringValue(null)).isEqualTo("사과를 받는다");
         assertThat(created.path("lines")).hasSize(14);
-        String id = created.path("id").textValue();
+        String id = created.path("id").stringValue(null);
 
         JsonNode replay = json(post("/v2/sample-scripts").content(body), bearer, 200);
-        assertThat(replay.path("id").textValue()).isEqualTo(id);
+        assertThat(replay.path("id").stringValue(null)).isEqualTo(id);
         assertThat(FakeModel.PROMPTS).hasSize(1);
 
         JsonNode revised = json(post("/v2/sample-scripts/{id}/revisions", id)
                 .content("{\"base_version\":1,\"text\":\"마지막 대사만 담담하게\"}"), bearer, 200);
-        assertThat(revised.path("version").intValue()).isEqualTo(2);
-        assertThat(revised.path("revisions_used").intValue()).isEqualTo(1);
-        assertThat(revised.path("note").textValue()).isEqualTo("마지막 대사를 담담하게 바꿨어요.");
+        assertThat(LenientJson.intValue(revised.path("version"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(revised.path("revisions_used"))).isEqualTo(1);
+        assertThat(revised.path("note").stringValue(null)).isEqualTo("마지막 대사를 담담하게 바꿨어요.");
         assertThat(perform(post("/v2/sample-scripts/{id}/revisions", id).content("{\"base_version\":1,\"text\":\"또\"}"), bearer, 409)
                 .getContentAsString()).contains("sample_script_version_conflict");
 
         JsonNode restored = json(post("/v2/sample-scripts/{id}/restore", id).content("{\"version\":1}"), bearer, 200);
-        assertThat(restored.path("version").intValue()).isEqualTo(1);
-        assertThat(restored.path("revisions_used").intValue()).isEqualTo(1);
-        assertThat(restored.path("title").textValue()).isEqualTo("잊어버린 생일");
+        assertThat(LenientJson.intValue(restored.path("version"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(restored.path("revisions_used"))).isEqualTo(1);
+        assertThat(restored.path("title").stringValue(null)).isEqualTo("잊어버린 생일");
 
         JsonNode saved = json(post("/v2/sample-scripts/{id}/save", id), bearer, 201);
-        String scriptId = saved.path("script_id").textValue();
+        String scriptId = saved.path("script_id").stringValue(null);
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), bearer, 200);
-        assertThat(script.path("title").textValue()).isEqualTo("잊어버린 생일");
-        assertThat(script.path("source").textValue()).isEqualTo("typed");
+        assertThat(script.path("title").stringValue(null)).isEqualTo("잊어버린 생일");
+        assertThat(script.path("source").stringValue(null)).isEqualTo("typed");
         assertThat(script.path("characters")).hasSize(1);
-        assertThat(script.path("characters").get(0).path("name").textValue()).isEqualTo("지수");
+        assertThat(script.path("characters").get(0).path("name").stringValue(null)).isEqualTo("지수");
         assertThat(script.path("lines")).hasSize(14);
-        assertThat(json(post("/v2/sample-scripts/{id}/save", id), bearer, 200).path("script_id").textValue()).isEqualTo(scriptId);
-        assertThat(json(get("/v2/sample-scripts/{id}", id), bearer, 200).path("script_id").textValue()).isEqualTo(scriptId);
+        assertThat(json(post("/v2/sample-scripts/{id}/save", id), bearer, 200).path("script_id").stringValue(null)).isEqualTo(scriptId);
+        assertThat(json(get("/v2/sample-scripts/{id}", id), bearer, 200).path("script_id").stringValue(null)).isEqualTo(scriptId);
         assertThat(perform(post("/v2/sample-scripts/{id}/revisions", id).content("{\"base_version\":1,\"text\":\"또\"}"), bearer, 409)
                 .getContentAsString()).contains("sample_script_saved");
     }
@@ -218,7 +219,7 @@ class ScriptCocreateIT {
     void ownershipAndValidation() throws Exception {
         String id = json(post("/v2/sample-scripts").content("""
                 {"request_id":"%s","character_count":1,"length_minutes":1}
-                """.formatted(UUID.randomUUID())), bearer, 201).path("id").textValue();
+                """.formatted(UUID.randomUUID())), bearer, 201).path("id").stringValue(null);
         String other = bearer(member());
         assertThat(perform(get("/v2/sample-scripts/{id}", id), other, 404).getContentAsString()).contains("sample_script_not_found");
         assertThat(perform(post("/v2/sample-scripts/{id}/revisions", id).content("{\"base_version\":1,\"text\":\" \"}"), bearer, 422)
@@ -227,7 +228,7 @@ class ScriptCocreateIT {
         assertThat(perform(post("/v2/sample-scripts").content("{\"request_id\":\"%s\",\"length_minutes\":2}"
                 .formatted(UUID.randomUUID())), bearer, 422).getContentAsString()).contains("sample_script_invalid_options");
 
-        String scriptId = json(post("/v2/sample-scripts/{id}/save", id), bearer, 201).path("script_id").textValue();
+        String scriptId = json(post("/v2/sample-scripts/{id}/save", id), bearer, 201).path("script_id").stringValue(null);
         perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/v2/reading/scripts/{id}", scriptId),
                 bearer, 204);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM script_cocreations WHERE script_id IS NULL", Integer.class)).isEqualTo(1);

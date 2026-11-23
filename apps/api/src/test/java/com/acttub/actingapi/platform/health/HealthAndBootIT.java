@@ -10,8 +10,8 @@ import java.util.List;
 
 import com.acttub.actingapi.ActingApiApplication;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +20,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 애플리케이션을 <b>실제 배포 형식의 {@code DATABASE_URL} 로</b> 통째로 띄운다.
@@ -74,17 +75,17 @@ class HealthAndBootIT {
     void healthMatchesLegacyShape() throws Exception {
         JsonNode body = MAPPER.readTree(get("/health"));
 
-        assertThat(body.fieldNames()).toIterable()
+        assertThat(body.propertyNames().iterator()).toIterable()
                 .containsExactly("status", "services", "model", "keep_alive", "commit");
-        assertThat(body.get("status").asText()).isEqualTo("ok");
+        assertThat(LenientJson.asText(body.get("status"))).isEqualTo("ok");
         assertThat(body.get("services")).hasSize(3);
-        assertThat(body.get("services").get(0).asText()).isEqualTo("summary");
-        assertThat(body.get("services").get(1).asText()).isEqualTo("coach");
-        assertThat(body.get("services").get(2).asText()).isEqualTo("report");
-        assertThat(body.get("model").asText()).isEqualTo("gemini-2.5-flash");
+        assertThat(LenientJson.asText(body.get("services").get(0))).isEqualTo("summary");
+        assertThat(LenientJson.asText(body.get("services").get(1))).isEqualTo("coach");
+        assertThat(LenientJson.asText(body.get("services").get(2))).isEqualTo("report");
+        assertThat(LenientJson.asText(body.get("model"))).isEqualTo("gemini-2.5-flash");
         assertThat(body.get("keep_alive").isBoolean()).isTrue();
-        assertThat(body.get("keep_alive").asBoolean()).isFalse();
-        assertThat(body.get("commit").asText()).isEqualTo("unknown");
+        assertThat(LenientJson.asBoolean(body.get("keep_alive"))).isFalse();
+        assertThat(LenientJson.asText(body.get("commit"))).isEqualTo("unknown");
     }
 
     @Test
@@ -92,23 +93,23 @@ class HealthAndBootIT {
     void openApiHealthResponseMatchesPydanticShape() throws Exception {
         JsonNode doc = MAPPER.readTree(get("/v3/api-docs"));
 
-        assertThat(doc.get("openapi").asText()).startsWith("3.1");
-        assertThat(doc.at("/info/title").textValue()).isEqualTo("acting-api");
-        assertThat(doc.at("/info/version").textValue()).isEqualTo("0.1.0");
-        assertThat(doc.at("/info/description").textValue()).isEqualTo(
+        assertThat(LenientJson.asText(doc.get("openapi"))).startsWith("3.1");
+        assertThat(doc.at("/info/title").stringValue(null)).isEqualTo("acting-api");
+        assertThat(doc.at("/info/version").stringValue(null)).isEqualTo("0.1.0");
+        assertThat(doc.at("/info/description").stringValue(null)).isEqualTo(
                 "연기 분석 플랫폼 API v2. Bearer access token을 사용합니다.");
         assertThat(doc.has("servers")).isFalse();
 
         JsonNode schema = doc.at("/components/schemas/HealthResponse");
         assertThat(schema.isMissingNode()).isFalse();
-        assertThat(schema.get("type").asText()).isEqualTo("object");
-        assertThat(schema.get("additionalProperties").asBoolean()).isFalse();
-        assertThat(schema.at("/properties/status/const").asText()).isEqualTo("ok");
-        assertThat(schema.at("/properties/keep_alive/type").asText()).isEqualTo("boolean");
-        assertThat(schema.at("/properties/services/type").asText()).isEqualTo("array");
+        assertThat(LenientJson.asText(schema.get("type"))).isEqualTo("object");
+        assertThat(LenientJson.asBoolean(schema.get("additionalProperties"))).isFalse();
+        assertThat(LenientJson.asText(schema.at("/properties/status/const"))).isEqualTo("ok");
+        assertThat(LenientJson.asText(schema.at("/properties/keep_alive/type"))).isEqualTo("boolean");
+        assertThat(LenientJson.asText(schema.at("/properties/services/type"))).isEqualTo("array");
 
         java.util.List<String> required = new java.util.ArrayList<>();
-        schema.get("required").forEach(node -> required.add(node.asText()));
+        schema.get("required").forEach(node -> required.add(LenientJson.asText(node)));
         assertThat(required).containsExactlyInAnyOrder(
                 "status", "services", "model", "keep_alive", "commit");
 

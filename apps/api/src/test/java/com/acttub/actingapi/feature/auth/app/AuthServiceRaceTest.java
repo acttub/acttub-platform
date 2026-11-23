@@ -30,7 +30,7 @@ import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.security.TransferredGuests;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 

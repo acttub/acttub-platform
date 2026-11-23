@@ -8,8 +8,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.support.FrozenValue;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +35,7 @@ class CoachPromptSnapshotTest {
 
     @Test
     void newPackIsReadInSceneTimelineSpeechObservationUncertaintyOrder() throws Exception {
-        var pack = (com.fasterxml.jackson.databind.node.ObjectNode) observationPack();
+        var pack = (tools.jackson.databind.node.ObjectNode) observationPack();
         pack.put("timeline", "0:01에 멈추며 시선을 옮긴다");
         pack.set("speech", OBJECT_MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}"));
         var session = snapshot(pack, "분석", "그 외", "", List.of());

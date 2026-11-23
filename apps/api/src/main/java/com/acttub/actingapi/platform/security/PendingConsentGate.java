@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.annotation.JsonNaming;
 
 /**
  * 이 회원이 현재 판 가운데 아직 결정하지 않은 동의 문서. 하나라도 있으면 보호 기능이 막힌다.

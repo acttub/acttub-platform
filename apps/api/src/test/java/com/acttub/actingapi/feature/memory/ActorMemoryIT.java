@@ -21,8 +21,8 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +38,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * practice.memory 의 「검증 방법」 가운데 <b>서버</b> 항목을 HTTP 와 실제 Postgres 로 본다 —
@@ -165,7 +166,7 @@ class ActorMemoryIT {
                 INSERT INTO actor_memories(id,user_id,field,value,written_by) VALUES (?,?,'tone','짧게 답한다','agent')
                 """, UUID.randomUUID(), member);
         JsonNode memory = json(get("/v2/me/memory"), 200);
-        assertThat(memory.path("items").findValuesAsText("field")).contains("wants", "avoid").doesNotContain("tone");
+        assertThat(memory.path("items").findValuesAsString("field")).contains("wants", "avoid").doesNotContain("tone");
         perform(put("/v2/me/memory/tone").content(valueBody("반말")), 422);
         perform(put("/v2/me/memory/wants").content(valueBody("방법을 알려 줘요")), 200);
     }
@@ -197,7 +198,7 @@ class ActorMemoryIT {
             + "1,000자는 200 이고 1,001자는 422 다")
     void practiceMemory_actorWrittenFieldsSurviveTheWorker() throws Exception {
         JsonNode written = json(put("/v2/me/memory/goal").content("{\"value\":\"내가 적은 목표\"}"), 200);
-        assertThat(written.path("written_by_actor").booleanValue()).isTrue();
+        assertThat(written.path("written_by_actor").booleanValue(false)).isTrue();
         assertThat(written.path("source_practice_id").isNull()).isTrue();
 
         closeConversation(analyzedPractice(member));
@@ -264,12 +265,12 @@ class ActorMemoryIT {
         assertThat(runWorker()).isTrue();
 
         JsonNode before = json(get("/v2/me/memory"), 200);
-        assertThat(item(before, "goal").path("source_practice_id").textValue()).isEqualTo(practice.toString());
+        assertThat(item(before, "goal").path("source_practice_id").stringValue(null)).isEqualTo(practice.toString());
 
         jdbc.update("UPDATE practices SET hidden_at=now() WHERE id=?", practice);
         JsonNode hidden = json(get("/v2/me/memory"), 200);
-        assertThat(item(hidden, "goal").path("value").textValue())
-                .isEqualTo(item(before, "goal").path("value").textValue());
+        assertThat(item(hidden, "goal").path("value").stringValue(null))
+                .isEqualTo(item(before, "goal").path("value").stringValue(null));
         assertThat(item(hidden, "goal").path("source_practice_id").isNull()).isTrue();
 
         perform(delete("/v2/me/memory/goal"), 204);
@@ -288,19 +289,19 @@ class ActorMemoryIT {
         legacyEntry("age", "20대", "actor");
 
         JsonNode before = json(get("/v2/me/memory"), 200);
-        assertThat(item(before, "goal").path("value").textValue()).isEqualTo("예전 목표");
-        assertThat(item(before, "goal").path("written_by_actor").booleanValue()).isFalse();
+        assertThat(item(before, "goal").path("value").stringValue(null)).isEqualTo("예전 목표");
+        assertThat(item(before, "goal").path("written_by_actor").booleanValue(false)).isFalse();
         assertThat(item(before, "goal").path("source_practice_id").isNull()).isTrue();
-        assertThat(item(before, "blockage").path("written_by_actor").booleanValue()).isTrue();
-        assertThat(item(before, "speech_self").path("value").textValue()).isEqualTo("차분하게 말하려 한다");
+        assertThat(item(before, "blockage").path("written_by_actor").booleanValue(false)).isTrue();
+        assertThat(item(before, "speech_self").path("value").stringValue(null)).isEqualTo("차분하게 말하려 한다");
         assertThat(fields(before)).doesNotContain("age", "gender");
 
         closeConversation(analyzedPractice(member));
         assertThat(runWorker()).isTrue();
 
         JsonNode after = json(get("/v2/me/memory"), 200);
-        assertThat(item(after, "goal").path("value").textValue()).as("옛 코치 칸은 새 값으로 갈린다").isEqualTo("새 목표");
-        assertThat(item(after, "blockage").path("value").textValue())
+        assertThat(item(after, "goal").path("value").stringValue(null)).as("옛 코치 칸은 새 값으로 갈린다").isEqualTo("새 목표");
+        assertThat(item(after, "blockage").path("value").stringValue(null))
                 .as("옛 표의 배우 칸은 워커가 덮지 않는다").isEqualTo("배우가 적은 막힘");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM actor_memories WHERE user_id=? AND field='blockage'", Integer.class, member))
@@ -325,7 +326,7 @@ class ActorMemoryIT {
 
     private static List<String> fields(JsonNode memory) {
         List<String> names = new ArrayList<>();
-        memory.path("items").forEach(row -> names.add(row.path("field").textValue()));
+        memory.path("items").forEach(row -> names.add(row.path("field").stringValue(null)));
         return names;
     }
 
@@ -365,14 +366,14 @@ class ActorMemoryIT {
         UUID conversation = UUID.fromString(json(
                 post("/v2/coach/start").content(
                         "{\"practice_id\":\"%s\",\"request_id\":\"%s\"}".formatted(practiceId, UUID.randomUUID())),
-                200).path("conversation").path("id").textValue());
+                200).path("conversation").path("id").stringValue(null));
         generator.enqueue(CONTINUE);
         json(post("/v2/coach/reply").content(replyBody(conversation, "첫 답")), 200);
         generator.enqueue(CLOSING);
         generator.enqueue(REPORT);
         JsonNode closed = json(post("/v2/coach/reply").content(replyBody(conversation, "둘째 답")), 200);
-        assertThat(closed.at("/note/report/report_type").asText()).isEqualTo("analysis");
-        assertThat(closed.at("/note/title").asText()).isEqualTo("기억의 출처가 되는 노트");
+        assertThat(LenientJson.asText(closed.at("/note/report/report_type"))).isEqualTo("analysis");
+        assertThat(LenientJson.asText(closed.at("/note/title"))).isEqualTo("기억의 출처가 되는 노트");
     }
 
     private String replyBody(UUID conversation, String text) {
@@ -429,7 +430,7 @@ class ActorMemoryIT {
 
     private static JsonNode item(JsonNode response, String field) {
         for (JsonNode item : response.path("items")) {
-            if (field.equals(item.path("field").textValue())) {
+            if (field.equals(item.path("field").stringValue(null))) {
                 return item;
             }
         }

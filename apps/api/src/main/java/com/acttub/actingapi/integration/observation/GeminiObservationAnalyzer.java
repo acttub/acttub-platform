@@ -18,9 +18,9 @@ import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.ThinkingConfig;
@@ -76,8 +76,9 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
             FailureReporter failureReporter,
             LlmTelemetry telemetry) {
         this.gateway = gateway;
-        this.mapper = mapper.copy()
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        this.mapper = mapper.rebuild()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
         this.model = model;
         this.activeTimeout = activeTimeout;
         this.pollInterval = pollInterval;
@@ -222,7 +223,7 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         }
         try {
             return mapper.readValue(text, ObservationPack.class);
-        } catch (JsonProcessingException exc) {
+        } catch (JacksonException exc) {
             throw new SummaryParseError(exc.getMessage(), exc);
         }
     }

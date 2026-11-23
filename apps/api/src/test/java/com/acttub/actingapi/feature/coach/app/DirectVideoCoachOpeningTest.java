@@ -18,7 +18,7 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.integration.llm.TextGenerator;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;

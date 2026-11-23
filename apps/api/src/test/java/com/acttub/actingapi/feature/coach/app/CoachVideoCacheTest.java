@@ -20,6 +20,7 @@ import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 한 대화 안에서 올린 영상을 다시 쓴다(SOMA-735). */
 class CoachVideoCacheTest {
@@ -216,7 +217,7 @@ class CoachVideoCacheTest {
         var result = loopEngine(cache).start(session, UUID.randomUUID());
 
         assertThat(result.reply().message()).isEqualTo("영상의 소리를 들을 수 없어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
-        assertThat(result.session().coachingState().path("practice_loop").path("input_issue").asText()).isEqualTo("silent_audio");
+        assertThat(LenientJson.asText(result.session().coachingState().path("practice_loop").path("input_issue"))).isEqualTo("silent_audio");
         verify(storage, never()).downloadToPath(any(), any());
         verify(model, never()).inspect(any());
         verify(model, never()).upload(any(), anyString(), any());

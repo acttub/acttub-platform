@@ -17,11 +17,13 @@ import com.acttub.actingapi.feature.push.app.PushSender;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.core.JacksonException;
 
 /**
  * Expo Push API 로 보낸다. 토큰 하나로 iOS·Android 둘 다 커버되고 별도 인증이 없다 —
@@ -98,7 +100,7 @@ class ExpoPushSender implements PushSender {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             LOGGER.warning("expo push interrupted");
-        } catch (java.io.IOException exception) {
+        } catch (java.io.IOException | JacksonException exception) {
             // 재시도 뒤에도 연결이 안 되는 일시 오류는 경고 로그만 남긴다. 놓친 알림은 앱을 열면 홈이 이어서 안내한다.
             LOGGER.log(Level.WARNING, "expo push unreachable after " + MAX_ATTEMPTS + " attempts", exception);
         } catch (Exception exception) {
@@ -151,10 +153,10 @@ class ExpoPushSender implements PushSender {
         Set<String> otherErrors = new TreeSet<>();
         for (int index = 0; index < tickets.size() && index < messages.size(); index++) {
             JsonNode ticket = tickets.get(index);
-            if (!"error".equals(ticket.path("status").asText())) {
+            if (!"error".equals(LenientJson.asText(ticket.path("status")))) {
                 continue;
             }
-            String error = ticket.path("details").path("error").asText("unknown");
+            String error = LenientJson.asText(ticket.path("details").path("error"), "unknown");
             if ("DeviceNotRegistered".equals(error)) {
                 unregistered.add(messages.get(index).to());
             } else {

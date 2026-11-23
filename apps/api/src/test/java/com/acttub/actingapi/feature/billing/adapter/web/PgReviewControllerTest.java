@@ -346,7 +346,7 @@ class PgReviewControllerTest {
         assertThat(gateway.approvals.get(0).amount).isEqualTo(3900L);
         assertThat(gateway.approvals.get(0).orderName).isEqualTo("ACTTUB Pro 월 구독 테스트");
         assertThat(gateway.approvals.get(0).idempotencyKey).isNotBlank();
-        assertThat(result.toString() + new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(result))
+        assertThat(result.toString() + new tools.jackson.databind.ObjectMapper().valueToTree(result))
                 .doesNotContain(AUTH_KEY, BILLING_KEY);
         assertNoSecretInLogs();
     }

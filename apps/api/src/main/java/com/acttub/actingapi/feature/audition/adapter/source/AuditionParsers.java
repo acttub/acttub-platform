@@ -21,14 +21,15 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import com.acttub.actingapi.feature.audition.domain.AuditionPosting;
 import com.acttub.actingapi.feature.audition.domain.AuditionRules;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.parser.Parser;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 출처별 목록 페이지·RSS → 공고 목록. 네트워크를 모르는 순수 함수다(파이썬 수집기 {@code collect.py} 를 옮김).
@@ -204,25 +205,25 @@ final class AuditionParsers {
         int candidates = 0;
         int unreadable = 0;
         for (JsonNode c : data.path("list")) {
-            if (c.path("isPrivate").asBoolean(false)) {
+            if (LenientJson.asBoolean(c.path("isPrivate"), false)) {
                 continue;
             }
             candidates++;
-            String ref = c.path("id").asText("");
-            String title = c.path("title").asText("").strip();
-            LocalDate posted = c.hasNonNull("createdAt") ? kstDate(c.path("createdAt").asText()) : null;
+            String ref = LenientJson.asText(c.path("id"), "");
+            String title = LenientJson.asText(c.path("title"), "").strip();
+            LocalDate posted = c.hasNonNull("createdAt") ? kstDate(LenientJson.asText(c.path("createdAt"))) : null;
             if (ref.isEmpty() || title.isEmpty() || posted == null) {
                 unreadable++;
                 continue;
             }
             out.add(new AuditionPosting("plfil", ref, title,
-                    PLFIL_CATEGORY.getOrDefault(c.path("artCategoryName").asText(""), "other"), plfilPay(c), null,
-                    c.hasNonNull("castingEndDate") ? kstDate(c.path("castingEndDate").asText()) : null,
-                    c.path("isRecruiting").asBoolean(false) ? "모집중" : "마감",
+                    PLFIL_CATEGORY.getOrDefault(LenientJson.asText(c.path("artCategoryName"), ""), "other"), plfilPay(c), null,
+                    c.hasNonNull("castingEndDate") ? kstDate(LenientJson.asText(c.path("castingEndDate"))) : null,
+                    LenientJson.asBoolean(c.path("isRecruiting"), false) ? "모집중" : "마감",
                     posted, "https://plfil.com/casting/" + ref));
         }
         requireReadable("plfil", candidates, unreadable);
-        int pages = Math.max(1, data.path("totalPage").asInt(1));
+        int pages = Math.max(1, LenientJson.asInt(data.path("totalPage"), 1));
         return new PlfilPage(unique(out), pages);
     }
 
@@ -232,10 +233,10 @@ final class AuditionParsers {
         }
         JsonNode lo = c.path("minReward");
         JsonNode hi = c.path("maxReward");
-        String pay = !hi.isNumber() || lo.decimalValue().compareTo(hi.decimalValue()) == 0
-                ? lo.asText() + "만원"
-                : lo.asText() + "~" + hi.asText() + "만원";
-        return c.path("canNego").asBoolean(false) ? pay + " (협의 가능)" : pay;
+        String pay = !hi.isNumber() || LenientJson.decimalValue(lo).compareTo(LenientJson.decimalValue(hi)) == 0
+                ? LenientJson.asText(lo) + "만원"
+                : LenientJson.asText(lo) + "~" + LenientJson.asText(hi) + "만원";
+        return LenientJson.asBoolean(c.path("canNego"), false) ? pay + " (협의 가능)" : pay;
     }
 
     // ─── OTR 오디션 게시판 ───────────────────────────────────────────────

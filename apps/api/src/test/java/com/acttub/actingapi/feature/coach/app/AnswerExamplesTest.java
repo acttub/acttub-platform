@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 /** 질문 대화의 예시 답: 숨은 <보기> 꺼내기, 질문이 아닐 때 비우기, 상태 저장·읽기, 배우에게 보일 말에서 빠지기. */

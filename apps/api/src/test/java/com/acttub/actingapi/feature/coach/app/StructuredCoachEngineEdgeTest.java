@@ -12,9 +12,10 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.i18n.LocaleContextHolder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 3층 코치: 배우가 자세히를 청하면 길이 한도를 늘리고, 낡은 판으로 답하면 다시 쓰게 하며, 마치는 말에 끝내 실패하면 정해진 정리로 닫는다. */
 class StructuredCoachEngineEdgeTest {
@@ -52,8 +53,8 @@ class StructuredCoachEngineEdgeTest {
         var first = opened(engine);
         engine.reply(first.session(), "그 부분을 자세히 설명해 줘", UUID.randomUUID());
         JsonNode controls = inputs.getLast().path("controls");
-        assertThat(controls.path("max_message_chars").asInt()).isEqualTo(300);
-        assertThat(controls.path("max_sentences").asInt()).isEqualTo(4);
+        assertThat(LenientJson.asInt(controls.path("max_message_chars"))).isEqualTo(300);
+        assertThat(LenientJson.asInt(controls.path("max_sentences"))).isEqualTo(4);
     }
 
     @Test void aReplyBuiltOnAnOldStateRevisionIsRewritten() {
@@ -67,7 +68,7 @@ class StructuredCoachEngineEdgeTest {
         var first = opened(engine);
         var second = engine.reply(first.session(), "붙잡고 싶었어", UUID.randomUUID());
         assertThat(second.reply().message()).isEqualTo("말끝이 길게 남아서 부탁처럼 들려요.");
-        assertThat(inputs.getLast().path("validation_error").asText()).isEqualTo("stale state revision");
+        assertThat(LenientJson.asText(inputs.getLast().path("validation_error"))).isEqualTo("stale state revision");
     }
 
     @Test void anEnglishActorWhoseClosingKeepsFailingGetsTheEnglishWrapUp() {

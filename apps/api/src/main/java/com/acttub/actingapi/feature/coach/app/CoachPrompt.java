@@ -9,15 +9,17 @@ import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /** acting-agent/prompt.py의 프롬프트와 입력 직렬화 계약. */
 public final class CoachPrompt {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builderWithJackson2Defaults().build();
     private static final String COACH_V2_PROMPT = load("/coach/coach-v2-prompt.txt");
     private static final String COACH_V3_PROMPT = load("/coach/coach-v3-prompt.txt");
     private static final String VIDEO_FIRST_PROMPT = load("/coach/coach-video-first-prompt.txt");
@@ -498,19 +500,19 @@ public final class CoachPrompt {
         if (value.isNull()) {
             return "None";
         }
-        if (value.isTextual()) {
-            return value.textValue();
+        if (value.isString()) {
+            return value.stringValue(null);
         }
         if (value.isBoolean()) {
-            return value.booleanValue() ? "True" : "False";
+            return value.booleanValue(false) ? "True" : "False";
         }
-        return value.asText();
+        return LenientJson.asText(value);
     }
 
     private static String compactJson(JsonNode value) {
         try {
             return OBJECT_MAPPER.writeValueAsString(value);
-        } catch (JsonProcessingException exc) {
+        } catch (JacksonException exc) {
             throw new IllegalStateException("코치 입력 JSON을 직렬화하지 못했습니다.", exc);
         }
     }

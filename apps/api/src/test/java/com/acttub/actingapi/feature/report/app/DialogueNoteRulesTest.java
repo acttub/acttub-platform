@@ -7,10 +7,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** practice.note: 대화 노트의 다음 테이크·요약 검사 규칙과 실패했을 때 남기는 근거. */
 class DialogueNoteRulesTest {
@@ -18,7 +19,7 @@ class DialogueNoteRulesTest {
         ObjectNode old = (ObjectNode) StructuredJson.resource("/coaching/handoff.json").deepCopy();
         ObjectNode next = old.deepCopy();
         next.put("schema_version", "acttub.coach_handoff.v2");
-        ObjectNode context = old.path("coaching_state").path("context").deepCopy();
+        ObjectNode context = (ObjectNode) old.path("coaching_state").path("context").deepCopy();
         context.putNull("reading");
         next.set("context", context);
         next.remove("coaching_state");
@@ -88,8 +89,8 @@ class DialogueNoteRulesTest {
         ObjectNode note = DialogueNote.assembleResult(wholeVideo(),
                 text -> output("처음부터 끝까지 고개를 들고 말해 보세요.", "고개 방향을 비교해 보세요.", "m1", "e1", "e5").toString(),
                 failure -> { throw failure; }).note();
-        assertThat(note.path("mode").asText()).isEqualTo("action");
-        assertThat(note.path("practice").path("instruction").path("text").asText()).isEqualTo("처음부터 끝까지 고개를 들고 말해 보세요.");
+        assertThat(LenientJson.asText(note.path("mode"))).isEqualTo("action");
+        assertThat(LenientJson.asText(note.path("practice").path("instruction").path("text"))).isEqualTo("처음부터 끝까지 고개를 들고 말해 보세요.");
     }
 
     @Test void aSceneFocusFallsBackToTheQuotedLineWhenGenerationFailsAndNoAimRemains() {
@@ -110,7 +111,7 @@ class DialogueNoteRulesTest {
         ((ObjectNode) handoff.path("context").path("direction")).put("text", longAim);
         ((ObjectNode) handoff.path("conversation").get(0)).put("text", longAim);
         handoff.path("source_catalog").forEach(source -> {
-            if (source.path("id").asText().equals("m1")) ((ObjectNode) source).put("text", longAim);
+            if (LenientJson.asText(source.path("id")).equals("m1")) ((ObjectNode) source).put("text", longAim);
         });
         JsonNode summary = DialogueNote.assembleResult(handoff, text -> { throw new IllegalStateException("offline"); }, failure -> { })
                 .note().path("copy").path("summary");

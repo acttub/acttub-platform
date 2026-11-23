@@ -26,9 +26,10 @@ import com.acttub.actingapi.feature.coach.app.ConversationRepository.Saved;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 발표 시연용 정해진 코칭: 대상 계정은 모델 없이 대본을 순서대로 받고 평소처럼 닫힌다. 다른 계정은 그대로다. */
 class ScriptedCoachTest {
@@ -123,7 +124,7 @@ class ScriptedCoachTest {
         assertThat(note.getValue().kind()).isEqualTo("action");
         assertThat(note.getValue().title()).isEqualTo("괜찮은 척 웃으면서 윤서를 밀어내 더 묻지 않게 한다");
         assertThat(note.getValue().nextTake()).isEqualTo("\"그래서 더 말하기 싫었어\"에서 괜찮은 척 웃으면서 윤서를 밀어내 보기");
-        assertThat(note.getValue().summaryQuotes()).extracting(quote -> quote.path("quote").asText())
+        assertThat(note.getValue().summaryQuotes()).extracting(quote -> LenientJson.asText(quote.path("quote")))
                 .as("배우가 실제로 한 첫 답과 마지막 답만 인용한다").containsExactly("음 글쎄요", "그냥 화내요");
         assertThat(note.getValue().sourceRevision()).isEqualTo(4);
     }

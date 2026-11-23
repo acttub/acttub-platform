@@ -11,9 +11,10 @@ import java.util.Set;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.observation.VideoRecord;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 소유권이 검증된 세션의 메모리상 기록만 조회한다. URL·S3·영상 분석 접근은 없다. */
 public final class CoachRecordLookup {
@@ -43,13 +44,13 @@ public final class CoachRecordLookup {
         view.put("utterance_index_complete", index.size() == record.path("speech").path("utterances").size());
         Map<String, JsonNode> sources = VideoRecord.sources(record);
         Set<String> ids = new LinkedHashSet<>();
-        index.forEach(item -> ids.add(item.path("id").asText()));
-        record.path("overview").findValues("source_refs").forEach(refs -> refs.forEach(id -> ids.add(id.asText())));
+        index.forEach(item -> ids.add(LenientJson.asText(item.path("id"))));
+        record.path("overview").findValues("source_refs").forEach(refs -> refs.forEach(id -> ids.add(LenientJson.asText(id))));
         // Short records include every observation and limitation; long records sample across time.
         ArrayNode timeline = view.putArray("timeline");
         List<JsonNode> observations = new ArrayList<>();
         record.path("events").forEach(observations::add);
-        observations.sort(java.util.Comparator.comparingLong(item -> item.path("start_ms").asLong()));
+        observations.sort(java.util.Comparator.comparingLong(item -> LenientJson.asLong(item.path("start_ms"))));
         int budget = 16_000;
         Set<Integer> order = new LinkedHashSet<>();
         if (!observations.isEmpty()) { order.add(0); order.add(observations.size() - 1); }
@@ -63,25 +64,25 @@ public final class CoachRecordLookup {
         Set<String> selected = new LinkedHashSet<>();
         for (int position : order) {
             JsonNode observation = observations.get(position);
-            JsonNode source = sources.get(observation.path("id").asText());
+            JsonNode source = sources.get(LenientJson.asText(observation.path("id")));
             int cost = observation.toString().length() + source.toString().length();
             if (cost > budget) continue;
             budget -= cost;
-            selected.add(observation.path("id").asText());
+            selected.add(LenientJson.asText(observation.path("id")));
         }
         for (JsonNode observation : observations) {
-            if (selected.contains(observation.path("id").asText())) timeline.add(observation);
+            if (selected.contains(LenientJson.asText(observation.path("id")))) timeline.add(observation);
         }
         ids.addAll(selected);
         view.put("timeline_complete", selected.size() == observations.size());
         int limitationBudget = 4_000;
         int includedLimitations = 0;
         for (JsonNode limitation : record.path("limitations")) {
-            JsonNode source = sources.get(limitation.path("id").asText());
+            JsonNode source = sources.get(LenientJson.asText(limitation.path("id")));
             int cost = source.toString().length();
             if (cost > limitationBudget) continue;
             limitationBudget -= cost;
-            ids.add(limitation.path("id").asText());
+            ids.add(LenientJson.asText(limitation.path("id")));
             includedLimitations++;
         }
         view.put("limitations_complete", includedLimitations == record.path("limitations").size());
@@ -93,10 +94,10 @@ public final class CoachRecordLookup {
 
     void refreshCoverage(JsonNode record, ObjectNode view) {
         Set<String> delivered = new LinkedHashSet<>();
-        view.path("source_catalog").forEach(source -> delivered.add(source.path("id").asText()));
+        view.path("source_catalog").forEach(source -> delivered.add(LenientJson.asText(source.path("id"))));
         boolean observations = true, limitations = true;
-        for (JsonNode item : record.path("events")) observations &= delivered.contains(item.path("id").asText());
-        for (JsonNode item : record.path("limitations")) limitations &= delivered.contains(item.path("id").asText());
+        for (JsonNode item : record.path("events")) observations &= delivered.contains(LenientJson.asText(item.path("id")));
+        for (JsonNode item : record.path("limitations")) limitations &= delivered.contains(LenientJson.asText(item.path("id")));
         view.put("timeline_complete", observations).put("limitations_complete", limitations);
     }
 
@@ -108,16 +109,16 @@ public final class CoachRecordLookup {
             throw new IllegalArgumentException("lookup record is not the session record");
         }
         JsonNode selector = request.path("selector");
-        String kind = selector.path("kind").asText();
+        String kind = LenientJson.asText(selector.path("kind"));
         List<JsonNode> matches = new ArrayList<>();
         JsonNode wantedUtterance = null;
         if ("utterance".equals(kind)) {
             for (JsonNode utterance : record.path("speech").path("utterances")) {
-                if (utterance.path("id").asText().equals(selector.path("utterance_id").asText())) wantedUtterance = utterance;
+                if (LenientJson.asText(utterance.path("id")).equals(LenientJson.asText(selector.path("utterance_id")))) wantedUtterance = utterance;
             }
         }
-        if ("range".equals(kind) && (selector.path("end_ms").asLong() <= selector.path("start_ms").asLong()
-                || selector.path("end_ms").asLong() > record.path("media").path("duration_ms").asLong())) {
+        if ("range".equals(kind) && (LenientJson.asLong(selector.path("end_ms")) <= LenientJson.asLong(selector.path("start_ms"))
+                || LenientJson.asLong(selector.path("end_ms")) > LenientJson.asLong(record.path("media").path("duration_ms")))) {
             throw new IllegalArgumentException("lookup range is outside the record");
         }
         Map<String, JsonNode> sourceIndex = VideoRecord.sources(record);
@@ -128,12 +129,12 @@ public final class CoachRecordLookup {
             boolean match = switch (kind) {
                 case "range" -> VideoRecord.overlaps(segment, selector);
                 case "utterance" -> wantedUtterance != null && VideoRecord.overlaps(segment, wantedUtterance);
-                case "query" -> matchesText(segment, sourceIndex, selector.path("text").asText());
+                case "query" -> matchesText(segment, sourceIndex, LenientJson.asText(selector.path("text")));
                 default -> throw new IllegalArgumentException("unknown lookup selector");
             };
             if (match) {
                 positions.add(i);
-                if (request.path("include_neighbors").asBoolean()) {
+                if (LenientJson.asBoolean(request.path("include_neighbors"))) {
                     if (i > 0) positions.add(i - 1);
                     if (i + 1 < segments.size()) positions.add(i + 1);
                 }
@@ -145,12 +146,12 @@ public final class CoachRecordLookup {
         ObjectNode result = empty(VideoRecord.reference(record), matches.isEmpty() ? "not_found" : "ok");
         ArrayNode ranges = (ArrayNode) result.path("searched_ranges");
         if ("query".equals(kind)) {
-            ranges.add(VideoRecord.range(0, record.path("media").path("duration_ms").asLong()));
+            ranges.add(VideoRecord.range(0, LenientJson.asLong(record.path("media").path("duration_ms"))));
         } else {
             for (JsonNode segment : matches) {
-                long start = segment.path("start_ms").asLong(), end = segment.path("end_ms").asLong();
+                long start = LenientJson.asLong(segment.path("start_ms")), end = LenientJson.asLong(segment.path("end_ms"));
                 ObjectNode last = ranges.isEmpty() ? null : (ObjectNode) ranges.get(ranges.size() - 1);
-                if (last != null && last.path("end_ms").asLong() >= start) last.put("end_ms", end);
+                if (last != null && LenientJson.asLong(last.path("end_ms")) >= start) last.put("end_ms", end);
                 else ranges.add(VideoRecord.range(start, end));
             }
         }
@@ -203,7 +204,7 @@ public final class CoachRecordLookup {
             }
             unionByValue(arrayAt(target, "items"), result.path("speech").path(field).path("items"));
         }
-        next.put("retrieval_status", result.path("status").asText());
+        next.put("retrieval_status", LenientJson.asText(result.path("status")));
         next.set("last_lookup", result);
         return next;
     }
@@ -253,22 +254,22 @@ public final class CoachRecordLookup {
 
     private static List<Fact> facts(JsonNode record, List<JsonNode> segments, JsonNode dimensions) {
         Set<String> wanted = new LinkedHashSet<>();
-        dimensions.forEach(d -> wanted.add(d.asText()));
+        dimensions.forEach(d -> wanted.add(LenientJson.asText(d)));
         Map<String, JsonNode> detail = new LinkedHashMap<>();
         for (String field : List.of("events", "limitations")) {
-            record.path(field).forEach(item -> detail.put(item.path("id").asText(), item));
+            record.path(field).forEach(item -> detail.put(LenientJson.asText(item.path("id")), item));
         }
-        record.path("speech").path("utterances").forEach(item -> detail.put(item.path("id").asText(), item));
+        record.path("speech").path("utterances").forEach(item -> detail.put(LenientJson.asText(item.path("id")), item));
         List<Fact> facts = new ArrayList<>();
         Set<String> delivered = new LinkedHashSet<>();
         for (JsonNode segment : segments) {
             facts.add(new Fact(segment, "segment", segment));
             for (String field : List.of("utterance_ids", "event_ids", "limitation_ids")) {
                 for (JsonNode id : segment.path(field)) {
-                    JsonNode item = detail.get(id.asText());
+                    JsonNode item = detail.get(LenientJson.asText(id));
                     if (item == null) continue;
                     if (field.equals("event_ids") && !wanted.isEmpty()
-                            && !wanted.contains(item.path("dimension").asText())) continue;
+                            && !wanted.contains(LenientJson.asText(item.path("dimension")))) continue;
                     facts.add(new Fact(segment, field, item));
                 }
             }
@@ -294,7 +295,7 @@ public final class CoachRecordLookup {
             if (item.path("id").equals(fact.segment().path("id"))) segment = (ObjectNode) item;
         }
         if (segment == null) {
-            segment = fact.segment().deepCopy();
+            segment = (ObjectNode) fact.segment().deepCopy();
             for (String field : List.of("utterance_ids", "event_ids", "limitation_ids")) segment.putArray(field);
             // 원본 구간의 전체 참조 목록으로 오해하지 않게 페이지별 참조임을 표시한다.
             segment.put("refs_scope", "this_page");
@@ -307,11 +308,11 @@ public final class CoachRecordLookup {
         }
         if (fact.field().equals("segment")) return;
         if (fact.field().endsWith("_ids")) {
-            String id = fact.value().path("id").asText();
+            String id = LenientJson.asText(fact.value().path("id"));
             ((ArrayNode) segment.path(fact.field())).add(id);
             ArrayNode catalog = (ArrayNode) result.path("source_catalog");
             boolean exists = false;
-            for (JsonNode source : catalog) if (source.path("id").asText().equals(id)) exists = true;
+            for (JsonNode source : catalog) if (LenientJson.asText(source.path("id")).equals(id)) exists = true;
             if (!exists && sources.containsKey(id)) {
                 catalog.add(sources.get(id));
                 switch (fact.field()) {
@@ -339,7 +340,7 @@ public final class CoachRecordLookup {
 
     private static void addRefs(JsonNode segment, Set<String> ids) {
         for (String field : List.of("utterance_ids", "event_ids", "limitation_ids")) {
-            segment.path(field).forEach(id -> ids.add(id.asText()));
+            segment.path(field).forEach(id -> ids.add(LenientJson.asText(id)));
         }
     }
 
@@ -348,7 +349,7 @@ public final class CoachRecordLookup {
         Set<String> ids = new LinkedHashSet<>();
         addRefs(segment, ids);
         String text = ids.stream().map(sources::get).filter(java.util.Objects::nonNull)
-                .map(source -> source.path("text").asText()).collect(java.util.stream.Collectors.joining(" "))
+                .map(source -> LenientJson.asText(source.path("text"))).collect(java.util.stream.Collectors.joining(" "))
                 .toLowerCase(java.util.Locale.ROOT);
         return java.util.Arrays.stream(query.toLowerCase(java.util.Locale.ROOT).strip().split("\\s+"))
                 .allMatch(text::contains);
@@ -367,8 +368,8 @@ public final class CoachRecordLookup {
         if (!request.hasNonNull("continuation_token")) return 0;
         try {
             JsonNode value = StructuredJson.parse(new String(Base64.getUrlDecoder().decode(
-                    request.path("continuation_token").asText()), StandardCharsets.UTF_8));
-            int offset = value.path("offset").asInt(-1);
+                    LenientJson.asText(request.path("continuation_token"))), StandardCharsets.UTF_8));
+            int offset = LenientJson.asInt(value.path("offset"), -1);
             if (offset < 0 || offset >= size || !value.path("record_ref").equals(request.path("record_ref"))
                     || !value.path("selector").equals(request.path("selector"))
                     || !value.path("include_neighbors").equals(request.path("include_neighbors"))

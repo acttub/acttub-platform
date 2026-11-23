@@ -17,8 +17,8 @@ import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +30,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.notification 의 "검증 방법" 가운데 서버의 몫 — 토글 셋과 푸시 토큰의 수명 — 을 HTTP 와 실제
@@ -233,13 +234,13 @@ class AccountNotificationIT {
 
         var beforeConsent = postToken(token, "ExponentPushToken[early]");
         assertThat(beforeConsent.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(beforeConsent.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(beforeConsent.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("consent_required");
 
         AccountFixtures.grantAllConsents(jdbc, undecided);
         var beforeProfile = postToken(token, "ExponentPushToken[early]");
         assertThat(beforeProfile.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(beforeProfile.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(beforeProfile.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("profile_required");
         assertThat(count("push_tokens")).as("동의 전에는 기기 정보를 받지 않는다").isZero();
 
@@ -289,15 +290,15 @@ class AccountNotificationIT {
 
         for (var response : List.of(webPlatform, blank)) {
             assertThat(response.getStatus()).isEqualTo(422);
-            assertThat(mapper.readTree(response.getContentAsString()).at("/detail/0/type").asText())
+            assertThat(LenientJson.asText(mapper.readTree(response.getContentAsString()).at("/detail/0/type")))
                     .isEqualTo("value_error");
         }
         assertThat(tooLong.getStatus()).isEqualTo(422);
-        assertThat(mapper.readTree(tooLong.getContentAsString()).at("/detail/0/type").asText())
+        assertThat(LenientJson.asText(mapper.readTree(tooLong.getContentAsString()).at("/detail/0/type")))
                 .isEqualTo("string_too_long");
         assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/loc").toString())
                 .isEqualTo("[\"body\",\"platform\"]");
-        assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/input").asText()).isEqualTo("web");
+        assertThat(LenientJson.asText(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/input"))).isEqualTo("web");
         assertThat(mapper.readTree(blank.getContentAsString()).at("/detail/0/loc").toString())
                 .isEqualTo("[\"body\",\"token\"]");
         assertThat(count("push_tokens")).isZero();
@@ -309,9 +310,9 @@ class AccountNotificationIT {
         var webPlatform = postToken(bearer, "ExponentPushToken[web]", "web");
         var blank = postToken(bearer, "   ");
 
-        assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/msg").asText())
+        assertThat(LenientJson.asText(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/msg")))
                 .isEqualTo("Value error, platform must be one of: ios, android");
-        assertThat(mapper.readTree(blank.getContentAsString()).at("/detail/0/msg").asText())
+        assertThat(LenientJson.asText(mapper.readTree(blank.getContentAsString()).at("/detail/0/msg")))
                 .isEqualTo("Value error, token must be a non-empty string of at most 512 characters");
     }
 

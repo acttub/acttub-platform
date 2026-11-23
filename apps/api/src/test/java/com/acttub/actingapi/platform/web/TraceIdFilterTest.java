@@ -14,8 +14,8 @@ import ch.qos.logback.core.AppenderBase;
 import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.security.CurrentUserService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
@@ -29,6 +29,7 @@ import org.springframework.core.env.StandardEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.servlet.HandlerMapping;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 요청 ID·사용자 ID 가 로그 문맥에 들어가고 요청 끝에 지워지는지, 서버가 쓰는 JSON 형식(compose 의
@@ -93,12 +94,12 @@ class TraceIdFilterTest {
         assertThat(MDC.get("user_id")).isNull();
         assertThat(lines).hasSize(1);
         JsonNode line = new ObjectMapper().readTree(lines.get(0));
-        assertThat(line.get("message").asText()).isEqualTo("request");
-        assertThat(line.get("trace_id").asText()).isEqualTo(NGINX_ID);
-        assertThat(line.get("user_id").asText()).isEqualTo(userId.toString());
-        assertThat(line.get("method").asText()).isEqualTo("GET");
-        assertThat(line.get("route").asText()).isEqualTo("/v2/scripts/{script_id}");
-        assertThat(line.get("status").asInt()).isEqualTo(204);
+        assertThat(LenientJson.asText(line.get("message"))).isEqualTo("request");
+        assertThat(LenientJson.asText(line.get("trace_id"))).isEqualTo(NGINX_ID);
+        assertThat(LenientJson.asText(line.get("user_id"))).isEqualTo(userId.toString());
+        assertThat(LenientJson.asText(line.get("method"))).isEqualTo("GET");
+        assertThat(LenientJson.asText(line.get("route"))).isEqualTo("/v2/scripts/{script_id}");
+        assertThat(LenientJson.asInt(line.get("status"))).isEqualTo(204);
         assertThat(line.has("took_ms")).isTrue();
         assertThat(lines.get(0)).doesNotContain("actor@example.com").doesNotContain("/v2/scripts/42");
     }

@@ -5,9 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class NoteContinuityTest {
     @Test void sceneGoalAndDialogueSupportAnAnalysisPracticeWithoutDeliveryObservations() {
@@ -15,17 +16,17 @@ class NoteContinuityTest {
         var errors = new ArrayList<RuntimeException>();
         var note = DialogueNote.assembleResult(handoff, text -> {
             JsonNode controls = StructuredJson.parse(text).path("controls");
-            assertThat(controls.path("can_propose").asBoolean()).isTrue();
-            assertThat(controls.path("next_take_basis").asText()).isEqualTo("scene");
-            assertThat(controls.path("aim").path("text").asText()).contains("열쇠를 돌려받");
+            assertThat(LenientJson.asBoolean(controls.path("can_propose"))).isTrue();
+            assertThat(LenientJson.asText(controls.path("next_take_basis"))).isEqualTo("scene");
+            assertThat(LenientJson.asText(controls.path("aim").path("text"))).contains("열쇠를 돌려받");
             return NoteContinuityFixtures.output().toString();
         }, errors::add).note();
         assertThat(errors).isEmpty();
         var visible = PracticeNote.publicView(note);
-        assertThat(visible.path("summary").asText()).contains("장면 대사:", "라고 했어요");
-        assertThat(visible.path("practice").path("instruction").asText()).contains("열쇠를 돌려주도록");
-        assertThat(visible.path("focus").path("start_ms").asLong()).isEqualTo(1000);
-        assertThat(visible.path("focus").path("end_ms").asLong()).isEqualTo(11000);
+        assertThat(LenientJson.asText(visible.path("summary"))).contains("장면 대사:", "라고 했어요");
+        assertThat(LenientJson.asText(visible.path("practice").path("instruction"))).contains("열쇠를 돌려주도록");
+        assertThat(LenientJson.asLong(visible.path("focus").path("start_ms"))).isEqualTo(1000);
+        assertThat(LenientJson.asLong(visible.path("focus").path("end_ms"))).isEqualTo(11000);
         assertThat(visible.path("focus").path("quote").isNull()).isTrue();
         assertThat(visible.has("controls")).isFalse();
         assertThat(visible.path("attempts")).isEmpty();
@@ -83,12 +84,12 @@ class NoteContinuityTest {
         ((ObjectNode) handoff.path("context")).set("direction", handoff.path("context").path("scene_context").path("character_goal"));
         var errors = new ArrayList<RuntimeException>();
         var note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return NoteContinuityFixtures.output().toString();
         }, errors::add).note();
         assertThat(errors).hasSize(2);
         assertThat(note.path("practice").isNull()).isTrue();
-        assertThat(PracticeNote.publicView(note).path("summary").asText()).doesNotContain("장면 대사");
+        assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).doesNotContain("장면 대사");
     }
 
     @Test void wholeScenePracticeCannotCiteOnlyTheRepresentativeLine() {
@@ -105,7 +106,7 @@ class NoteContinuityTest {
         NoteContinuityFixtures.source(handoff, "limit", "record_limitation", "손이 화면 밖이다.", 0, 12000);
         ((ObjectNode) handoff.path("context").path("focus")).putArray("evidence_refs").add("limit");
         var note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return "{\"summary\":[],\"next_take\":null}";
         }, failure -> { }).note();
         assertThat(note.path("practice").isNull()).isTrue();
@@ -115,11 +116,11 @@ class NoteContinuityTest {
         var handoff = NoteContinuityFixtures.scene();
         NoteContinuityFixtures.message(handoff, "correction", "actor", "아니, 열쇠를 돌려받으려는 것도 아니에요. 목적은 아직 모르겠어요.");
         var note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return NoteContinuityFixtures.output().toString();
         }, failure -> { }).note();
         assertThat(note.path("practice").isNull()).isTrue();
-        assertThat(PracticeNote.publicView(note).path("summary").asText()).doesNotContain("돌려받으려는 거예요");
+        assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).doesNotContain("돌려받으려는 거예요");
         assertThat(note.path("scene_context").path("character_goal").isNull()).isTrue();
         assertThat(PracticeNote.publicView(note).path("focus").isNull()).isTrue();
     }
@@ -130,7 +131,7 @@ class NoteContinuityTest {
             if (missing) handoff.putNull("record_ref");
             else ((ObjectNode) handoff.path("record_ref")).put("version", 2);
             var note = DialogueNote.assembleResult(handoff, text -> {
-                assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+                assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
                 return NoteContinuityFixtures.output().toString();
             }, failure -> { }).note();
             assertThat(note.path("practice").isNull()).isTrue();
@@ -139,7 +140,7 @@ class NoteContinuityTest {
 
     @Test void failureRetainsTheCorrectedGoalWithoutInventingHomework() {
         var note = DialogueNote.assembleResult(NoteContinuityFixtures.scene(), text -> { throw new IllegalStateException("offline"); }, failure -> { }).note();
-        assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("열쇠를 돌려받으려는");
+        assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).contains("열쇠를 돌려받으려는");
         assertThat(note.path("practice").isNull()).isTrue();
     }
 }

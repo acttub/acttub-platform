@@ -12,10 +12,10 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,19 +83,19 @@ class ReadingVoiceCoachingIT {
     void card_opensOnlyWithThreeAudibleLines() throws Exception {
         record(3, "stt", "  ");
         JsonNode silent = json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200);
-        assertThat(silent.path("available").booleanValue()).isFalse();
+        assertThat(silent.path("available").booleanValue(false)).isFalse();
         assertThat(silent.path("practice_id").isNull()).isTrue();
 
         jdbc.update("DELETE FROM reading_recordings");
         record(2, "stt", "대사");
-        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("available").booleanValue())
+        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("available").booleanValue(false))
                 .isFalse();
         JsonNode refused = json(post("/v2/practices").content(start(session)), bearer, 422);
         assertThat(refused).isEqualTo(mapper.readTree("{\"detail\":\"reading_voice_not_enough_audio\"}"));
 
         jdbc.update("DELETE FROM reading_recordings");
         record(3, "stt", "대사");
-        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("available").booleanValue())
+        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("available").booleanValue(false))
                 .isTrue();
 
         String stranger = bearer(member());
@@ -112,18 +112,18 @@ class ReadingVoiceCoachingIT {
 
         JsonNode created = json(post("/v2/practices").content(start(session)), bearer, 201);
         assertThat(created.path("video_id").isNull()).isTrue();
-        assertThat(created.path("session_purpose").textValue()).isEqualTo("reading");
-        assertThat(created.path("stage").textValue()).isEqualTo("conversing");
-        UUID practice = UUID.fromString(created.path("id").textValue());
+        assertThat(created.path("session_purpose").stringValue(null)).isEqualTo("reading");
+        assertThat(created.path("stage").stringValue(null)).isEqualTo("conversing");
+        UUID practice = UUID.fromString(created.path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT reading_session_id FROM practices WHERE id=?", UUID.class, practice))
                 .isEqualTo(session);
         assertThat(jdbc.queryForObject("SELECT experience_version FROM practices WHERE id=?", String.class, practice))
                 .isEqualTo("three_layers_v1");
 
         JsonNode again = json(post("/v2/practices").content(start(session)), bearer, 201);
-        assertThat(again.path("id").textValue()).isEqualTo(practice.toString());
+        assertThat(again.path("id").stringValue(null)).isEqualTo(practice.toString());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class)).isEqualTo(1);
-        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("practice_id").textValue())
+        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("practice_id").stringValue(null))
                 .isEqualTo(practice.toString());
 
         CoachReadingAudio.Prepared material = readingAudio.prepare(member, practice, false);
@@ -182,11 +182,11 @@ class ReadingVoiceCoachingIT {
         JsonNode saved = json(post("/v2/reading/scripts").content(body.toString()), authorization, 201);
         List<UUID> all = new ArrayList<>();
         for (JsonNode line : saved.path("lines")) {
-            all.add(UUID.fromString(line.path("id").textValue()));
+            all.add(UUID.fromString(line.path("id").stringValue(null)));
         }
         ninaLines = List.of(all.get(0), all.get(2), all.get(4));
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        String nina = saved.path("characters").get(0).path("id").textValue();
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
 
         ObjectNode start = mapper.createObjectNode();
         start.put("request_id", UUID.randomUUID().toString());
@@ -198,7 +198,7 @@ class ReadingVoiceCoachingIT {
         start.put("record", true);
         JsonNode started = json(post("/v2/reading/scripts/{id}/sessions", scriptId).content(start.toString()),
                 authorization, 201);
-        return UUID.fromString(started.path("id").textValue());
+        return UUID.fromString(started.path("id").stringValue(null));
     }
 
     private UUID member() {

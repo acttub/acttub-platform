@@ -8,9 +8,10 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 연습 루프 프롬프트({@code practice-loop.txt})의 숨은 칸을 다룬다.
@@ -495,8 +496,8 @@ final class DirectVideoPracticeLoop {
 
     /** 비연기 또는 입력 문제로 코칭을 시작하지 않고 끊은 세션인지. */
     static boolean wasCut(JsonNode state) {
-        return state != null && (!state.path(STATE_KEY).path(NOT_ACTING).asText("").isEmpty()
-                || !state.path(STATE_KEY).path("input_issue").asText("").isEmpty());
+        return state != null && (!LenientJson.asText(state.path(STATE_KEY).path(NOT_ACTING), "").isEmpty()
+                || !LenientJson.asText(state.path(STATE_KEY).path("input_issue"), "").isEmpty());
     }
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
@@ -553,7 +554,7 @@ final class DirectVideoPracticeLoop {
     static List<DirectVideoModel.Message> history(List<CoachTurnSnapshot> turns, JsonNode state, String actorText,
             boolean withStatuses) {
         JsonNode loop = state == null ? null : state.path(STATE_KEY);
-        String design = loop == null ? "" : loop.path("design").asText("");
+        String design = loop == null ? "" : LenientJson.asText(loop.path("design"), "");
         var history = new ArrayList<DirectVideoModel.Message>();
         int coachIndex = 0;
         for (CoachTurnSnapshot turn : turns) {
@@ -565,7 +566,7 @@ final class DirectVideoPracticeLoop {
             if (coachIndex == 0 && !design.isBlank()) {
                 text = "<설계>\n" + design + "\n</설계>\n<코치>\n" + text + "\n</코치>";
             } else if (withStatuses) {
-                String status = loop == null ? "" : loop.path("statuses").path(coachIndex).asText("");
+                String status = loop == null ? "" : LenientJson.asText(loop.path("statuses").path(coachIndex), "");
                 if (!status.isBlank()) text = "<상태>" + status + "</상태>\n" + text;
             }
             history.add(new DirectVideoModel.Message("model", text));
@@ -577,68 +578,68 @@ final class DirectVideoPracticeLoop {
 
     /** 이 대화가 받은 코치 성격(SOMA-622). 자문위원 대화가 아니면 빈 문자열. */
     static String storedPersona(JsonNode state) {
-        return state == null ? "" : state.path(STATE_KEY).path("persona").asText("");
+        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("persona"), "");
     }
 
     static void rememberPersona(ObjectNode state, String persona) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (loop.path("persona").asText("").isEmpty()) loop.put("persona", persona);
+        if (LenientJson.asText(loop.path("persona"), "").isEmpty()) loop.put("persona", persona);
     }
 
     /** 이 대화의 코치 흐름(SOMA-636 A/B). "a"는 지금 흐름, "b"는 세 단계 흐름. 없으면 빈 문자열(배포 전 대화). */
     static String storedFlow(JsonNode state) {
-        return state == null ? "" : state.path(STATE_KEY).path("flow").asText("");
+        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("flow"), "");
     }
 
     static void rememberFlow(ObjectNode state, String flow) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (loop.path("flow").asText("").isEmpty()) loop.put("flow", flow);
+        if (LenientJson.asText(loop.path("flow"), "").isEmpty()) loop.put("flow", flow);
     }
 
     /** 이 대화의 첫 말 쪽(첫 코칭 첫 말 A/B). "a"는 질문 한 줄, "b"는 본 것과 다음 테이크를 먼저. 없으면 빈 문자열(배포 전 대화). */
     static String storedOpening(JsonNode state) {
-        return state == null ? "" : state.path(STATE_KEY).path("opening").asText("");
+        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("opening"), "");
     }
 
     static void rememberOpening(ObjectNode state, String opening) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (loop.path("opening").asText("").isEmpty()) loop.put("opening", opening);
+        if (LenientJson.asText(loop.path("opening"), "").isEmpty()) loop.put("opening", opening);
     }
 
     /** 이 대화의 "이미 그렇게 했다" 처리 쪽(SOMA-855). "on"은 실험, "off"는 대조. 없으면 빈 문자열(배포 전 대화). */
     static String storedAlready(JsonNode state) {
-        return state == null ? "" : state.path(STATE_KEY).path("already_ab").asText("");
+        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("already_ab"), "");
     }
 
     /** 이 대화의 근거·방법 비교 쪽(SOMA-955). "on"은 실험, "off"는 지금처럼. 없으면 빈 문자열(배포 전 대화). */
     static String storedEvidence(JsonNode state) {
-        return state == null ? "" : state.path(STATE_KEY).path("evidence_ab").asText("");
+        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("evidence_ab"), "");
     }
 
     static void rememberEvidence(ObjectNode state, String arm) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (loop.path("evidence_ab").asText("").isEmpty()) loop.put("evidence_ab", arm);
+        if (LenientJson.asText(loop.path("evidence_ab"), "").isEmpty()) loop.put("evidence_ab", arm);
     }
 
     static void rememberAlready(ObjectNode state, String arm) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (loop.path("already_ab").asText("").isEmpty()) loop.put("already_ab", arm);
+        if (LenientJson.asText(loop.path("already_ab"), "").isEmpty()) loop.put("already_ab", arm);
     }
 
     /** 이 대화의 코치 모델 쪽(SOMA-657). "a"는 기본 모델, "b"는 비교 모델. 없으면 빈 문자열. */
     static String storedCoachModel(JsonNode state) {
-        return state == null ? "" : state.path(STATE_KEY).path("coach_model").asText("");
+        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("coach_model"), "");
     }
 
     static void rememberCoachModel(ObjectNode state, String arm) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (loop.path("coach_model").asText("").isEmpty()) loop.put("coach_model", arm);
+        if (LenientJson.asText(loop.path("coach_model"), "").isEmpty()) loop.put("coach_model", arm);
     }
 
     /** 이번 응답의 숨은 칸을 상태에 쌓는다. statuses 의 순서는 코치 턴의 순서와 같다. */
     static void remember(ObjectNode state, Parsed parsed) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (!parsed.design().isBlank() && loop.path("design").asText("").isBlank()) loop.put("design", parsed.design());
+        if (!parsed.design().isBlank() && LenientJson.asText(loop.path("design"), "").isBlank()) loop.put("design", parsed.design());
         ArrayNode statuses = loop.path("statuses").isArray() ? (ArrayNode) loop.get("statuses") : loop.putArray("statuses");
         statuses.add(parsed.status());
     }
@@ -679,7 +680,7 @@ final class DirectVideoPracticeLoop {
         JsonNode state = session.coachingState();
         JsonNode loop = state == null ? null : state.path(STATE_KEY);
         if (loop == null || !loop.isObject() || wasCut(state)) return null;
-        String design = loop.path("design").asText("");
+        String design = LenientJson.asText(loop.path("design"), "");
         String habit = habit(design);
         // 설계의 "다음 테이크: 없음"(영상 없이 말로 첫 응답 등)은 다음 테이크가 아니다 — 그대로 쓰면 노트에 "없음"이 제안으로 남았다(10/26 운영 4건).
         String next = noneAsBlank(first(DESIGN_NEXT, design));
@@ -723,7 +724,7 @@ final class DirectVideoPracticeLoop {
 
     static Round round(JsonNode loop, List<CoachTurnSnapshot> turns) {
         JsonNode statuses = loop.path("statuses");
-        String design = loop.path("design").asText("");
+        String design = LenientJson.asText(loop.path("design"), "");
         String habit = habit(design);
         String selfLine = null;
         int selfIndex = -1;
@@ -740,14 +741,14 @@ final class DirectVideoPracticeLoop {
         for (int i = 0; i < turns.size(); i++) {
             CoachTurnSnapshot turn = turns.get(i);
             if ("ai".equals(turn.role())) {
-                lastAction = action(statuses.path(coachIndex++).asText(""));
+                lastAction = action(LenientJson.asText(statuses.path(coachIndex++), ""));
                 continue;
             }
             String text = turn.text() == null ? "" : turn.text().strip();
             if (text.isEmpty() || isVague(text)
                     || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
             // 이 답을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
-            String status = statuses.path(coachIndex).asText("");
+            String status = LenientJson.asText(statuses.path(coachIndex), "");
             String kind = statusField(status, "배우의 말");
             if (kind.startsWith("자기 한 줄")) {
                 selfLine = text;
@@ -785,7 +786,7 @@ final class DirectVideoPracticeLoop {
     static String goal(JsonNode statuses, String design) {
         if (statuses != null && statuses.isArray()) {
             for (int i = statuses.size() - 1; i >= 0; i--) {
-                String value = statusField(statuses.get(i).asText(""), "이번 목표");
+                String value = statusField(LenientJson.asText(statuses.get(i), ""), "이번 목표");
                 if (!value.isEmpty() && !value.startsWith("없음")) return value;
             }
         }
@@ -809,7 +810,7 @@ final class DirectVideoPracticeLoop {
     static String closingNextTake(JsonNode statuses) {
         if (statuses == null || !statuses.isArray()) return "";
         for (int i = statuses.size() - 1; i >= 0; i--) {
-            String value = statusField(statuses.get(i).asText(""), "다음 테이크");
+            String value = statusField(LenientJson.asText(statuses.get(i), ""), "다음 테이크");
             if (value.isEmpty() || value.startsWith("없음")) continue;
             return NEXT_TAKE_PREFIX.matcher(value).replaceFirst("").strip();
         }

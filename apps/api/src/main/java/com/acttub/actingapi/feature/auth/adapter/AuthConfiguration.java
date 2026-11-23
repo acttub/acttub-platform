@@ -1,7 +1,7 @@
 package com.acttub.actingapi.feature.auth.adapter;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.auth.app.SignupTokens;
-import java.time.Clock; import com.fasterxml.jackson.databind.ObjectMapper; import org.springframework.beans.factory.annotation.Value; import org.springframework.context.annotation.*;
+import java.time.Clock; import tools.jackson.databind.ObjectMapper; import org.springframework.beans.factory.annotation.Value; import org.springframework.context.annotation.*;
 @Configuration
 public class AuthConfiguration {
     @Bean Clock applicationClock(){return Clock.systemUTC();}

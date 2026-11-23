@@ -9,12 +9,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
 import com.acttub.actingapi.platform.observability.LlmTokens;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 고정 앞부분(SOMA-1063): 실제 Gemini HTTP 요청에서 앞부분이 턴마다 같고, 이번 답 지시가 맨 끝에 붙는다. 캐시 토큰도 남는다. */
 class GeminiDirectVideoStablePrefixTest {
@@ -54,7 +55,7 @@ class GeminiDirectVideoStablePrefixTest {
     }
 
     static String system(JsonNode request) {
-        return request.path("systemInstruction").path("parts").get(0).path("text").asText();
+        return LenientJson.asText(request.path("systemInstruction").path("parts").get(0).path("text"));
     }
 
     @Test void theFrontOfTheRequestStaysTheSameAcrossTurnsAndTheTurnInstructionComesLast() throws Exception {
@@ -78,8 +79,8 @@ class GeminiDirectVideoStablePrefixTest {
         // 첫 답: 대화가 없어 영상 user 턴 뒤 Part 로 지시가 붙는다.
         JsonNode opening = sent.get(0).path("contents");
         assertThat(opening).hasSize(1);
-        assertThat(opening.get(0).path("parts").get(0).path("fileData").path("fileUri").asText()).isEqualTo(VIDEO.uri());
-        assertThat(opening.get(0).path("parts").get(1).path("text").asText())
+        assertThat(LenientJson.asText(opening.get(0).path("parts").get(0).path("fileData").path("fileUri"))).isEqualTo(VIDEO.uri());
+        assertThat(LenientJson.asText(opening.get(0).path("parts").get(1).path("text")))
                 .isEqualTo(DirectVideoModel.TURN_HEADER + "\n첫 답 지시: 질문 하나");
 
         // 둘째 답: 영상 Part 는 첫 답과 같고, 지시는 배우 말 뒤 같은 user 턴의 마지막 Part 다(역할 교대 유지).
@@ -87,11 +88,11 @@ class GeminiDirectVideoStablePrefixTest {
         assertThat(reply).hasSize(3);
         assertThat(reply.get(0).path("parts").get(0).toString()).isEqualTo(opening.get(0).path("parts").get(0).toString());
         assertThat(reply.get(0).path("parts")).hasSize(1);
-        assertThat(reply.get(1).path("role").asText()).isEqualTo("model");
-        assertThat(reply.get(2).path("role").asText()).isEqualTo("user");
+        assertThat(LenientJson.asText(reply.get(1).path("role"))).isEqualTo("model");
+        assertThat(LenientJson.asText(reply.get(2).path("role"))).isEqualTo("user");
         assertThat(reply.get(2).path("parts")).hasSize(2);
-        assertThat(reply.get(2).path("parts").get(0).path("text").asText()).isEqualTo("붙잡고 싶었어");
-        assertThat(reply.get(2).path("parts").get(1).path("text").asText())
+        assertThat(LenientJson.asText(reply.get(2).path("parts").get(0).path("text"))).isEqualTo("붙잡고 싶었어");
+        assertThat(LenientJson.asText(reply.get(2).path("parts").get(1).path("text")))
                 .isEqualTo(DirectVideoModel.TURN_HEADER + "\n단계: 2/5\n이번 할 일: 의도 묻기");
 
         // 셋째 답: 영상·이전 대화가 둘째 답과 바이트까지 같다. 이전 배우 말에는 지난 지시가 남지 않는다.
@@ -101,9 +102,9 @@ class GeminiDirectVideoStablePrefixTest {
         assertThat(next.get(1).toString()).isEqualTo(reply.get(1).toString());
         assertThat(next.get(2).path("parts")).hasSize(1);
         assertThat(next.get(2).path("parts").get(0).toString()).isEqualTo(reply.get(2).path("parts").get(0).toString());
-        assertThat(next.get(4).path("parts").get(1).path("text").asText()).isEqualTo(DirectVideoModel.TURN_HEADER + "\n단계: 3/5\n피할 것: 비유");
+        assertThat(LenientJson.asText(next.get(4).path("parts").get(1).path("text"))).isEqualTo(DirectVideoModel.TURN_HEADER + "\n단계: 3/5\n피할 것: 비유");
         for (int i = 1; i < next.size(); i++) {
-            assertThat(next.get(i).path("role").asText()).isNotEqualTo(next.get(i - 1).path("role").asText());
+            assertThat(LenientJson.asText(next.get(i).path("role"))).isNotEqualTo(LenientJson.asText(next.get(i - 1).path("role")));
         }
     }
 
@@ -114,7 +115,7 @@ class GeminiDirectVideoStablePrefixTest {
         assertThat(system(sent.getFirst())).isEqualTo(FIXED);
         assertThat(contents.toString()).doesNotContain("fileData");
         assertThat(contents).hasSize(2);
-        assertThat(contents.get(1).path("parts").get(1).path("text").asText()).isEqualTo(DirectVideoModel.TURN_HEADER + "\n이번 할 일: 내려놓기");
+        assertThat(LenientJson.asText(contents.get(1).path("parts").get(1).path("text"))).isEqualTo(DirectVideoModel.TURN_HEADER + "\n이번 할 일: 내려놓기");
     }
 
     @Test void whenTheLastMessageIsTheCoachTheTurnInstructionIsItsOwnUserMessage() throws Exception {
@@ -122,15 +123,15 @@ class GeminiDirectVideoStablePrefixTest {
                 FIXED + DirectVideoModel.TURN_BOUNDARY + "정리"));
         JsonNode contents = sent.getFirst().path("contents");
         assertThat(contents).hasSize(4);
-        assertThat(contents.get(3).path("role").asText()).isEqualTo("user");
+        assertThat(LenientJson.asText(contents.get(3).path("role"))).isEqualTo("user");
         assertThat(contents.get(3).path("parts")).hasSize(1);
-        assertThat(contents.get(3).path("parts").get(0).path("text").asText()).isEqualTo(DirectVideoModel.TURN_HEADER + "\n정리");
+        assertThat(LenientJson.asText(contents.get(3).path("parts").get(0).path("text"))).isEqualTo(DirectVideoModel.TURN_HEADER + "\n정리");
     }
 
     @Test void anEmptyFixedPartSendsNoSystemInstruction() throws Exception {
         List<JsonNode> sent = requests(model -> model.reply(VIDEO, List.of(), DirectVideoModel.TURN_BOUNDARY + "지시"));
         assertThat(sent.getFirst().has("systemInstruction")).isFalse();
-        assertThat(sent.getFirst().path("contents").get(0).path("parts").get(1).path("text").asText())
+        assertThat(LenientJson.asText(sent.getFirst().path("contents").get(0).path("parts").get(1).path("text")))
                 .isEqualTo(DirectVideoModel.TURN_HEADER + "\n지시");
     }
 

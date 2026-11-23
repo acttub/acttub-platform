@@ -22,8 +22,8 @@ import com.acttub.actingapi.feature.challenge.app.EntryModerationWorker;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +37,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 좋아요·저장·댓글·차단·신고와 운영 처리 (challenge.react, challenge.block, challenge.report). 실제 HTTP 와 Postgres 로
@@ -112,13 +113,13 @@ class ChallengeReactionIT {
 
     @Test void challengeReact_likesAreIdempotentAndRecounted() throws Exception {
         UUID entry = entry(challenge, member("배우"));
-        assertThat(response(put("/v2/entries/{id}/like", entry), 200).path("like_count").asInt()).isEqualTo(1);
-        assertThat(response(put("/v2/entries/{id}/like", entry), 200).path("like_count").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(response(put("/v2/entries/{id}/like", entry), 200).path("like_count"))).isEqualTo(1);
+        assertThat(LenientJson.asInt(response(put("/v2/entries/{id}/like", entry), 200).path("like_count"))).isEqualTo(1);
         assertThat(count("entry_likes")).isEqualTo(1);
-        assertThat(response(get("/v2/entries/{id}", entry), 200).path("liked").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(response(get("/v2/entries/{id}", entry), 200).path("liked"))).isTrue();
         JsonNode off = response(delete("/v2/entries/{id}/like", entry), 200);
-        assertThat(off.path("like_count").asInt()).isZero();
-        assertThat(off.path("liked").asBoolean()).isFalse();
+        assertThat(LenientJson.asInt(off.path("like_count"))).isZero();
+        assertThat(LenientJson.asBoolean(off.path("liked"))).isFalse();
         response(delete("/v2/entries/{id}/like", entry), 200);
         assertThat(count("entry_likes")).isZero();
     }
@@ -154,7 +155,7 @@ class ChallengeReactionIT {
         UUID entry = entry(ending, member("배우"));
         response(put("/v2/entries/{id}/like", entry), 200, token(member("팬")));
         clock.set(deadline.plus(Duration.ofMinutes(5)));
-        assertThat(response(put("/v2/entries/{id}/like", entry), 200).path("like_count").asInt()).isEqualTo(2);
+        assertThat(LenientJson.asInt(response(put("/v2/entries/{id}/like", entry), 200).path("like_count"))).isEqualTo(2);
         var row = jdbc.queryForMap("SELECT final_like_count,final_rank FROM challenge_entries WHERE id=?", entry);
         assertThat(row.get("final_like_count")).isEqualTo(1L);
         assertThat(row.get("final_rank")).isEqualTo(1);
@@ -174,9 +175,9 @@ class ChallengeReactionIT {
         assertThat(count("entry_saves")).isEqualTo(2);
         JsonNode saved = response(get("/v2/me/saved-entries"), 200);
         assertThat(ids(saved, "entries")).containsExactly(newer.toString(), older.toString());
-        assertThat(saved.path("my_entry_count").asInt()).isEqualTo(1);
-        assertThat(saved.path("saved_count").asInt()).isEqualTo(2);
-        assertThat(saved.at("/entries/0/saved").asBoolean()).isTrue();
+        assertThat(LenientJson.asInt(saved.path("my_entry_count"))).isEqualTo(1);
+        assertThat(LenientJson.asInt(saved.path("saved_count"))).isEqualTo(2);
+        assertThat(LenientJson.asBoolean(saved.at("/entries/0/saved"))).isTrue();
         jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", older);
         assertThat(ids(response(get("/v2/me/saved-entries"), 200), "entries")).containsExactly(newer.toString());
         assertThat(count("entry_saves")).isEqualTo(2);
@@ -195,20 +196,20 @@ class ChallengeReactionIT {
         UUID request = UUID.randomUUID();
         String body = json.writeValueAsString(Map.of("request_id", request, "body", "  좋은 호흡이에요  "));
         JsonNode created = response(post("/v2/entries/{id}/comments", entry).content(body), 201);
-        assertThat(created.path("body").asText()).isEqualTo("좋은 호흡이에요");
-        assertThat(created.path("author").path("name").asText()).isEqualTo("나");
+        assertThat(LenientJson.asText(created.path("body"))).isEqualTo("좋은 호흡이에요");
+        assertThat(LenientJson.asText(created.path("author").path("name"))).isEqualTo("나");
         // 사진이 없으면 null. 사진을 넣으면 댓글 작성자에 짧은 주소가 실린다.
         assertThat(created.path("author").path("photo_url").isNull()).isTrue();
         jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=?", "users/me/profile/photo.jpg", me);
-        assertThat(response(get("/v2/entries/{id}/comments", entry), 200).at("/comments/0/author/photo_url").asText())
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}/comments", entry), 200).at("/comments/0/author/photo_url")))
                 .isEqualTo("https://play.test/users/me/profile/photo.jpg");
-        assertThat(created.path("is_mine").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(created.path("is_mine"))).isTrue();
         assertThat(response(post("/v2/entries/{id}/comments", entry).content(body), 200).path("id")).isEqualTo(created.path("id"));
         assertThat(detail(post("/v2/entries/{id}/comments", entry).content(body.replace("좋은", "나쁜")), 422))
                 .isEqualTo("request_fingerprint_mismatch");
         assertThat(count("entry_comments")).isEqualTo(1);
         jdbc.update("UPDATE user_profiles SET name='새 이름' WHERE user_id=?", me);
-        assertThat(response(get("/v2/entries/{id}/comments", entry), 200).at("/comments/0/author/name").asText()).isEqualTo("새 이름");
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}/comments", entry), 200).at("/comments/0/author/name"))).isEqualTo("새 이름");
         response(post("/v2/entries/{id}/comments", entry).content(comment("   ")), 422);
         response(post("/v2/entries/{id}/comments", entry).content(comment("가".repeat(501))), 422);
         response(post("/v2/entries/{id}/comments", entry).content(comment("😀".repeat(500))), 201);
@@ -221,18 +222,18 @@ class ChallengeReactionIT {
         assertThat(detail(post("/v2/entries/{id}/comments", entry).content(comment("101번째")), 429)).isEqualTo("daily_comment_limit");
         JsonNode first = response(get("/v2/entries/{id}/comments", entry), 200);
         assertThat(first.path("comments")).hasSize(20);
-        assertThat(first.at("/comments/0/body").asText()).isEqualTo("댓글 99");
-        JsonNode next = response(get("/v2/entries/{id}/comments", entry).param("cursor", first.path("next_cursor").asText()), 200);
-        assertThat(next.at("/comments/0/body").asText()).isEqualTo("댓글 79");
+        assertThat(LenientJson.asText(first.at("/comments/0/body"))).isEqualTo("댓글 99");
+        JsonNode next = response(get("/v2/entries/{id}/comments", entry).param("cursor", LenientJson.asText(first.path("next_cursor"))), 200);
+        assertThat(LenientJson.asText(next.at("/comments/0/body"))).isEqualTo("댓글 79");
         clock.advance(Duration.ofDays(1));
         response(post("/v2/entries/{id}/comments", entry).content(comment("다음 날")), 201);
-        assertThat(response(get("/v2/entries/{id}", entry), 200).path("comment_count").asInt()).isEqualTo(100);
+        assertThat(LenientJson.asInt(response(get("/v2/entries/{id}", entry), 200).path("comment_count"))).isEqualTo(100);
     }
 
     @Test void challengeReact_onlyTheAuthorDeletesAndHiddenOwnCommentsStayVisibleToThem() throws Exception {
         UUID author = member("배우");
         UUID entry = entry(challenge, author);
-        String id = response(post("/v2/entries/{id}/comments", entry).content(comment("지울 댓글")), 201).path("id").asText();
+        String id = LenientJson.asText(response(post("/v2/entries/{id}/comments", entry).content(comment("지울 댓글")), 201).path("id"));
         assertThat(detail(delete("/v2/comments/{id}", id), 404, token(author))).isEqualTo("comment_not_found");
         response(delete("/v2/comments/{id}", id), 204);
         response(delete("/v2/comments/{id}", id), 204);
@@ -240,11 +241,11 @@ class ChallengeReactionIT {
         assertThat(row.get("body")).isNull();
         assertThat(row.get("deleted_at")).isNotNull();
         assertThat(response(get("/v2/entries/{id}/comments", entry), 200).path("comments")).isEmpty();
-        String reported = response(post("/v2/entries/{id}/comments", entry).content(comment("신고될 댓글")), 201).path("id").asText();
+        String reported = LenientJson.asText(response(post("/v2/entries/{id}/comments", entry).content(comment("신고될 댓글")), 201).path("id"));
         response(post("/v2/reports").content(report("comment", reported, "inappropriate", null)), 201, token(author));
         JsonNode mine = response(get("/v2/entries/{id}/comments", entry), 200);
-        assertThat(mine.at("/comments/0/status").asText()).isEqualTo("hidden");
-        assertThat(mine.at("/comments/0/body").asText()).isEqualTo("신고될 댓글");
+        assertThat(LenientJson.asText(mine.at("/comments/0/status"))).isEqualTo("hidden");
+        assertThat(LenientJson.asText(mine.at("/comments/0/body"))).isEqualTo("신고될 댓글");
         assertThat(response(get("/v2/entries/{id}/comments", entry), 200, token(member("관객"))).path("comments")).isEmpty();
         response(delete("/v2/comments/{id}", reported), 204);
         assertThat(response(get("/v2/entries/{id}/comments", entry), 200).path("comments")).isEmpty();
@@ -258,10 +259,10 @@ class ChallengeReactionIT {
         jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=?", "users/leaving/profile/photo.jpg", leaving);
         jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", leaving);
         JsonNode comments = response(get("/v2/entries/{id}/comments", entry), 200);
-        assertThat(comments.at("/comments/0/author/name").asText()).isEqualTo("탈퇴한 사용자");
-        assertThat(comments.at("/comments/0/author_withdrawn").asBoolean()).isTrue();
+        assertThat(LenientJson.asText(comments.at("/comments/0/author/name"))).isEqualTo("탈퇴한 사용자");
+        assertThat(LenientJson.asBoolean(comments.at("/comments/0/author_withdrawn"))).isTrue();
         assertThat(comments.at("/comments/0/author/photo_url").isNull()).isTrue();
-        assertThat(comments.at("/comments/0/body").asText()).isEqualTo("남는 댓글");
+        assertThat(LenientJson.asText(comments.at("/comments/0/body"))).isEqualTo("남는 댓글");
     }
 
     @Test void challengeReact_crossingCommentsAndLikesBetweenTwoAuthorsNeverDeadlock() throws Exception {
@@ -309,11 +310,11 @@ class ChallengeReactionIT {
                 .containsExactly(theirs.toString());
         assertThat(response(get("/v2/me/saved-entries"), 200).path("entries")).isEmpty();
         assertThat(response(get("/v2/entries/{id}/comments", mine), 200).path("comments")).isEmpty();
-        assertThat(response(get("/v2/entries/{id}", mine), 200).path("like_count").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(response(get("/v2/entries/{id}", mine), 200).path("like_count"))).isEqualTo(1);
         assertThat(detail(delete("/v2/entries/{id}/like", mine), 404, otherToken)).isEqualTo("entry_not_found");
         assertThat(detail(post("/v2/entries/{id}/comments", theirs).content(comment("못 씀")), 404)).isEqualTo("entry_not_found");
         JsonNode list = response(get("/v2/me/blocks"), 200);
-        assertThat(list.at("/users/0/name").asText()).isEqualTo("A");
+        assertThat(LenientJson.asText(list.at("/users/0/name"))).isEqualTo("A");
         assertThat(list.at("/users/0").has("photo_url")).isFalse();
         assertThat(response(get("/v2/me/blocks"), 200, otherToken).path("users")).isEmpty();
         response(delete("/v2/me/blocks/{id}", other), 200);
@@ -330,13 +331,13 @@ class ChallengeReactionIT {
         UUID entry = entry(challenge, author);
         jdbc.update("UPDATE challenge_entries SET content_version=2,caption='수정한 캡션' WHERE id=?", entry);
         JsonNode receipt = response(post("/v2/reports").content(report("entry", entry.toString(), "inappropriate", null)), 201);
-        assertThat(receipt.path("status").asText()).isEqualTo("received");
-        var row = jdbc.queryForMap("SELECT status,target_version,target_text FROM entry_reports WHERE id=?::uuid", receipt.path("id").asText());
+        assertThat(LenientJson.asText(receipt.path("status"))).isEqualTo("received");
+        var row = jdbc.queryForMap("SELECT status,target_version,target_text FROM entry_reports WHERE id=?::uuid", LenientJson.asText(receipt.path("id")));
         assertThat(row).containsEntry("status", "received").containsEntry("target_version", 2).containsEntry("target_text", "수정한 캡션");
         assertThat(jdbc.queryForObject("SELECT status FROM challenge_entries WHERE id=?", String.class, entry)).isEqualTo("hidden_by_report");
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, token(member("관객"))).path("entries")).isEmpty();
         JsonNode record = response(get("/v2/me/challenge-entries"), 200, token(author));
-        assertThat(record.path("counts").path("under_review").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(record.path("counts").path("under_review"))).isEqualTo(1);
         assertThat(response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 200).path("id"))
                 .isEqualTo(receipt.path("id"));
         assertThat(detail(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 404, token(member("다른 신고자"))))
@@ -381,7 +382,7 @@ class ChallengeReactionIT {
                 return request;
             }).get(20, java.util.concurrent.TimeUnit.SECONDS);
             assertThat(late.getStatus()).isEqualTo(403);
-            assertThat(json.readTree(late.getContentAsString()).path("detail").asText()).isEqualTo("account_deactivated");
+            assertThat(LenientJson.asText(json.readTree(late.getContentAsString()).path("detail"))).isEqualTo("account_deactivated");
         }
         assertThat(count("entry_likes")).isZero();
     }
@@ -401,8 +402,8 @@ class ChallengeReactionIT {
         UUID another = challenge(NOW.plus(Duration.ofDays(7)));
         var reports = new ArrayList<String>();
         for (int i = 0; i < 2; i++) {
-            reports.add(response(post("/v2/reports").content(report("challenge", another.toString(), "spam", null)), 201,
-                    token(member("처리될 " + i))).path("id").asText());
+            reports.add(LenientJson.asText(response(post("/v2/reports").content(report("challenge", another.toString(), "spam", null)), 201,
+                    token(member("처리될 " + i))).path("id")));
         }
         for (String id : reports) resolve(id, "dismissed", 200);
         response(post("/v2/reports").content(report("challenge", another.toString(), "spam", null)), 201);
@@ -425,23 +426,23 @@ class ChallengeReactionIT {
     @Test void challengeReport_resolutionsReleaseOnlyWhenNoOpenReportRemainsAndKeepTheAuthorsChoices() throws Exception {
         UUID author = member("배우");
         UUID entry = entry(challenge, author);
-        String first = response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 201,
-                token(member("첫 신고자"))).path("id").asText();
+        String first = LenientJson.asText(response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 201,
+                token(member("첫 신고자"))).path("id"));
         String secondReporter = token(member("둘째 신고자"));
         jdbc.update("""
                 INSERT INTO entry_reports(id,target_type,target_id,reporter_id,reason,target_version,request_id,request_fingerprint)
                 VALUES (?,'entry',?,?,'spam',1,?,?)
                 """, UUID.randomUUID(), entry, member("동시 신고자"), UUID.randomUUID(), "0".repeat(64));
         JsonNode stillOpen = resolve(first, "restored", 200);
-        assertThat(stillOpen.path("status").asText()).isEqualTo("reviewed");
-        assertThat(stillOpen.path("reviewed_by").asText()).isEqualTo("운영");
+        assertThat(LenientJson.asText(stillOpen.path("status"))).isEqualTo("reviewed");
+        assertThat(LenientJson.asText(stillOpen.path("reviewed_by"))).isEqualTo("운영");
         assertThat(stillOpen.path("reviewed_at").isNull()).isFalse();
         assertThat(jdbc.queryForObject("SELECT status FROM challenge_entries WHERE id=?", String.class, entry)).isEqualTo("hidden_by_report");
         assertThat(detail(patch("/v2/admin/reports/{id}", first).content(resolution("dismissed")), 422, OPS))
                 .isEqualTo("report_already_reviewed");
         JsonNode queue = response(get("/v2/admin/reports"), 200, OPS);
-        String open = queue.at("/reports/0/id").asText();
-        assertThat(queue.at("/reports/0/open_reports").asInt()).isEqualTo(1);
+        String open = LenientJson.asText(queue.at("/reports/0/id"));
+        assertThat(LenientJson.asInt(queue.at("/reports/0/open_reports"))).isEqualTo(1);
         jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", entry);
         resolve(open, "dismissed", 200);
         var row = jdbc.queryForMap("SELECT status,visibility FROM challenge_entries WHERE id=?", entry);
@@ -450,15 +451,15 @@ class ChallengeReactionIT {
         response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 200, token(UUID.fromString(
                 jdbc.queryForObject("SELECT reporter_id FROM entry_reports WHERE id=?::uuid", String.class, first))));
         assertThat(jdbc.queryForObject("SELECT status FROM challenge_entries WHERE id=?", String.class, entry)).isEqualTo("visible");
-        String again = response(post("/v2/reports").content(report("entry", entry.toString(), "copyright", null)), 201, secondReporter)
-                .path("id").asText();
+        String again = LenientJson.asText(response(post("/v2/reports").content(report("entry", entry.toString(), "copyright", null)), 201, secondReporter)
+                .path("id"));
         assertThat(jdbc.queryForObject("SELECT status FROM challenge_entries WHERE id=?", String.class, entry)).isEqualTo("hidden_by_report");
         jdbc.update("UPDATE challenge_entries SET caption='나중 캡션',content_version=content_version+1 WHERE id=?", entry);
         JsonNode kept = resolve(again, "kept_hidden", 200);
-        assertThat(kept.path("target_version").asInt()).isEqualTo(1);
-        assertThat(kept.path("current_version").asInt()).isEqualTo(2);
-        assertThat(kept.path("current_text").asText()).isEqualTo("나중 캡션");
-        assertThat(kept.path("target_state").asText()).isEqualTo("hidden_by_report");
+        assertThat(LenientJson.asInt(kept.path("target_version"))).isEqualTo(1);
+        assertThat(LenientJson.asInt(kept.path("current_version"))).isEqualTo(2);
+        assertThat(LenientJson.asText(kept.path("current_text"))).isEqualTo("나중 캡션");
+        assertThat(LenientJson.asText(kept.path("target_state"))).isEqualTo("hidden_by_report");
         assertThat(jdbc.queryForObject("SELECT status FROM challenge_entries WHERE id=?", String.class, entry)).isEqualTo("hidden_by_report");
         assertThat(kept.has("reporter_id")).isFalse();
     }
@@ -466,11 +467,11 @@ class ChallengeReactionIT {
     @Test void challengeReport_reportsOutliveDeletionAndReviewedOnesExpireAfterNinetyDays() throws Exception {
         UUID author = member("배우");
         UUID entry = entry(challenge, author);
-        String id = response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 201).path("id").asText();
+        String id = LenientJson.asText(response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 201).path("id"));
         response(delete("/v2/entries/{id}", entry), 204, token(author));
         assertThat(jdbc.queryForObject("SELECT target_text IS NULL FROM entry_reports WHERE id=?::uuid", Boolean.class, id)).isTrue();
         JsonNode reviewed = resolve(id, "kept_hidden", 200);
-        assertThat(reviewed.path("target_state").asText()).isEqualTo("deleted");
+        assertThat(LenientJson.asText(reviewed.path("target_state"))).isEqualTo("deleted");
         clock.advance(Duration.ofDays(91));
         entryRepository.settle(clock.instant());
         assertThat(count("entry_reports")).isZero();
@@ -482,7 +483,7 @@ class ChallengeReactionIT {
         UUID hidden = entry(ending, member("가려질"));
         UUID shown = entry(ending, member("남을"));
         for (int i = 0; i < 3; i++) response(put("/v2/entries/{id}/like", hidden), 200, token(member("팬 " + i)));
-        String id = response(post("/v2/reports").content(report("entry", hidden.toString(), "spam", null)), 201).path("id").asText();
+        String id = LenientJson.asText(response(post("/v2/reports").content(report("entry", hidden.toString(), "spam", null)), 201).path("id"));
         clock.set(deadline.plus(Duration.ofMinutes(1)));
         entryRepository.settle(clock.instant());
         assertThat(jdbc.queryForObject("SELECT ranking_state FROM challenges WHERE id=?", String.class, ending)).isEqualTo("pending");
@@ -510,8 +511,8 @@ class ChallengeReactionIT {
         assertThat(ai.get("reporter_id")).isNull();
         assertThat((String) ai.get("note")).isEqualTo("AI 검사: 숨김 (sexual) 노출이 있다");
         JsonNode queue = response(get("/v2/admin/reports"), 200, OPS);
-        assertThat(queue.at("/reports/0/id").asText()).isEqualTo(ai.get("id").toString());
-        assertThat(queue.at("/reports/0/target_state").asText()).isEqualTo("hidden_by_report");
+        assertThat(LenientJson.asText(queue.at("/reports/0/id"))).isEqualTo(ai.get("id").toString());
+        assertThat(LenientJson.asText(queue.at("/reports/0/target_state"))).isEqualTo("hidden_by_report");
         resolve(ai.get("id").toString(), "restored", 200);
         assertThat(jdbc.queryForMap("SELECT status,moderation_status FROM challenge_entries WHERE id=?", entry))
                 .containsEntry("status", "visible").containsEntry("moderation_status", "passed");
@@ -528,8 +529,8 @@ class ChallengeReactionIT {
         assertThat(moderationWorker.runOnce()).isTrue();
         assertThat(moderationOf(passed)).isEqualTo("passed");
         assertThat(count("entry_reports")).isZero();
-        String single = response(post("/v2/reports").content(report("entry", passed.toString(), "inappropriate", null)), 201,
-                token(member("신고 1"))).path("id").asText();
+        String single = LenientJson.asText(response(post("/v2/reports").content(report("entry", passed.toString(), "inappropriate", null)), 201,
+                token(member("신고 1"))).path("id"));
         assertThat(entryStatus(passed)).isEqualTo("visible");
         // 운영이 숨김 유지를 고르면 아직 보이던 참여작도 숨긴다.
         resolve(single, "kept_hidden", 200);
@@ -718,16 +719,16 @@ class ChallengeReactionIT {
 
     private static List<String> ids(JsonNode page, String field) {
         var ids = new ArrayList<String>();
-        page.path(field).forEach(item -> ids.add(item.path("id").asText()));
+        page.path(field).forEach(item -> ids.add(LenientJson.asText(item.path("id"))));
         return ids;
     }
 
     private String detail(MockHttpServletRequestBuilder request, int expected) throws Exception {
-        return response(request, expected).path("detail").asText();
+        return LenientJson.asText(response(request, expected).path("detail"));
     }
 
     private String detail(MockHttpServletRequestBuilder request, int expected, String authorization) throws Exception {
-        return response(request, expected, authorization).path("detail").asText();
+        return LenientJson.asText(response(request, expected, authorization).path("detail"));
     }
 
     /** 읽을 수 없는 커서의 422 본문은 바이트 그대로다 — 댓글·저장 목록 둘 다. */

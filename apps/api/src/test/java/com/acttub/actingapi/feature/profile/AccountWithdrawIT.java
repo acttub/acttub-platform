@@ -36,8 +36,8 @@ import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.StubProviders;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -173,9 +173,9 @@ class AccountWithdrawIT {
 
         assertThat(response.getStatus()).isEqualTo(200);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder("status", "deactivated_at");
-        assertThat(body.path("status").textValue()).isEqualTo("deactivated");
-        assertThat(body.path("deactivated_at").textValue()).isEqualTo(
+        assertThat(body.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("status", "deactivated_at");
+        assertThat(body.path("status").stringValue(null)).isEqualTo("deactivated");
+        assertThat(body.path("deactivated_at").stringValue(null)).isEqualTo(
                 jdbc.queryForObject("SELECT deactivated_at FROM users WHERE id=?", java.sql.Timestamp.class, member.id())
                         .toInstant().toString().replace("Z", ".000000Z"));
 
@@ -256,24 +256,24 @@ class AccountWithdrawIT {
 
         JsonNode login = login("google", "g-1|actor@example.test|verified");
 
-        assertThat(login.path("result").textValue()).isEqualTo("signup_required");
-        assertThat(login.fieldNames()).toIterable()
+        assertThat(login.path("result").stringValue(null)).isEqualTo("signup_required");
+        assertThat(login.propertyNames().iterator()).toIterable()
                 .as("이전 계정에 관해 아무것도 묻거나 보여 주지 않는다")
                 .containsExactlyInAnyOrder("result", "signup_token", "expires_in", "documents");
 
-        JsonNode created = signup(login.path("signup_token").textValue(), "granted");
-        String token = created.path("access_token").textValue();
+        JsonNode created = signup(login.path("signup_token").stringValue(null), "granted");
+        String token = created.path("access_token").stringValue(null);
 
-        assertThat(created.path("user").path("id").textValue()).isNotEqualTo(old.id().toString());
-        assertThat(created.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(created.path("user").path("id").stringValue(null)).isNotEqualTo(old.id().toString());
+        assertThat(created.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "result", "access_token", "refresh_token", "token_type", "expires_in", "user", "pending_consents");
         assertThat(count("users")).isEqualTo(2);
         var gated = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + token))
                 .andReturn().getResponse();
         assertThat(gated.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(gated.getContentAsString()).path("detail").textValue()).isEqualTo("profile_required");
+        assertThat(mapper.readTree(gated.getContentAsString()).path("detail").stringValue(null)).isEqualTo("profile_required");
 
-        AccountFixtures.completeProfile(jdbc, UUID.fromString(created.path("user").path("id").textValue()));
+        AccountFixtures.completeProfile(jdbc, UUID.fromString(created.path("user").path("id").stringValue(null)));
         var list = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + token))
                 .andReturn().getResponse();
         assertThat(list.getStatus()).isEqualTo(200);
@@ -547,7 +547,7 @@ class AccountWithdrawIT {
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(422);
-        assertThat(mapper.readTree(response.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("under_14_account_closed");
         assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, member.id()))
                 .isEqualTo("deactivated");
@@ -586,10 +586,10 @@ class AccountWithdrawIT {
         if ("kakao".equals(provider) && idToken.contains("|")) {
             kakao.verifiedEmails.add(idToken.split("\\|")[1]);
         }
-        JsonNode created = signup(login(provider, idToken).path("signup_token").textValue(), retention);
-        UUID id = UUID.fromString(created.path("user").path("id").textValue());
+        JsonNode created = signup(login(provider, idToken).path("signup_token").stringValue(null), retention);
+        UUID id = UUID.fromString(created.path("user").path("id").stringValue(null));
         AccountFixtures.completeProfile(jdbc, id);
-        return new Member(id, created.path("access_token").textValue());
+        return new Member(id, created.path("access_token").stringValue(null));
     }
 
     private JsonNode login(String provider, String idToken) throws Exception {

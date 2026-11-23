@@ -10,9 +10,10 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.integration.llm.TextGenerator;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class ReportEngineTest {
 
@@ -29,24 +30,24 @@ class ReportEngineTest {
             JsonNode report = engine.generateReport(branch, old,
                     branch.equals("analysis") ? handoff() : expressionHandoff(true, "실험", "변화"),
                     true, "handoff", null, null);
-            assertThat(report.path("report_type").asText()).isEqualTo(branch);
+            assertThat(LenientJson.asText(report.path("report_type"))).isEqualTo(branch);
             assertThat(generator.inputs).hasSize(1);
             JsonNode normalized = MAPPER.readTree(generator.inputs.getFirst()).path("video_summary");
             assertThat(normalized.has("timeline")).isFalse();
             assertThat(normalized.has("speech")).isFalse();
-            assertThat(normalized.at("/observations/0/what").asText()).isEqualTo("멈춘다");
+            assertThat(LenientJson.asText(normalized.at("/observations/0/what"))).isEqualTo("멈춘다");
         }
     }
 
     @Test
     void normalizationPreservesTimelineAndMeasuredSpeechWhenPresent() throws Exception {
-        var pack = (com.fasterxml.jackson.databind.node.ObjectNode) pack();
+        var pack = (tools.jackson.databind.node.ObjectNode) pack();
         pack.put("timeline", "0:01에 멈춘다");
         JsonNode speech = MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}");
         pack.set("speech", speech);
         var engine = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry());
         var input = engine.buildReportInput("analysis", pack, handoff(), true, "id", null, null);
-        assertThat(input.at("/video_summary/timeline").asText()).isEqualTo("0:01에 멈춘다");
+        assertThat(LenientJson.asText(input.at("/video_summary/timeline"))).isEqualTo("0:01에 멈춘다");
         assertThat(input.at("/video_summary/speech")).isEqualTo(speech);
     }
 
@@ -91,7 +92,7 @@ class ReportEngineTest {
                 MAPPER.readTree("{\"completion_level\":\"unavailable\"}"), null);
 
         assertThat(input.path("analysis_handoff").isNull()).isTrue();
-        assertThat(input.at("/expression_handoff/experiment/tested").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(input.at("/expression_handoff/experiment/tested"))).isTrue();
     }
 
     @Test
@@ -107,8 +108,8 @@ class ReportEngineTest {
                 "analysis-id");
 
         assertThat(generator.inputs).hasSize(1);
-        assertThat(report.at("/source_handoff_ids/analysis").asText()).isEqualTo("analysis-id");
-        assertThat(report.at("/source_handoff_ids/expression").asText()).isEqualTo("expression-id");
+        assertThat(LenientJson.asText(report.at("/source_handoff_ids/analysis"))).isEqualTo("analysis-id");
+        assertThat(LenientJson.asText(report.at("/source_handoff_ids/expression"))).isEqualTo("expression-id");
     }
 
     @Test
@@ -121,7 +122,7 @@ class ReportEngineTest {
                 "analysis-id",
                 null);
 
-        assertThat(report.path("source_handoff_id").asText()).isEqualTo("analysis-id");
+        assertThat(LenientJson.asText(report.path("source_handoff_id"))).isEqualTo("analysis-id");
     }
 
     @Test
@@ -160,7 +161,7 @@ class ReportEngineTest {
                 "ignored",
                 null);
 
-        assertThat(report.fieldNames()).toIterable().containsExactly("report_type", "reason");
+        assertThat(report.propertyNames().iterator()).toIterable().containsExactly("report_type", "reason");
     }
 
     @Test
@@ -174,7 +175,7 @@ class ReportEngineTest {
         var report = engine.generateReport("analysis", pack(), handoff(), true, "handoff",
                 null, null, practice, userId);
 
-        assertThat(report.path("report_type").asText()).isEqualTo("analysis");
+        assertThat(LenientJson.asText(report.path("report_type"))).isEqualTo("analysis");
         assertThat(telemetry.calls()).singleElement().satisfies(call -> {
             assertThat(call.practiceSessionId()).isEqualTo(practice);
             assertThat(call.userId()).isEqualTo(userId);

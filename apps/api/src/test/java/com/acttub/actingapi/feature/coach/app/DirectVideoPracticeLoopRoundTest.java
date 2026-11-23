@@ -9,9 +9,9 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 import org.junit.jupiter.api.Test;
 
 /** 연습 루프 노트 재료의 경계: 아니라고 한 말의 주제, 한 줄을 청한 자리의 요청, 버릇 없이 다음 테이크만 있는 설계. */
@@ -61,7 +61,7 @@ class DirectVideoPracticeLoopRoundTest {
         assertThat(DirectVideoPracticeLoop.withoutQuestions("")).isEmpty();
         assertThat(DirectVideoPracticeLoop.actorLanguage(null, "영어로 해줘")).isEqualTo(Locale.ENGLISH);
         assertThat(DirectVideoPracticeLoop.languageOf("가 abcdefghijkl")).isEqualTo(Locale.ROOT);
-        assertThat(DirectVideoPracticeLoop.closingNextTake(TextNode.valueOf("x"))).isEmpty();
+        assertThat(DirectVideoPracticeLoop.closingNextTake(StringNode.valueOf("x"))).isEmpty();
         assertThat(DirectVideoPracticeLoop.designNextTake("다음 테이크: [끝을 짧게]")).isEqualTo("끝을 짧게");
         assertThat(DirectVideoPracticeLoop.action("순간1 · 장면2 · 누적 3")).isEmpty();
         assertThat(DirectVideoPracticeLoop.statusField(null, "할 일")).isEmpty();

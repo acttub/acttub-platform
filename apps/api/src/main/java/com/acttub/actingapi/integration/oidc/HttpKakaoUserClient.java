@@ -1,7 +1,7 @@
 package com.acttub.actingapi.integration.oidc;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 카카오 사용자 API 의 실물. 어드민 키 방식이다 — 헤더 {@code Authorization: KakaoAK <어드민 키>} 와
@@ -20,7 +22,7 @@ import org.springframework.web.client.RestClient;
 public class HttpKakaoUserClient implements KakaoUserClient {
     static final String USER_URL = "https://kapi.kakao.com/v2/user/me";
     static final String UNLINK_URL = "https://kapi.kakao.com/v1/user/unlink";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final String adminKey;
     private final RestClient http;
@@ -43,10 +45,10 @@ public class HttpKakaoUserClient implements KakaoUserClient {
         }
         try {
             JsonNode account = JSON.readTree(reply.body()).path("kakao_account");
-            return account.path("is_email_valid").asBoolean(false)
-                    && account.path("is_email_verified").asBoolean(false)
+            return LenientJson.asBoolean(account.path("is_email_valid"), false)
+                    && LenientJson.asBoolean(account.path("is_email_verified"), false)
                     && email != null
-                    && email.equalsIgnoreCase(account.path("email").asText("").strip());
+                    && email.equalsIgnoreCase(LenientJson.asText(account.path("email"), "").strip());
         } catch (Exception notJson) {
             throw new ProviderUnavailable("kakao user info answered something unreadable");
         }

@@ -6,8 +6,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,7 +77,7 @@ class CredentialInputContractIT {
         onlyError(login, "missing", "provider");
         assertThat(login.getContentAsString() + push.getContentAsString()).doesNotContain("SECRET");
         JsonNode missingToken = mapper.readTree(push.getContentAsString()).path("detail").get(0);
-        assertThat(missingToken.path("loc")).extracting(JsonNode::textValue).containsExactly("body", "token");
+        assertThat(missingToken.path("loc")).extracting(textNode -> textNode.stringValue(null)).containsExactly("body", "token");
         assertThat(missingToken.path("input")).isEqualTo(mapper.readTree("{\"platform\":\"ios\"}"));
     }
 
@@ -91,7 +91,7 @@ class CredentialInputContractIT {
         assertThat(response.getStatus()).isEqualTo(422);
         assertThat(response.getContentAsString()).doesNotContain("SECRET");
         assertThat(mapper.readTree(response.getContentAsString()).path("detail").get(0).path("loc"))
-                .extracting(JsonNode::textValue).containsExactly("body", "id_token");
+                .extracting(textNode -> textNode.stringValue(null)).containsExactly("body", "id_token");
     }
 
     @Test
@@ -140,8 +140,8 @@ class CredentialInputContractIT {
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(422);
         JsonNode detail = mapper.readTree(response.getContentAsString()).path("detail");
         assertThat(detail).hasSize(1);
-        assertThat(detail.get(0).path("type").textValue()).isEqualTo(type);
-        assertThat(detail.get(0).path("loc")).extracting(JsonNode::textValue).containsExactly("body", field);
+        assertThat(detail.get(0).path("type").stringValue(null)).isEqualTo(type);
+        assertThat(detail.get(0).path("loc")).extracting(textNode -> textNode.stringValue(null)).containsExactly("body", field);
         return detail.get(0);
     }
 

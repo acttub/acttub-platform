@@ -16,10 +16,11 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class CoachEngineTest {
 
@@ -55,7 +56,7 @@ class CoachEngineTest {
 
         assertThat(result.reply()).isEqualTo(new CoachReply("평문 답변", "continue", null));
         assertThat(failureReporter.reports()).singleElement().satisfies(report -> {
-            assertThat(report.failure()).isInstanceOf(JsonProcessingException.class);
+            assertThat(report.failure()).isInstanceOf(JacksonException.class);
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context())
                     .isEqualTo("CoachEngine.responseParse operation_id=" + OPERATION);
@@ -122,7 +123,7 @@ class CoachEngineTest {
             for (int turn : List.of(8, 9)) {
                 CoachReply reply = safeReplyAfterTwoFailures(turn, kind);
                 assertThat(reply.status()).isEqualTo("complete");
-                assertThat(reply.handoff().path("completion_level").asText()).isEqualTo("unavailable");
+                assertThat(LenientJson.asText(reply.handoff().path("completion_level"))).isEqualTo("unavailable");
                 assertThat(reply.handoff().path("actor_words")).isEmpty();
             }
         }

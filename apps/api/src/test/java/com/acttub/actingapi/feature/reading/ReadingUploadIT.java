@@ -37,8 +37,8 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -187,13 +187,13 @@ class ReadingUploadIT {
     void uploadsReadsAndSplitsAFile() throws Exception {
         byte[] cp949 = SCENE.getBytes(Charset.forName("x-windows-949"));
         JsonNode ticket = json(post("/v2/reading/uploads").content(upload("갈매기.txt", cp949.length)), 201, bearer);
-        String uploadId = ticket.path("upload_id").textValue();
+        String uploadId = ticket.path("upload_id").stringValue(null);
         assertThat(jdbc.queryForObject("SELECT file_name FROM script_uploads WHERE id=?", String.class, UUID.fromString(uploadId))).isEqualTo("갈매기.txt");
         String key = "reading-source/" + member + "/" + uploadId;
-        assertThat(ticket.path("upload_url").textValue())
+        assertThat(ticket.path("upload_url").stringValue(null))
                 .isEqualTo("https://storage.test/put/" + key + "?type=application/octet-stream&size=" + cp949.length + "&ttl=900");
-        assertThat(ticket.path("content_type").textValue()).isEqualTo("application/octet-stream");
-        assertThat(ticket.path("expires_at").textValue()).isEqualTo("2026-10-06T03:15:00.000000Z");
+        assertThat(ticket.path("content_type").stringValue(null)).isEqualTo("application/octet-stream");
+        assertThat(ticket.path("expires_at").stringValue(null)).isEqualTo("2026-10-06T03:15:00.000000Z");
 
         assertThat(detail(post("/v2/reading/uploads/{id}/complete", uploadId), 422)).isEqualTo("script_upload_not_ready");
         assertThat(detail(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), 422))
@@ -210,16 +210,16 @@ class ReadingUploadIT {
 
         UUID firstRequest = UUID.randomUUID();
         String importId = json(post("/v2/reading/imports").content(fileImport(firstRequest, uploadId)), 202, bearer)
-                .path("import_id").textValue();
+                .path("import_id").stringValue(null);
         assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", UUID.class)).as("저장 전에는 연결되지 않는다").isNull();
         assertThat(worker.runOnce(clock.instant())).isTrue();
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200, bearer);
-        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
-        String scriptId = done.path("script_id").textValue();
+        assertThat(done.path("status").stringValue(null)).isEqualTo("succeeded");
+        String scriptId = done.path("script_id").stringValue(null);
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200, bearer);
-        assertThat(script.path("source").textValue()).isEqualTo("file");
-        assertThat(script.path("title").textValue()).as("대사가 아닌 확장자 없는 원본 파일명을 제목으로 쓴다").isEqualTo("갈매기");
-        assertThat(script.path("lines")).extracting(line -> line.path("text").textValue())
+        assertThat(script.path("source").stringValue(null)).isEqualTo("file");
+        assertThat(script.path("title").stringValue(null)).as("대사가 아닌 확장자 없는 원본 파일명을 제목으로 쓴다").isEqualTo("갈매기");
+        assertThat(script.path("lines")).extracting(line -> line.path("text").stringValue(null))
                 .containsExactly("저는 갈매기예요.", "아니, 당신은 배우예요.");
         assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(scriptId);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).as("글은 대본에 있어 원본 행에서 비운다").isNull();
@@ -229,16 +229,16 @@ class ReadingUploadIT {
         assertThat(storage.downloads.get()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).isNull();
         assertThat(json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), 200, bearer)
-                .path("duplicate_script_id").textValue())
+                .path("duplicate_script_id").stringValue(null))
                 .as("연결된 원본으로 다시 [다음]: 파일을 다시 올리지 않고 R2.7(같은 글의 대본)").isEqualTo(scriptId);
         assertThat(json(post("/v2/reading/imports").content(fileImport(firstRequest, uploadId)), 200, bearer)
-                .path("import_id").textValue()).as("처음 요청의 재전송은 그 요청").isEqualTo(importId);
+                .path("import_id").stringValue(null)).as("처음 요청의 재전송은 그 요청").isEqualTo(importId);
         Map<String, Object> again = new LinkedHashMap<>();
         again.put("request_id", UUID.randomUUID().toString());
         again.put("upload_id", uploadId);
         again.put("source", "file");
         again.put("allow_duplicate", true);
-        assertThat(json(post("/v2/reading/imports").content(mapper.writeValueAsString(again)), 422, bearer).path("detail").textValue())
+        assertThat(json(post("/v2/reading/imports").content(mapper.writeValueAsString(again)), 422, bearer).path("detail").stringValue(null))
                 .as("「새로 넣기」로 새 대본을 만들려는데 원본이 이미 대본에 붙어 있다 — 파일을 다시 올린다").isEqualTo("script_upload_used");
         assertThat(count("script_imports")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(SCENE);
@@ -288,7 +288,7 @@ class ReadingUploadIT {
         String stranger = bearerOf(member());
         var response = perform(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), stranger);
         assertThat(response.getStatus()).isEqualTo(404);
-        assertThat(mapper.readTree(response.getContentAsString()).path("detail").textValue()).isEqualTo("script_upload_not_found");
+        assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null)).isEqualTo("script_upload_not_found");
         var foreignRead = perform(post("/v2/reading/uploads/{id}/complete", uploadId), stranger);
         assertThat(foreignRead.getStatus()).isEqualTo(404);
         assertThat(count("script_imports")).isZero();
@@ -302,12 +302,12 @@ class ReadingUploadIT {
         jdbc.update("DELETE FROM user_consents WHERE user_id=? AND document_id=?", member, scriptSplitDocument);
 
         JsonNode ticket = json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), 202, bearer);
-        JsonNode done = json(get("/v2/reading/imports/{id}", ticket.path("import_id").textValue()), 200, bearer);
-        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        JsonNode done = json(get("/v2/reading/imports/{id}", ticket.path("import_id").stringValue(null)), 200, bearer);
+        assertThat(done.path("status").stringValue(null)).isEqualTo("succeeded");
         assertThat(count("ai_jobs")).as("모델을 부르지 않는다").isZero();
-        assertThat(json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200, bearer).path("title").textValue())
+        assertThat(json(get("/v2/reading/scripts/{id}", done.path("script_id").stringValue(null)), 200, bearer).path("title").stringValue(null))
                 .isEqualTo(SampleScript.TITLE);
-        assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(done.path("script_id").textValue());
+        assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(done.path("script_id").stringValue(null));
 
         assertThat(detail(post("/v2/reading/uploads").content(upload("예시.txt", 10)), 403)).isEqualTo("script_split_consent_required");
     }
@@ -317,7 +317,7 @@ class ReadingUploadIT {
     void duplicateFileText() throws Exception {
         String scriptId = split(readFile("첫 파일.txt", SCENE));
         JsonNode duplicate = json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), readFile("다시.txt", "  " + SCENE))), 200, bearer);
-        assertThat(duplicate.path("duplicate_script_id").textValue()).isEqualTo(scriptId);
+        assertThat(duplicate.path("duplicate_script_id").stringValue(null)).isEqualTo(scriptId);
         assertThat(jdbc.queryForList("SELECT script_id FROM script_uploads ORDER BY created_at", String.class)).containsExactly(scriptId, null);
     }
 
@@ -367,7 +367,7 @@ class ReadingUploadIT {
         json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), inFlight)), 202, bearer);
         String stale = readFile("버린 파일.txt", "니나: 버린 글\n트레플레프: 응");
         String neverUploaded = json(post("/v2/reading/uploads").content(upload("안 올린 파일.pdf", 10)), 201, bearer)
-                .path("upload_id").textValue();
+                .path("upload_id").stringValue(null);
         clock.set(NOW.plus(Duration.ofHours(2)));
         String fresh = readFile("새 파일.txt", "니나: 새 글\n트레플레프: 응");
 
@@ -388,14 +388,14 @@ class ReadingUploadIT {
         split(linked);
         String duplicate = readFile("다시.txt", SCENE);
         assertThat(json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), duplicate)), 200, bearer)
-                .path("duplicate_script_id").isTextual()).isTrue();
+                .path("duplicate_script_id").isString()).isTrue();
         String unreadable = reserveAndPut("옛날.hwp", HWP97);
         assertThat(detail(post("/v2/reading/uploads/{id}/complete", unreadable), 422)).isEqualTo("script_file_unreadable");
         String article = readFile("기사.txt", ARTICLE + "\n" + ARTICLE + "\n");
         String importId = json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), article)), 202, bearer)
-                .path("import_id").textValue();
+                .path("import_id").stringValue(null);
         assertThat(worker.runOnce(clock.instant())).isTrue();
-        assertThat(json(get("/v2/reading/imports/{id}", importId), 200, bearer).path("failure").textValue()).isEqualTo("not_script");
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200, bearer).path("failure").stringValue(null)).isEqualTo("not_script");
 
         assertThat(retention(unreadable)).isEqualTo("hwp3 until 2027-10-06T03:00:00Z");
         assertThat(retention(article)).isEqualTo("not_script until 2027-10-06T03:00:00Z");
@@ -483,7 +483,7 @@ class ReadingUploadIT {
         String uploadId = readFile("갈매기.txt", SCENE);
         UUID requestId = UUID.randomUUID();
         String importId = json(post("/v2/reading/imports").content(fileImport(requestId, uploadId)), 202, bearer)
-                .path("import_id").textValue();
+                .path("import_id").stringValue(null);
         Map<String, Object> saved = new LinkedHashMap<>();
         saved.put("request_id", requestId.toString());
         saved.put("title", "옛 기기의 대본");
@@ -494,7 +494,7 @@ class ReadingUploadIT {
         json(post("/v2/reading/scripts").content(mapper.writeValueAsString(saved)), 201, bearer);
 
         assertThat(worker.runOnce(clock.instant())).isTrue();
-        assertThat(json(get("/v2/reading/imports/{id}", importId), 200, bearer).path("failure").textValue()).isEqualTo("failed");
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200, bearer).path("failure").stringValue(null)).isEqualTo("failed");
         assertThat(retention(uploadId)).isEqualTo("- until -");
 
         clock.set(NOW.plus(Duration.ofHours(25)));
@@ -523,7 +523,7 @@ class ReadingUploadIT {
     }
 
     private String reserveAndPut(String name, byte[] bytes) throws Exception {
-        String uploadId = json(post("/v2/reading/uploads").content(upload(name, bytes.length)), 201, bearer).path("upload_id").textValue();
+        String uploadId = json(post("/v2/reading/uploads").content(upload(name, bytes.length)), 201, bearer).path("upload_id").stringValue(null);
         storage.put(key(uploadId), bytes);
         return uploadId;
     }
@@ -531,11 +531,11 @@ class ReadingUploadIT {
     /** 원본으로 나누기를 접수하고 워커를 한 번 돌려 만든 대본 id. */
     private String split(String uploadId) throws Exception {
         String importId = json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), 202, bearer)
-                .path("import_id").textValue();
+                .path("import_id").stringValue(null);
         assertThat(worker.runOnce(clock.instant())).isTrue();
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200, bearer);
-        assertThat(done.path("status").textValue()).as(done.toString()).isEqualTo("succeeded");
-        return done.path("script_id").textValue();
+        assertThat(done.path("status").stringValue(null)).as(done.toString()).isEqualTo("succeeded");
+        return done.path("script_id").stringValue(null);
     }
 
     private String upload(String fileName, long byteSize) throws Exception {
@@ -567,7 +567,7 @@ class ReadingUploadIT {
     }
 
     private String detail(MockHttpServletRequestBuilder request, int status) throws Exception {
-        return json(request, status, bearer).path("detail").textValue();
+        return json(request, status, bearer).path("detail").stringValue(null);
     }
 
     private JsonNode json(MockHttpServletRequestBuilder request, int status, String authorization) throws Exception {

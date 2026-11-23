@@ -22,8 +22,8 @@ import com.acttub.actingapi.feature.challenge.app.ChallengeReportModel.Labeled;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpServer;
@@ -33,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.ObjectProvider;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 챌린지 AI 리포트가 내 영상과 표본을 라벨과 함께 Gemini 에 한 번에 보이고, 올린 파일·임시 파일을 지우는지. */
 class GeminiChallengeReportModelTest {
@@ -131,11 +132,11 @@ class GeminiChallengeReportModelTest {
         assertThat(output.model()).isEqualTo("gemini-3-flash-preview");
         JsonNode parts = compareRequest.path("contents").get(0).path("parts");
         assertThat(parts).hasSize(4);
-        assertThat(parts.get(0).path("text").asText()).isEqualTo("내 영상");
-        assertThat(parts.get(1).path("fileData").path("fileUri").asText()).isEqualTo("https://files.test/v1");
-        assertThat(parts.get(2).path("text").asText()).isEqualTo("표본 1");
-        assertThat(parts.get(3).path("fileData").path("fileUri").asText()).isEqualTo("https://files.test/v2");
-        assertThat(compareRequest.path("systemInstruction").path("parts").get(0).path("text").asText()).isEqualTo("비교 지침");
+        assertThat(LenientJson.asText(parts.get(0).path("text"))).isEqualTo("내 영상");
+        assertThat(LenientJson.asText(parts.get(1).path("fileData").path("fileUri"))).isEqualTo("https://files.test/v1");
+        assertThat(LenientJson.asText(parts.get(2).path("text"))).isEqualTo("표본 1");
+        assertThat(LenientJson.asText(parts.get(3).path("fileData").path("fileUri"))).isEqualTo("https://files.test/v2");
+        assertThat(LenientJson.asText(compareRequest.path("systemInstruction").path("parts").get(0).path("text"))).isEqualTo("비교 지침");
         assertThat(deleted).containsExactlyInAnyOrder("v1", "v2");
         assertThat(downloaded).hasSize(2).allSatisfy(path -> assertThat(path).doesNotExist());
         assertThat(failures.reports()).isEmpty();

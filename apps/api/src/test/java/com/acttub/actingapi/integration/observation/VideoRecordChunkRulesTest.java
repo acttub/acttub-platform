@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 /** 청크 검증의 남은 규칙 — 거꾸로 된 구간, 처음이 비는 구간, 채널 한계 없는 일부 기록, 소리 차원의 채널. */

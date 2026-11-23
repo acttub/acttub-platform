@@ -14,9 +14,11 @@ import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Pro 의 「대사별로 본 것」(SOMA-900). 대화가 닫히고 노트가 저장된 <b>뒤에</b> 따로 쓴다 — 닫기 응답과 노트 저장을
@@ -29,7 +31,7 @@ public class LineNoteWriter implements AutoCloseable {
 
     static final int MAX_ITEMS = 3;
     static final int MAX_FIELD_CHARS = 80;
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     private static final String PROMPT_RESOURCE = "/coaching/line-notes-prompt.txt";
 
     /** 읽은 항목 하나. */
@@ -108,7 +110,7 @@ public class LineNoteWriter implements AutoCloseable {
 
     String prompt(CoachSessionSnapshot session, NoteView note) {
         JsonNode state = session.coachingState();
-        String design = state == null ? "" : state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
+        String design = state == null ? "" : LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("design"), "");
         List<String> lines = state == null ? List.of() : ContinuedTake.linesFromState(state.toString());
         StringBuilder conversation = new StringBuilder();
         for (CoachTurnSnapshot turn : session.turns()) {
@@ -155,7 +157,7 @@ public class LineNoteWriter implements AutoCloseable {
     }
 
     private static String text(JsonNode value) {
-        return value == null || !value.isTextual() ? "" : value.asText().strip();
+        return value == null || !value.isString() ? "" : LenientJson.asText(value).strip();
     }
 
     private static String stripFence(String raw) {

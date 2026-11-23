@@ -11,9 +11,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Produces one proposed next take from a dialogue, without changing its intent or execution history. */
 final class DialogueNote {
@@ -28,11 +29,11 @@ final class DialogueNote {
         JsonNode context = handoff.path("context");
         Map<String, JsonNode> sources = new LinkedHashMap<>();
         handoff.path("source_catalog").forEach(s -> {
-            require(sources.put(s.path("id").asText(), s) == null, "duplicate handoff source");
+            require(sources.put(LenientJson.asText(s.path("id")), s) == null, "duplicate handoff source");
         });
         validateContextRefs(context, sources);
         JsonNode aim = currentAim(handoff, sources);
-        boolean canPropose = !"system_failure".equals(handoff.path("end_reason").asText())
+        boolean canPropose = !"system_failure".equals(LenientJson.asText(handoff.path("end_reason")))
                 && !aim.isNull() && hasFocusEvidence(handoff, sources);
         ObjectNode input = StructuredJson.MAPPER.createObjectNode();
         input.set("coach_handoff", handoff.deepCopy());
@@ -64,12 +65,12 @@ final class DialogueNote {
         ObjectNode note = base(handoff, sources);
         ArrayNode experience = withExperience(StructuredJson.MAPPER.createArrayNode(), handoff, sources);
         if (experience.isEmpty() && !aim.isNull()) {
-            String quote = aim.path("text").asText();
+            String quote = LenientJson.asText(aim.path("text"));
             if (quote.codePointCount(0, quote.length()) <= 50) {
                 for (JsonNode ref : aim.path("source_refs")) {
-                    JsonNode source = sources.get(ref.asText());
-                    if (source.path("text").asText().contains(quote)) {
-                        experience.addObject().put("source_ref", ref.asText()).put("quote", quote);
+                    JsonNode source = sources.get(LenientJson.asText(ref));
+                    if (LenientJson.asText(source.path("text")).contains(quote)) {
+                        experience.addObject().put("source_ref", LenientJson.asText(ref)).put("quote", quote);
                         break;
                     }
                 }
@@ -81,12 +82,12 @@ final class DialogueNote {
             return new PracticeNote.Generated(note, true);
         }
         for (JsonNode id : context.path("focus").path("evidence_refs")) {
-            JsonNode source = sources.get(id.asText());
-            String text = source.path("text").asText();
-            if ("video_utterance".equals(source.path("kind").asText())) text = "장면 대사: “" + text + "”";
+            JsonNode source = sources.get(LenientJson.asText(id));
+            String text = LenientJson.asText(source.path("text"));
+            if ("video_utterance".equals(LenientJson.asText(source.path("kind")))) text = "장면 대사: “" + text + "”";
             if (eligibleEvidence(context, source) && text.codePointCount(0, text.length()) <= 120) {
                 ObjectNode summary = ((ObjectNode) note.path("copy")).putObject("summary").put("text", text);
-                summary.putArray("source_refs").add(id.asText());
+                summary.putArray("source_refs").add(LenientJson.asText(id));
                 break;
             }
         }
@@ -97,9 +98,9 @@ final class DialogueNote {
     private static ObjectNode base(JsonNode handoff, Map<String, JsonNode> sources) {
         ObjectNode note = StructuredJson.MAPPER.createObjectNode().put("schema_version", PracticeNote.VERSION)
                 .put("report_type", "practice_note").put("note_id", UUID.randomUUID().toString())
-                .put("revision", 1).put("session_id", handoff.path("session_id").asText())
-                .put("source_handoff_revision", handoff.path("state_revision").asLong())
-                .put("lifecycle", "saved").put("end_reason", handoff.path("end_reason").asText());
+                .put("revision", 1).put("session_id", LenientJson.asText(handoff.path("session_id")))
+                .put("source_handoff_revision", LenientJson.asLong(handoff.path("state_revision")))
+                .put("lifecycle", "saved").put("end_reason", LenientJson.asText(handoff.path("end_reason")));
         note.set("record_ref", handoff.path("record_ref").deepCopy());
         for (String field : List.of("direction", "scene_context", "focus", "open_points")) {
             note.set(field, handoff.path("context").path(field).deepCopy());
@@ -131,12 +132,12 @@ final class DialogueNote {
         Set<String> kinds = new LinkedHashSet<>();
         ArrayNode refs = StructuredJson.MAPPER.createArrayNode();
         for (JsonNode excerpt : excerpts) {
-            String id = excerpt.path("source_ref").asText();
+            String id = LenientJson.asText(excerpt.path("source_ref"));
             JsonNode source = sources.get(id);
-            String quote = excerpt.path("quote").asText().strip();
-            require(source != null && !quote.isBlank() && source.path("text").asText().contains(quote),
+            String quote = LenientJson.asText(excerpt.path("quote")).strip();
+            require(source != null && !quote.isBlank() && LenientJson.asText(source.path("text")).contains(quote),
                     "summary quote must occur in its source");
-            String kind = source.path("kind").asText();
+            String kind = LenientJson.asText(source.path("kind"));
             if (kind.equals("video_observation") || kind.equals("video_utterance")) {
                 require(eligibleEvidence(context, source), "scene dialogue cannot establish observed delivery");
                 require(contains(context.path("focus").path("evidence_refs"), id), "summary must keep the current focus");
@@ -162,12 +163,12 @@ final class DialogueNote {
         JsonNode conversation = handoff.path("conversation");
         for (int i = conversation.size() - 1; i >= 0; i--) {
             JsonNode message = conversation.get(i);
-            if (!"actor".equals(message.path("role").asText())) continue;
-            String text = message.path("text").asText().strip();
+            if (!"actor".equals(LenientJson.asText(message.path("role")))) continue;
+            String text = LenientJson.asText(message.path("text")).strip();
             if (text.matches("(?:그만|여기까지|끝|종료|마칠게|마칠게요|그만할래|그만할게|그만할게요)[.!?\\s]*")
                     || text.matches("(?:(?:여기까지|지금까지|오늘은|오늘 대화|이번 대화)\\s*)?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*")
                     || text.matches("[\\s.!?]*(네+|응|ㅇㅇ|ㅇㅋ|알겠어|알겠어요)[\\s.!?]*")) continue;
-            if (message.path("id").asText().equals(id)) {
+            if (LenientJson.asText(message.path("id")).equals(id)) {
                 return text.contains(quote)
                         && !quote.matches("[\\s.!?？]*")
                         && !quote.matches("[\\s.!?？]*(모르겠(?:어|어요|다)|몰라(?:요)?|ㅁㄹ|아니(?:지|야|요)?|뭐라는\\s*거야)[\\s.!?？]*");
@@ -181,25 +182,25 @@ final class DialogueNote {
         values.add(context.path("direction"));
         context.path("scene_context").forEach(values::add);
         return values.stream().anyMatch(value -> contains(value.path("source_refs"), id)
-                && value.path("text").asText().contains(quote));
+                && LenientJson.asText(value.path("text")).contains(quote));
     }
 
     private static ArrayNode withExperience(JsonNode excerpts, JsonNode handoff, Map<String, JsonNode> sources) {
-        ArrayNode result = excerpts.deepCopy();
+        ArrayNode result = (ArrayNode) excerpts.deepCopy();
         for (JsonNode message : handoff.path("conversation")) {
-            String id = message.path("id").asText();
-            String text = message.path("text").asText();
+            String id = LenientJson.asText(message.path("id"));
+            String text = LenientJson.asText(message.path("text"));
             JsonNode source = sources.get(id);
-            if (!"actor".equals(message.path("role").asText()) || !ActorExperience.onlyExperience(text)
+            if (!"actor".equals(LenientJson.asText(message.path("role"))) || !ActorExperience.onlyExperience(text)
                     || text.codePointCount(0, text.length()) > 50 || source == null
-                    || !"actor_message".equals(source.path("kind").asText())
-                    || !source.path("text").asText().equals(text)
+                    || !"actor_message".equals(LenientJson.asText(source.path("kind")))
+                    || !LenientJson.asText(source.path("text")).equals(text)
                     || !isCurrentActorQuote(handoff, handoff.path("context"), id, text)) continue;
             // Preserve the exact latest short experience even when the model omits an actor excerpt.
             ArrayNode kept = StructuredJson.MAPPER.createArrayNode();
             kept.addObject().put("source_ref", id).put("quote", text);
             for (JsonNode excerpt : result) {
-                JsonNode cited = sources.get(excerpt.path("source_ref").asText());
+                JsonNode cited = sources.get(LenientJson.asText(excerpt.path("source_ref")));
                 if (cited != null && eligibleEvidence(handoff.path("context"), cited)) kept.add(excerpt);
             }
             // Do not silently fix invalid model summaries; validate them before substituting the actor quote.
@@ -214,10 +215,10 @@ final class DialogueNote {
         JsonNode context = handoff.path("context");
         require(canPropose, "next take requires actor direction or a current scene goal and matching video evidence");
         JsonNode refs = next.path("basis_refs");
-        for (JsonNode ref : refs) require(sources.containsKey(ref.asText()), "next take cites an unavailable source");
+        for (JsonNode ref : refs) require(sources.containsKey(LenientJson.asText(ref)), "next take cites an unavailable source");
         boolean actor = false, evidence = false;
         for (JsonNode ref : refs) {
-            String id = ref.asText();
+            String id = LenientJson.asText(ref);
             actor |= contains(aim.path("source_refs"), id);
             evidence |= contains(context.path("focus").path("evidence_refs"), id)
                     && eligibleEvidence(context, sources.get(id)) && sameRecord(handoff, sources.get(id));
@@ -225,7 +226,7 @@ final class DialogueNote {
         require(actor && evidence, "next take must connect current actor aim to matching focus evidence");
         validateScope(next, handoff, sources);
         for (String field : List.of("instruction", "comparison")) {
-            String text = next.path(field).asText();
+            String text = LenientJson.asText(next.path(field));
             require(!text.isBlank() && !text.contains("\n") && !text.contains("?") && !text.contains("**")
                     && !text.contains("```"), "next take must be one plain instruction and comparison");
             require(!text.matches("(?s).*(망설임|읽힘|전달의 결|에너지를|반드시|무조건|완벽|향상됐|개선됐|성공했).*"),
@@ -234,28 +235,28 @@ final class DialogueNote {
     }
 
     private static void attachNext(ObjectNode note, JsonNode next) {
-        String id = "note:" + note.path("note_id").asText() + ":proposal";
+        String id = "note:" + LenientJson.asText(note.path("note_id")) + ":proposal";
         ObjectNode source = ((ArrayNode) note.path("source_catalog")).addObject().put("id", id)
-                .put("kind", "coach_message").put("text", next.path("instruction").asText() + "\n" + next.path("comparison").asText());
+                .put("kind", "coach_message").put("text", LenientJson.asText(next.path("instruction")) + "\n" + LenientJson.asText(next.path("comparison")));
         source.putNull("record_id").putNull("record_version").putNull("start_ms").putNull("end_ms");
         ObjectNode practice = note.putObject("practice").put("proposal_id", UUID.randomUUID().toString())
                 .put("selection", "proposed").putNull("keep");
         practice.putArray("selection_refs");
         for (String key : List.of("instruction", "comparison")) {
-            ObjectNode value = practice.putObject(key).put("text", next.path(key).asText());
-            ArrayNode refs = next.path("basis_refs").deepCopy();
+            ObjectNode value = practice.putObject(key).put("text", LenientJson.asText(next.path(key)));
+            ArrayNode refs = (ArrayNode) next.path("basis_refs").deepCopy();
             refs.add(id); value.set("source_refs", refs);
         }
         note.put("mode", "action");
     }
 
     private static boolean actorDirection(JsonNode direction, Map<String, JsonNode> sources) {
-        if (direction.isNull() || "coach_proposed".equals(direction.path("origin").asText())) return false;
+        if (direction.isNull() || "coach_proposed".equals(LenientJson.asText(direction.path("origin")))) return false;
         for (JsonNode id : direction.path("source_refs")) {
-            JsonNode source = sources.get(id.asText());
-            if (source != null && Set.of("actor_input", "actor_message").contains(source.path("kind").asText())
-                    && source.path("text").asText().contains(direction.path("text").asText())
-                    && !ActorExperience.onlyExperience(source.path("text").asText())) return true;
+            JsonNode source = sources.get(LenientJson.asText(id));
+            if (source != null && Set.of("actor_input", "actor_message").contains(LenientJson.asText(source.path("kind")))
+                    && LenientJson.asText(source.path("text")).contains(LenientJson.asText(direction.path("text")))
+                    && !ActorExperience.onlyExperience(LenientJson.asText(source.path("text")))) return true;
         }
         return false;
     }
@@ -274,17 +275,17 @@ final class DialogueNote {
     private static boolean currentActorValue(JsonNode handoff, JsonNode value, Map<String, JsonNode> sources) {
         if (!actorDirection(value, sources)) return false;
         for (JsonNode ref : value.path("source_refs")) {
-            if (isCurrentActorQuote(handoff, handoff.path("context"), ref.asText(), value.path("text").asText())) return true;
+            if (isCurrentActorQuote(handoff, handoff.path("context"), LenientJson.asText(ref), LenientJson.asText(value.path("text")))) return true;
         }
         return false;
     }
 
     private static boolean sceneFocus(JsonNode context) {
-        return "scene".equals(context.path("focus").path("basis").asText());
+        return "scene".equals(LenientJson.asText(context.path("focus").path("basis")));
     }
 
     private static boolean eligibleEvidence(JsonNode context, JsonNode source) {
-        String kind = source.path("kind").asText();
+        String kind = LenientJson.asText(source.path("kind"));
         return "video_observation".equals(kind) || sceneFocus(context) && "video_utterance".equals(kind);
     }
 
@@ -297,7 +298,7 @@ final class DialogueNote {
     private static boolean hasFocusEvidence(JsonNode handoff, Map<String, JsonNode> sources) {
         JsonNode context = handoff.path("context");
         for (JsonNode id : context.path("focus").path("evidence_refs")) {
-            JsonNode source = sources.get(id.asText());
+            JsonNode source = sources.get(LenientJson.asText(id));
             if (eligibleEvidence(context, source) && sameRecord(handoff, source)) return true;
         }
         return false;
@@ -307,21 +308,21 @@ final class DialogueNote {
     private static void validateScope(JsonNode next, JsonNode handoff, Map<String, JsonNode> sources) {
         JsonNode context = handoff.path("context");
         JsonNode focus = context.path("focus");
-        if (!"whole_video".equals(focus.path("scope").asText())) return;
+        if (!"whole_video".equals(LenientJson.asText(focus.path("scope")))) return;
         long start = Long.MAX_VALUE, end = 0;
         for (JsonNode ref : focus.path("evidence_refs")) {
-            JsonNode source = sources.get(ref.asText());
+            JsonNode source = sources.get(LenientJson.asText(ref));
             if (!eligibleEvidence(context, source) || !sameRecord(handoff, source)) continue;
-            start = Math.min(start, source.path("start_ms").asLong());
-            end = Math.max(end, source.path("end_ms").asLong());
+            start = Math.min(start, LenientJson.asLong(source.path("start_ms")));
+            end = Math.max(end, LenientJson.asLong(source.path("end_ms")));
         }
         boolean early = false, late = false;
         for (JsonNode ref : next.path("basis_refs")) {
-            JsonNode source = sources.get(ref.asText());
-            if (!contains(focus.path("evidence_refs"), ref.asText())
+            JsonNode source = sources.get(LenientJson.asText(ref));
+            if (!contains(focus.path("evidence_refs"), LenientJson.asText(ref))
                     || !eligibleEvidence(context, source) || !sameRecord(handoff, source)) continue;
-            early |= source.path("start_ms").asLong() < start + (end - start) / 3.0;
-            late |= source.path("end_ms").asLong() > start + (end - start) * 2.0 / 3.0;
+            early |= LenientJson.asLong(source.path("start_ms")) < start + (end - start) / 3.0;
+            late |= LenientJson.asLong(source.path("end_ms")) > start + (end - start) * 2.0 / 3.0;
         }
         require(end > start && early && late, "whole-scene next take must retain evidence from early and late focus ranges");
     }
@@ -331,15 +332,15 @@ final class DialogueNote {
         if (!node.isObject()) return;
         node.properties().forEach(entry -> {
             if (entry.getKey().endsWith("_refs")) {
-                entry.getValue().forEach(id -> require(sources.containsKey(id.asText()), "handoff context source is missing"));
+                entry.getValue().forEach(id -> require(sources.containsKey(LenientJson.asText(id)), "handoff context source is missing"));
             } else if (entry.getKey().equals("utterance_ref") && !entry.getValue().isNull()) {
-                require(sources.containsKey(entry.getValue().asText()), "handoff utterance is missing");
+                require(sources.containsKey(LenientJson.asText(entry.getValue())), "handoff utterance is missing");
             } else validateContextRefs(entry.getValue(), sources);
         });
     }
 
     private static boolean contains(JsonNode refs, String id) {
-        for (JsonNode ref : refs) if (ref.asText().equals(id)) return true;
+        for (JsonNode ref : refs) if (LenientJson.asText(ref).equals(id)) return true;
         return false;
     }
 

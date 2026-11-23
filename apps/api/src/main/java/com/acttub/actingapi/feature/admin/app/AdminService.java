@@ -28,13 +28,14 @@ import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionPa
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminUploadPlayback;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 운영 세션 조회의 규칙. 읽는 것은 SQL 이 하고, 여기서는 <b>어느 계정을 빼는지</b>와
@@ -72,7 +73,7 @@ public class AdminService {
 
     /** ops 화면이 날짜를 한국 시각으로 끊는다. 수집기 백업 경로의 as_of 와 같은 모양으로 낸다. */
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     /**
      * 자문위원 이메일 해시 목록. 코치 성격 배정(SOMA-622)이 읽는 파일과 <b>같은 파일</b>을 읽는다 —
@@ -252,7 +253,7 @@ public class AdminService {
             core.put("source", "live");
             core.put("as_of", OffsetDateTime.now(KST).truncatedTo(ChronoUnit.MINUTES).toString());
             return core;
-        } catch (JsonProcessingException | ClassCastException invalid) {
+        } catch (JacksonException | ClassCastException invalid) {
             throw new IllegalStateException("ops core query did not return a JSON object", invalid);
         }
     }

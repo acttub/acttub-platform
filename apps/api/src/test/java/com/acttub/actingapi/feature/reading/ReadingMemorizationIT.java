@@ -21,10 +21,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -102,26 +102,26 @@ class ReadingMemorizationIT {
 
         JsonNode memorized = mark(bearer, script.dialogue(1), "memorized", 200);
 
-        assertThat(memorized.fieldNames()).toIterable().containsExactlyInAnyOrder("line_id", "status", "updated_at");
-        assertThat(memorized.path("line_id").textValue()).isEqualTo(script.dialogue(1).toString());
-        assertThat(memorized.path("status").textValue()).isEqualTo("memorized");
-        assertThat(Instant.parse(memorized.path("updated_at").textValue())).isEqualTo(first);
+        assertThat(memorized.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("line_id", "status", "updated_at");
+        assertThat(memorized.path("line_id").stringValue(null)).isEqualTo(script.dialogue(1).toString());
+        assertThat(memorized.path("status").stringValue(null)).isEqualTo("memorized");
+        assertThat(Instant.parse(memorized.path("updated_at").stringValue(null))).isEqualTo(first);
         assertThat(count("line_memorization")).isEqualTo(1);
         assertThat(jdbc.queryForMap("SELECT user_id,line_id,status FROM line_memorization"))
                 .containsEntry("user_id", member).containsEntry("line_id", script.dialogue(1)).containsEntry("status", "memorized");
 
         clock.advance(Duration.ofMinutes(1));
         JsonNode notYet = mark(bearer, script.dialogue(1), "not_yet", 200);
-        assertThat(notYet.path("status").textValue()).isEqualTo("not_yet");
-        assertThat(Instant.parse(notYet.path("updated_at").textValue())).as("상태가 바뀌면 갱신 시각도").isEqualTo(clock.instant());
+        assertThat(notYet.path("status").stringValue(null)).isEqualTo("not_yet");
+        assertThat(Instant.parse(notYet.path("updated_at").stringValue(null))).as("상태가 바뀌면 갱신 시각도").isEqualTo(clock.instant());
         assertThat(count("line_memorization")).as("줄마다 행 하나").isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM line_memorization", String.class)).isEqualTo("not_yet");
 
         Instant changed = clock.instant();
         clock.advance(Duration.ofMinutes(1));
         JsonNode again = mark(bearer, script.dialogue(1), "not_yet", 200);
-        assertThat(again.path("status").textValue()).isEqualTo("not_yet");
-        assertThat(Instant.parse(again.path("updated_at").textValue())).as("같은 상태 재전송").isEqualTo(changed);
+        assertThat(again.path("status").stringValue(null)).isEqualTo("not_yet");
+        assertThat(Instant.parse(again.path("updated_at").stringValue(null))).as("같은 상태 재전송").isEqualTo(changed);
         assertThat(jdbc.queryForObject("SELECT updated_at FROM line_memorization", OffsetDateTime.class).toInstant()).isEqualTo(changed);
         assertThat(count("line_memorization")).isEqualTo(1);
     }
@@ -139,12 +139,12 @@ class ReadingMemorizationIT {
         JsonNode rows = list(bearer, script.id, 200);
 
         assertThat(rows).hasSize(3);
-        assertThat(rows).extracting(row -> row.path("line_id").textValue()).as("줄 순서")
+        assertThat(rows).extracting(row -> row.path("line_id").stringValue(null)).as("줄 순서")
                 .containsExactly(script.dialogue(1).toString(), script.dialogue(3).toString(), script.dialogue(7).toString());
-        assertThat(rows).extracting(row -> row.path("status").textValue()).containsExactly("not_yet", "memorized", "memorized");
-        assertThat(rows.get(0).fieldNames()).toIterable().containsExactlyInAnyOrder("line_id", "status", "updated_at");
-        assertThat(Instant.parse(rows.get(0).path("updated_at").textValue())).isEqualTo(clock.instant());
-        assertThat(list(bearer, other.id, 200)).extracting(row -> row.path("line_id").textValue())
+        assertThat(rows).extracting(row -> row.path("status").stringValue(null)).containsExactly("not_yet", "memorized", "memorized");
+        assertThat(rows.get(0).propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("line_id", "status", "updated_at");
+        assertThat(Instant.parse(rows.get(0).path("updated_at").stringValue(null))).isEqualTo(clock.instant());
+        assertThat(list(bearer, other.id, 200)).extracting(row -> row.path("line_id").stringValue(null))
                 .containsExactly(other.dialogue(2).toString());
 
         String others = "Bearer " + jwt.issueAccessToken(member()).value();
@@ -166,9 +166,9 @@ class ReadingMemorizationIT {
         assertThat(count("line_memorization")).as("통과한 줄이 행을 만들지 않는다").isEqualTo(1);
         JsonNode rows = list(bearer, script.id, 200);
         assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).path("line_id").textValue()).isEqualTo(script.dialogue(3).toString());
-        assertThat(rows.get(0).path("status").textValue()).as("통과해도 not_yet 그대로").isEqualTo("not_yet");
-        assertThat(Instant.parse(rows.get(0).path("updated_at").textValue())).isEqualTo(clock.instant().minus(Duration.ofMinutes(1)));
+        assertThat(rows.get(0).path("line_id").stringValue(null)).isEqualTo(script.dialogue(3).toString());
+        assertThat(rows.get(0).path("status").stringValue(null)).as("통과해도 not_yet 그대로").isEqualTo("not_yet");
+        assertThat(Instant.parse(rows.get(0).path("updated_at").stringValue(null))).isEqualTo(clock.instant().minus(Duration.ofMinutes(1)));
         assertThat(json(get("/v2/reading/sessions/{id}", quiz), 200).path("line_results")).hasSize(2);
     }
 
@@ -185,11 +185,11 @@ class ReadingMemorizationIT {
         transfer(guest);
 
         JsonNode rows = list(bearer, guests.id, 200);
-        assertThat(rows).extracting(row -> row.path("line_id").textValue())
+        assertThat(rows).extracting(row -> row.path("line_id").stringValue(null))
                 .containsExactly(guests.dialogue(1).toString(), guests.dialogue(3).toString(), guests.dialogue(7).toString());
-        assertThat(rows).extracting(row -> row.path("status").textValue()).containsOnly("memorized");
+        assertThat(rows).extracting(row -> row.path("status").stringValue(null)).containsOnly("memorized");
         assertThat(jdbc.queryForList("SELECT user_id FROM line_memorization", UUID.class)).hasSize(3).containsOnly(member);
-        assertThat(mark(bearer, guests.dialogue(8), "not_yet", 200).path("status").textValue()).as("옮긴 대본에 회원이 이어서 표시").isEqualTo("not_yet");
+        assertThat(mark(bearer, guests.dialogue(8), "not_yet", 200).path("status").stringValue(null)).as("옮긴 대본에 회원이 이어서 표시").isEqualTo("not_yet");
         assertThat(mark(guest.bearer(), guests.dialogue(1), "not_yet", 403)).as("닫힌 게스트의 늦은 갱신은 게이트가 막는다")
                 .isEqualTo(mapper.readTree("{\"detail\":\"guest_transferred\"}"));
         assertThat(jdbc.queryForObject("SELECT status FROM line_memorization WHERE line_id=?", String.class, guests.dialogue(1)))
@@ -231,7 +231,7 @@ class ReadingMemorizationIT {
         // 니나로 회차를 연 뒤에도 트레플레프(상대역)의 대사 줄은 받는다 — 배역은 기기가 고른다.
         startSession(bearer, script, List.of(script.nina), "read", script.dialogue(1), script.dialogue(8));
         JsonNode opponent = mark(bearer, script.dialogue(2), "memorized", 200);
-        assertThat(opponent.path("line_id").textValue()).isEqualTo(script.dialogue(2).toString());
+        assertThat(opponent.path("line_id").stringValue(null)).isEqualTo(script.dialogue(2).toString());
         assertThat(count("line_memorization")).isEqualTo(1);
 
         String others = "Bearer " + jwt.issueAccessToken(member()).value();
@@ -251,14 +251,14 @@ class ReadingMemorizationIT {
         clock.advance(Duration.ofSeconds(1));
         JsonNode last = mark(bearer, script.dialogue(1), "memorized", 200);
 
-        assertThat(last.path("status").textValue()).isEqualTo("memorized");
-        assertThat(Instant.parse(last.path("updated_at").textValue())).isEqualTo(clock.instant());
+        assertThat(last.path("status").stringValue(null)).isEqualTo("memorized");
+        assertThat(Instant.parse(last.path("updated_at").stringValue(null))).isEqualTo(clock.instant());
         assertThat(count("line_memorization")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM line_memorization", String.class)).isEqualTo("memorized");
         JsonNode rows = list(phone, script.id, 200);
         assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).path("status").textValue()).as("다른 기기의 조회도 마지막 값").isEqualTo("memorized");
-        assertThat(Instant.parse(rows.get(0).path("updated_at").textValue())).isEqualTo(clock.instant());
+        assertThat(rows.get(0).path("status").stringValue(null)).as("다른 기기의 조회도 마지막 값").isEqualTo("memorized");
+        assertThat(Instant.parse(rows.get(0).path("updated_at").stringValue(null))).isEqualTo(clock.instant());
     }
 
     @Test
@@ -282,10 +282,10 @@ class ReadingMemorizationIT {
         MockHttpServletResponse blocked = perform(put("/v2/reading/lines/{id}/memorization", guests.dialogue(1))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"memorized\"}"), guest.bearer());
         assertThat(blocked.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(blocked.getContentAsString()).path("detail").textValue()).isEqualTo("consent_required");
+        assertThat(mapper.readTree(blocked.getContentAsString()).path("detail").stringValue(null)).isEqualTo("consent_required");
         MockHttpServletResponse blockedList = perform(get("/v2/reading/scripts/{id}/memorization", guests.id), guest.bearer());
         assertThat(blockedList.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(blockedList.getContentAsString()).path("detail").textValue()).isEqualTo("consent_required");
+        assertThat(mapper.readTree(blockedList.getContentAsString()).path("detail").stringValue(null)).isEqualTo("consent_required");
         assertThat(count("line_memorization")).isZero();
     }
 
@@ -338,17 +338,17 @@ class ReadingMemorizationIT {
         JsonNode saved = mapper.readTree(response.getContentAsString());
         List<UUID> dialogues = new ArrayList<>();
         for (JsonNode line : saved.path("lines")) {
-            if ("dialogue".equals(line.path("kind").textValue())) {
-                dialogues.add(UUID.fromString(line.path("id").textValue()));
+            if ("dialogue".equals(line.path("kind").stringValue(null))) {
+                dialogues.add(UUID.fromString(line.path("id").stringValue(null)));
             }
         }
         return new Script(
-                UUID.fromString(saved.path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(0).path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(1).path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(2).path("id").textValue()),
-                UUID.fromString(saved.path("lines").get(0).path("id").textValue()),
-                UUID.fromString(saved.path("lines").get(1).path("id").textValue()),
+                UUID.fromString(saved.path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(1).path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(2).path("id").stringValue(null)),
+                UUID.fromString(saved.path("lines").get(0).path("id").stringValue(null)),
+                UUID.fromString(saved.path("lines").get(1).path("id").stringValue(null)),
                 dialogues);
     }
 
@@ -366,7 +366,7 @@ class ReadingMemorizationIT {
         var response = perform(post("/v2/reading/scripts/{id}/sessions", target.id).contentType(MediaType.APPLICATION_JSON)
                 .content(body.toString()), authorization);
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(201);
-        return UUID.fromString(mapper.readTree(response.getContentAsString()).path("id").textValue());
+        return UUID.fromString(mapper.readTree(response.getContentAsString()).path("id").stringValue(null));
     }
 
     private UUID member() {
@@ -389,7 +389,7 @@ class ReadingMemorizationIT {
         })).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        return new Guest(UUID.fromString(body.path("user").path("id").textValue()), "Bearer " + body.path("access_token").textValue());
+        return new Guest(UUID.fromString(body.path("user").path("id").stringValue(null)), "Bearer " + body.path("access_token").stringValue(null));
     }
 
     /** 리딩의 문서 둘에 동의한 게스트. AI 분석 동의는 없다. */
@@ -415,7 +415,7 @@ class ReadingMemorizationIT {
     private void transfer(Guest guest) throws Exception {
         var issued = perform(post("/v2/guest/transfer-code"), guest.bearer());
         assertThat(issued.getStatus()).as(issued.getContentAsString()).isEqualTo(201);
-        String code = mapper.readTree(issued.getContentAsString()).path("code").textValue();
+        String code = mapper.readTree(issued.getContentAsString()).path("code").stringValue(null);
         String from = address;
         var response = mvc.perform(post("/v2/guest-transfers")
                         .with(request -> {

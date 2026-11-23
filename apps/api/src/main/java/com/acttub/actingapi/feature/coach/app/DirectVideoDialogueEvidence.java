@@ -5,7 +5,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 원본의 오디오 부재는 모델 판단으로 뒤집지 않는다. 잘못된 대사는 저장 전에 거절한다. */
 final class DirectVideoDialogueEvidence {
@@ -18,7 +19,7 @@ final class DirectVideoDialogueEvidence {
     static void discardUngroundedDesign(DirectVideoModel.Video video, ObjectNode state, String actorWrittenText) {
         if (video == null || !Boolean.FALSE.equals(video.hasAudioTrack())) return;
         if (!(state.path("practice_loop") instanceof ObjectNode loop)) return;
-        String design = loop.path("design").asText("");
+        String design = LenientJson.asText(loop.path("design"), "");
         if (design.isBlank()) return;
         try {
             requireGrounded(video, "<설계>\n" + design + "\n</설계>", actorWrittenText);

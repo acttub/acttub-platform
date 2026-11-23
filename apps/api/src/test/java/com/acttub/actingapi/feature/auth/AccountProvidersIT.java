@@ -20,8 +20,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import com.acttub.actingapi.support.StubProviders;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -121,8 +121,8 @@ class AccountProvidersIT {
 
         JsonNode existing = login("kakao", "k-member|member@example.test");
 
-        assertThat(existing.path("result").textValue()).isEqualTo("signed_in");
-        assertThat(existing.path("user").path("id").textValue()).isEqualTo(member);
+        assertThat(existing.path("result").stringValue(null)).isEqualTo("signed_in");
+        assertThat(existing.path("user").path("id").stringValue(null)).isEqualTo(member);
         assertThat(kakao.askedUserIds).as("기존 회원은 제공자에 묻지 않는다").containsExactly("k-member", "k-new");
     }
 
@@ -133,7 +133,7 @@ class AccountProvidersIT {
 
         JsonNode first = login("kakao", "k-no-email");
 
-        assertThat(first.path("result").textValue()).isEqualTo("signup_required");
+        assertThat(first.path("result").stringValue(null)).isEqualTo("signup_required");
         assertThat(kakao.askedUserIds).isEmpty();
     }
 
@@ -146,9 +146,9 @@ class AccountProvidersIT {
 
         assertThat(conflict.getStatus()).isEqualTo(409);
         assertThat(mapper.readTree(conflict.getContentAsString()).path("providers"))
-                .extracting(JsonNode::textValue).containsExactly("google");
+                .extracting(textNode -> textNode.stringValue(null)).containsExactly("google");
 
-        JsonNode created = signup(login("kakao", "k-2|free@example.test").path("signup_token").textValue());
+        JsonNode created = signup(login("kakao", "k-2|free@example.test").path("signup_token").stringValue(null));
 
         assertThat(created.path("user").path("email").isNull()).as("검증된 이메일만 저장한다").isTrue();
     }
@@ -160,8 +160,8 @@ class AccountProvidersIT {
 
         JsonNode joined = login("naver", "n-1|Actor@Naver.com");
 
-        assertThat(joined.path("result").textValue()).isEqualTo("signed_in");
-        assertThat(joined.path("user").path("id").textValue()).isEqualTo(userId);
+        assertThat(joined.path("result").stringValue(null)).isEqualTo("signed_in");
+        assertThat(joined.path("user").path("id").stringValue(null)).isEqualTo(userId);
         assertThat(count("users")).isEqualTo(1);
         assertThat(jdbc.queryForList("SELECT provider FROM user_identities ORDER BY provider", String.class))
                 .containsExactly("google", "naver");
@@ -211,7 +211,7 @@ class AccountProvidersIT {
         var noCode = postLogin("{\"provider\":\"naver\",\"code_verifier\":\"v\"}");
         assertThat(noCode.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(noCode.getContentAsString()).path("detail").path(0).path("loc"))
-                .extracting(JsonNode::textValue).containsExactly("body", "authorization_code");
+                .extracting(textNode -> textNode.stringValue(null)).containsExactly("body", "authorization_code");
         assertThat(naver.exchanges).as("빠진 값이 있으면 네이버를 부르지 않는다").isEmpty();
     }
 
@@ -238,9 +238,9 @@ class AccountProvidersIT {
 
         assertThat(apple.exchangedCodes).as("코드는 5분 동안 한 번만 쓸 수 있다").containsExactly("apple-code");
         assertThat(count("user_identities")).as("가입 제출 전에는 아무 행도 없다").isZero();
-        assertThat(first.path("signup_token").textValue()).doesNotContain("apple-grant");
+        assertThat(first.path("signup_token").stringValue(null)).doesNotContain("apple-grant");
 
-        signup(first.path("signup_token").textValue());
+        signup(first.path("signup_token").stringValue(null));
 
         String stored = jdbc.queryForObject("SELECT apple_token_encrypted FROM user_identities", String.class);
         assertThat(stored).matches("[dk]1:.+").doesNotContain("apple-grant");
@@ -261,7 +261,7 @@ class AccountProvidersIT {
 
         JsonNode existing = login("apple", "a-member|member@example.test|verified");
 
-        assertThat(existing.path("user").path("id").textValue()).isEqualTo(member);
+        assertThat(existing.path("user").path("id").stringValue(null)).isEqualTo(member);
         assertThat(apple.exchangedCodes).as("토큰을 이미 가진 기존 회원은 코드를 바꾸지 않는다").isEmpty();
     }
 
@@ -288,7 +288,7 @@ class AccountProvidersIT {
 
         failures.clear();
 
-        assertThat(login("apple", "a-old|old@example.test|verified").path("user").path("id").textValue())
+        assertThat(login("apple", "a-old|old@example.test|verified").path("user").path("id").stringValue(null))
                 .isEqualTo(member);
         assertThat(jdbc.queryForObject("SELECT apple_token_encrypted FROM user_identities", String.class)).isNull();
         // 로그인은 되지만 바깥 의존의 실패는 삼키지 않는다(ADR-025) — 애플이 계속 답하지 않으면 탈퇴 때 폐기할
@@ -319,7 +319,7 @@ class AccountProvidersIT {
                 """);
 
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(200);
-        assertThat(mapper.readTree(response.getContentAsString()).path("user").path("id").textValue())
+        assertThat(mapper.readTree(response.getContentAsString()).path("user").path("id").stringValue(null))
                 .isEqualTo(member);
         assertThat(failures.reports()).isEmpty();
     }
@@ -338,8 +338,8 @@ class AccountProvidersIT {
     // ---- helpers ----
 
     private String signUp(String provider, String idToken) throws Exception {
-        return signup(login(provider, idToken).path("signup_token").textValue())
-                .path("user").path("id").textValue();
+        return signup(login(provider, idToken).path("signup_token").stringValue(null))
+                .path("user").path("id").stringValue(null);
     }
 
     private JsonNode login(String provider, String idToken) throws Exception {

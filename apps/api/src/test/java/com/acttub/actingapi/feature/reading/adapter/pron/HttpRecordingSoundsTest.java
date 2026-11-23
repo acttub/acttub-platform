@@ -18,7 +18,7 @@ import com.acttub.actingapi.feature.reading.domain.ReadingVoiceMaterial.Clip;
 import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

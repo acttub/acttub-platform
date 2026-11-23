@@ -18,8 +18,8 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.StatusView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.AnalysisView;
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.integration.observation.VideoRecord;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.OutputLanguage;
 import jakarta.persistence.EntityManager;
@@ -27,6 +27,7 @@ import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 회차·묶음과 분석 작업의 저장소.
@@ -107,7 +108,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                             PracticeAnalysisMapper.observations(record.path("observations")),
                             PracticeAnalysisMapper.uncertainties(record.path("uncertainties"))),
                     structured ? PracticeAnalysisMapper.recordSummary(record) : null);
-        } catch (JsonProcessingException failure) {
+        } catch (JacksonException failure) {
             throw new IllegalStateException("practice analysis contains invalid JSON", failure);
         }
     }
@@ -666,8 +667,8 @@ class PostgresPracticeRepository implements PracticeRepository {
             return List.of();
         }
         try {
-            return List.copyOf(new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readValue(raw, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() { }));
+            return List.copyOf(JsonMapper.builderWithJackson2Defaults().build()
+                    .readValue(raw, new tools.jackson.core.type.TypeReference<List<String>>() { }));
         } catch (Exception unreadable) {
             return List.of();
         }

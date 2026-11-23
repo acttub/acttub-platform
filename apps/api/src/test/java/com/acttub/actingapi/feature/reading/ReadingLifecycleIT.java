@@ -43,10 +43,10 @@ import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,6 +65,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 리딩 자료의 생애 — specs/reading 「리딩 자료의 이관·삭제·탈퇴」 표와 account.guest·account.withdraw 의 리딩 항목을 HTTP 와
@@ -168,7 +169,7 @@ class ReadingLifecycleIT {
         assertThat(count("account_cleanup_operations")).isZero();
         MockHttpServletResponse stale = perform(get("/v2/reading/scripts/{id}/memorization", reading.script().id), actor.bearer());
         assertThat(stale.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(stale.getContentAsString()).path("detail").textValue()).isEqualTo("account_deactivated");
+        assertThat(mapper.readTree(stale.getContentAsString()).path("detail").stringValue(null)).isEqualTo("account_deactivated");
         // 다시 온 탈퇴는 지울 것이 없고 같은 답이다.
         assertThat(perform(delete("/v2/me"), actor.bearer()).getStatus()).isEqualTo(200);
     }
@@ -312,16 +313,16 @@ class ReadingLifecycleIT {
         JsonNode scripts = json(get("/v2/reading/scripts"), actor.bearer(), 200);
         assertThat(scripts.path("scripts")).hasSize(1);
         JsonNode card = scripts.path("scripts").get(0);
-        assertThat(card.path("id").textValue()).isEqualTo(reading.script().id.toString());
-        assertThat(card.path("status").textValue()).isEqualTo("completed");
-        assertThat(card.path("recording_count").intValue()).isEqualTo(2);
-        assertThat(card.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나");
+        assertThat(card.path("id").stringValue(null)).isEqualTo(reading.script().id.toString());
+        assertThat(card.path("status").stringValue(null)).isEqualTo("completed");
+        assertThat(LenientJson.intValue(card.path("recording_count"))).isEqualTo(2);
+        assertThat(card.path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("니나");
         JsonNode sessions = json(get("/v2/reading/scripts/{id}/sessions", reading.script().id), actor.bearer(), 200).path("sessions");
         assertThat(sessions).hasSize(1);
-        assertThat(sessions.get(0).path("recorded_line_count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(sessions.get(0).path("recorded_line_count"))).isEqualTo(2);
         JsonNode detail = json(get("/v2/reading/sessions/{id}", reading.session()), actor.bearer(), 200);
         assertThat(detail.path("recordings")).hasSize(2);
-        assertThat(detail.path("recordings").get(0).path("playback_url").textValue()).startsWith("https://storage.test/get/reading/");
+        assertThat(detail.path("recordings").get(0).path("playback_url").stringValue(null)).startsWith("https://storage.test/get/reading/");
         assertThat(json(get("/v2/reading/scripts/{id}/memorization", reading.script().id), actor.bearer(), 200)).hasSize(1);
         assertThat(ownedRows(actor.id())).containsExactly(1, 1, 2, 1);
         assertThat(ownedRows(guest.id())).containsExactly(0, 0, 0, 0);
@@ -404,7 +405,7 @@ class ReadingLifecycleIT {
         })).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        Guest guest = new Guest(UUID.fromString(body.path("user").path("id").textValue()), "Bearer " + body.path("access_token").textValue());
+        Guest guest = new Guest(UUID.fromString(body.path("user").path("id").stringValue(null)), "Bearer " + body.path("access_token").stringValue(null));
         for (String type : List.of("terms", "privacy")) {
             Map<String, Object> consent = new LinkedHashMap<>();
             consent.put("document_id", documents.get(type).toString());
@@ -502,13 +503,13 @@ class ReadingLifecycleIT {
         JsonNode saved = mapper.readTree(response.getContentAsString());
         List<UUID> dialogues = new ArrayList<>();
         for (JsonNode line : saved.path("lines")) {
-            if ("dialogue".equals(line.path("kind").textValue())) {
-                dialogues.add(UUID.fromString(line.path("id").textValue()));
+            if ("dialogue".equals(line.path("kind").stringValue(null))) {
+                dialogues.add(UUID.fromString(line.path("id").stringValue(null)));
             }
         }
         return new Script(
-                UUID.fromString(saved.path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(0).path("id").textValue()),
+                UUID.fromString(saved.path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null)),
                 dialogues);
     }
 
@@ -525,13 +526,13 @@ class ReadingLifecycleIT {
         var response = perform(post("/v2/reading/scripts/{id}/sessions", target.id).contentType(MediaType.APPLICATION_JSON)
                 .content(body.toString()), authorization);
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(201);
-        return UUID.fromString(mapper.readTree(response.getContentAsString()).path("id").textValue());
+        return UUID.fromString(mapper.readTree(response.getContentAsString()).path("id").stringValue(null));
     }
 
     private void transfer(Guest guest, Actor actor) throws Exception {
         var issued = perform(post("/v2/guest/transfer-code"), guest.bearer());
         assertThat(issued.getStatus()).as(issued.getContentAsString()).isEqualTo(201);
-        String code = mapper.readTree(issued.getContentAsString()).path("code").textValue();
+        String code = mapper.readTree(issued.getContentAsString()).path("code").stringValue(null);
         String from = address;
         var response = mvc.perform(post("/v2/guest-transfers")
                         .with(request -> {

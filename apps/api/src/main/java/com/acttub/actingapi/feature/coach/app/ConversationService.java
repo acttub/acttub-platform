@@ -21,9 +21,11 @@ import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
@@ -47,7 +49,7 @@ public class ConversationService {
     public static final int LEGACY_REPLY_LIMIT = 8;
     public static final int THREE_LAYERS_REPLY_LIMIT = 24;
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     private static final String COMPLETE = "complete";
 
     private final ConversationRepository conversations;
@@ -488,7 +490,7 @@ public class ConversationService {
         if (session == null || !"open".equals(session.status()) || session.coachingState() == null) return limit;
         var statuses = session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
         if (!statuses.isArray() || statuses.isEmpty()) return limit;
-        String last = statuses.get(statuses.size() - 1).asText("");
+        String last = LenientJson.asText(statuses.get(statuses.size() - 1), "");
         boolean closesNext = DirectVideoPracticeLoop.action(last).startsWith(PracticeLoopRouter.WRAP_UP)
                 || DirectVideoPracticeLoop.statusField(last, "다음에 닫기").startsWith("예");
         return closesNext ? Math.min(limit, coachReplies + 1) : limit;
@@ -506,7 +508,7 @@ public class ConversationService {
     /** 상한에 닿아 끝났는지, 배우가 마쳤는지. 엔진이 사유를 주지 않으면 소진으로 본다. */
     private static String closeReason(CoachResult result) {
         JsonNode handoff = result.reply().handoff();
-        String reason = handoff == null ? null : handoff.path("end_reason").asText(null);
+        String reason = handoff == null ? null : LenientJson.asText(handoff.path("end_reason"), null);
         if (reason == null || reason.isBlank()) reason = result.session().closeReason();
         return switch (reason == null ? "" : reason) {
             case "actor_finished" -> "user_ended";

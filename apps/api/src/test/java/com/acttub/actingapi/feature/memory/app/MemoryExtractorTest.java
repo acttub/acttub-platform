@@ -8,7 +8,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.core.JacksonException;
 import org.junit.jupiter.api.Test;
 
 class MemoryExtractorTest {
@@ -25,7 +25,7 @@ class MemoryExtractorTest {
 
         assertThat(result).isEmpty();
         assertThat(reporter.reports()).singleElement().satisfies(report -> {
-            assertThat(report.failure()).isInstanceOf(JsonProcessingException.class);
+            assertThat(report.failure()).isInstanceOf(JacksonException.class);
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context())
                     .isEqualTo("MemoryExtractor.responseParse operation_id=" + OPERATION);

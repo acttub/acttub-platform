@@ -22,8 +22,8 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,12 +77,12 @@ class CommunityImageIT {
     void uploadFollowsThePortfolioPhotoPathUnderCommunityKeys() throws Exception {
         JsonNode upload = json(post("/v2/community/images"), me,
                 "{\"mime_type\":\"image/jpeg\",\"size_bytes\":1000}", 201);
-        UUID imageId = UUID.fromString(upload.path("image_id").textValue());
+        UUID imageId = UUID.fromString(upload.path("image_id").stringValue(null));
         String objectKey = objectKey(imageId);
         assertThat(objectKey).startsWith("community/" + me + "/").endsWith(".jpg");
-        assertThat(upload.path("upload_url").textValue()).isEqualTo("https://storage.test/put/" + objectKey);
-        assertThat(upload.path("upload_headers").path("Content-Type").textValue()).isEqualTo("image/jpeg");
-        assertThat(Instant.parse(upload.path("expires_at").textValue())).isEqualTo(clock.instant().plus(Duration.ofMinutes(30)));
+        assertThat(upload.path("upload_url").stringValue(null)).isEqualTo("https://storage.test/put/" + objectKey);
+        assertThat(upload.path("upload_headers").path("Content-Type").stringValue(null)).isEqualTo("image/jpeg");
+        assertThat(Instant.parse(upload.path("expires_at").stringValue(null))).isEqualTo(clock.instant().plus(Duration.ofMinutes(30)));
 
         assertThat(detail(post("/v2/community/images"), me, "{\"mime_type\":\"image/gif\",\"size_bytes\":10}", 415))
                 .isEqualTo("unsupported_media_type");
@@ -95,8 +95,8 @@ class CommunityImageIT {
         assertThat(detail(post("/v2/community/images/{id}/complete", imageId), me, null, 409)).isEqualTo("upload_size_mismatch");
         storage.objects.put(objectKey, 1000L);
         JsonNode done = json(post("/v2/community/images/{id}/complete", imageId), me, null, 200);
-        assertThat(done.path("id").textValue()).isEqualTo(imageId.toString());
-        assertThat(done.path("url").textValue()).isEqualTo("https://storage.test/get/" + objectKey);
+        assertThat(done.path("id").stringValue(null)).isEqualTo(imageId.toString());
+        assertThat(done.path("url").stringValue(null)).isEqualTo("https://storage.test/get/" + objectKey);
         assertThat(detail(post("/v2/community/images/{id}/complete", imageId), other, null, 404))
                 .isEqualTo("community_image_not_found");
         UUID late = begin(me);
@@ -114,9 +114,9 @@ class CommunityImageIT {
 
         JsonNode created = json(post("/v2/community/posts"), me, write(List.of(second, first, unconfirmed)), 201);
         assertThat(ids(created.path("images"))).containsExactly(second.toString(), first.toString(), unconfirmed.toString());
-        assertThat(created.path("images").get(0).path("url").textValue())
+        assertThat(created.path("images").get(0).path("url").stringValue(null))
                 .isEqualTo("https://storage.test/get/" + objectKey(second));
-        String postId = created.path("id").textValue();
+        String postId = created.path("id").stringValue(null);
 
         JsonNode seen = json(get("/v2/community/posts/{id}", postId), other, null, 200);
         assertThat(ids(seen.path("images"))).containsExactly(second.toString(), first.toString(), unconfirmed.toString());
@@ -154,7 +154,7 @@ class CommunityImageIT {
         UUID a = uploaded(me);
         UUID b = uploaded(me);
         UUID c = uploaded(me);
-        String postId = json(post("/v2/community/posts"), me, write(List.of(a, b)), 201).path("id").textValue();
+        String postId = json(post("/v2/community/posts"), me, write(List.of(a, b)), 201).path("id").stringValue(null);
 
         // image_ids 를 빼면 사진은 그대로다.
         JsonNode same = json(patch("/v2/community/posts/{id}", postId), me, "{\"title\":\"고친 제목\",\"body\":\"본문\"}", 200);
@@ -176,7 +176,7 @@ class CommunityImageIT {
     @Test
     void deletingThePostDeletesItsImagesAndHiddenPostsKeepThemFromOthers() throws Exception {
         UUID a = uploaded(me);
-        String postId = json(post("/v2/community/posts"), me, write(List.of(a)), 201).path("id").textValue();
+        String postId = json(post("/v2/community/posts"), me, write(List.of(a)), 201).path("id").stringValue(null);
 
         jdbc.update("UPDATE community_posts SET status='hidden' WHERE id=?::uuid", postId);
         assertThat(detail(get("/v2/community/posts/{id}", postId), other, null, 404)).isEqualTo("post_not_found");
@@ -219,7 +219,7 @@ class CommunityImageIT {
 
     private UUID begin(UUID user) throws Exception {
         return UUID.fromString(json(post("/v2/community/images"), user,
-                "{\"mime_type\":\"image/jpeg\",\"size_bytes\":1000}", 201).path("image_id").textValue());
+                "{\"mime_type\":\"image/jpeg\",\"size_bytes\":1000}", 201).path("image_id").stringValue(null));
     }
 
     private UUID uploaded(UUID user) throws Exception {
@@ -262,12 +262,12 @@ class CommunityImageIT {
     }
 
     private String detail(MockHttpServletRequestBuilder request, UUID user, String body, int status) throws Exception {
-        return json(request, user, body, status).path("detail").textValue();
+        return json(request, user, body, status).path("detail").stringValue(null);
     }
 
     private static List<String> ids(JsonNode array) {
         List<String> values = new ArrayList<>();
-        array.forEach(node -> values.add(node.path("id").textValue()));
+        array.forEach(node -> values.add(node.path("id").stringValue(null)));
         return values;
     }
 

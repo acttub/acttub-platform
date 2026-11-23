@@ -21,10 +21,10 @@ import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * 배우 일지(practice.journal, SOMA-720) — 고정 질문 4개의 답을 받아 일지를 만들고, 읽고, 고친다.
@@ -200,7 +200,7 @@ public class JournalService {
         if (text == null) return null;
         try {
             return json.readTree(text);
-        } catch (JsonProcessingException malformed) {
+        } catch (JacksonException malformed) {
             throw new IllegalStateException("stored journal is not JSON", malformed);
         }
     }
@@ -208,7 +208,7 @@ public class JournalService {
     private String write(JsonNode node) {
         try {
             return json.writeValueAsString(node);
-        } catch (JsonProcessingException impossible) {
+        } catch (JacksonException impossible) {
             throw new IllegalStateException(impossible);
         }
     }

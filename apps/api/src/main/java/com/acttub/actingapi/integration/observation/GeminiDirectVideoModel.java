@@ -356,7 +356,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         if (classification) {
             // The first coaching turn has model role. Send the transcript as data in a user message,
             // rather than asking the classifier to continue that assistant-led conversation.
-            var transcript = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
+            var transcript = tools.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
             history.forEach(message -> transcript.addObject().put("role", message.role()).put("text", message.text()));
             contents.add(Content.builder().role("user").parts(Part.fromText(transcript.toString())).build());
         } else {

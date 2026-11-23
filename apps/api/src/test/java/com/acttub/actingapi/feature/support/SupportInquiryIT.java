@@ -9,8 +9,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,9 +60,9 @@ class SupportInquiryIT {
         MockHttpServletResponse response = send(inquiry("refund", " user@example.com ", "  환불하고 싶어요, 방법이 궁금해요  "), null, ip(), 201);
         JsonNode json = mapper.readTree(response.getContentAsString());
 
-        assertThat(json.fieldNames()).toIterable().containsExactlyInAnyOrder("id", "created_at");
+        assertThat(json.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("id", "created_at");
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM support_inquiries WHERE id=?",
-                UUID.fromString(json.path("id").textValue()));
+                UUID.fromString(json.path("id").stringValue(null)));
         assertThat(row.get("category")).isEqualTo("refund");
         assertThat(row.get("email")).isEqualTo("user@example.com");
         assertThat(row.get("body")).isEqualTo("환불하고 싶어요, 방법이 궁금해요");
@@ -122,7 +122,7 @@ class SupportInquiryIT {
             send(inquiry("other", "a@b.co", "한도 안의 문의 본문 " + i), null, address, 201);
         }
         MockHttpServletResponse limited = send(inquiry("other", "a@b.co", "한도를 넘는 문의 본문"), null, address, 429);
-        assertThat(mapper.readTree(limited.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(limited.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("rate limit exceeded");
         send(inquiry("other", "a@b.co", "다른 주소의 문의 본문"), null, ip(), 201);
     }
@@ -138,8 +138,8 @@ class SupportInquiryIT {
                 .isEqualTo(401);
         JsonNode all = admin("/v2/admin/support/inquiries", 200);
         assertThat(all.path("inquiries")).hasSize(2);
-        assertThat(all.at("/inquiries/0/email").textValue()).isEqualTo("two@example.com");
-        assertThat(all.at("/inquiries/0").fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(all.at("/inquiries/0/email").stringValue(null)).isEqualTo("two@example.com");
+        assertThat(all.at("/inquiries/0").propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "id", "category", "email", "body", "user_id", "client", "status", "created_at");
         assertThat(admin("/v2/admin/support/inquiries?status=closed", 200).path("inquiries")).hasSize(1);
         assertThat(admin("/v2/admin/support/inquiries?limit=1", 200).path("inquiries")).hasSize(1);
@@ -173,11 +173,11 @@ class SupportInquiryIT {
 
         JsonNode list = getJson("/v2/support/inquiries/mine", mine, 200).path("items");
         assertThat(list).hasSize(2);
-        assertThat(list.get(0).path("category").textValue()).isEqualTo("bug");
-        assertThat(list.get(0).path("status").textValue()).isEqualTo("open");
-        assertThat(list.get(1).path("status").textValue()).isEqualTo("closed");
-        assertThat(list.get(1).path("summary").textValue()).hasSize(41).endsWith("…");
-        assertThat(list.get(0).fieldNames()).toIterable()
+        assertThat(list.get(0).path("category").stringValue(null)).isEqualTo("bug");
+        assertThat(list.get(0).path("status").stringValue(null)).isEqualTo("open");
+        assertThat(list.get(1).path("status").stringValue(null)).isEqualTo("closed");
+        assertThat(list.get(1).path("summary").stringValue(null)).hasSize(41).endsWith("…");
+        assertThat(list.get(0).propertyNames().iterator()).toIterable()
                 .containsExactlyInAnyOrder("id", "category", "summary", "status", "created_at");
         assertThat(mvc.perform(get("/v2/support/inquiries/mine")).andReturn().getResponse().getStatus()).isEqualTo(401);
     }

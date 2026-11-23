@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreException;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreSubscription;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

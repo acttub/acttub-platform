@@ -6,7 +6,8 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Shared opening policy; these checks enforce form and grounding, not semantic coaching quality. */
 final class OpeningQuestion {
@@ -34,8 +35,8 @@ final class OpeningQuestion {
     }
 
     static boolean videoSource(JsonNode source) {
-        return source != null && !source.path("text").asText().isBlank()
-                && List.of("video_observation", "video_utterance").contains(source.path("kind").asText());
+        return source != null && !LenientJson.asText(source.path("text")).isBlank()
+                && List.of("video_observation", "video_utterance").contains(LenientJson.asText(source.path("kind")));
     }
 
     static boolean legacyOpening(CoachSessionSnapshot session) {
@@ -45,9 +46,9 @@ final class OpeningQuestion {
     static boolean legacyMaterial(CoachSessionSnapshot session) {
         if (session.observationPack() == null) return false;
         // Legacy transcripts are not sent in CoachPrompt.videoFacts; use only delivered material.
-        if (!session.observationPack().path("speech").path("transcript").asText().isBlank()) return true;
+        if (!LenientJson.asText(session.observationPack().path("speech").path("transcript")).isBlank()) return true;
         for (JsonNode observation : session.observationPack().path("observations")) {
-            if (!observation.path("what").asText().isBlank() || !observation.path("quote").asText().isBlank()) return true;
+            if (!LenientJson.asText(observation.path("what")).isBlank() || !LenientJson.asText(observation.path("quote")).isBlank()) return true;
         }
         return false;
     }

@@ -7,7 +7,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,7 +74,7 @@ class PracticeLegacyFlagIT {
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(201);
-        assertThat(mapper.readTree(response.getContentAsString()).path("experience_version").textValue())
+        assertThat(mapper.readTree(response.getContentAsString()).path("experience_version").stringValue(null))
                 .isEqualTo("legacy");
         assertThat(jdbc.queryForObject("SELECT experience_version FROM practices", String.class)).isEqualTo("legacy");
     }

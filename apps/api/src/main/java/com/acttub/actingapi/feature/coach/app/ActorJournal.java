@@ -11,10 +11,11 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 배우 일지(practice.journal, SOMA-720)의 값과 자동 칸 규칙.
@@ -198,18 +199,18 @@ public final class ActorJournal {
      * 근거(source_refs)가 입력에 없거나 종류가 맞지 않는 항목, 길이·말투 규칙을 어긴 항목은 버린다.
      */
     public static Draft sanitize(JsonNode output, JsonNode input) {
-        if (output == null || !output.isObject() || !SCHEMA_VERSION.equals(output.path("schema_version").asText())) {
+        if (output == null || !output.isObject() || !SCHEMA_VERSION.equals(LenientJson.asText(output.path("schema_version")))) {
             throw new IllegalArgumentException("journal draft schema_version");
         }
         Map<String, JsonNode> sources = new HashMap<>();
-        for (JsonNode source : input.path("source_catalog")) sources.put(source.path("id").asText(), source);
-        boolean video = "video".equals(input.path("session").path("input_mode").asText());
+        for (JsonNode source : input.path("source_catalog")) sources.put(LenientJson.asText(source.path("id")), source);
+        boolean video = "video".equals(LenientJson.asText(input.path("session").path("input_mode")));
 
         List<PracticeItem> practice = new ArrayList<>();
         for (JsonNode item : output.path("practice")) {
             if (practice.size() >= PRACTICE_MAX) break;
             String text = text(item, PRACTICE_TEXT);
-            String basis = item.path("basis").asText("");
+            String basis = LenientJson.asText(item.path("basis"), "");
             List<String> kinds = kinds(item, sources, null, video);
             if (text == null || kinds == null || !Set.of("actor_report", "observed", "discussed").contains(basis)) continue;
             if ("actor_report".equals(basis) && kinds.stream().noneMatch(ACTOR_KINDS::contains)) continue;
@@ -221,7 +222,7 @@ public final class ActorJournal {
         Set<String> aspects = new HashSet<>();
         for (JsonNode item : output.path("character")) {
             if (character.size() >= CHARACTER_MAX) break;
-            String aspect = item.path("aspect").asText("");
+            String aspect = LenientJson.asText(item.path("aspect"), "");
             String text = text(item, "partner".equals(aspect) ? PARTNER_TEXT : CHARACTER_TEXT);
             if (text == null || !Set.of("wants", "partner", "situation").contains(aspect) || aspects.contains(aspect)) continue;
             if (kinds(item, sources, CHARACTER_KINDS, video) == null) continue;
@@ -233,7 +234,7 @@ public final class ActorJournal {
         for (JsonNode item : output.path("feedback")) {
             if (feedback.size() >= FEEDBACK_MAX) break;
             String text = text(item, FEEDBACK_TEXT);
-            String giver = item.path("giver").asText("");
+            String giver = LenientJson.asText(item.path("giver"), "");
             List<String> kinds = kinds(item, sources, FEEDBACK_KINDS, video);
             if (text == null || kinds == null || REPORTED.matcher(text).find() || COMMAND.matcher(text).find()) continue;
             if ("coach".equals(giver) && !kinds.contains("coach_message")) continue;
@@ -241,10 +242,10 @@ public final class ActorJournal {
             if (!"coach".equals(giver) && !"other".equals(giver)) continue;
             Integer at = null;
             JsonNode moment = item.path("moment_ref");
-            if (video && moment.isTextual()) {
-                JsonNode source = sources.get(moment.asText());
-                if (source != null && "video_observation".equals(source.path("kind").asText()) && source.path("start_ms").isNumber()) {
-                    at = (int) (source.path("start_ms").asLong() / 1000);
+            if (video && moment.isString()) {
+                JsonNode source = sources.get(LenientJson.asText(moment));
+                if (source != null && "video_observation".equals(LenientJson.asText(source.path("kind"))) && source.path("start_ms").isNumber()) {
+                    at = (int) (LenientJson.asLong(source.path("start_ms")) / 1000);
                 }
             }
             feedback.add(new FeedbackItem(text, giver, at));
@@ -259,10 +260,10 @@ public final class ActorJournal {
         Set<String> seen = new HashSet<>();
         List<String> kinds = new ArrayList<>();
         for (JsonNode ref : refs) {
-            String id = ref.asText();
+            String id = LenientJson.asText(ref);
             JsonNode source = sources.get(id);
             if (!seen.add(id) || source == null) return null;
-            String kind = source.path("kind").asText("");
+            String kind = LenientJson.asText(source.path("kind"), "");
             if (allowed != null && !allowed.contains(kind)) return null;
             if (!video && kind.startsWith("video_")) return null;
             kinds.add(kind);
@@ -271,8 +272,8 @@ public final class ActorJournal {
     }
 
     private static String text(JsonNode item, int max) {
-        if (!item.isObject() || !item.path("text").isTextual()) return null;
-        String text = item.path("text").asText().strip();
+        if (!item.isObject() || !item.path("text").isString()) return null;
+        String text = LenientJson.asText(item.path("text")).strip();
         if (text.isEmpty() || text.codePointCount(0, text.length()) > max) return null;
         return text;
     }
@@ -299,8 +300,8 @@ public final class ActorJournal {
         JsonNode next = node.path("next");
         return new Answers(
                 feeling.isObject() ? new Feeling(nullable(feeling.path("choice")), nullable(feeling.path("text"))) : null,
-                unknown.isObject() ? new Unknown(unknown.path("none").asBoolean(false), nullable(unknown.path("text"))) : null,
-                next.isObject() ? new Next(next.path("undecided").asBoolean(false), nullable(next.path("text"))) : null,
+                unknown.isObject() ? new Unknown(LenientJson.asBoolean(unknown.path("none"), false), nullable(unknown.path("text"))) : null,
+                next.isObject() ? new Next(LenientJson.asBoolean(next.path("undecided"), false), nullable(next.path("text"))) : null,
                 nullable(node.path("review")));
     }
 
@@ -322,17 +323,17 @@ public final class ActorJournal {
     public static Draft draftOf(JsonNode node) {
         if (node == null || !node.isObject()) return Draft.empty();
         List<PracticeItem> practice = new ArrayList<>();
-        node.path("practice").forEach(item -> practice.add(new PracticeItem(item.path("text").asText(""), item.path("basis").asText("discussed"))));
+        node.path("practice").forEach(item -> practice.add(new PracticeItem(LenientJson.asText(item.path("text"), ""), LenientJson.asText(item.path("basis"), "discussed"))));
         List<CharacterItem> character = new ArrayList<>();
-        node.path("character").forEach(item -> character.add(new CharacterItem(item.path("aspect").asText(""), item.path("text").asText(""))));
+        node.path("character").forEach(item -> character.add(new CharacterItem(LenientJson.asText(item.path("aspect"), ""), LenientJson.asText(item.path("text"), ""))));
         List<FeedbackItem> feedback = new ArrayList<>();
-        node.path("feedback").forEach(item -> feedback.add(new FeedbackItem(item.path("text").asText(""), item.path("giver").asText("coach"),
-                item.path("at").isNumber() ? item.path("at").asInt() : null)));
+        node.path("feedback").forEach(item -> feedback.add(new FeedbackItem(LenientJson.asText(item.path("text"), ""), LenientJson.asText(item.path("giver"), "coach"),
+                item.path("at").isNumber() ? LenientJson.asInt(item.path("at")) : null)));
         return new Draft(practice, character, feedback);
     }
 
     private static String nullable(JsonNode value) {
-        return value == null || value.isNull() || value.isMissingNode() ? null : value.asText();
+        return value == null || value.isNull() || value.isMissingNode() ? null : LenientJson.asText(value);
     }
 
     private static boolean notBlank(String value) {

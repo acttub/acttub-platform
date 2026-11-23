@@ -23,9 +23,10 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 목적별 코칭(SOMA-719)이 실제 턴에서 타는 길: 첫 답의 버튼·대사, 버튼 누르기, 정리에서 닫기, 평가 결과 카드. */
 class DirectVideoCoachPurposeTest {
@@ -135,7 +136,7 @@ class DirectVideoCoachPurposeTest {
         assertThat(result.reply().message()).isEqualTo("\"취소해\"에서 매달리듯 붙잡아 봐도 좋아요.");
         assertThat(result.session().status()).isEqualTo("closed");
         var statuses = result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
-        assertThat(statuses.get(statuses.size() - 1).asText()).contains("할 일: " + PracticeLoopRouter.WRAP_UP,
+        assertThat(LenientJson.asText(statuses.get(statuses.size() - 1))).contains("할 일: " + PracticeLoopRouter.WRAP_UP,
                 "다음 테이크: \"취소해\"에서 매달리듯 붙잡아 봐도 좋아요");
         assertThat(PurposeView.from("stuck", result.session().coachingState()).choices()).isEmpty();
     }

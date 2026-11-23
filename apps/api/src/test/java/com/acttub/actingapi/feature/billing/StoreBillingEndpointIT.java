@@ -19,8 +19,8 @@ import com.acttub.actingapi.feature.billing.app.StoreGateways.RevenueCatGateway;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreSubscription;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 앱 스토어 구독(SOMA-818 2단계, RevenueCat)을 실제 Postgres·Spring 으로 본다: 동기화 → 구독 줄 upsert(멱등), 웹훅이 앱 헤더 없이
@@ -117,9 +118,9 @@ class StoreBillingEndpointIT {
         Instant end = clock.instant().plus(Duration.ofDays(30));
         when(revenueCat.entitlement(USER.toString())).thenReturn(Optional.of(sub("app_store", "acttub_pro_monthly", end, null)));
         JsonNode me = sync(200);
-        assertThat(me.path("pro").booleanValue()).isTrue();
-        assertThat(me.path("provider").textValue()).isEqualTo("apple");
-        assertThat(me.path("status").textValue()).isEqualTo("active");
+        assertThat(me.path("pro").booleanValue(false)).isTrue();
+        assertThat(me.path("provider").stringValue(null)).isEqualTo("apple");
+        assertThat(me.path("status").stringValue(null)).isEqualTo("active");
         sync(200);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_subscriptions", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT store_transaction_id FROM billing_subscriptions", String.class)).isEqualTo("2000000999");
@@ -163,7 +164,7 @@ class StoreBillingEndpointIT {
                 """, UUID.randomUUID(), USER);
         when(revenueCat.entitlement(USER.toString())).thenReturn(Optional.of(sub("app_store", "acttub_pro_monthly",
                 clock.instant().plus(Duration.ofDays(30)), null)));
-        assertThat(sync(409).path("detail").asText()).contains("already_subscribed");
+        assertThat(LenientJson.asText(sync(409).path("detail"))).contains("already_subscribed");
         assertThat(jdbc.queryForObject("SELECT provider FROM billing_subscriptions", String.class)).isEqualTo("toss");
 
         jdbc.update("UPDATE users SET status='deactivated' WHERE id=?", OTHER);

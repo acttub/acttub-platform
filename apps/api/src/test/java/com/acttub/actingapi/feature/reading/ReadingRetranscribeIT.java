@@ -20,10 +20,10 @@ import com.acttub.actingapi.feature.reading.app.RetranscribeRepository;
 import com.acttub.actingapi.feature.reading.app.RetranscribeWorker;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -259,12 +259,12 @@ class ReadingRetranscribeIT {
         JsonNode saved = json(post("/v2/reading/scripts").content(body.toString()), authorization, 201);
         List<UUID> all = new ArrayList<>();
         for (JsonNode line : saved.path("lines")) {
-            all.add(UUID.fromString(line.path("id").textValue()));
+            all.add(UUID.fromString(line.path("id").stringValue(null)));
         }
         ninaLines = List.of(all.get(0), all.get(2), all.get(4));
         allLines = all;
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        String nina = saved.path("characters").get(0).path("id").textValue();
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
 
         ObjectNode start = mapper.createObjectNode();
         start.put("request_id", UUID.randomUUID().toString());
@@ -276,7 +276,7 @@ class ReadingRetranscribeIT {
         start.put("record", true);
         JsonNode started = json(post("/v2/reading/scripts/{id}/sessions", scriptId).content(start.toString()),
                 authorization, 201);
-        return UUID.fromString(started.path("id").textValue());
+        return UUID.fromString(started.path("id").stringValue(null));
     }
 
     private void member(UUID id) {

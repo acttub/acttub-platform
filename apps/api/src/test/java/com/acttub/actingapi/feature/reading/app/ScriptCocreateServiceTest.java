@@ -31,9 +31,9 @@ import com.acttub.actingapi.feature.reading.domain.CocreateRules.Experience;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -443,7 +443,7 @@ class ScriptCocreateServiceTest {
 
     // ---------------------------------------------------------------- 가짜
 
-    static com.fasterxml.jackson.databind.JsonNode read(String json) {
+    static tools.jackson.databind.JsonNode read(String json) {
         try {
             return MAPPER.readTree(json);
         } catch (Exception failure) {

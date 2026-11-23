@@ -3,7 +3,8 @@ package com.acttub.actingapi.feature.coach.app;
 import java.util.List;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 같은 묶음의 지난 회차를 다음 회차 코치에게 넘기는 한 줄(세션.md, SOMA-602).
@@ -34,7 +35,7 @@ public final class PracticeLoopRound {
         if (loop == null || !loop.isObject()) return null;
         var round = DirectVideoPracticeLoop.round(loop,
                 turns.stream().map(t -> new CoachTurnSnapshot(t.role(), t.text())).toList());
-        String habit = title != null && !title.isBlank() ? title : DirectVideoPracticeLoop.habit(loop.path("design").asText(""));
+        String habit = title != null && !title.isBlank() ? title : DirectVideoPracticeLoop.habit(LenientJson.asText(loop.path("design"), ""));
         StringBuilder line = new StringBuilder().append(ordinal).append("차: ");
         if (round.goal() != null) line.append("목표 ").append(clip(round.goal())).append(" — ");
         line.append("버릇 ").append(habit.isBlank() ? "없음" : clip(habit));
@@ -68,7 +69,7 @@ public final class PracticeLoopRound {
             String text = turn.text() == null ? "" : turn.text().strip();
             if (text.isEmpty()) continue;
             String kind = statuses == null || !statuses.isArray() ? ""
-                    : DirectVideoPracticeLoop.statusField(statuses.path(coachIndex).asText(""), "배우의 말");
+                    : DirectVideoPracticeLoop.statusField(LenientJson.asText(statuses.path(coachIndex), ""), "배우의 말");
             String label = KINDS.stream().filter(kind::startsWith).findFirst().orElse("");
             words.add(label.isEmpty() ? text : "(" + label + ") " + text);
         }

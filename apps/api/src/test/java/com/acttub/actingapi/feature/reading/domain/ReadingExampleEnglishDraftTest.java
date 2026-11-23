@@ -14,10 +14,11 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * V89 의 영어 예시 대본 3편(SOMA-1033) — 미리 나눈 줄이 원문과 맞고, 원문이 앱 내장 목록(sample.ts)과 글자 그대로 같은지 본다.
@@ -102,10 +103,10 @@ class ReadingExampleEnglishDraftTest {
         while (matcher.find()) {
             JsonNode draft = mapper.readTree(matcher.group(6));
             List<String> characters = new ArrayList<>();
-            draft.path("characters").forEach(name -> characters.add(name.textValue()));
+            draft.path("characters").forEach(name -> characters.add(name.stringValue(null)));
             List<ReadingExample.Line> lines = new ArrayList<>();
-            draft.path("lines").forEach(line -> lines.add(new ReadingExample.Line(line.path("kind").textValue(),
-                    line.path("character").isNull() ? null : line.path("character").intValue(), line.path("text").textValue())));
+            draft.path("lines").forEach(line -> lines.add(new ReadingExample.Line(line.path("kind").stringValue(null),
+                    line.path("character").isNull() ? null : LenientJson.intValue(line.path("character")), line.path("text").stringValue(null))));
             examples.put(matcher.group(1), new ReadingExample(matcher.group(1), matcher.group(2).replace("''", "'"),
                     matcher.group(3).replace("''", "'"), matcher.group(5), characters, lines));
         }

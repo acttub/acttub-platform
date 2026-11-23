@@ -5,7 +5,8 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 연습 루프 둘째 응답부터의 분기. 배우의 말 종류를 받아 이번 응답의 할 일을 <b>코드가</b> 정한다.
@@ -138,7 +139,7 @@ final class PracticeLoopRouter {
         boolean lineFix = false;
         boolean already = false;
         for (JsonNode value : root.path("signals")) {
-            String id = value.isTextual() ? value.asText() : "";
+            String id = value.isString() ? LenientJson.asText(value) : "";
             if (!SIGNALS.contains(id)) throw new IllegalArgumentException("unknown practice loop classification");
             if (STOP_SIGNAL.equals(id)) stop = true;
             else if (DECIDED_SIGNAL.equals(id)) decided = true;
@@ -239,13 +240,13 @@ final class PracticeLoopRouter {
         // 첫 응답이 버릇을 보여 주고(1) 원하는 것을 묻는다(2). 그래서 첫 답은 2단계 질문의 답이다.
         int stage = coachTurns >= 1 ? 2 : 1;
         for (int i = 0; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             String doing = DirectVideoPracticeLoop.action(status);
             tally = tally.after(doing);
             lastDoing = doing;
             // 대화 이어하기(SOMA-782): 닫힌 대화를 다시 연 직후 첫 배우 말은 "정리한 다음 말"처럼 다룬다 — 이어 묻는 말에는 답하고,
             // 짧은 맞장구면 다시 닫는다. 그러지 않으면 마지막 할 일이 끝·마무리라 첫 말에 곧바로 닫힌다.
-            if (i == coachTurns - 1 && loop != null && loop.path(RESUMED_AT).asInt(-1) == coachTurns
+            if (i == coachTurns - 1 && loop != null && LenientJson.asInt(loop.path(RESUMED_AT), -1) == coachTurns
                     && (doing.startsWith("끝") || doing.startsWith("마무리"))) {
                 lastDoing = WRAP_UP;
             }
@@ -324,7 +325,7 @@ final class PracticeLoopRouter {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         int stayed = 0;
         for (int i = 1; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             stayed = STAYS.contains(DirectVideoPracticeLoop.action(status)) ? stayed + 1 : 0;
         }
         return stayed;
@@ -391,7 +392,7 @@ final class PracticeLoopRouter {
     static boolean lastWasDone(JsonNode loop, int coachTurns) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         if (statuses == null || !statuses.isArray() || coachTurns <= 0) return false;
-        return !DirectVideoPracticeLoop.statusField(statuses.path(coachTurns - 1).asText(""), DONE_FIELD).isBlank();
+        return !DirectVideoPracticeLoop.statusField(LenientJson.asText(statuses.path(coachTurns - 1), ""), DONE_FIELD).isBlank();
     }
 
     /** 배우가 이미 했다고 한 제안을 남기는 상태 칸(SOMA-855). 이 대화가 끝날 때까지 다시 제안하지 않는다. */
@@ -403,7 +404,7 @@ final class PracticeLoopRouter {
     static String lastProposal(JsonNode loop, int coachTurns, String lastCoachText) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         if (statuses != null && statuses.isArray() && coachTurns > 0) {
-            String take = DirectVideoPracticeLoop.statusField(statuses.path(coachTurns - 1).asText(""), "다음 테이크");
+            String take = DirectVideoPracticeLoop.statusField(LenientJson.asText(statuses.path(coachTurns - 1), ""), "다음 테이크");
             if (!take.isBlank() && !take.startsWith("없음")) return clip(take);
         }
         return clip(lastCoachText == null ? "" : lastCoachText);
@@ -419,7 +420,7 @@ final class PracticeLoopRouter {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         var done = new LinkedHashSet<String>();
         for (int i = 0; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             String value = DirectVideoPracticeLoop.statusField(status, DONE_FIELD);
             if (!value.isBlank()) done.add(value.strip());
         }
@@ -440,7 +441,7 @@ final class PracticeLoopRouter {
     static boolean askedDone(JsonNode loop, int coachTurns) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         for (int i = 0; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             if (ASK_DONE.equals(DirectVideoPracticeLoop.action(status))) return true;
         }
         return false;
@@ -452,7 +453,7 @@ final class PracticeLoopRouter {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         int asked = 1;
         for (int i = 1; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             if (ASKING.contains(DirectVideoPracticeLoop.action(status))) asked++;
         }
         return asked;
@@ -593,7 +594,7 @@ final class PracticeLoopRouter {
         var found = new java.util.LinkedHashMap<String, String>();
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         for (int i = 0; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             for (String field : ANSWER_FIELDS.values()) {
                 String value = DirectVideoPracticeLoop.statusField(status, field);
                 if (!value.isEmpty()) found.put(field, value);
@@ -612,7 +613,7 @@ final class PracticeLoopRouter {
         String found = "";
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         for (int i = 0; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             String value = DirectVideoPracticeLoop.statusField(status, WANT_FIELD);
             if (!value.isEmpty()) found = value;
         }
@@ -623,7 +624,7 @@ final class PracticeLoopRouter {
     static boolean lineFixed(JsonNode loop, int coachTurns) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         for (int i = 0; i < coachTurns; i++) {
-            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             if (DirectVideoPracticeLoop.statusField(status, LINE_FIX_FIELD).startsWith("예")) return true;
         }
         return false;

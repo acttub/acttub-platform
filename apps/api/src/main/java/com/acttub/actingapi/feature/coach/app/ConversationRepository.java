@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * 0.1.0 회차의 코치 대화 저장소 — {@code coach_conversations}·{@code coach_messages}·{@code coach_notes} (practice.coach,

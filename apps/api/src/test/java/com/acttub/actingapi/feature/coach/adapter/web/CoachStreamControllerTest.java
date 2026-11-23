@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
-import com.acttub.actingapi.support.Jackson2Converters;
 import com.acttub.actingapi.feature.coach.app.CoachStream;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -18,7 +17,7 @@ import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.web.ApiErrorAdvice;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -26,6 +25,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class CoachStreamControllerTest {
     private final ConversationService service = mock(ConversationService.class);
@@ -65,7 +65,7 @@ class CoachStreamControllerTest {
         int done = text.indexOf("event: done\ndata: ");
         assertThat(done).isGreaterThan(text.indexOf("event: delta"));
         String doneJson = text.substring(done + "event: done\ndata: ".length()).strip();
-        assertThat(new ObjectMapper().readTree(doneJson).path("message").asText()).isEqualTo("그때 속으로는\n어땠어요?");
+        assertThat(LenientJson.asText(new ObjectMapper().readTree(doneJson).path("message"))).isEqualTo("그때 속으로는\n어땠어요?");
     }
 
     @Test void rejectionsBeforeTheModelCallStayOrdinaryHttpErrors() {
@@ -81,7 +81,6 @@ class CoachStreamControllerTest {
         when(auth.gatedUser(any())).thenReturn(new AuthenticatedUser(user, "a@b.c", UserStatus.ACTIVE, false));
         when(service.reply(any(), any(), any(), any(), any(), any())).thenThrow(new ApiException(409, "conversation_conflict"));
         MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
-                .setMessageConverters(Jackson2Converters.server())
                 .setControllerAdvice(new ApiErrorAdvice(new ObjectMapper(), failures))
                 .build();
         String json = new ObjectMapper().writeValueAsString(body());

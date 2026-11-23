@@ -14,14 +14,14 @@ import com.acttub.actingapi.integration.storage.NoCredentialsError;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.RequestBodyCachingFilter.CachedBodyRequest;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
-import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.exc.MismatchedInputException;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
+import tools.jackson.databind.introspect.BeanPropertyDefinition;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -106,9 +106,9 @@ public class ApiErrorAdvice {
         Throwable cause = exception.getMostSpecificCause();
         String raw = rawBody(request);
         Map<String, Object> error;
-        if (raw.isEmpty() && !(cause instanceof JsonProcessingException)) {
+        if (raw.isEmpty() && !(cause instanceof JacksonException)) {
             error = error("missing", List.of("body"), "Field required", null);
-        } else if (cause instanceof JsonMappingException mapping && !mapping.getPath().isEmpty()) {
+        } else if (cause instanceof DatabindException mapping && !mapping.getPath().isEmpty()) {
             Object input = parsedBody(request);
             ResolvedPath path = resolveJacksonPath(mapping.getPath());
             error = jacksonError(mapping, path.loc(), valueAt(input, path.loc()));
@@ -254,7 +254,7 @@ public class ApiErrorAdvice {
     }
 
     Map<String, Object> jacksonError(
-            JsonMappingException exception,
+            DatabindException exception,
             List<Object> loc,
             Object input) {
         if (exception instanceof UnrecognizedPropertyException) {
@@ -355,15 +355,15 @@ public class ApiErrorAdvice {
                 null);
     }
 
-    private ResolvedPath resolveJacksonPath(List<JsonMappingException.Reference> references) {
+    private ResolvedPath resolveJacksonPath(List<DatabindException.Reference> references) {
         List<Object> loc = new ArrayList<>();
         loc.add("body");
         JavaType current = references.isEmpty() ? null : referenceType(references.getFirst(), null);
-        for (JsonMappingException.Reference reference : references) {
-            if (reference.getFieldName() != null) {
+        for (DatabindException.Reference reference : references) {
+            if (reference.getPropertyName() != null) {
                 JavaType owner = referenceType(reference, current);
-                BeanPropertyDefinition property = property(owner, reference.getFieldName());
-                loc.add(property == null ? reference.getFieldName() : property.getName());
+                BeanPropertyDefinition property = property(owner, reference.getPropertyName());
+                loc.add(property == null ? reference.getPropertyName() : property.getName());
                 current = property == null ? current : property.getPrimaryType();
             } else if (reference.getIndex() >= 0) {
                 loc.add(reference.getIndex());
@@ -415,11 +415,18 @@ public class ApiErrorAdvice {
         if (type == null || type.isPrimitive() || type.isCollectionLikeType() || type.isMapLikeType()) {
             return List.of();
         }
-        return mapper.getDeserializationConfig().introspect(type).findProperties();
+        return deserializationProperties(mapper, type);
     }
 
-    private JavaType referenceType(JsonMappingException.Reference reference, JavaType fallback) {
-        Object from = reference.getFrom();
+    /** 요청 본문을 읽을 때 매퍼가 보는 속성 목록(이름 규칙·주석 반영). */
+    static List<BeanPropertyDefinition> deserializationProperties(ObjectMapper mapper, JavaType type) {
+        var introspector = mapper.deserializationConfig().classIntrospectorInstance();
+        return introspector.introspectForDeserialization(type, introspector.introspectClassAnnotations(type))
+                .findProperties();
+    }
+
+    private JavaType referenceType(DatabindException.Reference reference, JavaType fallback) {
+        Object from = reference.from();
         if (from instanceof Class<?> type) {
             return mapper.constructType(type);
         }
@@ -519,7 +526,7 @@ public class ApiErrorAdvice {
         }
     }
 
-    private static String uuidParserError(Object input, JsonMappingException exception) {
+    private static String uuidParserError(Object input, DatabindException exception) {
         return uuidParserError(input, exception.getOriginalMessage());
     }
 
@@ -556,7 +563,7 @@ public class ApiErrorAdvice {
         List<String> values = new ArrayList<>();
         for (Object constant : enumType.getEnumConstants()) {
             JsonNode serialized = mapper.valueToTree(constant);
-            String value = serialized.isTextual() ? serialized.textValue() : constant.toString();
+            String value = serialized.isString() ? serialized.stringValue(null) : constant.toString();
             values.add("'" + value + "'");
         }
         if (values.size() < 2) {
@@ -589,7 +596,7 @@ public class ApiErrorAdvice {
     }
 
     private static long jacksonOffset(Throwable cause) {
-        if (cause instanceof JsonProcessingException processing && processing.getLocation() != null) {
+        if (cause instanceof JacksonException processing && processing.getLocation() != null) {
             long byteOffset = processing.getLocation().getByteOffset();
             if (byteOffset >= 0) {
                 return byteOffset;
@@ -605,7 +612,7 @@ public class ApiErrorAdvice {
     private static String jacksonParserError(
             HttpMessageNotReadableException exception,
             Throwable cause) {
-        if (cause instanceof JsonProcessingException processing) {
+        if (cause instanceof JacksonException processing) {
             return processing.getOriginalMessage();
         }
         return Objects.requireNonNullElse(exception.getMessage(), "Invalid JSON");

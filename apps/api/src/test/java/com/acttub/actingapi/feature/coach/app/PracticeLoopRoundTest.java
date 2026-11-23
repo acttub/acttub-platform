@@ -6,8 +6,8 @@ import java.util.List;
 
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRound.Turn;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 /** 지난 회차 한 줄 요약과 배우 말의 분류 표시: 기억(세션.md·유저.md)이 읽는 재료. */

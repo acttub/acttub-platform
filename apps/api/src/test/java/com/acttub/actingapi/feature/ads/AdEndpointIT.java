@@ -11,8 +11,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.ads 를 HTTP 와 실제 Postgres 로 본다 — 첫 연습 판정, 고르는 순서, 노출 하루 한 번·클릭 기록, 404·422. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
@@ -92,28 +93,28 @@ class AdEndpointIT {
     void pickOrder() throws Exception {
         UUID direct = insertAd("direct", "{home_top}", "all", "https://cdn/banner.png", null);
         insertAd("house", "{home_top,profile_top}", "free", null, "/pro");
-        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NONE");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("NONE");
 
         finishReading();
         JsonNode home = json(get("/v2/ads").param("slot", "home_top"), 200);
-        assertThat(home.path("kind").asText()).isEqualTo("DIRECT");
-        assertThat(home.path("size").asText()).isEqualTo("BANNER");
-        assertThat(home.path("width").asInt()).isEqualTo(320);
-        assertThat(home.path("height").asInt()).isEqualTo(50);
-        assertThat(home.path("ad").path("id").asText()).isEqualTo(direct.toString());
-        assertThat(home.path("ad").path("image_url").asText()).isEqualTo("https://cdn/banner.png");
-        assertThat(home.path("ad").path("link_url").asText()).isEqualTo("https://example.com");
+        assertThat(LenientJson.asText(home.path("kind"))).isEqualTo("DIRECT");
+        assertThat(LenientJson.asText(home.path("size"))).isEqualTo("BANNER");
+        assertThat(LenientJson.asInt(home.path("width"))).isEqualTo(320);
+        assertThat(LenientJson.asInt(home.path("height"))).isEqualTo(50);
+        assertThat(LenientJson.asText(home.path("ad").path("id"))).isEqualTo(direct.toString());
+        assertThat(LenientJson.asText(home.path("ad").path("image_url"))).isEqualTo("https://cdn/banner.png");
+        assertThat(LenientJson.asText(home.path("ad").path("link_url"))).isEqualTo("https://example.com");
 
         JsonNode profile = json(get("/v2/ads").param("slot", "profile_top"), 200);
-        assertThat(profile.path("kind").asText()).isEqualTo("HOUSE");
-        assertThat(profile.path("ad").path("app_path").asText()).isEqualTo("/pro");
+        assertThat(LenientJson.asText(profile.path("kind"))).isEqualTo("HOUSE");
+        assertThat(LenientJson.asText(profile.path("ad").path("app_path"))).isEqualTo("/pro");
         assertThat(profile.path("ad").path("link_url").isNull()).isTrue();
 
-        assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
-        assertThat(json(get("/v2/ads").param("slot", "analyzing_wait"), 200).path("kind").asText()).isEqualTo("NONE");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind"))).isEqualTo("NETWORK");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "analyzing_wait"), 200).path("kind"))).isEqualTo("NONE");
 
         jdbc.update("UPDATE ads SET status='paused' WHERE id=?", direct);
-        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("HOUSE");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("HOUSE");
     }
 
     @Test
@@ -122,12 +123,12 @@ class AdEndpointIT {
         insertAd("direct", "{settings_top}", "all", "https://cdn/banner.png", null);
         finishReading();
         try {
-            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("DIRECT");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind"))).isEqualTo("DIRECT");
             jdbc.update("UPDATE ad_slot_switches SET enabled=false WHERE slot_key='settings_top'");
-            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("NONE");
-            assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind"))).isEqualTo("NONE");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("NETWORK");
             jdbc.update("UPDATE ad_slot_switches SET enabled=true WHERE slot_key='settings_top'");
-            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("DIRECT");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind"))).isEqualTo("DIRECT");
         } finally {
             jdbc.update("UPDATE ad_slot_switches SET enabled=true");
         }
@@ -139,13 +140,13 @@ class AdEndpointIT {
         insertAd("direct", "{reading_done_full}", "all", "https://cdn/banner.png", null);
         finishReading();
         try {
-            assertThat(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind").asText()).isEqualTo("NONE");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind"))).isEqualTo("NONE");
             jdbc.update("INSERT INTO ad_slot_switches(slot_key, enabled) VALUES ('reading_done_full', true)");
             var pick = json(get("/v2/ads").param("slot", "reading_done_full"), 200);
-            assertThat(pick.path("kind").asText()).isEqualTo("NETWORK");
+            assertThat(LenientJson.asText(pick.path("kind"))).isEqualTo("NETWORK");
             assertThat(pick.path("ad").isNull()).isTrue();
             jdbc.update("UPDATE ad_slot_switches SET enabled=false WHERE slot_key='reading_done_full'");
-            assertThat(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind").asText()).isEqualTo("NONE");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind"))).isEqualTo("NONE");
         } finally {
             jdbc.update("DELETE FROM ad_slot_switches WHERE slot_key='reading_done_full'");
         }
@@ -163,8 +164,8 @@ class AdEndpointIT {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ad_events WHERE event='impression'", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ad_events WHERE event='click'", Integer.class)).isEqualTo(2);
 
-        assertThat(json(post("/v2/ads/" + UUID.randomUUID() + "/events").contentType(MediaType.APPLICATION_JSON)
-                .content(click), 404).path("detail").asText()).isEqualTo("ad_not_found");
+        assertThat(LenientJson.asText(json(post("/v2/ads/" + UUID.randomUUID() + "/events").contentType(MediaType.APPLICATION_JSON)
+                .content(click), 404).path("detail"))).isEqualTo("ad_not_found");
         json(post("/v2/ads/" + ad + "/events").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"slot\":\"nope\",\"event\":\"click\"}"), 422);
         json(post("/v2/ads/" + ad + "/events").contentType(MediaType.APPLICATION_JSON)
@@ -180,13 +181,13 @@ class AdEndpointIT {
         jdbc.update("UPDATE users SET created_at=now() - interval '3 days' WHERE id=?", user);
         finishReading();
         for (int i = 0; i < 5; i++) {
-            assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("NETWORK");
         }
-        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NONE");
-        assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("NONE");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("NONE");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind"))).isEqualTo("NONE");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ad_serves WHERE user_id=?", Integer.class, user)).isEqualTo(5);
         jdbc.update("UPDATE ad_serves SET served_at = now() - interval '11 minutes' WHERE user_id=?", user);
-        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("NETWORK");
     }
 
     @Test
@@ -196,8 +197,8 @@ class AdEndpointIT {
         jdbc.update("UPDATE users SET created_at=now() - interval '2 hours' WHERE id=?", user);
         finishReading();
         for (int i = 0; i < 3; i++) {
-            assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+            assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("NETWORK");
         }
-        assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NONE");
+        assertThat(LenientJson.asText(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind"))).isEqualTo("NONE");
     }
 }

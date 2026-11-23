@@ -10,7 +10,7 @@ import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

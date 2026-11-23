@@ -16,8 +16,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 가입 직후 유입 경로 자기 응답(SOMA-649) — {@code PUT /v2/me/discovery} 를 HTTP 와 실제 Postgres 로 본다.
@@ -176,13 +177,13 @@ class DiscoveryAnswerIT {
         JsonNode rows = mapper.readTree(body).path("signup_rows");
         JsonNode row = null;
         for (JsonNode candidate : rows) {
-            if (candidate.path("actor").asText().equals("배우 " + md5(member.toString()).substring(0, 8))) {
+            if (LenientJson.asText(candidate.path("actor")).equals("배우 " + md5(member.toString()).substring(0, 8))) {
                 row = candidate;
             }
         }
         assertThat(row).isNotNull();
-        assertThat(row.path("discovery_answered").booleanValue()).isTrue();
-        assertThat(row.path("discovery_source").asText()).isEqualTo("other");
+        assertThat(row.path("discovery_answered").booleanValue(false)).isTrue();
+        assertThat(LenientJson.asText(row.path("discovery_source"))).isEqualTo("other");
         assertThat(row.path("discovery_detail").isNull()).isTrue();
     }
 

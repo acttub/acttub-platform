@@ -10,8 +10,8 @@ import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachHelpIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.TextValidator;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /** 추가 모델 호출 없이 막힘 복구·반복 방지·종료를 지키는 서버 측 경계. */
 final class CoachResponsePolicy {

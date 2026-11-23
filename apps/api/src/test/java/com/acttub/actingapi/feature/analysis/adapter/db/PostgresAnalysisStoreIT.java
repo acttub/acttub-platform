@@ -28,8 +28,8 @@ import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,6 +40,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 분석 완료 전이를 <b>실제 Postgres 위에서</b> 본다 — {@code PostgresAnalysisStore.complete} 는
@@ -362,26 +363,26 @@ class PostgresAnalysisStoreIT {
                 .isEqualTo(mapper.readTree("[\"조명이 어둡다\"]"));
         // jsonb 는 키 순서를 보존하지 않는다(짧은 이름부터 저장한다) — 저장된 순서가 아니라
         // 팩의 칸이 다 있는지가 여기서 볼 것이고, 읽는 순서는 CoachPrompt 가 다시 세운다.
-        assertThat(mapper.readTree((String) summary.get("raw")).fieldNames()).toIterable()
+        assertThat(mapper.readTree((String) summary.get("raw")).propertyNames().iterator()).toIterable()
                 .containsExactlyInAnyOrder("scene_summary", "timeline", "speech", "observations", "uncertainties");
-        assertThat(mapper.readTree((String) summary.get("raw")).path("timeline").asText())
+        assertThat(LenientJson.asText(mapper.readTree((String) summary.get("raw")).path("timeline")))
                 .isEqualTo(result.observationPack().timeline());
         // speech 도 같은 이유로 통째 비교하지 않는다 — jsonb 를 거치며 칸 순서가 바뀐다.
         JsonNode speech = mapper.readTree((String) summary.get("raw")).path("speech");
         SpeechAnalysis expected = result.observationPack().speech();
-        assertThat(speech.path("transcript").asText()).isEqualTo(expected.transcript());
-        assertThat(speech.path("avg_syllables_per_sec").asDouble())
+        assertThat(LenientJson.asText(speech.path("transcript"))).isEqualTo(expected.transcript());
+        assertThat(LenientJson.asDouble(speech.path("avg_syllables_per_sec")))
                 .isEqualTo(expected.avgSyllablesPerSec());
         assertThat(speech.path("pauses")).hasSize(expected.pauses().size());
         assertThat(speech.path("chunks")).hasSize(expected.chunks().size());
         JsonNode chunk = speech.path("chunks").get(0);
         SpeechAnalysis.Chunk expectedChunk = expected.chunks().get(0);
-        assertThat(chunk.path("start_ms").asLong()).isEqualTo(expectedChunk.startMs());
-        assertThat(chunk.path("end_ms").asLong()).isEqualTo(expectedChunk.endMs());
-        assertThat(chunk.path("rate").asDouble()).isEqualTo(expectedChunk.rate());
-        assertThat(chunk.path("delta_pct").asInt()).isEqualTo(expectedChunk.deltaPct());
-        assertThat(chunk.path("mark").asText()).isEqualTo(expectedChunk.mark());
-        assertThat(chunk.path("text").asText()).isEqualTo(expectedChunk.text());
+        assertThat(LenientJson.asLong(chunk.path("start_ms"))).isEqualTo(expectedChunk.startMs());
+        assertThat(LenientJson.asLong(chunk.path("end_ms"))).isEqualTo(expectedChunk.endMs());
+        assertThat(LenientJson.asDouble(chunk.path("rate"))).isEqualTo(expectedChunk.rate());
+        assertThat(LenientJson.asInt(chunk.path("delta_pct"))).isEqualTo(expectedChunk.deltaPct());
+        assertThat(LenientJson.asText(chunk.path("mark"))).isEqualTo(expectedChunk.mark());
+        assertThat(LenientJson.asText(chunk.path("text"))).isEqualTo(expectedChunk.text());
 
         // 새 받아쓰기는 관찰 팩의 speech에 저장한다. 옛 transcripts 표는 지난 기록만 보존한다.
         assertThat(count("SELECT count(*) FROM transcripts WHERE session_id = ?", sessionId))

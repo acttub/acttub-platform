@@ -6,14 +6,16 @@ import java.time.Duration;
 import java.util.Optional;
 
 import com.acttub.actingapi.platform.http.RestClients;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Airbridge 귀속 조회 API 의 실물. {@code GET /attribution-result/v1/apps/{앱 이름}/mobile-app?device_uuid=…} 를
@@ -25,7 +27,7 @@ import org.springframework.web.client.RestClientException;
 public class HttpAirbridgeAttributionClient implements AirbridgeAttributionClient {
     static final String BASE_URL = "https://api.airbridge.io";
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final String token;
     private final String appName;
@@ -108,10 +110,10 @@ public class HttpAirbridgeAttributionClient implements AirbridgeAttributionClien
     /** 문자열이 아니거나 비어 있으면 {@code null}. */
     private static String text(JsonNode data, String field) {
         JsonNode value = data.path(field);
-        if (!value.isTextual()) {
+        if (!value.isString()) {
             return null;
         }
-        String stripped = value.asText().strip();
+        String stripped = LenientJson.asText(value).strip();
         return stripped.isEmpty() ? null : stripped;
     }
 }

@@ -14,6 +14,7 @@ import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Synthetic requests; automated routing checks still require review of the saved replies. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
@@ -72,12 +73,12 @@ class ResponseSelectionEvalTest {
             output.put("message", result.reply().message());
             output.set("state", result.session().coachingState());
             assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요", "기대답변", "known_refs");
-            assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isIn(scenario.moves());
+            assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("move"))).isIn(scenario.moves());
             if (scenario.name().equals("correct-premise")) {
                 // Correcting the premise and immediately helping from the corrected goal is also valid.
                 // Check the retained goal, not just the model's routing label.
-                assertThat(result.session().coachingState().path("context").path("scene_context")
-                        .path("character_goal").path("text").asText()).contains("지갑", "돌려받");
+                assertThat(LenientJson.asText(result.session().coachingState().path("context").path("scene_context")
+                        .path("character_goal").path("text"))).contains("지갑", "돌려받");
                 assertThat(result.reply().message()).contains("지갑").doesNotContain("헤어지기 싫어서", "이별을 막기 위해");
             }
             if (!scenario.questionAllowed()) assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();

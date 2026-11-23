@@ -1,10 +1,11 @@
 package com.acttub.actingapi.feature.coach.app;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 목적 없이 시작한 질문 대화(연습 루프)의 예시 답. 코치가 질문으로 끝나는 말을 하면 그 아래에 배우가 누를 수 있는 답 1~2개를
@@ -74,7 +75,7 @@ public final class AnswerExamples {
         if (PurposeLoop.Purpose.of(sessionPurpose) != null || state == null) return List.of();
         var labels = new ArrayList<String>();
         for (JsonNode item : state.path(STATE_KEY)) {
-            String label = item.asText("").strip();
+            String label = LenientJson.asText(item, "").strip();
             if (!label.isEmpty()) labels.add(label);
             if (labels.size() == MAX) break;
         }

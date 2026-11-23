@@ -17,9 +17,10 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.security.AccountSecrets;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 탈퇴 트랜잭션 밖에서 하는 정리 — 저장소의 객체 삭제와 제공자 쪽 연결 해제, RevenueCat 고객 삭제(SOMA-818).
@@ -44,7 +45,7 @@ public class AccountCleanup {
     private static final Duration FIRST_RETRY = Duration.ofMinutes(5);
     private static final Duration LONGEST_RETRY = Duration.ofHours(12);
     private static final int BATCH = 20;
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final AccountCleanupRepository operations;
     private final ProfilePhotoStorage storage;

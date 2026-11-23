@@ -6,9 +6,10 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.feature.reading.domain.ReadingExampleAudio;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * {@code reading_examples.audio}(V62) 글을 푼다: {@code {"prefix", "voices": {이름: 프리셋}, "lines": [{"seq","key","duration_ms"}]}}.
@@ -26,31 +27,31 @@ final class ReadingExampleAudioJson {
         JsonNode root;
         try {
             root = mapper.readTree(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalArgumentException("audio is not JSON", e);
         }
         if (root == null || !root.isObject() || !root.path("voices").isObject() || !root.path("lines").isArray()) {
             throw new IllegalArgumentException("audio must be an object with voices and lines");
         }
         JsonNode prefix = root.path("prefix");
-        if (!prefix.isMissingNode() && !prefix.isNull() && !prefix.isTextual()) {
+        if (!prefix.isMissingNode() && !prefix.isNull() && !prefix.isString()) {
             throw new IllegalArgumentException("audio prefix must be text");
         }
         Map<String, String> voices = new LinkedHashMap<>();
         root.path("voices").properties().forEach(entry -> {
-            if (!entry.getValue().isTextual()) {
+            if (!entry.getValue().isString()) {
                 throw new IllegalArgumentException("audio voice must be text: " + entry.getKey());
             }
-            voices.put(entry.getKey(), entry.getValue().textValue());
+            voices.put(entry.getKey(), entry.getValue().stringValue(null));
         });
         List<ReadingExampleAudio.Line> lines = new ArrayList<>();
         for (JsonNode line : root.path("lines")) {
-            if (!line.path("seq").isIntegralNumber() || !line.path("key").isTextual() || !line.path("duration_ms").isIntegralNumber()) {
+            if (!line.path("seq").isIntegralNumber() || !line.path("key").isString() || !line.path("duration_ms").isIntegralNumber()) {
                 throw new IllegalArgumentException("audio line needs seq, key and duration_ms: " + line);
             }
-            lines.add(new ReadingExampleAudio.Line(line.path("seq").intValue(), line.path("key").textValue(),
-                    line.path("duration_ms").intValue()));
+            lines.add(new ReadingExampleAudio.Line(LenientJson.intValue(line.path("seq")), line.path("key").stringValue(null),
+                    LenientJson.intValue(line.path("duration_ms"))));
         }
-        return new ReadingExampleAudio(prefix.isTextual() ? prefix.textValue() : null, voices, lines);
+        return new ReadingExampleAudio(prefix.isString() ? prefix.stringValue(null) : null, voices, lines);
     }
 }

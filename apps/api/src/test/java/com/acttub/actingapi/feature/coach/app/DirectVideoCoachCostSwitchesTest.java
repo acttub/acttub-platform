@@ -142,7 +142,7 @@ class DirectVideoCoachCostSwitchesTest {
 
     /** 첫 응답 설계에 근본 문제(목적)가 적힌 후속 답 회차. */
     CoachSessionSnapshot withRoot(CoachSessionSnapshot session) {
-        ((com.fasterxml.jackson.databind.node.ObjectNode) session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY))
+        ((tools.jackson.databind.node.ObjectNode) session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY))
                 .put("design", "버릇: 말끝\n근본 문제: 2 목적성이 안 보인다");
         return session;
     }

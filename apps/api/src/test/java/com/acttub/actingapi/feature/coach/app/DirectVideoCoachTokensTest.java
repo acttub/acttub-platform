@@ -99,7 +99,7 @@ class DirectVideoCoachTokensTest {
         when(alternate.reply(eq(file), anyList(), anyString())).thenAnswer(used("gemini-3.8-flash", LlmTokens.of(200, 40, 240), LONG_REPLY));
         // 이 대화는 비교 모델 쪽이다. 줄이기는 기본 모델이 맡는다.
         var session = DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a", "첫 질문");
-        ((com.fasterxml.jackson.databind.node.ObjectNode) session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY)).put("coach_model", "b");
+        ((tools.jackson.databind.node.ObjectNode) session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY)).put("coach_model", "b");
         new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), telemetry, true, CoachPersonas.NONE, alternate, 100)
                 .turn(session, "붙잡고 싶었어", UUID.randomUUID());
         LlmCall coachTurn = recorded(LlmStep.COACH_TURN);
