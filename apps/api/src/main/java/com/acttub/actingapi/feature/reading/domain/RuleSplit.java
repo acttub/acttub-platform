@@ -528,9 +528,12 @@ public final class RuleSplit {
         Text text = new Text(lines);
         Map<Integer, Row> rows = new LinkedHashMap<>(base.rows());
         castArea(text, lines, rows);
+        castDescriptions(text, lines, rows);
         Set<String> known = new LinkedHashSet<>(base.roster());
         Map<String, Integer> fresh = new HashMap<>();
         Set<String> colonSeen = new HashSet<>();
+        Map<String, Map<String, Integer>> marked = new HashMap<>();
+        Map<String, Integer> colonLines = new LinkedHashMap<>();
         for (int i = 0; i < text.size(); i++) {
             if (text.blank(i) || rows.containsKey(lines.get(i).no())) continue;
             String colonHead = colonName(text.get(i));
@@ -539,6 +542,27 @@ public final class RuleSplit {
             if (i > 0 && text.adjacent(i - 1, i) && !TERMINAL.matcher(text.get(i - 1)).matches()) continue;
             String name = leadingName(text.get(i));
             if (name != null) fresh.merge(name, 1, Integer::sum);
+            Matcher sep = SEP_HEAD.matcher(text.get(i));
+            if (sep.lookingAt() && sepName(sep.group(1), sep.group(2))) {
+                marked.computeIfAbsent(sep.group(2), key -> new HashMap<>()).merge(sep.group(1), 1, Integer::sum);
+            }
+            Matcher alone = COLON_LINE.matcher(text.get(i));
+            if (alone.matches() && standaloneName(alone.group(1).strip()) != null && text.adjacent(i, i + 1)) {
+                colonLines.merge(standaloneName(alone.group(1).strip()), 1, Integer::sum);
+            }
+        }
+        // 「낱말 + 같은 구분 부호」 머리(「혜정 - 살려줘」「태하/ 그럼」「장영철) 안녕」「1 : 너」): 한 부호 뒤에 서로 다른 이름 둘 이상이 각각 두 번
+        // 이상, 모두 세 번 넘게 줄 앞에 나오면 그 부호 머리를 받는다
+        Set<String> markedNames = new HashSet<>();
+        marked.forEach((mark, heads) -> {
+            if (heads.values().stream().filter(n -> n >= 2).count() >= 2 && heads.values().stream().mapToInt(Integer::intValue).sum() >= 3) {
+                heads.forEach((name, n) -> { if (n >= 2) markedNames.add(name); });
+            }
+        });
+        known.addAll(markedNames);
+        // 「여자:」만 있는 줄 다음 줄에 대사(쌍점 블록): 서로 다른 이름 둘 이상이 각각 두 번 이상
+        if (colonLines.values().stream().filter(n -> n >= 2).count() >= 2) {
+            colonLines.forEach((name, n) -> { if (n >= 2) known.add(name); });
         }
         // 숫자만 쓴 배역(「1 응? 뭐가?」「4 야.」): 서로 다른 숫자 셋 이상이 각각 세 번 이상 줄 앞에 나와야 받는다
         Map<String, Integer> numbers = new LinkedHashMap<>();
@@ -644,6 +668,13 @@ public final class RuleSplit {
                 existing = row(no, Kind.DIRECTION);
                 rows.put(no, existing);
             }
+            // 「(김부장 : 믿어..)」 — 괄호 안에 아는 사람의 쌍점 대사를 적은 줄은 그 사람 대사다
+            String quoted = PAREN_ONLY.matcher(t).matches() && (existing == null || existing.kind() == Kind.DIRECTION)
+                    ? colonName(t.substring(1, t.length() - 1).strip()) : null;
+            if (quoted != null && known.contains(quoted)) {
+                existing = new Row(no, Kind.DIALOGUE, quoted, "");
+                rows.put(no, existing);
+            }
             // 블록 이름 줄 밑의 서술(「카트린, 종이를 다시 넣는다.」)은 그 사람 대사가 아니라 지문이다
             if (existing != null && existing.kind() == Kind.DIALOGUE && existing.header().isEmpty() && toldLine(withoutTailParen(t))) {
                 rows.put(no, row(no, Kind.DIRECTION));
@@ -679,6 +710,11 @@ public final class RuleSplit {
             if (head == null) {
                 Matcher labeled = LABELED_HEAD.matcher(t);
                 if (labeled.lookingAt() && known.contains(labeled.group(1))) head = new Head(labeled.group(1), labeled.group(), Format.SPACE);
+            }
+            if (head == null) {
+                // 구분 부호 머리는 그 부호로 되풀이된 이름만 — 하이브리드({@link #of})는 쓰지 않는다(소개 줄 「하린 - 단짝」이 대사가 된다)
+                Matcher marks = SEP_HEAD.matcher(t);
+                if (marks.lookingAt() && markedNames.contains(marks.group(1))) head = new Head(marks.group(1), marks.group(), Format.COLON);
             }
             String strong = colonName(t);
             if (strong != null && (strong.contains(" ") || strong.codePointCount(0, strong.length()) > 6)) strong = null;
@@ -814,6 +850,27 @@ public final class RuleSplit {
         }
     }
 
+    /** 성별·나이를 붙인 인물 설명 줄 — 「윤아 여, 20대 후반, 회사원」「민수 (17세)」「도윤: 남자, 서른」. */
+    private static final Pattern CAST_DESC = Pattern.compile(
+            "[^\\s,，:：(（]{1,8}+[^\\S\\n]*+[(（:：,，]?+[^\\S\\n]*+(?:(?:남자|여자|남|여)(?=[,，/)）\\s]|$)|\\d{1,2}[^\\S\\n]*+(?:대|세|살)).*");
+
+    /**
+     * 머리줄 없는 등장인물 소개를 소개로 둔다(풀규칙). 첫 장면 줄 앞, 맨 앞 80줄 안에서 성별·나이를 붙인 이름 줄({@link #CAST_DESC})이 두 줄 넘게 나오면
+     * 그 줄들은 소개다 — 「이름 + 띄어쓰기」 머리로 읽혀 대사가 되던 자리다.
+     */
+    private static void castDescriptions(Text text, List<NumberedLine> lines, Map<Integer, Row> rows) {
+        List<Integer> found = new ArrayList<>();
+        for (int i = 0, seen = 0; i < text.size() && seen < 80; i++) {
+            if (text.blank(i)) continue;
+            seen++;
+            Row r = rows.get(lines.get(i).no());
+            if (r != null && r.kind() == Kind.SCENE) break;
+            if (CAST_DESC.matcher(text.get(i)).matches() && nameLike(text.get(i).split("[\\s,，:：(（]", 2)[0])) found.add(i);
+        }
+        if (found.size() < 3) return;
+        for (int i : found) rows.put(lines.get(i).no(), row(lines.get(i).no(), Kind.CAST));
+    }
+
     /** 머리 뒤 둘째 낱말 — 「와이트 히스만 난 …」의 「히스만」. */
     private static final Pattern SECOND_WORD = Pattern.compile("(\\p{IsHangul}{1,4}+)[^\\S\\n]++(?=\\S)");
 
@@ -863,6 +920,9 @@ public final class RuleSplit {
      * 잇는다 — 다음 줄이 배역 머리·괄호·장면·쪽 번호·「무대 …」로 시작하면 잇지 않는다. 끊긴 자리 끝에 공백이 남아 있으면 띄어 잇고(PDFBox 는
      * 원래 띄어쓰기 자리에서 끊긴 줄 끝에 공백을 남긴다), 없으면 붙여 잇는다(낱말 중간에서 끊김). 이은 줄은 첫 줄 번호를 쓴다.
      */
+    /** 폭에서 끊긴 자리가 글 줄의 이만큼(%) 이상이어야 잇는다 — 짧은 줄로 쓴 보통 대본을 건드리지 않으려는 것이다. */
+    static final int UNWRAP_MIN_CUT_PERCENT = 5;
+
     public static List<NumberedLine> unwrap(List<NumberedLine> lines) {
         List<Integer> lengths = new ArrayList<>();
         for (NumberedLine line : lines) {
@@ -873,6 +933,14 @@ public final class RuleSplit {
         java.util.Collections.sort(lengths);
         int width = lengths.get((int) (lengths.size() * 0.9));
         if (width < 20) return lines;
+        // 끊김이 보일 때만 잇는다 — 폭까지 찬 줄이 끝 부호 없이 바로 다음 줄로 이어지는 자리가 글 줄의 5% 이상. 붙여넣기·한글·워드 원문도
+        // PDF 를 복사해 끊긴 글이 많아 파일 종류로 가르지 않는다(2026-11-23 운영 대본: 문턱 없이 457편·5% 문턱 356편을 이어 일치는 같고,
+        // 10% 문턱은 0.1%p 낮았다)
+        int cuts = 0;
+        for (int i = 0; i + 1 < lines.size(); i++) {
+            if (lines.get(i + 1).no() == lines.get(i).no() + 1 && !clean(lines.get(i + 1).text()).isEmpty() && cutAtWidth(lines.get(i).text(), width)) cuts++;
+        }
+        if (cuts * 100 < lengths.size() * UNWRAP_MIN_CUT_PERCENT) return lines;
         return unwrap(lines, width, new HashSet<>(full(lines, true, true).roster()));
     }
 
@@ -1069,6 +1137,25 @@ public final class RuleSplit {
      * 「(웃으며)」처럼 여는 괄호가 앞에 있으면 아니다.
      */
     private static final Pattern MARK_HEAD = Pattern.compile("([^\\s\\-–;；()（）:：\\[\\]]{1,8}+)[\\-–;；)）][^\\S\\n]*+(?=[^\\s\\-–;；)）\\d])");
+
+    /**
+     * 구분 부호 머리 — 「혜정 - 살려줘」「태하/ 그럼」「장영철) 안녕」「1 : 너」. 줄 앞 낱말(앞 붙임표 허용) 뒤에 부호 하나가 오고 뒤에 글이
+     * 있다. 빗금은 뒤가 띄어졌을 때만이다 — 「크리스/케이트」는 두 배우가 나눠 맡는 한 배역이다. 부호마다 서로 다른 이름이 되풀이될 때만
+     * 받는다({@link #full}).
+     */
+    private static final Pattern SEP_HEAD = Pattern.compile(
+            "(?:[-–—][^\\S\\n]*+)?+([^\\s\\-–—/／)）:：;；(（\\[\\]]{1,8}+)[^\\S\\n]*+([-–—)）:：;；]|[/／](?=[^\\S\\n]))[^\\S\\n]*+(?=[^\\s\\-–—/／)）:：;；])");
+    /** 이름과 쌍점만 있는 줄 — 「여자:」. */
+    private static final Pattern COLON_LINE = Pattern.compile("([^:：]{1,12}+)[:：]");
+
+    /** 구분 부호 머리의 이름으로 볼 낱말 — 한글이 든 이름이나 로마자 두 글자 넘는 이름(「C/G」 같은 코드는 아니다), 쌍점·닫는 괄호 앞의 숫자 1~2자리. */
+    private static boolean sepName(String name, String mark) {
+        if (name.matches("\\d{1,2}")) return ":：)）".contains(mark);
+        if (!nameLike(name) || CREDIT.matcher(name).matches()) return false;
+        // 한글 이름은 끝 글자를 묻지 않는다(「동은」「지은」) — 같은 부호 뒤 되풀이가 거른다
+        if (name.codePoints().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL)) return true;
+        return name.matches("[A-Za-z][A-Za-z.'\\-]{1,11}+");
+    }
 
     private static String markName(String t) {
         String name = group(MARK_HEAD, t);

@@ -41,7 +41,7 @@ class ScriptSplitRulesModeTest {
     }
 
     @org.junit.jupiter.api.Test
-    void rulesModeJoinsPdfLinesCutAtThePageWidth() {
+    void rulesModeJoinsLinesCutAtThePageWidth() {
         StringBuilder raw = new StringBuilder();
         for (int k = 0; k < 10; k++) {
             raw.append("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하\n");
@@ -49,12 +49,26 @@ class ScriptSplitRulesModeTest {
             raw.append("영희 그럼 같이 시작해 보자.\n");
         }
         ScriptSplitFakes.Run pdf = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, "play.pdf");
-        ScriptSplitFakes.Run txt = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, "play.txt");
+        ScriptSplitFakes.Run pasted = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, null);
 
-        // PDF 원본만 화면 폭에서 잘린 줄을 잇는다 — 「시작하」+「고 싶은…」은 띄어쓰기 없이 붙는다
-        assertThat(pdf.saved().characterNames()).containsExactly("민수", "영희");
-        assertThat(pdf.saved().lines()).anyMatch(line -> line.text().contains("시작하고 싶은 마음이 들어."));
-        assertThat(txt.saved().lines()).noneMatch(line -> line.text().contains("시작하고 싶은"));
+        // 화면 폭에서 잘린 줄은 파일 종류와 상관없이 잇는다 — 「시작하」+「고 싶은…」은 띄어쓰기 없이 붙는다
+        for (ScriptSplitFakes.Run run : List.of(pdf, pasted)) {
+            assertThat(run.saved().characterNames()).containsExactly("민수", "영희");
+            assertThat(run.saved().lines()).anyMatch(line -> line.text().contains("시작하고 싶은 마음이 들어."));
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void rulesModeKeepsShortLinesThatAreNotCut() {
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 10; k++) {
+            raw.append("민수 오늘은 무대가 넓어 보이는데\n");
+            raw.append("영희 그럼 같이 시작해 보자\n");
+        }
+        ScriptSplitFakes.Run run = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, "play.txt");
+
+        // 끝 부호 없이 짧게 쓴 줄이 번갈아 와도 다음 줄이 배역 머리라 잇지 않는다
+        assertThat(run.saved().lines()).hasSize(20);
     }
 
     @org.junit.jupiter.api.Test

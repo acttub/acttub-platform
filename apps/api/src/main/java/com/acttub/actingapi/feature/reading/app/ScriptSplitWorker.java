@@ -275,10 +275,9 @@ public class ScriptSplitWorker {
             if (mode == ScriptSplitMode.RULES) {
                 // 풀규칙(SOMA-1090): 띄어쓰기 복원·이름 없는 대사로 다시 나누기·Jev 문지기 없이 규칙 한 번으로 끝낸다. 독백이면 「화자」 규칙으로.
                 List<NumberedLine> lines = NumberedLine.of(material.rawText());
-                // PDF 원본은 화면 폭에서 잘린 줄을 먼저 잇는다(2026-11-21 희곡 재생: 끊긴 줄 첫 글자가 배역이 됐다)
-                if (material.fileName() != null && material.fileName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
-                    lines = RuleSplit.unwrap(lines);
-                }
+                // 화면 폭에서 잘린 줄을 먼저 잇는다(2026-11-21 희곡 재생: 끊긴 줄 첫 글자가 배역이 됐다). 붙여넣기·한글·워드 원문도 PDF 를
+                // 복사해 끊긴 글이 많아 파일 종류와 상관없이 쓴다 — 끊김이 보이지 않는 원문은 unwrap 이 그대로 둔다
+                lines = RuleSplit.unwrap(lines);
                 // 한 줄에 여러 사람 대사를 이어 쓴 원문은 사람마다 줄을 나눈다(배역은 먼저 한 번 나눠 본 이름)
                 lines = RuleSplit.splitTurns(lines, new java.util.HashSet<>(RuleSplit.full(lines, rulesJudge(material)).roster()));
                 imports.percent(importId, ScriptSplitProgress.SPACED);

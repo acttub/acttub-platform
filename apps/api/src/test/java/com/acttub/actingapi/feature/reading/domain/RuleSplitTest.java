@@ -411,6 +411,148 @@ class RuleSplitTest {
         assertThat(joined.getFirst().no()).isEqualTo(1);
     }
 
+    @Test
+    void unwrapLeavesTextWithoutVisibleCutsAlone() {
+        // 폭까지 찬 줄이 끝 부호로 닫히는 보통 대본 — 끊긴 자리가 없으니 그대로다
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 12; k++) raw.append("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 좋다.\n영희 그럼 같이 시작해 보자, 지금 바로.\n");
+        java.util.List<NumberedLine> lines = NumberedLine.of(raw.toString());
+
+        assertThat(RuleSplit.unwrap(lines)).isSameAs(lines);
+    }
+
+    @Test
+    void unwrapJoinsCutLinesInAnyText() {
+        // 끊긴 자리가 글 줄의 5% 넘게 보이면 파일 종류를 묻지 않고 잇는다
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 10; k++) raw.append("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하\n고 싶은 마음이 들어.\n영희 그럼 같이 시작해 보자.\n");
+
+        assertThat(RuleSplit.unwrap(NumberedLine.of(raw.toString()))).extracting(NumberedLine::text)
+                .contains("민수 오늘은 무대가 아주 넓어 보이고 조명도 밝아서 무언가를 시작하고 싶은 마음이 들어.").hasSize(20);
+    }
+
+    // ── 구분 부호 머리·쌍점 블록·인물 설명 (2026-11-23) ──
+
+    @Test
+    void spacedDashHeadsRepeatedByTwoNamesAreSpeakers() {
+        RuleSplit.Result result = full("혜정 - 살려줘.\n동은 - 왜 그래?\n혜정 - 누가 따라와.\n동은 - 어디?\n혜정 - 저기 골목.");
+
+        assertThat(result.roster()).containsExactly("혜정", "동은");
+        assertThat(row(result, 2).speaker()).isEqualTo("동은");
+    }
+
+    @Test
+    void slashHeadsWithASpaceAreSpeakersButPairedRolesStayWhole() {
+        RuleSplit.Result result = full("태하/ 그럼 내일 보자.\n서윤/ 내일은 안 돼.\n태하/ 왜?\n서윤/ 약속 있어.");
+
+        assertThat(result.roster()).containsExactly("태하", "서윤");
+        assertThat(full("해리/헤라 어디 가?\n민수 집에.\n해리/헤라 같이 가.\n민수 그래.\n해리/헤라 좋아.").roster()).contains("해리/헤라");
+    }
+
+    @Test
+    void closingParenAndNumberColonHeadsAreSpeakers() {
+        assertThat(full("장영철) 안녕하세요.\n김미진) 네, 오셨어요.\n장영철) 오늘 춥네요.\n김미진) 그러게요.").roster())
+                .containsExactly("장영철", "김미진");
+        assertThat(full("1 : 너 거기 있어?\n2 : 아니.\n1 : 그럼 어디야?\n2 : 비밀.").roster()).containsExactly("1", "2");
+    }
+
+    @Test
+    void nameColonLinesStartBlocks() {
+        RuleSplit.Result result = full("여자:\n오늘 늦었네.\n\n남자:\n차가 막혔어.\n\n여자:\n변명은.\n\n남자:\n미안해.");
+
+        assertThat(result.roster()).containsExactly("여자", "남자");
+        assertThat(row(result, 5).speaker()).isEqualTo("남자");
+    }
+
+    @Test
+    void aColonLineInsideParenthesesIsThatPersonsLine() {
+        RuleSplit.Result result = full("김부장: 자네 왔나.\n박대리: 네, 부장님.\n(김부장 : 믿어도 되겠지..)\n박대리: 걱정 마세요.\n김부장: 그래.");
+
+        assertThat(row(result, 3)).isEqualTo(new Row(3, Kind.DIALOGUE, "김부장", ""));
+    }
+
+    @Test
+    void castDescriptionsWithoutAHeaderAreCast() {
+        RuleSplit.Result result = full("""
+                봄날의 정류장
+
+                윤아 여, 20대 후반, 회사원
+                도현 남, 30대 초반, 버스 기사
+                미숙 여, 60대, 윤아의 엄마
+
+                S#1. 정류장 - 밤
+
+                윤아: 막차 끊겼어요?
+                도현: 아직 하나 남았어요.
+                윤아: 다행이다.
+                도현: 타세요.""");
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.CAST);
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.CAST);
+        assertThat(row(result, 9).speaker()).isEqualTo("윤아");
+    }
+
+    // ── 지난번 규칙 (2026-11-22) ──
+
+    @Test
+    void castSectionWithDescriptionParagraphsIsIgnoredAsCast() {
+        RuleSplit.Result result = full("""
+                등장인물
+                지우 - 열일곱, 고등학생
+                늘 무언가를 그리고 있다. 말수가 적다.
+                하린 - 지우의 단짝
+
+                무대, 텅 빈 미술실.
+
+                지우: 왔어?
+                하린: 응, 늦었지.
+                지우: 괜찮아.""");
+
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.CAST);
+        assertThat(result.roster()).containsExactlyInAnyOrder("지우", "하린");
+    }
+
+    @Test
+    void hangulNamePeriodHeadsAreSpeakers() {
+        RuleSplit.Result result = full("민수. 어디 가?\n영희. 시장에.\n민수. 같이 가.\n영희. 그래.\n민수. 좋아.\n영희. 빨리 와.");
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+        assertThat(row(result, 2).speaker()).isEqualTo("영희");
+    }
+
+    @Test
+    void attachedMarkHeadsAreSpeakers() {
+        assertThat(full("병사- 거기 서라!\n소년- 저요?\n병사- 그래, 너.\n소년- 왜요?").roster()).containsExactly("병사", "소년");
+        assertThat(full("현우; 해인아!\n해인; 응?\n현우; 가자.\n해인; 어디로?").roster()).containsExactly("현우", "해인");
+        assertThat(full("여)나 갈게.\n남)어디 가?\n여)집에.\n남)데려다줄게.").roster()).containsExactly("여", "남");
+    }
+
+    @Test
+    void numberSpeakersSeenOftenAreSpeakers() {
+        assertThat(full("1 응? 뭐가?\n2 저거 봐.\n3 뭔데.\n1 아무것도 없는데.\n2 다시 봐.\n3 정말이네.\n1 이상하다.\n2 그치?\n3 가자.").roster())
+                .containsExactly("1", "2", "3");
+    }
+
+    @Test
+    void runningHeadersBesidePageNumbersAreNotSpeakers() {
+        StringBuilder raw = new StringBuilder();
+        for (int page = 1; page <= 4; page++) {
+            raw.append("한빛대학교 26-").append(page).append(" 정기공연\n").append(page).append("\n");
+            raw.append("민수 오늘 연습 몇 시야?\n영희 일곱 시.\n민수 늦지 마.\n영희 알았어.\n\n");
+        }
+        RuleSplit.Result result = full(raw.toString());
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+        assertThat(row(result, 1).kind()).isNotEqualTo(Kind.DIALOGUE);
+    }
+
+    @Test
+    void directionMarksAroundNamesAreInvisible() {
+        RuleSplit.Result result = full("‭민수‬ 어디 가?\n‭영희‬ 집에.\n‭민수‬ 같이 가.\n‭영희‬ 그래.");
+
+        assertThat(result.roster()).containsExactly("민수", "영희");
+    }
+
     // ── 남은 쉬운 오류·독백 이름·한 줄 여러 대사 (2026-11-21) ──
 
     @Test
