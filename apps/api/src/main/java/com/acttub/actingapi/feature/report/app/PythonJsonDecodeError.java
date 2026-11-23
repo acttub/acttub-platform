@@ -30,10 +30,10 @@ final class PythonJsonDecodeError {
 
     private static String reason(String jacksonMessage) {
         String message = jacksonMessage == null ? "" : jacksonMessage;
-        if (message.contains("double-quote to start field name")) {
+        if (message.contains("double-quote to start property name")) {
             return "Expecting property name enclosed in double quotes";
         }
-        if (message.contains("colon to separate field name and value")) {
+        if (message.contains("colon to separate property name and value")) {
             return "Expecting ':' delimiter";
         }
         if (message.contains("comma to separate")) {
