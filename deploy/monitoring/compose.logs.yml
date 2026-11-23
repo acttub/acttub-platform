@@ -1,0 +1,34 @@
+# Added to the release only when monitoring.json has "logs". Without it, apply removes alloy as an orphan.
+services:
+  alloy:
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+    command:
+      - run
+      - /etc/acttub/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --disable-reporting
+    volumes:
+      - ${RELEASE_DIR:?}/alloy:/etc/acttub:ro
+      # Read positions survive restarts so lines are neither resent nor skipped.
+      - alloy:/var/lib/alloy/data
+      # The only Docker socket in monitoring (ADR-039). :ro stops file replacement, not API calls.
+      # Root in the image owns the socket, so no capability is needed.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [logs]
+    mem_limit: 256m
+    cpus: 0.5
+
+# Outbound HTTPS to Cloud Loki only; no other monitoring or app network.
+networks:
+  logs: {}
+
+volumes:
+  alloy: {}
