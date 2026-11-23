@@ -788,6 +788,9 @@ public final class RuleSplit {
                 last = acting;
             }
         }
+        frontMatter(text, lines, rows);
+        scoreLines(text, lines, rows);
+        singerLines(text, lines, rows);
         fullNames(rows, text, lines);
         // 글자 사이를 띄운 이름(「칠    수」「에 밀 리」)은 붙여 쓴다 — 머리는 조립이 띄어쓰기 무시로 다시 찾는다
         rows.replaceAll((no, row) -> row.kind() == Kind.DIALOGUE && LETTER_SPACED.matcher(row.speaker()).matches()
@@ -806,8 +809,8 @@ public final class RuleSplit {
 
     /** 꾸밈이 붙은 등장인물 머리줄 — 「[등장인물]」「<등장인물>」「○ 등장인물」「등장인물들」「### 등장인물」. 줄 전체가 머리여야 한다. */
     private static final Pattern CAST_TITLE = Pattern.compile(
-            "(?iu)[\\[<〈《【(（■□○●◆◇▶▷#*·•\\-\\s]*+(?:등장\\s*+인물(?:들|\\s*+소개)?+|나오는\\s*+(?:사람들?|이들?|인물들?)|cast|characters)"
-                    + "\\s*+[\\]>〉》】)）]?+\\s*+");
+            "(?iu)[\\[<〈《【(（■□○●◆◇▶▷#*·•≫»\\-\\s]*+(?:주요\\s*+)?+(?:등\\s*+장\\s*+인\\s*+물(?:들|\\s*+소개)?+|나오는\\s*+(?:사람들?|이들?|인물들?)|cast|characters)"
+                    + "\\s*+[\\]>〉》】)）≪«]?+\\s*+");
     /**
      * 소개 묶음 뒤 본문이 시작하는 머리 — 무대·때·곳 설명(「무대, …」「때: …」), 노래 번호(「M01.」「NO.01」), 「Prologue」「Opening」, 괄호 지문.
      * 여기서 소개가 끝난다.
@@ -869,6 +872,161 @@ public final class RuleSplit {
         }
         if (found.size() < 3) return;
         for (int i : found) rows.put(lines.get(i).no(), row(lines.get(i).no(), Kind.CAST));
+    }
+
+    // ── 앞부분 생략 ─────────────────────────────────────
+
+    /** 지은이·옮긴이·연출 같은 만든 사람 낱말(「오세혁 작」「닉 페인 作」「작 / 연출 : …」「‘중렬’ 역」). 짧은 줄에서만 본다. */
+    private static final Pattern FRONT_CREDIT = Pattern.compile(
+            "(?iu)(?<![\\p{L}\\p{N}])(?:作曲|作詞|作|譯|작|옮김|번역|각색|원작|연출|기획|작곡|작사|편곡|극본|각본|안무|조연출|드라마투르그|written|directed|adapted|translated)"
+                    + "(?![\\p{L}\\p{N}])|[’'」』\"”)）][^\\S\\n]*+(?:역|役)(?![\\p{L}\\p{N}])|役");
+    /** 공연·극단·학교·오디션 정보(「낙산극회 제 84회 정기공연」「… 2학기 장면제작」「… 오디션 대본_재원役」). 짧은 줄에서만 본다. */
+    private static final Pattern FRONT_SHOW = Pattern.compile(
+            "(?iu)정기[^\\S\\n]*+공연|공연극|극단|극회|대학교|예술고|전공|학기|오디션|장면[^\\S\\n]*+제작|워크숍|워크샵|쇼케이스|낭독|프로젝트|지정[^\\S\\n]*+대본"
+                    + "|제[^\\S\\n]*+\\d{1,4}+[^\\S\\n]*+회|\\d{1,2}+[^\\S\\n]*+차|대본[_\\s]|대본$|공연$|대본집|시나리오_|배우님"
+                    + "|^(?:창작[^\\S\\n]*+)?+(?:뮤지컬|연극|낭독극|musical)[^\\S\\n]++|[^\\S\\n](?:역|役|역할)[^\\S\\n]*+$");
+    /** 오디션·연습 안내 문장(「대사는 편하게 바꿔도 됩니다」「1일차 대본은 무조건 암기」). */
+    private static final Pattern FRONT_GUIDE = Pattern.compile(
+            "[^\\n]{0,40}?(?:대사|대본|애드리브|장면)[^\\n]{0,30}?(?:암기|숙지|외워|바꿔도|바꾸셔도|수정해도|자유롭게|편하게|변경[^\\S\\n]*+가능|입에[^\\S\\n]*+붙지)[^\\n]*+");
+    /** 작품 정보 항목(「장르: …」「분량: …」「이름 : ___」). */
+    private static final Pattern FRONT_META = Pattern.compile(
+            "(?iu)[\\[<〈《【(（■□○●◆◇▶▷#*·•\\-\\s]*+(?:장르|분량|러닝[^\\S\\n]*+타임|상영[^\\S\\n]*+시간|공연[^\\S\\n]*+시간|제목|부제|작품명?|이름|성명|날짜|일시|형식|로그라인"
+                    + "|키워드|주제|지도[^\\S\\n]*+(?:교수|교사)|학번|학과|촬영[^\\S\\n]*+일정?)[^\\S\\n]*+[\\]>〉》】)）]?+[^\\S\\n]*+[:：].*");
+    /** 시놉시스·기획 의도·작품 소개 머리 — 그 밑 문단까지 뺀다. */
+    private static final Pattern FRONT_SYNOPSIS = Pattern.compile(
+            "(?iu)[\\[<〈《【(（■□○●◆◇▶▷#*·•\\-\\s]*+(?:시놉시스|synopsis|기획[^\\S\\n]*+의도|작품[^\\S\\n]*+(?:소개|설명|의도|개요)|줄거리|이전[^\\S\\n]*+줄거리"
+                    + "|지난[^\\S\\n]*+줄거리|작가의[^\\S\\n]*+(?:말|글)|연출의[^\\S\\n]*+(?:말|글)|작가[^\\S\\n]*+의도|작의|로그라인|logline|장르|러닝[^\\S\\n]*+타임|런닝[^\\S\\n]*+타임"
+                    + "|(?:의도|주제)(?:[^\\S\\n]*+/[^\\S\\n]*+(?:의도|주제))?+)[^\\S\\n]*+(?:[\\]>〉》】)）:：]|$).*");
+    /** 허구 고지(「본 이야기는 허구이며 …」). */
+    private static final Pattern FRONT_NOTICE = Pattern.compile("(?:본|이)[^\\S\\n]*+(?:이야기|작품|드라마|영화|대본|내용)(?:은|는)[^\\S\\n]*+(?:허구|실제).*");
+    /** 숫자·날짜만 있는 줄(「- 1 -」「2026.10.31 - 11.1」「페이지 1 / 11」). */
+    private static final Pattern FRONT_NUMBER = Pattern.compile("(?iu)[\\s\\d.,/\\-–—~:()（）\\[\\]]*+(?:페이지|page|p\\.)?+[\\s\\d.,/\\-–—~:()（）\\[\\]년월일]*+");
+    /** 한글 없이 로마자로만 쓴 줄 — 영어 원제·부제·원작자(「THE MAN FROM EARTH」). */
+    private static final Pattern FRONT_LATIN = Pattern.compile("[\\p{IsLatin}\\d\\s\\p{Punct}’‘“”–—·:]++");
+    private static final Pattern LATIN_WORD = Pattern.compile("\\p{IsLatin}{2}");
+    /** 첫 장면 앞 앞부분이 끝나는 줄 — 「상황설명 : …」「상황 …」. */
+    private static final Pattern FRONT_STOP = Pattern.compile("[\\[<(（■□○●◆◇▶▷#*·•\\-\\s]*+(?:상황[^\\S\\n]*+설명|상황|장면[^\\S\\n]*+설명|무대[^\\S\\n]*+설명)(?:[^\\S\\n]*+[\\]>)）:：]|$).*");
+    /** 앞부분으로 보는 맨 앞 줄 수. */
+    private static final int FRONT_MAX = 150;
+
+    /**
+     * 첫 대사 앞 앞부분을 대본에서 뺀다(풀규칙). 작가·번역·연출 줄, 공연·극단·학교·오디션 정보, 작품 정보 항목, 시놉시스·기획 의도와 그 문단, 허구 고지,
+     * 쪽 번호·날짜 줄, 한글 대본의 로마자 원제 줄이다. 앞부분은 맨 앞에서 첫 장면 줄·무대 설명·「상황설명」·앞부분 모양이 아닌 첫 대사까지다 — 그
+     * 뒤는 건드리지 않고, 무대·장면 설명 같은 서술 문장은 남긴다.
+     */
+    private static void frontMatter(Text text, List<NumberedLine> lines, Map<Integer, Row> rows) {
+        boolean hangul = false;
+        for (int i = 0, seen = 0; i < text.size() && seen < 40 && !hangul; i++) {
+            if (text.blank(i)) continue;
+            seen++;
+            hangul = text.get(i).codePoints().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL);
+        }
+        boolean synopsis = false;
+        int previous = -1;
+        for (int i = 0, seen = 0; i < text.size() && seen < FRONT_MAX; i++) {
+            int no = lines.get(i).no();
+            if (text.blank(i)) continue;
+            // 시놉시스 문단은 빈 줄 없이 이어진 줄까지다
+            if (previous < 0 || !text.adjacent(previous, i)) synopsis = false;
+            previous = i;
+            seen++;
+            String t = text.get(i);
+            Row r = rows.get(no);
+            boolean paren = t.startsWith("(") || t.startsWith("（");
+            if (r == null || r.kind() == Kind.SCENE || STAGE.matcher(t).matches() || FRONT_STOP.matcher(t).matches()
+                    || !paren && SETTING_HEAD.matcher(t).matches()) return;
+            // 머리 있는 대사 줄(「도윤: … 오디션 …」)은 작품 정보 항목만 본다
+            boolean headed = r.kind() == Kind.DIALOGUE && !r.header().isEmpty();
+            if (headed && !FRONT_META.matcher(t).matches()) return;
+            boolean shortLine = t.codePointCount(0, t.length()) <= 40 && !NARRATIVE.matcher(t).matches();
+            boolean front = FRONT_META.matcher(t).matches() || FRONT_NOTICE.matcher(t).matches() || FRONT_NUMBER.matcher(t).matches()
+                    || !headed && t.codePointCount(0, t.length()) <= 80 && FRONT_GUIDE.matcher(t).matches()
+                    || !headed && shortLine && (FRONT_CREDIT.matcher(t).find() || FRONT_SHOW.matcher(t).find())
+                    || !headed && hangul && FRONT_LATIN.matcher(t).matches() && LATIN_WORD.matcher(t).find();
+            if (!headed && FRONT_SYNOPSIS.matcher(t).matches() && t.codePointCount(0, t.length()) <= 30) {
+                synopsis = true;
+                front = true;
+            }
+            if (r.kind() == Kind.DIALOGUE && !front && !synopsis) return;
+            if (front || synopsis) rows.put(no, row(no, Kind.IGNORE));
+        }
+    }
+
+    // ── 악보 생략 ─────────────────────────────────────
+
+    /** 곡 구조·악기 머리(「Verse 1」「Chorus — 민수」「Main Vocal」). 괄호로 감싼 「[Hook]」은 지문으로 둔다. */
+    private static final Pattern SONG_PART = Pattern.compile(
+            "(?iu)(?:intro|verse|pre[- ]?+chorus|chorus|bridge|outro|hook|interlude|refrain|coda|main[^\\S\\n]*+vocal|vocal|guitar|bass|drums?+|piano|keyboard)"
+                    + "[^\\S\\n]*+\\d{0,2}+[^\\S\\n]*+(?:[-–—:：/][^\\n]{0,24}+)?+");
+    /** 코드 진행 줄(「Am F C G」「| C | G/B |」). */
+    private static final Pattern CHORDS = Pattern.compile(
+            "[\\s|/]*+(?:[A-G][#b♯♭]?+(?:maj|min|m|dim|aug|sus|add)?+\\d{0,2}+(?:/[A-G][#b♯♭]?+)?+[\\s|/]*+){2,}+");
+    /** 템포 줄(「♩=120」「BPM 96」). */
+    private static final Pattern TEMPO = Pattern.compile("(?iu)[^\\n]*?(?:♩|bpm|tempo[^\\S\\n]*+[:=]?+[^\\S\\n]*+\\d)[^\\n]*+");
+    /** 깨진 기호(마디선·OCR 찌꺼기)로 보는 글자. 「_」(빈칸)·「^」(웃음)·「#」(장면)은 넣지 않는다. */
+    private static final String BROKEN_MARKS = "|\\@{}=`";
+
+    /**
+     * 악보·깨진 기호 줄을 대본에서 뺀다(풀규칙). 곡 구조·악기 머리, 코드 진행, 템포, 기호가 글자보다 많은 줄(한글이 한 자 이하거나 기호가 글자의 1/3을
+     * 넘는다)이다. 장면 줄과 머리 있는 대사 줄은 건드리지 않는다 — 배역 이름이 붙은 가사, 이름 줄 밑 가사는 그 배역 대사로 남는다.
+     */
+    private static void scoreLines(Text text, List<NumberedLine> lines, Map<Integer, Row> rows) {
+        for (int i = 0; i < text.size(); i++) {
+            if (text.blank(i)) continue;
+            int no = lines.get(i).no();
+            Row r = rows.get(no);
+            if (r == null || r.kind() == Kind.IGNORE || r.kind() == Kind.SCENE || r.kind() == Kind.CAST || r.kind() == Kind.TITLE) continue;
+            String t = text.get(i);
+            boolean headed = r.kind() == Kind.DIALOGUE && !r.header().isEmpty();
+            if (SONG_PART.matcher(t).matches() || CHORDS.matcher(t).matches() || TEMPO.matcher(t).matches() || !headed && broken(t)) {
+                rows.put(no, row(no, Kind.IGNORE));
+            }
+        }
+    }
+
+    /** 곡 번호 머리(「M01. 제목」「M-3 …」「넘버 2 …」「Song2 …」). */
+    private static final Pattern SONG_HEAD = Pattern.compile("(?iu)[\\[<(（#*\\s]*+(?:m[^\\S\\n]*+-?+[^\\S\\n]*+\\d{1,2}+[a-z]?+|넘버[^\\S\\n]*+\\d{1,2}+|song[^\\S\\n]*+\\d{1,2}+)(?![\\d])[^\\n]*+");
+    /** 부르는 사람 목록 한 칸(「세훈」「여공 + (백보컬)」「이윤(평)」). */
+    private static final Pattern SINGER = Pattern.compile("[^\\S\\n]*+(?:\\p{IsHangul}{1,6}+[0-9A-Z]?+|[A-Z][a-z]{1,10}+)[^\\S\\n]*+(?:[(（][^()（）]{1,8}+[)）])?+[^\\S\\n]*+");
+    private static final Pattern SINGER_SPLIT = Pattern.compile("[,，+&/·]");
+
+    /**
+     * 곡 번호 머리 바로 밑의 부르는 사람 줄(「- 세훈, 해진」「_실비아, 테드」「여공 + (백보컬)」)을 대본에서 뺀다(풀규칙). 머리 있는 대사가 아니고, 칸마다
+     * 짧은 이름이며, 대사에 두 번 넘게 나온 배역이 하나라도 있거나 칸이 둘 이상일 때다. 그 밑 가사는 건드리지 않는다 — 배역 대사로 남는다.
+     */
+    private static void singerLines(Text text, List<NumberedLine> lines, Map<Integer, Row> rows) {
+        Map<String, Integer> speakers = new HashMap<>();
+        rows.values().forEach(r -> { if (r.kind() == Kind.DIALOGUE) speakers.merge(r.speaker(), 1, Integer::sum); });
+        for (int i = 0; i < text.size(); i++) {
+            if (text.blank(i) || !SONG_HEAD.matcher(text.get(i)).matches()) continue;
+            int j = i + 1;
+            while (j < text.size() && text.blank(j)) j++;
+            if (j >= text.size() || j - i > 2) continue;
+            Row r = rows.get(lines.get(j).no());
+            if (r == null || r.kind() != Kind.DIALOGUE && r.kind() != Kind.DIRECTION || r.kind() == Kind.DIALOGUE && !r.header().isEmpty()) continue;
+            String t = text.get(j).replaceFirst("^[\\s\\-–—_]++", "");
+            if (t.isEmpty() || t.codePointCount(0, t.length()) > 40) continue;
+            String[] parts = SINGER_SPLIT.split(t);
+            boolean names = true, cast = false;
+            for (String part : parts) {
+                if (!SINGER.matcher(part).matches()) names = false;
+                String bare = PAREN_PART.matcher(part).replaceAll("").strip();
+                if (speakers.getOrDefault(bare, 0) >= 2) cast = true;
+            }
+            if (names && (cast || parts.length >= 2)) rows.put(lines.get(j).no(), row(lines.get(j).no(), Kind.IGNORE));
+        }
+    }
+
+    /** 기호가 글자보다 많은 줄 — 한글이 한 자 이하이고 로마자가 여섯 자 이하거나, 기호 셋이 글자 수보다 많다. */
+    private static boolean broken(String t) {
+        int marks = 0, hangul = 0, latin = 0;
+        for (int k = 0; k < t.length(); k++) {
+            char c = t.charAt(k);
+            if (BROKEN_MARKS.indexOf(c) >= 0) marks++;
+            else if (c >= '가' && c <= '힣') hangul++;
+            else if (c < 128 && Character.isLetter(c)) latin++;
+        }
+        return marks > 0 && (hangul <= 1 && latin <= 6 || marks * 3 > hangul + latin);
     }
 
     /** 머리 뒤 둘째 낱말 — 「와이트 히스만 난 …」의 「히스만」. */

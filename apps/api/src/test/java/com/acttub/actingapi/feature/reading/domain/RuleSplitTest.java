@@ -1177,4 +1177,175 @@ class RuleSplitTest {
         assertThat(label(result, 4)).isEqualTo("DIRECTION");
         assertThat(label(result, 3)).isEqualTo("세찬");
     }
+
+    // ── 앞부분·악보 생략 ─────────────────────────────
+
+    @Test
+    void creditsShowInfoAndPageLinesBeforeTheFirstSpeechAreIgnored() {
+        RuleSplit.Result result = full("""
+                하얀 우산
+
+                한겨울 작
+                나무숲 옮김
+
+                푸른극회 제 12회 정기공연
+                WHITE UMBRELLA
+                - 1 -
+
+                작은 다락방. 창밖으로 눈이 내린다.
+
+                도담: 눈 온다.
+                세찬: 진짜네.
+                도담: 나가자.
+                세찬: 추워.""");
+
+        assertThat(label(result, 3)).isEqualTo("IGNORE");
+        assertThat(label(result, 4)).isEqualTo("IGNORE");
+        assertThat(label(result, 6)).isEqualTo("IGNORE");
+        assertThat(label(result, 7)).isEqualTo("IGNORE");
+        assertThat(label(result, 8)).isEqualTo("IGNORE");
+        assertThat(label(result, 10)).isEqualTo("DIRECTION");
+        assertThat(label(result, 12)).isEqualTo("도담");
+    }
+
+    @Test
+    void synopsisMetaAndNoticeAreIgnoredButTheSituationStays() {
+        RuleSplit.Result result = full("""
+                장르: 청춘 멜로
+                본 이야기는 허구이며 실제 인물과 관계없습니다.
+
+                [시놉시스]
+                두 친구가 마지막 버스를 기다린다.
+                서로 말하지 못한 비밀이 있다.
+
+                늦은 밤 정류장. 가로등 하나가 깜빡인다.
+
+                도담: 버스 왔어?
+                세찬: 아직.
+                도담: 늦네.
+                세찬: 그러게. 오디션은 어땠어?""");
+
+        assertThat(label(result, 1)).isEqualTo("IGNORE");
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 4)).isEqualTo("IGNORE");
+        assertThat(label(result, 5)).isEqualTo("IGNORE");
+        assertThat(label(result, 6)).isEqualTo("IGNORE");
+        assertThat(label(result, 8)).isEqualTo("DIRECTION");
+        assertThat(label(result, 10)).isEqualTo("도담");
+        assertThat(label(result, 13)).isEqualTo("세찬");
+    }
+
+    @Test
+    void auditionGuideAndRoleLinesBeforeTheFirstSpeechAreIgnored() {
+        RuleSplit.Result result = full("""
+                창작뮤지컬 〈초록 신호〉
+                ‘도담’ 역
+                대사는 입에 붙지 않으면 편하게 바꿔도 됩니다.
+
+                도담: 신호 바뀌었어.
+                세찬: 뛰자.
+                도담: 늦겠다.
+                세찬: 빨리.""");
+
+        assertThat(label(result, 1)).isEqualTo("IGNORE");
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("IGNORE");
+        assertThat(label(result, 5)).isEqualTo("도담");
+    }
+
+    @Test
+    void frontMatterStopsAtTheFirstSpeech() {
+        RuleSplit.Result result = full("""
+                도담: 버스 왔어?
+                세찬: 아직. 연출 선생님이 늦는대.
+                도담: 공연 날인데.
+                세찬: 그러게.""");
+
+        assertThat(label(result, 2)).isEqualTo("세찬");
+        assertThat(label(result, 3)).isEqualTo("도담");
+    }
+
+    @Test
+    void scoreChordsTempoAndSongPartsAreIgnoredButSungLinesStay() {
+        RuleSplit.Result result = full("""
+                M01. 첫눈
+                | Am | F | C | G |
+                Verse 1
+                ♩=96
+                도담: 눈이 와요
+                하얗게 내려와요
+                세찬: 손을 잡아요
+                따뜻하게 잡아요
+                도담: 같이 걸어요
+                세찬: 천천히 걸어요""");
+
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("IGNORE");
+        assertThat(label(result, 4)).isEqualTo("IGNORE");
+        assertThat(label(result, 5)).isEqualTo("도담");
+        assertThat(label(result, 6)).isEqualTo("도담");
+        assertThat(label(result, 7)).isEqualTo("세찬");
+        assertThat(label(result, 8)).isEqualTo("세찬");
+    }
+
+    @Test
+    void lyricsUnderANameLineStayThatRolesSpeech() {
+        RuleSplit.Result result = full("""
+                M02. 겨울밤
+
+                도담
+                별이 떠요
+                C  G  Am  F
+                하늘 가득 떠요
+
+                세찬
+                달도 떠요
+                우리 위에 떠요
+
+                도담
+                같이 봐요
+
+                세찬
+                그래요
+
+                도담
+                손 잡아요
+
+                세찬
+                꼭 잡아요""");
+
+        assertThat(label(result, 4)).isEqualTo("도담");
+        assertThat(label(result, 5)).isEqualTo("IGNORE");
+        assertThat(label(result, 6)).isEqualTo("도담");
+        assertThat(label(result, 9)).isEqualTo("세찬");
+        assertThat(label(result, 10)).isEqualTo("세찬");
+    }
+
+    @Test
+    void singerLineUnderASongHeadIsIgnored() {
+        RuleSplit.Result result = full("""
+                M03. 별
+                - 도담, 세찬
+                도담: 별이 떠요
+                세찬: 달도 떠요
+                도담: 같이 봐요
+                세찬: 그래요""");
+
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("도담");
+        assertThat(label(result, 4)).isEqualTo("세찬");
+    }
+
+    @Test
+    void brokenSymbolLinesAreIgnored() {
+        RuleSplit.Result result = full("""
+                도담: 여기야.
+                |      {   =   |
+                세찬: 어디?
+                도담: 여기라니까.
+                세찬: 안 보여.""");
+
+        assertThat(label(result, 2)).isEqualTo("IGNORE");
+        assertThat(label(result, 3)).isEqualTo("세찬");
+    }
 }
