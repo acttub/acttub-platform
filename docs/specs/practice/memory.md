@@ -27,7 +27,7 @@ Actor Memory의 자리는 연습 도구의 성능이다(PRD). 현행 규칙(배�
 | `GET·DELETE /v2/legacy-me/memory`, `PUT·DELETE /v2/legacy-me/memory/{field}` | 옛 표(actor_memory_entries)의 옛 경로 (`UpdateMemoryRequest`) | `MemoryResponse`·`MemoryItem` 200, 204 | 422(배열) |
 | `ActorMemoryUpdateScheduling.onConversationClosed` | 닫힌 회차 | avoid(그 장면의 행)에 정정 덧붙임, 끝난 대화마다 ai_jobs memory_update `pending`(SOMA-795), 예약 시점의 memory_epoch | — |
 | `ActorMemoryUpdateWorker.sweepIdle` (10분마다) | 배우가 두 번 이상 답하고 30분~24시간 말이 없는 열린 회차, 작업이 아직 없는 것 | 위와 같다 | — |
-| `MemoryWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending` memory_update 작업 | actor_memories 갱신(written_by agent, 배우가 쓴 칸은 건너뜀) | 세대 불일치 `failed`/memory_epoch_stale, 탈퇴 `failed`/account_deactivated, 3회 소진은 분석 워커 정리가 닫는다 |
+| `MemoryWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending`, 또는 lease가 지난 `running` memory_update 작업 | actor_memories 갱신(written_by agent, 배우가 쓴 칸은 건너뜀) | 세대 불일치 `failed`/memory_epoch_stale, 탈퇴 `failed`/account_deactivated, 3회 소진은 분석 워커 정리가, 시도를 다 쓴 채 lease가 지난 running은 기억 워커가 `failed`/max_attempts로 닫는다 |
 
 ## 상태
 users.memory_epoch — 기억 세대.
@@ -80,7 +80,8 @@ memory_update 작업의 전이 (정본: [공통 상태](../common.md#공통-상�
 - 워커가 대기 중일 때 배우가 같은 항목 수정: 워커 완료 뒤에도 배우 값·written_by = actor 유지.
 - 삭제 직후 늦게 끝난 갱신, 삭제 전에 예약만 된 갱신: 반영되지 않는다. 이관에서 회원 기억을 고른 뒤 게스트 쪽 작업 완료: 덮지 않는다.
 - 1,001자: 422.
-- 기억 갱신 작업 실패: 재시도 규칙은 [공통 상태](../common.md#공통-상태)의 ai_jobs와 같고 사용자 화면에는 드러나지 않는다.
+- 기억 갱신 작업 실패: 재시도 규칙은 [공통 상태](../common.md#공통-상태)의 ai_jobs와 같고 사용자 화면에는 드러나지 않는다. 갱신을 집은
+  워커가 죽으면 lease(5분)가 지난 뒤 다음 워커가 다시 집고, 시도를 다 쓴 채 lease가 지나면 기억 워커가 failed/max_attempts로 닫는다.
 
 ## 검증 방법
 - 기존 갈래 확인 연습 1회 완료: ai_jobs memory_update 1행, 완료 뒤 actor_memories에 written_by = agent 값. 2회: 갱신 없음. 3회: 갱신. 6회·9회: 갱신.
@@ -90,6 +91,7 @@ memory_update 작업의 전이 (정본: [공통 상태](../common.md#공통-상�
 - 항목 하나 삭제: 그 항목만 없고 다른 항목 그대로. 두 번 삭제: 204.
 - 이관에서 회원 기억 선택 뒤 게스트에서 시작된 작업 완료: 회원 기억 그대로. 기억 없는 회원에게 이관: 게스트 기억이 그대로 옮겨진다.
 - 출처 연습을 숨김: 값 그대로, 출처 링크 없음.
+- 갱신을 집은 워커가 죽음: lease가 지나면 다시 집혀 기억이 쓰인다(시도 수 2). 세 번 모두 죽음: failed/max_attempts, 회차 그대로.
 - 앱 기억 화면: 성별·나이 칸이 없고 프로필 링크가 있다. 웹 게스트 기억 화면: 프로필 링크 대신 앱 이관 안내. 1,000자: 200. 1,001자: 422.
 - 기억이 있는 회원에게 기억 있는 게스트 이관: 409로 되묻고 고른 쪽만 남는다(account.guest 검증과 같다).
 

@@ -43,7 +43,7 @@ public interface ActorMemoryUpdates {
     /** 아직 갱신 작업이 없는, 말이 끊긴 열린 회차들. */
     List<Idle> idle(Instant now);
 
-    /** 대기 중인 갱신 하나를 선점한다. 집을 게 없으면 {@code null}. */
+    /** 대기 중인 갱신 하나를 선점한다. 집은 워커가 죽어 lease 가 지난 갱신도 다시 집는다. 집을 게 없으면 {@code null}. */
     Claimed claim(UUID leaseToken, Duration lease, Instant now);
 
     /**
@@ -85,4 +85,11 @@ public interface ActorMemoryUpdates {
      * <p><b>회차 상태는 건드리지 않는다</b> — 기억이 없다고 연습이 망가질 것은 아니다.
      */
     void release(UUID jobId, UUID leaseToken, String reason, Instant now);
+
+    /**
+     * 집은 워커가 죽은 채 시도를 다 쓴 갱신을 failed/max_attempts 로 닫는다. 회차는 건드리지 않는다.
+     *
+     * @return 닫은 수
+     */
+    int closeAbandoned(Instant now);
 }

@@ -104,6 +104,7 @@ class MemoryWorkerScheduler {
             if (actorWorker != null) {
                 // 말이 끊긴 열린 회차를 10분에 한 번 본다(SOMA-603).
                 actorWorker.sweepIdle();
+                actorWorker.closeAbandoned();
             }
             while (actorWorker != null && actorWorker.runOnce()) {
                 // 0.1.0 큐도 같은 풀에서 비운다.

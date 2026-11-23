@@ -249,6 +249,27 @@ class ChallengeAiReportIT {
                 .containsEntry("status", "succeeded").containsEntry("attempt_count", 2);
     }
 
+    /** 세 번 모두 워커가 죽으면 다시 집지 않고, 정리가 작업과 리포트를 failed 로 닫아 "다시 시도"가 새 생성을 연다. */
+    @Test void challengeAiReport_aGenerationWhoseWorkersAllDiedFailsAndRetryStartsANewOne() throws Exception {
+        UUID mine = entry(me, "public", 1);
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        for (int attempt = 0; attempt < AiJobLedger.MAX_ATTEMPTS; attempt++) {
+            ledger.claimNext("challenge_report", UUID.randomUUID(), Duration.ofMinutes(10), clock.instant(), true);
+            clock.advance(Duration.ofMinutes(11));
+        }
+
+        assertThat(worker.runOnce(clock.instant())).as("시도를 다 쓴 생성은 집지 않는다").isFalse();
+        assertThat(worker.closeAbandoned(clock.instant())).isEqualTo(1);
+
+        JsonNode failed = response(get("/v2/entries/{id}/ai-report", mine), 200);
+        assertThat(LenientJson.asText(failed.path("status"))).isEqualTo("failed");
+        assertThat(LenientJson.asInt(failed.path("attempt_count"))).isEqualTo(AiJobLedger.MAX_ATTEMPTS);
+        assertThat(jdbc.queryForObject("SELECT status || '/' || failure_reason FROM ai_jobs", String.class))
+                .isEqualTo("failed/max_attempts");
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        assertThat(jobs()).isEqualTo(2);
+    }
+
     @Test void challengeAiReport_comparisonsLeaningOnSamplesThatLostEligibilityDisappear() throws Exception {
         var samples = new ArrayList<UUID>();
         var authors = new ArrayList<UUID>();

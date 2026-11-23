@@ -209,6 +209,17 @@ class PostgresAiReportRepository implements AiReportRepository {
         else ledger.release(jobId, leaseToken, reason, now);
     }
 
+    @Override @Transactional
+    public int closeAbandoned(Instant now) {
+        List<UUID> closed = ledger.failExpired(KIND, now);
+        if (closed.isEmpty()) return 0;
+        em.createNativeQuery("""
+                UPDATE entry_ai_reports r SET status='failed',attempt_count=j.attempt_count
+                FROM ai_jobs j WHERE j.id=r.job_id AND r.job_id IN (:jobs) AND r.status='pending'
+                """).setParameter("jobs", closed).executeUpdate();
+        return closed.size();
+    }
+
     /** 표본 조건을 지금도 지키는 것만. 공개 조건 + 요청자와 차단 없음 + 다른 작성자. */
     private Set<UUID> eligible(UUID owner, List<UUID> samples) {
         if (samples.isEmpty()) return Set.of();

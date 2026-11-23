@@ -23,8 +23,8 @@
 | `GET /v2/practices/{practice_id}/status` | practice_id | `PracticeStatus` 200(stage·close_reason·analysis_status·job) | `practice_not_found` 404 |
 | `GET /v2/practices/{practice_id}/analysis` | practice_id | `PracticeAnalysis` 200(`{id, format, status, summary}`) | `analysis_not_found` 404, `practice_not_found` 404 |
 | `POST /v2/practices/{practice_id}/cancel` | practice_id | `PracticeStatus` 200(stage closed) | `analysis_already_finished` 409, `practice_not_found` 404 |
-| `AnalysisWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending` analyze 작업, lease `ANALYSIS_LEASE_SEC`(기본 1800초) | analyses·video_transcripts 저장, 작업 succeeded | timeout·parse·unsupported는 즉시 `failed`, 바깥 의존 실패는 `pending`으로 되돌린다 |
-| `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 3회 시도한 `pending` 작업 | 작업 `failed`(앞서 적힌 failure_reason을 유지하고 없을 때만 max_attempts), analyze면 회차 closed | — |
+| `AnalysisWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending`, 또는 lease가 지난 `running` analyze 작업, lease `ANALYSIS_LEASE_SEC`(기본 1800초) | analyses·video_transcripts 저장, 작업 succeeded | timeout·parse·unsupported는 즉시 `failed`, 바깥 의존 실패는 `pending`으로 되돌린다 |
+| `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 3회 시도한 `pending` 작업, 시도를 다 쓴 채 lease가 지난 `running` analyze 작업 | 작업 `failed`(앞서 적힌 failure_reason을 유지하고 없을 때만 max_attempts, lease가 지난 running은 max_attempts), analyze면 회차 closed | — |
 | `PushService.onAnalysisComplete` | 분석 완료 | 앱 완료 푸시(account.notification) | — |
 
 ## 상태

@@ -110,6 +110,15 @@ public class ActorMemoryUpdateWorker {
         return idle.size();
     }
 
+    public int closeAbandoned() {
+        return closeAbandoned(clock.instant());
+    }
+
+    /** 집은 워커가 죽은 채 시도를 다 쓴 갱신을 닫는다 — 다시 집지 않으므로 닫지 않으면 running 에 남는다. */
+    public int closeAbandoned(Instant now) {
+        return updates.closeAbandoned(now);
+    }
+
     /** 큐에서 하나 집어 처리한다. 집을 게 없으면 거짓. */
     public boolean runOnce(Instant now) {
         UUID leaseToken = UUID.randomUUID();

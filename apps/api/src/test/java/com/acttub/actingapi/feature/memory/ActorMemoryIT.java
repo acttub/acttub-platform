@@ -41,6 +41,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import com.acttub.actingapi.platform.json.LenientJson;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 
 /**
  * practice.memory 의 「검증 방법」 가운데 <b>서버</b> 항목을 HTTP 와 실제 Postgres 로 본다 —
@@ -274,6 +275,28 @@ class ActorMemoryIT {
         assertThat(jdbc.queryForMap("SELECT status,attempt_count FROM ai_jobs WHERE kind='memory_update'"))
                 .containsEntry("status", "succeeded").containsEntry("attempt_count", 2);
         assertThat(rows()).hasSize(WRITTEN);
+    }
+
+    @Test
+    @DisplayName("practice.memory: 갱신을 집은 워커가 세 번 모두 죽음 — 다시 집지 않고 정리가 작업을 failed/max_attempts 로 닫는다. "
+            + "회차는 건드리지 않는다")
+    void practiceMemory_anUpdateWhoseWorkersAllDiedIsClosed() throws Exception {
+        UUID practice = analyzedPractice(member);
+        closeConversation(practice);
+        Instant now = Instant.now();
+        for (int attempt = 0; attempt < AiJobLedger.MAX_ATTEMPTS; attempt++) {
+            updates.claim(UUID.randomUUID(), Duration.ofMinutes(5), now);
+            now = now.plus(Duration.ofMinutes(6));
+        }
+
+        assertThat(worker.runOnce(now)).as("시도를 다 쓴 갱신은 집지 않는다").isFalse();
+        assertThat(worker.closeAbandoned(now)).isEqualTo(1);
+
+        assertThat(jdbc.queryForMap("SELECT status,failure_reason,lease_token FROM ai_jobs WHERE kind='memory_update'"))
+                .containsEntry("status", "failed").containsEntry("failure_reason", "max_attempts")
+                .containsEntry("lease_token", null);
+        assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("closed");
+        assertThat(rows()).isEmpty();
     }
 
     @Test
