@@ -7,6 +7,7 @@ import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -93,9 +94,12 @@ class MemoryWorkerScheduler {
     }
 
     private void drainQueue() {
+        long started = System.nanoTime();
+        int processed = 0;
         try {
             while (worker != null && worker.runOnce()) {
                 // 일감이 있는 동안은 대기하지 않는다.
+                processed++;
             }
             if (actorWorker != null) {
                 // 말이 끊긴 열린 회차를 10분에 한 번 본다(SOMA-603).
@@ -103,6 +107,7 @@ class MemoryWorkerScheduler {
             }
             while (actorWorker != null && actorWorker.runOnce()) {
                 // 0.1.0 큐도 같은 풀에서 비운다.
+                processed++;
             }
         } catch (Exception exception) {
             // 기억 갱신이 실패해도 연습은 정상이다. 큐만 비우고 넘어간다.
@@ -110,6 +115,8 @@ class MemoryWorkerScheduler {
             failureReporter.report(
                     exception,
                     new FailureContext("MemoryWorkerScheduler.cycle"));
+        } finally {
+            ScheduledTaskLog.drained("MemoryWorkerScheduler.drainQueue", processed, started);
         }
     }
 }

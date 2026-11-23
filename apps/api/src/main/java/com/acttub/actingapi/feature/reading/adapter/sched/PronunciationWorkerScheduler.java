@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.reading.adapter.sched;
 import com.acttub.actingapi.feature.reading.app.PronunciationWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import jakarta.annotation.PreDestroy;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,9 +55,8 @@ class PronunciationWorkerScheduler {
     /** 집을 것이 없을 때까지 하나씩 처리한다. 실패는 알리고 다음 폴을 기다린다. */
     void drain() {
         try {
-            while (worker.runOnce()) {
-                // 쌓인 것을 다 비운다. 집을 것이 없거나 한도·실패로 멈추면 다음 주기를 기다린다.
-            }
+            // 쌓인 것을 다 비운다. 집을 것이 없거나 한도·실패로 멈추면 다음 주기를 기다린다.
+            ScheduledTaskLog.drain("PronunciationWorkerScheduler.drain", worker::runOnce);
         } catch (RuntimeException failure) {
             failures.report(failure, new FailureContext("PronunciationWorkerScheduler.drain"));
         }

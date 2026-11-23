@@ -1,6 +1,8 @@
 package com.acttub.actingapi.platform.observability;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -14,11 +16,16 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.sentry.IScope;
 import io.sentry.IScopes;
 import io.sentry.ScopeCallback;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 class SentryFailureReporterTest {
     private static final Instant NOW = Instant.parse("2026-09-03T00:00:00Z");
@@ -41,6 +48,43 @@ class SentryFailureReporterTest {
         verify(scope).setTag("failure_kind", "unexpected");
         verify(scope).setTag("context", context.tagValue());
         verifyNoMoreInteractions(scope);
+    }
+
+    @Test
+    void logsEveryReportWithoutTheMessageAndTagsTheTraceId() {
+        IScopes scopes = mock(IScopes.class);
+        SentryFailureReporter reporter = reporter(scopes, NOW);
+        Logger logger = (Logger) LoggerFactory.getLogger(SentryFailureReporter.class);
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        MDC.put("trace_id", "0123456789abcdef0123456789abcdef");
+        try {
+            reporter.report(new IllegalStateException("Key (email)=(actor@example.com) already exists"),
+                    FailureKind.UNEXPECTED, new FailureContext("ApiErrorAdvice.catchAll"));
+        } finally {
+            MDC.remove("trace_id");
+            logger.detachAppender(events);
+        }
+
+        assertThat(events.list).hasSize(1);
+        var event = events.list.get(0);
+        assertThat(event.getKeyValuePairs()).extracting(pair -> pair.key + "=" + pair.value).contains(
+                "failure_location=ApiErrorAdvice.catchAll",
+                "failure_kind=unexpected",
+                "error=java.lang.IllegalStateException");
+        assertThat(event.getThrowableProxy()).isNull();
+        assertThat(event.getFormattedMessage()).doesNotContain("actor@example.com");
+        ArgumentCaptor<ScopeCallback> callback = ArgumentCaptor.forClass(ScopeCallback.class);
+        verify(scopes).captureException(any(), callback.capture());
+        IScope scope = mock(IScope.class);
+        MDC.put("trace_id", "0123456789abcdef0123456789abcdef");
+        try {
+            callback.getValue().run(scope);
+        } finally {
+            MDC.remove("trace_id");
+        }
+        verify(scope).setTag("trace_id", "0123456789abcdef0123456789abcdef");
     }
 
     @Test

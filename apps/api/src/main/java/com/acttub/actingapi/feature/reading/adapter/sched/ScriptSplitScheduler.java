@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,14 +72,18 @@ class ScriptSplitScheduler {
         }
         try {
             executor.execute(() -> {
+                long started = System.nanoTime();
+                int processed = 0;
                 try {
                     while (!stopping && worker.runOnce()) {
+                        processed++;
                         spawn();
                     }
                 } catch (RuntimeException failure) {
                     failures.report(failure, new FailureContext("ScriptSplitScheduler.poll"));
                 } finally {
                     slots.release();
+                    ScheduledTaskLog.drained("ScriptSplitScheduler.spawn", processed, started);
                 }
             });
         } catch (RejectedExecutionException closing) {

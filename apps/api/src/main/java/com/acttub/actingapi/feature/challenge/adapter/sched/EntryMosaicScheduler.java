@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.challenge.adapter.sched;
 import com.acttub.actingapi.feature.challenge.app.EntryMosaicWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -55,9 +56,8 @@ class EntryMosaicScheduler {
 
     private void drain() {
         try {
-            while (worker.runOnce()) {
-                // 일감이 있는 동안은 기다리지 않는다 — 한 번에 한 참여작이고 ffmpeg 락이 차례를 정한다.
-            }
+            // 일감이 있는 동안은 기다리지 않는다 — 한 번에 한 참여작이고 ffmpeg 락이 차례를 정한다.
+            ScheduledTaskLog.drain("EntryMosaicScheduler.drain", worker::runOnce);
         } catch (RuntimeException failure) {
             failures.report(failure, new FailureContext("EntryMosaicScheduler.drain"));
         }

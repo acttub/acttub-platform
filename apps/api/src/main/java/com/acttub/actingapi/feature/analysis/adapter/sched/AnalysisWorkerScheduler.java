@@ -6,6 +6,7 @@ import java.util.logging.Logger;
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -111,9 +112,8 @@ class AnalysisWorkerScheduler {
     private void drainQueue() {
         for (AnalysisWorker worker : workers) {
             try {
-                while (worker.runOnce()) {
-                    // 일감이 있는 동안은 대기하지 않는다.
-                }
+                // 일감이 있는 동안은 대기하지 않는다.
+                ScheduledTaskLog.drain("AnalysisWorkerScheduler.drainQueue", worker::runOnce);
             } catch (Exception exception) {
                 LOGGER.log(Level.WARNING, "analysis worker cycle failed", exception);
                 failureReporter.report(
