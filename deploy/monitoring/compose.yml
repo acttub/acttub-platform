@@ -62,6 +62,7 @@ services:
       - --collector.disable-defaults
       - --collector.cpu
       - --collector.meminfo
+      - --collector.diskstats
       - --collector.filesystem
       - --collector.filesystem.mount-points-include=${DATA_MOUNTPOINT_REGEX:?}
       - --web.listen-address=:9100

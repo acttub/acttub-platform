@@ -191,7 +191,7 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
 | `api` | dev/prod | 환경별 인증된 API metrics. scrape 설정이 환경 label을 소유 |
 | `db-health` | `up`에는 없음, payload에는 dev/prod | 공유 HTTP exporter가 환경별 관리 DB health를 검사 |
 | `backup` | `up`에는 없음, payload에는 선택한 dev/prod | 공유 exporter가 선택한 환경의 읽기 전용 상태 볼륨을 검사 |
-| `node` | shared | 호스트 CPU·MemAvailable·지정한 데이터 마운트의 filesystem |
+| `node` | shared | 호스트 CPU·MemAvailable·지정한 데이터 마운트의 filesystem·장치별 디스크 I/O(diskstats) |
 | `prometheus` | shared | 수집기 자체 상태와 수집량 |
 
 API가 노출한 중복 `environment`는 scrape label로 치환하고 `exported_environment`는 제거한다.
@@ -246,8 +246,8 @@ PDC의 실제 OpenSSH remote SOCKS 전달도 임시 SSH 서버에서 검사한�
 다른 호스트와 포트는 거부되어야 한다. 외부 터널 상대만 대체하며 Cloud API나 Slack을 부르지 않는다.
 테스트가 만든 고유 `soma520-*` 컨테이너·볼륨만 정리하며 재사용 앱 이미지 태그는 남긴다.
 
-별도 실제 홈서버에서 node의 CPU·`MemAvailable`·데이터 filesystem 값을 `/proc/stat`,
-`/proc/meminfo`, `df`와 대조하고 30일 예상 저장량·여유 공간을 확인한다. 실제 Cloud/PDC 조회,
+별도 실제 홈서버에서 node의 CPU·`MemAvailable`·데이터 filesystem·디스크 쓰기 값을 `/proc/stat`,
+`/proc/meminfo`, `df`, `/proc/diskstats`와 대조하고 30일 예상 저장량·여유 공간을 확인한다. 실제 Cloud/PDC 조회,
 세 계정 권한·Free 사용량·Slack 최초/반복/복구 수신도 확인해야 한다. 로컬 테스트 통과는 이 운영
 검증의 완료를 의미하지 않는다.
 

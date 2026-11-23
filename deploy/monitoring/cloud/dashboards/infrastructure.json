@@ -693,13 +693,127 @@
       ]
     },
     {
+      "id": 54,
+      "title": "공유 호스트 디스크 쓰기 한 건당 시간",
+      "type": "timeseries",
+      "description": "장치별로 끝난 쓰기 한 건이 걸린 평균 시간이다. DB의 WAL fsync가 느려지면 여기서 먼저 보인다.",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "수집 전·중단",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${local_uid}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_write_time_seconds_total{environment=\"shared\"}[2m]) / rate(node_disk_writes_completed_total{environment=\"shared\"}[2m])",
+          "legendFormat": "{{device}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${local_uid}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "title": "공유 호스트 디스크 대기열",
+      "type": "timeseries",
+      "description": "장치별로 처리 중이거나 기다리는 I/O의 평균 개수다(읽기 포함). 1을 넘게 오래 머물면 쓰기가 줄을 선다.",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "수집 전·중단",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${local_uid}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_io_time_weighted_seconds_total{environment=\"shared\"}[2m])",
+          "legendFormat": "{{device}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${local_uid}"
+          }
+        }
+      ]
+    },
+    {
       "id": 91,
       "type": "row",
       "title": "API 프로세스 (Spring Boot)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 20,
         "w": 24,
         "h": 1
       },
@@ -747,7 +861,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 21,
         "w": 6,
         "h": 3
       },
@@ -840,7 +954,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 14,
+        "y": 21,
         "w": 5,
         "h": 6
       },
@@ -936,7 +1050,7 @@
       },
       "gridPos": {
         "x": 11,
-        "y": 14,
+        "y": 21,
         "w": 5,
         "h": 6
       },
@@ -988,7 +1102,7 @@
       "fillGradient": 0,
       "gridPos": {
         "x": 16,
-        "y": 14,
+        "y": 21,
         "w": 8,
         "h": 6
       },
@@ -1105,7 +1219,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 24,
         "w": 6,
         "h": 3
       },
@@ -1211,7 +1325,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 27,
         "w": 12,
         "h": 7
       },
@@ -1326,7 +1440,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 20,
+        "y": 27,
         "w": 12,
         "h": 7
       },
@@ -1388,7 +1502,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 34,
         "w": 24,
         "h": 1
       },
@@ -1400,7 +1514,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 28,
+            "y": 35,
             "w": 6,
             "h": 5
           },
@@ -1461,7 +1575,7 @@
           "description": "",
           "gridPos": {
             "x": 6,
-            "y": 28,
+            "y": 35,
             "w": 6,
             "h": 5
           },
@@ -1522,7 +1636,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 28,
+            "y": 35,
             "w": 6,
             "h": 5
           },
@@ -1608,7 +1722,7 @@
           "description": "",
           "gridPos": {
             "x": 18,
-            "y": 28,
+            "y": 35,
             "w": 6,
             "h": 5
           },
@@ -1683,7 +1797,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 33,
+            "y": 40,
             "w": 8,
             "h": 7
           },
@@ -1740,7 +1854,7 @@
           "description": "",
           "gridPos": {
             "x": 8,
-            "y": 33,
+            "y": 40,
             "w": 8,
             "h": 7
           },
@@ -1797,7 +1911,7 @@
           "description": "",
           "gridPos": {
             "x": 16,
-            "y": 33,
+            "y": 40,
             "w": 8,
             "h": 7
           },
@@ -1858,7 +1972,7 @@
           "description": "missing/corrupt/target_mismatch/unreadable/no_success/unresolved_failure를 정상값으로 숨기지 않습니다.",
           "gridPos": {
             "x": 0,
-            "y": 40,
+            "y": 47,
             "w": 24,
             "h": 5
           },
@@ -1921,7 +2035,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 35,
         "w": 24,
         "h": 1
       },
@@ -1986,7 +2100,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 29,
+            "y": 36,
             "w": 24,
             "h": 8
           },
@@ -2116,7 +2230,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 37,
+            "y": 44,
             "w": 6,
             "h": 8
           },
@@ -2249,7 +2363,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 45,
+            "y": 52,
             "w": 12,
             "h": 8
           },
@@ -2376,7 +2490,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 53,
+            "y": 60,
             "w": 12,
             "h": 7
           },
@@ -2485,7 +2599,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 53,
+            "y": 60,
             "w": 12,
             "h": 7
           },
@@ -2594,7 +2708,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 60,
+            "y": 67,
             "w": 12,
             "h": 8
           },
@@ -2653,7 +2767,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 36,
         "w": 24,
         "h": 1
       },
@@ -2718,7 +2832,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 30,
+            "y": 37,
             "w": 12,
             "h": 10
           },
@@ -2820,7 +2934,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 30,
+            "y": 37,
             "w": 12,
             "h": 10
           },
@@ -2871,7 +2985,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 37,
         "w": 24,
         "h": 1
       },
@@ -2915,7 +3029,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 31,
+            "y": 38,
             "w": 4,
             "h": 4
           },
@@ -3018,7 +3132,7 @@
           },
           "gridPos": {
             "x": 4,
-            "y": 31,
+            "y": 38,
             "w": 20,
             "h": 8
           },
@@ -3125,7 +3239,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 35,
+            "y": 42,
             "w": 4,
             "h": 4
           },
@@ -3182,7 +3296,7 @@
           "fillGradient": 0,
           "gridPos": {
             "x": 0,
-            "y": 39,
+            "y": 46,
             "w": 8,
             "h": 6
           },
@@ -3269,7 +3383,7 @@
           "fillGradient": 0,
           "gridPos": {
             "x": 8,
-            "y": 39,
+            "y": 46,
             "w": 8,
             "h": 6
           },
@@ -3356,7 +3470,7 @@
           "fillGradient": 0,
           "gridPos": {
             "x": 16,
-            "y": 39,
+            "y": 46,
             "w": 8,
             "h": 6
           },
@@ -3439,7 +3553,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 38,
         "w": 24,
         "h": 1
       },
@@ -3504,7 +3618,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 32,
+            "y": 39,
             "w": 24,
             "h": 7
           },
@@ -3601,7 +3715,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 39,
+            "y": 46,
             "w": 24,
             "h": 7
           },
@@ -3651,7 +3765,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 39,
         "w": 24,
         "h": 1
       },
@@ -3715,7 +3829,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 33,
+            "y": 40,
             "w": 12,
             "h": 7
           },
@@ -3830,7 +3944,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 33,
+            "y": 40,
             "w": 12,
             "h": 7
           },
@@ -3933,7 +4047,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 40,
+            "y": 47,
             "w": 8,
             "h": 7
           },
@@ -3986,7 +4100,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 40,
         "w": 24,
         "h": 1
       },
@@ -3998,7 +4112,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 34,
+            "y": 41,
             "w": 24,
             "h": 4
           },
