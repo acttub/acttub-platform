@@ -158,6 +158,7 @@ jobs:
 
       - name: Deploy guard tests
         run: |
+          .github/scripts/ci-changes-test.sh
           deploy/guard-test.sh
           deploy/home/deploy-test.sh
 
