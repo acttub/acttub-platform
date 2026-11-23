@@ -18,6 +18,7 @@ class ReleaseTest(unittest.TestCase):
         self.addCleanup(work.cleanup)
         self.state = Path(work.name)
         self.config = json.loads((manage.ROOT / "config.example.json").read_text())
+        self.config.pop("logs")
         self.config.update(retention_size="1GB", pdc_cluster="test", grafana_id="1")
 
     def release(self, version, selected=("dev",)):
@@ -92,7 +93,7 @@ class ReleaseTest(unittest.TestCase):
                 expected += [["docker", "network", "inspect", "acttub-" + env + "_scrape"],
                              ["docker", "volume", "inspect", "acttub-" + env + "_backup_state"]]
             self.assertEqual(commands[:-1], expected)
-            self.assertEqual(commands[-1], manage.compose(release, "up", "-d", "--wait", "--wait-timeout", "120",
+            self.assertEqual(commands[-1], manage.compose(release, "up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "120",
                                                           "prometheus", "node", "db-health", "backup-exporter"))
             self.assertEqual((self.state / "current").read_text().strip(), release.name)
         self.assertEqual((self.state / "previous").read_text().strip(), "both")

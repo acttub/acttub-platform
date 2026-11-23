@@ -19,6 +19,7 @@ class ComposeContractTest(unittest.TestCase):
             with self.subTest(selected=selected), tempfile.TemporaryDirectory() as tmp:
                 work = Path(tmp)
                 config = json.loads((ROOT / "config.example.json").read_text())
+                config.pop("logs")
                 config.update(project="monitor-contract", retention_size="1GB", pdc_cluster="test", grafana_id="1")
                 config["environments"] = {env: config["environments"][env] for env in selected}
                 (work / "config.json").write_text(json.dumps(config))
