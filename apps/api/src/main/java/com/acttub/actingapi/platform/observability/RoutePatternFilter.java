@@ -46,7 +46,8 @@ class RoutePatternFilter extends OncePerRequestFilter {
                 ServletRequestPathUtils.parseAndCache(request);
                 handlers.getHandler(request);
             } catch (Exception noHandler) {
-                // 메서드·미디어 타입이 맞지 않아 핸들러를 고르지 못했다. 디스패치가 같은 판정으로 오류를 낸다.
+                // 메서드·미디어 타입이 맞지 않는 등 핸들러를 고르지 못했다. 여기서 응답을 정하지 않는다 — 이 조회는 라벨만
+                // 위한 것이고, DispatcherServlet 이 같은 조회를 다시 해서 같은 예외를 ApiErrorAdvice 로 응답한다.
             } finally {
                 ServletRequestPathUtils.setParsedRequestPath(previous, request);
             }

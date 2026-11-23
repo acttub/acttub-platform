@@ -60,7 +60,14 @@ def same_json(a, b):
         return False
 
 
-different = 0
+# 응답 파일마다 첫 줄이 HTTP 상태줄이어야 한다. 비었거나 요청이 실패한 파일은 같아 보여도 비교가 아니다.
+broken = [f"{side.name}/{p.relative_to(side).as_posix()}" for side in (before, after)
+          for p in sorted((side / "responses").glob("*.txt"))
+          if not p.name.startswith("mgmt-") and not p.read_text(errors="replace").startswith("HTTP/")]
+for name in broken:
+    print(f"### 응답 없음: {name}")
+
+different = len(broken)
 for name in targets:
     a, b = lines_of(before / name), lines_of(after / name)
     if a == b:

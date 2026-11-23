@@ -58,11 +58,13 @@ sleep 2
 ) &
 APP_PID=$!
 
+ready=
 for _ in $(seq 1 120); do
-  curl -fsS "http://127.0.0.1:$APP_PORT/health" >/dev/null 2>&1 && break
+  curl -fsS "http://127.0.0.1:$APP_PORT/health" >/dev/null 2>&1 && { ready=1; break; }
   kill -0 "$APP_PID" 2>/dev/null || { echo "앱이 기동하다 죽었다: $OUT/startup.log" >&2; exit 1; }
   sleep 1
 done
+[[ -n "$ready" ]] || { echo "120초 안에 /health 가 답하지 않았다: $OUT/startup.log" >&2; exit 1; }
 sleep 3
 wc -l < "$OUT/startup.log" | tr -d ' ' > "$OUT/startup-lines.txt"
 
@@ -74,7 +76,8 @@ req() { # name method path [body]
     -H 'X-Acttub-Trace-Id: 0123456789abcdef0123456789abcdef' -H 'X-Acttub-Client: web/snapshot')
   [[ -n "$TOKEN" ]] && args+=(-H "Authorization: Bearer $TOKEN")
   [[ -n "$body" ]] && args+=(-H 'Content-Type: application/json' --data "$body")
-  curl "${args[@]}" "http://127.0.0.1:$APP_PORT$path" || true
+  # 연결이 끊겨 응답이 없으면 그 사실을 남긴다. 양쪽 다 비어 같아 보이는 일을 막는다(compare.py 가 이 줄을 실패로 센다).
+  curl "${args[@]}" "http://127.0.0.1:$APP_PORT$path" || echo "요청 실패" > "$OUT/responses/$name.head"
   {
     head -1 "$OUT/responses/$name.head" | tr -d '\r'
     grep -iE '^(content-type|x-acttub-trace-id|www-authenticate|allow|location|cache-control|vary|x-content-type-options|x-frame-options):' \
@@ -99,6 +102,8 @@ req root GET /
 req actuator-on-app GET /actuator/health
 req swagger-redirect GET /swagger-ui.html
 req api-docs GET /v3/api-docs
+req swagger-ui GET /swagger-ui/index.html
+req swagger-config GET /v3/api-docs/swagger-config
 req login POST /v2/auth/login '{"provider":"development","id_token":"snapshot-user:snap@acttub.invalid"}'
 SIGNUP=$(python3 -I -c "
 import json,sys
