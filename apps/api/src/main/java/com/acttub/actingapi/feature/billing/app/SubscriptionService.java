@@ -331,6 +331,10 @@ public class SubscriptionService {
         }
         UUID subscriptionId = repository.saveCard(checkout.userId(), checkout.customerKey(),
                 cipher.seal(issued.billingKey()), issued.cardCompany(), issued.cardNumber(), now);
+        if (subscriptionId == null) {
+            // 키를 받는 사이에 탈퇴가 끝났다. 카드를 남기지 않고 결제하지 않는다.
+            return Result.FAILED;
+        }
         Subscription sub = repository.findById(subscriptionId).orElseThrow();
         if (checkout.purpose() == Purpose.CHANGE_CARD) {
             // 카드만 바꾼다. 자동결제가 실패해 있던 구독이면 새 카드로 바로 한 번 더 시도한다.
@@ -350,8 +354,12 @@ public class SubscriptionService {
         Charge charge = charge(sub, checkout.orderId(), "first", now, end, 1);
         return switch (charge) {
             case DONE -> {
-                repository.activate(sub.id(), now, end, clock.instant());
-                yield Result.DONE;
+                if (repository.activate(sub.id(), now, end, clock.instant())) {
+                    yield Result.DONE;
+                }
+                // 승인을 기다리는 사이에 탈퇴가 끝났다. 돈은 이미 나갔으므로 환불할 주문을 남긴다.
+                LOG.error("billing first payment approved after withdrawal order={}", checkout.orderId());
+                yield Result.FAILED;
             }
             case FAILED -> Result.FAILED;
             case UNKNOWN -> Result.UNKNOWN;
