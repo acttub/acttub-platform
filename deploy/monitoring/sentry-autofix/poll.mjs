@@ -1,6 +1,6 @@
 // Slack에 간 Sentry 알림마다 claude -p에 원인 분석·Jira 이슈·draft PR을 맡긴다.
 // 운영 알림은 main 대상 hotfix로 고치고, 머지되면 main → dev 역병합 PR을 연다. dev 알림은 dev로 고친다.
-// 알림 목록은 Slack 중계 Worker의 KV에서 가져온다. Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
+// 알림 목록은 Slack 중계 Worker의 KV에서 가져온다. Mac mini의 Hermes 예약 작업이 15분마다 돌린다. 준비와 되돌리기는 README.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
