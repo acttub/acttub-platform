@@ -141,6 +141,21 @@ class JacksonDefaultsContractTest {
         assertThat(read("{\"value\":\"a\",\"value\":\"b\"}", Text.class)).isEqualTo(EXPECTED_DUPLICATE);
     }
 
+    @Test
+    @DisplayName("UTF-8 바이트로 쓸 때 BMP 밖 글자(이모지)를 Jackson 2 때처럼 \\uD83D\\uDE00 으로 이스케이프한다")
+    void writesSurrogatePairsEscapedInUtf8() throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("b", "x😀");
+        body.put("a", 1);
+
+        assertThat(new String(mapper.writeValueAsBytes(body), java.nio.charset.StandardCharsets.UTF_8))
+                .isEqualTo("{\"b\":\"x\\uD83D\\uDE00\",\"a\":1}");
+        // 요청 지문(SHA-256 입력)과 멱등 응답 본문도 이 바이트다.
+        assertThat(new String(new com.acttub.actingapi.platform.web.CanonicalJson(mapper).bytes(body),
+                java.nio.charset.StandardCharsets.UTF_8))
+                .isEqualTo("{\"a\":1,\"b\":\"x\\uD83D\\uDE00\"}");
+    }
+
     private String read(String json, Class<?> type) {
         try {
             return String.valueOf(mapper.readValue(json, type));

@@ -53,6 +53,11 @@ spring:
     datatype:
       datetime:
         write-dates-as-timestamps: false
+    json:
+      write:
+        # Boot 가 만드는 Jackson 3 팩토리는 이모지 같은 BMP 밖 글자를 UTF-8 바이트로 바로 쓴다. Jackson 2 처럼
+        # \uD83C\uDFAD 로 이스케이프한다(응답 바이트, CanonicalJson 요청 지문).
+        combine-unicode-surrogates-in-utf8: false
     # Jackson 3·Boot 4 의 한도(중첩 500, 문자열 1억 자)를 Jackson 2.21 기본값으로 둔다. 요청 본문이 같은 데서
     # 같게 막힌다.
     factory:
