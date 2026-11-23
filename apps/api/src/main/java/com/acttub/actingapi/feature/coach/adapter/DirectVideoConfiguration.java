@@ -23,8 +23,14 @@ public class DirectVideoConfiguration {
     @Bean
     com.acttub.actingapi.integration.observation.DirectVideoModel directVideoModel(Client client,
             @Value("${GEMINI_MODEL:gemini-3-flash-preview}") String model,
-            GeminiDirectVideoModel.Hedge coachHedge) {
-        return new GeminiDirectVideoModel(client, model).withHedge(coachHedge);
+            GeminiDirectVideoModel.Hedge coachHedge,
+            // 코치 답 영상의 프레임 간격(초당 프레임). 비우면 API 기본(1fps)이고 예전과 같은 요청이다.
+            @Value("${ACTTUB_COACH_VIDEO_FPS:}") String videoFps) {
+        return new GeminiDirectVideoModel(client, model).withHedge(coachHedge).withVideoFps(fps(videoFps));
+    }
+
+    static Double fps(String configured) {
+        return configured == null || configured.isBlank() ? null : Double.valueOf(configured.strip());
     }
 
     // 느린 요청 다시 보내기(SOMA-780). 분류·답 쓰기가 이 초 안에 오지 않으면 같은 요청을 한 번 더 보낸다. 0 이면 끈다(롤백).
@@ -145,9 +151,21 @@ public class DirectVideoConfiguration {
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPro> coachPro,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachProMemory> proMemory,
             // 리딩 녹음 코칭(SOMA-791)의 소리·대본. 스위치(ACTTUB_READING_VOICE_COACHING_ENABLED)가 꺼졌으면 없다.
-            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachReadingAudio> readingAudio) {
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachReadingAudio> readingAudio,
+            // 비용 스위치. 기본값은 모두 지금 동작 그대로다.
+            // 연습 루프 배우 말 분류 모델. 비우면 기본 모델(GEMINI_MODEL)이다.
+            @Value("${GEMINI_COACH_CLASSIFY_MODEL:}") String classifyModel,
+            // 분류에 보내는 대화 기록을 마지막 N개 메시지로 자른다. 0 이면 전체다.
+            @Value("${ACTTUB_COACH_CLASSIFY_HISTORY:0}") int classifyHistory,
+            // 무료 배우는 같은 영상의 첫 답 뒤 후속 답에서 영상을 뺀다. Pro 는 그대로다.
+            @Value("${ACTTUB_COACH_FREE_VIDEO_FIRST_ONLY:false}") boolean freeVideoFirstOnly,
+            // 둘째 답부터의 공통 지시(회차 안에서 바이트까지 같다)를 고정 앞부분으로 옮겨 암묵 캐시에 걸리게 한다.
+            @Value("${ACTTUB_COACH_STATIC_RULES_IN_PREFIX:false}") boolean staticRulesInPrefix,
+            @Value("${ACTTUB_COACH_VIDEO_FPS:}") String videoFps) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
-                : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge);
+                : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge).withVideoFps(fps(videoFps));
+        var classifier = classifyModel == null || classifyModel.isBlank() ? null
+                : new GeminiDirectVideoModel(client, classifyModel.strip()).withHedge(coachHedge);
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
                 personasEnabled ? personas.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE)
                         : com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE,
@@ -162,6 +180,9 @@ public class DirectVideoConfiguration {
                 .withStablePrefix(stablePrefix)
                 .withVideoTokenBudget(videoTokenBudget)
                 .withAlternateProOnly(modelBProOnly)
+                .withClassifier(classifier, classifyHistory)
+                .withFreeVideoFirstOnly(freeVideoFirstOnly)
+                .withStaticRulesInPrefix(staticRulesInPrefix)
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
                         proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
                 .withOpenings(openingAb(openingAb, siteUrl)

@@ -24,6 +24,8 @@ import com.acttub.actingapi.integration.media.VideoFrameEvidence;
 import com.acttub.actingapi.integration.media.AudioSignalEvidence;
 import com.google.genai.Client;
 import com.google.genai.types.Content;
+import com.google.genai.types.FileData;
+import com.google.genai.types.VideoMetadata;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.Part;
 import com.google.genai.types.UploadFileConfig;
@@ -49,6 +51,8 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     private final Predicate<Path> blackFrameProbe;
     private final Predicate<Path> audioSignalProbe;
     private final Hedge hedge;
+    /** 코치 답 영상 Part 의 프레임 간격. null 이면 API 기본이다. */
+    private final Double videoFps;
 
     /**
      * 느린 요청 다시 보내기(SOMA-780). 답이 이 시간 안에 오지 않으면 같은 요청을 한 번 더 보내고 먼저 온 답을 쓴다.
@@ -80,22 +84,32 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
 
     GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe,
             Predicate<Path> blackFrameProbe, Predicate<Path> audioSignalProbe) {
-        this(client, model, audioProbe, blackFrameProbe, audioSignalProbe, Hedge.NONE);
+        this(client, model, audioProbe, blackFrameProbe, audioSignalProbe, Hedge.NONE, null);
     }
 
     private GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe,
-            Predicate<Path> blackFrameProbe, Predicate<Path> audioSignalProbe, Hedge hedge) {
+            Predicate<Path> blackFrameProbe, Predicate<Path> audioSignalProbe, Hedge hedge, Double videoFps) {
         this.client = client;
         this.model = model;
         this.audioProbe = audioProbe;
         this.blackFrameProbe = blackFrameProbe;
         this.audioSignalProbe = audioSignalProbe;
         this.hedge = hedge == null ? Hedge.NONE : hedge;
+        this.videoFps = videoFps;
     }
 
     /** 같은 모델에 느린 요청 다시 보내기를 켠 사본(SOMA-780). */
     public GeminiDirectVideoModel withHedge(Hedge hedge) {
-        return new GeminiDirectVideoModel(client, model, audioProbe, blackFrameProbe, audioSignalProbe, hedge);
+        return new GeminiDirectVideoModel(client, model, audioProbe, blackFrameProbe, audioSignalProbe, hedge, videoFps);
+    }
+
+    /**
+     * 코치 답 요청의 영상 프레임 간격(초당 프레임)을 정한 사본. null 이거나 0 이하면 API 기본(1fps)이고 예전과 같은 요청이다.
+     * 영상 토큰은 프레임 수에 비례한다(프레임당 약 70토큰, 소리는 초당 25토큰으로 그대로).
+     */
+    public GeminiDirectVideoModel withVideoFps(Double fps) {
+        return new GeminiDirectVideoModel(client, model, audioProbe, blackFrameProbe, audioSignalProbe, hedge,
+                fps == null || fps <= 0 ? null : fps);
     }
 
     @Override
@@ -326,8 +340,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         String turn = boundary < 0 ? null
                 : TURN_HEADER + "\n" + instruction.substring(boundary + TURN_BOUNDARY.length());
         List<Content> contents = new ArrayList<>();
-        if (video != null) contents.add(Content.builder().role("user").parts(
-                Part.fromUri(video.uri(), video.mimeType())).build());
+        if (video != null) contents.add(Content.builder().role("user").parts(videoPart(video)).build());
         if (classification) {
             // The first coaching turn has model role. Send the transcript as data in a user message,
             // rather than asking the classifier to continue that assistant-led conversation.
@@ -355,6 +368,15 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                     "required", List.of("signals"), "additionalProperties", false));
         }
         return new Request(contents, config.build(), trace, usage);
+    }
+
+    /** 영상 Part. 프레임 간격을 정했으면 VideoMetadata.fps 를 단다. 정하지 않았으면 예전과 같은 Part 다. */
+    Part videoPart(Video video) {
+        if (videoFps == null) return Part.fromUri(video.uri(), video.mimeType());
+        return Part.builder()
+                .fileData(FileData.builder().fileUri(video.uri()).mimeType(video.mimeType()).build())
+                .videoMetadata(VideoMetadata.builder().fps(videoFps).build())
+                .build();
     }
 
     /**

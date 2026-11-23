@@ -97,6 +97,21 @@ public final class DirectVideoCoach {
      * 영상을 빼고 글만 보낸다(내려놓기와 같은 영상 생략 경로). 0 이면 끈다. 1층 관찰·받아쓰기는 세지 않는다.
      */
     private long videoTokenBudget = 0;
+    /** 연습 루프 배우 말 분류 모델. null 이면 기본 모델이다. */
+    private DirectVideoModel classifier;
+    /** 분류에 보내는 대화 기록을 마지막 몇 개 메시지로 자를지. 0 이면 전체다. */
+    private int classifyHistory = 0;
+    /**
+     * 무료 배우는 같은 영상의 첫 답 뒤 후속 답에서 영상을 빼고 글만 보낸다(비용). 첫 답의 숨은 {@code <설계>}는 대화 기록 첫 코치 말에
+     * 되붙어 후속 답에 그대로 들어간다. 같은 회차에 새 영상이 들어오면 그 첫 답은 영상을 본다. Pro 는 그대로다. 끄면 예전과 같다.
+     */
+    private boolean freeVideoFirstOnly = false;
+    /**
+     * 연습 루프 둘째 답부터의 공통 지시(practice-loop-turn)는 회차 안에서 바이트까지 같다. 켜면 이 칸을 이번 답 지시에서
+     * 고정 앞부분(systemInstruction) 끝으로 옮겨 암묵 캐시에 걸리게 한다. 문구는 그대로다. 고정 앞부분이 꺼져 있거나
+     * 맞춤 코칭이 공통 지시를 고쳐 쓰는 대화는 옮기지 않는다. 끄면 예전과 같다.
+     */
+    private boolean staticRulesInPrefix = false;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -189,6 +204,35 @@ public final class DirectVideoCoach {
     /** 회차 영상 예산(SOMA-1063, 환산 토큰). 0 이하면 끈다. */
     public DirectVideoCoach withVideoTokenBudget(long budget) {
         this.videoTokenBudget = Math.max(0, budget);
+        return this;
+    }
+
+    /** 연습 루프 배우 말 분류의 모델과 보낼 대화 기록 수(0 이면 전체). 모델이 null 이면 기본 모델이다. */
+    public DirectVideoCoach withClassifier(DirectVideoModel classifier, int history) {
+        this.classifier = classifier;
+        this.classifyHistory = Math.max(0, history);
+        return this;
+    }
+
+    /** 무료 배우인지. Pro 판정이 실패하면 무료로 보지 않는다(영상을 빼지 않는다). */
+    private boolean freeActor(UUID userId) {
+        if (userId == null) return false;
+        try {
+            return !coachPro.pro(userId);
+        } catch (RuntimeException failure) {
+            return false;
+        }
+    }
+
+    /** 무료 배우의 후속 답에서 영상을 뺄지. */
+    public DirectVideoCoach withFreeVideoFirstOnly(boolean enabled) {
+        this.freeVideoFirstOnly = enabled;
+        return this;
+    }
+
+    /** 둘째 답부터의 공통 지시를 고정 앞부분으로 옮길지. */
+    public DirectVideoCoach withStaticRulesInPrefix(boolean enabled) {
+        this.staticRulesInPrefix = enabled;
         return this;
     }
 
@@ -359,7 +403,11 @@ public final class DirectVideoCoach {
                 budgetSpent = session.turns().isEmpty() ? 0 : videoCache.spentTokens(videoKey);
                 budgetOmitted = videoTokenBudget > 0 && !videoOmitted && !session.turns().isEmpty()
                         && budgetSpent >= videoTokenBudget;
-                videoOmitted = videoOmitted || budgetOmitted;
+                // 무료 배우의 같은 영상 후속 답은 영상 없이 쓴다. 회차에 새 영상이 들어왔으면 그 답은 영상을 본다. Pro 판정은 마지막에 한다.
+                boolean firstOnlyOmitted = freeVideoFirstOnly && loop && !videoOmitted && !budgetOmitted
+                        && !session.turns().isEmpty() && !videoCache.sourceChanged(videoKey)
+                        && freeActor(session.userId());
+                videoOmitted = videoOmitted || budgetOmitted || firstOnlyOmitted;
             }
             String mimeType = talk ? null : listen ? reading.mimeType()
                     : source.faceMosaic() ? "video/mp4" : source.mimeType();
@@ -478,6 +526,8 @@ public final class DirectVideoCoach {
                 history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText));
             }
             String task;
+            // 고정 앞부분 끝으로 옮긴 공통 지시(staticRulesInPrefix). 비었으면 예전과 같다.
+            String prefixRules = "";
             // 이어서 찍은 회차의 같은 장면 판단(받아 적기)과 지난 시도 첫 답을 기본 첫 답과 함께 돌린다(아래).
             String continuationBlock = null;
             PriorContext continuationPrior = null;
@@ -500,7 +550,10 @@ public final class DirectVideoCoach {
                 String stepTask = DirectVideoPrompts.practiceLoopTask(branch.doing(), language, flow, evidence);
                 // 맞춤 코칭은 단계 지시 자체를 바꿔 끼운다 — 끝에 붙인 메모로는 "둘 중 고르는 질문" 같은 단계 지시가 이겼다(SOMA-795).
                 if (coaching != null && koreanTurn) stepTask = coaching.stepTask(branch.doing(), stepTask);
-                String common = DirectVideoPrompts.practiceLoopTurn(language, evidence) + "\n\n" + branch.instruction(language, stepTask)
+                String turnRules = DirectVideoPrompts.practiceLoopTurn(language, evidence);
+                // 회차 안에서 바뀌지 않는 공통 지시는 켜면 고정 앞부분 끝으로 옮긴다. 맞춤 코칭이 공통 지시를 고쳐 쓰는 대화는 옮기지 않는다.
+                boolean rulesInPrefix = staticRulesInPrefix && stablePrefix && !(coaching != null && koreanTurn);
+                String common = (rulesInPrefix ? "" : turnRules + "\n\n") + branch.instruction(language, stepTask)
                         + DirectVideoPrompts.flowBlock(flow, language);
                 if (coaching != null && koreanTurn) common = coaching.turnTask(coaching.withoutNeverSay(common));
                 // 질문 아래 예시 답 1~2개(숨은 <보기>). 성격 글은 늘 맨 끝에 둔다.
@@ -508,6 +561,7 @@ public final class DirectVideoCoach {
                 // 자문위원과 맞춤 코칭 배우 모두 "어때요?" 예문을 뺀다(SOMA-795 재생 v2: 맞춤 코칭 배우에게 "~해 보는 건 어때요?"가 남았다).
                 // 성격이 없는 배우(맞춤 코칭 없음)의 할 일 파일은 그대로다.
                 if (!persona.isEmpty()) task = DirectVideoPrompts.withoutHowAbout(task);
+                if (rulesInPrefix) prefixRules = (persona.isEmpty() ? turnRules : DirectVideoPrompts.withoutHowAbout(turnRules)) + "\n\n";
                 task = task + DirectVideoPrompts.openingTurnBlock(opening, language);
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
@@ -573,7 +627,7 @@ public final class DirectVideoCoach {
             String fixedPart = CoachPrompt.actorProfileBlock(session.actorProfile())
                     + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
                     + (loop && !talk ? proMemoryBlock(session, state) : "")
-                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "");
+                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + prefixRules;
             String turnPart = (loop ? layerBlock + layerWait : "") + (listen ? reading.material() + "\n\n" : "") + task;
             String prompt = DirectVideoPrompts.withAudioFacts(DirectVideoPrompts.withFaceMosaicFact(
                     fixedPart + (stablePrefix ? DirectVideoModel.TURN_BOUNDARY : "") + turnPart,
@@ -1518,13 +1572,18 @@ public final class DirectVideoCoach {
             transcript.add(new DirectVideoModel.Message("ai".equals(turn.role()) ? "model" : "user", turn.text()));
         }
         transcript.add(new DirectVideoModel.Message("user", actorText));
+        // 켜면 마지막 몇 개 메시지만 보낸다(이번 배우 말 포함).
+        if (classifyHistory > 0 && transcript.size() > classifyHistory) {
+            transcript.subList(0, transcript.size() - classifyHistory).clear();
+        }
+        DirectVideoModel classifyModel = classifier == null ? model : classifier;
         Instant started = Instant.now();
         String output = "";
         String error = null;
         ReplyTrace usage = new ReplyTrace(false);
         ExternalOperationExecution.externalCall("model");
         try {
-            output = usage.run(() -> model.classify(java.util.List.copyOf(transcript), DirectVideoPrompts.practiceLoopClassifier(),
+            output = usage.run(() -> classifyModel.classify(java.util.List.copyOf(transcript), DirectVideoPrompts.practiceLoopClassifier(),
                     PracticeLoopRouter.SIGNALS));
             return PracticeLoopRouter.parse(output);
         } catch (RuntimeException failure) {
@@ -1533,9 +1592,9 @@ public final class DirectVideoCoach {
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.classify", operationId));
             return new PracticeLoopRouter.Classified(PracticeLoopRouter.Kind.ANSWER, false, "fallback");
         } finally {
-            telemetry.record(new LlmCall(LlmStep.COACH_ROUTE, session.practiceSessionId(), session.userId(), model.model(),
+            telemetry.record(new LlmCall(LlmStep.COACH_ROUTE, session.practiceSessionId(), session.userId(), classifyModel.model(),
                     DirectVideoPrompts.practiceLoopClassifier() + "\n" + transcript, output == null ? "" : output,
-                    usage.tokens(model.model()), started, Duration.between(started, Instant.now()), error,
+                    usage.tokens(classifyModel.model()), started, Duration.between(started, Instant.now()), error,
                     LlmCall.metadata("transport", "gemini_text_routing", "route", "practice_loop_classify"))
                     .withPrompt(new LlmPrompt("coach.practice-loop.classify", DirectVideoPrompts.practiceLoopClassifier())));
         }

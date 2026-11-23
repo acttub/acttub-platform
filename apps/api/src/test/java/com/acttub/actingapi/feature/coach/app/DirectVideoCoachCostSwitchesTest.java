@@ -1,0 +1,164 @@
+package com.acttub.actingapi.feature.coach.app;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.List;
+import java.util.UUID;
+
+import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.platform.observability.LlmStep;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+/** 무료 영상 코칭 비용 스위치: 분류 모델·기록 자르기, 무료 후속 답 영상 빼기, 공통 지시를 고정 앞부분으로 옮기기. 끄면 예전과 같다. */
+class DirectVideoCoachCostSwitchesTest {
+    final DirectVideoCoachCostTest f = new DirectVideoCoachCostTest();
+    final DirectVideoModel model = f.model;
+
+    /** 코치 말·배우 말이 번갈아 쌓인 후속 답 회차. */
+    CoachSessionSnapshot later() {
+        return f.session("누구를 봤어요?", "엄마를 봤어", "그때 엄마가 뭘 했어요?");
+    }
+
+    @SuppressWarnings("unchecked")
+    List<DirectVideoModel.Message> classified(DirectVideoModel classifier) {
+        var transcript = ArgumentCaptor.forClass(List.class);
+        verify(classifier).classify(transcript.capture(), anyString(), anyList());
+        return transcript.getValue();
+    }
+
+    // ---- 1. 분류 모델 분리·기록 자르기 ----
+
+    @Test void byDefaultTheDefaultModelClassifiesTheWholeConversation() {
+        f.coach(CoachVideoCache.NONE).turn(later(), "문을 막았어", UUID.randomUUID());
+        assertThat(classified(model)).hasSize(4);
+        var route = f.telemetry.calls().stream().filter(call -> call.step() == LlmStep.COACH_ROUTE).findFirst().orElseThrow();
+        assertThat(route.model()).isEqualTo(DirectVideoCoachCostTest.MODEL);
+        // 분류 요청에는 영상이 없다(분류 인터페이스에 영상 칸이 없다).
+        verify(model, never()).reply(any(), anyList(), eq(DirectVideoPrompts.practiceLoopClassifier()));
+    }
+
+    @Test void aSeparateClassifierGetsOnlyTheLastMessages() {
+        DirectVideoModel lite = mock(DirectVideoModel.class);
+        when(lite.model()).thenReturn("gemini-3.1-flash-lite");
+        when(lite.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        f.coach(CoachVideoCache.NONE).withClassifier(lite, 2).turn(later(), "문을 막았어", UUID.randomUUID());
+
+        List<DirectVideoModel.Message> sent = classified(lite);
+        assertThat(sent).extracting(DirectVideoModel.Message::text).containsExactly("그때 엄마가 뭘 했어요?", "문을 막았어");
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        var route = f.telemetry.calls().stream().filter(call -> call.step() == LlmStep.COACH_ROUTE).findFirst().orElseThrow();
+        assertThat(route.model()).isEqualTo("gemini-3.1-flash-lite");
+        // 코치 답은 그대로 기본 모델이다.
+        verify(model, atLeastOnce()).reply(eq(f.file), anyList(), anyString());
+    }
+
+    @Test void aHistoryLimitLargerThanTheConversationKeepsEverything() {
+        f.coach(CoachVideoCache.NONE).withClassifier(null, 10).turn(later(), "문을 막았어", UUID.randomUUID());
+        assertThat(classified(model)).hasSize(4);
+    }
+
+    // ---- 2. 무료 후속 답 영상 빼기 ----
+
+    @Test void offTheFollowUpReplyStillSeesTheVideo() {
+        f.coach(DirectVideoCoachCostTest.counting()).withFreeVideoFirstOnly(false).turn(later(), "문을 막았어", UUID.randomUUID());
+        verify(model, atLeastOnce()).reply(eq(f.file), anyList(), anyString());
+        verify(model, never()).reply(isNull(), anyList(), anyString());
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void aFreeActorsFollowUpGoesWithoutTheVideoAndKeepsTheHiddenDesign() {
+        var coach = f.coach(DirectVideoCoachCostTest.counting()).withFreeVideoFirstOnly(true);
+        coach.turn(later(), "문을 막았어", UUID.randomUUID());
+
+        var history = ArgumentCaptor.forClass(List.class);
+        verify(model, atLeastOnce()).reply(isNull(), history.capture(), anyString());
+        verify(model, never()).reply(eq(f.file), anyList(), anyString());
+        verify(model, never()).upload(any(), anyString());
+        assertThat(f.lastTurn().metadata()).containsEntry("video_omitted", "true").containsEntry("video_budget_omitted", "false");
+        // 첫 답의 숨은 <설계>는 대화 기록의 첫 코치 말에 되붙어 영상 없는 답에도 들어간다.
+        List<DirectVideoModel.Message> sent = history.getValue();
+        assertThat(sent.getFirst().role()).isEqualTo("model");
+        assertThat(sent.getFirst().text()).startsWith("<설계>\n버릇: 말끝\n</설계>\n<코치>\n누구를 봤어요?");
+    }
+
+    @Test void aNewVideoInTheSameSessionIsSeenOnceThenOmittedAgain() {
+        var coach = f.coach(DirectVideoCoachCostTest.counting()).withFreeVideoFirstOnly(true);
+        coach.turn(later(), "문을 막았어", UUID.randomUUID());
+        verify(model, never()).reply(eq(f.file), anyList(), anyString());
+
+        // 같은 회차에 다시 찍은 영상(원본 etag 가 다름): 그 첫 답은 영상을 본다.
+        f.source("etag-2");
+        coach.turn(later(), "문을 막았어", UUID.randomUUID());
+        verify(model, times(1)).reply(eq(f.file), anyList(), anyString());
+        // 그 뒤 답은 다시 영상 없이 쓴다.
+        coach.turn(later(), "문을 막았어", UUID.randomUUID());
+        verify(model, times(1)).reply(eq(f.file), anyList(), anyString());
+    }
+
+    @Test void aProActorKeepsTheVideo() {
+        f.coach(DirectVideoCoachCostTest.counting()).withFreeVideoFirstOnly(true)
+                .withProMemory(userId -> true, CoachProMemory.NONE)
+                .turn(later(), "문을 막았어", UUID.randomUUID());
+        verify(model, atLeastOnce()).reply(eq(f.file), anyList(), anyString());
+        verify(model, never()).reply(isNull(), anyList(), anyString());
+    }
+
+    @Test void aFailingProCheckKeepsTheVideo() {
+        f.coach(DirectVideoCoachCostTest.counting()).withFreeVideoFirstOnly(true)
+                .withProMemory(userId -> { throw new IllegalStateException("billing down"); }, CoachProMemory.NONE)
+                .turn(later(), "문을 막았어", UUID.randomUUID());
+        verify(model, atLeastOnce()).reply(eq(f.file), anyList(), anyString());
+    }
+
+    // ---- 4. 공통 지시를 고정 앞부분으로 ----
+
+    @Test void staticRulesMoveIntoTheFixedPartUnchanged() {
+        String rules = DirectVideoPrompts.practiceLoopTurn() + "\n\n";
+        String before = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true), later(), "문을 막았어");
+        String moved = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true).withStaticRulesInPrefix(true),
+                later(), "문을 막았어");
+        String movedLater = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true).withStaticRulesInPrefix(true),
+                f.session("누구를 봤어요?", "엄마를 봤어", "그때 엄마가 뭘 했어요?", "문을 막았어", "막고 뭘 했어요?"), "울었어");
+
+        String fixed = moved.substring(0, moved.indexOf(DirectVideoModel.TURN_BOUNDARY));
+        String turn = moved.substring(moved.indexOf(DirectVideoModel.TURN_BOUNDARY));
+        assertThat(fixed).endsWith(rules);
+        assertThat(turn).doesNotContain(DirectVideoPrompts.practiceLoopTurn());
+        // 문구는 그대로이고 위치만 바뀌었다: 공통 지시를 경계 뒤 맨 앞으로 되돌리면 예전 지시문과 같다.
+        assertThat(moved.replace(rules + DirectVideoModel.TURN_BOUNDARY, DirectVideoModel.TURN_BOUNDARY + rules)).isEqualTo(before);
+        // 고정 앞부분은 후속 답마다 바이트까지 같다.
+        assertThat(movedLater.substring(0, movedLater.indexOf(DirectVideoModel.TURN_BOUNDARY))).isEqualTo(fixed);
+    }
+
+    @Test void offOrWithoutTheStablePrefixTheInstructionIsUnchanged() {
+        String before = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true), later(), "문을 막았어");
+        String off = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true).withStaticRulesInPrefix(false),
+                later(), "문을 막았어");
+        assertThat(off).isEqualTo(before);
+
+        String plain = f.prompt(f.coach(CoachVideoCache.NONE), later(), "문을 막았어");
+        String plainOn = f.prompt(f.coach(CoachVideoCache.NONE).withStaticRulesInPrefix(true), later(), "문을 막았어");
+        assertThat(plainOn).isEqualTo(plain).doesNotContain(DirectVideoModel.TURN_BOUNDARY);
+    }
+
+    @Test void theFirstReplyIsUnchangedAndStillSeesTheVideo() {
+        var first = f.session();
+        String before = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true), first, null);
+        String on = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true).withStaticRulesInPrefix(true)
+                .withFreeVideoFirstOnly(true).withClassifier(mock(DirectVideoModel.class), 4), first, null);
+        assertThat(on).isEqualTo(before);
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+    }
+}
