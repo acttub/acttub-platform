@@ -52,23 +52,6 @@ export function withDeclinedDefaults(
   return filled;
 }
 
-/**
- * "전체 동의"는 필수 문서만 채운다. 선택 문서는 묶어서 동의받지 않고 그 줄의 체크로만
- * 결정한다. 이미 고른 선택 문서는 건드리지 않는다.
- */
-export function grantAllRequired(
-  documents: readonly ConsentDocument[],
-  choices: ReadonlyMap<string, ConsentChoice>,
-): Map<string, ConsentChoice> {
-  const next = new Map(choices);
-  for (const document of documents) {
-    if (document.required) {
-      next.set(document.id, 'granted');
-    }
-  }
-  return next;
-}
-
 export type SignupDecision = { document_id: string; action: ConsentChoice };
 
 /**
@@ -222,21 +205,4 @@ export function signupScreenLayout(documents: readonly ConsentDocument[]): Signu
     optional: visible.filter((d) => !d.required && !MARKETING_TYPES.includes(d.type)),
     marketing: visible.filter((d) => !d.required && MARKETING_TYPES.includes(d.type)),
   };
-}
-
-/**
- * 묶음 줄을 눌렀을 때. 묶음의 문서가 모두 동의 상태면 모두 비우고(=거절), 아니면 모두 동의한다.
- * 다른 문서의 결정은 건드리지 않는다.
- */
-export function toggleConsentGroup(
-  group: readonly ConsentDocument[],
-  choices: Readonly<Record<string, ConsentChoice>>,
-): Record<string, ConsentChoice> {
-  const allGranted = group.length > 0 && group.every((d) => choices[d.id] === 'granted');
-  const next = { ...choices };
-  for (const d of group) {
-    if (allGranted) delete next[d.id];
-    else next[d.id] = 'granted';
-  }
-  return next;
 }

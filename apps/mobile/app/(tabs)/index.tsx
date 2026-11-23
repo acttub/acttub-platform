@@ -111,7 +111,7 @@ function olderPracticedScripts(scripts: readonly ScriptCard[], now = Date.now())
 /**
  * A1. 홈(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
  * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 인사 + 오늘 할 것 카드 하나 + 하던 거 한 줄 +
- * 최근 연습·마감 임박(practice.library·app.audition) + 오늘의 연기 팁이다.
+ * 최근 연습·마감 임박(practice.library·app.audition)이다.
  * 디자인의 「업데이트 소식」 띠와 일정 D-day 줄은 서버 기능이 없어 그리지 않는다.
  */
 export default function HomeScreen() {
@@ -159,7 +159,7 @@ export default function HomeScreen() {
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 불꽃 축하를 따져 본 연속일 — 따지기 전에는 「첫 연습 끝!」 안내를 띄우지 않는다(11/2 QA: 안내가 먼저 떠 축하가 다음 방문으로 밀렸다).
   const [streakCheckedFor, setStreakCheckedFor] = useState<number | null>(null);
-  // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
+  // 처음 한 번만 가이드 — 누를 자리를 비춰 준다.
   const [guideOpen, setGuideOpen] = useState(false);
   // 안내는 앱 맨 바깥에 그려져 다른 화면 위에도 덮인다 — 홈이 보일 때만 연다.
   const guideFocused = useRef(false);

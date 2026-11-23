@@ -166,8 +166,6 @@ const CASES = [
     { status: 201, body: { intent_id: id(14), upload_url: 'https://storage.test/put', expires_at: '2026-10-20T00:30:00Z' } }],
   ['listVideos(커서)', () => api.listVideos('favorite', 'c-2'),
     { method: 'get', path: '/v2/videos?filter=favorite&cursor=c-2' }, { body: sample('VideoList') }],
-  ['deleteVideo', () => api.deleteVideo(id(2)),
-    { method: 'delete', path: `/v2/videos/${id(2)}` }, { status: 204 }],
   ['listNotifications(커서)', () => api.listNotifications('2026-10-20 1'),
     { method: 'get', path: '/v2/me/notifications?cursor=2026-10-20%201' }, { body: sample('ChallengeNotifications') }],
   ['listSavedEntries', () => api.listSavedEntries(),

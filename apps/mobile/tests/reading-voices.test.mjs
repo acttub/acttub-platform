@@ -4,7 +4,6 @@ import test from 'node:test';
 import {
   autoVoiceOf,
   devicePitchFor,
-  normalizePresetValue,
   shownVoices,
   voiceChanges,
 } from '../lib/reading/voices.ts';
@@ -24,12 +23,6 @@ test('reading.cast: 저장 전에 고정값을 풀거나 더하면 뒤 배역의
   assert.deepEqual(shownVoices(SAVED, { b: null }), { a: 'F1', b: 'M1', c: 'F2', d: 'M2' });
   assert.deepEqual(shownVoices(SAVED, { a: 'M4' }), { a: 'M4', b: 'F3', c: 'F1', d: 'M1' });
   assert.deepEqual(shownVoices([ch('a', '니나', 'ELEVEN', 'F1'), ch('b', '트레플레프', null, 'M1')], { b: 'M2' }), { a: 'F1', b: 'M2' }, '기기가 모르는 값은 자동');
-});
-
-test('reading.cast: 빈 값·"자동"은 null이다', () => {
-  assert.equal(normalizePresetValue('auto'), null);
-  assert.equal(normalizePresetValue(''), null);
-  assert.equal(normalizePresetValue(' F2 '), 'F2');
 });
 
 test('reading.cast: 기기 음성 대체는 프리셋마다 정해진 높낮이를 쓴다(여성 프리셋이 더 높다)', () => {

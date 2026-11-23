@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { challengeDaysLeft, isFirstUser, pickToday, tipIndex } from '../lib/home-today.ts';
+import { challengeDaysLeft, isFirstUser, pickToday } from '../lib/home-today.ts';
 
 const src = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
@@ -115,14 +115,6 @@ test('챌린지 마감 D-day는 한국 날짜로 센다', () => {
   assert.equal(challengeDaysLeft('2026-10-19T14:59:00Z', NOW), 0); // 한국 10/19 23:59
   assert.equal(challengeDaysLeft('2026-10-19T15:00:00Z', NOW), 1); // 한국 10/20 00:00
   assert.equal(challengeDaysLeft('nope', NOW), null);
-});
-
-test('오늘의 연기 팁은 하루 동안 같고 팁 수 안에서 돈다', () => {
-  const a = tipIndex(new Date('2026-10-19T01:00:00Z'), 7);
-  const b = tipIndex(new Date('2026-10-19T10:00:00Z'), 7);
-  assert.equal(a, b);
-  assert.ok(a >= 0 && a < 7);
-  assert.notEqual(tipIndex(new Date('2026-10-20T01:00:00Z'), 7), a);
 });
 
 test('홈 화면: 첫 사용자 질문 3개·오늘 할 것 카드·알림 종을 그리고 일정 D-day는 없다', () => {

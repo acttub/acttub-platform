@@ -11,7 +11,7 @@ import { restorePlaybackAudio } from '@/lib/reading/ios-audio-restore';
 import { sttPolicy, type SttPolicy } from '@/lib/reading/stt-policy';
 import { createRecordingTracker } from '@/lib/reading/stt-recordings';
 import { EMPTY_TRANSCRIPT, addResult, transcriptText, type SttTranscript } from '@/lib/reading/stt-transcript';
-import { DEFAULT_APP_CONFIG, getAppConfig } from '@/lib/app-config';
+import { getAppConfig } from '@/lib/app-config';
 import { logAdvance } from '@/lib/reading/advance-log';
 import { VAD_TICK_MS, currentVad, createSilenceDetector, createVolumeFeed, type VadEvent } from '@/lib/reading/vad';
 
@@ -25,8 +25,6 @@ import { VAD_TICK_MS, currentVad, createSilenceDetector, createVolumeFeed, type 
  * 말 끝으로 본다(SOMA-801).
  */
 const VOLUME_INTERVAL_MS = 50;
-/** 인식기가 말 끝을 알린 뒤 넘기기 전까지 더 기다리는 시간(SOMA-741). 기본값이고, 쓸 때는 서버 설정을 읽는다(SOMA-939). */
-export const SPEECH_END_GRACE_MS = DEFAULT_APP_CONFIG.reading.speechEndGraceMs;
 /**
  * 아직 받아쓴 글이 없는데 인식기가 「말 없음」으로 스스로 끝나면 차례가 열려 있는 동안 다시 듣는 최대 횟수.
  * 안드로이드 인식기는 대사를 읽기 전 침묵이 몇 초 이어지면 no-speech 로 끝나는데, 그 뒤 녹음기로만 넘기면

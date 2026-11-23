@@ -21,10 +21,6 @@ export function blockageCategoryFor(purpose: SessionPurpose): BlockageCategory {
   return CATEGORY[purpose];
 }
 
-export function purposeFor(category: BlockageCategory | null): SessionPurpose {
-  return SESSION_PURPOSES.find((p) => CATEGORY[p] === category) ?? DEFAULT_PURPOSE;
-}
-
 /**
  * 영상 없이 말로 코칭 받기의 목적(pen 「목적 · 영상 없이」, SOMA-745). 서버의 session_purpose 값 그대로 보낸다 —
  * 영상 없이 시작하면 서버가 이 목적으로 말로 하는 코치를 연다(practice.start). 막힌 곳 풀기가 기본 강조다.

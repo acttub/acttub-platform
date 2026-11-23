@@ -139,17 +139,6 @@ export function isBioValid(text: string | null | undefined): boolean {
   return [...(normalizeBio(text) ?? '')].length <= BIO_MAX_LENGTH;
 }
 
-export function isProfileFormComplete(form: ProfileFormState, now: Date): boolean {
-  return (
-    trimmedName(form) !== null &&
-    form.gender !== null &&
-    checkBirthDate(form.birthDate, now).kind === 'ok' &&
-    form.directions.length > 0 &&
-    form.experience !== null &&
-    form.goal !== null
-  );
-}
-
 /**
  * 저장 요청 본문. `extras.bio`는 설정에서 고칠 때만 넘긴다 — 한 줄 소개(80자까지)를 함께
  * 실어 여섯 항목 저장이 소개를 지우지 않게 한다. 가입 게이트에서는 키를 싣지 않는다.

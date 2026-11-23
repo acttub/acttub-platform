@@ -22,16 +22,13 @@ beforeEach(() => {
 });
 
 test('지우기를 고른 회차만 기억하고, 노트가 열리면 서버에 파일 파기를 요청한 뒤 잊는다', async () => {
-  assert.equal(await opts.isPurgeAfterAnalysis('p1'), false);
   assert.equal(await opts.purgeVideoFileIfDue('p1', forget), false);
   await opts.rememberPurgeAfterAnalysis('p1', 'v1');
-  assert.equal(await opts.isPurgeAfterAnalysis('p1'), true);
-  assert.equal(await opts.isPurgeAfterAnalysis('p2'), false);
+  assert.equal(await opts.purgeVideoFileIfDue('p2', forget), false);
 
   assert.equal(await opts.purgeVideoFileIfDue('p1', forget), true);
   assert.deepEqual(state.purged, ['v1']);
   assert.deepEqual(state.forgot, ['v1']);
-  assert.equal(await opts.isPurgeAfterAnalysis('p1'), false);
   assert.equal(await opts.purgeVideoFileIfDue('p1', forget), false);
 });
 
@@ -39,7 +36,6 @@ test('파기 요청이 실패하면 적어 둔 채로 남겨 다음에 다시 �
   await opts.rememberPurgeAfterAnalysis('p3', 'v3');
   state.purgeFails = true;
   assert.equal(await opts.purgeVideoFileIfDue('p3', forget), false);
-  assert.equal(await opts.isPurgeAfterAnalysis('p3'), true);
   state.purgeFails = false;
   assert.equal(await opts.purgeVideoFileIfDue('p3', forget), true);
   assert.deepEqual(state.purged, ['v3']);
@@ -47,7 +43,8 @@ test('파기 요청이 실패하면 적어 둔 채로 남겨 다음에 다시 �
 
 test('저장 값이 깨져 있으면 빈 것으로 본다', async () => {
   await state.storage.setItem('acttub.practice.purgeAfterAnalysis', '{not json');
-  assert.equal(await opts.isPurgeAfterAnalysis('p1'), false);
+  assert.equal(await opts.purgeVideoFileIfDue('p1', forget), false);
+  assert.deepEqual(state.purged, []);
 });
 
 test('얼굴 가리기 업로드 표시는 켜고 끌 수 있다', () => {

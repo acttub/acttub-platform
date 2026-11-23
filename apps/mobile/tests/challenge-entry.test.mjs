@@ -6,14 +6,14 @@ import {
   canGoPublic,
   canSubmitEntry,
   captionTooLong,
-  doneCopy,
   entryFailure,
   entryFingerprint,
   mosaicNotice,
   videoTooLong,
 } from '../lib/challenge/entry.ts';
 import { attemptFor } from '../lib/request-id.ts';
-import { CAPTION_MAX, ENTRY_VIDEO_MAX_SEC } from '../lib/challenge/types.ts';
+import { DEFAULT_APP_CONFIG } from '../lib/app-config.ts';
+import { CAPTION_MAX } from '../lib/challenge/types.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
 
@@ -65,7 +65,7 @@ test('challenge.entry: 캡션 300자는 보내고 301자는 화면이 먼저 막
 });
 
 test('challenge.entry: 60초는 되고 61초는 화면이 먼저 막는다', () => {
-  assert.equal(ENTRY_VIDEO_MAX_SEC, 60);
+  assert.equal(DEFAULT_APP_CONFIG.challenge.entryMaxSeconds, 60);
   assert.equal(videoTooLong(60_000), false);
   assert.equal(videoTooLong(61_000), true);
   // 길이를 모르면 서버가 본다.
@@ -96,15 +96,6 @@ test('challenge.entry: 종료·중복·길이·한도·미확정 영상을 갈�
   assert.deepEqual(entryFailure(apiError(422, 'entry_hidden')), { kind: 'entry_hidden' });
   // 남의 영상·없는 영상·검토 중 챌린지는 모두 404 다.
   assert.deepEqual(entryFailure(apiError(404)), { kind: 'not_found' });
-});
-
-test('challenge.entry: 완료 문구는 공개와 비공개가 다르다', () => {
-  const open = doneCopy('public');
-  const closed = doneCopy('private');
-
-  assert.match(open.title, /공개로 올렸어요/);
-  assert.match(closed.title, /비공개로 저장했어요/);
-  assert.notEqual(open.body, closed.body);
 });
 
 test('challenge.entry: 다시 공개는 진행 중·정상·파일이 남아 있을 때만 된다', () => {

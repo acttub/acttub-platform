@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { helpButtonDraft } from '../lib/practice/coach.ts';
-
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
 test('새 연습 준비(P3.1): 장면 정보 단계(상황·인물·원하는 것)는 없고(SOMA-778) 「이전 연습 이어서 하기」도 없다', () => {
@@ -26,8 +24,6 @@ test('새 연습 준비(P3.1): 장면 정보 단계(상황·인물·원하는 �
 });
 
 test('액티 대화(P5.3): 답 버튼은 지금 질문의 예시 답(입력칸만 채움)과 그만하기, 아래 「그만하고 정리 만들기」 링크는 없다', () => {
-  assert.equal(helpButtonDraft('yes'), '맞아요');
-  assert.equal(helpButtonDraft('no'), '아니요');
   const coach = read('app/coach.tsx');
   // 고정 「맞아요·아니요」 줄은 없다 — 코치가 "A예요, B예요?"로 물어도 같았다(10/25).
   assert.doesNotMatch(coach, /\['yes', t\('coach\.quickYes'\)\]/);

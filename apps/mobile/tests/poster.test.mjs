@@ -9,19 +9,16 @@ import {
   ctaOf,
   imageAssetOf,
   audioAssetOf,
-  koreaDay,
   localDay,
   markHiddenToday,
   loadPosterState,
-  markDismissed,
   markShown,
   parsePosterState,
   pickPoster,
 } from '../lib/poster.ts';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
-const now = Date.parse('2026-10-05T12:00:00+09:00');
-const today = koreaDay(now);
+const today = '2026-10-05';
 const off = { available: true, enabled: false, consent: 'undecided' };
 const on = { available: true, enabled: true, consent: 'granted' };
 
@@ -42,11 +39,6 @@ function memoryStorage(initial = {}) {
     removeItem: async (key) => { data.delete(key); },
   };
 }
-
-test('koreaDay 는 한국 날짜로 끊는다', () => {
-  assert.equal(koreaDay(Date.parse('2026-10-04T15:00:00Z')), '2026-10-05');
-  assert.equal(koreaDay(Date.parse('2026-10-04T14:59:59Z')), '2026-10-04');
-});
 
 test('pickPoster 는 서버 순서대로 처음 보일 수 있는 것을 고른다', () => {
   const posters = [poster({ slug: 'a' }), poster({ slug: 'b' })];
@@ -70,7 +62,7 @@ test('once 는 한 번 보이면 다시 보이지 않는다', () => {
 
 test('다시 보지 않기를 누른 포스터는 넘긴다', () => {
   const a = poster({ slug: 'a' });
-  const state = markDismissed({}, a);
+  const state = { a: { revision: 1, lastShownDay: null, shownOnce: false, dismissedForever: true } };
   assert.equal(pickPoster([a], state, { today: '2026-12-01', cloudVoice: off }), null);
 });
 
@@ -88,7 +80,7 @@ test('cloud_voice_off 는 고품질 목소리를 쓸 수 있고 아직 켜지 �
 
 test('revision 이 바뀌면 그 slug 의 봤음·다시 보지 않기는 없던 것이 된다', () => {
   const v1 = poster({ slug: 'a', revision: 1, frequency: 'once' });
-  const dismissed = markDismissed(markShown({}, v1, today), v1);
+  const dismissed = { a: { revision: 1, lastShownDay: today, shownOnce: true, dismissedForever: true } };
   assert.equal(pickPoster([v1], dismissed, { today: '2026-12-01', cloudVoice: off }), null);
   const v2 = { ...v1, revision: 2 };
   assert.equal(pickPoster([v2], dismissed, { today, cloudVoice: off })?.slug, 'a');
@@ -168,7 +160,8 @@ test('소스 계약: 홈은 AnnouncementPoster 를 쓰고 옛 홍보 컴포넌�
   assert.equal(pickPoster([p], hidden, { today, cloudVoice: off }), null);
   assert.equal(pickPoster([{ ...p, revision: 2 }], hidden, { today, cloudVoice: off }), null);
   assert.equal(pickPoster([p], hidden, { today: '2026-10-06', cloudVoice: off }), p);
-  assert.equal(pickPoster([p], markDismissed({}, p), { today, cloudVoice: off }), p);
+  const dismissed = { notice: { revision: 1, lastShownDay: null, shownOnce: false, dismissedForever: true } };
+  assert.equal(pickPoster([p], dismissed, { today, cloudVoice: off }), p);
 });
 test('localDay 는 기기 현지 날짜를 사용한다', () => {
   assert.equal(localDay(new Date(2026, 9, 5, 23, 59).getTime()), '2026-10-05');

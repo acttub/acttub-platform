@@ -12,7 +12,6 @@ import {
   canSendAnswer,
   coachFailureMessage,
   coachFailure,
-  helpButtonDraft,
   isClosed,
   nextReplyWraps,
   orderedMessages,
@@ -83,11 +82,6 @@ test('practice.coach: 닫힌 대화에는 보낼 수 없고 "그만"은 언제�
   assert.equal(isClosed(closed), true);
   assert.equal(canSendAnswer({ text: '답', waiting: false, closed: true, conversationId: 'conv-1' }), false);
   assert.equal(COACH_END_WORD, '그만');
-});
-
-test('practice.coach: 도움 버튼은 입력만 준비하고 보내지 않는다', () => {
-  assert.notEqual(helpButtonDraft('yes'), '');
-  assert.notEqual(helpButtonDraft('no'), '');
 });
 
 test('practice.coach: 「액티에게 질문」 버튼은 없다 — 질문은 입력칸에 그대로 쓴다(SOMA-634)', async () => {

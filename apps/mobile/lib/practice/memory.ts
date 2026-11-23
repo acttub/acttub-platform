@@ -5,8 +5,6 @@
  */
 export const MEMORY_FIELDS = ['goal', 'blockage', 'speech_self', 'speech_actual'] as const;
 
-export type MemoryFieldName = (typeof MEMORY_FIELDS)[number];
-
 export const MEMORY_VALUE_MAX = 1_000;
 
 export function memoryValueTooLong(value: string): boolean {

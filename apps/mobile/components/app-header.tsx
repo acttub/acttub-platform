@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavHeader } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 
-export { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
+export { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 
 /**
  * iOS 스택 화면의 헤더(SOMA-638). iOS 26 의 네이티브 헤더는 왼쪽·오른쪽 버튼마다 유리 배경을 씌워 꺾쇠와 아이콘이
