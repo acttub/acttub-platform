@@ -77,6 +77,13 @@ check "restore" pull_request dev deploy/home/backup/run.sh
 check "api restore" pull_request dev apps/api/src/main/resources/db/migration/V99__x.sql
 check "api restore" pull_request dev apps/api/src/test/resources/schema-fingerprint.sql
 
+# api 테스트가 읽는 다른 앱의 파일(ReadingExampleEnglishDraftTest).
+check "api" pull_request dev apps/mobile/lib/reading/sample.ts
+# 옮긴 파일은 옛 경로도 센다. 앱 밖으로 옮겨도 그 앱에서 파일이 빠진 것이다.
+check "api" pull_request dev "apps/api/src/main/java/A.java=>docs/A.java"
+# 한글 경로도 따옴표·8진 이스케이프 없이 그대로 맞춘다.
+check "api" pull_request dev "apps/api/src/main/resources/한글.txt"
+
 # base 커밋이 없으면(체크아웃 fetch-depth 가 1) 건너뛰지 않고 실패한다.
 shallow="$(mktemp -d "$WORK/shallow.XXXXXX")"
 git -C "$shallow" init -q

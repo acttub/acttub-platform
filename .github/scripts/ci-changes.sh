@@ -13,13 +13,15 @@ if [ "$EVENT" != pull_request ] || [ "$BASE_REF" = main ]; then
   exit 0
 fi
 
-files="$(git diff --name-only HEAD^1 HEAD)"
+# 옮긴 파일은 옛 경로·새 경로를 둘 다 센다(--no-renames). 한글 경로는 따옴표 없이 그대로 받는다(core.quotePath=false).
+files="$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)"
 printf '%s\n' "$files"
 api=false; monitoring=false; restore=false
 while IFS= read -r f; do
   case "$f" in
     .github/workflows/ci.yml|.github/scripts/ci-changes.sh|.github/actions/*) api=true; monitoring=true; restore=true ;;
-    apps/api/*) api=true ;;
+    # ReadingExampleEnglishDraftTest 가 앱의 예시 대본을 읽는다.
+    apps/api/*|apps/mobile/lib/reading/sample.ts) api=true ;;
   esac
   case "$f" in
     deploy/monitoring/*|deploy/home/compose.yml|deploy/home/deploy.sh) monitoring=true ;;
