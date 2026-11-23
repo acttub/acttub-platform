@@ -160,10 +160,6 @@ export function bannerUnitFor(
 export const FULL_SCREEN_SLOTS = ['analyzing_wait_full', 'script_parse_full', 'reading_done_full'] as const;
 export type FullScreenSlotKey = (typeof FULL_SCREEN_SLOTS)[number];
 
-export function isFullScreenSlot(slot: string): slot is FullScreenSlotKey {
-  return (FULL_SCREEN_SLOTS as readonly string[]).includes(slot);
-}
-
 /** Google 공식 테스트 전면 광고 단위. 개발·dev 빌드는 늘 이것만 쓴다. */
 export const TEST_INTERSTITIAL_UNIT = {
   android: 'ca-app-pub-3940256099942544/1033173712',
@@ -201,16 +197,6 @@ export function fullScreenAllowed(input: {
   if (!input.pick || input.pick.kind !== 'NETWORK') return false;
   if (input.firstTime === 'first') return false;
   return input.lastShownAt === null || input.now - input.lastShownAt >= FULL_SCREEN_GAP_MS;
-}
-
-/**
- * 칸이 차지할 높이 — 칸 폭에 규격 비율을 맞춘다(이미지형은 화면 폭에 맞춰 늘리고, AdMob 은 그 안 가운데).
- * 받기 전부터 이 높이로 자리를 잡아 화면이 튀지 않게 한다.
- */
-export function slotHeight(size: AdSize, containerWidth: number): number {
-  const spec = AD_SIZES[size];
-  const width = Math.max(containerWidth, spec.width);
-  return Math.round((width * spec.height) / spec.width);
 }
 
 /**

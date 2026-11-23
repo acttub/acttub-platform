@@ -40,11 +40,6 @@ test('리딩 화면 — 독백은 지금 읽는 줄이 든 말풍선까지만 �
   assert.match(src, /styles\.cardPast/);
 });
 
-test('구간 고르기 — 독백·일반 대본 모두 첫 연습이어도 처음 10줄로 줄이지 않고 전체를 기본으로 잡는다', () => {
-  const src = read('app/reading/range.tsx');
-  assert.doesNotMatch(src, /firstPracticeRange\(/);
-});
-
 
 test('리딩 화면 — 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」(마지막만 「끝내기」)이고, 스크롤은 읽는 문장을 늘 같은 높이에 둔다', () => {
   const src = read('app/reading/play.tsx');

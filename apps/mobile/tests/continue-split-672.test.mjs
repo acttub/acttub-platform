@@ -53,7 +53,7 @@ test('SOMA-672: 준비 화면에는 같은 영상 길이 없고 다시 고르기
   assert.match(upload, /initialPickedVideo\(Boolean\(plan\.continueFrom\)\)/);
   assert.doesNotMatch(upload, /peekPickedVideo/);
   assert.match(upload, /buildContinueBody\(\{ requestId: 'pending', videoId: resolvedVideoId, scene, blockage \}\)/);
-  assert.match(upload, /\{!sample && \(\s*<Pressable style=\{styles\.repick\}/);
+  assert.match(upload, /<Pressable style=\{styles\.repick\}/);
 
   for (const file of ['locales/ko.ts', 'locales/en.ts']) {
     const src = read(file);

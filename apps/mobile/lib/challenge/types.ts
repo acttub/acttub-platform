@@ -5,8 +5,6 @@
  * 실제 api.ts 호출을 서버 스키마로 대조한다.
  * 챌린지에는 다른 사람의 **현재 프로필 이름만** 보인다 — 사진·소개는 없고 아바타는 이름 첫 글자다.
  */
-import { DEFAULT_APP_CONFIG } from '../app-config.ts';
-
 /** 대사 목록의 탭. 오늘의 챌린지는 인기·최신에만 고정한다. */
 export type ChallengeTab = 'popular' | 'latest' | 'ended' | 'mine';
 
@@ -106,9 +104,6 @@ export type EntryVisibility = 'public' | 'private';
 /** 신고 숨김은 작성자가 풀 수 없고, 삭제는 행을 남긴 채 표시만 바뀐다. */
 export type EntryStatus = 'visible' | 'hidden_by_report' | 'deleted';
 
-/** 챌린지 영상은 60초 이내다(촬영 상한도 같다). 기본값이고, 판정은 서버 설정을 쓰는 순간 읽는다(SOMA-939). */
-export const ENTRY_VIDEO_MAX_SEC = DEFAULT_APP_CONFIG.challenge.entryMaxSeconds;
-
 /** 캡션은 300자까지, 선택이다. */
 export const CAPTION_MAX = 300;
 
@@ -163,9 +158,6 @@ export type CreateChallengeBody = {
   scene_note?: string;
   duration_days: number;
 };
-
-/** 기간 선택지 기본값. 화면·검사는 서버 설정(getAppConfig().challenge.durationsDays)을 읽는다(SOMA-939). */
-export const CHALLENGE_DURATIONS: readonly number[] = DEFAULT_APP_CONFIG.challenge.durationsDays;
 
 /** 기간(일). 선택지가 서버 설정이라 타입으로 좁히지 않는다(SOMA-939). */
 export type ChallengeDuration = number;

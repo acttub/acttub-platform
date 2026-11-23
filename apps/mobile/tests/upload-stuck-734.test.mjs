@@ -9,5 +9,5 @@ test('upload: 올리는 중에 「업로드 중...」을 누르면 업로드를 
   assert.match(press, /if \(uploading && user\?\.id\) void flushLibraryUploads\(user\.id\)/);
   assert.match(press, /noteBlocked\(\);/);
   assert.match(upload, /onPress=\{submitPress\}/);
-  assert.match(upload, /return ready \? void start\(\) : uploading && agreedRights && !sample \? setWaitPanel\(true\) : pressBlocked\(\)/);
+  assert.match(upload, /return ready \? void start\(\) : uploading && agreedRights \? setWaitPanel\(true\) : pressBlocked\(\)/);
 });

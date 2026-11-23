@@ -36,21 +36,11 @@ test('연습 튜토리얼과 리딩 튜토리얼을 따로 센다', async () => 
   assert.equal(await guide.hasSeenReadingTutorial(), true);
 });
 
-test('가이드 다시 보기는 비춘 안내·튜토리얼·자동 넘김 안내를 모두 되살린다', async () => {
-  for (const key of ['acttub.spotlight.home.seen', 'acttub.spotlight.reading.seen', 'acttub.spotlight.group.seen',
-    'acttub.tutorial.seen', 'acttub.tutorial.reading.seen', 'acttub.reading.autoAdvanceTipHidden', 'acttub.other']) {
-    storage.values.set(key, '1');
-  }
-  await guide.resetSpotlights();
-  assert.deepEqual([...storage.values.keys()], ['acttub.other']);
-});
-
-test('저장소를 못 쓰면 본 것으로 치고, 적기·지우기는 조용히 넘어간다', async () => {
+test('저장소를 못 쓰면 본 것으로 치고, 적기는 조용히 넘어간다', async () => {
   broken = true;
   assert.equal(await guide.hasSeenSpotlight('group', 0), true);
   assert.equal(await guide.hasSeenTutorial(), true);
   await guide.markTutorialSeen();
-  await guide.resetSpotlights();
   broken = false;
   assert.equal(await guide.hasSeenTutorial(), false);
 });
@@ -69,13 +59,6 @@ test('예전 기기 공용 기록은 이어받지 않는다 — 계정마다 처
   assert.equal(await guide.hasSeenSpotlight('home', 0), false);
   setFirstUseOwner(null);
   assert.equal(await guide.hasSeenSpotlight('home', 0), true);
-});
-
-test('가이드 다시 보기는 지금 계정의 기록도 지운다', async () => {
-  setFirstUseOwner('u1');
-  await guide.markSpotlightSeen('home');
-  await guide.resetSpotlights();
-  assert.equal(await guide.hasSeenSpotlight('home', 0), false);
 });
 
 test('앱을 막 켜 계정을 아직 모를 때 물으면, 계정이 정해질 때까지 기다렸다 그 계정 기록을 읽는다(10/26 폰: 홈 안내가 켤 때마다 다시 뜸)', async () => {

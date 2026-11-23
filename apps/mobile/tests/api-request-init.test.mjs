@@ -58,8 +58,6 @@ const CASES = [
     { method: 'PUT', path: '/v2/me/memory/goal', contentType: 'application/json', body: '{"value":"붙잡기"}' }],
   ['completeVideoIntent', () => api.completeVideoIntent(id(7), id(8)),
     { method: 'POST', path: `/v2/videos/intents/${id(7)}/complete`, contentType: 'application/json', requestId: id(8), body: '{}' }],
-  ['setVideoFavorite', () => api.setVideoFavorite(id(2), true),
-    { method: 'PATCH', path: `/v2/videos/${id(2)}`, contentType: 'application/json', body: '{"favorite":true}' }],
   ['purgeVideoFile', () => api.purgeVideoFile(id(2)),
     { method: 'POST', path: `/v2/videos/${id(2)}/purge-file`, contentType: 'application/json', body: '{}' }],
   ['patchPracticeGroup', () => api.patchPracticeGroup(id(1), { hidden: true }),

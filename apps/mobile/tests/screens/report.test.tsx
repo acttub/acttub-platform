@@ -2,9 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import ReportScreen from '@/app/report';
 import { useAppRating } from '@/hooks/use-app-rating';
-import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { clearPractice, getPractice, setContinueOrigin, type Practice } from '@/lib/practice/session-state';
-import { SAMPLE_PRACTICE_ID } from '@/lib/tutorial-sample';
 import { practiceNote } from '../helpers/practice-note';
 
 const mockRouter = { push: jest.fn(), dismissAll: jest.fn() };
@@ -21,20 +19,14 @@ jest.mock('expo-video', () => ({
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
-jest.mock('@/lib/api', () => ({ api: {} }));
+jest.mock('@/lib/api', () => ({ api: { getPracticeNote: (...args: unknown[]) => mockGetNote(...args) } }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/practice/session-state', () => ({
   getPractice: jest.fn(),
   clearPractice: jest.fn(),
   setContinueOrigin: jest.fn(),
 }));
-jest.mock('@/lib/tutorial-loop', () => ({ loopApiFor: () => ({ getPracticeNote: mockGetNote }) }));
 jest.mock('@/hooks/use-app-rating', () => ({ useAppRating: jest.fn() }));
-jest.mock('@/hooks/use-spotlight-target', () => ({ useSpotlightTarget: () => ({ ref: undefined, onLayout: undefined }) }));
-jest.mock('@/hooks/use-tutorial-spotlight', () => ({
-  finishTutorial: jest.fn(),
-  useTutorialSpotlight: () => ({ element: null }),
-}));
 
 const after = jest.fn();
 const scene = { situation: ' 이별 통보 장면 ', character: '수진', goal: '' };
@@ -116,7 +108,6 @@ test('다음 테이크 찍기는 이 회차의 장면을 넘기고 업로드로 
   expect(screen.queryByText('영상 찍어 코칭받기')).toBeNull();
   await fireEvent.press(screen.getByText('다음 테이크 찍기'));
 
-  expect(finishTutorial).toHaveBeenCalledWith('done');
   expect(setContinueOrigin).toHaveBeenCalledWith({ kind: 'note', rootId: 'root1', practiceId: 'p1', scene });
   expect(clearPractice).toHaveBeenCalledTimes(1);
   expect(mockRouter.dismissAll).toHaveBeenCalledTimes(1);
@@ -199,50 +190,10 @@ test('화면을 떠난 뒤 온 노트나 실패는 반영하지 않는다', asyn
   expect(session.note).toBeNull();
 });
 
-describe('튜토리얼 예시 노트', () => {
-  beforeEach(() => {
-    (getPractice as jest.Mock).mockReturnValue(practice({ practiceId: SAMPLE_PRACTICE_ID, note: practiceNote() }));
-  });
-
-  test('평가를 받지 않고 내 영상으로 해 보기를 권한다', async () => {
-    await render(<ReportScreen />);
-
-    expect(screen.getByText('둘러보기 끝')).toBeOnTheScreen();
-    expect(screen.queryByText('이 코칭 어땠어요?')).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('내 영상으로 해 보기'));
-
-    expect(finishTutorial).toHaveBeenCalledWith('done');
-    expect(clearPractice).toHaveBeenCalledTimes(1);
-    expect(mockRouter.push).toHaveBeenCalledWith('/upload');
-  });
-
-  test('홈으로는 업로드로 가지 않고 닫는다', async () => {
-    await render(<ReportScreen />);
-    await fireEvent.press(screen.getByText('홈으로'));
-
-    expect(clearPractice).toHaveBeenCalledTimes(1);
-    expect(mockRouter.dismissAll).toHaveBeenCalledTimes(1);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-});
-
 test('제목도 상황도 없으면 장면 메모 없이 연습이라고 부른다', async () => {
   (getPractice as jest.Mock).mockReturnValue(
     practice({ scene: { situation: '  ', character: '', goal: '' }, note: practiceNote({ title: null }) }),
   );
   await render(<ReportScreen />);
   expect(screen.getByText('장면 메모 없이 연습')).toBeOnTheScreen();
-});
-
-test('예시 노트를 못 읽었을 때 홈으로는 평가 없이 닫는다', async () => {
-  (getPractice as jest.Mock).mockReturnValue(practice({ practiceId: SAMPLE_PRACTICE_ID }));
-  mockGetNote.mockRejectedValue(new Error('down'));
-  await render(<ReportScreen />);
-
-  await fireEvent.press(await screen.findByText('홈으로'));
-
-  expect(after).not.toHaveBeenCalled();
-  expect(finishTutorial).toHaveBeenCalledWith('done');
-  expect(clearPractice).toHaveBeenCalledTimes(1);
-  expect(mockRouter.dismissAll).toHaveBeenCalledTimes(1);
 });

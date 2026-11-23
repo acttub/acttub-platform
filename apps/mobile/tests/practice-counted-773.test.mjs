@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
-  countedPracticeDates,
   countedPractices,
   readingRunCompleted,
   readingStopCounted,
@@ -32,9 +31,6 @@ test('연습 1회: 코칭은 노트가 생긴 회차, 리딩은 끝까지 읽은
     { kind: 'reading', at: '2026-10-04T00:00:00Z' },
     { kind: 'challenge', at: '2026-10-06T00:00:00Z' },
     { kind: 'challenge', at: '2026-10-06T01:00:00Z' },
-  ]);
-  assert.deepEqual(countedPracticeDates({ groups: [{ practices: [{ created_at: '2026-10-01T00:00:00Z', note }] }] }), [
-    { created_at: '2026-10-01T00:00:00Z' },
   ]);
   assert.deepEqual(countedPractices({}), []);
 });

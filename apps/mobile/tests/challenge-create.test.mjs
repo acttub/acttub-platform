@@ -11,7 +11,8 @@ import {
   stepComplete,
 } from '../lib/challenge/create.ts';
 import { attemptFor } from '../lib/request-id.ts';
-import { CHALLENGE_DURATIONS, CHARACTER_MAX, LINE_MAX, SCENE_NOTE_MAX, WORK_MAX } from '../lib/challenge/types.ts';
+import { DEFAULT_APP_CONFIG } from '../lib/app-config.ts';
+import { CHARACTER_MAX, LINE_MAX, SCENE_NOTE_MAX, WORK_MAX } from '../lib/challenge/types.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
 const draft = (over = {}) => ({ ...emptyChallengeDraft, line: '가지 마', work: '옥상, 밤', ...over });
@@ -38,7 +39,7 @@ test('challenge.create: 대사·작품·인물·기간 7일로 개설하면 본�
 });
 
 test('challenge.create: 기간은 7일·14일 선택지뿐이고 그 밖의 값은 보내지 않는다', () => {
-  assert.deepEqual([...CHALLENGE_DURATIONS], [7, 14]);
+  assert.deepEqual(DEFAULT_APP_CONFIG.challenge.durationsDays, [7, 14]);
   assert.equal(isDuration(7), true);
   assert.equal(isDuration(14), true);
   assert.equal(isDuration(10), false);

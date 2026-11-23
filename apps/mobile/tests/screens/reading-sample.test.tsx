@@ -18,7 +18,6 @@ jest.mock('@/lib/api', () => ({
   api: { listReadingExamples: jest.fn(), startReadingExample: jest.fn() },
 }));
 jest.mock('@/lib/reading/store', () => ({ loadIntoCurrent: jest.fn(), updateScriptMeta: jest.fn() }));
-jest.mock('@/lib/tutorial', () => ({ currentTutorial: () => null, afterVoicesSaved: () => 'detail' }));
 
 const SERVER = {
   examples: [

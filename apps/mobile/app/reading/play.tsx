@@ -30,9 +30,7 @@ import { MIC_STOP_MAX_MS, settleWithin, STT_FINISH_MAX_MS } from '@/lib/reading/
 import { onReadingLiveEvent, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { Image } from 'expo-image';
-import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { useWaitExit } from '@/hooks/use-wait-exit';
-import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText } from '@/lib/reading/tts/speakable';
 import { lineLanguage, speechLocaleFor, speechParts } from '@/lib/reading/line-language';
@@ -335,9 +333,8 @@ export default function ReadingPlay() {
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
-  // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494). 튜토리얼 대본은 세지 않는다.
+  // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494).
   const { after: askRating, element: ratingCard } = useAppRating();
-  const fromTutorialRef = useRef(false);
   const showFullScreenAd = useFullScreenAd();
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
@@ -544,10 +541,10 @@ export default function ReadingPlay() {
         void markReadingFinished();
       }
       setPhase({ kind: 'done' });
-      // 결과로 넘어갈 때 전면 광고(SOMA-1085, 튜토리얼은 빼고) — 별점 묻기는 광고를 닫은 뒤에 한다(둘이 겹치지 않게).
+      // 결과로 넘어갈 때 전면 광고(SOMA-1085) — 별점 묻기는 광고를 닫은 뒤에 한다(둘이 겹치지 않게).
       void (async () => {
-        if (!fromTutorialRef.current) await showFullScreenAd('reading_done_full');
-        if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
+        await showFullScreenAd('reading_done_full');
+        if (completed) void askRating({ kind: 'reading' });
       })();
       return;
     }
@@ -733,10 +730,6 @@ export default function ReadingPlay() {
 
   useEffect(() => {
     mounted.current = true;
-    // 대본 리딩 튜토리얼(SOMA-494)은 여기서 끝난다.
-    const fromTutorial = currentTutorial()?.track === 'reading';
-    fromTutorialRef.current = fromTutorial;
-    if (fromTutorial) finishTutorial('done');
     void (async () => {
       // 전체 듣기·자동 넘김은 마이크를 열지 않는다 — 녹음·음성 인식 권한을 묻지 않는다(11/1 폰 확인: 권한 창이 세 번 떴다).
       const listenOnly = listenAll || handsFree;
@@ -1921,7 +1914,6 @@ export default function ReadingPlay() {
       priorRecognized: sessionHasRecognized(session),
       recognition: sttMode?.kind ?? null,
     });
-    const coaching = completed && !fromTutorialRef.current;
     const busy = doneLocked || restarting;
     const roles = listenAll ? t('reading.listenAllRole') : config.myNames.join(', ');
     // 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서, 이미 있는 탭까지 내려간다(SOMA-853).
@@ -1947,10 +1939,10 @@ export default function ReadingPlay() {
       </View>
     );
     const note = (text: string, icon?: 'info' | 'wifi-off') => <InfoBanner body={text} icon={icon} />;
-    const rating = coaching && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
+    const rating = completed && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
     // 발음 보고서는 녹음한 회차에만 — 자동 넘김·듣기만은 녹음이 없어 「읽은 줄이 없어요」만 나온다(11/2 QA).
     const recorded = !listenAll && !handsFree && session.record !== false;
-    const reportRow = coaching && recorded ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
+    const reportRow = completed && recorded ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
 
     const firstStopped = firstReading && firstStoppedRef.current;
     if (!completed && !firstStopped) {
@@ -1971,7 +1963,7 @@ export default function ReadingPlay() {
         </>
       );
     }
-    if (firstRunRef.current || fromTutorialRef.current || firstReading) {
+    if (firstRunRef.current || firstReading) {
       const total = wrapUpProgress(run.lines, run.endIndex).total;
       // 첫 연습으로 센 회차(끝까지 갔거나 멈췄어도 내 대사를 읽은 회차)면 첫 사용자를 벗어난 것이다. 홈에 가기 전에 여기서
       // 불꽃을 먼저 보여 준다 — 전에는 끝 → 첫 사용자 홈 → 기존 홈 → 불꽃 순서로 바뀌어 어색했다(11/2 폰 QA).
@@ -2025,7 +2017,7 @@ export default function ReadingPlay() {
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
               {otherScript}
-              {coaching && (
+              {completed && (
                 <>
                   <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
                   <Button
@@ -2084,7 +2076,7 @@ export default function ReadingPlay() {
             {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
             {otherScript}
-            {coaching && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
+            {completed && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
             {listened ? (
               note(t('reading.listenDoneNote'), 'info')
             ) : !compared ? (

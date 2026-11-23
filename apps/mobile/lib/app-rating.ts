@@ -6,13 +6,9 @@
  * 그친 것으로 본다. 조르지 않도록 최소 7일 간격·최대 3번(iOS 인앱 평점 창의 1년 한도와 같다)만 묻는다.
  */
 
-import { DEFAULT_APP_CONFIG, getAppConfig } from './app-config.ts';
+import { getAppConfig } from './app-config.ts';
 import { DAY_MS } from './kst.ts';
 
-// 아래 상수는 기본값이다. 판정은 쓰는 순간 서버 설정(getAppConfig().rating)을 읽는다(SOMA-939).
-export const RATING_READING_EVERY = DEFAULT_APP_CONFIG.rating.readingEvery;
-export const RATING_MIN_GAP_MS = DEFAULT_APP_CONFIG.rating.minGapDays * DAY_MS;
-export const RATING_MAX_ASKS = DEFAULT_APP_CONFIG.rating.maxAsks;
 /** 같은 연습을 두 번 세지 않으려고 기억하는 최근 연습 id 수 */
 const REMEMBERED_PRACTICES = 20;
 

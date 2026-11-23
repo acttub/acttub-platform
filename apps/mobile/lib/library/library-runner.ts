@@ -22,7 +22,6 @@ const LOCAL_COPIES_KEY = 'acttub.library.localCopies';
 
 let queue: UploadQueue | null = null;
 const listeners = new Set<() => void>();
-let lastDiscarded = 0;
 /** 이번 실행에서 확정된 대기 항목 → 영상 id. 새 연습이 "올리는 중"을 기다렸다 시작할 때 쓴다. */
 const confirmedVideos = new Map<string, string>();
 
@@ -117,10 +116,7 @@ function instance(): UploadQueue {
       confirmedVideos.set(entry.id, video.id);
       void rememberLocalCopy(video.id, entry.uri).finally(notify);
     },
-    onDiscarded: (entries) => {
-      lastDiscarded += entries.length;
-      notify();
-    },
+    onDiscarded: () => notify(),
     onFailed: () => notify(),
   });
   return queue;
@@ -217,19 +213,7 @@ export async function removePendingUpload(id: string): Promise<void> {
   notify();
 }
 
-/** 업로드 대기 큐에 항목을 넣는다. */
-export function enqueueLibraryUpload(entry: Parameters<UploadQueue['enqueue']>[0]): Promise<QueuedVideo> {
-  return instance().enqueue(entry);
-}
-
 /** 올리는 중이던 항목이 확정돼 받은 영상 id. 아직이면 null. */
 export function confirmedVideoFor(pendingId: string): string | null {
   return confirmedVideos.get(pendingId) ?? null;
-}
-
-/** 7일이 지나 버린 대기 파일 수를 한 번 가져가며 비운다(안내용). */
-export function takeDiscardedCount(): number {
-  const n = lastDiscarded;
-  lastDiscarded = 0;
-  return n;
 }

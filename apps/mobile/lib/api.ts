@@ -136,7 +136,7 @@ import type { AdSlotPick } from '@/lib/ads';
 import { currentLanguage, translate } from './i18n.ts';
 
 import type { BillingMe } from '@/lib/billing';
-export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
+export { ApiError } from '@/lib/api-request';
 import type { DiscoveryPayload } from '@/lib/discovery';
 import type { AirbridgeDevicePayload } from '@/lib/airbridge-device';
 import type { SignupAttributionPayload } from '@/lib/signup-attribution';
@@ -1055,19 +1055,6 @@ export const api = {
   /** 상세 — 서명 재생 주소(10분, 만료 시 재조회)와 사용처. 없는 것·남의 것은 404. */
   getVideo(videoId: string, options: ApiCallOptions = {}): Promise<Video> {
     return request<Video>(`/v2/videos/${encodeURIComponent(videoId)}`, {}, { timeoutMs: 20_000, signal: options.signal });
-  },
-
-  setVideoFavorite(videoId: string, favorite: boolean): Promise<Video> {
-    return request<Video>(
-      `/v2/videos/${encodeURIComponent(videoId)}`,
-      jsonInit({ favorite }, 'PATCH'),
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  /** 참조(회차·참여작)가 없을 때만 된다. 있으면 422 video_in_use 이고 아무것도 지워지지 않는다. */
-  deleteVideo(videoId: string): Promise<void> {
-    return request<void>(`/v2/videos/${encodeURIComponent(videoId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
   },
 
   /** 참조가 있는 영상의 파일만 파기 — 회차·참여작 기록은 남고 재생만 막히며 총량에서 빠진다. */

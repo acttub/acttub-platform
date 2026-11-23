@@ -10,7 +10,6 @@ import {
   isHttpLink,
   renderableKind,
   shouldRequestSlot,
-  slotHeight,
 } from '../lib/ads.ts';
 
 const pick = (kind, ad = null) => ({ kind, slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad });
@@ -22,12 +21,6 @@ test('dev·개발 빌드는 Google 테스트 단위, 운영 API 빌드만 실제
   assert.equal(bannerUnitFor('home_top', 'android', 'https://acttub.com/'), PRODUCTION_BANNER_UNITS.browse.android);
   assert.equal(bannerUnitFor('upload_wait', 'ios', 'https://acttub.com'), PRODUCTION_BANNER_UNITS.practice.ios);
   assert.equal(bannerUnitFor('community_list_top', 'ios', 'https://acttub.com'), PRODUCTION_BANNER_UNITS.community.ios);
-});
-
-test('칸 높이는 칸 폭에 규격 비율을 맞추고 규격보다 작아지지 않는다', () => {
-  assert.equal(slotHeight('LARGE_BANNER', 352), 110);
-  assert.equal(slotHeight('BANNER', 320), 50);
-  assert.equal(slotHeight('MEDIUM_RECTANGLE', 200), 250);
 });
 
 test('첫 사용자로 확인되면 서버에 묻지 않는다', () => {
@@ -117,15 +110,12 @@ import {
   TEST_INTERSTITIAL_UNIT,
   fullScreenAllowed,
   interstitialUnitFor,
-  isFullScreenSlot,
 } from '../lib/ads.ts';
 
 test('전면 칸은 세 곳이고 서버 키와 같다', () => {
   for (const slot of ['analyzing_wait_full', 'script_parse_full', 'reading_done_full']) {
     assert.ok(slot in AD_SLOTS, slot);
-    assert.equal(isFullScreenSlot(slot), true, slot);
   }
-  assert.equal(isFullScreenSlot('analyzing_wait'), false);
 });
 
 test('전면 광고 단위 — dev·개발 빌드는 Google 테스트 전면 단위, 운영 단위가 비어 있으면 띄우지 않는다', () => {

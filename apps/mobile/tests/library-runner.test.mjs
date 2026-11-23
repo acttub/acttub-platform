@@ -51,6 +51,13 @@ stubModules({
 const runner = await import('../lib/library/library-runner.ts');
 
 const ARCHIVE = /^file:\/\/\/docs\/archive\/lib-\d+-[a-z0-9]+\.mp4$/;
+/** 앱을 다시 켰을 때처럼 기기에 남아 있던 업로드 대기 항목에서 시작한다. */
+async function leftInQueue(entry) {
+  const raw = await state.storage.getItem('acttub.library.uploadQueue');
+  const list = raw ? JSON.parse(raw) : [];
+  list.push({ contentType: 'video/mp4', intentId: null, intentExpiresAt: null, status: 'queued', lastError: null, ...entry });
+  await state.storage.setItem('acttub.library.uploadQueue', JSON.stringify(list));
+}
 let changes = 0;
 runner.onLibraryChange(() => { changes += 1; });
 
@@ -122,10 +129,7 @@ test('복사가 실패하면 원본을 그대로 가리켜 큐에 넣는다', as
 test('길이를 모르면 기기에서 재고, 5분이 넘으면 올리지 않고 버린다', async () => {
   state.meta = { duration: 301 };
   state.files.set('file:///camera/c.mp4', 10);
-  const entry = await runner.enqueueLibraryUpload({
-    id: 'c', owner: 'u3', requestId: 'r-c', uri: 'file:///camera/c.mp4', contentType: 'video/mp4', durationMs: null, createdAt: Date.now(),
-  });
-  assert.equal(entry.status, 'queued');
+  await leftInQueue({ id: 'c', owner: 'u3', requestId: 'r-c', uri: 'file:///camera/c.mp4', durationMs: null, createdAt: Date.now() });
 
   await runner.flushLibraryUploads('u3');
 
@@ -136,12 +140,12 @@ test('길이를 모르면 기기에서 재고, 5분이 넘으면 올리지 않�
 
 test('기기에서 잰 길이로 올리고, 길이를 끝내 모르면 1초로 보낸다', async () => {
   state.meta = { duration: 2.4 };
-  await runner.enqueueLibraryUpload({ id: 'd', owner: 'u4', requestId: 'r-d', uri: 'file:///camera/d.mp4', contentType: 'video/mp4', durationMs: null, createdAt: Date.now() });
+  await leftInQueue({ id: 'd', owner: 'u4', requestId: 'r-d', uri: 'file:///camera/d.mp4', durationMs: null, createdAt: Date.now() });
   await runner.flushLibraryUploads('u4');
   assert.equal(state.intents.at(-1).duration_ms, 2_400);
 
   state.meta = null;
-  await runner.enqueueLibraryUpload({ id: 'e', owner: 'u4', requestId: 'r-e', uri: 'file:///camera/e.mp4', contentType: 'video/mp4', durationMs: null, createdAt: Date.now() });
+  await leftInQueue({ id: 'e', owner: 'u4', requestId: 'r-e', uri: 'file:///camera/e.mp4', durationMs: null, createdAt: Date.now() });
   await runner.flushLibraryUploads('u4');
   assert.equal(state.intents.at(-1).duration_ms, 1_000);
 });
@@ -149,7 +153,7 @@ test('기기에서 잰 길이로 올리고, 길이를 끝내 모르면 1초로 �
 test('압축이 실패해 원본이 한도를 넘으면 버리지 않고 실패로 남긴다', async () => {
   state.files.set('file:///camera/big.mp4', 200 * 1024 * 1024);
   state.compress = async uri => ({ uri, originalBytes: null, compressedBytes: null, fallback: 'timeout' });
-  await runner.enqueueLibraryUpload({ id: 'big', owner: 'u5', requestId: 'r-big', uri: 'file:///camera/big.mp4', contentType: 'video/mp4', durationMs: 5_000, createdAt: Date.now() });
+  await leftInQueue({ id: 'big', owner: 'u5', requestId: 'r-big', uri: 'file:///camera/big.mp4', durationMs: 5_000, createdAt: Date.now() });
 
   await runner.flushLibraryUploads('u5');
 
@@ -164,7 +168,7 @@ test('압축이 실패해 원본이 한도를 넘으면 버리지 않고 실패�
 test('압축이 실패해도 원본이 한도 안이면 원본으로 올리고 그 사실을 남긴다', async () => {
   state.files.set('file:///camera/mid.mp4', 60 * 1024 * 1024);
   state.compress = async uri => ({ uri, originalBytes: 60 * 1024 * 1024, compressedBytes: null, fallback: 'error' });
-  await runner.enqueueLibraryUpload({ id: 'mid', owner: 'u5b', requestId: 'r-mid', uri: 'file:///camera/mid.mp4', contentType: 'video/mp4', durationMs: 150_000, createdAt: Date.now() });
+  await leftInQueue({ id: 'mid', owner: 'u5b', requestId: 'r-mid', uri: 'file:///camera/mid.mp4', durationMs: 150_000, createdAt: Date.now() });
 
   await runner.flushLibraryUploads('u5b');
 
@@ -175,22 +179,21 @@ test('압축이 실패해도 원본이 한도 안이면 원본으로 올리고 �
 
 test('줄인 업로드본이 한도를 넘거나 비었으면 버린다', async () => {
   state.compress = async () => ({ uri: 'file:///cache/huge.mp4', originalBytes: null, compressedBytes: 101 * 1024 * 1024 });
-  await runner.enqueueLibraryUpload({ id: 'huge', owner: 'u6', requestId: 'r-huge', uri: 'file:///camera/huge.mp4', contentType: 'video/mp4', durationMs: 5_000, createdAt: Date.now() });
+  await leftInQueue({ id: 'huge', owner: 'u6', requestId: 'r-huge', uri: 'file:///camera/huge.mp4', durationMs: 5_000, createdAt: Date.now() });
   await runner.flushLibraryUploads('u6');
   assert.deepEqual(await runner.pendingLibraryUploads('u6'), []);
 
   state.compress = async () => ({ uri: 'file:///cache/gone.mp4', originalBytes: null, compressedBytes: null });
-  await runner.enqueueLibraryUpload({ id: 'empty', owner: 'u6', requestId: 'r-empty', uri: 'file:///camera/empty.mp4', contentType: 'video/mp4', durationMs: 5_000, createdAt: Date.now() });
+  await leftInQueue({ id: 'empty', owner: 'u6', requestId: 'r-empty', uri: 'file:///camera/empty.mp4', durationMs: 5_000, createdAt: Date.now() });
   await runner.flushLibraryUploads('u6');
   assert.deepEqual(await runner.pendingLibraryUploads('u6'), []);
   assert.equal(state.intents.length, 0);
 });
 
-test('7일이 지난 대기 영상은 버리고 그 수를 한 번만 알려 준다', async () => {
-  await runner.enqueueLibraryUpload({ id: 'old', owner: 'u7', requestId: 'r-old', uri: 'file:///docs/archive/old.mp4', contentType: 'video/mp4', durationMs: 1_000, createdAt: Date.now() - 8 * 86_400_000 });
+test('7일이 지난 대기 영상은 버린다', async () => {
+  await leftInQueue({ id: 'old', owner: 'u7', requestId: 'r-old', uri: 'file:///docs/archive/old.mp4', durationMs: 1_000, createdAt: Date.now() - 8 * 86_400_000 });
   await runner.flushLibraryUploads('u7');
-  assert.equal(runner.takeDiscardedCount(), 1);
-  assert.equal(runner.takeDiscardedCount(), 0);
+  assert.deepEqual(await runner.pendingLibraryUploads('u7'), []);
   assert.ok(state.deleted.includes('file:///docs/archive/old.mp4'));
 });
 

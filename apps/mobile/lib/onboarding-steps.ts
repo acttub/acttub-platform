@@ -57,29 +57,10 @@ export function stepBlockReason(step: OnboardingStep, form: ProfileFormState, no
   }
 }
 
-/** 그 단계의 「계속하기」로 넘어갈 수 있나. */
-export function stepReady(step: OnboardingStep, form: ProfileFormState, now: Date): boolean {
-  return stepBlockReason(step, form, now) === null;
-}
-
 /** 생년월일 단계에서 「계속하기」를 눌렀을 때. 만 14세 미만은 「가입할 수 없어요」로 간다. */
 export function birthStepOutcome(birthDate: string, now: Date): 'next' | 'blocked' | 'invalid' {
   const check = checkBirthDate(birthDate, now);
   if (check.kind === 'ok') return 'next';
   if (check.kind === 'under_minimum') return 'blocked';
   return 'invalid';
-}
-
-/**
- * 한 질문에 답한 뒤 갈 곳(SOMA-790, 토스식 가입). 그 뒤에서 처음으로 아직 안 답한 질문, 없으면 앞에서 처음 안 답한
- * 질문이다. 다 답했으면 null(저장). 답한 칸을 눌러 고치러 돌아갔다가 다시 답하면 하던 질문으로 돌아온다.
- */
-export function nextOpenStep(
-  steps: readonly OnboardingStep[],
-  done: ReadonlySet<OnboardingStep>,
-  from: OnboardingStep,
-): OnboardingStep | null {
-  const open = (step: OnboardingStep) => step !== from && !done.has(step);
-  const index = steps.indexOf(from);
-  return steps.slice(index + 1).find(open) ?? steps.slice(0, index).find(open) ?? null;
 }

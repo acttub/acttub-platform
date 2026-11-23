@@ -13,7 +13,6 @@ import {
   formatBirthDateInput,
   initialProfileForm,
   isBioValid,
-  isProfileFormComplete,
   normalizeBio,
   profileGateStatus,
   profileSaveFailure,
@@ -43,30 +42,7 @@ test('account.profile: 저장 값 이름은 계약의 값 목록과 같다', () 
   assert.deepEqual(GOAL_VALUES, ['hobby', 'audition', 'professional']);
 });
 
-test('account.profile: 여섯 항목을 다 채워야 저장할 수 있고 "선택 안 함"도 필수를 만족한다', () => {
-  assert.equal(isProfileFormComplete(filled, today), true);
-  assert.equal(isProfileFormComplete({ ...filled, gender: 'unspecified' }, today), true);
-
-  for (const missing of [
-    { name: '   ' },
-    { gender: null },
-    { birthDate: '' },
-    { directions: [] },
-    { experience: null },
-    { goal: null },
-  ]) {
-    assert.equal(
-      isProfileFormComplete({ ...filled, ...missing }, today),
-      false,
-      JSON.stringify(missing),
-    );
-  }
-});
-
 test('account.profile: 이름은 앞뒤 공백을 떼고 1~20자다', () => {
-  assert.equal(isProfileFormComplete({ ...filled, name: '가'.repeat(20) }, today), true);
-  assert.equal(isProfileFormComplete({ ...filled, name: '가'.repeat(21) }, today), false);
-  assert.equal(isProfileFormComplete({ ...filled, name: `  ${'가'.repeat(20)}  ` }, today), true);
   assert.equal(buildProfilePayload({ ...filled, name: '  김배우  ' }, today).name, '김배우');
 });
 
@@ -119,7 +95,6 @@ test('account.profile: 한국 날짜로 만 14세가 되는 날부터 받고, �
     kind: 'ok',
     value: '2012-02-29',
   });
-  assert.equal(isProfileFormComplete({ ...filled, birthDate: '2013-01-01' }, today), false);
   assert.throws(() => buildProfilePayload({ ...filled, birthDate: '2013-01-01' }, today));
 });
 

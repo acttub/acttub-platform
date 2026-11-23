@@ -6,7 +6,6 @@ import {
   canSubmitConsentDecisions,
   withDeclinedDefaults,
   documentsForConsentEntry,
-  grantAllRequired,
   signupFailureAction,
   submitConsentDecisions,
 } from '../lib/consent-entry-submission.ts';
@@ -215,22 +214,6 @@ test('account.login: 필수 셋에만 동의하면 버튼이 켜진다 — 선�
   );
 });
 
-test('account.login: 전체 동의는 필수 문서만 채운다 — 선택 문서는 비운 채로 둔다', () => {
-  const next = grantAllRequired(signupDocuments, new Map());
-
-  assert.deepEqual(
-    [...next],
-    [
-      ['terms-1', 'granted'],
-      ['privacy-1', 'granted'],
-      ['ai-1', 'granted'],
-    ],
-  );
-  // 비어 있어도 진행할 수 있고, 보낼 때 거절로 채워진다.
-  assert.equal(canSubmitConsentDecisions(signupDocuments, next), true);
-  assert.equal(withDeclinedDefaults(signupDocuments, next).get('retention-1'), 'declined');
-});
-
 test('account.login: 안 고른 선택 문서는 거절로 채워 보낸다 — 다음에 또 묻지 않는다', () => {
   const filled = withDeclinedDefaults(
     signupDocuments,
@@ -247,13 +230,6 @@ test('account.login: 안 고른 선택 문서는 거절로 채워 보낸다 — 
     withDeclinedDefaults(signupDocuments, new Map([['retention-1', 'granted']])).get('retention-1'),
     'granted',
   );
-});
-
-test('account.login: 전체 동의는 이미 고른 선택 문서의 결정을 건드리지 않는다', () => {
-  const next = grantAllRequired(signupDocuments, new Map([['retention-1', 'declined']]));
-
-  assert.equal(next.get('retention-1'), 'declined');
-  assert.equal(next.get('privacy-1'), 'granted');
 });
 
 test('account.login: 가입 제출은 현재 판 모든 문서의 결정을 한 번에 담는다', () => {
@@ -380,14 +356,4 @@ test('가입 화면에서 뺀 선택 문서는 제출 때 거절로 채워진다
     { document_id: requiredDocument.id, action: 'granted' },
     { document_id: 'cloud-v1', action: 'declined' },
   ]);
-});
-
-test('광고성 수신 묶음 줄은 둘 다 켜거나 둘 다 끈다', async () => {
-  const { toggleConsentGroup } = await import('../lib/consent-entry-submission.ts');
-  const email = { ...optionalDocument, id: 'email-v1', type: 'marketing_email' };
-  const push = { ...optionalDocument, id: 'push-v1', type: 'marketing_push' };
-  const on = toggleConsentGroup([email, push], { 'push-v1': 'granted', other: 'granted' });
-  assert.deepEqual(on, { 'email-v1': 'granted', 'push-v1': 'granted', other: 'granted' });
-  const off = toggleConsentGroup([email, push], on);
-  assert.deepEqual(off, { other: 'granted' });
 });

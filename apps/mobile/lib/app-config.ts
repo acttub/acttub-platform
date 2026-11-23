@@ -1,13 +1,11 @@
 /**
  * 서버가 내려주는 앱 설정(SOMA-939) — 순수 모듈. RN 모듈에 기대지 않아 node 테스트로 잠근다.
  *
- * 운영이 손볼 만한 숫자·목록(평가 요청 주기, 리딩 침묵 감지, 함께 쓰기 칩, 홈 팁, 챌린지 길이)을 앱 출시 없이 바꾸려고
+ * 운영이 손볼 만한 숫자·목록(평가 요청 주기, 리딩 침묵 감지, 함께 쓰기 칩, 챌린지 길이)을 앱 출시 없이 바꾸려고
  * GET /v2/app/config 로 받는다. 기본값은 오늘까지 앱에 박혀 있던 값 그대로다 — 서버에 못 닿거나 칸이 빠지면 동작이 같다.
  * 값은 쓰는 순간 getAppConfig() 로 읽는다(모듈을 불러올 때 꺼내 두면 받아 온 값이 안 먹는다).
  */
 
-import en from '../locales/en.ts';
-import ko from '../locales/ko.ts';
 import { isKorean } from './i18n.ts';
 
 export type AppConfig = {
@@ -30,7 +28,6 @@ export type AppConfig = {
     monologueTouchMin: number;
   };
   cocreate: { emotions: string[]; situations: string[] };
-  homeTips: { ko: string[]; en: string[] };
   challenge: { entryMinSeconds: number; entryMaxSeconds: number; durationsDays: number[] };
 };
 
@@ -39,6 +36,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   rating: { coachEvery: 2, readingEvery: 2, minGapDays: 7, maxAsks: 3 },
   reading: {
     vadThreshold: 0.015,
+    // 웹 현행 값을 앱에도 그대로(확정 결정 7). 침묵은 연기 대사 중간의 긴 사이 때문에 여유 있게 1.8초.
     silenceMs: 1800,
     minSpeechMs: 400,
     maxListenMs: 60000,
@@ -53,8 +51,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     emotions: ['서운함', '설렘', '분노', '슬픔', '긴장', '담담함'],
     situations: ['오랜만의 재회', '이별', '오디션 직전', '가족 다툼', '고백', '사과'],
   },
-  // 홈 팁 기본값은 locales 의 home.tips 그대로다 — 문구 정본을 두 곳에 두지 않는다.
-  homeTips: { ko: [...ko.home.tips], en: [...en.home.tips] },
   challenge: { entryMinSeconds: 3, entryMaxSeconds: 60, durationsDays: [7, 14] },
 };
 
@@ -101,7 +97,6 @@ export function parseAppConfig(json: unknown): AppConfig {
   const rating = obj(root.rating);
   const reading = obj(root.reading);
   const cocreate = obj(root.cocreate);
-  const tips = obj(root.home_tips);
   const challenge = obj(root.challenge);
 
   const entryMinSeconds = positiveInt(challenge.entry_min_seconds, d.challenge.entryMinSeconds, 600);
@@ -132,10 +127,6 @@ export function parseAppConfig(json: unknown): AppConfig {
       emotions: strings(cocreate.emotions, d.cocreate.emotions),
       situations: strings(cocreate.situations, d.cocreate.situations),
     },
-    homeTips: {
-      ko: strings(tips.ko, d.homeTips.ko),
-      en: strings(tips.en, d.homeTips.en),
-    },
     challenge: {
       entryMinSeconds,
       entryMaxSeconds,
@@ -147,7 +138,6 @@ export function parseAppConfig(json: unknown): AppConfig {
 // ─── 지금 쓰는 설정 ───────────────────────────────────────────────────────────
 
 let current: AppConfig = DEFAULT_APP_CONFIG;
-const listeners = new Set<() => void>();
 
 /** 한국어가 아닌 기기의 같이 만들기 칩 기본값 — 서버 app-config 의 cocreate_en 과 같다(SOMA-1033). */
 export const COCREATE_EN: AppConfig['cocreate'] = {
@@ -175,13 +165,4 @@ export function getAppConfig(): AppConfig {
 
 export function setAppConfig(next: AppConfig): void {
   current = next;
-  for (const listener of listeners) listener();
-}
-
-/** 설정이 바뀌면 부른다 — 화면이 다시 그릴 때 쓴다. */
-export function subscribeAppConfig(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
 }

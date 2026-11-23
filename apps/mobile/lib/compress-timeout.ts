@@ -22,28 +22,6 @@ export class CompressTimeoutError extends Error {
   }
 }
 
-/** promise 가 ms 안에 끝나지 않으면 onTimeout 을 부르고 CompressTimeoutError 로 거절한다. */
-export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      try {
-        onTimeout?.();
-      } catch {}
-      reject(new CompressTimeoutError(ms));
-    }, ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
 /** 진행률이 계속 오를 때 기다리는 전체 상한. 길이로 정한 상한은 "진행이 멈춘 채" 기다리는 시간으로만 쓴다. */
 export const COMPRESS_HARD_MAX_MS = 15 * 60_000;
 

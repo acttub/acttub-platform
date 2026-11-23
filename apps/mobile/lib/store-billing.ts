@@ -10,10 +10,6 @@ import { errorCode, errorStatus } from './api-request.ts';
 import type { BillingMe } from './billing.ts';
 import { translate as t } from './i18n.ts';
 
-/** 양 스토어 공통 상품 ID(장부·문구용). 앱은 상품 ID 대신 RevenueCat 오퍼링의 패키지로 산다. */
-export const STORE_PRODUCT_ID = 'acttub_pro_monthly';
-/** 연 구독(약 30% 할인, 앱 스토어 전용). */
-export const STORE_PRODUCT_YEARLY_ID = 'acttub_pro_yearly';
 export const ANDROID_PACKAGE = 'com.acttub.app';
 
 export type StorePlan = 'monthly' | 'yearly';
@@ -23,14 +19,6 @@ export const STORE_PLANS: readonly StorePlan[] = ['monthly', 'yearly'];
 export const PLAN_PACKAGE_ID: Record<StorePlan, string> = { monthly: '$rc_monthly', yearly: '$rc_annual' };
 
 export type StorePlatform = 'ios' | 'android';
-
-/** 상품 ID → 요금제. 우리 상품이 아니면 null. Google 의 `구독ID:요금제ID` 꼴도 받는다. */
-export function productPlan(productId: string | null | undefined): StorePlan | null {
-  const base = productId?.split(':')[0];
-  if (base === STORE_PRODUCT_ID) return 'monthly';
-  if (base === STORE_PRODUCT_YEARLY_ID) return 'yearly';
-  return null;
-}
 
 /** RevenueCat 패키지 중 우리가 읽는 값. */
 export type PackageLike = {
