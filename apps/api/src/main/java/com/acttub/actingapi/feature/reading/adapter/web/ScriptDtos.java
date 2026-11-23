@@ -28,8 +28,8 @@ final class ScriptDtos {
             @NotNull @Schema(maxLength = 200) String title,
             @NotNull SourceInput source,
             @NotNull @JsonProperty("raw_text") String rawText,
-            @NotNull @Valid List<@NotNull @Valid CharacterInput> characters,
-            @NotNull @Valid List<@NotNull @Valid LineInput> lines) {
+            @NotNull List<@NotNull @Valid CharacterInput> characters,
+            @NotNull List<@NotNull @Valid LineInput> lines) {
     }
 
     @Schema(name = "ReadingScriptCharacterInput", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -91,7 +91,7 @@ final class ScriptDtos {
     @Schema(name = "ReadingScriptPatch", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record PatchRequest(
             @Schema(nullable = true, maxLength = 200) String title,
-            @Valid List<@NotNull @Valid CharacterPatchInput> characters) {
+            List<@NotNull @Valid CharacterPatchInput> characters) {
     }
 
     /**

@@ -57,7 +57,7 @@ final class SessionDtos {
             @NotNull @PositiveOrZero @JsonProperty("progress_seq") Long progressSeq,
             @Schema(nullable = true) @JsonProperty("current_line_id") UUID currentLineId,
             @Schema(nullable = true) @PositiveOrZero @JsonProperty("elapsed_seconds") Integer elapsedSeconds,
-            @Schema(nullable = true) @Valid @JsonProperty("line_results") List<@NotNull @Valid LineResultInput> lineResults,
+            @Schema(nullable = true) @JsonProperty("line_results") List<@NotNull @Valid LineResultInput> lineResults,
             @Schema(nullable = true) Boolean complete) {
     }
 

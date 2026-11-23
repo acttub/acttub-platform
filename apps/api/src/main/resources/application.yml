@@ -95,6 +95,10 @@ springdoc:
     # 기존 spec 이 3.1.0 이다. const/anyOf 표현이 3.0 과 다르므로 맞춘다.
     version: openapi_3_1
     path: /v3/api-docs
+    # 기본으로도 켜져 있다. springdoc 3 은 이 값을 적지 않으면 기동 때마다 "기본으로 켜져 있다" 경고를 남긴다.
+    enabled: true
+  swagger-ui:
+    enabled: true
 
 server:
   port: 8080
@@ -116,6 +120,9 @@ management:
       show-details: never
       show-components: always
   metrics:
+    observations:
+      # Boot 4.2 부터 기본이 꺼짐이다. 켜 두어 *_active_seconds 지표(진행 중 요청·작업)를 Boot 3.5 때와 같게 낸다.
+      include-active-long-task-timer: true
     distribution:
       percentiles-histogram:
         http.server.requests: true

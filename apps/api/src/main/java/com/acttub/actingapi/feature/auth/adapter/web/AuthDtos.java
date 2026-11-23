@@ -48,7 +48,7 @@ final class AuthDtos {
     @Schema(name = "SignupRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record SignupRequest(
             @NotNull @CredentialField @JsonProperty("signup_token") String signupToken,
-            @NotNull @Valid List<@NotNull @Valid SignupDecisionInput> decisions,
+            @NotNull List<@NotNull @Valid SignupDecisionInput> decisions,
             @Schema(description = "\"만 14세 이상이에요\" 확인. true면 확인 시각을 남긴다. 다음 단계에서 필수가 된다.")
             @JsonProperty("age_confirmed") Boolean ageConfirmed) {
     }
