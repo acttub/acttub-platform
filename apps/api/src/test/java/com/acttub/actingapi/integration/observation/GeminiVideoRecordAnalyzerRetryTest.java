@@ -17,8 +17,8 @@ import com.acttub.actingapi.integration.media.VideoRecordChunks;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -139,12 +139,12 @@ class GeminiVideoRecordAnalyzerRetryTest {
                 new ActorMaterial("", "", "", "그 외", "", 8000), PRACTICE, null, speech);
 
         assertThat(LenientJson.asText(record.path("speech").path("reference_transcript"))).isEqualTo("가지 말라고");
-        assertThat(record.path("speech").path("word_timings").path("items").findValuesAsText("text"))
+        assertThat(record.path("speech").path("word_timings").path("items").findValuesAsString("text"))
                 .containsExactly("가지", "말라고");
         assertThat(record.path("speech").path("word_gaps").path("items").toString())
                 .isEqualTo("[{\"start_ms\":4500,\"end_ms\":5000,\"before_word_id\":\"word:0\","
                         + "\"after_word_id\":\"word:1\",\"kind\":\"word_gap\"}]");
-        assertThat(record.path("limitations").findValuesAsText("id")).contains("transcription:disagreement");
+        assertThat(record.path("limitations").findValuesAsString("id")).contains("transcription:disagreement");
         assertThat(LenientJson.asText(record.path("speech").path("status"))).isEqualTo("partial");
     }
 
@@ -184,7 +184,7 @@ class GeminiVideoRecordAnalyzerRetryTest {
                 new ActorMaterial("부엌", "엄마", "붙잡기", "표현", "", 8000), PRACTICE, null, null);
 
         assertThat(LenientJson.asBoolean(record.path("media").path("audio_track_present"))).isFalse();
-        assertThat(record.path("limitations").findValuesAsText("id")).contains("audio:absent");
+        assertThat(record.path("limitations").findValuesAsString("id")).contains("audio:absent");
         assertThat(LenientJson.asText(record.path("actor_context").path("situation"))).isEqualTo("부엌");
         assertThat(LenientJson.asText(record.path("actor_context").path("character_context"))).isEqualTo("엄마");
         assertThat(LenientJson.asText(record.path("actor_context").path("goal"))).isEqualTo("붙잡기");

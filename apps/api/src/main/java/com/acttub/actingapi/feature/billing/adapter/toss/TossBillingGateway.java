@@ -13,13 +13,14 @@ import java.util.function.Supplier;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.PgReviewSettings;
 import com.acttub.actingapi.platform.http.RestClients;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 토스페이먼츠 자동결제(빌링) API 의 실물. 기본은 개별 연동 <b>테스트</b> 시크릿 키({@code test_sk_})만 쓰고, 호출 직전에도
@@ -36,7 +37,7 @@ public class TossBillingGateway implements PgReviewGateway {
     static final Duration APPROVE_TIMEOUT = Duration.ofSeconds(65);
     static final Duration ISSUE_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     private static final Pattern CODE = Pattern.compile("[A-Z0-9_]{1,64}");
     /** 토스가 "처리 결과를 모른다/처리 중"이라고 말하는 코드 — 실패로 단정하지 않는다. */
     private static final Set<String> UNKNOWN_CODES = Set.of(
@@ -107,10 +108,10 @@ public class TossBillingGateway implements PgReviewGateway {
             throw new GatewayException(GatewayException.Outcome.REJECTED, "billing_key_missing");
         }
         JsonNode json = reply.json();
-        String company = json.path("cardCompany").isTextual() ? LenientJson.asText(json.path("cardCompany")) : null;
-        String number = json.path("cardNumber").isTextual()
+        String company = json.path("cardCompany").isString() ? LenientJson.asText(json.path("cardCompany")) : null;
+        String number = json.path("cardNumber").isString()
                 ? LenientJson.asText(json.path("cardNumber"))
-                : (json.path("card").path("number").isTextual() ? LenientJson.asText(json.path("card").path("number")) : null);
+                : (json.path("card").path("number").isString() ? LenientJson.asText(json.path("card").path("number")) : null);
         return new IssuedKey(billingKey, shortText(company), shortText(number));
     }
 
@@ -149,7 +150,7 @@ public class TossBillingGateway implements PgReviewGateway {
                 LenientJson.asText(json.path("status"), ""),
                 LenientJson.asText(json.path("orderId"), ""),
                 total.isNumber() ? LenientJson.asLong(total) : -1L,
-                json.path("approvedAt").isTextual() ? LenientJson.asText(json.path("approvedAt")) : null);
+                json.path("approvedAt").isString() ? LenientJson.asText(json.path("approvedAt")) : null);
     }
 
     private String authorization() {
@@ -175,7 +176,7 @@ public class TossBillingGateway implements PgReviewGateway {
             return request.body(JSON.writeValueAsString(body)).exchange((sent, response) -> new Reply(
                     response.getStatusCode().value(),
                     new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8)));
-        } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException failure) {
+        } catch (RestClientException | tools.jackson.core.JacksonException failure) {
             // 원인을 붙이지 않는다: 메시지에 빌링키가 든 URL 이 실린다.
             throw new GatewayException(GatewayException.Outcome.UNKNOWN, "gateway_unreachable");
         }

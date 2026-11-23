@@ -20,7 +20,7 @@ import com.acttub.actingapi.support.Jackson2Converters;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.SentryFailureReporter;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.sentry.IScopes;
 import io.sentry.ScopeCallback;
 import org.junit.jupiter.api.Test;

@@ -13,14 +13,15 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 회차의 분석 저장소 — 큐는 {@code ai_jobs}, 결과는 {@code analyses}·{@code video_transcripts} 다.
@@ -37,7 +38,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @Repository
 class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;

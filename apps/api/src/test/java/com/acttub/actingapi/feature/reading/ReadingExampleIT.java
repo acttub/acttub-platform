@@ -24,8 +24,8 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -141,12 +141,12 @@ class ReadingExampleIT {
     @DisplayName("SOMA-1033 영어 기기(Accept-Language: en)는 영어 예시 3편만 받고, 고르면 그 글이 내 대본이 된다")
     void englishDevicesListEnglishExamples() throws Exception {
         JsonNode examples = json(get("/v2/reading/examples").header("Accept-Language", "en-US"), 200, bearer).path("examples");
-        assertThat(examples).extracting(e -> e.path("id").textValue()).containsExactly("rooftop-en", "cafe-en", "mia-en");
-        assertThat(examples).extracting(e -> e.path("title").textValue())
+        assertThat(examples).extracting(e -> e.path("id").stringValue(null)).containsExactly("rooftop-en", "cafe-en", "mia-en");
+        assertThat(examples).extracting(e -> e.path("title").stringValue(null))
                 .containsExactly("Rooftop, night", "Café, the breakup talk", "Mia's monologue");
         assertThat(examples).extracting(e -> LenientJson.intValue(e.path("dialogue_count"))).containsExactly(15, 15, 7);
         JsonNode started = json(post("/v2/reading/examples/{id}/start", "mia-en").content(start(UUID.randomUUID())), 201, bearer);
-        assertThat(started.path("script_id").textValue()).isNotBlank();
+        assertThat(started.path("script_id").stringValue(null)).isNotBlank();
     }
 
     @Test
@@ -154,54 +154,54 @@ class ReadingExampleIT {
     void listsActiveExamplesInOrder() throws Exception {
         JsonNode body = json(get("/v2/reading/examples"), 200, bearer);
         JsonNode examples = body.path("examples");
-        assertThat(examples).extracting(e -> e.path("id").textValue()).containsExactly("rooftop", "cafe", "minji");
-        assertThat(examples).extracting(e -> e.path("title").textValue())
+        assertThat(examples).extracting(e -> e.path("id").stringValue(null)).containsExactly("rooftop", "cafe", "minji");
+        assertThat(examples).extracting(e -> e.path("title").stringValue(null))
                 .containsExactly("옥상, 밤", "카페, 헤어지자는 말", "민지의 독백");
-        assertThat(examples).extracting(e -> e.path("summary").textValue())
+        assertThat(examples).extracting(e -> e.path("summary").stringValue(null))
                 .containsExactly("윤서 · 태오 · 2인 대화", "서연 · 준호 · 2인 대화", "혼자 읽는 독백");
         assertThat(examples).extracting(e -> LenientJson.intValue(e.path("dialogue_count"))).containsExactly(15, 15, 7);
-        assertThat(examples.get(1).path("characters")).extracting(JsonNode::textValue).containsExactly("서연", "준호");
-        assertThat(examples.get(2).path("characters")).extracting(JsonNode::textValue).containsExactly("민지");
+        assertThat(examples.get(1).path("characters")).extracting(textNode -> textNode.stringValue(null)).containsExactly("서연", "준호");
+        assertThat(examples.get(2).path("characters")).extracting(textNode -> textNode.stringValue(null)).containsExactly("민지");
 
         JsonNode preview = examples.get(0).path("preview");
         assertThat(preview).hasSize(5);
         assertThat(preview.get(0).path("speaker").isNull()).isTrue();
-        assertThat(preview.get(0).path("text").textValue()).isEqualTo("(옥상 난간. 도시 불빛. 바람 소리.)");
-        assertThat(preview.get(1).path("speaker").textValue()).isEqualTo("윤서");
-        assertThat(preview.get(1).path("text").textValue()).isEqualTo("여기 있을 줄 알았어.");
-        assertThat(preview.get(2).path("speaker").textValue()).isEqualTo("태오");
-        assertThat(examples.get(0).fieldNames()).toIterable()
+        assertThat(preview.get(0).path("text").stringValue(null)).isEqualTo("(옥상 난간. 도시 불빛. 바람 소리.)");
+        assertThat(preview.get(1).path("speaker").stringValue(null)).isEqualTo("윤서");
+        assertThat(preview.get(1).path("text").stringValue(null)).isEqualTo("여기 있을 줄 알았어.");
+        assertThat(preview.get(2).path("speaker").stringValue(null)).isEqualTo("태오");
+        assertThat(examples.get(0).propertyNames().iterator()).toIterable()
                 .containsExactlyInAnyOrder("id", "title", "summary", "dialogue_count", "characters", "preview");
 
         jdbc.update("UPDATE reading_examples SET active=false WHERE id='cafe'");
         assertThat(json(get("/v2/reading/examples"), 200, bearer).path("examples"))
-                .extracting(e -> e.path("id").textValue()).containsExactly("rooftop", "minji");
+                .extracting(e -> e.path("id").stringValue(null)).containsExactly("rooftop", "minji");
     }
 
     @Test
     @DisplayName("예시 시작: 201 새 대본(source sample·예시 제목·미리 나눈 줄), 다시 고르면 200 같은 대본, 지운 뒤면 201 새 대본 — 모델·작업 행 0")
     void startsCopiesOnceAndAgainAfterDelete() throws Exception {
         JsonNode first = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, bearer);
-        assertThat(first.path("created").booleanValue()).isTrue();
-        String scriptId = first.path("script_id").textValue();
-        assertThat(first.fieldNames()).toIterable().containsExactlyInAnyOrder("script_id", "created");
+        assertThat(first.path("created").booleanValue(false)).isTrue();
+        String scriptId = first.path("script_id").stringValue(null);
+        assertThat(first.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("script_id", "created");
 
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200, bearer);
-        assertThat(script.path("title").textValue()).isEqualTo("카페, 헤어지자는 말");
-        assertThat(script.path("source").textValue()).isEqualTo("sample");
-        assertThat(script.path("characters")).extracting(c -> c.path("name").textValue()).containsExactly("서연", "준호");
+        assertThat(script.path("title").stringValue(null)).isEqualTo("카페, 헤어지자는 말");
+        assertThat(script.path("source").stringValue(null)).isEqualTo("sample");
+        assertThat(script.path("characters")).extracting(c -> c.path("name").stringValue(null)).containsExactly("서연", "준호");
         assertThat(script.path("lines")).hasSize(17);
-        assertThat(script.path("lines").get(1).path("text").textValue()).isEqualTo("일찍 왔네.");
+        assertThat(script.path("lines").get(1).path("text").stringValue(null)).isEqualTo("일찍 왔네.");
 
         JsonNode again = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 200, bearer);
-        assertThat(again.path("created").booleanValue()).isFalse();
-        assertThat(again.path("script_id").textValue()).isEqualTo(scriptId);
+        assertThat(again.path("created").booleanValue(false)).isFalse();
+        assertThat(again.path("script_id").stringValue(null)).isEqualTo(scriptId);
         assertThat(count("scripts")).isEqualTo(1);
 
         json(delete("/v2/reading/scripts/{id}", scriptId), 204, bearer);
         JsonNode copied = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, bearer);
-        assertThat(copied.path("created").booleanValue()).isTrue();
-        assertThat(copied.path("script_id").textValue()).isNotEqualTo(scriptId);
+        assertThat(copied.path("created").booleanValue(false)).isTrue();
+        assertThat(copied.path("script_id").stringValue(null)).isNotEqualTo(scriptId);
         assertThat(count("scripts")).isEqualTo(1);
 
         assertThat(Model.CALLS).isEmpty();
@@ -215,12 +215,12 @@ class ReadingExampleIT {
         JsonNode rooftop = json(post("/v2/reading/examples/{id}/start", "rooftop").content(start(UUID.randomUUID())), 201, bearer);
         assertThat(jdbc.queryForObject("SELECT raw_hash FROM scripts", String.class))
                 .as("옛 길의 예시 판별과 같은 글").isEqualTo(SampleScript.HASH);
-        JsonNode script = json(get("/v2/reading/scripts/{id}", rooftop.path("script_id").textValue()), 200, bearer);
+        JsonNode script = json(get("/v2/reading/scripts/{id}", rooftop.path("script_id").stringValue(null)), 200, bearer);
         assertThat(script.path("lines")).hasSize(17);
 
         JsonNode minji = json(post("/v2/reading/examples/{id}/start", "minji").content(start(UUID.randomUUID())), 201, bearer);
-        JsonNode monologue = json(get("/v2/reading/scripts/{id}", minji.path("script_id").textValue()), 200, bearer);
-        assertThat(monologue.path("characters")).extracting(c -> c.path("name").textValue()).containsExactly("민지");
+        JsonNode monologue = json(get("/v2/reading/scripts/{id}", minji.path("script_id").stringValue(null)), 200, bearer);
+        assertThat(monologue.path("characters")).extracting(c -> c.path("name").stringValue(null)).containsExactly("민지");
         assertThat(monologue.path("lines")).hasSize(8);
     }
 
@@ -229,10 +229,10 @@ class ReadingExampleIT {
     void replaysTheSameRequestId() throws Exception {
         UUID requestId = UUID.randomUUID();
         String first = json(post("/v2/reading/examples/{id}/start", "minji").content(start(requestId)), 201, bearer)
-                .path("script_id").textValue();
+                .path("script_id").stringValue(null);
         JsonNode replay = json(post("/v2/reading/examples/{id}/start", "minji").content(start(requestId)), 200, bearer);
-        assertThat(replay.path("script_id").textValue()).isEqualTo(first);
-        assertThat(replay.path("created").booleanValue()).isFalse();
+        assertThat(replay.path("script_id").stringValue(null)).isEqualTo(first);
+        assertThat(replay.path("created").booleanValue(false)).isFalse();
         assertThat(count("scripts")).isEqualTo(1);
     }
 
@@ -241,7 +241,7 @@ class ReadingExampleIT {
     void guestsCanStart() throws Exception {
         String guest = consentedGuest();
         JsonNode started = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, guest);
-        assertThat(started.path("created").booleanValue()).isTrue();
+        assertThat(started.path("created").booleanValue(false)).isTrue();
         assertThat(json(get("/v2/reading/examples"), 200, guest).path("examples")).hasSize(3);
         assertThat(Model.CALLS).isEmpty();
     }
@@ -250,12 +250,12 @@ class ReadingExampleIT {
     @DisplayName("예시 시작: 대본 수 한도는 그대로 — 회원 100개면 422 script_limit, 이미 복사한 예시는 한도여도 200")
     void scriptLimitStillApplies() throws Exception {
         String cafe = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, bearer)
-                .path("script_id").textValue();
+                .path("script_id").stringValue(null);
         seedScripts(member, 99);
         assertThat(json(post("/v2/reading/examples/{id}/start", "minji").content(start(UUID.randomUUID())), 422, bearer))
                 .isEqualTo(mapper.readTree("{\"detail\":\"script_limit\"}"));
         assertThat(json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 200, bearer)
-                .path("script_id").textValue()).isEqualTo(cafe);
+                .path("script_id").stringValue(null)).isEqualTo(cafe);
         assertThat(count("scripts")).isEqualTo(100);
     }
 
@@ -272,7 +272,7 @@ class ReadingExampleIT {
 
         jdbc.update("UPDATE users SET status='deactivated' WHERE id=?", member);
         assertThat(json(post("/v2/reading/examples/{id}/start", "minji").content(start(UUID.randomUUID())), 403, bearer)
-                .path("detail").textValue()).isEqualTo("account_deactivated");
+                .path("detail").stringValue(null)).isEqualTo("account_deactivated");
         assertThat(count("scripts")).isZero();
     }
 
@@ -280,55 +280,55 @@ class ReadingExampleIT {
     @DisplayName("예시 음성: 복사한 rooftop 은 대사 15줄 모두 그 줄 id·1시간 주소(reading-examples/v1/rooftop/<자리>.m4a)·길이, voices 는 서버 자동 목소리와 같다")
     void exampleAudioForEveryDialogueLine() throws Exception {
         String scriptId = json(post("/v2/reading/examples/{id}/start", "rooftop").content(start(UUID.randomUUID())), 201, bearer)
-                .path("script_id").textValue();
+                .path("script_id").stringValue(null);
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200, bearer);
         JsonNode audio = json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 200, bearer);
 
-        assertThat(audio.fieldNames()).toIterable().containsExactlyInAnyOrder("example_id", "voices", "lines");
-        assertThat(audio.path("example_id").textValue()).isEqualTo("rooftop");
+        assertThat(audio.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("example_id", "voices", "lines");
+        assertThat(audio.path("example_id").stringValue(null)).isEqualTo("rooftop");
         assertThat(audio.path("voices")).isEqualTo(mapper.readTree("{\"윤서\":\"F1\",\"태오\":\"M1\"}"));
         for (JsonNode character : script.path("characters")) {
-            assertThat(character.path("voice").textValue()).as("갓 복사한 대본의 자동 목소리와 음성의 목소리가 같다")
-                    .isEqualTo(audio.path("voices").path(character.path("name").textValue()).textValue());
+            assertThat(character.path("voice").stringValue(null)).as("갓 복사한 대본의 자동 목소리와 음성의 목소리가 같다")
+                    .isEqualTo(audio.path("voices").path(character.path("name").stringValue(null)).stringValue(null));
         }
         List<JsonNode> dialogue = new java.util.ArrayList<>();
         script.path("lines").forEach(line -> {
-            if ("dialogue".equals(line.path("kind").textValue())) dialogue.add(line);
+            if ("dialogue".equals(line.path("kind").stringValue(null))) dialogue.add(line);
         });
         JsonNode lines = audio.path("lines");
         assertThat(lines).hasSize(15).hasSize(dialogue.size());
         for (int i = 0; i < lines.size(); i++) {
             JsonNode line = lines.get(i);
-            assertThat(line.fieldNames()).toIterable().containsExactlyInAnyOrder("line_id", "url", "duration_ms");
-            assertThat(line.path("line_id").textValue()).isEqualTo(dialogue.get(i).path("id").textValue());
-            assertThat(line.path("url").textValue()).isEqualTo("https://storage.test/get/reading-examples/v1/rooftop/"
+            assertThat(line.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("line_id", "url", "duration_ms");
+            assertThat(line.path("line_id").stringValue(null)).isEqualTo(dialogue.get(i).path("id").stringValue(null));
+            assertThat(line.path("url").stringValue(null)).isEqualTo("https://storage.test/get/reading-examples/v1/rooftop/"
                     + LenientJson.intValue(dialogue.get(i).path("ordinal")) + ".m4a?ttl=3600");
             assertThat(LenientJson.intValue(line.path("duration_ms"))).isPositive();
         }
-        assertThat(lines.get(0).path("url").textValue()).contains("/rooftop/2.m4a");
+        assertThat(lines.get(0).path("url").stringValue(null)).contains("/rooftop/2.m4a");
     }
 
     @Test
     @DisplayName("예시 음성: 고친 줄은 빠지고 나머지는 그대로 — cafe 의 둘째 줄 글을 고치면 14줄")
     void editedLineIsOmitted() throws Exception {
         String scriptId = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, bearer)
-                .path("script_id").textValue();
+                .path("script_id").stringValue(null);
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200, bearer);
-        String edited = script.path("lines").get(1).path("id").textValue();
+        String edited = script.path("lines").get(1).path("id").stringValue(null);
         json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, edited).content("{\"text\":\"일찍 왔구나.\"}"), 200, bearer);
 
         JsonNode lines = json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 200, bearer).path("lines");
         assertThat(lines).hasSize(14);
-        assertThat(lines).extracting(line -> line.path("line_id").textValue()).doesNotContain(edited)
-                .contains(script.path("lines").get(2).path("id").textValue());
-        assertThat(lines.get(0).path("url").textValue()).contains("/cafe/3.m4a");
+        assertThat(lines).extracting(line -> line.path("line_id").stringValue(null)).doesNotContain(edited)
+                .contains(script.path("lines").get(2).path("id").stringValue(null));
+        assertThat(lines.get(0).path("url").stringValue(null)).contains("/cafe/3.m4a");
     }
 
     @Test
     @DisplayName("예시 음성: 독백 minji 는 200 빈 voices·lines(음성도 모델도 필요 없음)")
     void monologueNeedsNoAudio() throws Exception {
         String scriptId = json(post("/v2/reading/examples/{id}/start", "minji").content(start(UUID.randomUUID())), 201, bearer)
-                .path("script_id").textValue();
+                .path("script_id").stringValue(null);
         assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 200, bearer))
                 .isEqualTo(mapper.readTree("{\"example_id\":\"minji\",\"voices\":{},\"lines\":[]}"));
     }
@@ -337,7 +337,7 @@ class ReadingExampleIT {
     @DisplayName("예시 음성: 남의 대본·없는 대본 404 script_not_found, 예시가 아닌 대본·음성 없는 예시·꺼진 예시 404 reading_example_audio_not_found")
     void exampleAudioRejects() throws Exception {
         String scriptId = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, bearer)
-                .path("script_id").textValue();
+                .path("script_id").stringValue(null);
         String other = "Bearer " + jwt.issueAccessToken(member()).value();
         JsonNode notFound = mapper.readTree("{\"detail\":\"script_not_found\"}");
         assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 404, other)).isEqualTo(notFound);
@@ -395,7 +395,7 @@ class ReadingExampleIT {
             return request;
         })).andReturn().getResponse();
         assertThat(created.getStatus()).isEqualTo(201);
-        String guest = "Bearer " + mapper.readTree(created.getContentAsString()).path("access_token").textValue();
+        String guest = "Bearer " + mapper.readTree(created.getContentAsString()).path("access_token").stringValue(null);
         boolean first = true;
         for (String type : List.of("terms", "privacy")) {
             Map<String, Object> consent = new LinkedHashMap<>();

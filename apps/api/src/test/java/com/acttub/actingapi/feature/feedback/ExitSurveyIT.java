@@ -17,8 +17,8 @@ import com.acttub.actingapi.feature.feedback.app.ExitSurveySync;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -88,7 +88,7 @@ class ExitSurveyIT {
     @DisplayName("practice.feedback: 대화에서 x 로 나가며 보내기 — practice_feedback 1행(screen coach, trigger x, "
             + "body, user_id, practice_id)이고 시트에 같은 id 한 줄이다. report 화면의 leave·back 도 그 값으로 남는다")
     void practiceFeedback_storesTheSurveyAndCopiesItToTheSheet() throws Exception {
-        UUID id = UUID.fromString(json(submit(body("coach", "x", "오늘은 좀 나아졌어요")), 201).path("id").textValue());
+        UUID id = UUID.fromString(json(submit(body("coach", "x", "오늘은 좀 나아졌어요")), 201).path("id").stringValue(null));
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM practice_feedback WHERE id=?", id);
         assertThat(row.get("screen")).isEqualTo("coach");
@@ -111,17 +111,17 @@ class ExitSurveyIT {
     @DisplayName("practice.feedback: 그냥 나가기는 body 없는 행으로 남고, 한 계정에 한 번만 묻는다 — 두 기기가 "
             + "동시에 자동 노출 조건이어도 선점한 하나만 시트를 띄운다")
     void practiceFeedback_asksOncePerAccount() throws Exception {
-        assertThat(json(get("/v2/me/practice-feedback/status"), 200).path("asked").booleanValue()).isFalse();
+        assertThat(json(get("/v2/me/practice-feedback/status"), 200).path("asked").booleanValue(false)).isFalse();
 
         JsonNode first = json(post("/v2/me/practice-feedback/claim"), 200);
         JsonNode second = json(post("/v2/me/practice-feedback/claim"), 200);
-        assertThat(first.path("asked_now").booleanValue()).isTrue();
-        assertThat(second.path("asked_now").booleanValue()).isFalse();
-        assertThat(json(get("/v2/me/practice-feedback/status"), 200).path("asked").booleanValue()).isTrue();
+        assertThat(first.path("asked_now").booleanValue(false)).isTrue();
+        assertThat(second.path("asked_now").booleanValue(false)).isFalse();
+        assertThat(json(get("/v2/me/practice-feedback/status"), 200).path("asked").booleanValue(false)).isTrue();
         assertThat(jdbc.queryForObject("SELECT exit_survey_asked_at FROM users WHERE id=?", Object.class, member))
                 .isNotNull();
 
-        UUID dismissed = UUID.fromString(json(submit(body("coach", "back", null)), 201).path("id").textValue());
+        UUID dismissed = UUID.fromString(json(submit(body("coach", "back", null)), 201).path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT body FROM practice_feedback WHERE id=?", String.class, dismissed))
                 .isNull();
     }
@@ -164,8 +164,8 @@ class ExitSurveyIT {
         UUID requestId = UUID.randomUUID();
         String payload = body(requestId, "coach", "x", "오프라인에서 썼어요", null);
 
-        UUID first = UUID.fromString(json(submit(payload), 201).path("id").textValue());
-        UUID again = UUID.fromString(json(submit(payload), 200).path("id").textValue());
+        UUID first = UUID.fromString(json(submit(payload), 201).path("id").stringValue(null));
+        UUID again = UUID.fromString(json(submit(payload), 200).path("id").stringValue(null));
 
         assertThat(again).isEqualTo(first);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_feedback", Integer.class)).isEqualTo(1);
@@ -177,7 +177,7 @@ class ExitSurveyIT {
             + "다음 날 도는 일이 다시 보낸다")
     void practiceFeedback_failedSheetSyncIsRetriedTheNextDay() throws Exception {
         sheet.fail(true);
-        UUID id = UUID.fromString(json(submit(body("coach", "x", "시트가 죽었어요")), 201).path("id").textValue());
+        UUID id = UUID.fromString(json(submit(body("coach", "x", "시트가 죽었어요")), 201).path("id").stringValue(null));
 
         assertThat(jdbc.queryForObject(
                 "SELECT sheet_synced_at FROM practice_feedback WHERE id=?", Object.class, id)).isNull();
@@ -196,7 +196,7 @@ class ExitSurveyIT {
     @DisplayName("practice.feedback: 접수 91일 뒤에는 DB 연락처가 NULL 이고 시트의 같은 id 줄에도 연락처가 없다. "
             + "오래된 순번의 전송이 늦게 도착해도 시트의 연락처가 되살아나지 않는다")
     void practiceFeedback_contactsArePurgedAfterNinetyDays() throws Exception {
-        UUID id = UUID.fromString(json(submit(contactBody("actor@acttub.kr")), 201).path("id").textValue());
+        UUID id = UUID.fromString(json(submit(contactBody("actor@acttub.kr")), 201).path("id").stringValue(null));
         SheetRow stale = sheet.rows().get(id);
         assertThat(stale.contactEmail()).isEqualTo("actor@acttub.kr");
 
@@ -217,7 +217,7 @@ class ExitSurveyIT {
     @Test
     @DisplayName("practice.feedback: 탈퇴하면 연락처가 DB 와 시트에서 사라지고 본문은 탈퇴한 계정에 매달려 남는다")
     void practiceFeedback_withdrawalPurgesContactsButKeepsTheBody() throws Exception {
-        UUID id = UUID.fromString(json(submit(contactBody("actor@acttub.kr")), 201).path("id").textValue());
+        UUID id = UUID.fromString(json(submit(contactBody("actor@acttub.kr")), 201).path("id").stringValue(null));
 
         accounts.withdraw(member);
         sync.runDaily();

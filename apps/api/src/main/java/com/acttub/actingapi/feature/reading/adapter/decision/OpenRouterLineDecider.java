@@ -17,9 +17,9 @@ import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
@@ -186,7 +186,7 @@ public class OpenRouterLineDecider implements LineDecider {
     public static LineReview.Decision parse(JsonNode response) {
         JsonNode answers = response.path("answers");
         Map<String, LineReview.Answer> extras = new LinkedHashMap<>();
-        answers.fieldNames().forEachRemaining(key -> {
+        answers.propertyNames().iterator().forEachRemaining(key -> {
             LineReview.Answer answer = answer(answers.path(key));
             if (!key.equals(LineReview.KIND_QUESTION) && !key.equals(LineReview.SPEAKER_QUESTION) && answer != null) {
                 extras.put(key, answer);

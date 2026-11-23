@@ -17,11 +17,12 @@ import java.util.Optional;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.RevenueCatGateway;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreException;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreSubscription;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * RevenueCat REST API v1 의 {@code GET /v1/subscribers/{app_user_id}}(비밀 키 Bearer)로 고객 정보를 읽어, 우리 entitlement 를 준 구독
@@ -34,7 +35,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 public class RevenueCatGatewayImpl implements RevenueCatGateway {
     private static final Logger LOG = LoggerFactory.getLogger(RevenueCatGatewayImpl.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     static final String DEFAULT_API = "https://api.revenuecat.com";
 
     private final String secretKey;

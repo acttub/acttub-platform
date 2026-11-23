@@ -10,8 +10,8 @@ import java.util.List;
 
 import com.acttub.actingapi.ActingApiApplication;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -75,7 +75,7 @@ class HealthAndBootIT {
     void healthMatchesLegacyShape() throws Exception {
         JsonNode body = MAPPER.readTree(get("/health"));
 
-        assertThat(body.fieldNames()).toIterable()
+        assertThat(body.propertyNames().iterator()).toIterable()
                 .containsExactly("status", "services", "model", "keep_alive", "commit");
         assertThat(LenientJson.asText(body.get("status"))).isEqualTo("ok");
         assertThat(body.get("services")).hasSize(3);
@@ -94,9 +94,9 @@ class HealthAndBootIT {
         JsonNode doc = MAPPER.readTree(get("/v3/api-docs"));
 
         assertThat(LenientJson.asText(doc.get("openapi"))).startsWith("3.1");
-        assertThat(doc.at("/info/title").textValue()).isEqualTo("acting-api");
-        assertThat(doc.at("/info/version").textValue()).isEqualTo("0.1.0");
-        assertThat(doc.at("/info/description").textValue()).isEqualTo(
+        assertThat(doc.at("/info/title").stringValue(null)).isEqualTo("acting-api");
+        assertThat(doc.at("/info/version").stringValue(null)).isEqualTo("0.1.0");
+        assertThat(doc.at("/info/description").stringValue(null)).isEqualTo(
                 "연기 분석 플랫폼 API v2. Bearer access token을 사용합니다.");
         assertThat(doc.has("servers")).isFalse();
 

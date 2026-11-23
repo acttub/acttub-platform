@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.domain.Observation;
 import com.acttub.actingapi.feature.practice.domain.VideoRecordSummary;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 옛·새 저장소가 같은 공개 관찰 요약을 만드는 변환. 내부 출처와 코칭 상태는 옮기지 않는다. */
@@ -19,8 +19,8 @@ final class PracticeAnalysisMapper {
                 LenientJson.asText(record.path("processing").path("status")),
                 ranges(record.path("processing").path("processed_ranges")),
                 ranges(record.path("processing").path("missing_ranges")),
-                record.path("overview").path("observed_scene").findValuesAsText("text"),
-                record.path("overview").path("spoken_content").findValuesAsText("text"),
+                record.path("overview").path("observed_scene").findValuesAsString("text"),
+                record.path("overview").path("spoken_content").findValuesAsString("text"),
                 java.util.stream.StreamSupport.stream(record.path("limitations").spliterator(), false)
                         .map(item -> new VideoRecordSummary.Limit(LenientJson.asLong(item.path("start_ms")),
                                 LenientJson.asLong(item.path("end_ms")), LenientJson.asText(item.path("description")))).toList());
@@ -42,7 +42,7 @@ final class PracticeAnalysisMapper {
         node.forEach(item -> items.add(new Observation(
                 LenientJson.bigIntegerValue(item.path("start_ms")),
                 LenientJson.bigIntegerValue(item.path("end_ms")),
-                item.has("what") ? item.path("what").textValue() : item.path("label").textValue(),
+                item.has("what") ? item.path("what").stringValue(null) : item.path("label").stringValue(null),
                 LenientJson.decimalValue(item.path("confidence")))));
         return List.copyOf(items);
     }
@@ -52,7 +52,7 @@ final class PracticeAnalysisMapper {
             return List.of();
         }
         List<String> values = new ArrayList<>();
-        node.forEach(item -> values.add(item.textValue()));
+        node.forEach(item -> values.add(item.stringValue(null)));
         return List.copyOf(values);
     }
 

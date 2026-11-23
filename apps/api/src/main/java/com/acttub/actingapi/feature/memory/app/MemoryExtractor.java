@@ -18,13 +18,14 @@ import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.web.PythonText;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 연습 하나에서 배우 기억(유저.md)의 칸을 뽑아낸다 — 목표·막히는 지점·코치에게 바라는 것·자주 짚인 버릇·말투
@@ -40,7 +41,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
 @Component
 public final class MemoryExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(MemoryExtractor.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMapper.builderWithJackson2Defaults().build();
 
     /** 목표 칸에서만 통과시키는 결과 어휘 (`acting-llm/forbidden.py:ACTOR_GOAL_ALLOWED`). */
     private static final List<String> ACTOR_GOAL_ALLOWED = List.of("합격");
@@ -237,7 +238,7 @@ public final class MemoryExtractor {
                 return MAPPER.createObjectNode();
             }
             return candidate.isObject() ? candidate : MAPPER.createObjectNode();
-        } catch (JsonProcessingException notJson) {
+        } catch (JacksonException notJson) {
             reportParseFailure(notJson, operationId);
             return MAPPER.createObjectNode();
         }
@@ -267,7 +268,7 @@ public final class MemoryExtractor {
         Map<String, String> updates = new LinkedHashMap<>();
         Map<String, String> rejected = new LinkedHashMap<>();
 
-        candidate.fieldNames().forEachRemaining(name -> {
+        candidate.propertyNames().iterator().forEachRemaining(name -> {
             if ("gender".equals(name) || "age".equals(name)) {
                 rejected.put(name, "배우 전용 칸");
                 return;
@@ -276,7 +277,7 @@ public final class MemoryExtractor {
                 return;
             }
             JsonNode value = candidate.get(name);
-            if (!value.isTextual()) {
+            if (!value.isString()) {
                 rejected.put(name, "문자열이 아님");
                 return;
             }

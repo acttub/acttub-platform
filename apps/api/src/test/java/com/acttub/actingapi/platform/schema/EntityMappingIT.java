@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.JsonNodeFactory;
 import com.acttub.actingapi.feature.analysis.schema.AnomalyEntity;
 import com.acttub.actingapi.feature.analysis.schema.SummaryEntity;
 import com.acttub.actingapi.feature.analysis.schema.TranscriptEntity;
@@ -166,7 +166,7 @@ class EntityMappingIT {
                         .anyMatch(annotation -> Set.of("ManyToOne", "OneToMany", "OneToOne", "ManyToMany", "Enumerated")
                                 .contains(annotation.annotationType().getSimpleName()))));
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
-                .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
+                .filter(field -> field.getType().equals(tools.jackson.databind.JsonNode.class))
                 .count();
         // 리딩 회차의 line_results(V13)·line_said(V32)와 챌린지 AI 리포트의 result(V20)가 여기 든다.
         assertThat(jsonNodes).isEqualTo(7);

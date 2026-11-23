@@ -1,8 +1,9 @@
 package com.acttub.actingapi.platform.observability;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 텔레메트리로 나가는 모델 입력에서 배우의 이름을 가린다 (apps/api/CONTRACT.md §7-2).
@@ -19,7 +20,7 @@ public final class ActorNameRedaction {
     /** 이름이 있던 자리에 싣는다. */
     public static final String MASK = "[redacted]";
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private ActorNameRedaction() {
     }

@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
 
@@ -35,6 +35,6 @@ class ObservationPackTest {
         var restored = mapper.treeToValue(json, ObservationPack.class);
         assertThat(restored).usingRecursiveComparison().ignoringFields("speech.words").isEqualTo(pack);
         assertThat(restored.speech().words()).isEmpty();
-        assertThat(mapper.<com.fasterxml.jackson.databind.JsonNode>valueToTree(restored)).isEqualTo(json);
+        assertThat(mapper.<tools.jackson.databind.JsonNode>valueToTree(restored)).isEqualTo(json);
     }
 }

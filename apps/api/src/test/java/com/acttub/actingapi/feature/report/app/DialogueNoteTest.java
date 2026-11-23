@@ -7,15 +7,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 class DialogueNoteTest {
     @Test void aFollowupQuestionDoesNotEraseTheCurrentDirectionFromTheSummary() {
         ObjectNode source = handoff();
-        ((com.fasterxml.jackson.databind.node.ArrayNode) source.path("conversation")).addObject()
+        ((tools.jackson.databind.node.ArrayNode) source.path("conversation")).addObject()
                 .put("id", "question").put("role", "actor").put("text", "그래서 어떻게 하면 돼?");
         ObjectNode note = DialogueNote.assembleResult(source, text -> output().toString(), failure -> { }).note();
         assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).contains("애원하는 것처럼 보이긴 싫어");
@@ -28,7 +28,7 @@ class DialogueNoteTest {
         var conversation = source.putArray("conversation");
         conversation.addObject().put("id", "experience").put("role", "actor").put("text", "상대에게 말을 건네는 느낌이 편했어.");
         conversation.addObject().put("id", "close").put("role", "actor").put("text", "여기까지 정리해줘");
-        ((com.fasterxml.jackson.databind.node.ArrayNode) source.path("source_catalog")).addObject()
+        ((tools.jackson.databind.node.ArrayNode) source.path("source_catalog")).addObject()
                 .put("id", "experience").put("kind", "actor_message").put("text", "상대에게 말을 건네는 느낌이 편했어.")
                 .putNull("record_id").putNull("record_version").putNull("start_ms").putNull("end_ms");
         ObjectNode generated = output();

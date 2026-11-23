@@ -9,7 +9,7 @@ import java.util.Set;
 
 import com.acttub.actingapi.feature.admissions.app.Admissions.AdmissionsResponse;
 import com.acttub.actingapi.feature.admissions.app.AdmissionsCatalog;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;

@@ -13,8 +13,8 @@ import java.util.Deque;
 import java.util.List;
 
 import com.acttub.actingapi.platform.observability.LlmTokens;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpServer;

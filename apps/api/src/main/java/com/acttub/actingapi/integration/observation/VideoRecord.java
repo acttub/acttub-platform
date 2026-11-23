@@ -9,9 +9,9 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 원본 시각·출처·누락 범위를 보존하는 1층 정본. 모델의 해석을 관찰로 승격하지 않는다. */
@@ -228,7 +228,7 @@ public final class VideoRecord {
                     }
                 }
             }
-            String observed = normalized(record.path("speech").path("utterances").findValuesAsText("text").stream()
+            String observed = normalized(record.path("speech").path("utterances").findValuesAsString("text").stream()
                     .collect(java.util.stream.Collectors.joining("")));
             if (!normalized(analysis.transcript()).equals(observed)) {
                 addLimitation(record, "transcription:disagreement", 0, duration, "conflict",

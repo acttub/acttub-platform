@@ -28,11 +28,11 @@ import com.acttub.actingapi.feature.reading.app.ScriptCocreateRepository.Row;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
@@ -374,7 +374,7 @@ public class ScriptCocreateService {
         if (after.stream().anyMatch(Issue::fatal)) {
             throw rejected("validation: " + after);
         }
-        String note = node != null && node.path("note").isTextual() ? LenientJson.asText(node.path("note")).strip() : "";
+        String note = node != null && node.path("note").isString() ? LenientJson.asText(node.path("note")).strip() : "";
         return new Revised(revised, note.isEmpty() ? null : note);
     }
 
@@ -463,7 +463,7 @@ public class ScriptCocreateService {
             for (JsonNode item : node.path("fixes")) {
                 JsonNode index = item.path("index");
                 JsonNode text = item.path("text");
-                if (LenientJson.canConvertToInt(index) && wrong.containsKey(LenientJson.asInt(index)) && text.isTextual() && !LenientJson.asText(text).isBlank()) {
+                if (LenientJson.canConvertToInt(index) && wrong.containsKey(LenientJson.asInt(index)) && text.isString() && !LenientJson.asText(text).isBlank()) {
                     fixed = fixed.withText(LenientJson.asInt(index), LenientJson.asText(text).strip());
                 }
             }
@@ -610,7 +610,7 @@ public class ScriptCocreateService {
         try {
             JsonNode node = mapper.readTree(body);
             return node != null && node.isObject() ? node : null;
-        } catch (JsonProcessingException failure) {
+        } catch (JacksonException failure) {
             return null;
         }
     }
@@ -633,7 +633,7 @@ public class ScriptCocreateService {
         for (JsonNode line : node.path("lines")) {
             JsonNode character = line.path("character");
             lines.add(new CocreatedScript.Line(text(line, "kind"),
-                    character.isTextual() && !LenientJson.asText(character).isBlank() ? LenientJson.asText(character).strip() : null,
+                    character.isString() && !LenientJson.asText(character).isBlank() ? LenientJson.asText(character).strip() : null,
                     text(line, "text")));
         }
         JsonNode design = node.path("design");
@@ -647,7 +647,7 @@ public class ScriptCocreateService {
 
     private static String text(JsonNode node, String field) {
         JsonNode value = node.path(field);
-        return value.isTextual() ? LenientJson.asText(value).strip() : null;
+        return value.isString() ? LenientJson.asText(value).strip() : null;
     }
 
     private static String lower(JsonNode node, String field) {
@@ -663,7 +663,7 @@ public class ScriptCocreateService {
     private static List<String> list(JsonNode node) {
         List<String> out = new ArrayList<>();
         for (JsonNode item : node) {
-            if (item.isTextual()) {
+            if (item.isString()) {
                 out.add(LenientJson.asText(item));
             }
         }
@@ -716,7 +716,7 @@ public class ScriptCocreateService {
         for (JsonNode item : array) {
             JsonNode note = item.path("note");
             out.add(new Version(parse(item.path("script")), LenientJson.asInt(item.path("character_count")),
-                    LenientJson.asInt(item.path("minutes")), LenientJson.asInt(item.path("my_lines")), note.isTextual() ? LenientJson.asText(note) : null));
+                    LenientJson.asInt(item.path("minutes")), LenientJson.asInt(item.path("my_lines")), note.isString() ? LenientJson.asText(note) : null));
         }
         return out;
     }
@@ -756,7 +756,7 @@ public class ScriptCocreateService {
     private JsonNode readJson(String json) {
         try {
             return mapper.readTree(json);
-        } catch (JsonProcessingException failure) {
+        } catch (JacksonException failure) {
             throw new IllegalStateException("broken sample script record", failure);
         }
     }

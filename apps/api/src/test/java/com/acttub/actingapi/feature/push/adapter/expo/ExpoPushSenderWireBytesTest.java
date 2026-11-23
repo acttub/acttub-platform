@@ -14,7 +14,7 @@ import com.acttub.actingapi.feature.push.app.PushMessage;
 import com.acttub.actingapi.platform.config.JacksonConfig;
 import com.acttub.actingapi.support.FrozenValue;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

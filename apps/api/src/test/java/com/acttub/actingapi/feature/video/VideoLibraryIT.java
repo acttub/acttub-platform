@@ -38,8 +38,8 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -150,22 +150,22 @@ class VideoLibraryIT {
     void practiceRecord_completingAnIntentStoresExactlyOneVideo() throws Exception {
         JsonNode intent = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 1_000_000, 12_000)), 201);
 
-        assertThat(intent.fieldNames()).toIterable().containsExactlyInAnyOrder("intent_id", "upload_url", "expires_at");
-        assertThat(intent.path("upload_url").textValue()).startsWith("https://storage.test/put/videos/" + member + "/");
-        assertThat(Instant.parse(intent.path("expires_at").textValue())).isEqualTo(clock.instant().plus(VideoRules.INTENT_TTL));
+        assertThat(intent.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("intent_id", "upload_url", "expires_at");
+        assertThat(intent.path("upload_url").stringValue(null)).startsWith("https://storage.test/put/videos/" + member + "/");
+        assertThat(Instant.parse(intent.path("expires_at").stringValue(null))).isEqualTo(clock.instant().plus(VideoRules.INTENT_TTL));
         assertThat(count("videos")).as("마무리 전에는 보관함에 없다").isZero();
 
         deviceUploads(intent, 1_000_000);
         JsonNode created = json(post("/v2/videos/intents/{id}/complete", intentId(intent)), 201);
 
-        assertThat(created.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(created.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "id", "duration_ms", "byte_size", "content_type", "favorite", "purged_at", "created_at", "usage",
                 "playback_url", "playback_expires_at", "poster_url");
         assertThat(created.path("poster_url").isNull()).as("포스터는 마무리를 기다리지 않고 워커가 뒤에 만든다").isTrue();
         assertThat(LenientJson.intValue(created.path("duration_ms"))).isEqualTo(12_000);
         assertThat(LenientJson.longValue(created.path("byte_size"))).isEqualTo(1_000_000L);
-        assertThat(created.path("content_type").textValue()).isEqualTo("video/mp4");
-        assertThat(created.path("favorite").booleanValue()).isFalse();
+        assertThat(created.path("content_type").stringValue(null)).isEqualTo("video/mp4");
+        assertThat(created.path("favorite").booleanValue(false)).isFalse();
         assertThat(created.path("purged_at").isNull()).isTrue();
         assertThat(LenientJson.intValue(created.path("usage").path("practice_count"))).isZero();
         assertThat(LenientJson.intValue(created.path("usage").path("entry_count"))).isZero();
@@ -175,15 +175,15 @@ class VideoLibraryIT {
         assertThat(count("video_transcripts")).as("보관만 하면 받아쓰기를 만들지 않는다").isZero();
         assertThat(jdbc.queryForObject("SELECT status FROM upload_intents", String.class)).isEqualTo("finalized");
         assertThat(jdbc.queryForObject("SELECT video_id FROM upload_intents", UUID.class))
-                .isEqualTo(UUID.fromString(created.path("id").textValue()));
+                .isEqualTo(UUID.fromString(created.path("id").stringValue(null)));
         JsonNode list = json(get("/v2/videos"), 200);
         assertThat(list.path("videos")).hasSize(1);
-        assertThat(list.path("videos").get(0).path("id").textValue()).isEqualTo(created.path("id").textValue());
+        assertThat(list.path("videos").get(0).path("id").stringValue(null)).isEqualTo(created.path("id").stringValue(null));
         assertThat(list.path("videos").get(0).path("playback_url").isNull()).as("목록에는 재생 주소가 없다").isTrue();
         assertThat(list.path("next_cursor").isNull()).isTrue();
 
         JsonNode replayed = json(post("/v2/videos/intents/{id}/complete", intentId(intent)), 200);
-        assertThat(replayed.path("id").textValue()).isEqualTo(created.path("id").textValue());
+        assertThat(replayed.path("id").stringValue(null)).isEqualTo(created.path("id").stringValue(null));
         assertThat(count("videos")).isEqualTo(1);
     }
 
@@ -339,9 +339,9 @@ class VideoLibraryIT {
         JsonNode again = json(post("/v2/videos/intents").header("X-Request-Id", requestId.toString())
                 .content(intentBody(requestId, "video/mp4", 4_000, 9_000)), 201);
 
-        assertThat(again.path("intent_id").textValue()).isEqualTo(first.path("intent_id").textValue());
-        assertThat(again.path("upload_url").textValue()).as("같은 객체 키로 이어 올린다")
-                .isEqualTo(first.path("upload_url").textValue());
+        assertThat(again.path("intent_id").stringValue(null)).isEqualTo(first.path("intent_id").stringValue(null));
+        assertThat(again.path("upload_url").stringValue(null)).as("같은 객체 키로 이어 올린다")
+                .isEqualTo(first.path("upload_url").stringValue(null));
         assertThat(count("upload_intents")).isEqualTo(1);
 
         assertThat(json(post("/v2/videos/intents").content(intentBody(requestId, "video/mp4", 9_999, 9_000)), 422))
@@ -379,8 +379,8 @@ class VideoLibraryIT {
 
         assertThat(blocked.getStatus()).isEqualTo(403);
         JsonNode body = mapper.readTree(blocked.getContentAsString());
-        assertThat(body.path("detail").textValue()).isEqualTo("consent_required");
-        assertThat(body.path("pending_consents")).extracting(document -> document.path("type").textValue())
+        assertThat(body.path("detail").stringValue(null)).isEqualTo("consent_required");
+        assertThat(body.path("pending_consents")).extracting(document -> document.path("type").stringValue(null))
                 .as("보관만 하는 데에도 AI 분석 동의를 받는다").containsExactly("terms", "privacy", "ai_analysis");
         assertThat(count("upload_intents")).isZero();
 
@@ -392,7 +392,7 @@ class VideoLibraryIT {
                 guest.bearer(), 201);
         deviceUploads(intent, 1_000);
         String videoId = json(post("/v2/videos/intents/{id}/complete", intentId(intent)), guest.bearer(), 201)
-                .path("id").textValue();
+                .path("id").stringValue(null);
         assertThat(perform(get("/v2/videos"), guest.bearer()).getStatus()).isEqualTo(200);
         assertThat(perform(get("/v2/videos/{id}", videoId), guest.bearer()).getStatus()).isEqualTo(200);
         assertThat(perform(delete("/v2/videos/{id}", videoId), guest.bearer()).getStatus()).isEqualTo(204);
@@ -407,19 +407,19 @@ class VideoLibraryIT {
         UUID fresh = seedVideo(member, 1_000, clock.instant().minus(Duration.ofHours(1)));
         seedVideo(member(), 1_000, null);
 
-        assertThat(json(get("/v2/videos"), 200).path("videos")).extracting(video -> video.path("id").textValue())
+        assertThat(json(get("/v2/videos"), 200).path("videos")).extracting(video -> video.path("id").stringValue(null))
                 .as("최신 저장순, 남의 것은 없다").containsExactly(fresh.toString(), middle.toString(), old.toString());
         assertThat(json(get("/v2/videos?filter=recent7"), 200).path("videos"))
-                .extracting(video -> video.path("id").textValue()).containsExactly(fresh.toString(), middle.toString());
+                .extracting(video -> video.path("id").stringValue(null)).containsExactly(fresh.toString(), middle.toString());
         assertThat(json(get("/v2/videos?filter=favorite"), 200).path("videos")).isEmpty();
 
         JsonNode marked = json(patch("/v2/videos/{id}", old).content("{\"favorite\":true}"), 200);
 
-        assertThat(marked.path("favorite").booleanValue()).isTrue();
+        assertThat(marked.path("favorite").booleanValue(false)).isTrue();
         assertThat(jdbc.queryForObject("SELECT favorite FROM videos WHERE id=?", Boolean.class, old)).isTrue();
         assertThat(json(get("/v2/videos?filter=favorite"), 200).path("videos"))
-                .extracting(video -> video.path("id").textValue()).containsExactly(old.toString());
-        assertThat(json(patch("/v2/videos/{id}", old).content("{\"favorite\":false}"), 200).path("favorite").booleanValue())
+                .extracting(video -> video.path("id").stringValue(null)).containsExactly(old.toString());
+        assertThat(json(patch("/v2/videos/{id}", old).content("{\"favorite\":false}"), 200).path("favorite").booleanValue(false))
                 .isFalse();
         assertThat(json(get("/v2/videos?filter=favorite"), 200).path("videos")).isEmpty();
 
@@ -439,14 +439,14 @@ class VideoLibraryIT {
         }
         JsonNode first = json(get("/v2/videos"), 200);
         assertThat(first.path("videos")).hasSize(VideoRules.PAGE_SIZE);
-        assertThat(first.path("videos").get(0).path("id").textValue()).isEqualTo(saved.get(0).toString());
-        String cursor = first.path("next_cursor").textValue();
+        assertThat(first.path("videos").get(0).path("id").stringValue(null)).isEqualTo(saved.get(0).toString());
+        String cursor = first.path("next_cursor").stringValue(null);
         assertThat(cursor).isNotBlank();
         JsonNode second = json(get("/v2/videos").param("cursor", cursor), 200);
-        assertThat(second.path("videos")).extracting(video -> video.path("id").textValue())
+        assertThat(second.path("videos")).extracting(video -> video.path("id").stringValue(null))
                 .containsExactly(saved.get(VideoRules.PAGE_SIZE).toString(), saved.get(VideoRules.PAGE_SIZE + 1).toString());
         assertThat(second.path("next_cursor").isNull()).isTrue();
-        assertThat(json(get("/v2/videos").param("cursor", "not-a-cursor!"), 200).path("videos").get(0).path("id").textValue())
+        assertThat(json(get("/v2/videos").param("cursor", "not-a-cursor!"), 200).path("videos").get(0).path("id").stringValue(null))
                 .isEqualTo(saved.get(0).toString());
     }
 
@@ -548,13 +548,13 @@ class VideoLibraryIT {
 
         JsonNode detail = json(get("/v2/videos/{id}", video), 200);
 
-        assertThat(detail.path("playback_url").textValue()).isEqualTo("https://storage.test/get/" + objectKey(video));
-        assertThat(Instant.parse(detail.path("playback_expires_at").textValue()))
+        assertThat(detail.path("playback_url").stringValue(null)).isEqualTo("https://storage.test/get/" + objectKey(video));
+        assertThat(Instant.parse(detail.path("playback_expires_at").stringValue(null)))
                 .isEqualTo(clock.instant().plusSeconds(VideoRules.PLAYBACK_TTL_SECONDS));
 
         clock.advance(Duration.ofMinutes(11));
         JsonNode again = json(get("/v2/videos/{id}", video), 200);
-        assertThat(Instant.parse(again.path("playback_expires_at").textValue()))
+        assertThat(Instant.parse(again.path("playback_expires_at").stringValue(null)))
                 .as("만료 뒤 재조회하면 새 시각").isEqualTo(clock.instant().plusSeconds(VideoRules.PLAYBACK_TTL_SECONDS));
 
         assertThat(json(get("/v2/videos/{id}", UUID.randomUUID()), 404))
@@ -577,7 +577,7 @@ class VideoLibraryIT {
         transfer(guest);
 
         JsonNode list = json(get("/v2/videos"), 200);
-        assertThat(list.path("videos")).extracting(video -> video.path("id").textValue())
+        assertThat(list.path("videos")).extracting(video -> video.path("id").stringValue(null))
                 .containsExactly(second.toString(), first.toString());
         assertThat(jdbc.queryForList("SELECT user_id FROM videos", UUID.class)).containsOnly(member);
         assertThat(jdbc.queryForList("SELECT user_id FROM upload_intents", UUID.class))
@@ -612,10 +612,10 @@ class VideoLibraryIT {
         assertThat(frames.seeks).as("12초 영상은 0.5초, 9초 영상도 0.5초 자리").containsExactly("0.5", "0.5");
 
         JsonNode list = json(get("/v2/videos"), 200);
-        assertThat(list.path("videos")).extracting(video -> video.path("poster_url").textValue())
+        assertThat(list.path("videos")).extracting(video -> video.path("poster_url").stringValue(null))
                 .containsExactly("https://storage.test/get/" + posterKey(fresh), "https://storage.test/get/" + posterKey(old));
         assertThat(list.path("videos").get(0).path("playback_url").isNull()).as("목록에는 여전히 재생 주소가 없다").isTrue();
-        assertThat(json(get("/v2/videos/{id}", old), 200).path("poster_url").textValue())
+        assertThat(json(get("/v2/videos/{id}", old), 200).path("poster_url").stringValue(null))
                 .isEqualTo("https://storage.test/get/" + posterKey(old));
     }
 
@@ -704,7 +704,7 @@ class VideoLibraryIT {
     }
 
     private UUID intentId(JsonNode intent) {
-        return UUID.fromString(intent.path("intent_id").textValue());
+        return UUID.fromString(intent.path("intent_id").stringValue(null));
     }
 
     /** 기기가 서명 주소로 PUT 하는 자리 — 가짜 저장소에 직접 넣는다. */
@@ -720,7 +720,7 @@ class VideoLibraryIT {
                 .content(intentBody(UUID.randomUUID(), "video/mp4", byteSize, durationMs)), authorization, 201);
         deviceUploads(intent, byteSize);
         return UUID.fromString(json(post("/v2/videos/intents/{id}/complete", intentId(intent)), authorization, 201)
-                .path("id").textValue());
+                .path("id").stringValue(null));
     }
 
     /** 이미 보관된 영상 — 올리기를 거치지 않고 행과 객체만 둔다. */
@@ -779,8 +779,8 @@ class VideoLibraryIT {
         })).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        return new Guest(UUID.fromString(body.path("user").path("id").textValue()),
-                "Bearer " + body.path("access_token").textValue());
+        return new Guest(UUID.fromString(body.path("user").path("id").stringValue(null)),
+                "Bearer " + body.path("access_token").stringValue(null));
     }
 
     /** 연습의 문서 셋에 동의한 게스트. */
@@ -807,7 +807,7 @@ class VideoLibraryIT {
     private void transfer(Guest guest) throws Exception {
         var issued = perform(post("/v2/guest/transfer-code"), guest.bearer());
         assertThat(issued.getStatus()).as(issued.getContentAsString()).isEqualTo(201);
-        String code = mapper.readTree(issued.getContentAsString()).path("code").textValue();
+        String code = mapper.readTree(issued.getContentAsString()).path("code").stringValue(null);
         String from = address;
         var response = mvc.perform(post("/v2/guest-transfers")
                         .with(request -> {

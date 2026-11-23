@@ -7,8 +7,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,11 +73,11 @@ class AuthTokenEnvelopeIT {
         JsonNode body = login();
 
         assertTokenEnvelope(body);
-        assertThat(body.path("result").textValue()).isEqualTo("signed_in");
-        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(body.path("result").stringValue(null)).isEqualTo("signed_in");
+        assertThat(body.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "result", "access_token", "refresh_token", "token_type", "expires_in",
                 "user", "pending_consents");
-        assertThat(body.path("user").path("id").textValue()).isNotBlank();
+        assertThat(body.path("user").path("id").stringValue(null)).isNotBlank();
         assertThat(body.path("pending_consents").isArray()).isTrue();
         assertThat(body.path("pending_consents")).hasSize(2);
     }
@@ -88,16 +88,16 @@ class AuthTokenEnvelopeIT {
         JsonNode pending = login().path("pending_consents");
 
         assertThat(pending).hasSize(2);
-        assertThat(pending.get(0).path("id").textValue())
+        assertThat(pending.get(0).path("id").stringValue(null))
                 .isEqualTo(TERMS_DOCUMENT.toString());
-        assertThat(pending.get(1).path("id").textValue())
+        assertThat(pending.get(1).path("id").stringValue(null))
                 .isEqualTo(PRIVACY_DOCUMENT.toString());
     }
 
     @Test
     @DisplayName("갱신 성공 응답이 같은 bearer 봉투를 내되 사용자는 싣지 않는다")
     void refreshReturnsTheSameBearerEnvelopeWithoutTheUser() throws Exception {
-        String refreshToken = login().path("refresh_token").textValue();
+        String refreshToken = login().path("refresh_token").stringValue(null);
 
         JsonNode body = mapper.readTree(mvc.perform(post("/v2/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -107,17 +107,17 @@ class AuthTokenEnvelopeIT {
                 .getContentAsString());
 
         assertTokenEnvelope(body);
-        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(body.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "access_token", "refresh_token", "token_type", "expires_in");
     }
 
     private void assertTokenEnvelope(JsonNode body) {
-        assertThat(body.path("token_type").textValue())
+        assertThat(body.path("token_type").stringValue(null))
                 .as("토큰 타입은 소문자 bearer 다")
                 .isEqualTo("bearer");
         assertThat(LenientJson.longValue(body.path("expires_in"))).isEqualTo(ACCESS_TOKEN_TTL_SECONDS);
-        assertThat(body.path("access_token").textValue()).isNotBlank();
-        assertThat(body.path("refresh_token").textValue()).isNotBlank();
+        assertThat(body.path("access_token").stringValue(null)).isNotBlank();
+        assertThat(body.path("refresh_token").stringValue(null)).isNotBlank();
     }
 
     private JsonNode login() throws Exception {

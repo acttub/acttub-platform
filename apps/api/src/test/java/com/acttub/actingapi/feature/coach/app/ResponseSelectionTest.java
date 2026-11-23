@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 import java.util.List;
 import java.util.Map;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
 

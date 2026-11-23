@@ -2,7 +2,7 @@ package com.acttub.actingapi.feature.coach.app;
 
 import java.util.HashSet;
 import java.util.Set;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Temporal guard only: semantic relevance still requires model evaluation. Legacy focus stays local. */

@@ -26,7 +26,7 @@ public class EntryAiReportEntity extends AppGeneratedUuidEntity {
     private int attemptCount;
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name="result", nullable=true, columnDefinition="jsonb")
-    private com.fasterxml.jackson.databind.JsonNode result;
+    private tools.jackson.databind.JsonNode result;
     @Column(name="requested_at", nullable=false)
     private Instant requestedAt;
     @Column(name="completed_at", nullable=true)
@@ -41,7 +41,7 @@ public class EntryAiReportEntity extends AppGeneratedUuidEntity {
     public String getModel() { return model; }
     public int getFormatVersion() { return formatVersion; }
     public int getAttemptCount() { return attemptCount; }
-    public com.fasterxml.jackson.databind.JsonNode getResult() { return result; }
+    public tools.jackson.databind.JsonNode getResult() { return result; }
     public Instant getRequestedAt() { return requestedAt; }
     public Instant getCompletedAt() { return completedAt; }
     public Instant getPurgedAt() { return purgedAt; }

@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
 
@@ -38,7 +38,7 @@ class OpenAiResponsesClientTest {
         assertThat(request.headers()).containsExactly(
                 Map.entry("Authorization", "Bearer secret"),
                 Map.entry("Content-Type", "application/json"));
-        assertThat(request.body().fieldNames()).toIterable()
+        assertThat(request.body().propertyNames().iterator()).toIterable()
                 .containsExactly("model", "instructions", "input");
         assertThat(request.body()).isEqualTo(OBJECT_MAPPER.readTree("""
                 {"model":"gpt-6-luna","instructions":"시스템","input":"입력 문자열"}

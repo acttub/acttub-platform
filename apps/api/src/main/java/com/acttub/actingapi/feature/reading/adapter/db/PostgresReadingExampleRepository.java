@@ -9,9 +9,9 @@ import com.acttub.actingapi.feature.reading.app.ReadingExampleRepository;
 import com.acttub.actingapi.feature.reading.domain.ReadingExample;
 import com.acttub.actingapi.feature.reading.domain.ReadingExampleAudio;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.slf4j.Logger;
@@ -92,16 +92,16 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
         JsonNode draft;
         try {
             draft = mapper.readTree(row.get("draft", String.class));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("reading_examples.draft is not JSON: " + row.get("id", String.class), e);
         }
         List<String> characters = new ArrayList<>();
-        draft.path("characters").forEach(name -> characters.add(name.textValue()));
+        draft.path("characters").forEach(name -> characters.add(name.stringValue(null)));
         List<ReadingExample.Line> lines = new ArrayList<>();
         draft.path("lines").forEach(line -> lines.add(new ReadingExample.Line(
-                line.path("kind").textValue(),
+                line.path("kind").stringValue(null),
                 line.path("character").isIntegralNumber() ? LenientJson.intValue(line.path("character")) : null,
-                line.path("text").textValue())));
+                line.path("text").stringValue(null))));
         return new ReadingExample(row.get("id", String.class), row.get("title", String.class), row.get("summary", String.class),
                 row.get("raw_text", String.class), characters, lines, audio(row));
     }

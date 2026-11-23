@@ -1,7 +1,7 @@
 package com.acttub.actingapi.integration.oidc;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -10,6 +10,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 카카오 사용자 API 의 실물. 어드민 키 방식이다 — 헤더 {@code Authorization: KakaoAK <어드민 키>} 와
@@ -21,7 +22,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
 public class HttpKakaoUserClient implements KakaoUserClient {
     static final String USER_URL = "https://kapi.kakao.com/v2/user/me";
     static final String UNLINK_URL = "https://kapi.kakao.com/v1/user/unlink";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final String adminKey;
     private final RestClient http;

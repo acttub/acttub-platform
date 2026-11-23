@@ -20,8 +20,8 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Gemini transport for the existing durable coach API; no layer-one model; response routing is a separate text call. */
@@ -1721,7 +1721,7 @@ public final class DirectVideoCoach {
     /** 1층 배정. 저장된 값이 있으면 그대로, 없으면 연습 id 로 정한다. */
     private String layerOneArm(CoachSessionSnapshot session) {
         JsonNode stored = session.coachingState() == null ? null : session.coachingState().path(LAYER1).path("arm");
-        if (stored != null && stored.isTextual() && !LenientJson.asText(stored).isEmpty()) return LenientJson.asText(stored);
+        if (stored != null && stored.isString() && !LenientJson.asText(stored).isEmpty()) return LenientJson.asText(stored);
         return layerOne.arm(session.practiceSessionId(), session.userId());
     }
 

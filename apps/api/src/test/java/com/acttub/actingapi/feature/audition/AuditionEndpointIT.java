@@ -16,8 +16,8 @@ import com.acttub.actingapi.feature.audition.app.AuditionService;
 import com.acttub.actingapi.feature.audition.app.AuditionSources;
 import com.acttub.actingapi.feature.audition.domain.AuditionPosting;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -150,23 +150,23 @@ class AuditionEndpointIT {
 
         JsonNode body = getJson("/v2/auditions");
         assertThat(body.properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder("items", "collected_at");
-        assertThat(body.path("collected_at").textValue()).isEqualTo("2026-10-08T00:00:00.000000Z");
+        assertThat(body.path("collected_at").stringValue(null)).isEqualTo("2026-10-08T00:00:00.000000Z");
         assertThat(ids(body)).containsExactly("otr-22430", "shinsee-66");
         JsonNode otr = body.path("items").get(0);
         assertThat(otr.properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder(
                 "id", "title", "category", "source", "source_name", "pay_text", "apply_start", "apply_end",
                 "status_text", "posted_on", "source_url");
-        assertThat(otr.path("source_name").textValue()).isEqualTo("OTR");
-        assertThat(otr.path("pay_text").textValue()).isEqualTo("협의");
+        assertThat(otr.path("source_name").stringValue(null)).isEqualTo("OTR");
+        assertThat(otr.path("pay_text").stringValue(null)).isEqualTo("협의");
         assertThat(otr.path("apply_start").isNull()).isTrue();
         assertThat(otr.path("status_text").isNull()).isTrue();
-        assertThat(otr.path("apply_end").textValue()).isEqualTo("2026-10-10");
-        assertThat(otr.path("posted_on").textValue()).isEqualTo("2026-10-08");
+        assertThat(otr.path("apply_end").stringValue(null)).isEqualTo("2026-10-10");
+        assertThat(otr.path("posted_on").stringValue(null)).isEqualTo("2026-10-08");
         JsonNode shinsee = body.path("items").get(1);
-        assertThat(shinsee.path("source_name").textValue()).isEqualTo("신시컴퍼니");
-        assertThat(shinsee.path("title").textValue()).isEqualTo("2027 뮤지컬 <아이다> 공개 오디션");
-        assertThat(shinsee.path("apply_start").textValue()).isEqualTo("2026-10-05");
-        assertThat(shinsee.path("source_url").textValue())
+        assertThat(shinsee.path("source_name").stringValue(null)).isEqualTo("신시컴퍼니");
+        assertThat(shinsee.path("title").stringValue(null)).isEqualTo("2027 뮤지컬 <아이다> 공개 오디션");
+        assertThat(shinsee.path("apply_start").stringValue(null)).isEqualTo("2026-10-05");
+        assertThat(shinsee.path("source_url").stringValue(null))
                 .isEqualTo("https://www.iseensee.com/Home/Community/Audition.aspx?mode=v&Id=66");
 
         // 만료된 토큰을 붙여도 401 이 아니다 — 토큰을 보지 않는 공개 경로다.
@@ -188,7 +188,7 @@ class AuditionEndpointIT {
 
     private List<String> ids(JsonNode body) {
         List<String> ids = new ArrayList<>();
-        body.path("items").forEach(item -> ids.add(item.path("id").textValue()));
+        body.path("items").forEach(item -> ids.add(item.path("id").stringValue(null)));
         return ids;
     }
 

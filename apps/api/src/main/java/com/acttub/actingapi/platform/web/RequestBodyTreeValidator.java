@@ -10,12 +10,12 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.introspect.BeanPropertyDefinition;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.stereotype.Component;
@@ -97,7 +97,7 @@ final class RequestBodyTreeValidator {
         }
 
         if (component.getType() == String.class) {
-            if (!value.isTextual()) {
+            if (!value.isString()) {
                 errors.add(ApiErrorAdvice.validationError(
                         "string_type",
                         location,
@@ -105,7 +105,7 @@ final class RequestBodyTreeValidator {
                         input(value)));
                 return;
             }
-            validateString(schema, location, value.textValue(), errors);
+            validateString(schema, location, value.stringValue(null), errors);
         } else if (isScalar(component.getType())) {
             validateScalar(component, value, location, errors);
         }
@@ -144,7 +144,7 @@ final class RequestBodyTreeValidator {
             List<Map<String, Object>> errors) {
         try (JsonParser parser = value.traverse(mapper)) {
             mapper.readValue(parser, mapper.constructType(component.getGenericType()));
-        } catch (JsonMappingException exception) {
+        } catch (DatabindException exception) {
             errors.add(this.errors.jacksonError(exception, location, input(value)));
         } catch (java.io.IOException exception) {
             // JsonNode 자체를 읽는 경로라 구문 오류는 없다. 형식 오류는 위 mapping 분기다.

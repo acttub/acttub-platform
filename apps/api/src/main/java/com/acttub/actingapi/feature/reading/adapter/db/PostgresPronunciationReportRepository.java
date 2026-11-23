@@ -9,8 +9,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Report;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -118,7 +118,7 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
         String json;
         try {
             json = mapper.writeValueAsString(report);
-        } catch (JsonProcessingException failure) {
+        } catch (JacksonException failure) {
             throw new IllegalStateException(failure);
         }
         Integer updated = transaction.execute(tx -> entityManager.createNativeQuery("""

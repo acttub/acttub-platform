@@ -820,8 +820,8 @@ class DirectVideoCoachTest {
         var loopEngine = practiceLoopEngine();
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(session(), UUID.randomUUID());
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) first.session().coachingState().deepCopy();
-        var statuses = (com.fasterxml.jackson.databind.node.ArrayNode) state.path("practice_loop").path("statuses");
+        var state = (tools.jackson.databind.node.ObjectNode) first.session().coachingState().deepCopy();
+        var statuses = (tools.jackson.databind.node.ArrayNode) state.path("practice_loop").path("statuses");
         statuses.add("배우의 말: 답\n할 일: 정리하기\n단계: 4");
         var turns = new ArrayList<>(first.session().turns());
         turns.add(new CoachTurnSnapshot("user", "엄마 눈을 보며 따져 볼게요"));
@@ -853,8 +853,8 @@ class DirectVideoCoachTest {
         var loopEngine = practiceLoopEngine();
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(session(), UUID.randomUUID());
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) first.session().coachingState().deepCopy();
-        var statuses = (com.fasterxml.jackson.databind.node.ArrayNode) state.path("practice_loop").path("statuses");
+        var state = (tools.jackson.databind.node.ObjectNode) first.session().coachingState().deepCopy();
+        var statuses = (tools.jackson.databind.node.ArrayNode) state.path("practice_loop").path("statuses");
         statuses.add("배우의 말: 답\n할 일: 정리하기\n단계: 4\n다음 테이크: 대답할 때까지 상대 눈을 보며 기다려 봐도 좋아요");
         var turns = new ArrayList<>(first.session().turns());
         turns.add(new CoachTurnSnapshot("user", "상대 눈을 보며 기다려 볼게요"));
@@ -1049,7 +1049,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void practiceLoopNoteSummaryLeadsWithTheObservedHabitWhenTheActorLeftNoLine() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: 상대를 붙잡으려고 해 봐도 좋아요",
                  "statuses":["", "배우의 말: 짧은 답\\n할 일: 파고들기(쉬운)", "배우의 말: 답\\n할 일: 이어보기", "배우의 말: 그만\\n할 일: 끝"]}}
                 """);
@@ -1131,7 +1131,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void practiceLoopNoteKeepsTheDesignNextTakeWhenTheActorLeftNoLine() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: \\"잡아줘\\"에서 상대를 붙잡으려고 해 봐도 좋아요",
                  "statuses":["", "배우의 말: 답\\n할 일: 파고들기", "배우의 말: 그만\\n할 일: 끝"]}}
                 """);
@@ -1207,7 +1207,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void practiceLoopNoteUsesTheHabitTheActorsOwnLineAndTheNextTake() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"revision":5,"practice_loop":{"design":"소리 빠르기: 없음\\n버릇: 문장 사이 쉼 없이 몰아쳐요 | 곳1: \\"장난하냐\\" | 곳2: \\"구해 와\\"\\n다음 테이크: 문장마다 한 번씩 쉬어 보기\\n인물: 돈을 받아내려 한다",
                 "statuses":["","파고들기 · 응답 2번째","파고들기 · 응답 3번째","이어보기 · 응답 4번째","마무리1 · 응답 5번째","마무리2 · 응답 6번째"]}}
                 """);
@@ -1271,7 +1271,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void practiceLoopNoteKeepsASelfLineTheActorOfferedBeforeBeingAsked() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"revision":4,"practice_loop":{"design":"버릇: 말이 내내 같은 속도로 빨라요 | 곳1: x\\n다음 테이크: 문장 사이에 한 번씩 쉬기",
                 "statuses":["",
                 "배우의 말: 답\\n지금까지: 같은 버릇 질문 2번 · 짚어주기 0번 · 응답 2번째\\n피할 것: 없음\\n할 일: 파고들기\\n물을 것: 속으로는 어땠어요?",
@@ -1293,7 +1293,7 @@ class DirectVideoCoachTest {
 
     /** SOMA-601: 한 줄을 청한 자리에서 배우가 평가를 청하면 그 말은 배우의 한 줄이 아니다(운영 5670f93d). */
     @Test void practiceLoopNoteSkipsAnEvaluationRequestGivenWhereTheSelfLineWasAsked() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"revision":4,"practice_loop":{"design":"버릇: 눈을 천천히 깜빡임 | 곳1: x\\n다음 테이크: 상대를 끝까지 보기",
                 "statuses":["",
                 "배우의 말: 답\\n할 일: 마무리1",
@@ -1313,7 +1313,7 @@ class DirectVideoCoachTest {
 
     /** SOMA-601: 한 줄을 청한 뒤 딱릴 이야기가 오고, 나중에 자기 한 줄이 따로 오면 나중 것이 한 줄이다(운영 3803ca80). */
     @Test void practiceLoopNotePrefersALaterSelfLineOverAnOffTopicAnswerToTheAsk() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"revision":4,"practice_loop":{"design":"버릇: 고개를 크게 움직임 | 곳1: x\\n다음 테이크: 엄마를 끝까지 보기",
                 "statuses":["",
                 "배우의 말: 답\\n할 일: 마무리1",
@@ -1333,7 +1333,7 @@ class DirectVideoCoachTest {
 
     /** SOMA-601: 배우의 말 분류가 없던 옛 한 줄 상태에서도 장단점을 묻는 말은 한 줄이 아니다(운영 d72194af). */
     @Test void practiceLoopNoteSkipsARequestInOldOneLineStatuses() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"revision":3,"practice_loop":{"design":"버릇: 말이 내내 빨라요 | 곳1: x\\n다음 테이크: 문장 사이 쉬기",
                 "statuses":["", "마무리1 · 응답 2번째", "끝 · 응답 3번째"]}}
                 """);
@@ -1349,7 +1349,7 @@ class DirectVideoCoachTest {
 
     /** SOMA-602: 세션.md — 이번 목표, 선택 설명을 우선한 이유, 배우가 아니라고 한 것이 노트와 다음 회차 줄에 남는다. */
     @Test void practiceLoopRoundKeepsGoalChoiceReasonAndCorrections() throws Exception {
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+        var state = (tools.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
                 {"revision":5,"practice_loop":{"design":"이번 목표: 한 문장 끝에 엄마를 끝까지 보기\\n버릇: 고개를 양옆으로 크게 움직임 | 곳1: x\\n다음 테이크: 손을 꽉 쥐고 엄마를 노려보기",
                 "statuses":["",
                 "배우의 말: 정정\\n피할 것: 시선\\n이번 목표: 한 문장 끝에 엄마를 끝까지 보기\\n할 일: 내려놓기",
@@ -1635,7 +1635,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void practiceLoopNoteUsesTheNextTakeTheCoachSettledOnWhenClosing() throws Exception {
-        var statuses = (com.fasterxml.jackson.databind.node.ArrayNode) StructuredJson.MAPPER.readTree("""
+        var statuses = (tools.jackson.databind.node.ArrayNode) StructuredJson.MAPPER.readTree("""
                 ["", "배우의 말: 답\\n할 일: 파고들기\\n다음 테이크: 없음",
                  "배우의 말: 자기 한 줄\\n할 일: 마무리2\\n다음 테이크: 지키며: 침묵은 그대로 두고 상대를 끝까지 보기"]
                 """);

@@ -19,7 +19,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

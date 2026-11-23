@@ -11,10 +11,10 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
@@ -242,7 +242,7 @@ public final class ActorJournal {
             if (!"coach".equals(giver) && !"other".equals(giver)) continue;
             Integer at = null;
             JsonNode moment = item.path("moment_ref");
-            if (video && moment.isTextual()) {
+            if (video && moment.isString()) {
                 JsonNode source = sources.get(LenientJson.asText(moment));
                 if (source != null && "video_observation".equals(LenientJson.asText(source.path("kind"))) && source.path("start_ms").isNumber()) {
                     at = (int) (LenientJson.asLong(source.path("start_ms")) / 1000);
@@ -272,7 +272,7 @@ public final class ActorJournal {
     }
 
     private static String text(JsonNode item, int max) {
-        if (!item.isObject() || !item.path("text").isTextual()) return null;
+        if (!item.isObject() || !item.path("text").isString()) return null;
         String text = LenientJson.asText(item.path("text")).strip();
         if (text.isEmpty() || text.codePointCount(0, text.length()) > max) return null;
         return text;

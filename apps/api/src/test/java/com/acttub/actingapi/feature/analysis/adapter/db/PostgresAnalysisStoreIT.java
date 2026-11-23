@@ -28,8 +28,8 @@ import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -363,7 +363,7 @@ class PostgresAnalysisStoreIT {
                 .isEqualTo(mapper.readTree("[\"조명이 어둡다\"]"));
         // jsonb 는 키 순서를 보존하지 않는다(짧은 이름부터 저장한다) — 저장된 순서가 아니라
         // 팩의 칸이 다 있는지가 여기서 볼 것이고, 읽는 순서는 CoachPrompt 가 다시 세운다.
-        assertThat(mapper.readTree((String) summary.get("raw")).fieldNames()).toIterable()
+        assertThat(mapper.readTree((String) summary.get("raw")).propertyNames().iterator()).toIterable()
                 .containsExactlyInAnyOrder("scene_summary", "timeline", "speech", "observations", "uncertainties");
         assertThat(LenientJson.asText(mapper.readTree((String) summary.get("raw")).path("timeline")))
                 .isEqualTo(result.observationPack().timeline());

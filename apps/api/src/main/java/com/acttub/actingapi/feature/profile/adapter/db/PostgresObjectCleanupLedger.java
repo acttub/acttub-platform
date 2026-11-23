@@ -13,9 +13,10 @@ import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.platform.security.AccountSecrets;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 정리 장부({@code account_cleanup_operations})에 행을 올리는 한 자리. 탈퇴·3년 파기·사진 교체(프로필)와
@@ -30,7 +31,7 @@ import org.springframework.stereotype.Repository;
 class PostgresObjectCleanupLedger
         implements PortfolioPhotoCleanup, ReadingRecordingCleanup, VideoObjectCleanup, ScriptFileCleanup,
         CommunityImageCleanup {
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final EntityManager entityManager;
     private final AccountSecrets secrets;

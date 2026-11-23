@@ -2,7 +2,7 @@ package com.acttub.actingapi.integration.llm;
 
 import java.time.Duration;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Per-call settings; a null model preserves the configured generation model.

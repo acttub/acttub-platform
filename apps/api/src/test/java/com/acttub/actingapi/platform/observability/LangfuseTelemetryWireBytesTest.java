@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.platform.config.JacksonConfig;
 import com.acttub.actingapi.platform.http.RestClients;
 import com.acttub.actingapi.support.FrozenValue;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

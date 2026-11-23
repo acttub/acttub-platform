@@ -18,8 +18,8 @@ import com.acttub.actingapi.feature.challenge.app.EntryMosaics;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -467,17 +467,17 @@ class ChallengeEntryIT {
         jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=(SELECT user_id FROM challenge_entries WHERE id=?)", photo, five);
         assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url")))
                 .isEqualTo("https://play.test/" + photo);
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
+        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsString("photo_url"))
                 .contains("https://play.test/" + photo);
         jdbc.update("UPDATE challenge_entries SET face_mosaic=true,mosaic_status='ready',mosaic_key='videos/five.mosaic.mp4' WHERE id=?", five);
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200).at("/entries/0/author/photo_url").isNull()).isTrue();
-        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsText("photo_url"))
+        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("participants").findValuesAsString("photo_url"))
                 .doesNotContain("https://play.test/" + photo);
         jdbc.update("UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,mosaic_key=NULL WHERE id=?", five);
         JsonNode latest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200);
         assertThat(ids(latest)).containsExactly(threeLate.toString(), threeEarly.toString(), five.toString());
         assertThat(latest.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
-        assertThat(latest.path("entries").findValuesAsText("is_new")).containsExactly("true", "false", "false");
+        assertThat(latest.path("entries").findValuesAsString("is_new")).containsExactly("true", "false", "false");
         UUID zero = challenge(NOW.plus(Duration.ofDays(7)));
         seeded(zero, member("영 하나"), 1, 0);
         seeded(zero, member("영 둘"), 2, 0);

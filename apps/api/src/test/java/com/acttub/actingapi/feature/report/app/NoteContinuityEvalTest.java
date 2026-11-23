@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 import com.acttub.actingapi.integration.llm.OpenAiResponsesClient;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;

@@ -15,7 +15,7 @@ import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.platform.observability.FailureClassifier;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;

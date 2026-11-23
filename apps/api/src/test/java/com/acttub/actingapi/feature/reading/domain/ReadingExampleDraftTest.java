@@ -12,8 +12,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
@@ -116,10 +116,10 @@ class ReadingExampleDraftTest {
         while (matcher.find()) {
             JsonNode draft = mapper.readTree(matcher.group(6));
             List<String> characters = new ArrayList<>();
-            draft.path("characters").forEach(name -> characters.add(name.textValue()));
+            draft.path("characters").forEach(name -> characters.add(name.stringValue(null)));
             List<ReadingExample.Line> lines = new ArrayList<>();
-            draft.path("lines").forEach(line -> lines.add(new ReadingExample.Line(line.path("kind").textValue(),
-                    line.path("character").isNull() ? null : LenientJson.intValue(line.path("character")), line.path("text").textValue())));
+            draft.path("lines").forEach(line -> lines.add(new ReadingExample.Line(line.path("kind").stringValue(null),
+                    line.path("character").isNull() ? null : LenientJson.intValue(line.path("character")), line.path("text").stringValue(null))));
             examples.put(matcher.group(1), new ReadingExample(matcher.group(1), matcher.group(2), matcher.group(3),
                     matcher.group(5), characters, lines));
         }

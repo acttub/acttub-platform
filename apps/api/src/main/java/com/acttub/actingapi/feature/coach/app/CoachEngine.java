@@ -23,22 +23,23 @@ import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /** OpenAI 기반 갈래 코칭 엔진. 저장과 HTTP 응답 조립은 다음 층의 책임이다. */
 @Service
 public class CoachEngine {
 
     private static final Logger LOG = LoggerFactory.getLogger(CoachEngine.class);
-    private static final ObjectMapper RESPONSE_MAPPER = new ObjectMapper();
+    private static final ObjectMapper RESPONSE_MAPPER = JsonMapper.builderWithJackson2Defaults().build();
     private static final Pattern FENCED_JSON = Pattern.compile(
             "^```(?:json)?\\s*([\\s\\S]*?)\\s*```$", Pattern.CASE_INSENSITIVE);
     private static final String CLOSING_TURN_INSTRUCTION =
@@ -86,7 +87,7 @@ public class CoachEngine {
         JsonNode candidate;
         try {
             candidate = RESPONSE_MAPPER.readTree(jsonText);
-        } catch (JsonProcessingException exc) {
+        } catch (JacksonException exc) {
             return new ParsedCoachReply(
                     new CoachReply(original, "continue", null), exc);
         }
@@ -98,7 +99,7 @@ public class CoachEngine {
         JsonNode message = !candidate.isObject()
                 ? null
                 : candidate.get("message");
-        if (message == null || !message.isTextual()) {
+        if (message == null || !message.isString()) {
             return new ParsedCoachReply(
                     new CoachReply(original, "continue", null), null);
         }
@@ -109,7 +110,7 @@ public class CoachEngine {
                 && handoff.isObject();
         return new ParsedCoachReply(
                 new CoachReply(
-                        message.textValue().strip(),
+                        message.stringValue(null).strip(),
                         complete ? "complete" : "continue",
                         complete ? ((ObjectNode) handoff).deepCopy() : null),
                 null);
@@ -197,8 +198,8 @@ public class CoachEngine {
         }
         ArrayNode kept = RESPONSE_MAPPER.createArrayNode();
         for (JsonNode word : words) {
-            if (word.isTextual() && !ClosingIntent.isClosing(word.textValue())
-                    && !CoachHelpIntent.isHelpOnly(word.textValue())) {
+            if (word.isString() && !ClosingIntent.isClosing(word.stringValue(null))
+                    && !CoachHelpIntent.isHelpOnly(word.stringValue(null))) {
                 kept.add(word);
             }
         }

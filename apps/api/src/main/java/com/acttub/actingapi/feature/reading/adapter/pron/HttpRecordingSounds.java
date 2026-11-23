@@ -21,8 +21,8 @@ import com.acttub.actingapi.feature.reading.app.RecordingSounds;
 import com.acttub.actingapi.feature.reading.domain.ReadingVoiceMaterial.Clip;
 import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 채점 서비스(apps/pron) {@code POST /measure} 로 줄 녹음의 소리를 잰다(SOMA-791). 줄 하나의 실패는 그 줄만 뺀다. */

@@ -16,8 +16,8 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,7 +76,7 @@ class PosterEndpointIT {
     @Test
     void appListRejectsMissingOrInvalidQueriesWithTheValidationShape() throws Exception {
         JsonNode missing = app(get("/v2/app/posters"), 422);
-        assertThat(missing.path("detail").get(0).path("type").textValue()).isEqualTo("missing");
+        assertThat(missing.path("detail").get(0).path("type").stringValue(null)).isEqualTo("missing");
         assertThat(missing.path("detail").get(0).path("loc").toString()).isEqualTo("[\"query\",\"platform\"]");
         for (String[] bad : List.of(new String[] {"platform", "web"}, new String[] {"locale", "korean"},
                 new String[] {"app_version", "0.1.x"})) {
@@ -84,7 +84,7 @@ class PosterEndpointIT {
                     : get("/v2/app/posters").param("platform", "ios").param(bad[0], bad[1]);
             JsonNode body = app(request, 422);
             assertThat(body.path("detail").get(0).path("loc").toString()).isEqualTo("[\"query\",\"" + bad[0] + "\"]");
-            assertThat(body.path("detail").get(0).path("type").textValue()).isEqualTo("value_error");
+            assertThat(body.path("detail").get(0).path("type").stringValue(null)).isEqualTo("value_error");
         }
     }
 
@@ -129,9 +129,9 @@ class PosterEndpointIT {
 
         JsonNode ko = app(get("/v2/app/notices").param("platform", "ios").param("locale", "ko"), 200);
         assertThat(noticeSlugs(ko)).containsExactly("ended-new", "korean", "live-old", "off-oldest");
-        assertThat(ko.path("notices").get(0).path("live").booleanValue()).isFalse();
-        assertThat(ko.path("notices").get(1).path("live").booleanValue()).isTrue();
-        assertThat(ko.path("notices").get(3).path("live").booleanValue()).isFalse();
+        assertThat(ko.path("notices").get(0).path("live").booleanValue(false)).isFalse();
+        assertThat(ko.path("notices").get(1).path("live").booleanValue(false)).isTrue();
+        assertThat(ko.path("notices").get(3).path("live").booleanValue(false)).isFalse();
         assertThat(noticeSlugs(app(get("/v2/app/notices").param("platform", "ios").param("locale", "en"), 200)))
                 .containsExactly("ended-new", "english", "live-old", "off-oldest");
         assertThat(noticeSlugs(app(get("/v2/app/notices").param("platform", "android"), 200)))
@@ -154,16 +154,16 @@ class PosterEndpointIT {
         assertThat(noticeSlugs(app(get("/v2/app/notices").param("platform", "ios").param("locale", "ko"), 200)))
                 .containsExactly("stored", "bundled");
         JsonNode stored = notices.get(0);
-        assertThat(stored.fieldNames()).toIterable().containsExactly("slug", "revision", "live", "published_at",
+        assertThat(stored.propertyNames().iterator()).toIterable().containsExactly("slug", "revision", "live", "published_at",
                 "ends_at", "badge", "title", "body", "image_url", "image_asset", "cta_label", "cta_action",
                 "cta_target", "footnote", "image_bg");
-        assertThat(stored.path("image_url").textValue()).isEqualTo("signed:" + key + ":3600");
+        assertThat(stored.path("image_url").stringValue(null)).isEqualTo("signed:" + key + ":3600");
         assertThat(stored.path("image_asset").isNull()).isTrue();
-        assertThat(stored.path("published_at").textValue()).isNotBlank();
+        assertThat(stored.path("published_at").stringValue(null)).isNotBlank();
         assertThat(stored.path("ends_at").isNull()).isTrue();
-        assertThat(stored.path("title").textValue()).isEqualTo("stored 제목");
+        assertThat(stored.path("title").stringValue(null)).isEqualTo("stored 제목");
         assertThat(LenientJson.intValue(stored.path("revision"))).isEqualTo(2);
-        assertThat(notices.get(1).path("image_asset").textValue()).isEqualTo("mascot-reading");
+        assertThat(notices.get(1).path("image_asset").stringValue(null)).isEqualTo("mascot-reading");
         assertThat(notices.get(1).path("image_url").isNull()).isTrue();
     }
 
@@ -191,26 +191,26 @@ class PosterEndpointIT {
 
         JsonNode posters = app(appList("ios", "ko", "0.1.3"), 200).path("posters");
         JsonNode stored = posters.get(0);
-        assertThat(stored.fieldNames()).toIterable().containsExactly("slug", "revision", "frequency", "audience",
+        assertThat(stored.propertyNames().iterator()).toIterable().containsExactly("slug", "revision", "frequency", "audience",
                 "dismissible", "badge", "title", "body", "image_url", "image_asset", "audio_asset", "cta_label",
                 "cta_action", "cta_target", "footnote", "image_bg");
         assertThat(LenientJson.intValue(stored.path("revision"))).isEqualTo(3);
-        assertThat(stored.path("frequency").textValue()).isEqualTo("once");
-        assertThat(stored.path("dismissible").booleanValue()).isFalse();
-        assertThat(stored.path("image_url").textValue()).isEqualTo("signed:" + key + ":3600");
+        assertThat(stored.path("frequency").stringValue(null)).isEqualTo("once");
+        assertThat(stored.path("dismissible").booleanValue(false)).isFalse();
+        assertThat(stored.path("image_url").stringValue(null)).isEqualTo("signed:" + key + ":3600");
         assertThat(stored.path("image_asset").isNull()).isTrue();
         assertThat(stored.path("audio_asset").isNull()).as("오디오는 앱 번들 자산만 낸다").isTrue();
-        assertThat(stored.path("cta_action").textValue()).isEqualTo("route");
-        assertThat(stored.path("cta_target").textValue()).isEqualTo("/reading");
+        assertThat(stored.path("cta_action").stringValue(null)).isEqualTo("route");
+        assertThat(stored.path("cta_target").stringValue(null)).isEqualTo("/reading");
 
         JsonNode bundled = posters.get(1);
         assertThat(bundled.path("image_url").isNull()).isTrue();
-        assertThat(bundled.path("image_asset").textValue()).isEqualTo("mascot-reading");
-        assertThat(bundled.path("audio_asset").textValue()).isEqualTo("cloud-voice-sample");
-        assertThat(bundled.path("audience").textValue()).isEqualTo("cloud_voice_off");
+        assertThat(bundled.path("image_asset").stringValue(null)).isEqualTo("mascot-reading");
+        assertThat(bundled.path("audio_asset").stringValue(null)).isEqualTo("cloud-voice-sample");
+        assertThat(bundled.path("audience").stringValue(null)).isEqualTo("cloud_voice_off");
         assertThat(bundled.path("badge").isNull()).isTrue();
         assertThat(bundled.path("cta_label").isNull()).isTrue();
-        assertThat(bundled.path("cta_action").textValue()).isEqualTo("none");
+        assertThat(bundled.path("cta_action").stringValue(null)).isEqualTo("none");
     }
 
     @Test
@@ -252,11 +252,11 @@ class PosterEndpointIT {
         JsonNode created = json(admin(post("/v2/admin/posters"), """
                 {"slug":"fresh","title":"새 공지","active":true,"footnote":"* 10월 31일까지","image_bg":"#E8F1FF"}
                 """), 201);
-        assertThat(created.path("footnote").textValue()).isEqualTo("* 10월 31일까지");
-        assertThat(created.path("image_bg").textValue()).isEqualTo("#E8F1FF");
+        assertThat(created.path("footnote").stringValue(null)).isEqualTo("* 10월 31일까지");
+        assertThat(created.path("image_bg").stringValue(null)).isEqualTo("#E8F1FF");
         JsonNode poster = app(appList("ios", "ko", "0.1.3"), 200).path("posters").get(0);
-        assertThat(poster.path("footnote").textValue()).isEqualTo("* 10월 31일까지");
-        assertThat(poster.path("image_bg").textValue()).isEqualTo("#E8F1FF");
+        assertThat(poster.path("footnote").stringValue(null)).isEqualTo("* 10월 31일까지");
+        assertThat(poster.path("image_bg").stringValue(null)).isEqualTo("#E8F1FF");
         JsonNode bad = json(admin(post("/v2/admin/posters"), """
                 {"slug":"bad","title":"t","image_bg":"blue"}
                 """), 422);
@@ -268,17 +268,17 @@ class PosterEndpointIT {
         JsonNode created = json(admin(post("/v2/admin/posters"), """
                 {"slug":"summer","title":"여름 공지","locale":"ko","ends_at":"2026-12-01T00:00:00+09:00"}
                 """), 201);
-        assertThat(created.fieldNames()).toIterable().containsExactly("id", "slug", "revision", "active", "priority",
+        assertThat(created.propertyNames().iterator()).toIterable().containsExactly("id", "slug", "revision", "active", "priority",
                 "starts_at", "ends_at", "platforms", "locale", "min_app_version", "frequency", "audience",
                 "dismissible", "badge", "title", "body", "image", "audio", "cta_label", "cta_action", "cta_target", "footnote", "image_bg",
                 "created_at", "updated_at");
         assertThat(LenientJson.intValue(created.path("revision"))).isEqualTo(1);
-        assertThat(created.path("active").booleanValue()).isFalse();
+        assertThat(created.path("active").booleanValue(false)).isFalse();
         assertThat(created.path("platforms").toString()).isEqualTo("[\"ios\",\"android\"]");
-        assertThat(created.path("frequency").textValue()).isEqualTo("daily");
-        assertThat(created.path("audience").textValue()).isEqualTo("all");
-        assertThat(created.path("cta_action").textValue()).isEqualTo("none");
-        assertThat(created.path("ends_at").textValue()).isEqualTo("2026-11-30T15:00:00.000000Z");
+        assertThat(created.path("frequency").stringValue(null)).isEqualTo("daily");
+        assertThat(created.path("audience").stringValue(null)).isEqualTo("all");
+        assertThat(created.path("cta_action").stringValue(null)).isEqualTo("none");
+        assertThat(created.path("ends_at").stringValue(null)).isEqualTo("2026-11-30T15:00:00.000000Z");
         assertThat(created.path("starts_at").isNull()).isTrue();
 
         JsonNode listed = json(admin(get("/v2/admin/posters"), null), 200);
@@ -311,26 +311,26 @@ class PosterEndpointIT {
         JsonNode created = json(admin(post("/v2/admin/posters"), """
                 {"slug":"p","title":"원래","body":"본문","ends_at":"2026-12-01T00:00:00Z","priority":4}
                 """), 201);
-        String id = created.path("id").textValue();
+        String id = created.path("id").stringValue(null);
         jdbc.update("UPDATE app_posters SET updated_at=updated_at - interval '1 minute' WHERE id=?::uuid", id);
 
         JsonNode patched = json(admin(patch("/v2/admin/posters/" + id),
                 "{\"title\":\"바뀜\",\"ends_at\":null,\"active\":true}"), 200);
-        assertThat(patched.path("title").textValue()).isEqualTo("바뀜");
+        assertThat(patched.path("title").stringValue(null)).isEqualTo("바뀜");
         assertThat(patched.path("ends_at").isNull()).isTrue();
-        assertThat(patched.path("active").booleanValue()).isTrue();
-        assertThat(patched.path("body").textValue()).isEqualTo("본문");
+        assertThat(patched.path("active").booleanValue(false)).isTrue();
+        assertThat(patched.path("body").stringValue(null)).isEqualTo("본문");
         assertThat(LenientJson.intValue(patched.path("priority"))).isEqualTo(4);
         assertThat(LenientJson.intValue(patched.path("revision"))).isEqualTo(1);
-        assertThat(patched.path("updated_at").textValue()).isGreaterThan(created.path("updated_at").textValue());
+        assertThat(patched.path("updated_at").stringValue(null)).isGreaterThan(created.path("updated_at").stringValue(null));
         assertThat(patched.path("created_at")).isEqualTo(created.path("created_at"));
 
         JsonNode bumped = json(admin(patch("/v2/admin/posters/" + id), "{\"bump_revision\":true}"), 200);
         assertThat(LenientJson.intValue(bumped.path("revision"))).isEqualTo(2);
-        assertThat(bumped.path("title").textValue()).isEqualTo("바뀜");
+        assertThat(bumped.path("title").stringValue(null)).isEqualTo("바뀜");
 
         JsonNode off = json(admin(patch("/v2/admin/posters/" + id), "{\"active\":false}"), 200);
-        assertThat(off.path("active").booleanValue()).isFalse();
+        assertThat(off.path("active").booleanValue(false)).isFalse();
         assertThat(LenientJson.intValue(off.path("revision"))).isEqualTo(2);
     }
 
@@ -338,7 +338,7 @@ class PosterEndpointIT {
     void adminPatchRejectsUnknownPostersBrokenRulesAndCollisions() throws Exception {
         assertThat(json(admin(patch("/v2/admin/posters/" + UUID.randomUUID()), "{\"title\":\"t\"}"), 404))
                 .isEqualTo(mapper.readTree("{\"detail\":\"poster_not_found\"}"));
-        String id = json(admin(post("/v2/admin/posters"), "{\"slug\":\"a\",\"title\":\"t\"}"), 201).path("id").textValue();
+        String id = json(admin(post("/v2/admin/posters"), "{\"slug\":\"a\",\"title\":\"t\"}"), 201).path("id").stringValue(null);
         json(admin(post("/v2/admin/posters"), "{\"slug\":\"b\",\"title\":\"t\"}"), 201);
 
         assertThat(json(admin(patch("/v2/admin/posters/" + id), "{\"slug\":\"b\"}"), 422))
@@ -346,7 +346,7 @@ class PosterEndpointIT {
         JsonNode broken = json(admin(patch("/v2/admin/posters/" + id), "{\"cta_action\":\"route\"}"), 422);
         assertThat(broken.path("detail").get(0).path("loc").toString()).isEqualTo("[\"body\",\"cta_target\"]");
         JsonNode unknown = json(admin(patch("/v2/admin/posters/" + id), "{\"revision\":9}"), 422);
-        assertThat(unknown.path("detail").get(0).path("type").textValue()).isEqualTo("extra_forbidden");
+        assertThat(unknown.path("detail").get(0).path("type").stringValue(null)).isEqualTo("extra_forbidden");
         JsonNode wrongType = json(admin(patch("/v2/admin/posters/" + id), "{\"priority\":\"high\"}"), 422);
         assertThat(wrongType.path("detail").get(0).path("loc").toString()).isEqualTo("[\"body\",\"priority\"]");
         assertThat(jdbc.queryForObject("SELECT slug FROM app_posters WHERE id=?::uuid", String.class, id)).isEqualTo("a");
@@ -355,7 +355,7 @@ class PosterEndpointIT {
     @Test
     void adminPatchBodyMustBeAnObjectAndBumpRevisionABoolean() throws Exception {
         String id = json(admin(post("/v2/admin/posters"), "{\"slug\":\"shape\",\"title\":\"t\"}"), 201)
-                .path("id").textValue();
+                .path("id").stringValue(null);
 
         assertThat(json(admin(patch("/v2/admin/posters/" + id), "[\"title\"]"), 422)).isEqualTo(mapper.readTree("""
                 {"detail":[{"type":"value_error","loc":["body"],"msg":"Value error, body must be an object",
@@ -374,10 +374,10 @@ class PosterEndpointIT {
     void adminImageUploadReturnsAPosterKeyAndATenMinuteUploadUrl() throws Exception {
         JsonNode upload = json(admin(post("/v2/admin/poster-images"),
                 "{\"content_type\":\"image/webp\",\"size_bytes\":2048}"), 200);
-        assertThat(upload.fieldNames()).toIterable().containsExactly("key", "upload_url", "expires_in");
-        String key = upload.path("key").textValue();
+        assertThat(upload.propertyNames().iterator()).toIterable().containsExactly("key", "upload_url", "expires_in");
+        String key = upload.path("key").stringValue(null);
         assertThat(key).matches("posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp");
-        assertThat(upload.path("upload_url").textValue()).isEqualTo("put:" + key + ":image/webp:2048:600");
+        assertThat(upload.path("upload_url").stringValue(null)).isEqualTo("put:" + key + ":image/webp:2048:600");
         assertThat(LenientJson.intValue(upload.path("expires_in"))).isEqualTo(600);
 
         assertThat(json(admin(post("/v2/admin/poster-images"), "{\"content_type\":\"image/gif\",\"size_bytes\":10}"), 415))
@@ -387,9 +387,9 @@ class PosterEndpointIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"upload_too_large\"}"));
 
         String created = json(admin(post("/v2/admin/posters"),
-                "{\"slug\":\"img\",\"title\":\"t\",\"active\":true,\"image\":\"" + key + "\"}"), 201).path("image").textValue();
+                "{\"slug\":\"img\",\"title\":\"t\",\"active\":true,\"image\":\"" + key + "\"}"), 201).path("image").stringValue(null);
         assertThat(created).isEqualTo(key);
-        assertThat(app(appList("ios", "ko", "0.1.3"), 200).path("posters").get(0).path("image_url").textValue())
+        assertThat(app(appList("ios", "ko", "0.1.3"), 200).path("posters").get(0).path("image_url").stringValue(null))
                 .isEqualTo("signed:" + key + ":3600");
     }
 
@@ -405,7 +405,7 @@ class PosterEndpointIT {
 
     private static List<String> noticeSlugs(JsonNode body) {
         List<String> slugs = new ArrayList<>();
-        body.path("notices").forEach(notice -> slugs.add(notice.path("slug").textValue()));
+        body.path("notices").forEach(notice -> slugs.add(notice.path("slug").stringValue(null)));
         return slugs;
     }
 
@@ -433,7 +433,7 @@ class PosterEndpointIT {
 
     private static List<String> slugs(JsonNode body) {
         List<String> slugs = new ArrayList<>();
-        body.path("posters").forEach(poster -> slugs.add(poster.path("slug").textValue()));
+        body.path("posters").forEach(poster -> slugs.add(poster.path("slug").stringValue(null)));
         return slugs;
     }
 

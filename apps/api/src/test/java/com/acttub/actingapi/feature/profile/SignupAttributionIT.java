@@ -17,8 +17,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -307,7 +307,7 @@ class SignupAttributionIT {
         assertThat(rows.isArray()).isTrue();
         assertThat(rows).hasSize(1);
         JsonNode row = rows.get(0);
-        assertThat(row.fieldNames()).toIterable().containsExactly(
+        assertThat(row.propertyNames().iterator()).toIterable().containsExactly(
                 "actor", "signup_at", "source", "platform", "channel", "medium", "campaign", "ad_group", "ad_creative", "recorded_via");
         assertThat(LenientJson.asText(row.path("actor"))).isEqualTo("배우 " + md5(member.toString()).substring(0, 8));
         assertThat(LenientJson.asText(row.path("source"))).isEqualTo("airbridge");

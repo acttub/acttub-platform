@@ -8,16 +8,17 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.feature.appconfig.app.AppConfig;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 앱 설정(SOMA-939)의 조립. 기동할 때 한 번 읽는다 — 값을 바꾸면 api 를 다시 띄운다.
@@ -37,7 +38,7 @@ class AppConfigConfiguration {
 
     @Bean
     AppConfig appConfig(@Value("${APP_CONFIG_FILE:}") String overrideFile) throws IOException {
-        ObjectMapper mapper = new ObjectMapper()
+        ObjectMapper mapper = JsonMapper.builderWithJackson2Defaults().build()
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         JsonNode defaultsNode;

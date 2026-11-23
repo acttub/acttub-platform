@@ -5,11 +5,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.function.Function;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.deser.std.StdDeserializer;
 
 /**
  * Pydantic의 정수 입력 규칙처럼 소수부가 정확히 0인 JSON float만 정수로 허용한다.

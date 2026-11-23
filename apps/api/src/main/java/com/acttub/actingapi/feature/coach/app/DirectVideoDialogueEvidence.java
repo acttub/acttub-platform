@@ -5,7 +5,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 원본의 오디오 부재는 모델 판단으로 뒤집지 않는다. 잘못된 대사는 저장 전에 거절한다. */

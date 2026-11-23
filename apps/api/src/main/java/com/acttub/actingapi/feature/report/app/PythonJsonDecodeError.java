@@ -1,7 +1,7 @@
 package com.acttub.actingapi.feature.report.app;
 
-import com.fasterxml.jackson.core.JsonLocation;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.core.TokenStreamLocation;
+import tools.jackson.core.JacksonException;
 
 /** Python {@code json.JSONDecodeError.__str__}와 같은 파싱 오류 문구를 만든다. */
 final class PythonJsonDecodeError {
@@ -13,8 +13,8 @@ final class PythonJsonDecodeError {
         return "Expecting value: line 1 column 1 (char 0)";
     }
 
-    static String format(JsonProcessingException exception, String source) {
-        JsonLocation location = exception.getLocation();
+    static String format(JacksonException exception, String source) {
+        TokenStreamLocation location = exception.getLocation();
         int line = location == null || location.getLineNr() < 1
                 ? 1
                 : location.getLineNr();

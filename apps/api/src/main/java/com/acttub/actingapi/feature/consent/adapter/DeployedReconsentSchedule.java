@@ -8,8 +8,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.acttub.actingapi.feature.consent.app.ReconsentSchedule;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -38,7 +38,7 @@ class DeployedReconsentSchedule implements ReconsentSchedule {
             @Value("${consent.reconsent-schedule.disabled:false}") boolean disabled) {
         this.disabled = disabled;
         this.mapper = mapper.copy().configure(
-                com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.resources = resources;
         this.configuredDir = configuredDir;
     }

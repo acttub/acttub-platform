@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.platform.json.LenientJson;
 
@@ -34,7 +34,7 @@ final class DialogueReferences {
     private JsonNode replace(JsonNode value, Map<String, String> mapping, String field) {
         boolean reference = field.equals("id") || field.endsWith("_id") || field.endsWith("_ids")
                 || field.endsWith("_ref") || field.endsWith("_refs");
-        if (value.isTextual() && reference) return StructuredJson.MAPPER.getNodeFactory()
+        if (value.isString() && reference) return StructuredJson.MAPPER.getNodeFactory()
                 .textNode(mapping.getOrDefault(LenientJson.asText(value), LenientJson.asText(value)));
         if (value.isObject()) {
             var result = StructuredJson.MAPPER.createObjectNode();

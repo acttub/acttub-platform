@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
@@ -139,7 +139,7 @@ final class PracticeLoopRouter {
         boolean lineFix = false;
         boolean already = false;
         for (JsonNode value : root.path("signals")) {
-            String id = value.isTextual() ? LenientJson.asText(value) : "";
+            String id = value.isString() ? LenientJson.asText(value) : "";
             if (!SIGNALS.contains(id)) throw new IllegalArgumentException("unknown practice loop classification");
             if (STOP_SIGNAL.equals(id)) stop = true;
             else if (DECIDED_SIGNAL.equals(id)) decided = true;

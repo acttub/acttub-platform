@@ -21,7 +21,7 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.StubProviders;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -150,7 +150,7 @@ class AccountHousekeepingIT {
                 .header("Authorization", "Bearer " + jwt.issueAccessToken(transferred).value()))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(response.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("guest_transferred");
     }
 

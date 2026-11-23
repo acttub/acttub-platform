@@ -11,8 +11,8 @@ import com.acttub.actingapi.feature.admin.app.AdminService;
 import com.acttub.actingapi.feature.ads.app.AdFrequency;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -67,7 +67,7 @@ class AdSettingsAdminController {
             throw ApiValidationException.valueError(List.<Object>of("body"), "Value error, body must be an object",
                     mapper.convertValue(body, Object.class));
         }
-        body.fieldNames().forEachRemaining(name -> {
+        body.propertyNames().iterator().forEachRemaining(name -> {
             if (!FIELDS.contains(name)) {
                 throw ApiValidationException.valueError(List.<Object>of("body", name),
                         "Value error, unknown field", mapper.convertValue(body.get(name), Object.class));

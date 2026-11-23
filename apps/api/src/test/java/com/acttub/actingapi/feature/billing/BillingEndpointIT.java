@@ -24,8 +24,8 @@ import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -115,7 +115,7 @@ class BillingEndpointIT {
     @Test
     @DisplayName("카드 등록 창 → 토스 성공 콜백 → 첫 결제 → active, 빌링키는 암호문이고 같은 콜백은 한 번만 쓴다")
     void subscribeThenCancelThenExpire() throws Exception {
-        assertThat(me().path("status").textValue()).isEqualTo("none");
+        assertThat(me().path("status").stringValue(null)).isEqualTo("none");
         String state = openCheckout("subscribe");
 
         MockHttpServletResponse page = mvc.perform(get("/v2/billing/web/checkout/{state}", state)).andReturn().getResponse();
@@ -127,9 +127,9 @@ class BillingEndpointIT {
         assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=invalid");
 
         JsonNode active = me();
-        assertThat(active.path("status").textValue()).isEqualTo("active");
-        assertThat(active.path("pro").booleanValue()).isTrue();
-        assertThat(active.path("card_last4").textValue()).isEqualTo("123*");
+        assertThat(active.path("status").stringValue(null)).isEqualTo("active");
+        assertThat(active.path("pro").booleanValue(false)).isTrue();
+        assertThat(active.path("card_last4").stringValue(null)).isEqualTo("123*");
         assertThat(jdbc.queryForObject("SELECT billing_key FROM billing_subscriptions", String.class))
                 .isNotBlank().doesNotContain("bk_plain_secret");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments WHERE status='done'", Integer.class)).isEqualTo(1);
@@ -137,13 +137,13 @@ class BillingEndpointIT {
                 .contains("already_subscribed");
 
         JsonNode canceled = json(post("/v2/billing/subscription/cancel"), 200);
-        assertThat(canceled.path("status").textValue()).isEqualTo("canceled");
-        assertThat(canceled.path("pro").booleanValue()).isTrue();
+        assertThat(canceled.path("status").stringValue(null)).isEqualTo("canceled");
+        assertThat(canceled.path("pro").booleanValue(false)).isTrue();
 
         clock.set(Instant.parse("2026-11-23T01:00:01Z"));
         assertThat(worker.runOnce()).isTrue();
         assertThat(worker.runOnce()).isFalse();
-        assertThat(me().path("status").textValue()).isEqualTo("expired");
+        assertThat(me().path("status").stringValue(null)).isEqualTo("expired");
         assertThat(jdbc.queryForObject("SELECT billing_key FROM billing_subscriptions", String.class)).isNull();
         // 첫 결제가 승인되면 가입 메일·프로필 이름으로 구독 메일을 한 번 부른다(SOMA-961).
         org.mockito.Mockito.verify(mailer, org.mockito.Mockito.atLeastOnce()).paymentDone(org.mockito.ArgumentMatchers.argThat(
@@ -164,12 +164,12 @@ class BillingEndpointIT {
                 .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
         assertThat(worker.runOnce()).isTrue();
         JsonNode pastDue = me();
-        assertThat(pastDue.path("status").textValue()).isEqualTo("past_due");
+        assertThat(pastDue.path("status").stringValue(null)).isEqualTo("past_due");
         assertThat(LenientJson.intValue(pastDue.path("retry_count"))).isEqualTo(1);
         assertThat(worker.runOnce()).isFalse();
 
         approveAll();
-        assertThat(json(post("/v2/billing/subscription/retry"), 200).path("status").textValue()).isEqualTo("active");
+        assertThat(json(post("/v2/billing/subscription/retry"), 200).path("status").stringValue(null)).isEqualTo("active");
         assertThat(LenientJson.asText(json(post("/v2/billing/subscription/retry"), 409).path("detail"))).contains("not_past_due");
 
         clock.set(Instant.parse("2027-01-23T01:00:01Z"));
@@ -199,14 +199,14 @@ class BillingEndpointIT {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_checkouts", Integer.class)).isZero();
 
         JsonNode started = json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"monthly\"}"), 200);
-        String url = started.path("checkout_url").textValue();
+        String url = started.path("checkout_url").stringValue(null);
         String state = url.substring(url.lastIndexOf('/') + 1);
         assertThat(jdbc.queryForObject("SELECT plan FROM billing_checkouts", String.class)).isEqualTo("monthly");
         String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
         assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=done");
 
         JsonNode active = me();
-        assertThat(active.path("plan").textValue()).isEqualTo("monthly");
+        assertThat(active.path("plan").stringValue(null)).isEqualTo("monthly");
         assertThat(LenientJson.longValue(active.path("amount"))).isEqualTo(3900L);
         assertThat(jdbc.queryForObject("SELECT plan FROM billing_subscriptions", String.class)).isEqualTo("monthly");
         assertThat(jdbc.queryForObject("SELECT amount FROM billing_payments", Integer.class)).isEqualTo(3900);
@@ -235,7 +235,7 @@ class BillingEndpointIT {
         when(gateway.issue(anyString(), anyString()))
                 .thenReturn(new PgReviewGateway.IssuedKey("bk_new_secret", "현대", "51001234****9876"));
         assertThat(callback(change, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=done");
-        assertThat(me().path("card_last4").textValue()).isEqualTo("9876");
+        assertThat(me().path("card_last4").stringValue(null)).isEqualTo("9876");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments", Integer.class)).isEqualTo(1);
     }
 
@@ -289,9 +289,9 @@ class BillingEndpointIT {
 
     private String openCheckout(String purpose) throws Exception {
         JsonNode started = json(post("/v2/billing/checkout").content("{\"purpose\":\"" + purpose + "\"}"), 200);
-        String url = started.path("checkout_url").textValue();
+        String url = started.path("checkout_url").stringValue(null);
         assertThat(url).startsWith("https://billing.acttub.test/v2/billing/web/checkout/");
-        assertThat(started.path("return_url").textValue()).isEqualTo("https://acttub.com/pricing/result");
+        assertThat(started.path("return_url").stringValue(null)).isEqualTo("https://acttub.com/pricing/result");
         return url.substring(url.lastIndexOf('/') + 1);
     }
 

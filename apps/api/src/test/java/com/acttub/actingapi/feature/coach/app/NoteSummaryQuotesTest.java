@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.coach.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;

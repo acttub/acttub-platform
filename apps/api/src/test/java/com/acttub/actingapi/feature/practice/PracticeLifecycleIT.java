@@ -27,8 +27,8 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -117,24 +117,24 @@ class PracticeLifecycleIT {
         JsonNode created = json(post("/v2/practices").header("X-Acttub-Contract", "three_layers_v1")
                 .content(startBody(UUID.randomUUID(), video, null, null)), 201);
 
-        assertThat(created.path("root_id").textValue()).isEqualTo(created.path("id").textValue());
+        assertThat(created.path("root_id").stringValue(null)).isEqualTo(created.path("id").stringValue(null));
         assertThat(LenientJson.intValue(created.path("ordinal"))).isEqualTo(1);
-        assertThat(created.path("stage").textValue()).isEqualTo("analyzing");
-        assertThat(created.path("experience_version").textValue()).isEqualTo("three_layers_v1");
-        assertThat(created.path("situation").textValue()).isEmpty();
-        assertThat(created.path("character").textValue()).isEmpty();
-        assertThat(created.path("goal").textValue()).isEmpty();
-        assertThat(created.path("blockage_category").textValue()).isEqualTo("그 외");
-        assertThat(created.path("blockage_detail").textValue()).isEqualTo("그 외");
+        assertThat(created.path("stage").stringValue(null)).isEqualTo("analyzing");
+        assertThat(created.path("experience_version").stringValue(null)).isEqualTo("three_layers_v1");
+        assertThat(created.path("situation").stringValue(null)).isEmpty();
+        assertThat(created.path("character").stringValue(null)).isEmpty();
+        assertThat(created.path("goal").stringValue(null)).isEmpty();
+        assertThat(created.path("blockage_category").stringValue(null)).isEqualTo("그 외");
+        assertThat(created.path("blockage_detail").stringValue(null)).isEqualTo("그 외");
         assertThat(created.path("blockage_note").isNull()).isTrue();
-        assertThat(created.path("video_id").textValue()).isEqualTo(video.toString());
+        assertThat(created.path("video_id").stringValue(null)).isEqualTo(video.toString());
         assertThat(created.path("analysis_status").isNull()).isTrue();
-        assertThat(created.path("job").path("status").textValue()).isEqualTo("pending");
+        assertThat(created.path("job").path("status").stringValue(null)).isEqualTo("pending");
         assertThat(LenientJson.intValue(created.path("job").path("attempt_count"))).isZero();
         assertThat(count("practices")).isEqualTo(1);
         assertThat(jdbc.queryForMap("SELECT kind,status,target_id,user_id FROM ai_jobs"))
                 .containsEntry("kind", "analyze").containsEntry("status", "pending")
-                .containsEntry("target_id", UUID.fromString(created.path("id").textValue()))
+                .containsEntry("target_id", UUID.fromString(created.path("id").stringValue(null)))
                 .containsEntry("user_id", member);
         assertThat(count("analyses")).isZero();
     }
@@ -147,22 +147,22 @@ class PracticeLifecycleIT {
                 .content(startBody(UUID.randomUUID(), video,
                         scene("문 앞에서 돌아선다", "니나", "설득한다"), blockage("표현", "감정", "감정이 안 올라와요"))), 201);
 
-        assertThat(typed.path("experience_version").textValue()).isEqualTo("three_layers_v1");
-        assertThat(typed.path("situation").textValue()).isEqualTo("문 앞에서 돌아선다");
-        assertThat(typed.path("character").textValue()).isEqualTo("니나");
-        assertThat(typed.path("goal").textValue()).isEqualTo("설득한다");
-        assertThat(typed.path("blockage_category").textValue()).isEqualTo("표현");
-        assertThat(typed.path("blockage_detail").textValue()).isEqualTo("감정");
-        assertThat(typed.path("blockage_note").textValue()).isEqualTo("감정이 안 올라와요");
+        assertThat(typed.path("experience_version").stringValue(null)).isEqualTo("three_layers_v1");
+        assertThat(typed.path("situation").stringValue(null)).isEqualTo("문 앞에서 돌아선다");
+        assertThat(typed.path("character").stringValue(null)).isEqualTo("니나");
+        assertThat(typed.path("goal").stringValue(null)).isEqualTo("설득한다");
+        assertThat(typed.path("blockage_category").stringValue(null)).isEqualTo("표현");
+        assertThat(typed.path("blockage_detail").stringValue(null)).isEqualTo("감정");
+        assertThat(typed.path("blockage_note").stringValue(null)).isEqualTo("감정이 안 올라와요");
 
         UUID second = video(member);
         JsonNode noHeader = json(post("/v2/practices").content(startBody(UUID.randomUUID(), second, null, null)), 201);
-        assertThat(noHeader.path("experience_version").textValue()).as("헤더가 없으면 legacy").isEqualTo("legacy");
+        assertThat(noHeader.path("experience_version").stringValue(null)).as("헤더가 없으면 legacy").isEqualTo("legacy");
 
         // 저장된 값은 상세 조회에서도 같다 — 회차 속성은 시작 뒤 불변이다.
-        JsonNode detail = json(get("/v2/practices/{id}", typed.path("id").textValue()), 200);
-        assertThat(detail.path("situation").textValue()).isEqualTo("문 앞에서 돌아선다");
-        assertThat(detail.path("blockage_detail").textValue()).isEqualTo("감정");
+        JsonNode detail = json(get("/v2/practices/{id}", typed.path("id").stringValue(null)), 200);
+        assertThat(detail.path("situation").stringValue(null)).isEqualTo("문 앞에서 돌아선다");
+        assertThat(detail.path("blockage_detail").stringValue(null)).isEqualTo("감정");
     }
 
     @Test
@@ -175,7 +175,7 @@ class PracticeLifecycleIT {
         JsonNode again = json(post("/v2/practices").header("X-Request-Id", requestId.toString())
                 .content(startBody(requestId, video, null, null)), 201);
 
-        assertThat(again.path("id").textValue()).isEqualTo(first.path("id").textValue());
+        assertThat(again.path("id").stringValue(null)).isEqualTo(first.path("id").stringValue(null));
         assertThat(count("practices")).isEqualTo(1);
         assertThat(count("ai_jobs")).isEqualTo(1);
 
@@ -211,7 +211,7 @@ class PracticeLifecycleIT {
         assertThat(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video,
                 scene("가".repeat(PracticeRules.SCENE_MAX_CHARS), null, null),
                 blockage("그 외", "그 외", "나".repeat(PracticeRules.BLOCKAGE_NOTE_MAX_CHARS)))), 201)
-                .path("situation").textValue()).hasSize(PracticeRules.SCENE_MAX_CHARS);
+                .path("situation").stringValue(null)).hasSize(PracticeRules.SCENE_MAX_CHARS);
 
         List<String> malformed = List.of(
                 startBody(UUID.randomUUID(), video, scene("가".repeat(PracticeRules.SCENE_MAX_CHARS + 1), null, null), null),
@@ -253,7 +253,7 @@ class PracticeLifecycleIT {
         assertThat(LenientJson.intValue(json(post("/v2/practices").content(startBody(UUID.randomUUID(), fourth, null, null)), guest.bearer(), 201)
                 .path("ordinal"))).as("자정을 넘기면 다시 된다").isEqualTo(1);
         assertThat(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
-                .path("stage").textValue()).as("회원에게는 한도가 없다").isEqualTo("analyzing");
+                .path("stage").stringValue(null)).as("회원에게는 한도가 없다").isEqualTo("analyzing");
     }
 
     @Test
@@ -261,28 +261,28 @@ class PracticeLifecycleIT {
             + "새 영상으로 이어하기 — ordinal 3 이고 video_id 가 새 영상이다. 숨긴 묶음에서도 되고 묶음은 숨김 그대로다")
     void practiceResume_continuesTheGroupWithTheNextOrdinal() throws Exception {
         JsonNode first = json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
-        UUID firstId = UUID.fromString(first.path("id").textValue());
+        UUID firstId = UUID.fromString(first.path("id").stringValue(null));
         close(firstId);
 
         JsonNode second = json(post("/v2/practices/{id}/continue", firstId)
                 .content(continueBody(UUID.randomUUID(), null, scene("다시 찍는다", null, null), null)), 201);
 
         assertThat(LenientJson.intValue(second.path("ordinal"))).isEqualTo(2);
-        assertThat(second.path("root_id").textValue()).isEqualTo(firstId.toString());
-        assertThat(second.path("video_id").textValue()).as("같은 영상을 그대로 쓴다").isEqualTo(video.toString());
-        assertThat(second.path("situation").textValue()).isEqualTo("다시 찍는다");
+        assertThat(second.path("root_id").stringValue(null)).isEqualTo(firstId.toString());
+        assertThat(second.path("video_id").stringValue(null)).as("같은 영상을 그대로 쓴다").isEqualTo(video.toString());
+        assertThat(second.path("situation").stringValue(null)).isEqualTo("다시 찍는다");
         assertThat(count("ai_jobs")).isEqualTo(2);
         assertThat(count("video_transcripts")).as("받아쓰기는 늘지 않는다").isZero();
 
         json(patch("/v2/practices/{id}/group", firstId).content("{\"hidden\":true}"), 200);
-        close(UUID.fromString(second.path("id").textValue()));
+        close(UUID.fromString(second.path("id").stringValue(null)));
         UUID fresh = video(member);
-        JsonNode third = json(post("/v2/practices/{id}/continue", second.path("id").textValue())
+        JsonNode third = json(post("/v2/practices/{id}/continue", second.path("id").stringValue(null))
                 .content(continueBody(UUID.randomUUID(), fresh, null, null)), 201);
 
         assertThat(LenientJson.intValue(third.path("ordinal"))).isEqualTo(3);
-        assertThat(third.path("root_id").textValue()).isEqualTo(firstId.toString());
-        assertThat(third.path("video_id").textValue()).isEqualTo(fresh.toString());
+        assertThat(third.path("root_id").stringValue(null)).isEqualTo(firstId.toString());
+        assertThat(third.path("video_id").stringValue(null)).isEqualTo(fresh.toString());
         assertThat(jdbc.queryForObject("SELECT hidden_at FROM practices WHERE id=?", OffsetDateTime.class, firstId))
                 .as("묶음은 숨김 그대로").isNotNull();
     }
@@ -292,7 +292,7 @@ class PracticeLifecycleIT {
             + "in_progress_practice_id 로 그 회차에 복귀한다. 파일만 파기한 영상의 회차에서 같은 영상으로 이어하기 — 422 video_not_ready, 새 영상은 된다")
     void practiceResume_refusesWhileSomethingIsStillOpen() throws Exception {
         JsonNode first = json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
-        UUID firstId = UUID.fromString(first.path("id").textValue());
+        UUID firstId = UUID.fromString(first.path("id").stringValue(null));
 
         assertThat(json(post("/v2/practices/{id}/continue", firstId)
                 .content(continueBody(UUID.randomUUID(), null, null, null)), 409))
@@ -301,7 +301,7 @@ class PracticeLifecycleIT {
 
         JsonNode groups = json(get("/v2/practices"), 200).path("groups");
         assertThat(groups).hasSize(1);
-        assertThat(groups.get(0).path("in_progress_practice_id").textValue()).isEqualTo(firstId.toString());
+        assertThat(groups.get(0).path("in_progress_practice_id").stringValue(null)).isEqualTo(firstId.toString());
         assertThat(LenientJson.intValue(groups.get(0).path("ordinal_count"))).isEqualTo(1);
 
         close(firstId);
@@ -320,7 +320,7 @@ class PracticeLifecycleIT {
     @DisplayName("practice.resume: 서로 다른 요청 id 로 동시에 이어하기 둘 — ordinal 2 는 하나만 생기고 다른 요청은 409 다. 같은 요청 id 둘 — 같은 회차")
     void practiceResume_concurrentContinuesYieldOneOrdinal() throws Exception {
         JsonNode first = json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
-        UUID firstId = UUID.fromString(first.path("id").textValue());
+        UUID firstId = UUID.fromString(first.path("id").stringValue(null));
         close(firstId);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         List<Integer> statuses;
@@ -347,7 +347,7 @@ class PracticeLifecycleIT {
                 .content(continueBody(requestId, null, null, null)), 201);
         JsonNode replayed = json(post("/v2/practices/{id}/continue", firstId)
                 .content(continueBody(requestId, null, null, null)), 201);
-        assertThat(replayed.path("id").textValue()).isEqualTo(third.path("id").textValue());
+        assertThat(replayed.path("id").stringValue(null)).isEqualTo(third.path("id").stringValue(null));
         assertThat(count("practices")).isEqualTo(3);
     }
 
@@ -356,13 +356,13 @@ class PracticeLifecycleIT {
             + "\"그만두기\" — 작업이 failed/cancelled 이고 lease 가 없으며 회차는 closed 다. 이미 끝난 분석의 취소는 409")
     void practiceAnalyze_statusFollowsTheJobAndCancelClosesIt() throws Exception {
         JsonNode created = json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
-        UUID practiceId = UUID.fromString(created.path("id").textValue());
+        UUID practiceId = UUID.fromString(created.path("id").stringValue(null));
 
-        assertThat(json(get("/v2/practices/{id}/status", practiceId), 200).path("job").path("status").textValue())
+        assertThat(json(get("/v2/practices/{id}/status", practiceId), 200).path("job").path("status").stringValue(null))
                 .isEqualTo("pending");
         jdbc.update("UPDATE ai_jobs SET status='running',lease_token=?,lease_expires_at=now()+interval '10 minutes' "
                 + "WHERE target_id=?", UUID.randomUUID(), practiceId);
-        assertThat(json(get("/v2/practices/{id}/status", practiceId), 200).path("job").path("status").textValue())
+        assertThat(json(get("/v2/practices/{id}/status", practiceId), 200).path("job").path("status").stringValue(null))
                 .isEqualTo("running");
 
         // 워커가 끝낸 자리(PA3)를 흉내 낸다 — 작업 성공과 관찰 기록 저장, 그리고 회차의 stage 전이.
@@ -374,24 +374,24 @@ class PracticeLifecycleIT {
         jdbc.update("UPDATE practices SET stage='conversing' WHERE id=?", practiceId);
 
         JsonNode done = json(get("/v2/practices/{id}/status", practiceId), 200);
-        assertThat(done.path("stage").textValue()).isEqualTo("conversing");
-        assertThat(done.path("analysis_status").textValue()).isEqualTo("ready");
-        assertThat(done.path("job").path("status").textValue()).isEqualTo("succeeded");
+        assertThat(done.path("stage").stringValue(null)).isEqualTo("conversing");
+        assertThat(done.path("analysis_status").stringValue(null)).isEqualTo("ready");
+        assertThat(done.path("job").path("status").stringValue(null)).isEqualTo("succeeded");
         assertThat(json(post("/v2/practices/{id}/cancel", practiceId), 409))
                 .as("이미 끝난 분석").isEqualTo(mapper.readTree("{\"detail\":\"analysis_already_finished\"}"));
 
         UUID second = video(member);
         UUID running = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), second, null, null)), 201)
-                .path("id").textValue());
+                .path("id").stringValue(null));
         jdbc.update("UPDATE ai_jobs SET status='running',lease_token=?,lease_expires_at=now()+interval '10 minutes' "
                 + "WHERE target_id=?", UUID.randomUUID(), running);
 
         JsonNode cancelled = json(post("/v2/practices/{id}/cancel", running), 200);
 
-        assertThat(cancelled.path("stage").textValue()).isEqualTo("closed");
-        assertThat(cancelled.path("close_reason").textValue()).isEqualTo("cancelled");
-        assertThat(cancelled.path("job").path("status").textValue()).isEqualTo("failed");
-        assertThat(cancelled.path("job").path("failure_reason").textValue()).isEqualTo("cancelled");
+        assertThat(cancelled.path("stage").stringValue(null)).isEqualTo("closed");
+        assertThat(cancelled.path("close_reason").stringValue(null)).isEqualTo("cancelled");
+        assertThat(cancelled.path("job").path("status").stringValue(null)).isEqualTo("failed");
+        assertThat(cancelled.path("job").path("failure_reason").stringValue(null)).isEqualTo("cancelled");
         assertThat(jdbc.queryForMap("SELECT lease_token,lease_expires_at FROM ai_jobs WHERE target_id=?", running))
                 .as("늦은 완료와 재큐를 막는다").containsEntry("lease_token", null).containsEntry("lease_expires_at", null);
     }
@@ -401,7 +401,7 @@ class PracticeLifecycleIT {
             + "아직 실패하지 않은 회차 — 409 analysis_not_failed. 묶음에 다른 진행 중 회차가 있으면 409 practice_in_progress")
     void practiceAnalyze_retryNeedsAFailedPracticeAndAnIdleGroup() throws Exception {
         JsonNode created = json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
-        UUID practiceId = UUID.fromString(created.path("id").textValue());
+        UUID practiceId = UUID.fromString(created.path("id").stringValue(null));
 
         assertThat(json(post("/v2/practices/{id}/analyze", practiceId)
                 .content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 409))
@@ -414,21 +414,21 @@ class PracticeLifecycleIT {
         JsonNode retried = json(post("/v2/practices/{id}/analyze", practiceId)
                 .content("{\"request_id\":\"" + retryRequest + "\"}"), 201);
 
-        assertThat(retried.path("stage").textValue()).isEqualTo("analyzing");
+        assertThat(retried.path("stage").stringValue(null)).isEqualTo("analyzing");
         assertThat(retried.path("close_reason").isNull()).isTrue();
-        assertThat(retried.path("job").path("status").textValue()).isEqualTo("pending");
+        assertThat(retried.path("job").path("status").stringValue(null)).isEqualTo("pending");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs WHERE target_id=?", Integer.class, practiceId))
                 .isEqualTo(2);
         assertThat(json(post("/v2/practices/{id}/analyze", practiceId)
-                .content("{\"request_id\":\"" + retryRequest + "\"}"), 201).path("id").textValue())
-                .as("같은 요청 id 재전송").isEqualTo(retried.path("id").textValue());
+                .content("{\"request_id\":\"" + retryRequest + "\"}"), 201).path("id").stringValue(null))
+                .as("같은 요청 id 재전송").isEqualTo(retried.path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs WHERE target_id=?", Integer.class, practiceId))
                 .isEqualTo(2);
 
         // 같은 묶음의 다음 회차가 열려 있으면 앞 회차를 다시 돌리지 않는다.
         close(practiceId);
         UUID next = UUID.fromString(json(post("/v2/practices/{id}/continue", practiceId)
-                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").textValue());
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").stringValue(null));
         jdbc.update("UPDATE ai_jobs SET status='failed',failure_reason='timeout' WHERE target_id=?", practiceId);
         assertThat(json(post("/v2/practices/{id}/analyze", practiceId)
                 .content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 409))
@@ -442,39 +442,39 @@ class PracticeLifecycleIT {
     void practiceLibrary_groupsCarryTheirPracticesAndAttributes() throws Exception {
         JsonNode first = json(post("/v2/practices").content(
                 startBody(UUID.randomUUID(), video, scene("문 앞", null, null), null)), 201);
-        UUID rootId = UUID.fromString(first.path("id").textValue());
+        UUID rootId = UUID.fromString(first.path("id").stringValue(null));
         close(rootId);
         // 묶음은 최근 순이라 두 묶음의 시각이 같으면 순서가 id 에 달린다 — 한 칸 벌려 순서를 못 박는다.
         clock.advance(java.time.Duration.ofMinutes(1));
         UUID otherVideo = video(member);
         UUID otherRoot = UUID.fromString(json(post("/v2/practices").content(
-                startBody(UUID.randomUUID(), otherVideo, null, null)), 201).path("id").textValue());
+                startBody(UUID.randomUUID(), otherVideo, null, null)), 201).path("id").stringValue(null));
 
         JsonNode groups = json(get("/v2/practices"), 200).path("groups");
         assertThat(groups).hasSize(2);
-        assertThat(groups.get(0).path("root_id").textValue()).as("최근 묶음이 먼저다").isEqualTo(otherRoot.toString());
+        assertThat(groups.get(0).path("root_id").stringValue(null)).as("최근 묶음이 먼저다").isEqualTo(otherRoot.toString());
         JsonNode group = groups.get(1);
-        assertThat(group.path("root_id").textValue()).isEqualTo(rootId.toString());
+        assertThat(group.path("root_id").stringValue(null)).isEqualTo(rootId.toString());
         assertThat(group.path("practices")).hasSize(1);
-        assertThat(group.path("practices").get(0).path("situation").textValue()).isEqualTo("문 앞");
+        assertThat(group.path("practices").get(0).path("situation").stringValue(null)).isEqualTo("문 앞");
         assertThat(LenientJson.intValue(group.path("practices").get(0).path("conversation_count"))).isZero();
         assertThat(group.path("practices").get(0).path("note_title").isNull()).isTrue();
         assertThat(group.path("title").isNull()).as("제목은 화면이 대체 규칙으로 채운다").isTrue();
-        assertThat(group.path("favorite").booleanValue()).isFalse();
+        assertThat(group.path("favorite").booleanValue(false)).isFalse();
         assertThat(group.path("in_progress_practice_id").isNull()).isTrue();
         assertThat(group.path("last_conversation_at").isNull()).isTrue();
         assertThat(group.path("tags")).isEmpty();
 
         JsonNode marked = json(patch("/v2/practices/{id}/group", rootId)
                 .content("{\"favorite\":true,\"title\":\"갈매기 1장\"}"), 200);
-        assertThat(marked.path("favorite").booleanValue()).isTrue();
-        assertThat(marked.path("title").textValue()).isEqualTo("갈매기 1장");
+        assertThat(marked.path("favorite").booleanValue(false)).isTrue();
+        assertThat(marked.path("title").stringValue(null)).isEqualTo("갈매기 1장");
         assertThat(json(get("/v2/practices?filter=favorite"), 200).path("groups"))
-                .extracting(g -> g.path("root_id").textValue()).containsExactly(rootId.toString());
+                .extracting(g -> g.path("root_id").stringValue(null)).containsExactly(rootId.toString());
 
         json(patch("/v2/practices/{id}/group", rootId).content("{\"hidden\":true}"), 200);
         assertThat(json(get("/v2/practices"), 200).path("groups"))
-                .extracting(g -> g.path("root_id").textValue()).as("숨긴 묶음은 목록에서 빠진다")
+                .extracting(g -> g.path("root_id").stringValue(null)).as("숨긴 묶음은 목록에서 빠진다")
                 .containsExactly(otherRoot.toString());
         assertThat(count("practices")).as("행은 그대로다").isEqualTo(2);
         assertThat(json(patch("/v2/practices/{id}/group", rootId).content("{\"hidden\":false}"), 200)
@@ -482,7 +482,7 @@ class PracticeLifecycleIT {
 
         jdbc.update("UPDATE practices SET created_at=now() - interval '40 days' WHERE id=?", rootId);
         assertThat(json(get("/v2/practices?filter=recent30"), 200).path("groups"))
-                .extracting(g -> g.path("root_id").textValue()).containsExactly(otherRoot.toString());
+                .extracting(g -> g.path("root_id").stringValue(null)).containsExactly(otherRoot.toString());
 
         MockHttpServletResponse unknown = perform(get("/v2/practices?filter=weekly"), bearer);
         assertThat(unknown.getStatus()).isEqualTo(422);
@@ -502,15 +502,15 @@ class PracticeLifecycleIT {
         UUID requestId = UUID.randomUUID();
         JsonNode titled = json(post("/v2/practices")
                 .content(startBody(requestId, video, null, null, "  갈매기 1장  ")), 201);
-        UUID rootId = UUID.fromString(titled.path("id").textValue());
+        UUID rootId = UUID.fromString(titled.path("id").stringValue(null));
 
         assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, rootId))
                 .isEqualTo("갈매기 1장");
-        assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("title").textValue())
+        assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("title").stringValue(null))
                 .isEqualTo("갈매기 1장");
 
         assertThat(json(post("/v2/practices")
-                .content(startBody(requestId, video, null, null, "  갈매기 1장  ")), 201).path("id").textValue())
+                .content(startBody(requestId, video, null, null, "  갈매기 1장  ")), 201).path("id").stringValue(null))
                 .as("같은 요청 id·같은 제목 재전송").isEqualTo(rootId.toString());
         assertThat(json(post("/v2/practices").content(startBody(requestId, video, null, null, "다른 제목")), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
@@ -520,13 +520,13 @@ class PracticeLifecycleIT {
 
         UUID blankVideo = video(member);
         UUID blank = UUID.fromString(json(post("/v2/practices")
-                .content(startBody(UUID.randomUUID(), blankVideo, null, null, "   ")), 201).path("id").textValue());
+                .content(startBody(UUID.randomUUID(), blankVideo, null, null, "   ")), 201).path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, blank))
                 .as("공백뿐인 제목은 없는 것이다").isNull();
 
         UUID longVideo = video(member);
         UUID longest = UUID.fromString(json(post("/v2/practices").content(
-                startBody(UUID.randomUUID(), longVideo, null, null, "가".repeat(200))), 201).path("id").textValue());
+                startBody(UUID.randomUUID(), longVideo, null, null, "가".repeat(200))), 201).path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, longest)).hasSize(200);
         int before = count("practices");
         MockHttpServletResponse tooLong = perform(post("/v2/practices").contentType(MediaType.APPLICATION_JSON)
@@ -547,10 +547,10 @@ class PracticeLifecycleIT {
         assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, rootId))
                 .as("이어하기는 묶음 제목을 바꾸지 않는다").isEqualTo("갈매기 1장");
         assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class,
-                UUID.fromString(second.path("id").textValue()))).isNull();
+                UUID.fromString(second.path("id").stringValue(null)))).isNull();
         assertThat(json(get("/v2/practices"), 200).path("groups"))
-                .filteredOn(g -> g.path("root_id").textValue().equals(rootId.toString()))
-                .extracting(g -> g.path("title").textValue()).containsExactly("갈매기 1장");
+                .filteredOn(g -> g.path("root_id").stringValue(null).equals(rootId.toString()))
+                .extracting(g -> g.path("title").stringValue(null)).containsExactly("갈매기 1장");
     }
 
     @Test
@@ -558,7 +558,7 @@ class PracticeLifecycleIT {
             + "목록·묶음·상세·시작 응답이 같다. 파일만 파기한 영상은 키가 남아도 null")
     void practiceLibrary_practicesCarryTheirVideoPoster() throws Exception {
         JsonNode created = json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
-        UUID practiceId = UUID.fromString(created.path("id").textValue());
+        UUID practiceId = UUID.fromString(created.path("id").stringValue(null));
         assertThat(created.has("poster_url")).isTrue();
         assertThat(created.path("poster_url").isNull()).as("포스터는 워커가 뒤에 만든다").isTrue();
         assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("practices").get(0)
@@ -569,13 +569,13 @@ class PracticeLifecycleIT {
         String signed = "https://storage.test/get/" + posterKey;
 
         assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("practices").get(0)
-                .path("poster_url").textValue()).isEqualTo(signed);
-        assertThat(json(get("/v2/practices/{id}", practiceId), 200).path("poster_url").textValue()).isEqualTo(signed);
+                .path("poster_url").stringValue(null)).isEqualTo(signed);
+        assertThat(json(get("/v2/practices/{id}", practiceId), 200).path("poster_url").stringValue(null)).isEqualTo(signed);
         assertThat(json(patch("/v2/practices/{id}/group", practiceId).content("{\"favorite\":true}"), 200)
-                .path("practices").get(0).path("poster_url").textValue()).isEqualTo(signed);
+                .path("practices").get(0).path("poster_url").stringValue(null)).isEqualTo(signed);
         close(practiceId);
         assertThat(json(post("/v2/practices/{id}/continue", practiceId)
-                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("poster_url").textValue())
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("poster_url").stringValue(null))
                 .as("같은 영상으로 이어하면 같은 포스터").isEqualTo(signed);
 
         jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", video);
@@ -593,11 +593,11 @@ class PracticeLifecycleIT {
         UUID requestId = UUID.randomUUID();
         String body = startBody(requestId, video, null, null).replace("}", ",\"session_purpose\":\"stuck\"}");
         JsonNode started = json(post("/v2/practices").content(body), 201);
-        UUID rootId = UUID.fromString(started.path("id").textValue());
-        assertThat(started.path("session_purpose").textValue()).isEqualTo("stuck");
+        UUID rootId = UUID.fromString(started.path("id").stringValue(null));
+        assertThat(started.path("session_purpose").stringValue(null)).isEqualTo("stuck");
         assertThat(jdbc.queryForObject("SELECT session_purpose FROM practices WHERE id=?", String.class, rootId))
                 .isEqualTo("stuck");
-        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").stringValue(null))
                 .as("같은 요청 id·같은 목적 재전송").isEqualTo(rootId.toString());
         assertThat(json(post("/v2/practices").content(body.replace("stuck", "character")), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
@@ -615,14 +615,14 @@ class PracticeLifecycleIT {
         assertThat(count("practices")).isEqualTo(before);
 
         UUID plain = UUID.fromString(json(post("/v2/practices")
-                .content(startBody(UUID.randomUUID(), video(member), null, null)), 201).path("id").textValue());
+                .content(startBody(UUID.randomUUID(), video(member), null, null)), 201).path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT session_purpose FROM practices WHERE id=?", String.class, plain))
                 .as("목적 없이 시작하면 지금 코치 그대로").isNull();
 
         close(rootId);
         JsonNode second = json(post("/v2/practices/{id}/continue", rootId)
                 .content(continueBody(UUID.randomUUID(), null, null, null)), 201);
-        assertThat(second.path("session_purpose").textValue()).as("이어하기는 묶음 첫 회차의 목적을 물려받는다").isEqualTo("stuck");
+        assertThat(second.path("session_purpose").stringValue(null)).as("이어하기는 묶음 첫 회차의 목적을 물려받는다").isEqualTo("stuck");
     }
 
     @Test
@@ -631,27 +631,27 @@ class PracticeLifecycleIT {
     void practiceStart_faceMosaicIsStoredAndInherited() throws Exception {
         UUID requestId = UUID.randomUUID();
         String body = startBody(requestId, video, null, null).replace("}", ",\"face_mosaic\":true}");
-        UUID rootId = UUID.fromString(json(post("/v2/practices").content(body), 201).path("id").textValue());
+        UUID rootId = UUID.fromString(json(post("/v2/practices").content(body), 201).path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, rootId)).isTrue();
-        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").stringValue(null))
                 .as("같은 요청 id·같은 본문 재전송").isEqualTo(rootId.toString());
         assertThat(json(post("/v2/practices").content(startBody(requestId, video, null, null)), 422))
                 .as("얼굴 가리기를 빼면 다른 본문이다")
                 .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
 
         UUID off = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video(member), null, null)
-                .replace("}", ",\"face_mosaic\":false}")), 201).path("id").textValue());
+                .replace("}", ",\"face_mosaic\":false}")), 201).path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, off)).isFalse();
 
         close(rootId);
         UUID second = UUID.fromString(json(post("/v2/practices/{id}/continue", rootId)
-                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").textValue());
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, second))
                 .as("이어하기에서 빼면 이어받을 회차의 값").isTrue();
         close(second);
         UUID third = UUID.fromString(json(post("/v2/practices/{id}/continue", second)
                 .content(continueBody(UUID.randomUUID(), null, null, null).replace("}", ",\"face_mosaic\":false}")), 201)
-                .path("id").textValue());
+                .path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, third)).isFalse();
     }
 
@@ -665,15 +665,15 @@ class PracticeLifecycleIT {
 
         JsonNode started = json(post("/v2/practices").content(body), 201);
 
-        UUID id = UUID.fromString(started.path("id").textValue());
+        UUID id = UUID.fromString(started.path("id").stringValue(null));
         assertThat(started.path("video_id").isNull()).isTrue();
-        assertThat(started.path("stage").textValue()).isEqualTo("conversing");
-        assertThat(started.path("session_purpose").textValue()).isEqualTo("concern");
-        assertThat(started.path("experience_version").textValue()).isEqualTo("three_layers_v1");
+        assertThat(started.path("stage").stringValue(null)).isEqualTo("conversing");
+        assertThat(started.path("session_purpose").stringValue(null)).isEqualTo("concern");
+        assertThat(started.path("experience_version").stringValue(null)).isEqualTo("three_layers_v1");
         assertThat(started.path("job").isNull()).isTrue();
         assertThat(count("ai_jobs")).as("분석 작업을 만들지 않는다").isEqualTo(jobs);
         assertThat(jdbc.queryForObject("SELECT video_id FROM practices WHERE id=?", UUID.class, id)).isNull();
-        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").stringValue(null))
                 .as("같은 요청 id 재전송").isEqualTo(id.toString());
         assertThat(json(post("/v2/practices").content(body.replace("concern", "stuck")), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
@@ -704,12 +704,12 @@ class PracticeLifecycleIT {
     void practiceDelete_withoutRetentionPurgesTheVideoAndDetachesTheGroup() throws Exception {
         declineRetention(member);
         UUID rootId = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
-                .path("id").textValue());
+                .path("id").stringValue(null));
         close(rootId);
         UUID secondId = UUID.fromString(json(post("/v2/practices/{id}/continue", rootId)
-                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").textValue());
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").stringValue(null));
         UUID otherRoot = UUID.fromString(json(post("/v2/practices")
-                .content(startBody(UUID.randomUUID(), video(member), null, null)), 201).path("id").textValue());
+                .content(startBody(UUID.randomUUID(), video(member), null, null)), 201).path("id").stringValue(null));
         jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id) VALUES (?,?,'habits','빨라진다','agent',?)",
                 UUID.randomUUID(), member, secondId);
         jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id) VALUES (?,?,'wants','오디션','agent',?)",
@@ -719,7 +719,7 @@ class PracticeLifecycleIT {
 
         JsonNode groups = json(get("/v2/practices"), 200).path("groups");
         assertThat(groups).hasSize(1);
-        assertThat(groups.get(0).path("root_id").textValue()).isEqualTo(otherRoot.toString());
+        assertThat(groups.get(0).path("root_id").stringValue(null)).isEqualTo(otherRoot.toString());
         json(get("/v2/practices/{id}", rootId), 404);
         assertThat(json(delete("/v2/practices/{id}/group", rootId), 404))
                 .isEqualTo(mapper.readTree("{\"detail\":\"practice_not_found\"}"));
@@ -748,7 +748,7 @@ class PracticeLifecycleIT {
             + "뒤에 보관 동의를 거절로 바꾸면 매일 정리가 파일을 파기하고 장부를 비운다")
     void practiceDelete_withRetentionKeepsTheFileUntilTheConsentIsWithdrawn() throws Exception {
         UUID rootId = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
-                .path("id").textValue());
+                .path("id").stringValue(null));
 
         assertThat(perform(delete("/v2/practices/{id}/group", rootId), bearer).getStatus()).isEqualTo(204);
 
@@ -772,7 +772,7 @@ class PracticeLifecycleIT {
     void practiceDelete_keepsAVideoStillUsedElsewhereAndRefusesGuests() throws Exception {
         declineRetention(member);
         UUID rootId = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
-                .path("id").textValue());
+                .path("id").stringValue(null));
         json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
 
         assertThat(perform(delete("/v2/practices/{id}/group", rootId), bearer).getStatus()).isEqualTo(204);
@@ -784,7 +784,7 @@ class PracticeLifecycleIT {
         Guest guest = consentedGuest();
         UUID guestVideo = video(guest.id());
         UUID guestRoot = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), guestVideo, null, null)),
-                guest.bearer(), 201).path("id").textValue());
+                guest.bearer(), 201).path("id").stringValue(null));
         assertThat(json(delete("/v2/practices/{id}/group", guestRoot), guest.bearer(), 403))
                 .isEqualTo(mapper.readTree("{\"detail\":\"member_only\"}"));
     }
@@ -875,8 +875,8 @@ class PracticeLifecycleIT {
         })).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        Guest guest = new Guest(UUID.fromString(body.path("user").path("id").textValue()),
-                "Bearer " + body.path("access_token").textValue());
+        Guest guest = new Guest(UUID.fromString(body.path("user").path("id").stringValue(null)),
+                "Bearer " + body.path("access_token").stringValue(null));
         for (String type : List.of("terms", "privacy", "ai_analysis")) {
             Map<String, Object> consent = new LinkedHashMap<>();
             consent.put("document_id", documents.get(type).toString());

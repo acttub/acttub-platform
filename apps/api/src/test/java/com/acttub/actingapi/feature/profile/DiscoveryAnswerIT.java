@@ -16,8 +16,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -182,7 +182,7 @@ class DiscoveryAnswerIT {
             }
         }
         assertThat(row).isNotNull();
-        assertThat(row.path("discovery_answered").booleanValue()).isTrue();
+        assertThat(row.path("discovery_answered").booleanValue(false)).isTrue();
         assertThat(LenientJson.asText(row.path("discovery_source"))).isEqualTo("other");
         assertThat(row.path("discovery_detail").isNull()).isTrue();
     }

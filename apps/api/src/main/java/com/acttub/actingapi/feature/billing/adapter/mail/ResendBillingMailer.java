@@ -11,12 +11,13 @@ import java.util.concurrent.Executors;
 
 import com.acttub.actingapi.feature.billing.app.BillingMailer;
 import com.acttub.actingapi.platform.http.RestClients;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Resend 로 구독 메일을 보낸다(SOMA-961). 결제 요청을 붙잡지 않도록 따로 된 스레드 하나에서 보내고, 실패는 로그 한 줄만 남긴다
@@ -24,7 +25,7 @@ import org.springframework.web.client.RestClient;
  */
 public class ResendBillingMailer implements BillingMailer {
     private static final Logger LOG = LoggerFactory.getLogger(ResendBillingMailer.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     static final String BASE_URL = "https://api.resend.com";
 
     private final String apiKey;

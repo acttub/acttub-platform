@@ -18,8 +18,8 @@ import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Phone;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.ScoredLine;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 채점 서비스(apps/pron) {@code POST /score} 를 multipart 로 부른다. 같은 compose 네트워크 안의 내부 주소다. */

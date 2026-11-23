@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.coach.app;
 import java.util.List;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**

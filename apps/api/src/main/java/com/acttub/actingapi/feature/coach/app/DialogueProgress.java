@@ -2,8 +2,8 @@ package com.acttub.actingapi.feature.coach.app;
 
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import static com.acttub.actingapi.feature.coach.app.CoachingStateReducer.require;

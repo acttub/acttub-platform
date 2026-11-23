@@ -10,8 +10,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -149,16 +149,16 @@ class ChallengeIT {
                 "request_id", UUID.randomUUID(), "line", "기다려", "work", "달빛", "duration_days", 7))), 201);
         JsonNode search = response(get("/v2/challenges").param("tab", "latest").param("q", "달빛"), 200);
         assertThat(search.path("featured").isNull()).isTrue();
-        assertThat(search.path("challenges").findValuesAsText("id"))
+        assertThat(search.path("challenges").findValuesAsString("id"))
                 .containsExactly(LenientJson.asText(workMatch.path("id")), LenientJson.asText(first.path("id")));
         JsonNode latest = response(get("/v2/challenges").param("tab", "latest"), 200);
         assertThat(latest.at("/featured/id")).isEqualTo(workMatch.path("id"));
-        assertThat(latest.path("challenges").findValuesAsText("id"))
+        assertThat(latest.path("challenges").findValuesAsString("id"))
                 .containsExactly(LenientJson.asText(characterOnly.path("id")), LenientJson.asText(first.path("id")));
         clock.advance(java.time.Duration.ofDays(8));
         JsonNode ended = response(get("/v2/challenges").param("tab", "ended"), 200);
         assertThat(ended.path("featured").isNull()).isTrue();
-        assertThat(ended.path("challenges").findValuesAsText("id"))
+        assertThat(ended.path("challenges").findValuesAsString("id"))
                 .containsExactly(LenientJson.asText(workMatch.path("id")), LenientJson.asText(characterOnly.path("id")), LenientJson.asText(first.path("id")));
         assertThat(response(get("/v2/challenges").param("tab", "latest"), 200).path("challenges")).isEmpty();
     }
@@ -263,13 +263,13 @@ class ChallengeIT {
         JsonNode detail = response(get("/v2/challenges/{id}", challenge), 200);
         assertThat(LenientJson.asLong(detail.path("entry_count"))).isEqualTo(3);
         assertThat(LenientJson.asLong(detail.path("like_sum"))).isEqualTo(7);
-        assertThat(detail.path("participants").findValuesAsText("name")).containsExactly("니나");
+        assertThat(detail.path("participants").findValuesAsString("name")).containsExactly("니나");
         assertThat(LenientJson.asLong(detail.path("more_count"))).isZero();
         assertThat(detail.at("/participants/0/photo_url").isNull()).isTrue();
         assertThat(detail.toString()).doesNotContain("bio");
         assertThat(LenientJson.asText(response(get("/v2/challenges").param("tab", "popular"), 200).at("/featured/id")))
                 .isEqualTo(challenge.toString());
-        assertThat(response(get("/v2/challenges").param("q", "니나"), 200).path("challenges").findValuesAsText("id"))
+        assertThat(response(get("/v2/challenges").param("q", "니나"), 200).path("challenges").findValuesAsString("id"))
                 .containsExactly(challenge.toString());
         assertThat(response(get("/v2/challenges").param("q", "가려진"), 200).path("challenges")).isEmpty();
         assertThat(response(get("/v2/challenges").param("q", "x"), 200)).isEqualTo(response(get("/v2/challenges"), 200));
@@ -278,7 +278,7 @@ class ChallengeIT {
         assertThat(response(get("/v2/challenges").param("q", "가려진"), 200).path("challenges")).isEmpty();
         JsonNode mine = response(get("/v2/challenges").param("tab", "mine"), 200);
         assertThat(mine.path("featured").isNull()).isTrue();
-        assertThat(mine.path("challenges").findValuesAsText("id")).containsExactly(other.toString());
+        assertThat(mine.path("challenges").findValuesAsString("id")).containsExactly(other.toString());
     }
 
     private UUID actor(String name) {
@@ -346,15 +346,15 @@ class ChallengeIT {
         JsonNode first = response(get("/v2/challenges").param("tab", "latest"), 200);
         assertThat(first.path("challenges")).hasSize(20);
         assertThat(LenientJson.asText(first.at("/featured/id"))).isEqualTo(ids.getLast());
-        assertThat(first.path("next_cursor").isTextual()).isTrue();
+        assertThat(first.path("next_cursor").isString()).isTrue();
         JsonNode second = response(get("/v2/challenges").param("tab", "latest")
                 .param("cursor", LenientJson.asText(first.path("next_cursor"))), 200);
         assertThat(second.path("challenges")).hasSize(5);
         assertThat(second.path("next_cursor").isNull()).isTrue();
         var seen = new java.util.ArrayList<String>();
         seen.add(LenientJson.asText(first.at("/featured/id")));
-        seen.addAll(first.path("challenges").findValuesAsText("id"));
-        seen.addAll(second.path("challenges").findValuesAsText("id"));
+        seen.addAll(first.path("challenges").findValuesAsString("id"));
+        seen.addAll(second.path("challenges").findValuesAsString("id"));
         java.util.Collections.reverse(ids);
         assertThat(seen).containsExactlyElementsOf(ids);
         assertThat(response(get("/v2/challenges").param("tab", "latest").param("q", "다른 검색")

@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -53,14 +53,14 @@ class ConsentPublisherIT {
     /** 목록에 적힌 문서 수. 종류나 말이 늘어도 이 테스트는 그대로 맞는다. */
     private int manifestEntryCount() throws Exception {
         try (var in = getClass().getResourceAsStream("/consent-docs/manifest.json")) {
-            return new com.fasterxml.jackson.databind.ObjectMapper().readTree(in).size();
+            return new tools.jackson.databind.ObjectMapper().readTree(in).size();
         }
     }
 
     /** 지금 발행 중인 한국어 이용약관의 판(manifest). 약관 판이 올라가도 아래 두 테스트는 그대로 맞는다. */
     private String publishedTermsVersion() throws Exception {
         try (var in = getClass().getResourceAsStream("/consent-docs/manifest.json")) {
-            for (var entry : new com.fasterxml.jackson.databind.ObjectMapper().readTree(in)) {
+            for (var entry : new tools.jackson.databind.ObjectMapper().readTree(in)) {
                 String locale = LenientJson.asText(entry.path("locale"), "ko");
                 if ("terms".equals(LenientJson.asText(entry.path("type"))) && ("ko".equals(locale) || locale.isBlank())) {
                     return LenientJson.asText(entry.path("version"));

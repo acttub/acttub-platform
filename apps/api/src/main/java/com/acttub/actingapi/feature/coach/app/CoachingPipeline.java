@@ -16,8 +16,8 @@ import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Luna selects the next conversational action; Java dispatches one generation prompt. */
@@ -48,7 +48,7 @@ final class CoachingPipeline {
         JsonNode result = StructuredJson.parse(call(session, LlmStep.COACH_ROUTE, CLASSIFIER, request,
                 new GenerationOptions(OpenAiModels.CHAT, "low", 512, "coaching_route", ROUTE_SCHEMA), null,
                 new LlmPrompt("coach.pipeline.classifier", CLASSIFIER)));
-        if (result.size() != 1 || !result.path("route").isTextual()) {
+        if (result.size() != 1 || !result.path("route").isString()) {
             throw new IllegalArgumentException("invalid coaching route response");
         }
         return CoachingRoute.parse(LenientJson.asText(result.path("route")));
@@ -79,7 +79,7 @@ final class CoachingPipeline {
                 "coach.pipeline." + (finish ? "closing" : opening ? "opening" : route.id), prompt(route, finish, opening));
         JsonNode draft = StructuredJson.parse(call(session, attempt == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
                 prompt, payload, new GenerationOptions(null, "low", 3000, null, null), route, template));
-        if (draft.size() != 3 || !draft.path("message").isTextual() || !draft.has("context_update")
+        if (draft.size() != 3 || !draft.path("message").isString() || !draft.has("context_update")
                 || !draft.path("evidence_refs").isArray()) throw new IllegalArgumentException("invalid coaching draft");
         ObjectNode response = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
                 .put("base_state_revision", LenientJson.asLong(input.path("coaching_state").path("revision")))

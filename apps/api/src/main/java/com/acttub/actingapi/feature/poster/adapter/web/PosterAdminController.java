@@ -22,12 +22,12 @@ import com.acttub.actingapi.feature.poster.app.PosterService;
 import com.acttub.actingapi.feature.poster.domain.PosterDraft;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -116,13 +116,13 @@ class PosterAdminController {
             throw ApiValidationException.valueError(List.of("body", BUMP_REVISION),
                     "Value error, bump_revision must be a boolean", mapper.convertValue(bump, Object.class));
         }
-        for (Iterator<String> names = changes.fieldNames(); names.hasNext(); ) {
+        for (Iterator<String> names = changes.propertyNames().iterator(); names.hasNext(); ) {
             String name = names.next();
             if (!patchableFields.contains(name)) {
                 throw extraForbidden(name, changes.get(name));
             }
         }
-        boolean bumpRevision = bump != null && bump.booleanValue();
+        boolean bumpRevision = bump != null && bump.booleanValue(false);
         return privateNoStore(AdminPoster.of(posters.update(id, merge(changes), bumpRevision)));
     }
 
@@ -148,12 +148,12 @@ class PosterAdminController {
             merged.setAll(changes);
             try {
                 return mapper.treeToValue(merged, PosterFields.class).toDraft();
-            } catch (JsonMappingException invalid) {
+            } catch (DatabindException invalid) {
                 String field = invalid.getPath().isEmpty() ? null : invalid.getPath().getFirst().getFieldName();
                 throw ApiValidationException.valueError(field == null ? List.<Object>of("body") : List.<Object>of("body", field),
                         "Value error, invalid value",
                         field == null ? null : mapper.convertValue(changes.get(field), Object.class));
-            } catch (JsonProcessingException invalid) {
+            } catch (JacksonException invalid) {
                 throw ApiValidationException.valueError(List.of("body"), "Value error, invalid body", null);
             }
         };

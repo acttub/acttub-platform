@@ -24,8 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.StubProviders;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -112,23 +112,23 @@ class AccountLoginIT {
 
         JsonNode first = login(provider, idToken);
 
-        assertThat(first.path("result").textValue()).isEqualTo("signup_required");
-        assertThat(first.fieldNames()).toIterable()
+        assertThat(first.path("result").stringValue(null)).isEqualTo("signup_required");
+        assertThat(first.propertyNames().iterator()).toIterable()
                 .containsExactlyInAnyOrder("result", "signup_token", "expires_in", "documents");
         assertThat(LenientJson.longValue(first.path("expires_in"))).isEqualTo(1800);
-        assertThat(first.path("documents")).extracting(document -> document.path("type").textValue())
+        assertThat(first.path("documents")).extracting(document -> document.path("type").stringValue(null))
                 .containsExactly("terms", "privacy", "ai_analysis", "retention");
         assertThat(count("users")).as("가입 제출 전에는 아무 행도 없다").isZero();
         assertThat(count("user_identities")).isZero();
 
-        JsonNode created = signup(first.path("signup_token").textValue(), decisions("granted"));
+        JsonNode created = signup(first.path("signup_token").stringValue(null), decisions("granted"));
 
-        assertThat(created.path("result").textValue()).isEqualTo("signed_in");
-        assertThat(created.path("access_token").textValue()).isNotBlank();
-        assertThat(created.path("refresh_token").textValue()).isNotBlank();
-        assertThat(created.path("token_type").textValue()).isEqualTo("bearer");
+        assertThat(created.path("result").stringValue(null)).isEqualTo("signed_in");
+        assertThat(created.path("access_token").stringValue(null)).isNotBlank();
+        assertThat(created.path("refresh_token").stringValue(null)).isNotBlank();
+        assertThat(created.path("token_type").stringValue(null)).isEqualTo("bearer");
         assertThat(created.path("pending_consents")).isEmpty();
-        assertThat(created.path("user").path("email").textValue()).isEqualTo(email);
+        assertThat(created.path("user").path("email").stringValue(null)).isEqualTo(email);
         assertThat(count("users")).isEqualTo(1);
         assertThat(jdbc.queryForMap("SELECT provider,provider_uid FROM user_identities"))
                 .containsEntry("provider", provider)
@@ -137,16 +137,16 @@ class AccountLoginIT {
                 "SELECT action FROM user_consents ORDER BY action", String.class))
                 .containsExactly("granted", "granted", "granted", "granted");
         // 리프레시 토큰은 30일이다.
-        JsonNode refreshClaims = jwtClaims(created.path("refresh_token").textValue());
+        JsonNode refreshClaims = jwtClaims(created.path("refresh_token").stringValue(null));
         assertThat(LenientJson.longValue(refreshClaims.path("exp")) - LenientJson.longValue(refreshClaims.path("iat")))
                 .isEqualTo(Duration.ofDays(30).toSeconds());
 
         // 같은 앱 등록의 다른 기기(iOS·안드로이드)에서 와도 제공자 ID 가 같으면 같은 계정이다.
         JsonNode second = login(provider, idToken);
 
-        assertThat(second.path("result").textValue()).isEqualTo("signed_in");
-        assertThat(second.path("user").path("id").textValue())
-                .isEqualTo(created.path("user").path("id").textValue());
+        assertThat(second.path("result").stringValue(null)).isEqualTo("signed_in");
+        assertThat(second.path("user").path("id").stringValue(null))
+                .isEqualTo(created.path("user").path("id").stringValue(null));
         assertThat(count("users")).isEqualTo(1);
         assertThat(count("user_identities")).isEqualTo(1);
     }
@@ -157,8 +157,8 @@ class AccountLoginIT {
 
         JsonNode apple = login("apple", "a-1|Same@Example.test |verified");
 
-        assertThat(apple.path("result").textValue()).isEqualTo("signed_in");
-        assertThat(apple.path("user").path("id").textValue()).isEqualTo(userId);
+        assertThat(apple.path("result").stringValue(null)).isEqualTo("signed_in");
+        assertThat(apple.path("user").path("id").stringValue(null)).isEqualTo(userId);
         assertThat(count("users")).isEqualTo(1);
         assertThat(jdbc.queryForList(
                 "SELECT provider FROM user_identities ORDER BY provider", String.class))
@@ -207,9 +207,9 @@ class AccountLoginIT {
     void accountLogin_signupRecordsTheAgeConfirmationOnlyWhenTheAppSendsIt() throws Exception {
         clock.set(java.time.Instant.parse("2026-10-02T03:04:05Z"));
         String confirmedToken = login("google", "g-age|confirmed@example.test|verified")
-                .path("signup_token").textValue();
+                .path("signup_token").stringValue(null);
         String silentToken = login("google", "g-silent|silent@example.test|verified")
-                .path("signup_token").textValue();
+                .path("signup_token").stringValue(null);
 
         var confirmed = performSignup(confirmedToken, decisions("granted"), true);
         var silent = performSignup(silentToken, decisions("granted"), null);
@@ -227,7 +227,7 @@ class AccountLoginIT {
     @Test
     void accountLogin_kakaoWithoutEmailConsentCreatesAnAccountWhoseEmailIsNull() throws Exception {
         JsonNode created = signup(
-                login("kakao", "k-1").path("signup_token").textValue(), decisions("declined"));
+                login("kakao", "k-1").path("signup_token").stringValue(null), decisions("declined"));
 
         assertThat(created.path("user").path("email").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT email IS NULL FROM users", Boolean.class))
@@ -241,7 +241,7 @@ class AccountLoginIT {
     @Test
     void accountLogin_unverifiedEmailIsNotStoredEvenWhenItIsFree() throws Exception {
         JsonNode created = signup(
-                login("naver", "n-1|outside@example.test").path("signup_token").textValue(),
+                login("naver", "n-1|outside@example.test").path("signup_token").stringValue(null),
                 decisions("granted"));
 
         assertThat(created.path("user").path("email").isNull()).isTrue();
@@ -249,13 +249,13 @@ class AccountLoginIT {
 
     @Test
     void accountLogin_leavingTheConsentScreenLeavesNothingAndTheNextLoginStartsOver() throws Exception {
-        assertThat(login("google", "g-1|left@example.test|verified").path("result").textValue())
+        assertThat(login("google", "g-1|left@example.test|verified").path("result").stringValue(null))
                 .isEqualTo("signup_required");
 
         assertThat(count("users")).isZero();
         assertThat(count("user_identities")).isZero();
         assertThat(count("user_consents")).isZero();
-        assertThat(login("google", "g-1|left@example.test|verified").path("result").textValue())
+        assertThat(login("google", "g-1|left@example.test|verified").path("result").stringValue(null))
                 .as("다시 로그인하면 동의 화면부터 나온다")
                 .isEqualTo("signup_required");
     }
@@ -263,7 +263,7 @@ class AccountLoginIT {
     @Test
     void accountLogin_signupTokenHidesTheProviderIdAndTheEmailFromTheApp() throws Exception {
         String token = login("google", "secret-provider-uid|hidden@example.test|verified")
-                .path("signup_token").textValue();
+                .path("signup_token").stringValue(null);
 
         String[] parts = token.split("\\.");
         assertThat(parts).as("서명(JWS)이 아니라 암호화(JWE)다").hasSize(5);
@@ -277,7 +277,7 @@ class AccountLoginIT {
 
     @Test
     void accountLogin_signupTokenExpiresAfterThirtyMinutesAndAForgedOneIsRejected() throws Exception {
-        String token = login("google", "g-1|late@example.test|verified").path("signup_token").textValue();
+        String token = login("google", "g-1|late@example.test|verified").path("signup_token").stringValue(null);
 
         clock.advance(Duration.ofMinutes(31));
         var expired = performSignup(token, decisions("granted"));
@@ -294,7 +294,7 @@ class AccountLoginIT {
     @Test
     void accountLogin_signupNeedsADecisionForEveryCurrentDocumentIncludingTheOptionalOne()
             throws Exception {
-        String token = login("google", "g-1|partial@example.test|verified").path("signup_token").textValue();
+        String token = login("google", "g-1|partial@example.test|verified").path("signup_token").stringValue(null);
         Map<UUID, String> withoutOptional = decisions("granted");
         withoutOptional.remove(RETENTION);
 
@@ -309,7 +309,7 @@ class AccountLoginIT {
     @Test
     void accountLogin_signupRejectsDecliningARequiredDocumentAndDecisionsOnOldOrUnknownDocuments()
             throws Exception {
-        String token = login("google", "g-1|rules@example.test|verified").path("signup_token").textValue();
+        String token = login("google", "g-1|rules@example.test|verified").path("signup_token").stringValue(null);
 
         Map<UUID, String> declinedRequired = decisions("granted");
         declinedRequired.put(TERMS, "declined");
@@ -341,7 +341,7 @@ class AccountLoginIT {
 
     @Test
     void accountLogin_twoSignupsForTheSameIdentityAtOnceMakeOneAccountAndBothSucceed() throws Exception {
-        String token = login("google", "g-race|race@example.test|verified").path("signup_token").textValue();
+        String token = login("google", "g-race|race@example.test|verified").path("signup_token").stringValue(null);
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
@@ -361,7 +361,7 @@ class AccountLoginIT {
                 MockHttpServletResponse response = submission.get(30, TimeUnit.SECONDS);
                 assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(200);
                 String user = mapper.readTree(response.getContentAsString())
-                        .path("user").path("id").textValue();
+                        .path("user").path("id").stringValue(null);
                 assertThat(user).isNotBlank();
                 if (firstUser != null) {
                     assertThat(user).as("둘 다 같은 계정의 토큰을 받는다").isEqualTo(firstUser);
@@ -378,18 +378,18 @@ class AccountLoginIT {
     @Test
     void accountLogin_withdrawnMemberWhoLogsInAgainStartsAsABrandNewAccount() throws Exception {
         JsonNode first = signup(
-                login("google", "g-1|back@example.test|verified").path("signup_token").textValue(),
+                login("google", "g-1|back@example.test|verified").path("signup_token").stringValue(null),
                 decisions("granted"));
-        String firstUser = first.path("user").path("id").textValue();
+        String firstUser = first.path("user").path("id").stringValue(null);
         assertThat(mvc.perform(delete("/v2/me")
-                        .header("Authorization", "Bearer " + first.path("access_token").textValue()))
+                        .header("Authorization", "Bearer " + first.path("access_token").stringValue(null)))
                 .andReturn().getResponse().getStatus()).isLessThan(300);
 
         JsonNode again = login("google", "g-1|back@example.test|verified");
 
-        assertThat(again.path("result").textValue()).as("동의 화면부터 나온다").isEqualTo("signup_required");
-        JsonNode second = signup(again.path("signup_token").textValue(), decisions("granted"));
-        assertThat(second.path("user").path("id").textValue()).isNotEqualTo(firstUser);
+        assertThat(again.path("result").stringValue(null)).as("동의 화면부터 나온다").isEqualTo("signup_required");
+        JsonNode second = signup(again.path("signup_token").stringValue(null), decisions("granted"));
+        assertThat(second.path("user").path("id").stringValue(null)).isNotEqualTo(firstUser);
         assertThat(count("users")).isEqualTo(2);
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM users WHERE id=?", String.class, UUID.fromString(firstUser)))
@@ -404,13 +404,13 @@ class AccountLoginIT {
 
         JsonNode moved = login("google", "g-1|new@example.test|verified");
 
-        assertThat(moved.path("user").path("id").textValue()).as("이메일은 신원이 아니다").isEqualTo(userId);
-        assertThat(moved.path("user").path("email").textValue()).isEqualTo("new@example.test");
+        assertThat(moved.path("user").path("id").stringValue(null)).as("이메일은 신원이 아니다").isEqualTo(userId);
+        assertThat(moved.path("user").path("email").stringValue(null)).isEqualTo("new@example.test");
 
         JsonNode blocked = login("google", "g-1|other@example.test|verified");
 
-        assertThat(blocked.path("user").path("id").textValue()).isEqualTo(userId);
-        assertThat(blocked.path("user").path("email").textValue())
+        assertThat(blocked.path("user").path("id").stringValue(null)).isEqualTo(userId);
+        assertThat(blocked.path("user").path("email").stringValue(null))
                 .as("다른 계정이 쓰는 주소면 옛 주소가 남는다")
                 .isEqualTo("new@example.test");
     }
@@ -435,25 +435,25 @@ class AccountLoginIT {
     void accountLogin_newRequiredVersionBlocksProtectedApisUntilItIsGrantedEvenAcrossARefresh()
             throws Exception {
         JsonNode member = signup(
-                login("google", "g-1|member@example.test|verified").path("signup_token").textValue(),
+                login("google", "g-1|member@example.test|verified").path("signup_token").stringValue(null),
                 decisions("granted"));
-        AccountFixtures.completeProfile(jdbc, UUID.fromString(member.path("user").path("id").textValue()));
-        String access = member.path("access_token").textValue();
+        AccountFixtures.completeProfile(jdbc, UUID.fromString(member.path("user").path("id").stringValue(null)));
+        String access = member.path("access_token").stringValue(null);
         assertThat(protectedApi(access).getStatus()).isEqualTo(200);
 
         UUID termsV2 = id(205);
         insertDocument(termsV2, "terms", "v2", true, PUBLISHED.plusDays(30));
 
         JsonNode relogin = login("google", "g-1|member@example.test|verified");
-        assertThat(relogin.path("result").textValue()).as("로그인은 된다").isEqualTo("signed_in");
-        assertThat(relogin.path("pending_consents")).extracting(document -> document.path("id").textValue())
+        assertThat(relogin.path("result").stringValue(null)).as("로그인은 된다").isEqualTo("signed_in");
+        assertThat(relogin.path("pending_consents")).extracting(document -> document.path("id").stringValue(null))
                 .containsExactly(termsV2.toString());
 
         var blocked = protectedApi(access);
         assertThat(blocked.getStatus()).isEqualTo(403);
         JsonNode body = mapper.readTree(blocked.getContentAsString());
-        assertThat(body.path("detail").textValue()).isEqualTo("consent_required");
-        assertThat(body.path("pending_consents")).extracting(document -> document.path("id").textValue())
+        assertThat(body.path("detail").stringValue(null)).isEqualTo("consent_required");
+        assertThat(body.path("pending_consents")).extracting(document -> document.path("id").stringValue(null))
                 .containsExactly(termsV2.toString());
 
         // 토큰을 갱신해도 열리지 않는다 — 게이트는 요청마다 DB 의 동의 상태로 판정한다.
@@ -467,9 +467,9 @@ class AccountLoginIT {
                             return request;
                         })
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refresh_token\":\"" + relogin.path("refresh_token").textValue() + "\"}"))
+                        .content("{\"refresh_token\":\"" + relogin.path("refresh_token").stringValue(null) + "\"}"))
                 .andReturn().getResponse().getContentAsString());
-        assertThat(protectedApi(refreshed.path("access_token").textValue()).getStatus()).isEqualTo(403);
+        assertThat(protectedApi(refreshed.path("access_token").stringValue(null)).getStatus()).isEqualTo(403);
 
         assertThat(mvc.perform(post("/v2/consents")
                         .header("Authorization", "Bearer " + access)
@@ -483,8 +483,8 @@ class AccountLoginIT {
 
     /** 가입까지 끝낸 회원의 id. */
     private String signUp(String provider, String idToken) throws Exception {
-        return signup(login(provider, idToken).path("signup_token").textValue(), decisions("granted"))
-                .path("user").path("id").textValue();
+        return signup(login(provider, idToken).path("signup_token").stringValue(null), decisions("granted"))
+                .path("user").path("id").stringValue(null);
     }
 
     private JsonNode login(String provider, String idToken) throws Exception {

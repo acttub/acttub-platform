@@ -34,10 +34,10 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -146,19 +146,19 @@ class ReadingSessionIT {
         JsonNode started = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(body.toString()), 201);
 
         assertThat(count("reading_sessions")).isEqualTo(1);
-        assertThat(started.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(started.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "range_name", "progress",
                 "my_dialogue_count", "recorded_line_count", "elapsed_seconds", "started_at", "ended_at", "script_id", "mode",
                 "advance", "record",
                 "start_line_id", "end_line_id", "current_line_id", "progress_seq", "line_results", "recordings",
                 "different_lines", "my_rating", "chunk_lines");
-        assertThat(started.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(started.path("current_line_id").textValue()).as("구간의 첫 대사 줄").isEqualTo(script.dialogue(1).toString());
-        assertThat(Instant.parse(started.path("started_at").textValue())).as("시각은 앱 시계로 찍는다").isEqualTo(clock.instant());
+        assertThat(started.path("status").stringValue(null)).isEqualTo("in_progress");
+        assertThat(started.path("current_line_id").stringValue(null)).as("구간의 첫 대사 줄").isEqualTo(script.dialogue(1).toString());
+        assertThat(Instant.parse(started.path("started_at").stringValue(null))).as("시각은 앱 시계로 찍는다").isEqualTo(clock.instant());
         assertThat(started.path("ended_at").isNull()).isTrue();
-        assertThat(started.path("my_character_ids")).extracting(JsonNode::textValue)
+        assertThat(started.path("my_character_ids")).extracting(textNode -> textNode.stringValue(null))
                 .containsExactly(script.nina.toString(), script.treplev.toString());
-        assertThat(started.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나", "트레플레프");
+        assertThat(started.path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("니나", "트레플레프");
         assertThat(LenientJson.intValue(started.path("ordinal"))).isEqualTo(1);
         assertThat(LenientJson.intValue(started.path("range").path("start_dialogue_no"))).isEqualTo(1);
         assertThat(LenientJson.intValue(started.path("range").path("end_dialogue_no"))).isEqualTo(8);
@@ -168,14 +168,14 @@ class ReadingSessionIT {
         assertThat(LenientJson.longValue(started.path("progress_seq"))).isZero();
         assertThat(started.path("line_results")).isEmpty();
         assertThat(started.path("recordings")).isEmpty();
-        assertThat(started.path("mode").textValue()).isEqualTo("read");
-        assertThat(started.path("advance").textValue()).isEqualTo("silence");
-        assertThat(started.path("record").booleanValue()).isTrue();
+        assertThat(started.path("mode").stringValue(null)).isEqualTo("read");
+        assertThat(started.path("advance").stringValue(null)).isEqualTo("silence");
+        assertThat(started.path("record").booleanValue(false)).isTrue();
         assertThat(LenientJson.intValue(started.path("chunk_lines"))).as("말풍선 줄 수 — READING_CHUNK_LINES, 없으면 10(SOMA-938)").isEqualTo(10);
-        assertThat(started.path("script_id").textValue()).isEqualTo(script.id.toString());
+        assertThat(started.path("script_id").stringValue(null)).isEqualTo(script.id.toString());
 
         JsonNode replayed = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(body.toString()), 200);
-        assertThat(replayed.path("id").textValue()).isEqualTo(started.path("id").textValue());
+        assertThat(replayed.path("id").stringValue(null)).isEqualTo(started.path("id").stringValue(null));
         assertThat(count("reading_sessions")).isEqualTo(1);
 
         ObjectNode other = start(requestId, List.of(script.nina), "quiz", script.dialogue(1), script.dialogue(8), "manual", false);
@@ -187,14 +187,14 @@ class ReadingSessionIT {
     @Test
     @DisplayName("SOMA-701: 완료가 아닌 진행 저장만 그 트랜잭션에서 WAL 확정을 기다리지 않는다. 완료 저장과 커밋 뒤 같은 연결의 다음 트랜잭션은 기다린다")
     void saveProgress_skipsWalFsyncOnlyForPositionSaves() throws Exception {
-        UUID session = UUID.fromString(startSession(List.of(script.nina)).path("id").textValue());
+        UUID session = UUID.fromString(startSession(List.of(script.nina)).path("id").stringValue(null));
 
         String[] position = synchronousCommitInSave(session, 1, false);
         assertThat(position[0]).as("위치 저장").isEqualTo("off");
         assertThat(synchronousCommitAndBackend()).as("SET LOCAL 이라 커밋 뒤 같은 연결에는 남지 않는다")
                 .containsExactly("on", position[1]);
         assertThat(synchronousCommitInSave(session, 2, true)[0]).as("완료 저장").isEqualTo("on");
-        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("status").textValue()).isEqualTo("completed");
+        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("status").stringValue(null)).isEqualTo("completed");
     }
 
     /** 진행 저장과 같은 트랜잭션 안에서 본 synchronous_commit 값과 연결의 backend pid. */
@@ -215,41 +215,41 @@ class ReadingSessionIT {
     @Test
     @DisplayName("reading.session: 열린 회차가 있는 대본에서 \"새로운 연습\" — 이전 회차는 in_progress 로 남아 위치를 지키고 둘 다 이어 할 수 있다. 대본 상세의 open_session_id 는 가장 최근에 시작한 진행 중 회차다")
     void readingSession_aNewSessionLeavesTheOpenOneResumable() throws Exception {
-        String first = startSession(List.of(script.nina)).path("id").textValue();
+        String first = startSession(List.of(script.nina)).path("id").stringValue(null);
         json(patch("/v2/reading/sessions/{id}/progress", first).content(progress(1, script.dialogue(3), 30, null)), 200);
         clock.advance(Duration.ofSeconds(1));
 
         JsonNode started = startSession(List.of(script.treplev));
-        String second = started.path("id").textValue();
+        String second = started.path("id").stringValue(null);
 
-        assertThat(started.path("status").textValue()).isEqualTo("in_progress");
+        assertThat(started.path("status").stringValue(null)).isEqualTo("in_progress");
         assertThat(LenientJson.intValue(started.path("ordinal"))).isEqualTo(2);
         JsonNode kept = json(get("/v2/reading/sessions/{id}", first), 200);
-        assertThat(kept.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(kept.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
+        assertThat(kept.path("status").stringValue(null)).isEqualTo("in_progress");
+        assertThat(kept.path("current_line_id").stringValue(null)).isEqualTo(script.dialogue(3).toString());
         assertThat(openSessionOf(script.id)).isEqualTo(second);
 
         clock.advance(Duration.ofSeconds(1));
         assertThat(json(patch("/v2/reading/sessions/{id}/progress", first).content(progress(2, script.dialogue(4), 40, null)), 200)
-                .path("current_line_id").textValue()).as("앞 회차를 이어 한다").isEqualTo(script.dialogue(4).toString());
+                .path("current_line_id").stringValue(null)).as("앞 회차를 이어 한다").isEqualTo(script.dialogue(4).toString());
         assertThat(json(patch("/v2/reading/sessions/{id}/progress", second).content(progress(1, script.dialogue(5), 10, null)), 200)
-                .path("current_line_id").textValue()).as("새 회차도 이어 한다").isEqualTo(script.dialogue(5).toString());
+                .path("current_line_id").stringValue(null)).as("새 회차도 이어 한다").isEqualTo(script.dialogue(5).toString());
         assertThat(openSessionOf(script.id)).as("마지막으로 저장한 회차가 아니라 마지막으로 시작한 회차").isEqualTo(second);
         assertThat(json(get("/v2/reading/scripts/{id}/sessions", script.id), 200).path("sessions"))
-                .extracting(card -> card.path("status").textValue())
+                .extracting(card -> card.path("status").stringValue(null))
                 .containsExactly("in_progress", "in_progress");
-        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("reading");
+        assertThat(cardOf(script.id).path("status").stringValue(null)).isEqualTo("reading");
         assertThat(LenientJson.intValue(json(get("/v2/reading/scripts"), 200).path("in_progress_count"))).as("대본 수다").isEqualTo(1);
 
         json(patch("/v2/reading/sessions/{id}/progress", second).content("{\"progress_seq\":2,\"elapsed_seconds\":20,\"complete\":true}"), 200);
         assertThat(openSessionOf(script.id)).as("마지막 것을 마치면 그 앞의 진행 중 회차").isEqualTo(first);
-        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("reading");
+        assertThat(cardOf(script.id).path("status").stringValue(null)).isEqualTo("reading");
     }
 
     @Test
     @DisplayName("reading.session: 시작 트랜잭션을 실패시킴 — 기존 열린 회차가 그대로고 새 회차도 없다. 배역 0개·다른 대본의 배역 — 422 invalid_characters, 행이 남지 않는다")
     void readingSession_aFailedStartLeavesTheOpenSessionAlone() throws Exception {
-        String open = startSession(List.of(script.nina)).path("id").textValue();
+        String open = startSession(List.of(script.nina)).path("id").stringValue(null);
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION fail_session_insert() RETURNS trigger AS $$
                 BEGIN
@@ -288,51 +288,51 @@ class ReadingSessionIT {
     @Test
     @DisplayName("reading.session: 12번 대사를 지나 13번 저장 응답을 받은 뒤 이어하기 — 상세의 current_line_id 가 13번이고 상세에 \"이어서 연습\"의 재료(구간·위치·시간)가 있다. 나가기 확인 뒤 나감 — in_progress 에 위치·시간 저장")
     void readingSession_progressIsKeptForResuming() throws Exception {
-        String session = startSession(List.of(script.nina)).path("id").textValue();
+        String session = startSession(List.of(script.nina)).path("id").stringValue(null);
 
         JsonNode saved = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, script.dialogue(3), 45, null)), 200);
 
         assertThat(saved).isEqualTo(mapper.readTree("{\"current_line_id\":\"" + script.dialogue(3)
                 + "\",\"elapsed_seconds\":45,\"progress_seq\":1,\"status\":\"in_progress\",\"different_lines\":[]}"));
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
-        assertThat(detail.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(detail.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
+        assertThat(detail.path("status").stringValue(null)).isEqualTo("in_progress");
+        assertThat(detail.path("current_line_id").stringValue(null)).isEqualTo(script.dialogue(3).toString());
         assertThat(LenientJson.intValue(detail.path("elapsed_seconds"))).isEqualTo(45);
         assertThat(LenientJson.longValue(detail.path("progress_seq"))).isEqualTo(1);
         assertThat(LenientJson.intValue(detail.path("range").path("start_dialogue_no"))).isEqualTo(1);
         assertThat(LenientJson.intValue(detail.path("range").path("end_dialogue_no"))).isEqualTo(8);
         // 대본 상세의 열린 회차와 마지막 회차도 같은 회차다.
         JsonNode scriptDetail = json(get("/v2/reading/scripts/{id}", script.id), 200);
-        assertThat(scriptDetail.path("open_session_id").textValue()).isEqualTo(session);
-        assertThat(scriptDetail.path("last_session").path("id").textValue()).isEqualTo(session);
+        assertThat(scriptDetail.path("open_session_id").stringValue(null)).isEqualTo(session);
+        assertThat(scriptDetail.path("last_session").path("id").stringValue(null)).isEqualTo(session);
     }
 
     @Test
     @DisplayName("reading.session: progress_seq 7까지 저장된 회차에 seq 5(다른 위치) — 200 이지만 current_line_id 는 그대로다. seq 8에 작은 elapsed — 시간이 줄지 않는다. 시간만 보내면 위치는 그대로다")
     void readingSession_staleSequencesAreIgnoredAndTimeNeverShrinks() throws Exception {
-        String session = startSession(List.of(script.nina)).path("id").textValue();
+        String session = startSession(List.of(script.nina)).path("id").stringValue(null);
         json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(7, script.dialogue(5), 120, null)), 200);
 
         JsonNode stale = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(5, script.dialogue(2), 30, null)), 200);
         assertThat(stale).isEqualTo(mapper.readTree("{\"current_line_id\":\"" + script.dialogue(5)
                 + "\",\"elapsed_seconds\":120,\"progress_seq\":7,\"status\":\"in_progress\",\"different_lines\":[]}"));
         JsonNode same = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(7, script.dialogue(2), 30, null)), 200);
-        assertThat(same.path("current_line_id").textValue()).as("같은 순번도 무시한다").isEqualTo(script.dialogue(5).toString());
+        assertThat(same.path("current_line_id").stringValue(null)).as("같은 순번도 무시한다").isEqualTo(script.dialogue(5).toString());
 
         JsonNode shorter = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(8, script.dialogue(6), 100, null)), 200);
         assertThat(LenientJson.intValue(shorter.path("elapsed_seconds"))).as("시간은 줄지 않는다").isEqualTo(120);
-        assertThat(shorter.path("current_line_id").textValue()).isEqualTo(script.dialogue(6).toString());
+        assertThat(shorter.path("current_line_id").stringValue(null)).isEqualTo(script.dialogue(6).toString());
         assertThat(LenientJson.longValue(shorter.path("progress_seq"))).isEqualTo(8);
 
         JsonNode timeOnly = json(patch("/v2/reading/sessions/{id}/progress", session).content("{\"progress_seq\":9,\"elapsed_seconds\":150}"), 200);
-        assertThat(timeOnly.path("current_line_id").textValue()).isEqualTo(script.dialogue(6).toString());
+        assertThat(timeOnly.path("current_line_id").stringValue(null)).isEqualTo(script.dialogue(6).toString());
         assertThat(LenientJson.intValue(timeOnly.path("elapsed_seconds"))).isEqualTo(150);
     }
 
     @Test
     @DisplayName("reading.session: int 범위를 넘는 elapsed_seconds — 500 이 아니라 그 칸의 int_type 422 다")
     void readingSession_elapsedSecondsBeyondIntIsAValidationError() throws Exception {
-        String session = startSession(List.of(script.nina)).path("id").textValue();
+        String session = startSession(List.of(script.nina)).path("id").stringValue(null);
 
         JsonNode rejected = json(patch("/v2/reading/sessions/{id}/progress", session)
                 .content("{\"progress_seq\":1,\"elapsed_seconds\":99999999999}"), 422);
@@ -346,7 +346,7 @@ class ReadingSessionIT {
     @Test
     @DisplayName("reading.session: 구간 마지막 대사를 넘기고 complete — completed, ended_at 있음, current_line_id NULL. 그 회차에 진행 저장 — 409 session_closed")
     void readingSession_completingClosesTheSessionAndClosedSessionsRejectProgress() throws Exception {
-        String session = startSession(List.of(script.nina)).path("id").textValue();
+        String session = startSession(List.of(script.nina)).path("id").stringValue(null);
         json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, script.dialogue(8), 200, null)), 200);
         clock.advance(Duration.ofSeconds(10));
 
@@ -355,8 +355,8 @@ class ReadingSessionIT {
 
         assertThat(completed).isEqualTo(mapper.readTree("{\"current_line_id\":null,\"elapsed_seconds\":210,\"progress_seq\":2,\"status\":\"completed\",\"different_lines\":[]}"));
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
-        assertThat(detail.path("status").textValue()).isEqualTo("completed");
-        assertThat(Instant.parse(detail.path("ended_at").textValue())).isEqualTo(clock.instant());
+        assertThat(detail.path("status").stringValue(null)).isEqualTo("completed");
+        assertThat(Instant.parse(detail.path("ended_at").stringValue(null))).isEqualTo(clock.instant());
         assertThat(detail.path("current_line_id").isNull()).isTrue();
         assertThat(LenientJson.intValue(detail.path("range").path("end_dialogue_no")) - LenientJson.intValue(detail.path("range").path("start_dialogue_no")) + 1)
                 .as("진행 N / N 의 N — 구간 안 대사 줄 수").isEqualTo(8);
@@ -371,14 +371,14 @@ class ReadingSessionIT {
     void readingSession_listenAllAndTimedAdvanceStart() throws Exception {
         JsonNode listen = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(), "read", script.dialogue(5), script.dialogue(6), "manual", false).toString()), 201);
-        UUID listenId = UUID.fromString(listen.path("id").textValue());
+        UUID listenId = UUID.fromString(listen.path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT cardinality(my_character_ids) FROM reading_sessions WHERE id=?", Integer.class, listenId))
                 .isZero();
 
         JsonNode timed = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(script.nina), "read", script.dialogue(1), script.dialogue(8), "timed", false).toString()), 201);
         assertThat(jdbc.queryForObject("SELECT advance FROM reading_sessions WHERE id=?", String.class,
-                UUID.fromString(timed.path("id").textValue()))).isEqualTo("timed");
+                UUID.fromString(timed.path("id").stringValue(null)))).isEqualTo("timed");
 
         assertThat(json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(), "read", script.dialogue(4), script.dialogue(2), "manual", false).toString()), 422))
@@ -414,7 +414,7 @@ class ReadingSessionIT {
         assertThat(LenientJson.intValue(partial.path("range").path("start_dialogue_no"))).isEqualTo(3);
         assertThat(LenientJson.intValue(partial.path("range").path("end_dialogue_no"))).isEqualTo(6);
         assertThat(LenientJson.intValue(partial.path("my_dialogue_count"))).as("3·4 가운데 니나의 것은 3 하나").isEqualTo(1);
-        assertThat(partial.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
+        assertThat(partial.path("current_line_id").stringValue(null)).isEqualTo(script.dialogue(3).toString());
     }
 
     @Test
@@ -434,7 +434,7 @@ class ReadingSessionIT {
         JsonNode both = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(script.nina, script.treplev), "read", script.dialogue(1), script.dialogue(8), "manual", false).toString()), 201);
         assertThat(LenientJson.intValue(both.path("my_dialogue_count"))).as("두 멤버를 골라도 묶음 줄 4·5 는 한 번씩").isEqualTo(8);
-        JsonNode card = json(get("/v2/reading/sessions/{id}", both.path("id").textValue()), 200);
+        JsonNode card = json(get("/v2/reading/sessions/{id}", both.path("id").stringValue(null)), 200);
         assertThat(LenientJson.intValue(card.path("my_dialogue_count"))).isEqualTo(8);
     }
 
@@ -443,7 +443,7 @@ class ReadingSessionIT {
     void readingSession_lineResultsKeepTheLastEventPerLine() throws Exception {
         String session = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(script.nina), "quiz", script.dialogue(1), script.dialogue(4), "silence", false).toString()), 201)
-                .path("id").textValue();
+                .path("id").stringValue(null);
 
         json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, script.dialogue(2), 10,
                 List.of(result(script.dialogue(1), "unmatched", 1)))), 200);
@@ -490,7 +490,7 @@ class ReadingSessionIT {
                 "그럼 다 달라져.", "대사 8"));
         String session = json(post("/v2/reading/scripts/{id}/sessions", lines.id).content(
                 start(UUID.randomUUID(), List.of(lines.nina), "read", lines.dialogue(1), lines.dialogue(8), "silence", true).toString()), 201)
-                .path("id").textValue();
+                .path("id").stringValue(null);
 
         JsonNode first = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, lines.dialogue(2), 5,
                 List.of(said(lines.dialogue(1), "여기 있을 줄 알았어")))), 200);
@@ -511,7 +511,7 @@ class ReadingSessionIT {
                   {"line_id":"%s","dialogue_no":7,"said":"그럼 다 바뀌어","different_words":[
                     {"text":"그럼","differs":false},{"text":"다","differs":false},{"text":"달라져.","differs":true}]}
                 ]""".formatted(lines.dialogue(3), lines.dialogue(7)));
-        assertThat(completed.path("status").textValue()).isEqualTo("completed");
+        assertThat(completed.path("status").stringValue(null)).isEqualTo("completed");
         assertThat(completed.path("different_lines")).isEqualTo(expected);
 
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
@@ -537,7 +537,7 @@ class ReadingSessionIT {
                 "대사 1", "대사 2", "나는 정말 몰랐어", "대사 4", "대사 5", "대사 6", "대사 7", "대사 8"));
         String session = json(post("/v2/reading/scripts/{id}/sessions", lines.id).content(
                 start(UUID.randomUUID(), List.of(lines.nina), "read", lines.dialogue(1), lines.dialogue(8), "silence", true).toString()), 201)
-                .path("id").textValue();
+                .path("id").stringValue(null);
 
         JsonNode saved = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, lines.dialogue(4), 10,
                 List.of(result(lines.dialogue(1), "passed", 0), result(lines.dialogue(3), "unmatched", 1)))), 200);
@@ -548,7 +548,7 @@ class ReadingSessionIT {
                   {"text":"나는","differs":false},{"text":"정말","differs":false},{"text":"몰랐어","differs":false}]}]
                 """.formatted(lines.dialogue(3)));
         assertThat(saved.path("different_lines")).isEqualTo(expected);
-        assertThat(replayed.path("current_line_id").textValue()).isEqualTo(lines.dialogue(4).toString());
+        assertThat(replayed.path("current_line_id").stringValue(null)).isEqualTo(lines.dialogue(4).toString());
         assertThat(replayed.path("different_lines")).isEqualTo(expected);
         assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("line_results")).containsExactly(
                 result(lines.dialogue(1), "passed", 0), result(lines.dialogue(3), "unmatched", 1));
@@ -565,47 +565,47 @@ class ReadingSessionIT {
     @Test
     @DisplayName("reading.session: 다시 리딩 — 같은 설정의 새 회차가 생기고 이전 회차는 그대로다. 두 번째 회차에서 내 배역을 바꿔도 첫 회차의 my_character_ids 는 그대로다(reading.cast)")
     void readingSession_readingAgainStartsANewSessionAndKeepsTheOldOne() throws Exception {
-        String first = startSession(List.of(script.nina, script.treplev)).path("id").textValue();
+        String first = startSession(List.of(script.nina, script.treplev)).path("id").stringValue(null);
         json(patch("/v2/reading/sessions/{id}/progress", first).content("{\"progress_seq\":1,\"elapsed_seconds\":90,\"complete\":true}"), 200);
 
         JsonNode again = startSession(List.of(script.nina, script.treplev));
         JsonNode changed = startSession(List.of(script.arkadina));
 
-        assertThat(again.path("id").textValue()).isNotEqualTo(first);
-        assertThat(again.path("my_character_ids")).extracting(JsonNode::textValue)
+        assertThat(again.path("id").stringValue(null)).isNotEqualTo(first);
+        assertThat(again.path("my_character_ids")).extracting(textNode -> textNode.stringValue(null))
                 .containsExactly(script.nina.toString(), script.treplev.toString());
         JsonNode previous = json(get("/v2/reading/sessions/{id}", first), 200);
-        assertThat(previous.path("status").textValue()).isEqualTo("completed");
+        assertThat(previous.path("status").stringValue(null)).isEqualTo("completed");
         assertThat(LenientJson.intValue(previous.path("elapsed_seconds"))).isEqualTo(90);
-        assertThat(previous.path("my_character_ids")).extracting(JsonNode::textValue)
+        assertThat(previous.path("my_character_ids")).extracting(textNode -> textNode.stringValue(null))
                 .as("첫 회차의 내 배역은 그대로다").containsExactly(script.nina.toString(), script.treplev.toString());
-        assertThat(changed.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("아르카디나");
+        assertThat(changed.path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("아르카디나");
         assertThat(count("reading_sessions")).isEqualTo(3);
     }
 
     @Test
     @DisplayName("reading.session: 회차 목록 — 최근순이고 항목마다 회차 번호(시작 순)·상태·내 배역·구간 대사 번호·내 대사 수·녹음된 줄 수·걸린 시간·시작·끝 시각이 있다. 남의 대본의 목록은 404")
     void readingSession_listIsNewestFirstWithAggregates() throws Exception {
-        String first = startSession(List.of(script.nina)).path("id").textValue();
+        String first = startSession(List.of(script.nina)).path("id").stringValue(null);
         json(patch("/v2/reading/sessions/{id}/progress", first).content("{\"progress_seq\":1,\"elapsed_seconds\":60,\"complete\":true}"), 200);
         clock.advance(Duration.ofMinutes(1));
         String second = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(script.nina, script.treplev), "read", script.dialogue(2), script.dialogue(7), "manual", true).toString()), 201)
-                .path("id").textValue();
+                .path("id").stringValue(null);
         recording(member, UUID.fromString(second), script.dialogue(2), "reading/a.m4a");
         recording(member, UUID.fromString(second), script.dialogue(3), "reading/b.m4a");
 
         JsonNode list = json(get("/v2/reading/scripts/{id}/sessions", script.id), 200);
 
-        assertThat(list.fieldNames()).toIterable().containsExactly("sessions");
-        assertThat(list.path("sessions")).extracting(row -> row.path("id").textValue()).containsExactly(second, first);
+        assertThat(list.propertyNames().iterator()).toIterable().containsExactly("sessions");
+        assertThat(list.path("sessions")).extracting(row -> row.path("id").stringValue(null)).containsExactly(second, first);
         JsonNode latest = list.path("sessions").get(0);
-        assertThat(latest.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(latest.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "range_name", "progress",
                 "my_dialogue_count", "recorded_line_count", "elapsed_seconds", "started_at", "ended_at");
         assertThat(LenientJson.intValue(latest.path("ordinal"))).isEqualTo(2);
-        assertThat(latest.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(latest.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나", "트레플레프");
+        assertThat(latest.path("status").stringValue(null)).isEqualTo("in_progress");
+        assertThat(latest.path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("니나", "트레플레프");
         assertThat(latest.path("range")).isEqualTo(mapper.readTree("{\"start_dialogue_no\":2,\"end_dialogue_no\":7}"));
         assertThat(latest.path("range_name")).isEqualTo(mapper.readTree(
                 "{\"kind\":\"dialogues\",\"scene_no\":null,\"scene_title\":null,\"start\":2,\"end\":7}"));
@@ -615,7 +615,7 @@ class ReadingSessionIT {
         assertThat(latest.path("ended_at").isNull()).isTrue();
         JsonNode oldest = list.path("sessions").get(1);
         assertThat(LenientJson.intValue(oldest.path("ordinal"))).isEqualTo(1);
-        assertThat(oldest.path("status").textValue()).isEqualTo("completed");
+        assertThat(oldest.path("status").stringValue(null)).isEqualTo("completed");
         assertThat(LenientJson.intValue(oldest.path("elapsed_seconds"))).isEqualTo(60);
         assertThat(oldest.path("ended_at").isNull()).isFalse();
         assertThat(oldest.path("range_name")).as("장면 「제1막」이 대본 전체라 전체가 이긴다").isEqualTo(mapper.readTree(
@@ -643,11 +643,11 @@ class ReadingSessionIT {
     @Test
     @DisplayName("reading.session: 회차 삭제 — 그 회차의 reading_recordings 행과 객체가 없고 line_memorization 행은 남는다. 지운 회차에 진행 저장·조회 — 404. 대본이 지워진 뒤 회차 조회 — 404")
     void readingSession_deletingRemovesRecordingsButKeepsMemorization() throws Exception {
-        UUID session = UUID.fromString(startSession(List.of(script.nina)).path("id").textValue());
+        UUID session = UUID.fromString(startSession(List.of(script.nina)).path("id").stringValue(null));
         recording(member, session, script.dialogue(1), "reading/x.m4a");
         jdbc.update("INSERT INTO line_memorization(id,user_id,line_id,status) VALUES (?,?,?,'memorized')",
                 UUID.randomUUID(), member, script.dialogue(1));
-        UUID kept = UUID.fromString(startSession(List.of(script.treplev)).path("id").textValue());
+        UUID kept = UUID.fromString(startSession(List.of(script.treplev)).path("id").stringValue(null));
 
         assertThat(perform(delete("/v2/reading/sessions/{id}", session), bearer).getStatus()).isEqualTo(204);
 
@@ -671,34 +671,34 @@ class ReadingSessionIT {
     @Test
     @DisplayName("reading.session·reading.script: 대본 카드 칩 — 진행 중 회차가 하나라도 있으면 연습 중, 없고 마지막 회차가 completed 면 연습 완료, 회차가 없으면 배역 선택. 내 배역은 마지막 회차의 것이다")
     void readingSession_scriptCardsFollowTheLastSession() throws Exception {
-        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("no_cast");
+        assertThat(cardOf(script.id).path("status").stringValue(null)).isEqualTo("no_cast");
 
-        String first = startSession(List.of(script.nina)).path("id").textValue();
+        String first = startSession(List.of(script.nina)).path("id").stringValue(null);
         JsonNode reading = cardOf(script.id);
-        assertThat(reading.path("status").textValue()).isEqualTo("reading");
-        assertThat(reading.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나");
+        assertThat(reading.path("status").stringValue(null)).isEqualTo("reading");
+        assertThat(reading.path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("니나");
         assertThat(LenientJson.intValue(json(get("/v2/reading/scripts"), 200).path("in_progress_count"))).isEqualTo(1);
 
         json(patch("/v2/reading/sessions/{id}/progress", first).content("{\"progress_seq\":1,\"elapsed_seconds\":1,\"complete\":true}"), 200);
-        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("completed");
+        assertThat(cardOf(script.id).path("status").stringValue(null)).isEqualTo("completed");
 
         clock.advance(Duration.ofSeconds(1));
-        String second = startSession(List.of(script.treplev)).path("id").textValue();
+        String second = startSession(List.of(script.treplev)).path("id").stringValue(null);
         clock.advance(Duration.ofSeconds(1));
-        String third = startSession(List.of(script.arkadina)).path("id").textValue();
+        String third = startSession(List.of(script.arkadina)).path("id").stringValue(null);
         json(patch("/v2/reading/sessions/{id}/progress", third).content("{\"progress_seq\":1,\"elapsed_seconds\":1,\"complete\":true}"), 200);
         JsonNode stillReading = cardOf(script.id);
-        assertThat(stillReading.path("status").textValue()).as("마지막 회차는 끝났어도 앞 회차가 진행 중").isEqualTo("reading");
-        assertThat(stillReading.path("my_character_names")).extracting(JsonNode::textValue)
+        assertThat(stillReading.path("status").stringValue(null)).as("마지막 회차는 끝났어도 앞 회차가 진행 중").isEqualTo("reading");
+        assertThat(stillReading.path("my_character_names")).extracting(textNode -> textNode.stringValue(null))
                 .as("내 배역은 마지막 회차의 것").containsExactly("아르카디나");
 
         assertThat(perform(delete("/v2/reading/sessions/{id}", second), bearer).getStatus()).isEqualTo(204);
-        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("completed");
+        assertThat(cardOf(script.id).path("status").stringValue(null)).isEqualTo("completed");
 
         for (String done : List.of(first, third)) {
             assertThat(perform(delete("/v2/reading/sessions/{id}", done), bearer).getStatus()).isEqualTo(204);
         }
-        assertThat(cardOf(script.id).path("status").textValue()).as("회차가 없으면 배역 선택").isEqualTo("no_cast");
+        assertThat(cardOf(script.id).path("status").stringValue(null)).as("회차가 없으면 배역 선택").isEqualTo("no_cast");
     }
 
     @Test
@@ -710,7 +710,7 @@ class ReadingSessionIT {
                 .content(start(UUID.randomUUID(), List.of(guests.nina), "read", guests.dialogue(1), guests.dialogue(8), "silence", true).toString()),
                 guest.bearer());
         assertThat(started.getStatus()).as(started.getContentAsString()).isEqualTo(201);
-        String session = mapper.readTree(started.getContentAsString()).path("id").textValue();
+        String session = mapper.readTree(started.getContentAsString()).path("id").stringValue(null);
         assertThat(perform(patch("/v2/reading/sessions/{id}/progress", session).contentType(MediaType.APPLICATION_JSON)
                 .content(progress(3, guests.dialogue(4), 77, List.of(result(guests.dialogue(1), "unmatched", 1)))), guest.bearer()).getStatus())
                 .isEqualTo(200);
@@ -718,14 +718,14 @@ class ReadingSessionIT {
         transfer(guest);
 
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
-        assertThat(detail.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(detail.path("current_line_id").textValue()).isEqualTo(guests.dialogue(4).toString());
+        assertThat(detail.path("status").stringValue(null)).isEqualTo("in_progress");
+        assertThat(detail.path("current_line_id").stringValue(null)).isEqualTo(guests.dialogue(4).toString());
         assertThat(LenientJson.intValue(detail.path("elapsed_seconds"))).isEqualTo(77);
         assertThat(detail.path("line_results")).hasSize(1);
-        assertThat(json(get("/v2/reading/scripts/{id}", guests.id), 200).path("open_session_id").textValue()).isEqualTo(session);
+        assertThat(json(get("/v2/reading/scripts/{id}", guests.id), 200).path("open_session_id").stringValue(null)).isEqualTo(session);
         assertThat(json(get("/v2/reading/scripts/{id}/sessions", guests.id), 200).path("sessions")).hasSize(1);
         assertThat(json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(4, guests.dialogue(5), 80, null)), 200)
-                .path("current_line_id").textValue()).as("회원이 이어서 저장한다").isEqualTo(guests.dialogue(5).toString());
+                .path("current_line_id").stringValue(null)).as("회원이 이어서 저장한다").isEqualTo(guests.dialogue(5).toString());
         var stale = perform(get("/v2/reading/sessions/{id}", session), guest.bearer());
         assertThat(stale.getStatus()).isEqualTo(403);
         assertThat(mapper.readTree(stale.getContentAsString())).isEqualTo(mapper.readTree("{\"detail\":\"guest_transferred\"}"));
@@ -739,7 +739,7 @@ class ReadingSessionIT {
         var started = perform(post("/v2/reading/scripts/{id}/sessions", guests.id).contentType(MediaType.APPLICATION_JSON)
                 .content(start(UUID.randomUUID(), List.of(guests.nina), "read", guests.dialogue(1), guests.dialogue(8), "manual", false).toString()),
                 guest.bearer());
-        String session = mapper.readTree(started.getContentAsString()).path("id").textValue();
+        String session = mapper.readTree(started.getContentAsString()).path("id").stringValue(null);
         String code = issueCode(guest);
         holdSessionReassignments();
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -768,7 +768,7 @@ class ReadingSessionIT {
         }
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
         assertThat(LenientJson.longValue(detail.path("progress_seq"))).as("늦은 저장은 반영되지 않았다").isZero();
-        assertThat(detail.path("current_line_id").textValue()).isEqualTo(guests.dialogue(1).toString());
+        assertThat(detail.path("current_line_id").stringValue(null)).isEqualTo(guests.dialogue(1).toString());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_sessions WHERE user_id=?", Integer.class, guest.id())).isZero();
     }
 
@@ -779,7 +779,7 @@ class ReadingSessionIT {
         ObjectNode body = start(requestId, List.of(script.nina), "read", script.dialogue(1), script.dialogue(8), "manual", false);
 
         assertThat(json(post("/v2/reading/scripts/{id}/sessions", script.id).header("X-Request-Id", requestId.toString())
-                .content(body.toString()), 201).path("id").textValue()).isNotBlank();
+                .content(body.toString()), 201).path("id").stringValue(null)).isNotBlank();
         JsonNode rejected = json(post("/v2/reading/scripts/{id}/sessions", script.id).header("X-Request-Id", UUID.randomUUID().toString())
                 .content(body.toString()), 422);
         assertThat(rejected.path("detail").isArray()).isTrue();
@@ -807,21 +807,21 @@ class ReadingSessionIT {
     void readingSession_sampleScriptCarriesScenesVoicesRangeNameAndProgress() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(rooftop().toString()), 201);
         List<String> lineIds = new ArrayList<>();
-        saved.path("lines").forEach(line -> lineIds.add(line.path("id").textValue()));
+        saved.path("lines").forEach(line -> lineIds.add(line.path("id").stringValue(null)));
 
         assertThat(saved.path("scenes")).isEqualTo(mapper.readTree("""
                 [{"no":1,"title":null,"start_line_id":"%s","end_line_id":"%s","dialogue_count":8},
                  {"no":2,"title":null,"start_line_id":"%s","end_line_id":"%s","dialogue_count":7}]
                 """.formatted(lineIds.get(1), lineIds.get(8), lineIds.get(10), lineIds.get(16))));
-        assertThat(saved.path("characters")).extracting(c -> c.path("name").textValue() + ":" + c.path("voice").textValue())
+        assertThat(saved.path("characters")).extracting(c -> c.path("name").stringValue(null) + ":" + c.path("voice").stringValue(null))
                 .containsExactly("윤서:F1", "태오:M1");
-        String scriptId = saved.path("id").textValue();
-        String yunseo = saved.path("characters").get(0).path("id").textValue();
-        String taeo = saved.path("characters").get(1).path("id").textValue();
+        String scriptId = saved.path("id").stringValue(null);
+        String yunseo = saved.path("characters").get(0).path("id").stringValue(null);
+        String taeo = saved.path("characters").get(1).path("id").stringValue(null);
         ObjectNode fix = mapper.createObjectNode();
         fix.putArray("characters").addObject().put("id", yunseo).put("voice_preset", "M3");
         assertThat(json(patch("/v2/reading/scripts/{id}", scriptId).content(fix.toString()), 200).path("characters"))
-                .extracting(c -> c.path("voice_preset").textValue() + ":" + c.path("voice").textValue())
+                .extracting(c -> c.path("voice_preset").stringValue(null) + ":" + c.path("voice").stringValue(null))
                 .containsExactly("M3:M3", "null:F1");
 
         JsonNode started = json(post("/v2/reading/scripts/{id}/sessions", scriptId).content(start(
@@ -830,14 +830,14 @@ class ReadingSessionIT {
         assertThat(started.path("range_name")).isEqualTo(mapper.readTree(
                 "{\"kind\":\"scene\",\"scene_no\":2,\"scene_title\":null,\"start\":9,\"end\":15}"));
         assertThat(started.path("progress")).isEqualTo(mapper.readTree("{\"done\":0,\"total\":7}"));
-        String session = started.path("id").textValue();
+        String session = started.path("id").stringValue(null);
 
         json(patch("/v2/reading/sessions/{id}/progress", session)
                 .content(progress(1, UUID.fromString(lineIds.get(13)), 30, null)), 200);
         JsonNode card = json(get("/v2/reading/scripts/{id}/sessions", scriptId), 200).path("sessions").get(0);
         assertThat(card.path("progress")).as("12번 대사가 다음 줄 — 9·10·11 셋을 지났다")
                 .isEqualTo(mapper.readTree("{\"done\":3,\"total\":7}"));
-        assertThat(card.path("range_name").path("kind").textValue()).isEqualTo("scene");
+        assertThat(card.path("range_name").path("kind").stringValue(null)).isEqualTo("scene");
         assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress"))
                 .isEqualTo(mapper.readTree("{\"done\":3,\"total\":7}"));
 
@@ -888,17 +888,17 @@ class ReadingSessionIT {
         JsonNode saved = mapper.readTree(response.getContentAsString());
         List<UUID> dialogues = new ArrayList<>();
         for (JsonNode line : saved.path("lines")) {
-            if ("dialogue".equals(line.path("kind").textValue())) {
-                dialogues.add(UUID.fromString(line.path("id").textValue()));
+            if ("dialogue".equals(line.path("kind").stringValue(null))) {
+                dialogues.add(UUID.fromString(line.path("id").stringValue(null)));
             }
         }
         return new Script(
-                UUID.fromString(saved.path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(0).path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(1).path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(2).path("id").textValue()),
-                UUID.fromString(saved.path("lines").get(0).path("id").textValue()),
-                UUID.fromString(saved.path("lines").get(1).path("id").textValue()),
+                UUID.fromString(saved.path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(1).path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(2).path("id").stringValue(null)),
+                UUID.fromString(saved.path("lines").get(0).path("id").stringValue(null)),
+                UUID.fromString(saved.path("lines").get(1).path("id").stringValue(null)),
                 dialogues);
     }
 
@@ -990,7 +990,7 @@ class ReadingSessionIT {
 
     private JsonNode cardOf(UUID scriptId) throws Exception {
         for (JsonNode card : json(get("/v2/reading/scripts"), 200).path("scripts")) {
-            if (scriptId.toString().equals(card.path("id").textValue())) {
+            if (scriptId.toString().equals(card.path("id").stringValue(null))) {
                 return card;
             }
         }
@@ -998,7 +998,7 @@ class ReadingSessionIT {
     }
 
     private String openSessionOf(UUID scriptId) throws Exception {
-        return json(get("/v2/reading/scripts/{id}", scriptId), 200).path("open_session_id").textValue();
+        return json(get("/v2/reading/scripts/{id}", scriptId), 200).path("open_session_id").stringValue(null);
     }
 
     private UUID member() {
@@ -1022,8 +1022,8 @@ class ReadingSessionIT {
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
         Guest guest = new Guest(
-                UUID.fromString(body.path("user").path("id").textValue()),
-                "Bearer " + body.path("access_token").textValue());
+                UUID.fromString(body.path("user").path("id").stringValue(null)),
+                "Bearer " + body.path("access_token").stringValue(null));
         consent(guest, "terms", true);
         consent(guest, "privacy", null);
         return guest;
@@ -1044,7 +1044,7 @@ class ReadingSessionIT {
     private String issueCode(Guest guest) throws Exception {
         var response = perform(post("/v2/guest/transfer-code"), guest.bearer());
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(201);
-        return mapper.readTree(response.getContentAsString()).path("code").textValue();
+        return mapper.readTree(response.getContentAsString()).path("code").stringValue(null);
     }
 
     private void transfer(Guest guest) throws Exception {

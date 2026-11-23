@@ -15,7 +15,7 @@ import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
 

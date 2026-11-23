@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
 
@@ -91,7 +91,7 @@ class CoachingStateReducerRulesTest {
         focus(response).putNull("utterance_ref").putArray("evidence_refs").add("e4").add("l2");
         ObjectNode state = apply(CoachingStateReducer.empty(), response, 0);
         assertThat(state.path("context").path("focus").path("evidence_refs").toString()).isEqualTo("[\"e4\",\"l2\"]");
-        assertThat(state.path("source_catalog").findValuesAsText("id")).contains("e4", "l2").doesNotContain("u1");
+        assertThat(state.path("source_catalog").findValuesAsString("id")).contains("e4", "l2").doesNotContain("u1");
     }
 
     @Test void aReadingBackedOnlyByThisCoachMessageIsRejected() {

@@ -10,8 +10,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -142,7 +142,7 @@ class ChallengeValidationIT {
         assertThat(fromThird.path("entries")).hasSize(20);
         JsonNode rest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
                 .param("cursor", LenientJson.asText(fromThird.path("next_cursor"))), bearer, 200);
-        assertThat(rest.path("entries").findValuesAsText("id")).containsExactly(entries.get(22).toString());
+        assertThat(rest.path("entries").findValuesAsString("id")).containsExactly(entries.get(22).toString());
         assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
                 .param("from_entry", UUID.randomUUID().toString()), bearer, 404).path("detail"))).isEqualTo("entry_not_found");
         UUID another = challenge();
@@ -158,8 +158,8 @@ class ChallengeValidationIT {
         assertThat(first.path("entries")).hasSize(20);
         JsonNode second = response(get("/v2/challenges/{id}/entries", challenge).param("cursor", LenientJson.asText(first.path("next_cursor"))), bearer, 200);
         assertThat(second.path("entries")).hasSize(2);
-        var all = new java.util.ArrayList<String>(first.path("entries").findValuesAsText("id"));
-        all.addAll(second.path("entries").findValuesAsText("id"));
+        var all = new java.util.ArrayList<String>(first.path("entries").findValuesAsString("id"));
+        all.addAll(second.path("entries").findValuesAsString("id"));
         assertThat(all).doesNotHaveDuplicates().hasSize(22);
         assertThat(LenientJson.asText(response(get("/v2/challenges/{id}/entries", challenge).param("from_entry", UUID.randomUUID().toString()), bearer, 404)
                 .path("detail"))).isEqualTo("entry_not_found");

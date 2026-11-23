@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Shared opening policy; these checks enforce form and grounding, not semantic coaching quality. */

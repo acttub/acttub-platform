@@ -25,8 +25,8 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -106,7 +106,7 @@ class AccountPortfolioIT {
 
         JsonNode saved = json(put("/v2/portfolio/intro").content("{\"intro\":\"  무대와 카메라를 오갑니다.\\n둘째 줄  \"}"), 200);
 
-        assertThat(saved.path("intro").textValue()).isEqualTo("무대와 카메라를 오갑니다.\n둘째 줄");
+        assertThat(saved.path("intro").stringValue(null)).isEqualTo("무대와 카메라를 오갑니다.\n둘째 줄");
         assertThat(count("portfolios")).isEqualTo(1);
         assertThat(json(put("/v2/portfolio/intro").content("{\"intro\":null}"), 200).path("intro").isNull()).isTrue();
     }
@@ -114,8 +114,8 @@ class AccountPortfolioIT {
     @Test
     @DisplayName("account.portfolio: 경력 둘과 사진 셋을 저장하고 다시 열면 그대로 보인다. 순서를 바꿔 저장하면 순서가 유지된다")
     void accountPortfolio_creditsAndPhotosKeepTheirOrder() throws Exception {
-        String film = addCredit("영화 하나", "주연", 2025, "film").path("id").textValue();
-        String play = addCredit("연극 둘", "앙상블", 2024, "play").path("id").textValue();
+        String film = addCredit("영화 하나", "주연", 2025, "film").path("id").stringValue(null);
+        String play = addCredit("연극 둘", "앙상블", 2024, "play").path("id").stringValue(null);
         List<String> photos = List.of(uploadPhoto(), uploadPhoto(), uploadPhoto());
 
         JsonNode reopened = json(get("/v2/portfolio"), 200);
@@ -123,7 +123,7 @@ class AccountPortfolioIT {
         assertThat(ids(reopened.path("photos"))).containsExactlyElementsOf(photos);
         assertThat(reopened.path("credits").get(0)).isEqualTo(mapper.readTree(
                 "{\"id\":\"" + film + "\",\"title\":\"영화 하나\",\"role\":\"주연\",\"year\":2025,\"kind\":\"film\"}"));
-        assertThat(reopened.path("photos").get(0).path("url").textValue()).startsWith("https://storage.test/get/");
+        assertThat(reopened.path("photos").get(0).path("url").stringValue(null)).startsWith("https://storage.test/get/");
 
         JsonNode reordered = json(put("/v2/portfolio/credits/order")
                 .content(mapper.writeValueAsString(Map.of("ids", List.of(play, film)))), 200);
@@ -136,15 +136,15 @@ class AccountPortfolioIT {
         assertThat(ids(again.path("photos"))).containsExactly(photos.get(2), photos.get(0), photos.get(1));
 
         JsonNode patched = json(patch("/v2/portfolio/credits/{id}", film).content("{\"role\":\"조연\"}"), 200);
-        assertThat(patched.path("role").textValue()).isEqualTo("조연");
-        assertThat(patched.path("title").textValue()).as("보낸 항목만 바꾼다").isEqualTo("영화 하나");
+        assertThat(patched.path("role").stringValue(null)).isEqualTo("조연");
+        assertThat(patched.path("title").stringValue(null)).as("보낸 항목만 바꾼다").isEqualTo("영화 하나");
     }
 
     @Test
     @DisplayName("account.portfolio: 순서 바꾸기에 보낸 목록이 지금 목록과 다르면 422 order_mismatch 이고 순서는 그대로다")
     void accountPortfolio_orderMustNameExactlyTheCurrentItems() throws Exception {
-        String first = addCredit("하나", "역", 2020, "drama").path("id").textValue();
-        String second = addCredit("둘", "역", 2021, "drama").path("id").textValue();
+        String first = addCredit("하나", "역", 2020, "drama").path("id").stringValue(null);
+        String second = addCredit("둘", "역", 2021, "drama").path("id").stringValue(null);
 
         for (List<String> ids : List.of(
                 List.of(first), List.of(first, first), List.of(first, second, UUID.randomUUID().toString()))) {
@@ -169,42 +169,42 @@ class AccountPortfolioIT {
 
         JsonNode share = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200);
 
-        String slug = share.path("slug").textValue();
+        String slug = share.path("slug").stringValue(null);
         assertThat(slug).as("추측할 수 없는 난수이고 '/'·'+'·'=' 가 없다").matches("[A-Za-z0-9_-]{22}");
-        assertThat(share.path("enabled").booleanValue()).isTrue();
-        assertThat(share.path("url").textValue()).isEqualTo("https://acttub.test/p/" + slug);
+        assertThat(share.path("enabled").booleanValue(false)).isTrue();
+        assertThat(share.path("url").stringValue(null)).isEqualTo("https://acttub.test/p/" + slug);
 
         var response = visit(slug);
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getHeader("X-Robots-Tag")).contains("noindex");
         JsonNode page = mapper.readTree(response.getContentAsString());
-        assertThat(page.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(page.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "name", "photo_url", "gender", "age", "intro", "credits", "photos");
-        assertThat(page.path("name").textValue()).isEqualTo("김배우");
-        assertThat(page.path("photo_url").textValue()).isEqualTo("https://storage.test/get/users/p/profile.jpg");
-        assertThat(page.path("gender").textValue()).isEqualTo("female");
+        assertThat(page.path("name").stringValue(null)).isEqualTo("김배우");
+        assertThat(page.path("photo_url").stringValue(null)).isEqualTo("https://storage.test/get/users/p/profile.jpg");
+        assertThat(page.path("gender").stringValue(null)).isEqualTo("female");
         assertThat(LenientJson.intValue(page.path("age"))).isEqualTo(25);
-        assertThat(page.path("intro").textValue()).isEqualTo("소개글");
+        assertThat(page.path("intro").stringValue(null)).isEqualTo("소개글");
         assertThat(page.path("credits")).hasSize(1);
-        assertThat(page.path("credits").get(0).fieldNames()).toIterable()
+        assertThat(page.path("credits").get(0).propertyNames().iterator()).toIterable()
                 .containsExactlyInAnyOrder("title", "role", "year", "kind");
         assertThat(page.path("photos")).hasSize(1);
-        assertThat(page.path("photos").get(0).fieldNames()).toIterable().containsExactly("url");
+        assertThat(page.path("photos").get(0).propertyNames().iterator()).toIterable().containsExactly("url");
 
         // 링크를 켠 채 프로필의 이름을 바꾸면 공개 페이지도 바뀐다.
         jdbc.update("UPDATE user_profiles SET name='새 이름' WHERE user_id=?", member);
-        assertThat(mapper.readTree(visit(slug).getContentAsString()).path("name").textValue()).isEqualTo("새 이름");
+        assertThat(mapper.readTree(visit(slug).getContentAsString()).path("name").stringValue(null)).isEqualTo("새 이름");
     }
 
     @Test
     @DisplayName("account.portfolio: 링크를 끄고 같은 주소 — 404. 다시 켜면 같은 주소가 열린다. 없는 slug 도 같은 404 다")
     void accountPortfolio_turningTheLinkOffAndOnKeepsTheAddress() throws Exception {
-        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").textValue();
+        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").stringValue(null);
 
         JsonNode off = json(put("/v2/portfolio/share").content("{\"enabled\":false}"), 200);
-        assertThat(off.path("enabled").booleanValue()).isFalse();
-        assertThat(off.path("slug").textValue()).as("꺼도 slug 는 남는다").isEqualTo(slug);
+        assertThat(off.path("enabled").booleanValue(false)).isFalse();
+        assertThat(off.path("slug").stringValue(null)).as("꺼도 slug 는 남는다").isEqualTo(slug);
 
         var closed = visit(slug);
         var unknown = visit("no-such-slug");
@@ -215,8 +215,8 @@ class AccountPortfolioIT {
         }
 
         JsonNode on = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200);
-        assertThat(on.path("slug").textValue()).isEqualTo(slug);
-        assertThat(json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").textValue())
+        assertThat(on.path("slug").stringValue(null)).isEqualTo(slug);
+        assertThat(json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").stringValue(null))
                 .as("같은 값을 다시 보내도 같은 결과다").isEqualTo(slug);
         assertThat(visit(slug).getStatus()).isEqualTo(200);
     }
@@ -227,7 +227,7 @@ class AccountPortfolioIT {
         addCredit("영화 하나", "주연", 2025, "film");
         uploadPhoto();
         uploadPhoto();
-        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").textValue();
+        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").stringValue(null);
         assertThat(storage.objects).hasSize(2);
 
         assertThat(mvc.perform(delete("/v2/me").header("Authorization", bearer)).andReturn().getResponse().getStatus())
@@ -255,7 +255,7 @@ class AccountPortfolioIT {
 
         // 시한(30분)이 지난 올리기는 세지 않는다.
         clock.advance(java.time.Duration.ofMinutes(31));
-        assertThat(beginPhoto("image/jpeg", 1000, 201).path("photo_id").textValue()).isNotBlank();
+        assertThat(beginPhoto("image/jpeg", 1000, 201).path("photo_id").stringValue(null)).isNotBlank();
     }
 
     @Test
@@ -265,7 +265,7 @@ class AccountPortfolioIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"upload_too_large\"}"));
         assertThat(beginPhoto("video/mp4", 1000, 415))
                 .isEqualTo(mapper.readTree("{\"detail\":\"unsupported_media_type\"}"));
-        assertThat(beginPhoto("image/heic", 10L * 1024 * 1024, 201).path("upload_url").textValue())
+        assertThat(beginPhoto("image/heic", 10L * 1024 * 1024, 201).path("upload_url").stringValue(null))
                 .startsWith("https://storage.test/put/users/" + member + "/portfolio/");
         assertThat(count("portfolio_photos")).isEqualTo(1);
     }
@@ -274,13 +274,13 @@ class AccountPortfolioIT {
     @DisplayName("account.portfolio: 사진 올리기 끝 — 올린 객체가 없거나 크기가 다르면 409 이고, 없는 photo_id 는 404 다")
     void accountPortfolio_completingAnUploadChecksTheObject() throws Exception {
         JsonNode intent = beginPhoto("image/jpeg", 1000, 201);
-        String photoId = intent.path("photo_id").textValue();
+        String photoId = intent.path("photo_id").stringValue(null);
         String objectKey = jdbc.queryForObject("SELECT object_key FROM portfolio_photos", String.class);
 
-        assertThat(json(post("/v2/portfolio/photos/{id}/complete", photoId), 409).path("detail").textValue())
+        assertThat(json(post("/v2/portfolio/photos/{id}/complete", photoId), 409).path("detail").stringValue(null))
                 .isEqualTo("upload_not_found");
         storage.objects.put(objectKey, 999L);
-        assertThat(json(post("/v2/portfolio/photos/{id}/complete", photoId), 409).path("detail").textValue())
+        assertThat(json(post("/v2/portfolio/photos/{id}/complete", photoId), 409).path("detail").stringValue(null))
                 .isEqualTo("upload_size_mismatch");
         assertThat(json(post("/v2/portfolio/photos/{id}/complete", UUID.randomUUID()), 404))
                 .isEqualTo(mapper.readTree("{\"detail\":\"portfolio_photo_not_found\"}"));
@@ -295,7 +295,7 @@ class AccountPortfolioIT {
     @Test
     @DisplayName("account.portfolio: 같은 경력을 두 번 지우면 두 번째는 404 다. 사진도 같고, 남의 것도 같은 404 다")
     void accountPortfolio_deletingTwiceIsNotFound() throws Exception {
-        String credit = addCredit("영화 하나", "주연", 2025, "film").path("id").textValue();
+        String credit = addCredit("영화 하나", "주연", 2025, "film").path("id").stringValue(null);
         String photo = uploadPhoto();
         UUID other = member();
         String others = "Bearer " + jwt.issueAccessToken(other).value();
@@ -314,7 +314,7 @@ class AccountPortfolioIT {
         assertThat(photoAgain.getStatus()).isEqualTo(404);
         assertThat(mapper.readTree(photoAgain.getContentAsString()))
                 .isEqualTo(mapper.readTree("{\"detail\":\"portfolio_photo_not_found\"}"));
-        assertThat(json(patch("/v2/portfolio/credits/{id}", credit).content("{\"role\":\"x\"}"), 404).path("detail").textValue())
+        assertThat(json(patch("/v2/portfolio/credits/{id}", credit).content("{\"role\":\"x\"}"), 404).path("detail").stringValue(null))
                 .isEqualTo("portfolio_credit_not_found");
     }
 
@@ -351,11 +351,11 @@ class AccountPortfolioIT {
             assertThat(json(request, 422).path("detail").isArray()).isTrue();
         }
         assertThat(json(put("/v2/portfolio/intro").content("{\"intro\":\"" + "가".repeat(2000) + "\"}"), 200)
-                .path("intro").textValue()).hasSize(2000);
+                .path("intro").stringValue(null)).hasSize(2000);
         assertThat(LenientJson.intValue(json(post("/v2/portfolio/credits").content(credit("가".repeat(100), "역", nextYear, "ad")), 201)
                 .path("year"))).as("내년까지는 된다").isEqualTo(nextYear);
         assertThat(json(post("/v2/portfolio/credits").content(credit("작품", "역", 1900, "musical")), 201)
-                .path("kind").textValue()).isEqualTo("musical");
+                .path("kind").stringValue(null)).isEqualTo("musical");
     }
 
     @Test
@@ -377,7 +377,7 @@ class AccountPortfolioIT {
     @DisplayName("account.portfolio: 성별이 \"선택 안 함\"인 회원의 공개 페이지에는 성별이 null 로 온다(칸을 뺀다)")
     void accountPortfolio_unspecifiedGenderIsLeftOut() throws Exception {
         jdbc.update("UPDATE user_profiles SET gender='unspecified' WHERE user_id=?", member);
-        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").textValue();
+        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").stringValue(null);
 
         JsonNode page = mapper.readTree(visit(slug).getContentAsString());
 
@@ -388,7 +388,7 @@ class AccountPortfolioIT {
     @Test
     @DisplayName("account.portfolio: 공개 조회는 로그인이 없다 — 만료된 토큰이 붙어 와도 열리고, 게이트에 걸리지 않는다")
     void accountPortfolio_publicViewIgnoresTokens() throws Exception {
-        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").textValue();
+        String slug = json(put("/v2/portfolio/share").content("{\"enabled\":true}"), 200).path("slug").stringValue(null);
 
         var response = mvc.perform(get("/v2/public/portfolios/{slug}", slug)
                         .with(request -> {
@@ -428,7 +428,7 @@ class AccountPortfolioIT {
         AccountFixtures.grantAllConsents(jdbc, unfinished);
         var gated = perform(get("/v2/portfolio"), "Bearer " + jwt.issueAccessToken(unfinished).value());
         assertThat(gated.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(gated.getContentAsString()).path("detail").textValue()).isEqualTo("profile_required");
+        assertThat(mapper.readTree(gated.getContentAsString()).path("detail").stringValue(null)).isEqualTo("profile_required");
 
         UUID undecided = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", undecided);
@@ -437,7 +437,7 @@ class AccountPortfolioIT {
         var pending = perform(get("/v2/portfolio"), "Bearer " + jwt.issueAccessToken(undecided).value());
         assertThat(pending.getStatus()).isEqualTo(403);
         JsonNode pendingBody = mapper.readTree(pending.getContentAsString());
-        assertThat(pendingBody.path("detail").textValue()).isEqualTo("consent_required");
+        assertThat(pendingBody.path("detail").stringValue(null)).isEqualTo("consent_required");
         assertThat(pendingBody.path("pending_consents").isArray()).isTrue();
         assertThat(pendingBody.path("pending_consents")).isNotEmpty();
     }
@@ -469,7 +469,7 @@ class AccountPortfolioIT {
     /** 주소를 받고, 가짜 저장소에 그 크기로 올리고, 끝을 알린다. */
     private String uploadPhoto() throws Exception {
         JsonNode intent = beginPhoto("image/jpeg", 1000, 201);
-        String photoId = intent.path("photo_id").textValue();
+        String photoId = intent.path("photo_id").stringValue(null);
         String objectKey = jdbc.queryForObject(
                 "SELECT object_key FROM portfolio_photos WHERE id=?", String.class, UUID.fromString(photoId));
         storage.objects.put(objectKey, 1000L);
@@ -502,7 +502,7 @@ class AccountPortfolioIT {
 
     private static List<String> ids(JsonNode rows) {
         List<String> ids = new ArrayList<>();
-        rows.forEach(row -> ids.add(row.path("id").textValue()));
+        rows.forEach(row -> ids.add(row.path("id").stringValue(null)));
         return ids;
     }
 

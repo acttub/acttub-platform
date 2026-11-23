@@ -1,7 +1,7 @@
 package com.acttub.actingapi.feature.coach.app;
 
 import java.util.Map;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import static com.acttub.actingapi.feature.coach.app.CoachingStateReducer.require;
 import com.acttub.actingapi.platform.json.LenientJson;
 

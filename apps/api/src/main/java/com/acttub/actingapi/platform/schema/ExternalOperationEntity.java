@@ -2,7 +2,7 @@ package com.acttub.actingapi.platform.schema;
 
 import java.time.Instant;
 import java.util.UUID;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Pattern;
 import org.hibernate.annotations.JdbcTypeCode;

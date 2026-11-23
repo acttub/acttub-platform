@@ -74,7 +74,7 @@ final class DirectVideoRouting {
         }
         var signals = EnumSet.noneOf(DirectVideoRoute.class);
         for (var value : root.path("signals")) {
-            if (!value.isTextual() || !CATEGORIES.contains(LenientJson.asText(value))) {
+            if (!value.isString() || !CATEGORIES.contains(LenientJson.asText(value))) {
                 throw new IllegalArgumentException("unknown direct video classification");
             }
             var route = DirectVideoRoute.valueOf(LenientJson.asText(value).toUpperCase(java.util.Locale.ROOT));

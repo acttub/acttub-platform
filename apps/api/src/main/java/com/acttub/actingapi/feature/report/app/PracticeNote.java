@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 저장된 노트 JSON 을 알아보고 공개 응답으로 투영한다. 노트 조립은 {@link DialogueNote} 가 한다. */

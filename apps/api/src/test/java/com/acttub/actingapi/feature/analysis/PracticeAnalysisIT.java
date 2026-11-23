@@ -30,8 +30,8 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -377,7 +377,7 @@ class PracticeAnalysisIT {
                 uncertainties);
     }
 
-    private static com.fasterxml.jackson.databind.JsonNode videoRecord(UUID recordId) {
+    private static tools.jackson.databind.JsonNode videoRecord(UUID recordId) {
         ObjectNode record = JsonNodeFactory.instance.objectNode();
         record.put("record_id", recordId.toString());
         record.put("version", "acttub.video_record.v1");

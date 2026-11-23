@@ -17,8 +17,8 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -120,9 +120,9 @@ class AdAdminEndpointIT {
     @DisplayName("이미지 올릴 자리는 규격 폴더 키와 10분 주소, 크기·형식·용량이 틀리면 422·415·413")
     void imageUpload() throws Exception {
         JsonNode upload = json(admin(post("/v2/admin/ad-images"), request("BANNER", 640, 100, "image/webp", 2048)), 200);
-        String key = upload.path("key").textValue();
+        String key = upload.path("key").stringValue(null);
         assertThat(key).matches("ads/banner/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp");
-        assertThat(upload.path("upload_url").textValue()).isEqualTo("put:" + key + ":image/webp:2048:600");
+        assertThat(upload.path("upload_url").stringValue(null)).isEqualTo("put:" + key + ":image/webp:2048:600");
         assertThat(LenientJson.intValue(upload.path("expires_in"))).isEqualTo(600);
 
         json(admin(post("/v2/admin/ad-images"), request("BANNER", 300, 250, "image/png", 10)), 422);
@@ -135,7 +135,7 @@ class AdAdminEndpointIT {
     @DisplayName("직접 광고 등록 규칙, 수정·상태 전환, 목록 합계, 날짜별 통계, 앱 응답의 서명 이미지와 link_url")
     void lifecycle() throws Exception {
         String key = json(admin(post("/v2/admin/ad-images"), request("BANNER", 320, 50, "image/png", 100)), 200)
-                .path("key").textValue();
+                .path("key").stringValue(null);
 
         // link_url 없음·이미지 없음·학원 전용 칸 없이도 되는 정상 등록
         JsonNode noLink = json(admin(post("/v2/admin/ads"),
@@ -145,22 +145,22 @@ class AdAdminEndpointIT {
                 "{\"kind\":\"direct\",\"advertiser_name\":\"한빛\",\"slots\":[\"home_top\"],\"link_url\":\"https://example.com\"}"), 422);
         assertThat(noImage.path("detail").get(0).path("loc").toString()).isEqualTo("[\"body\",\"image_banner\"]");
         JsonNode extra = json(admin(post("/v2/admin/ads"), "{\"tuition\":\"월 40만원\"}"), 422);
-        assertThat(extra.path("detail").get(0).path("type").textValue()).isEqualTo("extra_forbidden");
+        assertThat(extra.path("detail").get(0).path("type").stringValue(null)).isEqualTo("extra_forbidden");
 
         JsonNode created = json(admin(post("/v2/admin/ads"), "{\"kind\":\"direct\",\"advertiser_name\":\"한빛연기학원\","
                 + "\"slots\":[\"home_top\"],\"image_banner\":\"" + key + "\",\"link_url\":\"https://example.com/a\","
                 + "\"priority\":5}"), 201);
-        String id = created.path("id").textValue();
-        assertThat(created.path("status").textValue()).isEqualTo("active");
-        assertThat(created.path("image_banner_url").textValue()).isEqualTo("signed:" + key + ":3600");
+        String id = created.path("id").stringValue(null);
+        assertThat(created.path("status").stringValue(null)).isEqualTo("active");
+        assertThat(created.path("image_banner_url").stringValue(null)).isEqualTo("signed:" + key + ":3600");
         assertThat(LenientJson.longValue(created.path("impressions"))).isZero();
 
         // 앱은 서명 주소와 link_url 을 받는다
         finishReading();
         JsonNode pick = app(get("/v2/ads").param("slot", "home_top"));
-        assertThat(pick.path("kind").textValue()).isEqualTo("DIRECT");
-        assertThat(pick.path("ad").path("image_url").textValue()).isEqualTo("signed:" + key + ":3600");
-        assertThat(pick.path("ad").path("link_url").textValue()).isEqualTo("https://example.com/a");
+        assertThat(pick.path("kind").stringValue(null)).isEqualTo("DIRECT");
+        assertThat(pick.path("ad").path("image_url").stringValue(null)).isEqualTo("signed:" + key + ":3600");
+        assertThat(pick.path("ad").path("link_url").stringValue(null)).isEqualTo("https://example.com/a");
 
         // 노출·클릭 기록 후 목록과 통계
         app(post("/v2/ads/" + id + "/events").contentType(MediaType.APPLICATION_JSON)
@@ -170,7 +170,7 @@ class AdAdminEndpointIT {
         app(post("/v2/ads/" + id + "/events").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"slot\":\"home_top\",\"event\":\"click\"}"), 204);
         JsonNode listed = json(admin(get("/v2/admin/ads"), null), 200).path("ads").get(0);
-        assertThat(listed.path("id").textValue()).isEqualTo(id);
+        assertThat(listed.path("id").stringValue(null)).isEqualTo(id);
         assertThat(LenientJson.longValue(listed.path("impressions"))).isEqualTo(1);
         assertThat(LenientJson.longValue(listed.path("clicks"))).isEqualTo(2);
 
@@ -179,7 +179,7 @@ class AdAdminEndpointIT {
                 .param("from", today.minusDays(2).toString()).param("to", today.toString()), null), 200);
         assertThat(stats.path("days")).hasSize(3);
         assertThat(LenientJson.longValue(stats.path("days").get(0).path("impressions"))).isZero();
-        assertThat(stats.path("days").get(2).path("day").textValue()).isEqualTo(today.toString());
+        assertThat(stats.path("days").get(2).path("day").stringValue(null)).isEqualTo(today.toString());
         assertThat(LenientJson.longValue(stats.path("days").get(2).path("clicks"))).isEqualTo(2);
         assertThat(LenientJson.longValue(stats.path("impressions"))).isEqualTo(1);
         assertThat(LenientJson.longValue(stats.path("clicks"))).isEqualTo(2);
@@ -189,18 +189,18 @@ class AdAdminEndpointIT {
         json(admin(get("/v2/admin/ads/" + UUID.randomUUID() + "/stats"), null), 404);
 
         // 멈추면 앱은 NETWORK, 다시 켜면 DIRECT, 끝내면 NETWORK
-        assertThat(json(admin(patch("/v2/admin/ads/" + id), "{\"status\":\"paused\"}"), 200).path("status").textValue())
+        assertThat(json(admin(patch("/v2/admin/ads/" + id), "{\"status\":\"paused\"}"), 200).path("status").stringValue(null))
                 .isEqualTo("paused");
-        assertThat(app(get("/v2/ads").param("slot", "home_top")).path("kind").textValue()).isEqualTo("NETWORK");
+        assertThat(app(get("/v2/ads").param("slot", "home_top")).path("kind").stringValue(null)).isEqualTo("NETWORK");
         json(admin(patch("/v2/admin/ads/" + id), "{\"status\":\"active\",\"priority\":9}"), 200);
-        assertThat(app(get("/v2/ads").param("slot", "home_top")).path("kind").textValue()).isEqualTo("DIRECT");
+        assertThat(app(get("/v2/ads").param("slot", "home_top")).path("kind").stringValue(null)).isEqualTo("DIRECT");
         json(admin(patch("/v2/admin/ads/" + id), "{\"status\":\"ended\"}"), 200);
-        assertThat(app(get("/v2/ads").param("slot", "home_top")).path("kind").textValue()).isEqualTo("NETWORK");
+        assertThat(app(get("/v2/ads").param("slot", "home_top")).path("kind").stringValue(null)).isEqualTo("NETWORK");
 
         // 수정은 규칙을 다시 검사하고 보내지 않은 칸은 그대로
         json(admin(patch("/v2/admin/ads/" + id), "{\"link_url\":\"ftp://x\"}"), 422);
         JsonNode renamed = json(admin(patch("/v2/admin/ads/" + id), "{\"advertiser_name\":\"새이름\"}"), 200);
-        assertThat(renamed.path("link_url").textValue()).isEqualTo("https://example.com/a");
+        assertThat(renamed.path("link_url").stringValue(null)).isEqualTo("https://example.com/a");
         assertThat(LenientJson.intValue(renamed.path("priority"))).isEqualTo(9);
         json(admin(patch("/v2/admin/ads/" + UUID.randomUUID()), "{\"status\":\"paused\"}"), 404);
         json(admin(patch("/v2/admin/ads/" + id), "{\"nope\":1}"), 422);
@@ -211,12 +211,12 @@ class AdAdminEndpointIT {
     void houseAd() throws Exception {
         JsonNode created = json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"Pro 를 써 보세요\","
                 + "\"slots\":[\"home_top\"],\"audience\":\"free\",\"app_path\":\"/pro\",\"share_percent\":100}"), 201);
-        assertThat(created.path("kind").textValue()).isEqualTo("house");
+        assertThat(created.path("kind").stringValue(null)).isEqualTo("house");
         assertThat(LenientJson.intValue(created.path("share_percent"))).isEqualTo(100);
         finishReading();
         JsonNode pick = app(get("/v2/ads").param("slot", "home_top"));
-        assertThat(pick.path("kind").textValue()).isEqualTo("HOUSE");
-        assertThat(pick.path("ad").path("app_path").textValue()).isEqualTo("/pro");
+        assertThat(pick.path("kind").stringValue(null)).isEqualTo("HOUSE");
+        assertThat(pick.path("ad").path("app_path").stringValue(null)).isEqualTo("/pro");
         json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"x\",\"app_path\":\"pro\"}"), 422);
         json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"x\",\"app_path\":\"/pro\",\"share_percent\":101}"), 422);
         // 비율을 안 보내면 기본 50

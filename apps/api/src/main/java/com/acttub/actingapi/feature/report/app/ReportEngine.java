@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.feature.report.domain.ExpressionReadiness;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.core.JacksonException;
 import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
@@ -23,10 +23,10 @@ import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.acttub.actingapi.platform.web.OutputLanguage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.acttub.actingapi.platform.json.LenientJson;
@@ -224,7 +224,7 @@ public class ReportEngine {
             ObjectNode withProfile = (ObjectNode) mapper.readTree(input);
             withProfile.set("actor_profile", mapper.valueToTree(actorProfile));
             return withProfile.toString();
-        } catch (com.fasterxml.jackson.core.JsonProcessingException malformed) {
+        } catch (tools.jackson.core.JacksonException malformed) {
             throw new IllegalStateException("note model input is not a JSON object", malformed);
         }
     }
@@ -303,7 +303,7 @@ public class ReportEngine {
         JsonNode parsed;
         try {
             parsed = mapper.readTree(jsonText);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new ReportParseError(
                     PythonJsonDecodeError.format(exception, jsonText), exception);
         }
@@ -353,7 +353,7 @@ public class ReportEngine {
                 copyText(item, "dimension", normalized);
                 JsonNode confidence = item.get("confidence");
                 require(confidence != null && confidence.isNumber(), "confidence must be a number");
-                normalized.put("confidence", confidence.doubleValue());
+                normalized.put("confidence", confidence.doubleValue(0));
                 normalizedObservations.add(normalized);
             });
         }
@@ -379,8 +379,8 @@ public class ReportEngine {
     /** 있으면 문자열로 옮기고, 없으면 칸 자체를 만들지 않는다. */
     private static void copyText(JsonNode source, String field, ObjectNode target) {
         JsonNode value = source.get(field);
-        if (value != null && value.isTextual()) {
-            target.put(field, value.textValue());
+        if (value != null && value.isString()) {
+            target.put(field, value.stringValue(null));
         }
     }
 
@@ -389,7 +389,7 @@ public class ReportEngine {
         JsonNode experiment = handoff.get("experiment");
         boolean hasExperiment = experiment != null && experiment.isObject();
         Boolean tested = hasExperiment && experiment.path("tested").isBoolean()
-                ? experiment.path("tested").booleanValue()
+                ? experiment.path("tested").booleanValue(false)
                 : null;
         return ExpressionReadiness.playable(
                 tested,
@@ -398,7 +398,7 @@ public class ReportEngine {
     }
 
     private static String textOrNull(JsonNode value) {
-        return value != null && value.isTextual() ? value.textValue() : null;
+        return value != null && value.isString() ? value.stringValue(null) : null;
     }
 
     private void validateBlocked(ObjectNode report) {
@@ -456,7 +456,7 @@ public class ReportEngine {
         ObjectNode ids = object(report.get("source_handoff_ids"), "source_handoff_ids");
         exactFields(ids, Set.of("analysis", "expression"));
         JsonNode analysis = ids.get("analysis");
-        require(analysis != null && (analysis.isNull() || analysis.isTextual()),
+        require(analysis != null && (analysis.isNull() || analysis.isString()),
                 "source_handoff_ids.analysis must be a string or null");
         text(ids.get("expression"), "source_handoff_ids.expression");
     }
@@ -469,7 +469,7 @@ public class ReportEngine {
             }
             output.append("{\n");
             List<String> fields = new ArrayList<>();
-            value.fieldNames().forEachRemaining(fields::add);
+            value.propertyNames().iterator().forEachRemaining(fields::add);
             for (int index = 0; index < fields.size(); index++) {
                 String field = fields.get(index);
                 indent(output, depth + 1);
@@ -496,8 +496,8 @@ public class ReportEngine {
             output.append(']');
             return;
         }
-        if (value.isTextual()) {
-            output.append(jsonString(value.textValue()));
+        if (value.isString()) {
+            output.append(jsonString(value.stringValue(null)));
             return;
         }
         output.append(value.toString());
@@ -506,7 +506,7 @@ public class ReportEngine {
     private String jsonString(String value) {
         try {
             return mapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("failed to serialize report input string", exception);
         }
     }
@@ -516,7 +516,7 @@ public class ReportEngine {
     }
 
     private static long integral(JsonNode value, String field) {
-        require(value != null && value.isNumber() && value.doubleValue() == LenientJson.longValue(value),
+        require(value != null && value.isNumber() && value.doubleValue(0) == LenientJson.longValue(value),
                 field + " must be an integer");
         return LenientJson.longValue(value);
     }
@@ -527,8 +527,8 @@ public class ReportEngine {
     }
 
     private static String text(JsonNode value, String field) {
-        require(value != null && value.isTextual(), field + " must be a string");
-        return value.textValue();
+        require(value != null && value.isString(), field + " must be a string");
+        return value.stringValue(null);
     }
 
     private static void exactText(ObjectNode object, String field, String expected) {
@@ -537,7 +537,7 @@ public class ReportEngine {
 
     private static void exactBoolean(ObjectNode object, String field, boolean expected) {
         JsonNode value = object.get(field);
-        require(value != null && value.isBoolean() && value.booleanValue() == expected,
+        require(value != null && value.isBoolean() && value.booleanValue(false) == expected,
                 field + " must be " + expected);
     }
 
@@ -548,7 +548,7 @@ public class ReportEngine {
 
     private static void exactFields(ObjectNode value, Set<String> expected) {
         Set<String> actual = new LinkedHashSet<>();
-        value.fieldNames().forEachRemaining(actual::add);
+        value.propertyNames().iterator().forEachRemaining(actual::add);
         require(actual.equals(expected), "report fields do not match schema");
     }
 

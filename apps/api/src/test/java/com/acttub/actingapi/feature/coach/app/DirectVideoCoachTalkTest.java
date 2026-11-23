@@ -150,8 +150,8 @@ class DirectVideoCoachTalkTest {
         var opened = coach().turn(fresh("character"), null, UUID.randomUUID());
         when(model.reply(isNull(), anyList(), anyString())).thenReturn(
                 "지안은 동훈에게만은 사람으로 보이고 싶어 해요.\n\"고마워요\"에서 고마움을 누르며 말해 봐도 좋아요.");
-        var state = (com.fasterxml.jackson.databind.node.ObjectNode) opened.session().coachingState();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path(PurposeLoop.STATE_KEY)).put("step", 2);
+        var state = (tools.jackson.databind.node.ObjectNode) opened.session().coachingState();
+        ((tools.jackson.databind.node.ObjectNode) state.path(PurposeLoop.STATE_KEY)).put("step", 2);
         var result = coach().turn(opened.session(), "동훈이 자길 사람으로 봐 줬으면 해요", UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo("지안은 동훈에게만은 사람으로 보이고 싶어 해요.");
     }

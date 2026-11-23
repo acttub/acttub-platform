@@ -34,10 +34,10 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -146,36 +146,36 @@ class ReadingScriptIT {
         assertThat(jdbc.queryForMap("SELECT source,request_id,length(request_fingerprint) AS fp FROM scripts"))
                 .containsEntry("source", "paste").containsEntry("request_id", requestId).containsEntry("fp", 64);
 
-        assertThat(saved.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(saved.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "id", "title", "source", "characters", "lines", "scenes", "recording_count", "open_session_id",
                 "last_session", "created_at", "updated_at");
-        assertThat(saved.path("title").textValue()).isEqualTo("갈매기");
+        assertThat(saved.path("title").stringValue(null)).isEqualTo("갈매기");
         assertThat(LenientJson.intValue(saved.path("recording_count"))).isZero();
         assertThat(saved.path("open_session_id").isNull()).isTrue();
         assertThat(saved.path("last_session").isNull()).isTrue();
-        assertThat(saved.path("characters")).extracting(character -> character.path("name").textValue())
+        assertThat(saved.path("characters")).extracting(character -> character.path("name").stringValue(null))
                 .containsExactly("니나", "트레플레프");
         assertThat(saved.path("characters")).extracting(character -> LenientJson.intValue(character.path("dialogue_count")))
                 .containsExactly(2, 1);
-        assertThat(saved.path("characters").get(0).fieldNames()).toIterable()
+        assertThat(saved.path("characters").get(0).propertyNames().iterator()).toIterable()
                 .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "gender", "age_band", "dialogue_count", "member_ids", "unnamed");
         assertThat(saved.path("characters")).as("SOMA-597: 기기가 나눈 대본의 배역은 이름 없는 독백 배역이 아니다")
-                .allMatch(character -> character.path("unnamed").isBoolean() && !character.path("unnamed").booleanValue());
+                .allMatch(character -> character.path("unnamed").isBoolean() && !character.path("unnamed").booleanValue(false));
         assertThat(saved.path("characters")).as("SOMA-709: 기기가 나눈 대본에는 묶음 배역이 없다")
                 .allMatch(character -> character.path("member_ids").isArray() && character.path("member_ids").isEmpty());
         assertThat(saved.path("characters")).as("SOMA-670: 기기가 나눈 대본은 성별·나이대를 모른다")
                 .allMatch(character -> character.path("gender").isNull() && character.path("age_band").isNull());
-        assertThat(saved.path("characters")).extracting(character -> character.path("voice").textValue())
+        assertThat(saved.path("characters")).extracting(character -> character.path("voice").stringValue(null))
                 .as("자동이면 배역 순서로 F1·M1").containsExactly("F1", "M1");
-        assertThat(saved.path("scenes")).extracting(scene -> scene.path("title").textValue() + ":" + LenientJson.intValue(scene.path("dialogue_count")))
+        assertThat(saved.path("scenes")).extracting(scene -> scene.path("title").stringValue(null) + ":" + LenientJson.intValue(scene.path("dialogue_count")))
                 .as("장면 줄이 경계 — 「제1막」 대사 둘, 「S#2」 대사 하나(머리로 나뉜 장면은 짧아도 합치지 않는다)")
                 .containsExactly("제1막:2", "S#2:1");
-        assertThat(saved.path("lines")).extracting(line -> line.path("kind").textValue())
+        assertThat(saved.path("lines")).extracting(line -> line.path("kind").stringValue(null))
                 .containsExactly("scene", "direction", "dialogue", "dialogue", "scene", "dialogue");
         assertThat(saved.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .as("대사 번호는 대사 줄만 1부터 센다").containsExactly(null, null, 1, 2, null, 3);
-        String nina = saved.path("characters").get(0).path("id").textValue();
-        assertThat(saved.path("lines").get(2).path("character_id").textValue()).isEqualTo(nina);
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
+        assertThat(saved.path("lines").get(2).path("character_id").stringValue(null)).isEqualTo(nina);
         assertThat(saved.path("lines").get(0).path("character_id").isNull()).isTrue();
     }
 
@@ -214,7 +214,7 @@ class ReadingScriptIT {
 
         JsonNode saved = json(post("/v2/reading/scripts").content(body.toString()), 201);
 
-        assertThat(saved.path("source").textValue()).isEqualTo("sample");
+        assertThat(saved.path("source").stringValue(null)).isEqualTo("sample");
         assertThat(jdbc.queryForObject("SELECT source FROM scripts", String.class)).isEqualTo("sample");
         assertThat(json(get("/v2/reading/scripts"), 200).path("scripts")).hasSize(1);
     }
@@ -225,7 +225,7 @@ class ReadingScriptIT {
         String allowed = "가".repeat(99_998) + "\n\n";
         ObjectNode fits = script(UUID.randomUUID(), "긴 대본", "typed", allowed, List.of("니나"),
                 List.of(line(1, "dialogue", 0, "안녕")));
-        assertThat(json(post("/v2/reading/scripts").content(fits.toString()), 201).path("id").textValue()).isNotBlank();
+        assertThat(json(post("/v2/reading/scripts").content(fits.toString()), 201).path("id").stringValue(null)).isNotBlank();
 
         ObjectNode tooLong = script(UUID.randomUUID(), "긴 대본", "typed", allowed + "가", List.of("니나"),
                 List.of(line(1, "dialogue", 0, "안녕")));
@@ -269,7 +269,7 @@ class ReadingScriptIT {
         assertThat(json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "101번째")), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"script_limit\"}"));
         JsonNode replayed = json(post("/v2/reading/scripts").content(sample(hundredth, "100번째")), 200);
-        assertThat(replayed.path("id").textValue()).as("재전송은 개수 검사보다 먼저다").isEqualTo(created.path("id").textValue());
+        assertThat(replayed.path("id").stringValue(null)).as("재전송은 개수 검사보다 먼저다").isEqualTo(created.path("id").stringValue(null));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM scripts WHERE user_id=?", Integer.class, member)).isEqualTo(100);
 
         Guest guest = consentedGuest();
@@ -285,13 +285,13 @@ class ReadingScriptIT {
     @DisplayName("reading.script: 저장 뒤 줄 본문·종류·순서·배역 연결을 바꾸는 요청 — 거절되고 기존 데이터 그대로다")
     void readingScript_linesAreImmutableAfterSaving() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        String scriptId = saved.path("id").textValue();
+        String scriptId = saved.path("id").stringValue(null);
         List<Map<String, Object>> before = jdbc.queryForList("SELECT id,ordinal,kind,character_id,text FROM script_lines ORDER BY ordinal");
 
         ObjectNode body = mapper.createObjectNode();
         body.put("title", "새 제목");
         ArrayNode lines = body.putArray("lines");
-        lines.addObject().put("id", saved.path("lines").get(2).path("id").textValue()).put("text", "바뀐 대사");
+        lines.addObject().put("id", saved.path("lines").get(2).path("id").stringValue(null)).put("text", "바뀐 대사");
 
         JsonNode rejected = json(patch("/v2/reading/scripts/{id}", scriptId).content(body.toString()), 422);
 
@@ -316,14 +316,14 @@ class ReadingScriptIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"script_limit\"}"));
 
         for (int index = 0; index < 5; index++) {
-            assertThat(perform(delete("/v2/reading/scripts/{id}", list.path("scripts").get(index).path("id").textValue()), bearer)
+            assertThat(perform(delete("/v2/reading/scripts/{id}", list.path("scripts").get(index).path("id").stringValue(null)), bearer)
                     .getStatus()).isEqualTo(204);
         }
         assertThat(json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "아직 100개")), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"script_limit\"}"));
-        assertThat(perform(delete("/v2/reading/scripts/{id}", list.path("scripts").get(5).path("id").textValue()), bearer)
+        assertThat(perform(delete("/v2/reading/scripts/{id}", list.path("scripts").get(5).path("id").stringValue(null)), bearer)
                 .getStatus()).isEqualTo(204);
-        assertThat(json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "100번째")), 201).path("title").textValue())
+        assertThat(json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "100번째")), 201).path("title").stringValue(null))
                 .isEqualTo("100번째");
     }
 
@@ -332,9 +332,9 @@ class ReadingScriptIT {
     void readingScript_editingTitleAndNamesKeepsLinesVoicesAndTheFingerprint() throws Exception {
         UUID requestId = UUID.randomUUID();
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 201);
-        String scriptId = saved.path("id").textValue();
-        String nina = saved.path("characters").get(0).path("id").textValue();
-        String treplev = saved.path("characters").get(1).path("id").textValue();
+        String scriptId = saved.path("id").stringValue(null);
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
+        String treplev = saved.path("characters").get(1).path("id").stringValue(null);
         List<Map<String, Object>> linesBefore = jdbc.queryForList("SELECT id,ordinal,kind,character_id,text FROM script_lines ORDER BY ordinal");
         String fingerprintBefore = jdbc.queryForObject("SELECT request_fingerprint FROM scripts", String.class);
         jdbc.update("UPDATE script_characters SET voice_preset='M3' WHERE id=?", UUID.fromString(treplev));
@@ -345,17 +345,17 @@ class ReadingScriptIT {
         characters.addObject().put("id", nina).put("name", "  니나 자레치나야 ");
         JsonNode patched = json(patch("/v2/reading/scripts/{id}", scriptId).content(body.toString()), 200);
 
-        assertThat(patched.path("title").textValue()).isEqualTo("갈매기 (개정)");
-        assertThat(patched.path("characters")).extracting(character -> character.path("name").textValue())
+        assertThat(patched.path("title").stringValue(null)).isEqualTo("갈매기 (개정)");
+        assertThat(patched.path("characters")).extracting(character -> character.path("name").stringValue(null))
                 .containsExactly("니나 자레치나야", "트레플레프");
-        assertThat(patched.path("characters").get(1).path("voice_preset").textValue()).as("건드리지 않은 목소리는 그대로다").isEqualTo("M3");
+        assertThat(patched.path("characters").get(1).path("voice_preset").stringValue(null)).as("건드리지 않은 목소리는 그대로다").isEqualTo("M3");
         assertThat(jdbc.queryForList("SELECT id,ordinal,kind,character_id,text FROM script_lines ORDER BY ordinal")).isEqualTo(linesBefore);
         assertThat(jdbc.queryForObject("SELECT request_fingerprint FROM scripts", String.class)).isEqualTo(fingerprintBefore);
         assertThat(jdbc.queryForObject("SELECT updated_at > created_at FROM scripts", Boolean.class)).as("고친 시각이 는다").isTrue();
 
         JsonNode replayed = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 200);
-        assertThat(replayed.path("id").textValue()).isEqualTo(scriptId);
-        assertThat(replayed.path("title").textValue()).as("먼저 만든(고친) 대본을 돌려준다").isEqualTo("갈매기 (개정)");
+        assertThat(replayed.path("id").stringValue(null)).isEqualTo(scriptId);
+        assertThat(replayed.path("title").stringValue(null)).as("먼저 만든(고친) 대본을 돌려준다").isEqualTo("갈매기 (개정)");
         assertThat(count("scripts")).isEqualTo(1);
 
         // 목소리는 키가 있을 때만 바꾼다 — null 은 자동, 키를 빼면 그대로.
@@ -364,14 +364,14 @@ class ReadingScriptIT {
         voices.addObject().put("id", treplev).putNull("voice_preset");
         voices.addObject().put("id", nina).put("voice_preset", "F2");
         JsonNode voiced = json(patch("/v2/reading/scripts/{id}", scriptId).content(voice.toString()), 200);
-        assertThat(voiced.path("characters").get(0).path("voice_preset").textValue()).isEqualTo("F2");
+        assertThat(voiced.path("characters").get(0).path("voice_preset").stringValue(null)).isEqualTo("F2");
         assertThat(voiced.path("characters").get(1).path("voice_preset").isNull()).isTrue();
         ObjectNode longPreset = mapper.createObjectNode();
         longPreset.putArray("characters").addObject().put("id", nina).put("voice_preset", "x".repeat(33));
         assertThat(json(patch("/v2/reading/scripts/{id}", scriptId).content(longPreset.toString()), 422))
                 .as("33자 프리셋은 422 invalid_characters (reading.cast)")
                 .isEqualTo(mapper.readTree("{\"detail\":\"invalid_characters\"}"));
-        assertThat(json(patch("/v2/reading/scripts/{id}", scriptId).content("{}"), 200).path("title").textValue())
+        assertThat(json(patch("/v2/reading/scripts/{id}", scriptId).content("{}"), 200).path("title").stringValue(null))
                 .as("빈 수정은 아무것도 바꾸지 않는다").isEqualTo("갈매기 (개정)");
     }
 
@@ -380,11 +380,11 @@ class ReadingScriptIT {
     void readingScript_editingALineKeepsItsIdAndEverythingPointingAtIt() throws Exception {
         UUID requestId = UUID.randomUUID();
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 201);
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        String nina = saved.path("characters").get(0).path("id").textValue();
-        String treplev = saved.path("characters").get(1).path("id").textValue();
-        String direction = saved.path("lines").get(1).path("id").textValue();
-        String hello = saved.path("lines").get(2).path("id").textValue();
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
+        String treplev = saved.path("characters").get(1).path("id").stringValue(null);
+        String direction = saved.path("lines").get(1).path("id").stringValue(null);
+        String hello = saved.path("lines").get(2).path("id").stringValue(null);
         UUID session = session(scriptId, member, List.of(UUID.fromString(nina)), "completed", clock.instant());
         recording(member, session, UUID.fromString(hello), "reading/" + member + "/" + session + "/" + hello + "/a.m4a");
         jdbc.update("INSERT INTO line_memorization(id,user_id,line_id,status) VALUES (?,?,?,'memorized')",
@@ -397,8 +397,8 @@ class ReadingScriptIT {
         speaker.put("character_id", treplev);
         speaker.put("text", "  안녕하세요, 콘스탄틴  ");
         JsonNode moved = json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello).content(speaker.toString()), 200);
-        assertThat(moved.path("lines").get(2).path("character_id").textValue()).isEqualTo(treplev);
-        assertThat(moved.path("lines").get(2).path("text").textValue()).as("앞뒤 공백을 정리한다").isEqualTo("안녕하세요, 콘스탄틴");
+        assertThat(moved.path("lines").get(2).path("character_id").stringValue(null)).isEqualTo(treplev);
+        assertThat(moved.path("lines").get(2).path("text").stringValue(null)).as("앞뒤 공백을 정리한다").isEqualTo("안녕하세요, 콘스탄틴");
         assertThat(moved.path("characters")).extracting(character -> LenientJson.intValue(character.path("dialogue_count")))
                 .as("배역별 대사 수를 다시 센다").containsExactly(1, 2);
 
@@ -414,7 +414,7 @@ class ReadingScriptIT {
         ObjectNode toDirection = mapper.createObjectNode();
         toDirection.put("kind", "direction");
         JsonNode demoted = json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, direction).content(toDirection.toString()), 200);
-        assertThat(demoted.path("lines").get(1).path("kind").textValue()).isEqualTo("direction");
+        assertThat(demoted.path("lines").get(1).path("kind").stringValue(null)).isEqualTo("direction");
         assertThat(demoted.path("lines").get(1).path("character_id").isNull()).isTrue();
 
         assertThat(jdbc.queryForList("SELECT id FROM script_lines ORDER BY ordinal", String.class)).as("줄 id·순서는 그대로").isEqualTo(idsBefore);
@@ -426,20 +426,20 @@ class ReadingScriptIT {
         assertThat(jdbc.queryForObject("SELECT updated_at > created_at FROM scripts", Boolean.class)).as("고친 시각이 는다").isTrue();
 
         JsonNode replayed = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 200);
-        assertThat(replayed.path("lines").get(2).path("text").textValue()).as("재전송은 고친 대본을 돌려준다").isEqualTo("안녕하세요, 콘스탄틴");
+        assertThat(replayed.path("lines").get(2).path("text").stringValue(null)).as("재전송은 고친 대본을 돌려준다").isEqualTo("안녕하세요, 콘스탄틴");
     }
 
     @Test
     @DisplayName("reading.script: 줄 고치기 거절 — 대사인데 배역이 없거나 다른 대본의 배역, 지문에 배역: 422 invalid_line. 빈 글: 422 배열. 없는 줄·다른 대본의 줄: 404 line_not_found. 남의 대본: 404 script_not_found. 거절되면 줄은 그대로다")
     void readingScript_rejectedLineEditsChangeNothing() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        String scriptId = saved.path("id").textValue();
-        String nina = saved.path("characters").get(0).path("id").textValue();
-        String direction = saved.path("lines").get(1).path("id").textValue();
-        String hello = saved.path("lines").get(2).path("id").textValue();
+        String scriptId = saved.path("id").stringValue(null);
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
+        String direction = saved.path("lines").get(1).path("id").stringValue(null);
+        String hello = saved.path("lines").get(2).path("id").stringValue(null);
         JsonNode other = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "다른 대본")), 201);
-        String foreignCharacter = other.path("characters").get(0).path("id").textValue();
-        String foreignLine = other.path("lines").get(2).path("id").textValue();
+        String foreignCharacter = other.path("characters").get(0).path("id").stringValue(null);
+        String foreignLine = other.path("lines").get(2).path("id").stringValue(null);
         List<Map<String, Object>> before = jdbc.queryForList("SELECT id,kind,character_id,text FROM script_lines ORDER BY script_id,ordinal");
 
         ObjectNode noSpeaker = mapper.createObjectNode().put("kind", "dialogue");
@@ -468,11 +468,11 @@ class ReadingScriptIT {
     @DisplayName("reading.script: 줄 지우기 — 줄이 사라지고 그 줄의 녹음(객체 포함)·외운 줄·줄 결과·말한 것도 사라진다. 그 줄을 구간 시작·끝·진행 위치로 가리키던 회차는 구간 안의 가까운 대사로 옮긴다(SOMA-785)")
     void readingScript_deletingALineMovesSessionsOffIt() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
-        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
-        UUID reply = UUID.fromString(saved.path("lines").get(3).path("id").textValue());
-        UUID last = UUID.fromString(saved.path("lines").get(5).path("id").textValue());
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null));
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").stringValue(null));
+        UUID reply = UUID.fromString(saved.path("lines").get(3).path("id").stringValue(null));
+        UUID last = UUID.fromString(saved.path("lines").get(5).path("id").stringValue(null));
         // 구간 hello~last, 진행 위치 hello. 다른 회차는 구간 hello~reply 에서 reply 를 진행 중.
         UUID atStart = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
         UUID atEnd = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
@@ -514,9 +514,9 @@ class ReadingScriptIT {
     @DisplayName("reading.script: 줄 지우기 거절 — 그 줄 하나뿐인 회차 구간: 422 empty_range, 대본의 마지막 줄: 422 invalid_line, 없는 줄: 404 line_not_found, 남의 대본: 404 script_not_found. 거절되면 아무것도 바뀌지 않는다")
     void readingScript_rejectedLineDeletesChangeNothing() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
-        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null));
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").stringValue(null));
         UUID only = session(scriptId, member, List.of(nina), "completed", clock.instant());
         jdbc.update("UPDATE reading_sessions SET end_line_id=? WHERE id=?", hello, only);
         List<Map<String, Object>> before = jdbc.queryForList("SELECT id,ordinal FROM script_lines ORDER BY ordinal");
@@ -532,7 +532,7 @@ class ReadingScriptIT {
 
         ObjectNode single = script(UUID.randomUUID(), "한 줄", "paste", "니나: 안녕", List.of("니나"), List.of(line(1, "dialogue", 0, "안녕")));
         JsonNode one = json(post("/v2/reading/scripts").content(single.toString()), 201);
-        assertThat(json(delete("/v2/reading/scripts/{id}/lines/{line}", one.path("id").textValue(), one.path("lines").get(0).path("id").textValue()), 422))
+        assertThat(json(delete("/v2/reading/scripts/{id}/lines/{line}", one.path("id").stringValue(null), one.path("lines").get(0).path("id").stringValue(null)), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"invalid_line\"}"));
     }
 
@@ -540,9 +540,9 @@ class ReadingScriptIT {
     @DisplayName("reading.script: 줄 나누기 — 앞 글은 그 줄 id 에 남고 뒤 글은 바로 뒤에 같은 배역의 새 줄이 된다. 뒤 줄들은 하나씩 밀리고, 녹음·외운 줄은 앞 줄에 남으며, 구간이 그 줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다(SOMA-785)")
     void readingScript_splittingALineKeepsTheFirstHalfInPlace() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
-        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null));
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").stringValue(null));
         UUID ends = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
         jdbc.update("UPDATE reading_sessions SET end_line_id=? WHERE id=?", hello, ends);
         recording(member, ends, hello, "reading/" + member + "/" + ends + "/" + hello + "/a.m4a");
@@ -552,16 +552,16 @@ class ReadingScriptIT {
 
         JsonNode lines = split.path("lines");
         assertThat(lines).hasSize(7);
-        assertThat(lines.get(2).path("id").textValue()).isEqualTo(hello.toString());
-        assertThat(lines.get(2).path("text").textValue()).isEqualTo("안녕");
-        assertThat(lines.get(3).path("text").textValue()).isEqualTo("하세요");
-        assertThat(lines.get(3).path("character_id").textValue()).isEqualTo(nina.toString());
+        assertThat(lines.get(2).path("id").stringValue(null)).isEqualTo(hello.toString());
+        assertThat(lines.get(2).path("text").stringValue(null)).isEqualTo("안녕");
+        assertThat(lines.get(3).path("text").stringValue(null)).isEqualTo("하세요");
+        assertThat(lines.get(3).path("character_id").stringValue(null)).isEqualTo(nina.toString());
         assertThat(lines).extracting(line -> LenientJson.intValue(line.path("ordinal"))).containsExactly(1, 2, 3, 4, 5, 6, 7);
         assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .containsExactly(null, null, 1, 2, 3, null, 4);
         assertThat(jdbc.queryForObject("SELECT line_id FROM reading_recordings", UUID.class)).isEqualTo(hello);
         assertThat(jdbc.queryForObject("SELECT end_line_id FROM reading_sessions WHERE id=?", UUID.class, ends))
-                .isEqualTo(UUID.fromString(lines.get(3).path("id").textValue()));
+                .isEqualTo(UUID.fromString(lines.get(3).path("id").stringValue(null)));
 
         assertThat(json(post("/v2/reading/scripts/{id}/lines/{line}/split", scriptId, hello)
                 .content(mapper.createObjectNode().put("first_text", "안녕").put("second_text", "  ").toString()), 422).path("detail").isArray())
@@ -575,9 +575,9 @@ class ReadingScriptIT {
     @DisplayName("reading.script: 줄 아래에 추가 — 새 줄은 고른 줄 바로 뒤에 들어가고 뒤 줄들이 밀린다. 기존 줄 id·녹음·외운 줄·회차 구간은 그대로이고, 배역·지문 규칙을 어기면 422 invalid_line, 없는 줄·남의 대본은 404(SOMA-816)")
     void readingScript_insertingALineBelowShiftsTheRest() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
-        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null));
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").stringValue(null));
         UUID ends = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
         jdbc.update("UPDATE reading_sessions SET end_line_id=? WHERE id=?", hello, ends);
         recording(member, ends, hello, "reading/" + member + "/" + ends + "/" + hello + "/a.m4a");
@@ -588,9 +588,9 @@ class ReadingScriptIT {
 
         JsonNode lines = inserted.path("lines");
         assertThat(lines).hasSize(7);
-        assertThat(lines.get(2).path("id").textValue()).isEqualTo(hello.toString());
-        assertThat(lines.get(3).path("text").textValue()).isEqualTo("새 대사");
-        assertThat(lines.get(3).path("character_id").textValue()).isEqualTo(nina.toString());
+        assertThat(lines.get(2).path("id").stringValue(null)).isEqualTo(hello.toString());
+        assertThat(lines.get(3).path("text").stringValue(null)).isEqualTo("새 대사");
+        assertThat(lines.get(3).path("character_id").stringValue(null)).isEqualTo(nina.toString());
         assertThat(lines).extracting(line -> LenientJson.intValue(line.path("ordinal"))).containsExactly(1, 2, 3, 4, 5, 6, 7);
         assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .containsExactly(null, null, 1, 2, 3, null, 4);
@@ -600,7 +600,7 @@ class ReadingScriptIT {
 
         ObjectNode direction = mapper.createObjectNode().put("kind", "direction").put("text", "(사이)");
         JsonNode withDirection = json(post("/v2/reading/scripts/{id}/lines/{line}/insert-after", scriptId, hello).content(direction.toString()), 200);
-        assertThat(withDirection.path("lines").get(3).path("kind").textValue()).isEqualTo("direction");
+        assertThat(withDirection.path("lines").get(3).path("kind").stringValue(null)).isEqualTo("direction");
         assertThat(withDirection.path("lines").get(3).path("character_id").isNull()).isTrue();
 
         for (ObjectNode bad : List.of(
@@ -630,9 +630,9 @@ class ReadingScriptIT {
         assertThat(count("scripts")).isZero();
 
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        String scriptId = saved.path("id").textValue();
-        String nina = saved.path("characters").get(0).path("id").textValue();
-        String treplev = saved.path("characters").get(1).path("id").textValue();
+        String scriptId = saved.path("id").stringValue(null);
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
+        String treplev = saved.path("characters").get(1).path("id").stringValue(null);
 
         for (ObjectNode body : List.of(
                 patchName(nina, "   "),
@@ -647,37 +647,37 @@ class ReadingScriptIT {
 
         JsonNode swapped = json(patch("/v2/reading/scripts/{id}", scriptId)
                 .content(patchNames(nina, "트레플레프", treplev, "니나").toString()), 200);
-        assertThat(swapped.path("characters")).extracting(character -> character.path("name").textValue())
+        assertThat(swapped.path("characters")).extracting(character -> character.path("name").stringValue(null))
                 .containsExactly("트레플레프", "니나");
     }
 
     @Test
     @DisplayName("reading.script: 목록 조회 — 최근 고친 순이고 머리에 \"전체 N개 · 연습 중 M개\"가 맞다. \"니나\"로 검색 — 배역 이름이 니나인 대본만 나오고 대사에만 있는 대본은 나오지 않는다. 열린 회차 — 연습 중, 회차 없음 — 배역 선택")
     void readingScript_listIsOrderedByLastEditAndSearchesTitlesAndNamesOnly() throws Exception {
-        String seagull = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201).path("id").textValue();
+        String seagull = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201).path("id").stringValue(null);
         clock.advance(Duration.ofSeconds(1));
         String hamlet = json(post("/v2/reading/scripts").content(script(UUID.randomUUID(), "햄릿", "paste", "본문",
                 List.of("햄릿", "오필리아"), List.of(
                         line(1, "dialogue", 0, "니나는 어디 갔지"),
                         line(2, "dialogue", 1, "모르겠어요"),
-                        line(3, "dialogue", 0, "그럼 됐다"))).toString()), 201).path("id").textValue();
+                        line(3, "dialogue", 0, "그럼 됐다"))).toString()), 201).path("id").stringValue(null);
         String cherry = json(post("/v2/reading/scripts").content(script(UUID.randomUUID(), "벚꽃 동산", "paste", "본문",
-                List.of("라넵스카야"), List.of(line(1, "dialogue", 0, "동산이여"))).toString()), 201).path("id").textValue();
+                List.of("라넵스카야"), List.of(line(1, "dialogue", 0, "동산이여"))).toString()), 201).path("id").stringValue(null);
 
         JsonNode list = json(get("/v2/reading/scripts"), 200);
-        assertThat(list.fieldNames()).toIterable().containsExactlyInAnyOrder("scripts", "total_count", "in_progress_count");
+        assertThat(list.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("scripts", "total_count", "in_progress_count");
         assertThat(ids(list.path("scripts"))).containsExactly(cherry, hamlet, seagull);
         assertThat(LenientJson.intValue(list.path("total_count"))).isEqualTo(3);
         assertThat(LenientJson.intValue(list.path("in_progress_count"))).isZero();
         JsonNode card = list.path("scripts").get(2);
-        assertThat(card.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(card.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "id", "title", "my_character_names", "dialogue_count", "recording_count", "last_practiced_at",
                 "last_activity_at", "status", "created_at", "updated_at");
         assertThat(LenientJson.intValue(card.path("dialogue_count"))).isEqualTo(3);
         assertThat(card.path("my_character_names")).as("회차가 없으면 배역 미선택").isEmpty();
-        assertThat(card.path("status").textValue()).isEqualTo("no_cast");
+        assertThat(card.path("status").stringValue(null)).isEqualTo("no_cast");
         assertThat(card.path("last_practiced_at").isNull()).isTrue();
-        assertThat(card.path("last_activity_at").textValue()).isEqualTo(card.path("created_at").textValue());
+        assertThat(card.path("last_activity_at").stringValue(null)).isEqualTo(card.path("created_at").stringValue(null));
 
         // 제목·배역 이름을 고치면 맨 위로 온다.
         json(patch("/v2/reading/scripts/{id}", seagull).content("{\"title\":\"갈매기 2판\"}"), 200);
@@ -705,31 +705,31 @@ class ReadingScriptIT {
         JsonNode practiced = json(get("/v2/reading/scripts"), 200);
         assertThat(LenientJson.intValue(practiced.path("in_progress_count"))).as("진행 중 회차가 있는 대본 수").isEqualTo(2);
         Map<String, JsonNode> byId = new LinkedHashMap<>();
-        practiced.path("scripts").forEach(row -> byId.put(row.path("id").textValue(), row));
-        assertThat(byId.get(seagull).path("status").textValue()).isEqualTo("reading");
-        assertThat(byId.get(seagull).path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나");
+        practiced.path("scripts").forEach(row -> byId.put(row.path("id").stringValue(null), row));
+        assertThat(byId.get(seagull).path("status").stringValue(null)).isEqualTo("reading");
+        assertThat(byId.get(seagull).path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("니나");
         assertThat(byId.get(seagull).path("last_practiced_at").isNull()).isFalse();
-        assertThat(byId.get(seagull).path("last_activity_at").textValue()).isEqualTo(byId.get(seagull).path("last_practiced_at").textValue());
-        assertThat(byId.get(hamlet).path("status").textValue()).isEqualTo("completed");
-        assertThat(byId.get(hamlet).path("my_character_names")).extracting(JsonNode::textValue).containsExactly("오필리아");
-        assertThat(byId.get(cherry).path("status").textValue()).isEqualTo("reading");
-        assertThat(json(get("/v2/reading/scripts/{id}", cherry), 200).path("open_session_id").textValue())
+        assertThat(byId.get(seagull).path("last_activity_at").stringValue(null)).isEqualTo(byId.get(seagull).path("last_practiced_at").stringValue(null));
+        assertThat(byId.get(hamlet).path("status").stringValue(null)).isEqualTo("completed");
+        assertThat(byId.get(hamlet).path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("오필리아");
+        assertThat(byId.get(cherry).path("status").stringValue(null)).isEqualTo("reading");
+        assertThat(json(get("/v2/reading/scripts/{id}", cherry), 200).path("open_session_id").stringValue(null))
                 .as("가장 최근에 시작한 진행 중 회차").isEqualTo(cherryLatest.toString());
 
         JsonNode detail = json(get("/v2/reading/scripts/{id}", seagull), 200);
         assertThat(detail.path("open_session_id").isNull()).isFalse();
-        assertThat(detail.path("last_session").path("status").textValue()).isEqualTo("in_progress");
-        assertThat(detail.path("last_session").path("my_character_ids")).extracting(JsonNode::textValue).containsExactly(nina.toString());
-        assertThat(detail.path("last_session").path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나");
+        assertThat(detail.path("last_session").path("status").stringValue(null)).isEqualTo("in_progress");
+        assertThat(detail.path("last_session").path("my_character_ids")).extracting(textNode -> textNode.stringValue(null)).containsExactly(nina.toString());
+        assertThat(detail.path("last_session").path("my_character_names")).extracting(textNode -> textNode.stringValue(null)).containsExactly("니나");
     }
 
     @Test
     @DisplayName("reading.script: 대본 삭제 — scripts·script_characters·script_lines·reading_sessions·reading_recordings·line_memorization 행과 녹음 객체가 모두 없다. 다른 사람이 지우면 404 이고 행이 남는다")
     void readingScript_deletingRemovesEveryRowAndTheRecordingObjects() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
-        UUID line = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null));
+        UUID line = UUID.fromString(saved.path("lines").get(2).path("id").stringValue(null));
         UUID session = session(scriptId, member, List.of(nina), "completed", clock.instant());
         recording(member, session, line, "reading/" + member + "/" + session + "/" + line + "/a.m4a");
         jdbc.update("INSERT INTO line_memorization(id,user_id,line_id,status) VALUES (?,?,?,'memorized')",
@@ -762,7 +762,7 @@ class ReadingScriptIT {
     @Test
     @DisplayName("reading.script: 다른 사람의 대본 id 로 조회·수정·삭제 — 404. 없는 id 도 같은 404 다")
     void readingScript_othersScriptsAreNotFound() throws Exception {
-        String scriptId = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201).path("id").textValue();
+        String scriptId = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201).path("id").stringValue(null);
         String others = "Bearer " + jwt.issueAccessToken(member()).value();
 
         for (String id : List.of(scriptId, UUID.randomUUID().toString())) {
@@ -789,8 +789,8 @@ class ReadingScriptIT {
 
         assertThat(blocked.getStatus()).isEqualTo(403);
         JsonNode body = mapper.readTree(blocked.getContentAsString());
-        assertThat(body.path("detail").textValue()).isEqualTo("consent_required");
-        assertThat(body.path("pending_consents")).extracting(document -> document.path("type").textValue())
+        assertThat(body.path("detail").stringValue(null)).isEqualTo("consent_required");
+        assertThat(body.path("pending_consents")).extracting(document -> document.path("type").stringValue(null))
                 .as("AI 분석 동의는 요구하지 않는다").containsExactly("terms", "privacy");
         assertThat(count("scripts")).isZero();
 
@@ -800,7 +800,7 @@ class ReadingScriptIT {
         var created = perform(post("/v2/reading/scripts").contentType(MediaType.APPLICATION_JSON)
                 .content(sample(UUID.randomUUID(), "갈매기")), guest.bearer());
         assertThat(created.getStatus()).as(created.getContentAsString()).isEqualTo(201);
-        String scriptId = mapper.readTree(created.getContentAsString()).path("id").textValue();
+        String scriptId = mapper.readTree(created.getContentAsString()).path("id").stringValue(null);
         assertThat(perform(get("/v2/reading/scripts"), guest.bearer()).getStatus()).isEqualTo(200);
         assertThat(perform(get("/v2/reading/scripts/{id}", scriptId), guest.bearer()).getStatus()).isEqualTo(200);
         assertThat(perform(patch("/v2/reading/scripts/{id}", scriptId).contentType(MediaType.APPLICATION_JSON)
@@ -814,12 +814,12 @@ class ReadingScriptIT {
     @DisplayName("account.guest·reading.script: 게스트와 회원이 같은 request_id 의 대본을 갖고 이관 — 두 대본과 하위 기록이 모두 남고 게스트 쪽 request_id 만 비어 있다")
     void readingScript_transferClearsOnlyTheGuestRequestIdOnConflict() throws Exception {
         UUID shared = UUID.randomUUID();
-        String members = json(post("/v2/reading/scripts").content(sample(shared, "회원의 대본")), 201).path("id").textValue();
+        String members = json(post("/v2/reading/scripts").content(sample(shared, "회원의 대본")), 201).path("id").stringValue(null);
         Guest guest = consentedGuest();
         var created = perform(post("/v2/reading/scripts").contentType(MediaType.APPLICATION_JSON)
                 .content(sample(shared, "게스트의 대본")), guest.bearer());
         assertThat(created.getStatus()).isEqualTo(201);
-        UUID guests = UUID.fromString(mapper.readTree(created.getContentAsString()).path("id").textValue());
+        UUID guests = UUID.fromString(mapper.readTree(created.getContentAsString()).path("id").stringValue(null));
         UUID nina = jdbc.queryForObject("SELECT id FROM script_characters WHERE script_id=? AND name='니나'", UUID.class, guests);
         UUID line = jdbc.queryForObject("SELECT id FROM script_lines WHERE script_id=? AND ordinal=3", UUID.class, guests);
         UUID session = session(guests, guest.id(), List.of(nina), "completed", clock.instant());
@@ -852,9 +852,9 @@ class ReadingScriptIT {
     @DisplayName("reading.script: 삭제 트랜잭션 실패 — 행 그대로. 커밋 뒤 객체 삭제 실패 — 화면에는 없고 장부에 키가 남으며 다시 시도해 지운다")
     void readingScript_deleteFailureKeepsRowsAndStorageFailureKeepsTheLedgerKey() throws Exception {
         JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
-        UUID line = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null));
+        UUID line = UUID.fromString(saved.path("lines").get(2).path("id").stringValue(null));
         UUID session = session(scriptId, member, List.of(nina), "completed", clock.instant());
         String objectKey = "reading/" + member + "/" + session + "/" + line + "/a.m4a";
         recording(member, session, line, objectKey);
@@ -950,7 +950,7 @@ class ReadingScriptIT {
                 .content(sample(requestId, "갈매기")), 201);
         JsonNode replayed = json(post("/v2/reading/scripts").header("X-Request-Id", requestId.toString())
                 .content(sample(requestId, "갈매기")), 200);
-        assertThat(replayed.path("id").textValue()).isEqualTo(saved.path("id").textValue());
+        assertThat(replayed.path("id").stringValue(null)).isEqualTo(saved.path("id").stringValue(null));
 
         for (String header : List.of(UUID.randomUUID().toString(), "not-a-uuid")) {
             JsonNode rejected = json(post("/v2/reading/scripts").header("X-Request-Id", header)
@@ -961,7 +961,7 @@ class ReadingScriptIT {
         }
         assertThat(count("scripts")).isEqualTo(1);
         assertThat(json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "헤더 없이")), 201)
-                .path("title").textValue()).isEqualTo("헤더 없이");
+                .path("title").stringValue(null)).isEqualTo("헤더 없이");
     }
 
     @Test
@@ -983,7 +983,7 @@ class ReadingScriptIT {
         JsonNode first = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 201);
         JsonNode second = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 200);
 
-        assertThat(second.path("id").textValue()).isEqualTo(first.path("id").textValue());
+        assertThat(second.path("id").stringValue(null)).isEqualTo(first.path("id").stringValue(null));
         assertThat(second).isEqualTo(first);
         assertThat(count("scripts")).isEqualTo(1);
 
@@ -991,9 +991,9 @@ class ReadingScriptIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
         assertThat(count("scripts")).isEqualTo(1);
 
-        assertThat(perform(delete("/v2/reading/scripts/{id}", first.path("id").textValue()), bearer).getStatus()).isEqualTo(204);
+        assertThat(perform(delete("/v2/reading/scripts/{id}", first.path("id").stringValue(null)), bearer).getStatus()).isEqualTo(204);
         JsonNode again = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 201);
-        assertThat(again.path("id").textValue()).isNotEqualTo(first.path("id").textValue());
+        assertThat(again.path("id").stringValue(null)).isNotEqualTo(first.path("id").stringValue(null));
         assertThat(count("scripts")).isEqualTo(1);
     }
 
@@ -1069,8 +1069,8 @@ class ReadingScriptIT {
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
         return new Guest(
-                UUID.fromString(body.path("user").path("id").textValue()),
-                "Bearer " + body.path("access_token").textValue());
+                UUID.fromString(body.path("user").path("id").stringValue(null)),
+                "Bearer " + body.path("access_token").stringValue(null));
     }
 
     /** 리딩의 문서 둘에 동의한 게스트. AI 분석 동의는 없다. */
@@ -1096,7 +1096,7 @@ class ReadingScriptIT {
     private String issueCode(Guest guest) throws Exception {
         var response = perform(post("/v2/guest/transfer-code"), guest.bearer());
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(201);
-        return mapper.readTree(response.getContentAsString()).path("code").textValue();
+        return mapper.readTree(response.getContentAsString()).path("code").stringValue(null);
     }
 
     /** 게스트의 코드를 받아 이 테스트의 회원에게 옮긴다. */
@@ -1211,7 +1211,7 @@ class ReadingScriptIT {
 
     private static List<String> ids(JsonNode rows) {
         List<String> ids = new ArrayList<>();
-        rows.forEach(row -> ids.add(row.path("id").textValue()));
+        rows.forEach(row -> ids.add(row.path("id").stringValue(null)));
         return ids;
     }
 

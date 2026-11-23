@@ -26,7 +26,7 @@ import com.acttub.actingapi.feature.coach.app.ConversationRepository.Saved;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import com.acttub.actingapi.platform.json.LenientJson;

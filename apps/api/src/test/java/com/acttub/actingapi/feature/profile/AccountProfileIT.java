@@ -21,8 +21,8 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -125,7 +125,7 @@ class AccountProfileIT {
         var blocked = save(profile());
 
         assertThat(blocked.getStatus()).as("개인정보를 받기 전에 수집 동의가 끝나 있어야 한다").isEqualTo(403);
-        assertThat(mapper.readTree(blocked.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(blocked.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("consent_required");
         assertThat(count("user_profiles")).isZero();
 
@@ -142,7 +142,7 @@ class AccountProfileIT {
 
         JsonNode me = me();
 
-        assertThat(me.path("profile_complete").booleanValue()).isFalse();
+        assertThat(me.path("profile_complete").booleanValue(false)).isFalse();
         assertThat(me.path("profile")).isEqualTo(mapper.readTree("""
                 {"name":"옛 닉네임","gender":null,"birth_date":null,"age":null,"directions":[],
                  "experience":null,"goal":null,"photo_url":null,"bio":null}
@@ -236,8 +236,8 @@ class AccountProfileIT {
         assertThat(rejected.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(rejected.getContentAsString()))
                 .isEqualTo(mapper.readTree("{\"detail\":\"under_14\"}"));
-        assertThat(me().path("profile").path("birth_date").textValue()).isEqualTo("2001-03-14");
-        assertThat(me().path("profile").path("name").textValue()).isEqualTo("김배우");
+        assertThat(me().path("profile").path("birth_date").stringValue(null)).isEqualTo("2001-03-14");
+        assertThat(me().path("profile").path("name").stringValue(null)).isEqualTo("김배우");
         assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, userId))
                 .isEqualTo("active");
     }
@@ -302,7 +302,7 @@ class AccountProfileIT {
             emptied.put(item, "directions".equals(item) ? List.of() : "");
             assertValidationArray(save(emptied), item);
         }
-        assertThat(me().path("profile").path("name").textValue()).isEqualTo("새 활동명");
+        assertThat(me().path("profile").path("name").stringValue(null)).isEqualTo("새 활동명");
     }
 
     @Test
@@ -346,17 +346,17 @@ class AccountProfileIT {
         var intent = photoUpload("image/jpeg", 482_113);
         assertThat(intent.getStatus()).isEqualTo(201);
         JsonNode created = mapper.readTree(intent.getContentAsString());
-        assertThat(created.fieldNames()).toIterable().containsExactlyInAnyOrder("upload_url", "expires_at");
+        assertThat(created.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("upload_url", "expires_at");
         String firstKey = storage.presigned.getLast();
         assertThat(firstKey).startsWith("users/" + userId + "/profile/").endsWith(".jpg");
-        assertThat(created.path("upload_url").textValue()).isEqualTo("https://storage.test/put/" + firstKey);
+        assertThat(created.path("upload_url").stringValue(null)).isEqualTo("https://storage.test/put/" + firstKey);
 
         // 아직 올리지 않았다.
         assertError(completePhoto(), 409, "upload_not_found");
         storage.put(firstKey, 482_113);
         var completed = completePhoto();
         assertThat(completed.getStatus()).isEqualTo(200);
-        assertThat(mapper.readTree(completed.getContentAsString()).path("profile").path("photo_url").textValue())
+        assertThat(mapper.readTree(completed.getContentAsString()).path("profile").path("photo_url").stringValue(null))
                 .isEqualTo("https://storage.test/get/" + firstKey);
 
         // 새 사진으로 바꾸면 옛 객체를 지운다.
@@ -500,7 +500,7 @@ class AccountProfileIT {
         assertThat(response.getStatus()).as("%s: %s", item, response.getContentAsString()).isEqualTo(422);
         JsonNode detail = mapper.readTree(response.getContentAsString()).path("detail");
         assertThat(detail.isArray()).as(item).isTrue();
-        assertThat(detail.get(0).path("loc").get(1).textValue()).isEqualTo(item);
+        assertThat(detail.get(0).path("loc").get(1).stringValue(null)).isEqualTo(item);
     }
 
     private int count(String table) {

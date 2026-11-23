@@ -22,8 +22,8 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -110,13 +110,13 @@ class CoachConversationIT {
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, requestId)), 200);
 
         JsonNode conversation = started.path("conversation");
-        assertThat(conversation.path("status").textValue()).isEqualTo("open");
+        assertThat(conversation.path("status").stringValue(null)).isEqualTo("open");
         assertThat(LenientJson.intValue(conversation.path("coach_reply_count"))).isEqualTo(1);
         assertThat(LenientJson.intValue(conversation.path("reply_limit"))).isEqualTo(ConversationService.LEGACY_REPLY_LIMIT);
         assertThat(conversation.path("messages")).hasSize(1);
-        assertThat(conversation.path("messages").get(0).path("role").textValue()).isEqualTo("coach");
+        assertThat(conversation.path("messages").get(0).path("role").stringValue(null)).isEqualTo("coach");
         assertThat(LenientJson.intValue(conversation.path("messages").get(0).path("turn_index"))).isZero();
-        assertThat(started.path("message").textValue()).isEqualTo("무엇이 달라졌나요");
+        assertThat(started.path("message").stringValue(null)).isEqualTo("무엇이 달라졌나요");
         assertThat(started.path("note").isNull()).isTrue();
         assertThat(count("coach_conversations")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT start_request_id FROM coach_conversations", UUID.class))
@@ -126,8 +126,8 @@ class CoachConversationIT {
 
         JsonNode again = json(post("/v2/coach/start").content(startBody(practice, requestId)), 200);
 
-        assertThat(again.path("conversation").path("id").textValue())
-                .isEqualTo(conversation.path("id").textValue());
+        assertThat(again.path("conversation").path("id").stringValue(null))
+                .isEqualTo(conversation.path("id").stringValue(null));
         assertThat(count("coach_conversations")).isEqualTo(1);
         assertThat(count("coach_messages")).as("재전송이 턴을 늘리지 않는다").isEqualTo(1);
         assertThat(generator.calls()).as("모델을 다시 부르지 않는다").isEqualTo(1);
@@ -146,7 +146,7 @@ class CoachConversationIT {
 
         generator.enqueue(CONTINUE);
         UUID conversationId = UUID.fromString(json(post("/v2/coach/start")
-                .content(startBody(practice, UUID.randomUUID())), 200).path("conversation").path("id").textValue());
+                .content(startBody(practice, UUID.randomUUID())), 200).path("conversation").path("id").stringValue(null));
 
         MockHttpServletResponse tooLong = perform(post("/v2/coach/reply").contentType(MediaType.APPLICATION_JSON)
                 .content(replyBody(conversationId, UUID.randomUUID(), "가".repeat(301), null)), bearer);
@@ -161,7 +161,7 @@ class CoachConversationIT {
     void practiceCoach_repliesAreIdempotentPerRequestId() throws Exception {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").stringValue(null));
         long revision = LenientJson.longValue(started.path("conversation").path("revision"));
         UUID requestId = UUID.randomUUID();
         generator.enqueue("{\"message\":\"그때 무엇을 느꼈나요\",\"status\":\"continue\",\"handoff\":null}");
@@ -169,7 +169,7 @@ class CoachConversationIT {
         JsonNode replied = json(post("/v2/coach/reply")
                 .content(replyBody(conversationId, requestId, "숨이 막혔어요", revision)), 200);
 
-        assertThat(replied.path("message").textValue()).isEqualTo("그때 무엇을 느꼈나요");
+        assertThat(replied.path("message").stringValue(null)).isEqualTo("그때 무엇을 느꼈나요");
         assertThat(LenientJson.longValue(replied.path("conversation").path("revision"))).isEqualTo(revision + 1);
         assertThat(LenientJson.intValue(replied.path("conversation").path("coach_reply_count"))).isEqualTo(2);
         assertThat(jdbc.queryForList("SELECT role FROM coach_messages ORDER BY turn_index", String.class))
@@ -180,7 +180,7 @@ class CoachConversationIT {
         JsonNode replayed = json(post("/v2/coach/reply")
                 .content(replyBody(conversationId, requestId, "숨이 막혔어요", revision + 1)), 200);
 
-        assertThat(replayed.path("message").textValue()).as("그 요청이 만든 코치 응답 그대로").isEqualTo("그때 무엇을 느꼈나요");
+        assertThat(replayed.path("message").stringValue(null)).as("그 요청이 만든 코치 응답 그대로").isEqualTo("그때 무엇을 느꼈나요");
         assertThat(count("coach_messages")).isEqualTo(3);
         assertThat(generator.calls()).as("재전송은 모델을 부르지 않는다").isEqualTo(2);
 
@@ -196,7 +196,7 @@ class CoachConversationIT {
     void practiceCoach_repliesArrivingAfterWithdrawalAreNotStored() throws Exception {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").stringValue(null));
         long revision = LenientJson.longValue(started.path("conversation").path("revision"));
 
         generator.enqueue(CONTINUE);
@@ -218,7 +218,7 @@ class CoachConversationIT {
     void practiceCoach_staleRevisionsAreRejected() throws Exception {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").stringValue(null));
         long revision = LenientJson.longValue(started.path("conversation").path("revision"));
         generator.enqueue(CONTINUE);
         json(post("/v2/coach/reply").content(replyBody(conversationId, UUID.randomUUID(), "첫 답", revision)), 200);
@@ -231,12 +231,12 @@ class CoachConversationIT {
 
         JsonNode latest = json(get("/v2/coach/conversations/{id}", conversationId), 200);
 
-        assertThat(latest.path("id").textValue()).isEqualTo(conversationId.toString());
-        assertThat(latest.path("practice_id").textValue()).isEqualTo(practice.toString());
-        assertThat(latest.path("status").textValue()).isEqualTo("open");
+        assertThat(latest.path("id").stringValue(null)).isEqualTo(conversationId.toString());
+        assertThat(latest.path("practice_id").stringValue(null)).isEqualTo(practice.toString());
+        assertThat(latest.path("status").stringValue(null)).isEqualTo("open");
         assertThat(LenientJson.longValue(latest.path("revision"))).isEqualTo(revision + 1);
         assertThat(latest.path("messages")).hasSize(3);
-        assertThat(latest.path("messages").get(1).path("role").textValue()).isEqualTo("actor");
+        assertThat(latest.path("messages").get(1).path("role").stringValue(null)).isEqualTo("actor");
         assertThat(json(get("/v2/coach/conversations/{id}", UUID.randomUUID()), 404))
                 .isEqualTo(mapper.readTree("{\"detail\":\"conversation_not_found\"}"));
         MockHttpServletResponse foreign = perform(get("/v2/coach/conversations/{id}", conversationId),
@@ -250,7 +250,7 @@ class CoachConversationIT {
     void practiceCoach_closingWritesTheNoteOnceAndRefusesLaterReplies() throws Exception {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").stringValue(null));
         long revision = LenientJson.longValue(started.path("conversation").path("revision"));
         generator.enqueue(CONTINUE);
         JsonNode first = json(post("/v2/coach/reply")
@@ -267,12 +267,12 @@ class CoachConversationIT {
         JsonNode closed = json(post("/v2/coach/reply")
                 .content(replyBody(conversationId, closingRequest, "그만할래요", afterFirst)), 200);
 
-        assertThat(closed.path("conversation").path("status").textValue()).isEqualTo("closed");
-        assertThat(closed.path("conversation").path("close_reason").textValue()).isEqualTo("user_ended");
+        assertThat(closed.path("conversation").path("status").stringValue(null)).isEqualTo("closed");
+        assertThat(closed.path("conversation").path("close_reason").stringValue(null)).isEqualTo("user_ended");
         assertThat(jdbc.queryForMap("SELECT status,close_reason,closed_at FROM coach_conversations"))
                 .containsEntry("status", "closed").containsEntry("close_reason", "user_ended");
         assertThat(count("coach_notes")).as("유효 답 둘이라 노트를 만든다").isEqualTo(1);
-        assertThat(closed.path("note").path("format").textValue()).isEqualTo("legacy");
+        assertThat(closed.path("note").path("format").stringValue(null)).isEqualTo("legacy");
         assertThat(LenientJson.asText(closed.at("/note/report/report_type"))).isEqualTo("analysis");
         assertThat(LenientJson.asText(closed.at("/note/report/title"))).isEqualTo("생성된 노트");
         assertThat(LenientJson.longValue(closed.path("note").path("source_revision")))
@@ -285,7 +285,7 @@ class CoachConversationIT {
 
         JsonNode replayed = json(post("/v2/coach/reply")
                 .content(replyBody(conversationId, closingRequest, "그만할래요", afterFirst)), 200);
-        assertThat(replayed.path("conversation").path("status").textValue()).isEqualTo("closed");
+        assertThat(replayed.path("conversation").path("status").stringValue(null)).isEqualTo("closed");
         assertThat(count("coach_notes")).as("노트는 한 번만 만든다").isEqualTo(1);
         assertThat(count("coach_messages")).isEqualTo(7);
     }
@@ -319,7 +319,7 @@ class CoachConversationIT {
 
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").stringValue(null));
         long revision = LenientJson.longValue(started.path("conversation").path("revision"));
         generator.enqueue(CONTINUE);
         long afterOne = LenientJson.longValue(json(post("/v2/coach/reply")
@@ -335,10 +335,10 @@ class CoachConversationIT {
 
         JsonNode note = json(get("/v2/practices/{id}/note", practice), 200);
 
-        assertThat(note.path("conversation_id").textValue()).isEqualTo(conversationId.toString());
-        assertThat(note.path("format").textValue()).isEqualTo("legacy");
-        assertThat(note.path("kind").textValue()).as("기존 갈래의 종류를 유지한다").isIn("analysis", "expression");
-        assertThat(note.path("fallback").booleanValue()).isFalse();
+        assertThat(note.path("conversation_id").stringValue(null)).isEqualTo(conversationId.toString());
+        assertThat(note.path("format").stringValue(null)).isEqualTo("legacy");
+        assertThat(note.path("kind").stringValue(null)).as("기존 갈래의 종류를 유지한다").isIn("analysis", "expression");
+        assertThat(note.path("fallback").booleanValue(false)).isFalse();
         assertThat(note.path("report").isNull()).as("옛 공개 필드를 읽던 화면을 위해 원문을 함께 준다").isFalse();
         MockHttpServletResponse foreign = perform(get("/v2/practices/{id}/note", practice),
                 "Bearer " + jwt.issueAccessToken(member()).value());
@@ -350,7 +350,7 @@ class CoachConversationIT {
     void practiceNote_legacyNeedsTwoAnswers() throws Exception {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").stringValue(null));
         long revision = LenientJson.longValue(started.path("conversation").path("revision"));
         generator.enqueue(CLOSING);
         generator.enqueue(REPORT);
@@ -358,7 +358,7 @@ class CoachConversationIT {
         JsonNode closed = json(post("/v2/coach/reply")
                 .content(replyBody(conversationId, UUID.randomUUID(), "그만할래요", revision)), 200);
 
-        assertThat(closed.path("conversation").path("status").textValue()).isEqualTo("closed");
+        assertThat(closed.path("conversation").path("status").stringValue(null)).isEqualTo("closed");
         assertThat(closed.path("note").isNull()).isTrue();
         assertThat(count("coach_notes")).isZero();
         assertThat(json(get("/v2/practices/{id}/note", practice), 404))
@@ -460,15 +460,15 @@ class CoachConversationIT {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
 
-        assertThat(started.path("conversation").path("id").textValue()).isEqualTo(conversationId.toString());
+        assertThat(started.path("conversation").path("id").stringValue(null)).isEqualTo(conversationId.toString());
         assertThat(started.path("conversation").path("messages")).hasSize(1);
-        assertThat(started.path("message").textValue()).isEqualTo("무엇이 달라졌나요");
+        assertThat(started.path("message").stringValue(null)).isEqualTo("무엇이 달라졌나요");
         assertThat(count("coach_conversations")).isEqualTo(1);
         assertThat(count("coach_messages")).isEqualTo(1);
         assertThat(generator.calls()).isEqualTo(1);
         JsonNode after = json(get("/v2/practices/{id}", practice), 200);
-        assertThat(after.path("conversation_id").textValue()).isEqualTo(conversationId.toString());
-        assertThat(after.path("conversation_status").textValue()).isEqualTo("open");
+        assertThat(after.path("conversation_id").stringValue(null)).isEqualTo(conversationId.toString());
+        assertThat(after.path("conversation_status").stringValue(null)).isEqualTo("open");
         assertThat(LenientJson.intValue(after.path("conversation_count"))).isEqualTo(1);
     }
 
@@ -477,8 +477,8 @@ class CoachConversationIT {
     void practiceCoach_practiceKeepsTheConversationOnceItHasAQuestionOrIsClosed() throws Exception {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        String openId = started.path("conversation").path("id").textValue();
-        assertThat(json(get("/v2/practices/{id}", practice), 200).path("conversation_id").textValue())
+        String openId = started.path("conversation").path("id").stringValue(null);
+        assertThat(json(get("/v2/practices/{id}", practice), 200).path("conversation_id").stringValue(null))
                 .isEqualTo(openId);
 
         UUID other = analyzedPractice(member);
@@ -488,8 +488,8 @@ class CoachConversationIT {
                 VALUES (?,?,?,'closed','system_failure',now())
                 """, closedId, other, UUID.randomUUID());
         JsonNode closed = json(get("/v2/practices/{id}", other), 200);
-        assertThat(closed.path("conversation_id").textValue()).isEqualTo(closedId.toString());
-        assertThat(closed.path("conversation_status").textValue()).isEqualTo("closed");
+        assertThat(closed.path("conversation_id").stringValue(null)).isEqualTo(closedId.toString());
+        assertThat(closed.path("conversation_status").stringValue(null)).isEqualTo("closed");
     }
 
     @Test
@@ -498,11 +498,11 @@ class CoachConversationIT {
     void practiceCoach_continueEndpointGuards() throws Exception {
         generator.enqueue(CONTINUE);
         JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
-        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").stringValue(null));
         long revision = LenientJson.longValue(started.path("conversation").path("revision"));
 
         JsonNode already = json(post("/v2/coach/conversations/{id}/continue", conversationId).content("{}"), 200);
-        assertThat(already.path("conversation").path("status").textValue()).isEqualTo("open");
+        assertThat(already.path("conversation").path("status").stringValue(null)).isEqualTo("open");
         assertThat(LenientJson.longValue(already.path("conversation").path("revision"))).isEqualTo(revision);
         assertThat(count("coach_messages")).isEqualTo(1);
 
@@ -641,11 +641,11 @@ class CoachConversationIT {
         JsonNode started = json(post("/v2/coach/start").content(startBody(talk, UUID.randomUUID())), 200);
 
         JsonNode conversation = started.path("conversation");
-        assertThat(conversation.path("status").textValue()).isEqualTo("open");
-        assertThat(conversation.path("purpose").path("purpose").textValue()).isEqualTo("concern");
-        assertThat(conversation.path("purpose").path("step").textValue()).isEqualTo("concern");
-        JsonNode read = json(get("/v2/coach/conversations/{id}", conversation.path("id").textValue()), 200);
-        assertThat(read.path("purpose").path("purpose").textValue()).isEqualTo("concern");
+        assertThat(conversation.path("status").stringValue(null)).isEqualTo("open");
+        assertThat(conversation.path("purpose").path("purpose").stringValue(null)).isEqualTo("concern");
+        assertThat(conversation.path("purpose").path("step").stringValue(null)).isEqualTo("concern");
+        JsonNode read = json(get("/v2/coach/conversations/{id}", conversation.path("id").stringValue(null)), 200);
+        assertThat(read.path("purpose").path("purpose").stringValue(null)).isEqualTo("concern");
     }
 
     private UUID practice(UUID owner, String stage) {

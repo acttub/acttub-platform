@@ -22,7 +22,7 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /** 배우 일지 서비스(practice.journal, SOMA-720) — 배우 답은 그대로, 생성 실패는 배우 답만, 한 회차에 하나. */

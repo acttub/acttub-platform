@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.json.LenientJson;
 
@@ -144,7 +144,7 @@ class DialogueStateRulesTest {
         assertThat(LenientJson.asText(next.path("proposals").get(0).path("lifecycle"))).isEqualTo("needs_review");
         assertThat(next.path("proposals").get(0).path("retirement_refs").toString()).isEqualTo("[\"c1\"]");
         assertThat(LenientJson.asText(next.path("proposals").get(1).path("lifecycle"))).isEqualTo("declined");
-        assertThat(next.path("source_catalog").findValuesAsText("id")).contains("c1", "l1");
+        assertThat(next.path("source_catalog").findValuesAsString("id")).contains("c1", "l1");
     }
 
     @Test void anOpeningHasNoActorAnswerAndMustOpenOrClose() {
@@ -168,7 +168,7 @@ class DialogueStateRulesTest {
         ObjectNode closed = DialogueState.apply(CoachingStateReducer.empty(), closing, noMaterial,
                 StructuredJson.MAPPER.nullNode(), "c1", 200, 3, false, "");
         assertThat(LenientJson.asText(closed.path("last_reply").path("move"))).isEqualTo("close");
-        assertThat(closed.path("source_catalog").findValuesAsText("id")).containsExactlyInAnyOrder("l1");
+        assertThat(closed.path("source_catalog").findValuesAsString("id")).containsExactlyInAnyOrder("l1");
     }
 
     @Test void routedOpeningMustKeepItsFocusAndEvidence() {

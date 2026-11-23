@@ -8,9 +8,9 @@ import com.acttub.actingapi.feature.coach.app.ConversationRepository.NewNote;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
 import com.acttub.actingapi.feature.report.app.PracticeNote;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**

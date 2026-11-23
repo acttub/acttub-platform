@@ -21,8 +21,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import com.acttub.actingapi.feature.audition.domain.AuditionPosting;
 import com.acttub.actingapi.feature.audition.domain.AuditionRules;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;

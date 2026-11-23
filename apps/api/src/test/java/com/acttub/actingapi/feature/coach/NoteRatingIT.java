@@ -13,8 +13,8 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,9 +85,9 @@ class NoteRatingIT {
         UUID requestId = UUID.randomUUID();
         JsonNode saved = json(rate(requestId, "helpful", "  시선 얘기가 좋았어요  "), 200);
 
-        assertThat(saved.path("rating").textValue()).isEqualTo("helpful");
-        assertThat(saved.path("comment").textValue()).isEqualTo("시선 얘기가 좋았어요");
-        assertThat(saved.path("updated_at").textValue()).isEqualTo("2026-09-24T00:00:00.000000Z");
+        assertThat(saved.path("rating").stringValue(null)).isEqualTo("helpful");
+        assertThat(saved.path("comment").stringValue(null)).isEqualTo("시선 얘기가 좋았어요");
+        assertThat(saved.path("updated_at").stringValue(null)).isEqualTo("2026-09-24T00:00:00.000000Z");
         assertThat(saved.properties()).extracting(Map.Entry::getKey)
                 .containsExactlyInAnyOrder("rating", "comment", "updated_at");
 
@@ -108,9 +108,9 @@ class NoteRatingIT {
 
         JsonNode changed = json(rate(UUID.randomUUID(), "not_helpful", null), 200);
 
-        assertThat(changed.path("rating").textValue()).isEqualTo("not_helpful");
+        assertThat(changed.path("rating").stringValue(null)).isEqualTo("not_helpful");
         assertThat(changed.path("comment").isNull()).isTrue();
-        assertThat(changed.path("updated_at").textValue()).isEqualTo("2026-09-24T00:03:00.000000Z");
+        assertThat(changed.path("updated_at").stringValue(null)).isEqualTo("2026-09-24T00:03:00.000000Z");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM note_ratings", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT created_at < updated_at FROM note_ratings", Boolean.class)).isTrue();
 
@@ -192,10 +192,10 @@ class NoteRatingIT {
         perform(rate(UUID.randomUUID(), "not_helpful", "질문이 길었어요"), 200);
 
         JsonNode after = json(get("/v2/practices/{id}/note", practice), 200);
-        assertThat(after.path("id").textValue()).isEqualTo(note.toString());
-        assertThat(after.path("my_rating").path("rating").textValue()).isEqualTo("not_helpful");
-        assertThat(after.path("my_rating").path("comment").textValue()).isEqualTo("질문이 길었어요");
-        assertThat(after.path("my_rating").path("updated_at").textValue()).isEqualTo("2026-09-24T00:00:00.000000Z");
+        assertThat(after.path("id").stringValue(null)).isEqualTo(note.toString());
+        assertThat(after.path("my_rating").path("rating").stringValue(null)).isEqualTo("not_helpful");
+        assertThat(after.path("my_rating").path("comment").stringValue(null)).isEqualTo("질문이 길었어요");
+        assertThat(after.path("my_rating").path("updated_at").stringValue(null)).isEqualTo("2026-09-24T00:00:00.000000Z");
     }
 
     @Test

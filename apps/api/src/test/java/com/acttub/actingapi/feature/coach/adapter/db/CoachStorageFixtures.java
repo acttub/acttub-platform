@@ -9,8 +9,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class CoachStorageFixtures {

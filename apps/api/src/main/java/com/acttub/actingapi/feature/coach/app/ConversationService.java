@@ -21,10 +21,11 @@ import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
@@ -48,7 +49,7 @@ public class ConversationService {
     public static final int LEGACY_REPLY_LIMIT = 8;
     public static final int THREE_LAYERS_REPLY_LIMIT = 24;
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     private static final String COMPLETE = "complete";
 
     private final ConversationRepository conversations;

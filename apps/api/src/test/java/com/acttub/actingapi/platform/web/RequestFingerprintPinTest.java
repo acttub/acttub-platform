@@ -20,7 +20,7 @@ import com.acttub.actingapi.feature.reading.app.CloudVoiceService;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.video.app.VideoService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /**

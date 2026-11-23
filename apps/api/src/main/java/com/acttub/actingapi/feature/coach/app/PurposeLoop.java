@@ -1,9 +1,9 @@
 package com.acttub.actingapi.feature.coach.app;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -831,7 +831,7 @@ final class PurposeLoop {
         lines.add("");
         lines.add("재료");
         JsonNode answers = loop.path("answers");
-        answers.fieldNames().forEachRemaining(step -> lines.add("- 배우가 「" + STEP_NAMES.getOrDefault(step, step)
+        answers.propertyNames().iterator().forEachRemaining(step -> lines.add("- 배우가 「" + STEP_NAMES.getOrDefault(step, step)
                 + "」 질문에 한 답: " + LenientJson.asText(answers.path(step))));
         if (loop.path("scene").isObject()) {
             JsonNode scene = loop.path("scene");

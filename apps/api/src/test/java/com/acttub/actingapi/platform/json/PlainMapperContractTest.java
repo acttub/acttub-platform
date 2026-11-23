@@ -7,18 +7,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 코드가 스프링 설정 없이 직접 만드는 매퍼(바깥 호출 본문, DB 에 넣는 JSON 문자열, 모델 출력 읽기)의 기본 동작을
  * 고정한다(SOMA-1103). 직접 만드는 자리는 모두 이 테스트의 {@link #MAPPER} 와 같은 방법으로 만든다. 기대값은
- * Jackson 2 의 {@code new ObjectMapper()} 를 실제로 돌려 얻었다.
+ * Jackson 2 의 {@code JsonMapper.builderWithJackson2Defaults().build()} 를 실제로 돌려 얻었다.
  */
 class PlainMapperContractTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMapper.builderWithJackson2Defaults().build();
 
     enum Kind { FIRST_KIND, second }
 

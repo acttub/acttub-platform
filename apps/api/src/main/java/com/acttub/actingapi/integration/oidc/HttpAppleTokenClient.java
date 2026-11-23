@@ -10,8 +10,8 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
@@ -25,6 +25,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 애플 토큰 API 의 실물. 요청마다 client secret(ES256 JWT)을 새로 만든다 — 애플 문서
@@ -39,7 +40,7 @@ public class HttpAppleTokenClient implements AppleTokenClient {
     static final String REVOKE_URL = "https://appleid.apple.com/auth/revoke";
     private static final String AUDIENCE = "https://appleid.apple.com";
     private static final long CLIENT_SECRET_TTL_SECONDS = 5 * 60;
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final String teamId;
     private final String keyId;
@@ -163,7 +164,7 @@ public class HttpAppleTokenClient implements AppleTokenClient {
     private static String text(String body, String field) {
         try {
             JsonNode value = JSON.readTree(body).path(field);
-            return value.isTextual() ? LenientJson.asText(value) : null;
+            return value.isString() ? LenientJson.asText(value) : null;
         } catch (Exception notJson) {
             return null;
         }

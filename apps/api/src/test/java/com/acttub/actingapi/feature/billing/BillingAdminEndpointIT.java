@@ -12,8 +12,8 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,33 +85,33 @@ class BillingAdminEndpointIT {
         assertThat(subs).hasSize(3);
 
         JsonNode apple = subs.get(0);
-        assertThat(apple.path("actor").textValue()).isEqualTo(actor(APPLE));
-        assertThat(apple.path("provider").textValue()).isEqualTo("apple");
-        assertThat(apple.path("plan").textValue()).isEqualTo("yearly");
-        assertThat(apple.path("pro_now").booleanValue()).isTrue();
-        assertThat(apple.path("is_team").booleanValue()).isFalse();
+        assertThat(apple.path("actor").stringValue(null)).isEqualTo(actor(APPLE));
+        assertThat(apple.path("provider").stringValue(null)).isEqualTo("apple");
+        assertThat(apple.path("plan").stringValue(null)).isEqualTo("yearly");
+        assertThat(apple.path("pro_now").booleanValue(false)).isTrue();
+        assertThat(apple.path("is_team").booleanValue(false)).isFalse();
         assertThat(apple.path("name").isNull()).isTrue();
 
         JsonNode team = subs.get(1);
-        assertThat(team.path("nickname").textValue()).isEqualTo("우영");
-        assertThat(team.path("is_team").booleanValue()).isTrue();
-        assertThat(team.path("status").textValue()).isEqualTo("canceled");
-        assertThat(team.path("pro_now").booleanValue()).isTrue();
+        assertThat(team.path("nickname").stringValue(null)).isEqualTo("우영");
+        assertThat(team.path("is_team").booleanValue(false)).isTrue();
+        assertThat(team.path("status").stringValue(null)).isEqualTo("canceled");
+        assertThat(team.path("pro_now").booleanValue(false)).isTrue();
         assertThat(LenientJson.longValue(team.path("paid_amount"))).isEqualTo(3900);
         assertThat(LenientJson.intValue(team.path("paid_count"))).isEqualTo(1);
-        assertThat(team.path("canceled_at").textValue()).isNotNull();
+        assertThat(team.path("canceled_at").stringValue(null)).isNotNull();
 
         JsonNode gone = subs.get(2);
-        assertThat(gone.path("pro_now").booleanValue()).isFalse();
-        assertThat(gone.path("is_team").booleanValue()).isTrue();
+        assertThat(gone.path("pro_now").booleanValue(false)).isFalse();
+        assertThat(gone.path("is_team").booleanValue(false)).isTrue();
 
         JsonNode grant = root.path("grants").get(0);
-        assertThat(grant.path("name").textValue()).isEqualTo("홍길동");
-        assertThat(grant.path("reason").textValue()).isEqualTo("인터뷰 감사");
-        assertThat(grant.path("state").textValue()).isEqualTo("scheduled");
+        assertThat(grant.path("name").stringValue(null)).isEqualTo("홍길동");
+        assertThat(grant.path("reason").stringValue(null)).isEqualTo("인터뷰 감사");
+        assertThat(grant.path("state").stringValue(null)).isEqualTo("scheduled");
 
         JsonNode launch = root.path("launch_week");
-        assertThat(launch.path("active_now").booleanValue()).isTrue();
+        assertThat(launch.path("active_now").booleanValue(false)).isTrue();
         assertThat(LenientJson.intValue(launch.path("users"))).isEqualTo(3);
         assertThat(LenientJson.intValue(launch.path("team_users"))).isEqualTo(2);
     }

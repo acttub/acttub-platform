@@ -6,7 +6,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * memory 가 작업 큐에 요구하는 것 (ADR-017, SOMA-397 6단계).

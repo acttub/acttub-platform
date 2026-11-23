@@ -15,7 +15,7 @@ import com.acttub.actingapi.feature.billing.app.StoreGateways.RevenueCatGateway;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreException;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreSubscription;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.acttub.actingapi.platform.json.LenientJson;
@@ -155,7 +155,7 @@ public class StoreBillingService {
     }
 
     private static void addUser(Set<UUID> users, JsonNode value) {
-        if (!value.isTextual() || users.size() >= MAX_USERS_PER_EVENT) {
+        if (!value.isString() || users.size() >= MAX_USERS_PER_EVENT) {
             return;
         }
         String text = LenientJson.asText(value);

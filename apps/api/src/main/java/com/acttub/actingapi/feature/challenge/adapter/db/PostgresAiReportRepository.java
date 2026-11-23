@@ -13,14 +13,15 @@ import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 챌린지 AI 리포트 (challenge.ai-report). 표본 조건은 공개 조건 + 요청자와 차단 없음 + 다른 작성자이고, 작성자당 가장
@@ -34,7 +35,7 @@ class PostgresAiReportRepository implements AiReportRepository {
     private final EntryLocks locks;
     private final AiJobLedger ledger;
     private final NotificationEvents events;
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json = JsonMapper.builderWithJackson2Defaults().build();
 
     PostgresAiReportRepository(EntityManager em, EntryLocks locks, AiJobLedger ledger, NotificationEvents events) {
         this.em = em; this.locks = locks; this.ledger = ledger; this.events = events;
@@ -116,7 +117,7 @@ class PostgresAiReportRepository implements AiReportRepository {
                 if (eligible.containsAll(ids(item.path("samples")))) comparisons.add(LenientJson.asText(item.path("text")));
             }
             result.path("limits").forEach(item -> limits.add(LenientJson.asText(item)));
-            suggestion = result.path("suggestion").isTextual() ? LenientJson.asText(result.path("suggestion")) : null;
+            suggestion = result.path("suggestion").isString() ? LenientJson.asText(result.path("suggestion")) : null;
         }
         return new Report(entryId, row.get("status", String.class), List.copyOf(observations), List.copyOf(comparisons),
                 List.copyOf(limits), suggestion, sampleCount, ((Number) row.get("attempt_count")).intValue(),

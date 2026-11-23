@@ -13,7 +13,7 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.acttub.actingapi.feature.report.app.PracticeNote;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import com.acttub.actingapi.platform.json.LenientJson;

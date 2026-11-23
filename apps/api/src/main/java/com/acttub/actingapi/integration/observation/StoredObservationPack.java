@@ -1,8 +1,8 @@
 package com.acttub.actingapi.integration.observation;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /** 저장된 모델 출력의 새 팩과 구형 분리 배열을 같은 관찰 형태로 읽는다. */
 public final class StoredObservationPack {

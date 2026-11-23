@@ -15,7 +15,7 @@ import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationSettings;
 import com.acttub.actingapi.feature.reading.app.PronunciationWorker;
 import com.acttub.actingapi.feature.reading.app.VoicePlan;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

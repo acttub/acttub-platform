@@ -8,16 +8,17 @@ import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Comparison;
 import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Evidence;
 import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Result;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeReportRules;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 모델 출력을 결과로 옮기며 검사한다 (challenge.ai-report). 모양이 틀리거나 금지 어휘가 들었으면 {@link Rejected} 로
  * 거절해 저장하지 않는다 — 워커가 그 실행을 한 번으로 세고 다시 만든다.
  */
 public final class ChallengeReportParser {
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     /** 저장하면 안 되는 출력. {@code reason} 은 실패 분류다. */
     public static final class Rejected extends RuntimeException {
@@ -79,7 +80,7 @@ public final class ChallengeReportParser {
     }
 
     private static String text(JsonNode node) {
-        if (node == null || !node.isTextual()) return null;
+        if (node == null || !node.isString()) return null;
         String value = LenientJson.asText(node).strip();
         return value.isEmpty() || "null".equals(value) ? null : value;
     }

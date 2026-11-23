@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.coach.adapter.db;
 import com.acttub.actingapi.feature.coach.app.CoachProMemory;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import java.time.Instant;
@@ -65,7 +65,7 @@ class PostgresCoachProMemory implements CoachProMemory {
             JsonNode node = StructuredJson.MAPPER.readTree(json);
             List<String> out = new ArrayList<>();
             if (node.isArray()) node.forEach(item -> {
-                if (item.isTextual() && !LenientJson.asText(item).isBlank()) out.add(LenientJson.asText(item));
+                if (item.isString() && !LenientJson.asText(item).isBlank()) out.add(LenientJson.asText(item));
             });
             return out;
         } catch (Exception broken) {

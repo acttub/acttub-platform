@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.acttub.actingapi.feature.audition.domain.AuditionPosting;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /** 출처 페이지 모양이 조금 어긋났을 때: 읽을 수 없는 줄은 건너뛰고, 모두 읽을 수 없으면 고장으로 알린다. */

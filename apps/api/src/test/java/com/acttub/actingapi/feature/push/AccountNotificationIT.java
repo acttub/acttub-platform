@@ -17,8 +17,8 @@ import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -234,13 +234,13 @@ class AccountNotificationIT {
 
         var beforeConsent = postToken(token, "ExponentPushToken[early]");
         assertThat(beforeConsent.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(beforeConsent.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(beforeConsent.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("consent_required");
 
         AccountFixtures.grantAllConsents(jdbc, undecided);
         var beforeProfile = postToken(token, "ExponentPushToken[early]");
         assertThat(beforeProfile.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(beforeProfile.getContentAsString()).path("detail").textValue())
+        assertThat(mapper.readTree(beforeProfile.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("profile_required");
         assertThat(count("push_tokens")).as("동의 전에는 기기 정보를 받지 않는다").isZero();
 

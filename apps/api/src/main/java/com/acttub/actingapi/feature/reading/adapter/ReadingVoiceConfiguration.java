@@ -6,7 +6,7 @@ import com.acttub.actingapi.feature.reading.app.ReadingVoiceMaterials;
 import com.acttub.actingapi.feature.reading.app.RecordingSounds;
 import com.acttub.actingapi.integration.media.AudioJoiner;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;

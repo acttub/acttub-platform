@@ -7,7 +7,7 @@ import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
 import com.acttub.actingapi.platform.schema.ReadingAdvance;
 import com.acttub.actingapi.platform.schema.ReadingMode;
 import com.acttub.actingapi.platform.schema.ReadingSessionStatus;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;

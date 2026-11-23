@@ -5,20 +5,21 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /** 모델 출력과 저장 정본에 같은 JSON Schema를 적용한다. 외부 참조는 사용하지 않는다. */
 public final class StructuredJson {
-    public static final ObjectMapper MAPPER = new ObjectMapper()
-            .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-            .enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+    public static final ObjectMapper MAPPER = JsonMapper.builderWithJackson2Defaults().build()
+            .enable(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .enable(tools.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
     private static final JsonNode CONTRACTS = resource("/coaching/three-layer-contracts.schema.json");
     private static final ConcurrentHashMap<String, JsonSchema> VALIDATORS = new ConcurrentHashMap<>();
 
@@ -35,7 +36,7 @@ public final class StructuredJson {
                 throw new IllegalArgumentException("JSON output must be an object");
             }
             return value;
-        } catch (JsonProcessingException error) {
+        } catch (JacksonException error) {
             throw new IllegalArgumentException("invalid JSON output", error);
         }
     }
@@ -105,7 +106,7 @@ public final class StructuredJson {
                 collect(definition, target, visited);
             }
         }
-        if (node.isContainerNode()) {
+        if (node.isContainer()) {
             node.forEach(child -> collect(child, target, visited));
         }
     }

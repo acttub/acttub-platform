@@ -8,8 +8,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.platform.migration.PracticeDataMigration;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,22 +72,22 @@ class PracticeCompatibilityIT {
 
         JsonNode detail = json(get("/v2/practices/{id}", second), 200);
 
-        assertThat(detail.path("id").textValue()).isEqualTo(second.toString());
-        assertThat(detail.path("root_id").textValue()).as("체인이 묶음과 차수로 펴진다").isEqualTo(first.toString());
+        assertThat(detail.path("id").stringValue(null)).isEqualTo(second.toString());
+        assertThat(detail.path("root_id").stringValue(null)).as("체인이 묶음과 차수로 펴진다").isEqualTo(first.toString());
         assertThat(LenientJson.intValue(detail.path("ordinal"))).isEqualTo(2);
-        assertThat(detail.path("stage").textValue()).isEqualTo("conversing");
-        assertThat(detail.path("analysis_status").textValue())
+        assertThat(detail.path("stage").stringValue(null)).isEqualTo("conversing");
+        assertThat(detail.path("analysis_status").stringValue(null))
                 .as("구형 관찰은 상태만 낸다 — 못 본 구간이 있으면 partial").isEqualTo("partial");
-        assertThat(detail.path("situation").textValue()).isEqualTo("문 앞에서 돌아선다");
+        assertThat(detail.path("situation").stringValue(null)).isEqualTo("문 앞에서 돌아선다");
         assertThat(detail.has("poster_url")).as("옛 회차도 같은 모양이다").isTrue();
         assertThat(detail.path("poster_url").isNull()).isTrue();
 
-        assertThat(json(get("/v2/practices/{id}/status", second), 200).path("stage").textValue())
+        assertThat(json(get("/v2/practices/{id}/status", second), 200).path("stage").stringValue(null))
                 .isEqualTo("conversing");
 
         JsonNode groups = json(get("/v2/practices"), 200).path("groups");
         assertThat(groups).hasSize(1);
-        assertThat(groups.get(0).path("root_id").textValue()).isEqualTo(first.toString());
+        assertThat(groups.get(0).path("root_id").stringValue(null)).isEqualTo(first.toString());
         assertThat(groups.get(0).path("practices")).hasSize(2);
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class))
@@ -110,11 +110,11 @@ class PracticeCompatibilityIT {
 
         JsonNode note = json(get("/v2/practices/{id}/note", practice), 200);
 
-        assertThat(note.path("format").textValue()).isEqualTo("legacy");
-        assertThat(note.path("kind").textValue()).isEqualTo("expression");
-        assertThat(note.path("title").textValue()).isEqualTo("옛 노트 제목");
-        assertThat(note.path("conversation_id").textValue()).isEqualTo(conversation.toString());
-        assertThat(note.path("report").path("next_step").textValue()).isEqualTo("호흡을 한 박자 늦춘다");
+        assertThat(note.path("format").stringValue(null)).isEqualTo("legacy");
+        assertThat(note.path("kind").stringValue(null)).isEqualTo("expression");
+        assertThat(note.path("title").stringValue(null)).isEqualTo("옛 노트 제목");
+        assertThat(note.path("conversation_id").stringValue(null)).isEqualTo(conversation.toString());
+        assertThat(note.path("report").path("next_step").stringValue(null)).isEqualTo("호흡을 한 박자 늦춘다");
         assertThat(note.path("summary_quotes")).isEmpty();
     }
 
@@ -130,17 +130,17 @@ class PracticeCompatibilityIT {
 
         JsonNode detail = json(get("/v2/practices/{id}", practice), 200);
 
-        assertThat(detail.path("conversation_id").textValue()).isEqualTo(latest.toString());
+        assertThat(detail.path("conversation_id").stringValue(null)).isEqualTo(latest.toString());
         assertThat(detail.path("previous_conversations")).hasSize(1);
-        assertThat(detail.path("previous_conversations").get(0).path("id").textValue())
+        assertThat(detail.path("previous_conversations").get(0).path("id").stringValue(null))
                 .isEqualTo(older.toString());
-        assertThat(detail.path("previous_conversations").get(0).path("status").textValue()).isEqualTo("closed");
+        assertThat(detail.path("previous_conversations").get(0).path("status").stringValue(null)).isEqualTo("closed");
 
         JsonNode opened = json(get("/v2/coach/conversations/{id}", older), 200);
-        assertThat(opened.path("practice_id").textValue()).isEqualTo(practice.toString());
+        assertThat(opened.path("practice_id").stringValue(null)).isEqualTo(practice.toString());
         assertThat(opened.path("messages")).hasSize(1);
-        assertThat(opened.path("messages").get(0).path("role").textValue()).isEqualTo("coach");
-        assertThat(opened.path("messages").get(0).path("text").textValue()).isEqualTo("옛 대화의 첫 말");
+        assertThat(opened.path("messages").get(0).path("role").stringValue(null)).isEqualTo("coach");
+        assertThat(opened.path("messages").get(0).path("text").stringValue(null)).isEqualTo("옛 대화의 첫 말");
     }
 
     @Test
@@ -164,7 +164,7 @@ class PracticeCompatibilityIT {
             assertThat(after.path(field)).as("옮기기 전후의 %s 가 같다", field).isEqualTo(before.path(field));
         }
         assertThat(after.path("previous_conversations")).hasSize(1);
-        assertThat(after.path("previous_conversations").get(0).path("id").textValue())
+        assertThat(after.path("previous_conversations").get(0).path("id").stringValue(null))
                 .isEqualTo(older.toString());
     }
 

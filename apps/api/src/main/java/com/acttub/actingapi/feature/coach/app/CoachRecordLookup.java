@@ -11,9 +11,9 @@ import java.util.Set;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.observation.VideoRecord;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 소유권이 검증된 세션의 메모리상 기록만 조회한다. URL·S3·영상 분석 접근은 없다. */

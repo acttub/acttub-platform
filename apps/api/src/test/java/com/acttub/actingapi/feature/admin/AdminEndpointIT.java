@@ -20,8 +20,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -127,7 +127,7 @@ class AdminEndpointIT {
         assertThat(sessions.path("sessions")).hasSize(2);
 
         JsonNode pending = sessions.path("sessions").get(0);
-        assertThat(pending.fieldNames()).toIterable().containsExactly(
+        assertThat(pending.propertyNames().iterator()).toIterable().containsExactly(
                 "coach_session_id",
                 "created_at",
                 "status",
@@ -138,19 +138,19 @@ class AdminEndpointIT {
                 "turns",
                 "video_url",
                 "coach_flow");
-        assertThat(pending.path("coach_session_id").textValue())
+        assertThat(pending.path("coach_session_id").stringValue(null))
                 .isEqualTo(realPendingCoach.toString());
-        assertThat(pending.path("status").textValue()).isEqualTo("open");
+        assertThat(pending.path("status").stringValue(null)).isEqualTo("open");
         assertThat(pending.path("close_reason").isNull()).isTrue();
-        assertThat(pending.path("turns").get(0).path("role").textValue())
+        assertThat(pending.path("turns").get(0).path("role").stringValue(null))
                 .isEqualTo("ai");
         assertThat(pending.path("video_url").isNull()).isTrue();
         assertThat(pending.path("coach_flow").isNull()).isTrue();
 
         JsonNode finalized = sessions.path("sessions").get(1);
-        assertThat(finalized.path("coach_session_id").textValue())
+        assertThat(finalized.path("coach_session_id").stringValue(null))
                 .isEqualTo(realFinalCoach.toString());
-        assertThat(finalized.path("video_url").textValue())
+        assertThat(finalized.path("video_url").stringValue(null))
                 .isEqualTo("admin:real.mp4:3600");
         assertThat(sessions.toString()).doesNotContain("Team@Acttub.com", TEAM_USER.toString());
     }
@@ -175,7 +175,7 @@ class AdminEndpointIT {
         List<String> actualIds = new ArrayList<>();
         for (int position = 0; position < 50; position++) {
             JsonNode session = response.path("sessions").get(position);
-            actualIds.add(session.path("coach_session_id").textValue());
+            actualIds.add(session.path("coach_session_id").stringValue(null));
             int index = 49 - position;
             JsonNode expectedTurns = index % 2 == 0
                     ? mapper.readTree("""
@@ -243,24 +243,24 @@ class AdminEndpointIT {
         String actor = jdbc.queryForObject(
                 "SELECT left(md5(CAST(? AS text)), 8)", String.class, ADVISOR_USER.toString());
         JsonNode newest = sessions.get(0);
-        assertThat(newest.path("coach_session_id").textValue()).isEqualTo(newerConversation.toString());
-        assertThat(newest.path("actor").textValue()).isEqualTo(actor);
-        assertThat(newest.path("advisor_hash").textValue())
+        assertThat(newest.path("coach_session_id").stringValue(null)).isEqualTo(newerConversation.toString());
+        assertThat(newest.path("actor").stringValue(null)).isEqualTo(actor);
+        assertThat(newest.path("advisor_hash").stringValue(null))
                 .as("시험 목록의 sha256(\"advisor@example.com\")")
                 .isEqualTo("11d6d7223550b8edd504d86e14a4db458c8356ba1a5fceab66f5d2e387470d71");
-        assertThat(newest.path("persona").textValue()).isEqualTo("b1");
-        assertThat(newest.path("coach_flow").textValue()).isEqualTo("b");
-        assertThat(newest.path("status").textValue()).isEqualTo("open");
-        assertThat(newest.path("video_url").textValue()).isEqualTo("admin:advisor-new.mp4:3600");
+        assertThat(newest.path("persona").stringValue(null)).isEqualTo("b1");
+        assertThat(newest.path("coach_flow").stringValue(null)).isEqualTo("b");
+        assertThat(newest.path("status").stringValue(null)).isEqualTo("open");
+        assertThat(newest.path("video_url").stringValue(null)).isEqualTo("admin:advisor-new.mp4:3600");
         assertThat(newest.path("turns")).isEqualTo(mapper.readTree("""
                 [{"turn_index":0,"role":"ai","text":"자문 질문"},
                  {"turn_index":1,"role":"actor","text":"자문 답"}]
                 """));
         JsonNode oldest = sessions.get(1);
-        assertThat(oldest.path("coach_session_id").textValue()).isEqualTo(olderConversation.toString());
+        assertThat(oldest.path("coach_session_id").stringValue(null)).isEqualTo(olderConversation.toString());
         assertThat(oldest.path("persona").isNull()).as("성격 배정 기록이 없으면 null").isTrue();
         assertThat(oldest.path("coach_flow").isNull()).as("흐름 배정 기록이 없으면 null").isTrue();
-        assertThat(oldest.path("close_reason").textValue()).isEqualTo("gap_stated");
+        assertThat(oldest.path("close_reason").stringValue(null)).isEqualTo("gap_stated");
         assertThat(oldest.path("turns")).isEmpty();
         assertThat(oldest.path("video_url").isNull()).as("지워진 영상은 재생 주소가 없다").isTrue();
 
@@ -282,24 +282,24 @@ class AdminEndpointIT {
         }
 
         JsonNode recent = authorized("/v2/admin/sessions?limit=1", 200);
-        assertThat(recent.path("sessions").get(0).path("coach_session_id").textValue())
+        assertThat(recent.path("sessions").get(0).path("coach_session_id").stringValue(null))
                 .isNotEqualTo(oldest.toString());
 
         JsonNode picked = authorized("/v2/admin/sessions?limit=50&ids=" + oldest + "," + realFinalCoach, 200);
         List<String> pickedIds = new ArrayList<>();
-        picked.path("sessions").forEach(session -> pickedIds.add(session.path("coach_session_id").textValue()));
+        picked.path("sessions").forEach(session -> pickedIds.add(session.path("coach_session_id").stringValue(null)));
         assertThat(pickedIds).containsExactlyInAnyOrder(oldest.toString(), realFinalCoach.toString());
         assertThat(picked.toString()).doesNotContain("Team@Acttub.com", TEAM_USER.toString());
 
         JsonNode invalid = authorized("/v2/admin/sessions?ids=nope", 422);
-        assertThat(invalid.at("/detail/0/type").textValue()).isEqualTo("uuid_parsing");
-        assertThat(invalid.at("/detail/0/loc/1").textValue()).isEqualTo("ids");
+        assertThat(invalid.at("/detail/0/type").stringValue(null)).isEqualTo("uuid_parsing");
+        assertThat(invalid.at("/detail/0/loc/1").stringValue(null)).isEqualTo("ids");
         StringBuilder tooMany = new StringBuilder();
         for (int index = 0; index < 51; index++) {
             tooMany.append(index == 0 ? "" : ",").append(UUID.randomUUID());
         }
         JsonNode above = authorized("/v2/admin/sessions?ids=" + tooMany, 422);
-        assertThat(above.at("/detail/0/type").textValue()).isEqualTo("too_long");
+        assertThat(above.at("/detail/0/type").stringValue(null)).isEqualTo("too_long");
     }
 
     @Test
@@ -310,10 +310,10 @@ class AdminEndpointIT {
                 "msg":"Input should be greater than or equal to 1","input":"0","ctx":{"ge":1}}]}
                 """));
         JsonNode above = authorized("/v2/admin/sessions?limit=51", 422);
-        assertThat(above.at("/detail/0/type").textValue()).isEqualTo("less_than_equal");
+        assertThat(above.at("/detail/0/type").stringValue(null)).isEqualTo("less_than_equal");
         JsonNode invalid = authorized("/v2/admin/sessions?limit=nope", 422);
-        assertThat(invalid.at("/detail/0/type").textValue()).isEqualTo("int_parsing");
-        assertThat(invalid.at("/detail/0/loc/0").textValue()).isEqualTo("query");
+        assertThat(invalid.at("/detail/0/type").stringValue(null)).isEqualTo("int_parsing");
+        assertThat(invalid.at("/detail/0/loc/0").stringValue(null)).isEqualTo("query");
 
         JsonNode unauthorized = json(mvc.perform(get("/v2/admin/sessions?limit=nope")), 401);
         assertThat(unauthorized).isEqualTo(
@@ -374,41 +374,41 @@ class AdminEndpointIT {
 
         JsonNode page = authorized("/v2/admin/feedback", 200);
         assertThat(LenientJson.intValue(page.path("limit"))).isEqualTo(50);
-        assertThat(page.path("has_more").booleanValue()).isFalse();
+        assertThat(page.path("has_more").booleanValue(false)).isFalse();
         assertThat(page.path("items")).hasSize(3);
 
         JsonNode ratingItem = page.path("items").get(0);
-        assertThat(ratingItem.fieldNames()).toIterable().containsExactly(
+        assertThat(ratingItem.propertyNames().iterator()).toIterable().containsExactly(
                 "id", "kind", "created_at", "actor", "is_team", "body", "rating", "status",
                 "source", "trigger", "practice_id", "reading_session_id", "reading_mode", "reading_record");
         assertThat(ratingItem.path("reading_session_id").isNull()).isTrue();
         assertThat(ratingItem.path("reading_mode").isNull()).isTrue();
         assertThat(ratingItem.path("reading_record").isNull()).isTrue();
-        assertThat(ratingItem.path("id").textValue()).isEqualTo(rating.toString());
-        assertThat(ratingItem.path("kind").textValue()).isEqualTo("note_rating");
-        assertThat(ratingItem.path("actor").textValue())
+        assertThat(ratingItem.path("id").stringValue(null)).isEqualTo(rating.toString());
+        assertThat(ratingItem.path("kind").stringValue(null)).isEqualTo("note_rating");
+        assertThat(ratingItem.path("actor").stringValue(null))
                 .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(ratingItem.path("is_team").booleanValue()).isFalse();
-        assertThat(ratingItem.path("body").textValue()).isEqualTo("노트 평가 코멘트");
-        assertThat(ratingItem.path("rating").textValue()).isEqualTo("not_helpful");
+        assertThat(ratingItem.path("is_team").booleanValue(false)).isFalse();
+        assertThat(ratingItem.path("body").stringValue(null)).isEqualTo("노트 평가 코멘트");
+        assertThat(ratingItem.path("rating").stringValue(null)).isEqualTo("not_helpful");
         assertThat(ratingItem.path("status").isNull()).isTrue();
-        assertThat(ratingItem.path("source").textValue()).isEqualTo("practice_note");
+        assertThat(ratingItem.path("source").stringValue(null)).isEqualTo("practice_note");
         assertThat(ratingItem.path("trigger").isNull()).isTrue();
-        assertThat(ratingItem.path("practice_id").textValue()).isEqualTo(realPractice.toString());
+        assertThat(ratingItem.path("practice_id").stringValue(null)).isEqualTo(realPractice.toString());
 
         // 같은 created_at 의 설문 둘은 id 오름차순으로 고정된다.
         JsonNode answeredItem = page.path("items").get(1);
-        assertThat(answeredItem.path("id").textValue()).isEqualTo(answered.toString());
-        assertThat(answeredItem.path("status").textValue()).isEqualTo("answered");
-        assertThat(answeredItem.path("source").textValue()).isEqualTo("report");
-        assertThat(answeredItem.path("trigger").textValue()).isEqualTo("leave");
+        assertThat(answeredItem.path("id").stringValue(null)).isEqualTo(answered.toString());
+        assertThat(answeredItem.path("status").stringValue(null)).isEqualTo("answered");
+        assertThat(answeredItem.path("source").stringValue(null)).isEqualTo("report");
+        assertThat(answeredItem.path("trigger").stringValue(null)).isEqualTo("leave");
 
         JsonNode dismissedItem = page.path("items").get(2);
-        assertThat(dismissedItem.path("kind").textValue()).isEqualTo("exit_survey");
+        assertThat(dismissedItem.path("kind").stringValue(null)).isEqualTo("exit_survey");
         assertThat(dismissedItem.path("body").isNull()).isTrue();
-        assertThat(dismissedItem.path("status").textValue()).isEqualTo("dismissed");
-        assertThat(dismissedItem.path("source").textValue()).isEqualTo("coach");
-        assertThat(dismissedItem.path("trigger").textValue()).isEqualTo("back");
+        assertThat(dismissedItem.path("status").stringValue(null)).isEqualTo("dismissed");
+        assertThat(dismissedItem.path("source").stringValue(null)).isEqualTo("coach");
+        assertThat(dismissedItem.path("trigger").stringValue(null)).isEqualTo("back");
 
         assertThat(page.toString()).doesNotContain(
                 REAL_USER.toString(), TEAM_USER.toString(), "actor@example.com", "Team@Acttub.com",
@@ -416,17 +416,17 @@ class AdminEndpointIT {
 
         JsonNode limited = authorized("/v2/admin/feedback?limit=2", 200);
         assertThat(limited.path("items")).hasSize(2);
-        assertThat(limited.path("has_more").booleanValue()).isTrue();
-        assertThat(limited.path("items").get(0).path("id").textValue()).isEqualTo(rating.toString());
+        assertThat(limited.path("has_more").booleanValue(false)).isTrue();
+        assertThat(limited.path("items").get(0).path("id").stringValue(null)).isEqualTo(rating.toString());
         // 경계: 남은 행 수가 상한과 정확히 같으면 다음 쪽이 없다.
         JsonNode exact = authorized("/v2/admin/feedback?limit=3", 200);
         assertThat(exact.path("items")).hasSize(3);
-        assertThat(exact.path("has_more").booleanValue()).isFalse();
+        assertThat(exact.path("has_more").booleanValue(false)).isFalse();
 
         JsonNode withTeam = authorized("/v2/admin/feedback?include_team=true", 200);
         assertThat(withTeam.path("items")).hasSize(4);
-        assertThat(withTeam.path("items").get(0).path("id").textValue()).isEqualTo(teamFeedback.toString());
-        assertThat(withTeam.path("items").get(0).path("is_team").booleanValue()).isTrue();
+        assertThat(withTeam.path("items").get(0).path("id").stringValue(null)).isEqualTo(teamFeedback.toString());
+        assertThat(withTeam.path("items").get(0).path("is_team").booleanValue(false)).isTrue();
         assertThat(withTeam.toString()).doesNotContain(
                 REAL_USER.toString(), TEAM_USER.toString(), "actor@example.com", "Team@Acttub.com",
                 "private@example.com", "010-0000-0000", "team-private@example.com");
@@ -438,7 +438,7 @@ class AdminEndpointIT {
                 "/v2/admin/feedback?exclude_actors=" + realActor.toUpperCase() + "&include_team=true", 200);
         assertThat(inspectExcluded.path("items")).hasSize(4);
         for (JsonNode item : inspectExcluded.path("items")) {
-            assertThat(item.path("is_team").booleanValue()).isTrue();
+            assertThat(item.path("is_team").booleanValue(false)).isTrue();
         }
     }
 
@@ -465,48 +465,48 @@ class AdminEndpointIT {
         JsonNode page = authorized("/v2/admin/feedback", 200);
         assertThat(page.path("items")).hasSize(1);
         JsonNode item = page.path("items").get(0);
-        assertThat(item.path("id").textValue()).isEqualTo(realRating.toString());
-        assertThat(item.path("kind").textValue()).isEqualTo("reading_rating");
+        assertThat(item.path("id").stringValue(null)).isEqualTo(realRating.toString());
+        assertThat(item.path("kind").stringValue(null)).isEqualTo("reading_rating");
         // 다시 눌러 덮어쓴 평가는 마지막으로 고친 시각으로 줄을 선다.
-        assertThat(OffsetDateTime.parse(item.path("created_at").textValue()).toInstant())
+        assertThat(OffsetDateTime.parse(item.path("created_at").stringValue(null)).toInstant())
                 .isEqualTo(NOW.plusMinutes(6).toInstant());
-        assertThat(item.path("actor").textValue())
+        assertThat(item.path("actor").stringValue(null))
                 .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(item.path("is_team").booleanValue()).isFalse();
-        assertThat(item.path("body").textValue()).isEqualTo("아직 읽는게 어색함");
-        assertThat(item.path("rating").textValue()).isEqualTo("bad");
+        assertThat(item.path("is_team").booleanValue(false)).isFalse();
+        assertThat(item.path("body").stringValue(null)).isEqualTo("아직 읽는게 어색함");
+        assertThat(item.path("rating").stringValue(null)).isEqualTo("bad");
         assertThat(item.path("status").isNull()).isTrue();
-        assertThat(item.path("source").textValue()).isEqualTo("reading");
+        assertThat(item.path("source").stringValue(null)).isEqualTo("reading");
         assertThat(item.path("trigger").isNull()).isTrue();
         assertThat(item.path("practice_id").isNull()).isTrue();
-        assertThat(item.path("reading_session_id").textValue()).isEqualTo(realSession.toString());
-        assertThat(item.path("reading_mode").textValue()).isEqualTo("quiz");
-        assertThat(item.path("reading_record").booleanValue()).isTrue();
+        assertThat(item.path("reading_session_id").stringValue(null)).isEqualTo(realSession.toString());
+        assertThat(item.path("reading_mode").stringValue(null)).isEqualTo("quiz");
+        assertThat(item.path("reading_record").booleanValue(false)).isTrue();
         // 대본 원문·대사는 목록에 싣지 않는다 — 회차 상세(/v2/admin/reading-sessions/{id})에서만 읽는다.
         assertThat(page.toString()).doesNotContain(
                 REAL_USER.toString(), TEAM_USER.toString(), "대본 원문 비밀", "내 대사", "팀 리딩 코멘트");
 
         JsonNode withTeam = authorized("/v2/admin/feedback?include_team=true", 200);
         assertThat(withTeam.path("items")).hasSize(2);
-        assertThat(withTeam.path("items").get(0).path("id").textValue()).isEqualTo(realRating.toString());
-        assertThat(withTeam.path("items").get(1).path("is_team").booleanValue()).isTrue();
-        assertThat(withTeam.path("items").get(1).path("reading_mode").textValue()).isEqualTo("read");
+        assertThat(withTeam.path("items").get(0).path("id").stringValue(null)).isEqualTo(realRating.toString());
+        assertThat(withTeam.path("items").get(1).path("is_team").booleanValue(false)).isTrue();
+        assertThat(withTeam.path("items").get(1).path("reading_mode").stringValue(null)).isEqualTo("read");
     }
 
     @Test
     void feedbackQueryParametersUseBoundedValidation() throws Exception {
-        assertThat(authorized("/v2/admin/feedback?limit=0", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/feedback?limit=0", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("greater_than_equal");
         JsonNode above = authorized("/v2/admin/feedback?limit=101", 422);
-        assertThat(above.at("/detail/0/type").textValue()).isEqualTo("less_than_equal");
+        assertThat(above.at("/detail/0/type").stringValue(null)).isEqualTo("less_than_equal");
         assertThat(LenientJson.intValue(above.at("/detail/0/ctx/le"))).isEqualTo(100);
-        assertThat(authorized("/v2/admin/feedback?limit=nope", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/feedback?limit=nope", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("int_parsing");
         JsonNode bool = authorized("/v2/admin/feedback?include_team=maybe", 422);
-        assertThat(bool.at("/detail/0/type").textValue()).isEqualTo("bool_parsing");
-        assertThat(bool.at("/detail/0/loc/1").textValue()).isEqualTo("include_team");
+        assertThat(bool.at("/detail/0/type").stringValue(null)).isEqualTo("bool_parsing");
+        assertThat(bool.at("/detail/0/loc/1").stringValue(null)).isEqualTo("include_team");
         JsonNode actor = authorized("/v2/admin/feedback?exclude_actors=nothex12", 422);
-        assertThat(actor.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+        assertThat(actor.at("/detail/0/loc/1").stringValue(null)).isEqualTo("exclude_actors");
     }
 
     @Test
@@ -552,25 +552,25 @@ class AdminEndpointIT {
         assertThat(all.path("entries")).hasSize(3);
 
         JsonNode first = all.path("entries").get(0);
-        assertThat(first.fieldNames()).toIterable().containsExactly(
+        assertThat(first.propertyNames().iterator()).toIterable().containsExactly(
                 "id", "actor", "created_at", "visibility", "status",
                 "challenge_kind", "challenge_ref", "has_video", "likes", "outside_likes");
-        assertThat(first.path("id").textValue()).isEqualTo(publicEntry.toString());
-        assertThat(first.path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(first.path("challenge_kind").textValue()).isEqualTo("member");
-        assertThat(first.path("challenge_ref").textValue())
+        assertThat(first.path("id").stringValue(null)).isEqualTo(publicEntry.toString());
+        assertThat(first.path("actor").stringValue(null)).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(first.path("challenge_kind").stringValue(null)).isEqualTo("member");
+        assertThat(first.path("challenge_ref").stringValue(null))
                 .isEqualTo(md5(memberChallenge.toString()).substring(0, 8));
-        assertThat(first.path("has_video").booleanValue()).isTrue();
+        assertThat(first.path("has_video").booleanValue(false)).isTrue();
         assertThat(LenientJson.intValue(first.path("likes"))).isEqualTo(2);
         assertThat(LenientJson.intValue(first.path("outside_likes"))).isEqualTo(1);
 
         JsonNode second = all.path("entries").get(1);
-        assertThat(second.path("id").textValue()).isEqualTo(privateEntry.toString());
-        assertThat(second.path("visibility").textValue()).isEqualTo("private");
-        assertThat(second.path("status").textValue()).isEqualTo("hidden_by_report");
-        assertThat(second.path("challenge_kind").textValue()).isEqualTo("team");
-        assertThat(all.path("entries").get(2).path("id").textValue()).isEqualTo(purgedEntry.toString());
-        assertThat(all.path("entries").get(2).path("has_video").booleanValue()).isFalse();
+        assertThat(second.path("id").stringValue(null)).isEqualTo(privateEntry.toString());
+        assertThat(second.path("visibility").stringValue(null)).isEqualTo("private");
+        assertThat(second.path("status").stringValue(null)).isEqualTo("hidden_by_report");
+        assertThat(second.path("challenge_kind").stringValue(null)).isEqualTo("team");
+        assertThat(all.path("entries").get(2).path("id").stringValue(null)).isEqualTo(purgedEntry.toString());
+        assertThat(all.path("entries").get(2).path("has_video").booleanValue(false)).isFalse();
         assertThat(LenientJson.intValue(second.path("likes"))).isEqualTo(0);
 
         assertThat(all.toString()).doesNotContain(
@@ -582,7 +582,7 @@ class AdminEndpointIT {
 
         JsonNode publicOnly = authorized("/v2/admin/challenge-videos?visibility=public", 200);
         assertThat(publicOnly.path("entries")).hasSize(1);
-        assertThat(publicOnly.at("/entries/0/id").textValue()).isEqualTo(publicEntry.toString());
+        assertThat(publicOnly.at("/entries/0/id").stringValue(null)).isEqualTo(publicEntry.toString());
         JsonNode privateOnly = authorized("/v2/admin/challenge-videos?visibility=private", 200);
         assertThat(privateOnly.path("entries")).hasSize(2);
         JsonNode limited = authorized("/v2/admin/challenge-videos?limit=1", 200);
@@ -643,25 +643,25 @@ class AdminEndpointIT {
         assertThat(rows).hasSize(3);
 
         JsonNode first = rows.get(0);
-        assertThat(first.fieldNames()).toIterable().containsExactly(
+        assertThat(first.propertyNames().iterator()).toIterable().containsExactly(
                 "id", "line", "work", "character", "origin", "host_actor", "host_is_team", "duration_days",
                 "featured_on", "starts_at", "ends_at", "state", "moderation", "entries", "public_entries",
                 "outside_entries", "likes", "outside_likes");
-        assertThat(first.path("id").textValue()).isEqualTo(team.toString());
-        assertThat(first.path("line").textValue()).isEqualTo("팀 대사");
-        assertThat(first.path("origin").textValue()).isEqualTo("team");
+        assertThat(first.path("id").stringValue(null)).isEqualTo(team.toString());
+        assertThat(first.path("line").stringValue(null)).isEqualTo("팀 대사");
+        assertThat(first.path("origin").stringValue(null)).isEqualTo("team");
         assertThat(first.path("host_actor").isNull()).isTrue();
-        assertThat(first.path("host_is_team").booleanValue()).isFalse();
-        assertThat(first.path("featured_on").textValue()).isEqualTo(NOW.toLocalDate().toString());
-        assertThat(first.path("state").textValue()).isEqualTo("active");
+        assertThat(first.path("host_is_team").booleanValue(false)).isFalse();
+        assertThat(first.path("featured_on").stringValue(null)).isEqualTo(NOW.toLocalDate().toString());
+        assertThat(first.path("state").stringValue(null)).isEqualTo("active");
         assertThat(LenientJson.intValue(first.path("entries"))).isEqualTo(0);
         assertThat(LenientJson.intValue(first.path("likes"))).isEqualTo(0);
 
         JsonNode second = rows.get(1);
-        assertThat(second.path("id").textValue()).isEqualTo(byTeamAccount.toString());
+        assertThat(second.path("id").stringValue(null)).isEqualTo(byTeamAccount.toString());
         assertThat(second.path("character").isNull()).isTrue();
-        assertThat(second.path("host_actor").textValue()).isEqualTo(md5(TEAM_USER.toString()).substring(0, 8));
-        assertThat(second.path("host_is_team").booleanValue()).isTrue();
+        assertThat(second.path("host_actor").stringValue(null)).isEqualTo(md5(TEAM_USER.toString()).substring(0, 8));
+        assertThat(second.path("host_is_team").booleanValue(false)).isTrue();
         assertThat(LenientJson.intValue(second.path("entries"))).isEqualTo(3);
         assertThat(LenientJson.intValue(second.path("public_entries"))).isEqualTo(2);
         assertThat(LenientJson.intValue(second.path("outside_entries"))).isEqualTo(2);
@@ -669,9 +669,9 @@ class AdminEndpointIT {
         assertThat(LenientJson.intValue(second.path("outside_likes"))).isEqualTo(2);
 
         JsonNode third = rows.get(2);
-        assertThat(third.path("id").textValue()).isEqualTo(ended.toString());
-        assertThat(third.path("state").textValue()).isEqualTo("ended");
-        assertThat(third.path("host_is_team").booleanValue()).isFalse();
+        assertThat(third.path("id").stringValue(null)).isEqualTo(ended.toString());
+        assertThat(third.path("state").stringValue(null)).isEqualTo("ended");
+        assertThat(third.path("host_is_team").booleanValue(false)).isFalse();
 
         assertThat(page.toString()).doesNotContain(
                 deleted.toString(), REAL_USER.toString(), TEAM_USER.toString(),
@@ -682,11 +682,11 @@ class AdminEndpointIT {
         assertThat(LenientJson.intValue(excluded.at("/challenges/1/outside_entries"))).isEqualTo(0);
         assertThat(LenientJson.intValue(excluded.at("/challenges/1/likes"))).isEqualTo(3);
         assertThat(LenientJson.intValue(excluded.at("/challenges/1/outside_likes"))).isEqualTo(0);
-        assertThat(excluded.at("/challenges/2/host_is_team").booleanValue()).isTrue();
+        assertThat(excluded.at("/challenges/2/host_is_team").booleanValue(false)).isTrue();
         assertThat(authorized("/v2/admin/challenges?limit=1", 200).path("challenges")).hasSize(1);
-        assertThat(authorized("/v2/admin/challenges?limit=0", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/challenges?limit=0", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("greater_than_equal");
-        assertThat(authorized("/v2/admin/challenges?limit=101", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/challenges?limit=101", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("less_than_equal");
     }
 
@@ -726,25 +726,25 @@ class AdminEndpointIT {
         String realActor = md5(REAL_USER.toString()).substring(0, 8);
         String teamActor = md5(TEAM_USER.toString()).substring(0, 8);
         JsonNode first = rows.get(0);
-        assertThat(first.fieldNames()).toIterable().containsExactly(
+        assertThat(first.propertyNames().iterator()).toIterable().containsExactly(
                 "id", "entry_id", "entry_actor", "entry_is_team", "entry_visibility", "challenge_ref",
                 "actor", "actor_is_team", "body", "status", "created_at");
-        assertThat(first.path("id").textValue()).isEqualTo(realOnTeam.toString());
-        assertThat(first.path("entry_id").textValue()).isEqualTo(teamEntry.toString());
-        assertThat(first.path("entry_actor").textValue()).isEqualTo(teamActor);
-        assertThat(first.path("entry_is_team").booleanValue()).isTrue();
-        assertThat(first.path("entry_visibility").textValue()).isEqualTo("private");
-        assertThat(first.path("challenge_ref").textValue()).isEqualTo(md5(challenge.toString()).substring(0, 8));
-        assertThat(first.path("actor").textValue()).isEqualTo(realActor);
-        assertThat(first.path("actor_is_team").booleanValue()).isFalse();
-        assertThat(first.path("body").textValue()).isEqualTo("배우 댓글");
-        assertThat(first.path("status").textValue()).isEqualTo("hidden");
+        assertThat(first.path("id").stringValue(null)).isEqualTo(realOnTeam.toString());
+        assertThat(first.path("entry_id").stringValue(null)).isEqualTo(teamEntry.toString());
+        assertThat(first.path("entry_actor").stringValue(null)).isEqualTo(teamActor);
+        assertThat(first.path("entry_is_team").booleanValue(false)).isTrue();
+        assertThat(first.path("entry_visibility").stringValue(null)).isEqualTo("private");
+        assertThat(first.path("challenge_ref").stringValue(null)).isEqualTo(md5(challenge.toString()).substring(0, 8));
+        assertThat(first.path("actor").stringValue(null)).isEqualTo(realActor);
+        assertThat(first.path("actor_is_team").booleanValue(false)).isFalse();
+        assertThat(first.path("body").stringValue(null)).isEqualTo("배우 댓글");
+        assertThat(first.path("status").stringValue(null)).isEqualTo("hidden");
 
         JsonNode second = rows.get(1);
-        assertThat(second.path("id").textValue()).isEqualTo(teamOnReal.toString());
-        assertThat(second.path("entry_is_team").booleanValue()).isFalse();
-        assertThat(second.path("actor_is_team").booleanValue()).isTrue();
-        assertThat(second.path("body").textValue()).isEqualTo("팀 응원 댓글");
+        assertThat(second.path("id").stringValue(null)).isEqualTo(teamOnReal.toString());
+        assertThat(second.path("entry_is_team").booleanValue(false)).isFalse();
+        assertThat(second.path("actor_is_team").booleanValue(false)).isTrue();
+        assertThat(second.path("body").stringValue(null)).isEqualTo("팀 응원 댓글");
 
         assertThat(page.toString()).doesNotContain(
                 removed.toString(), onDeleted.toString(), onGone.toString(), REAL_USER.toString(),
@@ -752,27 +752,27 @@ class AdminEndpointIT {
                 "챌린지 대사 비밀");
 
         JsonNode excluded = authorized("/v2/admin/challenge-comments?exclude_actors=" + realActor, 200);
-        assertThat(excluded.at("/comments/0/actor_is_team").booleanValue()).isTrue();
+        assertThat(excluded.at("/comments/0/actor_is_team").booleanValue(false)).isTrue();
         assertThat(authorized("/v2/admin/challenge-comments?limit=1", 200).path("comments")).hasSize(1);
-        assertThat(authorized("/v2/admin/challenge-comments?limit=0", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/challenge-comments?limit=0", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("greater_than_equal");
-        assertThat(authorized("/v2/admin/challenge-comments?limit=201", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/challenge-comments?limit=201", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("less_than_equal");
     }
 
     @Test
     void challengeVideoFiltersUseBoundedValidation() throws Exception {
-        assertThat(authorized("/v2/admin/challenge-videos?limit=0", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/challenge-videos?limit=0", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("greater_than_equal");
-        assertThat(authorized("/v2/admin/challenge-videos?limit=101", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/challenge-videos?limit=101", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("less_than_equal");
-        assertThat(authorized("/v2/admin/challenge-videos?limit=nope", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/challenge-videos?limit=nope", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("int_parsing");
         JsonNode visibility = authorized("/v2/admin/challenge-videos?visibility=friends", 422);
-        assertThat(visibility.at("/detail/0/type").textValue()).isEqualTo("literal_error");
-        assertThat(visibility.at("/detail/0/loc/1").textValue()).isEqualTo("visibility");
+        assertThat(visibility.at("/detail/0/type").stringValue(null)).isEqualTo("literal_error");
+        assertThat(visibility.at("/detail/0/loc/1").stringValue(null)).isEqualTo("visibility");
         JsonNode actor = authorized("/v2/admin/challenge-videos?exclude_actors=nothex12", 422);
-        assertThat(actor.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+        assertThat(actor.at("/detail/0/loc/1").stringValue(null)).isEqualTo("exclude_actors");
     }
 
     @Test
@@ -963,20 +963,20 @@ class AdminEndpointIT {
         JsonNode page = mapper.readTree(response.getContentAsString());
         assertThat(LenientJson.intValue(page.path("count"))).isEqualTo(4);
         assertThat(page.path("sessions")).hasSize(4);
-        assertThat(page.path("sessions").get(0).path("id").textValue())
+        assertThat(page.path("sessions").get(0).path("id").stringValue(null))
                 .isEqualTo(tiedHigh.sessionId().toString());
-        assertThat(page.path("sessions").get(1).path("id").textValue())
+        assertThat(page.path("sessions").get(1).path("id").stringValue(null))
                 .isEqualTo(tiedLow.sessionId().toString());
-        assertThat(page.path("sessions").get(2).path("id").textValue())
+        assertThat(page.path("sessions").get(2).path("id").stringValue(null))
                 .isEqualTo(older.sessionId().toString());
 
         JsonNode first = page.path("sessions").get(0);
-        assertThat(first.fieldNames()).toIterable().containsExactly(
+        assertThat(first.propertyNames().iterator()).toIterable().containsExactly(
                 "id", "actor", "script_title", "started_at", "ended_at", "status", "mode",
                 "elapsed_seconds", "recording_count");
-        assertThat(first.path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(first.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(first.path("mode").textValue()).isEqualTo("read");
+        assertThat(first.path("actor").stringValue(null)).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(first.path("status").stringValue(null)).isEqualTo("in_progress");
+        assertThat(first.path("mode").stringValue(null)).isEqualTo("read");
         assertThat(LenientJson.intValue(first.path("recording_count"))).isEqualTo(1);
         assertThat(first.path("ended_at").isNull()).isTrue();
         assertThat(page.toString()).doesNotContain(
@@ -987,7 +987,7 @@ class AdminEndpointIT {
         JsonNode completed = authorized("/v2/admin/reading-sessions?status=completed", 200);
         assertThat(completed.path("sessions")).hasSize(2);
         for (JsonNode session : completed.path("sessions")) {
-            assertThat(session.path("status").textValue()).isEqualTo("completed");
+            assertThat(session.path("status").stringValue(null)).isEqualTo("completed");
         }
         JsonNode limited = authorized("/v2/admin/reading-sessions?limit=1", 200);
         assertThat(limited.path("sessions")).hasSize(1);
@@ -1018,7 +1018,7 @@ class AdminEndpointIT {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
         JsonNode detail = mapper.readTree(response.getContentAsString());
-        assertThat(detail.fieldNames()).toIterable().containsExactly("session", "lines", "recordings");
+        assertThat(detail.propertyNames().iterator()).toIterable().containsExactly("session", "lines", "recordings");
         assertThat(LenientJson.intValue(detail.path("session").path("recording_count"))).isEqualTo(1);
         assertThat(detail.path("lines")).hasSize(5);
         assertThat(detail.path("recordings")).hasSize(1);
@@ -1027,24 +1027,24 @@ class AdminEndpointIT {
                 {"id":"%s","ordinal":1,"kind":"scene","character_name":null,
                  "text":"1막","in_range":false,"is_mine":false}
                 """.formatted(fixture.lines().get(0))));
-        assertThat(detail.path("lines").get(1).path("kind").textValue()).isEqualTo("dialogue");
-        assertThat(detail.path("lines").get(1).path("character_name").textValue()).isEqualTo("나");
-        assertThat(detail.path("lines").get(1).path("in_range").booleanValue()).isTrue();
-        assertThat(detail.path("lines").get(1).path("is_mine").booleanValue()).isTrue();
-        assertThat(detail.path("lines").get(2).path("kind").textValue()).isEqualTo("direction");
+        assertThat(detail.path("lines").get(1).path("kind").stringValue(null)).isEqualTo("dialogue");
+        assertThat(detail.path("lines").get(1).path("character_name").stringValue(null)).isEqualTo("나");
+        assertThat(detail.path("lines").get(1).path("in_range").booleanValue(false)).isTrue();
+        assertThat(detail.path("lines").get(1).path("is_mine").booleanValue(false)).isTrue();
+        assertThat(detail.path("lines").get(2).path("kind").stringValue(null)).isEqualTo("direction");
         assertThat(detail.path("lines").get(2).path("character_name").isNull()).isTrue();
-        assertThat(detail.path("lines").get(2).path("in_range").booleanValue()).isTrue();
-        assertThat(detail.path("lines").get(3).path("is_mine").booleanValue()).isFalse();
-        assertThat(detail.path("lines").get(4).path("in_range").booleanValue()).isFalse();
+        assertThat(detail.path("lines").get(2).path("in_range").booleanValue(false)).isTrue();
+        assertThat(detail.path("lines").get(3).path("is_mine").booleanValue(false)).isFalse();
+        assertThat(detail.path("lines").get(4).path("in_range").booleanValue(false)).isFalse();
 
         JsonNode recording = detail.path("recordings").get(0);
-        assertThat(recording.fieldNames()).toIterable().containsExactly(
+        assertThat(recording.propertyNames().iterator()).toIterable().containsExactly(
                 "id", "line_id", "attempt_no", "duration_ms", "created_at",
                 "transcript_source", "transcript", "matched");
-        assertThat(recording.path("id").textValue()).isEqualTo(playable.toString());
-        assertThat(recording.path("transcript_source").textValue()).isEqualTo("stt");
-        assertThat(recording.path("transcript").textValue()).isEqualTo("전사 원문");
-        assertThat(recording.path("matched").booleanValue()).isFalse();
+        assertThat(recording.path("id").stringValue(null)).isEqualTo(playable.toString());
+        assertThat(recording.path("transcript_source").stringValue(null)).isEqualTo("stt");
+        assertThat(recording.path("transcript").stringValue(null)).isEqualTo("전사 원문");
+        assertThat(recording.path("matched").booleanValue(false)).isFalse();
         assertThat(detail.toString()).doesNotContain(
                 crossJoined.toString(), ttsLike.toString(), "reading/detail.m4a",
                 "reading/cross-detail.m4a", "reading/tts-should-not-exist.m4a");
@@ -1120,22 +1120,22 @@ class AdminEndpointIT {
 
     @Test
     void readingFiltersUseBoundedValidation() throws Exception {
-        assertThat(authorized("/v2/admin/reading-sessions?limit=0", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/reading-sessions?limit=0", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("greater_than_equal");
-        assertThat(authorized("/v2/admin/reading-sessions?limit=101", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/reading-sessions?limit=101", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("less_than_equal");
-        assertThat(authorized("/v2/admin/reading-sessions?limit=nope", 422).at("/detail/0/type").textValue())
+        assertThat(authorized("/v2/admin/reading-sessions?limit=nope", 422).at("/detail/0/type").stringValue(null))
                 .isEqualTo("int_parsing");
         JsonNode status = authorized("/v2/admin/reading-sessions?status=paused", 422);
-        assertThat(status.at("/detail/0/type").textValue()).isEqualTo("literal_error");
-        assertThat(status.at("/detail/0/loc/1").textValue()).isEqualTo("status");
+        assertThat(status.at("/detail/0/type").stringValue(null)).isEqualTo("literal_error");
+        assertThat(status.at("/detail/0/loc/1").stringValue(null)).isEqualTo("status");
         assertThat(authorized("/v2/admin/reading-sessions?exclude_actors=nothex12", 422)
-                .at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+                .at("/detail/0/loc/1").stringValue(null)).isEqualTo("exclude_actors");
         assertThat(authorized("/v2/admin/reading-sessions/" + UUID.randomUUID()
-                + "?exclude_actors=nothex12", 422).at("/detail/0/loc/1").textValue())
+                + "?exclude_actors=nothex12", 422).at("/detail/0/loc/1").stringValue(null))
                 .isEqualTo("exclude_actors");
         assertThat(authorized("/v2/admin/reading-recordings/" + UUID.randomUUID()
-                + "/playback?exclude_actors=nothex12", 422).at("/detail/0/loc/1").textValue())
+                + "/playback?exclude_actors=nothex12", 422).at("/detail/0/loc/1").stringValue(null))
                 .isEqualTo("exclude_actors");
     }
 
@@ -1149,11 +1149,11 @@ class AdminEndpointIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
 
         JsonNode core = authorized("/v2/admin/ops-core", 200);
-        assertThat(core.path("source").textValue()).isEqualTo("live");
-        assertThat(core.path("as_of").textValue()).endsWith("+09:00");
+        assertThat(core.path("source").stringValue(null)).isEqualTo("live");
+        assertThat(core.path("as_of").stringValue(null)).endsWith("+09:00");
 
         JsonNode signups = core.path("metrics").get(0);
-        assertThat(signups.path("label").textValue()).isEqualTo("가입자");
+        assertThat(signups.path("label").stringValue(null)).isEqualTo("가입자");
         assertThat(LenientJson.intValue(signups.path("total"))).isEqualTo(2);
         assertThat(LenientJson.intValue(signups.path("total_real"))).isEqualTo(1);
 
@@ -1168,36 +1168,36 @@ class AdminEndpointIT {
         // 최근 순: 팀(10분 전) → 실제 배우 두 번째(20분 전) → 첫 번째(30분 전)
         JsonNode sessions = core.path("sessions");
         assertThat(sessions).hasSize(3);
-        assertThat(sessions.get(0).path("is_team").booleanValue()).isTrue();
+        assertThat(sessions.get(0).path("is_team").booleanValue(false)).isTrue();
         JsonNode second = sessions.get(1);
-        assertThat(second.path("is_team").booleanValue()).isFalse();
-        assertThat(second.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(second.path("is_team").booleanValue(false)).isFalse();
+        assertThat(second.path("actor").stringValue(null)).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         assertThat(LenientJson.intValue(second.path("nth"))).isEqualTo(2);
         assertThat(LenientJson.intValue(second.path("total"))).isEqualTo(2);
-        assertThat(second.path("coach_session_id").textValue()).isEqualTo(realPendingCoach.toString());
-        assertThat(second.path("coach_status").textValue()).isEqualTo("open");
+        assertThat(second.path("coach_session_id").stringValue(null)).isEqualTo(realPendingCoach.toString());
+        assertThat(second.path("coach_status").stringValue(null)).isEqualTo("open");
         assertThat(LenientJson.intValue(second.path("turns_ai"))).isEqualTo(1);
         JsonNode first = sessions.get(2);
-        assertThat(first.path("coach_status").textValue()).isEqualTo("closed");
-        assertThat(first.path("close_reason").textValue()).isEqualTo("gap_stated");
+        assertThat(first.path("coach_status").stringValue(null)).isEqualTo("closed");
+        assertThat(first.path("close_reason").stringValue(null)).isEqualTo("gap_stated");
         assertThat(LenientJson.intValue(first.path("turns_actor"))).isEqualTo(1);
 
         JsonNode activities = core.path("activity_rows");
         assertThat(activities).hasSize(2);
         JsonNode newestActivity = activities.get(0);
-        assertThat(newestActivity.fieldNames()).toIterable().containsExactly(
+        assertThat(newestActivity.propertyNames().iterator()).toIterable().containsExactly(
                 "activity_id", "feature", "created_at", "actor", "signup_at", "signup_d7",
                 "platform", "device", "status", "is_team");
-        assertThat(newestActivity.path("feature").textValue()).isEqualTo("coaching");
-        assertThat(newestActivity.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(20).truncatedTo(ChronoUnit.MINUTES)));
-        assertThat(newestActivity.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
-        assertThat(newestActivity.path("signup_d7").booleanValue()).isTrue();
-        assertThat(newestActivity.path("platform").textValue()).isEqualTo("웹");
-        assertThat(newestActivity.path("device").textValue()).isEqualTo("기록 없음");
-        assertThat(newestActivity.path("status").textValue()).isEqualTo("analyzed");
-        assertThat(newestActivity.path("is_team").booleanValue()).isFalse();
+        assertThat(newestActivity.path("feature").stringValue(null)).isEqualTo("coaching");
+        assertThat(newestActivity.path("created_at").stringValue(null)).isEqualTo(utc(NOW.minusMinutes(20).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(newestActivity.path("signup_at").stringValue(null)).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
+        assertThat(newestActivity.path("signup_d7").booleanValue(false)).isTrue();
+        assertThat(newestActivity.path("platform").stringValue(null)).isEqualTo("웹");
+        assertThat(newestActivity.path("device").stringValue(null)).isEqualTo("기록 없음");
+        assertThat(newestActivity.path("status").stringValue(null)).isEqualTo("analyzed");
+        assertThat(newestActivity.path("is_team").booleanValue(false)).isFalse();
         for (JsonNode activity : activities) {
-            assertThat(activity.path("actor").textValue())
+            assertThat(activity.path("actor").stringValue(null))
                     .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         }
 
@@ -1205,22 +1205,22 @@ class AdminEndpointIT {
         JsonNode signupRows = core.path("signup_rows");
         assertThat(signupRows).hasSize(1);
         JsonNode signupRow = signupRows.get(0);
-        assertThat(signupRow.fieldNames()).toIterable().containsExactly(
+        assertThat(signupRow.propertyNames().iterator()).toIterable().containsExactly(
                 "actor", "signup_at", "platform", "device", "first_upload_at", "experience", "goal", "directions",
                 "discovery_answered", "discovery_source", "discovery_detail", "signup_client",
                 "airbridge_lookup_pending", "active_days");
-        assertThat(signupRow.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(signupRow.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
-        assertThat(signupRow.path("platform").textValue()).isEqualTo("웹");
-        assertThat(signupRow.path("device").textValue()).isEqualTo("기록 없음");
-        assertThat(signupRow.path("first_upload_at").textValue())
+        assertThat(signupRow.path("actor").stringValue(null)).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(signupRow.path("signup_at").stringValue(null)).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
+        assertThat(signupRow.path("platform").stringValue(null)).isEqualTo("웹");
+        assertThat(signupRow.path("device").stringValue(null)).isEqualTo("기록 없음");
+        assertThat(signupRow.path("first_upload_at").stringValue(null))
                 .isEqualTo(utc(NOW.minusMinutes(30).truncatedTo(ChronoUnit.MINUTES)));
         // 프로필 행이 없는 가입은 null · [] (SOMA-632)
         assertThat(signupRow.path("experience").isNull()).isTrue();
         assertThat(signupRow.path("goal").isNull()).isTrue();
         assertThat(signupRow.path("directions")).isEqualTo(mapper.readTree("[]"));
         // 유입 경로 자기 응답이 없는 가입은 false · null · null (SOMA-649)
-        assertThat(signupRow.path("discovery_answered").booleanValue()).isFalse();
+        assertThat(signupRow.path("discovery_answered").booleanValue(false)).isFalse();
         assertThat(signupRow.path("discovery_source").isNull()).isTrue();
         assertThat(signupRow.path("discovery_detail").isNull()).isTrue();
 
@@ -1257,7 +1257,7 @@ class AdminEndpointIT {
 
         JsonNode core = authorized("/v2/admin/ops-core", 200);
         JsonNode practices = core.path("metrics").get(1);
-        assertThat(practices.path("label").textValue()).isEqualTo("연습 세션");
+        assertThat(practices.path("label").stringValue(null)).isEqualTo("연습 세션");
         assertThat(LenientJson.intValue(practices.path("total"))).isEqualTo(4);
         assertThat(LenientJson.intValue(practices.path("total_real"))).isEqualTo(3);
         assertThat(LenientJson.intValue(core.path("metrics").get(2).path("total"))).isEqualTo(4);
@@ -1265,30 +1265,30 @@ class AdminEndpointIT {
         JsonNode sessions = core.path("sessions");
         assertThat(sessions).hasSize(4);
         JsonNode newest = sessions.get(0);
-        assertThat(newest.path("practice_session_id").textValue()).isEqualTo(newPractice.toString());
-        assertThat(newest.path("coach_session_id").textValue()).isEqualTo(newConversation.toString());
-        assertThat(newest.path("status").textValue()).isEqualTo("analyzed");
-        assertThat(newest.path("has_summary").booleanValue()).isTrue();
-        assertThat(newest.path("continued").booleanValue()).isFalse();
+        assertThat(newest.path("practice_session_id").stringValue(null)).isEqualTo(newPractice.toString());
+        assertThat(newest.path("coach_session_id").stringValue(null)).isEqualTo(newConversation.toString());
+        assertThat(newest.path("status").stringValue(null)).isEqualTo("analyzed");
+        assertThat(newest.path("has_summary").booleanValue(false)).isTrue();
+        assertThat(newest.path("continued").booleanValue(false)).isFalse();
         assertThat(LenientJson.intValue(newest.path("nth"))).isEqualTo(3);
         assertThat(LenientJson.intValue(newest.path("turns_actor"))).isEqualTo(1);
         assertThat(LenientJson.intValue(newest.path("turns_ai"))).isEqualTo(1);
         JsonNode migrated = sessions.get(3);
-        assertThat(migrated.path("practice_session_id").textValue()).isEqualTo(migratedPractice.toString());
-        assertThat(migrated.path("coach_status").textValue()).isEqualTo("closed");
+        assertThat(migrated.path("practice_session_id").stringValue(null)).isEqualTo(migratedPractice.toString());
+        assertThat(migrated.path("coach_status").stringValue(null)).isEqualTo("closed");
         assertThat(LenientJson.intValue(migrated.path("turns_actor"))).isEqualTo(1);
 
         JsonNode list = authorized("/v2/admin/sessions", 200).path("sessions");
         assertThat(list).hasSize(3);
-        assertThat(list.get(0).path("coach_session_id").textValue()).isEqualTo(newConversation.toString());
-        assertThat(list.get(0).path("video_url").textValue()).isEqualTo("admin:new.mp4:3600");
+        assertThat(list.get(0).path("coach_session_id").stringValue(null)).isEqualTo(newConversation.toString());
+        assertThat(list.get(0).path("video_url").stringValue(null)).isEqualTo("admin:new.mp4:3600");
         assertThat(list.get(0).path("turns")).isEqualTo(mapper.readTree("""
                 [{"turn_index":0,"role":"ai","text":"0.1.0 질문"},
                  {"turn_index":1,"role":"actor","text":"0.1.0 답"}]
                 """));
         JsonNode moved = list.get(2);
-        assertThat(moved.path("coach_session_id").textValue()).isEqualTo(realFinalCoach.toString());
-        assertThat(moved.path("video_url").textValue()).isEqualTo("admin:real-v.mp4:3600");
+        assertThat(moved.path("coach_session_id").stringValue(null)).isEqualTo(realFinalCoach.toString());
+        assertThat(moved.path("video_url").stringValue(null)).isEqualTo("admin:real-v.mp4:3600");
         assertThat(moved.path("turns")).hasSize(1);
 
         JsonNode activities = core.path("activity_rows");
@@ -1296,7 +1296,7 @@ class AdminEndpointIT {
         String migratedActivityId = "coaching:" + migratedPractice;
         int migratedRows = 0;
         for (JsonNode activity : activities) {
-            if (activity.path("activity_id").textValue().equals(migratedActivityId)) {
+            if (activity.path("activity_id").stringValue(null).equals(migratedActivityId)) {
                 migratedRows++;
             }
         }
@@ -1347,13 +1347,13 @@ class AdminEndpointIT {
         int reading = 0;
         int challengeEntries = 0;
         for (JsonNode activity : activities) {
-            assertThat(activity.path("actor").textValue()).isEqualTo(actor);
-            assertThat(activity.path("signup_d7").booleanValue()).isFalse();
-            assertThat(activity.path("is_team").booleanValue()).isFalse();
-            assertThat(activity.fieldNames()).toIterable().containsExactly(
+            assertThat(activity.path("actor").stringValue(null)).isEqualTo(actor);
+            assertThat(activity.path("signup_d7").booleanValue(false)).isFalse();
+            assertThat(activity.path("is_team").booleanValue(false)).isFalse();
+            assertThat(activity.propertyNames().iterator()).toIterable().containsExactly(
                     "activity_id", "feature", "created_at", "actor", "signup_at", "signup_d7",
                     "platform", "device", "status", "is_team");
-            switch (activity.path("feature").textValue()) {
+            switch (activity.path("feature").stringValue(null)) {
                 case "coaching" -> coaching++;
                 case "reading" -> reading++;
                 case "challenge" -> challengeEntries++;
@@ -1365,14 +1365,14 @@ class AdminEndpointIT {
         assertThat(challengeEntries).isEqualTo(1);
 
         JsonNode oldReadingRow = findActivity(activities, "reading:" + oldReading);
-        assertThat(oldReadingRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusYears(1).truncatedTo(ChronoUnit.MINUTES)));
-        assertThat(oldReadingRow.path("status").textValue()).isEqualTo("in_progress");
+        assertThat(oldReadingRow.path("created_at").stringValue(null)).isEqualTo(utc(NOW.minusYears(1).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(oldReadingRow.path("status").stringValue(null)).isEqualTo("in_progress");
         JsonNode readingRow = findActivity(activities, "reading:" + realReading);
-        assertThat(readingRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(40).truncatedTo(ChronoUnit.MINUTES)));
-        assertThat(readingRow.path("status").textValue()).isEqualTo("completed");
+        assertThat(readingRow.path("created_at").stringValue(null)).isEqualTo(utc(NOW.minusMinutes(40).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(readingRow.path("status").stringValue(null)).isEqualTo("completed");
         JsonNode challengeRow = findActivity(activities, "challenge:" + realEntry);
-        assertThat(challengeRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
-        assertThat(challengeRow.path("status").textValue()).isEqualTo("visible");
+        assertThat(challengeRow.path("created_at").stringValue(null)).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(challengeRow.path("status").stringValue(null)).isEqualTo("visible");
     }
 
     @Test
@@ -1400,10 +1400,10 @@ class AdminEndpointIT {
         assertThat(LenientJson.intValue(challenges.at("/entries/public"))).isEqualTo(0);
         JsonNode recent = challenges.path("recent_entries");
         assertThat(recent).hasSize(2);
-        assertThat(recent.get(0).path("entry_id").textValue()).isEqualTo(realEntry.toString().substring(0, 8));
-        assertThat(recent.get(0).path("challenge_origin").textValue()).isEqualTo("member");
-        assertThat(recent.get(1).path("entry_id").textValue()).isEqualTo(hiddenEntry.toString().substring(0, 8));
-        assertThat(recent.get(1).path("status").textValue()).isEqualTo("hidden_by_report");
+        assertThat(recent.get(0).path("entry_id").stringValue(null)).isEqualTo(realEntry.toString().substring(0, 8));
+        assertThat(recent.get(0).path("challenge_origin").stringValue(null)).isEqualTo("member");
+        assertThat(recent.get(1).path("entry_id").stringValue(null)).isEqualTo(hiddenEntry.toString().substring(0, 8));
+        assertThat(recent.get(1).path("status").stringValue(null)).isEqualTo("hidden_by_report");
         assertThat(recent.toString()).doesNotContain(
                 teamEntry.toString().substring(0, 8), futureEntry.toString().substring(0, 8),
                 deletedEntry.toString().substring(0, 8),
@@ -1438,8 +1438,8 @@ class AdminEndpointIT {
         String body = result.getContentAsString();
         JsonNode actors = mapper.readTree(body).path("actors");
         assertThat(actors).hasSize(1);
-        assertThat(actors.get(0).path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(actors.get(0).path("name").textValue()).isEqualTo("홍길동");
+        assertThat(actors.get(0).path("actor").stringValue(null)).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(actors.get(0).path("name").stringValue(null)).isEqualTo("홍길동");
         assertThat(body).doesNotContain("example.com", REAL_USER.toString(), "탈퇴자", "2001-02-03", "소개 글");
         assertThat(mvc.perform(get("/v2/admin/actor-names")).andReturn().getResponse().getStatus())
                 .isEqualTo(401);
@@ -1459,8 +1459,8 @@ class AdminEndpointIT {
         JsonNode rows = core.path("signup_rows");
         assertThat(rows).hasSize(1);
         JsonNode row = rows.get(0);
-        assertThat(row.path("experience").textValue()).isEqualTo("exam_prep");
-        assertThat(row.path("goal").textValue()).isEqualTo("audition");
+        assertThat(row.path("experience").stringValue(null)).isEqualTo("exam_prep");
+        assertThat(row.path("goal").stringValue(null)).isEqualTo("audition");
         assertThat(row.path("directions")).isEqualTo(mapper.readTree("[\"media\",\"stage\"]"));
         assertThat(core.toString()).doesNotContain("홍길동", "2001-02-03", "소개 글");
     }
@@ -1480,8 +1480,8 @@ class AdminEndpointIT {
 
         JsonNode days = authorized("/v2/admin/ops-core", 200).path("signup_rows").get(0).path("active_days");
         assertThat(days).hasSize(2);
-        assertThat(days.get(0).textValue()).matches("\\d{4}-\\d{2}-\\d{2}");
-        assertThat(days.get(0).textValue()).isLessThan(days.get(1).textValue());
+        assertThat(days.get(0).stringValue(null)).matches("\\d{4}-\\d{2}-\\d{2}");
+        assertThat(days.get(0).stringValue(null)).isLessThan(days.get(1).stringValue(null));
     }
 
     @Test
@@ -1489,11 +1489,11 @@ class AdminEndpointIT {
         jdbc.update("UPDATE users SET created_at=now()-interval '7 days'+interval '15 minutes' WHERE id=?", REAL_USER);
         JsonNode inside = authorized("/v2/admin/ops-core", 200).path("activity_rows");
         assertThat(inside).hasSize(2);
-        for (JsonNode row : inside) assertThat(row.path("signup_d7").booleanValue()).isTrue();
+        for (JsonNode row : inside) assertThat(row.path("signup_d7").booleanValue(false)).isTrue();
         jdbc.update("UPDATE users SET created_at=now()-interval '7 days'-interval '15 minutes' WHERE id=?", REAL_USER);
         JsonNode outside = authorized("/v2/admin/ops-core", 200).path("activity_rows");
         assertThat(outside).hasSize(2);
-        for (JsonNode row : outside) assertThat(row.path("signup_d7").booleanValue()).isFalse();
+        for (JsonNode row : outside) assertThat(row.path("signup_d7").booleanValue(false)).isFalse();
     }
 
     @Test
@@ -1590,7 +1590,7 @@ class AdminEndpointIT {
 
         Set<String> ids = new HashSet<>();
         for (JsonNode row : rows) {
-            ids.add(row.path("upload_intent_id").textValue());
+            ids.add(row.path("upload_intent_id").stringValue(null));
         }
         assertThat(ids).contains(exposedUpload.toString(), deletedChallengeUpload.toString());
         assertThat(ids).doesNotContain(
@@ -1600,15 +1600,15 @@ class AdminEndpointIT {
         assertThat(rows.toString()).doesNotContain("uploader@example.com", uploaderId.toString());
 
         JsonNode exposedRow = findUploadOnly(rows, exposedUpload);
-        assertThat(exposedRow.fieldNames()).toIterable().containsExactly(
+        assertThat(exposedRow.propertyNames().iterator()).toIterable().containsExactly(
                 "upload_intent_id", "created_at", "actor", "is_team", "platform", "device", "duration_ms");
-        assertThat(exposedRow.path("created_at").textValue())
+        assertThat(exposedRow.path("created_at").stringValue(null))
                 .isEqualTo(utc(NOW.minusMinutes(29).truncatedTo(ChronoUnit.MINUTES)));
-        assertThat(exposedRow.path("actor").textValue())
+        assertThat(exposedRow.path("actor").stringValue(null))
                 .isEqualTo("배우 " + md5(uploaderId.toString()).substring(0, 8));
-        assertThat(exposedRow.path("is_team").booleanValue()).isFalse();
-        assertThat(exposedRow.path("platform").textValue()).isEqualTo("웹");
-        assertThat(exposedRow.path("device").textValue()).isEqualTo("기록 없음");
+        assertThat(exposedRow.path("is_team").booleanValue(false)).isFalse();
+        assertThat(exposedRow.path("platform").stringValue(null)).isEqualTo("웹");
+        assertThat(exposedRow.path("device").stringValue(null)).isEqualTo("기록 없음");
         assertThat(LenientJson.intValue(exposedRow.path("duration_ms"))).isEqualTo(12345);
     }
 
@@ -1621,7 +1621,7 @@ class AdminEndpointIT {
         jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", teamVideo, teamOnlyUpload);
 
         JsonNode rows = authorized("/v2/admin/ops-core", 200).path("upload_only_rows");
-        assertThat(findUploadOnly(rows, teamOnlyUpload).path("is_team").booleanValue()).isTrue();
+        assertThat(findUploadOnly(rows, teamOnlyUpload).path("is_team").booleanValue(false)).isTrue();
 
         String realActor = md5(REAL_USER.toString()).substring(0, 8);
         UUID realOnlyUpload = insertUploadIntent(
@@ -1631,8 +1631,8 @@ class AdminEndpointIT {
 
         JsonNode excluded = authorized("/v2/admin/ops-core?exclude_actors=" + realActor, 200).path("upload_only_rows");
         JsonNode realRow = findUploadOnly(excluded, realOnlyUpload);
-        assertThat(realRow.path("is_team").booleanValue()).isTrue();
-        assertThat(realRow.path("actor").textValue()).isEqualTo("배우 " + realActor);
+        assertThat(realRow.path("is_team").booleanValue(false)).isTrue();
+        assertThat(realRow.path("actor").stringValue(null)).isEqualTo("배우 " + realActor);
     }
 
     /**
@@ -1657,18 +1657,18 @@ class AdminEndpointIT {
         Set<String> ids = new HashSet<>();
         String actor = "배우 " + md5(REAL_USER.toString()).substring(0, 8);
         for (JsonNode row : rows) {
-            ids.add(row.path("upload_intent_id").textValue());
-            assertThat(row.path("actor").textValue()).isEqualTo(actor);
+            ids.add(row.path("upload_intent_id").stringValue(null));
+            assertThat(row.path("actor").stringValue(null)).isEqualTo(actor);
         }
         assertThat(ids).contains(first.toString(), second.toString());
         // finalized_at(6분 전) 이 created_at(10분 전) 보다 우선하고, 분 단위로 뭉개인다.
-        assertThat(findUploadOnly(rows, first).path("created_at").textValue())
+        assertThat(findUploadOnly(rows, first).path("created_at").stringValue(null))
                 .isEqualTo(utc(NOW.minusMinutes(6).truncatedTo(ChronoUnit.MINUTES)));
         // 최신순: second(2분 전) 이 first(6분 전) 보다 먼저 나온다.
         int secondIndex = -1;
         int firstIndex = -1;
         for (int i = 0; i < rows.size(); i++) {
-            String id = rows.get(i).path("upload_intent_id").textValue();
+            String id = rows.get(i).path("upload_intent_id").stringValue(null);
             if (id.equals(second.toString())) secondIndex = i;
             if (id.equals(first.toString())) firstIndex = i;
         }
@@ -1738,7 +1738,7 @@ class AdminEndpointIT {
 
     private static JsonNode findUploadOnly(JsonNode rows, UUID uploadIntentId) {
         for (JsonNode row : rows) {
-            if (row.path("upload_intent_id").textValue().equals(uploadIntentId.toString())) {
+            if (row.path("upload_intent_id").stringValue(null).equals(uploadIntentId.toString())) {
                 return row;
             }
         }
@@ -1824,7 +1824,7 @@ class AdminEndpointIT {
         assertThat(LenientJson.intValue(signups.path("total"))).isEqualTo(2);
         assertThat(LenientJson.intValue(signups.path("total_real"))).isEqualTo(0);
         for (JsonNode session : core.path("sessions")) {
-            assertThat(session.path("is_team").booleanValue()).isTrue();
+            assertThat(session.path("is_team").booleanValue(false)).isTrue();
         }
         assertThat(LenientJson.intValue(core.at("/devices/team_excluded"))).isEqualTo(2);
         assertThat(core.path("activity_rows")).isEqualTo(mapper.readTree("[]"));
@@ -1834,9 +1834,9 @@ class AdminEndpointIT {
         assertThat(LenientJson.intValue(none.path("metrics").get(0).path("total_real"))).isEqualTo(1);
 
         JsonNode invalid = authorized("/v2/admin/ops-core?exclude_actors=nothex12", 422);
-        assertThat(invalid.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+        assertThat(invalid.at("/detail/0/loc/1").stringValue(null)).isEqualTo("exclude_actors");
         JsonNode injected = authorized("/v2/admin/ops-core?exclude_actors=" + realActor + "'--", 422);
-        assertThat(injected.at("/detail/0/type").textValue()).isEqualTo("value_error");
+        assertThat(injected.at("/detail/0/type").stringValue(null)).isEqualTo("value_error");
     }
 
     /**
@@ -1909,7 +1909,7 @@ class AdminEndpointIT {
         assertThat(LenientJson.intValue(reading1.at("/scripts/sample"))).isEqualTo(1);
         assertThat(LenientJson.intValue(reading1.at("/sessions/total"))).isEqualTo(1);
         assertThat(LenientJson.intValue(reading1.at("/sessions/completed"))).isEqualTo(1);
-        assertThat(reading1.at("/sessions/avg_minutes").doubleValue()).isEqualTo(2.0);
+        assertThat(reading1.at("/sessions/avg_minutes").doubleValue(0)).isEqualTo(2.0);
         assertThat(LenientJson.intValue(reading1.at("/recordings/matched"))).isEqualTo(1);
         assertThat(LenientJson.intValue(reading1.at("/memorization/memorized"))).isEqualTo(1);
         assertThat(reading1.path("daily")).hasSize(42);
@@ -1929,17 +1929,17 @@ class AdminEndpointIT {
         JsonNode recent = challenges.path("recent_entries");
         assertThat(recent).hasSize(1);
         JsonNode recentEntry = recent.get(0);
-        assertThat(recentEntry.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(recentEntry.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "entry_id", "challenge_id", "challenge_origin", "actor", "visibility", "status", "has_video",
                 "created_at", "published_at", "views", "likes", "comments", "ai_report");
-        assertThat(recentEntry.path("entry_id").textValue()).isEqualTo(entry.toString().substring(0, 8));
-        assertThat(recentEntry.path("challenge_id").textValue()).isEqualTo(challenge.toString().substring(0, 8));
-        assertThat(recentEntry.path("challenge_origin").textValue()).isEqualTo("team");
-        assertThat(recentEntry.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(recentEntry.path("visibility").textValue()).isEqualTo("private");
-        assertThat(recentEntry.path("status").textValue()).isEqualTo("visible");
-        assertThat(recentEntry.path("has_video").booleanValue()).isTrue();
-        assertThat(recentEntry.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(recentEntry.path("entry_id").stringValue(null)).isEqualTo(entry.toString().substring(0, 8));
+        assertThat(recentEntry.path("challenge_id").stringValue(null)).isEqualTo(challenge.toString().substring(0, 8));
+        assertThat(recentEntry.path("challenge_origin").stringValue(null)).isEqualTo("team");
+        assertThat(recentEntry.path("actor").stringValue(null)).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(recentEntry.path("visibility").stringValue(null)).isEqualTo("private");
+        assertThat(recentEntry.path("status").stringValue(null)).isEqualTo("visible");
+        assertThat(recentEntry.path("has_video").booleanValue(false)).isTrue();
+        assertThat(recentEntry.path("created_at").stringValue(null)).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
         assertThat(recentEntry.path("published_at").isNull()).isTrue();
         assertThat(LenientJson.intValue(recentEntry.path("views"))).isEqualTo(0);
         assertThat(LenientJson.intValue(recentEntry.path("likes"))).isEqualTo(1);
@@ -2115,7 +2115,7 @@ class AdminEndpointIT {
 
     private static JsonNode findActivity(JsonNode activities, String activityId) {
         for (JsonNode activity : activities) {
-            if (activity.path("activity_id").textValue().equals(activityId)) {
+            if (activity.path("activity_id").stringValue(null).equals(activityId)) {
                 return activity;
             }
         }
@@ -2143,7 +2143,7 @@ class AdminEndpointIT {
         JsonNode actual = json(mvc.perform(get("/v3/api-docs")), 200);
         JsonNode committed = mapper.readTree(Path.of("spec/openapi.json").toFile());
         Set<String> added = new HashSet<>();
-        actual.path("paths").fieldNames().forEachRemaining(path -> {
+        actual.path("paths").propertyNames().iterator().forEachRemaining(path -> {
             if (!committed.path("paths").has(path)) {
                 added.add(path);
             }
@@ -2169,30 +2169,21 @@ class AdminEndpointIT {
                 "/v2/admin/blog/posts", "/v2/admin/blog/posts/{id}", "/v2/admin/blog-images",
                 // ops 구독 화면(SOMA-963)도 같은 토큰 조건을 진다.
                 "/v2/admin/subscribers");
-        assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
-                .textValue()).isEqualTo("integer");
+        assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type").stringValue(null)).isEqualTo("integer");
         assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default"))).isEqualTo(20);
         assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1feedback/get/parameters/0/schema/maximum"))).isEqualTo(100);
-        assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminFeedbackPage");
+        assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminFeedbackPage");
         assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1challenges/get/parameters/0/schema/maximum"))).isEqualTo(100);
-        assertThat(actual.at("/paths/~1v2~1admin~1challenges/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminChallengePage");
+        assertThat(actual.at("/paths/~1v2~1admin~1challenges/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminChallengePage");
         assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1challenge-videos/get/parameters/0/schema/maximum"))).isEqualTo(100);
-        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminChallengeVideoPage");
-        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminChallengePlayback");
-        assertThat(actual.at("/paths/~1v2~1admin~1upload-only-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminUploadPlayback");
+        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminChallengeVideoPage");
+        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminChallengePlayback");
+        assertThat(actual.at("/paths/~1v2~1admin~1upload-only-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminUploadPlayback");
         assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/default"))).isEqualTo(50);
         assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/maximum"))).isEqualTo(100);
-        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminReadingSessionPage");
-        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions~1{id}/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminReadingSessionDetail");
-        assertThat(actual.at("/paths/~1v2~1admin~1reading-recordings~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
-                .textValue()).isEqualTo("#/components/schemas/AdminReadingPlayback");
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminReadingSessionPage");
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions~1{id}/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminReadingSessionDetail");
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-recordings~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref").stringValue(null)).isEqualTo("#/components/schemas/AdminReadingPlayback");
     }
 
     /** 관리자 422 본문은 pydantic 모양이 곧 계약이라 바이트 그대로 고정한다(키 순서·ctx 유무 포함). */

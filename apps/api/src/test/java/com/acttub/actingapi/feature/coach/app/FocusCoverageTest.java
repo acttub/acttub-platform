@@ -2,7 +2,7 @@ package com.acttub.actingapi.feature.coach.app;
 
 import static org.assertj.core.api.Assertions.*;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 class FocusCoverageTest {

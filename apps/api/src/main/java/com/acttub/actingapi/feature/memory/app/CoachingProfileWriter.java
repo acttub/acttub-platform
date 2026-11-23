@@ -4,9 +4,9 @@ import com.acttub.actingapi.feature.coach.app.ActorCoaching;
 import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.web.PythonText;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +21,7 @@ import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 일반 배우의 "이 배우에게 맞춘 코칭"을 쓴다 (SOMA-795).
@@ -40,7 +41,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
 public final class CoachingProfileWriter {
 
     private static final Logger LOG = LoggerFactory.getLogger(CoachingProfileWriter.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMapper.builderWithJackson2Defaults().build();
 
     /** 저장 칸 상한(V52 의 coaching_profile 2,000자)보다 여유를 둔다. */
     static final int MAX_CHARS = 1800;
@@ -220,7 +221,7 @@ public final class CoachingProfileWriter {
         try {
             JsonNode node = MAPPER.readTree(text);
             return node != null && node.isObject() ? node : MAPPER.createObjectNode();
-        } catch (JsonProcessingException notJson) {
+        } catch (JacksonException notJson) {
             LOG.info("맞춤 코칭 응답이 JSON 이 아니다");
             return MAPPER.createObjectNode();
         }
@@ -266,7 +267,7 @@ public final class CoachingProfileWriter {
         }
         List<String> never = new ArrayList<>();
         for (JsonNode phrase : node.path("never_say")) {
-            String value = phrase.isTextual() ? stripQuotes(LenientJson.asText(phrase)) : "";
+            String value = phrase.isString() ? stripQuotes(LenientJson.asText(phrase)) : "";
             if (value.isEmpty() || value.codePointCount(0, value.length()) > MAX_NEVER_SAY_CHARS || never.size() >= MAX_NEVER_SAY) {
                 if (!value.isEmpty()) dropped.put("never_say:" + clip(value, 20), "길거나 많음");
                 continue;
@@ -284,7 +285,7 @@ public final class CoachingProfileWriter {
         }
         List<String> skip = new ArrayList<>();
         for (JsonNode item : node.path("skip")) {
-            String value = item.isTextual() ? PythonText.strip(LenientJson.asText(item)) : "";
+            String value = item.isString() ? PythonText.strip(LenientJson.asText(item)) : "";
             if (value.isEmpty() || skip.size() >= MAX_SKIP || value.codePointCount(0, value.length()) > MAX_SKIP_CHARS) continue;
             Optional<String> problem = problem(value, scene);
             if (problem.isPresent()) {
@@ -393,7 +394,7 @@ public final class CoachingProfileWriter {
 
     private static String text(JsonNode node, String key) {
         JsonNode value = node.path(key);
-        return value.isTextual() ? PythonText.strip(LenientJson.asText(value)) : "";
+        return value.isString() ? PythonText.strip(LenientJson.asText(value)) : "";
     }
 
     private static boolean present(String value) {

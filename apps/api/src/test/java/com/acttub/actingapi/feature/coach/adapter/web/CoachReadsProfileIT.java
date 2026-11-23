@@ -20,8 +20,8 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -379,10 +379,10 @@ class CoachReadsProfileIT {
     void practiceNote_nextTakeKeepsTheProposedActionDistinctFromActorDirection() throws Exception {
         UUID practice = structuredPractice();
         UUID conversation = insertConversation(practice, List.of());
-        var stored = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/handoff.json");
+        var stored = (tools.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/handoff.json");
         var handoff = stored.deepCopy();
         handoff.put("schema_version", "acttub.coach_handoff.v2");
-        var context = (com.fasterxml.jackson.databind.node.ObjectNode) stored.path("coaching_state").path("context").deepCopy();
+        var context = (tools.jackson.databind.node.ObjectNode) stored.path("coaching_state").path("context").deepCopy();
         context.putNull("reading");
         handoff.set("context", context);
         handoff.remove("coaching_state");
@@ -640,7 +640,7 @@ class CoachReadsProfileIT {
         UUID practice = analyzedPractice();
         UUID analysis = jdbc.queryForObject("SELECT id FROM analyses WHERE practice_id=?", UUID.class, practice);
         jdbc.update("UPDATE practices SET experience_version='three_layers_v1' WHERE id=?", practice);
-        var record = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/record.json");
+        var record = (tools.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/record.json");
         record.put("record_id", analysis.toString());
         jdbc.update("UPDATE analyses SET format='video_record_v1',record=CAST(? AS jsonb) WHERE practice_id=?", record.toString(), practice);
         return practice;

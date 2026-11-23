@@ -1,6 +1,6 @@
 package com.acttub.actingapi.integration.llm;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
