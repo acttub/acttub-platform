@@ -20,8 +20,8 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
 - 화면은 Cloud 계정 로그인으로 연다. 초기의 Tailscale 전용 화면 접근 결정은 이 방식으로 대체했고, Tailscale은
   서버 관리·배포에 유지한다. PDC는 브라우저 접속을 Tailscale로 제한하는 기능이 아니다.
 - 선언 설정으로 교체할 수 있는 관측 구성이라 별도 ADR을 두지 않는다. 설계 이유는 이 절에 둔다. 로그를 서버 밖에
-  저장하는 것([ADR-038](../../docs/ADR.md#adr-038-앱-로그는-서버-밖-grafana-cloud-loki에-저장한다))과 Alloy의 Docker 소켓
-  예외([ADR-039](../../docs/ADR.md#adr-039-모니터링-컨테이너-중-alloy에만-docker-소켓을-준다))만 ADR로 둔다.
+  저장하는 것([ADR-038](../../docs/ADR.md#adr-038-앱-로그는-서버-밖-grafana-cloud-loki에-저장한다))과 Docker 소켓 프록시
+  예외([ADR-039](../../docs/ADR.md#adr-039-docker-소켓은-읽기-호출만-통과시키는-프록시-하나만-쥐고-alloy는-그-프록시로만-읽는다))만 ADR로 둔다.
 - 앱 로그는 지표와 달리 Grafana Cloud Loki에 저장한다. 구성은 [로그 전송](#로그-전송)이다.
 
 알아 둘 한계:
@@ -36,7 +36,7 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
 - `api`·`web`·`proxy` 밖의 컨테이너 로그 전송(`db`는 느린 쿼리 로그를 켠 뒤에 더한다), 로그 기반 알림
 - 새 분산 추적·Sentry 트레이싱 활성화
 - AI 비용 정산 완성, Langfuse 토큰 누락 보정, 사용자 수·전환·재방문 분석을 Grafana로 옮기는 것
-- 전체 컨테이너 수집을 위한 cAdvisor. Docker socket은 로그를 읽는 Alloy에만 읽기 전용으로 둔다(ADR-039)
+- 전체 컨테이너 수집을 위한 cAdvisor. Docker socket은 읽기 호출만 통과시키는 `socket-proxy`에만 둔다(ADR-039)
 - 공개 관리 포트와 DB 공개 연결
 - 관측 지표를 정확한 정산 원장으로 쓰는 것, 사용자·프롬프트·영상 원문 수집
 - 디스크 손실에 대비한 지표의 별도 재해 복구 백업과 호스트 고가용성 구성
@@ -55,7 +55,8 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
 | PDC | 전용 조회망만. OpenSSH 모드로 전달 목적지 `prometheus:9090`만 허용 |
 | node exporter | 수집기망, `/proc`·`/sys`·호스트 루트 읽기 전용 |
 | DB health·백업 exporter | 각각 환경별 수집망·수집기망, 또는 수집기망만 |
-| Alloy(`logs`를 켰을 때만) | Cloud로 나가는 전용 로그망만. Docker 소켓 읽기 전용, 자체 HTTP는 컨테이너 안 `127.0.0.1:12345` |
+| Alloy(`logs`를 켰을 때만) | Cloud로 나가는 전용 로그망과 내부 `docker-api` 망. 소켓 없음, 자체 HTTP는 컨테이너 안 `127.0.0.1:12345` |
+| socket-proxy(`logs`를 켰을 때만) | 내부 `docker-api` 망만. Docker 소켓 읽기 전용 bind, `alloy`에서 온 허용 목록의 읽기 호출만 통과 |
 
 모든 이미지는 [compose.yml](compose.yml)·[compose.logs.yml](compose.logs.yml)에 버전과 SHA-256 digest를 함께 고정했다.
 Prometheus는 **30초**마다 수집하고(`manage.py`가 렌더하는 `scrape_interval`) `metrics` 볼륨에 **30일**
@@ -192,7 +193,9 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
 ## 로그 전송
 
 `monitoring.json`에 `logs`가 있을 때만 `render`가 릴리스에 [compose.logs.yml](compose.logs.yml)과 렌더한
-[config.alloy](config.alloy)를 넣는다. Alloy 컨테이너 하나가 Docker API로 같은 호스트의 컨테이너 로그를 읽는다.
+[config.alloy](config.alloy)를 넣는다. Alloy 컨테이너 하나가 `socket-proxy`를 거쳐 Docker API로
+같은 호스트의 컨테이너 로그를 읽는다. 프록시는 Alloy가 쓰는 읽기 호출만 통과시키고 쓰기 호출은 모두 거절한다(ADR-039).
+허용 목록을 바꾸면 `manage.py`의 `SOCKET_PROXY_COMMAND`도 같이 바꾼다. 둘이 다르면 `validate`가 멈춘다.
 
 ```json
 "logs": {"loki_url": "https://logs-prod-<번호>.grafana.net/loki/api/v1/push", "loki_user": "<숫자 User>", "environments": ["dev", "prod"]}
@@ -225,9 +228,9 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
 - Cloud가 끊기면 보내지 못한 묶음은 메모리 큐(기본 10MiB)에 쌓이고 큐가 차면 읽기를 멈춘다. 묶음마다 최대 10번,
   간격을 늘려 최대 5분까지 재시도한 뒤 버린다. 메모리 상한은 256MiB이고 Alloy가 그 90%를 Go 메모리 목표로 쓴다.
 
-끄기: `logs`를 뺀 설정으로 새 릴리스를 렌더·적용한다. `apply`가 고아 컨테이너를 지우므로 Alloy가 멈춘다. `logs`가
+끄기: `logs`를 뺀 설정으로 새 릴리스를 렌더·적용한다. `apply`가 고아 컨테이너를 지우므로 Alloy와 socket-proxy가 멈춘다. `logs`가
 없던 이전 릴리스로 `rollback`해도 같다. 위치 볼륨은 지우지 않으므로 다시 켜면 이어 읽는다.
-`--without-pdc` 적용은 Cloud에 연결하지 않으므로 Alloy도 띄우지 않는다.
+`--without-pdc` 적용은 Cloud에 연결하지 않으므로 Alloy와 socket-proxy도 띄우지 않는다.
 
 ### dev에 처음 켜는 순서
 
@@ -237,7 +240,8 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
    토큰은 홈서버 `secrets/loki-token`에 `600`으로 둔다.
 2. `monitoring.json`에 `logs`를 넣는다. 처음에는 `"environments": ["dev"]`로 시작한다.
 3. 새 버전으로 `render` → `check`(고정 Alloy가 설정을 `validate`한다) → `apply`한다.
-4. `docker compose ... ps alloy`가 running이고 `docker logs <프로젝트>-alloy-1`에 오류가 반복되지 않는지 본다.
+4. `docker compose ... ps alloy socket-proxy`가 둘 다 running이고, `docker logs <프로젝트>-alloy-1`에 오류가 반복되지 않고,
+   `docker logs <프로젝트>-socket-proxy-1`에 `blocked request`가 없는지 본다. 있으면 Alloy가 허용 목록 밖의 호출을 한 것이다.
 5. Grafana Explore에서 Loki 데이터 소스로 `{environment="dev", service="api"}`를 조회해 최근 줄이 들어오는지,
    `/health` 줄이 없고 가린 값이 `[REDACTED]`인지 본다.
 6. 하루 뒤 Cloud의 로그 사용량(하루 GB × 31이 50GB 안인지)과 `docker stats`의 Alloy 메모리를 잰다. 괜찮으면

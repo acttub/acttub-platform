@@ -1,4 +1,4 @@
-"""Optional Alloy log shipping: rendered release, socket exception boundary and line filters."""
+"""Optional Alloy log shipping: rendered release, socket-proxy boundary and line filters."""
 import json
 from pathlib import Path
 import re
@@ -65,16 +65,20 @@ class LogsReleaseTest(unittest.TestCase):
         self.assertNotIn("secret-NEVER-PRINT", result.stdout + result.stderr)
         return result, self.work / "state/releases" / version
 
-    def test_logs_release_adds_only_alloy_with_socket_and_selected_environments(self):
+    def test_logs_release_gives_the_socket_only_to_the_read_only_proxy(self):
         result, release = self.render(self.config)
         self.assertEqual(result.returncode, 0, result.stderr)
         model = manage.validate(release)
-        self.assertEqual(set(model["services"]["alloy"]["networks"]), {"logs"})
+        self.assertEqual(set(model["services"]["alloy"]["networks"]), {"logs", "docker-api"})
+        self.assertEqual(set(model["services"]["socket-proxy"]["networks"]), {"docker-api"})
+        self.assertTrue(model["networks"]["docker-api"]["internal"])
         self.assertNotIn("secret-NEVER-PRINT", json.dumps(model))
         sockets = [(name, v) for name, service in model["services"].items()
                    for v in service.get("volumes", []) if "docker.sock" in v["source"]]
-        self.assertEqual([(name, v["read_only"]) for name, v in sockets], [("alloy", True)])
+        self.assertEqual([(name, v["read_only"]) for name, v in sockets], [("socket-proxy", True)])
         alloy = (release / "alloy/config.alloy").read_text()
+        self.assertEqual(alloy.count('"tcp://socket-proxy:2375"'), 2)
+        self.assertNotIn("docker.sock", alloy)
         self.assertIn('regex         = "acttub-dev"', alloy)
         self.assertNotIn("acttub-prod", alloy)
         self.assertIn(LOGS["loki_url"], alloy)
@@ -84,21 +88,40 @@ class LogsReleaseTest(unittest.TestCase):
         manage.run(["docker", "run", "--rm", "--network", "none", "-v", str(release / "alloy") + ":/etc/acttub:ro",
                     model["services"]["alloy"]["image"], "validate", "/etc/acttub/config.alloy"], "alloy validate")
 
+        allow_get = re.compile(manage.SOCKET_PROXY_COMMAND[2].split("=", 1)[1])
+        cid = "a" * 64
+        for path in ("/_ping", "/v1.51/networks", "/v1.51/containers/json", f"/v1.51/containers/{cid}/json", f"/v1.51/containers/{cid}/logs"):
+            self.assertTrue(allow_get.fullmatch(path), path)
+        for path in (f"/v1.51/containers/{cid}/archive", f"/v1.51/containers/{cid}/export", "/v1.51/images/json",
+                     "/v1.51/secrets", "/v1.51/networks/x", "/v1.51/containers/json/../../exec", f"/v1.51/containers/{cid}/logs/x"):
+            self.assertFalse(allow_get.fullmatch(path), path)
+
         unsafe = []
-        for change in ("socket-elsewhere", "socket-writable", "public-listen", "extra-network", "no-memory-limit"):
+        for change in ("socket-on-alloy", "socket-elsewhere", "socket-writable", "proxy-allows-post", "proxy-any-client",
+                       "proxy-outbound", "docker-api-routable", "public-listen", "extra-network", "no-memory-limit"):
             altered = json.loads(json.dumps(model))
-            alloy_service = altered["services"]["alloy"]
-            socket = next(v for v in alloy_service["volumes"] if "docker.sock" in v["source"])
-            if change == "socket-elsewhere":
+            alloy_service, proxy = altered["services"]["alloy"], altered["services"]["socket-proxy"]
+            socket = next(v for v in proxy["volumes"] if "docker.sock" in v["source"])
+            if change == "socket-on-alloy":
+                alloy_service["volumes"].append(dict(socket))
+            elif change == "socket-elsewhere":
                 altered["services"]["node"]["volumes"].append(dict(socket))
             elif change == "socket-writable":
                 socket["read_only"] = False
+            elif change == "proxy-allows-post":
+                proxy["command"].append("-allowPOST=.*")
+            elif change == "proxy-any-client":
+                proxy["command"][1] = "-allowfrom=0.0.0.0/0"
+            elif change == "proxy-outbound":
+                proxy["networks"]["logs"] = None
+            elif change == "docker-api-routable":
+                altered["networks"]["docker-api"]["internal"] = False
             elif change == "public-listen":
                 alloy_service["command"][3] = "--server.http.listen-addr=0.0.0.0:12345"
             elif change == "extra-network":
                 alloy_service["networks"]["collectors"] = None
             else:
-                alloy_service.pop("mem_limit")
+                proxy.pop("mem_limit")
             with patch.object(manage, "run", return_value=json.dumps(altered)):
                 try:
                     manage.validate(release)

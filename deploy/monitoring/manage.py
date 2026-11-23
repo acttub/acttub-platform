@@ -14,6 +14,14 @@ from urllib.parse import urlencode
 ROOT = Path(__file__).resolve().parent
 
 
+# Docker API reads Alloy needs: version negotiation, network and container lists, container inspect and logs.
+# Nothing else passes (measured: discovery.docker also lists networks for its labels).
+SOCKET_PROXY_COMMAND = [
+    "-listenip=0.0.0.0", "-allowfrom=alloy",
+    r"-allowGET=(/_ping|/v1\.[0-9]+/(_ping|version|networks|containers/json|containers/[0-9a-f]{64}/(json|logs)))",
+    r"-allowHEAD=(/_ping|/v1\.[0-9]+/_ping)", "-loglevel=WARN"]
+
+
 class ConfigError(Exception):
     """An error that is safe to print without its underlying input."""
 
@@ -178,7 +186,7 @@ def validate(release: Path) -> dict:
                 "db-health": {"collectors"} | scrape_networks}
     logs = "logs" in cfg
     if logs:
-        topology["alloy"] = {"logs"}
+        topology.update({"alloy": {"logs", "docker-api"}, "socket-proxy": {"docker-api"}})
     require(set(model["services"]) == set(topology), "unexpected monitoring services")
     for name, networks in topology.items():
         service = model["services"][name]
@@ -189,9 +197,9 @@ def validate(release: Path) -> dict:
                 "container privilege restriction is missing")
         require(not service.get("environment") and not service.get("env_file"), "unexpected container environment")
         for volume in service.get("volumes", []):
-            socket = (name == "alloy" and volume["type"] == "bind" and volume["source"] == "/var/run/docker.sock"
+            socket = (name == "socket-proxy" and volume["type"] == "bind" and volume["source"] == "/var/run/docker.sock"
                       and volume["target"] == "/var/run/docker.sock" and volume.get("read_only"))
-            require("docker.sock" not in volume["source"] or socket, "Docker socket is only for alloy, read-only")
+            require("docker.sock" not in volume["source"] or socket, "Docker socket is only for socket-proxy, read-only")
             require(volume.get("read_only") or (name, volume["type"], volume["target"]) in {
                         ("prometheus", "volume", "/prometheus"), ("alloy", "volume", "/data")},
                     "only metrics and log position storage may be writable")
@@ -203,7 +211,7 @@ def validate(release: Path) -> dict:
     require(pdc["entrypoint"] == ["/bin/sh", "/etc/acttub/pdc-entrypoint.sh"], "unexpected PDC entrypoint")
     require(pdc.get("tmpfs") == ["/home/pdc/.ssh:uid=30000,gid=30000,mode=0700"],
             "PDC SSH tmpfs must be /home/pdc/.ssh with uid=30000,gid=30000,mode=0700 as one mount")
-    own_networks = {"query", "collectors"} | ({"logs"} if logs else set())
+    own_networks = {"query", "collectors"} | ({"logs", "docker-api"} if logs else set())
     require(set(model["networks"]) == own_networks | scrape_networks, "unexpected network")
     require(set(model["volumes"]) == {"metrics"} | backup_volumes | ({"alloy"} if logs else set()), "unexpected volume")
     if logs:
@@ -211,7 +219,10 @@ def validate(release: Path) -> dict:
         require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=/data",
                                      "--server.http.listen-addr=127.0.0.1:12345", "--disable-reporting"],
                 "Alloy must listen on loopback only and disable usage reporting")
-        require(alloy.get("mem_limit"), "Alloy memory limit is missing")
+        proxy = model["services"]["socket-proxy"]
+        require(proxy["command"] == SOCKET_PROXY_COMMAND, "socket-proxy must pass only Alloy's Docker API reads")
+        require(alloy.get("mem_limit") and proxy.get("mem_limit"), "Alloy/socket-proxy memory limit is missing")
+        require(model["networks"]["docker-api"].get("internal"), "docker-api network must be internal")
     backup_mounts = {(v["source"], v["target"]) for v in model["services"]["backup-exporter"]["volumes"]
                      if v["type"] == "volume"}
     require(backup_mounts == {(env + "_backup_state", "/state/" + env) for env in cfg["environments"]},

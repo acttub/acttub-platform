@@ -6,7 +6,8 @@ logging {
 }
 
 discovery.docker "apps" {
-  host = "unix:///var/run/docker.sock"
+  // Docker API only through socket-proxy, which passes reads only (ADR-039).
+  host = "tcp://socket-proxy:2375"
 }
 
 discovery.relabel "apps" {
@@ -32,7 +33,7 @@ discovery.relabel "apps" {
 }
 
 loki.source.docker "apps" {
-  host       = "unix:///var/run/docker.sock"
+  host       = "tcp://socket-proxy:2375"
   targets    = discovery.relabel.apps.output
   forward_to = [loki.process.apps.receiver]
 }
