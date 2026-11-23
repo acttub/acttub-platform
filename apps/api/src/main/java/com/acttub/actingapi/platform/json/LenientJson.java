@@ -51,6 +51,14 @@ public final class LenientJson {
         return node.asDouble(defaultValue);
     }
 
+    public static boolean asBoolean(JsonNode node) {
+        return node.asBoolean();
+    }
+
+    public static boolean asBoolean(JsonNode node, boolean defaultValue) {
+        return node.asBoolean(defaultValue);
+    }
+
     public static int intValue(JsonNode node) {
         return node.intValue();
     }
