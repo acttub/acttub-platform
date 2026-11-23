@@ -58,7 +58,7 @@ final class RequestBodyTreeValidator {
             validateComponent(component, body, location, wholeBody, errors);
         }
         if (!ignoresUnknown(bodyType)) {
-            body.fields().forEachRemaining(entry -> {
+            body.properties().forEach(entry -> {
                 if (!knownFields.contains(entry.getKey())) {
                     errors.add(ApiErrorAdvice.validationError(
                             "extra_forbidden",

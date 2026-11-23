@@ -49,7 +49,7 @@ class ApiErrorAdviceBodyFallbackTest {
     @Test
     void springsPartialCacheSuppliesTheInputWhenOurFilterIsMissing() throws Exception {
         Filter partialCache = (request, response, chain) ->
-                chain.doFilter(new ContentCachingRequestWrapper((HttpServletRequest) request), response);
+                chain.doFilter(new ContentCachingRequestWrapper((HttpServletRequest) request, Integer.MAX_VALUE), response);
 
         assertThat(JSON.readTree(post(mvc(partialCache), "{\"count\":3}"))).isEqualTo(JSON.readTree("""
                 {"detail":[{"type":"missing","loc":["body","name"],"msg":"Field required","input":{"count":3}}]}

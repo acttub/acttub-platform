@@ -209,7 +209,7 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
         if (node.has("items")) result.set("items", geminiSchema(node.path("items"), definitions));
         if (node.has("properties")) {
             ObjectNode properties = result.putObject("properties");
-            node.path("properties").fields().forEachRemaining(entry -> {
+            node.path("properties").properties().forEach(entry -> {
                 JsonNode property = geminiSchema(entry.getValue(), definitions);
                 // Alignment is assigned by the server from verified word timings, never by the model.
                 if ("timing_basis".equals(entry.getKey())) {
