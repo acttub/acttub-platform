@@ -66,7 +66,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # 공용 키(GEMINI_API_KEY·OPENAI_API_KEY)와 기능별 키는 모두 선택이다. 기능마다 전용 키나 공용 키 중 하나는 있어야 앱이 뜨고
-      # (Gemini 코칭·TTS·챌린지, OpenAI 코칭·대본분리·리포트·기억), 전용 키가 있으면 공용 키보다 먼저 쓴다. prepare-server.sh 가 서버 .env 를 이 조건으로 검사한다.
+      # (Gemini 코칭·TTS·챌린지, OpenAI 코칭·대본분리·리포트·기억), 전용 키가 있으면 공용 키보다 먼저 쓴다.
       # dev·prod 는 같은 변수에 각 서버 .env 가 다른 값을 넣어 가른다(URL 로 가르지 않는다).
       GEMINI_COACH_API_KEY: ${GEMINI_COACH_API_KEY:-}
       GEMINI_TTS_API_KEY: ${GEMINI_TTS_API_KEY:-}

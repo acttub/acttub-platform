@@ -227,8 +227,8 @@ jobs:
 
   # 러너가 Tailscale 임시 노드(tag:ci)가 되어 홈서버의 deploy 계정에 Tailscale SSH 로 들어갑니다.
   # 열쇠는 OAuth 클라이언트 하나뿐입니다 — 서버 IP 도 SSH 개인키도 secrets 에 없고, 접근 범위는
-  # Tailscale ACL 이 정합니다(tag:ci → tag:homeserver, users [deploy]; deploy/home/prepare-server.sh
-  # 3단계). 노드는 ephemeral 이라 잡이 끝나면(action 의 post 단계가 logout) 태일넷에서 사라집니다.
+  # Tailscale ACL 이 정합니다(tag:ci → tag:homeserver, users [deploy]). 노드는 ephemeral 이라 잡이 끝나면
+  # (action 의 post 단계가 logout) 태일넷에서 사라집니다.
   #
   # 서버의 프로젝트 디렉토리(/svc/acttub/<env>)에는 사람이 채운 .env 가 있고, compose.yml·proxy/nginx.conf·deploy.sh 는
   # 이 잡이 매번 보냅니다(레포가 정본). .env 는 건드리지 않습니다.
