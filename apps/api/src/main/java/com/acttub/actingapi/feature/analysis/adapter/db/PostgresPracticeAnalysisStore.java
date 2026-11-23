@@ -118,6 +118,14 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
                 throw new IllegalStateException("ai job not found: " + jobId);
             }
             Tuple row = rows.getFirst();
+            // 그만두기·탈퇴·연습 삭제가 작업을 먼저 닫았으면 늦게 끝난 결과를 받지 않는다. 작업 행을 잡아 두므로
+            // 이 트랜잭션이 끝날 때까지 그쪽도 작업을 닫지 못한다.
+            Object jobStatus = entityManager.createNativeQuery("SELECT status FROM ai_jobs WHERE id=:jobId FOR UPDATE")
+                    .setParameter("jobId", jobId)
+                    .getSingleResult();
+            if (!"running".equals(jobStatus)) {
+                return null;
+            }
             // 탈퇴가 먼저 끝났으면 결과를 저장하지 않고 작업만 닫는다 — 닫힌 계정에 분석이 남지 않는다.
             if (!"active".equals(row.get("status", String.class))) {
                 jobs.fail(jobId, leaseToken, "account_deactivated", now);
