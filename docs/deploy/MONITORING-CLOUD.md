@@ -101,10 +101,10 @@ API 요청량은 HTTP 재요청·폴링·멱등 응답 재사용도 포함한다
 - 데이터 소스: `vector(0)` 정상 조회가 가능한지, PDC 연결·Prometheus가 살아 있는지 확인한다. 전용 규칙의 Error/No Data는 지속 시간이 지나면 경고한다.
 - 필수 수집: 대상별 `up`의 `environment` label은 [지표 계약](../../deploy/monitoring/README.md#지표-계약)을 따른다. exporter의 실제 내용은 환경별 custom 지표로 구분한다.
 
-수집 실패/대상 누락은 지속 규칙으로, 오래된 표본은 마지막 갱신 경과 규칙(`stale-*`)으로 따로 확인한다. 일정 시간 넘은 낡은 값은 서비스 조건 평가에서 제외한다. 개별 서비스는 Error/No Data에서 직전 상태를 유지한다([데이터 없음·오류 처리](https://grafana.com/docs/grafana/latest/alerting/fundamentals/alert-rule-evaluation/nodata-and-error-states/)). 정상 표본이 돌아오기 전에 복구로 해석하지 않는다.
+수집 실패·대상 누락·표본 갱신 중단은 `collect-*` 규칙이 본다. 표본이 끊기면 Prometheus 조회 범위(5분)가 지난 뒤 없음으로 바뀌어 2분 지속 뒤 울린다. 일정 시간 넘은 낡은 값은 서비스 조건 평가에서 제외한다. 개별 서비스는 Error/No Data에서 직전 상태를 유지한다([데이터 없음·오류 처리](https://grafana.com/docs/grafana/latest/alerting/fundamentals/alert-rule-evaluation/nodata-and-error-states/)). 정상 표본이 돌아오기 전에 복구로 해석하지 않는다.
 정상 수집 중 요청량 0은 무사용이다. p95의 `표본 없음`은 완료 표본이 없다는 뜻이다. 수집 상태가 실패·수집 전이거나 조회 자체가 Error이면 빈 화면을 정상으로 읽지 않는다.
 외부 실패가 조건 건수 아래로 줄어도 최신 점검이 실패이면 쿼리는 No Data를 반환한다. 수집 공백 전의 성공을 복구 근거로 쓰지 않으며, 최신의 신선한 성공 표본이 있어야 실패 조건 해소를 반환한다. 일반 API 지연은 확인된 요청 수가 최소 조건보다 적으면 조건을 해소하지만, 그 이상인데 histogram이 없거나 계산할 수 없으면 No Data를 반환한다. 별도 histogram 누락 규칙은 `+Inf` 버킷까지 확인한다.
-필수 API 지표 규칙은 HTTP 카운터의 모든 조합과 코치 진행 중 경로(`/v2/coach/start`·`reply`)의 active count/sum/max를 확인한다. 이 경로 목록은 `HttpMonitoringConfiguration.ACTIVE_POST_ROUTES`와 같아야 한다. 수집 중인 다른 경로나 상태의 지표가 누락을 가리지 않으며 유휴 상태의 0은 정상적인 지표 존재로 취급한다.
+필수 API 지표 규칙은 HTTP 카운터의 모든 조합과 코치 진행 중 경로(`/v2/coach/start`·`reply`와 각각의 `/stream`)의 active count/sum/max를 확인한다. 이 경로 목록은 `HttpMonitoringConfiguration.ACTIVE_POST_ROUTES`와 같아야 한다. 수집 중인 다른 경로나 상태의 지표가 누락을 가리지 않으며 유휴 상태의 0은 정상적인 지표 존재로 취급한다.
 
 ## operations
 
@@ -115,7 +115,7 @@ API 요청량은 HTTP 재요청·폴링·멱등 응답 재사용도 포함한다
 분석 최초 대기·재시도 대기·실제 실행·최초 접수부터 경과를 구분한다. 시간 없는 이전 행은 `unmeasured`에 표시한다. 이 값이 있으면 시간 gauge의 0을 정상 완료로 읽지 않는다. 영상 길이를 실행시간으로 쓰지 않는다.
 원장 상태의 내부 집계 간격(`EXTERNAL_OPERATION_SNAPSHOT_MS`)과 Prometheus 수집 간격([수집 구성](../../deploy/monitoring/README.md#구성))이 따로 있다. 규칙 기준은 내부 갱신·수집·규칙 평가·통지 대기가 쌓이는 시간을 고려한 값이며, 실제 Cloud/Slack의 전송 지연은 아래 인수 검증에서 측정한다.
 분석 대기 p95는 `kind="analyze"`만 집계해 빠른 코치·리포트의 선점 대기가 분석의 대기 시간을 희석하지 않는다. 필수 External Operation 지표 규칙은 종류별 접수·시도·재큐·종료, 의존성별 호출, 대기/실행 상태와 미측정 상태, 최장 시간, histogram의 `+Inf` 버킷, 집계 성공/시각의 조합을 확인한다.
-최장 대기는 `dashboards/operations.json`의 임계값부터 화면에서 주의 표시하고, `analysis-wait`(최장 대기)·`analysis-age`(최초 접수 후 미완료)가 Slack 조건이다. 코치·리포트는 `acttub_http_active_seconds_max`가 `http-inflight` 기준을 넘는 **진행 중 서버 HTTP 요청**을 본다. 브라우저가 요청을 취소해도 서버 처리는 계속될 수 있고, 프로세스가 끝난 뒤 남은 running 행은 원장 상태·Lease 지표로 본다. count/sum/max는 현재 진행 중 값이므로 `rate()`를 적용하지 않는다. inflight 경로 label은 `route`, 완료 HTTP 경로 label은 `uri`다.
+최장 대기는 `dashboards/operations.json`의 임계값부터 화면에서 주의 표시하고, `analysis-wait`(최장 대기)·`analysis-age`(최초 접수 후 미완료)가 Slack 조건이다. 코치는 `acttub_http_active_seconds_max`가 `http-inflight` 기준을 넘는 **진행 중 서버 HTTP 요청**을 본다. 브라우저가 요청을 취소해도 서버 처리는 계속될 수 있고, 프로세스가 끝난 뒤 남은 running 행은 원장 상태·Lease 지표로 본다. count/sum/max는 현재 진행 중 값이므로 `rate()`를 적용하지 않는다. inflight 경로 label은 `route`, 완료 HTTP 경로 label은 `uri`다.
 
 최종 실패는 새 `external|unexpected` 종료 사건으로 경고한다(`terminal`). `expected`는 장애에서 제외하고 `unclassified`는 별도 관측 정보 누락 경고다. **해제는 새 실패 발생 조건이 해소된 뜻이며 해당 External Operation의 성공이 아니다.** 카운터는 관측된 재시작을 `increase()`로 처리하지만 첫 scrape 이전이나 프로세스가 꺼진 수집 공백의 사건을 복구하지 못한다. 과거 원장 행을 새 종료 사건으로 소급 통지하지 않는다.
 종료 사건은 커밋 후 카운터이므로 DB 상태 집계의 성공·시각과 독립적으로 평가한다. API 수집과 해당 종류/분류 카운터가 모두 존재하고 신선해야 평가하며, DB 집계가 멈췄다는 이유로 새 실패 통지를 지연시키지 않는다.

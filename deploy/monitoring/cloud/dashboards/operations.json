@@ -445,7 +445,7 @@
     },
     {
       "id": 19,
-      "title": "진행 중 코치·리포트 최장 HTTP 경과",
+      "title": "진행 중 코치 최장 HTTP 경과",
       "type": "timeseries",
       "description": "서버 요청 시작부터 응답 종료까지. 모델 호출·멱등 응답 대기와 구분하며 브라우저 취소 후 처리가 계속될 수 있습니다.",
       "gridPos": {
@@ -1051,7 +1051,7 @@
         },
         {
           "id": 18,
-          "title": "진행 중 코치·리포트 HTTP 요청 수",
+          "title": "진행 중 코치 HTTP 요청 수",
           "type": "timeseries",
           "description": "",
           "gridPos": {
@@ -1106,7 +1106,7 @@
         },
         {
           "id": 20,
-          "title": "코치·리포트 완료 HTTP p95",
+          "title": "장시간 경로 완료 HTTP p95",
           "type": "timeseries",
           "description": "",
           "gridPos": {
