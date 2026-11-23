@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.acttub.actingapi.platform.json.LenientJson;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
 
 /**
  * RevenueCat REST API v1 의 {@code GET /v1/subscribers/{app_user_id}}(비밀 키 Bearer)로 고객 정보를 읽어, 우리 entitlement 를 준 구독
@@ -96,7 +97,7 @@ public class RevenueCatGatewayImpl implements RevenueCatGateway {
         }
         try {
             return parse(JSON.readTree(response.body()), entitlementId);
-        } catch (IOException malformed) {
+        } catch (JacksonException malformed) {
             throw new StoreException(StoreException.Kind.UPSTREAM, "store_upstream_error");
         }
     }

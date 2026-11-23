@@ -77,7 +77,7 @@ class WireNameParityTest {
         mapper.acceptJsonFormatVisitor(type, new JsonFormatVisitorWrapper.Base() {
             @Override
             public JsonObjectFormatVisitor expectObjectFormat(JavaType objectType) {
-                return new JsonObjectFormatVisitor.Base() {
+                return new JsonObjectFormatVisitor.Base(getContext()) {
                     @Override
                     public void property(BeanProperty property) {
                         names.add(property.getName());

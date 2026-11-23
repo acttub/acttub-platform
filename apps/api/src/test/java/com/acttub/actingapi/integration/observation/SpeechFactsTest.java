@@ -17,7 +17,7 @@ class SpeechFactsTest {
     @Test
     void bothRecordingsMatchEveryLineOfThePythonReference() throws Exception {
         var recordings = MAPPER.readTree(getClass().getResourceAsStream("/speech/results_tr_raw.json"));
-        for (String id : (Iterable<String>) recordings::fieldNames) {
+        for (String id : recordings.propertyNames()) {
             var recording = recordings.get(id);
             List<SpeechFacts.Word> words = new ArrayList<>();
             for (var word : recording.path("words")) {

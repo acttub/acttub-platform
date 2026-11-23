@@ -55,7 +55,7 @@ final class CoachingStateReducer {
         Map<String, JsonNode> catalog = catalog(sources);
         catalog.put(coachId, source(coachId, "coach_message", message));
         validateReferences(response, catalog);
-        ObjectNode state = previous.deepCopy();
+        ObjectNode state = (ObjectNode) previous.deepCopy();
         if (!response.path("context_update").isNull()) {
             JsonNode context = response.get("context_update");
             JsonNode direction = context.path("direction");

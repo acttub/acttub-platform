@@ -220,13 +220,14 @@ public class ReportEngine {
         if (actorProfile == null) {
             return input;
         }
+        ObjectNode withProfile;
         try {
-            ObjectNode withProfile = (ObjectNode) mapper.readTree(input);
-            withProfile.set("actor_profile", mapper.valueToTree(actorProfile));
-            return withProfile.toString();
+            withProfile = (ObjectNode) mapper.readTree(input);
         } catch (tools.jackson.core.JacksonException malformed) {
             throw new IllegalStateException("note model input is not a JSON object", malformed);
         }
+        withProfile.set("actor_profile", mapper.valueToTree(actorProfile));
+        return withProfile.toString();
     }
 
     /**

@@ -66,9 +66,13 @@ class BlogAdminController {
         this.blog = blog;
         this.mapper = mapper;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
-        var snakeCase = new PropertyNamingStrategies.SnakeCaseStrategy();
+        var snakeCase = new PropertyNamingStrategies.SnakeCaseStrategy() {
+            String of(String name) {
+                return translate(name);
+            }
+        };
         this.patchableFields = Arrays.stream(PostFields.class.getRecordComponents())
-                .map(component -> snakeCase.translate(component.getName()))
+                .map(component -> snakeCase.of(component.getName()))
                 .collect(Collectors.toUnmodifiableSet());
     }
 
@@ -142,7 +146,7 @@ class BlogAdminController {
                         next.category(), next.coverImageUrl(), next.bodyMarkdown(), next.appCta(), next.status(),
                         current.publishedAt());
             } catch (DatabindException invalid) {
-                String field = invalid.getPath().isEmpty() ? null : invalid.getPath().getFirst().getFieldName();
+                String field = invalid.getPath().isEmpty() ? null : invalid.getPath().getFirst().getPropertyName();
                 throw ApiValidationException.valueError(field == null ? List.<Object>of("body") : List.<Object>of("body", field),
                         "Value error, invalid value",
                         field == null ? null : mapper.convertValue(changes.get(field), Object.class));

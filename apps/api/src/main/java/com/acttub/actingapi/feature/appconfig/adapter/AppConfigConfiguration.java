@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
 
 /**
  * 앱 설정(SOMA-939)의 조립. 기동할 때 한 번 읽는다 — 값을 바꾸면 api 를 다시 띄운다.
@@ -38,9 +39,10 @@ class AppConfigConfiguration {
 
     @Bean
     AppConfig appConfig(@Value("${APP_CONFIG_FILE:}") String overrideFile) throws IOException {
-        ObjectMapper mapper = JsonMapper.builderWithJackson2Defaults().build()
-                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builderWithJackson2Defaults()
+                .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .build();
         JsonNode defaultsNode;
         try (InputStream in = AppConfigConfiguration.class.getClassLoader().getResourceAsStream(DEFAULTS)) {
             if (in == null) throw new IOException("missing " + DEFAULTS);
@@ -52,7 +54,7 @@ class AppConfigConfiguration {
             try {
                 JsonNode override = mapper.readTree(Files.readString(Path.of(overrideFile)));
                 merged = mapper.treeToValue(merge(defaultsNode.deepCopy(), override), AppConfig.class);
-            } catch (IOException | IllegalArgumentException e) {
+            } catch (IOException | IllegalArgumentException | JacksonException e) {
                 log.warn("app_config_override_ignored file={} reason={}", overrideFile, e.getMessage());
             }
         }

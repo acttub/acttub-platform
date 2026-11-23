@@ -360,10 +360,10 @@ public class ApiErrorAdvice {
         loc.add("body");
         JavaType current = references.isEmpty() ? null : referenceType(references.getFirst(), null);
         for (DatabindException.Reference reference : references) {
-            if (reference.getFieldName() != null) {
+            if (reference.getPropertyName() != null) {
                 JavaType owner = referenceType(reference, current);
-                BeanPropertyDefinition property = property(owner, reference.getFieldName());
-                loc.add(property == null ? reference.getFieldName() : property.getName());
+                BeanPropertyDefinition property = property(owner, reference.getPropertyName());
+                loc.add(property == null ? reference.getPropertyName() : property.getName());
                 current = property == null ? current : property.getPrimaryType();
             } else if (reference.getIndex() >= 0) {
                 loc.add(reference.getIndex());
@@ -415,11 +415,18 @@ public class ApiErrorAdvice {
         if (type == null || type.isPrimitive() || type.isCollectionLikeType() || type.isMapLikeType()) {
             return List.of();
         }
-        return mapper.getDeserializationConfig().introspect(type).findProperties();
+        return deserializationProperties(mapper, type);
+    }
+
+    /** 요청 본문을 읽을 때 매퍼가 보는 속성 목록(이름 규칙·주석 반영). */
+    static List<BeanPropertyDefinition> deserializationProperties(ObjectMapper mapper, JavaType type) {
+        var introspector = mapper.deserializationConfig().classIntrospectorInstance();
+        return introspector.introspectForDeserialization(type, introspector.introspectClassAnnotations(type))
+                .findProperties();
     }
 
     private JavaType referenceType(DatabindException.Reference reference, JavaType fallback) {
-        Object from = reference.getFrom();
+        Object from = reference.from();
         if (from instanceof Class<?> type) {
             return mapper.constructType(type);
         }

@@ -38,7 +38,7 @@ class CoachRecordLookupTest {
         record.path("limitations").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(LenientJson.asText(e.path("id"))));
     }
     @Test void longRecordSamplesBeginningAndEndAndDisclosesOmissions() {
-        ObjectNode longRecord = record.deepCopy();
+        ObjectNode longRecord = (ObjectNode) record.deepCopy();
         var events = longRecord.putArray("events");
         ObjectNode template = (ObjectNode) record.path("events").get(0);
         for (int i = 0; i < 200; i++) {

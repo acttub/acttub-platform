@@ -30,13 +30,18 @@ spring:
         query:
           native:
             prefer_jdbc_datetime_types: true
-  # JSON 은 Jackson 2 로 다룬다(build.gradle.kts 의 spring-boot-jackson2). Boot 4 에서 spring.jackson.* 은
-  # Jackson 3 쪽 설정이라 Jackson 2 ObjectMapper 에 닿지 않는다. 그래서 아래는 spring.jackson2.* 이고,
-  # MVC 와 Boot 가 만드는 HTTP 클라이언트가 Jackson 3 대신 이 ObjectMapper 를 쓰게 한다.
-  http:
-    converters:
-      preferred-json-mapper: jackson2
-  jackson2:
+        # JSON 열(JsonNode 필드)을 Jackson 3 으로 읽고 쓴다. Hibernate 는 Jackson 2 가 classpath 에 있으면
+        # (springdoc 이 끌고 온다) 그것을 먼저 고르는데, 필드 타입이 Jackson 3 JsonNode 라 그러면 저장 값이 깨진다.
+        type:
+          json_format_mapper: jackson3
+  # JSON 은 Jackson 3 이다. 기본값이 Jackson 2 와 여럿 다르다(속성 이름 정렬, 뒤에 붙은 토큰 거부, 원시 타입
+  # null 거부, enum toString 등). 응답·요청 해석을 옮기기 전과 같게 Boot 가 Jackson 2 에 주던 기본값을 쓴다
+  # (JacksonDefaultsContractTest 가 고정한다).
+  jackson:
+    use-jackson2-defaults: true
+    mapper:
+      # 위 설정은 생성자 매개변수 이름 읽기를 끄지만, 옛 Jackson 2 매퍼는 parameter-names 모듈로 읽었다.
+      detect-parameter-names: true
     # apps/api/CONTRACT.md §6 #3 — null 필드를 키째 실어보낸다. NON_NULL 을 전역으로 켜지 않는다.
     default-property-inclusion: always
     deserialization:
@@ -45,8 +50,18 @@ spring:
       # 반대 방향(전역 허용 + DTO 별 거부)은 Jackson 이 표현하지 못한다 —
       # ignoreUnknown=false 는 "전역을 따르라"는 뜻이라 거부를 강제하지 못한다.
       fail-on-unknown-properties: true
-    serialization:
-      write-dates-as-timestamps: false
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
+    # Jackson 3·Boot 4 의 한도(중첩 500, 문자열 1억 자)를 Jackson 2.21 기본값으로 둔다. 요청 본문이 같은 데서
+    # 같게 막힌다.
+    factory:
+      constraints:
+        read:
+          max-nesting-depth: 1000
+          max-string-length: 20000000
+        write:
+          max-nesting-depth: 1000
   servlet:
     multipart:
       # 리딩 녹음 올리기(reading.recording)만 multipart 다. 파일 한도 10,000,000바이트는 핸들러가 422

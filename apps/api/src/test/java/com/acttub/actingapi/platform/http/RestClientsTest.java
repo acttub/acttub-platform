@@ -27,19 +27,22 @@ import org.springframework.web.client.RestClient;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
- * 바깥 API 를 부르는 {@link RestClient} 가 JSON 을 Boot 3.5 때와 같게(Jackson 2) 읽고 쓰는지 실제 HTTP 로 본다.
+ * 바깥 API 를 부르는 {@link RestClient} 가 JSON 을 옮기기 전(Boot 3.5·Jackson 2)과 같게 읽고 쓰는지 실제 HTTP 로 본다.
  *
- * <p>아래 기대값은 Boot 3.5.16 의 {@code RestClient.builder()} 가 낸 그대로다. Jackson 3 변환기가 골라지면
- * Jackson 2 {@code JsonNode} 는 노드 속성 목록({@code "nodeType":"OBJECT"} …)으로 나가고, {@code @JsonNaming} 은
- * 무시되어 필드 이름이 camelCase 로 바뀐다.
+ * <p>아래 기대값은 Boot 3.5.16 의 {@code RestClient.builder()} 가 낸 그대로다. Spring 기본 변환기(Jackson 3 기본값)가
+ * 쓰이면 레코드 속성이 알파벳 순으로 나간다.
  */
 class RestClientsTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** 결제·알림 본문처럼 Jackson 2 의 이름 규칙 주석을 쓰는 모양. */
+    /** 결제·알림 본문처럼 이름 규칙 주석을 쓰는 모양. */
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record Order(String orderId, String posterUrl) {
+    }
+
+    /** 선언 순서가 알파벳 순서와 다르다. */
+    record Unsorted(String zeta, int alpha) {
     }
 
     private HttpServer server;
@@ -75,14 +78,19 @@ class RestClientsTest {
     }
 
     @Test
-    void jackson2TreeGoesOutAsTheJsonItHolds() throws Exception {
+    void treeGoesOutAsTheJsonItHolds() throws Exception {
         // OpenAI 요청(RestClientOpenAiTransport)이 이 모양이다.
         assertThat(send(JSON.readTree("{\"model\":\"m\",\"input\":\"안녕\"}"))).isEqualTo("{\"model\":\"m\",\"input\":\"안녕\"}");
     }
 
     @Test
-    void jackson2NamingAnnotationNamesTheOutgoingFields() {
+    void namingAnnotationNamesTheOutgoingFields() {
         assertThat(send(new Order("o-1", null))).isEqualTo("{\"order_id\":\"o-1\",\"poster_url\":null}");
+    }
+
+    @Test
+    void recordFieldsGoOutInDeclarationOrder() {
+        assertThat(send(new Unsorted("z", 1))).isEqualTo("{\"zeta\":\"z\",\"alpha\":1}");
     }
 
     @Test
@@ -92,7 +100,7 @@ class RestClientsTest {
     }
 
     @Test
-    void responsesAreReadWithJackson2() {
+    void responsesAreReadAsBefore() {
         reply = "{\"order_id\":\"o-2\",\"poster_url\":\"https://x/p.jpg\"}";
 
         assertThat(client().get().uri("/").retrieve().body(Order.class)).isEqualTo(new Order("o-2", "https://x/p.jpg"));
@@ -103,7 +111,7 @@ class RestClientsTest {
     void mainCodeBuildsRestClientsOnlyHere() {
         noClasses().that().doNotHaveFullyQualifiedName(RestClients.class.getName())
                 .should().callMethodWhere(target(owner(type(RestClient.class))).and(target(nameMatching("builder|create"))))
-                .because("RestClient.builder()·create() 는 Jackson 3 이 classpath 에 있으면 그것으로 JSON 을 쓴다")
+                .because("RestClient.builder()·create() 는 Jackson 3 기본값으로 JSON 을 써서 다른 JSON 경로와 규칙이 갈린다")
                 .check(new ClassFileImporter().withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
                         .importPackages("com.acttub.actingapi"));
     }

@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.JsonParser;
 import tools.jackson.databind.JavaType;
 import tools.jackson.databind.DatabindException;
@@ -142,11 +143,11 @@ final class RequestBodyTreeValidator {
             JsonNode value,
             List<Object> location,
             List<Map<String, Object>> errors) {
-        try (JsonParser parser = value.traverse(mapper)) {
+        try (JsonParser parser = mapper.treeAsTokens(value)) {
             mapper.readValue(parser, mapper.constructType(component.getGenericType()));
         } catch (DatabindException exception) {
             errors.add(this.errors.jacksonError(exception, location, input(value)));
-        } catch (java.io.IOException exception) {
+        } catch (JacksonException exception) {
             // JsonNode 자체를 읽는 경로라 구문 오류는 없다. 형식 오류는 위 mapping 분기다.
             throw new IllegalStateException("cached JsonNode could not be validated", exception);
         }
@@ -186,7 +187,7 @@ final class RequestBodyTreeValidator {
 
     private String wireName(Class<?> bodyType, RecordComponent component) {
         JavaType javaType = mapper.constructType(bodyType);
-        return mapper.getDeserializationConfig().introspect(javaType).findProperties().stream()
+        return ApiErrorAdvice.deserializationProperties(mapper, javaType).stream()
                 .filter(property -> property.getInternalName().equals(component.getName()))
                 .map(BeanPropertyDefinition::getName)
                 .findFirst()

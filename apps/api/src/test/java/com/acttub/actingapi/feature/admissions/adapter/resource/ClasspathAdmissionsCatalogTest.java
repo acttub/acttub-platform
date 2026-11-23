@@ -19,7 +19,7 @@ class ClasspathAdmissionsCatalogTest {
     private static ObjectMapper reading(String json) {
         return new ObjectMapper() {
             @Override
-            public <T> T readValue(InputStream ignored, Class<T> type) throws IOException {
+            public <T> T readValue(InputStream ignored, Class<T> type) {
                 return new ObjectMapper().readValue(json, type);
             }
         };
@@ -70,8 +70,8 @@ class ClasspathAdmissionsCatalogTest {
     void unreadableDocumentStopsStartup() {
         ObjectMapper failing = new ObjectMapper() {
             @Override
-            public <T> T readValue(InputStream ignored, Class<T> type) throws IOException {
-                throw new IOException("truncated");
+            public <T> T readValue(InputStream ignored, Class<T> type) {
+                throw tools.jackson.core.exc.JacksonIOException.construct(new IOException("truncated"));
             }
         };
 

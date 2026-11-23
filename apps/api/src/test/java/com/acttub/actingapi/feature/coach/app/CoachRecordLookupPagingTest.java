@@ -88,7 +88,7 @@ class CoachRecordLookupPagingTest {
     }
 
     @Test void dimensionsLimitObservationsAndDropWordFactsForVisualOnlyRequests() {
-        ObjectNode withWords = record.deepCopy();
+        ObjectNode withWords = (ObjectNode) record.deepCopy();
         ObjectNode timings = (ObjectNode) withWords.path("speech").path("word_timings");
         timings.put("status", "recorded");
         timings.putArray("items").addObject().put("word", "가지").put("start_ms", 4000).put("end_ms", 4600);
@@ -103,14 +103,14 @@ class CoachRecordLookupPagingTest {
     }
 
     @Test void aPartiallyProcessedRecordSaysSo() {
-        ObjectNode partial = record.deepCopy();
+        ObjectNode partial = (ObjectNode) record.deepCopy();
         ((ArrayNode) partial.path("processing").path("missing_ranges")).addObject().put("start_ms", 7000).put("end_ms", 8000);
         ObjectNode result = lookup.lookup(partial, request(partial, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":1000}", false));
         assertThat(LenientJson.asText(result.path("record_status"))).isEqualTo("partial");
     }
 
     ObjectNode bulky(int events, int repeat) {
-        ObjectNode big = record.deepCopy();
+        ObjectNode big = (ObjectNode) record.deepCopy();
         ArrayNode list = big.putArray("events");
         ArrayNode ids = ((ObjectNode) big.path("segments").get(0)).putArray("event_ids");
         for (int i = 0; i < events; i++) {
@@ -171,7 +171,7 @@ class CoachRecordLookupPagingTest {
     }
 
     @Test void theOpeningViewDisclosesWhatItLeftOut() {
-        ObjectNode heavy = record.deepCopy();
+        ObjectNode heavy = (ObjectNode) record.deepCopy();
         ArrayNode utterances = (ArrayNode) heavy.path("speech").path("utterances");
         for (int i = 2; i < 40; i++) {
             utterances.addObject().put("id", "u" + i).put("speaker_id", "p1").put("start_ms", 0).put("end_ms", 100)

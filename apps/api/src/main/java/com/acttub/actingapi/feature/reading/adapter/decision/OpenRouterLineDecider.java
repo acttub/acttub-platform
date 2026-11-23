@@ -21,6 +21,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.core.JacksonException;
 
 /**
  * OpenRouter Decisions API 로 Jev 를 부른다(SOMA-663 J1). 한 요청에 종류·화자 두 질문과 줄에 따라 더 묻는 질문({@link LineReview.Extra})을 넣고, 보기는 {@code {값: {label, description}}}
@@ -165,7 +166,7 @@ public class OpenRouterLineDecider implements LineDecider {
                 if (response.statusCode() != 429 && response.statusCode() < 500) {
                     throw last;
                 }
-            } catch (IOException failure) {
+            } catch (IOException | JacksonException failure) {
                 rateLimited = false;
                 last = new IllegalStateException("decision call failed: " + failure.getClass().getSimpleName(), failure);
             } catch (InterruptedException interrupted) {

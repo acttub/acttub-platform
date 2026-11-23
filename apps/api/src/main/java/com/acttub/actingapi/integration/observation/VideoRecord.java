@@ -40,7 +40,7 @@ public final class VideoRecord {
     /** 구간 참조는 관찰의 시간 범위에서 계산하는 색인이다. 관찰 자체는 수정하지 않는다. */
     public static ObjectNode prepareChunk(JsonNode value, String chunkId, long duration) {
         StructuredJson.validate("layer1_chunk", value);
-        ObjectNode prepared = value.deepCopy();
+        ObjectNode prepared = (ObjectNode) value.deepCopy();
         for (JsonNode segment : prepared.path("segments")) {
             for (String group : List.of("utterances", "events", "limitations")) {
                 String key = switch (group) {
@@ -161,7 +161,7 @@ public final class VideoRecord {
             ArrayNode target = "utterances".equals(group)
                     ? (ArrayNode) record.path("speech").path("utterances") : (ArrayNode) record.path(group);
             for (JsonNode item : chunk.path(group)) {
-                ObjectNode mapped = item.deepCopy();
+                ObjectNode mapped = (ObjectNode) item.deepCopy();
                 mapped.put("id", ids.get(LenientJson.asText(item.path("id"))));
                 if (mapped.has("start_ms")) {
                     mapped.put("start_ms", LenientJson.asLong(item.path("start_ms")) + offset);

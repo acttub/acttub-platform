@@ -9,19 +9,21 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import com.acttub.actingapi.platform.json.LenientJson;
 import tools.jackson.databind.json.JsonMapper;
 
 /** 모델 출력과 저장 정본에 같은 JSON Schema를 적용한다. 외부 참조는 사용하지 않는다. */
 public final class StructuredJson {
-    public static final ObjectMapper MAPPER = JsonMapper.builderWithJackson2Defaults().build()
+    public static final ObjectMapper MAPPER = JsonMapper.builderWithJackson2Defaults()
             .enable(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-            .enable(tools.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            .enable(tools.jackson.core.StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+            .build();
     private static final JsonNode CONTRACTS = resource("/coaching/three-layer-contracts.schema.json");
-    private static final ConcurrentHashMap<String, JsonSchema> VALIDATORS = new ConcurrentHashMap<>();
+    private static final SchemaRegistry SCHEMAS = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12);
+    private static final ConcurrentHashMap<String, Schema> VALIDATORS = new ConcurrentHashMap<>();
 
     private StructuredJson() {
     }
@@ -42,8 +44,7 @@ public final class StructuredJson {
     }
 
     public static void validate(String definition, JsonNode value) {
-        JsonSchema validator = VALIDATORS.computeIfAbsent(definition, name ->
-                JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(schema(name)));
+        Schema validator = VALIDATORS.computeIfAbsent(definition, name -> SCHEMAS.getSchema(schema(name)));
         var errors = validator.validate(value);
         if (!errors.isEmpty()) {
             // 모델 원문/사용자 내용은 예외에 복사하지 않는다.
@@ -56,7 +57,7 @@ public final class StructuredJson {
         if (root == null) {
             throw new IllegalArgumentException("unknown output contract: " + definition);
         }
-        ObjectNode result = root.deepCopy();
+        ObjectNode result = (ObjectNode) root.deepCopy();
         ObjectNode definitions = MAPPER.createObjectNode();
         collect(root, definitions, new HashSet<>());
         result.set("$defs", definitions);
@@ -74,7 +75,7 @@ public final class StructuredJson {
                 throw new IllegalStateException("missing JSON resource: " + path);
             }
             return MAPPER.readTree(input);
-        } catch (IOException error) {
+        } catch (IOException | JacksonException error) {
             throw new IllegalStateException("cannot read JSON resource: " + path, error);
         }
     }

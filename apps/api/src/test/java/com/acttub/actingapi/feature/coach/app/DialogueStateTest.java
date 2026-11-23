@@ -23,7 +23,7 @@ class DialogueStateTest {
         ObjectNode input = StructuredJson.MAPPER.createObjectNode();
         input.set("user_message", actor); input.set("coaching_state", state);
         ObjectNode response = StructuredCoachEngineTest.respond(input, "편하게 느끼셨군요.", "continue");
-        ObjectNode context = state.path("context").deepCopy();
+        ObjectNode context = (ObjectNode) state.path("context").deepCopy();
         context.putObject("direction").put("text", text).put("origin", "actor_stated").putArray("source_refs").add("m1");
         response.set("context_update", context);
         var sources = StructuredJson.MAPPER.createArrayNode().add(CoachingStateReducer.source("m1", "actor_message", text));
@@ -206,7 +206,7 @@ class DialogueStateTest {
         ObjectNode actor = StructuredJson.MAPPER.createObjectNode().put("id", "m1").put("text", "상대가 떠나지 않았으면 좋겠어");
         ObjectNode input = StructuredJson.MAPPER.createObjectNode(); input.set("user_message", actor); input.set("coaching_state", state);
         ObjectNode response = StructuredCoachEngineTest.respond(input, "상대가 떠나지 않기를 바랐군요.", "continue");
-        ObjectNode context = state.path("context").deepCopy();
+        ObjectNode context = (ObjectNode) state.path("context").deepCopy();
         ObjectNode direction = context.putObject("direction").put("text", "상대가 떠나지 않았으면 좋겠어").put("origin", "actor_stated");
         direction.putArray("source_refs").add("m1"); response.set("context_update", context);
         var sources = StructuredJson.MAPPER.createArrayNode().add(CoachingStateReducer.source("m1", "actor_message", LenientJson.asText(actor.path("text"))));

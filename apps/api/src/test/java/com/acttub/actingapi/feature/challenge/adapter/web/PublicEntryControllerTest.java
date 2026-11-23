@@ -9,7 +9,6 @@ import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.support.Jackson2Converters;
 import com.acttub.actingapi.feature.challenge.app.EntryMedia;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.PublicEntry;
@@ -38,7 +37,6 @@ class PublicEntryControllerTest {
             new EntryService(entries, mock(EntryMedia.class), new CanonicalJson(JSON), Clock.systemUTC());
     private final MockMvc mvc = MockMvcBuilders
             .standaloneSetup(new PublicEntryController(service, new FixedWindowRateLimiter(System::nanoTime), new ClientAddress("")))
-            .setMessageConverters(Jackson2Converters.server())
             .setControllerAdvice(new ApiErrorAdvice(JSON, new RecordingFailureReporter()))
             .build();
 

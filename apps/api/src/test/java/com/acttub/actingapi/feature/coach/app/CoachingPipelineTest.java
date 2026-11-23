@@ -140,7 +140,7 @@ class CoachingPipelineTest {
 
     @Test void missingVideoCannotStartEvenWithAValidClassifier() {
         var source = session();
-        ObjectNode failed = source.observationPack().deepCopy();
+        ObjectNode failed = (ObjectNode) source.observationPack().deepCopy();
         ((ObjectNode) failed.path("processing")).putArray("processed_ranges");
         var noVideo = new CoachSessionSnapshot(source.sessionId(), source.practiceSessionId(), source.userId(),
                 failed, "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
@@ -264,7 +264,7 @@ class CoachingPipelineTest {
             if (call == 1 || call == 3) {
                 assertThat(prompt).isEqualTo(CoachingPipeline.prompt(call == 3 ? CoachingRoute.REPAIR : CoachingRoute.ADVANCE, false, false));
                 ObjectNode result = draft(input, call == 3 ? repairedMessage : "잘못을 이해받고 싶다는 뜻이군요.");
-                ObjectNode context = input.path("coaching_state").path("context").deepCopy();
+                ObjectNode context = (ObjectNode) input.path("coaching_state").path("context").deepCopy();
                 ObjectNode goal = ((ObjectNode) context.path("scene_context")).putObject("character_goal");
                 goal.put("text", LenientJson.asText(input.path("user_message").path("text"))).put("origin", "actor_stated");
                 goal.putArray("source_refs").add(LenientJson.asText(input.path("user_message").path("id")));

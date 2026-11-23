@@ -186,7 +186,7 @@ final class DialogueNote {
     }
 
     private static ArrayNode withExperience(JsonNode excerpts, JsonNode handoff, Map<String, JsonNode> sources) {
-        ArrayNode result = excerpts.deepCopy();
+        ArrayNode result = (ArrayNode) excerpts.deepCopy();
         for (JsonNode message : handoff.path("conversation")) {
             String id = LenientJson.asText(message.path("id"));
             String text = LenientJson.asText(message.path("text"));
@@ -244,7 +244,7 @@ final class DialogueNote {
         practice.putArray("selection_refs");
         for (String key : List.of("instruction", "comparison")) {
             ObjectNode value = practice.putObject(key).put("text", LenientJson.asText(next.path(key)));
-            ArrayNode refs = next.path("basis_refs").deepCopy();
+            ArrayNode refs = (ArrayNode) next.path("basis_refs").deepCopy();
             refs.add(id); value.set("source_refs", refs);
         }
         note.put("mode", "action");

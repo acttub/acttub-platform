@@ -44,14 +44,14 @@ class DialogueStateRulesTest {
         ObjectNode output = response(message, "continue", "open");
         ((ObjectNode) output.path("reply_link")).putNull("user_message_id").putNull("actor_quote");
         ((ArrayNode) output.path("reply_link").path("evidence_refs")).add("e1");
-        ObjectNode context = CoachingStateReducer.empty().path("context").deepCopy();
+        ObjectNode context = (ObjectNode) CoachingStateReducer.empty().path("context").deepCopy();
         context.putObject("focus").put("label", "말끝").putNull("utterance_ref").putArray("evidence_refs").add("e1");
         output.set("context_update", context);
         return output;
     }
 
     ObjectNode withDirection(ObjectNode output, String text, String origin, String... refs) {
-        ObjectNode context = CoachingStateReducer.empty().path("context").deepCopy();
+        ObjectNode context = (ObjectNode) CoachingStateReducer.empty().path("context").deepCopy();
         ArrayNode array = context.putObject("direction").put("text", text).put("origin", origin).putArray("source_refs");
         for (String ref : refs) array.add(ref);
         output.set("context_update", context);
@@ -117,7 +117,7 @@ class DialogueStateRulesTest {
 
     @Test void sceneContextNeedsActorWordsToo() {
         ObjectNode output = reply("붙잡고 싶은 마음이군요.");
-        ObjectNode context = CoachingStateReducer.empty().path("context").deepCopy();
+        ObjectNode context = (ObjectNode) CoachingStateReducer.empty().path("context").deepCopy();
         ((ObjectNode) context.path("scene_context")).putObject("character_goal").put("text", "붙잡고 싶었는데")
                 .put("origin", "actor_stated").putArray("source_refs").add("e1");
         output.set("context_update", context);
@@ -194,7 +194,7 @@ class DialogueStateRulesTest {
                 withDirection(reply("붙잡고 싶은 마음이군요."), "붙잡고 싶었는데", "actor_stated", "e1"), sources, actor, "c1", 200, 3, false))
                 .hasMessage("scene and direction require actor evidence");
         ObjectNode scene = reply("붙잡고 싶은 마음이군요.");
-        ObjectNode context = CoachingStateReducer.empty().path("context").deepCopy();
+        ObjectNode context = (ObjectNode) CoachingStateReducer.empty().path("context").deepCopy();
         ((ObjectNode) context.path("scene_context")).putObject("situation").put("text", "애원하긴 싫었어")
                 .put("origin", "actor_stated").putArray("source_refs").add("m1");
         scene.set("context_update", context);

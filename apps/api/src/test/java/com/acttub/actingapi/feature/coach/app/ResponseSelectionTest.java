@@ -67,7 +67,7 @@ class ResponseSelectionTest {
                 .add(CoachingStateReducer.source("u1", "video_utterance", "가지 마"))
                 .add(CoachingStateReducer.source("l1", "record_limitation", "손은 화면 밖이다"));
         ObjectNode response = response("손은 화면 밖이라 그 동작은 확인할 수 없어요.", "explain", "continue");
-        ObjectNode context = previous.path("context").deepCopy();
+        ObjectNode context = (ObjectNode) previous.path("context").deepCopy();
         var focus = context.putObject("focus").put("label", "붙잡는 말").putNull("utterance_ref")
                 .put("basis", "scene").put("scope", "local").put("pattern", "isolated");
         focus.putArray("evidence_refs").add("l1");

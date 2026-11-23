@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 
 /**
  * 카탈로그를 classpath JSON 한 벌에서 읽는다.
@@ -49,7 +50,7 @@ class ClasspathAdmissionsCatalog implements AdmissionsCatalog {
         ClassPathResource resource = new ClassPathResource("admissions/notices.json");
         try (InputStream input = resource.getInputStream()) {
             payload = mapper.readValue(input, AdmissionsResponse.class);
-        } catch (IOException exception) {
+        } catch (IOException | JacksonException exception) {
             throw new IllegalStateException("cannot load admissions/notices.json", exception);
         }
         validate(payload);

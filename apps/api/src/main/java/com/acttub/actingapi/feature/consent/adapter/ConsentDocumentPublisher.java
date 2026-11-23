@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.consent.adapter;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -216,7 +215,7 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
 
     public static final class StrictBooleanDeserializer extends ValueDeserializer<Boolean> {
         @Override
-        public Boolean deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+        public Boolean deserialize(JsonParser parser, DeserializationContext context) {
             if (parser.currentToken() == JsonToken.VALUE_TRUE) {
                 return true;
             }

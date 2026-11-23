@@ -60,7 +60,7 @@ class DialogueNoteTest {
         ObjectNode old = (ObjectNode) StructuredJson.resource("/coaching/handoff.json").deepCopy();
         ObjectNode next = old.deepCopy();
         next.put("schema_version", "acttub.coach_handoff.v2");
-        ObjectNode context = old.path("coaching_state").path("context").deepCopy();
+        ObjectNode context = (ObjectNode) old.path("coaching_state").path("context").deepCopy();
         context.putNull("reading");
         next.set("context", context);
         next.remove("coaching_state");

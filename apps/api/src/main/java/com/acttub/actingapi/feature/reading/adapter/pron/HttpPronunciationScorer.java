@@ -21,6 +21,7 @@ import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.core.JacksonException;
 
 /** 채점 서비스(apps/pron) {@code POST /score} 를 multipart 로 부른다. 같은 compose 네트워크 안의 내부 주소다. */
 public class HttpPronunciationScorer implements PronunciationScorer {
@@ -55,7 +56,7 @@ public class HttpPronunciationScorer implements PronunciationScorer {
                 throw new IllegalStateException("pronunciation scorer returned " + response.statusCode());
             }
             return parse(mapper.readTree(response.body()));
-        } catch (IOException failure) {
+        } catch (IOException | JacksonException failure) {
             throw new IllegalStateException("pronunciation scorer failed", failure);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();

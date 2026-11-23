@@ -76,8 +76,9 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
             FailureReporter failureReporter,
             LlmTelemetry telemetry) {
         this.gateway = gateway;
-        this.mapper = mapper.copy()
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        this.mapper = mapper.rebuild()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
         this.model = model;
         this.activeTimeout = activeTimeout;
         this.pollInterval = pollInterval;

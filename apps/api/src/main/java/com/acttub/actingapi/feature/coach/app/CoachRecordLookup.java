@@ -295,7 +295,7 @@ public final class CoachRecordLookup {
             if (item.path("id").equals(fact.segment().path("id"))) segment = (ObjectNode) item;
         }
         if (segment == null) {
-            segment = fact.segment().deepCopy();
+            segment = (ObjectNode) fact.segment().deepCopy();
             for (String field : List.of("utterance_ids", "event_ids", "limitation_ids")) segment.putArray(field);
             // 원본 구간의 전체 참조 목록으로 오해하지 않게 페이지별 참조임을 표시한다.
             segment.put("refs_scope", "this_page");

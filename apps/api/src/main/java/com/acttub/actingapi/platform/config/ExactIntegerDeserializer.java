@@ -1,6 +1,5 @@
 package com.acttub.actingapi.platform.config;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.function.Function;
@@ -32,7 +31,7 @@ final class ExactIntegerDeserializer<T extends Number> extends StdDeserializer<T
     }
 
     @Override
-    public T deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+    public T deserialize(JsonParser parser, DeserializationContext context) {
         Object input;
         BigDecimal decimal;
         JsonToken token = parser.currentToken();
@@ -41,8 +40,8 @@ final class ExactIntegerDeserializer<T extends Number> extends StdDeserializer<T
                 decimal = parser.getDecimalValue();
                 input = parser.getNumberValue();
             } else if (token == JsonToken.VALUE_STRING) {
-                input = parser.getText();
-                decimal = new BigDecimal(parser.getText().strip());
+                input = parser.getString();
+                decimal = new BigDecimal(parser.getString().strip());
             } else {
                 input = parser.readValueAs(Object.class);
                 throw invalid(parser, input);
@@ -55,7 +54,7 @@ final class ExactIntegerDeserializer<T extends Number> extends StdDeserializer<T
             }
             return converter.apply(integer);
         } catch (ArithmeticException | NumberFormatException exception) {
-            input = token == JsonToken.VALUE_STRING ? parser.getText() : parser.getNumberValue();
+            input = token == JsonToken.VALUE_STRING ? parser.getString() : parser.getNumberValue();
             throw invalid(parser, input);
         }
     }

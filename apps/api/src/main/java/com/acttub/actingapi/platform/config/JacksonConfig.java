@@ -1,6 +1,5 @@
 package com.acttub.actingapi.platform.config;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -8,13 +7,16 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 import tools.jackson.core.JsonGenerator;
-import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
 import tools.jackson.databind.cfg.CoercionAction;
 import tools.jackson.databind.cfg.CoercionInputShape;
+import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.module.SimpleModule;
 import tools.jackson.databind.type.LogicalType;
-import org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -42,19 +44,17 @@ public class JacksonConfig {
             DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSS'Z'").withZone(ZoneOffset.UTC);
 
     @Bean
-    Jackson2ObjectMapperBuilderCustomizer acttubJacksonCustomizer() {
+    JsonMapperBuilderCustomizer acttubJacksonCustomizer() {
         SimpleModule module = new SimpleModule("acttub-contract");
         module.addSerializer(Instant.class, new ValueSerializer<>() {
             @Override
-            public void serialize(Instant value, JsonGenerator gen, SerializationContext serializers)
-                    throws IOException {
+            public void serialize(Instant value, JsonGenerator gen, SerializationContext serializers) {
                 gen.writeString(MICROS_UTC.format(value));
             }
         });
         module.addSerializer(OffsetDateTime.class, new ValueSerializer<>() {
             @Override
-            public void serialize(OffsetDateTime value, JsonGenerator gen, SerializationContext serializers)
-                    throws IOException {
+            public void serialize(OffsetDateTime value, JsonGenerator gen, SerializationContext serializers) {
                 gen.writeString(MICROS_UTC.format(value.toInstant()));
             }
         });
@@ -69,15 +69,11 @@ public class JacksonConfig {
         module.addDeserializer(BigInteger.class, ExactIntegerDeserializer.bigIntegers());
 
         return builder -> {
-            // modules() 는 Spring 이 자동으로 붙이던 JavaTimeModule 을 끊는다 — 요청 본문 Instant 가 422 가 됐다.
-            builder.modulesToInstall(module);
-            builder.featuresToDisable(
-                    tools.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS,
-                    tools.jackson.databind.MapperFeature.ALLOW_COERCION_OF_SCALARS);
-            builder.featuresToEnable(
-                    tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-            builder.postConfigurer(objectMapper -> {
-                var textual = objectMapper.coercionConfigFor(LogicalType.Textual);
+            builder.addModule(module);
+            builder.disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS);
+            builder.disable(MapperFeature.ALLOW_COERCION_OF_SCALARS);
+            builder.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+            builder.withCoercionConfig(LogicalType.Textual, textual -> {
                 textual.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail);
                 textual.setCoercion(CoercionInputShape.Float, CoercionAction.Fail);
                 textual.setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);

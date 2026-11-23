@@ -191,7 +191,7 @@ final class StructuredCoachEngine {
         else { input.putObject("user_message").put("id", actorId).put("role", "actor").put("text", actorText); }
         input.set("actor_context", VideoRecord.isRecord(session.observationPack())
                 ? session.observationPack().path("actor_context").deepCopy() : StructuredJson.MAPPER.createObjectNode());
-        ObjectNode visibleState = state.deepCopy();
+        ObjectNode visibleState = (ObjectNode) state.deepCopy();
         visibleState.remove("source_catalog");
         visibleState.remove(List.of("proposals", "attempts", "active_proposal_id"));
         visibleState.set("context", DialogueState.context(state));

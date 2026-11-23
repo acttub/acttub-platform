@@ -45,7 +45,7 @@ final class DialogueState {
     }
 
     static ObjectNode context(JsonNode state) {
-        ObjectNode context = state.path("context").deepCopy();
+        ObjectNode context = (ObjectNode) state.path("context").deepCopy();
         context.putNull("reading");
         // An old coach suggestion must never become the actor's direction in the new dialogue.
         if ("coach_proposed".equals(LenientJson.asText(context.path("direction").path("origin")))) {
@@ -170,11 +170,11 @@ final class DialogueState {
         JsonNode link = response.path("reply_link");
         String message = LenientJson.asText(response.path("message")).strip();
         // Reuse revision, length and reference validation, without exposing legacy practice operations.
-        ObjectNode adapted = response.deepCopy();
+        ObjectNode adapted = (ObjectNode) response.deepCopy();
         adapted.remove("reply_link");
         adapted.putArray("proposal_changes");
         adapted.putArray("attempt_changes");
-        ObjectNode base = previous.deepCopy();
+        ObjectNode base = (ObjectNode) previous.deepCopy();
         base.set("context", context(previous));
         // Preserve old history separately; active proposals must not constrain a new conversation focus.
         JsonNode oldProposals = base.path("proposals").deepCopy();

@@ -62,7 +62,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_SPLIT_REPLAY", matches = "1")
 class ScriptSplitReplayTest {
-    private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+    private static final ObjectMapper JSON = tools.jackson.databind.json.JsonMapper.builder().enable(SerializationFeature.INDENT_OUTPUT).build();
     private static final Path INPUT = Path.of(env("ACTTUB_REPLAY_INPUT"));
     private static final Path CURRENT = Path.of(env("ACTTUB_REPLAY_CURRENT"));
     private static final Path CACHE = Path.of(env("ACTTUB_REPLAY_CACHE"));

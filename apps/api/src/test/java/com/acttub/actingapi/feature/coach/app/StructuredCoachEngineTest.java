@@ -48,7 +48,7 @@ class StructuredCoachEngineTest {
             }
             if (selected != null) {
                 refs.add(LenientJson.asText(selected.path("id")));
-                ObjectNode context = input.path("coaching_state").path("context").deepCopy();
+                ObjectNode context = (ObjectNode) input.path("coaching_state").path("context").deepCopy();
                 ObjectNode focus = context.putObject("focus").put("label", "가지 마 대사").putNull("utterance_ref");
                 focus.putArray("evidence_refs").add(LenientJson.asText(selected.path("id")));
                 output.set("context_update", context);
@@ -151,7 +151,7 @@ class StructuredCoachEngineTest {
         }).reply(result.session(), "응", UUID.randomUUID());
     }
     @Test void denseSingleSegmentCanBeReadAcrossBoundedPagesWithoutLosingFacts() {
-        ObjectNode record = session().observationPack().deepCopy();
+        ObjectNode record = (ObjectNode) session().observationPack().deepCopy();
         ObjectNode template = (ObjectNode) record.path("events").get(0).deepCopy();
         var events = record.putArray("events");
         ObjectNode segment = (ObjectNode) record.path("segments").get(0).deepCopy();
