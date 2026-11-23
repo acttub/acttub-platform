@@ -344,8 +344,9 @@ guest_id="$(sed -n 's/.*"user":{"id":"\([^"]*\)".*/\1/p' <<< "$guest")"
 [ -n "$token" ] && [ -n "$guest_id" ] || fail "게스트 응답에서 토큰·ID 를 읽지 못했다: $guest"
 compose exec -T proxy wget -q -O /dev/null --header 'X-Acttub-Client: app/99.0.0' --header "Authorization: Bearer $token" \
   --header "X-Acttub-Trace-Id: ffffffffffffffffffffffffffffffff" "http://127.0.0.1:3000/v2/me?probe=$log_probe" || true
+# 결제를 켜지 않은 smoke 에서는 빈 주소로 302 를 받아 wget 이 따라가다 실패한다. 로그 줄만 보면 되므로 버린다.
 compose exec -T proxy wget -q -O /dev/null --header 'X-Acttub-Client: app/99.0.0' \
-  "http://127.0.0.1:3000/v2/billing/web/checkout/state-$log_probe/success?authKey=$log_probe" || true
+  "http://127.0.0.1:3000/v2/billing/web/checkout/state-$log_probe/success?authKey=$log_probe" 2>/dev/null || true
 compose logs --no-color --no-log-prefix proxy > "$WORK/proxy.log"
 compose logs --no-color --no-log-prefix api > "$WORK/api.log"
 python3 - "$guest_id" "$log_probe" "$WORK/proxy.log" "$WORK/api.log" <<'PY' || fail "로그 필드가 맞지 않는다(위 메시지)"
