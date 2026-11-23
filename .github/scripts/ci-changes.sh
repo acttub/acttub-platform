@@ -18,7 +18,7 @@ printf '%s\n' "$files"
 api=false; monitoring=false; restore=false
 while IFS= read -r f; do
   case "$f" in
-    .github/workflows/ci.yml|.github/scripts/ci-changes.sh) api=true; monitoring=true; restore=true ;;
+    .github/workflows/ci.yml|.github/scripts/ci-changes.sh|.github/actions/*) api=true; monitoring=true; restore=true ;;
     apps/api/*) api=true ;;
   esac
   case "$f" in
