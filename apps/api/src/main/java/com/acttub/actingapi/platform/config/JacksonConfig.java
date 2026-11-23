@@ -58,6 +58,14 @@ public class JacksonConfig {
                 gen.writeString(MICROS_UTC.format(value.toInstant()));
             }
         });
+        // Jackson 3 은 java.sql.Date 를 java.util.Date 처럼 UTC 시각 문자열로 쓴다. 네이티브 쿼리가 돌려주는 날짜가
+        // 예전(Jackson 2)처럼 yyyy-MM-dd 로 나가게 한다.
+        module.addSerializer(java.sql.Date.class, new ValueSerializer<>() {
+            @Override
+            public void serialize(java.sql.Date value, JsonGenerator gen, SerializationContext serializers) {
+                gen.writeString(value.toString());
+            }
+        });
         module.addDeserializer(Byte.class, ExactIntegerDeserializer.bytes());
         module.addDeserializer(Byte.TYPE, ExactIntegerDeserializer.bytes());
         module.addDeserializer(Short.class, ExactIntegerDeserializer.shorts());

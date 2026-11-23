@@ -149,7 +149,11 @@ class JacksonDefaultsContractTest {
         }
     }
 
-    private static final String EXPECTED_ZOO = "{\"zeta\":\"마지막 \\\"따옴\\\" /슬래시\\n줄 \u2028 😀\",\"alpha\":7,\"big\":9007199254740993,\"half\":0.5,\"whole\":2.0,\"single\":1.25,\"decimal\":1.10,\"integer\":123456789012345678901234567890,\"flag\":true,\"missing\":null,\"text\":\"\",\"instant\":\"2026-08-06T01:02:03.456789Z\",\"offset\":\"2026-08-06T01:02:03.000000Z\",\"date\":\"2026-01-02\",\"time\":\"03:04:05\",\"local\":\"2026-01-02T03:04:05\",\"zoned\":\"2026-01-02T03:04:05Z\",\"duration\":\"PT1M30S\",\"month\":\"MARCH\",\"utilDate\":\"2023-11-14T22:13:20.123+00:00\",\"timestamp\":\"2023-11-14T22:13:20.123+00:00\",\"sqlDate\":\"2026-01-02\",\"uuid\":\"123e4567-e89b-12d3-a456-426614174000\",\"present\":\"있음\",\"absent\":null,\"list\":[1,\"두\",3.5,false],\"map\":{\"z\":1,\"a\":null,\"m\":[\"x\"]},\"kind\":\"FIRST_KIND\",\"bytes\":\"AQID\",\"letter\":\"ㄱ\",\"nested\":{\"zeta\":\"n\",\"alpha\":2},\"tree\":{\"b\":1,\"a\":[2.5,null]},\"notNumber\":\"NaN\"}";
+    /**
+     * Jackson 2 때와 한 곳만 다르다: {@code java.time.Month} 를 Jackson 2 는 {@code "MARCH"}, Jackson 3 은 0 부터 센
+     * 숫자 {@code 2} 로 쓴다. 코드에 Month 를 JSON 으로 내는 곳이 없어 맞추지 않았다(SOMA-1103 진행 기록).
+     */
+    private static final String EXPECTED_ZOO = "{\"zeta\":\"마지막 \\\"따옴\\\" /슬래시\\n줄 \u2028 😀\",\"alpha\":7,\"big\":9007199254740993,\"half\":0.5,\"whole\":2.0,\"single\":1.25,\"decimal\":1.10,\"integer\":123456789012345678901234567890,\"flag\":true,\"missing\":null,\"text\":\"\",\"instant\":\"2026-08-06T01:02:03.456789Z\",\"offset\":\"2026-08-06T01:02:03.000000Z\",\"date\":\"2026-01-02\",\"time\":\"03:04:05\",\"local\":\"2026-01-02T03:04:05\",\"zoned\":\"2026-01-02T03:04:05Z\",\"duration\":\"PT1M30S\",\"month\":2,\"utilDate\":\"2023-11-14T22:13:20.123+00:00\",\"timestamp\":\"2023-11-14T22:13:20.123+00:00\",\"sqlDate\":\"2026-01-02\",\"uuid\":\"123e4567-e89b-12d3-a456-426614174000\",\"present\":\"있음\",\"absent\":null,\"list\":[1,\"두\",3.5,false],\"map\":{\"z\":1,\"a\":null,\"m\":[\"x\"]},\"kind\":\"FIRST_KIND\",\"bytes\":\"AQID\",\"letter\":\"ㄱ\",\"nested\":{\"zeta\":\"n\",\"alpha\":2},\"tree\":{\"b\":1,\"a\":[2.5,null]},\"notNumber\":\"NaN\"}";
     private static final String EXPECTED_BEAN = "{\"zeta\":\"z\",\"alpha\":1,\"ready\":true,\"computed\":\"z1\"}";
     private static final String EXPECTED_TRAILING = "Text[value=a]";
     private static final String EXPECTED_SECOND_DOCUMENT = "Text[value=a]";
@@ -167,5 +171,10 @@ class JacksonDefaultsContractTest {
     private static final String EXPECTED_ENUM_INDEX = "Choice[kind=FIRST_KIND]";
     private static final String EXPECTED_AMOUNT = "Amount[amount=1.10, ratio=Infinity, count=9007199254740993]";
     private static final String EXPECTED_ARRAY_ROOT = "ERROR";
-    private static final String EXPECTED_DUPLICATE = "ERROR";
+    /**
+     * Jackson 2 와 다르다: 레코드에 같은 키가 두 번 오면 Jackson 2 는 정의 오류("No fallback setter/field defined for
+     * creator property")를 내고 Jackson 3 은 뒤 값을 받는다. HTTP 요청 본문은 트리로 먼저 읽어 뒤 값이 이기므로 옮기기
+     * 전후 같은 응답이다(boot-compare 의 duplicate-key·auth-duplicate-key 요청, SOMA-1103 진행 기록).
+     */
+    private static final String EXPECTED_DUPLICATE = "Text[value=b]";
 }

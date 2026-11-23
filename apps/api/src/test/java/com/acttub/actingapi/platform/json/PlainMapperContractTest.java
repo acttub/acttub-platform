@@ -117,5 +117,10 @@ class PlainMapperContractTest {
     private static final String EXPECTED_STRINGS = "Primitive[count=3, flag=true, ratio=1.5]";
     private static final String EXPECTED_FLOAT_INT = "Primitive[count=3, flag=true, ratio=1.0]";
     private static final String EXPECTED_NUMBER_TEXT = "Text[value=5]";
-    private static final String EXPECTED_DUPLICATE_VALUE = "ERROR";
+    /**
+     * Jackson 2 와 다르다: 레코드에 같은 키가 두 번 오면 Jackson 2 는 정의 오류("No fallback setter/field defined for
+     * creator property")를 내고 Jackson 3 은 뒤 값을 받는다. HTTP 요청 본문은 트리로 먼저 읽어 뒤 값이 이기므로 옮기기
+     * 전후 같은 응답이다(boot-compare 의 duplicate-key·auth-duplicate-key 요청, SOMA-1103 진행 기록).
+     */
+    private static final String EXPECTED_DUPLICATE_VALUE = "Text[value=b]";
 }
