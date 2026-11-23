@@ -333,6 +333,41 @@ if grep -Fq "$pg_probe" <<< "$pg_logs"; then
 fi
 echo "  기본 비활성 · 두 API 경로 JSON 404 · 쿼리 표식 비노출"
 
+# 로그 필드(docs/deploy/DEPLOY-HOME.md 「로그」): 터널 자리(proxy:3000)에서 게스트로 요청 하나를 보내면 nginx 의 두 줄(3000·8080)과
+# API 의 JSON 요청 줄이 같은 trace_id 를 갖고, API 줄에 내부 사용자 ID 가 있다. 쿼리와 카드 등록 주소의 state 는 어느 로그에도 없다.
+step "로그: nginx 두 줄과 API 줄이 trace_id 로 이어지고 사용자 ID·가린 값이 맞다"
+log_probe="log-query-probe-$PROJECT"
+guest="$(compose exec -T proxy wget -q -O - --post-data= --header 'X-Acttub-Client: app/99.0.0' \
+  http://127.0.0.1:3000/v2/auth/guest)" || fail "게스트를 만들지 못했다"
+token="$(sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p' <<< "$guest")"
+guest_id="$(sed -n 's/.*"user":{"id":"\([^"]*\)".*/\1/p' <<< "$guest")"
+[ -n "$token" ] && [ -n "$guest_id" ] || fail "게스트 응답에서 토큰·ID 를 읽지 못했다: $guest"
+compose exec -T proxy wget -q -O /dev/null --header 'X-Acttub-Client: app/99.0.0' --header "Authorization: Bearer $token" \
+  --header "X-Acttub-Trace-Id: ffffffffffffffffffffffffffffffff" "http://127.0.0.1:3000/v2/me?probe=$log_probe" || true
+# 결제를 켜지 않은 smoke 에서는 빈 주소로 302 를 받아 wget 이 따라가다 실패한다. 로그 줄만 보면 되므로 버린다.
+compose exec -T proxy wget -q -O /dev/null --header 'X-Acttub-Client: app/99.0.0' \
+  "http://127.0.0.1:3000/v2/billing/web/checkout/state-$log_probe/success?authKey=$log_probe" 2>/dev/null || true
+compose logs --no-color --no-log-prefix proxy > "$WORK/proxy.log"
+compose logs --no-color --no-log-prefix api > "$WORK/api.log"
+python3 - "$guest_id" "$log_probe" "$WORK/proxy.log" "$WORK/api.log" <<'PY' || fail "로그 필드가 맞지 않는다(위 메시지)"
+import json, sys
+guest_id, probe = sys.argv[1:3]
+proxy_log, api_log = (open(path, encoding="utf-8").read() for path in sys.argv[3:5])
+def lines(text):
+    return [json.loads(l) for l in text.splitlines() if l.startswith("{")]
+proxy = [l for l in lines(proxy_log) if l.get("path") == "/v2/me"]
+assert {l["port"] for l in proxy} == {"3000", "8080"}, f"nginx /v2/me 줄이 3000·8080 둘이 아니다: {proxy}"
+trace = {l["trace_id"] for l in proxy}
+assert len(trace) == 1 and "f" * 32 not in trace, f"nginx 두 줄의 trace_id 가 하나가 아니거나 손님이 보낸 값이다: {trace}"
+api = [l for l in lines(api_log) if l.get("message") == "request" and l.get("route") == "/v2/me"]
+assert api, "API 의 /v2/me 요청 줄(JSON)이 없다"
+assert api[-1]["trace_id"] in trace, f"API 줄의 trace_id 가 nginx 와 다르다: {api[-1]}"
+assert api[-1].get("user_id") == guest_id, f"API 줄에 게스트 ID 가 없다: {api[-1]}"
+assert any(l.get("path") == "/v2/billing/web/checkout/{state}/success" for l in lines(proxy_log)), "카드 등록 주소의 state 를 가리지 않았다"
+assert probe not in proxy_log + api_log, "쿼리나 state 표식이 로그에 남았다"
+print(f"  trace_id {trace.pop()} · user_id {guest_id} · 쿼리·state 표식 비노출")
+PY
+
 # 망 별칭(compose.yml 의 proxy 주석): 진짜 web·api 가 같은 망에 끼어들면 이름이 둘로 풀려 proxy 를 건너뛴다 — 무중단이 조용히
 # 깨지는 자리라 망마다 하나로만 풀리는지 본다. edge 망(터널 자리)은 cloudflared 가 없어 웹 이미지의 getent 로 묻는다.
 step "망 별칭: web 안의 api 와 edge 망의 web 이 proxy 하나로만 풀린다"
@@ -353,7 +388,8 @@ grep -q '@font-face' <<< "$web_body" || fail "pretendard.css 에 @font-face 가 
 step "Flyway 로그: V1 부터 db/migration 의 최대 버전까지 적용"
 latest="$(ls "$MIGRATIONS" | grep -oE '^V[0-9]+' | tr -d V | sort -n | tail -1)"
 logs="$(compose logs --no-color api)"
-printf '%s\n' "$logs" | grep -E 'Migrating schema "public" to version "1 ' >/dev/null \
+# api 로그는 JSON 줄이라 따옴표가 \" 로 나온다(compose 의 LOGGING_STRUCTURED_FORMAT_CONSOLE). 둘 다 받는다.
+printf '%s\n' "$logs" | grep -E 'Migrating schema \\?"public\\?" to version \\?"1 ' >/dev/null \
   || fail "V1 적용 로그가 없다"
 now_at="$(printf '%s\n' "$logs" | grep -oE 'now at version v[0-9]+' | tail -1 | grep -oE '[0-9]+$' || true)"
 [ "$now_at" = "$latest" ] || fail "Flyway 가 v$latest 가 아니라 v${now_at:-?} 에서 멈췄다"
