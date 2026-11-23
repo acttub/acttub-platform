@@ -1,8 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,6 +21,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { EntryCard, MyEntriesResponse, MyEntryCard } from '@/lib/challenge/types';
@@ -75,77 +76,70 @@ export default function ProfileScreen() {
   const photoUri = serverProfile?.photo_url ?? null;
   const bio = serverProfile?.bio?.trim() ?? '';
 
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      void getUserName().then((n) => alive && setName(n?.trim() || null));
-      void (async () => {
-        const now = new Date();
-        // 받는 대로 바로 그린다 — 전에는 셋(리딩은 대본별 회차까지)을 다 받은 뒤에 한꺼번에 그려 프로필이 늦게 떴다(11/2 폰 QA).
-        // 이번 달 연습 수만 셋이 다 온 뒤에 센다.
-        const [groupList, entryList, readingSessions] = await Promise.all([
-          api
-            .listPracticeGroups('all')
-            .then((r) => {
-              if (alive) {
-                setGroups(r.groups);
-                setFailed((f) => ({ ...f, practice: false }));
-              }
-              return r.groups;
-            })
-            .catch(() => {
-              if (alive) setFailed((f) => ({ ...f, practice: true }));
-              return null;
-            }),
-          // 내 참여작은 20개씩이다. 끝까지 읽어 이번 달 챌린지 수와 카드를 같이 만든다(비공개 참여 포함, challenge.browse).
-          (async () => {
-            const all: MyEntryCard[] = [];
-            let cursor: string | undefined;
-            while (alive) {
-              const r = await api.listMyChallengeEntries(undefined, cursor);
-              all.push(...r.entries);
-              if (alive) setEntries([...all]);
-              if (!r.next_cursor) break;
-              cursor = r.next_cursor;
+  useFocusLoad((alive) => {
+    void getUserName().then((n) => alive() && setName(n?.trim() || null));
+    void (async () => {
+      const now = new Date();
+      // 받는 대로 바로 그린다 — 전에는 셋(리딩은 대본별 회차까지)을 다 받은 뒤에 한꺼번에 그려 프로필이 늦게 떴다(11/2 폰 QA).
+      // 이번 달 연습 수만 셋이 다 온 뒤에 센다.
+      const [groupList, entryList, readingSessions] = await Promise.all([
+        api
+          .listPracticeGroups('all')
+          .then((r) => {
+            if (alive()) {
+              setGroups(r.groups);
+              setFailed((f) => ({ ...f, practice: false }));
             }
-            if (alive) setFailed((f) => ({ ...f, entries: false }));
-            return all;
-          })().catch(() => {
-            if (alive) setFailed((f) => ({ ...f, entries: true }));
+            return r.groups;
+          })
+          .catch(() => {
+            if (alive()) setFailed((f) => ({ ...f, practice: true }));
             return null;
           }),
-          // 리딩 회차는 대본별로만 받는다. 이번 달에 연습한 대본만 회차를 읽는다.
-          api
-            .listReadingScripts()
-            .then((r) =>
-              Promise.all(
-                r.scripts
-                  .filter((s) => inMonth(s.last_practiced_at, now))
-                  .map((s) => api.listReadingSessions(s.id).then((x) => x.sessions).catch(() => [])),
-              ),
-            )
-            .then((lists) => lists.flat())
-            .catch(() => null),
-        ]);
-        // 하나라도 못 받으면 틀린 숫자를 세지 않고 지난 숫자(없으면 뼈대)를 둔다.
-        if (!alive || !groupList || !entryList || !readingSessions) return;
-        setCounts(rememberRead('profileMonthCounts', monthPracticeCounts({ groups: groupList, readingSessions, entries: entryList }, now)));
-      })();
-      void api
-        .listSavedEntries()
-        .then((r) => {
-          if (!alive) return;
-          setSaved(r.entries);
-          setFailed((f) => ({ ...f, saved: false }));
-        })
-        .catch(() => alive && setFailed((f) => ({ ...f, saved: true })));
-      return () => {
-        alive = false;
-      };
-      // reloadKey: 「다시 시도」가 이 효과를 다시 돌린다.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reloadKey]),
-  );
+        // 내 참여작은 20개씩이다. 끝까지 읽어 이번 달 챌린지 수와 카드를 같이 만든다(비공개 참여 포함, challenge.browse).
+        (async () => {
+          const all: MyEntryCard[] = [];
+          let cursor: string | undefined;
+          while (alive()) {
+            const r = await api.listMyChallengeEntries(undefined, cursor);
+            all.push(...r.entries);
+            if (alive()) setEntries([...all]);
+            if (!r.next_cursor) break;
+            cursor = r.next_cursor;
+          }
+          if (alive()) setFailed((f) => ({ ...f, entries: false }));
+          return all;
+        })().catch(() => {
+          if (alive()) setFailed((f) => ({ ...f, entries: true }));
+          return null;
+        }),
+        // 리딩 회차는 대본별로만 받는다. 이번 달에 연습한 대본만 회차를 읽는다.
+        api
+          .listReadingScripts()
+          .then((r) =>
+            Promise.all(
+              r.scripts
+                .filter((s) => inMonth(s.last_practiced_at, now))
+                .map((s) => api.listReadingSessions(s.id).then((x) => x.sessions).catch(() => [])),
+            ),
+          )
+          .then((lists) => lists.flat())
+          .catch(() => null),
+      ]);
+      // 하나라도 못 받으면 틀린 숫자를 세지 않고 지난 숫자(없으면 뼈대)를 둔다.
+      if (!alive() || !groupList || !entryList || !readingSessions) return;
+      setCounts(rememberRead('profileMonthCounts', monthPracticeCounts({ groups: groupList, readingSessions, entries: entryList }, now)));
+    })();
+    void api
+      .listSavedEntries()
+      .then((r) => {
+        if (!alive()) return;
+        setSaved(r.entries);
+        setFailed((f) => ({ ...f, saved: false }));
+      })
+      .catch(() => alive() && setFailed((f) => ({ ...f, saved: true })));
+    // reloadKey: 「다시 시도」가 이 효과를 다시 돌린다.
+  }, [reloadKey]);
 
   /** 연습 카드 ⋯ 메뉴 — 기록에서 숨기기(되돌릴 수 있음)와 영구 삭제. 둘 다 목록에서 먼저 빼고 실패하면 다시 읽는다. */
   const reloadGroups = () =>
@@ -545,6 +539,4 @@ const styles = StyleSheet.create({
   titleBelow: { ...type.captionBold, color: palette.text },
   likes: { ...type.micro, color: palette.textMeta },
   metaBelow: { flexShrink: 1, ...type.micro, color: palette.textMeta },
-  more: { alignSelf: 'center' },
-  moreText: { ...type.body2Bold, color: palette.blueDeep },
 });

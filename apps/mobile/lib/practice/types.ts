@@ -50,6 +50,8 @@ export type Practice = {
   stage: PracticeStage;
   analysis_status: AnalysisStatus | null;
   job: PracticeJob | null;
+  /** 회차를 시작한 시각 — 연습한 날은 이 날로 센다(lib/practice/counted). */
+  created_at: string;
 };
 
 /** 회차 상세(GET /v2/practices/{id}). 코치·노트는 PM3가 쓴다. */
@@ -57,7 +59,6 @@ export type PracticeDetail = Practice & {
   video_id: string | null;
   scene: PracticeScene;
   blockage: PracticeBlockage;
-  created_at: string;
   playback_url?: string | null;
   video_purged: boolean;
   conversation_id: string | null;

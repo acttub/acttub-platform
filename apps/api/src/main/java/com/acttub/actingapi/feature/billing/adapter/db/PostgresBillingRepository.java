@@ -22,8 +22,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostgresBillingRepository implements BillingRepository {
     private static final String SUBSCRIPTION_COLUMNS = """
             id, user_id, status, customer_key, billing_key, card_company, card_number, amount,
-            current_period_start, current_period_end, canceled_at, retry_count, next_retry_at, provider
+            current_period_start, current_period_end, canceled_at, retry_count, next_retry_at, provider, plan
             """;
+    private static final String CHECKOUT_COLUMNS = "id, user_id, state_hash, purpose, customer_key, order_id, expires_at, plan";
     private static final String PAYMENT_COLUMNS = """
             id, subscription_id, user_id, order_id, kind, amount, status, period_start, period_end, attempt
             """;
@@ -167,9 +168,10 @@ class PostgresBillingRepository implements BillingRepository {
     @Override
     public void openCheckout(Checkout checkout) {
         transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
-                INSERT INTO billing_checkouts(id,user_id,state_hash,purpose,customer_key,order_id,status,expires_at)
-                VALUES (:id,:userId,:stateHash,:purpose,:customerKey,:orderId,'open',CAST(:expiresAt AS timestamptz))
+                INSERT INTO billing_checkouts(id,user_id,state_hash,purpose,customer_key,order_id,status,expires_at,plan)
+                VALUES (:id,:userId,:stateHash,:purpose,:customerKey,:orderId,'open',CAST(:expiresAt AS timestamptz),:plan)
                 """)
+                .setParameter("plan", checkout.plan().db())
                 .setParameter("id", checkout.id())
                 .setParameter("userId", checkout.userId())
                 .setParameter("stateHash", checkout.stateHash())
@@ -185,16 +187,16 @@ class PostgresBillingRepository implements BillingRepository {
         return transaction.execute(tx -> first(NativeTuples.list(entityManager.createNativeQuery("""
                 UPDATE billing_checkouts SET status='processing', updated_at=CAST(:now AS timestamptz)
                 WHERE state_hash=:stateHash AND status='open' AND expires_at > CAST(:now AS timestamptz)
-                RETURNING id, user_id, state_hash, purpose, customer_key, order_id, expires_at
-                """, Tuple.class)
+                RETURNING
+                """ + CHECKOUT_COLUMNS, Tuple.class)
                 .setParameter("stateHash", stateHash)
                 .setParameter("now", at(now)))).map(PostgresBillingRepository::checkout));
     }
 
     @Override
     public Optional<Checkout> findOpenCheckout(String stateHash, Instant now) {
-        return transaction.execute(tx -> first(NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id, user_id, state_hash, purpose, customer_key, order_id, expires_at FROM billing_checkouts
+        return transaction.execute(tx -> first(NativeTuples.list(entityManager.createNativeQuery("SELECT " + CHECKOUT_COLUMNS + """
+                 FROM billing_checkouts
                 WHERE state_hash=:stateHash AND status='open' AND expires_at > CAST(:now AS timestamptz)
                 """, Tuple.class)
                 .setParameter("stateHash", stateHash)
@@ -235,6 +237,19 @@ class PostgresBillingRepository implements BillingRepository {
                 .setParameter("number", cardNumber)
                 .setParameter("amount", (int) BillingRules.AMOUNT)
                 .setParameter("now", at(now))).get(0).get("id", UUID.class));
+    }
+
+    @Override
+    public void choosePlan(UUID subscriptionId, BillingRules.Plan plan, Instant now) {
+        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
+                UPDATE billing_subscriptions SET plan=:plan, amount=:amount, updated_at=CAST(:now AS timestamptz)
+                WHERE id=:id AND provider='toss' AND status='expired'
+                """)
+                .setParameter("plan", plan.db())
+                .setParameter("amount", (int) plan.amount())
+                .setParameter("now", at(now))
+                .setParameter("id", subscriptionId)
+                .executeUpdate());
     }
 
     @Override
@@ -468,11 +483,11 @@ class PostgresBillingRepository implements BillingRepository {
         }
         // 활성 사용자일 때만 넣는다(탈퇴한 사람의 늦은 웹훅이 줄을 되살리지 않게). 토스로 이용 중인 줄은 WHERE 가 막는다.
         String sql = """
-                INSERT INTO billing_subscriptions(id,user_id,status,provider,store_product_id,store_transaction_id,amount,
+                INSERT INTO billing_subscriptions(id,user_id,status,provider,plan,store_product_id,store_transaction_id,amount,
                     current_period_start,current_period_end,canceled_at,created_at,updated_at)
-                SELECT :id,:userId,:status,:provider,:product,%s,:amount,%s,%s,%s,CAST(:now AS timestamptz),CAST(:now AS timestamptz)
+                SELECT :id,:userId,:status,:provider,:plan,:product,%s,:amount,%s,%s,%s,CAST(:now AS timestamptz),CAST(:now AS timestamptz)
                 WHERE EXISTS (SELECT 1 FROM users WHERE id=:userId AND status='active')
-                ON CONFLICT (user_id) DO UPDATE SET status=EXCLUDED.status, provider=EXCLUDED.provider,
+                ON CONFLICT (user_id) DO UPDATE SET status=EXCLUDED.status, provider=EXCLUDED.provider, plan=EXCLUDED.plan,
                     store_product_id=EXCLUDED.store_product_id, store_transaction_id=EXCLUDED.store_transaction_id,
                     customer_key=NULL, billing_key=NULL, card_company=NULL, card_number=NULL, amount=EXCLUDED.amount,
                     current_period_start=EXCLUDED.current_period_start, current_period_end=EXCLUDED.current_period_end,
@@ -490,6 +505,7 @@ class PostgresBillingRepository implements BillingRepository {
                     .setParameter("status", state.status().db())
                     .setParameter("provider", state.provider())
                     .setParameter("product", state.productId())
+                    .setParameter("plan", BillingRules.Plan.ofStoreProduct(state.productId()).db())
                     .setParameter("amount", (int) BillingRules.storeAmount(state.productId()))
                     .setParameter("now", at(now));
             if (state.storeTransactionId() != null) {
@@ -529,7 +545,8 @@ class PostgresBillingRepository implements BillingRepository {
                 instant(row, "canceled_at"),
                 ((Number) row.get("retry_count")).intValue(),
                 instant(row, "next_retry_at"),
-                row.get("provider", String.class));
+                row.get("provider", String.class),
+                BillingRules.Plan.ofDb(row.get("plan", String.class)));
     }
 
     private static Checkout checkout(Tuple row) {
@@ -540,7 +557,8 @@ class PostgresBillingRepository implements BillingRepository {
                 BillingRules.Purpose.of(row.get("purpose", String.class)),
                 row.get("customer_key", String.class),
                 row.get("order_id", String.class),
-                instant(row, "expires_at"));
+                instant(row, "expires_at"),
+                BillingRules.Plan.ofDb(row.get("plan", String.class)));
     }
 
     private static Payment payment(Tuple row) {

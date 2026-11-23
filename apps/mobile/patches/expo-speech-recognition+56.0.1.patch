@@ -1,3 +1,44 @@
+diff --git a/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoAudioRecorder.kt b/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoAudioRecorder.kt
+index aaa462a..f789829 100644
+--- a/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoAudioRecorder.kt
++++ b/node_modules/expo-speech-recognition/android/src/main/java/expo/modules/speechrecognition/ExpoAudioRecorder.kt
+@@ -143,12 +143,14 @@ class ExpoAudioRecorder(
+ 
+     override fun start() {
+         createRecorder().apply {
+-            audioRecorder = this
+-
+             // First check whether the above object actually initialized
++            // acttub SOMA-1091: 마이크를 못 잡아 초기화되지 않은 녹음기는 들고 있지 않는다. 들고 있으면 stop() 이
++            // "stop() called on an uninitialized AudioRecord" 로 앱을 껐다(안드로이드 리딩 녹음 회차).
+             if (this.state != AudioRecord.STATE_INITIALIZED) {
++                release()
+                 return
+             }
++            audioRecorder = this
+ 
+             this.startRecording()
+             isRecordingAudio = true
+@@ -163,8 +165,17 @@ class ExpoAudioRecorder(
+ 
+     override fun stop() {
+         isRecordingAudio = false
+-        audioRecorder?.stop()
+-        audioRecorder?.release()
++        // acttub SOMA-1091: 녹음 중이 아닌 녹음기를 멈추면 IllegalStateException 으로 앱이 꺼진다 — 상태를 보고, 그래도 나면 기록만 한다.
++        audioRecorder?.let { recorder ->
++            try {
++                if (recorder.state == AudioRecord.STATE_INITIALIZED) {
++                    recorder.stop()
++                }
++            } catch (e: IllegalStateException) {
++                Log.w(TAG, "AudioRecord.stop() failed", e)
++            }
++            recorder.release()
++        }
+         audioRecorder = null
+         recordingThread = null
+         if (outputFilePath != null) {
 diff --git a/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.h b/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.h
 new file mode 100644
 index 0000000..7a3ebee

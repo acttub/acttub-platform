@@ -1,0 +1,63 @@
+# Fixture: compose.logs.yml exactly as rendered by commit 8e3261cf (SOMA-1095). Do not edit.
+# Added to the release only when monitoring.json has "logs". Without it, apply removes alloy and
+# socket-proxy as orphans.
+services:
+  alloy:
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+    command:
+      - run
+      - /etc/acttub/config.alloy
+      - --storage.path=/data
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --disable-reporting
+    volumes:
+      - ${RELEASE_DIR:?}/alloy:/etc/acttub:ro
+      # Read positions survive restarts so lines are neither resent nor skipped. Not the image's
+      # /var/lib/alloy/data: that is owned by uid 473, which root cannot write without capabilities.
+      - alloy:/data
+    # Docker API only through socket-proxy (ADR-039); Cloud Loki through logs.
+    networks: [logs, docker-api]
+    depends_on: [socket-proxy]
+    mem_limit: 256m
+    cpus: 0.5
+
+  # The only holder of the Docker socket. Every method except the GET/HEAD reads below is refused.
+  socket-proxy:
+    image: wollomatic/socket-proxy:1.13.2@sha256:ff95d6ff6c27853005ef85eb8f4ab5923dc3d2f1e055f98fb6aeeaceec3fe848
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+    # The image's 65534 is not in the host docker group; root owns the socket, so no capability is needed.
+    user: "0:0"
+    command:
+      - -listenip=0.0.0.0
+      - -allowfrom=alloy
+      - -allowGET=(/_ping|/v1\.[0-9]+/(_ping|version|networks|containers/json|containers/[0-9a-f]{64}/(json|logs)))
+      - -allowHEAD=(/_ping|/v1\.[0-9]+/_ping)
+      - -loglevel=WARN
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-api]
+    mem_limit: 32m
+    cpus: 0.25
+
+networks:
+  # Outbound HTTPS to Cloud Loki only; no other monitoring or app network.
+  logs: {}
+  # alloy and socket-proxy only; no route out.
+  docker-api:
+    internal: true
+
+volumes:
+  alloy: {}

@@ -62,6 +62,11 @@ public interface BillingRepository {
     UUID saveCard(UUID userId, String customerKey, String sealedBillingKey, String cardCompany, String cardNumber,
             Instant now);
 
+    /**
+     * 첫 결제 직전에 고른 요금제와 그 금액을 적는다. 아직 구독 전(expired)인 토스 줄만 바뀐다 — 이용 중인 구독의 요금제는 바꾸지 않는다.
+     */
+    void choosePlan(UUID subscriptionId, BillingRules.Plan plan, Instant now);
+
     /** 첫 결제 성공 — active 와 새 기간. */
     void activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now);
 
@@ -141,7 +146,8 @@ public interface BillingRepository {
             Instant canceledAt,
             int retryCount,
             Instant nextRetryAt,
-            String provider) {
+            String provider,
+            BillingRules.Plan plan) {
         public boolean toss() {
             return BillingRules.PROVIDER_TOSS.equals(provider);
         }
@@ -154,7 +160,8 @@ public interface BillingRepository {
             BillingRules.Purpose purpose,
             String customerKey,
             String orderId,
-            Instant expiresAt) {
+            Instant expiresAt,
+            BillingRules.Plan plan) {
     }
 
     record Payment(

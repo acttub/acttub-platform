@@ -65,6 +65,11 @@ public final class AdPicker {
         if (!viewer.practiced() || viewer.pro()) {
             return Pick.none(slot);
         }
+        // 전면 칸은 AdMob 전면 광고만 띄운다 — 학원·우리 앱 광고에는 전면 규격이 없다. 연습 중 배너 A/B 비율과 상관없이 칸 스위치로만
+        // 켜고 끈다(SOMA-1085).
+        if (slot.fullScreen()) {
+            return new Pick(Kind.NETWORK, slot, null);
+        }
         if (slot.phase() == AdSlot.Phase.PRACTICE && !viewer.practiceOn()) {
             return Pick.none(slot);
         }

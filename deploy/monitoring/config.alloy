@@ -1,0 +1,134 @@
+// Template rendered by manage.py; @...@ is replaced with the selected environments and the Cloud Loki endpoint.
+// Logs leave the home server, so drop noise and mask secrets here, before loki.write.
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+discovery.docker "apps" {
+  // Docker API only through socket-proxy, which passes reads only (ADR-039).
+  host = "tcp://socket-proxy:2375"
+}
+
+discovery.relabel "apps" {
+  targets = discovery.docker.apps.targets
+
+@ENVIRONMENT_RULES@
+
+  // Only selected app projects and their api/web/proxy services; db, backup, tunnel and other host containers are dropped.
+  rule {
+    source_labels = ["environment"]
+    regex         = "dev|prod"
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "api|web|proxy"
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "apps" {
+  host       = "tcp://socket-proxy:2375"
+  targets    = discovery.relabel.apps.output
+  forward_to = [loki.process.apps.receiver]
+}
+
+// Host journal: only the kernel and the Docker daemon. matches is AND-only, so one reader per target;
+// both select at read time and never forward other units (sshd, cron, other services on this host).
+// The host is shared by dev and prod, like the host metrics' environment="shared".
+loki.source.journal "kernel" {
+  path       = "/var/log/journal"
+  matches    = "_TRANSPORT=kernel"
+  labels     = {environment = "shared", service = "kernel"}
+  forward_to = [loki.process.apps.receiver]
+}
+
+loki.source.journal "docker" {
+  path       = "/var/log/journal"
+  matches    = "_SYSTEMD_UNIT=docker.service"
+  labels     = {environment = "shared", service = "docker.service"}
+  forward_to = [loki.process.apps.receiver]
+}
+
+// Container and host lines share the same drop/mask rules.
+loki.process "apps" {
+  forward_to = [loki.write.cloud.receiver]
+
+  // Cloud Loki rejects lines older than 7 days with 400 and the whole batch is dropped without retry,
+  // e.g. when a long-lived container's file is read from the start. Drop them first (6.5 days, 156h).
+  stage.drop {
+    older_than          = "156h"
+    drop_counter_reason = "too_old"
+  }
+
+  // loki.source.journal adds job="loki.source.journal.<name>"; service already says it.
+  stage.label_drop {
+    values = ["job"]
+  }
+
+  // External uptime checks hit /health every minute; nginx /ping is already unlogged.
+  // Plain nginx request line (before JSON logs), then nginx "path" / api "route" JSON fields.
+  stage.drop {
+    expression          = "\"(GET|HEAD) /(health|actuator)[/? ]"
+    drop_counter_reason = "health"
+  }
+  stage.drop {
+    expression          = "\"(path|route)\":\"/(health|actuator)[/\"]"
+    drop_counter_reason = "health"
+  }
+
+  // Each capture group is replaced; key names stay in non-capturing groups. An empty replace omits the group.
+  // Query strings carry search words and callback keys. JSON access lines have none; plain access lines
+  // and nginx error lines (request/upstream/referrer) still do.
+  stage.replace {
+    expression = "\"(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) [^\"?\\s]*(\\?[^\"\\s]*)"
+    replace    = ""
+  }
+  stage.replace {
+    expression = "(?:upstream|referrer): \"[^\"?]*(\\?[^\"]*)\""
+    replace    = ""
+  }
+  stage.replace {
+    expression = "(?i)\\bbearer\\s+([A-Za-z0-9._~+/=-]+)"
+    replace    = "[REDACTED]"
+  }
+  stage.replace {
+    expression = "\\b(eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]*)"
+    replace    = "[REDACTED]"
+  }
+  stage.replace {
+    expression = "(?i)(?:^|[?&;\\s])(?:token|access_token|refresh_token|id_token|code|state|authkey|key|secret|password|signature|sig|x-amz-signature|x-amz-credential|x-amz-security-token)=([^&\\s\"']+)"
+    replace    = "[REDACTED]"
+  }
+  stage.replace {
+    expression = "(?i)\"(?:password|passwd|secret|token|access_token|refresh_token|id_token|authorization|cookie|api_key|apikey|authkey|client_secret)\"\\s*:\\s*\"([^\"]*)\""
+    replace    = "[REDACTED]"
+  }
+  stage.replace {
+    expression = "([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,})"
+    replace    = "[EMAIL]"
+  }
+
+  // Loki rejects oversized lines and a rejected batch is not retried.
+  stage.truncate {
+    rule {
+      limit  = "64KiB"
+      suffix = "...[TRUNCATED]"
+    }
+  }
+}
+
+loki.write "cloud" {
+  endpoint {
+    url = "@LOKI_URL@"
+    basic_auth {
+      username      = "@LOKI_USER@"
+      password_file = "/etc/acttub/loki-token"
+    }
+  }
+}

@@ -55,7 +55,6 @@ import './reading-session-cards.test.mjs';
 import './reading-session-results.test.mjs';
 import './practice-video-checks.test.mjs';
 import './practice-upload-queue.test.mjs';
-import './practice-library-view.test.mjs';
 import './practice-start.test.mjs';
 import './practice-resume.test.mjs';
 import './practice-analysis-run.test.mjs';

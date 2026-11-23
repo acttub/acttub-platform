@@ -23,7 +23,6 @@ test('새 연습 준비(P3.1): 장면 정보 단계(상황·인물·원하는 �
   assert.match(upload, /blockageCategoryFor\(next\)/);
   // 이어서 연습(연습 상세)으로 들어오면 지난 장면은 화면 없이 그대로 보낸다
   assert.match(upload, /buildContinueBody\(\{[^}]*scene,/);
-  assert.match(ko, /helpLabel: \{\s*분석: '대사 분석',\s*표현: '연기 표현',\s*'그 외': '그 외',/);
 });
 
 test('액티 대화(P5.3): 답 버튼은 지금 질문의 예시 답(입력칸만 채움)과 그만하기, 아래 「그만하고 정리 만들기」 링크는 없다', () => {

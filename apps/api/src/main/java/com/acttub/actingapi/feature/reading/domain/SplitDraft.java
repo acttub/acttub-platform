@@ -1028,6 +1028,16 @@ public final class SplitDraft {
         return names;
     }
 
+    /**
+     * 다른 사람의 나누기 결과를 재사용할 때의 제목. 순서는 나누기와 같다(요청 제목 → 모델이 찾은 제목 → 내 파일명 → 제목 없는 대본).
+     * 원본의 제목은 원본 요청에 제목이 없었고 원본 파일명에서 나온 것도 아닐 때만 모델이 글에서 찾은 제목으로 보고 쓴다 — 남이 붙인 제목·파일명은 옮기지 않는다.
+     */
+    public static String reusedTitle(String requested, String sourceTitle, String sourceRequested, String sourceFileName, String fileName) {
+        boolean modelFound = sourceTitle != null && (sourceRequested == null || sourceRequested.isBlank())
+                && !sourceTitle.equals(fileTitle(sourceFileName));
+        return title(requested, modelFound ? sourceTitle : null, fileName);
+    }
+
     /** 요청 제목 → 모델이 찾은 제목 → 확장자를 뺀 파일명 → 제목 없는 대본. 대사는 제목 후보가 아니다. */
     private static String title(String requested, String modelTitle, String fileName) {
         String title = requested != null && !requested.isBlank() ? requested.strip()

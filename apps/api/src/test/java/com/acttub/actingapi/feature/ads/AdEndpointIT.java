@@ -11,7 +11,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,8 +21,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -32,14 +29,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "ACCOUNT_HOUSEKEEPING_ENABLED=false", "ADS_PRACTICE_SLOT_PERCENT=0"})
 @AutoConfigureMockMvc
 class AdEndpointIT {
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("ad_endpoint");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -141,6 +130,24 @@ class AdEndpointIT {
             assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("DIRECT");
         } finally {
             jdbc.update("UPDATE ad_slot_switches SET enabled=true");
+        }
+    }
+
+    @Test
+    @DisplayName("전면 칸은 스위치 줄이 없으면 NONE, enabled=true 줄을 넣으면 AdMob(NETWORK) — 학원 광고가 있어도 붙이지 않는다 (SOMA-1085)")
+    void fullScreenSlotNeedsASwitchRow() throws Exception {
+        insertAd("direct", "{reading_done_full}", "all", "https://cdn/banner.png", null);
+        finishReading();
+        try {
+            assertThat(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind").asText()).isEqualTo("NONE");
+            jdbc.update("INSERT INTO ad_slot_switches(slot_key, enabled) VALUES ('reading_done_full', true)");
+            var pick = json(get("/v2/ads").param("slot", "reading_done_full"), 200);
+            assertThat(pick.path("kind").asText()).isEqualTo("NETWORK");
+            assertThat(pick.path("ad").isNull()).isTrue();
+            jdbc.update("UPDATE ad_slot_switches SET enabled=false WHERE slot_key='reading_done_full'");
+            assertThat(json(get("/v2/ads").param("slot", "reading_done_full"), 200).path("kind").asText()).isEqualTo("NONE");
+        } finally {
+            jdbc.update("DELETE FROM ad_slot_switches WHERE slot_key='reading_done_full'");
         }
     }
 

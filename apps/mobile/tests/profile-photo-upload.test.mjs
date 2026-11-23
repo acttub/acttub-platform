@@ -58,6 +58,16 @@ test('포트폴리오 사진은 비율을 그대로 두고 받은 photo_id 로 �
   assert.deepEqual(state.calls.find(([name]) => name === 'portfolioComplete'), ['portfolioComplete', 'ph-1']);
 });
 
+test('고른 뒤 올리기 직전에만 onPicked 를 부른다 — 화면은 그때부터 「올리는 중」이다', async () => {
+  const order = [];
+  await photo.pickAndUploadPortfolioPhoto(() => order.push(state.calls.map(([name]) => name).join(',')));
+  assert.deepEqual(order, ['pick']);
+  state.picked = { canceled: true, assets: [] };
+  let called = false;
+  assert.equal(await photo.pickAndUploadProfilePhoto(() => (called = true)), null);
+  assert.equal(called, false);
+});
+
 test('고르기를 취소하면 아무것도 올리지 않는다', async () => {
   state.picked = { canceled: true, assets: [] };
   assert.equal(await photo.pickAndUploadProfilePhoto(), null);

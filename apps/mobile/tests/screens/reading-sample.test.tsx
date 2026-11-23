@@ -55,7 +55,7 @@ test('서버 예시 목록을 보여 주고 칩으로 바꿔 본다', async () =
   expect(screen.getByText('이 대본으로 해 볼까요?')).toBeOnTheScreen();
   await waitFor(() => expect(screen.getAllByText('복도, 아침').length).toBeGreaterThan(0));
   expect(screen.getByText('오늘 발표 너야?')).toBeOnTheScreen();
-  expect(screen.getByText('하린 · 도윤 · 2인 대화 · 대사 9줄')).toBeOnTheScreen();
+  expect(screen.getByText('하린 · 도윤 · 2인 대화 · 대사 9개')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('radio', { name: '버스 정류장' }));
   expect(screen.getByText('버스가 또 늦는다.')).toBeOnTheScreen();
   expect(screen.queryByRole('radio', { name: '옥상, 밤' })).toBeNull();

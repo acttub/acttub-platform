@@ -29,6 +29,11 @@ function markReady() {
 /** 프로필을 받기 전 기본값 — 청소년 기준(G·미성년·비맞춤). */
 let current: AdRequestConfig = adRequestConfigFor(null, '1970-01-01');
 
+/** 지금 프로필 나이로 맞춤 광고를 끄는가(청소년·생년월일 모름이면 true). 전면 광고 요청 옵션에 쓴다. */
+export function nonPersonalizedAdsOnly(): boolean {
+  return current.requestNonPersonalizedAdsOnly;
+}
+
 function applyRequestConfiguration(mobileAds: { setRequestConfiguration: (c: object) => Promise<void> }) {
   return mobileAds.setRequestConfiguration({
     maxAdContentRating: current.maxAdContentRating,
@@ -83,4 +88,51 @@ export function loadBannerModule(): {
   } catch {
     return null;
   }
+}
+
+/**
+ * AdMob 전면 광고를 불러와 띄운다(SOMA-1085). 닫히면 'shown', 못 불러오면(오류·시간 초과·모듈 없음) 'skipped'.
+ * loadTimeoutMs 안에 못 불러오면 그 뒤에 불러와져도 띄우지 않는다 — 사용자가 이미 다음 화면으로 갔을 수 있다.
+ * 건너뛰기 시간(5초)은 AdMob 앱 설정 「높은 참여도 광고」를 끈 값이다 — 앱이 정하지 못한다.
+ */
+export function showInterstitial(unitId: string, nonPersonalized: boolean, loadTimeoutMs = 4000): Promise<'shown' | 'skipped'> {
+  return new Promise((resolve) => {
+    let module: any;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      module = require('react-native-google-mobile-ads');
+    } catch {
+      resolve('skipped');
+      return;
+    }
+    const { InterstitialAd, AdEventType } = module;
+    let settled = false;
+    let loaded = false;
+    const unsubscribers: (() => void)[] = [];
+    const finish = (result: 'shown' | 'skipped') => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      if (!loaded) finish('skipped');
+    }, loadTimeoutMs);
+    try {
+      const ad = InterstitialAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: nonPersonalized });
+      unsubscribers.push(
+        ad.addAdEventListener(AdEventType.LOADED, () => {
+          if (settled) return;
+          loaded = true;
+          Promise.resolve(ad.show()).catch(() => finish('skipped'));
+        }),
+        ad.addAdEventListener(AdEventType.CLOSED, () => finish('shown')),
+        ad.addAdEventListener(AdEventType.ERROR, () => finish('skipped')),
+      );
+      ad.load();
+    } catch {
+      finish('skipped');
+    }
+  });
 }

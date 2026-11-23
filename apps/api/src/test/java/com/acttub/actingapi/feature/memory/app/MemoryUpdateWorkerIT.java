@@ -18,7 +18,6 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,8 +29,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** 공개 워커와 실제 저장 계약에서 늦은 모델 응답의 Lease 경합을 검증한다. */
@@ -40,14 +37,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
 class MemoryUpdateWorkerIT {
     private static final Instant NOW = Instant.parse("2026-09-08T01:02:03Z");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("memory_worker_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired JdbcTemplate jdbc;
     @Autowired DataSource dataSource;

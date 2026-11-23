@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView, type VideoSource } from 'expo-video';
 
@@ -6,7 +6,7 @@ import { palette } from '@/constants/palette';
 import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import type { SceneContext } from '@/lib/api';
-import { translate as t, translateList } from '@/lib/i18n';
+import { translate as t } from '@/lib/i18n';
 import { summaryRows } from '@/lib/practice/scene-summary';
 import { limitVideoBuffer } from '@/lib/video-memory';
 import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events';
@@ -17,58 +17,6 @@ import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events'
  * 목업에서 세 화면이 같은 진행 줄과 '영상·장면 보기' 접이식을 쓴다. 화면마다 다시
  * 만들면 간격과 색이 조금씩 어긋나서 한곳에 둔다.
  */
-
-/**
- * 번호가 붙은 2단계 스텝퍼 — ①목적 ②영상(pen P/Stepper, SOMA-748). 장면 단계는 SOMA-778에서 뺐다.
- * 지나온 단계와 지금 단계는 파란 동그라미에 번호(체크 아님), 이름은 진한 글자. 남은 단계는 회색 동그라미·회색 이름.
- * pen 03 「Stepper」 수치: 동그라미 20 · 번호 13/700, 6 띄워 이름 14/700, 단계 사이 10 · 18 줄 · 10.
- */
-export function Stepper({ current }: { current: 1 | 2 }) {
-  const labels = translateList('practiceChrome.steps');
-  return (
-    <View style={styles.stepper}>
-      {labels.map((label, index) => {
-        const step = index + 1;
-        const passed = step < current;
-        const active = step === current;
-        return (
-          <Fragment key={label}>
-            {index > 0 && <View style={styles.stepperLine} />}
-            <View style={styles.stepperItem}>
-              <View style={[styles.circle, (passed || active) && styles.circleOn]}>
-                <Text style={[styles.circleText, (passed || active) && styles.circleTextOn]}>{step}</Text>
-              </View>
-              <Text style={[styles.stepperLabel, (passed || active) && styles.stepperLabelOn]}>{label}</Text>
-            </View>
-          </Fragment>
-        );
-      })}
-    </View>
-  );
-}
-
-/** 3단계 진행 막대. 지금 단계만 길고 진하다. */
-export function ProgressRow({
-  label,
-  right,
-}: {
-  label: string;
-  right?: React.ReactNode;
-}) {
-  return (
-    <View style={styles.progress}>
-      <View style={styles.progressLeft}>
-        <View style={styles.steps}>
-          <View style={styles.stepDone} />
-          <View style={styles.stepDone} />
-          <View style={styles.stepNow} />
-        </View>
-        <Text style={styles.stepLabel}>{label}</Text>
-      </View>
-      {right}
-    </View>
-  );
-}
 
 /**
  * '영상 보기' 링크. 진행 줄 오른쪽에 놓는다.
@@ -223,47 +171,7 @@ export function SceneSummary({
   );
 }
 
-/** 화면 맨 아래 안내 문구. 세 화면이 같은 문장을 쓴다. */
-export function PracticeFooter() {
-  return (
-    <View style={styles.footer}>
-      <Text style={styles.footerText}>{t('practiceChrome.intro')}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepperItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  stepperLine: { width: 18, height: 1, backgroundColor: palette.border },
-  circle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: palette.bgSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleOn: { backgroundColor: palette.blue },
-  circleText: { fontSize: 13, fontWeight: '700', lineHeight: 16, color: palette.textMeta },
-  circleTextOn: { color: palette.bg },
-  stepperLabel: { fontSize: 14, fontWeight: '700', color: palette.textMeta },
-  stepperLabelOn: { color: palette.text },
-
-  progress: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-  progressLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  steps: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  stepDone: { width: 18, height: 3, borderRadius: 9999, backgroundColor: palette.blue },
-  stepNow: { width: 26, height: 3, borderRadius: 9999, backgroundColor: palette.blue },
-  stepLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textSub },
 
   // padding 으로 누르는 칸을 넓히고 같은 크기의 음수 margin 으로 되돌린다 — 진행 줄의
   // 높이는 목업 그대로 두면서 손가락이 닿는 면적만 키운다.
@@ -298,14 +206,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   quoteText: { fontSize: 13, fontWeight: '600', color: palette.textMeta, lineHeight: 22 },
-
-  footer: { gap: 8 },
-  footerText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: palette.textDisabled,
-    lineHeight: 18,
-  },
 });
 
 /** 연습 중 '영상·장면 보기'를 펼친 것을 남긴다. 화면 하나에서 여러 번 펼치면 그때마다 남는다. */

@@ -333,6 +333,28 @@ describe('대화 시작', () => {
   });
 });
 
+describe('끊긴 대화 안내', () => {
+  test('첫 질문부터 실패하면(대화 id 없음) 답한 게 없다고 하고 「다시 시도」로 첫 질문을 다시 받는다(SOMA-1080 B19)', async () => {
+    mockLoop.startConversation.mockRejectedValueOnce(serverError(500, 'internal_error'));
+    begin();
+    await render(<CoachScreen />);
+
+    expect(await screen.findByText('아직 답한 건 없어요. 「다시 시도」를 누르면 첫 질문부터 다시 해요.')).toBeOnTheScreen();
+    expect(screen.queryByText(/답한 건 저장돼 있어요/)).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
+  });
+
+  test('이어 하던 대화를 다시 못 열면 답한 것은 저장돼 있다고 한다', async () => {
+    mockLoop.getConversation.mockRejectedValueOnce(serverError(500, 'internal_error'));
+    begin({ conversationId: 'c1' });
+    await render(<CoachScreen />);
+
+    expect(await screen.findByText('답한 건 저장돼 있어요. 「이어서 하기」를 누르면 같은 질문부터 다시 해요.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '이어서 하기' })).toBeOnTheScreen();
+  });
+});
+
 describe('답 보내기', () => {
   test('빈 칸이면 보낼 수 없고, 쓴 답을 다듬어 보내면 다음 질문을 보이고 칸을 비운다', async () => {
     let resolveReply: (r: CoachTurnResult) => void = () => undefined;
@@ -343,11 +365,19 @@ describe('답 보내기', () => {
         }),
     );
     await renderOpen();
-    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
+    // 빈 칸에도 보내기는 눌린다 — 보내지 않고 입력칸 아래에 이유 한 줄(SOMA-1057). 적으면 바로 사라진다.
+    await fireEvent.press(screen.getByRole('button', { name: SEND }));
+    expect(screen.getByText('답을 적거나 마이크로 말해 주세요')).toBeOnTheScreen();
+    expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
+    await fireEvent.changeText(input(), '더');
+    expect(screen.queryByText('답을 적거나 마이크로 말해 주세요')).not.toBeOnTheScreen();
 
     await typeAndSend('  더는 미루지 않기로요  ');
-    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
     expect(screen.getByText('답을 듣고 생각 중이에요…')).toBeOnTheScreen();
+    // 코치 답을 기다리는 동안 누르면 입력칸 위에 기다리라는 한 줄만 보이고 더 보내지 않는다.
+    await fireEvent.press(screen.getByRole('button', { name: SEND }));
+    expect(screen.getByText('코치 답이 오면 보낼 수 있어요')).toBeOnTheScreen();
+    expect(mockLoop.replyToCoach).toHaveBeenCalledTimes(1);
     expect(input()).toBeDisabled();
     // 보낸 답은 코치 답을 기다리는 동안 바로 오른쪽 말풍선으로 올라가고 입력칸은 빈다.
     expect(screen.getByTestId('coach-bubble-pending')).toBeOnTheScreen();
@@ -357,6 +387,7 @@ describe('답 보내기', () => {
 
     await act(async () => resolveReply(turn(ANSWERED)));
     expect(screen.getByText('그때 시선은 어디에 있었나요?')).toBeOnTheScreen();
+    expect(screen.queryByText('코치 답이 오면 보낼 수 있어요')).not.toBeOnTheScreen();
     expect(input()).toHaveDisplayValue('');
     expect(screen.queryByTestId('coach-bubble-pending')).not.toBeOnTheScreen();
     expect(screen.getByText('더는 미루지 않기로요')).toBeOnTheScreen();
@@ -367,8 +398,22 @@ describe('답 보내기', () => {
 
     await fireEvent.changeText(input(), '가'.repeat(301));
     expect(input().props.maxLength).toBe(300);
-    expect(screen.queryByRole('button', { name: SEND })).not.toBeOnTheScreen();
     expect(screen.getByText('답은 300자까지 쓸 수 있어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: SEND }));
+    expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
+    expect(screen.getAllByText('답은 300자까지 쓸 수 있어요.')).toHaveLength(1);
+  });
+
+  test('보내기를 빠르게 두 번 눌러도 한 번만 보낸다(SOMA-1057)', async () => {
+    mockLoop.replyToCoach.mockImplementation(() => new Promise(() => undefined));
+    await renderOpen();
+    await fireEvent.changeText(input(), '한 번만');
+    const send = screen.getByRole('button', { name: SEND });
+    await act(async () => {
+      void fireEvent.press(send);
+      void fireEvent.press(send);
+    });
+    expect(mockLoop.replyToCoach).toHaveBeenCalledTimes(1);
   });
 
   test('같은 답을 다시 보내면 같은 요청 id 를, 고쳐 쓰면 새 id 를 쓴다', async () => {
@@ -617,16 +662,19 @@ describe('닫힌 대화', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '코칭 마치기' }));
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace.mock.calls).toEqual([[{ pathname: '/coaching-done', params: { practiceId: 'p1' } }]]);
+    expect(mockRouter.replace.mock.calls).toEqual([[{ pathname: '/coaching-done', params: { practiceId: 'p1', startedAt: '' } }]]);
   });
 
   test('닫힌 대화로 다시 들어오면 노트를 읽어 정리 화면으로 넘어간다', async () => {
     mockLoop.getConversation.mockResolvedValue(conv({ status: 'closed', close_reason: 'exhausted' }));
     mockLoop.getPracticeNote.mockResolvedValue(NOTE);
-    begin({ conversationId: 'c1' });
+    // 회차를 시작한 시각을 같이 넘긴다 — 코칭 끝 화면이 노트를 확인하면 그 날을 홈 연속일에 미리 더한다(SOMA-1075).
+    begin({ conversationId: 'c1', createdAt: '2026-10-31T14:50:00Z' });
     await render(<CoachScreen />);
 
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coaching-done', params: { practiceId: 'p1' } }));
+    await waitFor(() =>
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coaching-done', params: { practiceId: 'p1', startedAt: '2026-10-31T14:50:00Z' } }),
+    );
     expect(mockLoop.getPracticeNote).toHaveBeenCalledWith('p1');
     expect(mockLoop.startConversation).not.toHaveBeenCalled();
   });

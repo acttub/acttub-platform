@@ -8,7 +8,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,22 +17,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** 푸시를 눌러 앱을 연 기록(POST /v2/push-opens) — 행이 남는 것, 동의 전에도 받는 것, 검증, 한도. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
 @AutoConfigureMockMvc
 class PushOpenIT {
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("push_open_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;

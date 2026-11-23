@@ -31,7 +31,9 @@ async function openWith(open: Open) {
 }
 
 const modal = () => screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function')[0];
-const backdrop = () => modal().children[0] as Parameters<typeof fireEvent.press>[0];
+const backdrop = () => screen.getByTestId('app-dialog-backdrop');
+// 메뉴(AnchoredMenu)는 Modal 바로 안이 바깥 칸이다.
+const menuBackdrop = () => modal().children[0] as Parameters<typeof fireEvent.press>[0];
 const inside = { stopPropagation: jest.fn() };
 
 test('확인 창은 제목·설명과 기본 취소·확인을 보이고, 확인을 누르면 true 로 닫힌다', async () => {
@@ -122,7 +124,7 @@ test('메뉴에는 취소 줄이 없고, 바깥을 누르면 false 로 닫힌다
   await openWith((d) => d.sheet({ actions: [{ label: '신고하기', onPress: report }] }));
 
   expect(screen.queryByText('취소')).toBeNull();
-  await fireEvent.press(backdrop());
+  await fireEvent.press(menuBackdrop());
 
   expect(screen.getByText('답: false')).toBeOnTheScreen();
   expect(screen.queryByText('신고하기')).toBeNull();
@@ -137,7 +139,7 @@ test('anchor 를 주면 누른 점 근처에, 없으면 오른쪽 위에 메뉴�
   expect(near.left).toBeGreaterThan(0);
   expect(near.left + near.width).toBeGreaterThan(200);
   expect(near.left).toBeLessThan(200);
-  await fireEvent.press(backdrop());
+  await fireEvent.press(menuBackdrop());
   expect(screen.queryByText('삭제')).toBeNull();
 });
 

@@ -64,6 +64,11 @@ const nextConfig: NextConfig = {
     return [
       { source: "/guide", destination: "/blog", permanent: true },
       { source: "/guide/:slug", destination: "/blog/:slug", permanent: true },
+      // SOMA-1087: 웹에서는 코칭·리딩을 하지 않는다. 연습 주소는 앱 설치 안내(/app)로 보낸다.
+      // 임시(307)라 되돌리기 쉽다. 쿼리(utm 등)는 Next 가 그대로 이어 붙인다. 연습 기능 코드는 지우지 않았다.
+      ...["/reading", "/reading/:path*", "/practice", "/practice/:path*", "/home", "/library", "/library/:path*", "/memory"].map(
+        (source) => ({ source, destination: "/app", permanent: false as const }),
+      ),
     ];
   },
   async headers() {

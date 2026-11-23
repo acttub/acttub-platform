@@ -23,13 +23,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -48,16 +47,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class AccountNotificationIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final long TOGGLE_GATE = 528_109L;
-    private static String database;
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("account_notification");
-        database = name;
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
+    @Value("${spring.datasource.url}")
+    private String databaseUrl;
 
     @Autowired
     MockMvc mvc;
@@ -196,7 +188,7 @@ class AccountNotificationIT {
                 """);
         java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
         try (java.sql.Connection gate = java.sql.DriverManager.getConnection(
-                PostgresContainerSupport.jdbcUrlFor(database),
+                databaseUrl,
                 PostgresContainerSupport.POSTGRES.getUsername(), PostgresContainerSupport.POSTGRES.getPassword())) {
             try (java.sql.Statement statement = gate.createStatement()) {
                 statement.execute("SELECT pg_advisory_lock(" + TOGGLE_GATE + ")");

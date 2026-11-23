@@ -12,14 +12,11 @@ import java.util.stream.IntStream;
 
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * 기억 갱신 워커가 지나는 저장소 길을 실제 Postgres 로 본다 — 재료(받아쓰기·관찰 인용), 다시 말하지 않을 것 덧붙이기,
@@ -36,14 +33,6 @@ class PostgresActorMemoryStoreIT {
             {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: 손을 꽉 쥐기",
              "statuses":["","배우의 말: 정정\\n피할 것: 시선\\n할 일: 내려놓기"]}}""";
     private static final String CORRECTION_LINE = "- 시선: \"렌즈 본 거예요\"";
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("actor_memory_store");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     PostgresActorMemoryStore store;

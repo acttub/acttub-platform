@@ -151,4 +151,47 @@ class ScriptSplitWorkerOutcomeTest {
         assertThat(failures.contexts()).singleElement().asString().startsWith("ScriptSplitWorker.notify");
         verify(imports, never()).fail(eq(job), any(), eq(importId), eq(ScriptImportFailure.FAILED), anyBoolean(), any());
     }
+
+    /** 배포로 서버가 꺼지며 끊긴 작업은 실패로 닫지 않고 대기로 돌려 다른 서버가 이어 나누게 한다(SOMA-930). */
+    @Test void aJobCutOffByShutdownIsReleasedNotFailed() {
+        claimed(SHORT);
+        TextGenerator cutOff = (instructions, input) -> {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("OpenAI 호출이 중단됐습니다.", new InterruptedException());
+        };
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock);
+        assertThat(stopping.runOnce()).isTrue();
+        assertThat(Thread.interrupted()).as("인터럽트 표시는 되살린다").isTrue();
+        verify(ledger).release(eq(job), any(), eq("shutdown"), any());
+        verify(imports, never()).fail(any(), any(), any(), any(), anyBoolean(), any());
+        assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test void aJobCutOffOnItsLastAttemptFailsBecauseNobodyWouldClaimItAgain() {
+        claimed(SHORT);
+        when(ledger.claimNext(eq(ScriptSplitWorker.KIND), any(), eq(ScriptSplitWorker.LEASE), any(), eq(true)))
+                .thenReturn(new AiJobLedger.Claimed(job, user, importId, AiJobLedger.MAX_ATTEMPTS, null));
+        TextGenerator cutOff = (instructions, input) -> {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("cut off", new InterruptedException());
+        };
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock);
+        stopping.runOnce();
+        assertThat(Thread.interrupted()).isTrue();
+        verify(ledger, never()).release(any(), any(), any(), any());
+        verify(imports).fail(eq(job), any(), eq(importId), eq(ScriptImportFailure.FAILED), eq(true), any());
+    }
+
+    @Test void aCutOffSeenOnlyInTheCauseIsReleasedAndALostLeaseThenIsReportedOnly() {
+        claimed(SHORT);
+        TextGenerator cutOff = (instructions, input) -> {
+            throw new IllegalStateException("read cut", new java.io.InterruptedIOException());
+        };
+        doThrow(new LeaseOwnershipException("lost")).when(ledger).release(eq(job), any(), eq("shutdown"), any());
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock);
+        assertThat(stopping.runOnce()).isTrue();
+        assertThat(Thread.currentThread().isInterrupted()).isFalse();
+        assertThat(failures.contexts()).singleElement().asString().startsWith("ScriptSplitWorker.release");
+        verify(imports, never()).fail(any(), any(), any(), any(), anyBoolean(), any());
+    }
 }

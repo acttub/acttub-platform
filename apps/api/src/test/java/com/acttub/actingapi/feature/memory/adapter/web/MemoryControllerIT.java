@@ -9,7 +9,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,8 +17,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -36,14 +33,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @AutoConfigureMockMvc
 class MemoryControllerIT {
     private static final ObjectMapper JSON = new ObjectMapper();
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("legacy_memory_controller");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;

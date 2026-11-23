@@ -28,7 +28,6 @@ import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,8 +39,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
@@ -67,14 +64,6 @@ class PostgresAnalysisStoreIT {
     private static final Instant NOW = Instant.parse("2026-08-17T04:05:06.789012Z");
     private static final String FINGERPRINT = "c".repeat(64);
     private static final String MODEL = "gemini-3-pro-preview";
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName("analysis_store_it");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(database));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     JdbcTemplate jdbc;

@@ -86,6 +86,19 @@ class ConsentManifestLocaleTest {
     }
 
     @Test
+    @DisplayName("발행 중인 문서 본문에 작성용 메모(시행일 자리표시)가 없다 — 시행일은 앱이 발행 시각으로 보여 준다")
+    void publishedDocumentsHaveNoAuthoringNote() throws Exception {
+        for (Entry entry : manifest()) {
+            try (InputStream in = ConsentManifestLocaleTest.class
+                    .getResourceAsStream("/consent-docs/" + entry.file())) {
+                assertThat(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8))
+                        .as(entry.file())
+                        .doesNotContain("이 판이 발행된 날", "The date this version is published");
+            }
+        }
+    }
+
+    @Test
     @DisplayName("같은 판의 번역본은 필수 여부가 같다 — 말에 따라 동의 의무가 달라지면 안 된다")
     void translationsAgreeOnWhetherConsentIsRequired() throws Exception {
         Map<String, Boolean> requiredByEdition = new LinkedHashMap<>();

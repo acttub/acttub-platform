@@ -63,7 +63,7 @@ async function show(detail = TWO_SCENES) {
   return server;
 }
 
-const startButton = (_count: number) => screen.getByText(/^(이 구간 \d+줄 연습하기|마이크 켜고 시작하기)$/);
+const startButton = (_count: number) => screen.getByText(/^(이 구간 대사 \d+개 연습하기|마이크 켜고 시작하기)$/);
 
 test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준다', async () => {
   resetReadingState();
@@ -79,13 +79,13 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
   expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
   expect(screen.getByText('봄날의 대화 · 대사 5개')).toBeOnTheScreen();
   expect(screen.getByText('구간')).toBeOnTheScreen();
-  expect(screen.getByText('전체 듣기 · 5줄')).toBeOnTheScreen();
+  expect(screen.getByText('전체 듣기 · 대사 5개')).toBeOnTheScreen();
   expect(screen.queryByLabelText('내 대사 가리기')).not.toBeOnTheScreen();
   expect(screen.queryByLabelText('자동 넘김')).not.toBeOnTheScreen();
   expect(engine.prepareInBackground).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.queryByText('전체 듣기 · 5줄')).not.toBeOnTheScreen();
+  expect(screen.queryByText('전체 듣기 · 대사 5개')).not.toBeOnTheScreen();
   expect(screen.getByLabelText('자동 넘김')).toBeOnTheScreen();
   expect(startButton(5)).toBeOnTheScreen();
 });
@@ -93,7 +93,7 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
 test('전체 듣기: 내 배역 없이 마이크를 묻지 않고 녹음 없는 회차를 만든다', async () => {
   jest.mocked(micPermissionState).mockResolvedValue('ask');
   const server = await show();
-  await fireEvent.press(screen.getByText('전체 듣기 · 5줄'));
+  await fireEvent.press(screen.getByText('전체 듣기 · 대사 5개'));
 
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
   expect(requestMicPermission).not.toHaveBeenCalled();
@@ -340,7 +340,7 @@ test('SOMA-709: 고른 배역의 구간 안 대사가 2줄 이하면 처음 안�
   const server = await show();
   await fireEvent.press(screen.getByText('서연'));
 
-  expect(screen.getByText('이 구간엔 서연 대사가 2줄뿐이에요')).toBeOnTheScreen();
+  expect(screen.getByText('이 구간엔 서연 대사가 2개뿐이에요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText(/대사가 \d줄뿐이에요/)).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('민재'));
@@ -358,7 +358,7 @@ test('SOMA-934: 대사가 10줄 넘는 대본도 첫 연습을 처음 10줄로 �
 
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
-  expect(screen.getByText('이 구간엔 서연 대사가 1줄뿐이에요')).toBeOnTheScreen();
+  expect(screen.getByText('이 구간엔 서연 대사가 1개뿐이에요')).toBeOnTheScreen();
 });
 
 test('SOMA-597: 배역이 하나뿐이면 처음부터 골라져 있고 혼자 하는 대본 안내를 보인다', async () => {
@@ -422,7 +422,7 @@ test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않�
 test('SOMA-727: 대사가 한 줄뿐인 대본은 같은 안내 자리에 나눠 읽는 길을 알린다(팝업 없음)', async () => {
   await show(scriptDetail([['dialogue', '세훈', '안 돼 편지까지 썼잖아 이제는 정말 안 돼 솔직하게 말씀드리자']]));
 
-  expect(screen.getByText('대사가 한 줄뿐이라 한 번에 읽어요. 나눠 읽으려면 대본 보기에서 줄을 눌러 「나누기」를 고르세요.')).toBeOnTheScreen();
+  expect(screen.getByText('대사가 하나뿐이라 한 번에 읽어요. 나눠 읽으려면 대본 보기에서 줄을 눌러 「나누기」를 고르세요.')).toBeOnTheScreen();
   expect(screen.queryByText('1문장 · 혼자 하는 대본')).not.toBeOnTheScreen();
   expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
 });

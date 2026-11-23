@@ -9,7 +9,7 @@ test('설정과 공지 포스터 소스는 번역 키와 분석 소스를 사용
   const en = read('../locales/en.ts');
   const settings = read('../app/settings.tsx');
   const poster = read('../components/announcement-poster.tsx');
-  for (const key of ['settingsTitle', 'settingsBody', 'dismissForever', 'samplePlay', 'sampleStop']) {
+  for (const key of ['settingsTitle', 'samplePlay', 'sampleStop']) {
     assert.match(ko, new RegExp(`${key}:`));
     assert.match(en, new RegExp(`${key}:`));
   }

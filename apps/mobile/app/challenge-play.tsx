@@ -25,6 +25,7 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
+import { Button } from '@/components/ui/buttons';
 import { UserAvatar } from '@/components/ui/default-avatar';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { MASCOT } from '@/components/ui/mascot';
@@ -185,11 +186,14 @@ export default function ChallengePlayScreen() {
   // 보던 맨 끝 참여작을 신고로 빼면 보던 자리가 비므로 효과가 돌기 전에 남은 마지막 참여작으로 당긴다.
   if (entries?.length && active >= entries.length) setActive(entries.length - 1);
 
+  const current = entries?.[active];
+  const source = current ? sourceOf(current, originalFor) : null;
+  const hasEntries = Boolean(entries?.length);
+
   // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다. 원본·모자이크본을 바꿀 때도 보던 자리에서 이어 튼다.
+  // entries 배열이 아니라 재생 주소에 묶는다 — 좋아요·저장·이어 받기로 배열만 바뀌어도 영상이 처음부터 다시 틀렸다(SOMA-1073).
   useEffect(() => {
-    const entry = entries?.[active];
-    const source = entry ? sourceOf(entry, originalFor) : null;
-    setPlayFailed(!source && entries !== null && entries.length > 0);
+    setPlayFailed(!source && hasEntries);
     if (!source) return;
     // replaceAsync — replace 는 iOS 에서 영상을 주 스레드로 불러와 넘길 때 화면이 멈출 수 있다(SOMA-713).
     let alive = true;
@@ -214,7 +218,7 @@ export default function ChallengePlayScreen() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [active, entries, player, retryTick, originalFor]);
+  }, [active, source, hasEntries, player, retryTick]);
 
   /** 내 참여작의 원본·모자이크본을 바꾼다. 보던 자리는 그대로 둔다. */
   const toggleOriginal = (entry: EntryCard) => {
@@ -270,19 +274,21 @@ export default function ChallengePlayScreen() {
   }, [challenge, cursor, loadingMore]);
 
   // 3초 이상 본 재생만 조회수가 된다. 자동 반복으로 되감긴 뒤는 같은 재생으로 다시 세지 않는다.
+  // 참여작 id 에 묶는다 — 좋아요로 배열이 바뀔 때마다 시작 시각이 다시 잡혀 조회가 안 세지면 안 된다.
+  const currentId = current?.id;
+  const currentIsMine = Boolean(current?.is_mine);
   useEffect(() => {
-    const entry = entries?.[active];
-    if (!entry || !playing) return;
+    if (!currentId || !playing) return;
     const startedAt = Date.now();
     const timer = setInterval(() => {
-      void viewTracker.onProgress(entry.id, {
+      void viewTracker.onProgress(currentId, {
         elapsedMs: Date.now() - startedAt,
-        isOwn: Boolean(entry.is_mine),
+        isOwn: currentIsMine,
         isRepeat: player.currentTime < VIEW_THRESHOLD_MS / 1000 && Date.now() - startedAt > VIEW_THRESHOLD_MS,
       });
     }, 1_000);
     return () => clearInterval(timer);
-  }, [active, entries, player, playing, viewTracker]);
+  }, [currentId, currentIsMine, player, playing, viewTracker]);
 
   const onMomentumEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -478,6 +484,7 @@ export default function ChallengePlayScreen() {
           style={StyleSheet.absoluteFill}
           onPress={(e) => onVideoPress(item, e)}
           accessibilityRole="button"
+          accessibilityLabel={t(playing ? 'react.pauseA11y' : 'react.playA11y')}
           ph-label="challenge_play_toggle">
           {isActive && !playing && (
             <View style={styles.pauseCenter}>
@@ -494,7 +501,7 @@ export default function ChallengePlayScreen() {
 
         <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
           <View style={styles.top}>
-            <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close">
+            <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="challenge_play_close">
               <Feather name="x" size={24} color={palette.onAccent} />
             </Pressable>
             <View style={styles.author}>
@@ -583,13 +590,12 @@ export default function ChallengePlayScreen() {
             </View>
 
             {challenge && !isEnded(challenge) && (
-              <Pressable
-                style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
+              <Button
+                style={styles.perform}
+                label={t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}
+                icon={<Feather name="video" size={16} color={palette.onAccent} />}
                 onPress={perform}
-                accessibilityRole="button">
-                <Feather name="video" size={16} color={palette.onAccent} />
-                <Text style={styles.performText}>{t(entered ? 'challenges.performAgainCta' : 'challenges.performCta')}</Text>
-              </Pressable>
+              />
             )}
           </View>
         </View>
@@ -780,16 +786,5 @@ const styles = StyleSheet.create({
   action: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   actionOff: { opacity: 0.4 },
   actionText: { ...type.body2Bold, color: palette.onAccent, ...MEDIA_TEXT_SHADOW },
-  performBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[2],
-    backgroundColor: palette.blue,
-    borderRadius: radius.lg,
-    height: 48,
-    marginTop: space[1],
-  },
-  pressed: { opacity: 0.85 },
-  performText: { ...type.headline, color: palette.onAccent },
+  perform: { marginTop: space[1] },
 });

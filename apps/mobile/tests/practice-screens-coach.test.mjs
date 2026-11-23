@@ -62,7 +62,7 @@ test('practice.note: 노트 화면은 새 노트 계약을 읽고 확인을 강�
 test('practice.note: 「다음 테이크 찍기」는 방금 끝낸 회차의 장면을 미리 채운다', () => {
   const report = read('app/report.tsx');
 
-  assert.match(report, /t\('history\.nextTake'\)/);
+  assert.match(report, /t\(sceneVideo \? 'history\.nextTake' : 'note\.recordForCoach'\)/);
   assert.doesNotMatch(report, /note\.nextPractice/);
   assert.match(report, /setContinueOrigin\(\{\s*kind: 'note'/);
   assert.match(report, /scene: practice\.scene/);

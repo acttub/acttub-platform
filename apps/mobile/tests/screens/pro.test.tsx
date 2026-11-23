@@ -91,12 +91,12 @@ test('Pro 안내 — 앱 결제가 닫혀 있으면 제목·혜택 세 줄만 �
   expect(mockRc.configure).not.toHaveBeenCalled();
 });
 
-const pkg = (identifier: string, productId: string, priceString: string) => ({
+const pkg = (identifier: string, productId: string, priceString: string, price?: number, pricePerMonthString?: string) => ({
   identifier,
-  product: { identifier: productId, priceString },
+  product: { identifier: productId, priceString, price, pricePerMonthString },
 });
-const monthlyPkg = pkg('$rc_monthly', 'acttub_pro_monthly', '₩3,900');
-const annualPkg = pkg('$rc_annual', 'acttub_pro_yearly', '₩32,500');
+const monthlyPkg = pkg('$rc_monthly', 'acttub_pro_monthly', '₩3,900', 3900);
+const annualPkg = pkg('$rc_annual', 'acttub_pro_yearly', '₩32,500', 32500, '₩2,708');
 const offerings = (current: Record<string, unknown> | null) => ({ current, all: {} });
 
 test('스토어 구독(Android) — 요금제·현지화 가격·자동 갱신·해지 방법·약관이 보이고, 우리 user id 로 RevenueCat 을 열어 월 패키지를 산 뒤 서버 동기화로 완료 화면에 간다', async () => {
@@ -248,7 +248,7 @@ test('구독 관리 — 무료면 「무료 이용 중」과 [Pro 알아보기],
   expect(mockRouter.push).toHaveBeenCalledWith('/pro');
 });
 
-test('연 구독(30% 할인) — 연을 고르면 연 패키지·연 가격·1년 자동 갱신 안내가 보이고 연 패키지($rc_annual)로 결제한다', async () => {
+test('연 구독(스토어 가격으로 할인율·월 환산) — 연을 고르면 연 패키지·연 가격·1년 자동 갱신 안내가 보이고 연 패키지($rc_annual)로 결제한다', async () => {
   billingMe.mockResolvedValue({ ...none, app_enabled: true });
   mockRc.getOfferings.mockResolvedValue(offerings({ monthly: monthlyPkg, annual: annualPkg }));
   mockRc.purchasePackage.mockResolvedValue({ customerInfo: {} });
@@ -257,7 +257,7 @@ test('연 구독(30% 할인) — 연을 고르면 연 패키지·연 가격·1�
   expect(await screen.findByText('₩32,500')).toBeOnTheScreen();
   expect(screen.getByText('30% 할인')).toBeOnTheScreen();
   expect(screen.getByText('1년')).toBeOnTheScreen();
-  expect(screen.getByText('월 2,708원꼴 · 매년 자동 갱신')).toBeOnTheScreen();
+  expect(screen.getByText('월 ₩2,708꼴 · 매년 자동 갱신')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('연 구독'));
   expect(screen.getByRole('radio', { name: /연 구독/ })).toBeSelected();

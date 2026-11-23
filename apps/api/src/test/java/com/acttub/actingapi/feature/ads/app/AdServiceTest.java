@@ -111,6 +111,28 @@ class AdServiceTest {
     }
 
     @Test
+    @DisplayName("전면 칸은 스위치 줄을 enabled=true 로 넣어야 켜진다 — 줄이 없으면 꺼짐 (SOMA-1085)")
+    void fullScreenSlotsAreOffUntilSwitchedOn() {
+        FakeRepository repo = new FakeRepository();
+        AdSlotSwitches none = new AdSlotSwitches() {
+            @Override public boolean off(String slotKey) { return false; }
+            @Override public boolean switchedOn(String slotKey) { return false; }
+        };
+        AdSlotSwitches onlyReading = new AdSlotSwitches() {
+            @Override public boolean off(String slotKey) { return false; }
+            @Override public boolean switchedOn(String slotKey) { return "reading_done_full".equals(slotKey); }
+        };
+        var settings = new AdService.Settings(true, 100);
+        assertThat(new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, none, CLOCK).pick(USER, AdSlot.READING_DONE_FULL).kind())
+                .isEqualTo(AdPicker.Kind.NONE);
+        assertThat(new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, none, CLOCK).pick(USER, AdSlot.ANALYZING_WAIT).kind())
+                .isEqualTo(AdPicker.Kind.NETWORK);
+        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, onlyReading, CLOCK);
+        assertThat(service.pick(USER, AdSlot.READING_DONE_FULL).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(service.pick(USER, AdSlot.SCRIPT_PARSE_FULL).kind()).isEqualTo(AdPicker.Kind.NONE);
+    }
+
+    @Test
     @DisplayName("Pro 판정을 결제 도메인에 묻고 Pro 면 어느 칸이든 NONE, 연습 중 칸 비율 0% 면 무료도 NONE, 100% 면 채운다")
     void proAndPercent() {
         FakeRepository repo = new FakeRepository();

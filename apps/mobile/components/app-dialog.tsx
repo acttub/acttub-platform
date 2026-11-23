@@ -1,9 +1,9 @@
 import type Feather from '@expo/vector-icons/Feather';
 import { useCallback, useRef, useState, type ComponentProps, type ReactElement } from 'react';
-import { Modal, Pressable, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { AnchoredMenu, MENU_ITEM_HEIGHT, MENU_PAD, MenuItem, type MenuAnchor } from '@/components/ui/anchored-menu';
-import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
@@ -112,21 +112,20 @@ export function useAppDialog() {
       </AnchoredMenu>
     ) : (
       state && (
-        <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={() => (locked ? undefined : close(false))}>
-          <Pressable style={styles.backdrop} onPress={() => (locked ? undefined : close(false))}>
-            <Pressable style={styles.full} onPress={(e) => e.stopPropagation()}>
-              <DialogCard title={state.options.title} message={state.options.message}>
-                <DialogButtons
-                  cancelLabel={state.kind === 'confirm' ? (state.options.cancelLabel ?? t('common.cancel')) : undefined}
-                  onCancel={() => close(false)}
-                  confirmLabel={state.options.confirmLabel ?? t('common.confirm')}
-                  onConfirm={() => close(true)}
-                  destructive={state.kind === 'confirm' && state.options.destructive}
-                />
-              </DialogCard>
-            </Pressable>
-          </Pressable>
-        </Modal>
+        <DialogModal
+          onRequestClose={() => (locked ? undefined : close(false))}
+          onBackdropPress={() => (locked ? undefined : close(false))}
+          backdropTestID="app-dialog-backdrop">
+          <DialogCard title={state.options.title} message={state.options.message}>
+            <DialogButtons
+              cancelLabel={state.kind === 'confirm' ? (state.options.cancelLabel ?? t('common.cancel')) : undefined}
+              onCancel={() => close(false)}
+              confirmLabel={state.options.confirmLabel ?? t('common.confirm')}
+              onConfirm={() => close(true)}
+              destructive={state.kind === 'confirm' && state.options.destructive}
+            />
+          </DialogCard>
+        </DialogModal>
       )
     );
 
@@ -134,13 +133,5 @@ export function useAppDialog() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: palette.scrim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: space.gutter,
-  },
-  full: { width: '100%', alignItems: 'center' },
   menuTitle: { ...type.captionBold, color: palette.textMeta, paddingHorizontal: space[4], paddingTop: space[2], paddingBottom: space[1] },
 });

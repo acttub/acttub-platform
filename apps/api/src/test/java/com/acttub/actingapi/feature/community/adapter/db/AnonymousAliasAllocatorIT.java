@@ -13,34 +13,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 class AnonymousAliasAllocatorIT {
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        String database = PostgresContainerSupport.createDatabaseName(
-                "anonymous_alias_allocator_it");
-        registry.add(
-                "spring.datasource.url",
-                () -> PostgresContainerSupport.jdbcUrlFor(database));
-        registry.add(
-                "spring.datasource.username",
-                PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add(
-                "spring.datasource.password",
-                PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     AnonymousAliasAllocator allocator;

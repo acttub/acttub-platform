@@ -107,6 +107,8 @@ export function quickStartRequest(
   script: StoredScript,
   role: QuickStartRole,
   mic: boolean,
+  /** 녹음까지 되는가. 아이폰 웹처럼 마이크는 되지만 녹음은 끈 곳이 있다(SOMA-1083). */
+  record: boolean = mic,
 ): Omit<SessionCreateRequest, "request_id"> | null {
   const character = script.characters.find((c) => c.name === role) ?? script.characters[0];
   if (!character) return null;
@@ -114,7 +116,7 @@ export function quickStartRequest(
     myCharacterIds: [character.id],
     mode: "read",
     advance: mic ? "silence" : "manual",
-    record: mic,
+    record: mic && record,
     mask: "show_all",
   });
 }

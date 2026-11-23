@@ -46,6 +46,11 @@ test("요금 안내는 무료와 Pro의 차이를 같은 말로 보인다", () =
   assert.match(pro.textContent, /월 3,900원/);
   assert.match(pro.textContent, /발음 보고서 \(Pro 전용 · 준비 중\)/);
   assert.match(pro.textContent, /구독 표시이며 배우의 실력이나 자격을 인증하는 표시는 아니에요\./);
+  // 웹 연 구독 스위치(SOMA-1068)는 기본 꺼짐 — 월/연 선택이 없고 안내 문구도 지금 그대로다.
+  assert.match(pro.textContent, /웹은 월 구독 · 결제일부터 1개월마다 자동결제/);
+  assert.match(pro.textContent, /앱\(App Store·Google Play\)에서는 연 32,500원\(부가세 포함\) 연 구독도 있어요/);
+  assert.equal(within(pro).queryByRole("radio"), null);
+  assert.match(document.body.textContent, /웹은 월 구독만 있어요\./);
   const table = screen.getByRole("table");
   assert.deepEqual(
     within(table).getByRole("rowheader", { name: "AI 연기 코칭" }).closest("tr").textContent,

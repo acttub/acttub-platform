@@ -45,7 +45,6 @@ import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -63,8 +62,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -203,14 +200,6 @@ class ReadingImportIT {
         }
     }
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("reading_import");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
-
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper mapper;
@@ -302,6 +291,31 @@ class ReadingImportIT {
     }
 
     @Test
+    @DisplayName("reading.script 나누기: 배포로 끊긴 작업은 실패가 아니라 대기로 돌아가고, 다음 워커가 같은 작업을 집어 저장한다(SOMA-930)")
+    void aJobCutOffByShutdownIsPickedUpAgain() throws Exception {
+        JsonNode ticket = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), "갈매기", "니나: 가요.\n트레플레프: 그래요.", "paste")), 202);
+        String importId = ticket.path("import_id").textValue();
+        Model.answer = call -> {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("OpenAI 호출이 중단됐습니다.", new InterruptedException());
+        };
+        try {
+            assertThat(worker.runOnce(clock.instant())).isTrue();
+        } finally {
+            assertThat(Thread.interrupted()).isTrue();
+        }
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("pending");
+        assertThat(jdbc.queryForObject("SELECT failure IS NULL FROM script_imports", Boolean.class)).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("pending");
+        assertThat(failures.reports()).isEmpty();
+
+        Model.answer = Model::oracle;
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForObject("SELECT attempt_count FROM ai_jobs", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("reading.script 나누기: 같은 request_id 재전송은 200 같은 import_id, 다른 본문이면 422 request_fingerprint_mismatch")
     void replaysTheSameRequestId() throws Exception {
         UUID requestId = UUID.randomUUID();
@@ -349,6 +363,57 @@ class ReadingImportIT {
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕\n트레플레프: 응", "paste")), 200)
                 .path("import_id").textValue()).isEqualTo(first);
         assertThat(count("ai_jobs")).isEqualTo(1);
+    }
+
+    private JsonNode requestAs(UUID user, String title, String text) throws Exception {
+        var response = perform(post("/v2/reading/imports").contentType(MediaType.APPLICATION_JSON)
+                .content(request(UUID.randomUUID(), title, text, "paste")), "Bearer " + jwt.issueAccessToken(user).value());
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(202);
+        return mapper.readTree(response.getContentAsString());
+    }
+
+    @Test
+    @DisplayName("나누기 재사용: 다른 사람이 같은 글을 이미 나눴고 고치지 않았으면 모델·장부 없이 구조만 복사해 요청자 제목의 새 대본이 곧 succeeded 이고 하루 한도에 세지 않는다")
+    void reusesAnUntouchedSplitOfAnotherUser() throws Exception {
+        String text = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
+        String original = split(text);
+        assertThat(Model.CALLS).hasSize(1);
+        UUID other = member();
+        JsonNode ticket = requestAs(other, "내 제목", text);
+        JsonNode status = mapper.readTree(perform(get("/v2/reading/imports/{id}", ticket.path("import_id").textValue()),
+                "Bearer " + jwt.issueAccessToken(other).value()).getContentAsString());
+        assertThat(status.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(Model.CALLS).hasSize(1);
+        assertThat(count("ai_jobs")).isEqualTo(1);
+        String copied = status.path("script_id").textValue();
+        assertThat(copied).isNotEqualTo(original);
+        assertThat(jdbc.queryForObject("SELECT user_id FROM scripts WHERE id=?::uuid", UUID.class, copied)).isEqualTo(other);
+        assertThat(jdbc.queryForObject("SELECT title FROM scripts WHERE id=?::uuid", String.class, copied)).isEqualTo("내 제목");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM script_lines WHERE script_id=?::uuid", Integer.class, copied))
+                .isEqualTo(jdbc.queryForObject("SELECT count(*) FROM script_lines WHERE script_id=?::uuid", Integer.class, original));
+        assertThat(jdbc.queryForObject("SELECT string_agg(name,',' ORDER BY sort_order) FROM script_characters WHERE script_id=?::uuid",
+                String.class, copied)).isEqualTo(jdbc.queryForObject(
+                "SELECT string_agg(name,',' ORDER BY sort_order) FROM script_characters WHERE script_id=?::uuid", String.class, original));
+    }
+
+    @Test
+    @DisplayName("나누기 재사용: 원본을 고쳤거나(줄·제목 편집으로 updated_at 이 오름) 나이 상한을 넘었으면 쓰지 않고 새로 나눈다")
+    void doesNotReuseEditedOrStaleSplits() throws Exception {
+        String text = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
+        String original = split(text);
+        jdbc.update("UPDATE scripts SET updated_at=now()+interval '1 second' WHERE id=?::uuid", original);
+        assertThat(requestAs(member(), null, text).path("import_id").isTextual()).isTrue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(Model.CALLS).hasSize(2);
+
+        jdbc.update("UPDATE scripts SET updated_at=created_at WHERE id=?::uuid", original);
+        jdbc.update("UPDATE scripts SET created_at=?, updated_at=? WHERE id=?::uuid",
+                java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), original);
+        jdbc.update("UPDATE scripts SET created_at=?, updated_at=? WHERE id<>?::uuid AND raw_hash=(SELECT raw_hash FROM scripts WHERE id=?::uuid)",
+                java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), java.sql.Timestamp.from(NOW.minus(java.time.Duration.ofDays(40))), original, original);
+        requestAs(member(), null, text);
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(Model.CALLS).hasSize(3);
     }
 
     @Test

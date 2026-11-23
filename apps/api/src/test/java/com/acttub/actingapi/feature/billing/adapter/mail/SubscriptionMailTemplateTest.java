@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 
 import com.acttub.actingapi.feature.billing.app.BillingMailer.PaidMail;
+import com.acttub.actingapi.feature.billing.app.BillingRules.Plan;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +13,27 @@ class SubscriptionMailTemplateTest {
     private static PaidMail mail(boolean first, String name) {
         return new PaidMail("actor@example.com", name, first, "pro-first-97ea0560", 3900, "하나", "53183800****5678",
                 Instant.parse("2026-11-01T06:52:12Z"), Instant.parse("2026-11-01T06:52:12Z"),
-                Instant.parse("2026-12-01T06:52:12Z"));
+                Instant.parse("2026-12-01T06:52:12Z"), Plan.MONTHLY);
+    }
+
+    @Test
+    @DisplayName("연 구독 메일은 연 상품명·금액·1년 이용 기간과 매년 자동결제 문구를 싣는다")
+    void yearlyMailNamesTheYearlyPlan() {
+        PaidMail yearly = new PaidMail("actor@example.com", "QAtest", true, "pro-first-97ea0560", 32500, "하나",
+                "53183800****5678", Instant.parse("2026-11-01T06:52:12Z"), Instant.parse("2026-11-01T06:52:12Z"),
+                Instant.parse("2027-11-01T06:52:12Z"), Plan.YEARLY);
+        SubscriptionMailTemplate.Rendered r = SubscriptionMailTemplate.render(yearly);
+        assertThat(r.subject()).isEqualTo("Pro 구독을 시작했어요 · 32,500원 결제 완료");
+        assertThat(r.html()).contains("ACTTUB Pro 연 구독", "32,500원 (부가세 포함)", "2026.11.01 ~ 2027.10.31",
+                "2027.11.01 · 32,500원", "해지하지 않으면 매년 결제일에").doesNotContain("월 구독", "매달");
+        assertThat(r.text()).contains("상품: ACTTUB Pro 연 구독", "해지하지 않으면 매년 결제일에");
+    }
+
+    @Test
+    @DisplayName("월 구독 메일의 상품명과 자동결제 문구는 그대로다")
+    void monthlyMailKeepsTheMonthlyCopy() {
+        SubscriptionMailTemplate.Rendered r = SubscriptionMailTemplate.render(mail(true, "QAtest"));
+        assertThat(r.html()).contains("ACTTUB Pro 월 구독", "해지하지 않으면 매달 결제일에").doesNotContain("연 구독", "매년");
     }
 
     @Test

@@ -24,7 +24,6 @@ import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,8 +36,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -65,14 +62,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class BillingEndpointIT {
     static final UUID USER = UUID.fromString("33333333-3333-4333-8333-333333333333");
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("billing_app");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;
@@ -197,6 +186,31 @@ class BillingEndpointIT {
                 .isEqualTo(Instant.parse("2027-02-23T01:00:00Z"));
         assertThat(jdbc.queryForObject("SELECT count(DISTINCT order_id) FROM billing_payments", Integer.class))
                 .isEqualTo(jdbc.queryForObject("SELECT count(*) FROM billing_payments", Integer.class));
+    }
+
+    @Test
+    @DisplayName("웹 연 구독 스위치가 꺼져 있으면(기본) yearly 창은 422 plan_unavailable 이고, plan 을 생략하거나 monthly 면 월 구독 그대로다")
+    void yearlyClosedByDefault() throws Exception {
+        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"yearly\"}"), 422)
+                .path("detail").asText()).contains("plan_unavailable");
+        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"weekly\"}"), 422)
+                .path("detail").asText()).contains("invalid_plan");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_checkouts", Integer.class)).isZero();
+
+        JsonNode started = json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"monthly\"}"), 200);
+        String url = started.path("checkout_url").textValue();
+        String state = url.substring(url.lastIndexOf('/') + 1);
+        assertThat(jdbc.queryForObject("SELECT plan FROM billing_checkouts", String.class)).isEqualTo("monthly");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=done");
+
+        JsonNode active = me();
+        assertThat(active.path("plan").textValue()).isEqualTo("monthly");
+        assertThat(active.path("amount").longValue()).isEqualTo(3900L);
+        assertThat(jdbc.queryForObject("SELECT plan FROM billing_subscriptions", String.class)).isEqualTo("monthly");
+        assertThat(jdbc.queryForObject("SELECT amount FROM billing_payments", Integer.class)).isEqualTo(3900);
+        org.mockito.Mockito.verify(gateway).approve(anyString(), anyString(), anyString(),
+                org.mockito.ArgumentMatchers.eq(3900L), org.mockito.ArgumentMatchers.eq("ACTTUB Pro 월 구독"), any(), anyString());
     }
 
     @Test

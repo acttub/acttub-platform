@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { DialogCard } from '@/components/ui/dialog';
+import { DialogCard, DialogModal } from '@/components/ui/dialog';
 import { TextField } from '@/components/ui/text-field';
-import { palette } from '@/constants/palette';
 import { space } from '@/constants/tokens';
 import { updateScriptMeta } from '@/lib/reading/store';
 import { translate as t } from '@/lib/i18n';
@@ -42,34 +40,31 @@ export function MonologueNameDialog({
   };
 
   return (
-    <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={() => !busy && onClose()}>
-      {/* 키보드가 뜨면 키보드 위 남은 칸 가운데에 놓여 「저장」이 가리지 않는다. */}
-      <KeyboardLift style={styles.backdrop}>
-        <DialogCard title={t('reading.monologueNameTitle')} message={t('reading.monologueNameBody')}>
-          <View style={styles.form}>
-            <TextField
-              value={name}
-              onChangeText={setName}
-              placeholder={t('reading.monologueNamePlaceholder')}
-              accessibilityLabel={t('reading.monologueNamePlaceholder')}
-              error={failed ? t('reading.titleSaveFail') : null}
-              autoFocus
-            />
-            <PrimaryButton
-              label={t('reading.monologueNameSave')}
-              disabled={!next}
-              loading={busy}
-              loadingLabel={t('loadingText.saving')}
-              onPress={() => void save()}
-            />
-          </View>
-        </DialogCard>
-      </KeyboardLift>
-    </Modal>
+    // 이름을 받으려는 창이라 바깥을 눌러 닫지 않는다. 안드로이드 뒤로 가기로 닫으면 임시 이름 그대로 둔다.
+    <DialogModal onRequestClose={() => !busy && onClose()}>
+      <DialogCard title={t('reading.monologueNameTitle')} message={t('reading.monologueNameBody')}>
+        <View style={styles.form}>
+          <TextField
+            value={name}
+            onChangeText={setName}
+            placeholder={t('reading.monologueNamePlaceholder')}
+            accessibilityLabel={t('reading.monologueNamePlaceholder')}
+            error={failed ? t('reading.titleSaveFail') : null}
+            autoFocus
+          />
+          <PrimaryButton
+            label={t('reading.monologueNameSave')}
+            disabled={!next}
+            loading={busy}
+            loadingLabel={t('loadingText.saving')}
+            onPress={() => void save()}
+          />
+        </View>
+      </DialogCard>
+    </DialogModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
   form: { gap: space[4], paddingTop: space[4] },
 });

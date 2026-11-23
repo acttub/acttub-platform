@@ -149,6 +149,7 @@ def main():
         wait_for(lambda: value('count(node_memory_MemAvailable_bytes{environment="shared"} > 0)', 1), "host available-memory metric missing")
         assert query('node_cpu_seconds_total{environment="shared",mode="idle"}'), "host CPU metrics missing"
         assert value('count(node_filesystem_avail_bytes{environment="shared",mountpoint=' + json.dumps(data_mount) + '} > 0)', 1), "data filesystem metric missing"
+        assert query('node_disk_write_time_seconds_total{environment="shared"}'), "host disk write metric missing"
         # Each job has its own first scrape. API/exporter readiness does not
         # imply that Prometheus has scraped itself yet; verify requires it too.
         wait_for(lambda: value('up{job="prometheus",environment="shared"}', 1), "Prometheus self-scrape was not ready")

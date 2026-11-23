@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Checkbox } from '@/components/ui/checkbox';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 
@@ -19,9 +20,9 @@ export type ChoiceTint = keyof typeof CHOICE_TINT;
 
 /**
  * 고르는 카드(디자인 시스템 SelectCard). 꺼짐은 흰 바탕 + 1px border, 고르면 blue-soft 바탕 + 1.5px blue 테두리 +
- * blue-deep 제목 + 오른쪽 원형 체크. 누르면 고른 표시만 되고, 아래 버튼을 눌러야 넘어간다.
+ * blue-deep 제목 + 오른쪽 채운 체크(디자인 시스템 Checkbox/On). 누르면 고른 표시만 되고, 아래 버튼을 눌러야 넘어간다.
  *
- * 고르기 전 오른쪽 표시는 mark 대로 빈 동그라미(radio)나 꺾쇠(chevron), 없으면 비운다.
+ * 고르기 전 오른쪽은 비운다. 누르면 다른 화면·고르기 창이 열리는 카드(「갤러리에서 고르기」)만 mark="chevron" 으로 꺾쇠를 둔다(SOMA-1065).
  */
 export function ChoiceCard({
   title,
@@ -41,7 +42,7 @@ export function ChoiceCard({
   phLabel?: string;
   icon?: FeatherName;
   tint?: ChoiceTint;
-  mark?: 'none' | 'radio' | 'chevron';
+  mark?: 'none' | 'chevron';
   onPress: () => void;
 }) {
   const colors = CHOICE_TINT[tint];
@@ -64,9 +65,7 @@ export function ChoiceCard({
         {sub ? <Text style={styles.sub}>{sub}</Text> : null}
       </View>
       {selected ? (
-        <Feather name="check-circle" size={22} color={palette.blue} />
-      ) : mark === 'radio' ? (
-        <Feather name="circle" size={22} color={palette.textDisabled} />
+        <Checkbox checked />
       ) : mark === 'chevron' ? (
         <Feather name="chevron-right" size={20} color={palette.iconFaint} />
       ) : null}

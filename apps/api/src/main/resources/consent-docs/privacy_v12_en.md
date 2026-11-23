@@ -1,7 +1,5 @@
 # Consent to the Collection and Use of Personal Information
 
-Effective Date: The date this version is published (shown on the app's consent screen and in the consent list in Settings)
-
 ACTTUB (액터브, hereinafter the "Company") collects and uses personal information as set out below in order to provide the Service. This document is **a document that obtains consent**. General matters concerning processing — entrustment, cross-border transfer, and users' rights — are addressed separately in the **Privacy Policy**, a notice document that is not subject to consent.
 
 ## 1. Information Required for the Account

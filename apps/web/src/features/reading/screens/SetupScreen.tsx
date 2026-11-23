@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { micSupported } from "@/lib/reading/audio/mic";
+import { appleMobileWebKit } from "@/lib/reading/recording/recorder";
 import { isVoicePreset, VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
 import { speak, unlockTts } from "@/lib/reading/audio/tts";
 import type { ReadingAdvance, ReadingMode } from "@/lib/reading/api-types";
@@ -18,7 +19,7 @@ import type { StoredScript } from "@/lib/reading/storage";
 import type { PartnerVoice } from "@/features/reading/hooks/useRehearsalRunner";
 import { Page } from "@/features/reading/page-shell";
 import { ReviewList } from "@/features/reading/review-list";
-import { MIC_DENIED_NOTICE, RECORD_NOTICE } from "@/features/reading/session-copy";
+import { APPLE_WEB_RECORD_NOTICE, MIC_DENIED_NOTICE, RECORD_NOTICE } from "@/features/reading/session-copy";
 import { checkStart, defaultMyCharacterIds, hasPartnerLines, rolesOf, START_BUTTON, type SessionStartInput } from "@/features/reading/session-start";
 import { Button, Card, CardTitle, Icon, SelectCard, StepsPill, TopBar } from "@/features/reading/ui";
 import { VoiceSetup } from "@/features/reading/voice-setup";
@@ -49,7 +50,8 @@ export function SetupScreen({
   const [mode, setMode] = useState<ReadingMode>("read");
   const mic = micSupported();
   const [advance, setAdvance] = useState<ReadingAdvance>(mic ? "silence" : "manual");
-  const [record, setRecord] = useState(mic);
+  const canRecord = mic && !appleMobileWebKit();
+  const [record, setRecord] = useState(canRecord);
   const [mask, setMask] = useState<MaskMode>(() => loadMask(script.id));
   const [voice, setVoice] = useState<{ ready: boolean; partnerVoice: PartnerVoice }>({ ready: false, partnerVoice: "supertonic" });
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
@@ -153,9 +155,9 @@ export function SetupScreen({
         <SettingRow
           icon="mic"
           title="내 차례 녹음"
-          value={record ? `켬 · ${RECORD_NOTICE}` : "끔"}
-          onClick={mic ? () => setRecord((v) => !v) : undefined}
-          action={mic ? "바꾸기" : undefined}
+          value={record ? `켬 · ${RECORD_NOTICE}` : mic && appleMobileWebKit() ? `끔 · ${APPLE_WEB_RECORD_NOTICE}` : "끔"}
+          onClick={canRecord ? () => setRecord((v) => !v) : undefined}
+          action={canRecord ? "바꾸기" : undefined}
         />
         <div className="rounded-xl bg-gray-bg px-3.5 py-3">
           <p className="text-[13.5px] font-extrabold">가리기</p>

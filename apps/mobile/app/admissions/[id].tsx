@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -15,6 +14,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { NoticeBand } from '@/components/ui/notice-band';
 import { weightBarColors } from '@/constants/chart-colors';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -82,11 +82,7 @@ export default function UniversityDetailScreen() {
           <UniversityHeader university={university} />
           <AdSlot slot="admission_detail_top" />
 
-          <View style={styles.notice}>
-            {/* Pretendard 서브셋에 원문자(U+2460~24FF)가 없어 'ⓘ'는 두부로 나온다. */}
-            <Feather name="info" size={14} color={palette.amber} />
-            <Text style={styles.noticeText}>{payload.disclaimer}</Text>
-          </View>
+          <NoticeBand compact message={payload.disclaimer} />
 
           {payload.notices.length === 0 ? (
             <Text style={styles.dim}>
@@ -461,16 +457,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgSoft,
     color: palette.textSub,
   },
-  notice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space[2],
-    paddingVertical: space[3],
-    paddingHorizontal: space[4],
-    borderRadius: radius.md,
-    backgroundColor: palette.amberSoft,
-  },
-  noticeText: { flex: 1, ...type.captionBold, color: palette.amber },
   card: {
     padding: space[5],
     borderRadius: radius.lg,

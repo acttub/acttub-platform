@@ -868,6 +868,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   하루 한도 순으로 보고 행을 만든다. LLM 길만 `ai_jobs`(kind `script_split`, `target_id` = `script_imports.id`) 행을 함께 만들고,
   **하루 한도는 그 장부의 오늘(Asia/Seoul) 행 수**다 — 예시·중복은 행이 없어 저절로 세지 않는다. 예시 대본은 같은 트랜잭션에서
   `ScriptRepository.create` 로 대본까지 만든다.
+- **같은 글의 나누기 결과 재사용(다른 사람 것 포함)**: 같은 사용자 중복·진행 중 확인과 대본 수 한도를 지난 뒤, `allow_duplicate` 가 아니면
+  `scripts.raw_hash` 가 같은 대본 중 ① `script_imports.script_id` 로 이어진 서버 나누기 결과(source `file`·`paste`·`typed`) ② `updated_at = created_at`
+  (제목·배역·줄 편집이 모두 `updated_at` 을 올리므로 편집 흔적 없는 것) ③ 생성이 `SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS`(기본 30일) 이내인 가장 최근 것의
+  배역·줄(성별·나이대·묶음 배역·말·소리 낼 글)만 읽어 `ScriptRepository.create` 로 요청자 소유 새 대본을 만든다 — 제목·원문·source 는 요청자 것이고
+  메모·회차·녹음·배역 목소리는 복사하지 않는다. 예시 대본처럼 `ai_jobs` 행 없이 `script_imports`(script_id 채움)만 만들어 하루 한도에 세지 않고 응답은 202,
+  곧 `succeeded` 다. 로그 `script split reused: reused=true`. 끄기: `SCRIPT_SPLIT_REUSE_ENABLED=false`(기본 켬).
 - 같은 글의 해시 `scripts.raw_hash`·`script_imports.raw_hash` 는 Java `ScriptText.hash` 가 정본이다. V33 이 기존 행을 같은 식의
   SQL 로 한 번 채웠고 `ReadingSchemaMigrationTest` 가 두 식의 일치를 실제 Postgres 로 대조한다. 공백류는 로케일에 기대지 않게
   목록으로 적었다.
@@ -1460,6 +1466,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   RevenueCat 호출은 `StoreGateways.RevenueCatGateway` Port 뒤라 `StoreBillingServiceTest` 가 가짜 값으로 상태 매핑(만료·환불·결제 문제·유예)·
   멱등·이전(TRANSFER)·토스 보호·샌드박스 차단을 본다. 스토어 구독의 Pro 는 active 여도 기간이 지나면 끝난다(`BillingRules.pro(.., provider)`).
   새 오류 코드는 `ErrorContractInventoryTest` 표에 있다.
+- 웹 연 구독(SOMA-1068): V92 가 `billing_subscriptions.plan`·`billing_checkouts.plan`(text, 기본 `monthly`, NOT NULL, CHECK 없음)을 더한다 —
+  더하기만 하는 변경이라 옛 서버와 함께 돌아도 옛 서버가 쓴 줄은 monthly 다. 값은 `BillingRules.Plan` 이 지키고 모르는 값은 monthly 로 읽는다.
+  첫 결제 직전 `choosePlan` 이 expired 토스 줄에만 plan·amount 를 적는 조건부 UPDATE 다. `POST /v2/billing/checkout` 의 `plan`·`GET /v2/billing/me`
+  의 `plan` 은 더하기만 하는 필드이고(`@Hidden`, OpenAPI 변화 없음), 새 오류 `422 invalid_plan`·`422 plan_unavailable` 은 `WebYearlyPlanTest` 가 지킨다.
+  서버 스위치 `BILLING_WEB_YEARLY_ENABLED`(기본 false).
 - 이 Mac 에서 Testcontainers 를 못 돌려 저장소 SQL 의 통합 테스트는 CI 에서만 돈다(`BillingEndpointIT`, `StoreBillingEndpointIT`).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정

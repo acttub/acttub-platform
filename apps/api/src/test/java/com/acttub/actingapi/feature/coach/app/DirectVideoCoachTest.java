@@ -78,7 +78,7 @@ class DirectVideoCoachTest {
         when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null, false));
         var result = practiceLoopEngine().start(session(), UUID.randomUUID());
         assertThat(result.reply().status()).isEqualTo("complete");
-        assertThat(result.reply().message()).isEqualTo("영상의 소리가 녹음되지 않았어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
+        assertThat(result.reply().message()).isEqualTo("영상의 소리를 들을 수 없어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
         assertThat(result.session().closeReason()).isEqualTo("interrupted");
         assertThat(result.session().coachingState().path("practice_loop").path("input_issue").asText())
                 .isEqualTo("silent_audio");
@@ -541,6 +541,30 @@ class DirectVideoCoachTest {
         stored.putObject("practice_loop").put("coach_model", "b");
         var rolledBack = new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
         assertThat(rolledBack.coachArm(session().withCoachingState("three_layers_v1", 0, stored, "open", ""))).isEqualTo("b");
+    }
+
+    @Test void withProOnlyTheComparedModelGoesToProActorsAndFreeActorsStayOnTheDefaultModel() {
+        var compared = mock(DirectVideoModel.class);
+        var proUser = UUID.randomUUID();
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100)
+                .withProMemory(userId -> proUser.equals(userId), null)
+                .withAlternateProOnly(true);
+        var free = session();
+        var pro = new CoachSessionSnapshot(free.sessionId(), free.practiceSessionId(), proUser, free.observationPack(),
+                free.situation(), free.characterContext(), free.goal(), free.durationMs(), free.blockageKind(), free.subBranch(),
+                free.blockageDetail(), free.status(), free.closeReason(), free.turns(), free.prior(), free.experienceVersion(),
+                free.stateRevision(), free.coachingState(), free.actorProfile(), free.sessionPurpose());
+        assertThat(coach.coachArm(free)).isEqualTo("a");
+        assertThat(coach.coachArm(pro)).isEqualTo("b");
+        // 이미 저장된 쪽은 구독이 바뀌어도 그대로다.
+        var stored = StructuredJson.MAPPER.createObjectNode();
+        stored.putObject("practice_loop").put("coach_model", "b");
+        assertThat(coach.coachArm(free.withCoachingState("three_layers_v1", 0, stored, "open", ""))).isEqualTo("b");
+        // Pro 판정이 실패하면 무료로 본다.
+        var failing = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100)
+                .withProMemory(userId -> { throw new IllegalStateException("billing down"); }, null)
+                .withAlternateProOnly(true);
+        assertThat(failing.coachArm(pro)).isEqualTo("a");
     }
 
     @Test void defaultPersonaIsRecordedWithoutChangingThePromptAndOthersGetNothing() {

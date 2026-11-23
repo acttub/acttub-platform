@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { WEB_BILLING_ENABLED } from "@/features/billing/billing-flow";
-import { SubscribeButton } from "@/features/billing/subscribe-button";
+import { WEB_BILLING_ENABLED, WEB_YEARLY_ENABLED } from "@/features/billing/billing-flow";
+import { PlanSubscribe, SubscribeButton } from "@/features/billing/subscribe-button";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
 
@@ -14,10 +14,19 @@ export const metadata = buildNoindexMetadata("ACTTUB Pro 구독 안내");
 const FOCUS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4880ee]";
 
+/** 웹 연 구독(SOMA-1068) 빌드인가에 따라 바뀌는 안내 문구. 꺼져 있으면 지금 문구 그대로다. */
+const WEB_PLAN_NOTE = WEB_YEARLY_ENABLED
+  ? "월 구독은 결제일부터 1개월마다, 연 구독은 1년마다 자동결제"
+  : "웹은 월 구독 · 결제일부터 1개월마다 자동결제";
+const YEARLY_NOTE = WEB_YEARLY_ENABLED
+  ? "웹과 앱(App Store·Google Play) 모두 연 32,500원(부가세 포함) 연 구독이 있어요"
+  : "앱(App Store·Google Play)에서는 연 32,500원(부가세 포함) 연 구독도 있어요";
+const WEB_PLANS_ANSWER = WEB_YEARLY_ENABLED ? "웹에서도 월 구독과 연 구독 중에 고를 수 있어요." : "웹은 월 구독만 있어요.";
+
 const FAQ = [
   ["언제부터 결제되나요?", "2026년 11월 1일부터 결제를 시작해요. 그 전에는 결제되지 않고, 무료 한도도 그날부터 적용해요."],
   ["10월 31일까지 가입했는데 바로 결제해야 하나요?", "아니요. 2026년 10월 31일까지 가입한 회원은 11월 1일부터 7일까지 Pro를 무료로 써요. 이 공지 전에 가입했다면 11월 30일까지 무료 한도 없이 무료 회원으로 쓰고, 12월 1일부터 무료 한도가 적용돼요. 카드를 등록하지 않으니 자동으로 결제되지 않아요."],
-  ["앱에서도 결제할 수 있나요?", "iOS 앱은 App Store, Android 앱은 Google Play로 월 구독(3,900원)이나 연 구독(32,500원)을 결제할 수 있어요. 웹은 월 구독만 있어요. 한 계정은 한 곳에서만 구독할 수 있어요."],
+  ["앱에서도 결제할 수 있나요?", `iOS 앱은 App Store, Android 앱은 Google Play로 월 구독(3,900원)이나 연 구독(32,500원)을 결제할 수 있어요. ${WEB_PLANS_ANSWER} 한 계정은 한 곳에서만 구독할 수 있어요.`],
   ["무료 이용자가 자동으로 유료가 되나요?", "현재 무료 이용자가 동의 없이 유료로 전환되지는 않아요."],
   ["해지하면 바로 Pro를 못 쓰나요?", "자동결제만 해지하면 현재 결제기간이 끝날 때까지 Pro를 이용할 수 있어요."],
   ["구독을 해지하면 회원 탈퇴가 되나요?", "구독 해지는 회원 탈퇴와 별개예요."],
@@ -74,8 +83,8 @@ export default function PricingPage() {
             <p className="mt-2 text-[28px] font-extrabold tracking-[-0.03em] sm:text-[34px]">
               월 3,900원 <span className="text-base font-semibold text-[#6b7684]">부가세 포함</span>
             </p>
-            <p className="text-[13.5px] text-[#6b7684]">웹은 월 구독 · 결제일부터 1개월마다 자동결제</p>
-            <p className="text-[13.5px] text-[#6b7684]">앱(App Store·Google Play)에서는 연 32,500원(부가세 포함) 연 구독도 있어요</p>
+            <p className="text-[13.5px] text-[#6b7684]">{WEB_PLAN_NOTE}</p>
+            <p className="text-[13.5px] text-[#6b7684]">{YEARLY_NOTE}</p>
             <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
               <li className="py-2.5">코칭 횟수 제한 없음</li>
               <li className="py-2.5">리딩 대본 개수 제한 없음</li>
@@ -87,7 +96,13 @@ export default function PricingPage() {
               <li className="py-2.5">앱 광고 없음</li>
               <li className="py-2.5">참여작·댓글·프로필에 Pro 배지</li>
             </ul>
-            {WEB_BILLING_ENABLED ? (
+            {WEB_YEARLY_ENABLED ? (
+              <PlanSubscribe
+                className={`mt-5 flex h-[52px] w-full items-center justify-center rounded-[14px] bg-[#4880ee] text-base font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+              >
+                Pro 구독하기
+              </PlanSubscribe>
+            ) : WEB_BILLING_ENABLED ? (
               <SubscribeButton
                 className={`mt-5 flex h-[52px] w-full items-center justify-center rounded-[14px] bg-[#4880ee] text-base font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
               >

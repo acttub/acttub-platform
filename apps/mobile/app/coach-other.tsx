@@ -1,11 +1,12 @@
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ChoiceCard, type ChoiceTint } from '@/components/choice-card';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 import { palette } from '@/constants/palette';
 import { space } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
@@ -29,19 +30,13 @@ export default function CoachOtherScreen() {
   const [hasScripts, setHasScripts] = useState(false);
   const [picked, setPicked] = useState<OtherWay>('talk');
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      listScripts()
-        .then((list) => {
-          if (!cancelled) setHasScripts(list.scripts.length > 0);
-        })
-        .catch(() => undefined);
-      return () => {
-        cancelled = true;
-      };
-    }, []),
-  );
+  useFocusLoad((alive) => {
+    listScripts()
+      .then((list) => {
+        if (alive()) setHasScripts(list.scripts.length > 0);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const ways: OtherWay[] = hasScripts ? ['talk', 'myScripts', 'script'] : ['talk', 'script'];
 

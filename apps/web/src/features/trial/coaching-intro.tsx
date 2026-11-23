@@ -2,8 +2,6 @@
 
 import { SiteLink } from "@/features/site/site-link";
 
-import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
-import { READING_TRIAL_PATH, trialHref } from "./trial-paths";
 
 /**
  * 연기 코칭 시작 화면(영상 올리기)의 체험 안내(SOMA-834 3차). 제목과 한 줄 설명, 오른쪽의 질문 예시,
@@ -15,7 +13,7 @@ export const COACHING_INTRO_COPY = {
   examplesLabel: "이런 질문을 받아요",
   examplesNote: "실제 앱 대화를 옮긴 예시예요.",
   noVideo: "찍어 둔 영상이 없나요?",
-  readingLink: "상대역 리딩부터 해 보기",
+  readingLink: "앱 설치하기",
 } as const;
 
 export const COACHING_EXAMPLE_BUBBLES = [
@@ -62,11 +60,10 @@ export function CoachingExamples() {
 
 /** 업로드 영역 아래의 작은 안내. 영상이 없는 사람은 리딩 체험으로 간다. */
 export function NoVideoReadingLink() {
-  const search = useCampaignSearch();
   return (
     <p className="text-[14px] text-[#4e5968]">
       {COACHING_INTRO_COPY.noVideo}{" "}
-      <SiteLink href={trialHref(READING_TRIAL_PATH, "coaching_link", search)} className="font-bold text-[#191f28] underline underline-offset-2">
+      <SiteLink href={"/app"} className="font-bold text-[#191f28] underline underline-offset-2">
         {COACHING_INTRO_COPY.readingLink}
       </SiteLink>
     </p>

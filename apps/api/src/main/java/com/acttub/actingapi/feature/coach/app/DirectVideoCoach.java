@@ -46,6 +46,8 @@ public final class DirectVideoCoach {
     // 리딩 녹음으로 시작한 회차(SOMA-791)의 소리와 대본. 없으면 그 회차는 답하지 못하고 닫힌다.
     private CoachReadingAudio readingAudio = CoachReadingAudio.NONE;
     private CoachPro coachPro = CoachPro.NONE;
+    // 비교 모델을 Pro 배우에게만 쓴다(SOMA-657, 2026-11-19). 무료 배우의 새 대화는 기본 모델이다.
+    private boolean alternateProOnly;
     private CoachProMemory proMemory = CoachProMemory.NONE;
     // 코치 모델 비교(SOMA-657). 새 대화의 alternateShare% 는 코치 답을 alternate 모델로 쓴다.
     // 분류·줄이기·영상 올리기는 늘 기본 모델이다. null 이거나 0 이면 모두 기본 모델(롤백).
@@ -207,6 +209,15 @@ public final class DirectVideoCoach {
     public DirectVideoCoach withProMemory(CoachPro pro, CoachProMemory memory) {
         this.coachPro = pro == null ? CoachPro.NONE : pro;
         this.proMemory = memory == null ? CoachProMemory.NONE : memory;
+        return this;
+    }
+
+    /**
+     * 켜면 새 대화의 코치 답 모델을 Pro 여부로 정한다(SOMA-657). Pro 는 비교 모델(3.8), 무료는 기본 모델이다.
+     * 끄면 예전처럼 연습 세션 id 와 SHARE% 로 정한다. Pro 판정은 {@link #withProMemory} 로 끼운 것을 쓴다.
+     */
+    public DirectVideoCoach withAlternateProOnly(boolean proOnly) {
+        this.alternateProOnly = proOnly;
         return this;
     }
 
@@ -947,11 +958,13 @@ public final class DirectVideoCoach {
     /**
      * 이 대화의 코치 모델 쪽(SOMA-657). 저장된 값이 있으면 그대로 쓴다. 첫 응답이면 연습 세션 id 로 정해
      * 같은 세션은 다시 시도해도 같은 쪽이 나온다. 배포 전에 시작한 대화(저장값 없음)는 기본 모델로 끝낸다.
+     * Pro 전용이 켜져 있으면 첫 응답 때 Pro 는 b, 무료는 a 로 정하고 저장한다(대화 도중 구독이 바뀌어도 그대로다).
      */
     String coachArm(CoachSessionSnapshot session) {
         String stored = DirectVideoPracticeLoop.storedCoachModel(session.coachingState());
         if (!stored.isEmpty()) return stored;
         if (!session.turns().isEmpty() || alternateShare <= 0 || session.practiceSessionId() == null) return "a";
+        if (alternateProOnly) return CoachPro.safe(coachPro, session.userId()) ? "b" : "a";
         return Math.floorMod(session.practiceSessionId().hashCode(), 100) < alternateShare ? "b" : "a";
     }
 

@@ -1,7 +1,7 @@
 # 홈서버 모니터링 수집
 
 앱 배포 정본은 [DEPLOY-HOME.md](../../docs/deploy/DEPLOY-HOME.md)다. 이 디렉터리는 별도 Compose 프로젝트의
-Prometheus·PDC·호스트·DB health·백업 수집을 담당한다. Cloud 선언 설정은 [cloud](cloud/)에 있고, 적용·확인
+Prometheus·PDC·호스트·DB health·백업 수집과 앱 로그 전송(Alloy)을 담당한다. Cloud 선언 설정은 [cloud](cloud/)에 있고, 적용·확인
 절차는 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md)다.
 앱 배포 스크립트와 Actions의 앱 파일 전송에는 이 프로젝트를 넣지 않는다.
 
@@ -19,7 +19,10 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
   따른다.
 - 화면은 Cloud 계정 로그인으로 연다. 초기의 Tailscale 전용 화면 접근 결정은 이 방식으로 대체했고, Tailscale은
   서버 관리·배포에 유지한다. PDC는 브라우저 접속을 Tailscale로 제한하는 기능이 아니다.
-- 선언 설정으로 교체할 수 있는 관측 구성이라 별도 ADR을 두지 않는다. 설계 이유는 이 절에 둔다.
+- 선언 설정으로 교체할 수 있는 관측 구성이라 별도 ADR을 두지 않는다. 설계 이유는 이 절에 둔다. 로그를 서버 밖에
+  저장하는 것([ADR-038](../../docs/ADR.md#adr-038-앱-로그는-서버-밖-grafana-cloud-loki에-저장한다))과 Docker 소켓 프록시
+  예외([ADR-039](../../docs/ADR.md#adr-039-docker-소켓은-읽기-호출만-통과시키는-프록시-하나만-쥐고-alloy는-그-프록시로만-읽는다))만 ADR로 둔다.
+- 앱 로그는 지표와 달리 Grafana Cloud Loki에 저장한다. 구성은 [로그 전송](#로그-전송)이다.
 
 알아 둘 한계:
 
@@ -30,9 +33,11 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
 하지 않는 것:
 
 - 홈서버 Grafana·별도 Alertmanager 운영, 로컬 지표 전체의 Cloud Metrics 복제(`remote_write`)
-- Grafana 안의 중앙 로그 검색, 새 분산 추적·Sentry 트레이싱 활성화
+- `api`·`web`·`proxy` 밖의 컨테이너 로그 전송(`db`는 느린 쿼리 로그를 켠 뒤에 더한다), 커널·`docker.service` 밖의
+  호스트 저널(sshd 접속 기록, 이 서버의 다른 서비스) 전송, 로그 기반 알림
+- 새 분산 추적·Sentry 트레이싱 활성화
 - AI 비용 정산 완성, Langfuse 토큰 누락 보정, 사용자 수·전환·재방문 분석을 Grafana로 옮기는 것
-- 전체 컨테이너 수집을 위한 cAdvisor·Docker socket 접근
+- 전체 컨테이너 수집을 위한 cAdvisor. Docker socket은 읽기 호출만 통과시키는 `socket-proxy`에만 둔다(ADR-039)
 - 공개 관리 포트와 DB 공개 연결
 - 관측 지표를 정확한 정산 원장으로 쓰는 것, 사용자·프롬프트·영상 원문 수집
 - 디스크 손실에 대비한 지표의 별도 재해 복구 백업과 호스트 고가용성 구성
@@ -51,8 +56,10 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
 | PDC | 전용 조회망만. OpenSSH 모드로 전달 목적지 `prometheus:9090`만 허용 |
 | node exporter | 수집기망, `/proc`·`/sys`·호스트 루트 읽기 전용 |
 | DB health·백업 exporter | 각각 환경별 수집망·수집기망, 또는 수집기망만 |
+| Alloy(`logs`를 켰을 때만) | Cloud로 나가는 전용 로그망과 내부 `docker-api` 망. 소켓 없음, 이미지의 비root 사용자(473)에 호스트 `systemd-journal` 그룹만 더해 `/var/log/journal` 읽기 전용, 자체 HTTP는 컨테이너 안 `127.0.0.1:12345` |
+| socket-proxy(`logs`를 켰을 때만) | 내부 `docker-api` 망만. Docker 소켓 읽기 전용 bind, `alloy`에서 온 허용 목록의 읽기 호출만 통과 |
 
-모든 이미지는 [compose.yml](compose.yml)에 버전과 SHA-256 digest를 함께 고정했다.
+모든 이미지는 [compose.yml](compose.yml)·[compose.logs.yml](compose.logs.yml)에 버전과 SHA-256 digest를 함께 고정했다.
 Prometheus는 **30초**마다 수집하고(`manage.py`가 렌더하는 `scrape_interval`) `metrics` 볼륨에 **30일**
 보관한다(`compose.yml`의 `retention.time`, `check`가 대조한다). 다른 문서는 이 두 값을 여기서 가리킨다.
 `retention_size`는 필수이며 실측하지 않은 기본 용량을 운영값으로 넣지 않는다. 용량 상한이 먼저 적용되면
@@ -127,7 +134,7 @@ chmod 600 secrets/dev-token secrets/pdc-token
 운영도 선택했다면 `chmod 600 secrets/prod-token`을 추가로 실행한다.
 
 도구가 생성하는 `/svc/acttub/monitoring`은 `700`이다. 그 안의 버전별 설정·시크릿 사본은
-컨테이너의 서로 다른 UID가 자기 bind mount를 읽을 수 있도록 파일 `444`·하위 디렉터리 `755`를
+컨테이너의 서로 다른 UID가 자기 bind mount를 읽을 수 있도록 파일 `444`·하위 디렉터리 `755`(렌더하는 셸의 umask와 무관)를
 쓴다. 호스트의 다른 사용자는 바깥 `700` 디렉터리를 통과할 수 없다. 이 바깥 권한을 넓히지 않는다.
 각 서비스는 필요한 하위 디렉터리만 읽기 전용으로 받고, PDC token은 실행 시 환경변수로 읽어
 컨테이너 명령 인자나 `docker compose config`에 남기지 않는다.
@@ -184,6 +191,88 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
 [Cloud 쪽 실제 검증](../../docs/deploy/MONITORING-CLOUD.md#실제-stack-인수-검증-기록)으로 확인해야 한다.
 컨테이너가 실행 중이라는 사실만으로 이를 통과시키지 않는다.
 
+## 로그 전송
+
+`monitoring.json`에 `logs`가 있을 때만 `render`가 릴리스에 [compose.logs.yml](compose.logs.yml)과 렌더한
+[config.alloy](config.alloy)를 넣는다. Alloy 컨테이너 하나가 `socket-proxy`를 거쳐 Docker API로
+같은 호스트의 컨테이너 로그를 읽고, 호스트 저널에서 커널과 `docker.service` 줄을 읽는다. 프록시는 Alloy가 쓰는 읽기 호출만 통과시키고 쓰기 호출은 모두 거절한다(ADR-039).
+허용 목록을 바꾸면 `manage.py`의 `SOCKET_PROXY_COMMAND`도 같이 바꾼다. 둘이 다르면 `validate`가 멈춘다.
+
+```json
+"logs": {"loki_url": "https://logs-prod-<번호>.grafana.net/loki/api/v1/push", "loki_user": "<숫자 User>", "environments": ["dev", "prod"], "journal_gid": 999}
+```
+
+- `loki_url`·`loki_user`는 Cloud Portal의 stack → Loki 카드 → **Details**에 있는 URL과 User다. URL은 지역마다
+  모양이 달라 직접 만들지 않고 복사한다. `https`만 받는다.
+- 토큰은 `secrets/loki-token`(권한 `600`)에 둔다. `logs:write` 범위의 access policy token이다. 릴리스의
+  `alloy/loki-token`을 Alloy가 `password_file`로 읽으므로 명령 인자·컨테이너 환경변수·`docker compose config`에 남지 않는다.
+- `environments`는 `config.environments` 안에서 고른다. 로그 한도에 걸리면 여기서 `dev`만 뺀다. 지표 수집은 그대로다.
+- `journal_gid`는 호스트 `getent group systemd-journal`의 숫자다. 저널 파일은 `root:systemd-journal` `0640`이라 Alloy가
+  이 그룹으로만 읽는다. 값이 틀리면 Alloy는 오류 없이 저널 줄을 하나도 읽지 못한다.
+
+보내는 것:
+
+- 대상은 선택한 환경의 Compose 프로젝트에서 서비스가 `api`·`web`·`proxy`인 컨테이너다. 무중단 배포로 잠시 둘이 된
+  같은 서비스도 함께 읽는다. 다른 서비스·프로젝트·모니터링 자신의 로그는 읽지 않는다.
+- 호스트 저널은 커널(`_TRANSPORT=kernel`)과 Docker 데몬(`_SYSTEMD_UNIT=docker.service`)뿐이다. 둘을 읽는 단계의 조건
+  (`matches`)으로 고르므로 sshd·cron·이 서버의 다른 서비스 줄은 Alloy 밖으로 나가지 않는다. 처음 켜면 최근 7시간부터 읽는다.
+- 표시(label)는 `environment`(`dev`·`prod`, 지표의 같은 이름 label과 같은 값)와 `service`뿐이다. 호스트 저널은 dev·운영이
+  나뉘지 않아 호스트 지표처럼 `environment="shared"`이고 `service`는 `kernel`·`docker.service`다. Cloud가 `service`로
+  `service_name`을 더한다. 요청 ID·사용자 ID처럼 값이 많은 것은 label로 만들지 않고 줄 안에서 찾는다.
+- 줄 형식은 [홈서버 배포 「로그」](../../docs/deploy/DEPLOY-HOME.md#로그)가 정한다(nginx·api 모두 한 줄 JSON). 그 전의
+  일반 글자 줄도 같은 규칙으로 다룬다. `trace_id`·`user_id`는 줄 안의 값으로만 남는다.
+- 버리는 줄: 경로가 `/health`·`/actuator`인 요청 줄(nginx `path`, api `route`, 일반 글자 `GET /health …`). 외부 점검이
+  1분마다 부른다.
+- 지우는 것: 일반 글자 요청 줄과 nginx error 줄(`request`·`upstream`·`referrer`)의 쿼리 문자열. 검색어와 콜백 키가 실린다.
+  JSON 요청 줄의 `path`에는 nginx가 쿼리를 싣지 않는다.
+- 가리는 값: `Bearer` 뒤 값, JWT 모양 값, 주소나 줄 안 `이름=값`의 `token`·`code`·`state`·`key`·`secret`·`password`·서명 값과 S3
+  서명(`X-Amz-*`), JSON의 `password`·`token`·`secret`·`authorization`·`cookie` 같은 키 값은 `[REDACTED]`로,
+  이메일은 `[EMAIL]`로 바꾼다. 64KiB가 넘는 줄은 자른다. 이 규칙은 정해진 모양만 잡으므로 로그에 개인정보를 쓰지 않는
+  것이 먼저다.
+- 읽은 위치(컨테이너·저널)는 `alloy-data` 볼륨에 남아 Alloy를 다시 띄워도 이어 읽는다. 처음 켜면 이미 떠 있는 컨테이너의 남은 로그
+  파일(앱은 20MB씩 5개)을 처음부터 읽지만, 6.5일(`156h`)보다 오래된 줄은 보내기 전에 버린다. Cloud Loki가 7일보다 오래된
+  줄을 400으로 거절하고 그 묶음 전체를 재시도 없이 버리기 때문이다(배포 때 다시 만들지 않는 `proxy`의 로그가 몇 주 치 남아
+  있다). 그래서 처음 켠 직후에도 최근 줄이 늦지 않고, Alloy 로그에 `final error sending batch`가 나오지 않아야 한다.
+- Cloud가 끊기면 보내지 못한 묶음은 메모리 큐(기본 10MiB)에 쌓이고 큐가 차면 읽기를 멈춘다. 묶음마다 최대 10번,
+  간격을 늘려 최대 5분까지 재시도한 뒤 버린다. 메모리 상한은 256MiB이고 Alloy가 그 90%를 Go 메모리 목표로 쓴다.
+
+끄기: `logs`를 뺀 설정으로 새 릴리스를 렌더·적용한다. `apply`가 고아 컨테이너를 지우므로 Alloy와 socket-proxy가 멈춘다. `logs`가
+없던 이전 릴리스로 `rollback`해도 같다. 위치 볼륨은 지우지 않으므로 다시 켜면 이어 읽는다.
+`--without-pdc` 적용은 Cloud에 연결하지 않으므로 Alloy와 socket-proxy도 띄우지 않는다.
+
+### dev에 처음 켜는 순서
+
+서버에서 사람이(또는 승인받은 작업자가) 한다. 이 순서는 저장소 작업이 실행하지 않는다.
+
+1. Cloud Portal에서 stack의 Loki URL·User를 확인하고, `logs:write`만 가진 access policy와 만료 기한 있는 토큰을 만든다.
+   토큰은 홈서버 `secrets/loki-token`에 `600`으로 둔다.
+2. `monitoring.json`에 `logs`를 넣는다. 처음에는 `"environments": ["dev"]`로 시작한다.
+3. 새 버전으로 `render` → `check`(고정 Alloy가 설정을 `validate`한다) → `apply`한다.
+4. `docker compose ... ps alloy socket-proxy`가 둘 다 running이고, `docker logs <프로젝트>-alloy-1`에 `level=error`가
+   없고(특히 `final error sending batch`·`timestamp too old`), `docker logs <프로젝트>-socket-proxy-1`에 `blocked request`가
+   없는지 본다. `blocked request`가 있으면 Alloy가 허용 목록 밖의 호출을 한 것이다.
+5. Grafana Explore에서 Loki 데이터 소스로 `{environment="dev", service="api"}`와 `{environment="dev", service="proxy"}`를
+   조회해 켠 직후부터 최근 줄이 바로 들어오는지, `/health` 줄이 없고 가린 값이 `[REDACTED]`인지 본다. 6.5일보다 오래된 줄은
+   들어오지 않는 것이 정상이다.
+6. 하루 뒤 Cloud의 로그 사용량(하루 GB × 31이 50GB 안인지)과 `docker stats`의 Alloy 메모리를 잰다. 괜찮으면
+   `environments`에 `prod`를 더해 같은 순서로 적용한다.
+
+### 이미 켠 서버에 호스트 저널 더하기
+
+SOMA-1095 구성(Alloy가 root, `alloy` 볼륨)으로 켠 서버에 이 버전을 반영할 때 사람이 한다.
+
+1. `getent group systemd-journal`의 숫자를 `monitoring.json`의 `logs.journal_gid`에 넣고 새 버전으로 `render` → `check` → `apply`한다.
+2. 위치 볼륨이 `alloy-data`로 바뀌어 Alloy가 컨테이너 로그를 처음부터 다시 읽는다. 같은 시각·같은 줄은 Loki가 한 번만 두지만
+   다시 보낸 양은 그날 사용량에 더해진다.
+3. `docker exec <프로젝트>-alloy-1 id`가 `uid=473`이고 그룹에 위 숫자가 있는지 본다.
+4. Grafana Explore에서 `{environment="shared"}`의 `service` 값이 `kernel`·`docker.service` 둘뿐인지 본다. 대상 밖 단위가 없는지
+   `{environment="shared"} |~ "sshd|CRON|hermes|langfuse"`가 비어 있는지로 확인한다.
+5. 하루 뒤 서버에서 `sudo journalctl -k --since yesterday --until today | wc -c`와
+   `sudo journalctl -u docker.service --since yesterday --until today | wc -c`로 하루 양을 재고 Cloud 사용량 증가와 맞춘다.
+6. 새 Alloy가 잘 돌면 옛 위치 볼륨 `<프로젝트>_alloy`를 `docker volume rm`으로 지운다. 지우면 되돌릴 수 없으므로 4번 확인 뒤에 한다.
+   지우기 전까지는 `rollback`으로 `journal_gid` 없는 이전 릴리스(root Alloy, `alloy` 볼륨)에 돌아갈 수 있다. 지운 뒤 되돌리면
+   그 릴리스의 Alloy는 빈 `alloy` 볼륨으로 시작해 컨테이너 로그를 처음부터 다시 읽는다.
+
 ## 지표 계약
 
 | job | environment | 의미 |
@@ -191,7 +280,7 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
 | `api` | dev/prod | 환경별 인증된 API metrics. scrape 설정이 환경 label을 소유 |
 | `db-health` | `up`에는 없음, payload에는 dev/prod | 공유 HTTP exporter가 환경별 관리 DB health를 검사 |
 | `backup` | `up`에는 없음, payload에는 선택한 dev/prod | 공유 exporter가 선택한 환경의 읽기 전용 상태 볼륨을 검사 |
-| `node` | shared | 호스트 CPU·MemAvailable·지정한 데이터 마운트의 filesystem |
+| `node` | shared | 호스트 CPU·MemAvailable·지정한 데이터 마운트의 filesystem·장치별 디스크 I/O(diskstats) |
 | `prometheus` | shared | 수집기 자체 상태와 수집량 |
 
 API가 노출한 중복 `environment`는 scrape label로 치환하고 `exported_environment`는 제거한다.
@@ -246,8 +335,8 @@ PDC의 실제 OpenSSH remote SOCKS 전달도 임시 SSH 서버에서 검사한�
 다른 호스트와 포트는 거부되어야 한다. 외부 터널 상대만 대체하며 Cloud API나 Slack을 부르지 않는다.
 테스트가 만든 고유 `soma520-*` 컨테이너·볼륨만 정리하며 재사용 앱 이미지 태그는 남긴다.
 
-별도 실제 홈서버에서 node의 CPU·`MemAvailable`·데이터 filesystem 값을 `/proc/stat`,
-`/proc/meminfo`, `df`와 대조하고 30일 예상 저장량·여유 공간을 확인한다. 실제 Cloud/PDC 조회,
+별도 실제 홈서버에서 node의 CPU·`MemAvailable`·데이터 filesystem·디스크 쓰기 값을 `/proc/stat`,
+`/proc/meminfo`, `df`, `/proc/diskstats`와 대조하고 30일 예상 저장량·여유 공간을 확인한다. 실제 Cloud/PDC 조회,
 세 계정 권한·Free 사용량·Slack 최초/반복/복구 수신도 확인해야 한다. 로컬 테스트 통과는 이 운영
 검증의 완료를 의미하지 않는다.
 

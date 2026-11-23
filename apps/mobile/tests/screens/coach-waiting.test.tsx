@@ -356,6 +356,7 @@ describe('분석이 끝나면', () => {
     await entersCoach();
     expect(getPractice()).toEqual({
       practiceId: 'p1',
+      createdAt: '2026-10-01T00:00:00Z',
       rootId: 'r1',
       ordinal: 2,
       conversationId: 'c1',
@@ -406,6 +407,7 @@ describe('분석이 끝나면', () => {
     await entersCoach();
     expect(getPractice()).toEqual({
       practiceId: 'p1',
+      createdAt: '2026-10-01T00:00:00Z',
       rootId: 'p1',
       ordinal: 1,
       // 대화 없이 넘겼고, 같은 화면이 바로 대화를 열어 붙였다.

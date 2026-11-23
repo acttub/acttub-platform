@@ -9,24 +9,15 @@ import com.acttub.actingapi.feature.coach.app.CoachFlows;
 import com.acttub.actingapi.feature.coach.app.CoachPersonas;
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /** 코치 흐름·성격 배정을 실제 사용자 행으로: 자문위원이 아닌 배우는 성격이 없고 흐름은 계정마다 고정된 쪽이다. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false",
         "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
 class PostgresCoachAssignmentsIT {
-    @DynamicPropertySource static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("coach_assignments");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired JdbcTemplate jdbc;
     @Autowired CoachFlows flows;

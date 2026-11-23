@@ -65,6 +65,7 @@ import {
   createRun,
   discardOnExit,
   formatProgress,
+  hiddenLineCount,
   isHidden,
   jumpTo,
   mmss,
@@ -115,7 +116,6 @@ import {
 } from '@/lib/reading/voice-capability';
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { ReadingNoScript } from '@/components/reading/no-script';
-import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
@@ -129,6 +129,7 @@ import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/re
 import { newRequestId } from '@/lib/request-id';
 import { loadListenPrefs, pauseMsFor } from '@/lib/reading/listen-prefs';
 import { setReadingPlaybackRate } from '@/lib/reading/tts/playback-rate';
+import { useFullScreenAd } from '@/lib/full-screen-ad';
 
 /**
  * 연습 실행(R9, reading.session). R8 시작·회차 상세 [이어서 연습]·완료의 [다시 연습]으로 들어온다.
@@ -337,6 +338,7 @@ export default function ReadingPlay() {
   // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494). 튜토리얼 대본은 세지 않는다.
   const { after: askRating, element: ratingCard } = useAppRating();
   const fromTutorialRef = useRef(false);
+  const showFullScreenAd = useFullScreenAd();
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
   const attempts = useRef<Record<string, number>>({});
@@ -542,7 +544,11 @@ export default function ReadingPlay() {
         void markReadingFinished();
       }
       setPhase({ kind: 'done' });
-      if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
+      // 결과로 넘어갈 때 전면 광고(SOMA-1085, 튜토리얼은 빼고) — 별점 묻기는 광고를 닫은 뒤에 한다(둘이 겹치지 않게).
+      void (async () => {
+        if (!fromTutorialRef.current) await showFullScreenAd('reading_done_full');
+        if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
+      })();
       return;
     }
     // 이어하기의 앞 상대 대사(leadIn)는 저장하지 않는다 — 서버 위치가 뒤로 가지 않게.
@@ -723,7 +729,7 @@ export default function ReadingPlay() {
       const neededBytes = (e as { neededBytes?: unknown } | null)?.neededBytes;
       setPhase({ kind: 'voice_failed', failure: { kind, neededBytes: typeof neededBytes === 'number' ? neededBytes : undefined } });
     }
-  }, [confirm, session, hasPartnerLines, primeSpeech, startRunning, chooseEngine, script, config, presetFor]);
+  }, [confirm, session, hasPartnerLines, primeSpeech, startRunning, chooseEngine, script, config, presetFor, showFullScreenAd]);
 
   useEffect(() => {
     mounted.current = true;
@@ -1464,9 +1470,11 @@ export default function ReadingPlay() {
     queueRef.current?.push(progressPayload(next));
   }, []);
   // 배경으로 가면(화면 끔·다른 앱) 어느 회차든 멈춘다 — 리딩 백그라운드 재생은 1.1.1 출시 전에 iOS·안드로이드 모두 뺐다(11/3 사용자 결정).
+  // iOS 의 inactive 는 멈추지 않는다 — 권한 창이 만든 inactive 가 권한 응답 뒤 시작한 다음에야 와서 첫 리딩이 멈춘 채 시작했다(SOMA-1052,
+  // 시뮬레이터 로그로 확인). 화면 끔·다른 앱은 background 까지 가고, 전화는 소리가 끊겨 onInterrupt 가 멈춘다.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' && phase.kind === 'running') doPause();
+      if (state === 'background' && phase.kind === 'running') doPause();
     });
     return () => sub.remove();
   }, [phase.kind, doPause]);
@@ -1918,29 +1926,19 @@ export default function ReadingPlay() {
     const roles = listenAll ? t('reading.listenAllRole') : config.myNames.join(', ');
     // 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서, 이미 있는 탭까지 내려간다(SOMA-853).
     const goHome = () => router.dismissTo('/(tabs)');
-    const links = (
-      <View style={styles.doneLinks}>
-        <Pressable
-          style={[styles.doneLink, busy && styles.doneLinkOff]}
-          onPress={() => void readAgain()}
-          disabled={busy}
-          accessibilityRole="button"
-          accessibilityLabel={t('reading.readAgain')}
-          accessibilityState={{ disabled: busy }}>
-          {restarting ? (
-            <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-          ) : (
-            <>
-              <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-              <Text style={[styles.doneLinkText, styles.doneLinkAccent]}>{t('reading.readAgain')}</Text>
-            </>
-          )}
-        </Pressable>
-        <Pressable style={styles.doneLink} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
-          <Feather name="file-text" size={16} color={palette.textSub} />
-          <Text style={styles.doneLinkText}>{t('reading.otherScript')}</Text>
-        </Pressable>
-      </View>
+    // 다음 행동 순서(SOMA-1048 D안): 요약 바로 아래 「다른 대본으로」(Button/Text), 아래 고정 바에 「↻ 다시 읽기」(Button/Text-link)와
+    // 맨 아래 주 버튼 「홈으로 가기」. 다시 읽기가 있는 끝 상태는 모두 이 규칙을 쓴다.
+    const otherScript = <TextButton label={t('reading.otherScript')} onPress={() => router.dismissTo('/reading')} />;
+    const readAgainButton = (
+      <TextButton
+        tone="accent"
+        label={t('reading.readAgain')}
+        icon={<Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
+        onPress={() => void readAgain()}
+        disabled={busy}
+        loading={restarting}
+        loadingLabel={t('loadingText.preparing')}
+      />
     );
     const summary = (line: string) => (
       <View style={styles.doneSummary}>
@@ -1958,14 +1956,14 @@ export default function ReadingPlay() {
     if (!completed && !firstStopped) {
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} mascotMotion="none" title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} mascotMotion="none" title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked} footer={readAgainButton}>
             <View style={styles.doneBody}>
               <View style={styles.doneHead}>
                 <Text style={styles.doneDesc}>{t('reading.notCountedBody')}</Text>
                 <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
-              {links}
+              {otherScript}
               {ratingCard}
             </View>
           </DoneScreen>
@@ -1987,10 +1985,10 @@ export default function ReadingPlay() {
       };
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={() => void homeAfterFirst()} homeDisabled={doneLocked}>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} mascotMotion={completed ? 'celebrate' : 'none'} title={t(completed && !stoppedEarlyRef.current ? 'reading.firstDoneTitle' : 'reading.firstStopTitle')} scriptName={script.title} onHome={() => void homeAfterFirst()} homeDisabled={doneLocked} footer={readAgainButton}>
             <View style={styles.doneBody}>
               {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
-              {links}
+              {otherScript}
               {ratingCard}
             </View>
           </DoneScreen>
@@ -2015,7 +2013,7 @@ export default function ReadingPlay() {
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
       return (
         <>
-          <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.monologueDoneTitle')} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+          <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.monologueDoneTitle')} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={<>{reportRow}{readAgainButton}</>}>
             <View style={styles.doneBody}>
               <View style={styles.doneHead}>
                 {compared && (
@@ -2026,7 +2024,7 @@ export default function ReadingPlay() {
                 <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
-              {links}
+              {otherScript}
               {coaching && (
                 <>
                   <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
@@ -2081,11 +2079,11 @@ export default function ReadingPlay() {
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
       <>
-        <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.completeTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+        <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.completeTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={<>{reportRow}{readAgainButton}</>}>
           <View style={styles.doneBody}>
             {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
-            {links}
+            {otherScript}
             {coaching && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
             {listened ? (
               note(t('reading.listenDoneNote'), 'info')
@@ -2496,16 +2494,16 @@ export default function ReadingPlay() {
   );
 }
 
-/** 가린 대사 자리의 회색 막대. 글 길이만큼 줄을 나눠 대사가 얼마나 긴지만 짐작하게 한다. */
+/**
+ * 가린 대사 자리의 줄(SOMA-1047). 대사 길이만큼 1~3줄을 그어 「여기 대사가 있는데 가려져 있다」로 읽히게 한다.
+ * 지금 줄은 blue-soft 카드 위 연한 파랑(blueMask), 독백의 다음 줄은 bg-soft. 높이 10 · 모서리 5 · 줄 사이 10, 마지막 줄은 60%.
+ */
 function HiddenBars({ text, tone }: { text: string; tone: 'past' | 'current' }) {
-  const len = Math.max(1, [...text.trim()].length);
-  const perLine = 18;
-  const lines = Math.min(3, Math.ceil(len / perLine));
-  const lastWidth = `${Math.max(18, Math.round((((len - 1) % perLine) + 1) / perLine * 100))}%` as const;
+  const lines = hiddenLineCount(text);
   return (
     <View style={styles.bars}>
       {Array.from({ length: lines }, (_, i) => (
-        <View key={i} style={[tone === 'past' ? styles.barPast : styles.barCurrent, { width: i === lines - 1 ? lastWidth : '100%' }]} />
+        <View key={i} style={[styles.bar, tone === 'current' && styles.barCurrent, { width: i === lines - 1 ? '60%' : '100%' }]} />
       ))}
     </View>
   );
@@ -2558,11 +2556,6 @@ const styles = StyleSheet.create({
   doneMeta: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
   doneSummary: { backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], gap: space[1], alignItems: 'center' },
   doneSummaryText: { ...type.body2, color: palette.textSub, textAlign: 'center' },
-  doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[6] },
-  doneLink: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], height: 40 },
-  doneLinkOff: { opacity: 0.4 },
-  doneLinkText: { ...type.body2Bold, color: palette.textSub },
-  doneLinkAccent: { color: palette.blueDeep },
   doneCoach: { alignSelf: 'center' },
   resultCard: { borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: space[4], paddingVertical: space[2], gap: space[2] },
   diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingVertical: space[2] },
@@ -2647,9 +2640,9 @@ const styles = StyleSheet.create({
   aidRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bg, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 7 },
   aidText: { ...type.captionBold, color: palette.blueDeep },
-  bars: { gap: 8, justifyContent: 'center' },
-  barPast: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
-  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blue },
+  bars: { gap: 10, justifyContent: 'center' },
+  bar: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
+  barCurrent: { backgroundColor: palette.blueMask },
   listenBars: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
   listenBar: { width: 3, borderRadius: 2, backgroundColor: palette.blue },
   hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 },

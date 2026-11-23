@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.feature.billing.app.BillingRepository.Checkout;
 import com.acttub.actingapi.feature.billing.app.BillingRepository.Payment;
 import com.acttub.actingapi.feature.billing.app.BillingRepository.Subscription;
+import com.acttub.actingapi.feature.billing.app.BillingRules.Plan;
 import com.acttub.actingapi.feature.billing.app.BillingRules.Purpose;
 import com.acttub.actingapi.feature.billing.app.BillingRules.Status;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway.GatewayException;
@@ -161,7 +162,8 @@ public class SubscriptionService {
             case CANCELED, EXPIRED -> null;
         };
         return new View(status, pro, sub.amount(), sub.periodEnd(), nextBilling, sub.cardCompany(),
-                last4(sub.cardNumber()), sub.retryCount(), limitsEnforced(userId), sub.provider(), grantEnd.orElse(null), settings.appEnabled());
+                last4(sub.cardNumber()), sub.retryCount(), limitsEnforced(userId), sub.provider(), grantEnd.orElse(null), settings.appEnabled(),
+                sub.plan().db());
     }
 
     /** Pro 인가 — 결제 기능이 꺼져 있으면 아무도 Pro 가 아니다(그때는 무료 한도도 걸리지 않는다). */
@@ -199,6 +201,17 @@ public class SubscriptionService {
      *     {@code payment_pending}(앞선 결제의 결과를 아직 모름), 422 {@code invalid_purpose}
      */
     public StartedCheckout startCheckout(UUID userId, boolean guest, String purposeValue) {
+        return startCheckout(userId, guest, purposeValue, null);
+    }
+
+    /**
+     * 요금제(monthly·yearly, 생략하면 monthly)를 골라 카드 등록 창을 연다. 요금제는 새 구독(subscribe)의 첫 결제에만 쓰고 카드 바꾸기에는
+     * 쓰지 않는다.
+     *
+     * @throws ApiException 위 오류에 더해 422 {@code invalid_plan}(모르는 요금제), 422 {@code plan_unavailable}(웹 연 구독 스위치
+     *     {@code BILLING_WEB_YEARLY_ENABLED} 가 꺼져 있는데 yearly)
+     */
+    public StartedCheckout startCheckout(UUID userId, boolean guest, String purposeValue, String planValue) {
         requireWeb();
         if (guest) {
             throw new ApiException(403, "billing_member_required");
@@ -206,6 +219,13 @@ public class SubscriptionService {
         Purpose purpose = Purpose.of(purposeValue == null ? "subscribe" : purposeValue);
         if (purpose == null) {
             throw new ApiException(422, "invalid_purpose");
+        }
+        Plan plan = Plan.of(planValue == null ? Plan.MONTHLY.db() : planValue);
+        if (plan == null) {
+            throw new ApiException(422, "invalid_plan");
+        }
+        if (plan == Plan.YEARLY && !settings.webYearlyUsable()) {
+            throw new ApiException(422, "plan_unavailable");
         }
         Optional<Subscription> existing = repository.find(userId);
         Status status = existing.map(Subscription::status).orElse(Status.EXPIRED);
@@ -229,7 +249,7 @@ public class SubscriptionService {
         String customerKey = existing.map(Subscription::customerKey).orElseGet(SubscriptionService::newCustomerKey);
         Instant expiresAt = now.plus(BillingRules.CHECKOUT_TTL);
         repository.openCheckout(new Checkout(checkoutId, userId, hash(state), purpose, customerKey,
-                BillingRules.firstOrderId(checkoutId), expiresAt));
+                BillingRules.firstOrderId(checkoutId), expiresAt, plan));
         return new StartedCheckout(settings.origin() + "/v2/billing/web/checkout/" + state, settings.returnUrl(),
                 expiresAt);
     }
@@ -297,6 +317,10 @@ public class SubscriptionService {
                 || !checkout.customerKey().equals(customerKey)) {
             return Result.FAILED;
         }
+        if (checkout.purpose() == Purpose.SUBSCRIBE && checkout.plan() == Plan.YEARLY && !settings.webYearlyUsable()) {
+            // 창을 연 뒤 연 구독 스위치가 꺼졌다. 카드도 등록하지 않고 결제하지 않는다.
+            return Result.FAILED;
+        }
         PgReviewGateway.IssuedKey issued;
         try {
             issued = gateway.issue(authKey, checkout.customerKey());
@@ -319,7 +343,10 @@ public class SubscriptionService {
             // 창을 연 뒤 다른 창으로 이미 구독했다. 카드만 새것으로 바뀌었고 결제는 하지 않는다.
             return Result.DONE;
         }
-        Instant end = BillingRules.nextPeriodEnd(now);
+        // 고른 요금제의 금액을 장부에 먼저 적는다 — 승인 금액·주문명과 이후 자동결제가 이 값을 따른다.
+        repository.choosePlan(sub.id(), checkout.plan(), now);
+        sub = repository.findById(subscriptionId).orElseThrow();
+        Instant end = sub.plan().nextPeriodEnd(now);
         Charge charge = charge(sub, checkout.orderId(), "first", now, end, 1);
         return switch (charge) {
             case DONE -> {
@@ -376,7 +403,7 @@ public class SubscriptionService {
         if (start == null || !sub.toss()) {
             return Charge.FAILED;
         }
-        Instant end = BillingRules.nextPeriodEnd(start);
+        Instant end = sub.plan().nextPeriodEnd(start);
         Optional<Payment> last = repository.lastPayment(sub.id(), start);
         if (last.isPresent() && "done".equals(last.get().status())) {
             repository.advance(sub.id(), start, end, now);
@@ -447,7 +474,7 @@ public class SubscriptionService {
         PgReviewGateway.Approval approval;
         try {
             approval = gateway.approve(cipher.open(sub.sealedBillingKey()), sub.customerKey(), orderId, sub.amount(),
-                    BillingRules.ORDER_NAME, receiptEmail(sub.userId()), orderId);
+                    sub.plan().orderName(), receiptEmail(sub.userId()), orderId);
         } catch (GatewayException e) {
             String code = e.code() != null && GATEWAY_CODE.matcher(e.code()).matches() ? e.code() : "gateway_error";
             if (e.outcome() == GatewayException.Outcome.UNKNOWN) {
@@ -489,7 +516,7 @@ public class SubscriptionService {
             }
             mailer.paymentDone(new BillingMailer.PaidMail(email.get().strip(), repository.displayName(sub.userId()).orElse(null),
                     "first".equals(paid.kind()), orderId, paid.amount(), sub.cardCompany(), sub.cardNumber(), paidAt,
-                    paid.periodStart(), paid.periodEnd()));
+                    paid.periodStart(), paid.periodEnd(), sub.plan()));
         } catch (RuntimeException e) {
             LOG.warn("billing_mail_prepare_failed order={}", orderId);
         }
@@ -593,11 +620,12 @@ public class SubscriptionService {
             boolean limitsEnforced,
             String provider,
             Instant grantEndsAt,
-            boolean appEnabled) {
+            boolean appEnabled,
+            String plan) {
 
         static View none(boolean limitsEnforced, Instant grantEndsAt, boolean appEnabled) {
             return new View("none", grantEndsAt != null, BillingRules.AMOUNT, null, null,
-                    null, null, 0, limitsEnforced, null, grantEndsAt, appEnabled);
+                    null, null, 0, limitsEnforced, null, grantEndsAt, appEnabled, Plan.MONTHLY.db());
         }
     }
 }

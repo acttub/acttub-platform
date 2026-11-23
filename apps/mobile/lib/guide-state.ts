@@ -11,25 +11,15 @@
 import { spotlightKey, type SpotlightTopic } from './guide-spotlight';
 import { currentFirstUseOwner, firstUseOwnerReady } from './practice/first-use-graduation';
 import { AUTO_ADVANCE_TIP_KEY } from './reading/guide-flag';
+import { deviceStorage as storage } from './device-storage';
 
 /** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
 const TUTORIAL_KEY = 'acttub.tutorial.seen';
 /** 대본 리딩 한 바퀴 튜토리얼(SOMA-494). AI 연습 튜토리얼과 따로 센다. */
 const READING_TUTORIAL_KEY = 'acttub.tutorial.reading.seen';
 
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-  removeItem(key: string): Promise<void>;
-};
-
 /** 스포트라이트를 띄우는 화면들. "다시 보기"가 이만큼을 되돌린다. */
 const SPOTLIGHT_TOPICS: SpotlightTopic[] = ['home', 'reading', 'group'];
-
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
 
 async function seen(key: string): Promise<boolean> {
   try {

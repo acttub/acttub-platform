@@ -61,10 +61,10 @@ export function TransferCodePage() {
   return (
     <main className="mx-auto min-h-dvh w-full max-w-[560px] px-5 py-8 text-[#191f28]">
       <Link
-        href="/home"
+        href="/"
         className="text-[13px] font-semibold text-[#8b95a1] transition hover:text-[#4e5968]"
       >
-        ← 연습으로
+        ← 처음으로
       </Link>
 
       <h1 className="mt-4 text-[26px] font-black tracking-tight">앱으로 옮기기</h1>
@@ -77,13 +77,13 @@ export function TransferCodePage() {
         <section className="mt-6 rounded-2xl bg-[#f9fafb] px-5 py-5">
           <p className="text-[15px] font-bold text-[#333d4b]">아직 옮길 연습이 없어요</p>
           <p className="mt-1.5 text-[14px] leading-[1.6] text-[#6b7684]">
-            이 브라우저에서 연습을 시작하면 여기서 앱으로 옮길 수 있어요.
+            이 브라우저에서 한 연습이 있으면 여기서 앱으로 옮길 수 있어요.
           </p>
           <Link
-            href="/practice/new"
+            href="/app"
             className="mt-4 inline-flex h-11 items-center rounded-xl bg-[#3182f6] px-4 text-sm font-black text-white transition hover:bg-[#1b64da]"
           >
-            연습 시작하기
+            앱 설치하기
           </Link>
         </section>
       ) : (

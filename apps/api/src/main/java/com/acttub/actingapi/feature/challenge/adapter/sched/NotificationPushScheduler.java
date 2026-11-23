@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.challenge.adapter.sched;
 import com.acttub.actingapi.feature.challenge.app.NotificationPushWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -19,12 +20,16 @@ class NotificationPushScheduler {
     @Scheduled(fixedDelayString = "${CHALLENGE_NOTIFICATION_PUSH_INTERVAL_MS:60000}",
             initialDelayString = "${CHALLENGE_NOTIFICATION_PUSH_INITIAL_DELAY_MS:30000}")
     void run() {
+        long started = System.nanoTime();
+        int processed = 0;
         try {
-            while (worker.runOnce() > 0) {
+            for (int sent; (sent = worker.runOnce()) > 0; processed += sent) {
                 // 밀린 묶음이 있으면 이어서 보낸다.
             }
         } catch (RuntimeException failure) {
             failures.report(failure, new FailureContext("NotificationPushScheduler.run"));
+        } finally {
+            ScheduledTaskLog.drained("NotificationPushScheduler.run", processed, started);
         }
     }
 }

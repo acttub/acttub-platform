@@ -88,14 +88,14 @@ class AudioSignalEvidenceTest {
                 "aevalsrc=0.02*sin(2*PI*440*t)|-0.02*sin(2*PI*440*t):s=48000:d=0.2"))).isTrue();
     }
 
+    /** 앞쪽 소리가 풀렸어도 끝이 깨졌으면 소리 있음으로 통과시키지 않는다 — 소리 없는 영상과 같은 길(SOMA-1081). */
     @Test void realDecoderRejectsDamagedAudioEvenAfterValidSamples() throws Exception {
         requireFfmpeg();
         Path valid = audio("valid", "sine=frequency=440:duration=0.2");
         byte[] bytes = Files.readAllBytes(valid);
         Path damaged = directory.resolve("damaged.wav");
         Files.write(damaged, java.util.Arrays.copyOf(bytes, bytes.length - 1));
-        assertThatThrownBy(() -> new AudioSignalEvidence().hasSignal(damaged))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("audio signal inspection failed");
+        assertThat(new AudioSignalEvidence().hasSignal(damaged)).isFalse();
     }
 
     @Test void realDecoderRejectsNonFiniteAudioSamples() throws Exception {

@@ -10,7 +10,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SplitJobRow } from '@/components/reading/split-job-row';
 import { BandGradient } from '@/components/ui/band-gradient';
-import { FLOATING_ADD_HEIGHT, FloatingAdd } from '@/components/ui/floating-add';
+import { FLOATING_ADD_HEIGHT, FloatingAdd, useTabFloatingAddBottom } from '@/components/ui/floating-add';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
@@ -62,7 +62,7 @@ const ENTRY_ART: Partial<Record<EntryKey, number>> = {
   sample: require('@/assets/images/reading/sample-script-3d.png'),
 };
 const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
-/** 입구 화면 위 띠. 24색 밖이라 이 파일 안에만 둔다(DESIGN-SYSTEM.html 「의도된 차이」). */
+/** 입구 화면 위 띠. 24색 밖이라 이 파일 안에만 둔다(디자인 시스템 pen 「의도된 차이」). */
 const ENTRY_TOP = '#E4EEFC';
 /** 띠가 흰색이 되는 화면 y. */
 const ENTRY_FADE_END = 310;
@@ -73,6 +73,7 @@ const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guid
 
 export default function ReadingList() {
   const tabBarSpace = useTabBarSpace();
+  const floatingAddBottom = useTabFloatingAddBottom();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const insets = useSafeAreaInsets();
@@ -502,8 +503,7 @@ export default function ReadingList() {
       {!showEntry && !entrySkeleton && (
         <FloatingAdd
           label={t('reading.titleNew')}
-          // useTabBarSpace 는 탭바가 있으면 탭바 위 12까지 포함하고, 숨기면 안전영역뿐이다.
-          bottom={tabBarSpace === insets.bottom ? insets.bottom + space[3] : tabBarSpace}
+          bottom={floatingAddBottom}
           phLabel="reading_new"
           target={newTarget}
           onPress={() => router.push('/reading/new')}

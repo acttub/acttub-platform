@@ -269,7 +269,7 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
   // 마지막 줄까지 갔으니 첫 사용자 화면은 졸업이다(SOMA-827).
   expect(markFirstUseGraduated).toHaveBeenCalled();
-  expect(screen.getByText(/^민재 · 대사 3줄 · \d\d:\d\d$/)).toBeOnTheScreen();
+  expect(screen.getByText(/^민재 · 대사 3개 · \d\d:\d\d$/)).toBeOnTheScreen();
   expect(screen.getByText('이 기기에서는 말한 것을 글자로 바꾸지 못해 비교하지 않았어요.')).toBeOnTheScreen();
   await waitFor(() =>
     expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: null, complete: true, line_results: [] })),
@@ -460,6 +460,16 @@ test('다른 앱으로 넘어가면 멈춘다 — 리딩 백그라운드 재생�
 
   await act(async () => appStateListeners.forEach((l) => l('background')));
   expect(screen.getByText('이어서')).toBeOnTheScreen();
+});
+
+test('권한 창 같은 iOS inactive 는 멈추지 않는다 — 권한 응답 뒤 늦게 와 첫 리딩이 멈춘 채 시작했다(SOMA-1052)', async () => {
+  await startPlay();
+  await screen.findByText('듣는 중');
+
+  await act(async () => appStateListeners.forEach((l) => l('inactive')));
+  await act(async () => appStateListeners.forEach((l) => l('active')));
+  expect(screen.getByText('듣는 중')).toBeOnTheScreen();
+  expect(screen.queryByText('이어서')).not.toBeOnTheScreen();
 });
 
 test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배경으로 가면 멈춘다', async () => {
@@ -1968,7 +1978,7 @@ test('첫 리딩 독백에서 아무것도 못 알아들은 채 그만 읽기를
     await fireEvent.press(screen.getByText('그만 읽기'));
 
     expect(await screen.findByText(/첫 리딩을 해 봤어요/)).toBeOnTheScreen();
-    expect(screen.getByText(/4줄 중 0줄/)).toBeOnTheScreen();
+    expect(screen.getByText(/대사 4개 중 0개/)).toBeOnTheScreen();
     // 이어 읽기 카드(서버 K/N)도 0 — 첫 문장을 현재 줄로 남긴다.
     await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l1', complete: false })));
   } finally {
@@ -2275,7 +2285,7 @@ test('첫 리딩이면 같은 완료 화면에 칭찬 제목과 「다시 읽기
   expect(await screen.findByText(/처음인데 끝까지 읽었어요/)).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
   expect(screen.getByText('봄날의 대화')).toBeOnTheScreen();
-  expect(screen.getByText('민재 · 3줄 중 1줄')).toBeOnTheScreen();
+  expect(screen.getByText('민재 · 대사 3개 중 1개')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '다시 읽기' })).toBeOnTheScreen();
   expect(screen.getByText('다른 대본으로')).toBeOnTheScreen();
   expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();

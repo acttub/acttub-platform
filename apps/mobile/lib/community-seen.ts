@@ -1,17 +1,9 @@
+import { deviceStorage as storage } from './device-storage.ts';
+
 /**
  * 게시판을 마지막으로 본 시각(SOMA-873) — 「게시판」 옆 빨간 점을 정한다. 계정이 아니라 기기 기준이고,
  * 못 읽거나 못 적어도 흐름은 그대로 간다(점이 한 번 더 보이거나 안 보일 뿐이다).
  */
-
-type Storage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-};
-
-function storage(): Storage {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default as Storage;
-}
 
 const SEEN_KEY = 'acttub.community.boardSeenAt';
 

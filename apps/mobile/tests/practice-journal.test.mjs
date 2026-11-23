@@ -154,7 +154,7 @@ test('일지가 없으면(404 journal_not_found) null, 다른 실패는 던진�
 
 test('코칭이 끝나면 배우 일지 없이 오늘 코칭 끝으로 간다(11/2) — 튜토리얼 예시는 미리 쓴 노트 그대로', () => {
   const coach = read('app/coach.tsx');
-  assert.match(coach, /router\.replace\(sample \? '\/report' : \{ pathname: '\/coaching-done', params: \{ practiceId \} \}\)/);
+  assert.match(coach, /router\.replace\(sample \? '\/report' : \{ pathname: '\/coaching-done', params: \{ practiceId, startedAt \} \}\)/);
   assert.doesNotMatch(coach, /'\/journal'/);
   const ko = read('locales/ko.ts');
   assert.match(ko, /seeSummary: '코칭 마치기'/);

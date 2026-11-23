@@ -51,9 +51,9 @@ test("account.guest: 이 브라우저에 게스트가 없으면 옮길 연습이
   render(h(TransferCodePage));
 
   assert.equal(screen.getByText("아직 옮길 연습이 없어요").tagName, "P");
-  assert.equal(screen.getByRole("link", { name: "연습 시작하기" }).getAttribute("href"), "/practice/new");
+  assert.equal(screen.getByRole("link", { name: "앱 설치하기" }).getAttribute("href"), "/app");
   assert.equal(screen.queryByRole("button"), null);
-  assert.equal(screen.getByRole("link", { name: "← 연습으로" }).getAttribute("href"), "/home");
+  assert.equal(screen.getByRole("link", { name: "← 처음으로" }).getAttribute("href"), "/");
   assert.equal(screen.getByRole("link", { name: "앱 다운로드" }).getAttribute("href"), "/app");
   assert.deepEqual(calls, []);
 });

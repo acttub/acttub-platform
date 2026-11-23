@@ -16,9 +16,10 @@ public interface BillingMailer {
      * @param first        첫 결제면 true, 매달 자동결제면 false
      * @param periodStart  이번 결제로 열린 이용 기간의 시작
      * @param periodEnd    이용 기간의 끝(= 다음 결제일)
+     * @param plan         요금제(월·연). 상품명과 자동결제 주기 문구가 이것을 따른다
      */
     record PaidMail(String to, String name, boolean first, String orderId, long amount, String cardCompany,
-            String cardNumber, Instant paidAt, Instant periodStart, Instant periodEnd) {
+            String cardNumber, Instant paidAt, Instant periodStart, Instant periodEnd, BillingRules.Plan plan) {
         @Override
         public String toString() {
             return "PaidMail[to=redacted, first=" + first + ", orderId=" + orderId + ", amount=" + amount + "]";

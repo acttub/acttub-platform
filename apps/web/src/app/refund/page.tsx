@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { WEB_YEARLY_ENABLED } from "@/features/billing/billing-flow";
 import { BusinessInfo } from "@/features/business-info/business-info";
 import { ProTopBar } from "@/features/pricing/pro-ui";
 import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
@@ -20,6 +21,26 @@ const EXAMPLES = [
   ["20일 이용 후 해지", "1,170원"],
 ] as const;
 
+/** 웹 연 구독(SOMA-1068) 빌드인가에 따라 바뀌는 안내 문구. 꺼져 있으면 지금 문구 그대로다. */
+const NOTICE_SCOPE = WEB_YEARLY_ENABLED
+  ? "아래 1~3은 웹에서 결제한 구독(월·연)에 적용하고, 앱(App Store·Google Play)에서 결제한 구독은 4를 따라요."
+  : "아래 1~3은 웹에서 결제한 월 구독에 적용하고, 앱(App Store·Google Play)에서 결제한 구독은 4를 따라요.";
+const PAGE_SCOPE = WEB_YEARLY_ENABLED
+  ? "ACTTUB 웹에서 직접 결제한 Pro 구독(월·연)에 적용하는 정책이에요. 앱에서 결제한 구독(월·연)은 4를 봐 주세요."
+  : "ACTTUB 웹에서 직접 결제한 Pro 월 구독에 적용하는 정책이에요. 앱에서 결제한 구독(월·연)은 4를 봐 주세요.";
+const PRICE_SUMMARY = WEB_YEARLY_ENABLED
+  ? "구독료는 월 3,900원, 연 32,500원이며 부가세가 포함되어 있어요."
+  : "구독료는 월 3,900원이며 부가세가 포함되어 있어요.";
+const PRICE_DETAIL = WEB_YEARLY_ENABLED
+  ? "구독료는 월 3,900원, 연 32,500원이며 부가세가 포함되어 있어요. 결제주기는 월 구독이 결제일부터 1개월(다음 달 같은 날까지), 연 구독이 결제일부터 1년(다음 해 같은 날까지)이에요."
+  : "구독료는 월 3,900원이며 부가세가 포함되어 있어요. 결제주기는 결제일부터 1개월(다음 달 같은 날까지)이에요.";
+const DAILY_FEE = WEB_YEARLY_ENABLED
+  ? "하루 이용료는 실제 결제금액을 그 결제주기의 전체 일수로 나눈 금액이에요. 전체 일수는 월 구독이 28~31일, 연 구독이 365일(2월 29일이 들어 있는 결제주기는 366일)이에요."
+  : "하루 이용료는 실제 결제금액을 그 결제주기의 전체 일수로 나눈 금액이에요.";
+const APP_PLANS = WEB_YEARLY_ENABLED
+  ? "앱에서도 월 구독(3,900원)과 연 구독(32,500원)을 팔아요. 앱에서 결제한 구독(월·연)의 해지와 환불은 각 스토어 절차를 따라요."
+  : "앱에서는 월 구독(3,900원)과 연 구독(32,500원)을 팔아요. 연 구독은 앱에서만 팔고, 해지와 환불은 각 스토어 절차를 따라요.";
+
 function Section({ id, no, title, children }: { id: string; no: number; title: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="rounded-[28px] bg-white p-6 ring-1 ring-[#e5e8eb] sm:p-8">
@@ -38,19 +59,19 @@ export default function RefundPage() {
       <aside className="bg-[#191f28] px-5 py-2.5 text-xs leading-5 text-[#d1d6db] sm:px-8">
         <div className="mx-auto max-w-4xl">
           <span className="mr-2 rounded-full bg-[#3182f6] px-2 py-0.5 text-[11px] font-black text-white">11월 1일 결제 시작</span>
-          2026년 11월 1일부터 결제를 시작해요. 아래 1~3은 웹에서 결제한 월 구독에 적용하고, 앱(App Store·Google Play)에서 결제한 구독은 4를 따라요.
+          2026년 11월 1일부터 결제를 시작해요. {NOTICE_SCOPE}
         </div>
       </aside>
       <ProTopBar backHref="/pricing" backLabel="ACTTUB Pro 구독 안내" />
       <main className="mx-auto w-full max-w-4xl px-5 pb-14 pt-4 sm:px-8">
         <h1 className="text-[34px] font-black leading-[1.18] tracking-[-0.04em] sm:text-5xl">해지·환불정책</h1>
-        <p className="mt-3 text-base font-bold leading-7 text-[#4e5968]">ACTTUB 웹에서 직접 결제한 Pro 월 구독에 적용하는 정책이에요. 앱에서 결제한 구독(월·연)은 4를 봐 주세요.</p>
+        <p className="mt-3 text-base font-bold leading-7 text-[#4e5968]">{PAGE_SCOPE}</p>
 
         <section aria-label="핵심 요약" className="relative mt-7 overflow-hidden rounded-[28px] bg-[#191f28] p-6 text-white shadow-[0_30px_70px_rgba(25,31,40,0.2)] sm:p-8">
           <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-[#3182f6]/40 blur-3xl" />
           <p className="relative text-sm font-black text-[#8fbfff]">핵심 요약</p>
           <ul className="relative mt-4 grid gap-x-8 gap-y-4 text-base font-bold leading-7 sm:grid-cols-2">
-            <li>구독료는 월 3,900원이며 부가세가 포함되어 있어요.</li>
+            <li>{PRICE_SUMMARY}</li>
             <li>언제든 다음 자동결제를 해지할 수 있어요. 자동결제만 해지하면 현재 결제기간이 끝날 때까지 Pro를 이용할 수 있어요.</li>
             <li>유료 기능을 쓰지 않았다면 결제 후 7일 이내에 전액 환불해요. 이용한 뒤에는 이용한 날짜만큼 빼고 환불해요.</li>
             <li>요청 접수일부터 3영업일 이내에 환급을 처리해요.</li>
@@ -60,7 +81,7 @@ export default function RefundPage() {
         <div className="mt-5 space-y-4">
           <Section id="cancel-title" no={1} title="자동결제 해지와 즉시 종료는 달라요">
             <ul className="space-y-3 text-base font-bold leading-7 text-[#4e5968]">
-              <li className="border-l-4 border-[#3182f6] pl-4">구독료는 월 3,900원이며 부가세가 포함되어 있어요. 결제주기는 결제일부터 1개월(다음 달 같은 날까지)이에요.</li>
+              <li className="border-l-4 border-[#3182f6] pl-4">{PRICE_DETAIL}</li>
               <li className="border-l-4 border-[#3182f6] pl-4">언제든 다음 자동결제를 해지할 수 있어요. 자동결제만 해지하면 현재 결제기간이 끝날 때까지 Pro를 이용할 수 있어요.</li>
               <li className="border-l-4 border-[#3182f6] pl-4">즉시 이용 종료와 환불을 함께 요청하면 아래 기준에 따라 환불하고 해당 결제주기의 Pro 이용을 종료해요.</li>
               <li className="border-l-4 border-[#3182f6] pl-4">자동결제는 웹사이트 계정 화면이나 고객센터 메일로 해지할 수 있어요.</li>
@@ -69,7 +90,7 @@ export default function RefundPage() {
           </Section>
 
           <Section id="refund-title" no={2} title="이용한 날짜만큼 빼고 환불해요">
-            <p className="text-base font-bold leading-7 text-[#4e5968]">해당 결제주기의 이용 시작 시각부터 환불 요청 접수 시각까지를 이용일수로 계산해요. 1일은 24시간이고, 24시간이 안 되는 시간도 1일로 계산해요. 하루 이용료는 실제 결제금액을 그 결제주기의 전체 일수로 나눈 금액이에요. 매 결제주기에 같은 기준을 적용해요.</p>
+            <p className="text-base font-bold leading-7 text-[#4e5968]">해당 결제주기의 이용 시작 시각부터 환불 요청 접수 시각까지를 이용일수로 계산해요. 1일은 24시간이고, 24시간이 안 되는 시간도 1일로 계산해요. {DAILY_FEE} 매 결제주기에 같은 기준을 적용해요.</p>
             <dl className="mt-5 grid gap-2 sm:grid-cols-2">
               {RULES.map(([label, rule, tone]) => (
                 <div key={label} className={`rounded-2xl p-4 ${tone}`}>
@@ -101,7 +122,7 @@ export default function RefundPage() {
 
           <Section id="app-title" no={4} title="앱에서 결제한 구독은 스토어 절차를 따라요">
             <ul className="space-y-3 text-base font-bold leading-7 text-[#4e5968]">
-              <li className="border-l-4 border-[#3182f6] pl-4">앱에서는 월 구독(3,900원)과 연 구독(32,500원)을 팔아요. 연 구독은 앱에서만 팔고, 해지와 환불은 각 스토어 절차를 따라요.</li>
+              <li className="border-l-4 border-[#3182f6] pl-4">{APP_PLANS}</li>
               <li className="border-l-4 border-[#3182f6] pl-4">iOS(App Store): 청구·영수증·해지·환불은 Apple이 처리해요. 회사는 Apple 결제를 직접 환불할 수 없어서, 환불은 Apple에 요청해 주세요. 해지는 설정 &gt; Apple 계정 &gt; 구독에서 할 수 있어요.</li>
               <li className="border-l-4 border-[#3182f6] pl-4">Android(Google Play): Google Play에 환불을 요청하거나 고객센터로 요청할 수 있어요. 고객센터로 요청하면 Google Play가 허용하는 범위에서 회사가 처리해요. 해지는 Play 스토어 &gt; 결제 및 정기 결제 &gt; 정기 결제에서 할 수 있어요.</li>
               <li className="border-l-4 border-[#3182f6] pl-4">앱을 지우거나 회원을 탈퇴해도 스토어 구독은 해지되지 않아요. 탈퇴하기 전에 스토어에서 먼저 해지해 주세요.</li>

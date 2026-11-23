@@ -12,7 +12,9 @@
  * CI mobile 잡이 무설치 node --test 라 AsyncStorage·api 는 함수 안에서 lazy require 하고, 테스트는
  * configureScriptTransport 로 가짜 서버를 넣는다.
  */
+import { deviceStorage as storage } from '../device-storage.ts';
 import { LEGACY_SCRIPTS_KEY } from './legacy-migration.ts';
+import { scriptTitle } from './script-cards.ts';
 import type {
   DifferentLine,
   LineKind,
@@ -136,11 +138,6 @@ function server(): ScriptTransport {
   return transport;
 }
 
-function storage() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('@react-native-async-storage/async-storage').default;
-}
-
 // ── 기기 설정 ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_PREFS: DevicePrefs = { maskMode: 'none', myRoles: [] };
@@ -190,7 +187,7 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
   return {
     ...merged,
     id: detail.id,
-    title: detail.title,
+    title: scriptTitle(detail.title),
     source: detail.source,
     roles: characters.map((c) => c.name),
     characters,

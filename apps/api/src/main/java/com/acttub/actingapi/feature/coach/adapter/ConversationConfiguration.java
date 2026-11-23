@@ -1,8 +1,11 @@
 package com.acttub.actingapi.feature.coach.adapter;
 
 import java.time.Clock;
+import java.time.Duration;
 
 import com.acttub.actingapi.feature.coach.app.CoachEngine;
+import com.acttub.actingapi.feature.coach.app.CoachScriptedUsers;
+import com.acttub.actingapi.feature.coach.app.ScriptedCoach;
 import com.acttub.actingapi.feature.coach.app.CoachProfile;
 import com.acttub.actingapi.feature.coach.app.CoachMemory;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository;
@@ -12,6 +15,7 @@ import com.acttub.actingapi.feature.coach.app.NoteWriter;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -73,9 +77,26 @@ class ConversationConfiguration {
             CoachProfile profiles,
             CoachMemory memory,
             FailureReporter failureReporter,
-            com.acttub.actingapi.feature.coach.app.LineNoteWriter lineNotes) {
+            com.acttub.actingapi.feature.coach.app.LineNoteWriter lineNotes,
+            ScriptedCoach scripted) {
         return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable(),
-                profiles, memory, failureReporter, lineNotes);
+                profiles, memory, failureReporter, lineNotes).withScripted(scripted);
+    }
+
+    /**
+     * 발표 시연용 정해진 코칭. 설정한 이메일의 영상 코칭은 모델을 부르지 않고 {@code coaching/scripted/demo.json} 을 순서대로 낸다.
+     * 끄려면 ACTTUB_COACH_SCRIPTED_ENABLED=false.
+     */
+    @Bean
+    ScriptedCoach scriptedCoach(
+            ObjectProvider<CoachScriptedUsers> users,
+            @Value("${acttub.coach.scripted.enabled:true}") boolean enabled,
+            @Value("${acttub.coach.scripted.emails:}") String emails,
+            @Value("${acttub.coach.scripted.first-delay-ms:4000}") long firstDelayMs,
+            @Value("${acttub.coach.scripted.next-delay-ms:1500}") long nextDelayMs) {
+        return ScriptedCoach.load(enabled, emails, users.getIfAvailable(() -> CoachScriptedUsers.NONE),
+                Duration.ofMillis(Math.max(0, firstDelayMs)), Duration.ofMillis(Math.max(0, nextDelayMs)),
+                "/coaching/scripted/demo.json");
     }
 
     /** 분석이 끝나면 첫 질문을 미리 쓴다(SOMA-780). false 면 예전처럼 앱의 시작 요청이 올 때 쓴다(롤백). */

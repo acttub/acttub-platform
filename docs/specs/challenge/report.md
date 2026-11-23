@@ -47,7 +47,7 @@ entry_reports.status.
   kept_hidden·dismissed)·reviewed_by·reviewed_at·resolution_note·target_version(신고 당시 대상의 content_version; 참여작은 캡션 수정, 댓글·
   챌린지는 불변이라 1)·target_text(신고 당시 캡션·댓글·대사, 참여작·댓글 본문이 파기되면 비운다)를 가진다. 사유는 copyright(저작권 침해 — 대사·영상 출처), inappropriate
   (부적절한 콘텐츠 — 괴롭힘·성적·개인정보 노출 포함), spam(스팸), duplicate(중복 업로드), other(기타, 메모)다. 화면(A15.4)은 다섯을 각각
-  선택지로 둔다.
+  선택지로 두되, 댓글 신고에는 duplicate를 보이지 않는다.
 - 신고할 수 있는 대상은 신고자가 지금 볼 수 있는 것([개인 노출 조건](README.md#노출-조건))이다. 볼 수 없는 대상·없는 대상의 새 신고는
   404이고, 본인이 이미 접수한 같은 신고의 재전송만 기존 결과(200)를 돌려준다. 요청은 [요청 재전송](../common.md#요청-재전송) 규칙을 따르고
   유일 범위는 (reporter_id, request_id)다.

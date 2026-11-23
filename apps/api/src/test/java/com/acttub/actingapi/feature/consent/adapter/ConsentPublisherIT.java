@@ -13,7 +13,6 @@ import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
 import com.acttub.actingapi.platform.observability.FailureKind;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.MethodOrderer;
@@ -30,19 +29,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ConsentPublisherIT {
-    @DynamicPropertySource
-    static void db(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("consent_publish");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     JdbcTemplate jdbc;

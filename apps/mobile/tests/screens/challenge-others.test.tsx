@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import ChallengeOthersScreen from '@/app/challenge-others';
+import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { challengeCard, entryCard, RUNNING_ENDS_AT } from '../helpers/challenge-card';
 
@@ -52,6 +53,7 @@ describe('ChallengeOthersScreen (C1.17)', () => {
       pathname: '/record-video',
       params: { mode: 'challenge', challengeId: 'c1', line: '잘 지내, 진짜로.', work: '햄릿' },
     });
+    expect(logEvent).toHaveBeenCalledWith('challenge_perform_tap', { id: 'c1' });
   });
 
   test('참여작을 못 불러오면 InlineError 를 보이고 다시 시도로 다시 받는다', async () => {

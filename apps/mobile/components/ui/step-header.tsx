@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NavBackButton } from '@/components/ui/nav-header';
@@ -6,9 +7,9 @@ import { space, type } from '@/constants/tokens';
 
 /**
  * 단계 머리 — 디자인 시스템 pen 「StepHeader」. NavHeader 와 같은 44 줄에 꺾쇠 · 「n / N」(caption), 아래 4px 진행 막대.
- * 뒤로만 있는 머리는 제목 없는 NavHeader 를 쓴다.
+ * 뒤로만 있는 머리는 제목 없는 NavHeader 를 쓴다. 오른쪽(`right`)은 NavHeader 처럼 할 일이 있을 때만 아이콘 버튼 하나.
  */
-export function StepHeader({ step, total, onBack }: { step: number; total: number; onBack: () => void }) {
+export function StepHeader({ step, total, onBack, right }: { step: number; total: number; onBack: () => void; right?: ReactNode }) {
   const ratio = total > 0 ? Math.min(1, Math.max(0, step / total)) : 0;
   return (
     <View>
@@ -17,6 +18,7 @@ export function StepHeader({ step, total, onBack }: { step: number; total: numbe
         <Text style={styles.count}>
           {step} / {total}
         </Text>
+        {right}
       </View>
       <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: step }}>
         <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
@@ -27,7 +29,7 @@ export function StepHeader({ step, total, onBack }: { step: number; total: numbe
 
 const styles = StyleSheet.create({
   row: { height: 44, flexDirection: 'row', alignItems: 'center', gap: space[1], paddingHorizontal: space[1] },
-  count: { ...type.caption, color: palette.textMeta },
+  count: { ...type.caption, flex: 1, color: palette.textMeta },
   track: { height: 4, backgroundColor: palette.bgSoft },
   fill: { height: 4, backgroundColor: palette.blue },
 });

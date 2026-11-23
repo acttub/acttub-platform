@@ -18,6 +18,7 @@ class PdcTmpfsTest(unittest.TestCase):
         self.addCleanup(work.cleanup)
         self.work = Path(work.name)
         config = json.loads((manage.ROOT / "config.example.json").read_text())
+        config.pop("logs")
         config.update(project="soma520-tmpfs-" + uuid.uuid4().hex[:12], retention_size="1GB",
                       pdc_cluster="test", grafana_id="1")
         config["environments"] = {"dev": config["environments"]["dev"]}

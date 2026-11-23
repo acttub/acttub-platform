@@ -1,6 +1,6 @@
 import { translate as t } from './i18n.ts';
+import { DAY_MS } from './kst.ts';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** 0:42 꼴 — 보관함 셀·상세의 길이 표시. */
 export function formatClipDuration(sec: number): string {

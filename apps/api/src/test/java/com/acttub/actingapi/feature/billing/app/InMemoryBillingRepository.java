@@ -42,7 +42,7 @@ class InMemoryBillingRepository implements BillingRepository {
     UUID storeSubscription(UUID userId, String provider, Status status, Instant periodEnd) {
         UUID id = UUID.randomUUID();
         subscriptions.put(id, new Subscription(id, userId, status, null, null, null, null, BillingRules.AMOUNT,
-                periodEnd == null ? null : periodEnd.minusSeconds(86400L * 30), periodEnd, null, 0, null, provider));
+                periodEnd == null ? null : periodEnd.minusSeconds(86400L * 30), periodEnd, null, 0, null, provider, BillingRules.Plan.MONTHLY));
         return id;
     }
 
@@ -126,20 +126,31 @@ class InMemoryBillingRepository implements BillingRepository {
         if (existing.isEmpty()) {
             UUID id = UUID.randomUUID();
             subscriptions.put(id, new Subscription(id, userId, Status.EXPIRED, customerKey, sealedBillingKey, cardCompany,
-                    cardNumber, BillingRules.AMOUNT, null, null, null, 0, null, "toss"));
+                    cardNumber, BillingRules.AMOUNT, null, null, null, 0, null, "toss", BillingRules.Plan.MONTHLY));
             return id;
         }
         Subscription s = existing.get();
         put(new Subscription(s.id(), userId, s.status(), customerKey, sealedBillingKey, cardCompany, cardNumber,
-                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), s.nextRetryAt(), s.provider()));
+                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), s.nextRetryAt(), s.provider(), s.plan()));
         return s.id();
+    }
+
+    @Override
+    public void choosePlan(UUID id, BillingRules.Plan plan, Instant now) {
+        Subscription s = subscriptions.get(id);
+        if (!s.toss() || s.status() != Status.EXPIRED) {
+            return;
+        }
+        put(new Subscription(id, s.userId(), s.status(), s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
+                s.cardNumber(), plan.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), s.nextRetryAt(),
+                s.provider(), plan));
     }
 
     @Override
     public void activate(UUID id, Instant periodStart, Instant periodEnd, Instant now) {
         Subscription s = subscriptions.get(id);
         put(new Subscription(id, s.userId(), Status.ACTIVE, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), periodStart, periodEnd, null, 0, null, s.provider()));
+                s.cardNumber(), s.amount(), periodStart, periodEnd, null, 0, null, s.provider(), s.plan()));
     }
 
     @Override
@@ -150,7 +161,7 @@ class InMemoryBillingRepository implements BillingRepository {
         }
         Status next = s.status() == Status.CANCELED ? Status.CANCELED : Status.ACTIVE;
         put(new Subscription(id, s.userId(), next, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), periodStart, periodEnd, s.canceledAt(), 0, null, s.provider()));
+                s.cardNumber(), s.amount(), periodStart, periodEnd, s.canceledAt(), 0, null, s.provider(), s.plan()));
     }
 
     @Override
@@ -160,14 +171,14 @@ class InMemoryBillingRepository implements BillingRepository {
             return;
         }
         put(new Subscription(id, s.userId(), Status.PAST_DUE, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), retryCount, nextRetryAt, s.provider()));
+                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), retryCount, nextRetryAt, s.provider(), s.plan()));
     }
 
     @Override
     public void expire(UUID id, Instant now) {
         Subscription s = subscriptions.get(id);
         put(new Subscription(id, s.userId(), Status.EXPIRED, s.customerKey(), null, s.cardCompany(), s.cardNumber(),
-                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), null, s.provider()));
+                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), null, s.provider(), s.plan()));
     }
 
     @Override
@@ -177,7 +188,7 @@ class InMemoryBillingRepository implements BillingRepository {
             return false;
         }
         put(new Subscription(id, s.userId(), Status.CANCELED, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), now, s.retryCount(), s.nextRetryAt(), s.provider()));
+                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), now, s.retryCount(), s.nextRetryAt(), s.provider(), s.plan()));
         return true;
     }
 
@@ -265,7 +276,8 @@ class InMemoryBillingRepository implements BillingRepository {
         }
         UUID id = existing.map(Subscription::id).orElseGet(UUID::randomUUID);
         put(new Subscription(id, userId, state.status(), null, null, null, null, BillingRules.storeAmount(state.productId()),
-                state.periodStart(), state.periodEnd(), state.canceledAt(), 0, null, state.provider()));
+                state.periodStart(), state.periodEnd(), state.canceledAt(), 0, null, state.provider(),
+                BillingRules.Plan.ofStoreProduct(state.productId())));
         storeTransactions.put(id, state.storeTransactionId());
         storeUpdatedAt.put(id, now);
         storeWrites++;
@@ -280,7 +292,7 @@ class InMemoryBillingRepository implements BillingRepository {
         }
         Subscription s = existing.get();
         put(new Subscription(s.id(), s.userId(), Status.EXPIRED, null, null, null, null, s.amount(), s.periodStart(),
-                s.periodEnd(), null, 0, null, s.provider()));
+                s.periodEnd(), null, 0, null, s.provider(), s.plan()));
         storeUpdatedAt.put(s.id(), now);
         return true;
     }

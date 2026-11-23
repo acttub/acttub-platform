@@ -1,21 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { HomeTrialCards } from "@/features/trial/home-trial-cards";
+import { HeroAppInstall } from "@/features/app-download/hero-app-install";
 
 import type { HeroMedia } from "./landing-hero-media";
 
 /**
  * 랜딩 B안 첫 화면(SOMA-918). 스픽 한국어 랜딩처럼 왼쪽에 제목·짧은 설명·버튼 하나,
  * 오른쪽에 살짝 기운 휴대폰 한 대만 두고 그 안에서 실제 앱 녹화 영상이 돈다.
- * 3차부터 버튼 자리는 가입 없이 해 보는 체험 카드(HomeTrialCards)이고, 앱 받기는 QR 줄과 머리 메뉴가 맡는다.
+ * SOMA-1087: 웹에서는 코칭·리딩을 하지 않는다. 버튼 자리는 앱 설치(모바일 버튼, 데스크톱 QR·배지)와 로그인 링크다.
  */
-const FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4880ee]";
-
 export function LandingHeroB({ media }: { media: HeroMedia }) {
   return (
     <section id="hero" className="relative overflow-x-clip bg-white lg:flex lg:flex-1 lg:items-center">
@@ -26,16 +22,11 @@ export function LandingHeroB({ media }: { media: HeroMedia }) {
             <br />
             사람이 없을 때, <span className="text-[#4880ee]">액터브</span>
           </h1>
-          <p className="mt-5 text-base leading-[1.7] text-[#4e5968] sm:text-lg lg:mt-6">설치 없이 지금 여기서 해 보세요.</p>
-
-          <HomeTrialCards />
-
-          <p className="mt-5 text-center text-[15px] text-[#4e5968] lg:text-left">
-            계정이 있나요?{" "}
-            <Link href="/login" className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
-              로그인
-            </Link>
+          <p className="mt-5 text-base leading-[1.7] text-[#4e5968] sm:text-lg lg:mt-6">
+            연기 영상을 올리면 코치가 장면을 보고 질문해요. 대본을 넣으면 상대역 대사를 소리 내 읽어 줘요.
           </p>
+
+          <HeroAppInstall />
         </div>
 
         <HeroPhone media={media} />

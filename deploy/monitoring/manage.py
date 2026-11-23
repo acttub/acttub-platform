@@ -14,6 +14,14 @@ from urllib.parse import urlencode
 ROOT = Path(__file__).resolve().parent
 
 
+# Docker API reads Alloy needs: version negotiation, network and container lists, container inspect and logs.
+# Nothing else passes (measured: discovery.docker also lists networks for its labels).
+SOCKET_PROXY_COMMAND = [
+    "-listenip=0.0.0.0", "-allowfrom=alloy",
+    r"-allowGET=(/_ping|/v1\.[0-9]+/(_ping|version|networks|containers/json|containers/[0-9a-f]{64}/(json|logs)))",
+    r"-allowHEAD=(/_ping|/v1\.[0-9]+/_ping)", "-loglevel=WARN"]
+
+
 class ConfigError(Exception):
     """An error that is safe to print without its underlying input."""
 
@@ -23,7 +31,17 @@ def require(condition: bool, message: str) -> None:
         raise ConfigError(message)
 
 
-def read_config(path: Path) -> dict:
+def alloy_layout(logs: dict) -> dict:
+    """Alloy's expected container shape for a release's logs config."""
+    if "journal_gid" in logs:
+        return {"user": "473:473", "group_add": [str(logs["journal_gid"])], "storage": "/var/lib/alloy/data",
+                "volume": "alloy-data", "binds": {"/etc/acttub", "/var/log/journal"}}
+    # Releases rendered before SOMA-1097 (root Alloy, no host journal) must still validate,
+    # so apply/verify/version/rollback keep working while one of them is current or previous.
+    return {"user": None, "group_add": None, "storage": "/data", "volume": "alloy", "binds": {"/etc/acttub"}}
+
+
+def read_config(path: Path, new_release: bool = False) -> dict:
     config = json.loads(path.read_text())
     require(isinstance(config, dict), "config must be an object")
     require(re.fullmatch(r"[1-9][0-9]*(MB|GB|TB)", str(config.get("retention_size", ""))),
@@ -41,6 +59,19 @@ def read_config(path: Path) -> dict:
         require(re.fullmatch(r"[a-zA-Z0-9_]+", env["database"]), "invalid database name")
     require(len({config["project"], *(v["project"] for v in envs.values())}) == len(envs) + 1,
             "monitoring and selected app project names must differ")
+    logs = config.get("logs")
+    if logs is not None:
+        require(isinstance(logs, dict), "logs must be an object")
+        require(re.fullmatch(r"https://[a-z0-9.-]+/loki/api/v1/push", str(logs.get("loki_url", ""))),
+                "logs.loki_url must be the Cloud Loki https push URL")
+        require(re.fullmatch(r"[0-9]+", str(logs.get("loki_user", ""))), "logs.loki_user must be numeric")
+        selected = logs.get("environments")
+        require(isinstance(selected, list) and bool(selected) and len(set(selected)) == len(selected)
+                and set(selected) <= set(envs), "logs.environments must be a nonempty subset of environments")
+        gid = logs.get("journal_gid")
+        # Required for new releases only; older rendered releases have no journal_gid.
+        require((gid is None and not new_release) or (type(gid) is int and 0 < gid < 65536),
+                "logs.journal_gid must be the host systemd-journal group id")
     return config
 
 
@@ -53,6 +84,19 @@ def write_file(path: Path, content: str) -> None:
 
 def write_json(path: Path, content: dict) -> None:
     write_file(path, json.dumps(content, indent=2) + "\n")
+
+
+def render_alloy(config: dict) -> str:
+    logs = config["logs"]
+    rules = "\n".join(
+        "  rule {\n"
+        "    source_labels = [\"__meta_docker_container_label_com_docker_compose_project\"]\n"
+        "    regex         = \"" + config["environments"][env]["project"] + "\"\n"
+        "    target_label  = \"environment\"\n"
+        "    replacement   = \"" + env + "\"\n"
+        "  }" for env in logs["environments"])
+    return ((ROOT / "config.alloy").read_text().replace("@ENVIRONMENT_RULES@", rules)
+            .replace("@LOKI_URL@", logs["loki_url"]).replace("@LOKI_USER@", logs["loki_user"]))
 
 
 def render_compose(config: dict) -> str:
@@ -72,10 +116,11 @@ def render_compose(config: dict) -> str:
 
 
 def render(args, release: Path) -> None:
-    config = read_config(args.config)
+    config = read_config(args.config, new_release=True)
     require(not release.exists(), "release already exists; use a new version to change configuration")
     tokens = {}
-    for name in [*(env + "-token" for env in config["environments"]), "pdc-token"]:
+    logs = "logs" in config
+    for name in [*(env + "-token" for env in config["environments"]), "pdc-token", *(["loki-token"] if logs else [])]:
         source = args.secrets_dir / name
         require(source.is_file() and source.stat().st_mode & 0o077 == 0,
                 "token source must exist and be owner-only: " + name)
@@ -84,18 +129,27 @@ def render(args, release: Path) -> None:
         tokens[name] = value
     args.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     args.state_dir.chmod(0o700)
-    release.mkdir(parents=True)
-    for name in ("prometheus", "db", "backup", "pdc"):
-        (release / name).mkdir(mode=0o755)
+    # Container users read their bound subdirectory, so directory modes must not follow the caller's umask.
+    for directory in (release.parent, release, *(release / name for name in ("prometheus", "db", "backup", "pdc"))):
+        directory.mkdir(exist_ok=directory == release.parent)
+        directory.chmod(0o755)
     write_file(release / "compose.yml", render_compose(config))
     write_file(release / "exporter.py", (ROOT / "exporter.py").read_text())
     write_file(release / "pdc/pdc-entrypoint.sh", (ROOT / "pdc-entrypoint.sh").read_text())
     write_file(release / "pdc/pdc-token", tokens["pdc-token"])
     write_json(release / "config.json", config)
+    if logs:
+        (release / "alloy").mkdir()
+        (release / "alloy").chmod(0o755)
+        write_file(release / "compose.logs.yml", (ROOT / "compose.logs.yml").read_text())
+        write_file(release / "alloy/config.alloy", render_alloy(config))
+        write_file(release / "alloy/loki-token", tokens["loki-token"])
     envs = config["environments"]
     env_values = {"MONITOR_PROJECT": config["project"], "RELEASE_DIR": str(release),
                   "RETENTION_SIZE": config["retention_size"], "PDC_CLUSTER": config["pdc_cluster"],
                   "GRAFANA_ID": config["grafana_id"], "DATA_MOUNTPOINT_REGEX": "^" + re.escape(config["data_mountpoint"]) + "$"}
+    if logs:
+        env_values["JOURNAL_GID"] = str(config["logs"]["journal_gid"])
     write_file(release / "compose.env", "\n".join(key + "='" + value + "'" for key, value in env_values.items()) + "\n")
     jobs = []
     db_config = {}
@@ -123,13 +177,16 @@ def render(args, release: Path) -> None:
 
 
 def compose(release: Path, *arguments: str) -> list:
-    return ["docker", "compose", "--env-file", str(release / "compose.env"), "-f", str(release / "compose.yml"), *arguments]
+    files = ["-f", str(release / "compose.yml")]
+    if (release / "compose.logs.yml").exists():
+        files += ["-f", str(release / "compose.logs.yml")]
+    return ["docker", "compose", "--env-file", str(release / "compose.env"), *files, *arguments]
 
 
 def run(command: list, purpose: str, timeout: int = 120) -> str:
     # Parent shell variables must not override the release's Compose interpolation.
     blocked = {"MONITOR_PROJECT", "RELEASE_DIR", "RETENTION_SIZE", "PDC_CLUSTER", "GRAFANA_ID",
-               "DATA_MOUNTPOINT_REGEX", "DEV_PROJECT", "PROD_PROJECT"}
+               "DATA_MOUNTPOINT_REGEX", "DEV_PROJECT", "PROD_PROJECT", "JOURNAL_GID"}
     environment = {k: v for k, v in os.environ.items() if k not in blocked and not k.startswith("COMPOSE_")}
     result = subprocess.run(command, capture_output=True, text=True, env=environment, timeout=timeout)
     require(result.returncode == 0, purpose + " failed (command output withheld)")
@@ -145,6 +202,10 @@ def validate(release: Path) -> dict:
     topology = {"prometheus": {"query", "collectors"} | scrape_networks,
                 "pdc": {"query"}, "node": {"collectors"}, "backup-exporter": {"collectors"},
                 "db-health": {"collectors"} | scrape_networks}
+    logs = "logs" in cfg
+    layout = alloy_layout(cfg["logs"]) if logs else {}
+    if logs:
+        topology.update({"alloy": {"logs", "docker-api"}, "socket-proxy": {"docker-api"}})
     require(set(model["services"]) == set(topology), "unexpected monitoring services")
     for name, networks in topology.items():
         service = model["services"][name]
@@ -155,9 +216,12 @@ def validate(release: Path) -> dict:
                 "container privilege restriction is missing")
         require(not service.get("environment") and not service.get("env_file"), "unexpected container environment")
         for volume in service.get("volumes", []):
-            require("docker.sock" not in volume["source"], "Docker socket forbidden")
-            require(volume.get("read_only") or (name == "prometheus" and volume["target"] == "/prometheus"),
-                    "only metrics storage may be writable")
+            socket = (name == "socket-proxy" and volume["type"] == "bind" and volume["source"] == "/var/run/docker.sock"
+                      and volume["target"] == "/var/run/docker.sock" and volume.get("read_only"))
+            require("docker.sock" not in volume["source"] or socket, "Docker socket is only for socket-proxy, read-only")
+            require(volume.get("read_only") or (name, volume["type"], volume["target"]) in {
+                        ("prometheus", "volume", "/prometheus"), ("alloy", "volume", layout.get("storage"))},
+                    "only metrics and log position storage may be writable")
     pdc = model["services"]["pdc"]
     expected = ["-cluster=" + cfg["pdc_cluster"], "-gcloud-hosted-grafana-id=" + cfg["grafana_id"],
                 "-use-gossh=false", "-ssh-flag=-o PermitRemoteOpen=prometheus:9090",
@@ -166,8 +230,23 @@ def validate(release: Path) -> dict:
     require(pdc["entrypoint"] == ["/bin/sh", "/etc/acttub/pdc-entrypoint.sh"], "unexpected PDC entrypoint")
     require(pdc.get("tmpfs") == ["/home/pdc/.ssh:uid=30000,gid=30000,mode=0700"],
             "PDC SSH tmpfs must be /home/pdc/.ssh with uid=30000,gid=30000,mode=0700 as one mount")
-    require(set(model["networks"]) == {"query", "collectors"} | scrape_networks, "unexpected network")
-    require(set(model["volumes"]) == {"metrics"} | backup_volumes, "unexpected volume")
+    own_networks = {"query", "collectors"} | ({"logs", "docker-api"} if logs else set())
+    require(set(model["networks"]) == own_networks | scrape_networks, "unexpected network")
+    require(set(model["volumes"]) == {"metrics"} | backup_volumes | ({layout["volume"]} if logs else set()), "unexpected volume")
+    if logs:
+        alloy = model["services"]["alloy"]
+        require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=" + layout["storage"],
+                                     "--server.http.listen-addr=127.0.0.1:12345", "--disable-reporting"],
+                "Alloy must listen on loopback only and disable usage reporting")
+        require(alloy.get("user") == layout["user"] and alloy.get("group_add") == layout["group_add"],
+                "Alloy must run as its non-root user with only the journal group added")
+        binds = {v["target"]: v["source"] for v in alloy["volumes"] if v["type"] == "bind"}
+        require(set(binds) == layout["binds"] and binds.get("/var/log/journal", "/var/log/journal") == "/var/log/journal"
+                and binds["/etc/acttub"].endswith("/alloy"), "Alloy may bind only its release config and the host journal")
+        proxy = model["services"]["socket-proxy"]
+        require(proxy["command"] == SOCKET_PROXY_COMMAND, "socket-proxy must pass only Alloy's Docker API reads")
+        require(alloy.get("mem_limit") and proxy.get("mem_limit"), "Alloy/socket-proxy memory limit is missing")
+        require(model["networks"]["docker-api"].get("internal"), "docker-api network must be internal")
     backup_mounts = {(v["source"], v["target"]) for v in model["services"]["backup-exporter"]["volumes"]
                      if v["type"] == "volume"}
     require(backup_mounts == {(env + "_backup_state", "/state/" + env) for env in cfg["environments"]},
@@ -178,7 +257,7 @@ def validate(release: Path) -> dict:
         volume = model["volumes"][environment + "_backup_state"]
         require(volume.get("external") and volume["name"] == app["project"] + "_backup_state", "backup volume mismatch")
     require(model["networks"]["collectors"].get("internal"), "collectors network must be internal")
-    for network in ("query", "collectors"):
+    for network in own_networks:
         require(not model["networks"][network].get("external") and
                 model["networks"][network]["name"] == cfg["project"] + "_" + network,
                 "monitor networks must be owned by this project")
@@ -201,6 +280,9 @@ def check(release: Path) -> dict:
          "check", "config", "/etc/acttub/prometheus.json"], "promtool check config")
     # Validate flags with the pinned PDC binary, then the actual OpenSSH parser.
     run(["docker", "run", "--rm", "--network", "none", pdc["image"], *pdc["command"], "-h"], "PDC flags")
+    if "alloy" in model["services"]:
+        run(["docker", "run", "--rm", "--network", "none", "-v", str(release / "alloy") + ":/etc/acttub:ro",
+             model["services"]["alloy"]["image"], "validate", "/etc/acttub/config.alloy"], "alloy validate")
     ssh = run(["docker", "run", "--rm", "--network", "none", "--entrypoint", "ssh", pdc["image"],
                "-G", "-o", "PermitRemoteOpen=prometheus:9090", "localhost"], "OpenSSH destination policy")
     require("permitremoteopen prometheus:9090" in ssh.splitlines(), "OpenSSH allow-list not effective")
@@ -227,8 +309,11 @@ def apply(args, release: Path) -> None:
     for environment in read_config(release / "config.json")["environments"]:
         run(["docker", "network", "inspect", model["networks"][environment + "_scrape"]["name"]], "app-owned scrape network preflight")
         run(["docker", "volume", "inspect", model["volumes"][environment + "_backup_state"]["name"]], "read-only backup state volume preflight")
+    # --without-pdc also skips alloy: neither connects to Cloud.
     services = ["prometheus", "node", "db-health", "backup-exporter"] if args.without_pdc else []
-    run(compose(release, "up", "-d", "--wait", "--wait-timeout", "120", *services), "monitoring apply", timeout=180)
+    # Orphan removal stops alloy when "logs" is removed or an older release is rolled back.
+    run(compose(release, "up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "120", *services),
+        "monitoring apply", timeout=180)
     if current.exists() and current.read_text().strip() != release.name:
         pointer(args.state_dir, "previous", current.read_text().strip())
     pointer(args.state_dir, "current", release.name)

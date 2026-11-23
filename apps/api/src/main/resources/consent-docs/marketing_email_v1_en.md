@@ -1,7 +1,5 @@
 # Consent to Receive Advertising Information (Email, Optional)
 
-Effective Date: The date this version is published (shown on the consent screen and in the consent list in Settings)
-
 This consent is **optional**. Without it, you can still use every feature of the service. You just won't receive the news below by email.
 
 ## 1. What You Are Consenting To

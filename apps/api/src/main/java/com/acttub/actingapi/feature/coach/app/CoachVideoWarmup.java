@@ -39,6 +39,7 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
     private final Path workDir;
     /** 코칭 1층 관찰(SOMA-815). 분석 작업이 원본을 넘길 때 배정된 연습이면 함께 시작한다. */
     private CoachLayerOne layerOne = CoachLayerOne.NONE;
+    private ScriptedCoach scripted = ScriptedCoach.NONE;
 
     public CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache) {
         this(model, cache, null, null, PROCESSING);
@@ -111,8 +112,15 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
         }
     }
 
+    /** 정해진 코칭 대상이면 관찰·올리기를 하지 않는다 — 대본 대화는 영상을 보지 않는다. */
+    public CoachVideoWarmup withScripted(ScriptedCoach scripted) {
+        this.scripted = scripted == null ? ScriptedCoach.NONE : scripted;
+        return this;
+    }
+
     @Override
     public void warm(AnalysisContext context, Path file) {
+        if (context != null && scripted.appliesTo(context.userId())) return;
         if (context != null && file != null) {
             try {
                 layerOne.start(context.sessionId(), context.userId(), file, context.mimeType(),

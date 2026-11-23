@@ -12,14 +12,11 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
-import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -44,14 +41,6 @@ class PgReviewEndpointIT {
     // SHA-256("Review-Only-Password-4821"). 테스트 전용 값이다.
     static final String HASH = "6f9b716960905872e3ed7bcf46b1d2fae237b17969bc55c95bae07ef6e61f36d";
     private static final String ORIGIN = "https://review.acttub.test";
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("pg_review");
-        registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
-        registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;

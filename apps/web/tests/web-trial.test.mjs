@@ -7,7 +7,7 @@ import "./ts-module-loader.mjs";
 import { react, window } from "./mount-probe.mjs";
 import { resetNavigation } from "./fixtures/features-next-shims.mjs";
 
-const { act, cleanup, fireEvent, render, screen, within } = await import("@testing-library/react");
+const { cleanup, fireEvent, render, screen, within } = await import("@testing-library/react");
 const { clearTokens, setMemberTokens, setTokens } = await import("../src/lib/auth/token-store.ts");
 const { COACHING_TRIAL_PATH, READING_TRIAL_PATH, trialEntryFromSearch, trialHref } = await import("../src/features/trial/trial-paths.ts");
 const quick = await import("../src/features/reading/quick-start.ts");
@@ -61,13 +61,10 @@ test("체험 주소는 캠페인 값(UTM)을 그대로 싣고 from 으로 들어
   assert.equal(trialEntryFromSearch("?from=evil"), "quick_start");
 });
 
-test("머리 메뉴는 대본 리딩·연기 코칭이 체험으로 가고 순서가 정해져 있다", () => {
+test("머리 메뉴는 요금·블로그만 둔다", () => {
   assert.deepEqual(
     SITE_NAV.map((item) => [item.label, item.href]),
     [
-      ["대본 리딩", "/reading/try?from=nav"],
-      ["연기 코칭", "/practice/new?from=nav"],
-      ["챌린지", "/?intro=1#challenge"],
       ["요금", "/pricing"],
       ["블로그", "/blog"],
     ],
@@ -114,6 +111,9 @@ test("빠른 시작 회차 요청은 고른 배역 하나, 읽어주기, 전체 
   const taeoNoMic = quick.quickStartRequest(sampleScript, "태오", false);
   assert.deepEqual([taeoNoMic.my_character_ids, taeoNoMic.advance, taeoNoMic.record], [["c-teo"], "manual", false]);
   assert.equal(quick.quickStartRequest({ ...sampleScript, characters: [] }, "윤서", true), null);
+  // 아이폰 웹: 마이크(침묵 감지)는 쓰지만 녹음은 끈다(SOMA-1083).
+  const appleWeb = quick.quickStartRequest(sampleScript, "윤서", true, false);
+  assert.deepEqual([appleWeb.advance, appleWeb.record], ["silence", false]);
 });
 
 function memoryStore(initial = {}) {
@@ -307,7 +307,7 @@ test("리딩 완료: 게스트에게는 앱 이어하기 카드가 있고 회원
   assert.ok(screen.getByText("리딩을 마쳤어요"));
 });
 
-test("코칭 시작 화면 안내: 제목, 질문 예시 셋과 예시라는 표시, 영상이 없으면 리딩으로 가는 링크", () => {
+test("코칭 시작 화면 안내: 제목, 질문 예시 셋과 예시라는 표시, 영상이 없으면 앱 설치로 가는 링크", () => {
   window.history.replaceState(null, "", "/practice/new?utm_source=meta");
   render(
     react.createElement(
@@ -327,8 +327,8 @@ test("코칭 시작 화면 안내: 제목, 질문 예시 셋과 예시라는 표
   );
   assert.ok(within(examples).getByText("실제 앱 대화를 옮긴 예시예요."));
   assert.equal(
-    screen.getByRole("link", { name: "상대역 리딩부터 해 보기" }).getAttribute("href"),
-    "/reading/try?utm_source=meta&from=coaching_link",
+    screen.getByRole("link", { name: "앱 설치하기" }).getAttribute("href"),
+    "/app",
   );
 });
 

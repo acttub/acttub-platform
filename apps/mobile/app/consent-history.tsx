@@ -138,14 +138,8 @@ export default function ConsentHistoryScreen() {
                 </Pressable>
                 {open && (
                   <View style={styles.docBody}>
-                    <Text style={styles.docMeta}>
-                      {[
-                        t('settings.docVersion', { version: row.version }),
-                        row.effectiveDate ? t('settings.docEffective', { date: row.effectiveDate }) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
+                    {/* 판 번호는 보이지 않는다 — 사용자에게는 시행일만(SOMA-1080). */}
+                    {row.effectiveDate ? <Text style={styles.docMeta}>{t('settings.docEffective', { date: row.effectiveDate })}</Text> : null}
                     {row.canChange && (
                       <View style={styles.switchRow}>
                         <Text style={styles.switchLabel}>{t('settings.decisionGranted')}</Text>

@@ -10,7 +10,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { FloatingAdd } from '@/components/ui/floating-add';
+import { FLOATING_ADD_HEIGHT, FloatingAdd } from '@/components/ui/floating-add';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -175,7 +175,7 @@ function Hero({ challenge, videoUrl }: { challenge: ChallengeCard; videoUrl: str
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   // 맨 아래 줄이 떠 있는 추가 버튼에 가리지 않게 버튼 높이만큼 더 띄운다.
-  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8] + 48, gap: space[2] },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8] + FLOATING_ADD_HEIGHT, gap: space[2] },
   // 대사가 길면(최대 4줄) 위쪽 영역이 늘어난다 — 높이를 못 박으면 글자가 밖으로 나간다.
   hero: { minHeight: 220, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.blue, justifyContent: 'flex-end', padding: space[4], marginBottom: space[1] },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
