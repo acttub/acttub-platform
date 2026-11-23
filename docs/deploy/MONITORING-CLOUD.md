@@ -131,6 +131,8 @@ DB는 인증된 내부 probe 실패가 지속될 때 경고한다(`db`). 공개 
 백업은 마지막 성공 뒤 경과(`backup-age`, 기준은 [DEPLOY-HOME §5](DEPLOY-HOME.md#5-자동-백업과-복원-검증)) 또는 미해결 실패 지속(`backup-failure`)이 경고다. 상태 읽기 실패·누락·파손·목적지 불일치는 별도 경고로 보고 마지막 성공 값으로 숨기지 않는다. exporter 단절 때 백업 복구를 보내지 않는다.
 백업 복구 여부는 상태 파일뿐 아니라 기존 [복원 검증 절차](DEPLOY-HOME.md#5-자동-백업과-복원-검증)로 확인한다. 알림을 끄려고 성공 시각을 수동 갱신하지 않는다.
 
+Grafana 토큰 두 개는 2027-02-21에 만료된다. 서비스 계정 `acttub-setup`의 `apply-py-2026-11-23`(`apply.py` 적용)과 access policy `acttub-alloy-logs-write`의 `acttub-alloy-2026-11-23b`(Alloy 로그 전송)다. 만료 14일 전인 2027-02-07 00:00 UTC부터 `grafana-token` 알림이 울린다. 새 토큰은 [처음 한 번 사람이 준비하는 것](#처음-한-번-사람이-준비하는-것) 3번과 7번 절차로 90일 기한을 두고 발급해 같은 자리(`~/.config/acttub/grafana-token`, 홈서버 `secrets/loki-token`)에 넣는다. 그 뒤 `rules.json`의 `grafana-token` 규칙에 박힌 시각(epoch 초)을 새 만료일 14일 전으로 고치고 `apply.py`로 적용한다. 고치지 않으면 알림이 계속 울린다.
+
 ## logs
 
 앱 로그는 홈서버 Alloy가 Cloud Loki로 보낸다([ADR-038](../ADR.md#adr-038-앱-로그는-서버-밖-grafana-cloud-loki에-저장한다)). Alloy는 Docker 소켓 대신 읽기 호출만 통과시키는 `socket-proxy`로 컨테이너 로그를 읽는다([ADR-039](../ADR.md#adr-039-docker-소켓은-읽기-호출만-통과시키는-프록시-하나만-쥐고-alloy는-그-프록시로만-읽는다)). 지표와 달리 Cloud에 저장되며 Free 플랜 기준 한 달 50GB, 14일 보관이다([가격표](https://grafana.com/pricing/)). 대상·label·가림 규칙은 [수집 구성 「로그 전송」](../../deploy/monitoring/README.md#로그-전송)이 정한다.
