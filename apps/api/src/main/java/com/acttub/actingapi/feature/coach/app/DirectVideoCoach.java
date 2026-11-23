@@ -112,6 +112,14 @@ public final class DirectVideoCoach {
      * 맞춤 코칭이 공통 지시를 고쳐 쓰는 대화는 옮기지 않는다. 끄면 예전과 같다.
      */
     private boolean staticRulesInPrefix = false;
+    /**
+     * 둘째 답부터 매 턴 같은 두 칸, 근본 문제를 푸는 길(근본 문제 종류마다 고정 파일)과 예시 답 칸을 이번 답 지시에서 고정 앞부분 끝으로
+     * 옮긴다. 암묵 캐시는 앞부분이 약 2,048토큰 단위로 같을 때만 걸려서, 공통 앞부분을 두 번째 단위(4,096)까지 늘리려는 것이다.
+     * 문구는 그대로다. 적용 범위는 {@link #staticRulesInPrefix}와 같다. 끄면 예전과 같다.
+     * 11/23 로컬 재생(6회차): 4,096 적중은 후속 답 11번에 걸렸지만, 정리 단계 6번 중 3번에서 생각이 2.9~3.9K 토큰으로 늘어
+     * (두 번은 출력 한도로 다시 씀) 판 평균이 오히려 늘었다. 원인이 확인되기 전에는 켜지 않는다.
+     */
+    private boolean rootInPrefix = false;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -233,6 +241,12 @@ public final class DirectVideoCoach {
     /** 둘째 답부터의 공통 지시를 고정 앞부분으로 옮길지. */
     public DirectVideoCoach withStaticRulesInPrefix(boolean enabled) {
         this.staticRulesInPrefix = enabled;
+        return this;
+    }
+
+    /** 근본 문제를 푸는 길과 예시 답 칸도 고정 앞부분으로 옮길지. */
+    public DirectVideoCoach withRootInPrefix(boolean enabled) {
+        this.rootInPrefix = enabled;
         return this;
     }
 
@@ -551,17 +565,26 @@ public final class DirectVideoCoach {
                 // 맞춤 코칭은 단계 지시 자체를 바꿔 끼운다 — 끝에 붙인 메모로는 "둘 중 고르는 질문" 같은 단계 지시가 이겼다(SOMA-795).
                 if (coaching != null && koreanTurn) stepTask = coaching.stepTask(branch.doing(), stepTask);
                 String turnRules = DirectVideoPrompts.practiceLoopTurn(language, evidence);
-                // 회차 안에서 바뀌지 않는 공통 지시는 켜면 고정 앞부분 끝으로 옮긴다. 맞춤 코칭이 공통 지시를 고쳐 쓰는 대화는 옮기지 않는다.
-                boolean rulesInPrefix = staticRulesInPrefix && stablePrefix && !(coaching != null && koreanTurn);
-                String common = (rulesInPrefix ? "" : turnRules + "\n\n") + branch.instruction(language, stepTask)
+                // 회차 안에서 바뀌지 않는 칸은 켜면 고정 앞부분 끝으로 옮긴다. 영상이 붙지 않는 무료 배우의 답만 옮긴다 —
+                // Pro 나 영상이 붙는 답은 예전과 바이트까지 같다. 맞춤 코칭이 공통 지시를 고쳐 쓰는 대화도 옮기지 않는다.
+                boolean movable = (staticRulesInPrefix || rootInPrefix) && stablePrefix && uploaded == null
+                        && !(coaching != null && koreanTurn) && freeActor(session.userId());
+                boolean rulesInPrefix = staticRulesInPrefix && movable;
+                boolean rootMoved = rootInPrefix && movable;
+                String common = (rulesInPrefix ? "" : turnRules + "\n\n") + branch.instruction(language, stepTask, !rootMoved)
                         + DirectVideoPrompts.flowBlock(flow, language);
                 if (coaching != null && koreanTurn) common = coaching.turnTask(coaching.withoutNeverSay(common));
                 // 질문 아래 예시 답 1~2개(숨은 <보기>). 성격 글은 늘 맨 끝에 둔다.
-                task = common + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language);
+                task = common + (rootMoved ? "" : AnswerExamples.INSTRUCTION) + personaBlock(persona, profile, language);
                 // 자문위원과 맞춤 코칭 배우 모두 "어때요?" 예문을 뺀다(SOMA-795 재생 v2: 맞춤 코칭 배우에게 "~해 보는 건 어때요?"가 남았다).
                 // 성격이 없는 배우(맞춤 코칭 없음)의 할 일 파일은 그대로다.
                 if (!persona.isEmpty()) task = DirectVideoPrompts.withoutHowAbout(task);
-                if (rulesInPrefix) prefixRules = (persona.isEmpty() ? turnRules : DirectVideoPrompts.withoutHowAbout(turnRules)) + "\n\n";
+                // 이번 답 지시에 실릴 때와 같은 글자로 옮긴다(줄마다 앞뒤 공백을 떼고 빈 줄을 뺀다, PracticeLoopRouter.instruction).
+                String root = rootMoved ? DirectVideoPrompts.practiceLoopRoot(branch.rootField(), language).lines()
+                        .map(String::strip).filter(line -> !line.isEmpty()).collect(java.util.stream.Collectors.joining("\n")) : "";
+                String moved = (rulesInPrefix ? turnRules + "\n\n" : "")
+                        + (rootMoved ? (root.isEmpty() ? "" : root + "\n\n") + AnswerExamples.INSTRUCTION.strip() + "\n\n" : "");
+                prefixRules = persona.isEmpty() ? moved : DirectVideoPrompts.withoutHowAbout(moved);
                 task = task + DirectVideoPrompts.openingTurnBlock(opening, language);
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
@@ -1191,10 +1214,15 @@ public final class DirectVideoCoach {
         }
 
         String instruction(java.util.Locale language, String task) {
+            return instruction(language, task, true);
+        }
+
+        /** @param withRoot 거짓이면 근본 문제를 푸는 길을 빼고 준다(고정 앞부분으로 옮긴 경우, rootInPrefix). */
+        String instruction(java.util.Locale language, String task, boolean withRoot) {
             // 쉽게 묻기는 이번에 알아낼 것(다음 단계의 목표)을 함께 준다.
             String withGoal = PracticeLoopRouter.EASY.equals(doing) ? task + "\n  이번에 알아낼 것: " + PracticeLoopRouter.easyGoal(before) : task;
             // 첫 응답이 찾은 근본 문제와 그 문제를 푸는 길을 매 턴 함께 준다.
-            String root = DirectVideoPrompts.practiceLoopRoot(rootField, language);
+            String root = withRoot ? DirectVideoPrompts.practiceLoopRoot(rootField, language) : "";
             if (!root.isEmpty()) withGoal = withGoal + "\n\n" + root;
             // 정리 뒤 한 번 답하는 말이면 단계 질문으로 돌아가지 않는다 — 배우가 답하면 바로 닫히기 때문이다.
             // 정리 뒤 내려놓기는 마지막 말이 아니다. 배우 해석을 묻는 질문이라 "질문하지 않는다"는 마지막 말 지시를 붙이지 않는다.

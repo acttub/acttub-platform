@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -124,12 +125,37 @@ class DirectVideoCoachCostSwitchesTest {
 
     // ---- 4. 공통 지시를 고정 앞부분으로 ----
 
+    /** 영상 없이 보낸 코치 답 지시(무료 후속 답). */
+    String promptWithoutVideo(DirectVideoCoach coach, CoachSessionSnapshot session, String actorText) {
+        reset(model);
+        f.rewire();
+        var prompts = ArgumentCaptor.forClass(String.class);
+        coach.turn(session, actorText, UUID.randomUUID());
+        verify(model, atLeastOnce()).reply(isNull(), anyList(), prompts.capture());
+        return prompts.getAllValues().getFirst();
+    }
+
+    /** 영상 없는 무료 후속 답 코치. */
+    DirectVideoCoach freeNoVideo() {
+        return f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true).withFreeVideoFirstOnly(true);
+    }
+
+    /** 첫 응답 설계에 근본 문제(목적)가 적힌 후속 답 회차. */
+    CoachSessionSnapshot withRoot(CoachSessionSnapshot session) {
+        ((com.fasterxml.jackson.databind.node.ObjectNode) session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY))
+                .put("design", "버릇: 말끝\n근본 문제: 2 목적성이 안 보인다");
+        return session;
+    }
+
+    static String fixedOf(String prompt) {
+        return prompt.substring(0, prompt.indexOf(DirectVideoModel.TURN_BOUNDARY));
+    }
+
     @Test void staticRulesMoveIntoTheFixedPartUnchanged() {
         String rules = DirectVideoPrompts.practiceLoopTurn() + "\n\n";
-        String before = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true), later(), "문을 막았어");
-        String moved = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true).withStaticRulesInPrefix(true),
-                later(), "문을 막았어");
-        String movedLater = f.prompt(f.coach(CoachVideoCache.NONE).withStablePrefix(true).withStaticRulesInPrefix(true),
+        String before = promptWithoutVideo(freeNoVideo(), later(), "문을 막았어");
+        String moved = promptWithoutVideo(freeNoVideo().withStaticRulesInPrefix(true), later(), "문을 막았어");
+        String movedLater = promptWithoutVideo(freeNoVideo().withStaticRulesInPrefix(true),
                 f.session("누구를 봤어요?", "엄마를 봤어", "그때 엄마가 뭘 했어요?", "문을 막았어", "막고 뭘 했어요?"), "울었어");
 
         String fixed = moved.substring(0, moved.indexOf(DirectVideoModel.TURN_BOUNDARY));
@@ -151,6 +177,47 @@ class DirectVideoCoachCostSwitchesTest {
         String plain = f.prompt(f.coach(CoachVideoCache.NONE), later(), "문을 막았어");
         String plainOn = f.prompt(f.coach(CoachVideoCache.NONE).withStaticRulesInPrefix(true), later(), "문을 막았어");
         assertThat(plainOn).isEqualTo(plain).doesNotContain(DirectVideoModel.TURN_BOUNDARY);
+    }
+
+    @Test void rootAndExamplesMoveIntoTheFixedPartAndStayTheSame() {
+        // 이번 답 지시에 실리는 모양(줄마다 앞뒤 공백을 떼고 빈 줄을 뺀다).
+        String root = DirectVideoPrompts.practiceLoopRoot("2 목적성이 안 보인다", null).lines().map(String::strip)
+                .filter(line -> !line.isEmpty()).collect(java.util.stream.Collectors.joining("\n"));
+        assertThat(root).isNotEmpty();
+        String before = promptWithoutVideo(freeNoVideo(), withRoot(later()), "문을 막았어");
+        assertThat(before.substring(before.indexOf(DirectVideoModel.TURN_BOUNDARY))).contains(root, "[예시 답 칸]");
+
+        var coach = freeNoVideo().withStaticRulesInPrefix(true).withRootInPrefix(true);
+        String moved = promptWithoutVideo(coach, withRoot(later()), "문을 막았어");
+        String movedLater = promptWithoutVideo(freeNoVideo().withStaticRulesInPrefix(true).withRootInPrefix(true),
+                withRoot(f.session("누구를 봤어요?", "엄마를 봤어", "그때 엄마가 뭘 했어요?", "문을 막았어", "막고 뭘 했어요?")), "울었어");
+        String rules = DirectVideoPrompts.practiceLoopTurn() + "\n\n";
+        String fixed = fixedOf(moved);
+        String turn = moved.substring(moved.indexOf(DirectVideoModel.TURN_BOUNDARY));
+        // 공통 지시 → 근본 문제를 푸는 길 → 예시 답 칸 순서로 고정 앞부분 끝에 붙는다. 문구는 그대로다.
+        assertThat(fixed).isEqualTo(fixedOf(before) + rules + root + "\n\n" + AnswerExamples.INSTRUCTION.strip() + "\n\n");
+        // 이번 답 지시는 옮긴 칸만 빠졌다.
+        String beforeTurn = before.substring(before.indexOf(DirectVideoModel.TURN_BOUNDARY))
+                .replace(DirectVideoModel.TURN_BOUNDARY + rules, DirectVideoModel.TURN_BOUNDARY)
+                .replace("\n" + root, "").replace(AnswerExamples.INSTRUCTION, "");
+        assertThat(turn).isEqualTo(beforeTurn).doesNotContain("[예시 답 칸]");
+        // 고정 앞부분은 후속 답마다 바이트까지 같다.
+        assertThat(fixedOf(movedLater)).isEqualTo(fixed);
+    }
+
+    @Test void proOrVideoRepliesAreByteForByteUnchangedWithTheSwitchesOn() {
+        // Pro: 영상 빼기를 켜도 영상이 붙고, 옮기기를 켜도 예전 지시문과 같다.
+        String proBefore = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true)
+                .withProMemory(userId -> true, CoachProMemory.NONE), withRoot(later()), "문을 막았어");
+        String proOn = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true).withFreeVideoFirstOnly(true)
+                .withStaticRulesInPrefix(true).withRootInPrefix(true)
+                .withProMemory(userId -> true, CoachProMemory.NONE), withRoot(later()), "문을 막았어");
+        assertThat(proOn).isEqualTo(proBefore);
+        // 무료라도 영상이 붙는 답(영상 빼기 꺼짐)은 그대로다.
+        String videoBefore = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true), withRoot(later()), "문을 막았어");
+        String videoOn = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true)
+                .withStaticRulesInPrefix(true).withRootInPrefix(true), withRoot(later()), "문을 막았어");
+        assertThat(videoOn).isEqualTo(videoBefore);
     }
 
     @Test void theFirstReplyIsUnchangedAndStillSeesTheVideo() {

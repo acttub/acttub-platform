@@ -25,8 +25,11 @@ public class DirectVideoConfiguration {
             @Value("${GEMINI_MODEL:gemini-3-flash-preview}") String model,
             GeminiDirectVideoModel.Hedge coachHedge,
             // 코치 답 영상의 프레임 간격(초당 프레임). 비우면 API 기본(1fps)이고 예전과 같은 요청이다.
-            @Value("${ACTTUB_COACH_VIDEO_FPS:}") String videoFps) {
-        return new GeminiDirectVideoModel(client, model).withHedge(coachHedge).withVideoFps(fps(videoFps));
+            @Value("${ACTTUB_COACH_VIDEO_FPS:}") String videoFps,
+            // 연습 루프 분류의 생각 단계(예: minimal). 비우면 예전처럼 LOW 다. 분류 모델을 따로 두면 그 모델에도 같은 값을 쓴다.
+            @Value("${ACTTUB_COACH_CLASSIFY_THINKING:}") String classifyThinking) {
+        return new GeminiDirectVideoModel(client, model).withHedge(coachHedge).withVideoFps(fps(videoFps))
+                .withClassifyThinking(classifyThinking);
     }
 
     static Double fps(String configured) {
@@ -161,11 +164,14 @@ public class DirectVideoConfiguration {
             @Value("${ACTTUB_COACH_FREE_VIDEO_FIRST_ONLY:false}") boolean freeVideoFirstOnly,
             // 둘째 답부터의 공통 지시(회차 안에서 바이트까지 같다)를 고정 앞부분으로 옮겨 암묵 캐시에 걸리게 한다.
             @Value("${ACTTUB_COACH_STATIC_RULES_IN_PREFIX:false}") boolean staticRulesInPrefix,
-            @Value("${ACTTUB_COACH_VIDEO_FPS:}") String videoFps) {
+            // 근본 문제를 푸는 길과 예시 답 칸도 고정 앞부분으로 옮긴다. 적용 범위는 위와 같다(영상 없는 무료 후속 답).
+            @Value("${ACTTUB_COACH_ROOT_IN_PREFIX:false}") boolean rootInPrefix,
+            @Value("${ACTTUB_COACH_VIDEO_FPS:}") String videoFps,
+            @Value("${ACTTUB_COACH_CLASSIFY_THINKING:}") String classifyThinking) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge).withVideoFps(fps(videoFps));
         var classifier = classifyModel == null || classifyModel.isBlank() ? null
-                : new GeminiDirectVideoModel(client, classifyModel.strip()).withHedge(coachHedge);
+                : new GeminiDirectVideoModel(client, classifyModel.strip()).withHedge(coachHedge).withClassifyThinking(classifyThinking);
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
                 personasEnabled ? personas.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE)
                         : com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE,
@@ -183,6 +189,7 @@ public class DirectVideoConfiguration {
                 .withClassifier(classifier, classifyHistory)
                 .withFreeVideoFirstOnly(freeVideoFirstOnly)
                 .withStaticRulesInPrefix(staticRulesInPrefix)
+                .withRootInPrefix(rootInPrefix)
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
                         proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
                 .withOpenings(openingAb(openingAb, siteUrl)

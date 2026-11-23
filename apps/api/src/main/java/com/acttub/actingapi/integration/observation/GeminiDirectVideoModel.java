@@ -53,6 +53,8 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     private final Hedge hedge;
     /** 코치 답 영상 Part 의 프레임 간격. null 이면 API 기본이다. */
     private final Double videoFps;
+    /** 분류 요청의 생각 단계(예: MINIMAL). null 이면 예전처럼 LOW 다. gemini-3 계열에만 쓴다. */
+    private String classifyThinking;
 
     /**
      * 느린 요청 다시 보내기(SOMA-780). 답이 이 시간 안에 오지 않으면 같은 요청을 한 번 더 보내고 먼저 온 답을 쓴다.
@@ -100,7 +102,8 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
 
     /** 같은 모델에 느린 요청 다시 보내기를 켠 사본(SOMA-780). */
     public GeminiDirectVideoModel withHedge(Hedge hedge) {
-        return new GeminiDirectVideoModel(client, model, audioProbe, blackFrameProbe, audioSignalProbe, hedge, videoFps);
+        return new GeminiDirectVideoModel(client, model, audioProbe, blackFrameProbe, audioSignalProbe, hedge, videoFps)
+                .withClassifyThinking(classifyThinking);
     }
 
     /**
@@ -109,7 +112,16 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
      */
     public GeminiDirectVideoModel withVideoFps(Double fps) {
         return new GeminiDirectVideoModel(client, model, audioProbe, blackFrameProbe, audioSignalProbe, hedge,
-                fps == null || fps <= 0 ? null : fps);
+                fps == null || fps <= 0 ? null : fps).withClassifyThinking(classifyThinking);
+    }
+
+    /**
+     * 분류 요청의 생각 단계를 정한다(이 객체를 고쳐 돌려준다). 비우면 예전처럼 LOW 다. 11/23 실측: gemini-3.1-flash-lite 는
+     * MINIMAL 을 받고 생각 토큰이 127 → 0 이 됐다(같은 분류).
+     */
+    public GeminiDirectVideoModel withClassifyThinking(String level) {
+        this.classifyThinking = level == null || level.isBlank() ? null : level.strip().toUpperCase(java.util.Locale.ROOT);
+        return this;
     }
 
     @Override
@@ -330,7 +342,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
 
     private Request request(Video video, List<Message> history, String instruction, List<String> categories, boolean light) {
         boolean classification = categories != null;
-        // 코치 답(분류 아님)만 턴 단위 생각 단계 요청을 따른다. 분류는 늘 LOW 다.
+        // 코치 답(분류 아님)만 턴 단위 생각 단계 요청을 따른다. 분류는 LOW 다(classifyThinking 을 정했으면 그 단계).
         ReplyTrace usage = ReplyTrace.current();
         ReplyTrace trace = classification ? null : usage;
         // 고정 앞부분(SOMA-1063): 경계 표시가 있으면 앞은 systemInstruction, 뒤는 맨 마지막 user 메시지에 싣는다.
@@ -359,7 +371,8 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         if (boundary < 0 || !system.isBlank()) config.systemInstruction(Content.fromParts(Part.fromText(system)));
         config
                         .httpOptions(HttpOptions.builder().timeout(classification ? 15000 : 90000).build())
-                        .thinkingConfig(thinking(light, trace))
+                        .thinkingConfig(classification && classifyThinking != null && model.startsWith("gemini-3")
+                                ? ThinkingConfig.builder().thinkingLevel(classifyThinking).build() : thinking(light, trace))
                         .maxOutputTokens(classification ? 1024 : REPLY_TOKEN_LIMIT);
         if (classification) {
             config.temperature(0f).responseMimeType("application/json").responseJsonSchema(java.util.Map.of(
