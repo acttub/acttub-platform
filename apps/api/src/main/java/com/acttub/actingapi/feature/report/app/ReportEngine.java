@@ -529,7 +529,7 @@ public class ReportEngine {
 
     private static String text(JsonNode value, String field) {
         require(value != null && value.isString(), field + " must be a string");
-        return value.stringValue(null);
+        return value.stringValue();
     }
 
     private static void exactText(ObjectNode object, String field, String expected) {
