@@ -113,13 +113,7 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-java@v5
-        if: ${{ steps.exists.outputs.exists != 'true' }}
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/setup-java-gradle
         if: ${{ steps.exists.outputs.exists != 'true' }}
 
       # docker build 의 type=gha 캐시가 쓸 러너 토큰을 셸 스텝에 내놓는다. 캐시는 ci.yml 의 매일 smoke 가 쓰고(범위

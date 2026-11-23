@@ -1,0 +1,16 @@
+name: Java · Gradle 준비
+description: temurin JDK 를 깔고 setup-gradle 로 Gradle 캐시를 준비합니다.
+inputs:
+  gradle:
+    description: setup-gradle 도 돌립니다. Gradle 을 스스로 준비하는 gradle/actions/dependency-submission 앞에서는 "false".
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: "21"
+
+    - uses: gradle/actions/setup-gradle@v4
+      if: inputs.gradle == 'true'

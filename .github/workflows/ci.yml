@@ -105,13 +105,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: .github/scripts/ci-changes.sh
 
-      - uses: actions/setup-java@v5
-        if: steps.changes.outputs.api == 'true'
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/setup-java-gradle
         if: steps.changes.outputs.api == 'true'
 
       # 원본 오디오 트랙 판별을 실제 바이너리로 검증한다. 운영 API 이미지와 같은 도구이며 유료 모델은 호출하지 않는다.
@@ -166,12 +160,7 @@ jobs:
         run: .github/scripts/ci-changes.sh
 
       # smoke.sh 가 bootJar 를 직접 굽습니다.
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/setup-java-gradle
 
       - name: Deploy guard tests
         run: |
@@ -221,13 +210,7 @@ jobs:
         if: steps.changes.outputs.monitoring == 'true'
         run: deploy/monitoring/cloud/check.sh
 
-      - uses: actions/setup-java@v5
-        if: steps.changes.outputs.monitoring == 'true'
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/setup-java-gradle
         if: steps.changes.outputs.monitoring == 'true'
 
       # 캐시 쓰기는 smoke 잡만 합니다 — 같은 범위에 두 잡이 동시에 쓰지 않게 이 잡은 읽기만 합니다.
@@ -340,13 +323,7 @@ jobs:
           fetch-depth: 0
 
       # Java 분석은 컴파일된 클래스가 있어야 돕니다. api 테스트를 건너뛴 PR 에서도 스캔하려고 여기서 컴파일합니다.
-      - uses: actions/setup-java@v5
-        if: env.SONAR_TOKEN != ''
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/setup-java-gradle
         if: env.SONAR_TOKEN != ''
 
       - name: Compile api
@@ -406,11 +383,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/setup-java-gradle
       - uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
