@@ -528,7 +528,9 @@ public class ReportEngine {
     }
 
     private static String text(JsonNode value, String field) {
-        require(value != null && value.isString(), field + " must be a string");
+        if (value == null || !value.isString()) {
+            throw new IllegalArgumentException(field + " must be a string");
+        }
         return value.stringValue();
     }
 
