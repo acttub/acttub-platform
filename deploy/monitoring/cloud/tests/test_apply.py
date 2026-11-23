@@ -28,11 +28,11 @@ def config(**origins):
 
 
 class RenderTest(unittest.TestCase):
-    def test_two_environments_render_59_rules_three_dashboards_two_checks_with_prod_landing(self):
+    def test_two_environments_render_51_rules_three_dashboards_two_checks_with_prod_landing(self):
         c = config()
         rules = apply.render_group(c)["rules"]
-        self.assertEqual(len(rules), 59)
-        self.assertEqual(len({r["uid"] for r in rules}), 59)
+        self.assertEqual(len(rules), 51)
+        self.assertEqual(len({r["uid"] for r in rules}), 51)
         dashboards = apply.render_dashboards(c)
         self.assertEqual(sorted(dashboards), ["acttub-infrastructure", "acttub-operations", "acttub-service"])
         for d in dashboards.values():
@@ -46,7 +46,7 @@ class RenderTest(unittest.TestCase):
         for env, other in (("dev", "prod"), ("prod", "dev")):
             c = config(**{env: "https://" + env + ".example.test"})
             rules = apply.render_group(c)["rules"]
-            self.assertEqual(len(rules), 37)
+            self.assertEqual(len(rules), 31)
             self.assertTrue(all(r["labels"]["environment"] in (env, "shared") for r in rules))
             self.assertEqual(sorted(apply.render_checks(c)), ["acttub-health-" + env])
             if env == "dev":
@@ -196,7 +196,7 @@ class ApplyTest(unittest.TestCase):
         foreign = copy.deepcopy((self.server.state["dashboards"]["foreign"], self.server.state["checks"]["other"]))
         self.run_cli("apply")
         s = self.server.state
-        self.assertEqual(len(s["groups"]["acttub-monitoring"]["rules"]), 59)
+        self.assertEqual(len(s["groups"]["acttub-monitoring"]["rules"]), 51)
         self.assertEqual(sorted(k for k in s["dashboards"] if k != "foreign"), ["acttub-infrastructure", "acttub-operations", "acttub-service"])
         self.assertEqual(sorted(k for k in s["checks"] if k != "other"), ["acttub-health-dev", "acttub-health-prod"])
         self.assertEqual((s["dashboards"]["foreign"], s["checks"]["other"]), foreign)

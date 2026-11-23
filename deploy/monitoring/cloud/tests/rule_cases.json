@@ -328,7 +328,7 @@
     ]
   },
   {
-    "name": "코치 리포트 서버 HTTP 요청 지연 threshold/pending/recovery boundary",
+    "name": "코치 서버 HTTP 요청 지연 threshold/pending/recovery boundary",
     "interval": "1m",
     "input_series": [
       {
@@ -914,23 +914,23 @@
     ]
   },
   {
-    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "name": "collect-api catches a series that stopped updating (replaces stale-api)",
     "interval": "1m",
     "input_series": [
       {
         "series": "up{job=\"api\",environment=\"dev\"}",
-        "values": "1 _ _ _ _"
+        "values": "1 _ _ _ _ _ _ _ _"
       }
     ],
     "alert_rule_test": [
       {
-        "eval_time": "1m",
-        "alertname": "stale-api",
+        "eval_time": "6m",
+        "alertname": "collect-api",
         "exp_alerts": []
       },
       {
-        "eval_time": "2m",
-        "alertname": "stale-api",
+        "eval_time": "7m",
+        "alertname": "collect-api",
         "exp_alerts": [
           {
             "exp_labels": {},
@@ -941,23 +941,23 @@
     ]
   },
   {
-    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "name": "collect-db-health catches a series that stopped updating (replaces stale-db-health)",
     "interval": "1m",
     "input_series": [
       {
         "series": "up{job=\"db-health\"}",
-        "values": "1 _ _ _ _"
+        "values": "1 _ _ _ _ _ _ _ _"
       }
     ],
     "alert_rule_test": [
       {
-        "eval_time": "1m",
-        "alertname": "stale-db-health",
+        "eval_time": "6m",
+        "alertname": "collect-db-health",
         "exp_alerts": []
       },
       {
-        "eval_time": "2m",
-        "alertname": "stale-db-health",
+        "eval_time": "7m",
+        "alertname": "collect-db-health",
         "exp_alerts": [
           {
             "exp_labels": {},
@@ -968,23 +968,23 @@
     ]
   },
   {
-    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "name": "collect-backup catches a series that stopped updating (replaces stale-backup)",
     "interval": "1m",
     "input_series": [
       {
         "series": "up{job=\"backup\"}",
-        "values": "1 _ _ _ _"
+        "values": "1 _ _ _ _ _ _ _ _"
       }
     ],
     "alert_rule_test": [
       {
-        "eval_time": "1m",
-        "alertname": "stale-backup",
+        "eval_time": "6m",
+        "alertname": "collect-backup",
         "exp_alerts": []
       },
       {
-        "eval_time": "2m",
-        "alertname": "stale-backup",
+        "eval_time": "7m",
+        "alertname": "collect-backup",
         "exp_alerts": [
           {
             "exp_labels": {},
@@ -995,23 +995,23 @@
     ]
   },
   {
-    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "name": "collect-node catches a series that stopped updating (replaces stale-node)",
     "interval": "1m",
     "input_series": [
       {
         "series": "up{job=\"node\",environment=\"shared\"}",
-        "values": "1 _ _ _ _"
+        "values": "1 _ _ _ _ _ _ _ _"
       }
     ],
     "alert_rule_test": [
       {
-        "eval_time": "1m",
-        "alertname": "stale-node",
+        "eval_time": "6m",
+        "alertname": "collect-node",
         "exp_alerts": []
       },
       {
-        "eval_time": "2m",
-        "alertname": "stale-node",
+        "eval_time": "7m",
+        "alertname": "collect-node",
         "exp_alerts": [
           {
             "exp_labels": {},
@@ -1022,23 +1022,23 @@
     ]
   },
   {
-    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "name": "collect-prometheus catches a series that stopped updating (replaces stale-prometheus)",
     "interval": "1m",
     "input_series": [
       {
         "series": "up{job=\"prometheus\",environment=\"shared\"}",
-        "values": "1 _ _ _ _"
+        "values": "1 _ _ _ _ _ _ _ _"
       }
     ],
     "alert_rule_test": [
       {
-        "eval_time": "1m",
-        "alertname": "stale-prometheus",
+        "eval_time": "6m",
+        "alertname": "collect-prometheus",
         "exp_alerts": []
       },
       {
-        "eval_time": "2m",
-        "alertname": "stale-prometheus",
+        "eval_time": "7m",
+        "alertname": "collect-prometheus",
         "exp_alerts": [
           {
             "exp_labels": {},
@@ -1080,23 +1080,23 @@
     ]
   },
   {
-    "name": "외부 점검 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "name": "collect-external catches a series that stopped updating (replaces external-stale)",
     "interval": "1m",
     "input_series": [
       {
         "series": "probe_success{job=\"acttub-health-dev\"}",
-        "values": "1 _ _ _ _"
+        "values": "1 _ _ _ _ _ _ _ _"
       }
     ],
     "alert_rule_test": [
       {
-        "eval_time": "1m",
-        "alertname": "external-stale",
+        "eval_time": "6m",
+        "alertname": "collect-external",
         "exp_alerts": []
       },
       {
-        "eval_time": "2m",
-        "alertname": "external-stale",
+        "eval_time": "7m",
+        "alertname": "collect-external",
         "exp_alerts": [
           {
             "exp_labels": {},
