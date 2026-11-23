@@ -135,6 +135,8 @@ DB는 인증된 내부 probe 실패가 지속될 때 경고한다(`db`). 공개 
 
 앱 로그는 홈서버 Alloy가 Cloud Loki로 보낸다([ADR-038](../ADR.md#adr-038-앱-로그는-서버-밖-grafana-cloud-loki에-저장한다)). Alloy는 Docker 소켓 대신 읽기 호출만 통과시키는 `socket-proxy`로 컨테이너 로그를 읽는다([ADR-039](../ADR.md#adr-039-docker-소켓은-읽기-호출만-통과시키는-프록시-하나만-쥐고-alloy는-그-프록시로만-읽는다)). 지표와 달리 Cloud에 저장되며 Free 플랜 기준 한 달 50GB, 14일 보관이다([가격표](https://grafana.com/pricing/)). 대상·label·가림 규칙은 [수집 구성 「로그 전송」](../../deploy/monitoring/README.md#로그-전송)이 정한다.
 
+호스트의 커널·Docker 데몬 줄은 `{environment="shared", service="kernel"}`·`{environment="shared", service="docker.service"}`로 본다.
+
 Explore에서 stack의 Loki 데이터 소스를 고르고 `{environment="prod", service="api"}`처럼 `environment`·`service`로 고른 뒤 줄 안의 값(요청 ID·사용자 ID)은 `|=` 또는 `| json`으로 찾는다. 사용량은 Cloud Portal의 Usage에서 본다. 한 달 예상치가 50GB에 가까우면 수집 설정에서 dev를 뺀다. `apply.py`는 로그 데이터 소스·로그 화면·로그 규칙을 만들지 않는다.
 
 ## 종료 시각 있는 일시 중지

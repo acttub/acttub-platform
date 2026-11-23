@@ -38,8 +38,31 @@ loki.source.docker "apps" {
   forward_to = [loki.process.apps.receiver]
 }
 
+// Host journal: only the kernel and the Docker daemon. matches is AND-only, so one reader per target;
+// both select at read time and never forward other units (sshd, cron, other services on this host).
+// The host is shared by dev and prod, like the host metrics' environment="shared".
+loki.source.journal "kernel" {
+  path       = "/var/log/journal"
+  matches    = "_TRANSPORT=kernel"
+  labels     = {environment = "shared", service = "kernel"}
+  forward_to = [loki.process.apps.receiver]
+}
+
+loki.source.journal "docker" {
+  path       = "/var/log/journal"
+  matches    = "_SYSTEMD_UNIT=docker.service"
+  labels     = {environment = "shared", service = "docker.service"}
+  forward_to = [loki.process.apps.receiver]
+}
+
+// Container and host lines share the same drop/mask rules.
 loki.process "apps" {
   forward_to = [loki.write.cloud.receiver]
+
+  // loki.source.journal adds job="loki.source.journal.<name>"; service already says it.
+  stage.label_drop {
+    values = ["job"]
+  }
 
   // External uptime checks hit /health every minute; nginx /ping is already unlogged.
   // Plain nginx request line (before JSON logs), then nginx "path" / api "route" JSON fields.
@@ -72,7 +95,7 @@ loki.process "apps" {
     replace    = "[REDACTED]"
   }
   stage.replace {
-    expression = "(?i)[?&;](?:token|access_token|refresh_token|id_token|code|state|authkey|key|secret|password|signature|sig|x-amz-signature|x-amz-credential|x-amz-security-token)=([^&\\s\"']+)"
+    expression = "(?i)(?:^|[?&;\\s])(?:token|access_token|refresh_token|id_token|code|state|authkey|key|secret|password|signature|sig|x-amz-signature|x-amz-credential|x-amz-security-token)=([^&\\s\"']+)"
     replace    = "[REDACTED]"
   }
   stage.replace {

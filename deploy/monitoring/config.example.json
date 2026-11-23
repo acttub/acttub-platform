@@ -4,7 +4,7 @@
   "data_mountpoint": "/",
   "pdc_cluster": "SET_FROM_GRAFANA_PDC",
   "grafana_id": "SET_FROM_GRAFANA_STACK",
-  "logs": {"loki_url": "SET_FROM_GRAFANA_LOKI_URL", "loki_user": "SET_FROM_GRAFANA_LOKI_USER", "environments": ["dev", "prod"]},
+  "logs": {"loki_url": "SET_FROM_GRAFANA_LOKI_URL", "loki_user": "SET_FROM_GRAFANA_LOKI_USER", "environments": ["dev", "prod"], "journal_gid": "SET_FROM_getent_group_systemd-journal"},
   "environments": {
     "dev": {"project": "acttub-dev", "backup_bucket": "acttub-db-backups", "database": "acttub"},
     "prod": {"project": "acttub-prod", "backup_bucket": "acttub-db-backups", "database": "acttub"}
