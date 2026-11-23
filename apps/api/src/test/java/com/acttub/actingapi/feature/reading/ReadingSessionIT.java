@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -53,6 +54,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * reading.cast·reading.session 의 "검증 방법" 가운데 서버가 맡는 항목을 HTTP 와 실제 Postgres 로 본다. 녹음 행은 아직
@@ -95,6 +98,12 @@ class ReadingSessionIT {
 
     @Autowired
     FakeStorage storage;
+
+    @Autowired
+    SessionRepository sessions;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     private final Map<String, UUID> documents = new LinkedHashMap<>();
     private UUID member;
@@ -172,6 +181,34 @@ class ReadingSessionIT {
         assertThat(json(post("/v2/reading/scripts/{id}/sessions", script.id).content(other.toString()), 422))
                 .as("같은 요청 id 에 다른 속성").isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
         assertThat(count("reading_sessions")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SOMA-701: 완료가 아닌 진행 저장만 그 트랜잭션에서 WAL 확정을 기다리지 않는다. 완료 저장과 커밋 뒤 같은 연결의 다음 트랜잭션은 기다린다")
+    void saveProgress_skipsWalFsyncOnlyForPositionSaves() throws Exception {
+        UUID session = UUID.fromString(startSession(List.of(script.nina)).path("id").textValue());
+
+        String[] position = synchronousCommitInSave(session, 1, false);
+        assertThat(position[0]).as("위치 저장").isEqualTo("off");
+        assertThat(synchronousCommitAndBackend()).as("SET LOCAL 이라 커밋 뒤 같은 연결에는 남지 않는다")
+                .containsExactly("on", position[1]);
+        assertThat(synchronousCommitInSave(session, 2, true)[0]).as("완료 저장").isEqualTo("on");
+        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("status").textValue()).isEqualTo("completed");
+    }
+
+    /** 진행 저장과 같은 트랜잭션 안에서 본 synchronous_commit 값과 연결의 backend pid. */
+    private String[] synchronousCommitInSave(UUID session, long seq, boolean complete) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            SessionRepository.Progress saved = sessions.saveProgress(member, session,
+                    new SessionRepository.ProgressChange(seq, script.dialogue(2), 5, List.of(), complete), clock.instant());
+            assertThat(saved.outcome()).isEqualTo(SessionRepository.ProgressOutcome.APPLIED);
+            return synchronousCommitAndBackend();
+        });
+    }
+
+    private String[] synchronousCommitAndBackend() {
+        return jdbc.queryForObject("SELECT current_setting('synchronous_commit'), CAST(pg_backend_pid() AS text)",
+                (rs, n) -> new String[] {rs.getString(1), rs.getString(2)});
     }
 
     @Test
