@@ -5,7 +5,7 @@
  * 원문이고(고정 제목 "연습 노트"는 없앴다), 초점 없이 끝난 record_only 는 제목이 없어 묶음의 대체
  * 제목을 쓴다. 화면 순서는 짧은 요약 → 다음 촬영에서 해볼 한 가지 → 응원이다(PRD).
  */
-import type { NoteKind, NoteQuote, PracticeNote, QuoteSource } from "@/lib/practice/api-types";
+import type { NoteQuote, PracticeNote, QuoteSource } from "@/lib/practice/api-types";
 import type { AnalysisReport, ExpressionReport } from "@/lib/api/v2/types";
 import { UNTITLED_PRACTICE } from "./practice-groups";
 
@@ -55,11 +55,6 @@ export function nextTakeCopy(note: PracticeNote): string {
     : null;
   if (take) return take;
   return note.kind === "record_only" ? RECORD_ONLY_COPY : NO_NEXT_TAKE_COPY;
-}
-
-/** 종류 자체는 화면에 성공·실패로 비치지 않게 문구로만 드러난다. */
-export function isProposal(kind: NoteKind): boolean {
-  return kind === "action";
 }
 
 /**

@@ -325,11 +325,6 @@ export function trackLandingDownloadClick(
   sendLandingEvent("app_download_click", { landing_variant: variant, surface, store });
 }
 
-/** 「웹에서 해 보기」·「이어서 연습하기」를 누른 시점. */
-export function trackLandingWebTryClick(variant: LandingVariantParam, surface: string): void {
-  sendLandingEvent("web_try_click", { landing_variant: variant, surface });
-}
-
 // ── 웹 체험 퍼널(SOMA-834 3차) ────────────────────────────────────────────────
 // 가입 없이 쓰는 방문자가 어디까지 가는지만 센다. 대본·대사·영상·회차 id 는 싣지 않는다.
 // 랜딩 이벤트와 같은 보관 큐를 써서 동의 흐름 뒤에 태그가 오르기 전 이벤트도 잃지 않는다.

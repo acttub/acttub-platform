@@ -52,18 +52,14 @@ test("필러와 가이드의 관련 링크는 실제 공개 경로만 가리킨�
   }
 });
 
-test("랜딩·입시요강 상세의 가이드 바로가기는 실제 가이드 글만 가리킨다", async () => {
-  const { LANDING_GUIDE_LINKS, ADMISSIONS_GUIDE_LINKS } = await import(
-    "../src/features/keyword-pages/guide-links.ts"
-  );
+test("입시요강 상세의 가이드 바로가기는 실제 가이드 글만 가리킨다", async () => {
+  const { ADMISSIONS_GUIDE_LINKS } = await import("../src/features/keyword-pages/guide-links.ts");
   const guidePaths = new Set(GUIDES.map((guide) => guide.path));
 
-  for (const links of [LANDING_GUIDE_LINKS, ADMISSIONS_GUIDE_LINKS]) {
-    assert.notEqual(links.length, 0);
-    assert.equal(new Set(links.map((link) => link.href)).size, links.length);
-    for (const link of links) {
-      assert.equal(guidePaths.has(link.href), true, link.href);
-      assert.notEqual(link.label.trim(), "");
-    }
+  assert.notEqual(ADMISSIONS_GUIDE_LINKS.length, 0);
+  assert.equal(new Set(ADMISSIONS_GUIDE_LINKS.map((link) => link.href)).size, ADMISSIONS_GUIDE_LINKS.length);
+  for (const link of ADMISSIONS_GUIDE_LINKS) {
+    assert.equal(guidePaths.has(link.href), true, link.href);
+    assert.notEqual(link.label.trim(), "");
   }
 });

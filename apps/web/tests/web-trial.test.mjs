@@ -1,4 +1,4 @@
-// 웹 체험(가입 없이 써 보기, SOMA-834 3차): 체험 주소·들어온 길, 리딩 빠른 시작, 홈 체험 카드, 체험 띠와 앱 이어하기 카드(게스트만),
+// 웹 체험(가입 없이 써 보기, SOMA-834 3차): 들어온 길, 리딩 빠른 시작, 체험 띠와 앱 이어하기 카드(게스트만),
 // 퍼널 이벤트(trial_*), 리딩 완료 화면의 앱 이어하기, 코칭 시작 화면의 질문 예시와 리딩 링크.
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
@@ -9,10 +9,9 @@ import { resetNavigation } from "./fixtures/features-next-shims.mjs";
 
 const { cleanup, fireEvent, render, screen, within } = await import("@testing-library/react");
 const { clearTokens, setMemberTokens, setTokens } = await import("../src/lib/auth/token-store.ts");
-const { COACHING_TRIAL_PATH, READING_TRIAL_PATH, trialEntryFromSearch, trialHref } = await import("../src/features/trial/trial-paths.ts");
+const { trialEntryFromSearch } = await import("../src/features/trial/trial-paths.ts");
 const quick = await import("../src/features/reading/quick-start.ts");
 const ga = await import("../src/lib/analytics/ga.ts");
-const { HomeTrialCards } = await import("../src/features/trial/home-trial-cards.tsx");
 const { TrialBar } = await import("../src/features/trial/trial-bar.tsx");
 const { AppHandoff } = await import("../src/features/trial/app-handoff.tsx");
 const { CoachingExamples, CoachingIntroHeading, NoVideoReadingLink, COACHING_EXAMPLE_BUBBLES } = await import("../src/features/trial/coaching-intro.tsx");
@@ -45,14 +44,7 @@ const member = () => {
 };
 const sent = () => events.map(([, name, params]) => [name, params]);
 
-test("체험 주소는 캠페인 값(UTM)을 그대로 싣고 from 으로 들어온 길을 더한다", () => {
-  assert.equal(READING_TRIAL_PATH, "/reading/try");
-  assert.equal(COACHING_TRIAL_PATH, "/practice/new");
-  assert.equal(
-    trialHref(READING_TRIAL_PATH, "home_card", "?utm_source=meta&utm_campaign=reading_a&fbclid=zzz&x=1"),
-    "/reading/try?utm_source=meta&utm_campaign=reading_a&from=home_card",
-  );
-  assert.equal(trialHref(COACHING_TRIAL_PATH, "nav", ""), "/practice/new?from=nav");
+test("체험에 들어온 길은 from 으로 가린다", () => {
   assert.equal(trialEntryFromSearch("?from=home_card&utm_source=meta"), "home_card");
   assert.equal(trialEntryFromSearch("?from=nav"), "nav");
   assert.equal(trialEntryFromSearch("?from=keyword_page"), "keyword_page");
@@ -200,28 +192,6 @@ test("예시 대본 준비: 서버가 못 나누면 오류로 끝난다", async 
     getScript: async (id) => serverDetail(id),
   };
   await assert.rejects(quick.prepareSampleScript({ importDeps, store: memoryStore(), cached: null }), /sample_import_/);
-});
-
-test("홈 체험 카드: 리딩은 바로 시작, 코칭은 영상 올리기로 가고 UTM 이 이어진다", () => {
-  window.history.replaceState(null, "", "/?utm_source=meta&utm_campaign=trial_a");
-  render(react.createElement(HomeTrialCards));
-  assert.ok(screen.getByText("상대역 리딩 해 보기"));
-  assert.ok(screen.getByText("준비물 없음 · 3분"));
-  assert.ok(screen.getByText("예시 대본이 들어 있어요. 상대역은 AI가 읽어요."));
-  assert.ok(screen.getByText("연기 질문 받아 보기"));
-  assert.ok(screen.getByText("연기 영상 하나"));
-  assert.equal(
-    screen.getByRole("link", { name: "바로 시작" }).getAttribute("href"),
-    "/reading/try?utm_source=meta&utm_campaign=trial_a&from=home_card",
-  );
-  assert.equal(
-    screen.getByRole("link", { name: "영상 올리기" }).getAttribute("href"),
-    "/practice/new?utm_source=meta&utm_campaign=trial_a&from=home_card",
-  );
-  // 앱으로 하려면: 데스크톱은 QR 줄, 휴대폰은 스토어 배지.
-  assert.ok(screen.getByText(/앱으로 하려면 휴대폰 카메라로 찍으세요/));
-  assert.equal(screen.getAllByRole("img", { name: "앱 설치 QR 코드", hidden: true }).length, 1);
-  assert.equal(window.document.querySelectorAll("a[data-app-download-store]").length, 2);
 });
 
 test("체험 띠: 게스트에게만 보이고, 앱 받기를 누르면 trial_app_click 이 bar 로 남는다", () => {

@@ -54,8 +54,6 @@ test("게스트 이관이 실패하면 보관본이 남고 다시 옮길 수 있
     return json(403, { detail: "profile_required" });
   };
   assert.equal(await carry.redeemGuestCarry(), "failed");
-  assert.equal(carry.hasPendingCarry(), true);
-  assert.equal(carry.takeCarryStatus(), "failed");
 
   const seen = [];
   globalThis.fetch = async (url, init) => {
@@ -64,9 +62,9 @@ test("게스트 이관이 실패하면 보관본이 남고 다시 옮길 수 있
     return json(201, { moved: true });
   };
   assert.equal(await carry.redeemGuestCarry(), "moved");
-  assert.equal(carry.hasPendingCarry(), false);
   assert.equal(seen[0].auth, "Bearer guest-a");
   assert.equal(seen[1].auth, "Bearer member-a");
+  assert.equal(await carry.redeemGuestCarry(), "none");
 });
 
 test("회원의 갱신이 거절되면 새 게스트를 만들지 않고 로그인 만료를 알린다", async () => {

@@ -123,13 +123,3 @@ function RailIcon({ name }: { name: IconName }) {
     </svg>
   );
 }
-
-/** 상단 바 + 본문을 세로로 쌓는 껍데기. 입시가 쓴다. */
-export function RailLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-dvh flex-col bg-[#f8fbff]">
-      <AppRail />
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
-}

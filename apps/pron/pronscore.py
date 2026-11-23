@@ -15,7 +15,6 @@ import re
 import subprocess
 import tempfile
 from functools import lru_cache
-from pathlib import Path
 
 import soundfile as sf
 import torch
@@ -34,9 +33,6 @@ ONSET = {"ㄱ": "G", "ㄲ": "GG", "ㄴ": "N", "ㄷ": "D", "ㄸ": "DD", "ㄹ": "R
          "ㅆ": "SS", "ㅇ": None, "ㅈ": "J", "ㅉ": "JJ", "ㅊ": "CHh", "ㅋ": "Kh", "ㅌ": "Th", "ㅍ": "Ph", "ㅎ": "H"}
 VOWEL = {"ㅏ": "A", "ㅐ": "E", "ㅑ": "iA", "ㅒ": "iE", "ㅓ": "EO", "ㅔ": "E", "ㅕ": "iEO", "ㅖ": "iE", "ㅗ": "O", "ㅘ": "oA",
          "ㅙ": "oE", "ㅚ": "oE", "ㅛ": "iO", "ㅜ": "U", "ㅝ": "uEO", "ㅞ": "oE", "ㅟ": "uI", "ㅠ": "iU", "ㅡ": "EU", "ㅢ": "euI", "ㅣ": "I"}
-CODA = {"ㄱ": "k", "ㄲ": "k", "ㅋ": "k", "ㄳ": "k", "ㄺ": "k", "ㄴ": "N", "ㄵ": "N", "ㄶ": "N", "ㄷ": "t", "ㅅ": "t", "ㅆ": "t",
-        "ㅈ": "t", "ㅊ": "t", "ㅌ": "t", "ㅎ": "t", "ㄹ": "L", "ㄼ": "L", "ㄽ": "L", "ㄾ": "L", "ㅀ": "L", "ㅁ": "M", "ㄻ": "M",
-        "ㅂ": "p", "ㅍ": "p", "ㅄ": "p", "ㄿ": "p", "ㅇ": "NG"}
 L_ONSET = list("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
 L_VOWEL = list("ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ")
 L_CODA = [""] + list("ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ")
@@ -320,21 +316,6 @@ def _gop_windowed(logp, seq, owner, inv, vocab, blank, alts, spans):
                              default=(float("-inf"), qs[0] if qs else inv[tok]))
         out[j] = (scores[0] - best_s if best_s != float("-inf") else 0.0, best_q)
     return out
-
-
-def score(path, text, threshold=THRESHOLD):
-    """어절마다 짚은 소리. [{word, phones:[{expected, heard, lpr}]}] + 전체 음소 표."""
-    g = gop(path, text)
-    notes = {}
-    for p in g["phones"]:
-        if flagged(p, threshold):
-            notes.setdefault(p["w"], []).append({"expected": JAMO.get(p["ph"], p["ph"]), "heard": JAMO.get(p["alt"], p["alt"]), "lpr": p["lpr"]})
-    clean = lambda w: "".join(ch for ch in w if "가" <= ch <= "힣" or ch.isalnum())
-    return {
-        "notes": [{"index": wi, "word": clean(g["words"][wi]), "phones": ph} for wi, ph in sorted(notes.items())],
-        "words": [clean(w) for w in g["words"]],
-        "phones": [{**p, "ph_jamo": JAMO.get(p["ph"], p["ph"]), "alt_jamo": JAMO.get(p["alt"], p["alt"])} for p in g["phones"]],
-    }
 
 
 # ── 대본 정리: 지문 괄호를 지우고 숫자를 한글 읽기로 바꾼다(SOMA-606 실험의 rescore.py) ─────────────
