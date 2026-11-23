@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.nio.file.Path;
 import java.time.Clock;
@@ -12,9 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.analysis.app.AnalysisContext;
 import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
 import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
@@ -28,20 +31,24 @@ import com.acttub.actingapi.integration.observation.SummaryParseError;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * practice.analyze 의 "검증 방법" 가운데 <b>결과 저장</b>에 해당하는 항목을 실제 워커와 실제 Postgres 로 본다.
@@ -57,6 +64,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
     // 스케줄러가 큐를 가로채면 시험이 워커를 직접 돌리지 못한다.
     "ANALYSIS_WORKER_ENABLED=false"
 })
+@AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, PracticeAnalysisIT.Fixture.class})
 class PracticeAnalysisIT {
     private static final Duration LEASE = Duration.ofMinutes(30);
@@ -81,6 +89,12 @@ class PracticeAnalysisIT {
 
     @Autowired
     RecordingFailureReporter failures;
+
+    @Autowired
+    MockMvc mvc;
+
+    @Autowired
+    JwtService jwt;
 
     private AnalysisWorker worker;
     private UUID member;
@@ -321,6 +335,46 @@ class PracticeAnalysisIT {
                 .isEqualTo("analyzing");
         assertThat(failures.reports()).extracting(report -> report.context())
                 .anyMatch(context -> context.startsWith("AnalysisWorker.complete"));
+    }
+
+    @Test
+    @DisplayName("practice.analyze: 바깥 호출이 도는 사이에 배우가 「그만두기」(POST /v2/practices/{id}/cancel) — 늦게 끝난 분석은 결과·받아쓰기·"
+            + "영상 길이를 남기지 않고 완료 알림(「질문이 준비됐어요」)도 보내지 않는다. 작업은 failed/cancelled, 회차는 closed/cancelled 그대로다")
+    void practiceAnalyze_aCompletionThatArrivesAfterCancelIsRefused() throws Exception {
+        jdbc.update("INSERT INTO user_identities(id,user_id,provider,provider_uid) VALUES (?,?,'google',?)",
+                UUID.randomUUID(), member, "g-" + member);
+        AccountFixtures.passGate(jdbc, member);
+        String bearer = "Bearer " + jwt.issueAccessToken(member).value();
+        UUID practice = practice(member, video, "three_layers_v1");
+        job(member, practice);
+        List<UUID> notified = new CopyOnWriteArrayList<>();
+        AnalysisWorker notifying = new AnalysisWorker(
+                store, storage, analyzer, clock, LEASE, "test-model", notified::add, failures);
+        analyzer.beforeResult = () -> {
+            try {
+                int status = mvc.perform(post("/v2/practices/{id}/cancel", practice).header("Authorization", bearer))
+                        .andReturn().getResponse().getStatus();
+                assertThat(status).as("그만두기").isEqualTo(200);
+            } catch (Exception failure) {
+                throw new IllegalStateException(failure);
+            }
+        };
+        analyzer.result = context -> new AnalysisResult(pack(List.of()), false, 9_000, videoRecord(UUID.randomUUID()));
+
+        assertThat(notifying.runOnce(clock.instant())).isTrue();
+
+        SoftAssertions.assertSoftly(soft -> {
+            soft.assertThat(jdbc.queryForObject("SELECT count(*) FROM analyses", Integer.class)).as("늦은 완료의 결과").isZero();
+            soft.assertThat(jdbc.queryForObject("SELECT count(*) FROM video_transcripts", Integer.class)).as("받아쓰기").isZero();
+            soft.assertThat(jdbc.queryForObject("SELECT duration_ms FROM videos WHERE id=?", Integer.class, video))
+                    .as("영상 길이").isZero();
+            soft.assertThat(jdbc.queryForObject("SELECT status || '/' || failure_reason FROM ai_jobs", String.class))
+                    .isEqualTo("failed/cancelled");
+            soft.assertThat(jdbc.queryForObject(
+                    "SELECT stage || '/' || close_reason FROM practices WHERE id=?", String.class, practice))
+                    .isEqualTo("closed/cancelled");
+            soft.assertThat(notified).as("「질문이 준비됐어요」 알림").isEmpty();
+        });
     }
 
     // ---- helpers ----
