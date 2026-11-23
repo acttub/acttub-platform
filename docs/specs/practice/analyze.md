@@ -100,7 +100,8 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
 - 완료된 analyses의 record를 바꾸는 요청: 없다(불변). 앱은 4초, 웹은 10초 간격으로 status를 읽는다. 완료 시 앱에 푸시가 온다.
 - 이관 중 완료: 회원의 회차에 결과, 회원 폰에 푸시. 탈퇴 중 완료: 결과 없음, failed/account_deactivated.
 - 기존 갈래(legacy) 회차 완료: analyses.format legacy, 원문 ObservationPack, 기존 응답 모양.
-- 취소: failed/cancelled, lease 없음, 늦게 온 완료는 거절.
+- 취소: failed/cancelled, lease 없음, 늦게 온 완료는 거절. 분석 도중 그만둔 뒤 워커가 끝나도 analyses·video_transcripts가 늘지 않고
+  영상 길이를 채우지 않으며 완료 푸시가 가지 않는다.
 - 화면을 떠나고 돌아옴: 서버 상태를 다시 읽고 작업은 계속 돌았다.
 - 전부 실패한 회차에서 코치 시작: 409.
 - lease 만료 뒤 재선점 없이 완료: 저장된다. 재선점 뒤 이전 워커 완료: 롤백.
