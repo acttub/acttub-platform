@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { EMPTY_RATING_STATE, RATING_MAX_ASKS, RATING_READING_EVERY, RATING_MIN_GAP_MS, afterAsk, afterRated, recordEvent } from '../lib/app-rating.ts';
+import { DEFAULT_APP_CONFIG } from '../lib/app-config.ts';
+import { EMPTY_RATING_STATE, afterAsk, afterRated, recordEvent } from '../lib/app-rating.ts';
 
 // 앱 평가 요청 (SOMA-494) — AI 코칭 2번마다·대본 2번 완주마다(SOMA-661) 묻되, 7일 간격·최대 3번,
 // "남기기"를 누르면 그만 묻는다. 스토어가 평가 여부를 알려 주지 않으므로 누른 것으로만 판단한다.
@@ -21,7 +22,7 @@ test('대본은 두 번째 완주에서 처음 묻는다(SOMA-661)', () => {
   const first = recordEvent(EMPTY_RATING_STATE, { kind: 'reading' }, T0);
   assert.equal(first.ask, false);
   assert.equal(recordEvent(first.state, { kind: 'reading' }, T0).ask, true);
-  assert.equal(RATING_READING_EVERY, 2);
+  assert.equal(DEFAULT_APP_CONFIG.rating.readingEvery, 2);
 });
 
 const twoReadings = (state, at) => recordEvent(recordEvent(state, { kind: 'reading' }, at).state, { kind: 'reading' }, at);
@@ -35,13 +36,13 @@ test('물은 뒤에는 코칭 수를 다시 세고, 7일이 지나야 다시 묻
   assert.equal(r.ask, false);
   r = recordEvent(r.state, { kind: 'coach', practiceId: 'b' }, T0 + 8 * DAY);
   assert.equal(r.ask, true);
-  assert.equal(RATING_MIN_GAP_MS, 7 * DAY);
+  assert.equal(DEFAULT_APP_CONFIG.rating.minGapDays, 7);
 });
 
 test('최대 세 번까지만 묻고, "남기기"를 누르면 다시는 묻지 않는다', () => {
   let s = EMPTY_RATING_STATE;
   let at = T0;
-  for (let i = 0; i < RATING_MAX_ASKS; i += 1) {
+  for (let i = 0; i < DEFAULT_APP_CONFIG.rating.maxAsks; i += 1) {
     const r = twoReadings(s, at);
     assert.equal(r.ask, true, `ask #${i + 1}`);
     s = afterAsk(r.state, at);

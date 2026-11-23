@@ -333,7 +333,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
 
     @Override
     public Claimed claim(UUID leaseToken, Duration lease, Instant now) {
-        AiJobLedger.Claimed claimed = jobs.claimNext("memory_update", leaseToken, lease, now);
+        AiJobLedger.Claimed claimed = jobs.claimNext("memory_update", leaseToken, lease, now, true);
         return claimed == null
                 ? null
                 : new Claimed(claimed.id(), claimed.userId(), claimed.targetId(), claimed.memoryEpoch());
@@ -630,6 +630,11 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     @Override
     public void release(UUID jobId, UUID leaseToken, String reason, Instant now) {
         jobs.release(jobId, leaseToken, reason, now);
+    }
+
+    @Override
+    public int closeAbandoned(Instant now) {
+        return jobs.failExpired("memory_update", now).size();
     }
 
     /**

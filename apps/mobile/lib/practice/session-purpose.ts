@@ -21,10 +21,6 @@ export function blockageCategoryFor(purpose: SessionPurpose): BlockageCategory {
   return CATEGORY[purpose];
 }
 
-export function purposeFor(category: BlockageCategory | null): SessionPurpose {
-  return SESSION_PURPOSES.find((p) => CATEGORY[p] === category) ?? DEFAULT_PURPOSE;
-}
-
 /**
  * 영상 없이 말로 코칭 받기의 목적(pen 「목적 · 영상 없이」, SOMA-745). 서버의 session_purpose 값 그대로 보낸다 —
  * 영상 없이 시작하면 서버가 이 목적으로 말로 하는 코치를 연다(practice.start). 막힌 곳 풀기가 기본 강조다.
@@ -36,12 +32,9 @@ export const TALK_PURPOSES: readonly TalkPurpose[] = ['stuck', 'character', 'con
 /** 준비 화면의 두 단계 — 목적 → 영상(권리 체크·시작 포함). 장면 단계는 없앴다(SOMA-778). */
 export type UploadStep = 'purpose' | 'source';
 
-/**
- * 튜토리얼과 예시는 한 장(영상 단계)에서 영상·권리 체크·시작 버튼을 차례로 비추므로 바로 그 단계로 연다.
- * 첫 코칭(quickStart, SOMA-984)도 목적을 묻지 않고 기본 목적으로 영상 단계부터 연다.
- */
-export function firstUploadStep(input: { sample: boolean; tutorial: boolean; quickStart?: boolean }): UploadStep {
-  return input.sample || input.tutorial || input.quickStart ? 'source' : 'purpose';
+/** 첫 코칭(quickStart, SOMA-984)은 목적을 묻지 않고 기본 목적으로 영상 단계부터 연다. */
+export function firstUploadStep(options: { quickStart?: boolean } = {}): UploadStep {
+  return options.quickStart ? 'source' : 'purpose';
 }
 
 /** 뒤로 가기가 돌아갈 단계. 첫 단계면 null — 화면을 닫는다. 첫 코칭은 목적 단계가 없어 영상 단계가 첫 단계다. */

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { DEFAULT_VAD, createSilenceDetector, meteringToRms } from '../lib/reading/vad.ts';
+import { createSilenceDetector, currentVad, meteringToRms } from '../lib/reading/vad.ts';
 
 /** now 부터 dur 동안 rms 를 50ms 마다 먹인다. 첫 non-none 사건을 돌려준다. */
 function feedFor(detector, rms, from, dur) {
@@ -15,11 +15,11 @@ function feedFor(detector, rms, from, dur) {
 }
 
 test('reading.session: 침묵 감지 상수는 웹과 같다 — RMS 0.015, 400ms, 1.8초, 60초', () => {
-  assert.deepEqual(DEFAULT_VAD, { threshold: 0.015, silenceMs: 1800, minSpeechMs: 400, maxListenMs: 60000 });
+  assert.deepEqual(currentVad(), { threshold: 0.015, silenceMs: 1800, minSpeechMs: 400, maxListenMs: 60000 });
 });
 
 test('reading.session: read·silence로 500ms 말하고 1.8초 침묵이면 다음 줄 신호(speech_end)가 난다', () => {
-  const d = createSilenceDetector(DEFAULT_VAD, 0);
+  const d = createSilenceDetector(currentVad(), 0);
   const speech = feedFor(d, 0.05, 0, 500);
   assert.deepEqual(speech.map(([e]) => e), ['speech_start']);
   const quiet = feedFor(d, 0.001, 500, 1900);
@@ -28,21 +28,21 @@ test('reading.session: read·silence로 500ms 말하고 1.8초 침묵이면 다�
 });
 
 test('reading.session: 300ms 소리 뒤 침묵은 넘어가지 않는다(소음)', () => {
-  const d = createSilenceDetector(DEFAULT_VAD, 0);
+  const d = createSilenceDetector(currentVad(), 0);
   feedFor(d, 0.05, 0, 300);
   const quiet = feedFor(d, 0.001, 300, 3000);
   assert.deepEqual(quiet.map(([e]) => e), []);
 });
 
 test('reading.session: 아무 말 없이 60초가 지나면 넘기지 않고 timeout 신호로 안내만 한다', () => {
-  const d = createSilenceDetector(DEFAULT_VAD, 0);
+  const d = createSilenceDetector(currentVad(), 0);
   const events = feedFor(d, 0.001, 0, 61_000);
   assert.deepEqual(events.map(([e]) => e), ['timeout']);
   assert.ok(events[0][1] >= 60_000);
 });
 
 test('reading.session: 소리가 임계 미만이면 말 시작으로 보지 않는다', () => {
-  const d = createSilenceDetector(DEFAULT_VAD, 0);
+  const d = createSilenceDetector(currentVad(), 0);
   assert.deepEqual(feedFor(d, 0.0149, 0, 1000), []);
   assert.deepEqual(feedFor(d, 0.015, 1000, 50).map(([e]) => e), ['speech_start']);
 });
@@ -59,7 +59,7 @@ test('reading.session: 음량 사건이 조용해진 뒤 끊겨도 마지막 값
   const { createVolumeFeed } = await import('../lib/reading/vad.ts');
   let now = 0;
   const events = [];
-  const feed = createVolumeFeed(createSilenceDetector(DEFAULT_VAD, 0), (e) => events.push([e, now]), () => now);
+  const feed = createVolumeFeed(createSilenceDetector(currentVad(), 0), (e) => events.push([e, now]), () => now);
   // 안드로이드 인식기: 말하는 동안만 값이 오고, 조용해지면 한 번 낮은 값이 온 뒤 끊긴다
   for (now = 0; now <= 600; now += 80) feed.volume(0.5);
   now = 680;

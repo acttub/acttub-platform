@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { guessLanguage, isKoreanLine, lineLanguage, speechLocaleFor, speechParts, speechTextOf, voiceLanguage } from '../lib/reading/line-language.ts';
+import { guessLanguage, lineLanguage, speechLocaleFor, speechParts, speechTextOf, voiceLanguage } from '../lib/reading/line-language.ts';
 import { createSpeechQueue } from '../lib/reading/tts/prefetch.ts';
 import { toSavedScript } from '../lib/reading/store.ts';
 
@@ -14,7 +14,6 @@ test('reading.line-language: 서버가 준 말과 소리 낼 글을 쓴다 — �
   assert.equal(speechTextOf(line), 'عني أنا؟');
   assert.equal(voiceLanguage(lineLanguage(line)), 'ar');
   assert.equal(speechLocaleFor('ar'), 'ar-SA');
-  assert.equal(isKoreanLine(line), false);
 });
 
 test('reading.line-language: 말이 없는 줄은 글자로 짐작하고, 로마자만 있으면 앱 표시 언어다', () => {
@@ -27,7 +26,6 @@ test('reading.line-language: 말이 없는 줄은 글자로 짐작하고, 로마
   assert.equal(lineLanguage({ text: 'Where are you?' }), null);
   assert.equal(lineLanguage({ text: '안녕', lang: 'zz' }), 'ko', '모르는 말 코드는 버리고 짐작한다');
   assert.equal(speechTextOf({ text: '안녕', speech: '  ' }), '안녕');
-  assert.equal(isKoreanLine({ text: '안녕' }), true);
 });
 
 test('reading.line-language: 미리 만들기 큐는 줄의 말로 만들고 말이 다르면 다른 저장본이다', async () => {

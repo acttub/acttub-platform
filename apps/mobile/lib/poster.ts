@@ -61,10 +61,6 @@ export type PosterCta =
   | { kind: 'route'; label: string; target: string }
   | { kind: 'url'; label: string; target: string };
 
-export function koreaDay(now: number): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
-}
-
 export function localDay(now: number): string {
   const date = new Date(now);
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
@@ -125,10 +121,6 @@ export function pickPoster(posters: Poster[], state: PosterState, ctx: PosterCon
 
 export function markShown(state: PosterState, poster: Pick<Poster, 'slug' | 'revision'>, today: string): PosterState {
   return { ...state, [poster.slug]: { ...recordFor(state, poster), lastShownDay: today, shownOnce: true } };
-}
-
-export function markDismissed(state: PosterState, poster: Pick<Poster, 'slug' | 'revision'>): PosterState {
-  return { ...state, [poster.slug]: { ...recordFor(state, poster), dismissedForever: true } };
 }
 
 export function markHiddenToday(state: PosterState, poster: Pick<Poster, 'slug' | 'revision'>, today: string): PosterState {

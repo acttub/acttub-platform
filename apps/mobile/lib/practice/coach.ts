@@ -80,11 +80,11 @@ export function nextReplyWraps(conversation: Pick<CoachConversation, 'coach_repl
 }
 
 /**
- * 정리 화면의 「대화 이어하기」(SOMA-782, pen ⓐ4)를 보일 수 있는가. 닫힌 대화이고 예시 회차가 아닐 때만이다.
+ * 정리 화면의 「대화 이어하기」(SOMA-782, pen ⓐ4)를 보일 수 있는가. 닫힌 대화일 때만이다.
  * 코치 응답 상한에 가까우면 서버가 409 conversation_limit_reached 로 막고 화면은 안내만 한다.
  */
-export function canContinueConversation(conversation: Pick<CoachConversation, 'status' | 'id'> | null, sample: boolean): boolean {
-  return Boolean(conversation && isClosed(conversation) && !sample);
+export function canContinueConversation(conversation: Pick<CoachConversation, 'status' | 'id'> | null): boolean {
+  return Boolean(conversation && isClosed(conversation));
 }
 
 export function isClosed(conversation: Pick<CoachConversation, 'status'> | null): boolean {
@@ -94,16 +94,6 @@ export function isClosed(conversation: Pick<CoachConversation, 'status'> | null)
 /** 화면에 그리는 순서는 turn_index 다. 서버가 순서를 정한다. */
 export function orderedMessages(conversation: Pick<CoachConversation, 'messages'>): CoachMessage[] {
   return [...conversation.messages].sort((a, b) => a.turn_index - b.turn_index);
-}
-
-export type HelpButton = 'yes' | 'no' | 'unsure';
-
-/**
- * 빠른 답 버튼(맞아요·아니요)이 준비하는 입력. 버튼만 눌러서는 아무것도 전송되지 않고 응답 횟수도 쓰지 않는다 —
- * 배우가 덧붙여 쓰고 보낸다(SOMA-656). 코치에게 묻고 싶은 건 입력칸에 그대로 쓴다.
- */
-export function helpButtonDraft(button: HelpButton): string {
-  return translate(button === 'yes' ? 'coach.yesMessage' : button === 'no' ? 'coach.noMessage' : 'coach.unsureMessage');
 }
 
 /**

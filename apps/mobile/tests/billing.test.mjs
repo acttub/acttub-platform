@@ -7,7 +7,6 @@ import {
   proVisible,
   homePlan,
   purchaseOpen,
-  freeLimitOf,
   monthDay,
   settingsSub,
   settingsTarget,
@@ -68,12 +67,6 @@ test('billing: 탈퇴 화면의 스토어 링크는 스토어 구독이 돌고 �
   assert.equal(storeSubscribed(me({ provider: 'toss', status: 'active' })), false);
   assert.equal(storeSubscribed(me({ provider: null, status: 'none' })), false);
   assert.equal(storeSubscribed(null), false);
-});
-
-test('billing: 무료 한도 오류 → 시트', () => {
-  assert.equal(freeLimitOf({ code: 'free_daily_coaching_limit' }), 'coaching');
-  assert.equal(freeLimitOf({ code: 'free_script_limit' }), 'script');
-  assert.equal(freeLimitOf({ code: 'guest_daily_analysis_limit' }), null);
 });
 
 test('billing: 코칭 시작이 무료 한도에 걸리면 free_limit — 게스트 하루 한도와 가른다', () => {

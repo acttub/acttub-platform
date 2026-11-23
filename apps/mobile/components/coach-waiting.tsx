@@ -15,8 +15,6 @@ import { InfoBanner } from '@/components/ui/info-banner';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
-import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { logEvent } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -40,9 +38,6 @@ import { inProgressPracticeId } from '@/lib/practice/start';
 import type { PracticeDetail, PracticeStatus } from '@/lib/practice/types';
 import { previewVideoSource } from '@/lib/preview-video';
 import { newRequestId } from '@/lib/request-id';
-import { TARGET } from '@/lib/spotlight-targets';
-import { sampleVideoUri } from '@/lib/tutorial-loop';
-import { isSamplePracticeId, SAMPLE_ANALYZING_STEP_MS, sampleDetail, sampleScene } from '@/lib/tutorial-sample';
 import { useFullScreenAd } from '@/lib/full-screen-ad';
 
 /**
@@ -84,53 +79,16 @@ export function CoachWaiting({
   const finishedRef = useRef(false);
   const retryRequestId = useRef<string | null>(null);
 
-  // 튜토리얼 예시(SOMA-494) — 조회도 분석도 없이 몇 초 뒤 대화를 연다.
-  // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
-  const sample = isSamplePracticeId(practiceId);
-  // 분석을 기다리기 시작할 때 전면 광고(SOMA-1085) — 예시 영상은 빼고, 들어올 때 한 번.
+  // 분석을 기다리기 시작할 때 전면 광고(SOMA-1085) — 들어올 때 한 번.
   const showFullScreenAd = useFullScreenAd();
   useEffect(() => {
-    if (!sample) void showFullScreenAd('analyzing_wait_full');
+    void showFullScreenAd('analyzing_wait_full');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // 영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 분석은 서버에서 계속되고 끝나면 완료 푸시가 온다.
   // iOS 밀어서 나가기는 막지 않고 아래 화면으로 내려간다(SOMA-966). 화면 안 버튼은 그대로 코칭 탭으로 간다.
   // 프로필·홈에서 바로 연 하던 코칭이면 들어온 탭으로 돌아간다(SOMA-1002).
-  const leave = useWaitExit(!sample && !error && Platform.OS !== 'ios', '/coaching', undefined, { backToTabBelow: true });
-  const [sampleReady, setSampleReady] = useState(false);
-  const [guideDone, setGuideDone] = useState(false);
-  const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);
-  const tutorialGuide = useTutorialSpotlight('analyzing', { onDone: () => setGuideDone(true) });
-
-  useEffect(() => {
-    if (!sample) return;
-    let alive = true;
-    void (async () => {
-      for (let i = 0; i < SAMPLE_ANALYZING_STEP_MS.length; i += 1) {
-        setStage(Math.min(i, translateList('analyzing.stages').length - 1));
-        await new Promise((resolve) => setTimeout(resolve, SAMPLE_ANALYZING_STEP_MS[i]));
-        if (!alive) return;
-      }
-      setSampleReady(true);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [sample]);
-
-  useEffect(() => {
-    if (!sample || !practiceId || !sampleReady || (tutorialGuide.active && !guideDone)) return;
-    finishedRef.current = true;
-    startPractice({
-      practiceId,
-      rootId: practiceId,
-      ordinal: 1,
-      scene: sampleScene(),
-      videoUri: sampleVideoUri(),
-      playbackUrl: null,
-    });
-    onReadyRef.current();
-  }, [guideDone, practiceId, sample, sampleReady, tutorialGuide.active]);
+  const leave = useWaitExit(!error && Platform.OS !== 'ios', '/coaching', undefined, { backToTabBelow: true });
 
   /** 분석이 끝났다. 장면·재생 주소를 받아 대화를 연다. */
   const enterCoach = useCallback(
@@ -178,7 +136,7 @@ export function CoachWaiting({
 
   /** 상태를 읽기 시작한다. 이미 읽고 있으면 그것을 멈추고 지금 상태부터 다시 읽는다. */
   const run = useCallback(async () => {
-    if (!practiceId || preview || sample || finishedRef.current) return;
+    if (!practiceId || preview || finishedRef.current) return;
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -210,7 +168,7 @@ export function CoachWaiting({
       return;
     }
     if (outcome.kind === 'error') setError(t('analyzing.statusUnavailable'));
-  }, [enterCoach, practiceId, preview, sample]);
+  }, [enterCoach, practiceId, preview]);
 
   useEffect(() => {
     if (preview) {
@@ -221,12 +179,6 @@ export function CoachWaiting({
     }
     if (!practiceId) {
       router.replace('/upload');
-      return;
-    }
-    if (sample) {
-      // 예시는 서버에 회차가 없다 — 복구 기록도 남기지 않는다.
-      setDetail(sampleDetail());
-      setVideoUri(sampleVideoUri());
       return;
     }
     void api
@@ -296,11 +248,6 @@ export function CoachWaiting({
   /** "그만두기" — 작업을 취소로 끝낸다. 영상은 그대로 두고 연습을 숨기지 않는다. */
   const stop = useCallback(async () => {
     if (!practiceId || stopping) return;
-    if (sample) {
-      finishTutorial('left');
-      router.dismissTo('/(tabs)');
-      return;
-    }
     const ok = await confirm({
       title: t('analyzing.stopTitle'),
       message: t('analyzing.stopMsg'),
@@ -325,7 +272,7 @@ export function CoachWaiting({
     } finally {
       setStopping(false);
     }
-  }, [confirm, practiceId, router, sample, stopping]);
+  }, [confirm, practiceId, router, stopping]);
 
   /** 실패한 회차를 다시 시도한다 — 새 작업이 생기고 stage 가 analyzing 으로 돌아간다. */
   const retry = useCallback(async () => {
@@ -367,7 +314,7 @@ export function CoachWaiting({
   }, [detail?.root_id, practiceId, retrying, router, run, status]);
 
   const jobStatus = status?.job?.status ?? 'pending';
-  const stageText = jobStatus === 'pending' && !sample ? t('analyzing.queued') : translateList('analyzing.stages')[stage];
+  const stageText = jobStatus === 'pending' ? t('analyzing.queued') : translateList('analyzing.stages')[stage];
   const recovery = analysisRecoveryAction(status);
 
   // 실패는 말풍선 안 빨간 글 대신 StatusScreen/Error — 할 수 있는 행동 하나, 나가기는 머리의 뒤로.
@@ -385,7 +332,6 @@ export function CoachWaiting({
           }
         />
         {dialog}
-        {tutorialGuide.element}
       </SafeAreaView>
     );
   }
@@ -406,28 +352,22 @@ export function CoachWaiting({
         <SceneFoldBody open={sceneOpen} videoUri={videoUri} track="analyzing" />
 
         {/* 코치 말풍선 자리에서 기다린다(pen 09 「질문 대화 · 영상 보는 중」). */}
-        <View ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
-          <CoachMessage>
-            <View style={styles.watchingBox} accessibilityLiveRegion="polite">
-              <View style={styles.typingRow}>
-                <Text style={styles.watching}>{t('coach.watching')}</Text>
-              </View>
-              <Text style={styles.stageText}>{stageText}</Text>
+        <CoachMessage>
+          <View style={styles.watchingBox} accessibilityLiveRegion="polite">
+            <View style={styles.typingRow}>
+              <Text style={styles.watching}>{t('coach.watching')}</Text>
             </View>
-          </CoachMessage>
-        </View>
+            <Text style={styles.stageText}>{stageText}</Text>
+          </View>
+        </CoachMessage>
       </ScrollView>
 
       {/* 광고 칸(SOMA-876) — 연습 중 칸이라 무료 사용자 일부만 받는다. 아래 버튼 묶음 바로 위, 24 띄운다. */}
-      {!sample && <AdSlot slot="analyzing_wait" style={styles.ad} />}
+      <AdSlot slot="analyzing_wait" style={styles.ad} />
 
       {/* 아래 바 — 안내 띠, 보조 글자 버튼 「그만두기」 위, 주 버튼 「끝나면 알려 주세요」 맨 아래. */}
       <CtaBar safeBottom={false}>
-        {sample ? (
-          <Text style={styles.notice}>{t('tutorial.sampleAnalyzing')}</Text>
-        ) : (
-          <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.banner} />
-        )}
+        <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.banner} />
         <TextButton
           label={stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}
           phLabel="analyzing_stop"
@@ -435,10 +375,9 @@ export function CoachWaiting({
           onPress={() => void stop()}
         />
         {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 뒤로 가기와 같은 코칭 탭으로 나간다. */}
-        {!sample && <PrimaryButton label={t('analyzing.notifyMe')} phLabel="analyzing_notify_me" onPress={leave} />}
+        <PrimaryButton label={t('analyzing.notifyMe')} phLabel="analyzing_notify_me" onPress={leave} />
       </CtaBar>
       {dialog}
-      {tutorialGuide.element}
     </SafeAreaView>
   );
 }
@@ -454,6 +393,4 @@ const styles = StyleSheet.create({
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   watching: { ...type.body1Bold, color: palette.text },
   stageText: { ...type.caption, color: palette.textSub },
-
-  notice: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });

@@ -80,8 +80,3 @@ export function voiceLanguage(lang: string | null): string {
 export function speechLocaleFor(lang: string | null): string {
   return LOCALES[voiceLanguage(lang)] ?? 'en-US';
 }
-
-/** 한국어 전용 기능(발음 피드백·빠르기)을 켜도 되는 줄인가. */
-export function isKoreanLine(line: LanguageLine): boolean {
-  return voiceLanguage(lineLanguage(line)) === 'ko';
-}

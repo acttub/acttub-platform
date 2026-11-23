@@ -25,7 +25,7 @@
 |---|---|---|---|
 | `POST /v2/entries/{id}/ai-report` | `ChallengeAiReportRequest`(request_id) | `ChallengeAiReport` 202(새 생성·생성 중), 200(결과 있음) | `member_only` 403, `entry_not_found` 404, `video_not_ready` 422, `request_fingerprint_mismatch` 422, `daily_report_request_limit` 429 |
 | `GET /v2/entries/{id}/ai-report` | id | `ChallengeAiReport` 200 | `member_only` 403, `ai_report_not_found` 404 |
-| `ChallengeReportScheduler.poll` → `ChallengeReportWorker.runOnce` (`CHALLENGE_REPORT_POLL_INTERVAL_MS`, 기본 5초, 스위치 `ANALYSIS_WORKER_ENABLED`) | `ai_jobs` kind challenge_report 대기 작업 | entry_ai_reports ready, entry_ai_report_ready 알림 | 실행 실패·거절 출력은 재큐, 세 번째 실패면 failed. 참여작 삭제면 저장하지 않고 failed/cancelled, 탈퇴면 failed/account_deactivated([공통 상태](../common.md#공통-상태)) |
+| `ChallengeReportScheduler.poll` → `ChallengeReportWorker.runOnce` (`CHALLENGE_REPORT_POLL_INTERVAL_MS`, 기본 5초, 스위치 `ANALYSIS_WORKER_ENABLED`) | `ai_jobs` kind challenge_report 대기 작업, 또는 집은 워커가 죽어 lease가 지난 running | entry_ai_reports ready, entry_ai_report_ready 알림 | 실행 실패·거절 출력은 재큐, 세 번째 실패면 failed. 참여작 삭제면 저장하지 않고 failed/cancelled, 탈퇴면 failed/account_deactivated([공통 상태](../common.md#공통-상태)) |
 | 보관 기간 정리 ([challenge.browse](browse.md#입력출력)의 `ChallengeSettlementScheduler.run` 안) | 보관 기간(「상태」의 끝 상태)이 지난 파기 행 | 행 삭제 | — |
 
 ## 상태
@@ -35,7 +35,7 @@ entry_ai_reports.status와 파기 표시(purged_at).
 |---|---|---|
 | pending | 새 생성 요청(행 없음, 또는 failed 뒤 "다시 시도" — 같은 행에 새 job_id, attempt_count 0, result 비움) | challenge.ai-report |
 | ready | 워커 저장 성공(리포트가 이 생성의 것이고 참여작·계정이 살아 있음) | challenge.ai-report |
-| failed | 세 번째 실행 실패(attempt_count 3) | challenge.ai-report |
+| failed | 세 번째 실행 실패(attempt_count 3), 또는 세 번 모두 집은 워커가 죽고 lease가 지남 | challenge.ai-report |
 | 파기(purged_at, result NULL) | 참여작 삭제. 탈퇴 | challenge.entry, account.withdraw |
 
 - 불변 조건: 참여작당 한 행(`uq_entry_ai_reports_entry`). attempt_count 0~3(`ck_entry_ai_reports_attempts`). ready면 result가 있거나 파기됨
@@ -86,6 +86,8 @@ entry_ai_reports.status와 파기 표시(purged_at).
   않는다.
 - 하루 4번째 새 생성: 429. 같은 요청 id 재전송: 기존 작업, 한도 그대로. 같은 참여작에 다른 요청 id로 동시 요청: 작업 하나.
 - 실행 3번 실패: failed, attempt_count 3. "다시 시도": 새 ai_jobs 1행, 하루 한도 1 소비. 금지 어휘 출력 주입: 저장되지 않고 재생성으로 실행 수 +1.
+- 생성을 집은 워커가 죽음: lease(10분)가 지나면 다음 워커가 다시 집어 ready(시도 수 2). 세 번 모두 죽음: 다시 집지 않고 정리가 작업을
+  failed/max_attempts, 리포트를 failed(attempt_count 3)로 닫는다. "다시 시도": 새 생성.
 - 표본이었던 참여작이 비공개·삭제·신고 숨김으로 바뀌거나 그 작성자가 탈퇴·나를 차단한 뒤 조회: 그 표본에 기댄 견주기 문장이 없다. 표본 챌린지가
   review: 같다.
 - 파일만 파기한 참여작 요청: 422 video_not_ready. 못 본 구간이 있는 영상: 한계에 적히고 채워지지 않는다.

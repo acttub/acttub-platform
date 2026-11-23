@@ -1,24 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { COMPRESS_HARD_MAX_MS, CompressTimeoutError, compressTimeoutMs, withProgressTimeout, withTimeout } from '../lib/compress-timeout.ts';
+import { COMPRESS_HARD_MAX_MS, CompressTimeoutError, compressTimeoutMs, withProgressTimeout } from '../lib/compress-timeout.ts';
 
 test('압축 상한은 영상 길이에 비례하고 8분을 넘지 않는다(SOMA-737)', () => {
   assert.equal(compressTimeoutMs(3), 51_000);
   assert.ok(compressTimeoutMs(60) > compressTimeoutMs(3));
   assert.equal(compressTimeoutMs(300), 8 * 60_000);
   assert.equal(compressTimeoutMs(null), 120_000);
-});
-
-test('withTimeout: 시간 안에 끝나면 결과를, 넘으면 취소 콜백과 함께 거절한다', async () => {
-  assert.equal(await withTimeout(Promise.resolve('ok'), 50), 'ok');
-  let cancelled = false;
-  await assert.rejects(
-    withTimeout(new Promise(() => {}), 20, () => (cancelled = true)),
-    (e) => e instanceof CompressTimeoutError,
-  );
-  assert.ok(cancelled);
-  await assert.rejects(withTimeout(Promise.reject(new Error('x')), 50), /x/);
 });
 
 test('withProgressTimeout: 진행률이 오르는 동안은 멈춤 상한을 넘겨도 기다린다(S23 2분 영상 실패, SOMA-737 후속)', async (t) => {

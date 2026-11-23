@@ -125,8 +125,9 @@ public class AnalysisWorker {
                     }
                 }
                 AnalysisResult result = analyzer.analyze(input, context);
-                store.complete(operationId, leaseToken, result, model, now);
-                notifyCompletion(context);
+                if (store.complete(operationId, leaseToken, result, model, now) != null) {
+                    notifyCompletion(context);
+                }
             } catch (LeaseOwnershipException exception) {
                 LOGGER.warning("analysis lease ownership was lost: " + operationId);
                 failureReporter.report(

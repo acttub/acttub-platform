@@ -15,9 +15,7 @@ test('practice.coach: 대화는 요청 id 와 revision 을 싣고 충돌이면 �
   const coach = read('app/coach.tsx');
 
   assert.match(coach, /loadCoachSession/);
-  // 답은 loopApiFor 로 보낸다 — 튜토리얼 예시 회차만 미리 쓴 코치, 나머지는 api 그대로(SOMA-494).
-  assert.match(coach, /const loop = loopApiFor\(practice\?\.practiceId\)/);
-  assert.match(coach, /loop\.replyToCoach/);
+  assert.match(coach, /api\.replyToCoach/);
   assert.match(coach, /buildReplyBody/);
   assert.match(coach, /newRequestId/);
   assert.match(coach, /failure\.kind === 'conflict'/);
@@ -47,7 +45,7 @@ test('practice.coach: 예시 답 버튼은 입력만 준비한다 — 누르는 
 test('practice.note: 노트 화면은 새 노트 계약을 읽고 확인을 강제하던 옛 카피가 없다', () => {
   const report = read('app/report.tsx');
 
-  assert.match(report, /loopApiFor\(practice\.practiceId\)\.getPracticeNote/);
+  assert.match(report, /readOptionalPracticeNote\(api\.getPracticeNote/);
   // 본문 칸은 지난 노트(report-detail)와 같은 컴포넌트가 noteSections 로 그린다.
   assert.match(report, /<NoteSections note=\{note\} \/>/);
   assert.match(read('app/report-detail.tsx'), /<NoteSections note=\{note\} \/>/);

@@ -26,10 +26,7 @@ import { UnderlineTabs } from '@/components/ui/underline-tabs';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { radius, space, type } from '@/constants/tokens';
-import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api } from '@/lib/api';
-import { TARGET } from '@/lib/spotlight-targets';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
   importAlert,
@@ -130,7 +127,7 @@ type Popup =
 
 export default function ReadingNew() {
   const router = useRouter();
-  // 대본 리딩 튜토리얼의 예시(SOMA-494) — 예시 대본을 채운 채 연다.
+  // 예시 대본 고르기(components/reading/sample-picker)에서 오면 그 예시를 채운 채 연다.
   const { sample = '', pick } = useLocalSearchParams<{ sample?: string; pick?: string }>();
   // 첫 리딩(리딩을 한 번도 끝내지 않은 계정)이면 나눈 뒤 목소리·대본 상세를 건너뛰고 배역 고르기로 간다(10/29). 확인 전이면 기존 흐름.
   const firstReading = useFirstReading();
@@ -144,9 +141,6 @@ export default function ReadingNew() {
   const [leaveAsk, setLeaveAsk] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
   const [leaveOk, setLeaveOk] = useState(false);
   const title = input.title[input.tab];
-  const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
-  const nextTarget = useSpotlightTarget(TARGET.readingNext);
-  const tutorialGuide = useTutorialSpotlight('readingNew');
   const pending = pendingScript(input);
   // 화면을 떠나면 묻기를 멈추고, 떠난 뒤에 끝난 나누기가 다른 화면에서 router.replace 하지 않게 한다.
   const life = useRef<AbortController | null>(null);
@@ -247,7 +241,7 @@ export default function ReadingNew() {
     if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
     if (firstReadingRef.current) return router.replace(FIRST_READING_HREF);
     // 나눈 뒤 목소리 정하기(2단계)를 거친다. 목소리는 자동으로 골라 둔 채 열리고, 저장하면 목소리 화면이
-    // 대본 상세(튜토리얼이면 구간 고르기까지)로 넘긴다(lib/tutorial afterVoicesSaved).
+    // 대본 상세로 넘긴다.
     router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
   };
 
@@ -398,7 +392,7 @@ export default function ReadingNew() {
         <UnderlineTabs
           tabs={[
             { key: 'file', label: t('reading.tabFile') },
-            { key: 'paste', label: t('reading.tabPaste'), target: pasteTabTarget },
+            { key: 'paste', label: t('reading.tabPaste') },
             { key: 'make', label: t('reading.tabCocreate') },
           ]}
           value={makeOpen ? 'make' : input.tab}
@@ -487,40 +481,38 @@ export default function ReadingNew() {
       </ScrollView>
 
       <CtaBar>
-        <View ref={nextTarget.ref} onLayout={nextTarget.onLayout}>
-          {makeOpen ? (
-            <PrimaryButton
-              label={makeChoice === 'sample' ? t('reading.samplePickConfirm') : t('reading.next')}
-              phLabel="reading_new_make_next"
-              loading={makeChoice === 'sample' && picker.busy}
-              loadingLabel={t('loadingText.preparing')}
-              disabled={!makeChoice}
-              onPress={() =>
-                makeChoice === 'sample'
-                  ? picker.confirm()
-                  : router.push({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } })
+        {makeOpen ? (
+          <PrimaryButton
+            label={makeChoice === 'sample' ? t('reading.samplePickConfirm') : t('reading.next')}
+            phLabel="reading_new_make_next"
+            loading={makeChoice === 'sample' && picker.busy}
+            loadingLabel={t('loadingText.preparing')}
+            disabled={!makeChoice}
+            onPress={() =>
+              makeChoice === 'sample'
+                ? picker.confirm()
+                : router.push({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } })
+            }
+          />
+        ) : (
+          <PrimaryButton
+            label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
+            onPress={() => {
+              if (pasteEmpty) {
+                setPasteBlocked((n) => n + 1);
+                pasteRef.current?.focus();
+                return;
               }
-            />
-          ) : (
-            <PrimaryButton
-              label={input.tab === 'file' && file.kind === 'reading' ? t('reading.attachReading') : t('reading.next')}
-              onPress={() => {
-                if (pasteEmpty) {
-                  setPasteBlocked((n) => n + 1);
-                  pasteRef.current?.focus();
-                  return;
-                }
-                if (!pending || splitLock.current) return;
-                splitLock.current = true;
-                void split(pending, { title }).finally(() => (splitLock.current = false));
-              }}
-              loading={checking}
-              loadingLabel={t('loadingText.checking')}
-              // 파일을 읽는 동안은 버튼 글자가 「읽는 중…」으로 이유를 말한다(SOMA-975).
-              disabled={(!pending && !pasteEmpty) || (!!popup && !checking)}
-            />
-          )}
-        </View>
+              if (!pending || splitLock.current) return;
+              splitLock.current = true;
+              void split(pending, { title }).finally(() => (splitLock.current = false));
+            }}
+            loading={checking}
+            loadingLabel={t('loadingText.checking')}
+            // 파일을 읽는 동안은 버튼 글자가 「읽는 중…」으로 이유를 말한다(SOMA-975).
+            disabled={(!pending && !pasteEmpty) || (!!popup && !checking)}
+          />
+        )}
       </CtaBar>
 
       {picker.dialog}
@@ -616,7 +608,6 @@ export default function ReadingNew() {
           </DialogCard>
         )}
       </DialogModal>
-      {tutorialGuide.element}
     </KeyboardLift>
   );
 }

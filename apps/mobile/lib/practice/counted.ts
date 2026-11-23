@@ -30,11 +30,6 @@ export function countedPractices(input: CountedPracticeInput): CountedPractice[]
   return out;
 }
 
-/** 연속일·주간 원(practice-days)에 먹일 모양. */
-export function countedPracticeDates(input: CountedPracticeInput): { created_at: string }[] {
-  return countedPractices(input).map((p) => ({ created_at: p.at }));
-}
-
 /**
  * 리딩 한 회차를 완료로 칠지(SOMA-773 #25 → 10/25 사용자 결정). 끝까지 갔으면 완료다 — 인식된 내 대사가 없어도 센다.
  * (예전엔 인식된 대사가 한 줄 이상이어야 했다.) 중간에 그만한 회차는 내 대사를 한 줄도 못 읽었을 때만 부르는 쪽(play.tsx

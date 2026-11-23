@@ -63,17 +63,3 @@ export function relativeDay(iso: string, now: number): string {
   if (days === 1) return t('reading.yesterday');
   return new Date(at).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' });
 }
-
-/**
- * 마지막 활동 — "어제 연습", "5월 25일 업로드". 서버가 회차의 마지막 갱신 시각(last_practiced_at)을 주면
- * 연습이고, null 이면 등록(업로드)이 마지막 활동이다(RA1 계약).
- */
-export function lastActivityLabel(
-  card: Pick<ScriptCard, 'last_activity_at' | 'last_practiced_at'>,
-  now: number = Date.now(),
-): string {
-  if (!card.last_activity_at) return '';
-  const when = relativeDay(card.last_activity_at, now);
-  if (!when) return '';
-  return card.last_practiced_at !== null ? t('reading.activityPractice', { when }) : t('reading.activityUpload', { when });
-}

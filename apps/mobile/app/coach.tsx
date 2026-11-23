@@ -1,9 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -25,6 +24,7 @@ import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { observedSceneLine } from '@/lib/practice/analysis-summary';
 import {
@@ -49,11 +49,6 @@ import { COACH_ANSWER_MAX } from '@/lib/practice/types';
 import { hasUnreadableText } from '@/lib/practice/readable-text';
 import { newRequestId } from '@/lib/request-id';
 import { useReadableInput } from '@/hooks/use-readable-input';
-import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
-import { TARGET } from '@/lib/spotlight-targets';
-import { loopApiFor } from '@/lib/tutorial-loop';
-import { isSamplePracticeId, sampleAnswerFor } from '@/lib/tutorial-sample';
 
 // 네이티브 모듈이 없는 빌드(STT 도입 전 dev client)에서도 화면이 뜨도록 가드해서 로드한다.
 let MicButton: ComponentType<MicButtonProps> | null = null;
@@ -67,7 +62,7 @@ try {
  * A10·A11 코치 화면(practice.analyze · practice.coach).
  *
  * 회차 id(`practiceId`)를 받아 열리면 먼저 같은 화면 안에서 「영상 보는 중」으로 분석을 기다린다(components/coach-waiting,
- * SOMA-778) — 따로 된 분석 화면은 없다. 분석이 끝나면 회차를 들고 대화를 연다. 회차 id 없이 열리면(튜토리얼·미리보기·
+ * SOMA-778) — 따로 된 분석 화면은 없다. 분석이 끝나면 회차를 들고 대화를 연다. 회차 id 없이 열리면(미리보기·
  * 테스트) 이미 들고 있는 회차로 바로 대화한다.
  */
 /** 다시 연결해도 같은 결과인 실패 — 이미 닫혔거나 더 이어 갈 수 없는 대화다. 「액티 다시 연결하기」를 보이지 않는다. */
@@ -99,17 +94,11 @@ export default function CoachScreen() {
  */
 function CoachTalk() {
   const router = useRouter();
-  const navigation = useNavigation();
   // 리딩 녹음으로 시작하면(SOMA-791) 첫 답까지 녹음을 듣는 시간이라 기다림 문구가 다르다.
   const { purpose: purposeParam } = useLocalSearchParams<{ purpose?: string }>();
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
   const [practice] = useState(() => getPractice());
-  // 튜토리얼 예시면 미리 써 둔 코치와 대화한다 — 서버·음성 인식·한 줄 설문 없이(SOMA-494).
-  const sample = isSamplePracticeId(practice?.practiceId);
-  const loop = loopApiFor(practice?.practiceId);
-  const questionTarget = useSpotlightTarget(TARGET.coachQuestion);
-  const composerTarget = useSpotlightTarget(TARGET.coachComposer);
   const scrollRef = useRef<ScrollView>(null);
   /** 지금 질문 칸의 위쪽 y(스크롤 안 기준) — 키보드가 뜨면 이 자리부터 보이게 올린다. */
   const questionY = useRef<number | null>(null);
@@ -154,7 +143,6 @@ function CoachTalk() {
   const [seek, setSeek] = useState<{ seconds: number; label: string; key: number } | null>(null);
   // 대화를 여는 데 실패한 까닭 — 연결이 끊긴 것이면 「대화가 잠깐 끊겼어요」 한 장으로 보인다.
   const [startFailureKind, setStartFailureKind] = useState<string | null>(null);
-  const [leaveAllowed, setLeaveAllowed] = useState(false);
   const { confirm, dialog } = useAppDialog();
   // 대화 위 한 줄 「AI가 본 장면 · …」 — 분석 공개 요약의 본 장면(SOMA-778). 없으면 줄을 숨긴다.
   // 「고치기」는 본 장면을 바로잡는 서버 API 가 없어 아직 두지 않는다.
@@ -162,9 +150,7 @@ function CoachTalk() {
 
   const closed = isClosed(conversation);
 
-  // usePreventRemove 는 렌더된 값을 보므로, 풀린 상태가 반영된 다음 틱에 이동해야 다시 안 막힌다.
   const leaveThen = useCallback((go: () => void) => {
-    setLeaveAllowed(true);
     setTimeout(() => {
       try {
         go();
@@ -175,13 +161,13 @@ function CoachTalk() {
   }, []);
 
   // 코칭이 끝나면 배우 일지 없이 바로 「오늘 코칭 끝」으로 가서 코치가 정한 「다음에 해 볼 것」으로 마무리한다(11/2 우영: 배우 일지 없애기).
-  // 튜토리얼 예시 회차는 서버에 없어 지금처럼 미리 쓴 노트(/report)다. 예전에 쓴 일지는 기록에서 그대로 볼 수 있다.
+  // 예전에 쓴 일지는 기록에서 그대로 볼 수 있다.
   // 시작 시각을 같이 넘긴다 — 코칭 끝 화면이 노트를 확인하면 그 날을 홈 연속일에 미리 더한다(SOMA-1075).
   const goToNote = useCallback(() => {
     const practiceId = practice?.practiceId ?? '';
     const startedAt = practice?.createdAt ?? '';
-    leaveThen(() => router.replace(sample ? '/report' : { pathname: '/coaching-done', params: { practiceId, startedAt } }));
-  }, [leaveThen, router, sample, practice?.practiceId, practice?.createdAt]);
+    leaveThen(() => router.replace({ pathname: '/coaching-done', params: { practiceId, startedAt } }));
+  }, [leaveThen, router, practice?.practiceId, practice?.createdAt]);
 
   const applyResult = useCallback(
     (result: CoachTurnResult) => {
@@ -202,7 +188,7 @@ function CoachTalk() {
     setError(null);
     setStartFailureKind(null);
     try {
-      const result = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, practice.conversationId, streamCallbacks);
+      const result = await loadCoachSession(api, practice.practiceId, startRequestIdRef.current, practice.conversationId, streamCallbacks);
       if (!mountedRef.current) return;
       if (applyResult(result) && result.note && !result.conversation.purpose) goToNote();
     } catch (e) {
@@ -218,17 +204,17 @@ function CoachTalk() {
       }
       startInFlightRef.current = false;
     }
-  }, [applyResult, goToNote, loop, practice, streamCallbacks]);
+  }, [applyResult, goToNote, practice, streamCallbacks]);
 
   /** 충돌 뒤 최신 대화를 다시 읽는다. 쓰던 글은 건드리지 않는다. */
   const reloadConversation = useCallback(async () => {
     const id = conversation?.id ?? practice?.conversationId;
     if (!id || !practice) return;
-    const latest = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, id).catch(() => null);
+    const latest = await loadCoachSession(api, practice.practiceId, startRequestIdRef.current, id).catch(() => null);
     if (latest && mountedRef.current) {
       applyResult(latest);
     }
-  }, [applyResult, conversation?.id, loop, practice]);
+  }, [applyResult, conversation?.id, practice]);
 
   const sendText = useCallback(
     async (text: string) => {
@@ -255,7 +241,7 @@ function CoachTalk() {
         setInput('');
       }
       try {
-        const result = await loop.replyToCoach(
+        const result = await api.replyToCoach(
           buildReplyBody({ conversation, requestId: attempt.requestId, text: trimmed }),
           streamCallbacks,
         );
@@ -281,7 +267,7 @@ function CoachTalk() {
         }
       }
     },
-    [applyResult, closed, conversation, goToNote, loop, practice, reloadConversation, streamCallbacks, waiting],
+    [applyResult, closed, conversation, goToNote, practice, reloadConversation, streamCallbacks, waiting],
   );
 
   /**
@@ -289,11 +275,11 @@ function CoachTalk() {
    * 실패하면 닫힌 채로 두고 안내만 보인다. 충돌이면 최신 대화를 다시 읽는다.
    */
   const continueTalk = useCallback(async () => {
-    if (!conversation || waiting || !canContinueConversation(conversation, sample)) return;
+    if (!conversation || waiting || !canContinueConversation(conversation)) return;
     setWaiting(true);
     setError(null);
     try {
-      const result = await loop.continueConversation(conversation.id, conversation.revision);
+      const result = await api.continueConversation(conversation.id, conversation.revision);
       if (!mountedRef.current) return;
       applyResult(result);
     } catch (e) {
@@ -304,12 +290,12 @@ function CoachTalk() {
     } finally {
       if (mountedRef.current) setWaiting(false);
     }
-  }, [applyResult, conversation, loop, reloadConversation, sample, waiting]);
+  }, [applyResult, conversation, reloadConversation, waiting]);
 
   /** 닫힌 대화에서 다시 코칭하려면 새 회차다 — 「다음 테이크 찍기」로 영상을 새로 고른다(SOMA-672). */
   const readingPurpose = conversation?.purpose?.purpose === 'reading';
   /** 리딩 녹음 코칭이 끝나면 영상 한 줄로 같은 묶음을 이어 간다 — 다음 테이크와 같은 이어하기 길(upload → continuePractice). */
-  const readingEnd = readingPurpose && !sample && (conversation?.purpose?.step === 'wrap' || closed);
+  const readingEnd = readingPurpose && (conversation?.purpose?.step === 'wrap' || closed);
   const [closingForVideo, setClosingForVideo] = useState(false);
   const startReadingVideo = async () => {
     if (!practice || !conversation || closingForVideo) return;
@@ -319,7 +305,7 @@ function CoachTalk() {
       setClosingForVideo(true);
       setError(null);
       try {
-        const result = await loop.replyToCoach(buildReplyBody({ conversation, requestId: newRequestId(), text: COACH_END_WORD }), streamCallbacks);
+        const result = await api.replyToCoach(buildReplyBody({ conversation, requestId: newRequestId(), text: COACH_END_WORD }), streamCallbacks);
         if (!mountedRef.current) return;
         applyResult(result);
         if (!isClosed(result.conversation)) throw new Error('not closed');
@@ -342,17 +328,6 @@ function CoachTalk() {
     leaveThen(() => router.replace('/upload'));
   };
 
-  // 예시 튜토리얼 대화 중에 뒤로가기로 나가면 튜토리얼을 '나감'으로 끝낸다.
-  usePreventRemove(Platform.OS !== 'ios' && sample && !leaveAllowed, ({ data }) => {
-    finishTutorial('left');
-    leaveThen(() => navigation.dispatch(data.action));
-  });
-  // iOS 는 밀어서 나가기를 막지 않고 내려가면서 끝낸다(SOMA-966).
-  useEffect(() => {
-    if (Platform.OS !== 'ios' || !sample || leaveAllowed) return;
-    return navigation.addListener('beforeRemove', () => finishTutorial('left'));
-  }, [navigation, sample, leaveAllowed]);
-
   useEffect(() => {
     mountedRef.current = true;
     void startConversation();
@@ -366,7 +341,7 @@ function CoachTalk() {
     if (!practice) return;
     let alive = true;
     void Promise.resolve()
-      .then(() => loop.getPracticeAnalysis(practice.practiceId))
+      .then(() => api.getPracticeAnalysis(practice.practiceId))
       .then((analysis) => {
         if (alive) setObservedLine(observedSceneLine(analysis));
       })
@@ -376,15 +351,6 @@ function CoachTalk() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 예시 튜토리얼은 새 질문이 오면 답 칸에 샘플 답을 채워 둔다 — 그대로 보내도, 고쳐 써도 된다.
-  useEffect(() => {
-    if (!sample || closed) return;
-    const last = messages[messages.length - 1];
-    if (last?.role !== 'coach') return;
-    const answer = sampleAnswerFor(messages.filter((m) => m.role === 'actor').length);
-    if (answer) setInput((was) => (was.trim() ? was : answer));
-  }, [closed, messages, sample]);
 
   useEffect(() => {
     const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
@@ -402,11 +368,6 @@ function CoachTalk() {
     }, 80);
     return () => clearTimeout(timer);
   }, [keyboardVisible]);
-
-  // 첫 질문이 뜬 뒤에 비춘다 — 그 전엔 비출 질문이 없다.
-  const tutorialGuide = useTutorialSpotlight('coach', {
-    ready: !connecting && messages.some((m) => m.role === 'coach'),
-  });
 
   if (!practice) {
     return (
@@ -581,13 +542,11 @@ function CoachTalk() {
                   <View
                     key={message.turn_index}
                     testID="coach-bubble-coach"
-                    // 지금 질문 — 튜토리얼이 비추고, 키보드가 뜨면 이 말풍선 위쪽으로 올린다.
-                    ref={index === latestCoachIndex ? questionTarget.ref : undefined}
+                    // 지금 질문 — 키보드가 뜨면 이 말풍선 위쪽으로 올린다.
                     onLayout={
                       index === latestCoachIndex
                         ? (event) => {
                             questionY.current = event.nativeEvent.layout.y;
-                            questionTarget.onLayout();
                           }
                         : undefined
                     }>
@@ -635,8 +594,8 @@ function CoachTalk() {
             <>
               <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure'
                 ? t('coach.doneFailure') : practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
-              {/* 「대화 이어 가기」는 아래 버튼 줄이 아니라 대화 끝의 옅은 파랑 카드다. 예시 회차는 서버에 없어 이어 갈 수 없다. */}
-              {canContinueConversation(conversation, sample) && (
+              {/* 「대화 이어 가기」는 아래 버튼 줄이 아니라 대화 끝의 옅은 파랑 카드다. */}
+              {canContinueConversation(conversation) && (
                 <Pressable
                   onPress={() => void continueTalk()}
                   disabled={waiting}
@@ -659,8 +618,8 @@ function CoachTalk() {
 
         {(closed || readingEnd) && (
           <CtaBar safeBottom={false}>
-            {/* 영상 없이 말로 한 대화(말로 코칭)는 찍은 테이크가 없어 「다음 테이크 찍기」를 두지 않는다. 예시 회차도 없다. */}
-            {!sample && sceneVideo && (
+            {/* 영상 없이 말로 한 대화(말로 코칭)는 찍은 테이크가 없어 「다음 테이크 찍기」를 두지 않는다. */}
+            {sceneVideo && (
               <SecondaryButton label={t('history.nextTake')} phLabel="coach_next_take" onPress={startNextTake} />
             )}
             {readingEnd && <PrimaryButton label={t('coach.readingVideoCta')} phLabel="reading_voice_coach_video" loading={closingForVideo} disabled={waiting || closingForVideo} onPress={() => void startReadingVideo()} />}
@@ -682,7 +641,7 @@ function CoachTalk() {
         )}
 
         {!closed && (
-          <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
+          <View style={styles.composer}>
             {/* 키보드가 떠 있으면 답을 쓰는 중이다 — 고르기 버튼·빠른 답·안내 줄을 접어 질문이 보일 자리를 넓힌다. */}
             {!keyboardVisible && conversation?.purpose?.choices.length ? (
               <View style={styles.purposeChoices}>
@@ -715,7 +674,7 @@ function CoachTalk() {
             )}
             {sendBlocked && sendBlock === 'waiting' && <InlineErrorLine message={t('coach.blockWaiting')} />}
             <View style={styles.inputRow}>
-              {MicButton && !sample && <MicButton onText={changeInput} disabled={connecting || waiting || !conversation} />}
+              {MicButton && <MicButton onText={changeInput} disabled={connecting || waiting || !conversation} />}
               <ChatComposer
                 inputRef={inputRef}
                 // 코치가 질문을 만드는 동안은 입력칸 안내로 그 상태를 알린다.
@@ -743,7 +702,6 @@ function CoachTalk() {
         )}
       </View>
       {dialog}
-      {tutorialGuide.element}
     </SafeAreaView>
   );
 }

@@ -26,7 +26,6 @@ import { dDayLabel } from '@/lib/challenge/browse';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { skipsHomeGuide } from '@/lib/returning-account';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
-import { currentTutorial } from '@/lib/tutorial';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
 import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
@@ -40,7 +39,6 @@ import { openResume } from '@/lib/reading/resume-open';
 import { resumeSessionOf } from '@/lib/reading/redesign-748';
 import { DEFAULT_SEC_PER_LINE, displayProgress, hasReachedEnd, remainingMinutes, secPerLine } from '@/lib/reading/progress-display';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
-import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
 import { HomeHeroActy } from '@/components/home-hero-acty';
@@ -113,7 +111,7 @@ function olderPracticedScripts(scripts: readonly ScriptCard[], now = Date.now())
 /**
  * A1. 홈(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
  * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 인사 + 오늘 할 것 카드 하나 + 하던 거 한 줄 +
- * 최근 연습·마감 임박(practice.library·app.audition) + 오늘의 연기 팁이다.
+ * 최근 연습·마감 임박(practice.library·app.audition)이다.
  * 디자인의 「업데이트 소식」 띠와 일정 D-day 줄은 서버 기능이 없어 그리지 않는다.
  */
 export default function HomeScreen() {
@@ -161,7 +159,7 @@ export default function HomeScreen() {
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 불꽃 축하를 따져 본 연속일 — 따지기 전에는 「첫 연습 끝!」 안내를 띄우지 않는다(11/2 QA: 안내가 먼저 떠 축하가 다음 방문으로 밀렸다).
   const [streakCheckedFor, setStreakCheckedFor] = useState<number | null>(null);
-  // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
+  // 처음 한 번만 가이드 — 누를 자리를 비춰 준다.
   const [guideOpen, setGuideOpen] = useState(false);
   // 안내는 앱 맨 바깥에 그려져 다른 화면 위에도 덮인다 — 홈이 보일 때만 연다.
   const guideFocused = useRef(false);
@@ -222,7 +220,7 @@ export default function HomeScreen() {
   // 마지막 기록 읽기 — 이 계정으로 다 받았으면 true. 게이트가 열릴 때 다시 읽을지 정한다(아래 gateOpen).
   const recordsRead = useRef<Promise<boolean>>(Promise.resolve(false));
   // 기록(연습 묶음·대본·리딩 회차·참여작)을 읽는다. 화면에 들어올 때와 맨 위에서 당길 때 같이 쓴다 —
-  // 당길 때는 첫 안내·튜토리얼을 다시 띄우지 않도록 이 부분만 다시 부른다.
+  // 당길 때는 첫 안내를 다시 띄우지 않도록 이 부분만 다시 부른다.
   const loadRecords = useCallback((isCancelled: () => boolean) => {
     let groupsOk = true;
     const groupsRead = api
@@ -347,9 +345,7 @@ export default function HomeScreen() {
     useCallback(() => {
       // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
-      // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
       guideFocused.current = true;
-      if (currentTutorial()) finishTutorial('left');
       setGuideShownThisVisit(false);
       void hasSeenTutorial().then((seen) => {
         setIntroChecked(true);

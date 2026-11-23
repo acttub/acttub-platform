@@ -22,7 +22,6 @@ import { VoicePrepareError } from '@/lib/reading/tts/voice-errors';
 import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
 import type { SessionDetail } from '@/lib/reading/types';
 import type { VadEvent } from '@/lib/reading/vad';
-import { currentTutorial, startTutorial } from '@/lib/tutorial';
 
 import { closeModalOf, openFixtureScript, scriptDetail, sessionDetail, TWO_ROLE_LINES } from './fixtures';
 import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
@@ -1458,21 +1457,6 @@ test('이어 하기는 저장된 줄 바로 앞 상대 대사부터 읽고, 그 
   await screen.findByText('괜찮아.');
   await waitFor(() => expect(server.saveProgress).toHaveBeenCalledWith('r1', expect.objectContaining({ progress_seq: 4, current_line_id: 'l5' })));
   expect(server.saveProgress).toHaveBeenCalledTimes(1);
-});
-
-test('튜토리얼로 온 리딩은 여기서 튜토리얼을 끝내고, 완료 화면에서 평가를 묻지 않는다', async () => {
-  startTutorial('sample', 'reading');
-  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
-  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
-  await screen.findByText('아직 인식된 말이 없어요');
-  expect(currentTutorial()).toBeNull();
-
-  mockStt.finish.mockResolvedValueOnce('괜찮아');
-  await speechEnds(() => recognizer);
-  expect(await screen.findByText(/처음인데 끝까지 읽었어요/)).toBeOnTheScreen();
-  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
-  expect(mockAskRating).not.toHaveBeenCalled();
-  await waitFor(async () => expect(await AsyncStorage.getItem('acttub.tutorial.reading.seen')).not.toBeNull());
 });
 
 test('예전에 기기에서 발음 피드백(실험)을 켜 두었어도 완료 화면에 무료 발음 피드백을 보이지 않는다 — 발음은 Pro 발음 보고서만', async () => {

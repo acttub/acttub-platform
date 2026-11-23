@@ -9,7 +9,6 @@ import {
   isEnded,
   moderationNotice,
   participantsLabel,
-  pinsFeatured,
   firstBadgeLabel,
   rankEntries,
   rankingNotice,
@@ -124,13 +123,6 @@ test('challenge.browse: 진행 중은 D-N, 끝났으면 종료로 보인다', ()
   const late = Date.parse('2026-10-27T15:40:00Z'); // 한국 10/28 00:40
   assert.equal(dDayLabel({ ends_at: '2026-10-30T06:02:40Z' }, late), 'D-2');
   assert.doesNotMatch(dDayLabel({ ends_at: '2026-09-20T00:00:00Z' }, now), /D-/);
-});
-
-test('challenge.browse: 오늘의 챌린지는 인기·최신 탭에만 고정한다', () => {
-  assert.equal(pinsFeatured('popular'), true);
-  assert.equal(pinsFeatured('latest'), true);
-  assert.equal(pinsFeatured('ended'), false);
-  assert.equal(pinsFeatured('mine'), false);
 });
 
 test('challenge.browse: 검색은 2자 이상일 때만 찾는다', () => {

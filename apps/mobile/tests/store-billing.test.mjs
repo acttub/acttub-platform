@@ -7,7 +7,6 @@ import {
   planPackage,
   planPrices,
   yearlyDeal,
-  productPlan,
   purchaseCancelled,
   purchasePending,
   recoveryDue,
@@ -33,13 +32,6 @@ test('오퍼링 — 월은 $rc_monthly, 연은 $rc_annual 패키지. 바로가�
   assert.deepEqual(planPrices({ monthly, annual }), { monthly: '₩3,900', yearly: '₩32,500' });
   assert.deepEqual(planPrices({ monthly }), { monthly: '₩3,900', yearly: null });
   assert.deepEqual(planPrices(null), { monthly: null, yearly: null });
-});
-
-test('상품 ID → 요금제(Google 의 구독ID:요금제ID 꼴 포함)', () => {
-  assert.equal(productPlan('acttub_pro_monthly'), 'monthly');
-  assert.equal(productPlan('acttub_pro_yearly:yearly'), 'yearly');
-  assert.equal(productPlan('acttub_pro_weekly'), null);
-  assert.equal(productPlan(null), null);
 });
 
 test('RevenueCat 공개 키 — 플랫폼별로 고르고 비어 있으면 null(그 빌드는 스토어 구매를 열지 않는다)', () => {

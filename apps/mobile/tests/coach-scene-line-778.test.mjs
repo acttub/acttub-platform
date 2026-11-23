@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import { api, httpResponses, id } from './helpers/practice-api.mjs';
 import { observedSceneLine } from '../lib/practice/analysis-summary.ts';
-import { helpButtonDraft } from '../lib/practice/coach.ts';
 
 /**
  * SOMA-778 — 코치 화면 위 한 줄 「AI가 본 장면 · …」은 분석 공개 요약(`GET /v2/practices/{id}/analysis`)의
@@ -46,10 +45,4 @@ test('본 장면이 없는 요약(옛 갈래·빈 값·모르는 모양)이면 �
   assert.equal(observedSceneLine({ id: 'a', format: 'video_record_v1', status: 'ready', summary: null }), null);
   assert.equal(observedSceneLine({ id: 'a', format: 'video_record_v1', status: 'ready', summary: { observed_scene: '문자열' } }), null);
   assert.equal(observedSceneLine({ id: 'a', format: 'video_record_v1', status: 'ready', summary: { observed_scene: [3, '  보인다 '] } }), '보인다');
-});
-
-test('빠른 답 「잘 모르겠어요」도 입력칸만 채운다', () => {
-  assert.equal(helpButtonDraft('unsure'), '잘 모르겠어요');
-  assert.equal(helpButtonDraft('yes'), '맞아요');
-  assert.equal(helpButtonDraft('no'), '아니요');
 });

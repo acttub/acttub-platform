@@ -9,7 +9,6 @@ import type { LineSaid, ScriptLine } from './types.ts';
 import type { MaskMode } from './store.ts';
 import { lineGroups, type LineGroup } from './line-groups.ts';
 import { alignSentences } from './monologue.ts';
-import { translate as t } from '../i18n.ts';
 
 export type RunStatus = 'mine' | 'partner' | 'paused' | 'done';
 
@@ -276,16 +275,6 @@ export function resumeRun(run: RunState, currentLineId: string): RunState {
   const index = leadIn >= 0 ? leadIn : at;
   const next: RunState = { ...run, index, leadInUntil: leadIn >= 0 ? at : null };
   return { ...next, status: turnOf(next) };
-}
-
-/**
- * 나가기 확인 — "지금 나가면 N번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요."
- * N 은 화면 위 "K / N" 의 K 와 같은 기준(고른 구간 안에서 끝낸 대사 수)이다. 대본 전체 번호를 쓰면 장면 2의
- * 2번째 줄에서 "13번"처럼 화면과 달라진다. 저장되는 위치(current_line_id)는 줄 id 라 번호 기준과 무관하다.
- */
-export function exitMessage(run: RunState, opts?: { discard?: boolean }): string {
-  if (opts?.discard) return t('reading.exitConfirmBodyUnsaved');
-  return t('reading.exitConfirmBody', { n: progressOf(run).done });
 }
 
 /**
