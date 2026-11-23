@@ -119,6 +119,13 @@ public final class CoachVideoCache implements AutoCloseable {
         return current == null || !sameSource(current.key(), key) ? 0 : current.tokens();
     }
 
+    /** 이 회차에 다른 원본으로 쓴 기록이 있는지(같은 회차에 새 영상이 들어왔는지). 기록이 없으면 false. */
+    public boolean sourceChanged(Key key) {
+        if (key == null || key.practiceId() == null) return false;
+        Spent current = spent.get(key.practiceId());
+        return current != null && !sameSource(current.key(), key);
+    }
+
     /**
      * 이번 답의 환산 토큰을 더하고 새 합을 돌려준다. {@code restart}(첫 답)이거나 원본이 바뀌었으면 0 부터 센다.
      */
