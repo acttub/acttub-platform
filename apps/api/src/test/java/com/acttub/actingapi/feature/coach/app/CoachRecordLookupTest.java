@@ -32,8 +32,8 @@ class CoachRecordLookupTest {
     @Test void openingIncludesObservationsAcrossWholeShortVideoAndItsLimitations() {
         var view = lookup.initial(record);
         assertThat(ids(view.path("timeline"))).contains("e1", "e5", "e8");
-        assertThat(view.path("timeline_complete").asBoolean()).isTrue();
-        assertThat(view.path("limitations_complete").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(view.path("timeline_complete"))).isTrue();
+        assertThat(LenientJson.asBoolean(view.path("limitations_complete"))).isTrue();
         record.path("events").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(LenientJson.asText(e.path("id"))));
         record.path("limitations").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(LenientJson.asText(e.path("id"))));
     }
@@ -46,7 +46,7 @@ class CoachRecordLookupTest {
                     .put("end_ms", i * 100 + 80).put("description", "관찰".repeat(100)));
         }
         var view = lookup.initial(longRecord);
-        assertThat(view.path("timeline_complete").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(view.path("timeline_complete"))).isFalse();
         assertThat(ids(view.path("timeline"))).contains("sample:0", "sample:199");
         assertThat(view.path("timeline").size()).isLessThan(200);
     }
@@ -55,11 +55,11 @@ class CoachRecordLookupTest {
         ObjectNode view = lookup.initial(record);
         view.putArray("source_catalog");
         lookup.refreshCoverage(record, view);
-        assertThat(view.path("timeline_complete").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(view.path("timeline_complete"))).isFalse();
         view = lookup.merge(view, lookup.lookup(record, request("{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":8000}")));
         lookup.refreshCoverage(record, view);
-        assertThat(view.path("timeline_complete").asBoolean()).isTrue();
-        assertThat(view.path("limitations_complete").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(view.path("timeline_complete"))).isTrue();
+        assertThat(LenientJson.asBoolean(view.path("limitations_complete"))).isTrue();
     }
 
     @Test void aSecondLookupKeepsTheEvidenceOfTheFirst() {

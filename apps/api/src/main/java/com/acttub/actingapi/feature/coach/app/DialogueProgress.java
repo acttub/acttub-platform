@@ -104,8 +104,8 @@ final class DialogueProgress {
     }
 
     static String turnInstruction(JsonNode progress) {
-        if (progress.path("allow_finish").asBoolean()) return "";
-        if (progress.path("explain_instead_of_repeating_question").asBoolean()) {
+        if (LenientJson.asBoolean(progress.path("allow_finish"))) return "";
+        if (LenientJson.asBoolean(progress.path("explain_instead_of_repeating_question"))) {
             return "\n\n[이번 응답에서 가장 먼저 지킬 것]\n"
                     + "배우는 코치 말을 이해하지 못했다. 영상 속 말을 상대에게 어떤 뜻으로 건넬 수 있는지 일상적인 말로 풀이한다. "
                     + "줄거리나 관찰 사실을 다시 나열하지 않는다. 부탁이라고만 하지 말고 '상대가 조금 더 남아 내 말을 들어줬으면 하는 뜻'처럼 쉽게 풀이한다. "
@@ -113,7 +113,7 @@ final class DialogueProgress {
                     + "직전 설명도 이해하지 못했다면 같은 내용을 반복하지 말고 더 쉬운 뜻으로 풀어준다. 코치가 무엇을 물었는지·왜 질문했는지 설명하지 않는다. "
                     + "새 질문이나 연기 동작 지시 없이 끝낸다. move=explain 또는 simplify, selection.question=null이다.";
         }
-        if (progress.path("analysis_uncertain").asBoolean()) {
+        if (LenientJson.asBoolean(progress.path("analysis_uncertain"))) {
             return "\n\n[이번 응답에서 가장 먼저 지킬 것]\n"
                     + "배우는 아직 장면의 뜻을 모른다. 대사에서 확실히 알 수 있는 뜻 하나를 설명하거나, 막힌 뜻을 풀어줄 구체적인 질문 하나를 한다. "
                     + "말해보세요·기다려보세요 같은 수행 지시나 표정·억양·시선 처방으로 넘어가지 않는다. "
@@ -162,30 +162,30 @@ final class DialogueProgress {
     static void validate(JsonNode response, JsonNode progress) {
         if (!"respond".equals(LenientJson.asText(response.path("action")))) return;
         boolean finish = "finish".equals(LenientJson.asText(response.path("flow")));
-        require(!finish || progress.path("allow_finish").asBoolean(),
+        require(!finish || LenientJson.asBoolean(progress.path("allow_finish")),
                 "배우의 수긍은 종료 요청이 아니다. finish_required=false이면 대화를 계속하며 다음 도움을 준다.");
         if (finish) return;
         require(!LenientJson.asText(response.path("message")).matches("(?s).*(?:제가\\s*묻는\\s*건|묻는\\s*거(?:예요|였어요)|왜.{0,20}생각해보세요).*"),
                 "원래 질문을 반복해 설명하지 말고, 배우가 막힌 뜻을 구체적인 장면 내용으로 풀어준다.");
-        require(!progress.path("objective_already_asked").asBoolean() || !asksObjective(LenientJson.asText(response.path("message"))),
+        require(!LenientJson.asBoolean(progress.path("objective_already_asked")) || !asksObjective(LenientJson.asText(response.path("message"))),
                 "원하는 결과는 이미 물었다. 계기를 반복하거나 답하지 못한 배우에게 같은 목적 질문을 다시 하지 말고, 대사로 가능한 뜻을 설명한다.");
         String move = LenientJson.asText(response.path("reply_link").path("move"));
-        if (progress.path("analysis_uncertain").asBoolean()) {
+        if (LenientJson.asBoolean(progress.path("analysis_uncertain"))) {
             require(!"suggest".equals(move) && !LenientJson.asText(response.path("message")).matches("(?s).*(?:보세요|기다리세요).*"),
                     "아직 장면의 뜻을 모른다. 연기해 보라는 지시 대신 대사의 뜻을 설명하거나 그 뜻을 찾게 돕는 구체적인 질문 하나를 한다.");
         }
-        if (progress.path("unobservable_hand_requested").asBoolean()) {
+        if (LenientJson.asBoolean(progress.path("unobservable_hand_requested"))) {
             require("explain".equals(move) || "clarify".equals(move),
                     "손동작을 물었지만 손은 관찰할 수 없다. assess 대신 explain으로 손의 확인 한계만 설명한다. 어깨·몸통·시선·표정·목소리로 손을 대신 평가하지 않는다.");
         }
-        if (progress.path("explain_instead_of_repeating_question").asBoolean()) {
+        if (LenientJson.asBoolean(progress.path("explain_instead_of_repeating_question"))) {
             require(!LenientJson.asText(response.path("message")).matches("(?s).*(?:제가\\s*묻|묻는\\s*말|질문을?\\s*드린).*$"),
                     "코치가 무엇을 물었는지 설명하지 않는다. 주어를 실제 대사 내용으로 바꾸고 구체적인 뜻을 알려준다.");
             require(response.path("reply_link").path("selection").path("question").isNull()
                     && !"clarify".equals(move) && OpeningQuestion.questionCount(LenientJson.asText(response.path("message"))) == 0,
                     "배우가 질문에 혼란을 보였다. 질문을 멈추고 영상 대사에서 확실한 내용과 가능한 뜻 하나만 쉬운 말로 설명하라. selection.question=null이며 질문하지 않는다.");
         }
-        if (progress.path("acknowledged_suggestion").asBoolean()) {
+        if (LenientJson.asBoolean(progress.path("acknowledged_suggestion"))) {
             require(!"suggest".equals(move), "이미 방법을 제안했고 배우가 수긍했다. 같은 제안을 반복하거나 다른 표현 동작을 추가하지 말고, 남은 장면 해석 하나를 돕거나 실제 관찰로 평가하라.");
         }
         if (LenientJson.asInt(progress.path("consecutive_acknowledgements")) >= 2) {

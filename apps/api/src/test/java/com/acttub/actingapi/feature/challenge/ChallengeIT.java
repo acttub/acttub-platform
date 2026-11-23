@@ -62,7 +62,7 @@ class ChallengeIT {
         assertThat(LenientJson.asText(created.path("origin"))).isEqualTo("member");
         assertThat(LenientJson.asText(created.path("moderation"))).isEqualTo("visible");
         assertThat(LenientJson.asText(created.path("host_name"))).isEqualTo("테스트 배우");
-        assertThat(created.path("is_host").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(created.path("is_host"))).isTrue();
         assertThat(LenientJson.asInt(created.path("entry_count"))).isZero();
         assertThat(created.path("participants")).isEmpty();
         assertThat(Instant.parse(LenientJson.asText(created.path("starts_at")))).isEqualTo(NOW);

@@ -69,10 +69,10 @@ public class HttpPronunciationScorer implements PronunciationScorer {
             List<Phone> phones = new ArrayList<>();
             for (JsonNode p : w.path("phones")) {
                 phones.add(new Phone(LenientJson.asText(p.path("expected")), LenientJson.asText(p.path("heard")), LenientJson.asDouble(p.path("lpr")),
-                        p.path("vowel").asBoolean(), intOrNull(p.get("syllable")), intOrNull(p.get("start_ms")),
-                        intOrNull(p.get("end_ms")), p.path("flagged").asBoolean()));
+                        LenientJson.asBoolean(p.path("vowel")), intOrNull(p.get("syllable")), intOrNull(p.get("start_ms")),
+                        intOrNull(p.get("end_ms")), LenientJson.asBoolean(p.path("flagged"))));
             }
-            words.add(new Word(LenientJson.asInt(w.path("index")), LenientJson.asText(w.path("word")), w.path("number").asBoolean(), phones));
+            words.add(new Word(LenientJson.asInt(w.path("index")), LenientJson.asText(w.path("word")), LenientJson.asBoolean(w.path("number")), phones));
         }
         JsonNode match = root.get("script_match");
         Double scriptMatch = match == null || match.isNull() ? null : LenientJson.asDouble(match);

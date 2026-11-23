@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 카카오 사용자 API 의 실물. 어드민 키 방식이다 — 헤더 {@code Authorization: KakaoAK <어드민 키>} 와
@@ -43,10 +44,10 @@ public class HttpKakaoUserClient implements KakaoUserClient {
         }
         try {
             JsonNode account = JSON.readTree(reply.body()).path("kakao_account");
-            return account.path("is_email_valid").asBoolean(false)
-                    && account.path("is_email_verified").asBoolean(false)
+            return LenientJson.asBoolean(account.path("is_email_valid"), false)
+                    && LenientJson.asBoolean(account.path("is_email_verified"), false)
                     && email != null
-                    && email.equalsIgnoreCase(account.path("email").asText("").strip());
+                    && email.equalsIgnoreCase(LenientJson.asText(account.path("email"), "").strip());
         } catch (Exception notJson) {
             throw new ProviderUnavailable("kakao user info answered something unreadable");
         }

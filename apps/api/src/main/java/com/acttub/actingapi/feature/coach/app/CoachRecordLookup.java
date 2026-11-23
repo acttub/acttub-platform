@@ -134,7 +134,7 @@ public final class CoachRecordLookup {
             };
             if (match) {
                 positions.add(i);
-                if (request.path("include_neighbors").asBoolean()) {
+                if (LenientJson.asBoolean(request.path("include_neighbors"))) {
                     if (i > 0) positions.add(i - 1);
                     if (i + 1 < segments.size()) positions.add(i + 1);
                 }

@@ -159,7 +159,7 @@ class ScriptSplitRuleCorpusTest {
                 JsonNode script = json.readTree(line);
                 List<String> storedCast = new ArrayList<>();
                 script.path("chars").forEach(c -> storedCast.add(LenientJson.asText(c)));
-                List<NumberedLine> numbered = NumberedLine.of(script.path("raw").asText(""));
+                List<NumberedLine> numbered = NumberedLine.of(LenientJson.asText(script.path("raw"), ""));
                 Map<Integer, String> want = storedLabels(numbered, script.path("lines"), storedCast);
 
                 RuleSplit.Result rule = RuleSplit.of(numbered);

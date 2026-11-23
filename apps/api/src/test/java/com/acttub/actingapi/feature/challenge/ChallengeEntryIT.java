@@ -101,7 +101,7 @@ class ChallengeEntryIT {
         JsonNode entry = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "video_id", video, "visibility", "public", "face_mosaic", true))), 201);
         String id = LenientJson.asText(entry.path("id"));
-        assertThat(entry.path("face_mosaic").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(entry.path("face_mosaic"))).isTrue();
         assertThat(LenientJson.asText(entry.path("mosaic_status"))).isEqualTo("pending");
         assertThat(LenientJson.asText(entry.path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
         assertThat(entry.path("original_playback_url").isNull()).isTrue();
@@ -140,7 +140,7 @@ class ChallengeEntryIT {
 
         // 끄면 원본이 공개되고 사본은 정리 장부로 간다.
         JsonNode off = response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":false}"), 200);
-        assertThat(off.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(off.path("face_mosaic"))).isFalse();
         assertThat(off.path("mosaic_status").isNull()).isTrue();
         assertThat(LenientJson.asText(response(get("/v2/entries/{id}", id), 200, other).path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
         assertThat(LenientJson.asText(off.path("playback_url"))).isEqualTo("https://play.test/videos/" + video);
@@ -154,7 +154,7 @@ class ChallengeEntryIT {
         UUID video = video(user, 30_000);
         JsonNode entry = enter(challenge, video, "private", 201);
         String id = LenientJson.asText(entry.path("id"));
-        assertThat(entry.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(entry.path("face_mosaic"))).isFalse();
         assertThat(entry.path("mosaic_status").isNull()).isTrue();
         // 나중에 공개로 바꾸며 모자이크를 켠다.
         Media.FACE = false;
@@ -166,7 +166,7 @@ class ChallengeEntryIT {
         assertThat(Media.RENDERED).isEmpty();
         // 가릴 얼굴이 없으니 모자이크를 끄고 원본으로 공개한다.
         JsonNode mine = edit(id, Map.of("caption", "그대로"), 200);
-        assertThat(mine.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(mine.path("face_mosaic"))).isFalse();
         assertThat(mine.path("mosaic_status").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT mosaic_key FROM challenge_entries WHERE id=?::uuid", String.class, id)).isNull();
         String other = token(member("다른 배우"));

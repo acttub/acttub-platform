@@ -627,7 +627,7 @@ public class ScriptCocreateService {
         List<CocreatedScript.Role> roles = new ArrayList<>();
         for (JsonNode role : node.path("characters")) {
             roles.add(new CocreatedScript.Role(text(role, "name"), lower(role, "gender"), lower(role, "age_band"),
-                    role.path("mine").asBoolean(false)));
+                    LenientJson.asBoolean(role.path("mine"), false)));
         }
         List<CocreatedScript.Line> lines = new ArrayList<>();
         for (JsonNode line : node.path("lines")) {
@@ -742,7 +742,7 @@ public class ScriptCocreateService {
     Conditions readConditions(String json) {
         JsonNode node = readJson(json);
         return new Conditions(Experience.valueOf(LenientJson.asText(node.path("experience"))), LenientJson.asText(node.path("actor")),
-                LenientJson.asText(node.path("purpose")), node.path("minor").asBoolean(), LenientJson.asText(node.path("emotion")),
+                LenientJson.asText(node.path("purpose")), LenientJson.asBoolean(node.path("minor")), LenientJson.asText(node.path("emotion")),
                 LenientJson.asText(node.path("situation")), LenientJson.asText(node.path("direction")), 1, 1,
                 slot(CocreateRules.ENDINGS, LenientJson.asText(node.path("ending"))), slot(CocreateRules.PROPS, LenientJson.asText(node.path("prop"))),
                 CocreateRules.defaultMyLines(1, 1), "en".equals(LenientJson.asText(node.path("language"))));

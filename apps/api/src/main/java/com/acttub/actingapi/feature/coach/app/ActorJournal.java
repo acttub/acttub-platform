@@ -210,7 +210,7 @@ public final class ActorJournal {
         for (JsonNode item : output.path("practice")) {
             if (practice.size() >= PRACTICE_MAX) break;
             String text = text(item, PRACTICE_TEXT);
-            String basis = item.path("basis").asText("");
+            String basis = LenientJson.asText(item.path("basis"), "");
             List<String> kinds = kinds(item, sources, null, video);
             if (text == null || kinds == null || !Set.of("actor_report", "observed", "discussed").contains(basis)) continue;
             if ("actor_report".equals(basis) && kinds.stream().noneMatch(ACTOR_KINDS::contains)) continue;
@@ -222,7 +222,7 @@ public final class ActorJournal {
         Set<String> aspects = new HashSet<>();
         for (JsonNode item : output.path("character")) {
             if (character.size() >= CHARACTER_MAX) break;
-            String aspect = item.path("aspect").asText("");
+            String aspect = LenientJson.asText(item.path("aspect"), "");
             String text = text(item, "partner".equals(aspect) ? PARTNER_TEXT : CHARACTER_TEXT);
             if (text == null || !Set.of("wants", "partner", "situation").contains(aspect) || aspects.contains(aspect)) continue;
             if (kinds(item, sources, CHARACTER_KINDS, video) == null) continue;
@@ -234,7 +234,7 @@ public final class ActorJournal {
         for (JsonNode item : output.path("feedback")) {
             if (feedback.size() >= FEEDBACK_MAX) break;
             String text = text(item, FEEDBACK_TEXT);
-            String giver = item.path("giver").asText("");
+            String giver = LenientJson.asText(item.path("giver"), "");
             List<String> kinds = kinds(item, sources, FEEDBACK_KINDS, video);
             if (text == null || kinds == null || REPORTED.matcher(text).find() || COMMAND.matcher(text).find()) continue;
             if ("coach".equals(giver) && !kinds.contains("coach_message")) continue;
@@ -263,7 +263,7 @@ public final class ActorJournal {
             String id = LenientJson.asText(ref);
             JsonNode source = sources.get(id);
             if (!seen.add(id) || source == null) return null;
-            String kind = source.path("kind").asText("");
+            String kind = LenientJson.asText(source.path("kind"), "");
             if (allowed != null && !allowed.contains(kind)) return null;
             if (!video && kind.startsWith("video_")) return null;
             kinds.add(kind);
@@ -300,8 +300,8 @@ public final class ActorJournal {
         JsonNode next = node.path("next");
         return new Answers(
                 feeling.isObject() ? new Feeling(nullable(feeling.path("choice")), nullable(feeling.path("text"))) : null,
-                unknown.isObject() ? new Unknown(unknown.path("none").asBoolean(false), nullable(unknown.path("text"))) : null,
-                next.isObject() ? new Next(next.path("undecided").asBoolean(false), nullable(next.path("text"))) : null,
+                unknown.isObject() ? new Unknown(LenientJson.asBoolean(unknown.path("none"), false), nullable(unknown.path("text"))) : null,
+                next.isObject() ? new Next(LenientJson.asBoolean(next.path("undecided"), false), nullable(next.path("text"))) : null,
                 nullable(node.path("review")));
     }
 
@@ -323,11 +323,11 @@ public final class ActorJournal {
     public static Draft draftOf(JsonNode node) {
         if (node == null || !node.isObject()) return Draft.empty();
         List<PracticeItem> practice = new ArrayList<>();
-        node.path("practice").forEach(item -> practice.add(new PracticeItem(item.path("text").asText(""), LenientJson.asText(item.path("basis"), "discussed"))));
+        node.path("practice").forEach(item -> practice.add(new PracticeItem(LenientJson.asText(item.path("text"), ""), LenientJson.asText(item.path("basis"), "discussed"))));
         List<CharacterItem> character = new ArrayList<>();
-        node.path("character").forEach(item -> character.add(new CharacterItem(item.path("aspect").asText(""), item.path("text").asText(""))));
+        node.path("character").forEach(item -> character.add(new CharacterItem(LenientJson.asText(item.path("aspect"), ""), LenientJson.asText(item.path("text"), ""))));
         List<FeedbackItem> feedback = new ArrayList<>();
-        node.path("feedback").forEach(item -> feedback.add(new FeedbackItem(item.path("text").asText(""), LenientJson.asText(item.path("giver"), "coach"),
+        node.path("feedback").forEach(item -> feedback.add(new FeedbackItem(LenientJson.asText(item.path("text"), ""), LenientJson.asText(item.path("giver"), "coach"),
                 item.path("at").isNumber() ? LenientJson.asInt(item.path("at")) : null)));
         return new Draft(practice, character, feedback);
     }

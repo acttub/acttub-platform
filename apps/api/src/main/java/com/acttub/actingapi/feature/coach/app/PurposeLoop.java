@@ -156,7 +156,7 @@ final class PurposeLoop {
         String text = actorText.strip();
         if (text.isEmpty()) return null;
         for (JsonNode choice : loop(state).path("choices")) {
-            String label = choice.path("label").asText("");
+            String label = LenientJson.asText(choice.path("label"), "");
             if (!label.isEmpty() && (label.equals(text) || withoutTime(label).equals(withoutTime(text)))) return label;
         }
         return null;
@@ -351,7 +351,7 @@ final class PurposeLoop {
         if (lines == null || !lines.isArray()) return false;
         String said = compact(actorText);
         for (JsonNode line : lines) {
-            String text = compact(line.path("text").asText(""));
+            String text = compact(LenientJson.asText(line.path("text"), ""));
             // 받아 적은 대사와 배우가 쓴 말이 조금 달라도("좀 가르쳐 줘" / "가르쳐 줘 비결이 뭐야") 네 글자 이상 겹치면 짚은 것이다.
             if (text.length() >= 2 && (said.contains(text) || commonRun(text, said) >= Math.min(4, text.length()))) return true;
         }
@@ -477,7 +477,7 @@ final class PurposeLoop {
             JsonNode before = old.path(key);
             // 정리는 대화에서 배우가 바로잡은 것을 반영해 줄을 고쳐 쓸 수 있다. 같은 곳이므로 시간이 빠졌으면 앞 시간을 살린다.
             if (item.path("at").isNull() && before.path("at").isNumber()
-                    && (wrap || before.path("text").asText("").equals(item.path("text").asText("")))) {
+                    && (wrap || LenientJson.asText(before.path("text"), "").equals(LenientJson.asText(item.path("text"), "")))) {
                 item.put("at", LenientJson.asInt(before.path("at")));
             }
             merged.set(key, item);
@@ -707,7 +707,7 @@ final class PurposeLoop {
             }
         }
         for (var answer : loop.path("answers").properties()) {
-            String text = answer.getValue().asText("").strip();
+            String text = LenientJson.asText(answer.getValue(), "").strip();
             if ("wrap".equals(answer.getKey()) || text.isEmpty() || DirectVideoPracticeLoop.isVague(text)) continue;
             picked.add(new String[] {text, text});
         }
@@ -835,8 +835,8 @@ final class PurposeLoop {
                 + "」 질문에 한 답: " + LenientJson.asText(answers.path(step))));
         if (loop.path("scene").isObject()) {
             JsonNode scene = loop.path("scene");
-            lines.add("- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): " + scene.path("situation").asText("") + " | "
-                    + scene.path("character").asText("") + " | " + scene.path("partner").asText(""));
+            lines.add("- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): " + LenientJson.asText(scene.path("situation"), "") + " | "
+                    + LenientJson.asText(scene.path("character"), "") + " | " + LenientJson.asText(scene.path("partner"), ""));
         }
         if (loop.path("card").isObject()) lines.add("- 지금 결과 카드: " + loop.path("card"));
         if (loop.path("character_card").isObject()) lines.add("- 지금 인물 카드: " + loop.path("character_card"));

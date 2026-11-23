@@ -66,11 +66,11 @@ class DialogueProgressTest {
         assertThatThrownBy(() -> DialogueProgress.validate(reply("assess", false), progress)).hasMessageContaining("손동작");
         assertThatCode(() -> DialogueProgress.validate(reply("explain", false), progress)).doesNotThrowAnyException();
         ((ObjectNode) input.path("user_message")).put("text", "손으로 어떻게 붙잡는 연기를 하면 좋을까?");
-        assertThat(DialogueProgress.controls(input).path("unobservable_hand_requested").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input).path("unobservable_hand_requested"))).isFalse();
         ((ObjectNode) input.path("user_message")).put("text", "손해 본 걸 말하는 연기는 어때?");
-        assertThat(DialogueProgress.controls(input).path("unobservable_hand_requested").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input).path("unobservable_hand_requested"))).isFalse();
         ((ObjectNode) input.path("user_message")).put("text", "손 말고 목소리를 봐줘");
-        assertThat(DialogueProgress.controls(input).path("unobservable_hand_requested").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input).path("unobservable_hand_requested"))).isFalse();
     }
     @Test void notKnowingSceneMeaningMustNotTurnIntoAnActingAssignment() {
         var progress = DialogueProgress.controls(input("ㅁㄹ", "open", ""));
@@ -84,20 +84,20 @@ class DialogueProgressTest {
     }
     @Test void explicitCorrectionTargetsAndAnswersToAQuestionAreNotForcedIntoTheSameClarification() {
         var input = input("내가 대사를 실수로 말했어", "explain", "");
-        assertThat(DialogueProgress.controls(input).path("unclear_correction").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input).path("unclear_correction"))).isFalse();
         ((ObjectNode) input.path("user_message")).put("text", "내가 실수로 말했어");
         input.putObject("last_exchange").putObject("coach_message").put("text", "그 대사를 일부러 한 건가요?");
-        assertThat(DialogueProgress.controls(input).path("unclear_correction").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input).path("unclear_correction"))).isFalse();
     }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
         var closing = DialogueProgress.controls(input("무슨 질문이야", "simplify", "?")).put("allow_finish", true);
         assertThat(DialogueProgress.turnInstruction(closing)).isEmpty();
-        assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
-                .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
+                .path("explain_instead_of_repeating_question"))).isFalse();
         assertThat(LenientJson.asInt(DialogueProgress.controls(input("ㅇㅇ 어쩌라고", "explain", "ㅇㅇ"))
                 .path("consecutive_acknowledgements"))).isZero();
-        assertThat(DialogueProgress.controls(input("상대가 급하게 계약하려고 해서", "simplify", "무슨 말이야"))
-                .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("상대가 급하게 계약하려고 해서", "simplify", "무슨 말이야"))
+                .path("explain_instead_of_repeating_question"))).isFalse();
     }
     @Test void answeredOrUnresolvedObjectiveIsNotAskedAgainWithTheSameWording() {
         var input = input("상대가 급하게 계약하려고 해서", "clarify", "모르겠어");

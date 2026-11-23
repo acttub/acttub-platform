@@ -209,7 +209,7 @@ class ChallengeNotificationIT {
         reports.runOnce(clock.instant());
         JsonNode inbox = response(get("/v2/me/notifications"), 200);
         assertThat(LenientJson.asText(inbox.at("/groups/0/kind"))).isEqualTo("entry_ai_report_ready");
-        assertThat(inbox.at("/groups/0/target_available").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(inbox.at("/groups/0/target_available"))).isTrue();
         assertThat(pushes.runOnce(clock.instant())).isEqualTo(1);
         assertThat(Fakes.SENT.getLast().body()).isEqualTo("AI 리포트가 준비됐어요");
     }
@@ -290,13 +290,13 @@ class ChallengeNotificationIT {
         jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", fan);
         assertThat(LenientJson.asText(response(get("/v2/me/notifications"), 200).at("/groups/0/actor_name"))).isEqualTo("탈퇴한 사용자");
         jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", mine);
-        assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/target_available").asBoolean()).isFalse();
-        assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/target_hidden").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(response(get("/v2/me/notifications"), 200).at("/groups/0/target_available"))).isFalse();
+        assertThat(LenientJson.asBoolean(response(get("/v2/me/notifications"), 200).at("/groups/0/target_hidden"))).isFalse();
         // 내 참여작이 신고·AI 검사로 운영 확인 중이면 열 수는 없지만 그 이유를 알 수 있다.
         jdbc.update("UPDATE challenge_entries SET visibility='public',status='hidden_by_report' WHERE id=?", mine);
         var hiddenInbox = response(get("/v2/me/notifications"), 200);
-        assertThat(hiddenInbox.at("/groups/0/target_available").asBoolean()).isFalse();
-        assertThat(hiddenInbox.at("/groups/0/target_hidden").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(hiddenInbox.at("/groups/0/target_available"))).isFalse();
+        assertThat(LenientJson.asBoolean(hiddenInbox.at("/groups/0/target_hidden"))).isTrue();
         jdbc.update("UPDATE challenge_entries SET status='visible',visibility='private' WHERE id=?", mine);
         UUID other = entry(challenge, me);
         response(put("/v2/entries/{id}/like", other), 200, token(member("남는 팬")));

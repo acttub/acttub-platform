@@ -361,7 +361,7 @@ class CoachReadsProfileIT {
         JsonNode ended = successful(post("/v2/coach/reply").header("Authorization", bearer())
                 .contentType(MediaType.APPLICATION_JSON).content(closing));
 
-        assertThat(ended.at("/note/fallback").asBoolean()).isEqualTo(!recovers);
+        assertThat(LenientJson.asBoolean(ended.at("/note/fallback"))).isEqualTo(!recovers);
         assertThat(LenientJson.asText(ended.at("/note/kind"))).isEqualTo("observation");
         assertThat(LenientJson.asText(ended.at("/note/title"))).isEqualTo("가지 마 대사");
         assertThat(ended.at("/note/next_take").isNull()).isTrue();

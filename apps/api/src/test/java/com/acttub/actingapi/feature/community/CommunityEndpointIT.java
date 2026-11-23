@@ -576,12 +576,12 @@ class CommunityEndpointIT {
                 .andReturn().getResponse();
         assertThat(created.getStatus()).isEqualTo(201);
         JsonNode mine = json(created.getContentAsString());
-        assertThat(mine.path("anonymous").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(mine.path("anonymous"))).isFalse();
         assertThat(LenientJson.asText(mine.path("author_name"))).isEqualTo("viewer");
         assertThat(LenientJson.asText(mine.path("author").path("nickname"))).isEqualTo("viewer");
         assertThat(LenientJson.asText(mine.path("author").path("id"))).isEqualTo(VIEWER.toString());
-        assertThat(mine.path("is_mine").asBoolean()).isTrue();
-        assertThat(mine.path("mine").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(mine.path("is_mine"))).isTrue();
+        assertThat(LenientJson.asBoolean(mine.path("mine"))).isTrue();
         assertThat(LenientJson.asText(mine.path("status"))).isEqualTo("visible");
         assertThat(LenientJson.asText(mine.path("category_slug"))).isEqualTo("promo");
         assertThat(LenientJson.asText(mine.path("category_name"))).isEqualTo("홍보");
@@ -591,7 +591,7 @@ class CommunityEndpointIT {
                         .header("Authorization", bearer(OTHER)))
                 .andReturn().getResponse().getContentAsString());
         assertThat(LenientJson.asText(seen.path("author_name"))).isEqualTo("viewer");
-        assertThat(seen.path("is_mine").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(seen.path("is_mine"))).isFalse();
 
         var comment = mvc.perform(post("/v2/community/posts/{post_id}/comments", postId)
                         .header("Authorization", bearer(OTHER))
@@ -601,14 +601,14 @@ class CommunityEndpointIT {
         assertThat(comment.getStatus()).isEqualTo(201);
         JsonNode written = json(comment.getContentAsString());
         assertThat(LenientJson.asText(written.path("author_name"))).isEqualTo("other");
-        assertThat(written.path("is_mine").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(written.path("is_mine"))).isTrue();
         assertThat(LenientJson.asText(written.path("status"))).isEqualTo("visible");
 
         JsonNode listed = json(mvc.perform(get("/v2/community/posts/{post_id}/comments", postId)
                         .header("Authorization", bearer(VIEWER)))
                 .andReturn().getResponse().getContentAsString()).path("comments");
         assertThat(LenientJson.asText(listed.get(0).path("author_name"))).isEqualTo("other");
-        assertThat(listed.get(0).path("is_mine").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(listed.get(0).path("is_mine"))).isFalse();
 
         jdbc.update("UPDATE users SET status = 'deactivated' WHERE id = ?", OTHER);
         JsonNode afterWithdrawal = json(mvc.perform(get("/v2/community/posts/{post_id}/comments", postId)

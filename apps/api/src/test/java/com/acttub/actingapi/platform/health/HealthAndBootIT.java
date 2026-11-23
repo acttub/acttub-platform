@@ -84,7 +84,7 @@ class HealthAndBootIT {
         assertThat(LenientJson.asText(body.get("services").get(2))).isEqualTo("report");
         assertThat(LenientJson.asText(body.get("model"))).isEqualTo("gemini-2.5-flash");
         assertThat(body.get("keep_alive").isBoolean()).isTrue();
-        assertThat(body.get("keep_alive").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(body.get("keep_alive"))).isFalse();
         assertThat(LenientJson.asText(body.get("commit"))).isEqualTo("unknown");
     }
 
@@ -103,7 +103,7 @@ class HealthAndBootIT {
         JsonNode schema = doc.at("/components/schemas/HealthResponse");
         assertThat(schema.isMissingNode()).isFalse();
         assertThat(LenientJson.asText(schema.get("type"))).isEqualTo("object");
-        assertThat(schema.get("additionalProperties").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(schema.get("additionalProperties"))).isFalse();
         assertThat(LenientJson.asText(schema.at("/properties/status/const"))).isEqualTo("ok");
         assertThat(LenientJson.asText(schema.at("/properties/keep_alive/type"))).isEqualTo("boolean");
         assertThat(LenientJson.asText(schema.at("/properties/services/type"))).isEqualTo("array");

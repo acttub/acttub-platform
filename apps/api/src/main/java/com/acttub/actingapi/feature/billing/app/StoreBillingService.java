@@ -117,7 +117,7 @@ public class StoreBillingService {
         if (!settings.appEnabled() || !revenueCat.configured()) {
             return NotificationResult.IGNORED;
         }
-        String type = event.path("type").asText("");
+        String type = LenientJson.asText(event.path("type"), "");
         if ("TEST".equals(type)) {
             return NotificationResult.IGNORED;
         }

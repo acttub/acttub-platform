@@ -183,7 +183,7 @@ class StructuredCoachEngineTest {
             result.path("events").forEach(e -> ids.add(LenientJson.asText(e.path("id"))));
             result.path("speech").path("word_timings").path("items").forEach(w -> wordIds.add(LenientJson.asText(w.path("id"))));
             assertThat(++pages).isLessThan(100);
-            if (!result.path("has_more").asBoolean()) break;
+            if (!LenientJson.asBoolean(result.path("has_more"))) break;
             assertThat(cursors.add(LenientJson.asText(result.path("continuation_token")))).isTrue();
             request.set("continuation_token", result.path("continuation_token"));
         }
@@ -200,7 +200,7 @@ class StructuredCoachEngineTest {
     @Test void askingToSummarizeALineDoesNotForceTheConversationToEnd() {
         engine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
-            assertThat(input.path("controls").path("finish_required").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(input.path("controls").path("finish_required"))).isFalse();
             return generated(respond(input, "상대가 떠나지 않기를 바란다는 뜻의 말이에요.", "continue"));
         }).reply(session(), "이 대사 의도를 정리해줘", UUID.randomUUID());
     }

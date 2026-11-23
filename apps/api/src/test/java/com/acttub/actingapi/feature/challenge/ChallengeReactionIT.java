@@ -116,10 +116,10 @@ class ChallengeReactionIT {
         assertThat(LenientJson.asInt(response(put("/v2/entries/{id}/like", entry), 200).path("like_count"))).isEqualTo(1);
         assertThat(LenientJson.asInt(response(put("/v2/entries/{id}/like", entry), 200).path("like_count"))).isEqualTo(1);
         assertThat(count("entry_likes")).isEqualTo(1);
-        assertThat(response(get("/v2/entries/{id}", entry), 200).path("liked").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(response(get("/v2/entries/{id}", entry), 200).path("liked"))).isTrue();
         JsonNode off = response(delete("/v2/entries/{id}/like", entry), 200);
         assertThat(LenientJson.asInt(off.path("like_count"))).isZero();
-        assertThat(off.path("liked").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(off.path("liked"))).isFalse();
         response(delete("/v2/entries/{id}/like", entry), 200);
         assertThat(count("entry_likes")).isZero();
     }
@@ -177,7 +177,7 @@ class ChallengeReactionIT {
         assertThat(ids(saved, "entries")).containsExactly(newer.toString(), older.toString());
         assertThat(LenientJson.asInt(saved.path("my_entry_count"))).isEqualTo(1);
         assertThat(LenientJson.asInt(saved.path("saved_count"))).isEqualTo(2);
-        assertThat(saved.at("/entries/0/saved").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(saved.at("/entries/0/saved"))).isTrue();
         jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", older);
         assertThat(ids(response(get("/v2/me/saved-entries"), 200), "entries")).containsExactly(newer.toString());
         assertThat(count("entry_saves")).isEqualTo(2);
@@ -203,7 +203,7 @@ class ChallengeReactionIT {
         jdbc.update("UPDATE user_profiles SET photo_key=? WHERE user_id=?", "users/me/profile/photo.jpg", me);
         assertThat(LenientJson.asText(response(get("/v2/entries/{id}/comments", entry), 200).at("/comments/0/author/photo_url")))
                 .isEqualTo("https://play.test/users/me/profile/photo.jpg");
-        assertThat(created.path("is_mine").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(created.path("is_mine"))).isTrue();
         assertThat(response(post("/v2/entries/{id}/comments", entry).content(body), 200).path("id")).isEqualTo(created.path("id"));
         assertThat(detail(post("/v2/entries/{id}/comments", entry).content(body.replace("좋은", "나쁜")), 422))
                 .isEqualTo("request_fingerprint_mismatch");
@@ -260,7 +260,7 @@ class ChallengeReactionIT {
         jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", leaving);
         JsonNode comments = response(get("/v2/entries/{id}/comments", entry), 200);
         assertThat(LenientJson.asText(comments.at("/comments/0/author/name"))).isEqualTo("탈퇴한 사용자");
-        assertThat(comments.at("/comments/0/author_withdrawn").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(comments.at("/comments/0/author_withdrawn"))).isTrue();
         assertThat(comments.at("/comments/0/author/photo_url").isNull()).isTrue();
         assertThat(LenientJson.asText(comments.at("/comments/0/body"))).isEqualTo("남는 댓글");
     }

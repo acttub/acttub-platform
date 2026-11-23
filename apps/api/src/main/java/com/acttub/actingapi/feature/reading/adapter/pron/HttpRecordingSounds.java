@@ -89,7 +89,7 @@ public class HttpRecordingSounds implements RecordingSounds {
     }
 
     static Sound parse(JsonNode root) {
-        if (!root.path("measured").asBoolean(false)) {
+        if (!LenientJson.asBoolean(root.path("measured"), false)) {
             return null;
         }
         return new Sound(LenientJson.asDouble(root.path("loud_db")), doubleOrNull(root.get("rate")), LenientJson.asInt(root.path("max_pause_ms")),

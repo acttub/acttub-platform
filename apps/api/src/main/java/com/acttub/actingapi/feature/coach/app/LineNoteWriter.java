@@ -109,7 +109,7 @@ public class LineNoteWriter implements AutoCloseable {
 
     String prompt(CoachSessionSnapshot session, NoteView note) {
         JsonNode state = session.coachingState();
-        String design = state == null ? "" : state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
+        String design = state == null ? "" : LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("design"), "");
         List<String> lines = state == null ? List.of() : ContinuedTake.linesFromState(state.toString());
         StringBuilder conversation = new StringBuilder();
         for (CoachTurnSnapshot turn : session.turns()) {

@@ -295,8 +295,8 @@ public final class CoachingProfileWriter {
         }
         ActorCoaching coaching = new ActorCoaching(
                 text(node, "stuck"), first, closing, never,
-                node.path("reasons_first").isBoolean() ? node.path("reasons_first").asBoolean() : null,
-                node.path("answer_directly").isBoolean() ? node.path("answer_directly").asBoolean() : null,
+                node.path("reasons_first").isBoolean() ? LenientJson.asBoolean(node.path("reasons_first")) : null,
+                node.path("answer_directly").isBoolean() ? LenientJson.asBoolean(node.path("answer_directly")) : null,
                 LenientJson.canConvertToInt(node.path("max_questions")) ? LenientJson.asInt(node.path("max_questions")) : null,
                 text(node, "feedback_focus"), skip,
                 LenientJson.canConvertToInt(node.path("reply_length")) ? LenientJson.asInt(node.path("reply_length")) : null,

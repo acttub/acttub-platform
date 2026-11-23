@@ -489,7 +489,7 @@ public class ConversationService {
         if (session == null || !"open".equals(session.status()) || session.coachingState() == null) return limit;
         var statuses = session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
         if (!statuses.isArray() || statuses.isEmpty()) return limit;
-        String last = statuses.get(statuses.size() - 1).asText("");
+        String last = LenientJson.asText(statuses.get(statuses.size() - 1), "");
         boolean closesNext = DirectVideoPracticeLoop.action(last).startsWith(PracticeLoopRouter.WRAP_UP)
                 || DirectVideoPracticeLoop.statusField(last, "다음에 닫기").startsWith("예");
         return closesNext ? Math.min(limit, coachReplies + 1) : limit;

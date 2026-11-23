@@ -127,7 +127,7 @@ class CoachRecordLookupPagingTest {
         ObjectNode first = request(big, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":4000}", false);
         ObjectNode page1 = lookup.lookup(big, first);
         assertThat(LenientJson.asText(page1.path("status"))).isEqualTo("partial");
-        assertThat(page1.path("has_more").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(page1.path("has_more"))).isTrue();
         assertThat(page1.toString().length()).isLessThanOrEqualTo(CoachRecordLookup.MAX_RESULT_CHARS);
         List<String> seen = new ArrayList<>(ids(page1.path("events")));
         ObjectNode next = first.deepCopy().put("continuation_token", LenientJson.asText(page1.path("continuation_token")));
@@ -182,11 +182,11 @@ class CoachRecordLookupPagingTest {
                 .put("kind", "visibility").put("description", "한계".repeat(3000)).putArray("dimensions").add("movement");
         heavy.putArray("events");
         ObjectNode view = lookup.initial(heavy);
-        assertThat(view.path("utterance_index_complete").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(view.path("utterance_index_complete"))).isFalse();
         assertThat(view.path("utterance_index").size()).isLessThan(39);
-        assertThat(view.path("limitations_complete").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(view.path("limitations_complete"))).isFalse();
         assertThat(ids(view.path("source_catalog"))).contains("l1").doesNotContain("l9");
         assertThat(view.path("timeline")).isEmpty();
-        assertThat(view.path("timeline_complete").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(view.path("timeline_complete"))).isTrue();
     }
 }

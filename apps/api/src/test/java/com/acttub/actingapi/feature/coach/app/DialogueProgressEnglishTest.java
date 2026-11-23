@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 영어로 쓰는 배우의 뜻도 같은 판정에 닿는지 본다 (SOMA-544).
@@ -48,8 +49,8 @@ class DialogueProgressEnglishTest {
     })
     @DisplayName("영어로 질문을 못 알아들었다고 하면 쉬운 말로 풀어줄 때로 본다")
     void marksConfusion(String text) {
-        assertThat(controlsFor(text).path("explain_instead_of_repeating_question").asBoolean()
-                || controlsFor(text).path("confusion").asBoolean())
+        assertThat(LenientJson.asBoolean(controlsFor(text).path("explain_instead_of_repeating_question"))
+                || LenientJson.asBoolean(controlsFor(text).path("confusion")))
                 .as("confusion 신호가 잡혀야 한다: %s", text)
                 .isTrue();
     }

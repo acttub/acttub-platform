@@ -458,7 +458,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
             return null;
         }
         boolean practiceNote = "acttub.practice_note.v1".equals(LenientJson.asText(card.path("schema_version")));
-        String title = practiceNote ? card.path("copy").path("title").asText("") : card.path("title").asText("");
+        String title = practiceNote ? LenientJson.asText(card.path("copy").path("title"), "") : LenientJson.asText(card.path("title"), "");
         if (title.isBlank()) {
             return null;
         }
@@ -477,7 +477,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         }
         JsonNode nextTake = card.path("next_take");
         if (nextTake.isObject() && nextTake.path("tested").isBoolean()
-                && !nextTake.path("tested").asBoolean()
+                && !LenientJson.asBoolean(nextTake.path("tested"))
                 && nextTake.path("direction").isTextual()) {
             line.append(" — 다음: ").append(LenientJson.asText(nextTake.path("direction")));
         }
@@ -533,14 +533,14 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         List<String> takes = new ArrayList<>();
         JsonNode nextTake = root.get("next_take");
         if (nextTake != null && nextTake.isObject() && nextTake.path("tested").isBoolean()
-                && !nextTake.path("tested").asBoolean()) {
+                && !LenientJson.asBoolean(nextTake.path("tested"))) {
             add(takes, nextTake.get("direction"));
         }
         JsonNode training = root.get("actor_training");
         if (training != null && training.isArray()) {
             for (JsonNode item : training) {
                 if (item.isObject() && item.path("tested").isBoolean()
-                        && !item.path("tested").asBoolean()) {
+                        && !LenientJson.asBoolean(item.path("tested"))) {
                     add(takes, item.get("title"));
                 }
             }

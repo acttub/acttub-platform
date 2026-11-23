@@ -35,7 +35,7 @@ class DialogueNoteTest {
         generated.putNull("next_take");
         generated.putArray("summary").addObject().put("source_ref", "experience").put("quote", "상대에게 말을 건네는 느낌이 편했어.");
         ObjectNode note = DialogueNote.assembleResult(source, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return generated.toString();
         }, failure -> { }).note();
         assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).contains("편했어", "라고 했어요");
@@ -84,7 +84,7 @@ class DialogueNoteTest {
         ObjectNode note = DialogueNote.assembleResult(source, text -> {
             JsonNode input = StructuredJson.parse(text);
             assertThat(input.path("coach_handoff").path("conversation")).hasSize(1);
-            assertThat(input.path("controls").path("can_propose").asBoolean()).isTrue();
+            assertThat(LenientJson.asBoolean(input.path("controls").path("can_propose"))).isTrue();
             assertThat(input.has("note_data")).isFalse();
             return output().toString();
         }, failure -> { }).note();
@@ -118,7 +118,7 @@ class DialogueNoteTest {
         ObjectNode handoff = handoff();
         ((ObjectNode) handoff.path("context")).putNull("direction").putNull("focus");
         ObjectNode note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return "{\"summary\":[],\"next_take\":null}";
         }, failure -> { }).note();
         assertThat(LenientJson.asText(note.path("mode"))).isEqualTo("record_only");
@@ -164,7 +164,7 @@ class DialogueNoteTest {
         invalid.putArray("summary");
         var failures = new ArrayList<RuntimeException>();
         ObjectNode note = DialogueNote.assembleResult(early, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return invalid.toString(); // Even a model that supplies a plausible exercise is rejected.
         }, failures::add).note();
         assertThat(failures).hasSize(2).allSatisfy(failure -> assertThat(failure)

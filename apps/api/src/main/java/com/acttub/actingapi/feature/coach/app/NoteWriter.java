@@ -203,14 +203,14 @@ public class NoteWriter {
         if (summary.isMissingNode() || summary.isNull()) {
             return quotes;
         }
-        String joined = summary.path("text").asText("");
+        String joined = LenientJson.asText(summary.path("text"), "");
         for (JsonNode ref : summary.path("source_refs")) {
             JsonNode source = sourceOf(report, LenientJson.asText(ref));
             String kind = quoteKind(source);
             if (kind == null) {
                 continue;
             }
-            String excerpt = sharedExcerpt(source.path("text").asText(""), joined);
+            String excerpt = sharedExcerpt(LenientJson.asText(source.path("text"), ""), joined);
             if (excerpt.isBlank()) {
                 continue;
             }
@@ -233,7 +233,7 @@ public class NoteWriter {
 
     /** 요약에 실을 수 있는 출처는 배우의 말과 영상 관찰뿐이다 — 코치 해석은 사실이 되지 않는다. */
     private static String quoteKind(JsonNode source) {
-        return switch (source.path("kind").asText("")) {
+        return switch (LenientJson.asText(source.path("kind"), "")) {
             case "actor_message", "actor_input" -> "actor";
             case "video_observation", "video_utterance" -> "observation";
             default -> null;

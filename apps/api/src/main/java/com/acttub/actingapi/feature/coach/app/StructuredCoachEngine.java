@@ -94,7 +94,7 @@ final class StructuredCoachEngine {
         input.putObject("reserved_ids").put("coach_message_id", coachId);
         ObjectNode controls = input.putObject("controls").put("max_message_chars", maxChars)
                 .put("max_sentences", maxSentences).put("max_questions",
-                        finish || input.path("dialogue_progress").path("explain_instead_of_repeating_question").asBoolean() ? 0 : 1)
+                        finish || LenientJson.asBoolean(input.path("dialogue_progress").path("explain_instead_of_repeating_question")) ? 0 : 1)
                 .put("coach_replies_remaining", Math.max(0, ConversationService.THREE_LAYERS_REPLY_LIMIT - replyCount))
                 .put("lookup_calls_remaining", MAX_LOOKUPS).put("finish_required", finish);
         CoachingRoute route = null;
@@ -130,9 +130,9 @@ final class StructuredCoachEngine {
                 modelInput.remove(List.of("request_id", "session_id"));
                 JsonNode response = pipeline != null
                         ? references.fromModel(pipeline.generate(session, modelInput, route, finish, call))
-                        : !finish && input.path("dialogue_progress").path("unclear_correction").asBoolean()
+                        : !finish && LenientJson.asBoolean(input.path("dialogue_progress").path("unclear_correction"))
                         ? DialogueProgress.correctionTargetReply(input)
-                        : !finish && input.path("dialogue_progress").path("unobservable_hand_requested").asBoolean()
+                        : !finish && LenientJson.asBoolean(input.path("dialogue_progress").path("unobservable_hand_requested"))
                         ? DialogueProgress.observationLimitReply(input)
                         : references.fromModel(StructuredJson.parse(recorded(session, modelInput, call)));
                 StructuredJson.validate("layer2_dialogue_turn", response);

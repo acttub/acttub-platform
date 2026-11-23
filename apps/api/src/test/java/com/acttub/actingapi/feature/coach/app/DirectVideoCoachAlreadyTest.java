@@ -24,6 +24,7 @@ import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** SOMA-855: 실험 쪽 대화는 이미 했다는 말에 한 일을 묻고, 그다음 다르게 정리한다. 대조 쪽은 지금처럼 내려놓기다. */
 class DirectVideoCoachAlreadyTest {
@@ -77,7 +78,7 @@ class DirectVideoCoachAlreadyTest {
 
     static String status(CoachResult result) {
         var statuses = result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
-        return statuses.get(statuses.size() - 1).asText("");
+        return LenientJson.asText(statuses.get(statuses.size() - 1), "");
     }
 
     @Test void theExperimentAsksWhatWasDoneWithoutTheVideo() {

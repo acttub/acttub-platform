@@ -572,7 +572,7 @@ public final class DirectVideoCoach {
                 java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
                 history.clear();
                 history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText, false));
-                String design = state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
+                String design = LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("design"), "");
                 boolean koreanTurn = language == null || "ko".equals(language.getLanguage());
                 String stepTask = DirectVideoPrompts.practiceLoopTask(branch.doing(), language, flow, evidence);
                 // 맞춤 코칭은 단계 지시 자체를 바꿔 끼운다 — 끝에 붙인 메모로는 "둘 중 고르는 질문" 같은 단계 지시가 이겼다(SOMA-795).
@@ -1332,7 +1332,7 @@ public final class DirectVideoCoach {
         var before = PracticeLoopRouter.before(loopState, coachTurns);
         var classified = PracticeLoopRouter.unsureAfterWrap(
                 PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before), before, actorText);
-        String design = loopState == null ? "" : loopState.path("design").asText("");
+        String design = loopState == null ? "" : LenientJson.asText(loopState.path("design"), "");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
         String doing = PracticeLoopRouter.route(classified, before, stayed, flow,
                 coaching == null ? null : coaching.maxQuestions(), PracticeLoopRouter.questionsAsked(loopState, coachTurns));
@@ -1697,7 +1697,7 @@ public final class DirectVideoCoach {
      */
     private String proMemoryBlock(CoachSessionSnapshot session, ObjectNode state) {
         JsonNode stored = state.path(PRO_MEMORY);
-        if (stored.isObject()) return stored.path("block").asText("");
+        if (stored.isObject()) return LenientJson.asText(stored.path("block"), "");
         if (!session.turns().isEmpty()) return "";
         ObjectNode memory = state.putObject(PRO_MEMORY);
         boolean pro = CoachPro.safe(coachPro, session.userId());
@@ -1730,7 +1730,7 @@ public final class DirectVideoCoach {
         ObjectNode layer = state.path(LAYER1).isObject() ? (ObjectNode) state.path(LAYER1) : state.putObject(LAYER1);
         layer.put("arm", arm);
         if (!CoachLayerOne.on(arm)) return "";
-        String block = layer.path("block").asText("");
+        String block = LenientJson.asText(layer.path("block"), "");
         if (block.isEmpty()) {
             try {
                 block = layerOne.ready(session.practiceSessionId());

@@ -42,7 +42,7 @@ class OpenAiResponsesClientPayloadTest {
 
         assertThat(generated).isEqualTo(new GeneratedText("답", new TokenUsage(5, 0, 5), "gpt-6-luna"));
         assertThat(LenientJson.asText(requests.getFirst().body().path("model"))).isEqualTo("gpt-6-luna");
-        assertThat(requests.getFirst().body().path("store").asBoolean(true)).isFalse();
+        assertThat(LenientJson.asBoolean(requests.getFirst().body().path("store"), true)).isFalse();
         assertThat(client("{\"output_text\":\"기본\"}").generate("지침", "입력",
                 new GenerationOptions(null, "low", 10, null, null)).model()).isEqualTo(OpenAiModels.CHAT);
     }

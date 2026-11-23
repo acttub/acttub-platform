@@ -57,16 +57,16 @@ public record PurposeView(
         int index = Math.max(0, Math.min(purpose.steps.size() - 1, LenientJson.asInt(loop.path("step"), 0)));
         var choices = new ArrayList<Choice>();
         for (JsonNode choice : loop.path("choices")) {
-            choices.add(new Choice(choice.path("label").asText(""), at(choice.path("at"))));
+            choices.add(new Choice(LenientJson.asText(choice.path("label"), ""), at(choice.path("at"))));
         }
         Scene scene = null;
         if (loop.path("scene").isObject()) {
             JsonNode s = loop.path("scene");
-            scene = new Scene(s.path("situation").asText(""), s.path("character").asText(""), s.path("partner").asText(""));
+            scene = new Scene(LenientJson.asText(s.path("situation"), ""), LenientJson.asText(s.path("character"), ""), LenientJson.asText(s.path("partner"), ""));
         }
         var lines = new ArrayList<Line>();
         for (JsonNode line : loop.path("lines")) {
-            lines.add(new Line(LenientJson.asInt(line.path("at"), 0), line.path("text").asText("")));
+            lines.add(new Line(LenientJson.asInt(line.path("at"), 0), LenientJson.asText(line.path("text"), "")));
         }
         Card card = null;
         if (loop.path("card").isObject()) {
@@ -77,8 +77,8 @@ public record PurposeView(
         if (loop.path("character_card").path("cells").isArray()) {
             var cells = new ArrayList<Cell>();
             for (JsonNode cell : loop.path("character_card").path("cells")) {
-                cells.add(new Cell(cell.path("key").asText(""), cell.path("label").asText(""),
-                        cell.path("value").asText(""), cell.path("source").asText("")));
+                cells.add(new Cell(LenientJson.asText(cell.path("key"), ""), LenientJson.asText(cell.path("label"), ""),
+                        LenientJson.asText(cell.path("value"), ""), LenientJson.asText(cell.path("source"), "")));
             }
             characterCard = new CharacterCard(List.copyOf(cells));
         }
@@ -88,7 +88,7 @@ public record PurposeView(
 
     private static CardItem item(JsonNode node) {
         if (node == null || !node.isObject()) return null;
-        return new CardItem(at(node.path("at")), node.path("text").asText(""));
+        return new CardItem(at(node.path("at")), LenientJson.asText(node.path("text"), ""));
     }
 
     private static Integer at(JsonNode node) {

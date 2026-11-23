@@ -102,7 +102,7 @@ public class TossBillingGateway implements PgReviewGateway {
         if (reply.status() / 100 != 2) {
             throw rejected(reply, "billing_key_failed");
         }
-        String billingKey = reply.json().path("billingKey").asText("");
+        String billingKey = LenientJson.asText(reply.json().path("billingKey"), "");
         if (billingKey.isBlank()) {
             throw new GatewayException(GatewayException.Outcome.REJECTED, "billing_key_missing");
         }
@@ -146,8 +146,8 @@ public class TossBillingGateway implements PgReviewGateway {
         JsonNode json = reply.json();
         JsonNode total = json.has("totalAmount") ? json.get("totalAmount") : json.path("amount");
         return new Approval(
-                json.path("status").asText(""),
-                json.path("orderId").asText(""),
+                LenientJson.asText(json.path("status"), ""),
+                LenientJson.asText(json.path("orderId"), ""),
                 total.isNumber() ? LenientJson.asLong(total) : -1L,
                 json.path("approvedAt").isTextual() ? LenientJson.asText(json.path("approvedAt")) : null);
     }
@@ -190,7 +190,7 @@ public class TossBillingGateway implements PgReviewGateway {
     }
 
     private static GatewayException rejected(Reply reply, String fallbackCode) {
-        String code = reply.json().path("code").asText("");
+        String code = LenientJson.asText(reply.json().path("code"), "");
         if (!CODE.matcher(code).matches()) {
             code = fallbackCode;
         }

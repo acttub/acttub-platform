@@ -87,7 +87,7 @@ public final class ContinuedTake {
             loop.path(HEARD_KEY).forEach(line -> lines.add(LenientJson.asText(line)));
             return lines;
         }
-        for (String row : loop.path("design").asText("").split("\\R")) {
+        for (String row : LenientJson.asText(loop.path("design"), "").split("\\R")) {
             if (!row.startsWith("확인된 대사:")) continue;
             Matcher quoted = QUOTED.matcher(row);
             while (quoted.find()) lines.add(quoted.group(1) != null ? quoted.group(1) : quoted.group(2));

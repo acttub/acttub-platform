@@ -183,7 +183,7 @@ class GeminiVideoRecordAnalyzerRetryTest {
         ObjectNode record = analyzer(false).analyze(directory.resolve("take.mp4"),
                 new ActorMaterial("부엌", "엄마", "붙잡기", "표현", "", 8000), PRACTICE, null, null);
 
-        assertThat(record.path("media").path("audio_track_present").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(record.path("media").path("audio_track_present"))).isFalse();
         assertThat(record.path("limitations").findValuesAsText("id")).contains("audio:absent");
         assertThat(LenientJson.asText(record.path("actor_context").path("situation"))).isEqualTo("부엌");
         assertThat(LenientJson.asText(record.path("actor_context").path("character_context"))).isEqualTo("엄마");
@@ -204,6 +204,6 @@ class GeminiVideoRecordAnalyzerRetryTest {
 
         assertThat(ranges).containsExactly("0-6000");
         assertThat(telemetry.calls()).extracting(call -> call.errorMessage()).first().isNotNull();
-        assertThat(inputs.getFirst().path("audio_track_present").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(inputs.getFirst().path("audio_track_present"))).isFalse();
     }
 }

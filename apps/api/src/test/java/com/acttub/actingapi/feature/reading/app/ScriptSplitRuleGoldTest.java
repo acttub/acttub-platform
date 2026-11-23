@@ -72,7 +72,7 @@ class ScriptSplitRuleGoldTest {
             JsonNode script = id == null ? null : corpus.get(id);
             if (script == null) continue;
             scripts++;
-            List<NumberedLine> numbered = NumberedLine.of(script.path("raw").asText(""));
+            List<NumberedLine> numbered = NumberedLine.of(LenientJson.asText(script.path("raw"), ""));
             RuleSplit.Result rule = RuleSplit.of(numbered);
             RuleSplit.Result full = RuleSplit.full(numbered);
             List<String> storedCast = new ArrayList<>();

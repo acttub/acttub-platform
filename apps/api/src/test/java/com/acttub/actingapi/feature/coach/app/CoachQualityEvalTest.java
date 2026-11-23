@@ -78,19 +78,19 @@ class CoachQualityEvalTest {
                     .reply(session, LenientJson.asText(scenario.path("latest")), UUID.randomUUID()).reply();
             output.set("reply", MAPPER.valueToTree(reply));
             assertThat(reply.message()).isNotBlank();
-            if (scenario.path("close").asBoolean()) {
+            if (LenientJson.asBoolean(scenario.path("close"))) {
                 assertThat(reply.status()).isEqualTo("complete");
                 assertThat(LenientJson.asText(reply.handoff().path("completion_level"))).isNotEqualTo("unavailable");
             }
             if (scenario.has("tested")) {
                 assertThat(reply.handoff().at("/experiment/tested").isBoolean()).isTrue();
-                assertThat(reply.handoff().at("/experiment/tested").asBoolean())
-                        .isEqualTo(scenario.path("tested").asBoolean());
-                if (!scenario.path("tested").asBoolean()) {
+                assertThat(LenientJson.asBoolean(reply.handoff().at("/experiment/tested")))
+                        .isEqualTo(LenientJson.asBoolean(scenario.path("tested")));
+                if (!LenientJson.asBoolean(scenario.path("tested"))) {
                     assertThat(reply.handoff().path("observed_change").isNull()).isTrue();
                 }
             }
-            if (scenario.path("report").asBoolean()) {
+            if (LenientJson.asBoolean(scenario.path("report"))) {
                 phase[0] = "report";
                 ActorProfile actor = session.actorProfile();
                 UUID reader = UUID.randomUUID();

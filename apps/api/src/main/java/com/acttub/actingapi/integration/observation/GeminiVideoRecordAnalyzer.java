@@ -104,7 +104,7 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                     .put("chunk_duration_ms", end - start)
                     .put("source_duration_ms", actor.durationMs())
                     .put("chunk_start_ms", start).put("chunk_end_ms", end)
-                    .put("audio_track_present", record.path("media").path("audio_track_present").asBoolean());
+                    .put("audio_track_present", LenientJson.asBoolean(record.path("media").path("audio_track_present")));
             input.set("actor_context", record.path("actor_context"));
             input.putNull("reference_transcript");
             if (speech != null && !speech.words().isEmpty()) {
@@ -139,7 +139,7 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                     raw = generated.text();
                     tokens = GeminiUsage.tokens(generated);
                     JsonNode result = VideoRecord.prepareChunk(StructuredJson.parse(raw), chunkId, end - start);
-                    if (!record.path("media").path("audio_track_present").asBoolean()) {
+                    if (!LenientJson.asBoolean(record.path("media").path("audio_track_present"))) {
                         if (!result.path("utterances").isEmpty()) {
                             throw new IllegalArgumentException("speech in a video without audio");
                         }

@@ -37,22 +37,22 @@ class DialogueProgressRulesTest {
     @Test void handQuestionsCountOnlyWhenTheHandIsTheSubjectAndCannotBeSeen() {
         String offScreen = "손과 하체가 화면 밖이므로 손동작은 확인할 수 없다.";
         JsonNode asked = DialogueProgress.controls(input("손동작이 영상에서 잘 보였어?", offScreen));
-        assertThat(asked.path("unobservable_hand_requested").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(asked.path("unobservable_hand_requested"))).isTrue();
         assertThat(asked.path("unobservable_hand_refs").toString()).isEqualTo("[\"l1\"]");
-        assertThat(DialogueProgress.controls(input("손동작 말고 표정이 영상에서 잘 보였어?", offScreen))
-                .path("unobservable_hand_requested").asBoolean()).isFalse();
-        assertThat(DialogueProgress.controls(input("Not my hands, but did my face read in the video?", offScreen))
-                .path("unobservable_hand_requested").asBoolean()).isFalse();
-        assertThat(DialogueProgress.controls(input("Did my hand gesture land in the video?", offScreen))
-                .path("unobservable_hand_requested").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("손동작 말고 표정이 영상에서 잘 보였어?", offScreen))
+                .path("unobservable_hand_requested"))).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("Not my hands, but did my face read in the video?", offScreen))
+                .path("unobservable_hand_requested"))).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("Did my hand gesture land in the video?", offScreen))
+                .path("unobservable_hand_requested"))).isTrue();
         JsonNode visible = DialogueProgress.controls(input("손동작이 영상에서 잘 보였어?", "손이 화면 가장자리에 걸쳐 있다."));
-        assertThat(visible.path("unobservable_hand_requested").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(visible.path("unobservable_hand_requested"))).isFalse();
         assertThat(visible.path("unobservable_hand_refs")).isEmpty();
     }
 
     @Test void notKnowingTheSceneAsksForExplanationInsteadOfPractice() {
         JsonNode progress = DialogueProgress.controls(input("모르겠어요."));
-        assertThat(progress.path("analysis_uncertain").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(progress.path("analysis_uncertain"))).isTrue();
         assertThat(DialogueProgress.turnInstruction(progress)).startsWith("\n\n[이번 응답에서 가장 먼저 지킬 것]\n배우는 아직 장면의 뜻을 모른다.");
         assertThatThrownBy(() -> DialogueProgress.validate(reply("explain", "한 번 말해 보세요."), progress))
                 .hasMessageStartingWith("아직 장면의 뜻을 모른다.");

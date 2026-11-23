@@ -189,7 +189,7 @@ public final class GeminiLayerOneObserver implements LayerOneObserver {
     /** 관찰 JSON 을 코치 지시문 칸으로 옮긴다. 들린 말이 받아쓰기와 다르면 들린 말을 대사로 쓴다. */
     static String block(List<Chunk> chunks, JsonNode parsed) {
         StringBuilder out = new StringBuilder(BLOCK_HEAD);
-        String overall = parsed.path("overall").asText("").strip();
+        String overall = LenientJson.asText(parsed.path("overall"), "").strip();
         if (!overall.isEmpty()) out.append("\n- 장면 흐름: ").append(overall);
         out.append("\n- 대사별 (시간 순서):");
         int written = 0;
@@ -202,10 +202,10 @@ public final class GeminiLayerOneObserver implements LayerOneObserver {
                 }
             }
             if (row == null) continue;
-            String seen = row.path("seen").asText("").strip();
+            String seen = LenientJson.asText(row.path("seen"), "").strip();
             if (seen.isEmpty()) continue;
-            String heard = row.path("heard").asText("").strip();
-            String reading = row.path("reading").asText("").strip();
+            String heard = LenientJson.asText(row.path("heard"), "").strip();
+            String reading = LenientJson.asText(row.path("reading"), "").strip();
             out.append("\n  \"").append(heard.isEmpty() ? chunks.get(i).text() : heard).append("\" — 본 것: ").append(seen);
             if (!reading.isEmpty()) out.append(" / 해석 후보: ").append(reading);
             written++;

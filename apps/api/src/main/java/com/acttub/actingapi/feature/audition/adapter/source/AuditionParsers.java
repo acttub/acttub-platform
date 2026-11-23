@@ -205,21 +205,21 @@ final class AuditionParsers {
         int candidates = 0;
         int unreadable = 0;
         for (JsonNode c : data.path("list")) {
-            if (c.path("isPrivate").asBoolean(false)) {
+            if (LenientJson.asBoolean(c.path("isPrivate"), false)) {
                 continue;
             }
             candidates++;
-            String ref = c.path("id").asText("");
-            String title = c.path("title").asText("").strip();
+            String ref = LenientJson.asText(c.path("id"), "");
+            String title = LenientJson.asText(c.path("title"), "").strip();
             LocalDate posted = c.hasNonNull("createdAt") ? kstDate(LenientJson.asText(c.path("createdAt"))) : null;
             if (ref.isEmpty() || title.isEmpty() || posted == null) {
                 unreadable++;
                 continue;
             }
             out.add(new AuditionPosting("plfil", ref, title,
-                    PLFIL_CATEGORY.getOrDefault(c.path("artCategoryName").asText(""), "other"), plfilPay(c), null,
+                    PLFIL_CATEGORY.getOrDefault(LenientJson.asText(c.path("artCategoryName"), ""), "other"), plfilPay(c), null,
                     c.hasNonNull("castingEndDate") ? kstDate(LenientJson.asText(c.path("castingEndDate"))) : null,
-                    c.path("isRecruiting").asBoolean(false) ? "모집중" : "마감",
+                    LenientJson.asBoolean(c.path("isRecruiting"), false) ? "모집중" : "마감",
                     posted, "https://plfil.com/casting/" + ref));
         }
         requireReadable("plfil", candidates, unreadable);
@@ -236,7 +236,7 @@ final class AuditionParsers {
         String pay = !hi.isNumber() || LenientJson.decimalValue(lo).compareTo(LenientJson.decimalValue(hi)) == 0
                 ? LenientJson.asText(lo) + "만원"
                 : LenientJson.asText(lo) + "~" + LenientJson.asText(hi) + "만원";
-        return c.path("canNego").asBoolean(false) ? pay + " (협의 가능)" : pay;
+        return LenientJson.asBoolean(c.path("canNego"), false) ? pay + " (협의 가능)" : pay;
     }
 
     // ─── OTR 오디션 게시판 ───────────────────────────────────────────────

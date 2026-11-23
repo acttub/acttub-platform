@@ -350,7 +350,7 @@ public record ActorCoaching(
 
     private static Boolean bool(JsonNode node, String key) {
         JsonNode value = node.path(key);
-        return value.isBoolean() ? value.asBoolean() : null;
+        return value.isBoolean() ? LenientJson.asBoolean(value) : null;
     }
 
     private static List<String> strings(JsonNode array) {

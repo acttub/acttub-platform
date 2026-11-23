@@ -156,9 +156,9 @@ class OpenAiResponsesClientTest {
         assertThat(routed.model()).isEqualTo("gpt-5.6-luna");
         JsonNode body = transport.requests.getFirst().body();
         assertThat(LenientJson.asText(body.path("model"))).isEqualTo("gpt-5.6-luna");
-        assertThat(body.path("store").asBoolean(true)).isFalse();
+        assertThat(LenientJson.asBoolean(body.path("store"), true)).isFalse();
         assertThat(LenientJson.asText(body.path("reasoning").path("effort"))).isEqualTo("low");
-        assertThat(body.path("text").path("format").path("strict").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(body.path("text").path("format").path("strict"))).isTrue();
         assertThat(body.path("text").path("format").path("schema")).isEqualTo(schema);
         assertThat(LenientJson.asText(transport.requests.getLast().body().path("model"))).isEqualTo(OpenAiModels.CHAT);
     }

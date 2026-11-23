@@ -127,7 +127,7 @@ public class RevenueCatGatewayImpl implements RevenueCatGateway {
                 sub == null ? null : instant(sub, "unsubscribe_detected_at"),
                 sub == null ? null : instant(sub, "billing_issues_detected_at"),
                 sub == null ? null : instant(sub, "refunded_at"),
-                sub != null && sub.path("is_sandbox").asBoolean(false),
+                sub != null && LenientJson.asBoolean(sub.path("is_sandbox"), false),
                 sub == null ? null : text(sub, "store_transaction_id")));
     }
 

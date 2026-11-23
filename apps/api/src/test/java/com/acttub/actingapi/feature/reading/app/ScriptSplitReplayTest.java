@@ -449,7 +449,7 @@ class ScriptSplitReplayTest {
             out.put("jevWallMs", asked.isEmpty() ? 0 : (lastEnd - firstStart) / 1_000_000);
             out.put("jevParallel", JEV_SETTINGS.parallel());
             out.set("speech", speech);
-            same.sort(java.util.Comparator.comparing((ObjectNode row) -> LenientJson.asText(row.get("name"))).thenComparing(row -> row.get("reversed").asBoolean()));
+            same.sort(java.util.Comparator.comparing((ObjectNode row) -> LenientJson.asText(row.get("name"))).thenComparing(row -> LenientJson.asBoolean(row.get("reversed"))));
             out.set("same", JSON.valueToTree(same));
         }
     }

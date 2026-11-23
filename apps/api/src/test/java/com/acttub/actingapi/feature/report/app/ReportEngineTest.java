@@ -92,7 +92,7 @@ class ReportEngineTest {
                 MAPPER.readTree("{\"completion_level\":\"unavailable\"}"), null);
 
         assertThat(input.path("analysis_handoff").isNull()).isTrue();
-        assertThat(input.at("/expression_handoff/experiment/tested").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(input.at("/expression_handoff/experiment/tested"))).isTrue();
     }
 
     @Test

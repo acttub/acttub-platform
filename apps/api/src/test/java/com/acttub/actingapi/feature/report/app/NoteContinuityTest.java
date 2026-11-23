@@ -16,7 +16,7 @@ class NoteContinuityTest {
         var errors = new ArrayList<RuntimeException>();
         var note = DialogueNote.assembleResult(handoff, text -> {
             JsonNode controls = StructuredJson.parse(text).path("controls");
-            assertThat(controls.path("can_propose").asBoolean()).isTrue();
+            assertThat(LenientJson.asBoolean(controls.path("can_propose"))).isTrue();
             assertThat(LenientJson.asText(controls.path("next_take_basis"))).isEqualTo("scene");
             assertThat(LenientJson.asText(controls.path("aim").path("text"))).contains("열쇠를 돌려받");
             return NoteContinuityFixtures.output().toString();
@@ -84,7 +84,7 @@ class NoteContinuityTest {
         ((ObjectNode) handoff.path("context")).set("direction", handoff.path("context").path("scene_context").path("character_goal"));
         var errors = new ArrayList<RuntimeException>();
         var note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return NoteContinuityFixtures.output().toString();
         }, errors::add).note();
         assertThat(errors).hasSize(2);
@@ -106,7 +106,7 @@ class NoteContinuityTest {
         NoteContinuityFixtures.source(handoff, "limit", "record_limitation", "손이 화면 밖이다.", 0, 12000);
         ((ObjectNode) handoff.path("context").path("focus")).putArray("evidence_refs").add("limit");
         var note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return "{\"summary\":[],\"next_take\":null}";
         }, failure -> { }).note();
         assertThat(note.path("practice").isNull()).isTrue();
@@ -116,7 +116,7 @@ class NoteContinuityTest {
         var handoff = NoteContinuityFixtures.scene();
         NoteContinuityFixtures.message(handoff, "correction", "actor", "아니, 열쇠를 돌려받으려는 것도 아니에요. 목적은 아직 모르겠어요.");
         var note = DialogueNote.assembleResult(handoff, text -> {
-            assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
             return NoteContinuityFixtures.output().toString();
         }, failure -> { }).note();
         assertThat(note.path("practice").isNull()).isTrue();
@@ -131,7 +131,7 @@ class NoteContinuityTest {
             if (missing) handoff.putNull("record_ref");
             else ((ObjectNode) handoff.path("record_ref")).put("version", 2);
             var note = DialogueNote.assembleResult(handoff, text -> {
-                assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
+                assertThat(LenientJson.asBoolean(StructuredJson.parse(text).path("controls").path("can_propose"))).isFalse();
                 return NoteContinuityFixtures.output().toString();
             }, failure -> { }).note();
             assertThat(note.path("practice").isNull()).isTrue();

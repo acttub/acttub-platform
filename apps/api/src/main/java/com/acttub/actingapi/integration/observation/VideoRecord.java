@@ -200,7 +200,7 @@ public final class VideoRecord {
 
     public static void finish(ObjectNode record, SpeechAnalysis analysis) {
         int duration = LenientJson.asInt(record.path("media").path("duration_ms"));
-        boolean audio = record.path("media").path("audio_track_present").asBoolean();
+        boolean audio = LenientJson.asBoolean(record.path("media").path("audio_track_present"));
         if (record.path("processing").path("processed_ranges").isEmpty()) {
             throw new SummaryParseError("no usable video record chunks");
         }
@@ -282,7 +282,7 @@ public final class VideoRecord {
             for (JsonNode item : items) {
                 ObjectNode source = StructuredJson.MAPPER.createObjectNode();
                 source.put("id", LenientJson.asText(item.path("id"))).put("kind", kind)
-                        .put("text", LenientJson.asText(item.path("text"), item.path("description").asText()));
+                        .put("text", LenientJson.asText(item.path("text"), LenientJson.asText(item.path("description"))));
                 source.set("record_id", record.path("record_id"));
                 source.set("record_version", record.path("record_version"));
                 source.set("start_ms", item.path("start_ms"));
