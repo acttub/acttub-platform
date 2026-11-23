@@ -31,13 +31,12 @@
 #   9. 같은 sha 로 deploy.sh 를 다시 돌리면 초록이고 컨테이너가 하나도 바뀌지 않는다(멱등 — 두 번 해도 결과가 같다)
 #  10. restore-db.sh 왕복 — 지금 DB 를 pg_dump -Fc 로 뜬 뒤 바꾸고 복원하면 덤프 시점으로 돌아온다(행 수·manifest 일치,
 #      Flyway "up to date", 컨테이너 재생성 없음). 깨진 덤프·행 수 불일치는 exit≠0 이고 원래 DB 가 그대로다
-#      (dev 이전·복원 연습·운영 컷오버가 같은 스크립트를 쓴다)
+#      (백업 복구와 DB 옮기기가 같은 스크립트를 쓴다)
 #  11. 무중단 재배포(SOMA-700) — 터널 자리에서 부하를 건 채 다른 sha 로 배포하면 실패한 요청이 0 이고, 옛 판과 새 판이
 #      둘 다 응답했으며, 끝나면 api·web 이 새 컨테이너 하나씩이고 proxy 는 그대로다. 새 api 의 Flyway 는 up to date
 #  12. 새 판이 healthy 가 못 되면(대기 시간 초과) exit≠0 이고 컨테이너·release.env·응답 commit 이 그대로다
-#  13. 새 판이 다른 commit 을 답하면 healthy 여도 exit≠0 이고 proxy 가 옛 판으로 돌아가 있다
 #      (나머지 빨강은 deploy-test.sh 가 가짜 docker 로 반증한다)
-#  14. 격리된 모형 앱과 실제 nginx로 롤백 중 30초 요청·같은 태그 재빌드·재실행 무변경을 검증한다
+#  13. 격리된 모형 앱과 실제 nginx로 commit 불일치 되돌리기·롤백 중 30초 요청·같은 태그 재빌드·재실행 무변경을 검증한다
 #   cloudflared(edge)·backup(backup) 프로필은 테스트용 .env 에 COMPOSE_PROFILES 가 없어 빠진다.
 #
 # 저장소 루트는 스크립트 위치로 찾고, 임시 파일은 mktemp 로 만들며, 프로젝트명·이미지 태그에 pid 를
@@ -165,8 +164,7 @@ COMMIT="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo 0123456789abcdef0123
 step "웹 이미지 빌드 → $WEB_IMAGE (컨텍스트 $ROOT, build-arg 는 테스트 값)"
 # build-arg 를 받아 빌드가 통과하는지를 본다. 값이 번들까지 갔는지는 아래 6 단계에서 사이트 URL 하나로
 # 확인한다(랜딩 HTML 의 canonical·og:url 에 새겨진다). 호스트는 전부 .invalid — DSN 으로 에러가 나도
-# 어디로도 가지 않는다. SENTRY_AUTH_TOKEN 시크릿은 일부러 안 넘긴다: 없을 때 소스맵 업로드를 건너뛰고
-# 통과해야 한다.
+# 어디로도 가지 않는다.
 SITE_URL=https://smoke.acttub.invalid
 build_image "$WEB_IMAGE" -f "$ROOT/apps/web/Dockerfile" \
   --build-arg API_ORIGIN=http://api:8080 \
@@ -414,7 +412,7 @@ ids_after="$(compose ps -q | sort | tr '\n' ' ')"
 echo "  컨테이너 $(printf '%s' "$ids_after" | wc -w | tr -d ' ')개 그대로"
 
 # ── 10. restore-db.sh 왕복 — 덤프 → DB 변경 → 복원 → 덤프 시점으로 돌아오고 Flyway 는 "up to date" ─────────
-# dev 이전·백업 복원 연습·운영 컷오버가 같은 스크립트를 쓴다. 반증하는 것: 실패하면(깨진 덤프·행 수 불일치) 원래 DB 가
+# 백업 복구와 DB 옮기기가 같은 스크립트를 쓴다. 반증하는 것: 실패하면(깨진 덤프·행 수 불일치) 원래 DB 가
 # 그대로 남고 api 가 다시 healthy 다, 성공하면 DB 가 덤프와 같고 컨테이너는 재생성되지 않는다.
 if [ "${SMOKE_RESTORE:-true}" = true ]; then
   RESTORE_SH="$HOME_DIR/restore-db.sh"
@@ -561,29 +559,8 @@ cmp -s "$WORK/release.env.before" "$WORK/release.env" || fail "실패한 배포�
 [ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "실패한 배포 뒤 옛 판(${NEXT_COMMIT:0:7})이 응답하지 않는다"
 printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
-# ── 13. 새 판이 다른 commit 을 답하면 넘긴 것을 되돌린다 ─────────────────────────
-# 옛 컨테이너가 살아남은 채 초록이 되는 일의 재현이기도 하다. HealthController 는 Spring 프로퍼티 ${RENDER_GIT_COMMIT} 을
-# 읽으므로 사람이 관리하는 .env 의 JAVA_TOOL_OPTIONS 로 시스템 프로퍼티를 주면 release.env 의 env 값을 이긴다 →
-# 새 api 는 healthy 인데 commit 이 다르다. .env 가 바뀌어 api 만 새 판이 된다.
-step "deploy.sh: 새 api 가 다른 commit 을 답하면 healthy 여도 exit≠0 — proxy 는 옛 판으로 돌아간다"
-printf 'JAVA_TOOL_OPTIONS=-DRENDER_GIT_COMMIT=0000000stale\n' >> "$WORK/.env"
-ids_before="$(compose ps -aq | sort | tr '\n' ' ')"
-if out="$(deploy_images "$NEXT_COMMIT" "$IMAGE_NEXT" "$WEB_IMAGE_NEXT" 2>&1)"; then
-  printf '%s\n' "$out"; fail "commit 이 0000000 인데 deploy.sh 가 초록으로 끝났다"
-fi
-grep -q '✗.*commit.*다르다' <<< "$out" || { printf '%s\n' "$out"; fail "commit 불일치가 아닌 다른 이유로 실패했다"; }
-grep -q 'proxy 를 옛 컨테이너로 되돌렸다' <<< "$out" || { printf '%s\n' "$out"; fail "proxy 를 옛 판으로 되돌렸다는 기록이 없다"; }
-[ "$(compose ps -aq | sort | tr '\n' ' ')" = "$ids_before" ] || fail "되돌린 뒤 컨테이너가 배포 전과 다르다"
-[ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "되돌린 뒤 proxy 경유 /health 가 옛 판 commit 을 답하지 않는다"
-printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
-
-step "롤백 중 긴 요청·같은 태그 재빌드 (격리 모형 앱 + 실제 nginx)"
+# ── 13. 격리된 모형 앱 + 실제 nginx ────────────────────────────────────────────
+step "commit 불일치 되돌리기·롤백 중 긴 요청·같은 태그 재빌드 (격리 모형 앱 + 실제 nginx)"
 python3 "$HOME_DIR/rollout-test.py" "$WEB_IMAGE"
 
-printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·부하 중 무중단 재배포·healthy 실패와 commit 불일치의 되돌리기)·restore-db.sh 왕복(SMOKE_RESTORE=%s)·compose(web+api+db+proxy, 망 별칭)·Flyway v1→v%s·proxy 경유 /health commit %s→%s\n' "${SMOKE_RESTORE:-true}" "$latest" "${COMMIT:0:7}" "${NEXT_COMMIT:0:7}"
-
-if [ -n "${SMOKE_EXPORT_API_IMAGE:-}" ]; then
-  docker tag "$IMAGE" "$SMOKE_EXPORT_API_IMAGE"
-  docker tag "$WEB_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
-  printf '✔ 후속 검사 이미지 보존: %s · %s\n' "$SMOKE_EXPORT_API_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
-fi
+printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·부하 중 무중단 재배포·healthy 실패와 commit 불일치의 되돌리기·롤백 중 긴 요청)·restore-db.sh 왕복(SMOKE_RESTORE=%s)·compose(web+api+db+proxy, 망 별칭)·Flyway v1→v%s·proxy 경유 /health commit %s→%s\n' "${SMOKE_RESTORE:-true}" "$latest" "${COMMIT:0:7}" "${NEXT_COMMIT:0:7}"
