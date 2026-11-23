@@ -120,6 +120,12 @@ public final class DirectVideoCoach {
      * (두 번은 출력 한도로 다시 씀) 판 평균이 오히려 늘었다. 원인이 확인되기 전에는 켜지 않는다.
      */
     private boolean rootInPrefix = false;
+    /**
+     * 무료 배우의 영상이 붙지 않는 연습 루프 후속 답을 쓸 모델(비용). null 이면 지금처럼 코치 모델이다. 첫 답·새 영상의 첫 답·
+     * Pro·영상이 붙는 답은 그대로다. 빈 답·깨진 글·시간 표기로 다시 쓰는 호출도 이 모델이고, 다시 써도 비거나 깨지면 기본 모델로
+     * 한 번 더 쓴다(비교 모델과 같은 길).
+     */
+    private DirectVideoModel followupModel;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -247,6 +253,12 @@ public final class DirectVideoCoach {
     /** 근본 문제를 푸는 길과 예시 답 칸도 고정 앞부분으로 옮길지. */
     public DirectVideoCoach withRootInPrefix(boolean enabled) {
         this.rootInPrefix = enabled;
+        return this;
+    }
+
+    /** 무료 배우의 영상 없는 후속 답 모델. null 이면 지금처럼 코치 모델이다. */
+    public DirectVideoCoach withFollowupModel(DirectVideoModel followupModel) {
+        this.followupModel = followupModel;
         return this;
     }
 
@@ -687,6 +699,8 @@ public final class DirectVideoCoach {
             // 답장(첫 질문이 아닌 턴)은 생각을 최소로 쓴다(SOMA-780). 첫 질문·분류·정리 노트는 그대로 LOW 다.
             final ReplyTrace trace = replyTrace.sibling(followUpMinimalThinking && !session.turns().isEmpty());
             replyTrace = trace;
+            // 무료 배우의 영상 없는 연습 루프 후속 답은 켜면 후속 답 모델로 쓴다. 생각 단계는 위 trace 를 그대로 따른다.
+            if (followupModel != null && branch != null && uploaded == null && freeActor(session.userId())) speaker = followupModel;
             ExternalOperationExecution.externalCall("model");
             String message = streaming ? streamOrNull(speaker, uploaded, history, prompt, visible, trace)
                     : replyOrNull(speaker, uploaded, history, prompt, loop, trace);

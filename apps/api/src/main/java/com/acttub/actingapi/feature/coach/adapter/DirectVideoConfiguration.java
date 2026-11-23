@@ -167,7 +167,9 @@ public class DirectVideoConfiguration {
             // 근본 문제를 푸는 길과 예시 답 칸도 고정 앞부분으로 옮긴다. 적용 범위는 위와 같다(영상 없는 무료 후속 답).
             @Value("${ACTTUB_COACH_ROOT_IN_PREFIX:false}") boolean rootInPrefix,
             @Value("${ACTTUB_COACH_VIDEO_FPS:}") String videoFps,
-            @Value("${ACTTUB_COACH_CLASSIFY_THINKING:}") String classifyThinking) {
+            @Value("${ACTTUB_COACH_CLASSIFY_THINKING:}") String classifyThinking,
+            // 무료 배우의 영상 없는 연습 루프 후속 답 모델(예: gemini-3.1-flash-lite). 비우면 지금처럼 코치 모델이다.
+            @Value("${GEMINI_COACH_FOLLOWUP_MODEL:}") String followupModel) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge).withVideoFps(fps(videoFps));
         var classifier = classifyModel == null || classifyModel.isBlank() ? null
@@ -190,6 +192,8 @@ public class DirectVideoConfiguration {
                 .withFreeVideoFirstOnly(freeVideoFirstOnly)
                 .withStaticRulesInPrefix(staticRulesInPrefix)
                 .withRootInPrefix(rootInPrefix)
+                .withFollowupModel(followupModel == null || followupModel.isBlank() ? null
+                        : new GeminiDirectVideoModel(client, followupModel.strip()).withHedge(coachHedge))
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
                         proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
                 .withOpenings(openingAb(openingAb, siteUrl)

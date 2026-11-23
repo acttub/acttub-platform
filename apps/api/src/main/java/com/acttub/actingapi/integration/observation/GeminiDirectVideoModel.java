@@ -431,9 +431,9 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         return ThinkingConfig.builder().thinkingLevel(minimal ? "MINIMAL" : "LOW").build();
     }
 
-    /** MINIMAL 생각 단계를 받는 모델. 확인한 것은 gemini-3-flash 계열뿐이다. */
+    /** MINIMAL 생각 단계를 받는 모델. 확인한 것은 gemini-3-flash 계열과 gemini-3.1-flash-lite(11/23 분류 실측)다. */
     static boolean minimalThinking(String model) {
-        return model != null && model.startsWith("gemini-3-flash");
+        return model != null && (model.startsWith("gemini-3-flash") || model.startsWith("gemini-3.1-flash-lite"));
     }
 
     private String generate(Video video, List<Message> history, String instruction, List<String> categories, boolean light) {
