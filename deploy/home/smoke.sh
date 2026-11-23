@@ -35,9 +35,8 @@
 #  11. 무중단 재배포(SOMA-700) — 터널 자리에서 부하를 건 채 다른 sha 로 배포하면 실패한 요청이 0 이고, 옛 판과 새 판이
 #      둘 다 응답했으며, 끝나면 api·web 이 새 컨테이너 하나씩이고 proxy 는 그대로다. 새 api 의 Flyway 는 up to date
 #  12. 새 판이 healthy 가 못 되면(대기 시간 초과) exit≠0 이고 컨테이너·release.env·응답 commit 이 그대로다
-#  13. 새 판이 다른 commit 을 답하면 healthy 여도 exit≠0 이고 proxy 가 옛 판으로 돌아가 있다
 #      (나머지 빨강은 deploy-test.sh 가 가짜 docker 로 반증한다)
-#  14. 격리된 모형 앱과 실제 nginx로 롤백 중 30초 요청·같은 태그 재빌드·재실행 무변경을 검증한다
+#  13. 격리된 모형 앱과 실제 nginx로 commit 불일치 되돌리기·롤백 중 30초 요청·같은 태그 재빌드·재실행 무변경을 검증한다
 #   cloudflared(edge)·backup(backup) 프로필은 테스트용 .env 에 COMPOSE_PROFILES 가 없어 빠진다.
 #
 # 저장소 루트는 스크립트 위치로 찾고, 임시 파일은 mktemp 로 만들며, 프로젝트명·이미지 태그에 pid 를
@@ -561,29 +560,8 @@ cmp -s "$WORK/release.env.before" "$WORK/release.env" || fail "실패한 배포�
 [ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "실패한 배포 뒤 옛 판(${NEXT_COMMIT:0:7})이 응답하지 않는다"
 printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
-# ── 13. 새 판이 다른 commit 을 답하면 넘긴 것을 되돌린다 ─────────────────────────
-# 옛 컨테이너가 살아남은 채 초록이 되는 일의 재현이기도 하다. HealthController 는 Spring 프로퍼티 ${RENDER_GIT_COMMIT} 을
-# 읽으므로 사람이 관리하는 .env 의 JAVA_TOOL_OPTIONS 로 시스템 프로퍼티를 주면 release.env 의 env 값을 이긴다 →
-# 새 api 는 healthy 인데 commit 이 다르다. .env 가 바뀌어 api 만 새 판이 된다.
-step "deploy.sh: 새 api 가 다른 commit 을 답하면 healthy 여도 exit≠0 — proxy 는 옛 판으로 돌아간다"
-printf 'JAVA_TOOL_OPTIONS=-DRENDER_GIT_COMMIT=0000000stale\n' >> "$WORK/.env"
-ids_before="$(compose ps -aq | sort | tr '\n' ' ')"
-if out="$(deploy_images "$NEXT_COMMIT" "$IMAGE_NEXT" "$WEB_IMAGE_NEXT" 2>&1)"; then
-  printf '%s\n' "$out"; fail "commit 이 0000000 인데 deploy.sh 가 초록으로 끝났다"
-fi
-grep -q '✗.*commit.*다르다' <<< "$out" || { printf '%s\n' "$out"; fail "commit 불일치가 아닌 다른 이유로 실패했다"; }
-grep -q 'proxy 를 옛 컨테이너로 되돌렸다' <<< "$out" || { printf '%s\n' "$out"; fail "proxy 를 옛 판으로 되돌렸다는 기록이 없다"; }
-[ "$(compose ps -aq | sort | tr '\n' ' ')" = "$ids_before" ] || fail "되돌린 뒤 컨테이너가 배포 전과 다르다"
-[ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "되돌린 뒤 proxy 경유 /health 가 옛 판 commit 을 답하지 않는다"
-printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
-
-step "롤백 중 긴 요청·같은 태그 재빌드 (격리 모형 앱 + 실제 nginx)"
+# ── 13. 격리된 모형 앱 + 실제 nginx ────────────────────────────────────────────
+step "commit 불일치 되돌리기·롤백 중 긴 요청·같은 태그 재빌드 (격리 모형 앱 + 실제 nginx)"
 python3 "$HOME_DIR/rollout-test.py" "$WEB_IMAGE"
 
-printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·부하 중 무중단 재배포·healthy 실패와 commit 불일치의 되돌리기)·restore-db.sh 왕복(SMOKE_RESTORE=%s)·compose(web+api+db+proxy, 망 별칭)·Flyway v1→v%s·proxy 경유 /health commit %s→%s\n' "${SMOKE_RESTORE:-true}" "$latest" "${COMMIT:0:7}" "${NEXT_COMMIT:0:7}"
-
-if [ -n "${SMOKE_EXPORT_API_IMAGE:-}" ]; then
-  docker tag "$IMAGE" "$SMOKE_EXPORT_API_IMAGE"
-  docker tag "$WEB_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
-  printf '✔ 후속 검사 이미지 보존: %s · %s\n' "$SMOKE_EXPORT_API_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
-fi
+printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·부하 중 무중단 재배포·healthy 실패와 commit 불일치의 되돌리기·롤백 중 긴 요청)·restore-db.sh 왕복(SMOKE_RESTORE=%s)·compose(web+api+db+proxy, 망 별칭)·Flyway v1→v%s·proxy 경유 /health commit %s→%s\n' "${SMOKE_RESTORE:-true}" "$latest" "${COMMIT:0:7}" "${NEXT_COMMIT:0:7}"

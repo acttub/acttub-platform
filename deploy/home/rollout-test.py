@@ -1,4 +1,4 @@
-"""실제 deploy.sh·nginx로 롤백 중 긴 요청과 같은 태그 재빌드를 검증한다.
+"""실제 deploy.sh·nginx로 commit 불일치 롤백, 롤백 중 긴 요청, 같은 태그 재빌드를 검증한다.
 
 python3 deploy/home/rollout-test.py <Node가 있는 웹 이미지>
 API·웹·DB는 격리된 모형이며 운영 접속·외부 모델 호출은 없다.
@@ -149,6 +149,7 @@ def main() -> None:
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                 )
                 assert active_deploy.wait(timeout=90) == 1, "commit 불일치 배포를 허용했다"
+                rollback_log = (work / "deploy.log").read_text()
                 stdout, stderr = client.communicate(timeout=40)
                 response = json.loads(stdout) if stdout else {"error": stderr}
                 rollback_health = json.loads(get("/health"))
@@ -168,6 +169,8 @@ def main() -> None:
                 print(json.dumps({"rollback_response": response, "after_rollback": rollback_health,
                                   "rebuilt_api": rebuilt_health, "rebuilt_web": rebuilt_web,
                                   "running_images": actual, "desired_image": desired}, ensure_ascii=False))
+                assert "commit(fffffff)이 배포한 sha(0123456)와 다르다" in rollback_log, "commit 불일치가 아닌 다른 이유로 실패했다"
+                assert "proxy 를 옛 컨테이너로 되돌렸다" in rollback_log, "proxy 를 옛 판으로 되돌렸다는 기록이 없다"
                 assert response == {"status": 200, "body": "completed fffffff"}, "새 판이 받았던 요청을 롤백이 끊었다"
                 assert after_rollback == before, "롤백 후 기존 컨테이너가 보존되지 않았다"
                 assert rollback_health == {"commit": "0123456", "marker": "v1"}
@@ -175,7 +178,7 @@ def main() -> None:
                 assert rebuilt_web == "v2", "같은 태그의 새 웹 이미지가 반영되지 않았다"
                 assert all(actual[service] == desired for service in before), "실행 이미지가 새 이미지와 다르다"
                 assert repeated == after_rebuild, "같은 이미지 재실행이 컨테이너를 교체했다"
-                print("✔ 롤백 중 30초 요청 200 · 기존 판 복구 · 같은 태그 API·웹 v2 반영 · 재실행 무변경")
+                print("✔ commit 불일치 거부와 proxy 되돌림 · 롤백 중 30초 요청 200 · 기존 판 복구 · 같은 태그 API·웹 v2 반영 · 재실행 무변경")
             except BaseException:
                 log.flush()
                 print((work / "deploy.log").read_text(), file=sys.stderr)
