@@ -425,7 +425,7 @@ public final class CoachPrompt {
                 ordered.set(field, pack.get(field));
             }
         }
-        pack.fields().forEachRemaining(field -> {
+        pack.properties().forEach(field -> {
             if (!ordered.has(field.getKey())) {
                 ordered.set(field.getKey(), field.getValue());
             }

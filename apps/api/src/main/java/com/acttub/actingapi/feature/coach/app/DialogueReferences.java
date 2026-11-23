@@ -37,7 +37,7 @@ final class DialogueReferences {
                 .textNode(mapping.getOrDefault(value.asText(), value.asText()));
         if (value.isObject()) {
             var result = StructuredJson.MAPPER.createObjectNode();
-            value.fields().forEachRemaining(entry -> result.set(entry.getKey(), replace(entry.getValue(), mapping, entry.getKey())));
+            value.properties().forEach(entry -> result.set(entry.getKey(), replace(entry.getValue(), mapping, entry.getKey())));
             return result;
         }
         if (value.isArray()) {

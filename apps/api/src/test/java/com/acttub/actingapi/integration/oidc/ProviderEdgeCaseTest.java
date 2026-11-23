@@ -9,6 +9,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,7 +27,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class ProviderEdgeCaseTest {
 
     private static RestClient.Builder responding(ResponseCreator response) {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer.bindTo(builder).build().expect(request -> { }).andRespond(response);
         return builder;
     }
@@ -67,7 +68,7 @@ class ProviderEdgeCaseTest {
                 .revoke("refresh"))
                 .isInstanceOf(ProviderConfigurationError.class)
                 .hasMessage("naver rejected the client credentials");
-        assertThatThrownBy(() -> new HttpNaverTokenClient(null, null, RestClient.builder()).revoke("refresh"))
+        assertThatThrownBy(() -> new HttpNaverTokenClient(null, null, RestClients.builder()).revoke("refresh"))
                 .isInstanceOf(ProviderConfigurationError.class);
     }
 
@@ -82,15 +83,15 @@ class ProviderEdgeCaseTest {
                 responding(withSuccess("not json", MediaType.TEXT_PLAIN))).exchange("c", "com.acttub.app"))
                 .isInstanceOf(ProviderUnavailable.class)
                 .hasMessage("apple token response has no refresh_token");
-        assertThatThrownBy(() -> new HttpAppleTokenClient("TEAM", "KEY", "bm90LWEta2V5", clock, RestClient.builder())
+        assertThatThrownBy(() -> new HttpAppleTokenClient("TEAM", "KEY", "bm90LWEta2V5", clock, RestClients.builder())
                 .exchange("c", "com.acttub.app"))
                 .isInstanceOf(ProviderConfigurationError.class)
                 .hasMessage("APPLE_PRIVATE_KEY cannot sign a client secret");
-        assertThatThrownBy(() -> new HttpAppleTokenClient(null, null, null, clock, RestClient.builder())
+        assertThatThrownBy(() -> new HttpAppleTokenClient(null, null, null, clock, RestClients.builder())
                 .exchange("c", "com.acttub.app"))
                 .isInstanceOf(ProviderConfigurationError.class)
                 .hasMessage("APPLE_TEAM_ID, APPLE_KEY_ID or APPLE_PRIVATE_KEY not configured");
-        assertThatThrownBy(() -> new HttpAppleTokenClient("TEAM", "KEY", pem, clock, RestClient.builder())
+        assertThatThrownBy(() -> new HttpAppleTokenClient("TEAM", "KEY", pem, clock, RestClients.builder())
                 .revoke("not a grant"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("not an apple grant");

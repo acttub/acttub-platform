@@ -4,6 +4,7 @@ import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -24,7 +25,7 @@ final class ProviderHttp {
                 .connectTimeout(TIMEOUT)
                 .build());
         factory.setReadTimeout(TIMEOUT);
-        return RestClient.builder().requestFactory(factory);
+        return RestClients.builder().requestFactory(factory);
     }
 
     /** 요청을 보내고 상태와 본문을 그대로 읽는다. 무엇이 성공인지는 부르는 쪽이 정한다. */

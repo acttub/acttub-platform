@@ -135,7 +135,7 @@ class CoachQualityEvalTest {
         // 프로필과 기억은 handoff 밖에서 온다 — 실물에서는 턴마다 포트로 읽어 싣는 입력이다.
         if (scenario.has("memory")) {
             Map<String, String> memory = new java.util.LinkedHashMap<>();
-            scenario.path("memory").fields().forEachRemaining(entry -> memory.put(entry.getKey(), entry.getValue().asText()));
+            scenario.path("memory").properties().forEach(entry -> memory.put(entry.getKey(), entry.getValue().asText()));
             session = session.withPrior(new PriorContext(memory, null, true, List.of(), List.of()));
         }
         return session.withActorProfile(profile(scenario));

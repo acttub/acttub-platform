@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +30,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /** app.blog — 로그인 없이 읽는 공개 경로와 운영 토큰으로 여는 관리 경로. */
@@ -54,7 +55,7 @@ class BlogEndpointIT {
 
     @Test
     void adminPathsNeedTheOpsToken() throws Exception {
-        for (MockHttpServletRequestBuilder request : new MockHttpServletRequestBuilder[] {
+        for (AbstractMockHttpServletRequestBuilder<?> request : new AbstractMockHttpServletRequestBuilder<?>[] {
                 get("/v2/admin/blog/posts"),
                 post("/v2/admin/blog/posts").contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(fields("no-token", "draft"))),

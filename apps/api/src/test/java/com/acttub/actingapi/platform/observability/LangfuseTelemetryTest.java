@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +37,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.RestClient;
 
 /**
  * 보내는 모양을 못박는다.
@@ -241,7 +241,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("HTTP 요청은 v4 헤더와 Basic 인증을 싣고 전송은 일꾼이 맡는다")
     void sendsV4TraceAndScoresOnlyWhenTheWorkerRuns() {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         List<Runnable> submitted = new ArrayList<>();
         var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get,
@@ -276,7 +276,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("HTTP 오류와 연결 실패는 삼키고 응답 본문과 예외 메시지를 로그에 싣지 않는다")
     void transportFailuresNeverExposeResponseOrExceptionText(CapturedOutput output) {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get,
                 Runnable::run, builder::build);
@@ -298,7 +298,7 @@ class LangfuseTelemetryTest {
     @DisplayName("비동기 조립 실패를 삼킨 뒤에도 다음 관측을 처리한다")
     void serializationFailureCannotEscapeTheWorker() {
         List<Runnable> submitted = new ArrayList<>();
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get, submitted::add, builder::build);
         server.expect(requestTo("http://langfuse-web:3000/api/public/scores")).andRespond(withSuccess());
@@ -414,7 +414,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("같은 환경의 현재 버전이 같은 내용이면 새로 만들지 않고 그 번호를 쓴다")
     void sameContentReusesTheEnvironmentVersion() {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
         server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
@@ -435,7 +435,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("같은 환경에 없으면 그 환경 라벨로 새 버전을 등록하고 받은 번호를 쓴다")
     void missingPromptIsRegisteredWithTheEnvironmentLabel() {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
         server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
@@ -461,7 +461,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("같은 환경의 현재 버전과 내용이 다르면 새 버전을 등록한다")
     void changedContentBecomesANewVersion() {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("development")::get, Runnable::run, builder::build);
         server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=development"))
@@ -483,7 +483,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("한 번 알아낸 버전은 다시 묻지 않는다")
     void resolvedVersionIsCached() {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
         server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
@@ -503,7 +503,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("프롬프트 조회가 실패해도 기록은 보내고, 실패는 기억하지 않아 다음에 다시 묻는다")
     void promptFailureStillSendsTheTraceAndIsRetried(CapturedOutput output) {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
         server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
@@ -528,7 +528,7 @@ class LangfuseTelemetryTest {
     @Test
     @DisplayName("환경을 안 정하면 default 라벨을 쓰고, 이름의 특수문자는 경로에서 인코딩한다")
     void missingEnvironmentUsesDefaultLabelAndEncodesTheName() {
-        var builder = RestClient.builder();
+        var builder = RestClients.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get, Runnable::run, builder::build);
         server.expect(requestTo(PROMPTS + "/coach.direct.correction%2Bunsure?label=default"))

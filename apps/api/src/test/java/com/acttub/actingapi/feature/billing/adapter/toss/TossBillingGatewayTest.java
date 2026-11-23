@@ -15,10 +15,12 @@ import java.util.Base64;
 
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway.GatewayException;
+import com.acttub.actingapi.platform.http.RestClients;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -27,8 +29,8 @@ class TossBillingGatewayTest {
     private static final String SECRET = "test_sk_abcdefgh12345678";
     private static final String BASIC = "Basic " + Base64.getEncoder().encodeToString((SECRET + ":").getBytes(StandardCharsets.UTF_8));
 
-    private final RestClient.Builder issueBuilder = RestClient.builder().baseUrl(TossBillingGateway.BASE_URL);
-    private final RestClient.Builder approveBuilder = RestClient.builder().baseUrl(TossBillingGateway.BASE_URL);
+    private final RestClient.Builder issueBuilder = RestClients.builder().baseUrl(TossBillingGateway.BASE_URL);
+    private final RestClient.Builder approveBuilder = RestClients.builder().baseUrl(TossBillingGateway.BASE_URL);
     private final MockRestServiceServer issueServer = MockRestServiceServer.bindTo(issueBuilder).build();
     private final MockRestServiceServer approveServer = MockRestServiceServer.bindTo(approveBuilder).build();
 
@@ -41,7 +43,7 @@ class TossBillingGatewayTest {
         issueServer.expect(requestTo("https://api.tosspayments.com/v1/billing/authorizations/issue"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("Authorization", BASIC))
-                .andExpect(content().json("{\"authKey\":\"AK\",\"customerKey\":\"pgr_c\"}", true))
+                .andExpect(content().json("{\"authKey\":\"AK\",\"customerKey\":\"pgr_c\"}", JsonCompareMode.STRICT))
                 .andRespond(withSuccess("{\"billingKey\":\"BK-1\",\"customerKey\":\"pgr_c\"}", MediaType.APPLICATION_JSON));
         assertThat(gateway(SECRET).issueBillingKey("AK", "pgr_c")).isEqualTo("BK-1");
         issueServer.verify();
@@ -54,7 +56,7 @@ class TossBillingGatewayTest {
                 .andExpect(header("Authorization", BASIC))
                 .andExpect(header("Idempotency-Key", "idem-1"))
                 .andExpect(content().json(
-                        "{\"customerKey\":\"pgr_c\",\"amount\":3900,\"orderId\":\"pgr-o\",\"orderName\":\"ACTTUB Pro 월 구독 테스트\"}", true))
+                        "{\"customerKey\":\"pgr_c\",\"amount\":3900,\"orderId\":\"pgr-o\",\"orderName\":\"ACTTUB Pro 월 구독 테스트\"}", JsonCompareMode.STRICT))
                 .andRespond(withSuccess(
                         "{\"status\":\"DONE\",\"orderId\":\"pgr-o\",\"totalAmount\":3900,\"approvedAt\":\"2026-10-20T09:00:00+09:00\"}",
                         MediaType.APPLICATION_JSON));
@@ -69,7 +71,7 @@ class TossBillingGatewayTest {
         approveServer.expect(requestTo("https://api.tosspayments.com/v1/billing/BK-1"))
                 .andExpect(content().json(
                         "{\"customerKey\":\"pgr_c\",\"amount\":3900,\"orderId\":\"o-1\",\"orderName\":\"ACTTUB Pro\","
-                                + "\"customerEmail\":\"actor@example.com\"}", true))
+                                + "\"customerEmail\":\"actor@example.com\"}", JsonCompareMode.STRICT))
                 .andRespond(withSuccess("{\"status\":\"DONE\",\"orderId\":\"o-1\",\"totalAmount\":3900}",
                         MediaType.APPLICATION_JSON));
         gateway(SECRET).approve("BK-1", "pgr_c", "o-1", 3900, "ACTTUB Pro", " actor@example.com ", "idem-1");

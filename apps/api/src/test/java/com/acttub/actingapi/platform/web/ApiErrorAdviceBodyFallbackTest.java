@@ -2,6 +2,7 @@ package com.acttub.actingapi.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acttub.actingapi.support.Jackson2Converters;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.Filter;
@@ -27,6 +28,7 @@ class ApiErrorAdviceBodyFallbackTest {
 
     private static MockMvc mvc(Filter... filters) {
         return MockMvcBuilders.standaloneSetup(new ItemController())
+                .setMessageConverters(Jackson2Converters.server())
                 .setControllerAdvice(new ApiErrorAdvice(JSON, new RecordingFailureReporter()))
                 .addFilters(filters)
                 .build();
@@ -49,7 +51,7 @@ class ApiErrorAdviceBodyFallbackTest {
     @Test
     void springsPartialCacheSuppliesTheInputWhenOurFilterIsMissing() throws Exception {
         Filter partialCache = (request, response, chain) ->
-                chain.doFilter(new ContentCachingRequestWrapper((HttpServletRequest) request), response);
+                chain.doFilter(new ContentCachingRequestWrapper((HttpServletRequest) request, Integer.MAX_VALUE), response);
 
         assertThat(JSON.readTree(post(mvc(partialCache), "{\"count\":3}"))).isEqualTo(JSON.readTree("""
                 {"detail":[{"type":"missing","loc":["body","name"],"msg":"Field required","input":{"count":3}}]}

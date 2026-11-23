@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
+import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class FlywayBaselineConfigurationTest {

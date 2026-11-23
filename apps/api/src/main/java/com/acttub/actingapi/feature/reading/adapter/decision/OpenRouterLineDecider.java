@@ -93,7 +93,7 @@ public class OpenRouterLineDecider implements LineDecider {
             throw new IllegalStateException("decision answer is missing");
         }
         Map<String, Double> out = new LinkedHashMap<>();
-        probabilities.fields().forEachRemaining(entry -> out.put(entry.getKey(), entry.getValue().asDouble(0)));
+        probabilities.properties().forEach(entry -> out.put(entry.getKey(), entry.getValue().asDouble(0)));
         return out;
     }
 

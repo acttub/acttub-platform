@@ -11,7 +11,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 
@@ -141,8 +140,7 @@ public class RevenueCatGatewayImpl implements RevenueCatGateway {
             return exact;
         }
         String base = baseProduct(product);
-        for (Iterator<Map.Entry<String, JsonNode>> it = subscriptions.fields(); it.hasNext();) {
-            Map.Entry<String, JsonNode> entry = it.next();
+        for (Map.Entry<String, JsonNode> entry : subscriptions.properties()) {
             if (base.equals(baseProduct(entry.getKey())) && entry.getValue().isObject()) {
                 return entry.getValue();
             }

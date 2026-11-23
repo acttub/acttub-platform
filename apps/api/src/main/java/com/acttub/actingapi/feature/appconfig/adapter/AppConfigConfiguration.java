@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -62,8 +61,7 @@ class AppConfigConfiguration {
     /** 객체는 칸마다 합치고, 그 밖(숫자·글·목록)은 덮을 쪽 값으로 바꾼다. */
     static JsonNode merge(JsonNode base, JsonNode override) {
         if (!(base instanceof ObjectNode target) || override == null || !override.isObject()) return override;
-        for (Iterator<Map.Entry<String, JsonNode>> it = override.fields(); it.hasNext(); ) {
-            Map.Entry<String, JsonNode> field = it.next();
+        for (Map.Entry<String, JsonNode> field : override.properties()) {
             JsonNode current = target.get(field.getKey());
             target.set(field.getKey(), current != null && current.isObject() ? merge(current, field.getValue()) : field.getValue());
         }

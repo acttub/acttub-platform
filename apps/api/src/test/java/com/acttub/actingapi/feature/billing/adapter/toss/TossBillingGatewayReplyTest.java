@@ -6,6 +6,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
+import com.acttub.actingapi.platform.http.RestClients;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,8 +17,8 @@ import org.springframework.web.client.RestClient;
 class TossBillingGatewayReplyTest {
     private static final String SECRET = "test_sk_abcdefgh12345678";
 
-    private final RestClient.Builder issueBuilder = RestClient.builder().baseUrl(TossBillingGateway.BASE_URL);
-    private final RestClient.Builder approveBuilder = RestClient.builder().baseUrl(TossBillingGateway.BASE_URL);
+    private final RestClient.Builder issueBuilder = RestClients.builder().baseUrl(TossBillingGateway.BASE_URL);
+    private final RestClient.Builder approveBuilder = RestClients.builder().baseUrl(TossBillingGateway.BASE_URL);
     private final MockRestServiceServer issueServer = MockRestServiceServer.bindTo(issueBuilder).build();
     private final MockRestServiceServer approveServer = MockRestServiceServer.bindTo(approveBuilder).build();
 
