@@ -29,16 +29,15 @@ PR의 기준은 환경별로 다르다(`TARGET`).
 `~/.config/acttub/sentry-relay-alerts-url`(`https://<Worker 주소>/<RELAY_TOKEN>/alerts`). `claude`·`gh`가 로그인돼 있고
 Atlassian MCP(`atlassian`)가 연결돼 있어야 한다.
 SSH 세션은 로그인 키체인을 못 읽어, 거기서 `claude`를 실행하면 Atlassian이 "인증 필요"로 `~/.claude/mcp-needs-auth-cache.json`에 기록되고
-뒤이은 자동 수정도 Atlassian을 건너뛴다. 맥미니 `claude` 확인은 화면이나 launchd에서 한다. launchd는 `~/Documents` 접근 허락이 없어 저장소 클론을 `~/acttub-autofix/repo`에 둔다.
+뒤이은 자동 수정도 Atlassian을 건너뛴다. 맥미니 `claude` 확인은 화면이나 Hermes 예약 작업에서 한다. 예약 작업은 `~/Documents` 접근 허락이 없어 저장소 클론을 `~/acttub-autofix/repo`에 둔다.
 
 ```sh
 git clone https://github.com/acttub/acttub-platform.git ~/acttub-autofix/repo
 mkdir -p ~/acttub-autofix/bin ~/.local/state/acttub-sentry-autofix
 cp poll.mjs prompt.md ~/acttub-autofix/bin/
 node ~/acttub-autofix/bin/poll.mjs --dry-run   # 고를 이슈만 출력
-cp com.user.acttub-sentry-autofix.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.acttub-sentry-autofix.plist
 ```
 
-스크립트를 고치면 `bin/`에 다시 복사한다. 지금 Mac mini는 launchd 대신 Hermes 예약 작업으로 돌린다(같은 명령과 환경을 `~/.hermes/scripts/launchd/acttub-sentry-autofix.sh`가 재현한다). 멈출 때는 `hermes cron pause <작업 ID>`(ID는 `hermes cron list`), launchd로 돌릴 때는 `launchctl bootout gui/$(id -u)/com.user.acttub-sentry-autofix`.
+Hermes 예약 작업은 `~/.hermes/scripts/launchd/acttub-sentry-autofix.sh`로 `node ~/acttub-autofix/bin/poll.mjs`를 돌린다. 이 스크립트가 `PATH`(`node`·`claude`·`gh`·`git`)와 `JAVA_HOME`(`./gradlew`)을 맞춘다.
+`poll.mjs`·`prompt.md`를 고치면 `bin/`에 다시 복사한다. 멈출 때는 `hermes cron pause <작업 ID>`(ID는 `hermes cron list`).
 테스트는 `node --test deploy/monitoring/sentry-autofix/poll.test.mjs`.
