@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -253,6 +255,24 @@ class ActorMemoryIT {
         assertThat(rows()).isEmpty();
 
         assertThat(runWorker()).isTrue();
+        assertThat(rows()).hasSize(WRITTEN);
+    }
+
+    @Test
+    @DisplayName("practice.memory: 갱신을 집은 워커가 끝내지 못하고 죽음 — lease 가 지나면 다음 워커가 다시 집어 기억을 쓴다. "
+            + "시도 수는 집을 때마다 오른다")
+    void practiceMemory_anUpdateLeftRunningByADeadWorkerIsPickedUpAgain() throws Exception {
+        UUID practice = analyzedPractice(member);
+        closeConversation(practice);
+        Instant now = Instant.now();
+        // 이 워커는 갱신을 집은 뒤 완료·놓기 없이 사라진다(배포 재시작, 메모리 부족 종료).
+        assertThat(updates.claim(UUID.randomUUID(), Duration.ofMinutes(5), now)).isNotNull();
+        generator.enqueue(EXTRACTED);
+
+        assertThat(worker.runOnce(now.plus(Duration.ofMinutes(6)))).as("lease 가 지난 갱신을 다시 집는다").isTrue();
+
+        assertThat(jdbc.queryForMap("SELECT status,attempt_count FROM ai_jobs WHERE kind='memory_update'"))
+                .containsEntry("status", "succeeded").containsEntry("attempt_count", 2);
         assertThat(rows()).hasSize(WRITTEN);
     }
 
