@@ -170,7 +170,7 @@ def main() -> None:
                                   "rebuilt_api": rebuilt_health, "rebuilt_web": rebuilt_web,
                                   "running_images": actual, "desired_image": desired}, ensure_ascii=False))
                 assert "commit(fffffff)이 배포한 sha(0123456)와 다르다" in rollback_log, "commit 불일치가 아닌 다른 이유로 실패했다"
-                assert "proxy 를 옛 컨테이너로 되돌렸다" in rollback_log, "proxy 를 옛 판으로 되돌렸다는 기록이 없다"
+                assert "proxy 를 옛 컨테이너로 되돌렸다" in rollback_log, "proxy 를 옛 컨테이너로 되돌렸다는 기록이 없다"
                 assert response == {"status": 200, "body": "completed fffffff"}, "새 판이 받았던 요청을 롤백이 끊었다"
                 assert after_rollback == before, "롤백 후 기존 컨테이너가 보존되지 않았다"
                 assert rollback_health == {"commit": "0123456", "marker": "v1"}
@@ -178,7 +178,7 @@ def main() -> None:
                 assert rebuilt_web == "v2", "같은 태그의 새 웹 이미지가 반영되지 않았다"
                 assert all(actual[service] == desired for service in before), "실행 이미지가 새 이미지와 다르다"
                 assert repeated == after_rebuild, "같은 이미지 재실행이 컨테이너를 교체했다"
-                print("✔ commit 불일치 거부와 proxy 되돌림 · 롤백 중 30초 요청 200 · 기존 판 복구 · 같은 태그 API·웹 v2 반영 · 재실행 무변경")
+                print("✔ commit 불일치 거부와 proxy 되돌림 · 롤백 중 30초 요청 200 · 기존 컨테이너 복구 · 같은 태그 API·웹 v2 반영 · 재실행 무변경")
             except BaseException:
                 log.flush()
                 print((work / "deploy.log").read_text(), file=sys.stderr)
