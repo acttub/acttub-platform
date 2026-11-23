@@ -79,6 +79,10 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
   끈다([DEPLOY-HOME §3](../../deploy/DEPLOY-HOME.md#3-actions와-일상-배포)).
 - 명시적 취소("그만두기")는 failed/cancelled로 종결하고 늦은 완료·재큐를 받지 않는다. 화면 이탈은 취소가 아니다. 앱의 옛
   "분석 포기 = 연습 숨김"은 없앤다.
+- 작업을 집은 워커가 끝내지 못하고 죽으면(배포 재시작, 메모리 부족 종료) lease(`ANALYSIS_LEASE_SEC`, 기본 30분)가 지난 뒤 다음
+  워커가 그 작업을 다시 집는다. 시도 수는 집을 때마다 오른다. 세 번째 시도의 lease까지 지나면 정리가 작업을 failed/max_attempts,
+  회차를 closed/analysis_failed로 닫아 배우가 다시 시도할 수 있다. 죽은 줄 알았던 워커가 뒤늦게 끝내면 토큰이 바뀌어 저장 전체가
+  되돌아간다(「예외」).
 - 분석이 전부 실패한 회차는 코치 대화를 열 수 없다([practice.coach](coach.md#예외)).
 - 직접 영상 코칭이 켜진 서버(`ACTTUB_DIRECT_VIDEO_ENABLED=true`)에서 신형(three_layers_v1) 회차의 분석 작업은 영상 길이와 업로드
   무결성만 확인하고 1층 영상 분석·받아쓰기 모델을 부르지 않는다. 코치가 원본 영상을 직접 받는다
@@ -104,6 +108,8 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
 - 화면을 떠나고 돌아옴: 서버 상태를 다시 읽고 작업은 계속 돌았다.
 - 전부 실패한 회차에서 코치 시작: 409.
 - lease 만료 뒤 재선점 없이 완료: 저장된다. 재선점 뒤 이전 워커 완료: 롤백.
+- 집은 워커가 죽음: lease가 지나면 다음 워커가 다시 집어 끝낸다(시도 수 2, 회차 conversing). 세 번 모두 죽음: 다시 집지 않고 정리가
+  failed/max_attempts, 회차 closed/analysis_failed.
 - 파일만 파기한 영상의 분석 조회(활성 소유자): 200, 저장된 요약.
 - 직접 영상 코칭이 켜진 서버에서 신형 회차 분석: 1층 모델을 부르지 않고 끝나며(analyses는 빈 관찰) video_transcripts가 늘지 않는다.
   legacy 회차: 그대로 분석한다.
@@ -115,9 +121,6 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
 - 멀티모달 파인튜닝(PRD 「지금 하지 않는 것」, ADR-010).
 
 ## 열린 질문
-- running에 남은 작업을 다시 집는 코드가 없다. `PostgresAiJobLedger.claimNext`는 `pending`만 집고 정리(`sweepMaxAttempts`)도 `pending`만
-  본다. 워커가 lease 도중 죽으면 그 작업은 lease가 지나도 running으로 남고 회차는 배우가 취소하기 전까지 analyzing에 머문다. 클래스 설명의
-  "시한이 지나면 다시 집힌다"와 옛 원장(`ExternalOperationClaimer`는 만료된 running을 다시 집는다)과 다르다.
 - video_transcripts의 reserved·failed는 스키마와 `TranscriptStatus`에만 있다. 코드는 분석 완료 때 ready만 `ON CONFLICT DO NOTHING`으로
   넣는다 — 동시 생성을 막는 것은 예약이 아니라 유일 제약이다. 예약을 구현할지 값을 지울지 정한다.
 
