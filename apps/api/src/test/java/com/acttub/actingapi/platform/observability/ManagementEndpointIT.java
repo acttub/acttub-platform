@@ -14,7 +14,7 @@ import com.acttub.actingapi.ActingApiApplication;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
+import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
 
 /** Real sockets and PostgreSQL: monitoring credentials must never grant public API access. */
 class ManagementEndpointIT {

@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.PgReviewSettings;
+import com.acttub.actingapi.platform.http.RestClients;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
@@ -81,7 +82,7 @@ public class TossBillingGateway implements PgReviewGateway {
                 .connectTimeout(CONNECT_TIMEOUT)
                 .build());
         factory.setReadTimeout(read);
-        return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        return RestClients.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 
     @Override

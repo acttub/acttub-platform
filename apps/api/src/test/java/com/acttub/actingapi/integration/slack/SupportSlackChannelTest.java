@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import com.acttub.actingapi.platform.http.RestClients;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -20,7 +21,7 @@ class SupportSlackChannelTest {
 
     @Test
     void postsTextAndSwallowsFailures() throws Exception {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(HOOK)).andExpect(method(HttpMethod.POST))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("첫 번째")))
@@ -37,10 +38,10 @@ class SupportSlackChannelTest {
 
     @Test
     void onlySlackHooksAreEnabled() {
-        assertThat(new SupportSlackChannel("", RestClient.builder(), Executors.newSingleThreadExecutor()).enabled()).isFalse();
-        assertThat(new SupportSlackChannel("https://example.com/x", RestClient.builder(), Executors.newSingleThreadExecutor()).enabled())
+        assertThat(new SupportSlackChannel("", RestClients.builder(), Executors.newSingleThreadExecutor()).enabled()).isFalse();
+        assertThat(new SupportSlackChannel("https://example.com/x", RestClients.builder(), Executors.newSingleThreadExecutor()).enabled())
                 .isFalse();
-        assertThat(new SupportSlackChannel(" " + HOOK + "\n", RestClient.builder(), Executors.newSingleThreadExecutor()).enabled())
+        assertThat(new SupportSlackChannel(" " + HOOK + "\n", RestClients.builder(), Executors.newSingleThreadExecutor()).enabled())
                 .isTrue();
     }
 

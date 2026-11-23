@@ -16,7 +16,7 @@ import com.acttub.actingapi.support.MonitoringFailureFixture;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
+import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
 
 class DatabaseHealthIT {
     private static final HttpClient CLIENT = HttpClient.newHttpClient();

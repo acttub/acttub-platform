@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -26,7 +27,7 @@ class HttpAirbridgeAttributionClientTest {
     @Test
     @DisplayName("토큰이 비어 있으면 꺼진 것이고 조회하면 거절한다")
     void blankTokenMeansOff() {
-        HttpAirbridgeAttributionClient client = new HttpAirbridgeAttributionClient("  ", "acttub", RestClient.builder());
+        HttpAirbridgeAttributionClient client = new HttpAirbridgeAttributionClient("  ", "acttub", RestClients.builder());
 
         assertThat(client.enabled()).isFalse();
         assertThatThrownBy(() -> client.lookup(DEVICE)).isInstanceOf(AirbridgeUnavailable.class);
@@ -35,7 +36,7 @@ class HttpAirbridgeAttributionClientTest {
     @Test
     @DisplayName("200 이면 귀속 이름들을 읽고 빈 값은 null 로 둔다")
     void readsAttribution() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(URL))
                 .andExpect(method(HttpMethod.GET))
@@ -57,7 +58,7 @@ class HttpAirbridgeAttributionClientTest {
     @Test
     @DisplayName("204 와 채널 없는 200 은 아직 결과가 없다는 뜻이다")
     void noResultIsEmpty() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(URL)).andRespond(withNoContent());
         server.expect(requestTo(URL)).andRespond(withSuccess("{\"data\":{\"attributedChannel\":\"\"}}",
@@ -71,7 +72,7 @@ class HttpAirbridgeAttributionClientTest {
     @Test
     @DisplayName("거절·서버 오류는 AirbridgeUnavailable 이고 메시지에 토큰·기기 ID 가 없다")
     void failuresDoNotLeakSecrets() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClients.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
         server.expect(requestTo(URL)).andRespond(withServerError());

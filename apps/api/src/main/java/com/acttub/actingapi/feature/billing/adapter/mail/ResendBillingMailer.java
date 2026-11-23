@@ -10,6 +10,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 import com.acttub.actingapi.feature.billing.app.BillingMailer;
+import com.acttub.actingapi.platform.http.RestClients;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +91,6 @@ public class ResendBillingMailer implements BillingMailer {
                 .connectTimeout(Duration.ofSeconds(5))
                 .build());
         factory.setReadTimeout(Duration.ofSeconds(10));
-        return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        return RestClients.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 }

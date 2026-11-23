@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.time.Duration;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -24,7 +25,7 @@ final class RestClientOpenAiTransport implements OpenAiHttpTransport {
         JdkClientHttpRequestFactory requestFactory =
                 new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(readTimeout);
-        this.client = RestClient.builder()
+        this.client = RestClients.builder()
                 .requestFactory(requestFactory)
                 .build();
     }

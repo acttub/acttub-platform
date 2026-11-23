@@ -2,7 +2,7 @@ package com.acttub.actingapi;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
 
 /**
  * {@code @EntityScan}은 Schema Entity가 어디 사는지를 선언으로 고정한다. 이 매핑은

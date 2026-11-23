@@ -11,8 +11,8 @@ import java.util.concurrent.TimeoutException;
 
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.health.contributor.Health;
+import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.stereotype.Component;
 
 /** A status-only JPA connectivity probe with bounded HTTP wait and at most one database caller. */

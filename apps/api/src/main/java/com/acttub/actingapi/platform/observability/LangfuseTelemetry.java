@@ -20,6 +20,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -83,7 +84,7 @@ public class LangfuseTelemetry implements LlmTelemetry {
     }
 
     LangfuseTelemetry(ObjectMapper mapper, Function<String, String> environment, Executor sender) {
-        this(mapper, environment, sender, () -> RestClient.builder().requestFactory(timeoutFactory()).build());
+        this(mapper, environment, sender, () -> RestClients.builder().requestFactory(timeoutFactory()).build());
     }
 
     LangfuseTelemetry(

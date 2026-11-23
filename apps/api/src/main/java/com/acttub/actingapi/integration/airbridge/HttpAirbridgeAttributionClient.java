@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Optional;
 
+import com.acttub.actingapi.platform.http.RestClients;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +49,7 @@ public class HttpAirbridgeAttributionClient implements AirbridgeAttributionClien
                 .connectTimeout(TIMEOUT)
                 .build());
         factory.setReadTimeout(TIMEOUT);
-        return RestClient.builder().requestFactory(factory);
+        return RestClients.builder().requestFactory(factory);
     }
 
     @Override

@@ -24,7 +24,19 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
-  jackson:
+        # Hibernate 7 은 네이티브 쿼리의 date·timestamp 열을 java.time 으로 돌려준다. 저장소 코드가
+        # java.sql.Date·Timestamp 를 기대하는 곳이 있어(instanceof 로 갈라 조용히 빠지는 곳 포함) Hibernate 6 과
+        # 같게 java.sql 타입을 받는다. Hibernate 가 옛 동작을 지키려고 둔 호환 설정이다.
+        query:
+          native:
+            prefer_jdbc_datetime_types: true
+  # JSON 은 Jackson 2 로 다룬다(build.gradle.kts 의 spring-boot-jackson2). Boot 4 에서 spring.jackson.* 은
+  # Jackson 3 쪽 설정이라 Jackson 2 ObjectMapper 에 닿지 않는다. 그래서 아래는 spring.jackson2.* 이고,
+  # MVC 와 Boot 가 만드는 HTTP 클라이언트가 Jackson 3 대신 이 ObjectMapper 를 쓰게 한다.
+  http:
+    converters:
+      preferred-json-mapper: jackson2
+  jackson2:
     # apps/api/CONTRACT.md §6 #3 — null 필드를 키째 실어보낸다. NON_NULL 을 전역으로 켜지 않는다.
     default-property-inclusion: always
     deserialization:

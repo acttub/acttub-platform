@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 
+import com.acttub.actingapi.support.Jackson2Converters;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.SentryFailureReporter;
 import com.acttub.actingapi.support.RecordingFailureReporter;
@@ -40,6 +41,7 @@ class ApiErrorAdviceTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final RecordingFailureReporter reporter = new RecordingFailureReporter();
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new FailureController())
+            .setMessageConverters(Jackson2Converters.server())
             .setControllerAdvice(new ApiErrorAdvice(JSON, reporter))
             .build();
 
@@ -184,6 +186,7 @@ class ApiErrorAdviceTest {
                 Optional.of(scopes),
                 Clock.fixed(Instant.parse("2026-09-03T00:00:00Z"), ZoneOffset.UTC));
         MockMvc sentryMvc = MockMvcBuilders.standaloneSetup(new FailureController())
+                .setMessageConverters(Jackson2Converters.server())
                 .setControllerAdvice(new ApiErrorAdvice(JSON, sentryReporter))
                 .build();
 

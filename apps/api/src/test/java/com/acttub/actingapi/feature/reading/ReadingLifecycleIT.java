@@ -52,7 +52,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -63,6 +63,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
@@ -584,7 +585,7 @@ class ReadingLifecycleIT {
         throw new AssertionError("timed out: " + what + " (saw " + observed.getAsInt() + " of " + expected + ")");
     }
 
-    private MockHttpServletResponse perform(MockHttpServletRequestBuilder request, String authorization) throws Exception {
+    private MockHttpServletResponse perform(AbstractMockHttpServletRequestBuilder<?> request, String authorization) throws Exception {
         return mvc.perform(request.header("Authorization", authorization)).andReturn().getResponse();
     }
 

@@ -3,7 +3,7 @@ package com.acttub.actingapi.support;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcBuilderCustomizer;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.stereotype.Component;
 import org.springframework.test.web.servlet.setup.ConfigurableMockMvcBuilder;
 

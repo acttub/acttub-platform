@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.sentry.Sentry;
 import io.sentry.SentryOptions.BeforeSendCallback;
-import io.sentry.spring.boot.jakarta.SentryAutoConfiguration;
+import io.sentry.spring.boot4.SentryAutoConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
