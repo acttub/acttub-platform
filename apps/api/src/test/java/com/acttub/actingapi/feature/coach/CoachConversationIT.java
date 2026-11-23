@@ -523,6 +523,40 @@ class CoachConversationIT {
     }
 
     @Test
+    @DisplayName("practice.coach: 대화 이어하기 — 같은 묶음에 닫히지 않은 다음 회차가 있으면 409 practice_in_progress 이고 대화·회차는 "
+            + "그대로다. 그 회차가 닫히면 이어 간다")
+    void practiceCoach_continueWaitsForTheOpenPracticeOfTheGroup() throws Exception {
+        jdbc.update("UPDATE practices SET stage='closed',close_reason='conversation_closed',experience_version='three_layers_v1' "
+                + "WHERE id=?", practice);
+        UUID conversationId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO coach_conversations(id,practice_id,start_request_id,status,close_reason,closed_at,state_revision)
+                VALUES (?,?,?,'closed','user_ended',now(),4)
+                """, conversationId, practice, UUID.randomUUID());
+        jdbc.update("INSERT INTO coach_messages(id,conversation_id,turn_index,role,text) VALUES (?,?,0,'ai','첫 질문')",
+                UUID.randomUUID(), conversationId);
+        UUID next = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,blockage_kind,sub_branch)
+                SELECT ?,user_id,video_id,id,2,'analyzing','three_layers_v1',blockage_kind,sub_branch FROM practices WHERE id=?
+                """, next, practice);
+
+        assertThat(json(post("/v2/coach/conversations/{id}/continue", conversationId).content("{\"revision\":4}"), 409))
+                .isEqualTo(mapper.readTree("{\"detail\":\"practice_in_progress\"}"));
+        assertThat(jdbc.queryForMap("SELECT status,state_revision FROM coach_conversations WHERE id=?", conversationId))
+                .containsEntry("status", "closed").containsEntry("state_revision", 4);
+        assertThat(jdbc.queryForObject("SELECT stage || '/' || close_reason FROM practices WHERE id=?", String.class, practice))
+                .isEqualTo("closed/conversation_closed");
+
+        jdbc.update("UPDATE practices SET stage='closed',close_reason='cancelled' WHERE id=?", next);
+
+        JsonNode resumed = json(post("/v2/coach/conversations/{id}/continue", conversationId).content("{\"revision\":4}"), 200);
+        assertThat(resumed.path("conversation").path("status").textValue()).isEqualTo("open");
+        assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice))
+                .isEqualTo("conversing");
+    }
+
+    @Test
     @DisplayName("practice.coach: 저장소 reopen — 닫힌 대화를 같은 행으로 다시 열고 revision 을 올리며 회차를 conversing 으로 되돌린다. "
             + "낡은 revision·이미 열린 대화·없는 대화는 null 이다 (SOMA-782)")
     void practiceCoach_reopenReopensTheSameConversation() throws Exception {
