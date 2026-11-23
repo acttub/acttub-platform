@@ -14,7 +14,7 @@
 | 저장소·SQL·트랜잭션 | `CONTRACT.md` §5 | 실제 Postgres를 쓰는 통합 테스트로 쿼리와 커밋 경계 확인 |
 | Entity·Flyway·제약 | `CONTRACT.md` §5-3·§5-5·§5-8 | `./gradlew test --tests '*Flyway*'`로 migration·fingerprint·baseline·forward 경로 확인 |
 | feature·layer·port·패키지 의존 | [ARCHITECTURE 「api 층 규칙」](../../docs/ARCHITECTURE.md#api-층-규칙)과 구조 테스트(이유는 ADR-016~020) | `PackageLayerTest`·`PackageCycleTest`의 목록·비공허성 및 조건부 빈의 부팅 검사 확인 |
-| Gradle·dotenv·Testcontainers·부팅 | 실제 설정과 대응 테스트 | dotenv를 끄고 필요한 키를 명시한 격리 부팅과 CI 환경 재현. Spring Boot·Jackson·Java·Gradle 판을 올리면 [scripts/boot-compare](scripts/boot-compare/README.md)로 전후 jar를 견주고 차이를 모두 판정 |
+| Gradle·dotenv·Testcontainers·부팅 | 실제 설정과 대응 테스트 | dotenv를 끄고 필요한 키를 명시한 격리 부팅과 CI 환경 재현. Spring Boot·Jackson·Java·Gradle 버전을 올리면 [scripts/boot-compare](scripts/boot-compare/README.md)로 전후 jar를 견주고 차이를 모두 판정 |
 
 현재 계약 방어선은 Java 테스트입니다.
 
