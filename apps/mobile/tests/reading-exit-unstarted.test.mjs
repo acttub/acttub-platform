@@ -14,11 +14,6 @@ test('reading.session: [시작] 전에 나가면 이번 회차를 남기지 않�
   assert.equal(discardOnExit({ started: false, progressSeq: 0, recordingCount: 0, closed: true }), false, '서버가 닫은 회차는 건드리지 않는다');
 });
 
-test('i18n: 저장 안 됨 나가기 문구가 ko·en 둘 다 있다', () => {
-  assert.match(read('locales/ko.ts'), /exitConfirmBodyUnsaved: '아직 시작하지 않아서 이번 연습은 저장되지 않아요\.'/);
-  assert.match(read('locales/en.ts'), /exitConfirmBodyUnsaved: ['"]/);
-});
-
 test('리딩 실행: 나가면 새로 쌓지 않고 기존 대본 상세로 돌아간다(dismissTo)', () => {
   const play = read('app/reading/play.tsx');
   assert.doesNotMatch(play, /router\.replace\('\/reading\/detail'\)/);

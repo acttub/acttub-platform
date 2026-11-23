@@ -31,7 +31,7 @@ test('액티 그림은 메모리 캐시를 쓴다 — 기본(disk)이면 뜰 때
     const src = read(file);
     if (!src.includes("from 'expo-image'")) continue;
     for (const tag of src.match(/<Image\b[^>]*>/g) ?? []) {
-      if (/source=\{(MASCOT|MASCOTS|MASCOT_IMG|mascot|source)\b|splash-mascot|hero-acty-book/.test(tag) && !tag.includes('cachePolicy="memory-disk"')) {
+      if (/source=\{(MASCOT|MASCOTS|MASCOT_IMG|mascot|source)\b|splash-mascot/.test(tag) && !tag.includes('cachePolicy="memory-disk"')) {
         misses.push(`${file}: ${tag.slice(0, 80)}`);
       }
     }

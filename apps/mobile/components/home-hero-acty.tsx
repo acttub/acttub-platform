@@ -15,7 +15,7 @@ import Animated, {
 
 import { easing } from '@/constants/motion';
 
-/** 원래 한 장(hero-acty-book.png)을 같은 캔버스(670×620)에서 액티와 책 두 겹으로 나눈 것 — 겹치면 원본과 같다. */
+/** 원래 한 장이던 홈 그림을 같은 캔버스(670×620)에서 액티와 책 두 겹으로 나눈 것 — 겹치면 원본과 같다. */
 const ACTY = require('@/assets/images/home/hero-acty.png');
 const BOOK = require('@/assets/images/home/hero-book.png');
 
