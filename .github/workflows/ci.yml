@@ -77,13 +77,7 @@ jobs:
           retention-days: 1
           path: apps/web/coverage/lcov.info
 
-  # 백엔드 테스트의 관문입니다. 계약 하네스 잡 둘(`contract-harness`·
-  # `contract-harness-java`)이 SOMA-403 4단계에서 사라졌고, 그것들이 보던 계약은
-  # Java 테스트로 옮겨져 이 잡 안에서 돕니다(docs/archive/soma287/M6-contract-migration.md).
-  #
-  # ⚠ 잡 이름을 `api-java (…)` 에서 바꿨습니다(SOMA-403 5단계, 파이썬 잡이 사라지면서).
-  # **잡 이름이 곧 required status check 의 context 라 ruleset 도 함께 갱신해야 합니다** —
-  # 옛 이름을 required 로 남겨 두면 영원히 오지 않는 관문이 됩니다.
+  # 백엔드 테스트의 관문입니다. API 계약 테스트도 이 잡의 Gradle 테스트 안에서 돕니다.
   api:
     name: api (gradle test · Testcontainers)
     runs-on: ubuntu-latest
@@ -258,8 +252,7 @@ jobs:
         run: deploy/home/backup-smoke.sh
 
   # 모바일은 pnpm 워크스페이스 밖이라(pnpm-workspace.yaml 의 !apps/mobile) 위 web
-  # 잡이 설치조차 하지 않습니다. 이 잡이 생기기 전에는 apps/mobile 만 고친 PR 이
-  # 아무것도 돌지 않은 채 초록이었습니다.
+  # 잡이 설치조차 하지 않습니다. apps/mobile 은 이 잡만 검증합니다.
   #
   # 테스트는 두 갈래입니다. node --test 는 lib 의 .ts 를 설치 없이 타입 스트리핑으로 돌리고,
   # jest(jest-expo)는 화면·컴포넌트·훅과 lib 의 .tsx 를 React Native 렌더러로 돌립니다(SOMA-750).

@@ -6,11 +6,7 @@ name: Deploy
 on:
   # 머지 즉시 반영합니다. 브랜치가 곧 환경입니다 — dev→dev, main→운영.
   # 두 브랜치 모두 들어오는 경로는 PR뿐이고 그 PR은 ci.yml 게이트를 통과했으므로,
-  # 여기서 테스트를 다시 돌리지 않습니다.
-  #
-  # main 자동 배포는 운영 배포의 최대 위험이던 ref 오선택을 원천 제거합니다
-  # (6-5 참고 — Actions UI 드롭다운 기본값이 dev라 세 번 잘못 나갔습니다).
-  # 대신 main 머지가 곧 릴리스이므로, 머지 전에 되돌릴 여지를 확보해야 합니다.
+  # 여기서 테스트를 다시 돌리지 않습니다. main 머지가 곧 운영 릴리스입니다.
   push:
     branches: [dev, main]
   workflow_dispatch:
@@ -48,9 +44,7 @@ jobs:
   # workflow_dispatch는 "어디에 배포할까"(environment)와 "무엇을 배포할까"(ref)를
   # 따로 받습니다. ref는 Actions UI의 브랜치 드롭다운이 정하는데 기본값이
   # default branch(dev)라, 운영 배포를 하면서 브랜치를 바꾸지 않으면 운영 서버에
-  # dev 브랜치 코드가 올라갑니다. 2026-08-01에 실제로 세 번 그렇게 나갔고,
-  # main에 없는 마이그레이션이 운영에 실려 커뮤니티 API가 며칠간 500이었습니다.
-  # main 자동 배포가 생긴 지금 이 함정은 수동 실행 경로에만 남아 있습니다.
+  # dev 브랜치 코드가 올라갑니다. guard.sh 가 이 조합을 막습니다.
   guard:
     name: 사전 점검
     runs-on: ubuntu-latest
@@ -334,7 +328,7 @@ jobs:
           body=""
           for i in $(seq 1 12); do
             # -f 를 쓰지 않습니다 — 상태 코드와 본문 앞부분을 그대로 찍어야 DNS 미해석·Cloudflare 오류 페이지·
-            # 옛 컨테이너 응답을 로그에서 구분할 수 있습니다(첫 실행에서 "없음" 만 남아 원인을 못 봤습니다).
+            # 옛 컨테이너 응답을 로그에서 구분할 수 있습니다.
             if out="$(curl -sS --max-time 10 -w '\n%{http_code}' "${PUBLIC_URL%/}/health" 2>&1)"; then
               code="${out##*$'\n'}"; body="${out%$'\n'*}"
             else
