@@ -58,6 +58,8 @@ def read_config(path: Path) -> dict:
         selected = logs.get("environments")
         require(isinstance(selected, list) and bool(selected) and len(set(selected)) == len(selected)
                 and set(selected) <= set(envs), "logs.environments must be a nonempty subset of environments")
+        gid = logs.get("journal_gid")
+        require(type(gid) is int and 0 < gid < 65536, "logs.journal_gid must be the host systemd-journal group id")
     return config
 
 
@@ -132,6 +134,8 @@ def render(args, release: Path) -> None:
     env_values = {"MONITOR_PROJECT": config["project"], "RELEASE_DIR": str(release),
                   "RETENTION_SIZE": config["retention_size"], "PDC_CLUSTER": config["pdc_cluster"],
                   "GRAFANA_ID": config["grafana_id"], "DATA_MOUNTPOINT_REGEX": "^" + re.escape(config["data_mountpoint"]) + "$"}
+    if logs:
+        env_values["JOURNAL_GID"] = str(config["logs"]["journal_gid"])
     write_file(release / "compose.env", "\n".join(key + "='" + value + "'" for key, value in env_values.items()) + "\n")
     jobs = []
     db_config = {}
@@ -168,7 +172,7 @@ def compose(release: Path, *arguments: str) -> list:
 def run(command: list, purpose: str, timeout: int = 120) -> str:
     # Parent shell variables must not override the release's Compose interpolation.
     blocked = {"MONITOR_PROJECT", "RELEASE_DIR", "RETENTION_SIZE", "PDC_CLUSTER", "GRAFANA_ID",
-               "DATA_MOUNTPOINT_REGEX", "DEV_PROJECT", "PROD_PROJECT"}
+               "DATA_MOUNTPOINT_REGEX", "DEV_PROJECT", "PROD_PROJECT", "JOURNAL_GID"}
     environment = {k: v for k, v in os.environ.items() if k not in blocked and not k.startswith("COMPOSE_")}
     result = subprocess.run(command, capture_output=True, text=True, env=environment, timeout=timeout)
     require(result.returncode == 0, purpose + " failed (command output withheld)")
@@ -201,7 +205,7 @@ def validate(release: Path) -> dict:
                       and volume["target"] == "/var/run/docker.sock" and volume.get("read_only"))
             require("docker.sock" not in volume["source"] or socket, "Docker socket is only for socket-proxy, read-only")
             require(volume.get("read_only") or (name, volume["type"], volume["target"]) in {
-                        ("prometheus", "volume", "/prometheus"), ("alloy", "volume", "/data")},
+                        ("prometheus", "volume", "/prometheus"), ("alloy", "volume", "/var/lib/alloy/data")},
                     "only metrics and log position storage may be writable")
     pdc = model["services"]["pdc"]
     expected = ["-cluster=" + cfg["pdc_cluster"], "-gcloud-hosted-grafana-id=" + cfg["grafana_id"],
@@ -213,12 +217,17 @@ def validate(release: Path) -> dict:
             "PDC SSH tmpfs must be /home/pdc/.ssh with uid=30000,gid=30000,mode=0700 as one mount")
     own_networks = {"query", "collectors"} | ({"logs", "docker-api"} if logs else set())
     require(set(model["networks"]) == own_networks | scrape_networks, "unexpected network")
-    require(set(model["volumes"]) == {"metrics"} | backup_volumes | ({"alloy"} if logs else set()), "unexpected volume")
+    require(set(model["volumes"]) == {"metrics"} | backup_volumes | ({"alloy-data"} if logs else set()), "unexpected volume")
     if logs:
         alloy = model["services"]["alloy"]
-        require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=/data",
+        require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=/var/lib/alloy/data",
                                      "--server.http.listen-addr=127.0.0.1:12345", "--disable-reporting"],
                 "Alloy must listen on loopback only and disable usage reporting")
+        require(alloy.get("user") == "473:473" and alloy.get("group_add") == [str(cfg["logs"]["journal_gid"])],
+                "Alloy must run as its non-root user with only the journal group added")
+        binds = {v["target"]: v["source"] for v in alloy["volumes"] if v["type"] == "bind"}
+        require(set(binds) == {"/etc/acttub", "/var/log/journal"} and binds["/var/log/journal"] == "/var/log/journal"
+                and binds["/etc/acttub"].endswith("/alloy"), "Alloy may bind only its release config and the host journal")
         proxy = model["services"]["socket-proxy"]
         require(proxy["command"] == SOCKET_PROXY_COMMAND, "socket-proxy must pass only Alloy's Docker API reads")
         require(alloy.get("mem_limit") and proxy.get("mem_limit"), "Alloy/socket-proxy memory limit is missing")

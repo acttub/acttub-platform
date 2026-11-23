@@ -10,17 +10,23 @@ services:
     logging:
       driver: json-file
       options: {max-size: 10m, max-file: "3"}
+    # The image's own non-root user. The host systemd-journal group reads journal files (0640 root:<gid>);
+    # Docker API access goes through socket-proxy, so root is not needed.
+    user: "473:473"
+    group_add: ["${JOURNAL_GID:?}"]
     command:
       - run
       - /etc/acttub/config.alloy
-      - --storage.path=/data
+      - --storage.path=/var/lib/alloy/data
       - --server.http.listen-addr=127.0.0.1:12345
       - --disable-reporting
     volumes:
       - ${RELEASE_DIR:?}/alloy:/etc/acttub:ro
-      # Read positions survive restarts so lines are neither resent nor skipped. Not the image's
-      # /var/lib/alloy/data: that is owned by uid 473, which root cannot write without capabilities.
-      - alloy:/data
+      # Read positions (containers and journal) survive restarts so lines are neither resent nor skipped.
+      # A new volume takes the image directory's 473 owner; the earlier root-owned "alloy" volume is not reused.
+      - alloy-data:/var/lib/alloy/data
+      # Host kernel and docker.service journal (ADR-039 revision). Read-only; matches pick the two targets.
+      - /var/log/journal:/var/log/journal:ro
     # Docker API only through socket-proxy (ADR-039); Cloud Loki through logs.
     networks: [logs, docker-api]
     depends_on: [socket-proxy]
@@ -59,4 +65,4 @@ networks:
     internal: true
 
 volumes:
-  alloy: {}
+  alloy-data: {}

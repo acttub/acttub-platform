@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import manage
 
 LOGS = {"loki_url": "https://logs-prod-000.grafana.net/loki/api/v1/push", "loki_user": "123456",
-        "environments": ["dev"]}
+        "environments": ["dev"], "journal_gid": 999}
 
 
 def alloy_stages():
@@ -20,6 +20,8 @@ def alloy_stages():
     source = (manage.ROOT / "config.alloy").read_text()
     stages = []
     for kind, body in re.findall(r"stage\.(drop|replace) \{(.*?)\n  \}", source, re.S):
+        if "expression" not in body:
+            continue
         expression = json.loads('"' + re.search(r'expression\s*=\s*"((?:[^"\\]|\\.)*)"', body).group(1) + '"')
         replacement = re.search(r'replace\s*=\s*"([^"]*)"', body)
         stages.append((kind, re.compile(expression), replacement and replacement.group(1)))
@@ -72,12 +74,16 @@ class LogsReleaseTest(unittest.TestCase):
         self.assertEqual(set(model["services"]["alloy"]["networks"]), {"logs", "docker-api"})
         self.assertEqual(set(model["services"]["socket-proxy"]["networks"]), {"docker-api"})
         self.assertTrue(model["networks"]["docker-api"]["internal"])
+        self.assertEqual((model["services"]["alloy"]["user"], model["services"]["alloy"]["group_add"]), ("473:473", ["999"]))
+        journal = [v for v in model["services"]["alloy"]["volumes"] if v["source"] == "/var/log/journal"]
+        self.assertEqual([(v["target"], v["read_only"]) for v in journal], [("/var/log/journal", True)])
         self.assertNotIn("secret-NEVER-PRINT", json.dumps(model))
         sockets = [(name, v) for name, service in model["services"].items()
                    for v in service.get("volumes", []) if "docker.sock" in v["source"]]
         self.assertEqual([(name, v["read_only"]) for name, v in sockets], [("socket-proxy", True)])
         alloy = (release / "alloy/config.alloy").read_text()
         self.assertEqual(alloy.count('"tcp://socket-proxy:2375"'), 2)
+        self.assertEqual(re.findall(r'matches\s*=\s*"([^"]*)"', alloy), ["_TRANSPORT=kernel", "_SYSTEMD_UNIT=docker.service"])
         self.assertNotIn("docker.sock", alloy)
         self.assertIn('regex         = "acttub-dev"', alloy)
         self.assertNotIn("acttub-prod", alloy)
@@ -98,7 +104,8 @@ class LogsReleaseTest(unittest.TestCase):
 
         unsafe = []
         for change in ("socket-on-alloy", "socket-elsewhere", "socket-writable", "proxy-allows-post", "proxy-any-client",
-                       "proxy-outbound", "docker-api-routable", "public-listen", "extra-network", "no-memory-limit"):
+                       "proxy-outbound", "docker-api-routable", "public-listen", "extra-network", "no-memory-limit",
+                       "alloy-root", "alloy-extra-group", "journal-writable", "alloy-extra-bind"):
             altered = json.loads(json.dumps(model))
             alloy_service, proxy = altered["services"]["alloy"], altered["services"]["socket-proxy"]
             socket = next(v for v in proxy["volumes"] if "docker.sock" in v["source"])
@@ -120,6 +127,14 @@ class LogsReleaseTest(unittest.TestCase):
                 alloy_service["command"][3] = "--server.http.listen-addr=0.0.0.0:12345"
             elif change == "extra-network":
                 alloy_service["networks"]["collectors"] = None
+            elif change == "alloy-root":
+                alloy_service["user"] = "0:0"
+            elif change == "alloy-extra-group":
+                alloy_service["group_add"].append("0")
+            elif change == "journal-writable":
+                next(v for v in alloy_service["volumes"] if v["source"] == "/var/log/journal")["read_only"] = False
+            elif change == "alloy-extra-bind":
+                alloy_service["volumes"].append({"type": "bind", "source": "/var/log", "target": "/host-log", "read_only": True})
             else:
                 proxy.pop("mem_limit")
             with patch.object(manage, "run", return_value=json.dumps(altered)):
@@ -139,7 +154,9 @@ class LogsReleaseTest(unittest.TestCase):
         self.assertEqual(manage.compose(release, "ps").count("-f"), 1)
         for bad in ({**LOGS, "loki_url": "http://logs-prod-000.grafana.net/loki/api/v1/push"},
                     {**LOGS, "loki_user": "user"}, {**LOGS, "environments": []},
-                    {**LOGS, "environments": ["staging"]}, {**LOGS, "environments": ["dev", "dev"]}, []):
+                    {**LOGS, "environments": ["staging"]}, {**LOGS, "environments": ["dev", "dev"]}, [],
+                    {k: v for k, v in LOGS.items() if k != "journal_gid"}, {**LOGS, "journal_gid": "999"},
+                    {**LOGS, "journal_gid": 0}, {**LOGS, "journal_gid": True}):
             with self.subTest(bad=bad):
                 result, release = self.render({**self.config, "logs": bad}, "bad")
                 self.assertNotEqual(result.returncode, 0)
@@ -150,6 +167,13 @@ class LogsReleaseTest(unittest.TestCase):
 
 
 class LogLineFilterTest(unittest.TestCase):
+    def test_lines_cloud_loki_would_reject_as_too_old_are_dropped_first(self):
+        source = (manage.ROOT / "config.alloy").read_text()
+        hours = int(re.search(r'older_than\s*=\s*"([0-9]+)h"', source).group(1))
+        self.assertLess(hours, 7 * 24)  # Cloud rejects entries older than 7 days
+        self.assertGreater(hours, 6 * 24)
+        self.assertLess(source.index("older_than"), source.index("stage.replace"))
+
     def test_noise_is_dropped_and_secrets_are_masked(self):
         cases = {
             '10.0.0.1 "GET /health HTTP/1.1" 200 120 0.003 "web:3000" 200': None,
@@ -175,6 +199,10 @@ class LogLineFilterTest(unittest.TestCase):
             "upload https://b.s3.amazonaws.com/k?X-Amz-Credential=AKIA/x&X-Amz-Signature=deadbeef done":
                 "upload https://b.s3.amazonaws.com/k?X-Amz-Credential=[REDACTED]&X-Amz-Signature=[REDACTED] done",
             "Authorization: Bearer abc.def-ghi rejected": "Authorization: Bearer [REDACTED] rejected",
+            # Host journal: kernel and dockerd lines carry key=value words without a query string.
+            "audit: comm=\"psql\" password=hunter2 user=x": "audit: comm=\"psql\" password=[REDACTED] user=x",
+            'level=info msg="login" token=abc123 module=grpc': 'level=info msg="login" token=[REDACTED] module=grpc',
+            "keyboard: event registered": "keyboard: event registered",
             "jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl expired": "jwt [REDACTED] expired",
             '{"level":"WARN","token":"s3cr3t","user_id":"7f9c"}': '{"level":"WARN","token":"[REDACTED]","user_id":"7f9c"}',
             "mail to actor.kim+1@example.co.kr failed": "mail to [EMAIL] failed",
