@@ -15,8 +15,6 @@ export const ACTTUB_CLIENT = "web/0.1.0";
 //   NEXT_PUBLIC_SENTRY_DSN   비어 있으면 Sentry를 켜지 않는다. 로컬 개발의 기본값이다.
 //   NEXT_PUBLIC_SENTRY_ENV   dev · prod. 없으면 local로 잡힌다.
 //   NEXT_PUBLIC_APP_COMMIT   릴리스 이름. deploy.yml이 github.sha를 넣는다.
-// 소스맵 업로드용 SENTRY_ORG·SENTRY_PROJECT·SENTRY_AUTH_TOKEN은 빌드 전용이라
-// 브라우저로 나가지 않는다(next.config.ts).
 //
 // PostHog도 같은 방식이다(src/lib/analytics/posthog.ts).
 //   NEXT_PUBLIC_POSTHOG_KEY  비어 있으면 계측을 켜지 않고 콘솔에 경고를 남긴다.

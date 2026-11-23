@@ -6,8 +6,6 @@
 #     --build-arg NEXT_PUBLIC_SITE_URL=https://dev.acttub.com \
 #     --build-arg NEXT_PUBLIC_SENTRY_DSN=... --build-arg NEXT_PUBLIC_SENTRY_ENV=dev \
 #     --build-arg NEXT_PUBLIC_POSTHOG_KEY=... --build-arg NEXT_PUBLIC_APP_COMMIT=<sha> \
-#     --build-arg SENTRY_ORG=... --build-arg SENTRY_PROJECT=... \
-#     --secret id=SENTRY_AUTH_TOKEN,env=SENTRY_AUTH_TOKEN \
 #     -t acttub-web:local .                                  # 빌드 컨텍스트 = 저장소 루트
 #
 # 컨텍스트가 루트인 이유: pnpm 워크스페이스라 lockfile(pnpm-lock.yaml)이 루트에 있고 apps/web 만으로는
@@ -17,7 +15,7 @@
 # routes-manifest 에, NEXT_PUBLIC_* 는 브라우저 번들에 새겨져 런타임 env 로는 바뀌지 않는다. 그래서
 # 환경별로 이미지를 따로 굽는다(web:dev-<sha>·web:prod-<sha>). API 주소만은 양쪽 다 http://api:8080 이다 — 웹이 있는
 # front 망에서 그 이름은 앞단 proxy 가 받는다(deploy/home/compose.yml). build-arg 로 받는 값은 이미 브라우저에 내려가는 공개값뿐이라 이미지를
-# 공개(GHCR)해도 된다 — SENTRY_AUTH_TOKEN 만 시크릿이고, 그건 --secret 마운트라 레이어에 남지 않는다.
+# 공개(GHCR)해도 된다.
 
 # ── deps: 워크스페이스 매니페스트만으로 설치. 소스가 바뀌어도 이 레이어는 캐시된다 ──────────────
 FROM node:24-bookworm-slim AS deps
@@ -54,9 +52,6 @@ ARG NEXT_PUBLIC_BILLING_WEB_ENABLED=
 # 웹 연 구독(SOMA-1068). "true" 면 /pricing Pro 카드에 월/연 선택이 보인다. 비우면(기본) 월 구독만 보인다.
 # 서버 BILLING_WEB_YEARLY_ENABLED 가 꺼져 있으면 연 구독 결제 창은 열리지 않는다.
 ARG NEXT_PUBLIC_BILLING_WEB_YEARLY_ENABLED=
-# 소스맵 업로드 대상(공개값). 토큰은 아래 --mount=type=secret 으로만 들어온다.
-ARG SENTRY_ORG=
-ARG SENTRY_PROJECT=
 # 브라우저가 API 에 직접 가게 하는 값은 비워 둔다 — 비어 있어야 상대 경로로 나가 이 서버의 rewrites 를
 # 탄다. API 는 compose 네트워크 안에만 있어 브라우저가 닿지 못한다.
 ENV NEXT_PUBLIC_API_BASE_URL=
@@ -66,11 +61,8 @@ ENV NEXT_PUBLIC_API_BASE_URL=
 RUN test -n "$NEXT_PUBLIC_APP_COMMIT" \
  || { echo "build-arg NEXT_PUBLIC_APP_COMMIT 이 비어 있다 — Sentry release 이름이 된다" >&2; exit 1; }
 WORKDIR /app/apps/web
-# pnpm build = prebuild(scripts/prepare-public-assets.mjs) → next build --webpack. 시크릿이 없으면
-# cat 이 실패해 토큰이 빈 문자열이 되고 next.config.ts 가 소스맵 업로드를 건너뛴다(로컬·CI 스모크).
+# pnpm build = prebuild(scripts/prepare-public-assets.mjs) → next build --webpack.
 RUN --mount=type=cache,id=acttub-next-cache,target=/app/apps/web/.next/cache \
-    --mount=type=secret,id=SENTRY_AUTH_TOKEN \
-    SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN 2>/dev/null || true)" \
     pnpm build
 
 # ── runtime: standalone + .next/static + public 만. 소스·전체 node_modules·.env 는 없다 ────────

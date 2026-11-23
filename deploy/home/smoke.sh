@@ -164,8 +164,7 @@ COMMIT="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo 0123456789abcdef0123
 step "웹 이미지 빌드 → $WEB_IMAGE (컨텍스트 $ROOT, build-arg 는 테스트 값)"
 # build-arg 를 받아 빌드가 통과하는지를 본다. 값이 번들까지 갔는지는 아래 6 단계에서 사이트 URL 하나로
 # 확인한다(랜딩 HTML 의 canonical·og:url 에 새겨진다). 호스트는 전부 .invalid — DSN 으로 에러가 나도
-# 어디로도 가지 않는다. SENTRY_AUTH_TOKEN 시크릿은 일부러 안 넘긴다: 없을 때 소스맵 업로드를 건너뛰고
-# 통과해야 한다.
+# 어디로도 가지 않는다.
 SITE_URL=https://smoke.acttub.invalid
 build_image "$WEB_IMAGE" -f "$ROOT/apps/web/Dockerfile" \
   --build-arg API_ORIGIN=http://api:8080 \
