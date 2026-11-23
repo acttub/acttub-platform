@@ -134,7 +134,21 @@ class LogLineFilterTest(unittest.TestCase):
             '10.0.0.1 "GET /healthy-recipes HTTP/1.1" 200 1 0.1 "web:3000" 200':
                 '10.0.0.1 "GET /healthy-recipes HTTP/1.1" 200 1 0.1 "web:3000" 200',
             '10.0.0.1 "GET /v2/auth/callback?code=abc123&state=xyz HTTP/1.1" 302 0 0.1 "api:8080" 302':
-                '10.0.0.1 "GET /v2/auth/callback?code=[REDACTED]&state=[REDACTED] HTTP/1.1" 302 0 0.1 "api:8080" 302',
+                '10.0.0.1 "GET /v2/auth/callback HTTP/1.1" 302 0 0.1 "api:8080" 302',
+            # JSON nginx/api lines (SOMA-1094 format).
+            '{"time":"2026-11-23T11:00:00+09:00","trace_id":"' + "a" * 32 + '","port":"3000","method":"GET","path":"/health","status":"200"}': None,
+            '{"@timestamp":"2026-11-23T02:00:00Z","level":"INFO","message":"request","method":"GET","route":"/actuator/prometheus","status":200}': None,
+            '{"time":"t","trace_id":"' + "b" * 32 + '","port":"8080","method":"GET","path":"/healthy","status":"200"}':
+                '{"time":"t","trace_id":"' + "b" * 32 + '","port":"8080","method":"GET","path":"/healthy","status":"200"}',
+            '{"@timestamp":"2026-11-23T02:00:00Z","level":"INFO","logger_name":"com.acttub.x","message":"request","trace_id":"c1","user_id":"7f9c4e2a-1b3d-4c5e-8f9a-0b1c2d3e4f5a","route":"/v2/scripts/{id}","status":200,"took_ms":12}':
+                '{"@timestamp":"2026-11-23T02:00:00Z","level":"INFO","logger_name":"com.acttub.x","message":"request","trace_id":"c1","user_id":"7f9c4e2a-1b3d-4c5e-8f9a-0b1c2d3e4f5a","route":"/v2/scripts/{id}","status":200,"took_ms":12}',
+            # nginx error lines keep the full request line, query included.
+            '2026/11/23 11:00:00 [error] 29#29: *7 connect() failed (111), client: 172.18.0.5, server: , '
+            'request: "GET /v2/search?q=%EC%B6%98%ED%96%A5 HTTP/1.1", upstream: "http://172.18.0.3:3000/v2/search?q=x", '
+            'host: "acttub.com", referrer: "https://acttub.com/s?q=y"':
+                '2026/11/23 11:00:00 [error] 29#29: *7 connect() failed (111), client: 172.18.0.5, server: , '
+                'request: "GET /v2/search HTTP/1.1", upstream: "http://172.18.0.3:3000/v2/search", '
+                'host: "acttub.com", referrer: "https://acttub.com/s"',
             "upload https://b.s3.amazonaws.com/k?X-Amz-Credential=AKIA/x&X-Amz-Signature=deadbeef done":
                 "upload https://b.s3.amazonaws.com/k?X-Amz-Credential=[REDACTED]&X-Amz-Signature=[REDACTED] done",
             "Authorization: Bearer abc.def-ghi rejected": "Authorization: Bearer [REDACTED] rejected",

@@ -41,12 +41,27 @@ loki.process "apps" {
   forward_to = [loki.write.cloud.receiver]
 
   // External uptime checks hit /health every minute; nginx /ping is already unlogged.
+  // Plain nginx request line (before JSON logs), then nginx "path" / api "route" JSON fields.
   stage.drop {
     expression          = "\"(GET|HEAD) /(health|actuator)[/? ]"
     drop_counter_reason = "health"
   }
+  stage.drop {
+    expression          = "\"(path|route)\":\"/(health|actuator)[/\"]"
+    drop_counter_reason = "health"
+  }
 
-  // Each capture group is replaced; key names stay in non-capturing groups.
+  // Each capture group is replaced; key names stay in non-capturing groups. An empty replace omits the group.
+  // Query strings carry search words and callback keys. JSON access lines have none; plain access lines
+  // and nginx error lines (request/upstream/referrer) still do.
+  stage.replace {
+    expression = "\"(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) [^\"?\\s]*(\\?[^\"\\s]*)"
+    replace    = ""
+  }
+  stage.replace {
+    expression = "(?:upstream|referrer): \"[^\"?]*(\\?[^\"]*)\""
+    replace    = ""
+  }
   stage.replace {
     expression = "(?i)\\bbearer\\s+([A-Za-z0-9._~+/=-]+)"
     replace    = "[REDACTED]"

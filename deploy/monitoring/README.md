@@ -210,7 +210,12 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
   같은 서비스도 함께 읽는다. 다른 서비스·프로젝트·모니터링 자신의 로그는 읽지 않는다.
 - 표시(label)는 `environment`(`dev`·`prod`, 지표의 같은 이름 label과 같은 값)와 `service`뿐이다. Cloud가 `service`로
   `service_name`을 더한다. 요청 ID·사용자 ID처럼 값이 많은 것은 label로 만들지 않고 줄 안에서 찾는다.
-- 버리는 줄: 요청 줄이 `GET`·`HEAD /health` 또는 `/actuator`인 것(외부 점검이 1분마다 부른다).
+- 줄 형식은 [홈서버 배포 「로그」](../../docs/deploy/DEPLOY-HOME.md#로그)가 정한다(nginx·api 모두 한 줄 JSON). 그 전의
+  일반 글자 줄도 같은 규칙으로 다룬다. `trace_id`·`user_id`는 줄 안의 값으로만 남는다.
+- 버리는 줄: 경로가 `/health`·`/actuator`인 요청 줄(nginx `path`, api `route`, 일반 글자 `GET /health …`). 외부 점검이
+  1분마다 부른다.
+- 지우는 것: 일반 글자 요청 줄과 nginx error 줄(`request`·`upstream`·`referrer`)의 쿼리 문자열. 검색어와 콜백 키가 실린다.
+  JSON 요청 줄의 `path`에는 nginx가 쿼리를 싣지 않는다.
 - 가리는 값: `Bearer` 뒤 값, JWT 모양 값, 주소의 `token`·`code`·`state`·`key`·`secret`·`password`·서명 값과 S3
   서명(`X-Amz-*`), JSON의 `password`·`token`·`secret`·`authorization`·`cookie` 같은 키 값은 `[REDACTED]`로,
   이메일은 `[EMAIL]`로 바꾼다. 64KiB가 넘는 줄은 자른다. 이 규칙은 정해진 모양만 잡으므로 로그에 개인정보를 쓰지 않는
