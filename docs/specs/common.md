@@ -133,7 +133,8 @@ ai_jobs.status — 연습과 챌린지가 함께 쓰는 비동기 AI 작업 장�
 
 - 불변 조건: (user_id, request_id)당 작업 하나(`uq_ai_jobs_user_request`). 완료·실패·놓기는 lease_token이 그대로일 때만 통하고,
   바뀌었으면 저장 전체를 되돌린다. 만료가 지나도 토큰이 그대로면 완료를 받는다. 놓기는 시도 수를 되돌리지 않는다(최대 3회).
-- 선점은 pending만 집는다. 만료된 running을 다시 집지 않는다(practice.analyze 「열린 질문」).
+- 선점은 pending과, 집은 워커가 죽어 lease가 지난 running을 집는다(네 종류 모두). 시도를 다 쓴 채 lease가 지나면 각 기능의 정리가
+  failed/max_attempts로 닫는다. 분석은 회차를 closed/analysis_failed로, AI 리포트는 리포트를 failed로 함께 닫는다.
 - 끝 상태: succeeded·failed. 재시도는 같은 행을 되살리지 않고 새 작업을 만든다.
 
 옛 연습 흐름의 호환 원장 `external_operations`의 상태 전이(만료된 running의 회수 포함)는

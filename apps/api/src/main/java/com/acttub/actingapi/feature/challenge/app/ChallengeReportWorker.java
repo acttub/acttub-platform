@@ -37,10 +37,15 @@ public class ChallengeReportWorker {
 
     public boolean runOnce() { return runOnce(clock.instant()); }
 
-    /** 큐에서 하나 집어 처리한다. 집을 게 없으면 거짓. */
+    public int closeAbandoned() { return closeAbandoned(clock.instant()); }
+
+    /** 집은 워커가 죽은 채 시도를 다 쓴 생성을 닫는다 — 다시 집지 않으므로 닫지 않으면 리포트가 「만드는 중」에 남는다. */
+    public int closeAbandoned(Instant now) { return reports.closeAbandoned(now); }
+
+    /** 큐에서 하나 집어 처리한다. 집은 워커가 죽어 lease 가 지난 생성도 다시 집는다. 집을 게 없으면 거짓. */
     public boolean runOnce(Instant now) {
         UUID token = UUID.randomUUID();
-        AiJobLedger.Claimed claimed = ledger.claimNext(KIND, token, LEASE, now);
+        AiJobLedger.Claimed claimed = ledger.claimNext(KIND, token, LEASE, now, true);
         if (claimed == null) return false;
         try {
             var material = reports.material(claimed.id(), claimed.targetId());

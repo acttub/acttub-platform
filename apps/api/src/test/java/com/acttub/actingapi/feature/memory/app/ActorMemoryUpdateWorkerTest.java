@@ -270,5 +270,10 @@ class ActorMemoryUpdateWorkerTest {
                 throw releaseFailure;
             }
         }
+
+        @Override
+        public int closeAbandoned(Instant now) {
+            return 0;
+        }
     }
 }

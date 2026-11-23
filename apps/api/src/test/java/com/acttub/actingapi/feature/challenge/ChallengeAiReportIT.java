@@ -18,6 +18,7 @@ import com.acttub.actingapi.feature.challenge.app.AiReportRepository;
 import com.acttub.actingapi.feature.challenge.app.ChallengeReportModel;
 import com.acttub.actingapi.feature.challenge.app.ChallengeReportWorker;
 import com.acttub.actingapi.feature.challenge.app.EntryMedia;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import tools.jackson.databind.JsonNode;
@@ -90,6 +91,7 @@ class ChallengeAiReportIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired ChallengeReportWorker worker;
+    @Autowired AiJobLedger ledger;
     UUID me;
     String bearer;
     UUID challenge;
@@ -231,6 +233,41 @@ class ChallengeAiReportIT {
         assertThat(jobs()).isEqualTo(2);
         worker.runOnce(clock.instant());
         assertThat(LenientJson.asText(response(get("/v2/entries/{id}/ai-report", mine), 200).path("status"))).isEqualTo("ready");
+    }
+
+    /** 생성을 집은 워커가 끝내지 못하고 죽으면(배포 재시작) lease 가 지난 뒤 다음 워커가 다시 집어 리포트를 만든다. */
+    @Test void challengeAiReport_aGenerationLeftRunningByADeadWorkerIsPickedUpAgain() throws Exception {
+        UUID mine = entry(me, "public", 1);
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        assertThat(ledger.claimNext("challenge_report", UUID.randomUUID(), Duration.ofMinutes(10), clock.instant())).isNotNull();
+        clock.advance(Duration.ofMinutes(11));
+
+        assertThat(worker.runOnce(clock.instant())).as("lease 가 지난 생성을 다시 집는다").isTrue();
+
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}/ai-report", mine), 200).path("status"))).isEqualTo("ready");
+        assertThat(jdbc.queryForMap("SELECT status,attempt_count FROM ai_jobs"))
+                .containsEntry("status", "succeeded").containsEntry("attempt_count", 2);
+    }
+
+    /** 세 번 모두 워커가 죽으면 다시 집지 않고, 정리가 작업과 리포트를 failed 로 닫아 "다시 시도"가 새 생성을 연다. */
+    @Test void challengeAiReport_aGenerationWhoseWorkersAllDiedFailsAndRetryStartsANewOne() throws Exception {
+        UUID mine = entry(me, "public", 1);
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        for (int attempt = 0; attempt < AiJobLedger.MAX_ATTEMPTS; attempt++) {
+            ledger.claimNext("challenge_report", UUID.randomUUID(), Duration.ofMinutes(10), clock.instant(), true);
+            clock.advance(Duration.ofMinutes(11));
+        }
+
+        assertThat(worker.runOnce(clock.instant())).as("시도를 다 쓴 생성은 집지 않는다").isFalse();
+        assertThat(worker.closeAbandoned(clock.instant())).isEqualTo(1);
+
+        JsonNode failed = response(get("/v2/entries/{id}/ai-report", mine), 200);
+        assertThat(LenientJson.asText(failed.path("status"))).isEqualTo("failed");
+        assertThat(LenientJson.asInt(failed.path("attempt_count"))).isEqualTo(AiJobLedger.MAX_ATTEMPTS);
+        assertThat(jdbc.queryForObject("SELECT status || '/' || failure_reason FROM ai_jobs", String.class))
+                .isEqualTo("failed/max_attempts");
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        assertThat(jobs()).isEqualTo(2);
     }
 
     @Test void challengeAiReport_comparisonsLeaningOnSamplesThatLostEligibilityDisappear() throws Exception {
