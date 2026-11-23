@@ -11,7 +11,7 @@
 #   ./restore-db.sh <덤프> --expect-manifest <파일>   행 내용·sequence 값·스키마를 이름 변경 전에 대조
 #   ./restore-db.sh <덤프> --keep-old             성공 후에도 <db>_old를 보존한다(정리 전 다음 복원은 거부)
 #   ./restore-db.sh <덤프> --allow-migrate        덤프가 앱보다 오래돼 Flyway 가 마이그레이션을 새로 적용해도 받는다
-#                                                   (옛 백업에서 복구할 때. 이전·컷오버에서는 쓰지 않는다)
+#                                                   (옛 백업에서 복구할 때. 살아 있는 DB 를 옮길 때는 쓰지 않는다)
 #   ./restore-db.sh --counts                      복원 없이 지금 DB 의 "테이블<TAB>행 수" 만 출력
 #   ./restore-db.sh --counts-sql                  그 SQL 만 출력 — 원본 DB 에서 같은 표를 뽑을 때:
 #                                                   ./restore-db.sh --counts-sql | psql "$URL" -At -F $'\t' > source-counts.tsv
@@ -19,7 +19,7 @@
 #   ./restore-db.sh --manifest-sql                원본 psql용 SQL 출력(사용자 원문은 출력하지 않는다):
 #                                                   ./restore-db.sh --manifest-sql | psql "$URL" -X -q -v ON_ERROR_STOP=1 -At -F $'\t' > source-manifest.tsv
 #      원본의 모든 쓰기·sequence 사용을 멈춘 뒤 덤프와 manifest를 만든다. 테이블은 한 스냅샷으로 읽지만
-#      sequence는 트랜잭션으로 고정되지 않는다. 역할·권한·함수·RLS 정책은 별도 이전 목록으로 대조한다.
+#      sequence는 트랜잭션으로 고정되지 않는다. 역할·권한·함수·RLS 정책은 manifest 에 없으므로 따로 대조한다.
 #
 # 하는 일 — 어느 단계든 실패하면 exit≠0 이고, 원래 DB 를 제자리에 둔 채 api 를 다시 올린다(예외는 5 의 마지막 정리뿐)
 #   1. api 를 멈춘다(DB 연결을 끊고 복원 중 쓰기를 막는다). web·cloudflared 는 그대로라 그동안 /v2 는 502 다.
@@ -32,7 +32,7 @@
 #      --expect 가 있으면 테이블별 행 수를 그 파일과 diff 한다. 다르면 실패.
 #   4. 바꿔치기: <db> → <db>_old, <db>_restore → <db>. api 를 올려 healthy 를 기다리고 Flyway 로그를 본다 —
 #      같은 앱 버전의 덤프면 "up to date" 다. 마이그레이션을 새로 적용했으면(Successfully applied) 덤프가 앱보다
-#      낡은 것이라 실패로 되돌린다(이전·컷오버라면 덤프를 다시 뜬다). 옛 백업에서 복구하는 것이면 --allow-migrate 로
+#      낡은 것이라 실패로 되돌린다(살아 있는 DB 를 옮기는 중이면 덤프를 다시 뜬다). 옛 백업에서 복구하는 것이면 --allow-migrate 로
 #      허용한다. 둘 다 없으면 판정 불가로 실패.
 #   5. 성공하면 <db>_old 를 지운다(--keep-old면 보존. 정리만 실패하면 복원은 끝난 상태라 되돌리지 않는다).
 #      4 에서 실패하면 <db> 를 지우고 <db>_old 를 <db> 로 되돌린 뒤 api 를 올린다.
@@ -282,7 +282,7 @@ if grep -q 'is up to date' <<< "$flyway"; then
 elif grep -q 'Successfully applied' <<< "$flyway"; then
   verdict="$(printf '%s\n' "$flyway" | grep -oE 'Successfully applied [0-9]+ migrations?' | tail -1)"
   [ "$ALLOW_MIGRATE" = 1 ] \
-    || rollback_swap "Flyway 가 마이그레이션을 새로 적용했다($verdict) — 덤프가 앱보다 낡았다. 이전·컷오버라면 덤프를 다시 뜬다. 옛 백업에서 복구하는 것이면 --allow-migrate 로 다시 돌린다. 옛 DB 로 되돌렸다"
+    || rollback_swap "Flyway 가 마이그레이션을 새로 적용했다($verdict) — 덤프가 앱보다 낡았다. 살아 있는 DB 를 옮기는 중이면 덤프를 다시 뜬다. 옛 백업에서 복구하는 것이면 --allow-migrate 로 다시 돌린다. 옛 DB 로 되돌렸다"
   echo "⚠ 덤프가 앱보다 오래돼 Flyway 가 마이그레이션을 새로 적용했다($verdict) — --allow-migrate 로 허용됨" >&2
 else
   rollback_swap "Flyway 의 'up to date' 도 'Successfully applied' 도 없다 — 판정 불가. 옛 DB 로 되돌렸다"

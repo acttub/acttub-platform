@@ -31,7 +31,7 @@
 #   9. 같은 sha 로 deploy.sh 를 다시 돌리면 초록이고 컨테이너가 하나도 바뀌지 않는다(멱등 — 두 번 해도 결과가 같다)
 #  10. restore-db.sh 왕복 — 지금 DB 를 pg_dump -Fc 로 뜬 뒤 바꾸고 복원하면 덤프 시점으로 돌아온다(행 수·manifest 일치,
 #      Flyway "up to date", 컨테이너 재생성 없음). 깨진 덤프·행 수 불일치는 exit≠0 이고 원래 DB 가 그대로다
-#      (dev 이전·복원 연습·운영 컷오버가 같은 스크립트를 쓴다)
+#      (백업 복구와 DB 옮기기가 같은 스크립트를 쓴다)
 #  11. 무중단 재배포(SOMA-700) — 터널 자리에서 부하를 건 채 다른 sha 로 배포하면 실패한 요청이 0 이고, 옛 판과 새 판이
 #      둘 다 응답했으며, 끝나면 api·web 이 새 컨테이너 하나씩이고 proxy 는 그대로다. 새 api 의 Flyway 는 up to date
 #  12. 새 판이 healthy 가 못 되면(대기 시간 초과) exit≠0 이고 컨테이너·release.env·응답 commit 이 그대로다
@@ -413,7 +413,7 @@ ids_after="$(compose ps -q | sort | tr '\n' ' ')"
 echo "  컨테이너 $(printf '%s' "$ids_after" | wc -w | tr -d ' ')개 그대로"
 
 # ── 10. restore-db.sh 왕복 — 덤프 → DB 변경 → 복원 → 덤프 시점으로 돌아오고 Flyway 는 "up to date" ─────────
-# dev 이전·백업 복원 연습·운영 컷오버가 같은 스크립트를 쓴다. 반증하는 것: 실패하면(깨진 덤프·행 수 불일치) 원래 DB 가
+# 백업 복구와 DB 옮기기가 같은 스크립트를 쓴다. 반증하는 것: 실패하면(깨진 덤프·행 수 불일치) 원래 DB 가
 # 그대로 남고 api 가 다시 healthy 다, 성공하면 DB 가 덤프와 같고 컨테이너는 재생성되지 않는다.
 if [ "${SMOKE_RESTORE:-true}" = true ]; then
   RESTORE_SH="$HOME_DIR/restore-db.sh"
