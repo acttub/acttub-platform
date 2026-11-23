@@ -20,6 +20,8 @@ def alloy_stages():
     source = (manage.ROOT / "config.alloy").read_text()
     stages = []
     for kind, body in re.findall(r"stage\.(drop|replace) \{(.*?)\n  \}", source, re.S):
+        if "expression" not in body:
+            continue
         expression = json.loads('"' + re.search(r'expression\s*=\s*"((?:[^"\\]|\\.)*)"', body).group(1) + '"')
         replacement = re.search(r'replace\s*=\s*"([^"]*)"', body)
         stages.append((kind, re.compile(expression), replacement and replacement.group(1)))
@@ -165,6 +167,13 @@ class LogsReleaseTest(unittest.TestCase):
 
 
 class LogLineFilterTest(unittest.TestCase):
+    def test_lines_cloud_loki_would_reject_as_too_old_are_dropped_first(self):
+        source = (manage.ROOT / "config.alloy").read_text()
+        hours = int(re.search(r'older_than\s*=\s*"([0-9]+)h"', source).group(1))
+        self.assertLess(hours, 7 * 24)  # Cloud rejects entries older than 7 days
+        self.assertGreater(hours, 6 * 24)
+        self.assertLess(source.index("older_than"), source.index("stage.replace"))
+
     def test_noise_is_dropped_and_secrets_are_masked(self):
         cases = {
             '10.0.0.1 "GET /health HTTP/1.1" 200 120 0.003 "web:3000" 200': None,

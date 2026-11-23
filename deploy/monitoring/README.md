@@ -230,7 +230,9 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
   이메일은 `[EMAIL]`로 바꾼다. 64KiB가 넘는 줄은 자른다. 이 규칙은 정해진 모양만 잡으므로 로그에 개인정보를 쓰지 않는
   것이 먼저다.
 - 읽은 위치(컨테이너·저널)는 `alloy-data` 볼륨에 남아 Alloy를 다시 띄워도 이어 읽는다. 처음 켜면 이미 떠 있는 컨테이너의 남은 로그
-  파일(앱은 20MB씩 5개)을 처음부터 보낸다.
+  파일(앱은 20MB씩 5개)을 처음부터 읽지만, 6.5일(`156h`)보다 오래된 줄은 보내기 전에 버린다. Cloud Loki가 7일보다 오래된
+  줄을 400으로 거절하고 그 묶음 전체를 재시도 없이 버리기 때문이다(배포 때 다시 만들지 않는 `proxy`의 로그가 몇 주 치 남아
+  있다). 그래서 처음 켠 직후에도 최근 줄이 늦지 않고, Alloy 로그에 `final error sending batch`가 나오지 않아야 한다.
 - Cloud가 끊기면 보내지 못한 묶음은 메모리 큐(기본 10MiB)에 쌓이고 큐가 차면 읽기를 멈춘다. 묶음마다 최대 10번,
   간격을 늘려 최대 5분까지 재시도한 뒤 버린다. 메모리 상한은 256MiB이고 Alloy가 그 90%를 Go 메모리 목표로 쓴다.
 
@@ -246,10 +248,12 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
    토큰은 홈서버 `secrets/loki-token`에 `600`으로 둔다.
 2. `monitoring.json`에 `logs`를 넣는다. 처음에는 `"environments": ["dev"]`로 시작한다.
 3. 새 버전으로 `render` → `check`(고정 Alloy가 설정을 `validate`한다) → `apply`한다.
-4. `docker compose ... ps alloy socket-proxy`가 둘 다 running이고, `docker logs <프로젝트>-alloy-1`에 오류가 반복되지 않고,
-   `docker logs <프로젝트>-socket-proxy-1`에 `blocked request`가 없는지 본다. 있으면 Alloy가 허용 목록 밖의 호출을 한 것이다.
-5. Grafana Explore에서 Loki 데이터 소스로 `{environment="dev", service="api"}`를 조회해 최근 줄이 들어오는지,
-   `/health` 줄이 없고 가린 값이 `[REDACTED]`인지 본다.
+4. `docker compose ... ps alloy socket-proxy`가 둘 다 running이고, `docker logs <프로젝트>-alloy-1`에 `level=error`가
+   없고(특히 `final error sending batch`·`timestamp too old`), `docker logs <프로젝트>-socket-proxy-1`에 `blocked request`가
+   없는지 본다. `blocked request`가 있으면 Alloy가 허용 목록 밖의 호출을 한 것이다.
+5. Grafana Explore에서 Loki 데이터 소스로 `{environment="dev", service="api"}`와 `{environment="dev", service="proxy"}`를
+   조회해 켠 직후부터 최근 줄이 바로 들어오는지, `/health` 줄이 없고 가린 값이 `[REDACTED]`인지 본다. 6.5일보다 오래된 줄은
+   들어오지 않는 것이 정상이다.
 6. 하루 뒤 Cloud의 로그 사용량(하루 GB × 31이 50GB 안인지)과 `docker stats`의 Alloy 메모리를 잰다. 괜찮으면
    `environments`에 `prod`를 더해 같은 순서로 적용한다.
 

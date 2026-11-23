@@ -59,6 +59,13 @@ loki.source.journal "docker" {
 loki.process "apps" {
   forward_to = [loki.write.cloud.receiver]
 
+  // Cloud Loki rejects lines older than 7 days with 400 and the whole batch is dropped without retry,
+  // e.g. when a long-lived container's file is read from the start. Drop them first (6.5 days, 156h).
+  stage.drop {
+    older_than          = "156h"
+    drop_counter_reason = "too_old"
+  }
+
   // loki.source.journal adds job="loki.source.journal.<name>"; service already says it.
   stage.label_drop {
     values = ["job"]
