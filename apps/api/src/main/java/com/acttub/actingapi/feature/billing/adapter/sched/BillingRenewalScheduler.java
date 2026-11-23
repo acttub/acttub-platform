@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.billing.adapter.sched;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -28,12 +29,17 @@ class BillingRenewalScheduler {
     @Scheduled(fixedDelayString = "${BILLING_RENEWAL_POLL_MS:600000}",
             initialDelayString = "${BILLING_RENEWAL_INITIAL_DELAY_MS:120000}")
     void run() {
+        long started = System.nanoTime();
+        int processed = 0;
         try {
-            for (int i = 0; i < MAX_PER_RUN && worker.runOnce(); i++) {
+            while (processed < MAX_PER_RUN && worker.runOnce()) {
                 // 할 일이 없을 때까지.
+                processed++;
             }
         } catch (RuntimeException failure) {
             failures.report(failure, new FailureContext("BillingRenewalScheduler.run"));
+        } finally {
+            ScheduledTaskLog.drained("BillingRenewalScheduler.run", processed, started);
         }
     }
 }

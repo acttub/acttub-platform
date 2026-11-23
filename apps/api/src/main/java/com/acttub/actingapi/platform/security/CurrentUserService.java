@@ -4,7 +4,9 @@ import java.util.UUID;
 
 import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.TraceIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -38,6 +40,8 @@ public class CurrentUserService {
         if (user == null) {
             throw new ApiException(401, "invalid or missing access token");
         }
+        // 이 요청의 로그에 내부 사용자 ID 를 싣는다. 이메일·토큰은 싣지 않는다. TraceIdFilter 가 요청 끝에 지운다.
+        MDC.put(TraceIdFilter.USER_ID, user.id().toString());
         // 옮겨진 게스트의 사유가 탈퇴보다 먼저다. 탈퇴 API 도 예외가 아니다 — 자료는 이미 회원의 것이라
         // 이 토큰으로 지울 것이 없고, 웹은 어느 요청에서든 같은 안내를 띄워야 한다.
         if (user.status() == UserStatus.DEACTIVATED && transferred.transferredGuest(user.id())) {

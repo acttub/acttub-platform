@@ -130,6 +130,49 @@ curl -fsS https://acttub.com/health
 - `ACTTUB_PRACTICE_REMINDER_ENABLED`(컨테이너에서는 `PRACTICE_REMINDER_ENABLED`): 개인화 연습 알림([account.notification](../specs/account/notification.md#규칙제약)).
   dev·운영 모두 true로 넘긴다(운영은 2026-10-21 켬). 켜면 옛 저녁 8시 고정 알림은 보내지 않는다. 끄려면 워크플로 값을 false로 바꿔 배포한다. 설정 미지정 기본값은 false다.
 
+### 로그
+
+proxy(nginx)와 api는 한 줄에 JSON 하나를 stdout으로 낸다. Docker가 받아 `json-file`로 두고, 밖으로 보내는 일은 Alloy가
+맡는다. 프로그램이 직접 밖으로 보내지 않는다. api의 형식은 compose의 `LOGGING_STRUCTURED_FORMAT_CONSOLE: logstash`(Spring
+Boot 내장 logstash 형식)가 정한다. 로컬 `bootRun`과 테스트는 이 값이 없어 일반 글자로 낸다.
+
+한 요청은 nginx를 두 번 지난다(터널 → proxy:3000 → web → proxy:8080 → api). 3000이 `$request_id`(32자 16진수)를 만들어
+`X-Acttub-Trace-Id`로 넘기고, web의 rewrites가 그 헤더를 8080에 그대로 넘기고, 8080은 받은 값을 이어 쓴다. 3000은 손님이
+보낸 값을 믿지 않는다. `X-Request-Id`는 다른 뜻(본문 `request_id`와 같은지 보는 재전송 열쇠)이라 쓰지 않는다. web 서버가
+직접 API를 부르는 공유 미리보기(`/e/[id]`)는 헤더를 넘기지 않아 8080이 새 ID를 만든다.
+
+nginx 줄(`log_format proxy`):
+
+| 필드 | 뜻 |
+|---|---|
+| `time` | 요청이 끝난 시각(ISO 8601) |
+| `trace_id` | 요청 ID. api 줄의 `trace_id`와 같다 |
+| `port` | `3000`(터널에서 들어온 줄, web까지 걸린 시간) 또는 `8080`(web이 api를 부른 줄, api까지 걸린 시간) |
+| `method`·`path` | 쿼리를 뺀 경로. 카드 등록 주소의 일회용 state는 `{state}`로 가린다 |
+| `status`·`bytes` | 응답 상태와 본문 바이트 |
+| `request_time` | nginx가 잰 전체 시간(초) |
+| `upstream`·`upstream_status`·`upstream_time` | 넘겨준 컨테이너 주소, 그 응답 상태와 시간(초) |
+
+api 줄의 공통 필드는 logstash 형식의 `@timestamp`·`level`·`logger_name`·`thread_name`·`message`·`stack_trace`이고, 요청 안에서
+남긴 줄에는 아래가 더 붙는다.
+
+| 필드 | 뜻 |
+|---|---|
+| `trace_id` | 요청 ID. nginx를 거치지 않은 요청은 api가 만든다 |
+| `user_id` | 인증이 끝난 요청의 내부 사용자 ID(UUID). 이메일·닉네임·토큰은 싣지 않는다 |
+
+줄의 종류는 `message`로 가른다.
+
+| `message` | 언제 | 필드 |
+|---|---|---|
+| `request` | 요청마다 하나(`/health`·`/actuator` 제외) | `method`, `route`(값이 아니라 매핑 패턴, 컨트롤러 전에 끝나면 null), `status`, `took_ms` |
+| `failure reported` | 실패를 Sentry로 보고할 때마다(10분 묶음 억제와 무관) | `failure_location`, `failure_kind`, `operation_id`, `error`(예외 클래스). 예외 메시지는 싣지 않는다 |
+| `scheduled run` | 주기 작업 회차가 실패했거나, cron 작업이거나, 1초 이상 걸렸을 때 | `task`(클래스.메서드), `outcome`, `took_ms`, `error` |
+| `scheduled drain` | 일감 비우기가 하나 이상 처리했을 때 | `task`, `processed`, `took_ms` |
+
+Sentry 이벤트에도 `trace_id` 태그를 붙여 로그와 잇는다. 주기 작업과 요청 스레드 밖(백그라운드 실행기)에서 남긴 줄에는
+`trace_id`·`user_id`가 없다.
+
 ## 4. 코드 배포 복구
 
 DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와

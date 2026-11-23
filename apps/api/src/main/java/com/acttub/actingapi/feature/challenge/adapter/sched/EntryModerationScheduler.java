@@ -4,6 +4,7 @@ import com.acttub.actingapi.feature.challenge.app.EntryFaceBackfill;
 import com.acttub.actingapi.feature.challenge.app.EntryModerationWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -59,14 +60,19 @@ class EntryModerationScheduler {
     }
 
     private void drain() {
+        long started = System.nanoTime();
+        int processed = 0;
         try {
             while (worker.runOnce()) {
                 // 일감이 있는 동안은 기다리지 않는다 — 한 번에 한 참여작이다.
+                processed++;
             }
             // 검사를 비운 뒤 얼굴 여부 채우기를 한 묶음만 돈다(꺼져 있으면 아무것도 하지 않는다, SOMA-1066).
             faces.runOnce();
         } catch (RuntimeException failure) {
             failures.report(failure, new FailureContext("EntryModerationScheduler.drain"));
+        } finally {
+            ScheduledTaskLog.drained("EntryModerationScheduler.drain", processed, started);
         }
     }
 }
