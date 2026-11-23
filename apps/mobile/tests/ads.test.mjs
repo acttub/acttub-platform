@@ -147,3 +147,13 @@ test('전면 광고는 서버가 NETWORK 를 줄 때만, 첫 사용자가 아니
   assert.equal(fullScreenAllowed({ pick: network, firstTime: 'practiced', lastShownAt: now - FULL_SCREEN_GAP_MS + 1, now }), false);
   assert.equal(fullScreenAllowed({ pick: network, firstTime: 'practiced', lastShownAt: now - FULL_SCREEN_GAP_MS, now }), true);
 });
+
+import { nonPersonalizedAdsOnly, setAdRequestConfig } from '../lib/ads-native.ts';
+
+test('전면 광고 비맞춤 여부는 마지막으로 건 나이별 요청 설정을 따른다 — 프로필을 받기 전에는 청소년 기준', async () => {
+  assert.equal(nonPersonalizedAdsOnly(), true);
+  await setAdRequestConfig(adRequestConfigFor('1990-01-01', '2026-11-22'));
+  assert.equal(nonPersonalizedAdsOnly(), false);
+  await setAdRequestConfig(adRequestConfigFor(null, '2026-11-22'));
+  assert.equal(nonPersonalizedAdsOnly(), true);
+});
