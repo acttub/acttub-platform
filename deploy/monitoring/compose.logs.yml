@@ -12,13 +12,14 @@ services:
     command:
       - run
       - /etc/acttub/config.alloy
-      - --storage.path=/var/lib/alloy/data
+      - --storage.path=/data
       - --server.http.listen-addr=127.0.0.1:12345
       - --disable-reporting
     volumes:
       - ${RELEASE_DIR:?}/alloy:/etc/acttub:ro
-      # Read positions survive restarts so lines are neither resent nor skipped.
-      - alloy:/var/lib/alloy/data
+      # Read positions survive restarts so lines are neither resent nor skipped. Not the image's
+      # /var/lib/alloy/data: that is owned by uid 473, which root cannot write without capabilities.
+      - alloy:/data
       # The only Docker socket in monitoring (ADR-039). :ro stops file replacement, not API calls.
       # Root in the image owns the socket, so no capability is needed.
       - /var/run/docker.sock:/var/run/docker.sock:ro

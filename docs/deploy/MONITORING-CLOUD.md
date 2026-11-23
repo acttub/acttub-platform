@@ -47,6 +47,7 @@
 4. Synthetic Monitoring을 초기화하고 **공개 probe ID 한 개**와 수집 중인 **Cloud Metrics 데이터 소스 UID**를 `cloud.json`에 적는다(현재 probe 13 Seoul, `grafanacloud-prom`).
 5. PDC network를 만들고 [공식 PDC 절차](https://grafana.com/docs/grafana-cloud/observe-and-act/connect-externally-hosted/private-data-source-connect/configure-pdc/)대로 agent를 준비한다. 대상은 `prometheus:9090`만 허용한다. Cloud에 Prometheus 데이터 소스를 uid `acttub-local-prometheus`, URL `http://prometheus:9090`, 해당 PDC network, 기본 데이터 소스 아님으로 만든다. 수집 구성은 [홈서버 배포 문서](DEPLOY-HOME.md)와 `deploy/monitoring` 절차를 따른다.
 6. Slack incoming webhook을 **#서비스-장애**에 연결하고, 이름 `acttub-monitoring-slack`인 Slack 수신점을 만든다. 제목은 `{{ template "acttub.slack.title" . }}`, 본문은 `{{ template "acttub.slack.text" . }}`, 복구 메시지 켬. 템플릿 내용은 `apply.py`가 올린다. 실제 대상 채널은 webhook이 정한다.
+7. 로그를 보내려면 stack의 Loki URL·User를 확인하고 `logs:write`만 가진 access policy 토큰을 만료 기한을 두고 만든다. 홈서버에 넣는 순서는 [수집 구성 「dev에 처음 켜는 순서」](../../deploy/monitoring/README.md#dev에-처음-켜는-순서)다.
 
 토큰은 레포 밖 권한 `0600` 파일이나 비밀 관리 도구에서 환경변수로 공급한다. 셸의 `set -x`, 명령행 인수, 스크린샷, PR·로그에 토큰을 남기지 않는다. PDC signing token·환경별 수집 토큰은 홈서버 측에만 둔다.
 
@@ -129,6 +130,12 @@ CPU·가용 메모리·디스크 여유는 `cpu`·`memory`·`disk` 규칙이, �
 DB는 인증된 내부 probe 실패가 지속될 때 경고한다(`db`). 공개 health만 정상이라고 DB 정상으로 판단하지 않는다([CONTRACT §6-4](../../apps/api/CONTRACT.md#6-4-관리용-모니터링-경로)).
 백업은 마지막 성공 뒤 경과(`backup-age`, 기준은 [DEPLOY-HOME §5](DEPLOY-HOME.md#5-자동-백업과-복원-검증)) 또는 미해결 실패 지속(`backup-failure`)이 경고다. 상태 읽기 실패·누락·파손·목적지 불일치는 별도 경고로 보고 마지막 성공 값으로 숨기지 않는다. exporter 단절 때 백업 복구를 보내지 않는다.
 백업 복구 여부는 상태 파일뿐 아니라 기존 [복원 검증 절차](DEPLOY-HOME.md#5-자동-백업과-복원-검증)로 확인한다. 알림을 끄려고 성공 시각을 수동 갱신하지 않는다.
+
+## logs
+
+앱 로그는 홈서버 Alloy가 Cloud Loki로 보낸다([ADR-038](../ADR.md#adr-038-앱-로그는-서버-밖-grafana-cloud-loki에-저장한다)). 지표와 달리 Cloud에 저장되며 Free 플랜 기준 한 달 50GB, 14일 보관이다([가격표](https://grafana.com/pricing/)). 대상·label·가림 규칙은 [수집 구성 「로그 전송」](../../deploy/monitoring/README.md#로그-전송)이 정한다.
+
+Explore에서 stack의 Loki 데이터 소스를 고르고 `{environment="prod", service="api"}`처럼 `environment`·`service`로 고른 뒤 줄 안의 값(요청 ID·사용자 ID)은 `|=` 또는 `| json`으로 찾는다. 사용량은 Cloud Portal의 Usage에서 본다. 한 달 예상치가 50GB에 가까우면 수집 설정에서 dev를 뺀다. `apply.py`는 로그 데이터 소스·로그 화면·로그 규칙을 만들지 않는다.
 
 ## 종료 시각 있는 일시 중지
 

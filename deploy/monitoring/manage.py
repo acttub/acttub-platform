@@ -193,7 +193,7 @@ def validate(release: Path) -> dict:
                       and volume["target"] == "/var/run/docker.sock" and volume.get("read_only"))
             require("docker.sock" not in volume["source"] or socket, "Docker socket is only for alloy, read-only")
             require(volume.get("read_only") or (name, volume["type"], volume["target"]) in {
-                        ("prometheus", "volume", "/prometheus"), ("alloy", "volume", "/var/lib/alloy/data")},
+                        ("prometheus", "volume", "/prometheus"), ("alloy", "volume", "/data")},
                     "only metrics and log position storage may be writable")
     pdc = model["services"]["pdc"]
     expected = ["-cluster=" + cfg["pdc_cluster"], "-gcloud-hosted-grafana-id=" + cfg["grafana_id"],
@@ -208,7 +208,7 @@ def validate(release: Path) -> dict:
     require(set(model["volumes"]) == {"metrics"} | backup_volumes | ({"alloy"} if logs else set()), "unexpected volume")
     if logs:
         alloy = model["services"]["alloy"]
-        require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=/var/lib/alloy/data",
+        require(alloy["command"] == ["run", "/etc/acttub/config.alloy", "--storage.path=/data",
                                      "--server.http.listen-addr=127.0.0.1:12345", "--disable-reporting"],
                 "Alloy must listen on loopback only and disable usage reporting")
         require(alloy.get("mem_limit"), "Alloy memory limit is missing")
