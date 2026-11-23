@@ -438,6 +438,27 @@ class PostgresConversationRepository implements ConversationRepository {
                     || !"closed".equals(row.get("status", String.class))) {
                 return null;
             }
+            // 묶음의 첫 행을 잡아 이어하기·재시도와 줄을 세운다. 묶음당 닫히지 않은 회차는 하나다(uq_practices_open_root).
+            NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT r.id FROM practices r
+                    WHERE r.id=(SELECT p.root_id FROM practices p
+                                JOIN coach_conversations c ON c.practice_id=p.id
+                                WHERE c.id=:conversationId)
+                    FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("conversationId", conversationId));
+            boolean otherOpen = !NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT o.id
+                    FROM coach_conversations c
+                    JOIN practices p ON p.id=c.practice_id
+                    JOIN practices o ON o.root_id=p.root_id AND o.id<>p.id
+                    WHERE c.id=:conversationId
+                      AND o.stage<>'closed'
+                    """, Tuple.class)
+                    .setParameter("conversationId", conversationId)).isEmpty();
+            if (otherOpen) {
+                throw new PracticeInProgress();
+            }
             entityManager.createNativeQuery("""
                     UPDATE coach_conversations
                     SET state=CAST(:state AS jsonb),state_revision=state_revision+1,
