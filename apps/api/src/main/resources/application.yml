@@ -71,9 +71,9 @@ sentry:
 
 acttub:
   coach:
-    # 발표 시연용 정해진 코칭(coaching/scripted/demo.json). 이 이메일의 영상 코칭은 모델을 부르지 않고 대본을 순서대로 낸다.
+    # 발표 시연용 정해진 코칭(coaching/scripted/demo.json). 이 이메일의 영상 코칭은 모델을 부르지 않고 대본을 순서대로 낸다. 발표가 끝나 기본은 끈다(11/23).
     scripted:
-      enabled: ${ACTTUB_COACH_SCRIPTED_ENABLED:true}
+      enabled: ${ACTTUB_COACH_SCRIPTED_ENABLED:false}
       emails: ${ACTTUB_COACH_SCRIPTED_EMAILS:sukpower198919@gmail.com}
       first-delay-ms: ${ACTTUB_COACH_SCRIPTED_FIRST_DELAY_MS:4000}
       next-delay-ms: ${ACTTUB_COACH_SCRIPTED_NEXT_DELAY_MS:1500}
