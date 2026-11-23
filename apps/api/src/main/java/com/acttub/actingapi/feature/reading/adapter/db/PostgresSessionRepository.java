@@ -281,6 +281,12 @@ class PostgresSessionRepository implements SessionRepository {
             String state = change.complete()
                     ? ReadingSessionStatus.COMPLETED.dbValue()
                     : ReadingSessionStatus.IN_PROGRESS.dbValue();
+            if (!change.complete()) {
+                // 진행 저장은 가장 잦은 쓰기라 디스크 확정이 느려지는 순간 DB 연결 전체가 COMMIT 에 묶였다(SOMA-701).
+                // 서버가 갑자기 꺼지면 마지막 약 0.6초의 위치 저장만 잃고(데이터는 깨지지 않는다) 다음 저장이 덮는다.
+                // SET LOCAL 이라 이 트랜잭션에만 걸린다. 완료 저장은 지금처럼 확정을 기다린다.
+                entityManager.createNativeQuery("SET LOCAL synchronous_commit = off").executeUpdate();
+            }
             entityManager.createNativeQuery("""
                     UPDATE reading_sessions
                     SET current_line_id=CAST(:position AS uuid),

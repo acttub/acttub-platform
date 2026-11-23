@@ -11,6 +11,7 @@ on:
       - apps/api/settings.gradle.kts
       - apps/api/gradle/**
       - .github/workflows/gradle-dependency-submission.yml
+      - .github/actions/setup-java-gradle/**
   workflow_dispatch:
 
 permissions:
@@ -23,10 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v5
+      - uses: ./.github/actions/setup-java-gradle
         with:
-          distribution: temurin
-          java-version: "21"
+          gradle: "false"
 
       - uses: gradle/actions/dependency-submission@v4
         with:

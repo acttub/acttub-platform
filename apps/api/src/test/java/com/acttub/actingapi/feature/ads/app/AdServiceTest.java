@@ -122,6 +122,9 @@ class AdServiceTest {
             @Override public boolean off(String slotKey) { return false; }
             @Override public boolean switchedOn(String slotKey) { return "reading_done_full".equals(slotKey); }
         };
+        // 기본 구현은 「꺼 두지 않았으면 켜짐」이다 — 저장소 구현만 줄이 실제로 있는지 본다
+        assertThat(AdSlotSwitches.ALWAYS_ON.switchedOn("reading_done_full")).isTrue();
+        assertThat(((AdSlotSwitches) slotKey -> true).switchedOn("reading_done_full")).isFalse();
         var settings = new AdService.Settings(true, 100);
         assertThat(new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, none, CLOCK).pick(USER, AdSlot.READING_DONE_FULL).kind())
                 .isEqualTo(AdPicker.Kind.NONE);
