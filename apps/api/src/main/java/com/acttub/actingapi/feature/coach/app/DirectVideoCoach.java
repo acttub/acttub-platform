@@ -22,6 +22,7 @@ import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Gemini transport for the existing durable coach API; no layer-one model; response routing is a separate text call. */
 public final class DirectVideoCoach {
@@ -1720,7 +1721,7 @@ public final class DirectVideoCoach {
     /** 1층 배정. 저장된 값이 있으면 그대로, 없으면 연습 id 로 정한다. */
     private String layerOneArm(CoachSessionSnapshot session) {
         JsonNode stored = session.coachingState() == null ? null : session.coachingState().path(LAYER1).path("arm");
-        if (stored != null && stored.isTextual() && !stored.asText().isEmpty()) return stored.asText();
+        if (stored != null && stored.isTextual() && !LenientJson.asText(stored).isEmpty()) return LenientJson.asText(stored);
         return layerOne.arm(session.practiceSessionId(), session.userId());
     }
 
@@ -1740,7 +1741,7 @@ public final class DirectVideoCoach {
                 layer.put("block", block);
                 layer.put("from_turn", session.turns().size());
             } else {
-                layer.put("pending_turns", layer.path("pending_turns").asInt(0) + 1);
+                layer.put("pending_turns", LenientJson.asInt(layer.path("pending_turns"), 0) + 1);
             }
         }
         return block.isEmpty() ? "" : block.strip() + "\n\n";
@@ -1749,7 +1750,7 @@ public final class DirectVideoCoach {
     private static ObjectNode nextState(CoachSessionSnapshot session) {
         ObjectNode state = session.coachingState() == null ? CoachingStateReducer.empty()
                 : ((ObjectNode) session.coachingState()).deepCopy();
-        CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
+        CoachingStateReducer.require(LenientJson.asLong(state.path("revision")) == session.stateRevision(), "stored revision mismatch");
         state.put("revision", session.stateRevision() + 1);
         return state;
     }

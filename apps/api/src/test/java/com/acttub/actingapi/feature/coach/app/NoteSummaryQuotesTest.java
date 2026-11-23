@@ -6,6 +6,7 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * practice.note 의 "요약 인용 ≤ 2 이고 각 인용에 출처(배우 말·관찰)가 있다" 를 본다.
@@ -34,12 +35,12 @@ class NoteSummaryQuotesTest {
         JsonNode quotes = NoteWriter.summaryQuotes(StructuredJson.parse(NOTE));
 
         assertThat(quotes).hasSize(2);
-        assertThat(quotes.get(0).path("quote").asText()).isEqualTo("붙잡고는 싶어");
-        assertThat(quotes.get(0).path("source_ref").asText()).isEqualTo("m1");
-        assertThat(quotes.get(0).path("kind").asText()).isEqualTo("actor");
-        assertThat(quotes.get(1).path("quote").asText()).isEqualTo("대사가 끝난 뒤 시선이 아래로 내려간다.");
-        assertThat(quotes.get(1).path("source_ref").asText()).isEqualTo("e1");
-        assertThat(quotes.get(1).path("kind").asText()).isEqualTo("observation");
+        assertThat(LenientJson.asText(quotes.get(0).path("quote"))).isEqualTo("붙잡고는 싶어");
+        assertThat(LenientJson.asText(quotes.get(0).path("source_ref"))).isEqualTo("m1");
+        assertThat(LenientJson.asText(quotes.get(0).path("kind"))).isEqualTo("actor");
+        assertThat(LenientJson.asText(quotes.get(1).path("quote"))).isEqualTo("대사가 끝난 뒤 시선이 아래로 내려간다.");
+        assertThat(LenientJson.asText(quotes.get(1).path("source_ref"))).isEqualTo("e1");
+        assertThat(LenientJson.asText(quotes.get(1).path("kind"))).isEqualTo("observation");
     }
 
     @Test

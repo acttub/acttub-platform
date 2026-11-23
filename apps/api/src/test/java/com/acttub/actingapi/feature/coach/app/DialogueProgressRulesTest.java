@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.i18n.LocaleContextHolder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 대화 복구 신호: 배우의 말에서 혼란·모름·손 질문을 읽고, 그에 맞지 않는 코치 응답을 거절한다. */
 class DialogueProgressRulesTest {
@@ -99,14 +100,14 @@ class DialogueProgressRulesTest {
             ObjectNode input = input("Did my hand gesture land in the video?", "손은 화면 밖이다.");
             input.set("dialogue_progress", DialogueProgress.controls(input));
             JsonNode limit = DialogueProgress.observationLimitReply(input);
-            assertThat(limit.path("message").asText())
+            assertThat(LenientJson.asText(limit.path("message")))
                     .isEqualTo("I can't make out your hand movements in the video, so I can't judge how well that gesture landed.");
             assertThat(limit.path("reply_link").path("evidence_refs").toString()).isEqualTo("[\"l1\"]");
-            assertThat(limit.path("base_state_revision").asInt()).isEqualTo(4);
+            assertThat(LenientJson.asInt(limit.path("base_state_revision"))).isEqualTo(4);
             JsonNode correction = DialogueProgress.correctionTargetReply(input("I misspoke"));
-            assertThat(correction.path("message").asText())
+            assertThat(LenientJson.asText(correction.path("message")))
                     .isEqualTo("Do you mean you want to correct the answer you just gave me, or that you misspoke a line in the video?");
-            assertThat(correction.path("reply_link").path("move").asText()).isEqualTo("clarify");
+            assertThat(LenientJson.asText(correction.path("reply_link").path("move"))).isEqualTo("clarify");
         } finally {
             LocaleContextHolder.resetLocaleContext();
         }

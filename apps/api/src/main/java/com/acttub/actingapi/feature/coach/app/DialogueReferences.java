@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Request-local aliases avoid asking the model to copy long storage IDs. Unknown IDs stay invalid. */
 final class DialogueReferences {
@@ -14,7 +15,7 @@ final class DialogueReferences {
 
     DialogueReferences(JsonNode sources, String reservedCoachId) {
         Set<String> ids = new java.util.LinkedHashSet<>();
-        sources.forEach(source -> ids.add(source.path("id").asText()));
+        sources.forEach(source -> ids.add(LenientJson.asText(source.path("id"))));
         ids.add(reservedCoachId);
         Set<String> occupied = new HashSet<>(ids);
         int index = 0;
@@ -34,7 +35,7 @@ final class DialogueReferences {
         boolean reference = field.equals("id") || field.endsWith("_id") || field.endsWith("_ids")
                 || field.endsWith("_ref") || field.endsWith("_refs");
         if (value.isTextual() && reference) return StructuredJson.MAPPER.getNodeFactory()
-                .textNode(mapping.getOrDefault(value.asText(), value.asText()));
+                .textNode(mapping.getOrDefault(LenientJson.asText(value), LenientJson.asText(value)));
         if (value.isObject()) {
             var result = StructuredJson.MAPPER.createObjectNode();
             value.properties().forEach(entry -> result.set(entry.getKey(), replace(entry.getValue(), mapping, entry.getKey())));

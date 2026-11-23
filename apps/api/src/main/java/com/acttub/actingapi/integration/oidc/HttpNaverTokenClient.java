@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 네이버 토큰 API 의 실물.
@@ -61,12 +62,12 @@ public class HttpNaverTokenClient implements NaverTokenClient {
         }
         ProviderHttp.Reply reply = post(TOKEN_URL, form);
         JsonNode body = json(reply.body());
-        String error = body.path("error").isTextual() ? body.path("error").asText() : null;
+        String error = body.path("error").isTextual() ? LenientJson.asText(body.path("error")) : null;
         // 네이버는 실패도 200 과 error 필드로 답하는 일이 있다. 상태와 필드를 둘 다 본다.
         if (reply.status() == 200 && error == null && body.path("id_token").isTextual()) {
             return new NaverGrant(
-                    body.path("id_token").asText(),
-                    body.path("refresh_token").isTextual() ? body.path("refresh_token").asText() : null);
+                    LenientJson.asText(body.path("id_token")),
+                    body.path("refresh_token").isTextual() ? LenientJson.asText(body.path("refresh_token")) : null);
         }
         if (reply.status() >= 500) {
             throw new ProviderUnavailable("naver token endpoint answered " + reply.status());

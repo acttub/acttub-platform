@@ -18,6 +18,7 @@ import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 0.1.0 코치 대화의 저장소. 엔진이 쓰는 {@link CoachSessionSnapshot} 을 {@code practices}·{@code analyses}·
@@ -531,7 +532,7 @@ class PostgresConversationRepository implements ConversationRepository {
         Tuple row = rows.getFirst();
         JsonNode report = json(row.get("report", String.class));
         boolean modern = "practice_note".equals(row.get("report_type", String.class));
-        String mode = report.path("mode").asText("record_only");
+        String mode = LenientJson.asText(report.path("mode"), "record_only");
         return new NoteView(
                 row.get("id", UUID.class),
                 row.get("conversation_id", UUID.class),
@@ -553,9 +554,9 @@ class PostgresConversationRepository implements ConversationRepository {
 
     /** 비어 있는 JSON 값은 {@code null} 이다 — 옛 원문의 빈 제목을 빈 문자열로 내보내지 않는다. */
     private static String plain(JsonNode value) {
-        return value == null || value.isMissingNode() || value.isNull() || value.asText().isBlank()
+        return value == null || value.isMissingNode() || value.isNull() || LenientJson.asText(value).isBlank()
                 ? null
-                : value.asText();
+                : LenientJson.asText(value);
     }
 
     private NoteView noteOf(String where, UUID id) {

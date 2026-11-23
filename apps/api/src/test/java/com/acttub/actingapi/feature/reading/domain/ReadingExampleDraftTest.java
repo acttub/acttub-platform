@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * V61 이 넣은 예시 대본 3편의 미리 나눈 결과(draft)가 원문(raw_text)의 줄과 맞는지 본다 — DB 없이 마이그레이션 글을 읽는다.
@@ -118,7 +119,7 @@ class ReadingExampleDraftTest {
             draft.path("characters").forEach(name -> characters.add(name.textValue()));
             List<ReadingExample.Line> lines = new ArrayList<>();
             draft.path("lines").forEach(line -> lines.add(new ReadingExample.Line(line.path("kind").textValue(),
-                    line.path("character").isNull() ? null : line.path("character").intValue(), line.path("text").textValue())));
+                    line.path("character").isNull() ? null : LenientJson.intValue(line.path("character")), line.path("text").textValue())));
             examples.put(matcher.group(1), new ReadingExample(matcher.group(1), matcher.group(2), matcher.group(3),
                     matcher.group(5), characters, lines));
         }

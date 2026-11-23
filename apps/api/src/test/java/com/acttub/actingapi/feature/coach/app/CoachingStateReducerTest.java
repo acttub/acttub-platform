@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class CoachingStateReducerTest {
     JsonNode turn(int i) { return StructuredJson.resource("/coaching/turns.json").get(i).deepCopy(); }
@@ -20,8 +21,8 @@ class CoachingStateReducerTest {
     ObjectNode apply(JsonNode old, JsonNode output, int i) {
         JsonNode ids = turn(i).path("input").path("reserved_ids");
         return CoachingStateReducer.apply(old, output, sources(i), i == 0 ? null : "m" + i,
-                ids.path("coach_message_id").asText(), ids.path("new_proposal_id").asText(),
-                ids.path("new_attempt_id").asText(), 120, 2, i == 2);
+                LenientJson.asText(ids.path("coach_message_id")), LenientJson.asText(ids.path("new_proposal_id")),
+                LenientJson.asText(ids.path("new_attempt_id")), 120, 2, i == 2);
     }
     ObjectNode proposed() { return apply(apply(CoachingStateReducer.empty(), output(0), 0), output(1), 1); }
 
@@ -34,7 +35,7 @@ class CoachingStateReducerTest {
     })
     void quotedDialogueDoesNotConsumeTheCoachSentenceBudget(String message) {
         ObjectNode response = output(0).put("message", message);
-        assertThat(apply(CoachingStateReducer.empty(), response, 0).path("revision").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(apply(CoachingStateReducer.empty(), response, 0).path("revision"))).isEqualTo(1);
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -51,14 +52,14 @@ class CoachingStateReducerTest {
 
     @Test void actualDirectionAndDisplayedInstructionsSurviveWithoutInventedExecution() {
         ObjectNode proposed = proposed();
-        assertThat(proposed.path("context").path("direction").path("origin").asText()).isEqualTo("actor_stated");
-        assertThat(proposed.path("proposals").get(0).path("selection").asText()).isEqualTo("proposed");
+        assertThat(LenientJson.asText(proposed.path("context").path("direction").path("origin"))).isEqualTo("actor_stated");
+        assertThat(LenientJson.asText(proposed.path("proposals").get(0).path("selection"))).isEqualTo("proposed");
         assertThat(proposed.path("attempts")).isEmpty();
         ObjectNode finish = output(2);
         ((ObjectNode) finish.path("attempt_changes").get(0).path("attempt")).put("attempt_id", "a2");
         ObjectNode selected = apply(proposed, finish, 2);
-        assertThat(selected.path("revision").asInt()).isEqualTo(3);
-        assertThat(selected.path("attempts").get(0).path("execution").asText()).isEqualTo("not_tried");
+        assertThat(LenientJson.asInt(selected.path("revision"))).isEqualTo(3);
+        assertThat(LenientJson.asText(selected.path("attempts").get(0).path("execution"))).isEqualTo("not_tried");
         assertThat(selected.path("attempts").get(0).path("result").isNull()).isTrue();
     }
     @Test void rejectsUndeliveredEvidenceAndHiddenHomework() {
@@ -74,7 +75,7 @@ class CoachingStateReducerTest {
         ObjectNode response = output(2);
         ((ObjectNode) response.path("attempt_changes").get(0).path("attempt")).put("attempt_id", "a2");
         ArrayNode sources = sources(2);
-        sources.forEach(s -> { if (s.path("id").asText().equals("m2")) ((ObjectNode) s).put("text", "네"); });
+        sources.forEach(s -> { if (LenientJson.asText(s.path("id")).equals("m2")) ((ObjectNode) s).put("text", "네"); });
         assertThatThrownBy(() -> CoachingStateReducer.apply(proposed(), response, sources, "m2", "c3", "p2", "a2", 120, 2, true))
                 .hasMessageContaining("acknowledgment");
     }

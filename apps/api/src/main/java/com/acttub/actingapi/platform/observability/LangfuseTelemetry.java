@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * {@link LlmTelemetry} 의 Langfuse 구현. 자체 호스팅한 관측 서버로 보낸다.
@@ -192,8 +193,8 @@ public class LangfuseTelemetry implements LlmTelemetry {
         try {
             JsonNode current = currentPrompt(prompt.name(), label);
             if (current != null && current.path("version").isInt()
-                    && prompt.text().equals(current.path("prompt").asText(null))) {
-                return current.path("version").asInt();
+                    && prompt.text().equals(LenientJson.asText(current.path("prompt"), null))) {
+                return LenientJson.asInt(current.path("version"));
             }
             ObjectNode create = mapper.createObjectNode();
             create.put("name", prompt.name());
@@ -208,7 +209,7 @@ public class LangfuseTelemetry implements LlmTelemetry {
                     .retrieve()
                     .body(String.class);
             JsonNode version = mapper.readTree(created).path("version");
-            return version.isInt() ? version.asInt() : null;
+            return version.isInt() ? LenientJson.asInt(version) : null;
         } catch (Exception failure) {
             // 응답 본문에는 무엇이 섞였을지 모른다. 이름과 종류만 남긴다.
             LOG.warn("프롬프트 버전 확인 실패 ({}): {}", prompt.name(), failure.getClass().getSimpleName());

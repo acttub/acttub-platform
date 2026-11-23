@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Python {@code acting_llm.openai_client.generate_text}의 Responses REST 동형 이식. */
 @Component
@@ -145,7 +146,7 @@ public class OpenAiResponsesClient implements TextGenerator {
         if (payload == null || !payload.isObject()) {
             throw new IllegalStateException("OpenAI 평문 응답을 읽지 못했습니다.");
         }
-        if (options != null && payload.has("status") && !"completed".equals(payload.path("status").asText())) {
+        if (options != null && payload.has("status") && !"completed".equals(LenientJson.asText(payload.path("status")))) {
             throw new IllegalStateException("OpenAI response did not complete");
         }
 
@@ -154,7 +155,7 @@ public class OpenAiResponsesClient implements TextGenerator {
         String text = direct != null && direct.isTextual()
                 ? direct.textValue().strip()
                 : contents.stream()
-                        .filter(content -> "output_text".equals(content.path("type").asText()))
+                        .filter(content -> "output_text".equals(LenientJson.asText(content.path("type"))))
                         .map(content -> content.path("text"))
                         .filter(JsonNode::isTextual)
                         .map(JsonNode::textValue)
@@ -243,7 +244,7 @@ public class OpenAiResponsesClient implements TextGenerator {
         int completion = integer(usage, "output_tokens");
         JsonNode totalNode = usage == null ? null : usage.get("total_tokens");
         int total = totalNode != null && totalNode.isIntegralNumber()
-                ? totalNode.intValue()
+                ? LenientJson.intValue(totalNode)
                 : prompt + completion;
         return new TokenUsage(prompt, completion, total);
     }
@@ -253,7 +254,7 @@ public class OpenAiResponsesClient implements TextGenerator {
             return 0;
         }
         JsonNode value = parent.get(field);
-        return value != null && value.isIntegralNumber() ? value.intValue() : 0;
+        return value != null && value.isIntegralNumber() ? LenientJson.intValue(value) : 0;
     }
 
     @FunctionalInterface

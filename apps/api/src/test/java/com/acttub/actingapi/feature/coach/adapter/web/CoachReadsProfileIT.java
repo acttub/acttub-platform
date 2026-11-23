@@ -39,6 +39,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.profile: 코치 대화와 노트가 프로필을 읽는다 — HTTP 로 프로필을 저장하고, 실제 Postgres 를 거쳐,
@@ -211,8 +212,8 @@ class CoachReadsProfileIT {
         assertThat(opening.path("actor_profile")).isEqualTo(mapper.readTree("""
                 {"name":"%s","gender":"여성","age":%d,"directions":["매체(TV·영화)"],
                  "experience":"입시생","goal":"전문 배우"}
-                """.formatted(NAME, opening.path("actor_profile").path("age").asInt())));
-        assertThat(opening.path("actor_profile").path("age").asInt()).isGreaterThanOrEqualTo(25);
+                """.formatted(NAME, LenientJson.asInt(opening.path("actor_profile").path("age")))));
+        assertThat(LenientJson.asInt(opening.path("actor_profile").path("age"))).isGreaterThanOrEqualTo(25);
         assertThat(opening.path("prior_context").path("memory"))
                 .isEqualTo(mapper.readTree("{\"goal\":\"입시 합격\"}"));
         assertThat(generator.instructions().get(1)).contains("[actor_profile]");
@@ -220,9 +221,9 @@ class CoachReadsProfileIT {
         assertThat(mapper.readTree(generator.inputs().get(0)).has("actor_profile")).as("분류 입력").isFalse();
         assertThat(generator.instructions().get(0)).doesNotContain("[actor_profile]");
 
-        UUID session = UUID.fromString(started.path("conversation").path("id").asText());
+        UUID session = UUID.fromString(LenientJson.asText(started.path("conversation").path("id")));
         JsonNode resumed = successful(get("/v2/coach/conversations/{id}", session).header("Authorization", bearer()));
-        assertThat(resumed.path("reply_limit").asInt()).as("신형 대화 재조회도 신형 상한이다")
+        assertThat(LenientJson.asInt(resumed.path("reply_limit"))).as("신형 대화 재조회도 신형 상한이다")
                 .isEqualTo(com.acttub.actingapi.feature.coach.app.ConversationService.THREE_LAYERS_REPLY_LIMIT);
         // 마무리 턴은 분류를 건너뛴다: 생성 → 노트.
         generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
@@ -230,12 +231,12 @@ class CoachReadsProfileIT {
 
         JsonNode finished = reply(session, "three_layers_v1");
 
-        assertThat(finished.path("conversation").path("status").asText()).isEqualTo("closed");
-        assertThat(finished.path("note").path("report").path("schema_version").asText())
+        assertThat(LenientJson.asText(finished.path("conversation").path("status"))).isEqualTo("closed");
+        assertThat(LenientJson.asText(finished.path("note").path("report").path("schema_version")))
                 .isEqualTo("acttub.public_practice_note.v1");
         assertThat(finished.path("note").path("report").has("source_catalog")).isFalse();
         JsonNode noteInput = mapper.readTree(generator.lastInput());
-        assertThat(noteInput.path("actor_profile").path("experience").asText())
+        assertThat(LenientJson.asText(noteInput.path("actor_profile").path("experience")))
                 .as("노트의 모델 입력 — 프로필은 handoff 와 나란히 최상위에 있다")
                 .isEqualTo("입시생");
         assertThat(noteInput.path("coach_handoff").has("actor_profile")).isFalse();
@@ -303,8 +304,8 @@ class CoachReadsProfileIT {
 
     private void assertProfileAtTheTopOfTheNoteInput(String experience) throws Exception {
         JsonNode input = mapper.readTree(generator.lastInput());
-        assertThat(input.path("actor_profile").path("name").asText()).isEqualTo(NAME);
-        assertThat(input.path("actor_profile").path("experience").asText()).isEqualTo(experience);
+        assertThat(LenientJson.asText(input.path("actor_profile").path("name"))).isEqualTo(NAME);
+        assertThat(LenientJson.asText(input.path("actor_profile").path("experience"))).isEqualTo(experience);
         assertThat(input.path("confirmed_handoff").has("actor_profile")).isFalse();
         assertThat(generator.lastInstructions())
                 .contains("[actor_profile]", "프로필의 최종 목표를 이번 장면의 목표로 채우지 않는다");
@@ -321,7 +322,7 @@ class CoachReadsProfileIT {
         var failed = mvc.perform(post("/v2/coach/start").header("Authorization", bearer())
                 .contentType(MediaType.APPLICATION_JSON).content(opening)).andReturn().getResponse();
         assertThat(failed.getStatus()).as(failed.getContentAsString()).isEqualTo(502);
-        assertThat(mapper.readTree(failed.getContentAsString()).path("detail").asText()).isEqualTo("coach_response_unavailable");
+        assertThat(LenientJson.asText(mapper.readTree(failed.getContentAsString()).path("detail"))).isEqualTo("coach_response_unavailable");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_messages", Integer.class)).isZero();
 
         generator.enqueue("{\"route\":\"respond\"}");
@@ -329,15 +330,15 @@ class CoachReadsProfileIT {
         JsonNode recovered = successful(post("/v2/coach/start").header("Authorization", bearer())
                 .contentType(MediaType.APPLICATION_JSON).content(opening));
         assertThat(recovered.at("/conversation/messages")).hasSize(1);
-        assertThat(recovered.path("message").asText()).isEqualTo("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?");
+        assertThat(LenientJson.asText(recovered.path("message"))).isEqualTo("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?");
 
         generator.enqueue("{\"route\":\"invalid-route\"}");
         var reply = mvc.perform(post("/v2/coach/reply").header("Authorization", bearer()).contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(Map.of("conversation_id", recovered.at("/conversation/id").asText(),
+                .content(mapper.writeValueAsString(Map.of("conversation_id", LenientJson.asText(recovered.at("/conversation/id")),
                         "request_id", UUID.randomUUID(), "text", "상대가 남아 있으면 좋겠어요"))))
                 .andReturn().getResponse();
         assertThat(reply.getStatus()).as(reply.getContentAsString()).isEqualTo(502);
-        JsonNode unchanged = successful(get("/v2/coach/conversations/{id}", recovered.at("/conversation/id").asText())
+        JsonNode unchanged = successful(get("/v2/coach/conversations/{id}", LenientJson.asText(recovered.at("/conversation/id")))
                 .header("Authorization", bearer()));
         assertThat(unchanged.path("messages")).hasSize(1);
         assertThat(unchanged.path("revision")).isEqualTo(recovered.at("/conversation/revision"));
@@ -351,7 +352,7 @@ class CoachReadsProfileIT {
         generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
         JsonNode started = startPractice(practice);
-        String closing = mapper.writeValueAsString(Map.of("conversation_id", started.at("/conversation/id").asText(),
+        String closing = mapper.writeValueAsString(Map.of("conversation_id", LenientJson.asText(started.at("/conversation/id")),
                 "request_id", UUID.randomUUID(), "text", "정리해줘"));
         generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
         generator.enqueue("not valid JSON");
@@ -361,8 +362,8 @@ class CoachReadsProfileIT {
                 .contentType(MediaType.APPLICATION_JSON).content(closing));
 
         assertThat(ended.at("/note/fallback").asBoolean()).isEqualTo(!recovers);
-        assertThat(ended.at("/note/kind").asText()).isEqualTo("observation");
-        assertThat(ended.at("/note/title").asText()).isEqualTo("가지 마 대사");
+        assertThat(LenientJson.asText(ended.at("/note/kind"))).isEqualTo("observation");
+        assertThat(LenientJson.asText(ended.at("/note/title"))).isEqualTo("가지 마 대사");
         assertThat(ended.at("/note/next_take").isNull()).isTrue();
         long noteCalls = generator.inputs().stream().filter(input -> input.contains("\"coach_handoff\"")).count();
         assertThat(noteCalls).as("노트 생성은 재시도 포함 두 번까지만").isEqualTo(2);
@@ -404,10 +405,10 @@ class CoachReadsProfileIT {
 
         JsonNode note = successful(get("/v2/practices/{id}/note", practice).header("Authorization", bearer()));
 
-        assertThat(note.path("kind").asText()).isEqualTo("action");
-        assertThat(note.path("next_take").asText()).isEqualTo(instruction);
+        assertThat(LenientJson.asText(note.path("kind"))).isEqualTo("action");
+        assertThat(LenientJson.asText(note.path("next_take"))).isEqualTo(instruction);
         assertThat(note.path("next_take")).isNotEqualTo(note.at("/report/direction/text"));
-        assertThat(note.at("/report/practice/instruction").asText()).isEqualTo(note.path("next_take").asText());
+        assertThat(LenientJson.asText(note.at("/report/practice/instruction"))).isEqualTo(LenientJson.asText(note.path("next_take")));
     }
 
     @ParameterizedTest
@@ -418,7 +419,7 @@ class CoachReadsProfileIT {
         UUID conversation = null;
         if (followup) {
             generator.enqueue(COACH_REPLY);
-            conversation = UUID.fromString(startPractice(practice).at("/conversation/id").asText());
+            conversation = UUID.fromString(LenientJson.asText(startPractice(practice).at("/conversation/id")));
             generator.reset();
         }
         RuntimeException failure = failProfile ? new IllegalStateException("profile value invalid")
@@ -436,7 +437,7 @@ class CoachReadsProfileIT {
                         .header("Authorization", bearer()).content(mapper.writeValueAsString(Map.of(
                                 "conversation_id", conversation, "request_id", UUID.randomUUID(), "text", "숨이 막혔어요"))))
                 : startPractice(practice);
-        assertThat(answer.path("message").asText()).isEqualTo("질문");
+        assertThat(LenientJson.asText(answer.path("message"))).isEqualTo("질문");
         assertThat(failures.reports()).singleElement().satisfies(report -> {
             Throwable origin = report.failure();
             while (origin.getCause() != null) origin = origin.getCause();
@@ -455,15 +456,15 @@ class CoachReadsProfileIT {
     void practiceAnalysis_readsTheOwnedPublicSummary() throws Exception {
         UUID practice = analyzedPractice();
         JsonNode analysis = successful(get("/v2/practices/{id}/analysis", practice).header("Authorization", bearer()));
-        assertThat(analysis.path("format").asText()).isEqualTo("legacy");
-        assertThat(analysis.path("status").asText()).isEqualTo("ready");
-        assertThat(analysis.at("/summary/observations/0/label").asText()).isEqualTo("멈춘다");
+        assertThat(LenientJson.asText(analysis.path("format"))).isEqualTo("legacy");
+        assertThat(LenientJson.asText(analysis.path("status"))).isEqualTo("ready");
+        assertThat(LenientJson.asText(analysis.at("/summary/observations/0/label"))).isEqualTo("멈춘다");
         assertThat(analysis.has("record")).isFalse();
         jdbc.update("DELETE FROM analyses WHERE practice_id=?", practice);
         var pending = mvc.perform(get("/v2/practices/{id}/analysis", practice).header("Authorization", bearer()))
                 .andReturn().getResponse();
         assertThat(pending.getStatus()).isEqualTo(404);
-        assertThat(mapper.readTree(pending.getContentAsString()).path("detail").asText()).isEqualTo("analysis_not_found");
+        assertThat(LenientJson.asText(mapper.readTree(pending.getContentAsString()).path("detail"))).isEqualTo("analysis_not_found");
 
         UUID other = fixtures.insertUser();
         com.acttub.actingapi.support.AccountFixtures.passGate(jdbc, other);
@@ -471,7 +472,7 @@ class CoachReadsProfileIT {
             var response = mvc.perform(get("/v2/practices/{id}/analysis", id)
                     .header("Authorization", "Bearer " + jwt.issueAccessToken(other).value())).andReturn().getResponse();
             assertThat(response.getStatus()).isEqualTo(404);
-            assertThat(mapper.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("practice_not_found");
+            assertThat(LenientJson.asText(mapper.readTree(response.getContentAsString()).path("detail"))).isEqualTo("practice_not_found");
         }
     }
 
@@ -479,8 +480,8 @@ class CoachReadsProfileIT {
     void practiceAnalysis_structuredRecordIsReadAsAPublicSummary() throws Exception {
         JsonNode analysis = successful(get("/v2/practices/{id}/analysis", structuredPractice())
                 .header("Authorization", bearer()));
-        assertThat(analysis.path("format").asText()).isEqualTo("video_record_v1");
-        assertThat(analysis.at("/summary/schema_version").asText()).isEqualTo("acttub.video_record_summary.v1");
+        assertThat(LenientJson.asText(analysis.path("format"))).isEqualTo("video_record_v1");
+        assertThat(LenientJson.asText(analysis.at("/summary/schema_version"))).isEqualTo("acttub.video_record_summary.v1");
         assertThat(analysis.at("/summary/record_id")).isEqualTo(analysis.path("id"));
         assertThat(analysis.at("/summary/processed_ranges").isArray()).isTrue();
         assertThat(analysis.path("summary").has("segments")).isFalse();
@@ -494,8 +495,8 @@ class CoachReadsProfileIT {
         fixtures.insertSummary(practice);
         jdbc.update("UPDATE summaries SET raw=CAST(? AS jsonb) WHERE session_id=?", raw, practice);
         JsonNode analysis = successful(get("/v2/practices/{id}/analysis", practice).header("Authorization", bearer()));
-        assertThat(analysis.path("format").asText()).isEqualTo("legacy");
-        assertThat(analysis.at("/summary/observations/0/label").asText()).isEqualTo("멈춘 뒤 말한다");
+        assertThat(LenientJson.asText(analysis.path("format"))).isEqualTo("legacy");
+        assertThat(LenientJson.asText(analysis.at("/summary/observations/0/label"))).isEqualTo("멈춘 뒤 말한다");
         assertThat(analysis.at("/summary/uncertainties").toString()).contains("얼굴은 확인되지 않음");
     }
 
@@ -562,7 +563,7 @@ class CoachReadsProfileIT {
         fixtures.insertCoachSession(UUID.randomUUID(), previous, summary, "closed", stamp.plusMinutes(1), List.of());
         migration.run(50);
         JsonNode visibleNote = successful(get("/v2/practices/{id}/note", previous).header("Authorization", bearer()));
-        assertThat(visibleNote.at("/report/title").asText()).isEqualTo("생성된 리포트");
+        assertThat(LenientJson.asText(visibleNote.at("/report/title"))).isEqualTo("생성된 리포트");
         UUID current = analyzedPractice();
         jdbc.update("UPDATE practices SET root_id=?,ordinal=2 WHERE id=?", previous, current);
         generator.enqueue(COACH_REPLY);

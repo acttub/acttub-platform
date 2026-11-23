@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 같은 묶음에서 이어서 찍은 테이크가 지난 회차와 같은 장면인지 코드가 가린다 (SOMA-636).
@@ -83,7 +84,7 @@ public final class ContinuedTake {
             return lines;
         }
         if (loop.path(HEARD_KEY).isArray() && !loop.path(HEARD_KEY).isEmpty()) {
-            loop.path(HEARD_KEY).forEach(line -> lines.add(line.asText()));
+            loop.path(HEARD_KEY).forEach(line -> lines.add(LenientJson.asText(line)));
             return lines;
         }
         for (String row : loop.path("design").asText("").split("\\R")) {

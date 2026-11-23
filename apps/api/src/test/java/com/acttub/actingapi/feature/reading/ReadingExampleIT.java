@@ -41,6 +41,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * reading.script 「예시 대본」의 서버 목록과 복사(V61 {@code reading_examples})를 HTTP·실제 Postgres 로 본다. 모델은 부르면 기록만
@@ -143,7 +144,7 @@ class ReadingExampleIT {
         assertThat(examples).extracting(e -> e.path("id").textValue()).containsExactly("rooftop-en", "cafe-en", "mia-en");
         assertThat(examples).extracting(e -> e.path("title").textValue())
                 .containsExactly("Rooftop, night", "Café, the breakup talk", "Mia's monologue");
-        assertThat(examples).extracting(e -> e.path("dialogue_count").intValue()).containsExactly(15, 15, 7);
+        assertThat(examples).extracting(e -> LenientJson.intValue(e.path("dialogue_count"))).containsExactly(15, 15, 7);
         JsonNode started = json(post("/v2/reading/examples/{id}/start", "mia-en").content(start(UUID.randomUUID())), 201, bearer);
         assertThat(started.path("script_id").textValue()).isNotBlank();
     }
@@ -158,7 +159,7 @@ class ReadingExampleIT {
                 .containsExactly("옥상, 밤", "카페, 헤어지자는 말", "민지의 독백");
         assertThat(examples).extracting(e -> e.path("summary").textValue())
                 .containsExactly("윤서 · 태오 · 2인 대화", "서연 · 준호 · 2인 대화", "혼자 읽는 독백");
-        assertThat(examples).extracting(e -> e.path("dialogue_count").intValue()).containsExactly(15, 15, 7);
+        assertThat(examples).extracting(e -> LenientJson.intValue(e.path("dialogue_count"))).containsExactly(15, 15, 7);
         assertThat(examples.get(1).path("characters")).extracting(JsonNode::textValue).containsExactly("서연", "준호");
         assertThat(examples.get(2).path("characters")).extracting(JsonNode::textValue).containsExactly("민지");
 
@@ -301,8 +302,8 @@ class ReadingExampleIT {
             assertThat(line.fieldNames()).toIterable().containsExactlyInAnyOrder("line_id", "url", "duration_ms");
             assertThat(line.path("line_id").textValue()).isEqualTo(dialogue.get(i).path("id").textValue());
             assertThat(line.path("url").textValue()).isEqualTo("https://storage.test/get/reading-examples/v1/rooftop/"
-                    + dialogue.get(i).path("ordinal").intValue() + ".m4a?ttl=3600");
-            assertThat(line.path("duration_ms").intValue()).isPositive();
+                    + LenientJson.intValue(dialogue.get(i).path("ordinal")) + ".m4a?ttl=3600");
+            assertThat(LenientJson.intValue(line.path("duration_ms"))).isPositive();
         }
         assertThat(lines.get(0).path("url").textValue()).contains("/rooftop/2.m4a");
     }

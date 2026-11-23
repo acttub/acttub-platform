@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Real dev text model, synthetic handoffs only. Saved notes require semantic review. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
@@ -91,7 +92,7 @@ class NoteContinuityEvalTest {
             var visible = PracticeNote.publicView(note);
             output.set("note", visible);
             assertThat(calls).isNotEmpty().allSatisfy(call ->
-                    assertThat(StructuredJson.parse(call.path("input").asText()).has("actor_profile")).isTrue());
+                    assertThat(StructuredJson.parse(LenientJson.asText(call.path("input"))).has("actor_profile")).isTrue());
             assertThat(visible.toString()).doesNotContain("김하늘");
         } finally {
             StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(directory.resolve("actor-profile.json").toFile(), output);
@@ -118,14 +119,14 @@ class NoteContinuityEvalTest {
             assertThat(errors).hasSizeLessThan(2); // Do not count a deterministic fallback as model success.
             assertThat(visible.path("practice").isObject()).isEqualTo(scenario.practice());
             if (scenario.practice()) {
-                String instruction = visible.path("practice").path("instruction").asText();
+                String instruction = LenientJson.asText(visible.path("practice").path("instruction"));
                 assertThat(instruction).isNotBlank();
                 for (String word : scenario.forbidden()) assertThat(instruction).doesNotContain(word);
-                assertThat(visible.path("practice").path("selection").asText()).isEqualTo("proposed");
+                assertThat(LenientJson.asText(visible.path("practice").path("selection"))).isEqualTo("proposed");
             }
             assertThat(visible.path("attempts")).isEmpty();
             if (scenario.name().equals("offscreen-hands")) {
-                assertThat(visible.path("summary").asText()).doesNotContain("고개", "목소리");
+                assertThat(LenientJson.asText(visible.path("summary"))).doesNotContain("고개", "목소리");
             }
             if (scenario.name().equals("stale-correction")) assertThat(visible.path("focus").isNull()).isTrue();
         } finally {

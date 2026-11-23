@@ -20,6 +20,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 애플리케이션을 <b>실제 배포 형식의 {@code DATABASE_URL} 로</b> 통째로 띄운다.
@@ -76,15 +77,15 @@ class HealthAndBootIT {
 
         assertThat(body.fieldNames()).toIterable()
                 .containsExactly("status", "services", "model", "keep_alive", "commit");
-        assertThat(body.get("status").asText()).isEqualTo("ok");
+        assertThat(LenientJson.asText(body.get("status"))).isEqualTo("ok");
         assertThat(body.get("services")).hasSize(3);
-        assertThat(body.get("services").get(0).asText()).isEqualTo("summary");
-        assertThat(body.get("services").get(1).asText()).isEqualTo("coach");
-        assertThat(body.get("services").get(2).asText()).isEqualTo("report");
-        assertThat(body.get("model").asText()).isEqualTo("gemini-2.5-flash");
+        assertThat(LenientJson.asText(body.get("services").get(0))).isEqualTo("summary");
+        assertThat(LenientJson.asText(body.get("services").get(1))).isEqualTo("coach");
+        assertThat(LenientJson.asText(body.get("services").get(2))).isEqualTo("report");
+        assertThat(LenientJson.asText(body.get("model"))).isEqualTo("gemini-2.5-flash");
         assertThat(body.get("keep_alive").isBoolean()).isTrue();
         assertThat(body.get("keep_alive").asBoolean()).isFalse();
-        assertThat(body.get("commit").asText()).isEqualTo("unknown");
+        assertThat(LenientJson.asText(body.get("commit"))).isEqualTo("unknown");
     }
 
     @Test
@@ -92,7 +93,7 @@ class HealthAndBootIT {
     void openApiHealthResponseMatchesPydanticShape() throws Exception {
         JsonNode doc = MAPPER.readTree(get("/v3/api-docs"));
 
-        assertThat(doc.get("openapi").asText()).startsWith("3.1");
+        assertThat(LenientJson.asText(doc.get("openapi"))).startsWith("3.1");
         assertThat(doc.at("/info/title").textValue()).isEqualTo("acting-api");
         assertThat(doc.at("/info/version").textValue()).isEqualTo("0.1.0");
         assertThat(doc.at("/info/description").textValue()).isEqualTo(
@@ -101,14 +102,14 @@ class HealthAndBootIT {
 
         JsonNode schema = doc.at("/components/schemas/HealthResponse");
         assertThat(schema.isMissingNode()).isFalse();
-        assertThat(schema.get("type").asText()).isEqualTo("object");
+        assertThat(LenientJson.asText(schema.get("type"))).isEqualTo("object");
         assertThat(schema.get("additionalProperties").asBoolean()).isFalse();
-        assertThat(schema.at("/properties/status/const").asText()).isEqualTo("ok");
-        assertThat(schema.at("/properties/keep_alive/type").asText()).isEqualTo("boolean");
-        assertThat(schema.at("/properties/services/type").asText()).isEqualTo("array");
+        assertThat(LenientJson.asText(schema.at("/properties/status/const"))).isEqualTo("ok");
+        assertThat(LenientJson.asText(schema.at("/properties/keep_alive/type"))).isEqualTo("boolean");
+        assertThat(LenientJson.asText(schema.at("/properties/services/type"))).isEqualTo("array");
 
         java.util.List<String> required = new java.util.ArrayList<>();
-        schema.get("required").forEach(node -> required.add(node.asText()));
+        schema.get("required").forEach(node -> required.add(LenientJson.asText(node)));
         assertThat(required).containsExactlyInAnyOrder(
                 "status", "services", "model", "keep_alive", "commit");
 

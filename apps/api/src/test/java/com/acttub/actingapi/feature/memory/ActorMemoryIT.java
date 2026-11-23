@@ -38,6 +38,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * practice.memory 의 「검증 방법」 가운데 <b>서버</b> 항목을 HTTP 와 실제 Postgres 로 본다 —
@@ -371,8 +372,8 @@ class ActorMemoryIT {
         generator.enqueue(CLOSING);
         generator.enqueue(REPORT);
         JsonNode closed = json(post("/v2/coach/reply").content(replyBody(conversation, "둘째 답")), 200);
-        assertThat(closed.at("/note/report/report_type").asText()).isEqualTo("analysis");
-        assertThat(closed.at("/note/title").asText()).isEqualTo("기억의 출처가 되는 노트");
+        assertThat(LenientJson.asText(closed.at("/note/report/report_type"))).isEqualTo("analysis");
+        assertThat(LenientJson.asText(closed.at("/note/title"))).isEqualTo("기억의 출처가 되는 노트");
     }
 
     private String replyBody(UUID conversation, String text) {

@@ -24,6 +24,7 @@ import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 청크 하나가 실패할 때 다시 쓰기·반으로 나누기·빈 구간 남기기와 정리 실패 보고 (practice.analyze). */
 class GeminiVideoRecordAnalyzerRetryTest {
@@ -137,14 +138,14 @@ class GeminiVideoRecordAnalyzerRetryTest {
         ObjectNode record = analyzer(true).analyze(directory.resolve("take.mp4"),
                 new ActorMaterial("", "", "", "그 외", "", 8000), PRACTICE, null, speech);
 
-        assertThat(record.path("speech").path("reference_transcript").asText()).isEqualTo("가지 말라고");
+        assertThat(LenientJson.asText(record.path("speech").path("reference_transcript"))).isEqualTo("가지 말라고");
         assertThat(record.path("speech").path("word_timings").path("items").findValuesAsText("text"))
                 .containsExactly("가지", "말라고");
         assertThat(record.path("speech").path("word_gaps").path("items").toString())
                 .isEqualTo("[{\"start_ms\":4500,\"end_ms\":5000,\"before_word_id\":\"word:0\","
                         + "\"after_word_id\":\"word:1\",\"kind\":\"word_gap\"}]");
         assertThat(record.path("limitations").findValuesAsText("id")).contains("transcription:disagreement");
-        assertThat(record.path("speech").path("status").asText()).isEqualTo("partial");
+        assertThat(LenientJson.asText(record.path("speech").path("status"))).isEqualTo("partial");
     }
 
     @Test
@@ -184,9 +185,9 @@ class GeminiVideoRecordAnalyzerRetryTest {
 
         assertThat(record.path("media").path("audio_track_present").asBoolean()).isFalse();
         assertThat(record.path("limitations").findValuesAsText("id")).contains("audio:absent");
-        assertThat(record.path("actor_context").path("situation").asText()).isEqualTo("부엌");
-        assertThat(record.path("actor_context").path("character_context").asText()).isEqualTo("엄마");
-        assertThat(record.path("actor_context").path("goal").asText()).isEqualTo("붙잡기");
+        assertThat(LenientJson.asText(record.path("actor_context").path("situation"))).isEqualTo("부엌");
+        assertThat(LenientJson.asText(record.path("actor_context").path("character_context"))).isEqualTo("엄마");
+        assertThat(LenientJson.asText(record.path("actor_context").path("goal"))).isEqualTo("붙잡기");
     }
 
     @Test

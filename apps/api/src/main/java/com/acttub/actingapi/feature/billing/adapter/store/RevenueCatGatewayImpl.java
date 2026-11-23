@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * RevenueCat REST API v1 의 {@code GET /v1/subscribers/{app_user_id}}(비밀 키 Bearer)로 고객 정보를 읽어, 우리 entitlement 를 준 구독
@@ -158,7 +159,7 @@ public class RevenueCatGatewayImpl implements RevenueCatGateway {
 
     private static String text(JsonNode node, String field) {
         JsonNode value = node.get(field);
-        return value == null || value.isNull() ? null : value.asText();
+        return value == null || value.isNull() ? null : LenientJson.asText(value);
     }
 
     private static Instant instant(JsonNode node, String field) {

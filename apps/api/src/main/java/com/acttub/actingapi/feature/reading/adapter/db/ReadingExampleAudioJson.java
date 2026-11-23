@@ -9,6 +9,7 @@ import com.acttub.actingapi.feature.reading.domain.ReadingExampleAudio;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * {@code reading_examples.audio}(V62) 글을 푼다: {@code {"prefix", "voices": {이름: 프리셋}, "lines": [{"seq","key","duration_ms"}]}}.
@@ -48,8 +49,8 @@ final class ReadingExampleAudioJson {
             if (!line.path("seq").isIntegralNumber() || !line.path("key").isTextual() || !line.path("duration_ms").isIntegralNumber()) {
                 throw new IllegalArgumentException("audio line needs seq, key and duration_ms: " + line);
             }
-            lines.add(new ReadingExampleAudio.Line(line.path("seq").intValue(), line.path("key").textValue(),
-                    line.path("duration_ms").intValue()));
+            lines.add(new ReadingExampleAudio.Line(LenientJson.intValue(line.path("seq")), line.path("key").textValue(),
+                    LenientJson.intValue(line.path("duration_ms"))));
         }
         return new ReadingExampleAudio(prefix.isTextual() ? prefix.textValue() : null, voices, lines);
     }

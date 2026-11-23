@@ -54,6 +54,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * reading.script 의 "검증 방법" 가운데 서버가 맡는 항목을 HTTP 와 실제 Postgres 로 본다. 오브젝트 스토리지는
@@ -149,12 +150,12 @@ class ReadingScriptIT {
                 "id", "title", "source", "characters", "lines", "scenes", "recording_count", "open_session_id",
                 "last_session", "created_at", "updated_at");
         assertThat(saved.path("title").textValue()).isEqualTo("갈매기");
-        assertThat(saved.path("recording_count").intValue()).isZero();
+        assertThat(LenientJson.intValue(saved.path("recording_count"))).isZero();
         assertThat(saved.path("open_session_id").isNull()).isTrue();
         assertThat(saved.path("last_session").isNull()).isTrue();
         assertThat(saved.path("characters")).extracting(character -> character.path("name").textValue())
                 .containsExactly("니나", "트레플레프");
-        assertThat(saved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
+        assertThat(saved.path("characters")).extracting(character -> LenientJson.intValue(character.path("dialogue_count")))
                 .containsExactly(2, 1);
         assertThat(saved.path("characters").get(0).fieldNames()).toIterable()
                 .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "gender", "age_band", "dialogue_count", "member_ids", "unnamed");
@@ -166,12 +167,12 @@ class ReadingScriptIT {
                 .allMatch(character -> character.path("gender").isNull() && character.path("age_band").isNull());
         assertThat(saved.path("characters")).extracting(character -> character.path("voice").textValue())
                 .as("자동이면 배역 순서로 F1·M1").containsExactly("F1", "M1");
-        assertThat(saved.path("scenes")).extracting(scene -> scene.path("title").textValue() + ":" + scene.path("dialogue_count").intValue())
+        assertThat(saved.path("scenes")).extracting(scene -> scene.path("title").textValue() + ":" + LenientJson.intValue(scene.path("dialogue_count")))
                 .as("장면 줄이 경계 — 「제1막」 대사 둘, 「S#2」 대사 하나(머리로 나뉜 장면은 짧아도 합치지 않는다)")
                 .containsExactly("제1막:2", "S#2:1");
         assertThat(saved.path("lines")).extracting(line -> line.path("kind").textValue())
                 .containsExactly("scene", "direction", "dialogue", "dialogue", "scene", "dialogue");
-        assertThat(saved.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+        assertThat(saved.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .as("대사 번호는 대사 줄만 1부터 센다").containsExactly(null, null, 1, 2, null, 3);
         String nina = saved.path("characters").get(0).path("id").textValue();
         assertThat(saved.path("lines").get(2).path("character_id").textValue()).isEqualTo(nina);
@@ -309,7 +310,7 @@ class ReadingScriptIT {
         transfer(guest);
 
         JsonNode list = json(get("/v2/reading/scripts"), 200);
-        assertThat(list.path("total_count").intValue()).isEqualTo(105);
+        assertThat(LenientJson.intValue(list.path("total_count"))).isEqualTo(105);
         assertThat(list.path("scripts")).hasSize(105);
         assertThat(json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "106번째")), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"script_limit\"}"));
@@ -398,7 +399,7 @@ class ReadingScriptIT {
         JsonNode moved = json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello).content(speaker.toString()), 200);
         assertThat(moved.path("lines").get(2).path("character_id").textValue()).isEqualTo(treplev);
         assertThat(moved.path("lines").get(2).path("text").textValue()).as("앞뒤 공백을 정리한다").isEqualTo("안녕하세요, 콘스탄틴");
-        assertThat(moved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
+        assertThat(moved.path("characters")).extracting(character -> LenientJson.intValue(character.path("dialogue_count")))
                 .as("배역별 대사 수를 다시 센다").containsExactly(1, 2);
 
         // 지문이 대사로 잡혀야 했다 — 지문을 니나 대사로 바꾸면 대사 번호가 하나씩 밀린다.
@@ -406,7 +407,7 @@ class ReadingScriptIT {
         toDialogue.put("kind", "dialogue");
         toDialogue.put("character_id", nina);
         JsonNode promoted = json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, direction).content(toDialogue.toString()), 200);
-        assertThat(promoted.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+        assertThat(promoted.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .containsExactly(null, 1, 2, 3, null, 4);
 
         // 대사를 지문으로 — 배역은 저절로 빠진다.
@@ -487,9 +488,9 @@ class ReadingScriptIT {
         JsonNode removed = json(delete("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello), 200);
 
         assertThat(removed.path("lines")).hasSize(5);
-        assertThat(removed.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+        assertThat(removed.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .as("대사 번호를 다시 센다").containsExactly(null, null, 1, null, 2);
-        assertThat(removed.path("characters").get(0).path("dialogue_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(removed.path("characters").get(0).path("dialogue_count"))).isEqualTo(1);
         assertThat(jdbc.queryForMap("SELECT start_line_id,end_line_id,current_line_id FROM reading_sessions WHERE id=?", atStart))
                 .as("시작·진행 위치는 뒤 대사로").containsEntry("start_line_id", reply).containsEntry("end_line_id", last).containsEntry("current_line_id", reply);
         assertThat(jdbc.queryForMap("SELECT start_line_id,end_line_id,current_line_id FROM reading_sessions WHERE id=?", atEnd))
@@ -555,8 +556,8 @@ class ReadingScriptIT {
         assertThat(lines.get(2).path("text").textValue()).isEqualTo("안녕");
         assertThat(lines.get(3).path("text").textValue()).isEqualTo("하세요");
         assertThat(lines.get(3).path("character_id").textValue()).isEqualTo(nina.toString());
-        assertThat(lines).extracting(line -> line.path("ordinal").intValue()).containsExactly(1, 2, 3, 4, 5, 6, 7);
-        assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+        assertThat(lines).extracting(line -> LenientJson.intValue(line.path("ordinal"))).containsExactly(1, 2, 3, 4, 5, 6, 7);
+        assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .containsExactly(null, null, 1, 2, 3, null, 4);
         assertThat(jdbc.queryForObject("SELECT line_id FROM reading_recordings", UUID.class)).isEqualTo(hello);
         assertThat(jdbc.queryForObject("SELECT end_line_id FROM reading_sessions WHERE id=?", UUID.class, ends))
@@ -590,8 +591,8 @@ class ReadingScriptIT {
         assertThat(lines.get(2).path("id").textValue()).isEqualTo(hello.toString());
         assertThat(lines.get(3).path("text").textValue()).isEqualTo("새 대사");
         assertThat(lines.get(3).path("character_id").textValue()).isEqualTo(nina.toString());
-        assertThat(lines).extracting(line -> line.path("ordinal").intValue()).containsExactly(1, 2, 3, 4, 5, 6, 7);
-        assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+        assertThat(lines).extracting(line -> LenientJson.intValue(line.path("ordinal"))).containsExactly(1, 2, 3, 4, 5, 6, 7);
+        assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : LenientJson.intValue(line.path("dialogue_no")))
                 .containsExactly(null, null, 1, 2, 3, null, 4);
         assertThat(jdbc.queryForObject("SELECT line_id FROM reading_recordings", UUID.class)).isEqualTo(hello);
         assertThat(jdbc.queryForObject("SELECT line_id FROM line_memorization", UUID.class)).isEqualTo(hello);
@@ -666,13 +667,13 @@ class ReadingScriptIT {
         JsonNode list = json(get("/v2/reading/scripts"), 200);
         assertThat(list.fieldNames()).toIterable().containsExactlyInAnyOrder("scripts", "total_count", "in_progress_count");
         assertThat(ids(list.path("scripts"))).containsExactly(cherry, hamlet, seagull);
-        assertThat(list.path("total_count").intValue()).isEqualTo(3);
-        assertThat(list.path("in_progress_count").intValue()).isZero();
+        assertThat(LenientJson.intValue(list.path("total_count"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(list.path("in_progress_count"))).isZero();
         JsonNode card = list.path("scripts").get(2);
         assertThat(card.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "id", "title", "my_character_names", "dialogue_count", "recording_count", "last_practiced_at",
                 "last_activity_at", "status", "created_at", "updated_at");
-        assertThat(card.path("dialogue_count").intValue()).isEqualTo(3);
+        assertThat(LenientJson.intValue(card.path("dialogue_count"))).isEqualTo(3);
         assertThat(card.path("my_character_names")).as("회차가 없으면 배역 미선택").isEmpty();
         assertThat(card.path("status").textValue()).isEqualTo("no_cast");
         assertThat(card.path("last_practiced_at").isNull()).isTrue();
@@ -684,7 +685,7 @@ class ReadingScriptIT {
 
         JsonNode search = json(get("/v2/reading/scripts").param("q", "니나"), 200);
         assertThat(ids(search.path("scripts"))).as("대사 본문의 '니나'는 찾지 않는다").containsExactly(seagull);
-        assertThat(search.path("total_count").intValue()).as("머리의 수는 검색과 무관하다").isEqualTo(3);
+        assertThat(LenientJson.intValue(search.path("total_count"))).as("머리의 수는 검색과 무관하다").isEqualTo(3);
         assertThat(ids(json(get("/v2/reading/scripts").param("q", "벚꽃"), 200).path("scripts"))).containsExactly(cherry);
         assertThat(ids(json(get("/v2/reading/scripts").param("q", "%"), 200).path("scripts"))).as("와일드카드가 아니다").isEmpty();
 
@@ -702,7 +703,7 @@ class ReadingScriptIT {
         UUID cherryLatest = session(cherryId, member, List.of(ranevskaya), "in_progress", clock.instant());
 
         JsonNode practiced = json(get("/v2/reading/scripts"), 200);
-        assertThat(practiced.path("in_progress_count").intValue()).as("진행 중 회차가 있는 대본 수").isEqualTo(2);
+        assertThat(LenientJson.intValue(practiced.path("in_progress_count"))).as("진행 중 회차가 있는 대본 수").isEqualTo(2);
         Map<String, JsonNode> byId = new LinkedHashMap<>();
         practiced.path("scripts").forEach(row -> byId.put(row.path("id").textValue(), row));
         assertThat(byId.get(seagull).path("status").textValue()).isEqualTo("reading");
@@ -733,7 +734,7 @@ class ReadingScriptIT {
         recording(member, session, line, "reading/" + member + "/" + session + "/" + line + "/a.m4a");
         jdbc.update("INSERT INTO line_memorization(id,user_id,line_id,status) VALUES (?,?,?,'memorized')",
                 UUID.randomUUID(), member, line);
-        assertThat(json(get("/v2/reading/scripts/{id}", scriptId), 200).path("recording_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(json(get("/v2/reading/scripts/{id}", scriptId), 200).path("recording_count"))).isEqualTo(1);
         // 남의 대본은 같은 대본의 다른 배역·줄까지 남아 있어야 한다.
         UUID other = member();
         json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "남의 대본")), 201);
@@ -839,8 +840,8 @@ class ReadingScriptIT {
         assertThat(jdbc.queryForObject("SELECT user_id FROM line_memorization", UUID.class)).isEqualTo(member);
         assertThat(storage.objects).hasSize(1);
         JsonNode list = json(get("/v2/reading/scripts"), 200);
-        assertThat(list.path("total_count").intValue()).isEqualTo(2);
-        assertThat(json(get("/v2/reading/scripts/{id}", guests), 200).path("recording_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(list.path("total_count"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(json(get("/v2/reading/scripts/{id}", guests), 200).path("recording_count"))).isEqualTo(1);
         // 옮겨진 게스트의 토큰으로 리딩 요청 — guest_transferred.
         var stale = perform(get("/v2/reading/scripts"), guest.bearer());
         assertThat(stale.getStatus()).isEqualTo(403);
@@ -955,7 +956,7 @@ class ReadingScriptIT {
             JsonNode rejected = json(post("/v2/reading/scripts").header("X-Request-Id", header)
                     .content(sample(UUID.randomUUID(), "다른 대본")), 422);
             assertThat(rejected.path("detail").isArray()).as(header).isTrue();
-            assertThat(rejected.path("detail").get(0).path("loc")).extracting(JsonNode::asText)
+            assertThat(rejected.path("detail").get(0).path("loc")).extracting(LenientJson::asText)
                     .containsExactly("header", "X-Request-Id");
         }
         assertThat(count("scripts")).isEqualTo(1);

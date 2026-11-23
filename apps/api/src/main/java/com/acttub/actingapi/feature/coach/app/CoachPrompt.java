@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** acting-agent/prompt.py의 프롬프트와 입력 직렬화 계약. */
 public final class CoachPrompt {
@@ -504,7 +505,7 @@ public final class CoachPrompt {
         if (value.isBoolean()) {
             return value.booleanValue() ? "True" : "False";
         }
-        return value.asText();
+        return LenientJson.asText(value);
     }
 
     private static String compactJson(JsonNode value) {

@@ -24,6 +24,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** ops 구독 화면 경로(SOMA-963): 토큰, 구독 상태별 Pro 판정, 팀 표시, Pro 지급, 출시 주간 인원, 개인정보 미포함. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret",
@@ -96,8 +97,8 @@ class BillingAdminEndpointIT {
         assertThat(team.path("is_team").booleanValue()).isTrue();
         assertThat(team.path("status").textValue()).isEqualTo("canceled");
         assertThat(team.path("pro_now").booleanValue()).isTrue();
-        assertThat(team.path("paid_amount").longValue()).isEqualTo(3900);
-        assertThat(team.path("paid_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.longValue(team.path("paid_amount"))).isEqualTo(3900);
+        assertThat(LenientJson.intValue(team.path("paid_count"))).isEqualTo(1);
         assertThat(team.path("canceled_at").textValue()).isNotNull();
 
         JsonNode gone = subs.get(2);
@@ -111,8 +112,8 @@ class BillingAdminEndpointIT {
 
         JsonNode launch = root.path("launch_week");
         assertThat(launch.path("active_now").booleanValue()).isTrue();
-        assertThat(launch.path("users").intValue()).isEqualTo(3);
-        assertThat(launch.path("team_users").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(launch.path("users"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(launch.path("team_users"))).isEqualTo(2);
     }
 
     @Test

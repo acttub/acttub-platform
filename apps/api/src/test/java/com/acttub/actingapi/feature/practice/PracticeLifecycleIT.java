@@ -44,6 +44,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * practice.start·practice.resume·practice.analyze(작업 상태)·practice.library(묶음)의 "검증 방법" 가운데 서버가
@@ -117,7 +118,7 @@ class PracticeLifecycleIT {
                 .content(startBody(UUID.randomUUID(), video, null, null)), 201);
 
         assertThat(created.path("root_id").textValue()).isEqualTo(created.path("id").textValue());
-        assertThat(created.path("ordinal").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("ordinal"))).isEqualTo(1);
         assertThat(created.path("stage").textValue()).isEqualTo("analyzing");
         assertThat(created.path("experience_version").textValue()).isEqualTo("three_layers_v1");
         assertThat(created.path("situation").textValue()).isEmpty();
@@ -129,7 +130,7 @@ class PracticeLifecycleIT {
         assertThat(created.path("video_id").textValue()).isEqualTo(video.toString());
         assertThat(created.path("analysis_status").isNull()).isTrue();
         assertThat(created.path("job").path("status").textValue()).isEqualTo("pending");
-        assertThat(created.path("job").path("attempt_count").intValue()).isZero();
+        assertThat(LenientJson.intValue(created.path("job").path("attempt_count"))).isZero();
         assertThat(count("practices")).isEqualTo(1);
         assertThat(jdbc.queryForMap("SELECT kind,status,target_id,user_id FROM ai_jobs"))
                 .containsEntry("kind", "analyze").containsEntry("status", "pending")
@@ -189,7 +190,7 @@ class PracticeLifecycleIT {
                 .content(startBody(UUID.randomUUID(), video, null, null)), bearer);
         assertThat(mismatch.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(mismatch.getContentAsString()).path("detail").get(0).path("loc"))
-                .extracting(JsonNode::asText).containsExactly("header", "X-Request-Id");
+                .extracting(LenientJson::asText).containsExactly("header", "X-Request-Id");
     }
 
     @Test
@@ -249,8 +250,8 @@ class PracticeLifecycleIT {
 
         clock.set(LocalDate.now(SEOUL).plusDays(1).atTime(0, 30).atZone(SEOUL).toInstant());
 
-        assertThat(json(post("/v2/practices").content(startBody(UUID.randomUUID(), fourth, null, null)), guest.bearer(), 201)
-                .path("ordinal").intValue()).as("자정을 넘기면 다시 된다").isEqualTo(1);
+        assertThat(LenientJson.intValue(json(post("/v2/practices").content(startBody(UUID.randomUUID(), fourth, null, null)), guest.bearer(), 201)
+                .path("ordinal"))).as("자정을 넘기면 다시 된다").isEqualTo(1);
         assertThat(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
                 .path("stage").textValue()).as("회원에게는 한도가 없다").isEqualTo("analyzing");
     }
@@ -266,7 +267,7 @@ class PracticeLifecycleIT {
         JsonNode second = json(post("/v2/practices/{id}/continue", firstId)
                 .content(continueBody(UUID.randomUUID(), null, scene("다시 찍는다", null, null), null)), 201);
 
-        assertThat(second.path("ordinal").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(second.path("ordinal"))).isEqualTo(2);
         assertThat(second.path("root_id").textValue()).isEqualTo(firstId.toString());
         assertThat(second.path("video_id").textValue()).as("같은 영상을 그대로 쓴다").isEqualTo(video.toString());
         assertThat(second.path("situation").textValue()).isEqualTo("다시 찍는다");
@@ -279,7 +280,7 @@ class PracticeLifecycleIT {
         JsonNode third = json(post("/v2/practices/{id}/continue", second.path("id").textValue())
                 .content(continueBody(UUID.randomUUID(), fresh, null, null)), 201);
 
-        assertThat(third.path("ordinal").intValue()).isEqualTo(3);
+        assertThat(LenientJson.intValue(third.path("ordinal"))).isEqualTo(3);
         assertThat(third.path("root_id").textValue()).isEqualTo(firstId.toString());
         assertThat(third.path("video_id").textValue()).isEqualTo(fresh.toString());
         assertThat(jdbc.queryForObject("SELECT hidden_at FROM practices WHERE id=?", OffsetDateTime.class, firstId))
@@ -301,7 +302,7 @@ class PracticeLifecycleIT {
         JsonNode groups = json(get("/v2/practices"), 200).path("groups");
         assertThat(groups).hasSize(1);
         assertThat(groups.get(0).path("in_progress_practice_id").textValue()).isEqualTo(firstId.toString());
-        assertThat(groups.get(0).path("ordinal_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(groups.get(0).path("ordinal_count"))).isEqualTo(1);
 
         close(firstId);
         jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", video);
@@ -310,9 +311,9 @@ class PracticeLifecycleIT {
                 .content(continueBody(UUID.randomUUID(), null, null, null)), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"video_not_ready\"}"));
         UUID fresh = video(member);
-        assertThat(json(post("/v2/practices/{id}/continue", firstId)
+        assertThat(LenientJson.intValue(json(post("/v2/practices/{id}/continue", firstId)
                 .content(continueBody(UUID.randomUUID(), fresh, null, null)), 201)
-                .path("ordinal").intValue()).as("새 영상으로는 된다").isEqualTo(2);
+                .path("ordinal"))).as("새 영상으로는 된다").isEqualTo(2);
     }
 
     @Test
@@ -456,7 +457,7 @@ class PracticeLifecycleIT {
         assertThat(group.path("root_id").textValue()).isEqualTo(rootId.toString());
         assertThat(group.path("practices")).hasSize(1);
         assertThat(group.path("practices").get(0).path("situation").textValue()).isEqualTo("문 앞");
-        assertThat(group.path("practices").get(0).path("conversation_count").intValue()).isZero();
+        assertThat(LenientJson.intValue(group.path("practices").get(0).path("conversation_count"))).isZero();
         assertThat(group.path("practices").get(0).path("note_title").isNull()).isTrue();
         assertThat(group.path("title").isNull()).as("제목은 화면이 대체 규칙으로 채운다").isTrue();
         assertThat(group.path("favorite").booleanValue()).isFalse();
@@ -532,7 +533,7 @@ class PracticeLifecycleIT {
                 .content(startBody(UUID.randomUUID(), video(member), null, null, "가".repeat(201))), bearer);
         assertThat(tooLong.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(tooLong.getContentAsString()).path("detail").get(0).path("loc"))
-                .extracting(JsonNode::asText).containsExactly("body", "title");
+                .extracting(LenientJson::asText).containsExactly("body", "title");
         assertThat(count("practices")).isEqualTo(before);
 
         close(rootId);
@@ -542,7 +543,7 @@ class PracticeLifecycleIT {
         assertThat(titledContinue.getStatus()).as("이어하기는 제목을 받지 않는다").isEqualTo(422);
         JsonNode second = json(post("/v2/practices/{id}/continue", rootId)
                 .content(continueBody(UUID.randomUUID(), null, null, null)), 201);
-        assertThat(second.path("ordinal").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(second.path("ordinal"))).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, rootId))
                 .as("이어하기는 묶음 제목을 바꾸지 않는다").isEqualTo("갈매기 1장");
         assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class,
@@ -610,7 +611,7 @@ class PracticeLifecycleIT {
                         .replace("}", ",\"session_purpose\":\"worry\"}")), bearer);
         assertThat(unknown.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(unknown.getContentAsString()).path("detail").get(0).path("loc"))
-                .extracting(JsonNode::asText).containsExactly("body", "session_purpose");
+                .extracting(LenientJson::asText).containsExactly("body", "session_purpose");
         assertThat(count("practices")).isEqualTo(before);
 
         UUID plain = UUID.fromString(json(post("/v2/practices")

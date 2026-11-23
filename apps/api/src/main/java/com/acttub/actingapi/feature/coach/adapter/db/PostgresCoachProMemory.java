@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * Pro 지난 연습 기억 읽기(SOMA-900). 이번 연습과 다른 묶음(root)에서 최근 60일 안에 끝난 코칭의 신형 노트를 최신 순으로 읽는다.
@@ -64,7 +65,7 @@ class PostgresCoachProMemory implements CoachProMemory {
             JsonNode node = StructuredJson.MAPPER.readTree(json);
             List<String> out = new ArrayList<>();
             if (node.isArray()) node.forEach(item -> {
-                if (item.isTextual() && !item.asText().isBlank()) out.add(item.asText());
+                if (item.isTextual() && !LenientJson.asText(item).isBlank()) out.add(LenientJson.asText(item));
             });
             return out;
         } catch (Exception broken) {

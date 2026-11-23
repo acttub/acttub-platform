@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 대화가 닫힐 때 연습 노트를 <b>한 번</b> 만든다 (practice.note).
@@ -65,7 +66,7 @@ public class NoteWriter {
             if (loopNote != null) return save(loaded, loopNote, now, refresh);
         }
         PracticeNote.Generated generated = generate(loaded, result, threeLayers);
-        if (generated == null || (!threeLayers && "blocked".equals(generated.note().path("report_type").asText()))) {
+        if (generated == null || (!threeLayers && "blocked".equals(LenientJson.asText(generated.note().path("report_type"))))) {
             // 거듭 실패했다. 기존 갈래는 노트가 없고, 신형은 확인된 것만 남긴다.
             // 이어 가던 대화는 정리를 못 만들었다고 이미 있는 좋은 노트를 폴백으로 덮지 않는다.
             return threeLayers && !refresh ? save(loaded, fallbackNote(sourceRevision), now, false) : null;
@@ -123,7 +124,7 @@ public class NoteWriter {
                     sourceRevision,
                     report);
         }
-        String mode = report.path("mode").asText("record_only");
+        String mode = LenientJson.asText(report.path("mode"), "record_only");
         JsonNode focus = report.path("focus");
         JsonNode instruction = report.path("practice").path("instruction");
         return new NewNote(
@@ -204,7 +205,7 @@ public class NoteWriter {
         }
         String joined = summary.path("text").asText("");
         for (JsonNode ref : summary.path("source_refs")) {
-            JsonNode source = sourceOf(report, ref.asText());
+            JsonNode source = sourceOf(report, LenientJson.asText(ref));
             String kind = quoteKind(source);
             if (kind == null) {
                 continue;
@@ -215,7 +216,7 @@ public class NoteWriter {
             }
             ObjectNode quote = quotes.addObject();
             quote.put("quote", excerpt);
-            quote.put("source_ref", ref.asText());
+            quote.put("source_ref", LenientJson.asText(ref));
             quote.put("kind", kind);
         }
         return quotes;
@@ -223,7 +224,7 @@ public class NoteWriter {
 
     private static JsonNode sourceOf(JsonNode report, String id) {
         for (JsonNode source : report.path("source_catalog")) {
-            if (id.equals(source.path("id").asText())) {
+            if (id.equals(LenientJson.asText(source.path("id")))) {
                 return source;
             }
         }
@@ -269,8 +270,8 @@ public class NoteWriter {
     }
 
     private static String text(JsonNode value) {
-        return value == null || value.isMissingNode() || value.isNull() || value.asText().isBlank()
+        return value == null || value.isMissingNode() || value.isNull() || LenientJson.asText(value).isBlank()
                 ? null
-                : value.asText();
+                : LenientJson.asText(value);
     }
 }

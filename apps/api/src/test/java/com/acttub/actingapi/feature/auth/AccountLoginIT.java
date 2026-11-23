@@ -38,6 +38,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.login 의 "검증 방법" 가운데 로그인·가입 흐름을 HTTP 와 실제 Postgres 로 본다.
@@ -114,7 +115,7 @@ class AccountLoginIT {
         assertThat(first.path("result").textValue()).isEqualTo("signup_required");
         assertThat(first.fieldNames()).toIterable()
                 .containsExactlyInAnyOrder("result", "signup_token", "expires_in", "documents");
-        assertThat(first.path("expires_in").longValue()).isEqualTo(1800);
+        assertThat(LenientJson.longValue(first.path("expires_in"))).isEqualTo(1800);
         assertThat(first.path("documents")).extracting(document -> document.path("type").textValue())
                 .containsExactly("terms", "privacy", "ai_analysis", "retention");
         assertThat(count("users")).as("가입 제출 전에는 아무 행도 없다").isZero();
@@ -137,7 +138,7 @@ class AccountLoginIT {
                 .containsExactly("granted", "granted", "granted", "granted");
         // 리프레시 토큰은 30일이다.
         JsonNode refreshClaims = jwtClaims(created.path("refresh_token").textValue());
-        assertThat(refreshClaims.path("exp").longValue() - refreshClaims.path("iat").longValue())
+        assertThat(LenientJson.longValue(refreshClaims.path("exp")) - LenientJson.longValue(refreshClaims.path("iat")))
                 .isEqualTo(Duration.ofDays(30).toSeconds());
 
         // 같은 앱 등록의 다른 기기(iOS·안드로이드)에서 와도 제공자 ID 가 같으면 같은 계정이다.

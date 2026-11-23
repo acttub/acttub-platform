@@ -26,6 +26,7 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** practice.coach: 시작·답·재전송·충돌·종료 사유를 저장소와 엔진 사이에서 어떻게 다루는지. */
 class ConversationServiceTest {
@@ -356,8 +357,8 @@ class ConversationServiceTest {
         var turn = service(listener).resume(user, conversation, 2L);
         var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class);
         verify(conversations).reopen(eq(conversation), eq(2L), captured.capture(), any());
-        assertThat(captured.getValue().path("revision").asLong()).isEqualTo(3);
-        assertThat(captured.getValue().path("practice_loop").path("resumed_at").asInt()).isEqualTo(3);
+        assertThat(LenientJson.asLong(captured.getValue().path("revision"))).isEqualTo(3);
+        assertThat(LenientJson.asInt(captured.getValue().path("practice_loop").path("resumed_at"))).isEqualTo(3);
         assertThat(captured.getValue().path("practice_loop").path("statuses")).hasSize(3);
         verify(conversations, never()).open(any(), any(), any());
         verify(listener, never()).onConversationClosed(any(), any());

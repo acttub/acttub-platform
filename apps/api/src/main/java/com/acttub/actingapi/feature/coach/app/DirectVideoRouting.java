@@ -18,6 +18,7 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Classifies actor messages separately, then selects prompts in code. Model labels never close a session. */
 final class DirectVideoRouting {
@@ -73,10 +74,10 @@ final class DirectVideoRouting {
         }
         var signals = EnumSet.noneOf(DirectVideoRoute.class);
         for (var value : root.path("signals")) {
-            if (!value.isTextual() || !CATEGORIES.contains(value.asText())) {
+            if (!value.isTextual() || !CATEGORIES.contains(LenientJson.asText(value))) {
                 throw new IllegalArgumentException("unknown direct video classification");
             }
-            var route = DirectVideoRoute.valueOf(value.asText().toUpperCase(java.util.Locale.ROOT));
+            var route = DirectVideoRoute.valueOf(LenientJson.asText(value).toUpperCase(java.util.Locale.ROOT));
             if (!signals.add(route)) throw new IllegalArgumentException("duplicate direct video classification");
         }
         // Correct a wrong premise first; confusion needs explanation before a method.

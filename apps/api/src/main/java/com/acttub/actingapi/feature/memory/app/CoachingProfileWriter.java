@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 일반 배우의 "이 배우에게 맞춘 코칭"을 쓴다 (SOMA-795).
@@ -265,7 +266,7 @@ public final class CoachingProfileWriter {
         }
         List<String> never = new ArrayList<>();
         for (JsonNode phrase : node.path("never_say")) {
-            String value = phrase.isTextual() ? stripQuotes(phrase.asText()) : "";
+            String value = phrase.isTextual() ? stripQuotes(LenientJson.asText(phrase)) : "";
             if (value.isEmpty() || value.codePointCount(0, value.length()) > MAX_NEVER_SAY_CHARS || never.size() >= MAX_NEVER_SAY) {
                 if (!value.isEmpty()) dropped.put("never_say:" + clip(value, 20), "길거나 많음");
                 continue;
@@ -283,7 +284,7 @@ public final class CoachingProfileWriter {
         }
         List<String> skip = new ArrayList<>();
         for (JsonNode item : node.path("skip")) {
-            String value = item.isTextual() ? PythonText.strip(item.asText()) : "";
+            String value = item.isTextual() ? PythonText.strip(LenientJson.asText(item)) : "";
             if (value.isEmpty() || skip.size() >= MAX_SKIP || value.codePointCount(0, value.length()) > MAX_SKIP_CHARS) continue;
             Optional<String> problem = problem(value, scene);
             if (problem.isPresent()) {
@@ -296,9 +297,9 @@ public final class CoachingProfileWriter {
                 text(node, "stuck"), first, closing, never,
                 node.path("reasons_first").isBoolean() ? node.path("reasons_first").asBoolean() : null,
                 node.path("answer_directly").isBoolean() ? node.path("answer_directly").asBoolean() : null,
-                node.path("max_questions").canConvertToInt() ? node.path("max_questions").asInt() : null,
+                LenientJson.canConvertToInt(node.path("max_questions")) ? LenientJson.asInt(node.path("max_questions")) : null,
                 text(node, "feedback_focus"), skip,
-                node.path("reply_length").canConvertToInt() ? node.path("reply_length").asInt() : null,
+                LenientJson.canConvertToInt(node.path("reply_length")) ? LenientJson.asInt(node.path("reply_length")) : null,
                 summary, null);
         if (!dropped.isEmpty()) LOG.info("맞춤 코칭에서 걸러낸 칸: {}", dropped.keySet());
         // 근거 문단이 걸러져 비어도 정해진 칸이 있으면 쓴다 — 바꿔 끼우기는 칸이 하고, 문단은 설명일 뿐이다.
@@ -392,7 +393,7 @@ public final class CoachingProfileWriter {
 
     private static String text(JsonNode node, String key) {
         JsonNode value = node.path(key);
-        return value.isTextual() ? PythonText.strip(value.asText()) : "";
+        return value.isTextual() ? PythonText.strip(LenientJson.asText(value)) : "";
     }
 
     private static boolean present(String value) {

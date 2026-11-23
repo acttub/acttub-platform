@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 연습 루프의 글 다듬기·언어 판단·숨은 상태 칸·노트 재료. */
 class DirectVideoPracticeLoopTest {
@@ -105,7 +106,7 @@ class DirectVideoPracticeLoopTest {
         assertThat(DirectVideoPracticeLoop.storedFlow(state)).isEqualTo("b");
         assertThat(DirectVideoPracticeLoop.storedCoachModel(state)).isEqualTo("b");
         assertThat(DirectVideoPracticeLoop.wasCut(state)).isTrue();
-        assertThat(state.path(DirectVideoPracticeLoop.STATE_KEY).path("input_issue").asText()).isEqualTo("silent");
+        assertThat(LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("input_issue"))).isEqualTo("silent");
         assertThat(DirectVideoPracticeLoop.storedPersona(null)).isEmpty();
         assertThat(DirectVideoPracticeLoop.storedFlow(null)).isEmpty();
         assertThat(DirectVideoPracticeLoop.storedCoachModel(null)).isEmpty();
@@ -155,7 +156,7 @@ class DirectVideoPracticeLoopTest {
         ObjectNode state = StructuredJson.MAPPER.createObjectNode();
         DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("버릇: 말끝", "", "첫 말"));
         DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("버릇: 다른 것", "할 일: 파고들기", "둘째 말"));
-        assertThat(state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText()).isEqualTo("버릇: 말끝");
+        assertThat(LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("design"))).isEqualTo("버릇: 말끝");
         assertThat(state.path(DirectVideoPracticeLoop.STATE_KEY).path("statuses").toString()).isEqualTo("[\"\",\"할 일: 파고들기\"]");
     }
 
@@ -182,9 +183,9 @@ class DirectVideoPracticeLoopTest {
         assertThat(note.nextTake()).isEqualTo("빨라짐을 지키며 끝만 늦춘다");
         assertThat(note.sourceRevision()).isEqualTo(9);
         assertThat(note.corrections().toString()).isEqualTo("[\"대사가 점점 빨라진다: \\\"그건 아니야 빠른 건 의도야\\\"\"]");
-        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("나는 급한 사람이다");
-        assertThat(note.summaryQuotes().get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(session, 5));
-        assertThat(note.summaryQuotes().get(1).path("quote").asText()).isEqualTo("인물이 급해서 그래");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("나는 급한 사람이다");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(session, 5));
+        assertThat(LenientJson.asText(note.summaryQuotes().get(1).path("quote"))).isEqualTo("인물이 급해서 그래");
         DirectVideoPracticeLoop.Round round = DirectVideoPracticeLoop.round(state.path(DirectVideoPracticeLoop.STATE_KEY), session.turns());
         assertThat(round.goal()).isEqualTo("끝 늦추기");
     }
@@ -196,7 +197,7 @@ class DirectVideoPracticeLoopTest {
         assertThat(note.kind()).isEqualTo("observation");
         assertThat(note.nextTake()).isNull();
         assertThat(note.title()).endsWith("…").hasSizeLessThanOrEqualTo(41);
-        assertThat(note.summaryQuotes().get(0).path("kind").asText()).isEqualTo("observation");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("kind"))).isEqualTo("observation");
         assertThat(DirectVideoPracticeLoop.goal(state.path(DirectVideoPracticeLoop.STATE_KEY).path("statuses"), "이번 목표: 없음")).isNull();
         assertThat(DirectVideoPracticeLoop.goal(null, "이번 목표: 끝 늦추기")).isEqualTo("끝 늦추기");
         assertThat(DirectVideoPracticeLoop.closingNextTake(null)).isEmpty();
@@ -336,12 +337,12 @@ class DirectVideoPracticeLoopTest {
                 "어떤 사람으로 봤어요?", "속을 감추는 사람 같아요", "무엇을 바라요?", "안심시키고 싶어요", "정리할게요");
         var quotes = DirectVideoPracticeLoop.note(session, 3).summaryQuotes();
         assertThat(quotes).hasSize(2);
-        assertThat(quotes.get(0).path("quote").asText()).isEqualTo("바라는 것: 상대를 안심시키기");
-        assertThat(quotes.get(0).path("kind").asText()).isEqualTo("actor");
-        assertThat(quotes.get(0).path("source_ref").asText()).as("값이 든 배우 턴이 없으면 마지막 코치 턴")
+        assertThat(LenientJson.asText(quotes.get(0).path("quote"))).isEqualTo("바라는 것: 상대를 안심시키기");
+        assertThat(LenientJson.asText(quotes.get(0).path("kind"))).isEqualTo("actor");
+        assertThat(LenientJson.asText(quotes.get(0).path("source_ref"))).as("값이 든 배우 턴이 없으면 마지막 코치 턴")
                 .isEqualTo(StructuredCoachEngine.turnId(session, 4));
-        assertThat(quotes.get(1).path("quote").asText()).isEqualTo("누구: 속을 감추는 사람");
-        assertThat(quotes.get(1).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(session, 1));
+        assertThat(LenientJson.asText(quotes.get(1).path("quote"))).isEqualTo("누구: 속을 감추는 사람");
+        assertThat(LenientJson.asText(quotes.get(1).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(session, 1));
     }
 
     @Test void otherPurposeNotesQuoteTheActorsStepAnswers() {
@@ -359,9 +360,9 @@ class DirectVideoPracticeLoopTest {
                 "어떻게 막혔어요?", "끝에서 힘이 빠져요", "어느 대사요?", PurposeLoop.DONT_KNOW, "방법은요?", "몰라요", "정리");
         var quotes = DirectVideoPracticeLoop.note(session, 4).summaryQuotes();
         assertThat(quotes).hasSize(1);
-        assertThat(quotes.get(0).path("quote").asText()).isEqualTo("끝에서 힘이 빠져요");
-        assertThat(quotes.get(0).path("kind").asText()).isEqualTo("actor");
-        assertThat(quotes.get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(session, 1));
+        assertThat(LenientJson.asText(quotes.get(0).path("quote"))).isEqualTo("끝에서 힘이 빠져요");
+        assertThat(LenientJson.asText(quotes.get(0).path("kind"))).isEqualTo("actor");
+        assertThat(LenientJson.asText(quotes.get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(session, 1));
     }
 
     @Test void purposeNotesWithoutCardOrAnswersKeepAnEmptySummary() {

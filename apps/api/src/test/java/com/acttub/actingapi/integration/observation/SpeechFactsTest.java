@@ -9,6 +9,7 @@ import java.util.Locale;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class SpeechFactsTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -20,17 +21,17 @@ class SpeechFactsTest {
             var recording = recordings.get(id);
             List<SpeechFacts.Word> words = new ArrayList<>();
             for (var word : recording.path("words")) {
-                words.add(new SpeechFacts.Word(word.path("word").asText(),
-                        seconds(word.path("start_offset").asText()),
-                        seconds(word.path("end_offset").asText())));
+                words.add(new SpeechFacts.Word(LenientJson.asText(word.path("word")),
+                        seconds(LenientJson.asText(word.path("start_offset"))),
+                        seconds(LenientJson.asText(word.path("end_offset")))));
             }
-            SpeechAnalysis result = SpeechFacts.calculate(recording.path("text").asText(), words);
+            SpeechAnalysis result = SpeechFacts.calculate(LenientJson.asText(recording.path("text")), words);
             String expected;
             try (var input = getClass().getResourceAsStream("/speech/" + id + ".txt")) {
                 expected = new String(input.readAllBytes(), StandardCharsets.UTF_8);
             }
             assertThat(render(result, words)).as(id).isEqualTo(expected);
-            assertThat(result.transcript()).isEqualTo(recording.path("text").asText());
+            assertThat(result.transcript()).isEqualTo(LenientJson.asText(recording.path("text")));
             assertThat(result.pauses()).hasSize(8);
             if (id.startsWith("0d965ac7")) {
                 assertThat(words).hasSize(136);

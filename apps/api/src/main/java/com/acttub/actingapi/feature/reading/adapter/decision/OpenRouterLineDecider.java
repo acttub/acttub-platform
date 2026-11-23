@@ -20,6 +20,7 @@ import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * OpenRouter Decisions API 로 Jev 를 부른다(SOMA-663 J1). 한 요청에 종류·화자 두 질문과 줄에 따라 더 묻는 질문({@link LineReview.Extra})을 넣고, 보기는 {@code {값: {label, description}}}
@@ -93,7 +94,7 @@ public class OpenRouterLineDecider implements LineDecider {
             throw new IllegalStateException("decision answer is missing");
         }
         Map<String, Double> out = new LinkedHashMap<>();
-        probabilities.properties().forEach(entry -> out.put(entry.getKey(), entry.getValue().asDouble(0)));
+        probabilities.properties().forEach(entry -> out.put(entry.getKey(), LenientJson.asDouble(entry.getValue(), 0)));
         return out;
     }
 
@@ -177,8 +178,8 @@ public class OpenRouterLineDecider implements LineDecider {
 
     private static void used(JsonNode usage, DeciderTally tally) {
         if (usage.isObject()) {
-            tally.used(usage.path("input_tokens").asInt(0), usage.path("output_tokens").asInt(0),
-                    usage.hasNonNull("cost") ? usage.get("cost").asDouble() : null);
+            tally.used(LenientJson.asInt(usage.path("input_tokens"), 0), LenientJson.asInt(usage.path("output_tokens"), 0),
+                    usage.hasNonNull("cost") ? LenientJson.asDouble(usage.get("cost")) : null);
         }
     }
 
@@ -198,9 +199,9 @@ public class OpenRouterLineDecider implements LineDecider {
         if (!node.hasNonNull("choice")) {
             return null;
         }
-        String choice = node.get("choice").asText();
+        String choice = LenientJson.asText(node.get("choice"));
         JsonNode confidence = node.hasNonNull("confidence") ? node.get("confidence") : node.path("probabilities").path(choice);
-        return new LineReview.Answer(choice, confidence.asDouble(0));
+        return new LineReview.Answer(choice, LenientJson.asDouble(confidence, 0));
     }
 
     private static void pause(Duration duration) {

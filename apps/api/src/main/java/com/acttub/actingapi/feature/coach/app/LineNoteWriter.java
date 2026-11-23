@@ -17,6 +17,7 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * Pro 의 「대사별로 본 것」(SOMA-900). 대화가 닫히고 노트가 저장된 <b>뒤에</b> 따로 쓴다 — 닫기 응답과 노트 저장을
@@ -155,7 +156,7 @@ public class LineNoteWriter implements AutoCloseable {
     }
 
     private static String text(JsonNode value) {
-        return value == null || !value.isTextual() ? "" : value.asText().strip();
+        return value == null || !value.isTextual() ? "" : LenientJson.asText(value).strip();
     }
 
     private static String stripFence(String raw) {

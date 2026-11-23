@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 로그인·갱신이 <b>성공했을 때</b> 내는 토큰 봉투를 못박는다.
@@ -114,7 +115,7 @@ class AuthTokenEnvelopeIT {
         assertThat(body.path("token_type").textValue())
                 .as("토큰 타입은 소문자 bearer 다")
                 .isEqualTo("bearer");
-        assertThat(body.path("expires_in").longValue()).isEqualTo(ACCESS_TOKEN_TTL_SECONDS);
+        assertThat(LenientJson.longValue(body.path("expires_in"))).isEqualTo(ACCESS_TOKEN_TTL_SECONDS);
         assertThat(body.path("access_token").textValue()).isNotBlank();
         assertThat(body.path("refresh_token").textValue()).isNotBlank();
     }

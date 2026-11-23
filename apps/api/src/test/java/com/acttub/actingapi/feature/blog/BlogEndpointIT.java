@@ -32,6 +32,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.blog — 로그인 없이 읽는 공개 경로와 운영 토큰으로 여는 관리 경로. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret",
@@ -73,7 +74,7 @@ class BlogEndpointIT {
         assertThat(created.path("status").textValue()).isEqualTo("draft");
         assertThat(created.path("published_at").isNull()).isTrue();
         assertThat(created.path("author_name").textValue()).isEqualTo("액터브 팀");
-        assertThat(created.path("reading_minutes").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("reading_minutes"))).isEqualTo(1);
 
         JsonNode duplicate = admin(post("/v2/admin/blog/posts"), body("voice-warmup", "draft"), 409);
         assertThat(duplicate.path("detail").textValue()).isEqualTo("slug_taken");

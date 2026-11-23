@@ -7,6 +7,7 @@ import java.util.UUID;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class VideoRecordTest {
     ObjectNode chunk() { return (ObjectNode) StructuredJson.resource("/coaching/chunk.json").deepCopy(); }
@@ -15,14 +16,14 @@ class VideoRecordTest {
     }
     @Test void rejectsMissingTailBrokenReferencesAndUnknownFields() {
         ObjectNode chunk = chunk();
-        VideoRecord.validateChunk(chunk, chunk.path("chunk_id").asText(), 8000);
+        VideoRecord.validateChunk(chunk, LenientJson.asText(chunk.path("chunk_id")), 8000);
         ((ObjectNode) chunk.path("segments").get(2)).put("end_ms", 7900);
-        assertThatThrownBy(() -> VideoRecord.validateChunk(chunk, chunk.path("chunk_id").asText(), 8000)).hasMessageContaining("final interval");
+        assertThatThrownBy(() -> VideoRecord.validateChunk(chunk, LenientJson.asText(chunk.path("chunk_id")), 8000)).hasMessageContaining("final interval");
         ObjectNode broken = chunk();
         ((ObjectNode) broken.path("events").get(0)).put("subject_id", "stranger");
-        assertThatThrownBy(() -> VideoRecord.validateChunk(broken, broken.path("chunk_id").asText(), 8000)).hasMessageContaining("subject");
+        assertThatThrownBy(() -> VideoRecord.validateChunk(broken, LenientJson.asText(broken.path("chunk_id")), 8000)).hasMessageContaining("subject");
         broken.put("interpretation", "배우는 불안하다");
-        assertThatThrownBy(() -> VideoRecord.validateChunk(broken, broken.path("chunk_id").asText(), 8000)).hasMessageContaining("layer1_chunk");
+        assertThatThrownBy(() -> VideoRecord.validateChunk(broken, LenientJson.asText(broken.path("chunk_id")), 8000)).hasMessageContaining("layer1_chunk");
     }
     @Test void rebuildsOnlySegmentIndexesFromOverlappingEvidence() {
         ObjectNode original = chunk();
@@ -33,11 +34,11 @@ class VideoRecordTest {
             }
         });
         ObjectNode before = broken.deepCopy();
-        ObjectNode repaired = VideoRecord.prepareChunk(broken, broken.path("chunk_id").asText(), 8000);
+        ObjectNode repaired = VideoRecord.prepareChunk(broken, LenientJson.asText(broken.path("chunk_id")), 8000);
         // Includes cross-boundary events and excludes utterances ending/starting at the boundary.
         assertThat(repaired).isEqualTo(original);
         assertThat(broken).isEqualTo(before);
-        assertThat(VideoRecord.prepareChunk(repaired, repaired.path("chunk_id").asText(), 8000)).isEqualTo(repaired);
+        assertThat(VideoRecord.prepareChunk(repaired, LenientJson.asText(repaired.path("chunk_id")), 8000)).isEqualTo(repaired);
     }
     @Test void rebuildingIndexesDoesNotAcceptInvalidEvidenceOrInventMissingCoverage() {
         for (String failure : List.of("subject", "utterance", "range", "duplicate", "coverage", "limitation")) {
@@ -54,7 +55,7 @@ class VideoRecordTest {
                     ((ObjectNode) broken.path("segments").get(0).path("channel_status")).put("visual", "unavailable");
                 }
             }
-            assertThatThrownBy(() -> VideoRecord.prepareChunk(broken, broken.path("chunk_id").asText(), 8000))
+            assertThatThrownBy(() -> VideoRecord.prepareChunk(broken, LenientJson.asText(broken.path("chunk_id")), 8000))
                     .as(failure).isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -66,10 +67,10 @@ class VideoRecordTest {
         for (int i = 0; i < 20; i++) words.add(new SpeechFacts.Word("말", i * .7, i * .7 + .2));
         VideoRecord.finish(record, SpeechFacts.calculate("말 ".repeat(20), words));
         assertThat(record.path("events")).hasSize(28);
-        assertThat(record.path("speech").path("utterances").get(1).path("start_ms").asInt()).isEqualTo(12000);
+        assertThat(LenientJson.asInt(record.path("speech").path("utterances").get(1).path("start_ms"))).isEqualTo(12000);
         assertThat(record.path("speech").path("word_timings").path("items")).hasSize(20);
         assertThat(record.path("speech").path("word_gaps").path("items")).hasSize(19);
-        assertThat(record.path("speech").path("status").asText()).isEqualTo("partial");
+        assertThat(LenientJson.asText(record.path("speech").path("status"))).isEqualTo("partial");
         assertThat(VideoRecord.sources(record)).containsKey("c1:e4");
         record.path("limitations").forEach(l -> StructuredJson.validate("layer1_limitation", l));
     }
@@ -78,8 +79,8 @@ class VideoRecordTest {
         VideoRecord.append(record, chunk(), 0);
         VideoRecord.missing(record, 8000, 16000);
         VideoRecord.finish(record, null);
-        assertThat(record.path("processing").path("status").asText()).isEqualTo("partial");
-        assertThat(record.path("processing").path("missing_ranges").get(0).path("start_ms").asInt()).isEqualTo(8000);
+        assertThat(LenientJson.asText(record.path("processing").path("status"))).isEqualTo("partial");
+        assertThat(LenientJson.asInt(record.path("processing").path("missing_ranges").get(0).path("start_ms"))).isEqualTo(8000);
         assertThat(record.path("speech").path("utterances")).hasSize(1);
         record.path("limitations").forEach(l -> StructuredJson.validate("layer1_limitation", l));
         ObjectNode failed = empty(8000);

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 배우 일지 자동 칸 규칙(practice.journal, SOMA-720) — 10/19 v4 가상 대화(fixtures)로 확인한다. */
 class ActorJournalTest {
@@ -106,17 +107,17 @@ class ActorJournalTest {
 
         ObjectNode input = ActorJournal.modelInput(JSON, session, purpose, answers);
 
-        assertThat(input.path("session").path("input_mode").asText()).isEqualTo("video");
-        assertThat(input.path("conversation").get(0).path("id").asText()).isEqualTo("c0");
-        assertThat(input.path("conversation").get(1).path("id").asText()).isEqualTo("m0");
+        assertThat(LenientJson.asText(input.path("session").path("input_mode"))).isEqualTo("video");
+        assertThat(LenientJson.asText(input.path("conversation").get(0).path("id"))).isEqualTo("c0");
+        assertThat(LenientJson.asText(input.path("conversation").get(1).path("id"))).isEqualTo("m0");
         assertThat(input.path("source_catalog").findValuesAsText("kind"))
                 .containsExactly("coach_message", "actor_message", "scene_context", "video_observation", "video_utterance");
-        assertThat(input.path("source_catalog").get(3).path("start_ms").asLong()).isEqualTo(31000L);
+        assertThat(LenientJson.asLong(input.path("source_catalog").get(3).path("start_ms"))).isEqualTo(31000L);
         assertThat(ActorJournal.answersOf(input.path("answers"))).isEqualTo(answers);
 
         ObjectNode talk = ActorJournal.modelInput(JSON, session("talk:stuck", session.turns()), purpose, answers);
-        assertThat(talk.path("session").path("input_mode").asText()).isEqualTo("no_video");
-        assertThat(talk.path("session").path("purpose").asText()).isEqualTo("stuck");
+        assertThat(LenientJson.asText(talk.path("session").path("input_mode"))).isEqualTo("no_video");
+        assertThat(LenientJson.asText(talk.path("session").path("purpose"))).isEqualTo("stuck");
         assertThat(talk.path("source_catalog").findValuesAsText("kind")).doesNotContain("video_observation", "video_utterance");
     }
 

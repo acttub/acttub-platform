@@ -12,6 +12,7 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 원본 시각·출처·누락 범위를 보존하는 1층 정본. 모델의 해석을 관찰로 승격하지 않는다. */
 public final class VideoRecord {
@@ -22,7 +23,7 @@ public final class VideoRecord {
     }
 
     public static boolean isRecord(JsonNode value) {
-        return value != null && VERSION.equals(value.path("schema_version").asText());
+        return value != null && VERSION.equals(LenientJson.asText(value.path("schema_version")));
     }
 
     public static ObjectNode reference(JsonNode record) {
@@ -49,7 +50,7 @@ public final class VideoRecord {
                 };
                 ArrayNode refs = ((ObjectNode) segment).putArray(key);
                 for (JsonNode item : prepared.path(group)) {
-                    if (overlaps(segment, item)) refs.add(item.path("id").asText());
+                    if (overlaps(segment, item)) refs.add(LenientJson.asText(item.path("id")));
                 }
             }
         }
@@ -59,26 +60,26 @@ public final class VideoRecord {
 
     public static void validateChunk(JsonNode value, String chunkId, long duration) {
         StructuredJson.validate("layer1_chunk", value);
-        require(chunkId.equals(value.path("chunk_id").asText()), "wrong chunk ID");
+        require(chunkId.equals(LenientJson.asText(value.path("chunk_id"))), "wrong chunk ID");
         Map<String, Set<String>> ids = new HashMap<>();
         Set<String> allIds = new HashSet<>();
         for (String group : GROUPS) {
             Set<String> groupIds = new HashSet<>();
             for (JsonNode item : value.path(group)) {
-                String id = item.path("id").asText();
+                String id = LenientJson.asText(item.path("id"));
                 require(allIds.add(id), "duplicate chunk ID");
                 groupIds.add(id);
                 if (!"subjects".equals(group)) {
-                    require(item.path("start_ms").asLong() < item.path("end_ms").asLong()
-                            && item.path("end_ms").asLong() <= duration, "invalid observation range");
+                    require(LenientJson.asLong(item.path("start_ms")) < LenientJson.asLong(item.path("end_ms"))
+                            && LenientJson.asLong(item.path("end_ms")) <= duration, "invalid observation range");
                 }
             }
             ids.put(group, groupIds);
         }
         long cursor = 0;
         for (JsonNode segment : value.path("segments")) {
-            require(segment.path("start_ms").asLong() == cursor, "incomplete chunk coverage");
-            cursor = segment.path("end_ms").asLong();
+            require(LenientJson.asLong(segment.path("start_ms")) == cursor, "incomplete chunk coverage");
+            cursor = LenientJson.asLong(segment.path("end_ms"));
             for (String group : List.of("utterances", "events", "limitations")) {
                 String key = switch (group) {
                     case "utterances" -> "utterance_ids";
@@ -88,13 +89,13 @@ public final class VideoRecord {
                 Set<String> expected = new HashSet<>();
                 for (JsonNode item : value.path(group)) {
                     if (overlaps(segment, item)) {
-                        expected.add(item.path("id").asText());
+                        expected.add(LenientJson.asText(item.path("id")));
                     }
                 }
                 require(strings(segment.path(key)).equals(expected), "incorrect segment references");
             }
-            boolean partial = !"recorded".equals(segment.path("channel_status").path("visual").asText())
-                    || !"recorded".equals(segment.path("channel_status").path("audio").asText());
+            boolean partial = !"recorded".equals(LenientJson.asText(segment.path("channel_status").path("visual")))
+                    || !"recorded".equals(LenientJson.asText(segment.path("channel_status").path("audio")));
             require(!partial || !segment.path("limitation_ids").isEmpty(), "missing channel limitation");
         }
         require(cursor == duration, "missing final interval");
@@ -102,23 +103,23 @@ public final class VideoRecord {
             for (JsonNode item : value.path(group)) {
                 for (String key : List.of("subject_id", "speaker_id")) {
                     if (item.hasNonNull(key)) {
-                        require(ids.get("subjects").contains(item.path(key).asText()), "unknown subject");
+                        require(ids.get("subjects").contains(LenientJson.asText(item.path(key))), "unknown subject");
                     }
                 }
                 if (item.has("utterance_ids")) {
                     require(ids.get("utterances").containsAll(strings(item.path("utterance_ids"))), "unknown utterance");
                 }
                 if (item.has("timing_basis")) {
-                    require("estimated".equals(item.path("timing_basis").asText()), "unverified aligned timing");
+                    require("estimated".equals(LenientJson.asText(item.path("timing_basis"))), "unverified aligned timing");
                 }
             }
         }
         for (JsonNode event : value.path("events")) {
-            String dimension = event.path("dimension").asText();
+            String dimension = LenientJson.asText(event.path("dimension"));
             if (Set.of("gaze", "face", "movement").contains(dimension)) {
-                require("visual".equals(event.path("channel").asText()), "wrong visual channel");
+                require("visual".equals(LenientJson.asText(event.path("channel"))), "wrong visual channel");
             } else if (Set.of("speech", "voice", "rhythm").contains(dimension)) {
-                require("audio".equals(event.path("channel").asText()), "wrong audio channel");
+                require("audio".equals(LenientJson.asText(event.path("channel"))), "wrong audio channel");
             }
         }
     }
@@ -149,11 +150,11 @@ public final class VideoRecord {
     }
 
     public static void append(ObjectNode record, JsonNode chunk, long offset) {
-        String prefix = chunk.path("chunk_id").asText() + ":";
+        String prefix = LenientJson.asText(chunk.path("chunk_id")) + ":";
         Map<String, String> ids = new HashMap<>();
         for (String group : GROUPS) {
             for (JsonNode item : chunk.path(group)) {
-                ids.put(item.path("id").asText(), prefix + item.path("id").asText());
+                ids.put(LenientJson.asText(item.path("id")), prefix + LenientJson.asText(item.path("id")));
             }
         }
         for (String group : GROUPS) {
@@ -161,25 +162,25 @@ public final class VideoRecord {
                     ? (ArrayNode) record.path("speech").path("utterances") : (ArrayNode) record.path(group);
             for (JsonNode item : chunk.path(group)) {
                 ObjectNode mapped = item.deepCopy();
-                mapped.put("id", ids.get(item.path("id").asText()));
+                mapped.put("id", ids.get(LenientJson.asText(item.path("id"))));
                 if (mapped.has("start_ms")) {
-                    mapped.put("start_ms", item.path("start_ms").asLong() + offset);
-                    mapped.put("end_ms", item.path("end_ms").asLong() + offset);
+                    mapped.put("start_ms", LenientJson.asLong(item.path("start_ms")) + offset);
+                    mapped.put("end_ms", LenientJson.asLong(item.path("end_ms")) + offset);
                 }
                 for (String key : List.of("speaker_id", "subject_id")) {
-                    if (mapped.hasNonNull(key)) mapped.put(key, ids.get(mapped.path(key).asText()));
+                    if (mapped.hasNonNull(key)) mapped.put(key, ids.get(LenientJson.asText(mapped.path(key))));
                 }
                 for (String key : List.of("utterance_ids", "event_ids", "limitation_ids")) {
                     if (mapped.has(key)) {
                         ArrayNode refs = StructuredJson.MAPPER.createArrayNode();
-                        item.path(key).forEach(ref -> refs.add(ids.get(ref.asText())));
+                        item.path(key).forEach(ref -> refs.add(ids.get(LenientJson.asText(ref))));
                         mapped.set(key, refs);
                     }
                 }
                 target.add(mapped);
             }
         }
-        long end = chunk.path("segments").get(chunk.path("segments").size() - 1).path("end_ms").asLong() + offset;
+        long end = LenientJson.asLong(chunk.path("segments").get(chunk.path("segments").size() - 1).path("end_ms")) + offset;
         ((ArrayNode) record.path("processing").path("processed_ranges")).add(range(offset, end));
     }
 
@@ -198,7 +199,7 @@ public final class VideoRecord {
     }
 
     public static void finish(ObjectNode record, SpeechAnalysis analysis) {
-        int duration = record.path("media").path("duration_ms").asInt();
+        int duration = LenientJson.asInt(record.path("media").path("duration_ms"));
         boolean audio = record.path("media").path("audio_track_present").asBoolean();
         if (record.path("processing").path("processed_ranges").isEmpty()) {
             throw new SummaryParseError("no usable video record chunks");
@@ -245,25 +246,25 @@ public final class VideoRecord {
         ArrayNode scene = (ArrayNode) record.path("overview").path("observed_scene");
         for (JsonNode event : record.path("events")) {
             if (scene.size() >= 4) break;
-            if ("visual".equals(event.path("channel").asText())) {
-                scene.add(grounded(event.path("description").asText(), event.path("id").asText()));
+            if ("visual".equals(LenientJson.asText(event.path("channel")))) {
+                scene.add(grounded(LenientJson.asText(event.path("description")), LenientJson.asText(event.path("id"))));
             }
         }
         ArrayNode spoken = (ArrayNode) record.path("overview").path("spoken_content");
         for (JsonNode utterance : record.path("speech").path("utterances")) {
             if (spoken.size() >= 4) break;
-            spoken.add(grounded(utterance.path("text").asText(), utterance.path("id").asText()));
+            spoken.add(grounded(LenientJson.asText(utterance.path("text")), LenientJson.asText(utterance.path("id"))));
         }
         for (JsonNode segment : record.path("segments")) {
             ArrayNode refs = ((ObjectNode) segment).putArray("limitation_ids");
             for (JsonNode limit : record.path("limitations")) {
-                if (overlaps(segment, limit)) refs.add(limit.path("id").asText());
+                if (overlaps(segment, limit)) refs.add(LenientJson.asText(limit.path("id")));
             }
         }
         long cursor = 0;
         for (JsonNode segment : record.path("segments")) {
-            require(segment.path("start_ms").asLong() == cursor, "incomplete assembled record");
-            cursor = segment.path("end_ms").asLong();
+            require(LenientJson.asLong(segment.path("start_ms")) == cursor, "incomplete assembled record");
+            cursor = LenientJson.asLong(segment.path("end_ms"));
         }
         require(cursor == duration, "missing assembled tail");
     }
@@ -280,13 +281,13 @@ public final class VideoRecord {
             };
             for (JsonNode item : items) {
                 ObjectNode source = StructuredJson.MAPPER.createObjectNode();
-                source.put("id", item.path("id").asText()).put("kind", kind)
-                        .put("text", item.path("text").asText(item.path("description").asText()));
+                source.put("id", LenientJson.asText(item.path("id"))).put("kind", kind)
+                        .put("text", LenientJson.asText(item.path("text"), item.path("description").asText()));
                 source.set("record_id", record.path("record_id"));
                 source.set("record_version", record.path("record_version"));
                 source.set("start_ms", item.path("start_ms"));
                 source.set("end_ms", item.path("end_ms"));
-                result.put(source.path("id").asText(), source);
+                result.put(LenientJson.asText(source.path("id")), source);
             }
         }
         return result;
@@ -297,8 +298,8 @@ public final class VideoRecord {
     }
 
     public static boolean overlaps(JsonNode left, JsonNode right) {
-        return left.path("start_ms").asLong() < right.path("end_ms").asLong()
-                && right.path("start_ms").asLong() < left.path("end_ms").asLong();
+        return LenientJson.asLong(left.path("start_ms")) < LenientJson.asLong(right.path("end_ms"))
+                && LenientJson.asLong(right.path("start_ms")) < LenientJson.asLong(left.path("end_ms"));
     }
 
     public static ObjectNode grounded(String text, String ref) {
@@ -318,7 +319,7 @@ public final class VideoRecord {
 
     private static Set<String> strings(JsonNode values) {
         Set<String> result = new HashSet<>();
-        values.forEach(value -> result.add(value.asText()));
+        values.forEach(value -> result.add(LenientJson.asText(value)));
         return result;
     }
 

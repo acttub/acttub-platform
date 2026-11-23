@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * Expo Push API 로 보낸다. 토큰 하나로 iOS·Android 둘 다 커버되고 별도 인증이 없다 —
@@ -151,10 +152,10 @@ class ExpoPushSender implements PushSender {
         Set<String> otherErrors = new TreeSet<>();
         for (int index = 0; index < tickets.size() && index < messages.size(); index++) {
             JsonNode ticket = tickets.get(index);
-            if (!"error".equals(ticket.path("status").asText())) {
+            if (!"error".equals(LenientJson.asText(ticket.path("status")))) {
                 continue;
             }
-            String error = ticket.path("details").path("error").asText("unknown");
+            String error = LenientJson.asText(ticket.path("details").path("error"), "unknown");
             if ("DeviceNotRegistered".equals(error)) {
                 unregistered.add(messages.get(index).to());
             } else {

@@ -12,6 +12,7 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class OpeningQuestionTest {
     private static final String QUESTION = "'가지 마'를 듣고 상대가 어떻게 하길 바랐어요?";
@@ -31,9 +32,9 @@ class OpeningQuestionTest {
             var engine = new CoachEngine((system, text) -> {
                 assertThat(system).contains("이 답을 알면 영상의 무엇을 더 정확하게 볼 수 있는가?");
                 var input = StructuredJson.parse(text);
-                assertThat(input.path("controls").path("min_questions").asInt()).isZero();
-                assertThat(input.path("controls").path("max_message_chars").asInt()).isEqualTo(100);
-                assertThat(input.path("controls").path("max_sentences").asInt()).isEqualTo(2);
+                assertThat(LenientJson.asInt(input.path("controls").path("min_questions"))).isZero();
+                assertThat(LenientJson.asInt(input.path("controls").path("max_message_chars"))).isEqualTo(100);
+                assertThat(LenientJson.asInt(input.path("controls").path("max_sentences"))).isEqualTo(2);
                 ObjectNode reply = StructuredCoachEngineTest.respond(input, QUESTION, "continue");
                 if (calls.getAndIncrement() == 0) {
                     switch (error) {

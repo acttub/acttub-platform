@@ -8,6 +8,7 @@ import com.acttub.actingapi.integration.observation.VideoRecord;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class CoachRecordLookupTest {
     final JsonNode record = StructuredJson.resource("/coaching/record.json");
@@ -24,7 +25,7 @@ class CoachRecordLookupTest {
 
     static List<String> ids(JsonNode items) {
         List<String> out = new ArrayList<>();
-        items.forEach(item -> out.add(item.path("id").asText()));
+        items.forEach(item -> out.add(LenientJson.asText(item.path("id"))));
         return out;
     }
 
@@ -33,8 +34,8 @@ class CoachRecordLookupTest {
         assertThat(ids(view.path("timeline"))).contains("e1", "e5", "e8");
         assertThat(view.path("timeline_complete").asBoolean()).isTrue();
         assertThat(view.path("limitations_complete").asBoolean()).isTrue();
-        record.path("events").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(e.path("id").asText()));
-        record.path("limitations").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(e.path("id").asText()));
+        record.path("events").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(LenientJson.asText(e.path("id"))));
+        record.path("limitations").forEach(e -> assertThat(ids(view.path("source_catalog"))).contains(LenientJson.asText(e.path("id"))));
     }
     @Test void longRecordSamplesBeginningAndEndAndDisclosesOmissions() {
         ObjectNode longRecord = record.deepCopy();
@@ -71,8 +72,8 @@ class CoachRecordLookupTest {
         assertThat(ids(view.path("events"))).contains("e1", "e4").doesNotHaveDuplicates();
         assertThat(ids(view.path("speech").path("utterances"))).containsExactly("u1");
         assertThat(ids(view.path("source_catalog"))).contains("e1", "u1", "l1").doesNotHaveDuplicates();
-        assertThat(view.path("last_lookup").path("status").asText()).isEqualTo("ok");
-        assertThat(view.path("retrieval_status").asText()).isEqualTo("ok");
+        assertThat(LenientJson.asText(view.path("last_lookup").path("status"))).isEqualTo("ok");
+        assertThat(LenientJson.asText(view.path("retrieval_status"))).isEqualTo("ok");
     }
 
     @Test void mergingTheSamePageTwiceDoesNotDuplicateSegmentReferences() {

@@ -13,6 +13,7 @@ import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class DialogueStateTest {
     @Test void anExactExperienceQuoteIsStillNotAGoal() {
@@ -71,7 +72,7 @@ class DialogueStateTest {
                 return StructuredCoachEngineTest.generated(response);
             }
             boolean first = replies.getAndIncrement() == 0;
-            if (!first) assertThat(input.path("validation_error").asText()).contains("전체 초점");
+            if (!first) assertThat(LenientJson.asText(input.path("validation_error"))).contains("전체 초점");
             return StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(input,
                     first ? "어떤 문장부터 볼까요?" : "영상 전체에서 몸통 위치가 유지된다는 뜻이에요.", "continue"));
         }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
@@ -131,7 +132,7 @@ class DialogueStateTest {
                 new RecordingFailureReporter(), new RecordingLlmTelemetry());
         var result = engine.reply(session(), "내 손으로 붙잡는 연기는 영상에서 잘 전달됐어?", UUID.randomUUID());
         assertThat(result.reply().message()).contains("손", "확인할 수 없어").doesNotContain("눈썹", "목소리", "몸통");
-        assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("explain");
+        assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("move"))).isEqualTo("explain");
         assertThat(result.session().status()).isEqualTo("open");
     }
     @Test void aShortAcknowledgementCanPrecedeTwoUsefulFollowupSentences() {
@@ -147,7 +148,7 @@ class DialogueStateTest {
         var before = session().withTurns(List.of(new CoachTurnSnapshot("ai", "상대를 붙잡으려는 말일 수 있어요.")));
         var result = engine.reply(before, "내가 실수로 말했어", UUID.randomUUID());
         assertThat(result.reply().message()).contains("저에게 한 답", "영상 속 대사");
-        assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("clarify");
+        assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("move"))).isEqualTo("clarify");
         assertThat(result.session().coachingState().path("context").path("scene_context").path("situation").isNull()).isTrue();
     }
 
@@ -162,8 +163,8 @@ class DialogueStateTest {
         AtomicInteger calls = new AtomicInteger();
         var engine = new CoachEngine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
-            assertThat(input.path("last_exchange").path("coach_message").path("text").asText()).isEqualTo("상대가 어떻게 하길 바랐어요?");
-            assertThat(input.path("last_exchange").path("actor_message").path("text").asText()).isEqualTo("ㅁㄹ");
+            assertThat(LenientJson.asText(input.path("last_exchange").path("coach_message").path("text"))).isEqualTo("상대가 어떻게 하길 바랐어요?");
+            assertThat(LenientJson.asText(input.path("last_exchange").path("actor_message").path("text"))).isEqualTo("ㅁㄹ");
             assertThat(input.path("coaching_state").has("proposals")).isFalse();
             ObjectNode response = StructuredCoachEngineTest.respond(input, "그 장면에서 상대는 떠나는 중인가요?", "continue");
             if (calls.getAndIncrement() == 0) ((ObjectNode) response.path("reply_link")).put("actor_quote", "떠나지 않았으면 좋겠어요");
@@ -172,7 +173,7 @@ class DialogueStateTest {
         CoachResult result = engine.reply(session(), "ㅁㄹ", UUID.randomUUID());
         assertThat(calls).hasValue(2);
         assertThat(result.session().coachingState().path("context").path("direction").isNull()).isTrue();
-        assertThat(result.session().coachingState().path("last_reply").path("actor_quote").asText()).isEqualTo("ㅁㄹ");
+        assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("actor_quote"))).isEqualTo("ㅁㄹ");
     }
 
     @Test void assignmentsAndVagueInterpretationsAreRejectedBeforeTheyReachTheActor() {
@@ -194,7 +195,7 @@ class DialogueStateTest {
         JsonNode handoff = result.reply().handoff();
         StructuredJson.validate("coach_handoff_v2", handoff);
         assertThat(handoff.path("conversation")).hasSize(3);
-        assertThat(handoff.path("conversation").get(1).path("text").asText()).contains("실제 경험은 아니야");
+        assertThat(LenientJson.asText(handoff.path("conversation").get(1).path("text"))).contains("실제 경험은 아니야");
         assertThat(handoff.path("source_catalog").toString()).contains("실제 경험은 아니야");
         assertThat(handoff.has("coaching_state")).isFalse();
         assertThat(handoff.path("context").path("reading").isNull()).isTrue();
@@ -208,7 +209,7 @@ class DialogueStateTest {
         ObjectNode context = state.path("context").deepCopy();
         ObjectNode direction = context.putObject("direction").put("text", "상대가 떠나지 않았으면 좋겠어").put("origin", "actor_stated");
         direction.putArray("source_refs").add("m1"); response.set("context_update", context);
-        var sources = StructuredJson.MAPPER.createArrayNode().add(CoachingStateReducer.source("m1", "actor_message", actor.path("text").asText()));
+        var sources = StructuredJson.MAPPER.createArrayNode().add(CoachingStateReducer.source("m1", "actor_message", LenientJson.asText(actor.path("text"))));
         ObjectNode next = DialogueState.apply(state, response, sources, actor, "c2", 120, 2, false, "");
         assertThat(next.path("context").path("direction").path("text")).isEqualTo(actor.path("text"));
         direction.put("text", "죄책감에 망설이는 모습을 표현하고 싶다");

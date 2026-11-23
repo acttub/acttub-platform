@@ -26,6 +26,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 분석 저장 전이. 각 public 변경 메서드는 외부 호출과 분리된 새 트랜잭션이다. */
 @Repository
@@ -179,7 +180,7 @@ public class PostgresAnalysisStore implements AnalysisStore {
                 .setParameter("sessionId", sessionId)
                 .executeUpdate();
         boolean fullRecord = result.videoRecord() != null;
-        UUID summaryId = fullRecord ? UUID.fromString(result.videoRecord().path("record_id").asText()) : UUID.randomUUID();
+        UUID summaryId = fullRecord ? UUID.fromString(LenientJson.asText(result.videoRecord().path("record_id"))) : UUID.randomUUID();
         JsonNode observations = fullRecord ? mapper.createArrayNode() : mapper.valueToTree(result.observationPack().observations());
         JsonNode uncertainties = fullRecord ? mapper.createArrayNode() : mapper.valueToTree(result.observationPack().uncertainties());
         JsonNode raw = fullRecord ? result.videoRecord() : mapper.valueToTree(result.observationPack());

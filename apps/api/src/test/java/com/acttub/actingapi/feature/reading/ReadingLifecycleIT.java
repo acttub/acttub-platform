@@ -65,6 +65,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 리딩 자료의 생애 — specs/reading 「리딩 자료의 이관·삭제·탈퇴」 표와 account.guest·account.withdraw 의 리딩 항목을 HTTP 와
@@ -314,11 +315,11 @@ class ReadingLifecycleIT {
         JsonNode card = scripts.path("scripts").get(0);
         assertThat(card.path("id").textValue()).isEqualTo(reading.script().id.toString());
         assertThat(card.path("status").textValue()).isEqualTo("completed");
-        assertThat(card.path("recording_count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(card.path("recording_count"))).isEqualTo(2);
         assertThat(card.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나");
         JsonNode sessions = json(get("/v2/reading/scripts/{id}/sessions", reading.script().id), actor.bearer(), 200).path("sessions");
         assertThat(sessions).hasSize(1);
-        assertThat(sessions.get(0).path("recorded_line_count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(sessions.get(0).path("recorded_line_count"))).isEqualTo(2);
         JsonNode detail = json(get("/v2/reading/sessions/{id}", reading.session()), actor.bearer(), 200);
         assertThat(detail.path("recordings")).hasSize(2);
         assertThat(detail.path("recordings").get(0).path("playback_url").textValue()).startsWith("https://storage.test/get/reading/");

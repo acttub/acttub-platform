@@ -56,6 +56,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * practice.record·practice.library 의 "검증 방법" 가운데 서버가 맡는 항목을 HTTP 와 실제 Postgres 로 본다.
@@ -161,13 +162,13 @@ class VideoLibraryIT {
                 "id", "duration_ms", "byte_size", "content_type", "favorite", "purged_at", "created_at", "usage",
                 "playback_url", "playback_expires_at", "poster_url");
         assertThat(created.path("poster_url").isNull()).as("포스터는 마무리를 기다리지 않고 워커가 뒤에 만든다").isTrue();
-        assertThat(created.path("duration_ms").intValue()).isEqualTo(12_000);
-        assertThat(created.path("byte_size").longValue()).isEqualTo(1_000_000L);
+        assertThat(LenientJson.intValue(created.path("duration_ms"))).isEqualTo(12_000);
+        assertThat(LenientJson.longValue(created.path("byte_size"))).isEqualTo(1_000_000L);
         assertThat(created.path("content_type").textValue()).isEqualTo("video/mp4");
         assertThat(created.path("favorite").booleanValue()).isFalse();
         assertThat(created.path("purged_at").isNull()).isTrue();
-        assertThat(created.path("usage").path("practice_count").intValue()).isZero();
-        assertThat(created.path("usage").path("entry_count").intValue()).isZero();
+        assertThat(LenientJson.intValue(created.path("usage").path("practice_count"))).isZero();
+        assertThat(LenientJson.intValue(created.path("usage").path("entry_count"))).isZero();
         assertThat(count("videos")).isEqualTo(1);
         assertThat(count("practices")).isZero();
         assertThat(count("ai_jobs")).isZero();
@@ -199,7 +200,7 @@ class VideoLibraryIT {
         JsonNode intent = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 1_000, 9_000)), 201);
         deviceUploads(intent, 1_000);
         JsonNode created = json(post("/v2/videos/intents/{id}/complete", intentId(intent)).content("{\"face_mosaic\":true}"), 201);
-        assertThat(created.path("byte_size").longValue()).isEqualTo(1_000L);
+        assertThat(LenientJson.longValue(created.path("byte_size"))).isEqualTo(1_000L);
         assertThat(count("videos")).isEqualTo(1);
     }
 
@@ -218,7 +219,7 @@ class VideoLibraryIT {
         JsonNode limit = json(post("/v2/videos/intents")
                 .content(intentBody(UUID.randomUUID(), "video/mp4", VideoRules.FILE_MAX_BYTES, VideoRules.DURATION_MAX_MS)), 201);
         deviceUploads(limit, VideoRules.FILE_MAX_BYTES);
-        assertThat(json(post("/v2/videos/intents/{id}/complete", intentId(limit)), 201).path("byte_size").longValue())
+        assertThat(LenientJson.longValue(json(post("/v2/videos/intents/{id}/complete", intentId(limit)), 201).path("byte_size")))
                 .isEqualTo(VideoRules.FILE_MAX_BYTES);
 
         JsonNode other = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/quicktime", 2_000, 9_000)), 201);
@@ -353,7 +354,7 @@ class VideoLibraryIT {
                 .content(intentBody(UUID.randomUUID(), "video/mp4", 4_000, 9_000)), bearer);
         assertThat(mismatch.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(mismatch.getContentAsString()).path("detail").get(0).path("loc"))
-                .extracting(JsonNode::asText).containsExactly("header", "X-Request-Id");
+                .extracting(LenientJson::asText).containsExactly("header", "X-Request-Id");
 
         for (String body : List.of(
                 intentBody(UUID.randomUUID(), "video/webm", 4_000, 9_000),
@@ -489,8 +490,8 @@ class VideoLibraryIT {
         assertThat(count("practices")).isEqualTo(2);
         assertThat(storage.objects).containsKeys(usedKey, freeKey);
         JsonNode detail = json(get("/v2/videos/{id}", used), 200);
-        assertThat(detail.path("usage").path("practice_count").intValue()).as("화면이 보여 줄 사용처").isEqualTo(2);
-        assertThat(detail.path("usage").path("entry_count").intValue()).isZero();
+        assertThat(LenientJson.intValue(detail.path("usage").path("practice_count"))).as("화면이 보여 줄 사용처").isEqualTo(2);
+        assertThat(LenientJson.intValue(detail.path("usage").path("entry_count"))).isZero();
 
         assertThat(perform(delete("/v2/videos/{id}", free), bearer).getStatus()).isEqualTo(204);
 
@@ -520,7 +521,7 @@ class VideoLibraryIT {
 
         assertThat(purged.path("purged_at").isNull()).isFalse();
         assertThat(purged.path("playback_url").isNull()).as("재생할 수 없다").isTrue();
-        assertThat(purged.path("usage").path("practice_count").intValue()).as("회차 기록은 남는다").isEqualTo(2);
+        assertThat(LenientJson.intValue(purged.path("usage").path("practice_count"))).as("회차 기록은 남는다").isEqualTo(2);
         assertThat(count("practices")).isEqualTo(2);
         assertThat(count("video_transcripts")).isZero();
         assertThat(storage.objects).doesNotContainKey(key);
@@ -529,7 +530,7 @@ class VideoLibraryIT {
 
         JsonNode room = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 1_000, 9_000)), 201);
         deviceUploads(room, 1_000);
-        assertThat(json(post("/v2/videos/intents/{id}/complete", intentId(room)), 201).path("byte_size").longValue())
+        assertThat(LenientJson.longValue(json(post("/v2/videos/intents/{id}/complete", intentId(room)), 201).path("byte_size")))
                 .as("파기한 만큼 공간이 돌아온다").isEqualTo(1_000L);
 
         // 다시 파기해도 같은 답이고, 참조가 있으면 여전히 지울 수 없다.

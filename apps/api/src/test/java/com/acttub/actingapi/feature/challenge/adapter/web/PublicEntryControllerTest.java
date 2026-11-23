@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 참여작 공유 링크의 공개 조회(challenge.share). 응답의 모양과 404·429 를 DB 없이 본다 — 어떤 참여작이 보이는지는
@@ -75,7 +76,7 @@ class PublicEntryControllerTest {
         MockHttpServletResponse response = mvc.perform(get("/v2/public/entries/{id}", id)).andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(404);
-        assertThat(JSON.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("entry_not_found");
+        assertThat(LenientJson.asText(JSON.readTree(response.getContentAsString()).path("detail"))).isEqualTo("entry_not_found");
     }
 
     @Test

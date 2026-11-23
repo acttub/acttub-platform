@@ -31,6 +31,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** OpenAI 기반 갈래 코칭 엔진. 저장과 HTTP 응답 조립은 다음 층의 책임이다. */
 @Service
@@ -103,7 +104,7 @@ public class CoachEngine {
         }
 
         JsonNode handoff = candidate.get("handoff");
-        boolean complete = "complete".equals(candidate.path("status").asText())
+        boolean complete = "complete".equals(LenientJson.asText(candidate.path("status")))
                 && handoff != null
                 && handoff.isObject();
         return new ParsedCoachReply(

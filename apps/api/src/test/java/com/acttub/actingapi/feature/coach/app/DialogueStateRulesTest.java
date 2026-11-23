@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 대화 응답의 저장 전 검사: 어떤 규칙을 어겼는지 밝혀 거절하고, 지키면 이전 실천 기록을 보존한 채 대화 상태만 옮긴다. */
 class DialogueStateRulesTest {
@@ -98,8 +99,8 @@ class DialogueStateRulesTest {
     @Test void theActorsOwnWordsMayBeQuotedEvenWhenTheyAreVague() {
         sources.add(CoachingStateReducer.source("m2", "actor_message", "에너지가 모자랐어"));
         ObjectNode state = apply(reply("“에너지가 모자랐어”라고 하셨죠. 마지막 음절이 길게 이어졌어요."));
-        assertThat(state.path("last_reply").path("actor_quote").asText()).isEqualTo("애원하긴 싫었어");
-        assertThat(state.path("revision").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asText(state.path("last_reply").path("actor_quote"))).isEqualTo("애원하긴 싫었어");
+        assertThat(LenientJson.asInt(state.path("revision"))).isEqualTo(1);
         rejects(reply("“에너지가 넘쳤어”라고 느끼셨군요."), "replace vague interpretation with an observed action");
     }
 
@@ -111,7 +112,7 @@ class DialogueStateRulesTest {
         assertThatThrownBy(() -> apply(withDirection(reply("붙잡고 싶은 마음이군요."), "붙잡고 싶다", "actor_stated", "m1")))
                 .hasMessageStartingWith("keep the actor's own words in context");
         ObjectNode state = apply(withDirection(reply("붙잡고 싶은 마음이군요."), "붙잡고 싶었는데", "actor_stated", "m1"));
-        assertThat(state.path("context").path("direction").path("text").asText()).isEqualTo("붙잡고 싶었는데");
+        assertThat(LenientJson.asText(state.path("context").path("direction").path("text"))).isEqualTo("붙잡고 싶었는데");
     }
 
     @Test void sceneContextNeedsActorWordsToo() {
@@ -137,12 +138,12 @@ class DialogueStateRulesTest {
         ObjectNode fresh = DialogueState.context(previous);
         assertThat(fresh.path("direction").isNull()).isTrue();
         assertThat(fresh.path("scene_context").path("situation").isNull()).isTrue();
-        assertThat(fresh.path("scene_context").path("partner_action").path("text").asText()).isEqualTo("떠나려 한다");
+        assertThat(LenientJson.asText(fresh.path("scene_context").path("partner_action").path("text"))).isEqualTo("떠나려 한다");
 
         ObjectNode next = DialogueState.applyRouted(previous, reply("그 마음을 살려 볼게요."), sources, actor, "c1", 200, 3, false);
-        assertThat(next.path("proposals").get(0).path("lifecycle").asText()).isEqualTo("needs_review");
+        assertThat(LenientJson.asText(next.path("proposals").get(0).path("lifecycle"))).isEqualTo("needs_review");
         assertThat(next.path("proposals").get(0).path("retirement_refs").toString()).isEqualTo("[\"c1\"]");
-        assertThat(next.path("proposals").get(1).path("lifecycle").asText()).isEqualTo("declined");
+        assertThat(LenientJson.asText(next.path("proposals").get(1).path("lifecycle"))).isEqualTo("declined");
         assertThat(next.path("source_catalog").findValuesAsText("id")).contains("c1", "l1");
     }
 
@@ -166,7 +167,7 @@ class DialogueStateRulesTest {
         var noMaterial = StructuredJson.MAPPER.createArrayNode().add(CoachingStateReducer.source("l1", "record_limitation", "화면이 어둡다."));
         ObjectNode closed = DialogueState.apply(CoachingStateReducer.empty(), closing, noMaterial,
                 StructuredJson.MAPPER.nullNode(), "c1", 200, 3, false, "");
-        assertThat(closed.path("last_reply").path("move").asText()).isEqualTo("close");
+        assertThat(LenientJson.asText(closed.path("last_reply").path("move"))).isEqualTo("close");
         assertThat(closed.path("source_catalog").findValuesAsText("id")).containsExactlyInAnyOrder("l1");
     }
 
@@ -198,7 +199,7 @@ class DialogueStateRulesTest {
                 .put("origin", "actor_stated").putArray("source_refs").add("m1");
         scene.set("context_update", context);
         ObjectNode state = DialogueState.applyRouted(CoachingStateReducer.empty(), scene, sources, actor, "c1", 200, 3, false);
-        assertThat(state.path("context").path("scene_context").path("situation").path("text").asText()).isEqualTo("애원하긴 싫었어");
+        assertThat(LenientJson.asText(state.path("context").path("scene_context").path("situation").path("text"))).isEqualTo("애원하긴 싫었어");
     }
 
     @Test void questionsAndQuotedLinesAreNotReadAsObservedExperience() {

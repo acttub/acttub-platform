@@ -48,6 +48,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 실험용 재생 하네스(SOMA-663). 운영 나누기 경로({@link ScriptSplitWorker} → {@code SplitDraft.assemble})를 그대로 돌리되 모델 호출만
@@ -214,7 +215,7 @@ class ScriptSplitReplayTest {
         if (decider != null) decider.write(out);
         if (DUMP) out.set("dumpCalls", JSON.valueToTree(generator.dump));
         Files.writeString(runDir.resolve(stem + ".json"), JSON.writeValueAsString(out));
-        return stem + " failure=" + out.get("failure").asText() + " characters=" + out.get("characters").size()
+        return stem + " failure=" + LenientJson.asText(out.get("failure")) + " characters=" + out.get("characters").size()
                 + " calls=" + generator.calls + " hits=" + generator.cacheHits + " wallMs=" + wallMs;
     }
 
@@ -251,17 +252,17 @@ class ScriptSplitReplayTest {
                 synchronized (this) {
                     calls++;
                     if (hit) cacheHits++;
-                    outputTokens += usage.path("output_tokens").asLong();
+                    outputTokens += LenientJson.asLong(usage.path("output_tokens"));
                     Thread thread = Thread.currentThread();
                     String stage = thread == scriptThread ? "script#" + stages.size()
                             : thread.getName().replaceAll("-thread-\\d+$", "");
                     if (DUMP) dump.add(Arrays.asList(stage, instructions.substring(0, Math.min(40, instructions.length())), input,
-                            answer.path("text").asText()));
-                    stages.computeIfAbsent(stage, k -> new ArrayList<>()).add(new long[] {firstLine(input), answer.path("ms").asLong(),
-                            usage.path("output_tokens").asLong(), usage.path("input_tokens").asLong(), hit ? 1 : 0});
+                            LenientJson.asText(answer.path("text"))));
+                    stages.computeIfAbsent(stage, k -> new ArrayList<>()).add(new long[] {firstLine(input), LenientJson.asLong(answer.path("ms")),
+                            LenientJson.asLong(usage.path("output_tokens")), LenientJson.asLong(usage.path("input_tokens")), hit ? 1 : 0});
                 }
-                return new GeneratedText(answer.path("text").asText(), new TokenUsage(usage.path("input_tokens").asInt(),
-                        usage.path("output_tokens").asInt(), usage.path("input_tokens").asInt() + usage.path("output_tokens").asInt()), MODEL);
+                return new GeneratedText(LenientJson.asText(answer.path("text")), new TokenUsage(LenientJson.asInt(usage.path("input_tokens")),
+                        LenientJson.asInt(usage.path("output_tokens")), LenientJson.asInt(usage.path("input_tokens")) + LenientJson.asInt(usage.path("output_tokens"))), MODEL);
             } catch (IOException failure) {
                 throw new IllegalStateException(failure);
             }
@@ -343,8 +344,8 @@ class ScriptSplitReplayTest {
             LineReview.Decision decision = OpenRouterLineDecider.parse(response);
             synchronized (this) {
                 ObjectNode row = record(question, decision, answered.ms(), answered.hit(), started);
-                row.put("cost", response.path("usage").path("cost").asDouble());
-                row.put("tokens", response.path("usage").path("input_tokens").asInt());
+                row.put("cost", LenientJson.asDouble(response.path("usage").path("cost")));
+                row.put("tokens", LenientJson.asInt(response.path("usage").path("input_tokens")));
             }
             return decision;
         }
@@ -356,7 +357,7 @@ class ScriptSplitReplayTest {
             double confidence = OpenRouterLineDecider.speechConfidence(answered.response());
             synchronized (this) {
                 speech = JSON.createObjectNode().put("confidence", confidence).put("ms", answered.ms()).put("hit", answered.hit())
-                        .put("cost", answered.response().path("usage").path("cost").asDouble());
+                        .put("cost", LenientJson.asDouble(answered.response().path("usage").path("cost")));
             }
             return confidence;
         }
@@ -371,9 +372,9 @@ class ScriptSplitReplayTest {
             JsonNode answer = answered.response().path("answers").path(SpeakerMerge.QUESTION);
             synchronized (this) {
                 ObjectNode row = JSON.createObjectNode().put("name", candidate.name()).put("reversed", reversed).put("wholeLine", candidate.wholeLine())
-                        .put("choice", answer.path("choice").asText()).put("p", answer.path("confidence").asDouble())
+                        .put("choice", LenientJson.asText(answer.path("choice"))).put("p", LenientJson.asDouble(answer.path("confidence")))
                         .put("ms", answered.ms()).put("hit", answered.hit())
-                        .put("cost", answered.hit() ? 0 : answered.response().path("usage").path("cost").asDouble());
+                        .put("cost", answered.hit() ? 0 : LenientJson.asDouble(answered.response().path("usage").path("cost")));
                 row.set("roles", JSON.valueToTree(candidate.roles()));
                 if (DUMP) row.set("body", JEV_CLIENT.roleBody(candidate, reversed));
                 row.set("probabilities", answered.response().path("answers").path(SpeakerMerge.QUESTION).path("probabilities"));
@@ -395,7 +396,7 @@ class ScriptSplitReplayTest {
                     synchronized (this) {
                         hits++;
                     }
-                    return new Answered(entry.get("response"), entry.path("ms").asLong(), true);
+                    return new Answered(entry.get("response"), LenientJson.asLong(entry.path("ms")), true);
                 }
                 JsonNode response = JEV_CLIENT.send(body, new DeciderTally());
                 long ms = (System.nanoTime() - started) / 1_000_000;
@@ -405,7 +406,7 @@ class ScriptSplitReplayTest {
                 Files.writeString(temp, JSON.writeValueAsString(entry));
                 Files.move(temp, cached, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 synchronized (this) {
-                    cost += response.path("usage").path("cost").asDouble();
+                    cost += LenientJson.asDouble(response.path("usage").path("cost"));
                 }
                 return new Answered(response, ms, false);
             } catch (IOException failure) {
@@ -439,7 +440,7 @@ class ScriptSplitReplayTest {
         }
 
         synchronized void write(ObjectNode out) {
-            asked.sort(java.util.Comparator.comparingInt(row -> row.get("no").asInt()));
+            asked.sort(java.util.Comparator.comparingInt(row -> LenientJson.asInt(row.get("no"))));
             out.set("jev", JSON.valueToTree(asked));
             out.put("jevAsked", asked.size());
             out.put("jevHits", hits);
@@ -448,7 +449,7 @@ class ScriptSplitReplayTest {
             out.put("jevWallMs", asked.isEmpty() ? 0 : (lastEnd - firstStart) / 1_000_000);
             out.put("jevParallel", JEV_SETTINGS.parallel());
             out.set("speech", speech);
-            same.sort(java.util.Comparator.comparing((ObjectNode row) -> row.get("name").asText()).thenComparing(row -> row.get("reversed").asBoolean()));
+            same.sort(java.util.Comparator.comparing((ObjectNode row) -> LenientJson.asText(row.get("name"))).thenComparing(row -> row.get("reversed").asBoolean()));
             out.set("same", JSON.valueToTree(same));
         }
     }

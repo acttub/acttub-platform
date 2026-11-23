@@ -20,6 +20,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 챌린지 AI 리포트 (challenge.ai-report). 표본 조건은 공개 조건 + 요청자와 차단 없음 + 다른 작성자이고, 작성자당 가장
@@ -107,15 +108,15 @@ class PostgresAiReportRepository implements AiReportRepository {
         String stored = row.get("result", String.class);
         if (stored != null) {
             JsonNode result = read(stored);
-            result.path("observations").forEach(item -> observations.add(new Evidence(item.path("start_ms").asInt(),
-                    item.path("end_ms").asInt(), item.path("text").asText())));
+            result.path("observations").forEach(item -> observations.add(new Evidence(LenientJson.asInt(item.path("start_ms")),
+                    LenientJson.asInt(item.path("end_ms")), LenientJson.asText(item.path("text")))));
             Set<UUID> eligible = eligible(owner, ids(result.path("samples")));
             sampleCount = eligible.size();
             for (JsonNode item : result.path("comparisons")) {
-                if (eligible.containsAll(ids(item.path("samples")))) comparisons.add(item.path("text").asText());
+                if (eligible.containsAll(ids(item.path("samples")))) comparisons.add(LenientJson.asText(item.path("text")));
             }
-            result.path("limits").forEach(item -> limits.add(item.asText()));
-            suggestion = result.path("suggestion").isTextual() ? result.path("suggestion").asText() : null;
+            result.path("limits").forEach(item -> limits.add(LenientJson.asText(item)));
+            suggestion = result.path("suggestion").isTextual() ? LenientJson.asText(result.path("suggestion")) : null;
         }
         return new Report(entryId, row.get("status", String.class), List.copyOf(observations), List.copyOf(comparisons),
                 List.copyOf(limits), suggestion, sampleCount, ((Number) row.get("attempt_count")).intValue(),
@@ -223,7 +224,7 @@ class PostgresAiReportRepository implements AiReportRepository {
 
     private static List<UUID> ids(JsonNode array) {
         var ids = new ArrayList<UUID>();
-        array.forEach(item -> ids.add(UUID.fromString(item.asText())));
+        array.forEach(item -> ids.add(UUID.fromString(LenientJson.asText(item))));
         return ids;
     }
 

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 바깥 API 를 부르는 {@link RestClient} 가 JSON 을 Boot 3.5 때와 같게(Jackson 2) 읽고 쓰는지 실제 HTTP 로 본다.
@@ -95,7 +96,7 @@ class RestClientsTest {
         reply = "{\"order_id\":\"o-2\",\"poster_url\":\"https://x/p.jpg\"}";
 
         assertThat(client().get().uri("/").retrieve().body(Order.class)).isEqualTo(new Order("o-2", "https://x/p.jpg"));
-        assertThat(client().get().uri("/").retrieve().body(JsonNode.class).path("order_id").asText()).isEqualTo("o-2");
+        assertThat(LenientJson.asText(client().get().uri("/").retrieve().body(JsonNode.class).path("order_id"))).isEqualTo("o-2");
     }
 
     @Test

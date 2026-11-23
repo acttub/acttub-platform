@@ -11,6 +11,7 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 기존 코치의 마지막 응답: handoff 의 배우 말은 문자열만 남기고, 걸러낼 것이 없으면 그대로 둔다. */
 class CoachEngineHandoffTest {
@@ -39,7 +40,7 @@ class CoachEngineHandoffTest {
 
     @Test void actorWordsThatAreNotAListAreLeftForTheNoteToIgnore() {
         CoachReply reply = closeWith("{\"actor_words\":\"붙잡고 싶었어\"}");
-        assertThat(reply.handoff().path("actor_words").asText()).isEqualTo("붙잡고 싶었어");
+        assertThat(LenientJson.asText(reply.handoff().path("actor_words"))).isEqualTo("붙잡고 싶었어");
         assertThat(closeWith("{\"handoff_type\":\"analysis\"}").handoff().has("actor_words")).isFalse();
     }
 

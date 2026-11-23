@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
@@ -122,7 +123,7 @@ class AdminEndpointIT {
     void sessionsResponseIsIdenticalWhileConditionalLeftJoinsAndPresignFallbackApply()
             throws Exception {
         JsonNode sessions = authorized("/v2/admin/sessions", 200);
-        assertThat(sessions.path("playback_expires_in_sec").intValue()).isEqualTo(3600);
+        assertThat(LenientJson.intValue(sessions.path("playback_expires_in_sec"))).isEqualTo(3600);
         assertThat(sessions.path("sessions")).hasSize(2);
 
         JsonNode pending = sessions.path("sessions").get(0);
@@ -234,8 +235,8 @@ class AdminEndpointIT {
         assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
         String body = result.getContentAsString();
         JsonNode response = mapper.readTree(body);
-        assertThat(response.path("playback_expires_in_sec").intValue()).isEqualTo(3600);
-        assertThat(response.path("advisor_accounts").intValue()).as("해시 줄 + id 붙은 줄, 모양 틀린 줄 제외").isEqualTo(2);
+        assertThat(LenientJson.intValue(response.path("playback_expires_in_sec"))).isEqualTo(3600);
+        assertThat(LenientJson.intValue(response.path("advisor_accounts"))).as("해시 줄 + id 붙은 줄, 모양 틀린 줄 제외").isEqualTo(2);
         JsonNode sessions = response.path("sessions");
         assertThat(sessions).as("일반·팀 배우의 옛 코치 세션은 빠진다").hasSize(2);
 
@@ -372,7 +373,7 @@ class AdminEndpointIT {
                 """, teamFeedback, TEAM_USER, teamPractice, NOW.plusMinutes(5), NOW.plusMinutes(5));
 
         JsonNode page = authorized("/v2/admin/feedback", 200);
-        assertThat(page.path("limit").intValue()).isEqualTo(50);
+        assertThat(LenientJson.intValue(page.path("limit"))).isEqualTo(50);
         assertThat(page.path("has_more").booleanValue()).isFalse();
         assertThat(page.path("items")).hasSize(3);
 
@@ -498,7 +499,7 @@ class AdminEndpointIT {
                 .isEqualTo("greater_than_equal");
         JsonNode above = authorized("/v2/admin/feedback?limit=101", 422);
         assertThat(above.at("/detail/0/type").textValue()).isEqualTo("less_than_equal");
-        assertThat(above.at("/detail/0/ctx/le").intValue()).isEqualTo(100);
+        assertThat(LenientJson.intValue(above.at("/detail/0/ctx/le"))).isEqualTo(100);
         assertThat(authorized("/v2/admin/feedback?limit=nope", 422).at("/detail/0/type").textValue())
                 .isEqualTo("int_parsing");
         JsonNode bool = authorized("/v2/admin/feedback?include_team=maybe", 422);
@@ -547,7 +548,7 @@ class AdminEndpointIT {
         assertThat(result.getStatus()).isEqualTo(200);
         assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
         JsonNode all = mapper.readTree(result.getContentAsString());
-        assertThat(all.path("count").intValue()).isEqualTo(3);
+        assertThat(LenientJson.intValue(all.path("count"))).isEqualTo(3);
         assertThat(all.path("entries")).hasSize(3);
 
         JsonNode first = all.path("entries").get(0);
@@ -560,8 +561,8 @@ class AdminEndpointIT {
         assertThat(first.path("challenge_ref").textValue())
                 .isEqualTo(md5(memberChallenge.toString()).substring(0, 8));
         assertThat(first.path("has_video").booleanValue()).isTrue();
-        assertThat(first.path("likes").intValue()).isEqualTo(2);
-        assertThat(first.path("outside_likes").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(first.path("likes"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(first.path("outside_likes"))).isEqualTo(1);
 
         JsonNode second = all.path("entries").get(1);
         assertThat(second.path("id").textValue()).isEqualTo(privateEntry.toString());
@@ -570,7 +571,7 @@ class AdminEndpointIT {
         assertThat(second.path("challenge_kind").textValue()).isEqualTo("team");
         assertThat(all.path("entries").get(2).path("id").textValue()).isEqualTo(purgedEntry.toString());
         assertThat(all.path("entries").get(2).path("has_video").booleanValue()).isFalse();
-        assertThat(second.path("likes").intValue()).isEqualTo(0);
+        assertThat(LenientJson.intValue(second.path("likes"))).isEqualTo(0);
 
         assertThat(all.toString()).doesNotContain(
                 teamEntry.toString(), deletedEntry.toString(), deletedChallengeEntry.toString(),
@@ -586,7 +587,7 @@ class AdminEndpointIT {
         assertThat(privateOnly.path("entries")).hasSize(2);
         JsonNode limited = authorized("/v2/admin/challenge-videos?limit=1", 200);
         assertThat(limited.path("entries")).hasSize(1);
-        assertThat(limited.path("count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(limited.path("count"))).isEqualTo(1);
 
         String actor = md5(REAL_USER.toString()).substring(0, 8);
         assertThat(authorized("/v2/admin/challenge-videos?exclude_actors=" + actor.toUpperCase(), 200)
@@ -637,7 +638,7 @@ class AdminEndpointIT {
         assertThat(result.getStatus()).isEqualTo(200);
         assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
         JsonNode page = mapper.readTree(result.getContentAsString(StandardCharsets.UTF_8));
-        assertThat(page.path("count").intValue()).isEqualTo(3);
+        assertThat(LenientJson.intValue(page.path("count"))).isEqualTo(3);
         JsonNode rows = page.path("challenges");
         assertThat(rows).hasSize(3);
 
@@ -653,19 +654,19 @@ class AdminEndpointIT {
         assertThat(first.path("host_is_team").booleanValue()).isFalse();
         assertThat(first.path("featured_on").textValue()).isEqualTo(NOW.toLocalDate().toString());
         assertThat(first.path("state").textValue()).isEqualTo("active");
-        assertThat(first.path("entries").intValue()).isEqualTo(0);
-        assertThat(first.path("likes").intValue()).isEqualTo(0);
+        assertThat(LenientJson.intValue(first.path("entries"))).isEqualTo(0);
+        assertThat(LenientJson.intValue(first.path("likes"))).isEqualTo(0);
 
         JsonNode second = rows.get(1);
         assertThat(second.path("id").textValue()).isEqualTo(byTeamAccount.toString());
         assertThat(second.path("character").isNull()).isTrue();
         assertThat(second.path("host_actor").textValue()).isEqualTo(md5(TEAM_USER.toString()).substring(0, 8));
         assertThat(second.path("host_is_team").booleanValue()).isTrue();
-        assertThat(second.path("entries").intValue()).isEqualTo(3);
-        assertThat(second.path("public_entries").intValue()).isEqualTo(2);
-        assertThat(second.path("outside_entries").intValue()).isEqualTo(2);
-        assertThat(second.path("likes").intValue()).isEqualTo(3);
-        assertThat(second.path("outside_likes").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(second.path("entries"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(second.path("public_entries"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(second.path("outside_entries"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(second.path("likes"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(second.path("outside_likes"))).isEqualTo(2);
 
         JsonNode third = rows.get(2);
         assertThat(third.path("id").textValue()).isEqualTo(ended.toString());
@@ -678,9 +679,9 @@ class AdminEndpointIT {
 
         String realActor = md5(REAL_USER.toString()).substring(0, 8);
         JsonNode excluded = authorized("/v2/admin/challenges?exclude_actors=" + realActor, 200);
-        assertThat(excluded.at("/challenges/1/outside_entries").intValue()).isEqualTo(0);
-        assertThat(excluded.at("/challenges/1/likes").intValue()).isEqualTo(3);
-        assertThat(excluded.at("/challenges/1/outside_likes").intValue()).isEqualTo(0);
+        assertThat(LenientJson.intValue(excluded.at("/challenges/1/outside_entries"))).isEqualTo(0);
+        assertThat(LenientJson.intValue(excluded.at("/challenges/1/likes"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(excluded.at("/challenges/1/outside_likes"))).isEqualTo(0);
         assertThat(excluded.at("/challenges/2/host_is_team").booleanValue()).isTrue();
         assertThat(authorized("/v2/admin/challenges?limit=1", 200).path("challenges")).hasSize(1);
         assertThat(authorized("/v2/admin/challenges?limit=0", 422).at("/detail/0/type").textValue())
@@ -718,7 +719,7 @@ class AdminEndpointIT {
         assertThat(result.getStatus()).isEqualTo(200);
         assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
         JsonNode page = mapper.readTree(result.getContentAsString(StandardCharsets.UTF_8));
-        assertThat(page.path("count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(page.path("count"))).isEqualTo(2);
         JsonNode rows = page.path("comments");
         assertThat(rows).hasSize(2);
 
@@ -960,7 +961,7 @@ class AdminEndpointIT {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
         JsonNode page = mapper.readTree(response.getContentAsString());
-        assertThat(page.path("count").intValue()).isEqualTo(4);
+        assertThat(LenientJson.intValue(page.path("count"))).isEqualTo(4);
         assertThat(page.path("sessions")).hasSize(4);
         assertThat(page.path("sessions").get(0).path("id").textValue())
                 .isEqualTo(tiedHigh.sessionId().toString());
@@ -976,7 +977,7 @@ class AdminEndpointIT {
         assertThat(first.path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
         assertThat(first.path("status").textValue()).isEqualTo("in_progress");
         assertThat(first.path("mode").textValue()).isEqualTo("read");
-        assertThat(first.path("recording_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(first.path("recording_count"))).isEqualTo(1);
         assertThat(first.path("ended_at").isNull()).isTrue();
         assertThat(page.toString()).doesNotContain(
                 REAL_USER.toString(), TEAM_USER.toString(), deactivated.toString(), purged.toString(),
@@ -990,7 +991,7 @@ class AdminEndpointIT {
         }
         JsonNode limited = authorized("/v2/admin/reading-sessions?limit=1", 200);
         assertThat(limited.path("sessions")).hasSize(1);
-        assertThat(limited.path("count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(limited.path("count"))).isEqualTo(1);
         String actor = md5(REAL_USER.toString()).substring(0, 8);
         assertThat(authorized("/v2/admin/reading-sessions?exclude_actors=" + actor.toUpperCase(), 200)
                 .path("sessions")).hasSize(0);
@@ -1018,7 +1019,7 @@ class AdminEndpointIT {
         assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
         JsonNode detail = mapper.readTree(response.getContentAsString());
         assertThat(detail.fieldNames()).toIterable().containsExactly("session", "lines", "recordings");
-        assertThat(detail.path("session").path("recording_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(detail.path("session").path("recording_count"))).isEqualTo(1);
         assertThat(detail.path("lines")).hasSize(5);
         assertThat(detail.path("recordings")).hasSize(1);
 
@@ -1153,14 +1154,14 @@ class AdminEndpointIT {
 
         JsonNode signups = core.path("metrics").get(0);
         assertThat(signups.path("label").textValue()).isEqualTo("가입자");
-        assertThat(signups.path("total").intValue()).isEqualTo(2);
-        assertThat(signups.path("total_real").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(signups.path("total"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(signups.path("total_real"))).isEqualTo(1);
 
         JsonNode daily = core.path("daily_active");
         assertThat(daily).hasSize(42);
         int signupsReal = 0;
         for (JsonNode day : daily) {
-            signupsReal += day.path("signups_real").intValue();
+            signupsReal += LenientJson.intValue(day.path("signups_real"));
         }
         assertThat(signupsReal).isEqualTo(1);
 
@@ -1171,15 +1172,15 @@ class AdminEndpointIT {
         JsonNode second = sessions.get(1);
         assertThat(second.path("is_team").booleanValue()).isFalse();
         assertThat(second.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(second.path("nth").intValue()).isEqualTo(2);
-        assertThat(second.path("total").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(second.path("nth"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(second.path("total"))).isEqualTo(2);
         assertThat(second.path("coach_session_id").textValue()).isEqualTo(realPendingCoach.toString());
         assertThat(second.path("coach_status").textValue()).isEqualTo("open");
-        assertThat(second.path("turns_ai").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(second.path("turns_ai"))).isEqualTo(1);
         JsonNode first = sessions.get(2);
         assertThat(first.path("coach_status").textValue()).isEqualTo("closed");
         assertThat(first.path("close_reason").textValue()).isEqualTo("gap_stated");
-        assertThat(first.path("turns_actor").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(first.path("turns_actor"))).isEqualTo(1);
 
         JsonNode activities = core.path("activity_rows");
         assertThat(activities).hasSize(2);
@@ -1257,9 +1258,9 @@ class AdminEndpointIT {
         JsonNode core = authorized("/v2/admin/ops-core", 200);
         JsonNode practices = core.path("metrics").get(1);
         assertThat(practices.path("label").textValue()).isEqualTo("연습 세션");
-        assertThat(practices.path("total").intValue()).isEqualTo(4);
-        assertThat(practices.path("total_real").intValue()).isEqualTo(3);
-        assertThat(core.path("metrics").get(2).path("total").intValue()).isEqualTo(4);
+        assertThat(LenientJson.intValue(practices.path("total"))).isEqualTo(4);
+        assertThat(LenientJson.intValue(practices.path("total_real"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(core.path("metrics").get(2).path("total"))).isEqualTo(4);
 
         JsonNode sessions = core.path("sessions");
         assertThat(sessions).hasSize(4);
@@ -1269,13 +1270,13 @@ class AdminEndpointIT {
         assertThat(newest.path("status").textValue()).isEqualTo("analyzed");
         assertThat(newest.path("has_summary").booleanValue()).isTrue();
         assertThat(newest.path("continued").booleanValue()).isFalse();
-        assertThat(newest.path("nth").intValue()).isEqualTo(3);
-        assertThat(newest.path("turns_actor").intValue()).isEqualTo(1);
-        assertThat(newest.path("turns_ai").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(newest.path("nth"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(newest.path("turns_actor"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(newest.path("turns_ai"))).isEqualTo(1);
         JsonNode migrated = sessions.get(3);
         assertThat(migrated.path("practice_session_id").textValue()).isEqualTo(migratedPractice.toString());
         assertThat(migrated.path("coach_status").textValue()).isEqualTo("closed");
-        assertThat(migrated.path("turns_actor").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(migrated.path("turns_actor"))).isEqualTo(1);
 
         JsonNode list = authorized("/v2/admin/sessions", 200).path("sessions");
         assertThat(list).hasSize(3);
@@ -1394,9 +1395,9 @@ class AdminEndpointIT {
 
         JsonNode challenges = authorized("/v2/admin/ops-core", 200).at("/features/challenges");
         // 합계는 기존처럼 미래 시각 행도 센다(팀·삭제만 뺀다). 목록은 activity_rows 와 같이 미래 행을 뺀다.
-        assertThat(challenges.at("/entries/total").intValue()).isEqualTo(3);
-        assertThat(challenges.at("/entries/private").intValue()).isEqualTo(3);
-        assertThat(challenges.at("/entries/public").intValue()).isEqualTo(0);
+        assertThat(LenientJson.intValue(challenges.at("/entries/total"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(challenges.at("/entries/private"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(challenges.at("/entries/public"))).isEqualTo(0);
         JsonNode recent = challenges.path("recent_entries");
         assertThat(recent).hasSize(2);
         assertThat(recent.get(0).path("entry_id").textValue()).isEqualTo(realEntry.toString().substring(0, 8));
@@ -1608,7 +1609,7 @@ class AdminEndpointIT {
         assertThat(exposedRow.path("is_team").booleanValue()).isFalse();
         assertThat(exposedRow.path("platform").textValue()).isEqualTo("웹");
         assertThat(exposedRow.path("device").textValue()).isEqualTo("기록 없음");
-        assertThat(exposedRow.path("duration_ms").intValue()).isEqualTo(12345);
+        assertThat(LenientJson.intValue(exposedRow.path("duration_ms"))).isEqualTo(12345);
     }
 
     /** 팀 행도 거르지 않고 is_team=true 로 나간다. exclude_actors 가명도 같은 team CTE 를 공유해 그대로 적용된다. */
@@ -1721,7 +1722,7 @@ class AdminEndpointIT {
 
         JsonNode rows = authorized("/v2/admin/ops-core", 200).path("upload_only_rows");
         Set<String> ids = new HashSet<>();
-        rows.forEach(row -> ids.add(row.path("upload_intent_id").asText()));
+        rows.forEach(row -> ids.add(LenientJson.asText(row.path("upload_intent_id"))));
         assertThat(ids).doesNotContain(linked.toString(), purged.toString());
     }
 
@@ -1730,7 +1731,7 @@ class AdminEndpointIT {
         UUID legacy = insertUploadIntent(REAL_USER, "unlinked-legacy.mp4", "finalized",
                 NOW.minusMinutes(9), null, null, null);
         JsonNode row = findUploadOnly(authorized("/v2/admin/ops-core", 200).path("upload_only_rows"), legacy);
-        assertThat(row.path("created_at").asText())
+        assertThat(LenientJson.asText(row.path("created_at")))
                 .isEqualTo(utc(NOW.minusMinutes(9).truncatedTo(ChronoUnit.MINUTES)));
         assertThat(row.path("duration_ms").isNull()).isTrue();
     }
@@ -1820,17 +1821,17 @@ class AdminEndpointIT {
         String realActor = md5(REAL_USER.toString()).substring(0, 8);
         JsonNode core = authorized("/v2/admin/ops-core?exclude_actors=" + realActor.toUpperCase() + "," + realActor, 200);
         JsonNode signups = core.path("metrics").get(0);
-        assertThat(signups.path("total").intValue()).isEqualTo(2);
-        assertThat(signups.path("total_real").intValue()).isEqualTo(0);
+        assertThat(LenientJson.intValue(signups.path("total"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(signups.path("total_real"))).isEqualTo(0);
         for (JsonNode session : core.path("sessions")) {
             assertThat(session.path("is_team").booleanValue()).isTrue();
         }
-        assertThat(core.at("/devices/team_excluded").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(core.at("/devices/team_excluded"))).isEqualTo(2);
         assertThat(core.path("activity_rows")).isEqualTo(mapper.readTree("[]"));
         assertThat(core.path("signup_rows")).isEqualTo(mapper.readTree("[]"));
 
         JsonNode none = authorized("/v2/admin/ops-core?exclude_actors=", 200);
-        assertThat(none.path("metrics").get(0).path("total_real").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(none.path("metrics").get(0).path("total_real"))).isEqualTo(1);
 
         JsonNode invalid = authorized("/v2/admin/ops-core?exclude_actors=nothex12", 422);
         assertThat(invalid.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
@@ -1904,27 +1905,27 @@ class AdminEndpointIT {
 
         JsonNode features = authorized("/v2/admin/ops-core", 200).path("features");
         JsonNode reading1 = features.path("reading");
-        assertThat(reading1.at("/scripts/total").intValue()).isEqualTo(1);
-        assertThat(reading1.at("/scripts/sample").intValue()).isEqualTo(1);
-        assertThat(reading1.at("/sessions/total").intValue()).isEqualTo(1);
-        assertThat(reading1.at("/sessions/completed").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(reading1.at("/scripts/total"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(reading1.at("/scripts/sample"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(reading1.at("/sessions/total"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(reading1.at("/sessions/completed"))).isEqualTo(1);
         assertThat(reading1.at("/sessions/avg_minutes").doubleValue()).isEqualTo(2.0);
-        assertThat(reading1.at("/recordings/matched").intValue()).isEqualTo(1);
-        assertThat(reading1.at("/memorization/memorized").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(reading1.at("/recordings/matched"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(reading1.at("/memorization/memorized"))).isEqualTo(1);
         assertThat(reading1.path("daily")).hasSize(42);
         int dailySessions = 0;
         for (JsonNode day : reading1.path("daily")) {
-            dailySessions += day.path("sessions").intValue();
+            dailySessions += LenientJson.intValue(day.path("sessions"));
         }
         assertThat(dailySessions).isEqualTo(1);
 
         JsonNode challenges = features.path("challenges");
-        assertThat(challenges.at("/challenges/active").intValue()).isEqualTo(1);
-        assertThat(challenges.at("/entries/total").intValue()).isEqualTo(1);
-        assertThat(challenges.at("/entries/public").intValue()).isEqualTo(0);
-        assertThat(challenges.at("/entries/private").intValue()).isEqualTo(1);
-        assertThat(challenges.at("/likes/total").intValue()).isEqualTo(1);
-        assertThat(challenges.at("/views/total").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(challenges.at("/challenges/active"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(challenges.at("/entries/total"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(challenges.at("/entries/public"))).isEqualTo(0);
+        assertThat(LenientJson.intValue(challenges.at("/entries/private"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(challenges.at("/likes/total"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(challenges.at("/views/total"))).isEqualTo(1);
         JsonNode recent = challenges.path("recent_entries");
         assertThat(recent).hasSize(1);
         JsonNode recentEntry = recent.get(0);
@@ -1940,20 +1941,20 @@ class AdminEndpointIT {
         assertThat(recentEntry.path("has_video").booleanValue()).isTrue();
         assertThat(recentEntry.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
         assertThat(recentEntry.path("published_at").isNull()).isTrue();
-        assertThat(recentEntry.path("views").intValue()).isEqualTo(0);
-        assertThat(recentEntry.path("likes").intValue()).isEqualTo(1);
-        assertThat(recentEntry.path("comments").intValue()).isEqualTo(0);
+        assertThat(LenientJson.intValue(recentEntry.path("views"))).isEqualTo(0);
+        assertThat(LenientJson.intValue(recentEntry.path("likes"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(recentEntry.path("comments"))).isEqualTo(0);
         assertThat(recentEntry.path("ai_report").isNull()).isTrue();
 
         JsonNode feedback = features.path("feedback");
-        assertThat(feedback.at("/notes/total").intValue()).isEqualTo(1);
-        assertThat(feedback.at("/notes/action").intValue()).isEqualTo(1);
-        assertThat(feedback.at("/ratings/not_helpful").intValue()).isEqualTo(1);
-        assertThat(feedback.at("/ratings/with_comment").intValue()).isEqualTo(1);
-        assertThat(feedback.at("/exit_survey/answered").intValue()).isEqualTo(1);
-        assertThat(feedback.at("/exit_survey/with_contact").intValue()).isEqualTo(1);
-        assertThat(feedback.at("/exit_survey/x").intValue()).isEqualTo(1);
-        assertThat(features.at("/accounts/withdrawn").intValue()).isEqualTo(0);
+        assertThat(LenientJson.intValue(feedback.at("/notes/total"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(feedback.at("/notes/action"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(feedback.at("/ratings/not_helpful"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(feedback.at("/ratings/with_comment"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(feedback.at("/exit_survey/answered"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(feedback.at("/exit_survey/with_contact"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(feedback.at("/exit_survey/x"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(features.at("/accounts/withdrawn"))).isEqualTo(0);
 
         assertThat(features.toString()).doesNotContain(
                 "설문 본문 비밀", "secret@example.com", "평가 코멘트 비밀", "비밀 대본 본문", "됐어, 그냥 가");
@@ -2170,28 +2171,22 @@ class AdminEndpointIT {
                 "/v2/admin/subscribers");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
-        assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")
-                .intValue()).isEqualTo(20);
-        assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/parameters/0/schema/maximum")
-                .intValue()).isEqualTo(100);
+        assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default"))).isEqualTo(20);
+        assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1feedback/get/parameters/0/schema/maximum"))).isEqualTo(100);
         assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminFeedbackPage");
-        assertThat(actual.at("/paths/~1v2~1admin~1challenges/get/parameters/0/schema/maximum")
-                .intValue()).isEqualTo(100);
+        assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1challenges/get/parameters/0/schema/maximum"))).isEqualTo(100);
         assertThat(actual.at("/paths/~1v2~1admin~1challenges/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminChallengePage");
-        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/parameters/0/schema/maximum")
-                .intValue()).isEqualTo(100);
+        assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1challenge-videos/get/parameters/0/schema/maximum"))).isEqualTo(100);
         assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminChallengeVideoPage");
         assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminChallengePlayback");
         assertThat(actual.at("/paths/~1v2~1admin~1upload-only-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminUploadPlayback");
-        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/default")
-                .intValue()).isEqualTo(50);
-        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/maximum")
-                .intValue()).isEqualTo(100);
+        assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/default"))).isEqualTo(50);
+        assertThat(LenientJson.intValue(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/maximum"))).isEqualTo(100);
         assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminReadingSessionPage");
         assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions~1{id}/get/responses/200/content/application~1json/schema/$ref")

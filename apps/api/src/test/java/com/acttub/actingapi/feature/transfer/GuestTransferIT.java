@@ -53,6 +53,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.guest 의 "검증 방법" 가운데 옮기기를 HTTP 와 실제 Postgres 로 본다. 동시성과 도중 실패는 같은
@@ -142,7 +143,7 @@ class GuestTransferIT {
         JsonNode issued = issueCode(guest);
         assertThat(issued.fieldNames()).toIterable().containsExactlyInAnyOrder("code", "expires_in", "expires_at");
         assertThat(issued.path("code").textValue()).matches("[0-9]{6}");
-        assertThat(issued.path("expires_in").longValue()).isEqualTo(600);
+        assertThat(LenientJson.longValue(issued.path("expires_in"))).isEqualTo(600);
         assertThat(jdbc.queryForObject("SELECT code_hash FROM guest_transfer_codes", String.class))
                 .as("해시로만 저장한다").doesNotContain(issued.path("code").textValue());
 

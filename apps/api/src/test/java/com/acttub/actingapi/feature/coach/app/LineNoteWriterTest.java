@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Pro 「대사별로 본 것」(SOMA-900): 읽기·자르기·Pro 아닐 때 건너뛰기·닫기가 기다리지 않는지. */
 class LineNoteWriterTest {
@@ -98,7 +99,7 @@ class LineNoteWriterTest {
         queued.poll().run();
         ArgumentCaptor<JsonNode> saved = ArgumentCaptor.forClass(JsonNode.class);
         verify(conversations).saveLineNotes(org.mockito.ArgumentMatchers.eq(conversation), saved.capture());
-        assertThat(saved.getValue().get(0).get("try").asText()).isEqualTo("첫 마디를 낮게 해 봐요");
+        assertThat(LenientJson.asText(saved.getValue().get(0).get("try"))).isEqualTo("첫 마디를 낮게 해 봐요");
     }
 
     @Test void nonProNeverCallsTheModel() {

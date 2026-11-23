@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 연습 하나에서 배우 기억(유저.md)의 칸을 뽑아낸다 — 목표·막히는 지점·코치에게 바라는 것·자주 짚인 버릇·말투
@@ -279,7 +280,7 @@ public final class MemoryExtractor {
                 rejected.put(name, "문자열이 아님");
                 return;
             }
-            String text = PythonText.strip(value.asText());
+            String text = PythonText.strip(LenientJson.asText(value));
             if (text.isEmpty()) {
                 rejected.put(name, "빈 값");
                 return;

@@ -34,6 +34,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 찍을 대사 같이 만들기(SOMA-721) — 만들기·다시 보내기·고치기·되돌리기·확정을 HTTP 와 실제 Postgres 로 본다. 확정한 대본이
@@ -173,10 +174,10 @@ class ScriptCocreateIT {
                 """.formatted(requestId);
         JsonNode created = json(post("/v2/sample-scripts").content(body), bearer, 201);
         assertThat(created.path("title").textValue()).isEqualTo("잊어버린 생일");
-        assertThat(created.path("version").intValue()).isEqualTo(1);
-        assertThat(created.path("character_count").intValue()).isEqualTo(1);
-        assertThat(created.path("length_minutes").intValue()).isEqualTo(1);
-        assertThat(created.path("revisions_left").intValue()).isEqualTo(3);
+        assertThat(LenientJson.intValue(created.path("version"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("character_count"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("length_minutes"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("revisions_left"))).isEqualTo(3);
         assertThat(created.path("script_id").isNull()).isTrue();
         assertThat(created.path("design").path("my_objective").textValue()).isEqualTo("사과를 받는다");
         assertThat(created.path("lines")).hasSize(14);
@@ -188,15 +189,15 @@ class ScriptCocreateIT {
 
         JsonNode revised = json(post("/v2/sample-scripts/{id}/revisions", id)
                 .content("{\"base_version\":1,\"text\":\"마지막 대사만 담담하게\"}"), bearer, 200);
-        assertThat(revised.path("version").intValue()).isEqualTo(2);
-        assertThat(revised.path("revisions_used").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(revised.path("version"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(revised.path("revisions_used"))).isEqualTo(1);
         assertThat(revised.path("note").textValue()).isEqualTo("마지막 대사를 담담하게 바꿨어요.");
         assertThat(perform(post("/v2/sample-scripts/{id}/revisions", id).content("{\"base_version\":1,\"text\":\"또\"}"), bearer, 409)
                 .getContentAsString()).contains("sample_script_version_conflict");
 
         JsonNode restored = json(post("/v2/sample-scripts/{id}/restore", id).content("{\"version\":1}"), bearer, 200);
-        assertThat(restored.path("version").intValue()).isEqualTo(1);
-        assertThat(restored.path("revisions_used").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(restored.path("version"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(restored.path("revisions_used"))).isEqualTo(1);
         assertThat(restored.path("title").textValue()).isEqualTo("잊어버린 생일");
 
         JsonNode saved = json(post("/v2/sample-scripts/{id}/save", id), bearer, 201);

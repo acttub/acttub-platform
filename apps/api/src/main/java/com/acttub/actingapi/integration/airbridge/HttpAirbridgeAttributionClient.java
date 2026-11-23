@@ -14,6 +14,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * Airbridge 귀속 조회 API 의 실물. {@code GET /attribution-result/v1/apps/{앱 이름}/mobile-app?device_uuid=…} 를
@@ -111,7 +112,7 @@ public class HttpAirbridgeAttributionClient implements AirbridgeAttributionClien
         if (!value.isTextual()) {
             return null;
         }
-        String stripped = value.asText().strip();
+        String stripped = LenientJson.asText(value).strip();
         return stripped.isEmpty() ? null : stripped;
     }
 }

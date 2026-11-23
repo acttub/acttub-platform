@@ -30,6 +30,7 @@ import com.google.genai.types.Schema;
 import com.google.genai.types.ThinkingConfig;
 import com.google.genai.types.ThinkingLevel;
 import com.google.genai.types.VideoMetadata;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 전체 기록의 청크 처리·검증·실패 구간 보존. 구형 관찰 팩으로 폴백하지 않는다. */
 final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
@@ -191,19 +192,19 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
     /** Gemini가 지원하는 스키마로 변환한다. 전체 제약은 StructuredJson으로 검증한다. */
     private static JsonNode geminiSchema(JsonNode node, JsonNode definitions) {
         if (node.has("$ref")) {
-            return geminiSchema(definitions.path(node.path("$ref").asText().substring("#/$defs/".length())), definitions);
+            return geminiSchema(definitions.path(LenientJson.asText(node.path("$ref")).substring("#/$defs/".length())), definitions);
         }
         if (node.has("anyOf")) {
             JsonNode nonNull = null;
             for (JsonNode variant : node.path("anyOf")) {
-                if (!"null".equals(variant.path("type").asText())) nonNull = variant;
+                if (!"null".equals(LenientJson.asText(variant.path("type")))) nonNull = variant;
             }
             ObjectNode result = (ObjectNode) geminiSchema(nonNull, definitions);
             result.put("nullable", true);
             return result;
         }
         ObjectNode result = StructuredJson.MAPPER.createObjectNode();
-        result.put("type", node.path("type").asText(node.has("enum") ? "string" : "object").toUpperCase(Locale.ROOT));
+        result.put("type", LenientJson.asText(node.path("type"), node.has("enum") ? "string" : "object").toUpperCase(Locale.ROOT));
         if (node.has("enum")) result.set("enum", node.path("enum"));
         if (node.has("required")) result.set("required", node.path("required"));
         if (node.has("items")) result.set("items", geminiSchema(node.path("items"), definitions));

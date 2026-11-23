@@ -29,6 +29,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 가입 계정의 유입 광고(SOMA-588) — {@code PUT /v2/me/signup-attribution} 을 HTTP 와 실제 Postgres 로 본다.
@@ -131,7 +132,7 @@ class SignupAttributionIT {
                 {"channel":"instagram","medium":"paid_social"}
                 """, guestBearer);
         assertThat(beforeConsent.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(beforeConsent.getContentAsString()).path("detail").asText())
+        assertThat(LenientJson.asText(mapper.readTree(beforeConsent.getContentAsString()).path("detail")))
                 .isEqualTo("consent_required");
 
         grantPrivacy(guest);
@@ -175,7 +176,7 @@ class SignupAttributionIT {
         MockHttpServletResponse response = recordWeb("{\"channel\":\"instagram\"}", guestBearer);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(response.getContentAsString()).path("detail").asText())
+        assertThat(LenientJson.asText(mapper.readTree(response.getContentAsString()).path("detail")))
                 .isEqualTo("consent_required");
         assertThat(count(guest)).isZero();
     }
@@ -308,12 +309,12 @@ class SignupAttributionIT {
         JsonNode row = rows.get(0);
         assertThat(row.fieldNames()).toIterable().containsExactly(
                 "actor", "signup_at", "source", "platform", "channel", "medium", "campaign", "ad_group", "ad_creative", "recorded_via");
-        assertThat(row.path("actor").asText()).isEqualTo("배우 " + md5(member.toString()).substring(0, 8));
-        assertThat(row.path("source").asText()).isEqualTo("airbridge");
-        assertThat(row.path("platform").asText()).isEqualTo("ios");
+        assertThat(LenientJson.asText(row.path("actor"))).isEqualTo("배우 " + md5(member.toString()).substring(0, 8));
+        assertThat(LenientJson.asText(row.path("source"))).isEqualTo("airbridge");
+        assertThat(LenientJson.asText(row.path("platform"))).isEqualTo("ios");
         assertThat(row.path("medium").isNull()).isTrue();
-        assertThat(row.path("campaign").asText()).isEqualTo("ACTTUB | iOS 앱 설치 릴스");
-        assertThat(row.path("signup_at").asText()).matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:00:00\\.000000Z");
+        assertThat(LenientJson.asText(row.path("campaign"))).isEqualTo("ACTTUB | iOS 앱 설치 릴스");
+        assertThat(LenientJson.asText(row.path("signup_at"))).matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:00:00\\.000000Z");
     }
 
     private static String md5(String value) throws Exception {

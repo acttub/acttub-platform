@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 연습 루프 둘째 응답부터의 분기. 배우의 말 종류를 받아 이번 응답의 할 일을 <b>코드가</b> 정한다.
@@ -138,7 +139,7 @@ final class PracticeLoopRouter {
         boolean lineFix = false;
         boolean already = false;
         for (JsonNode value : root.path("signals")) {
-            String id = value.isTextual() ? value.asText() : "";
+            String id = value.isTextual() ? LenientJson.asText(value) : "";
             if (!SIGNALS.contains(id)) throw new IllegalArgumentException("unknown practice loop classification");
             if (STOP_SIGNAL.equals(id)) stop = true;
             else if (DECIDED_SIGNAL.equals(id)) decided = true;
@@ -245,7 +246,7 @@ final class PracticeLoopRouter {
             lastDoing = doing;
             // 대화 이어하기(SOMA-782): 닫힌 대화를 다시 연 직후 첫 배우 말은 "정리한 다음 말"처럼 다룬다 — 이어 묻는 말에는 답하고,
             // 짧은 맞장구면 다시 닫는다. 그러지 않으면 마지막 할 일이 끝·마무리라 첫 말에 곧바로 닫힌다.
-            if (i == coachTurns - 1 && loop != null && loop.path(RESUMED_AT).asInt(-1) == coachTurns
+            if (i == coachTurns - 1 && loop != null && LenientJson.asInt(loop.path(RESUMED_AT), -1) == coachTurns
                     && (doing.startsWith("끝") || doing.startsWith("마무리"))) {
                 lastDoing = WRAP_UP;
             }

@@ -19,6 +19,7 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class DirectVideoCoachTest {
     final DirectVideoModel model = mock(DirectVideoModel.class);
@@ -80,7 +81,7 @@ class DirectVideoCoachTest {
         assertThat(result.reply().status()).isEqualTo("complete");
         assertThat(result.reply().message()).isEqualTo("영상의 소리를 들을 수 없어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
         assertThat(result.session().closeReason()).isEqualTo("interrupted");
-        assertThat(result.session().coachingState().path("practice_loop").path("input_issue").asText())
+        assertThat(LenientJson.asText(result.session().coachingState().path("practice_loop").path("input_issue")))
                 .isEqualTo("silent_audio");
         assertThat(result.session().coachingState().path("practice_loop").has("not_acting")).isFalse();
         assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
@@ -157,7 +158,7 @@ class DirectVideoCoachTest {
                 """);
         var first = practiceLoopEngine().start(session(), UUID.randomUUID());
         assertThat(first.reply().message()).as("첫 응답은 질문만 남는다").endsWith("?").doesNotContain("대사 확인", "확인된 대사", "\"");
-        assertThat(first.session().coachingState().path("practice_loop").path("design").asText())
+        assertThat(LenientJson.asText(first.session().coachingState().path("practice_loop").path("design")))
                 .contains("대사 확인: 확인 안 됨", "확인된 대사: 없음");
         verify(model).reply(eq(silent), anyList(), argThat(prompt -> prompt.contains("audio_track_present=false")));
         verify(model).delete(silent);
@@ -230,7 +231,7 @@ class DirectVideoCoachTest {
                 StructuredJson.MAPPER, telemetry);
         var note = reports.generateReport("coaching", end.session().observationPack(), end.reply().handoff(),
                 false, UUID.randomUUID().toString(), null, null);
-        assertThat(note.path("schema_version").asText()).isEqualTo("acttub.practice_note.v1");
+        assertThat(LenientJson.asText(note.path("schema_version"))).isEqualTo("acttub.practice_note.v1");
     }
 
     @Test void sixteenthReplyClosesAtExistingTurnBudget() {
@@ -347,7 +348,7 @@ class DirectVideoCoachTest {
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
         assertThat(asked).as("성격은 첫 응답 전에 한 번만 정한다").hasValue(1);
-        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("b1");
+        assertThat(LenientJson.asText(second.session().coachingState().path("practice_loop").path("persona"))).isEqualTo("b1");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
         String persona = DirectVideoPrompts.persona("b1", null);
@@ -367,7 +368,7 @@ class DirectVideoCoachTest {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, reply);
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "같이 즐기고 싶었어요", UUID.randomUUID());
-        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("park-seunga");
+        assertThat(LenientJson.asText(second.session().coachingState().path("practice_loop").path("persona"))).isEqualTo("park-seunga");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
         String own = DirectVideoPrompts.persona("park-seunga", null);
@@ -395,7 +396,7 @@ class DirectVideoCoachTest {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, reply);
         var first = loopEngine.start(withProfile(session()), UUID.randomUUID());
         var second = loopEngine.reply(withProfile(first.session()), "같이 즐기고 싶었어요", UUID.randomUUID());
-        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("actor-profile");
+        assertThat(LenientJson.asText(second.session().coachingState().path("practice_loop").path("persona"))).isEqualTo("actor-profile");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
         String own = DirectVideoPrompts.persona("actor-profile", null, PROFILE);
@@ -474,7 +475,7 @@ class DirectVideoCoachTest {
                 model, videos, storage, failures, telemetry, true, s -> "park-seunga")));
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(withProfile(session()), UUID.randomUUID());
-        assertThat(first.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("park-seunga");
+        assertThat(LenientJson.asText(first.session().coachingState().path("practice_loop").path("persona"))).isEqualTo("park-seunga");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model).reply(eq(file), anyList(), prompts.capture());
         assertThat(prompts.getValue()).endsWith(DirectVideoPrompts.persona("park-seunga", null))
@@ -517,7 +518,7 @@ class DirectVideoCoachTest {
                 model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100)));
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
-        assertThat(second.session().coachingState().path("practice_loop").path("coach_model").asText()).isEqualTo("b");
+        assertThat(LenientJson.asText(second.session().coachingState().path("practice_loop").path("coach_model"))).isEqualTo("b");
         verify(compared, times(2)).reply(eq(file), anyList(), anyString());
         verify(model, never()).reply(eq(file), anyList(), anyString());
         verify(model).classify(anyList(), anyString(), anyList());
@@ -534,7 +535,7 @@ class DirectVideoCoachTest {
         var compared = mock(DirectVideoModel.class);
         var off = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 0))).start(session(), UUID.randomUUID());
-        assertThat(off.session().coachingState().path("practice_loop").path("coach_model").asText()).isEqualTo("a");
+        assertThat(LenientJson.asText(off.session().coachingState().path("practice_loop").path("coach_model"))).isEqualTo("a");
         verify(compared, never()).reply(any(), anyList(), anyString());
         // 저장값이 b 여도 비교 모델을 끈 배포(롤백)에서는 기본 모델이 이어 쓴다.
         var stored = StructuredJson.MAPPER.createObjectNode();
@@ -571,7 +572,7 @@ class DirectVideoCoachTest {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var advisor = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> CoachPersonas.DEFAULT))).start(session(), UUID.randomUUID());
-        assertThat(advisor.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("a");
+        assertThat(LenientJson.asText(advisor.session().coachingState().path("practice_loop").path("persona"))).isEqualTo("a");
         verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.practiceLoop(advisor.session().practiceSessionId()) + AnswerExamples.INSTRUCTION));
         var other = practiceLoopEngine().start(session(), UUID.randomUUID());
         assertThat(other.session().coachingState().path("practice_loop").has("persona")).isFalse();
@@ -598,7 +599,7 @@ class DirectVideoCoachTest {
         var first = loopEngine.start(session(), UUID.randomUUID());
         assertThat(first.reply().message()).isEqualTo(OPENING_SHOWN);
         assertThat(first.session().turns()).containsExactly(new CoachTurnSnapshot("ai", OPENING_SHOWN));
-        assertThat(first.session().coachingState().path("practice_loop").path("design").asText()).startsWith("인물:");
+        assertThat(LenientJson.asText(first.session().coachingState().path("practice_loop").path("design"))).startsWith("인물:");
 
         var second = loopEngine.reply(first.session(), "붙잡길 바랐던 것 같아요", UUID.randomUUID());
         assertThat(second.reply().message()).as("모델이 따라 쓴 상태 칸은 버리고 서버의 할 일을 따른다")
@@ -609,9 +610,9 @@ class DirectVideoCoachTest {
         assertThat(third.session().turns()).extracting(CoachTurnSnapshot::text)
                 .noneMatch(text -> text.contains("<설계>") || text.contains("<상태>") || text.contains("<코치>"));
         var statuses = third.session().coachingState().path("practice_loop").path("statuses");
-        assertThat(statuses.path(1).asText()).contains("배우의 말: 답", "할 일: 어긋남 보기", "분류: model", "단계: 3", "응답 2번째",
+        assertThat(LenientJson.asText(statuses.path(1))).contains("배우의 말: 답", "할 일: 어긋남 보기", "분류: model", "단계: 3", "응답 2번째",
                 "첫 답: 붙잡길 바랐던 것 같아요");
-        assertThat(statuses.path(2).asText()).contains("할 일: 스스로 찾기", "단계: 4", "응답 3번째", "알아챈 것: 상대가 떠나면 안 되니까요");
+        assertThat(LenientJson.asText(statuses.path(2))).contains("할 일: 스스로 찾기", "단계: 4", "응답 3번째", "알아챈 것: 상대가 떠나면 안 되니까요");
 
         var histories = org.mockito.ArgumentCaptor.forClass(List.class);
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
@@ -825,7 +826,7 @@ class DirectVideoCoachTest {
         var turns = new ArrayList<>(first.session().turns());
         turns.add(new CoachTurnSnapshot("user", "엄마 눈을 보며 따져 볼게요"));
         turns.add(new CoachTurnSnapshot("ai", "처음부터 끝까지 엄마를 보며 따져 봐도 좋아요."));
-        var wrapped = first.session().withTurns(turns).withCoachingState("three_layers_v1", state.path("revision").asLong(), state, "open", "");
+        var wrapped = first.session().withTurns(turns).withCoachingState("three_layers_v1", LenientJson.asLong(state.path("revision")), state, "open", "");
         assertThat(ConversationService.displayLimit(wrapped, 2)).as("정리 직후 앱이 마무리를 예고한다").isEqualTo(3);
         clearInvocations(model);
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"pushback\"]}");
@@ -858,7 +859,7 @@ class DirectVideoCoachTest {
         var turns = new ArrayList<>(first.session().turns());
         turns.add(new CoachTurnSnapshot("user", "상대 눈을 보며 기다려 볼게요"));
         turns.add(new CoachTurnSnapshot("ai", "대답을 기다려 봐도 좋아요."));
-        var wrapped = first.session().withTurns(turns).withCoachingState("three_layers_v1", state.path("revision").asLong(), state, "open", "");
+        var wrapped = first.session().withTurns(turns).withCoachingState("three_layers_v1", LenientJson.asLong(state.path("revision")), state, "open", "");
         clearInvocations(model);
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"evaluation\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(
@@ -880,7 +881,7 @@ class DirectVideoCoachTest {
         var first = loopEngine.start(session(), UUID.randomUUID());
         var later = loopEngine.reply(first.session(), "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", UUID.randomUUID());
         verify(model).classify(anyList(), anyString(), anyList());
-        String status = later.session().coachingState().path("practice_loop").path("statuses").path(1).asText();
+        String status = LenientJson.asText(later.session().coachingState().path("practice_loop").path("statuses").path(1));
         assertThat(status).contains("분류: model").doesNotContain("button");
     }
 
@@ -925,11 +926,11 @@ class DirectVideoCoachTest {
         var shown = loopEngine.reply(first.session(), "붙잡아 줬으면 했어요", UUID.randomUUID());
         var asked = loopEngine.reply(shown.session(), "아니요, 못 잡았을 것 같아요", UUID.randomUUID());
         var torn = loopEngine.reply(asked.session(), "붙잡는 게 맞는지 기다리는 게 맞는지 고민이 돼요", UUID.randomUUID());
-        String tornStatus = torn.session().coachingState().path("practice_loop").path("statuses").path(3).asText();
+        String tornStatus = LenientJson.asText(torn.session().coachingState().path("practice_loop").path("statuses").path(3));
         assertThat(tornStatus).as("행동을 정하지 않았으면 정리하지 않는다").contains("할 일: 다시 묻기").doesNotContain("찾은 대안");
         assertThat(torn.reply().status()).isEqualTo("continue");
         var wrapped = loopEngine.reply(torn.session(), "붙잡아 볼게요", UUID.randomUUID());
-        assertThat(wrapped.session().coachingState().path("practice_loop").path("statuses").path(4).asText())
+        assertThat(LenientJson.asText(wrapped.session().coachingState().path("practice_loop").path("statuses").path(4)))
                 .contains("할 일: 정리하기", "찾은 대안: 붙잡아 볼게요");
         var reading = loopEngine.reply(wrapped.session(), "그저 화풀이니까 좀 더 크게 화를 내야 할 것 같아요", UUID.randomUUID());
         assertThat(reading.reply().status()).as("정리 뒤 다른 해석은 한 번 받아 준다").isEqualTo("continue");
@@ -963,7 +964,7 @@ class DirectVideoCoachTest {
         var asked = loopEngine.reply(shown.session(), "아니요, 못 잡았을 것 같아요", UUID.randomUUID());
         var wrapped = loopEngine.reply(asked.session(), "붙잡아 볼게요", UUID.randomUUID());
         var statuses = wrapped.session().coachingState().path("practice_loop").path("statuses");
-        assertThat(statuses.path(statuses.size() - 1).asText()).contains("할 일: 정리하기");
+        assertThat(LenientJson.asText(statuses.path(statuses.size() - 1))).contains("할 일: 정리하기");
         assertThat(DirectVideoPracticeLoop.closingNextTake(statuses)).isEqualTo("처음부터 끝까지 상대를 붙잡아 봐도 좋아요");
     }
 
@@ -1058,8 +1059,8 @@ class DirectVideoCoachTest {
                 new CoachTurnSnapshot("ai", "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."));
         var note = DirectVideoPracticeLoop.note(session().withTurns(turns).withCoachingState("three_layers_v1", 0, state, "closed", ""), 4);
         assertThat(note.summaryQuotes()).hasSize(1);
-        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("고개를 크게 돌림");
-        assertThat(note.summaryQuotes().get(0).path("kind").asText()).isEqualTo("observation");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("고개를 크게 돌림");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("kind"))).isEqualTo("observation");
         assertThat(note.summaryQuotes().toString()).as("쉬운 질문의 답은 요약에 올리지 않는다").doesNotContain("무서워할 쪽이요");
     }
 
@@ -1103,7 +1104,7 @@ class DirectVideoCoachTest {
         var wrapped = loopEngine.reply(shown.session(), "그럼 어떻게 하면 돼요?", UUID.randomUUID());
         assertThat(wrapped.reply().status()).as("정리한 응답은 아직 닫지 않는다").isEqualTo("continue");
         assertThat(wrapped.reply().message()).startsWith("기다리는 그 마음이").doesNotContain("<다음 테이크>");
-        assertThat(wrapped.session().coachingState().path("practice_loop").path("statuses").path(2).asText())
+        assertThat(LenientJson.asText(wrapped.session().coachingState().path("practice_loop").path("statuses").path(2)))
                 .contains("배우의 말: 방법 요청", "할 일: 정리하기", "다음 테이크: \"가\"에서 상대가 잡을 때까지 기다렸다 말하기");
         clearInvocations(model, videos);
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
@@ -1121,7 +1122,7 @@ class DirectVideoCoachTest {
         var stopped = loopEngine.reply(opened.session(), "그만", UUID.randomUUID());
         assertThat(stopped.session().closeReason()).isEqualTo("actor_finished");
         assertThat(stopped.reply().message()).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
-        assertThat(stopped.session().coachingState().path("practice_loop").path("statuses").path(1).asText())
+        assertThat(LenientJson.asText(stopped.session().coachingState().path("practice_loop").path("statuses").path(1)))
                 .contains("배우의 말: 그만", "할 일: 끝", "분류: model");
         verify(model).classify(anyList(), anyString(), anyList());
         verify(model, never()).reply(any(), anyList(), anyString());
@@ -1223,10 +1224,10 @@ class DirectVideoCoachTest {
         assertThat(note.title()).isEqualTo("문장 사이 쉼 없이 몰아쳐요");
         assertThat(note.nextTake()).isEqualTo("문장마다 한 번씩 쉬어 보기");
         assertThat(note.summaryQuotes()).hasSize(2);
-        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("나는 틈을 주면 밀릴까 봐 몰아치는 배우다");
-        assertThat(note.summaryQuotes().get(0).path("kind").asText()).isEqualTo("actor");
-        assertThat(note.summaryQuotes().get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(closed, 9));
-        assertThat(note.summaryQuotes().get(1).path("quote").asText()).isEqualTo("틈을 주면 밀릴 것 같아서요");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("나는 틈을 주면 밀릴까 봐 몰아치는 배우다");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("kind"))).isEqualTo("actor");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(closed, 9));
+        assertThat(LenientJson.asText(note.summaryQuotes().get(1).path("quote"))).isEqualTo("틈을 주면 밀릴 것 같아서요");
         assertThat(note.legacyReport()).isNull();
         assertThat(DirectVideoPracticeLoop.note(session().withTurns(turns), 1)).isNull();
     }
@@ -1284,9 +1285,9 @@ class DirectVideoCoachTest {
         var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
         var note = DirectVideoPracticeLoop.note(closed, 4);
         assertThat(note.summaryQuotes()).hasSize(2);
-        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("빈틈이 무서워서 말로 채우는 배우");
-        assertThat(note.summaryQuotes().get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(closed, 5));
-        assertThat(note.summaryQuotes().get(1).path("quote").asText()).isEqualTo("사이가 비면 연기가 끊긴 것 같아서요");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("빈틈이 무서워서 말로 채우는 배우");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(closed, 5));
+        assertThat(LenientJson.asText(note.summaryQuotes().get(1).path("quote"))).isEqualTo("사이가 비면 연기가 끊긴 것 같아서요");
         assertThat(note.nextTake()).isEqualTo("문장 사이에 한 번씩 쉬기");
     }
 
@@ -1306,7 +1307,7 @@ class DirectVideoCoachTest {
                 new CoachTurnSnapshot("ai", "오늘은 여기까지 해요."));
         var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
         var note = DirectVideoPracticeLoop.note(closed, 4);
-        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+        assertThat(note.summaryQuotes()).extracting(q -> LenientJson.asText(q.path("quote")))
                 .doesNotContain("모르겠습니다,,,,그리고 제 연기 전체적으로 어떤지 평가받고 싶어요");
     }
 
@@ -1327,7 +1328,7 @@ class DirectVideoCoachTest {
                 new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
         var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
         var note = DirectVideoPracticeLoop.note(closed, 4);
-        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("아직 인물에 맞는 행동들이 자연스럽게 나오지 않는거 같다");
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("아직 인물에 맞는 행동들이 자연스럽게 나오지 않는거 같다");
     }
 
     /** SOMA-601: 배우의 말 분류가 없던 옛 한 줄 상태에서도 장단점을 묻는 말은 한 줄이 아니다(운영 d72194af). */
@@ -1342,7 +1343,7 @@ class DirectVideoCoachTest {
                 new CoachTurnSnapshot("ai", "오늘은 여기까지 해요."));
         var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 3, state, "closed", "interrupted");
         var note = DirectVideoPracticeLoop.note(closed, 3);
-        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+        assertThat(note.summaryQuotes()).extracting(q -> LenientJson.asText(q.path("quote")))
                 .doesNotContain("저의 연기적 장점과 단점은 무엇일까요?");
     }
 
@@ -1363,9 +1364,9 @@ class DirectVideoCoachTest {
                 new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
         var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 5, state, "closed", "interrupted");
         var note = DirectVideoPracticeLoop.note(closed, 5);
-        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+        assertThat(note.summaryQuotes()).extracting(q -> LenientJson.asText(q.path("quote")))
                 .containsExactly("아직 행동이 자연스럽게 안 나온다", "트라우마 때문에 마주하기 어려워서 일부러 돌렸어");
-        assertThat(note.corrections()).extracting(com.fasterxml.jackson.databind.JsonNode::asText).containsExactly("시선: \"렌즈 본 거예요\"");
+        assertThat(note.corrections()).extracting(LenientJson::asText).containsExactly("시선: \"렌즈 본 거예요\"");
         var line = PracticeLoopRound.line(2, note.title(), note.nextTake(), state,
                 turns.stream().map(t -> new PracticeLoopRound.Turn(t.role(), t.text())).toList());
         assertThat(line).isEqualTo("2차: 목표 한 문장 끝에 엄마를 끝까지 보기 — 버릇 고개를 양옆으로 크게 움직임"
@@ -1574,7 +1575,7 @@ class DirectVideoCoachTest {
         var first = loopEngine.start(session(), UUID.randomUUID());
         assertThat(first.reply().status()).isEqualTo("continue");
         assertThat(DirectVideoPracticeLoop.wasCut(first.session().coachingState())).isFalse();
-        assertThat(first.session().coachingState().path("practice_loop").path("design").asText())
+        assertThat(LenientJson.asText(first.session().coachingState().path("practice_loop").path("design")))
                 .contains("관찰 근거: 음성만", "없음(화면 확인 안 됨)");
         assertThat(first.reply().message()).endsWith("?").doesNotContain("<설계>", "표정", "시선", "고개");
         var shownA = loopEngine.reply(first.session(), "머물러 주길 바랐어요", UUID.randomUUID());
@@ -1685,14 +1686,14 @@ class DirectVideoCoachTest {
             layer.start(start.practiceSessionId(), null, clip, "video/mp4", null);
             for (int i = 0; i < 100 && layer.ready(start.practiceSessionId()).isEmpty(); i++) Thread.sleep(10);
             var first = loopEngine.start(start, UUID.randomUUID());
-            assertThat(first.session().coachingState().path("layer1").path("arm").asText()).isEqualTo("on");
-            assertThat(first.session().coachingState().path("layer1").path("block").asText()).startsWith("## 1층 관찰");
+            assertThat(LenientJson.asText(first.session().coachingState().path("layer1").path("arm"))).isEqualTo("on");
+            assertThat(LenientJson.asText(first.session().coachingState().path("layer1").path("block"))).startsWith("## 1층 관찰");
             layer.close();
             var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
             var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
             verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
             assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt).contains("## 1층 관찰").doesNotContain("## 1층 관찰 대기"));
-            assertThat(second.session().coachingState().path("layer1").path("from_turn").asInt()).isZero();
+            assertThat(LenientJson.asInt(second.session().coachingState().path("layer1").path("from_turn"))).isZero();
             assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
                     .allSatisfy(call -> assertThat(call.metadata()).containsEntry("layer1_arm", "on").containsEntry("layer1_used", "true"));
         } finally {
@@ -1709,7 +1710,7 @@ class DirectVideoCoachTest {
                     CoachVideoCache.NONE, true, true, layer)));
             when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
             var first = loopEngine.start(session(), UUID.randomUUID());
-            assertThat(first.session().coachingState().path("layer1").path("arm").asText()).isEqualTo("on");
+            assertThat(LenientJson.asText(first.session().coachingState().path("layer1").path("arm"))).isEqualTo("on");
             var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
             verify(model).reply(eq(file), anyList(), prompts.capture());
             assertThat(prompts.getValue()).contains("## 1층 관찰 대기").doesNotContain("## 1층 관찰\n");
@@ -1727,7 +1728,7 @@ class DirectVideoCoachTest {
                 CoachVideoCache.NONE, true, true, layer)));
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(session(), UUID.randomUUID());
-        assertThat(first.session().coachingState().path("layer1").path("arm").asText()).isEqualTo("off");
+        assertThat(LenientJson.asText(first.session().coachingState().path("layer1").path("arm"))).isEqualTo("off");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model).reply(eq(file), anyList(), prompts.capture());
         assertThat(prompts.getValue()).doesNotContain("## 1층 관찰").doesNotContain("## 1층 관찰 대기");

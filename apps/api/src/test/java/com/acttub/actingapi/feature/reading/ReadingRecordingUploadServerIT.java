@@ -34,6 +34,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 녹음 올리기를 <b>실제 서블릿 컨테이너</b>로 본다 (reading.recording). MockMvc 는 파트를 메모리에 미리 채워 컨테이너의
@@ -111,7 +112,7 @@ class ReadingRecordingUploadServerIT {
         assertThat(uploaded.statusCode()).as(uploaded.body()).isEqualTo(201);
         JsonNode body = mapper.readTree(uploaded.body());
         assertThat(body.path("line_id").textValue()).isEqualTo(line.toString());
-        assertThat(body.path("byte_size").longValue()).isEqualTo(2048);
+        assertThat(LenientJson.longValue(body.path("byte_size"))).isEqualTo(2048);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_recordings", Integer.class)).isEqualTo(1);
         assertThat(storage.objects).containsKey("reading/" + member + "/" + session + "/" + line + "/" + requestId + ".m4a");
 

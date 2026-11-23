@@ -13,6 +13,7 @@ import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** reading.cloud-voice: Gemini TTS 에는 대사 원문 하나와 고른 목소리만 보내고, 돌아온 PCM 바이트를 그대로 쓴다. */
 class GeminiVoiceSynthesizerTest {
@@ -40,10 +41,10 @@ class GeminiVoiceSynthesizerTest {
             assertThat(audio).containsExactly(pcm);
             assertThat(path.get()).endsWith("/models/gemini-tts-test:generateContent");
             assertThat(request.get().path("contents")).hasSize(1);
-            assertThat(request.get().path("contents").get(0).path("parts").get(0).path("text").asText()).isEqualTo("가지 마.");
+            assertThat(LenientJson.asText(request.get().path("contents").get(0).path("parts").get(0).path("text"))).isEqualTo("가지 마.");
             JsonNode config = request.get().path("generationConfig");
             assertThat(config.path("responseModalities").toString()).isEqualTo("[\"AUDIO\"]");
-            assertThat(config.path("speechConfig").path("voiceConfig").path("prebuiltVoiceConfig").path("voiceName").asText())
+            assertThat(LenientJson.asText(config.path("speechConfig").path("voiceConfig").path("prebuiltVoiceConfig").path("voiceName")))
                     .isEqualTo("Kore");
         } finally {
             server.stop(0);

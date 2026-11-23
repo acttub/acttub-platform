@@ -38,6 +38,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 새 저장소·HTTP·프로필을 실제로 연결하고 외부 영상/모델 경계만 대체한다. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
@@ -83,20 +84,20 @@ class DirectVideoPracticeIT {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(
                 "<설계>영상: 연기 아님: 검은 화면</설계><코치>지어낸 코칭</코치>");
         JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", UUID.randomUUID()));
-        assertThat(opened.at("/conversation/status").asText()).isEqualTo("closed");
-        assertThat(opened.at("/conversation/close_reason").asText()).isEqualTo("exhausted");
-        assertThat(opened.at("/conversation/revision").asLong()).isEqualTo(1);
-        assertThat(opened.path("message").asText()).contains("연기 장면", "다시 올려").doesNotContain("지어낸");
+        assertThat(LenientJson.asText(opened.at("/conversation/status"))).isEqualTo("closed");
+        assertThat(LenientJson.asText(opened.at("/conversation/close_reason"))).isEqualTo("exhausted");
+        assertThat(LenientJson.asLong(opened.at("/conversation/revision"))).isEqualTo(1);
+        assertThat(LenientJson.asText(opened.path("message"))).contains("연기 장면", "다시 올려").doesNotContain("지어낸");
         assertThat(opened.path("note").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("closed");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_notes", Integer.class)).isZero();
-        String conversation = opened.at("/conversation/id").asText();
+        String conversation = LenientJson.asText(opened.at("/conversation/id"));
         var response = mvc.perform(post("/v2/coach/reply").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
                         "conversation_id", conversation, "request_id", UUID.randomUUID(), "text", "아무 말"))))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(409);
-        assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("conversation_closed");
+        assertThat(LenientJson.asText(json.readTree(response.getContentAsString()).path("detail"))).isEqualTo("conversation_closed");
         verify(model, times(1)).reply(eq(file), anyList(), anyString());
         verifyNoInteractions(text);
     }
@@ -105,7 +106,7 @@ class DirectVideoPracticeIT {
         UUID practice = practice(UUID.randomUUID());
         jdbc.update("UPDATE videos SET duration_ms=1300 WHERE id=(SELECT video_id FROM practices WHERE id=?)", practice);
         JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", UUID.randomUUID()));
-        assertThat(opened.at("/conversation/status").asText()).isEqualTo("closed");
+        assertThat(LenientJson.asText(opened.at("/conversation/status"))).isEqualTo("closed");
         assertThat(opened.path("note").isNull()).isTrue();
         verifyNoInteractions(model, text);
     }
@@ -115,28 +116,28 @@ class DirectVideoPracticeIT {
         when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null, false));
         UUID request = UUID.randomUUID();
         JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", request));
-        assertThat(opened.at("/conversation/status").asText()).isEqualTo("closed");
-        assertThat(opened.at("/conversation/revision").asLong()).isEqualTo(1);
-        assertThat(opened.path("message").asText()).contains("소리를 들을 수 없어요", "다시 올려").doesNotContain("연기 장면");
+        assertThat(LenientJson.asText(opened.at("/conversation/status"))).isEqualTo("closed");
+        assertThat(LenientJson.asLong(opened.at("/conversation/revision"))).isEqualTo(1);
+        assertThat(LenientJson.asText(opened.path("message"))).contains("소리를 들을 수 없어요", "다시 올려").doesNotContain("연기 장면");
         assertThat(opened.path("note").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("closed");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_notes", Integer.class)).isZero();
-        String conversation = opened.at("/conversation/id").asText();
+        String conversation = LenientJson.asText(opened.at("/conversation/id"));
         JsonNode state = json.readTree(jdbc.queryForObject("SELECT state::text FROM coach_conversations WHERE id=?",
                 String.class, UUID.fromString(conversation)));
-        assertThat(state.at("/practice_loop/input_issue").asText()).isEqualTo("silent_audio");
+        assertThat(LenientJson.asText(state.at("/practice_loop/input_issue"))).isEqualTo("silent_audio");
         assertThat(state.at("/practice_loop/not_acting").isMissingNode()).isTrue();
         var restarted = mvc.perform(post("/v2/coach/start").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
                         "practice_id", practice, "request_id", request)))).andReturn().getResponse();
         assertThat(restarted.getStatus()).isEqualTo(409);
-        assertThat(json.readTree(restarted.getContentAsString()).path("detail").asText()).isEqualTo("conversation_closed");
+        assertThat(LenientJson.asText(json.readTree(restarted.getContentAsString()).path("detail"))).isEqualTo("conversation_closed");
         var response = mvc.perform(post("/v2/coach/reply").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
                         "conversation_id", conversation, "request_id", UUID.randomUUID(), "text", "아무 말"))))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(409);
-        assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("conversation_closed");
+        assertThat(LenientJson.asText(json.readTree(response.getContentAsString()).path("detail"))).isEqualTo("conversation_closed");
         verify(model, never()).upload(any(), anyString());
         verify(model, never()).upload(any(), anyString(), any());
         verify(model, never()).reply(any(), anyList(), anyString());
@@ -150,7 +151,7 @@ class DirectVideoPracticeIT {
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
                         "practice_id", practice, "request_id", UUID.randomUUID())))).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(502);
-        assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("coach_response_unavailable");
+        assertThat(LenientJson.asText(json.readTree(response.getContentAsString()).path("detail"))).isEqualTo("coach_response_unavailable");
         assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("conversing");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_notes", Integer.class)).isZero();
         assertThat(jdbc.queryForList("SELECT state::text FROM coach_conversations", String.class))
@@ -166,7 +167,7 @@ class DirectVideoPracticeIT {
         jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by) VALUES (?,?,'goal','오디션 준비','actor')",
                 UUID.randomUUID(), user);
         JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", UUID.randomUUID()));
-        String conversation = opened.at("/conversation/id").asText();
+        String conversation = LenientJson.asText(opened.at("/conversation/id"));
         jdbc.update("UPDATE user_profiles SET experience='over_5y' WHERE user_id=?", user);
         JsonNode next = postJson("/v2/coach/reply", Map.of("conversation_id", conversation,
                 "request_id", UUID.randomUUID(), "text", "상대를 붙잡고 싶어요"));
@@ -180,9 +181,9 @@ class DirectVideoPracticeIT {
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"stop\"]}");
         var ended = postJson("/v2/coach/reply", Map.of("conversation_id", conversation,
                 "request_id", UUID.randomUUID(), "text", "그만"));
-        assertThat(ended.at("/conversation/status").asText()).isEqualTo("closed");
-        assertThat(ended.at("/conversation/close_reason").asText()).isEqualTo("user_ended");
-        assertThat(ended.at("/note/report/schema_version").asText()).isEqualTo("acttub.public_practice_note.v1");
+        assertThat(LenientJson.asText(ended.at("/conversation/status"))).isEqualTo("closed");
+        assertThat(LenientJson.asText(ended.at("/conversation/close_reason"))).isEqualTo("user_ended");
+        assertThat(LenientJson.asText(ended.at("/note/report/schema_version"))).isEqualTo("acttub.public_practice_note.v1");
         for (String tableColumn : List.of("coach_conversations.state", "coach_notes.legacy_report")) {
             String[] parts = tableColumn.split("\\.");
             assertThat(jdbc.queryForList("SELECT " + parts[1] + "::text FROM " + parts[0], String.class))

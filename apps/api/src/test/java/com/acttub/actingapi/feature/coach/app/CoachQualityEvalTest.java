@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 명시적으로 켤 때만 유료 실호출. 합성 사례와 응답만 build/coach-quality-eval에 남긴다. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
@@ -45,14 +46,14 @@ class CoachQualityEvalTest {
         List<JsonNode> cases = new ArrayList<>();
         scenarios.forEach(cases::add);
         if (!selected.isEmpty()) {
-            assertThat(cases.stream().map(item -> item.path("id").asText()).toList()).containsAll(selected);
+            assertThat(cases.stream().map(item -> LenientJson.asText(item.path("id"))).toList()).containsAll(selected);
         }
-        return cases.stream().filter(item -> selected.isEmpty() || selected.contains(item.path("id").asText()))
-                .map(item -> DynamicTest.dynamicTest(item.path("id").asText(), () -> evaluate(item)));
+        return cases.stream().filter(item -> selected.isEmpty() || selected.contains(LenientJson.asText(item.path("id"))))
+                .map(item -> DynamicTest.dynamicTest(LenientJson.asText(item.path("id")), () -> evaluate(item)));
     }
 
     private static void evaluate(JsonNode scenario) throws Exception {
-        String id = scenario.path("id").asText();
+        String id = LenientJson.asText(scenario.path("id"));
         ObjectNode output = MAPPER.createObjectNode();
         output.put("id", id);
         output.put("started_at", Instant.now().toString());
@@ -74,12 +75,12 @@ class CoachQualityEvalTest {
         try {
             CoachSessionSnapshot session = session(scenario);
             CoachReply reply = new CoachEngine(recording, new RecordingFailureReporter(), new RecordingLlmTelemetry())
-                    .reply(session, scenario.path("latest").asText(), UUID.randomUUID()).reply();
+                    .reply(session, LenientJson.asText(scenario.path("latest")), UUID.randomUUID()).reply();
             output.set("reply", MAPPER.valueToTree(reply));
             assertThat(reply.message()).isNotBlank();
             if (scenario.path("close").asBoolean()) {
                 assertThat(reply.status()).isEqualTo("complete");
-                assertThat(reply.handoff().path("completion_level").asText()).isNotEqualTo("unavailable");
+                assertThat(LenientJson.asText(reply.handoff().path("completion_level"))).isNotEqualTo("unavailable");
             }
             if (scenario.has("tested")) {
                 assertThat(reply.handoff().at("/experiment/tested").isBoolean()).isTrue();
@@ -118,10 +119,10 @@ class CoachQualityEvalTest {
     private static CoachSessionSnapshot session(JsonNode scenario) {
         List<CoachTurnSnapshot> turns = new ArrayList<>();
         for (JsonNode text : scenario.path("turns")) {
-            turns.add(new CoachTurnSnapshot(turns.size() % 2 == 0 ? "actor" : "ai", text.asText()));
+            turns.add(new CoachTurnSnapshot(turns.size() % 2 == 0 ? "actor" : "ai", LenientJson.asText(text)));
         }
         List<String> transcripts = new ArrayList<>();
-        scenario.path("transcripts").forEach(text -> transcripts.add(text.asText()));
+        scenario.path("transcripts").forEach(text -> transcripts.add(LenientJson.asText(text)));
         ObjectNode pack = MAPPER.createObjectNode();
         for (String field : List.of("scene_summary", "timeline", "speech")) {
             if (scenario.has(field)) pack.set(field, scenario.get(field));
@@ -129,13 +130,13 @@ class CoachQualityEvalTest {
         pack.set("observations", scenario.path("observations"));
         pack.set("uncertainties", scenario.path("uncertainties"));
         CoachSessionSnapshot session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                pack, scenario.path("situation").asText(), scenario.path("character").asText("동료"),
-                scenario.path("goal").asText(), 12000, scenario.path("branch").asText(),
-                scenario.path("sub_branch").asText("그 외"), scenario.path("detail").asText(), "open", "", turns, PriorContext.EMPTY, "legacy", 0, null, null);
+                pack, LenientJson.asText(scenario.path("situation")), LenientJson.asText(scenario.path("character"), "동료"),
+                LenientJson.asText(scenario.path("goal")), 12000, LenientJson.asText(scenario.path("branch")),
+                LenientJson.asText(scenario.path("sub_branch"), "그 외"), LenientJson.asText(scenario.path("detail")), "open", "", turns, PriorContext.EMPTY, "legacy", 0, null, null);
         // 프로필과 기억은 handoff 밖에서 온다 — 실물에서는 턴마다 포트로 읽어 싣는 입력이다.
         if (scenario.has("memory")) {
             Map<String, String> memory = new java.util.LinkedHashMap<>();
-            scenario.path("memory").properties().forEach(entry -> memory.put(entry.getKey(), entry.getValue().asText()));
+            scenario.path("memory").properties().forEach(entry -> memory.put(entry.getKey(), LenientJson.asText(entry.getValue())));
             session = session.withPrior(new PriorContext(memory, null, true, List.of(), List.of()));
         }
         return session.withActorProfile(profile(scenario));
@@ -146,9 +147,9 @@ class CoachQualityEvalTest {
         JsonNode profile = scenario.path("profile");
         if (!profile.isObject()) return null;
         List<String> directions = new ArrayList<>();
-        profile.path("directions").forEach(direction -> directions.add(direction.asText()));
-        return new ActorProfile(profile.path("name").asText(), profile.path("gender").asText(),
-                profile.path("age").asInt(), directions, profile.path("experience").asText(),
-                profile.path("goal").asText());
+        profile.path("directions").forEach(direction -> directions.add(LenientJson.asText(direction)));
+        return new ActorProfile(LenientJson.asText(profile.path("name")), LenientJson.asText(profile.path("gender")),
+                LenientJson.asInt(profile.path("age")), directions, LenientJson.asText(profile.path("experience")),
+                LenientJson.asText(profile.path("goal")));
     }
 }

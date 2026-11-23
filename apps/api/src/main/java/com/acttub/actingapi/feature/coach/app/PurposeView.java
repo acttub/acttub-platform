@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.coach.app;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 목적별 코칭(SOMA-719)에서 화면이 그대로 그리는 값. 목적 없이 시작한 대화는 {@code null} 이다.
@@ -53,7 +54,7 @@ public record PurposeView(
         if (loop == null || !loop.isObject()) {
             return new PurposeView(purpose.id, purpose.steps.getFirst(), List.of(), null, List.of(), null, null);
         }
-        int index = Math.max(0, Math.min(purpose.steps.size() - 1, loop.path("step").asInt(0)));
+        int index = Math.max(0, Math.min(purpose.steps.size() - 1, LenientJson.asInt(loop.path("step"), 0)));
         var choices = new ArrayList<Choice>();
         for (JsonNode choice : loop.path("choices")) {
             choices.add(new Choice(choice.path("label").asText(""), at(choice.path("at"))));
@@ -65,7 +66,7 @@ public record PurposeView(
         }
         var lines = new ArrayList<Line>();
         for (JsonNode line : loop.path("lines")) {
-            lines.add(new Line(line.path("at").asInt(0), line.path("text").asText("")));
+            lines.add(new Line(LenientJson.asInt(line.path("at"), 0), line.path("text").asText("")));
         }
         Card card = null;
         if (loop.path("card").isObject()) {
@@ -91,6 +92,6 @@ public record PurposeView(
     }
 
     private static Integer at(JsonNode node) {
-        return node != null && node.isNumber() ? node.asInt() : null;
+        return node != null && node.isNumber() ? LenientJson.asInt(node) : null;
     }
 }

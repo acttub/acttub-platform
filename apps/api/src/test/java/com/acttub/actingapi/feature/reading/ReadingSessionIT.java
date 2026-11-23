@@ -56,6 +56,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * reading.cast·reading.session 의 "검증 방법" 가운데 서버가 맡는 항목을 HTTP 와 실제 Postgres 로 본다. 녹음 행은 아직
@@ -158,19 +159,19 @@ class ReadingSessionIT {
         assertThat(started.path("my_character_ids")).extracting(JsonNode::textValue)
                 .containsExactly(script.nina.toString(), script.treplev.toString());
         assertThat(started.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나", "트레플레프");
-        assertThat(started.path("ordinal").intValue()).isEqualTo(1);
-        assertThat(started.path("range").path("start_dialogue_no").intValue()).isEqualTo(1);
-        assertThat(started.path("range").path("end_dialogue_no").intValue()).isEqualTo(8);
-        assertThat(started.path("my_dialogue_count").intValue()).as("니나 4 + 트레플레프 2").isEqualTo(6);
-        assertThat(started.path("recorded_line_count").intValue()).isZero();
-        assertThat(started.path("elapsed_seconds").intValue()).isZero();
-        assertThat(started.path("progress_seq").longValue()).isZero();
+        assertThat(LenientJson.intValue(started.path("ordinal"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(started.path("range").path("start_dialogue_no"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(started.path("range").path("end_dialogue_no"))).isEqualTo(8);
+        assertThat(LenientJson.intValue(started.path("my_dialogue_count"))).as("니나 4 + 트레플레프 2").isEqualTo(6);
+        assertThat(LenientJson.intValue(started.path("recorded_line_count"))).isZero();
+        assertThat(LenientJson.intValue(started.path("elapsed_seconds"))).isZero();
+        assertThat(LenientJson.longValue(started.path("progress_seq"))).isZero();
         assertThat(started.path("line_results")).isEmpty();
         assertThat(started.path("recordings")).isEmpty();
         assertThat(started.path("mode").textValue()).isEqualTo("read");
         assertThat(started.path("advance").textValue()).isEqualTo("silence");
         assertThat(started.path("record").booleanValue()).isTrue();
-        assertThat(started.path("chunk_lines").intValue()).as("말풍선 줄 수 — READING_CHUNK_LINES, 없으면 10(SOMA-938)").isEqualTo(10);
+        assertThat(LenientJson.intValue(started.path("chunk_lines"))).as("말풍선 줄 수 — READING_CHUNK_LINES, 없으면 10(SOMA-938)").isEqualTo(10);
         assertThat(started.path("script_id").textValue()).isEqualTo(script.id.toString());
 
         JsonNode replayed = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(body.toString()), 200);
@@ -222,7 +223,7 @@ class ReadingSessionIT {
         String second = started.path("id").textValue();
 
         assertThat(started.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(started.path("ordinal").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(started.path("ordinal"))).isEqualTo(2);
         JsonNode kept = json(get("/v2/reading/sessions/{id}", first), 200);
         assertThat(kept.path("status").textValue()).isEqualTo("in_progress");
         assertThat(kept.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
@@ -238,7 +239,7 @@ class ReadingSessionIT {
                 .extracting(card -> card.path("status").textValue())
                 .containsExactly("in_progress", "in_progress");
         assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("reading");
-        assertThat(json(get("/v2/reading/scripts"), 200).path("in_progress_count").intValue()).as("대본 수다").isEqualTo(1);
+        assertThat(LenientJson.intValue(json(get("/v2/reading/scripts"), 200).path("in_progress_count"))).as("대본 수다").isEqualTo(1);
 
         json(patch("/v2/reading/sessions/{id}/progress", second).content("{\"progress_seq\":2,\"elapsed_seconds\":20,\"complete\":true}"), 200);
         assertThat(openSessionOf(script.id)).as("마지막 것을 마치면 그 앞의 진행 중 회차").isEqualTo(first);
@@ -296,10 +297,10 @@ class ReadingSessionIT {
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
         assertThat(detail.path("status").textValue()).isEqualTo("in_progress");
         assertThat(detail.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
-        assertThat(detail.path("elapsed_seconds").intValue()).isEqualTo(45);
-        assertThat(detail.path("progress_seq").longValue()).isEqualTo(1);
-        assertThat(detail.path("range").path("start_dialogue_no").intValue()).isEqualTo(1);
-        assertThat(detail.path("range").path("end_dialogue_no").intValue()).isEqualTo(8);
+        assertThat(LenientJson.intValue(detail.path("elapsed_seconds"))).isEqualTo(45);
+        assertThat(LenientJson.longValue(detail.path("progress_seq"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(detail.path("range").path("start_dialogue_no"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(detail.path("range").path("end_dialogue_no"))).isEqualTo(8);
         // 대본 상세의 열린 회차와 마지막 회차도 같은 회차다.
         JsonNode scriptDetail = json(get("/v2/reading/scripts/{id}", script.id), 200);
         assertThat(scriptDetail.path("open_session_id").textValue()).isEqualTo(session);
@@ -319,13 +320,13 @@ class ReadingSessionIT {
         assertThat(same.path("current_line_id").textValue()).as("같은 순번도 무시한다").isEqualTo(script.dialogue(5).toString());
 
         JsonNode shorter = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(8, script.dialogue(6), 100, null)), 200);
-        assertThat(shorter.path("elapsed_seconds").intValue()).as("시간은 줄지 않는다").isEqualTo(120);
+        assertThat(LenientJson.intValue(shorter.path("elapsed_seconds"))).as("시간은 줄지 않는다").isEqualTo(120);
         assertThat(shorter.path("current_line_id").textValue()).isEqualTo(script.dialogue(6).toString());
-        assertThat(shorter.path("progress_seq").longValue()).isEqualTo(8);
+        assertThat(LenientJson.longValue(shorter.path("progress_seq"))).isEqualTo(8);
 
         JsonNode timeOnly = json(patch("/v2/reading/sessions/{id}/progress", session).content("{\"progress_seq\":9,\"elapsed_seconds\":150}"), 200);
         assertThat(timeOnly.path("current_line_id").textValue()).isEqualTo(script.dialogue(6).toString());
-        assertThat(timeOnly.path("elapsed_seconds").intValue()).isEqualTo(150);
+        assertThat(LenientJson.intValue(timeOnly.path("elapsed_seconds"))).isEqualTo(150);
     }
 
     @Test
@@ -357,12 +358,12 @@ class ReadingSessionIT {
         assertThat(detail.path("status").textValue()).isEqualTo("completed");
         assertThat(Instant.parse(detail.path("ended_at").textValue())).isEqualTo(clock.instant());
         assertThat(detail.path("current_line_id").isNull()).isTrue();
-        assertThat(detail.path("range").path("end_dialogue_no").intValue() - detail.path("range").path("start_dialogue_no").intValue() + 1)
+        assertThat(LenientJson.intValue(detail.path("range").path("end_dialogue_no")) - LenientJson.intValue(detail.path("range").path("start_dialogue_no")) + 1)
                 .as("진행 N / N 의 N — 구간 안 대사 줄 수").isEqualTo(8);
 
         JsonNode closed = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(3, script.dialogue(2), 300, null)), 409);
         assertThat(closed).isEqualTo(mapper.readTree("{\"detail\":\"session_closed\"}"));
-        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq").longValue()).isEqualTo(2);
+        assertThat(LenientJson.longValue(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq"))).isEqualTo(2);
     }
 
     @Test
@@ -407,12 +408,12 @@ class ReadingSessionIT {
         assertThat(count("reading_sessions")).isZero();
 
         JsonNode everyone = startSession(List.of(script.nina, script.treplev, script.arkadina));
-        assertThat(everyone.path("my_dialogue_count").intValue()).as("모든 배역이 내 배역이면 내 차례만 이어진다").isEqualTo(8);
+        assertThat(LenientJson.intValue(everyone.path("my_dialogue_count"))).as("모든 배역이 내 배역이면 내 차례만 이어진다").isEqualTo(8);
         JsonNode partial = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(script.nina), "quiz", script.dialogue(3), script.dialogue(6), "silence", true).toString()), 201);
-        assertThat(partial.path("range").path("start_dialogue_no").intValue()).isEqualTo(3);
-        assertThat(partial.path("range").path("end_dialogue_no").intValue()).isEqualTo(6);
-        assertThat(partial.path("my_dialogue_count").intValue()).as("3·4 가운데 니나의 것은 3 하나").isEqualTo(1);
+        assertThat(LenientJson.intValue(partial.path("range").path("start_dialogue_no"))).isEqualTo(3);
+        assertThat(LenientJson.intValue(partial.path("range").path("end_dialogue_no"))).isEqualTo(6);
+        assertThat(LenientJson.intValue(partial.path("my_dialogue_count"))).as("3·4 가운데 니나의 것은 3 하나").isEqualTo(1);
         assertThat(partial.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
     }
 
@@ -423,18 +424,18 @@ class ReadingSessionIT {
         jdbc.update("UPDATE script_characters SET member_ids=ARRAY[?,?]::uuid[] WHERE id=?", script.nina, script.treplev, script.arkadina);
 
         JsonNode detail = json(get("/v2/reading/scripts/{id}", script.id), 200);
-        assertThat(detail.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
+        assertThat(detail.path("characters")).extracting(character -> LenientJson.intValue(character.path("dialogue_count")))
                 .as("니나 4+묶음 2, 트레플레프 2+묶음 2, 묶음 배역은 자기 줄 2").containsExactly(6, 4, 2);
 
         JsonNode groupOnly = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(script.nina), "read", script.dialogue(5), script.dialogue(6), "manual", false).toString()), 201);
-        assertThat(groupOnly.path("my_dialogue_count").intValue()).as("5·6 가운데 니나가 함께 말하는 5").isEqualTo(1);
+        assertThat(LenientJson.intValue(groupOnly.path("my_dialogue_count"))).as("5·6 가운데 니나가 함께 말하는 5").isEqualTo(1);
 
         JsonNode both = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
                 start(UUID.randomUUID(), List.of(script.nina, script.treplev), "read", script.dialogue(1), script.dialogue(8), "manual", false).toString()), 201);
-        assertThat(both.path("my_dialogue_count").intValue()).as("두 멤버를 골라도 묶음 줄 4·5 는 한 번씩").isEqualTo(8);
+        assertThat(LenientJson.intValue(both.path("my_dialogue_count"))).as("두 멤버를 골라도 묶음 줄 4·5 는 한 번씩").isEqualTo(8);
         JsonNode card = json(get("/v2/reading/sessions/{id}", both.path("id").textValue()), 200);
-        assertThat(card.path("my_dialogue_count").intValue()).isEqualTo(8);
+        assertThat(LenientJson.intValue(card.path("my_dialogue_count"))).isEqualTo(8);
     }
 
     @Test
@@ -468,7 +469,7 @@ class ReadingSessionIT {
                 .as("위치도 구간 안 대사 줄만").isEqualTo(mapper.readTree("{\"detail\":\"invalid_line\"}"));
         assertThat(json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(4, script.dialogue(5), 40, null)), 422))
                 .isEqualTo(mapper.readTree("{\"detail\":\"invalid_line\"}"));
-        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq").longValue())
+        assertThat(LenientJson.longValue(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq")))
                 .as("거절된 저장은 아무것도 바꾸지 않는다").isEqualTo(3);
         for (String malformed : List.of(
                 "{\"current_line_id\":\"" + script.dialogue(2) + "\"}",
@@ -557,7 +558,7 @@ class ReadingSessionIT {
         assertThat(missing).isEqualTo(mapper.readTree("""
                 {"detail":[{"type":"missing","loc":["body","line_results",0,"outcome"],"msg":"Field required",
                             "input":{"line_id":"%s","misses":0}}]}""".formatted(lines.dialogue(1))));
-        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq").longValue())
+        assertThat(LenientJson.longValue(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq")))
                 .as("거절된 저장은 아무것도 바꾸지 않는다").isEqualTo(1);
     }
 
@@ -575,7 +576,7 @@ class ReadingSessionIT {
                 .containsExactly(script.nina.toString(), script.treplev.toString());
         JsonNode previous = json(get("/v2/reading/sessions/{id}", first), 200);
         assertThat(previous.path("status").textValue()).isEqualTo("completed");
-        assertThat(previous.path("elapsed_seconds").intValue()).isEqualTo(90);
+        assertThat(LenientJson.intValue(previous.path("elapsed_seconds"))).isEqualTo(90);
         assertThat(previous.path("my_character_ids")).extracting(JsonNode::textValue)
                 .as("첫 회차의 내 배역은 그대로다").containsExactly(script.nina.toString(), script.treplev.toString());
         assertThat(changed.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("아르카디나");
@@ -602,20 +603,20 @@ class ReadingSessionIT {
         assertThat(latest.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "range_name", "progress",
                 "my_dialogue_count", "recorded_line_count", "elapsed_seconds", "started_at", "ended_at");
-        assertThat(latest.path("ordinal").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(latest.path("ordinal"))).isEqualTo(2);
         assertThat(latest.path("status").textValue()).isEqualTo("in_progress");
         assertThat(latest.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나", "트레플레프");
         assertThat(latest.path("range")).isEqualTo(mapper.readTree("{\"start_dialogue_no\":2,\"end_dialogue_no\":7}"));
         assertThat(latest.path("range_name")).isEqualTo(mapper.readTree(
                 "{\"kind\":\"dialogues\",\"scene_no\":null,\"scene_title\":null,\"start\":2,\"end\":7}"));
         assertThat(latest.path("progress")).isEqualTo(mapper.readTree("{\"done\":0,\"total\":6}"));
-        assertThat(latest.path("my_dialogue_count").intValue()).as("2~7 가운데 니나 3·7, 트레플레프 2·6").isEqualTo(4);
-        assertThat(latest.path("recorded_line_count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(latest.path("my_dialogue_count"))).as("2~7 가운데 니나 3·7, 트레플레프 2·6").isEqualTo(4);
+        assertThat(LenientJson.intValue(latest.path("recorded_line_count"))).isEqualTo(2);
         assertThat(latest.path("ended_at").isNull()).isTrue();
         JsonNode oldest = list.path("sessions").get(1);
-        assertThat(oldest.path("ordinal").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(oldest.path("ordinal"))).isEqualTo(1);
         assertThat(oldest.path("status").textValue()).isEqualTo("completed");
-        assertThat(oldest.path("elapsed_seconds").intValue()).isEqualTo(60);
+        assertThat(LenientJson.intValue(oldest.path("elapsed_seconds"))).isEqualTo(60);
         assertThat(oldest.path("ended_at").isNull()).isFalse();
         assertThat(oldest.path("range_name")).as("장면 「제1막」이 대본 전체라 전체가 이긴다").isEqualTo(mapper.readTree(
                 "{\"kind\":\"all\",\"scene_no\":null,\"scene_title\":null,\"start\":1,\"end\":8}"));
@@ -676,7 +677,7 @@ class ReadingSessionIT {
         JsonNode reading = cardOf(script.id);
         assertThat(reading.path("status").textValue()).isEqualTo("reading");
         assertThat(reading.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나");
-        assertThat(json(get("/v2/reading/scripts"), 200).path("in_progress_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(json(get("/v2/reading/scripts"), 200).path("in_progress_count"))).isEqualTo(1);
 
         json(patch("/v2/reading/sessions/{id}/progress", first).content("{\"progress_seq\":1,\"elapsed_seconds\":1,\"complete\":true}"), 200);
         assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("completed");
@@ -719,7 +720,7 @@ class ReadingSessionIT {
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
         assertThat(detail.path("status").textValue()).isEqualTo("in_progress");
         assertThat(detail.path("current_line_id").textValue()).isEqualTo(guests.dialogue(4).toString());
-        assertThat(detail.path("elapsed_seconds").intValue()).isEqualTo(77);
+        assertThat(LenientJson.intValue(detail.path("elapsed_seconds"))).isEqualTo(77);
         assertThat(detail.path("line_results")).hasSize(1);
         assertThat(json(get("/v2/reading/scripts/{id}", guests.id), 200).path("open_session_id").textValue()).isEqualTo(session);
         assertThat(json(get("/v2/reading/scripts/{id}/sessions", guests.id), 200).path("sessions")).hasSize(1);
@@ -766,7 +767,7 @@ class ReadingSessionIT {
             pool.shutdownNow();
         }
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
-        assertThat(detail.path("progress_seq").longValue()).as("늦은 저장은 반영되지 않았다").isZero();
+        assertThat(LenientJson.longValue(detail.path("progress_seq"))).as("늦은 저장은 반영되지 않았다").isZero();
         assertThat(detail.path("current_line_id").textValue()).isEqualTo(guests.dialogue(1).toString());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_sessions WHERE user_id=?", Integer.class, guest.id())).isZero();
     }
@@ -782,7 +783,7 @@ class ReadingSessionIT {
         JsonNode rejected = json(post("/v2/reading/scripts/{id}/sessions", script.id).header("X-Request-Id", UUID.randomUUID().toString())
                 .content(body.toString()), 422);
         assertThat(rejected.path("detail").isArray()).isTrue();
-        assertThat(rejected.path("detail").get(0).path("loc")).extracting(JsonNode::asText).containsExactly("header", "X-Request-Id");
+        assertThat(rejected.path("detail").get(0).path("loc")).extracting(LenientJson::asText).containsExactly("header", "X-Request-Id");
 
         for (ObjectNode malformed : List.of(
                 start(UUID.randomUUID(), List.of(script.nina), "listen", script.dialogue(1), script.dialogue(8), "manual", false),

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 코치의 기록 조회: 선택자별 검색, 이웃 구간, 차원 필터, 쪽 나누기와 이어 읽기 토큰, 기록이 없거나 잘못된 요청. */
 class CoachRecordLookupPagingTest {
@@ -32,7 +33,7 @@ class CoachRecordLookupPagingTest {
 
     static List<String> ids(JsonNode items) {
         List<String> out = new ArrayList<>();
-        items.forEach(item -> out.add(item.path("id").asText()));
+        items.forEach(item -> out.add(LenientJson.asText(item.path("id"))));
         return out;
     }
 
@@ -40,14 +41,14 @@ class CoachRecordLookupPagingTest {
         JsonNode missing = StructuredJson.parse("{\"schema_version\":\"old\"}");
         ObjectNode view = lookup.initial(missing);
         assertThat(view.path("record_ref").isNull()).isTrue();
-        assertThat(view.path("coverage").path("status").asText()).isEqualTo("failed");
-        assertThat(view.path("retrieval_status").asText()).isEqualTo("unavailable");
+        assertThat(LenientJson.asText(view.path("coverage").path("status"))).isEqualTo("failed");
+        assertThat(LenientJson.asText(view.path("retrieval_status"))).isEqualTo("unavailable");
         assertThat(view.path("source_catalog")).isEmpty();
         ObjectNode request = StructuredJson.MAPPER.createObjectNode();
         request.putObject("record_ref").put("record_id", "r9");
         ObjectNode result = lookup.lookup(missing, request);
-        assertThat(result.path("status").asText()).isEqualTo("unavailable");
-        assertThat(result.path("record_ref").path("record_id").asText()).isEqualTo("r9");
+        assertThat(LenientJson.asText(result.path("status"))).isEqualTo("unavailable");
+        assertThat(LenientJson.asText(result.path("record_ref").path("record_id"))).isEqualTo("r9");
     }
 
     @Test void rejectsLookupsOutsideTheSessionRecord() {
@@ -66,12 +67,12 @@ class CoachRecordLookupPagingTest {
 
     @Test void aTextQueryFindsSegmentsWhoseSourcesContainEveryWordAndSearchesTheWholeVideo() {
         ObjectNode found = lookup.lookup(record, request(record, "{\"kind\":\"query\",\"text\":\"음절 길게\"}", false));
-        assertThat(found.path("status").asText()).isEqualTo("ok");
+        assertThat(LenientJson.asText(found.path("status"))).isEqualTo("ok");
         assertThat(ids(found.path("segments"))).containsExactly("s2");
         assertThat(ids(found.path("events"))).contains("e4");
         assertThat(found.path("searched_ranges").toString()).isEqualTo("[{\"start_ms\":0,\"end_ms\":8000}]");
         ObjectNode none = lookup.lookup(record, request(record, "{\"kind\":\"query\",\"text\":\"웃는다\"}", false));
-        assertThat(none.path("status").asText()).isEqualTo("not_found");
+        assertThat(LenientJson.asText(none.path("status"))).isEqualTo("not_found");
         assertThat(none.path("segments")).isEmpty();
     }
 
@@ -79,9 +80,9 @@ class CoachRecordLookupPagingTest {
         ObjectNode result = lookup.lookup(record, request(record, "{\"kind\":\"utterance\",\"utterance_id\":\"u1\"}", true));
         assertThat(ids(result.path("segments"))).containsExactly("s1", "s2", "s3");
         assertThat(result.path("searched_ranges").toString()).isEqualTo("[{\"start_ms\":0,\"end_ms\":8000}]");
-        assertThat(result.path("segments").get(0).path("refs_scope").asText()).isEqualTo("this_page");
+        assertThat(LenientJson.asText(result.path("segments").get(0).path("refs_scope"))).isEqualTo("this_page");
         ObjectNode unknown = lookup.lookup(record, request(record, "{\"kind\":\"utterance\",\"utterance_id\":\"u9\"}", true));
-        assertThat(unknown.path("status").asText()).isEqualTo("not_found");
+        assertThat(LenientJson.asText(unknown.path("status"))).isEqualTo("not_found");
         ObjectNode separate = lookup.lookup(record, request(record, "{\"kind\":\"range\",\"start_ms\":100,\"end_ms\":200}", true));
         assertThat(ids(separate.path("segments"))).containsExactly("s1", "s2");
     }
@@ -96,7 +97,7 @@ class CoachRecordLookupPagingTest {
         assertThat(gaze.path("speech").path("word_timings").path("items")).isEmpty();
         ObjectNode voice = lookup.lookup(withWords, request(withWords, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":8000}", false, "voice"));
         assertThat(ids(voice.path("events"))).containsExactly("e4", "e10", "e13");
-        assertThat(voice.path("speech").path("word_timings").path("status").asText()).isEqualTo("recorded");
+        assertThat(LenientJson.asText(voice.path("speech").path("word_timings").path("status"))).isEqualTo("recorded");
         assertThat(voice.path("speech").path("word_timings").path("items").toString())
                 .isEqualTo("[{\"word\":\"가지\",\"start_ms\":4000,\"end_ms\":4600}]");
     }
@@ -105,7 +106,7 @@ class CoachRecordLookupPagingTest {
         ObjectNode partial = record.deepCopy();
         ((ArrayNode) partial.path("processing").path("missing_ranges")).addObject().put("start_ms", 7000).put("end_ms", 8000);
         ObjectNode result = lookup.lookup(partial, request(partial, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":1000}", false));
-        assertThat(result.path("record_status").asText()).isEqualTo("partial");
+        assertThat(LenientJson.asText(result.path("record_status"))).isEqualTo("partial");
     }
 
     ObjectNode bulky(int events, int repeat) {
@@ -125,11 +126,11 @@ class CoachRecordLookupPagingTest {
         ObjectNode big = bulky(60, 400);
         ObjectNode first = request(big, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":4000}", false);
         ObjectNode page1 = lookup.lookup(big, first);
-        assertThat(page1.path("status").asText()).isEqualTo("partial");
+        assertThat(LenientJson.asText(page1.path("status"))).isEqualTo("partial");
         assertThat(page1.path("has_more").asBoolean()).isTrue();
         assertThat(page1.toString().length()).isLessThanOrEqualTo(CoachRecordLookup.MAX_RESULT_CHARS);
         List<String> seen = new ArrayList<>(ids(page1.path("events")));
-        ObjectNode next = first.deepCopy().put("continuation_token", page1.path("continuation_token").asText());
+        ObjectNode next = first.deepCopy().put("continuation_token", LenientJson.asText(page1.path("continuation_token")));
         ObjectNode page2 = lookup.lookup(big, next);
         assertThat(ids(page2.path("events"))).doesNotContainAnyElementsOf(seen);
         seen.addAll(ids(page2.path("events")));
@@ -137,14 +138,14 @@ class CoachRecordLookupPagingTest {
 
         ObjectNode merged = lookup.merge(lookup.merge(lookup.initial(big), page1), page2);
         assertThat(ids(merged.path("events"))).containsExactlyElementsOf(seen);
-        assertThat(merged.path("speech").path("status").asText()).isEqualTo("recorded");
-        assertThat(merged.path("speech").path("word_timings").path("status").asText()).isEqualTo("unavailable");
+        assertThat(LenientJson.asText(merged.path("speech").path("status"))).isEqualTo("recorded");
+        assertThat(LenientJson.asText(merged.path("speech").path("word_timings").path("status"))).isEqualTo("unavailable");
     }
 
     @Test void aTokenFromAnotherRequestOrGarbageIsRejected() {
         ObjectNode big = bulky(60, 400);
         ObjectNode first = request(big, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":4000}", false);
-        String token = lookup.lookup(big, first).path("continuation_token").asText();
+        String token = LenientJson.asText(lookup.lookup(big, first).path("continuation_token"));
         ObjectNode otherSelector = request(big, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":5000}", false).put("continuation_token", token);
         assertThatThrownBy(() -> lookup.lookup(big, otherSelector)).hasMessage("invalid lookup continuation");
         ObjectNode otherNeighbours = request(big, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":4000}", true).put("continuation_token", token);
@@ -161,11 +162,11 @@ class CoachRecordLookupPagingTest {
         ObjectNode huge = bulky(1, 30_000);
         ObjectNode first = request(huge, "{\"kind\":\"range\",\"start_ms\":0,\"end_ms\":4000}", false);
         ObjectNode segmentOnly = lookup.lookup(huge, first);
-        assertThat(segmentOnly.path("status").asText()).isEqualTo("partial");
+        assertThat(LenientJson.asText(segmentOnly.path("status"))).isEqualTo("partial");
         assertThat(segmentOnly.path("events")).isEmpty();
-        ObjectNode result = lookup.lookup(huge, first.deepCopy().put("continuation_token", segmentOnly.path("continuation_token").asText()));
-        assertThat(result.path("status").asText()).isEqualTo("unavailable");
-        assertThat(result.path("reason").asText()).isEqualTo("single_fact_exceeds_budget");
+        ObjectNode result = lookup.lookup(huge, first.deepCopy().put("continuation_token", LenientJson.asText(segmentOnly.path("continuation_token"))));
+        assertThat(LenientJson.asText(result.path("status"))).isEqualTo("unavailable");
+        assertThat(LenientJson.asText(result.path("reason"))).isEqualTo("single_fact_exceeds_budget");
         assertThat(result.path("continuation_token").isNull()).isTrue();
     }
 

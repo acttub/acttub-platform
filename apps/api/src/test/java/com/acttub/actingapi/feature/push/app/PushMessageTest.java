@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class PushMessageTest {
 
@@ -16,10 +17,10 @@ class PushMessageTest {
         JsonNode node = json.readTree(json.writeValueAsString(
                 new PushMessage("ExponentPushToken[x]", "Acttub", "본문", Map.of("kind", "k"))));
 
-        assertThat(node.path("to").asText()).isEqualTo("ExponentPushToken[x]");
-        assertThat(node.path("title").asText()).isEqualTo("Acttub");
-        assertThat(node.path("channelId").asText()).isEqualTo("default");
-        assertThat(node.path("sound").asText()).isEqualTo("default");
-        assertThat(node.path("data").path("kind").asText()).isEqualTo("k");
+        assertThat(LenientJson.asText(node.path("to"))).isEqualTo("ExponentPushToken[x]");
+        assertThat(LenientJson.asText(node.path("title"))).isEqualTo("Acttub");
+        assertThat(LenientJson.asText(node.path("channelId"))).isEqualTo("default");
+        assertThat(LenientJson.asText(node.path("sound"))).isEqualTo("default");
+        assertThat(LenientJson.asText(node.path("data").path("kind"))).isEqualTo("k");
     }
 }

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 성적표 입력 정규화와 모델 출력 검증: 어긋난 곳을 Python 과 같은 문구로 밝혀 거절한다. */
 class ReportEngineValidationTest {
@@ -55,14 +56,14 @@ class ReportEngineValidationTest {
         assertThat(parseError("{\"report_type\":\"blocked\",\"reason\":\"tired\"}", "analysis")).isEqualTo("invalid blocked report reason");
         JsonNode blocked = engine.parseReport("{\"report_type\":\"blocked\",\"reason\":\"confirmed_expression_handoff_required\"}",
                 "expression", "h", null);
-        assertThat(blocked.path("reason").asText()).isEqualTo("confirmed_expression_handoff_required");
+        assertThat(LenientJson.asText(blocked.path("reason"))).isEqualTo("confirmed_expression_handoff_required");
     }
 
     ObjectNode analysis() throws Exception { return (ObjectNode) MAPPER.readTree(ANALYSIS); }
     ObjectNode expression() throws Exception { return (ObjectNode) MAPPER.readTree(EXPRESSION); }
 
     @Test void analysisReportsMustKeepTheirShape() throws Exception {
-        assertThat(engine.parseReport(ANALYSIS, "analysis", "h", null).path("source_handoff_id").asText()).isEqualTo("h");
+        assertThat(LenientJson.asText(engine.parseReport(ANALYSIS, "analysis", "h", null).path("source_handoff_id"))).isEqualTo("h");
         assertThat(parseError(analysis().put("title", 3).toString(), "analysis")).isEqualTo("title must be a string");
         ObjectNode tested = analysis();
         ((ObjectNode) tested.path("next_take")).put("tested", true);

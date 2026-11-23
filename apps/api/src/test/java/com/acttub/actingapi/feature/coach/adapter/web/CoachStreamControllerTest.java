@@ -26,6 +26,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class CoachStreamControllerTest {
     private final ConversationService service = mock(ConversationService.class);
@@ -65,7 +66,7 @@ class CoachStreamControllerTest {
         int done = text.indexOf("event: done\ndata: ");
         assertThat(done).isGreaterThan(text.indexOf("event: delta"));
         String doneJson = text.substring(done + "event: done\ndata: ".length()).strip();
-        assertThat(new ObjectMapper().readTree(doneJson).path("message").asText()).isEqualTo("그때 속으로는\n어땠어요?");
+        assertThat(LenientJson.asText(new ObjectMapper().readTree(doneJson).path("message"))).isEqualTo("그때 속으로는\n어땠어요?");
     }
 
     @Test void rejectionsBeforeTheModelCallStayOrdinaryHttpErrors() {

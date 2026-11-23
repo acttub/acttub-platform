@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 애플 토큰 API 의 실물. 요청마다 client secret(ES256 JWT)을 새로 만든다 — 애플 문서
@@ -102,8 +103,8 @@ public class HttpAppleTokenClient implements AppleTokenClient {
         String refreshToken;
         try {
             JsonNode packed = JSON.readTree(grant);
-            clientId = packed.path("client_id").asText();
-            refreshToken = packed.path("refresh_token").asText();
+            clientId = LenientJson.asText(packed.path("client_id"));
+            refreshToken = LenientJson.asText(packed.path("refresh_token"));
         } catch (Exception failure) {
             throw new IllegalArgumentException("not an apple grant");
         }
@@ -162,7 +163,7 @@ public class HttpAppleTokenClient implements AppleTokenClient {
     private static String text(String body, String field) {
         try {
             JsonNode value = JSON.readTree(body).path(field);
-            return value.isTextual() ? value.asText() : null;
+            return value.isTextual() ? LenientJson.asText(value) : null;
         } catch (Exception notJson) {
             return null;
         }

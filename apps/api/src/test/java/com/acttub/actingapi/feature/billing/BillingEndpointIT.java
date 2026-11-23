@@ -39,6 +39,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 앱 Pro 정기결제(SOMA-818)를 실제 Postgres·Spring 으로 본다: 카드 등록 창 → 토스 콜백 → 첫 결제 → 해지 → 기간 끝 expired,
@@ -132,7 +133,7 @@ class BillingEndpointIT {
         assertThat(jdbc.queryForObject("SELECT billing_key FROM billing_subscriptions", String.class))
                 .isNotBlank().doesNotContain("bk_plain_secret");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments WHERE status='done'", Integer.class)).isEqualTo(1);
-        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\"}"), 409).path("detail").asText())
+        assertThat(LenientJson.asText(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\"}"), 409).path("detail")))
                 .contains("already_subscribed");
 
         JsonNode canceled = json(post("/v2/billing/subscription/cancel"), 200);
@@ -164,12 +165,12 @@ class BillingEndpointIT {
         assertThat(worker.runOnce()).isTrue();
         JsonNode pastDue = me();
         assertThat(pastDue.path("status").textValue()).isEqualTo("past_due");
-        assertThat(pastDue.path("retry_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(pastDue.path("retry_count"))).isEqualTo(1);
         assertThat(worker.runOnce()).isFalse();
 
         approveAll();
         assertThat(json(post("/v2/billing/subscription/retry"), 200).path("status").textValue()).isEqualTo("active");
-        assertThat(json(post("/v2/billing/subscription/retry"), 409).path("detail").asText()).contains("not_past_due");
+        assertThat(LenientJson.asText(json(post("/v2/billing/subscription/retry"), 409).path("detail"))).contains("not_past_due");
 
         clock.set(Instant.parse("2027-01-23T01:00:01Z"));
         doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"))
@@ -191,10 +192,10 @@ class BillingEndpointIT {
     @Test
     @DisplayName("웹 연 구독 스위치가 꺼져 있으면(기본) yearly 창은 422 plan_unavailable 이고, plan 을 생략하거나 monthly 면 월 구독 그대로다")
     void yearlyClosedByDefault() throws Exception {
-        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"yearly\"}"), 422)
-                .path("detail").asText()).contains("plan_unavailable");
-        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"weekly\"}"), 422)
-                .path("detail").asText()).contains("invalid_plan");
+        assertThat(LenientJson.asText(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"yearly\"}"), 422)
+                .path("detail"))).contains("plan_unavailable");
+        assertThat(LenientJson.asText(json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"weekly\"}"), 422)
+                .path("detail"))).contains("invalid_plan");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_checkouts", Integer.class)).isZero();
 
         JsonNode started = json(post("/v2/billing/checkout").content("{\"purpose\":\"subscribe\",\"plan\":\"monthly\"}"), 200);
@@ -206,7 +207,7 @@ class BillingEndpointIT {
 
         JsonNode active = me();
         assertThat(active.path("plan").textValue()).isEqualTo("monthly");
-        assertThat(active.path("amount").longValue()).isEqualTo(3900L);
+        assertThat(LenientJson.longValue(active.path("amount"))).isEqualTo(3900L);
         assertThat(jdbc.queryForObject("SELECT plan FROM billing_subscriptions", String.class)).isEqualTo("monthly");
         assertThat(jdbc.queryForObject("SELECT amount FROM billing_payments", Integer.class)).isEqualTo(3900);
         org.mockito.Mockito.verify(gateway).approve(anyString(), anyString(), anyString(),
@@ -216,9 +217,9 @@ class BillingEndpointIT {
     @Test
     @DisplayName("카드 바꾸기·실패 콜백·잘못된 창, 게스트·잘못된 목적")
     void changeCardAndFailures() throws Exception {
-        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"change_card\"}"), 409).path("detail").asText())
+        assertThat(LenientJson.asText(json(post("/v2/billing/checkout").content("{\"purpose\":\"change_card\"}"), 409).path("detail")))
                 .contains("no_subscription");
-        assertThat(json(post("/v2/billing/checkout").content("{\"purpose\":\"refund\"}"), 422).path("detail").asText())
+        assertThat(LenientJson.asText(json(post("/v2/billing/checkout").content("{\"purpose\":\"refund\"}"), 422).path("detail")))
                 .contains("invalid_purpose");
 
         String failed = openCheckout("subscribe");
@@ -245,7 +246,7 @@ class BillingEndpointIT {
         for (int index = 0; index < 3; index++) {
             json(post("/v2/practices").content(talk.formatted(UUID.randomUUID())), 201);
         }
-        assertThat(json(post("/v2/practices").content(talk.formatted(UUID.randomUUID())), 429).path("detail").asText())
+        assertThat(LenientJson.asText(json(post("/v2/practices").content(talk.formatted(UUID.randomUUID())), 429).path("detail")))
                 .contains("free_daily_coaching_limit");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class)).isEqualTo(3);
     }
@@ -256,7 +257,7 @@ class BillingEndpointIT {
         for (int index = 0; index < 3; index++) {
             json(post("/v2/reading/scripts").content(script("대본 " + index)), 201);
         }
-        assertThat(json(post("/v2/reading/scripts").content(script("대본 4")), 403).path("detail").asText())
+        assertThat(LenientJson.asText(json(post("/v2/reading/scripts").content(script("대본 4")), 403).path("detail")))
                 .contains("free_script_limit");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM scripts", Integer.class)).isEqualTo(3);
     }

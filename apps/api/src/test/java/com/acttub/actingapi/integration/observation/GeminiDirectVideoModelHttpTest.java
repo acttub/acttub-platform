@@ -21,6 +21,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 파일 상태·스트리밍 답·영상 비교·삭제가 Gemini HTTP 요청과 응답에서 어떻게 보이는지 — 가짜 Gemini 서버로 본다. */
 class GeminiDirectVideoModelHttpTest {
@@ -115,8 +116,7 @@ class GeminiDirectVideoModelHttpTest {
         assertThat(reply).isEqualTo("처음 끝까지 봐요");
         assertThat(pieces).containsExactly(" 처음 ", "끝까지 봐요");
         assertThat(requests).singleElement().asString().contains(":streamGenerateContent");
-        assertThat(bodies.getFirst().path("contents").get(0).path("parts").get(0).path("fileData").path("fileUri")
-                .asText()).isEqualTo("https://example.test/take-1");
+        assertThat(LenientJson.asText(bodies.getFirst().path("contents").get(0).path("parts").get(0).path("fileData").path("fileUri"))).isEqualTo("https://example.test/take-1");
     }
 
     @Test
@@ -139,7 +139,7 @@ class GeminiDirectVideoModelHttpTest {
 
         assertThatThrownBy(() -> model.reply(VIDEO, List.of(new DirectVideoModel.Message("user", "답")), "지침"))
                 .hasMessage("empty video coaching reply");
-        assertThat(bodies.getFirst().path("generationConfig").path("thinkingConfig").path("thinkingBudget").asInt())
+        assertThat(LenientJson.asInt(bodies.getFirst().path("generationConfig").path("thinkingConfig").path("thinkingBudget")))
                 .isZero();
         assertThat(model.model()).isEqualTo("gemini-2.5-flash");
     }
@@ -155,14 +155,14 @@ class GeminiDirectVideoModelHttpTest {
         assertThat(result).isEqualTo("{\"same\":true}");
         JsonNode parts = bodies.getFirst().path("contents").get(0).path("parts");
         assertThat(parts).hasSize(4);
-        assertThat(parts.get(0).path("text").asText()).isEqualTo("1차");
-        assertThat(parts.get(1).path("fileData").path("fileUri").asText()).isEqualTo("https://example.test/take-1");
-        assertThat(parts.get(2).path("text").asText()).isEqualTo("2차");
-        assertThat(parts.get(3).path("fileData").path("mimeType").asText()).isEqualTo("video/quicktime");
+        assertThat(LenientJson.asText(parts.get(0).path("text"))).isEqualTo("1차");
+        assertThat(LenientJson.asText(parts.get(1).path("fileData").path("fileUri"))).isEqualTo("https://example.test/take-1");
+        assertThat(LenientJson.asText(parts.get(2).path("text"))).isEqualTo("2차");
+        assertThat(LenientJson.asText(parts.get(3).path("fileData").path("mimeType"))).isEqualTo("video/quicktime");
         JsonNode config = bodies.getFirst().path("generationConfig");
-        assertThat(config.path("responseMimeType").asText()).isEqualTo("application/json");
-        assertThat(config.path("maxOutputTokens").asInt()).isEqualTo(8192);
-        assertThat(config.path("thinkingConfig").path("thinkingBudget").asInt()).isZero();
+        assertThat(LenientJson.asText(config.path("responseMimeType"))).isEqualTo("application/json");
+        assertThat(LenientJson.asInt(config.path("maxOutputTokens"))).isEqualTo(8192);
+        assertThat(LenientJson.asInt(config.path("thinkingConfig").path("thinkingBudget"))).isZero();
     }
 
     @Test
@@ -175,7 +175,7 @@ class GeminiDirectVideoModelHttpTest {
         assertThat(requests).isEmpty();
         assertThatThrownBy(() -> model.compare(List.of(VIDEO), List.of("1차"), "지침"))
                 .hasMessage("empty video comparison");
-        assertThat(bodies.getFirst().path("generationConfig").path("thinkingConfig").path("thinkingLevel").asText())
+        assertThat(LenientJson.asText(bodies.getFirst().path("generationConfig").path("thinkingConfig").path("thinkingLevel")))
                 .isEqualTo("LOW");
     }
 
@@ -195,7 +195,7 @@ class GeminiDirectVideoModelHttpTest {
         new GeminiDirectVideoModel(client, "gemini-3.8-flash")
                 .replyLight(null, List.of(new DirectVideoModel.Message("user", "긴 코치 말")), "줄이기");
 
-        assertThat(bodies).extracting(body -> body.path("generationConfig").path("thinkingConfig").path("thinkingLevel").asText())
+        assertThat(bodies).extracting(body -> LenientJson.asText(body.path("generationConfig").path("thinkingConfig").path("thinkingLevel")))
                 .containsExactly("MINIMAL", "LOW", "LOW", "LOW");
         assertThat(GeminiDirectVideoModel.minimalThinking(null)).isFalse();
         // 3.1 Flash-Lite 는 MINIMAL 을 받는다(후속 답 모델).
@@ -266,7 +266,7 @@ class GeminiDirectVideoModelHttpTest {
         ReplyTrace other = new ReplyTrace(true);
         other.run(() -> new GeminiDirectVideoModel(client, "gemini-3.8-flash").reply(VIDEO, history, "지침"));
 
-        assertThat(bodies).extracting(body -> body.path("generationConfig").path("thinkingConfig").path("thinkingLevel").asText())
+        assertThat(bodies).extracting(body -> LenientJson.asText(body.path("generationConfig").path("thinkingConfig").path("thinkingLevel")))
                 .containsExactly("MINIMAL", "MINIMAL", "LOW", "LOW", "LOW");
         assertThat(followUp.thinking()).isEqualTo("minimal");
         assertThat(followUp.thoughtsTokens()).isEqualTo(7);

@@ -32,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
@@ -122,13 +123,13 @@ class CommunityEndpointIT {
         JsonNode first = json(mvc.perform(get("/v2/community/posts/{post_id}", postId)
                         .header("Authorization", bearer(VIEWER)))
                 .andReturn().getResponse().getContentAsString());
-        assertThat(first.path("view_count").intValue()).isEqualTo(7);
+        assertThat(LenientJson.intValue(first.path("view_count"))).isEqualTo(7);
         assertThat(viewCount(postId)).isEqualTo(8);
 
         JsonNode second = json(mvc.perform(get("/v2/community/posts/{post_id}", postId)
                         .header("Authorization", bearer(VIEWER)))
                 .andReturn().getResponse().getContentAsString());
-        assertThat(second.path("view_count").intValue()).isEqualTo(8);
+        assertThat(LenientJson.intValue(second.path("view_count"))).isEqualTo(8);
         assertThat(viewCount(postId)).isEqualTo(9);
 
         mvc.perform(get("/v2/community/posts/{post_id}", postId)
@@ -338,7 +339,7 @@ class CommunityEndpointIT {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(json(response.getContentAsString()).path("liked_by_me").booleanValue())
                 .isEqualTo(like);
-        return json(response.getContentAsString()).path("like_count").intValue();
+        return LenientJson.intValue(json(response.getContentAsString()).path("like_count"));
     }
 
     private MockHttpServletResponse requestLike(UUID postId, UUID userId, boolean like)
@@ -357,7 +358,7 @@ class CommunityEndpointIT {
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(200);
         JsonNode detail = json(response.getContentAsString());
-        assertThat(detail.path("like_count").intValue()).isEqualTo(count);
+        assertThat(LenientJson.intValue(detail.path("like_count"))).isEqualTo(count);
         assertThat(detail.path("liked_by_me").booleanValue()).isEqualTo(liked);
 
         var listResponse = mvc.perform(get("/v2/community/posts")
@@ -367,7 +368,7 @@ class CommunityEndpointIT {
         JsonNode posts = json(listResponse.getContentAsString()).path("posts");
         assertThat(posts).hasSize(1);
         assertThat(posts.get(0).path("id").textValue()).isEqualTo(postId.toString());
-        assertThat(posts.get(0).path("like_count").intValue()).isEqualTo(count);
+        assertThat(LenientJson.intValue(posts.get(0).path("like_count"))).isEqualTo(count);
         assertThat(posts.get(0).path("liked_by_me").booleanValue()).isEqualTo(liked);
     }
 
@@ -576,20 +577,20 @@ class CommunityEndpointIT {
         assertThat(created.getStatus()).isEqualTo(201);
         JsonNode mine = json(created.getContentAsString());
         assertThat(mine.path("anonymous").asBoolean()).isFalse();
-        assertThat(mine.path("author_name").asText()).isEqualTo("viewer");
-        assertThat(mine.path("author").path("nickname").asText()).isEqualTo("viewer");
-        assertThat(mine.path("author").path("id").asText()).isEqualTo(VIEWER.toString());
+        assertThat(LenientJson.asText(mine.path("author_name"))).isEqualTo("viewer");
+        assertThat(LenientJson.asText(mine.path("author").path("nickname"))).isEqualTo("viewer");
+        assertThat(LenientJson.asText(mine.path("author").path("id"))).isEqualTo(VIEWER.toString());
         assertThat(mine.path("is_mine").asBoolean()).isTrue();
         assertThat(mine.path("mine").asBoolean()).isTrue();
-        assertThat(mine.path("status").asText()).isEqualTo("visible");
-        assertThat(mine.path("category_slug").asText()).isEqualTo("promo");
-        assertThat(mine.path("category_name").asText()).isEqualTo("홍보");
-        String postId = mine.path("id").asText();
+        assertThat(LenientJson.asText(mine.path("status"))).isEqualTo("visible");
+        assertThat(LenientJson.asText(mine.path("category_slug"))).isEqualTo("promo");
+        assertThat(LenientJson.asText(mine.path("category_name"))).isEqualTo("홍보");
+        String postId = LenientJson.asText(mine.path("id"));
 
         JsonNode seen = json(mvc.perform(get("/v2/community/posts/{post_id}", postId)
                         .header("Authorization", bearer(OTHER)))
                 .andReturn().getResponse().getContentAsString());
-        assertThat(seen.path("author_name").asText()).isEqualTo("viewer");
+        assertThat(LenientJson.asText(seen.path("author_name"))).isEqualTo("viewer");
         assertThat(seen.path("is_mine").asBoolean()).isFalse();
 
         var comment = mvc.perform(post("/v2/community/posts/{post_id}/comments", postId)
@@ -599,21 +600,21 @@ class CommunityEndpointIT {
                 .andReturn().getResponse();
         assertThat(comment.getStatus()).isEqualTo(201);
         JsonNode written = json(comment.getContentAsString());
-        assertThat(written.path("author_name").asText()).isEqualTo("other");
+        assertThat(LenientJson.asText(written.path("author_name"))).isEqualTo("other");
         assertThat(written.path("is_mine").asBoolean()).isTrue();
-        assertThat(written.path("status").asText()).isEqualTo("visible");
+        assertThat(LenientJson.asText(written.path("status"))).isEqualTo("visible");
 
         JsonNode listed = json(mvc.perform(get("/v2/community/posts/{post_id}/comments", postId)
                         .header("Authorization", bearer(VIEWER)))
                 .andReturn().getResponse().getContentAsString()).path("comments");
-        assertThat(listed.get(0).path("author_name").asText()).isEqualTo("other");
+        assertThat(LenientJson.asText(listed.get(0).path("author_name"))).isEqualTo("other");
         assertThat(listed.get(0).path("is_mine").asBoolean()).isFalse();
 
         jdbc.update("UPDATE users SET status = 'deactivated' WHERE id = ?", OTHER);
         JsonNode afterWithdrawal = json(mvc.perform(get("/v2/community/posts/{post_id}/comments", postId)
                         .header("Authorization", bearer(VIEWER)))
                 .andReturn().getResponse().getContentAsString()).path("comments");
-        assertThat(afterWithdrawal.get(0).path("author_name").asText()).isEqualTo("탈퇴한 사용자");
+        assertThat(LenientJson.asText(afterWithdrawal.get(0).path("author_name"))).isEqualTo("탈퇴한 사용자");
     }
 
     /**
@@ -642,15 +643,15 @@ class CommunityEndpointIT {
         JsonNode own = json(mvc.perform(get("/v2/community/posts").header("Authorization", bearer(OTHER)))
                 .andReturn().getResponse().getContentAsString()).path("posts");
         assertThat(values(own, "id")).containsExactly(reported.toString());
-        assertThat(own.get(0).path("status").asText()).isEqualTo("hidden");
-        assertThat(json(mvc.perform(get("/v2/community/posts/{post_id}", reported)
+        assertThat(LenientJson.asText(own.get(0).path("status"))).isEqualTo("hidden");
+        assertThat(LenientJson.asText(json(mvc.perform(get("/v2/community/posts/{post_id}", reported)
                         .header("Authorization", bearer(OTHER)))
-                .andReturn().getResponse().getContentAsString()).path("status").asText()).isEqualTo("hidden");
+                .andReturn().getResponse().getContentAsString()).path("status"))).isEqualTo("hidden");
         JsonNode ownComments = json(mvc.perform(get("/v2/community/posts/{post_id}/comments", reported)
                         .header("Authorization", bearer(OTHER)))
                 .andReturn().getResponse().getContentAsString()).path("comments");
         assertThat(values(ownComments, "id")).containsExactly(moderated.toString());
-        assertThat(ownComments.get(0).path("status").asText()).isEqualTo("hidden");
+        assertThat(LenientJson.asText(ownComments.get(0).path("status"))).isEqualTo("hidden");
 
         // 가려진 글에는 댓글을 달 수 없다(글쓴이도).
         assertThat(mvc.perform(post("/v2/community/posts/{post_id}/comments", reported)

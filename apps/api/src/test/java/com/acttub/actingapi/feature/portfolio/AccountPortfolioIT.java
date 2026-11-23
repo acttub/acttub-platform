@@ -42,6 +42,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.portfolio 의 "검증 방법"을 HTTP 와 실제 Postgres 로 본다. 오브젝트 스토리지는 메모리의 가짜다 —
@@ -183,7 +184,7 @@ class AccountPortfolioIT {
         assertThat(page.path("name").textValue()).isEqualTo("김배우");
         assertThat(page.path("photo_url").textValue()).isEqualTo("https://storage.test/get/users/p/profile.jpg");
         assertThat(page.path("gender").textValue()).isEqualTo("female");
-        assertThat(page.path("age").intValue()).isEqualTo(25);
+        assertThat(LenientJson.intValue(page.path("age"))).isEqualTo(25);
         assertThat(page.path("intro").textValue()).isEqualTo("소개글");
         assertThat(page.path("credits")).hasSize(1);
         assertThat(page.path("credits").get(0).fieldNames()).toIterable()
@@ -351,8 +352,8 @@ class AccountPortfolioIT {
         }
         assertThat(json(put("/v2/portfolio/intro").content("{\"intro\":\"" + "가".repeat(2000) + "\"}"), 200)
                 .path("intro").textValue()).hasSize(2000);
-        assertThat(json(post("/v2/portfolio/credits").content(credit("가".repeat(100), "역", nextYear, "ad")), 201)
-                .path("year").intValue()).as("내년까지는 된다").isEqualTo(nextYear);
+        assertThat(LenientJson.intValue(json(post("/v2/portfolio/credits").content(credit("가".repeat(100), "역", nextYear, "ad")), 201)
+                .path("year"))).as("내년까지는 된다").isEqualTo(nextYear);
         assertThat(json(post("/v2/portfolio/credits").content(credit("작품", "역", 1900, "musical")), 201)
                 .path("kind").textValue()).isEqualTo("musical");
     }

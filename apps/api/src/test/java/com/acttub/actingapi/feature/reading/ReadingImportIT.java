@@ -64,6 +64,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * reading.script 「나누기 작업」을 HTTP·실제 Postgres·{@code ai_jobs} 장부로 본다. 모델만 가짜다 — 지시문과 입력을 기록하고,
@@ -257,15 +258,15 @@ class ReadingImportIT {
 
         JsonNode pending = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(pending.path("status").textValue()).isEqualTo("pending");
-        assertThat(pending.path("progress").path("total_lines").intValue()).isZero();
+        assertThat(LenientJson.intValue(pending.path("progress").path("total_lines"))).isZero();
         assertThat(Model.CALLS).isEmpty();
 
         assertThat(worker.runOnce(clock.instant())).isTrue();
 
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
-        assertThat(done.path("progress").path("done_lines").intValue()).isEqualTo(8);
-        assertThat(done.path("progress").path("total_lines").intValue()).isEqualTo(8);
+        assertThat(LenientJson.intValue(done.path("progress").path("done_lines"))).isEqualTo(8);
+        assertThat(LenientJson.intValue(done.path("progress").path("total_lines"))).isEqualTo(8);
         assertThat(done.path("failure").isNull()).isTrue();
         assertThat(Model.CALLS).hasSize(1);
         assertThat(Model.CALLS.getFirst().judging()).isTrue();
@@ -282,7 +283,7 @@ class ReadingImportIT {
                 .containsExactly("direction|갈매기", "direction|(호숫가의 무대.)", "dialogue|저는 갈매기예요.", "dialogue|아니, 당신은 배우예요.",
                         "dialogue|아니에요.", "scene|제2막", "dialogue|(한참 보다가) 그래요.", "dialogue|가요.");
         // A1 의 표시값은 저장 경로가 같아 나누기로 만든 대본에도 채워진다 — 장면 머리 「제2막」으로 장면이 갈리고 목소리는 등장 순 F1·M1.
-        assertThat(script.path("scenes")).extracting(scene -> scene.path("dialogue_count").intValue()).containsExactly(3, 2);
+        assertThat(script.path("scenes")).extracting(scene -> LenientJson.intValue(scene.path("dialogue_count"))).containsExactly(3, 2);
         assertThat(script.path("characters")).extracting(character -> character.path("voice").textValue()).containsExactly("F1", "M1");
         assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("succeeded");
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(text);
@@ -423,13 +424,13 @@ class ReadingImportIT {
                 .content(request(UUID.randomUUID(), null, SampleScript.TEXT.replace("\n", "\r\n"), "sample")), 202);
         JsonNode status = json(get("/v2/reading/imports/{id}", ticket.path("import_id").textValue()), 200);
         assertThat(status.path("status").textValue()).isEqualTo("succeeded");
-        assertThat(status.path("progress").path("done_lines").intValue()).isEqualTo(17);
+        assertThat(LenientJson.intValue(status.path("progress").path("done_lines"))).isEqualTo(17);
         assertThat(Model.CALLS).isEmpty();
         assertThat(count("ai_jobs")).isZero();
         JsonNode script = json(get("/v2/reading/scripts/{id}", status.path("script_id").textValue()), 200);
         assertThat(script.path("title").textValue()).isEqualTo("옥상, 밤");
         assertThat(script.path("source").textValue()).isEqualTo("sample");
-        assertThat(script.path("characters")).extracting(character -> character.path("dialogue_count").intValue()).containsExactly(8, 7);
+        assertThat(script.path("characters")).extracting(character -> LenientJson.intValue(character.path("dialogue_count"))).containsExactly(8, 7);
         assertThat(script.path("characters")).as("SOMA-670: 모델을 거치지 않은 대본은 성별·나이대가 null")
                 .allMatch(character -> character.has("gender") && character.path("gender").isNull()
                         && character.has("age_band") && character.path("age_band").isNull());
@@ -607,8 +608,8 @@ class ReadingImportIT {
 
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
-        assertThat(done.path("progress").path("done_lines").intValue()).isEqualTo(400);
-        assertThat(done.path("progress").path("total_lines").intValue()).isEqualTo(400);
+        assertThat(LenientJson.intValue(done.path("progress").path("done_lines"))).isEqualTo(400);
+        assertThat(LenientJson.intValue(done.path("progress").path("total_lines"))).isEqualTo(400);
         JsonNode script = json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200);
         assertThat(script.path("title").textValue()).isEqualTo("맥베스");
         assertThat(script.path("characters")).extracting(character -> character.path("name").textValue())
@@ -683,8 +684,8 @@ class ReadingImportIT {
         assertThat(characters.get(3).path("member_ids")).extracting(JsonNode::textValue).containsExactly(jihae, yeonsu);
         assertThat(characters.get(4).path("member_ids")).as("모두는 모든 배역").extracting(JsonNode::textValue)
                 .containsExactly(jihae, yeonsu, characters.get(2).path("id").textValue());
-        assertThat(characters.get(3).path("dialogue_count").intValue()).isEqualTo(2);
-        assertThat(characters).extracting(character -> character.path("dialogue_count").intValue())
+        assertThat(LenientJson.intValue(characters.get(3).path("dialogue_count"))).isEqualTo(2);
+        assertThat(characters).extracting(character -> LenientJson.intValue(character.path("dialogue_count")))
                 .as("보통 배역은 자기 줄에 그 배역이 든 묶음 줄을 더한다(지해 1+2+1, 연희 1+1), 묶음 배역은 자기 줄만").containsExactly(4, 4, 2, 2, 1);
         assertThat(script.path("lines").get(4).path("character_id").textValue()).isEqualTo(characters.get(3).path("id").textValue());
         assertThat(jdbc.queryForList("SELECT array_length(member_ids, 1) FROM script_characters ORDER BY sort_order", Integer.class))
@@ -833,7 +834,7 @@ class ReadingImportIT {
         ScriptSplitWorker reviewing = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, oneAtATime);
         String text = "니나: 저는 갈매기예요.\n트레플레프: 아니, 당신은 배우예요.\n니나: 아니에요.\n트레플레프: 그래요.\n니나: 가요.";
         String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").textValue();
-        assertThat(json(get("/v2/reading/imports/{id}", id), 200).path("progress").path("percent").intValue()).isZero();
+        assertThat(LenientJson.intValue(json(get("/v2/reading/imports/{id}", id), 200).path("progress").path("percent"))).isZero();
 
         assertThat(reviewing.runOnce(clock.instant())).isTrue();
 
@@ -842,7 +843,7 @@ class ReadingImportIT {
         assertThat(seen.getLast()).as("답을 받을수록 오른다").isGreaterThan(seen.getFirst());
         JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
-        assertThat(done.path("progress").path("percent").intValue()).isEqualTo(100);
+        assertThat(LenientJson.intValue(done.path("progress").path("percent"))).isEqualTo(100);
         assertThat(jdbc.queryForObject("SELECT progress_percent FROM script_imports", Integer.class))
                 .as("저장 직전 값이 남고 100 은 응답이 성공으로 정한다").isEqualTo(ScriptSplitProgress.SAVING);
 
@@ -934,8 +935,8 @@ class ReadingImportIT {
 
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
-        assertThat(done.path("progress").path("done_lines").intValue()).isEqualTo(5);
-        assertThat(done.path("progress").path("total_lines").intValue()).isEqualTo(5);
+        assertThat(LenientJson.intValue(done.path("progress").path("done_lines"))).isEqualTo(5);
+        assertThat(LenientJson.intValue(done.path("progress").path("total_lines"))).isEqualTo(5);
         JsonNode script = json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200);
         assertThat(script.path("title").textValue()).isEqualTo("엄마의 시험");
         assertThat(script.path("characters")).extracting(character -> character.path("name").textValue()).containsExactly("엄마", "유세아");

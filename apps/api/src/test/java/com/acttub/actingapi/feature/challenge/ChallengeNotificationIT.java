@@ -36,6 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 챌린지 알림함·푸시와 탈퇴 연결 (challenge.notification, account.withdraw). 실제 HTTP·Postgres 로 사건을 만들고, 발송은
@@ -128,7 +129,7 @@ class ChallengeNotificationIT {
         assertThat(pushes.runOnce(clock.instant())).isZero();
         JsonNode inbox = response(get("/v2/me/notifications"), 200);
         assertThat(inbox.path("groups")).hasSize(1);
-        assertThat(inbox.at("/groups/0/actor_count").asInt()).isEqualTo(30);
+        assertThat(LenientJson.asInt(inbox.at("/groups/0/actor_count"))).isEqualTo(30);
         clock.set(NOON.plus(Duration.ofMinutes(10)));
         assertThat(pushes.runOnce(clock.instant())).isEqualTo(1);
         assertThat(jdbc.queryForList("SELECT stage FROM notification_pushes ORDER BY stage", String.class))
@@ -153,27 +154,27 @@ class ChallengeNotificationIT {
         assertThat(jdbc.queryForObject("SELECT push_status FROM notifications", String.class)).isEqualTo("skipped");
         response(put("/v2/entries/{id}/like", mine), 200, fan);
         assertThat(count("notifications")).isEqualTo(2);
-        assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/actor_count").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(response(get("/v2/me/notifications"), 200).at("/groups/0/actor_count"))).isEqualTo(1);
     }
 
     @Test void challengeNotification_commentsCarryTheCommentAndDropWhenDeletedHiddenOrBlockedBeforeSending() throws Exception {
         UUID mine = entry(challenge, me);
         UUID writer = member("댓글 배우");
-        String comment = response(post("/v2/entries/{id}/comments", mine).content(comment("호흡이 좋아요")), 201, token(writer))
-                .path("id").asText();
+        String comment = LenientJson.asText(response(post("/v2/entries/{id}/comments", mine).content(comment("호흡이 좋아요")), 201, token(writer))
+                .path("id"));
         var row = jdbc.queryForMap("SELECT kind,comment_id,entry_id FROM notifications");
         assertThat(row.get("kind")).isEqualTo("entry_commented");
         assertThat(row.get("comment_id").toString()).isEqualTo(comment);
         JsonNode inbox = response(get("/v2/me/notifications"), 200);
-        assertThat(inbox.at("/groups/0/comment_excerpt").asText()).isEqualTo("호흡이 좋아요");
-        assertThat(inbox.at("/groups/0/actor_name").asText()).isEqualTo("댓글 배우");
+        assertThat(LenientJson.asText(inbox.at("/groups/0/comment_excerpt"))).isEqualTo("호흡이 좋아요");
+        assertThat(LenientJson.asText(inbox.at("/groups/0/actor_name"))).isEqualTo("댓글 배우");
         response(delete("/v2/comments/{id}", comment), 204, token(writer));
         assertThat(pushes.runOnce(clock.instant())).isZero();
 
         clock.advance(Duration.ofMinutes(20));
         UUID reporter = member("신고자");
-        String hidden = response(post("/v2/entries/{id}/comments", mine).content(comment("숨겨질 댓글")), 201, token(writer))
-                .path("id").asText();
+        String hidden = LenientJson.asText(response(post("/v2/entries/{id}/comments", mine).content(comment("숨겨질 댓글")), 201, token(writer))
+                .path("id"));
         response(post("/v2/reports").content(json.writeValueAsString(Map.of("request_id", UUID.randomUUID(),
                 "target_type", "comment", "target_id", hidden, "reason", "spam"))), 201, token(reporter));
         assertThat(pushes.runOnce(clock.instant())).isZero();
@@ -207,7 +208,7 @@ class ChallengeNotificationIT {
         response(post("/v2/entries/{id}/ai-report", secret).content(json.writeValueAsString(Map.of("request_id", UUID.randomUUID()))), 202);
         reports.runOnce(clock.instant());
         JsonNode inbox = response(get("/v2/me/notifications"), 200);
-        assertThat(inbox.at("/groups/0/kind").asText()).isEqualTo("entry_ai_report_ready");
+        assertThat(LenientJson.asText(inbox.at("/groups/0/kind"))).isEqualTo("entry_ai_report_ready");
         assertThat(inbox.at("/groups/0/target_available").asBoolean()).isTrue();
         assertThat(pushes.runOnce(clock.instant())).isEqualTo(1);
         assertThat(Fakes.SENT.getLast().body()).isEqualTo("AI 리포트가 준비됐어요");
@@ -264,18 +265,18 @@ class ChallengeNotificationIT {
         }
         JsonNode first = response(get("/v2/me/notifications"), 200);
         assertThat(first.path("groups")).hasSize(20);
-        assertThat(first.at("/groups/0/entry_id").asText()).isEqualTo(mine.getLast().toString());
-        JsonNode rest = response(get("/v2/me/notifications").param("cursor", first.path("next_cursor").asText()), 200);
+        assertThat(LenientJson.asText(first.at("/groups/0/entry_id"))).isEqualTo(mine.getLast().toString());
+        JsonNode rest = response(get("/v2/me/notifications").param("cursor", LenientJson.asText(first.path("next_cursor"))), 200);
         assertThat(rest.path("groups")).hasSize(2);
-        assertThat(response(get("/v2/me/notifications/unread-count"), 200).path("count").asInt()).isEqualTo(22);
-        String group = first.at("/groups/0/group_key").asText();
+        assertThat(LenientJson.asInt(response(get("/v2/me/notifications/unread-count"), 200).path("count"))).isEqualTo(22);
+        String group = LenientJson.asText(first.at("/groups/0/group_key"));
         response(post("/v2/me/notifications/read").content(json.writeValueAsString(Map.of("group_keys", List.of(group)))), 204);
-        assertThat(response(get("/v2/me/notifications/unread-count"), 200).path("count").asInt()).isEqualTo(21);
-        String middle = first.at("/groups/10/latest_at").asText();
+        assertThat(LenientJson.asInt(response(get("/v2/me/notifications/unread-count"), 200).path("count"))).isEqualTo(21);
+        String middle = LenientJson.asText(first.at("/groups/10/latest_at"));
         response(post("/v2/me/notifications/read").content(json.writeValueAsString(Map.of("all_before",
-                Map.of("created_at", middle, "id", first.at("/groups/10/group_key").asText())))), 204);
+                Map.of("created_at", middle, "id", LenientJson.asText(first.at("/groups/10/group_key")))))), 204);
         // 11번째 묶음과 그보다 오래된 것이 읽혔다 — 남은 것은 두 번째~열 번째 묶음 아홉이다.
-        assertThat(response(get("/v2/me/notifications/unread-count"), 200).path("count").asInt()).isEqualTo(9);
+        assertThat(LenientJson.asInt(response(get("/v2/me/notifications/unread-count"), 200).path("count"))).isEqualTo(9);
         response(post("/v2/me/notifications/read").content("{}"), 422);
     }
 
@@ -287,7 +288,7 @@ class ChallengeNotificationIT {
         assertThat(pushes.runOnce(clock.instant())).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT push_status FROM notifications", String.class)).isEqualTo("attempted");
         jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", fan);
-        assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/actor_name").asText()).isEqualTo("탈퇴한 사용자");
+        assertThat(LenientJson.asText(response(get("/v2/me/notifications"), 200).at("/groups/0/actor_name"))).isEqualTo("탈퇴한 사용자");
         jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", mine);
         assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/target_available").asBoolean()).isFalse();
         assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/target_hidden").asBoolean()).isFalse();
@@ -310,8 +311,8 @@ class ChallengeNotificationIT {
     @Test void accountWithdraw_challengeDataIsClosedInTheSameTransaction() throws Exception {
         UUID friend = member("친구");
         String friendToken = token(friend);
-        UUID hosted = UUID.fromString(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
-                "request_id", UUID.randomUUID(), "line", "탈퇴 전 대사", "work", "창작", "duration_days", 7))), 201).path("id").asText());
+        UUID hosted = UUID.fromString(LenientJson.asText(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
+                "request_id", UUID.randomUUID(), "line", "탈퇴 전 대사", "work", "창작", "duration_days", 7))), 201).path("id")));
         UUID mine = entry(challenge, me);
         UUID theirs = entry(challenge, friend);
         response(put("/v2/entries/{id}/save", theirs), 200);
@@ -331,7 +332,7 @@ class ChallengeNotificationIT {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications WHERE user_id=?", Integer.class, me)).isZero();
         assertThat(jdbc.queryForObject("SELECT result IS NULL AND purged_at IS NOT NULL FROM entry_ai_reports", Boolean.class)).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM entry_likes WHERE entry_id=?", Integer.class, theirs)).isEqualTo(1);
-        assertThat(response(get("/v2/entries/{id}/comments", theirs), 200, friendToken).at("/comments/0/author/name").asText())
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}/comments", theirs), 200, friendToken).at("/comments/0/author/name")))
                 .isEqualTo("탈퇴한 사용자");
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, friendToken).path("entries")).hasSize(1);
         clock.advance(Duration.ofDays(91));

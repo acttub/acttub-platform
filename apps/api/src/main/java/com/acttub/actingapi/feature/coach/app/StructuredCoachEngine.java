@@ -25,6 +25,7 @@ import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** One visible reply may perform bounded lookups against the immutable text record. */
 final class StructuredCoachEngine {
@@ -58,14 +59,14 @@ final class StructuredCoachEngine {
     CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId) {
         ObjectNode state = session.coachingState() == null ? CoachingStateReducer.empty()
                 : ((ObjectNode) session.coachingState()).deepCopy();
-        CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
+        CoachingStateReducer.require(LenientJson.asLong(state.path("revision")) == session.stateRevision(), "stored revision mismatch");
         long replyCount = session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         boolean actorFinished = DialogueProgress.actorFinished(actorText);
         // ConversationService.THREE_LAYERS_REPLY_LIMIT 을 따른다 — 이번 응답이 그 상한을 채우면 강제 종료한다.
         boolean finish = actorFinished || replyCount >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
         String actorId = actorText == null ? null : turnId(session, session.turns().size());
         String coachId = turnId(session, session.turns().size() + (actorText == null ? 0 : 1));
-        String style = responseStyle(state.path("response_style").asText(), actorText);
+        String style = responseStyle(LenientJson.asText(state.path("response_style")), actorText);
         int maxChars = switch (style) { case "brief" -> 80; case "expanded" -> 300; default -> 120; };
         int maxSentences = style.equals("expanded") ? 4 : style.equals("brief") ? 1 : 3;
         if (actorText == null && style.equals("normal")) {
@@ -119,7 +120,7 @@ final class StructuredCoachEngine {
             ArrayNode knowledgeRefs = constraints.putArray("allowed_knowledge_refs");
             for (JsonNode source : deliveredSources(input)) {
                 knowledgeRefs.add(source.path("id"));
-                if (List.of("video_observation", "video_utterance", "record_limitation").contains(source.path("kind").asText())) {
+                if (List.of("video_observation", "video_utterance", "record_limitation").contains(LenientJson.asText(source.path("kind")))) {
                     videoRefs.add(source.path("id"));
                 }
             }
@@ -135,10 +136,10 @@ final class StructuredCoachEngine {
                         ? DialogueProgress.observationLimitReply(input)
                         : references.fromModel(StructuredJson.parse(recorded(session, modelInput, call)));
                 StructuredJson.validate("layer2_dialogue_turn", response);
-                CoachingStateReducer.require(response.path("base_state_revision").asLong() == session.stateRevision(),
+                CoachingStateReducer.require(LenientJson.asLong(response.path("base_state_revision")) == session.stateRevision(),
                         "stale state revision");
-                if ("lookup".equals(response.path("action").asText())) {
-                    CoachingStateReducer.require(controls.path("lookup_calls_remaining").asInt() > 0,
+                if ("lookup".equals(LenientJson.asText(response.path("action")))) {
+                    CoachingStateReducer.require(LenientJson.asInt(controls.path("lookup_calls_remaining")) > 0,
                             "lookup budget exhausted; respond with available evidence");
                     lookups++;
                     JsonNode result = records.lookup(session.observationPack(), response.path("request"));
@@ -155,11 +156,11 @@ final class StructuredCoachEngine {
                                 coachId, maxChars, maxSentences, finish)
                         : DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
                         coachId, maxChars, maxSentences, finish,
-                        input.path("last_exchange").path("coach_message").path("text").asText());
+                        LenientJson.asText(input.path("last_exchange").path("coach_message").path("text")));
                 // Explicit brevity requests persist even when the model omits style_update.
-                next.put("response_style", responseStyle(state.path("response_style").asText(), actorText));
-                boolean done = "finish".equals(response.path("flow").asText());
-                return result(session, actorText, response.path("message").asText().strip(), next,
+                next.put("response_style", responseStyle(LenientJson.asText(state.path("response_style")), actorText));
+                boolean done = "finish".equals(LenientJson.asText(response.path("flow")));
+                return result(session, actorText, LenientJson.asText(response.path("message")).strip(), next,
                         done ? (actorFinished ? "actor_finished"
                                 : replyCount >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1 ? "turn_budget" : "interrupted") : null);
             } catch (RuntimeException failure) {
@@ -212,7 +213,7 @@ final class StructuredCoachEngine {
         ObjectNode exchange = input.putObject("last_exchange");
         exchange.putNull("coach_message");
         for (JsonNode message : messages) {
-            if ("ai".equals(message.path("role").asText())) exchange.set("coach_message", message.deepCopy());
+            if ("ai".equals(LenientJson.asText(message.path("role")))) exchange.set("coach_message", message.deepCopy());
         }
         exchange.set("actor_message", input.path("user_message").deepCopy());
         return input;
@@ -221,20 +222,20 @@ final class StructuredCoachEngine {
     private static ArrayNode deliveredSources(JsonNode input) {
         Map<String, JsonNode> catalog = new LinkedHashMap<>();
         for (JsonNode list : List.of(input.path("state_sources"), input.path("record_view").path("source_catalog"))) {
-            list.forEach(s -> catalog.put(s.path("id").asText(), s));
+            list.forEach(s -> catalog.put(LenientJson.asText(s.path("id")), s));
         }
-        input.path("recent_messages").forEach(m -> catalog.put(m.path("id").asText(), messageSource(m)));
+        input.path("recent_messages").forEach(m -> catalog.put(LenientJson.asText(m.path("id")), messageSource(m)));
         JsonNode actor = input.path("user_message");
-        if (!actor.isNull()) { catalog.put(actor.path("id").asText(), messageSource(actor)); }
+        if (!actor.isNull()) { catalog.put(LenientJson.asText(actor.path("id")), messageSource(actor)); }
         ArrayNode sources = StructuredJson.MAPPER.createArrayNode();
         catalog.values().forEach(sources::add);
         return sources;
     }
 
     private static ObjectNode messageSource(JsonNode message) {
-        return CoachingStateReducer.source(message.path("id").asText(),
-                "actor".equals(message.path("role").asText()) ? "actor_message" : "coach_message",
-                message.path("text").asText());
+        return CoachingStateReducer.source(LenientJson.asText(message.path("id")),
+                "actor".equals(LenientJson.asText(message.path("role"))) ? "actor_message" : "coach_message",
+                LenientJson.asText(message.path("text")));
     }
 
     private static String responseStyle(String current, String actorText) {
@@ -253,7 +254,7 @@ final class StructuredCoachEngine {
         if (actorText != null) { turns.add(new CoachTurnSnapshot("actor", actorText)); }
         turns.add(new CoachTurnSnapshot("ai", message));
         CoachSessionSnapshot next = session.withTurns(turns).withCoachingState(session.experienceVersion(),
-                state.path("revision").asLong(), state, endReason == null ? "open" : "closed",
+                LenientJson.asLong(state.path("revision")), state, endReason == null ? "open" : "closed",
                 endReason == null ? "" : endReason);
         ObjectNode handoff = null;
         if (endReason != null) {

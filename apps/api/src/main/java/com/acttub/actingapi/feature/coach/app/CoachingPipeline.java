@@ -18,6 +18,7 @@ import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Luna selects the next conversational action; Java dispatches one generation prompt. */
 final class CoachingPipeline {
@@ -50,7 +51,7 @@ final class CoachingPipeline {
         if (result.size() != 1 || !result.path("route").isTextual()) {
             throw new IllegalArgumentException("invalid coaching route response");
         }
-        return CoachingRoute.parse(result.path("route").asText());
+        return CoachingRoute.parse(LenientJson.asText(result.path("route")));
     }
 
     static String prompt(CoachingRoute route, boolean finish, boolean opening) {
@@ -81,8 +82,8 @@ final class CoachingPipeline {
         if (draft.size() != 3 || !draft.path("message").isTextual() || !draft.has("context_update")
                 || !draft.path("evidence_refs").isArray()) throw new IllegalArgumentException("invalid coaching draft");
         ObjectNode response = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
-                .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
-                .put("message", draft.path("message").asText()).put("flow", finish ? "finish" : "continue")
+                .put("base_state_revision", LenientJson.asLong(input.path("coaching_state").path("revision")))
+                .put("message", LenientJson.asText(draft.path("message"))).put("flow", finish ? "finish" : "continue")
                 .putNull("style_update");
         response.set("context_update", draft.path("context_update"));
         ObjectNode link = response.putObject("reply_link");
@@ -90,7 +91,7 @@ final class CoachingPipeline {
         link.set("user_message_id", opening ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
         if (opening) link.putNull("actor_quote");
         else {
-            String actor = input.path("user_message").path("text").asText();
+            String actor = LenientJson.asText(input.path("user_message").path("text"));
             // Storage keeps a short exact excerpt; classification/generation still see the entire message.
             link.put("actor_quote", actor.substring(0, actor.offsetByCodePoints(0, Math.min(100, actor.codePointCount(0, actor.length())))));
         }

@@ -14,6 +14,7 @@ import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 코치 답 영상의 프레임 간격(ACTTUB_COACH_VIDEO_FPS): 정하면 영상 Part 에 fps 가 붙고, 정하지 않으면 예전과 같은 요청이다. */
 class GeminiDirectVideoFpsTest {
@@ -54,9 +55,9 @@ class GeminiDirectVideoFpsTest {
         assertThat(sent).hasSize(3);
         for (JsonNode reply : sent.subList(0, 2)) {
             JsonNode video = reply.path("contents").get(0).path("parts").get(0);
-            assertThat(video.path("fileData").path("fileUri").asText()).isEqualTo(VIDEO.uri());
-            assertThat(video.path("fileData").path("mimeType").asText()).isEqualTo(VIDEO.mimeType());
-            assertThat(video.path("videoMetadata").path("fps").asDouble()).isEqualTo(0.5);
+            assertThat(LenientJson.asText(video.path("fileData").path("fileUri"))).isEqualTo(VIDEO.uri());
+            assertThat(LenientJson.asText(video.path("fileData").path("mimeType"))).isEqualTo(VIDEO.mimeType());
+            assertThat(LenientJson.asDouble(video.path("videoMetadata").path("fps"))).isEqualTo(0.5);
         }
         // 분류에는 영상이 없다.
         assertThat(sent.get(2).toString()).doesNotContain("fileData", "videoMetadata");
@@ -74,7 +75,7 @@ class GeminiDirectVideoFpsTest {
     @Test void theHedgeCopyKeepsTheFps() throws Exception {
         List<JsonNode> sent = requests(model -> model.withVideoFps(2.0).withHedge(GeminiDirectVideoModel.Hedge.NONE),
                 model -> model.reply(VIDEO, List.of(), INSTRUCTION));
-        assertThat(sent.getFirst().path("contents").get(0).path("parts").get(0).path("videoMetadata").path("fps").asDouble())
+        assertThat(LenientJson.asDouble(sent.getFirst().path("contents").get(0).path("parts").get(0).path("videoMetadata").path("fps")))
                 .isEqualTo(2.0);
     }
 }

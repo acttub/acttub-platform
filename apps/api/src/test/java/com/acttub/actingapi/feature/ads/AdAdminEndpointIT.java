@@ -33,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.ads 운영 경로 — 토큰, 등록·수정·상태, 이미지 올릴 자리, 날짜별 통계, 앱 응답의 서명 이미지·link_url. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret", "ACCOUNT_CLEANUP_ENABLED=false",
@@ -93,14 +94,14 @@ class AdAdminEndpointIT {
         jdbc.update("UPDATE ad_settings SET window_minutes=10,window_cap=5,first_day_cap=3");
         try {
             JsonNode now = json(admin(get("/v2/admin/ad-settings"), null), 200);
-            assertThat(now.path("window_minutes").intValue()).isEqualTo(10);
-            assertThat(now.path("window_cap").intValue()).isEqualTo(5);
-            assertThat(now.path("first_day_cap").intValue()).isEqualTo(3);
+            assertThat(LenientJson.intValue(now.path("window_minutes"))).isEqualTo(10);
+            assertThat(LenientJson.intValue(now.path("window_cap"))).isEqualTo(5);
+            assertThat(LenientJson.intValue(now.path("first_day_cap"))).isEqualTo(3);
 
             JsonNode changed = json(admin(put("/v2/admin/ad-settings"), "{\"window_minutes\":30,\"first_day_cap\":0}"), 200);
-            assertThat(changed.path("window_minutes").intValue()).isEqualTo(30);
-            assertThat(changed.path("window_cap").intValue()).isEqualTo(5);
-            assertThat(changed.path("first_day_cap").intValue()).isZero();
+            assertThat(LenientJson.intValue(changed.path("window_minutes"))).isEqualTo(30);
+            assertThat(LenientJson.intValue(changed.path("window_cap"))).isEqualTo(5);
+            assertThat(LenientJson.intValue(changed.path("first_day_cap"))).isZero();
             assertThat(json(admin(get("/v2/admin/ad-settings"), null), 200)).isEqualTo(changed);
 
             for (String bad : List.of("{\"window_minutes\":0}", "{\"window_minutes\":1441}", "{\"window_cap\":-1}",
@@ -122,7 +123,7 @@ class AdAdminEndpointIT {
         String key = upload.path("key").textValue();
         assertThat(key).matches("ads/banner/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp");
         assertThat(upload.path("upload_url").textValue()).isEqualTo("put:" + key + ":image/webp:2048:600");
-        assertThat(upload.path("expires_in").intValue()).isEqualTo(600);
+        assertThat(LenientJson.intValue(upload.path("expires_in"))).isEqualTo(600);
 
         json(admin(post("/v2/admin/ad-images"), request("BANNER", 300, 250, "image/png", 10)), 422);
         json(admin(post("/v2/admin/ad-images"), request("HUGE", 320, 50, "image/png", 10)), 422);
@@ -152,7 +153,7 @@ class AdAdminEndpointIT {
         String id = created.path("id").textValue();
         assertThat(created.path("status").textValue()).isEqualTo("active");
         assertThat(created.path("image_banner_url").textValue()).isEqualTo("signed:" + key + ":3600");
-        assertThat(created.path("impressions").longValue()).isZero();
+        assertThat(LenientJson.longValue(created.path("impressions"))).isZero();
 
         // 앱은 서명 주소와 link_url 을 받는다
         finishReading();
@@ -170,18 +171,18 @@ class AdAdminEndpointIT {
                 .content("{\"slot\":\"home_top\",\"event\":\"click\"}"), 204);
         JsonNode listed = json(admin(get("/v2/admin/ads"), null), 200).path("ads").get(0);
         assertThat(listed.path("id").textValue()).isEqualTo(id);
-        assertThat(listed.path("impressions").longValue()).isEqualTo(1);
-        assertThat(listed.path("clicks").longValue()).isEqualTo(2);
+        assertThat(LenientJson.longValue(listed.path("impressions"))).isEqualTo(1);
+        assertThat(LenientJson.longValue(listed.path("clicks"))).isEqualTo(2);
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         JsonNode stats = json(admin(get("/v2/admin/ads/" + id + "/stats")
                 .param("from", today.minusDays(2).toString()).param("to", today.toString()), null), 200);
         assertThat(stats.path("days")).hasSize(3);
-        assertThat(stats.path("days").get(0).path("impressions").longValue()).isZero();
+        assertThat(LenientJson.longValue(stats.path("days").get(0).path("impressions"))).isZero();
         assertThat(stats.path("days").get(2).path("day").textValue()).isEqualTo(today.toString());
-        assertThat(stats.path("days").get(2).path("clicks").longValue()).isEqualTo(2);
-        assertThat(stats.path("impressions").longValue()).isEqualTo(1);
-        assertThat(stats.path("clicks").longValue()).isEqualTo(2);
+        assertThat(LenientJson.longValue(stats.path("days").get(2).path("clicks"))).isEqualTo(2);
+        assertThat(LenientJson.longValue(stats.path("impressions"))).isEqualTo(1);
+        assertThat(LenientJson.longValue(stats.path("clicks"))).isEqualTo(2);
         json(admin(get("/v2/admin/ads/" + id + "/stats").param("from", "2026-13-01"), null), 422);
         json(admin(get("/v2/admin/ads/" + id + "/stats").param("from", today.toString())
                 .param("to", today.minusDays(1).toString()), null), 422);
@@ -200,7 +201,7 @@ class AdAdminEndpointIT {
         json(admin(patch("/v2/admin/ads/" + id), "{\"link_url\":\"ftp://x\"}"), 422);
         JsonNode renamed = json(admin(patch("/v2/admin/ads/" + id), "{\"advertiser_name\":\"새이름\"}"), 200);
         assertThat(renamed.path("link_url").textValue()).isEqualTo("https://example.com/a");
-        assertThat(renamed.path("priority").intValue()).isEqualTo(9);
+        assertThat(LenientJson.intValue(renamed.path("priority"))).isEqualTo(9);
         json(admin(patch("/v2/admin/ads/" + UUID.randomUUID()), "{\"status\":\"paused\"}"), 404);
         json(admin(patch("/v2/admin/ads/" + id), "{\"nope\":1}"), 422);
     }
@@ -211,7 +212,7 @@ class AdAdminEndpointIT {
         JsonNode created = json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"Pro 를 써 보세요\","
                 + "\"slots\":[\"home_top\"],\"audience\":\"free\",\"app_path\":\"/pro\",\"share_percent\":100}"), 201);
         assertThat(created.path("kind").textValue()).isEqualTo("house");
-        assertThat(created.path("share_percent").intValue()).isEqualTo(100);
+        assertThat(LenientJson.intValue(created.path("share_percent"))).isEqualTo(100);
         finishReading();
         JsonNode pick = app(get("/v2/ads").param("slot", "home_top"));
         assertThat(pick.path("kind").textValue()).isEqualTo("HOUSE");
@@ -220,7 +221,7 @@ class AdAdminEndpointIT {
         json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"x\",\"app_path\":\"/pro\",\"share_percent\":101}"), 422);
         // 비율을 안 보내면 기본 50
         JsonNode plain = json(admin(post("/v2/admin/ads"), "{\"kind\":\"house\",\"headline\":\"y\",\"app_path\":\"/pro\",\"status\":\"paused\"}"), 201);
-        assertThat(plain.path("share_percent").intValue()).isEqualTo(50);
+        assertThat(LenientJson.intValue(plain.path("share_percent"))).isEqualTo(50);
     }
 
     private void finishReading() {

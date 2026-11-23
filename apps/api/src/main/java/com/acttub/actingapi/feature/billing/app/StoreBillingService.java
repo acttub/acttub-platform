@@ -18,6 +18,7 @@ import com.acttub.actingapi.platform.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 앱 스토어 구독(App Store·Google Play)을 RevenueCat 으로 받는다(SOMA-818 2단계, billing.store).
@@ -157,7 +158,7 @@ public class StoreBillingService {
         if (!value.isTextual() || users.size() >= MAX_USERS_PER_EVENT) {
             return;
         }
-        String text = value.asText();
+        String text = LenientJson.asText(value);
         if (text.length() != 36) {
             return;
         }

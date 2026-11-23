@@ -42,6 +42,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.guest 의 "검증 방법" 가운데 게스트 발급과 게스트의 게이트를 HTTP 와 실제 Postgres 로 본다.
@@ -115,7 +116,7 @@ class AccountGuestIT {
                 "access_token", "refresh_token", "token_type", "expires_in", "user", "account_type");
         assertThat(body.path("account_type").textValue()).isEqualTo("guest");
         assertThat(body.path("token_type").textValue()).isEqualTo("bearer");
-        assertThat(body.path("expires_in").longValue()).isEqualTo(1800);
+        assertThat(LenientJson.longValue(body.path("expires_in"))).isEqualTo(1800);
         assertThat(body.path("user").path("email").isNull()).isTrue();
         assertThat(body.path("user").path("status").textValue()).isEqualTo("active");
         UUID guestId = UUID.fromString(body.path("user").path("id").textValue());

@@ -31,6 +31,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
         "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model",
@@ -83,8 +84,8 @@ class CloudVoiceIT {
         assertThat(body.path("free_until").isNull()).isTrue();
         assertThat(body.path("consent").textValue()).isEqualTo("granted");
         // Pro 에게 daily_limit 칸은 계정별 월 한도를 담는다(SOMA-949).
-        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
-        assertThat(body.path("daily_used").intValue()).isZero();
+        assertThat(LenientJson.intValue(body.path("daily_limit"))).isEqualTo(10_000);
+        assertThat(LenientJson.intValue(body.path("daily_used"))).isZero();
     }
 
     @Test
@@ -111,7 +112,7 @@ class CloudVoiceIT {
         JsonNode body = mapper.readTree(response.getContentAsString());
         assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder("version", "files", "expires_in");
         assertThat(body.path("version").textValue()).isEqualTo("supertonic3-fp16-v1");
-        assertThat(body.path("expires_in").intValue()).isEqualTo(3600);
+        assertThat(LenientJson.intValue(body.path("expires_in"))).isEqualTo(3600);
         assertThat(body.path("files")).hasSize(8);
         JsonNode first = body.path("files").get(0);
         assertThat(first.fieldNames()).toIterable().containsExactlyInAnyOrder("name", "bytes", "sha256", "url");
@@ -208,7 +209,7 @@ class CloudVoiceIT {
         var again = synthesize("{\"text\":\"가지 마.\",\"voice\":\"F1\"}");
         assertThat(mapper.readTree(again.getContentAsString()).path("cached").booleanValue()).isTrue();
         var status = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
-        assertThat(mapper.readTree(status.getContentAsString()).path("daily_used").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(mapper.readTree(status.getContentAsString()).path("daily_used"))).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_voice_cache", Long.class)).isEqualTo(1L);
     }
 
@@ -274,8 +275,8 @@ class CloudVoiceIT {
         var response = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
         JsonNode body = mapper.readTree(response.getContentAsString());
         assertThat(body.path("available").booleanValue()).isTrue();
-        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
-        assertThat(body.path("daily_used").intValue()).isEqualTo(300);
+        assertThat(LenientJson.intValue(body.path("daily_limit"))).isEqualTo(10_000);
+        assertThat(LenientJson.intValue(body.path("daily_used"))).isEqualTo(300);
         assertThat(synthesize("{\"text\":\"Pro 새 대사\",\"voice\":\"F1\"}").getStatus()).isEqualTo(200);
         assertThat(voices.monthlyUsage(user, month)).isEqualTo(301);
     }

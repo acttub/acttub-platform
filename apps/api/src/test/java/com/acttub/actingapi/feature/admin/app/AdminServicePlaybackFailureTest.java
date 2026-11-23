@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 
 import com.acttub.actingapi.platform.web.ApiException;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 서명기가 빈 주소를 주면 재생은 503 이고, ops 코어가 객체가 아니면 운영 화면이 잘못된 숫자를 보이지 않는다. */
 class AdminServicePlaybackFailureTest {
@@ -60,8 +61,8 @@ class AdminServicePlaybackFailureTest {
         assertThatThrownBy(() -> service.opsCore(List.of()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("ops core query did not return a JSON object");
-        assertThat(service.opsCore(List.of()).path("users").asInt()).isEqualTo(3);
-        assertThat(service.opsCore(List.of()).path("source").asText()).isEqualTo("live");
+        assertThat(LenientJson.asInt(service.opsCore(List.of()).path("users"))).isEqualTo(3);
+        assertThat(LenientJson.asText(service.opsCore(List.of()).path("source"))).isEqualTo("live");
     }
 
     @Test

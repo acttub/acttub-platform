@@ -11,6 +11,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 값이 빈 자리는 싣지 않는다 — 모델 이름 없음, 일부만 아는 토큰, 사용자 없음, 점수 설명. */
 class LangfuseTelemetryPayloadTest {
@@ -27,7 +28,7 @@ class LangfuseTelemetryPayloadTest {
     private static Map<String, String> attributes(JsonNode payload) {
         Map<String, String> values = new LinkedHashMap<>();
         payload.path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0).path("attributes")
-                .forEach(entry -> values.put(entry.path("key").asText(), entry.path("value").path("stringValue").asText()));
+                .forEach(entry -> values.put(LenientJson.asText(entry.path("key")), LenientJson.asText(entry.path("value").path("stringValue"))));
         return values;
     }
 
@@ -49,10 +50,10 @@ class LangfuseTelemetryPayloadTest {
         JsonNode commented = telemetry().scorePayload(new LlmScore(PRACTICE, "note_rating", "CATEGORICAL", "good", "짧은 메모"));
         JsonNode silent = telemetry().scorePayload(new LlmScore(PRACTICE, "note_rating", "NUMERIC", 4, " "));
 
-        assertThat(commented.path("comment").asText()).isEqualTo("짧은 메모");
-        assertThat(commented.path("value").asText()).isEqualTo("good");
+        assertThat(LenientJson.asText(commented.path("comment"))).isEqualTo("짧은 메모");
+        assertThat(LenientJson.asText(commented.path("value"))).isEqualTo("good");
         assertThat(silent.has("comment")).isFalse();
-        assertThat(silent.path("value").asDouble()).isEqualTo(4.0);
-        assertThat(silent.path("traceId").asText()).isEqualTo("11112222333344445555666677778888");
+        assertThat(LenientJson.asDouble(silent.path("value"))).isEqualTo(4.0);
+        assertThat(LenientJson.asText(silent.path("traceId"))).isEqualTo("11112222333344445555666677778888");
     }
 }

@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 모델 출력과 저장 정본에 같은 JSON Schema를 적용한다. 외부 참조는 사용하지 않는다. */
 public final class StructuredJson {
@@ -90,7 +91,7 @@ public final class StructuredJson {
 
     private static void collect(JsonNode node, ObjectNode target, Set<String> visited) {
         if (node.isObject() && node.has("$ref")) {
-            String ref = node.path("$ref").asText();
+            String ref = LenientJson.asText(node.path("$ref"));
             if (!ref.startsWith("#/$defs/")) {
                 throw new IllegalStateException("external schema references are not allowed");
             }

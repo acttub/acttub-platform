@@ -50,6 +50,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 광고 운영 경로(app.ads, SOMA-876). 포스터와 같이 {@code ADMIN_OPS_TOKEN} 을 Bearer 로 받고, 토큰이 없는 기동에는
@@ -97,7 +98,7 @@ class AdAdminController {
         ObjectNode changes = changes(body);
         if (!changes.has("share_percent")) {
             // 비율을 안 보내면 종류마다 기본값이다 — 직접 광고는 칸을 다 쓰고, 우리 앱 광고는 AdMob 과 반씩.
-            changes.put("share_percent", AdDraft.defaultSharePercent(changes.path("kind").asText(AdDraft.blank().kind())));
+            changes.put("share_percent", AdDraft.defaultSharePercent(LenientJson.asText(changes.path("kind"), AdDraft.blank().kind())));
         }
         AdDraft draft = merge(AdDraft.blank(), changes);
         return ResponseEntity.status(201).header(HttpHeaders.CACHE_CONTROL, "private, no-store")

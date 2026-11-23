@@ -13,6 +13,7 @@ import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class GeminiDirectVideoModelTest {
     @Test void sendsOriginalVideoAndConversationInTheActualGeminiHttpRequest() throws Exception {
@@ -41,30 +42,30 @@ class GeminiDirectVideoModelTest {
             assertThat(contents.size()).isEqualTo(3);
             assertThat(contents.get(0).path("parts").size()).isEqualTo(1);
             assertThat(contents.get(0).path("parts").get(0).has("text")).isFalse();
-            assertThat(contents.get(0).path("parts").get(0).path("fileData").path("fileUri").asText())
+            assertThat(LenientJson.asText(contents.get(0).path("parts").get(0).path("fileData").path("fileUri")))
                     .isEqualTo("https://example.test/video");
-            assertThat(contents.get(1).path("role").asText()).isEqualTo("model");
-            assertThat(contents.get(2).path("parts").get(0).path("text").asText()).isEqualTo("배우의 답");
-            assertThat(request.get().path("systemInstruction").path("parts").get(0).path("text").asText())
+            assertThat(LenientJson.asText(contents.get(1).path("role"))).isEqualTo("model");
+            assertThat(LenientJson.asText(contents.get(2).path("parts").get(0).path("text"))).isEqualTo("배우의 답");
+            assertThat(LenientJson.asText(request.get().path("systemInstruction").path("parts").get(0).path("text")))
                     .isEqualTo("코칭 지침");
             assertThat(request.get().path("generationConfig").has("responseMimeType")).isFalse();
             model.classify(List.of(new DirectVideoModel.Message("model", "첫 질문"),
                             new DirectVideoModel.Message("user", "배우의 답")), "분류 지침", List.of("intention", "correction", "unsure", "method", "acknowledgement", "other"));
             JsonNode config = request.get().path("generationConfig");
-            assertThat(config.path("responseMimeType").asText()).isEqualTo("application/json");
+            assertThat(LenientJson.asText(config.path("responseMimeType"))).isEqualTo("application/json");
             assertThat(config.path("responseJsonSchema").path("properties").path("signals").path("items").path("enum").size())
                     .isEqualTo(6);
-            assertThat(config.path("responseJsonSchema").path("properties").path("signals").path("items").path("enum").get(5).asText())
+            assertThat(LenientJson.asText(config.path("responseJsonSchema").path("properties").path("signals").path("items").path("enum").get(5)))
                     .isEqualTo("other");
             assertThat(request.get().path("contents")).hasSize(1);
-            assertThat(request.get().path("contents").get(0).path("role").asText()).isEqualTo("user");
-            JsonNode transcript = mapper.readTree(request.get().path("contents").get(0).path("parts").get(0).path("text").asText());
+            assertThat(LenientJson.asText(request.get().path("contents").get(0).path("role"))).isEqualTo("user");
+            JsonNode transcript = mapper.readTree(LenientJson.asText(request.get().path("contents").get(0).path("parts").get(0).path("text")));
             assertThat(transcript).hasSize(2);
-            assertThat(transcript.get(0).path("role").asText()).isEqualTo("model");
-            assertThat(transcript.get(1).path("role").asText()).isEqualTo("user");
-            assertThat(transcript.get(1).path("text").asText()).isEqualTo("배우의 답");
+            assertThat(LenientJson.asText(transcript.get(0).path("role"))).isEqualTo("model");
+            assertThat(LenientJson.asText(transcript.get(1).path("role"))).isEqualTo("user");
+            assertThat(LenientJson.asText(transcript.get(1).path("text"))).isEqualTo("배우의 답");
             assertThat(request.get().path("contents").toString()).doesNotContain("fileData", "fileUri", "https://example.test/video");
-            assertThat(request.get().path("systemInstruction").path("parts").get(0).path("text").asText()).isEqualTo("분류 지침");
+            assertThat(LenientJson.asText(request.get().path("systemInstruction").path("parts").get(0).path("text"))).isEqualTo("분류 지침");
         } finally { server.stop(0); }
     }
 
@@ -91,8 +92,8 @@ class GeminiDirectVideoModelTest {
                             List.of(new DirectVideoModel.Message("user", "배우의 답")), "코칭 지침"))
                     .isInstanceOf(IllegalStateException.class).hasMessageContaining("empty");
             JsonNode config = request.get().path("generationConfig");
-            assertThat(config.path("maxOutputTokens").asInt()).isEqualTo(GeminiDirectVideoModel.REPLY_TOKEN_LIMIT).isEqualTo(4096);
-            assertThat(config.path("thinkingConfig").path("thinkingLevel").asText()).isEqualTo("LOW");
+            assertThat(LenientJson.asInt(config.path("maxOutputTokens"))).isEqualTo(GeminiDirectVideoModel.REPLY_TOKEN_LIMIT).isEqualTo(4096);
+            assertThat(LenientJson.asText(config.path("thinkingConfig").path("thinkingLevel"))).isEqualTo("LOW");
         } finally { server.stop(0); }
     }
 }

@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 찍을 대사 같이 만들기(SOMA-721) — 감정·상황·원하는 방향으로 AI 가 대본을 만들고, 배우가 고치고(성공한 수정만 무료 3회),
@@ -373,7 +374,7 @@ public class ScriptCocreateService {
         if (after.stream().anyMatch(Issue::fatal)) {
             throw rejected("validation: " + after);
         }
-        String note = node != null && node.path("note").isTextual() ? node.path("note").asText().strip() : "";
+        String note = node != null && node.path("note").isTextual() ? LenientJson.asText(node.path("note")).strip() : "";
         return new Revised(revised, note.isEmpty() ? null : note);
     }
 
@@ -462,8 +463,8 @@ public class ScriptCocreateService {
             for (JsonNode item : node.path("fixes")) {
                 JsonNode index = item.path("index");
                 JsonNode text = item.path("text");
-                if (index.canConvertToInt() && wrong.containsKey(index.asInt()) && text.isTextual() && !text.asText().isBlank()) {
-                    fixed = fixed.withText(index.asInt(), text.asText().strip());
+                if (LenientJson.canConvertToInt(index) && wrong.containsKey(LenientJson.asInt(index)) && text.isTextual() && !LenientJson.asText(text).isBlank()) {
+                    fixed = fixed.withText(LenientJson.asInt(index), LenientJson.asText(text).strip());
                 }
             }
         }
@@ -632,7 +633,7 @@ public class ScriptCocreateService {
         for (JsonNode line : node.path("lines")) {
             JsonNode character = line.path("character");
             lines.add(new CocreatedScript.Line(text(line, "kind"),
-                    character.isTextual() && !character.asText().isBlank() ? character.asText().strip() : null,
+                    character.isTextual() && !LenientJson.asText(character).isBlank() ? LenientJson.asText(character).strip() : null,
                     text(line, "text")));
         }
         JsonNode design = node.path("design");
@@ -646,7 +647,7 @@ public class ScriptCocreateService {
 
     private static String text(JsonNode node, String field) {
         JsonNode value = node.path(field);
-        return value.isTextual() ? value.asText().strip() : null;
+        return value.isTextual() ? LenientJson.asText(value).strip() : null;
     }
 
     private static String lower(JsonNode node, String field) {
@@ -663,7 +664,7 @@ public class ScriptCocreateService {
         List<String> out = new ArrayList<>();
         for (JsonNode item : node) {
             if (item.isTextual()) {
-                out.add(item.asText());
+                out.add(LenientJson.asText(item));
             }
         }
         return out;
@@ -714,8 +715,8 @@ public class ScriptCocreateService {
         List<Version> out = new ArrayList<>();
         for (JsonNode item : array) {
             JsonNode note = item.path("note");
-            out.add(new Version(parse(item.path("script")), item.path("character_count").asInt(),
-                    item.path("minutes").asInt(), item.path("my_lines").asInt(), note.isTextual() ? note.asText() : null));
+            out.add(new Version(parse(item.path("script")), LenientJson.asInt(item.path("character_count")),
+                    LenientJson.asInt(item.path("minutes")), LenientJson.asInt(item.path("my_lines")), note.isTextual() ? LenientJson.asText(note) : null));
         }
         return out;
     }
@@ -740,11 +741,11 @@ public class ScriptCocreateService {
     /** 배역 수·분량·내 대사 수는 버전에서 다시 정한다 — 여기서는 1명·1분으로 둔다. */
     Conditions readConditions(String json) {
         JsonNode node = readJson(json);
-        return new Conditions(Experience.valueOf(node.path("experience").asText()), node.path("actor").asText(),
-                node.path("purpose").asText(), node.path("minor").asBoolean(), node.path("emotion").asText(),
-                node.path("situation").asText(), node.path("direction").asText(), 1, 1,
-                slot(CocreateRules.ENDINGS, node.path("ending").asText()), slot(CocreateRules.PROPS, node.path("prop").asText()),
-                CocreateRules.defaultMyLines(1, 1), "en".equals(node.path("language").asText()));
+        return new Conditions(Experience.valueOf(LenientJson.asText(node.path("experience"))), LenientJson.asText(node.path("actor")),
+                LenientJson.asText(node.path("purpose")), node.path("minor").asBoolean(), LenientJson.asText(node.path("emotion")),
+                LenientJson.asText(node.path("situation")), LenientJson.asText(node.path("direction")), 1, 1,
+                slot(CocreateRules.ENDINGS, LenientJson.asText(node.path("ending"))), slot(CocreateRules.PROPS, LenientJson.asText(node.path("prop"))),
+                CocreateRules.defaultMyLines(1, 1), "en".equals(LenientJson.asText(node.path("language"))));
     }
 
     private static Slot slot(List<Slot> slots, String name) {

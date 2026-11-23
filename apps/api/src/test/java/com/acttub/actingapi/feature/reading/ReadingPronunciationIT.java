@@ -45,6 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * reading.pronunciation(실험, SOMA-606) — 허용 사용자가 끝낸 회차를 조회하면 큐에 들고, 일꾼이 줄 녹음을 채점해 보고서로
@@ -162,7 +163,7 @@ class ReadingPronunciationIT {
 
         JsonNode done = json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
         assertThat(done.path("status").textValue()).isEqualTo("done");
-        assertThat(done.path("report").path("summary").path("linesUsed").intValue()).isEqualTo(3);
+        assertThat(LenientJson.intValue(done.path("report").path("summary").path("linesUsed"))).isEqualTo(3);
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT model_version, attempt_count, lease_token, failure FROM reading_pronunciation_reports");
         assertThat(row.get("model_version")).isEqualTo("pron-fake");

@@ -11,6 +11,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 옵션 호출의 모델 선택·연결 실패·읽을 수 없는 본문·미완료 응답·사용량 계산 (OpenAI Responses). */
 class OpenAiResponsesClientPayloadTest {
@@ -40,7 +41,7 @@ class OpenAiResponsesClientPayloadTest {
                 """).generate("지침", "입력", OPTIONS);
 
         assertThat(generated).isEqualTo(new GeneratedText("답", new TokenUsage(5, 0, 5), "gpt-6-luna"));
-        assertThat(requests.getFirst().body().path("model").asText()).isEqualTo("gpt-6-luna");
+        assertThat(LenientJson.asText(requests.getFirst().body().path("model"))).isEqualTo("gpt-6-luna");
         assertThat(requests.getFirst().body().path("store").asBoolean(true)).isFalse();
         assertThat(client("{\"output_text\":\"기본\"}").generate("지침", "입력",
                 new GenerationOptions(null, "low", 10, null, null)).model()).isEqualTo(OpenAiModels.CHAT);

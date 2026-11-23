@@ -36,6 +36,7 @@ import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 배우 기억 6칸의 저장 계층 (`db/store.py:PostgresStore.list_actor_memory` 외).
@@ -456,7 +457,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         if (card == null) {
             return null;
         }
-        boolean practiceNote = "acttub.practice_note.v1".equals(card.path("schema_version").asText());
+        boolean practiceNote = "acttub.practice_note.v1".equals(LenientJson.asText(card.path("schema_version")));
         String title = practiceNote ? card.path("copy").path("title").asText("") : card.path("title").asText("");
         if (title.isBlank()) {
             return null;
@@ -470,15 +471,15 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         }
         line.append(": ").append(title);
         if (practiceNote && card.path("practice").isObject()) {
-            line.append(" — ").append("selected".equals(card.path("practice").path("selection").asText()) ? "선택한 연습: " : "제안: ")
-                    .append(card.path("practice").path("instruction").path("text").asText());
+            line.append(" — ").append("selected".equals(LenientJson.asText(card.path("practice").path("selection"))) ? "선택한 연습: " : "제안: ")
+                    .append(LenientJson.asText(card.path("practice").path("instruction").path("text")));
             return line.toString();
         }
         JsonNode nextTake = card.path("next_take");
         if (nextTake.isObject() && nextTake.path("tested").isBoolean()
                 && !nextTake.path("tested").asBoolean()
                 && nextTake.path("direction").isTextual()) {
-            line.append(" — 다음: ").append(nextTake.path("direction").asText());
+            line.append(" — 다음: ").append(LenientJson.asText(nextTake.path("direction")));
         }
         return line.toString();
     }
@@ -519,15 +520,15 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         if (root == null) {
             return List.of();
         }
-        if ("acttub.practice_note.v1".equals(root.path("schema_version").asText())) {
+        if ("acttub.practice_note.v1".equals(LenientJson.asText(root.path("schema_version")))) {
             JsonNode practice = root.path("practice");
-            if (!"selected".equals(practice.path("selection").asText())) return List.of();
+            if (!"selected".equals(LenientJson.asText(practice.path("selection")))) return List.of();
             JsonNode latest = null;
             for (JsonNode attempt : root.path("attempts")) {
                 if (attempt.path("proposal_id").equals(practice.path("proposal_id"))) latest = attempt;
             }
-            return latest != null && "not_tried".equals(latest.path("execution").asText())
-                    ? List.of(practice.path("instruction").path("text").asText()) : List.of();
+            return latest != null && "not_tried".equals(LenientJson.asText(latest.path("execution")))
+                    ? List.of(LenientJson.asText(practice.path("instruction").path("text"))) : List.of();
         }
         List<String> takes = new ArrayList<>();
         JsonNode nextTake = root.get("next_take");
@@ -576,7 +577,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
 
     private static void add(List<String> takes, JsonNode value) {
         if (value != null && value.isTextual()) {
-            String stripped = PythonText.strip(value.asText());
+            String stripped = PythonText.strip(LenientJson.asText(value));
             if (!stripped.isEmpty()) {
                 takes.add(stripped);
             }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class DialogueProgressTest {
     @Test void aCorrectionCanBeFollowedByAnExplicitClosingSentence() {
@@ -43,7 +44,7 @@ class DialogueProgressTest {
     }
     @Test void consecutiveAcknowledgementsMustNotProduceAnotherAcknowledgement() {
         var progress = DialogueProgress.controls(input("ㅇㅇ", "acknowledge", "ㅇㅇ"));
-        assertThat(progress.path("consecutive_acknowledgements").asInt()).isEqualTo(2);
+        assertThat(LenientJson.asInt(progress.path("consecutive_acknowledgements"))).isEqualTo(2);
         assertThatThrownBy(() -> DialogueProgress.validate(reply("acknowledge", false), progress))
                 .hasMessageContaining("다음 도움");
         assertThatCode(() -> DialogueProgress.validate(reply("explain", false), progress)).doesNotThrowAnyException();
@@ -93,8 +94,8 @@ class DialogueProgressTest {
         assertThat(DialogueProgress.turnInstruction(closing)).isEmpty();
         assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
-        assertThat(DialogueProgress.controls(input("ㅇㅇ 어쩌라고", "explain", "ㅇㅇ"))
-                .path("consecutive_acknowledgements").asInt()).isZero();
+        assertThat(LenientJson.asInt(DialogueProgress.controls(input("ㅇㅇ 어쩌라고", "explain", "ㅇㅇ"))
+                .path("consecutive_acknowledgements"))).isZero();
         assertThat(DialogueProgress.controls(input("상대가 급하게 계약하려고 해서", "simplify", "무슨 말이야"))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
     }

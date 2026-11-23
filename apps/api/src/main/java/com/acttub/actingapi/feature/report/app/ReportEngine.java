@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** acting-report 엔진: 차단 판정, Python식 입력 직렬화, 출력 파싱을 한 경계에 둔다. */
 @Service
@@ -132,7 +133,7 @@ public class ReportEngine {
             if (practiceSessionId != null) {
                 telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked",
                         confirmedHandoff != null
-                                && "unavailable".equals(confirmedHandoff.path("completion_level").asText())));
+                                && "unavailable".equals(LenientJson.asText(confirmedHandoff.path("completion_level")))));
             }
             return blockedReport(reportType);
         }
@@ -244,7 +245,7 @@ public class ReportEngine {
             return null;
         }
         // 코치 생성이 두 번 실패해 서버가 마친 대화는 노트 생성·재생성으로 결론을 만들지 않는다.
-        if ("unavailable".equals(confirmedHandoff.path("completion_level").asText())) {
+        if ("unavailable".equals(LenientJson.asText(confirmedHandoff.path("completion_level")))) {
             return null;
         }
         ObjectNode confirmation = mapper.createObjectNode();
@@ -265,7 +266,7 @@ public class ReportEngine {
             return null;
         }
         input.set("analysis_handoff", analysisHandoff == null
-                || "unavailable".equals(analysisHandoff.path("completion_level").asText())
+                || "unavailable".equals(LenientJson.asText(analysisHandoff.path("completion_level")))
                 ? mapper.nullNode()
                 : analysisHandoff.deepCopy());
         input.set("expression_handoff", confirmedHandoff.deepCopy());
@@ -311,7 +312,7 @@ public class ReportEngine {
         }
         ObjectNode candidate = (ObjectNode) parsed;
         try {
-            if (ReportBranch.isBlocked(candidate.path("report_type").asText())) {
+            if (ReportBranch.isBlocked(LenientJson.asText(candidate.path("report_type")))) {
                 validateBlocked(candidate);
                 return candidate;
             }
@@ -515,9 +516,9 @@ public class ReportEngine {
     }
 
     private static long integral(JsonNode value, String field) {
-        require(value != null && value.isNumber() && value.doubleValue() == value.longValue(),
+        require(value != null && value.isNumber() && value.doubleValue() == LenientJson.longValue(value),
                 field + " must be an integer");
-        return value.longValue();
+        return LenientJson.longValue(value);
     }
 
     private static ObjectNode object(JsonNode value, String field) {

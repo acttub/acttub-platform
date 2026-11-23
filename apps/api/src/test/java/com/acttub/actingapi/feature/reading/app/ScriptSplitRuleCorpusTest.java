@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 운영 대본 묶음으로 규칙 나누기(SOMA-1090)를 저장된 AI 나누기 결과와 견준다. {@code ACTTUB_SPLIT_CORPUS} 에 뽑아 온 파일이 있을 때만
@@ -54,9 +55,9 @@ class ScriptSplitRuleCorpusTest {
         List<String> speakers = new ArrayList<>();
         List<String> texts = new ArrayList<>();
         for (JsonNode l : stored) {
-            kinds.add(l.get(0).asText());
-            speakers.add(norm(l.get(1).asText()));
-            texts.add(norm(l.get(2).asText()));
+            kinds.add(LenientJson.asText(l.get(0)));
+            speakers.add(norm(LenientJson.asText(l.get(1))));
+            texts.add(norm(LenientJson.asText(l.get(2))));
         }
         Set<String> castNorm = new HashSet<>();
         storedCast.forEach(c -> castNorm.add(norm(c)));
@@ -157,7 +158,7 @@ class ScriptSplitRuleCorpusTest {
                 if (!line.startsWith("{")) continue;
                 JsonNode script = json.readTree(line);
                 List<String> storedCast = new ArrayList<>();
-                script.path("chars").forEach(c -> storedCast.add(c.asText()));
+                script.path("chars").forEach(c -> storedCast.add(LenientJson.asText(c)));
                 List<NumberedLine> numbered = NumberedLine.of(script.path("raw").asText(""));
                 Map<Integer, String> want = storedLabels(numbered, script.path("lines"), storedCast);
 
@@ -183,7 +184,7 @@ class ScriptSplitRuleCorpusTest {
                     double p = (double) fullLines.same / fullLines.content;
                     fullScripts.merge(p >= 0.95 ? "1 ≥95%" : p >= 0.9 ? "2 90~95%" : p >= 0.8 ? "3 80~90%" : p >= 0.6 ? "4 60~80%" : "5 <60%", 1, Integer::sum);
                 }
-                rows.printf("%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d%n", script.path("id").asText(), format, rule.confident(), rule.total(),
+                rows.printf("%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d%n", LenientJson.asText(script.path("id")), format, rule.confident(), rule.total(),
                         ruleLines.answered, ruleLines.same, fullLines.same, fullLines.content);
             }
         }

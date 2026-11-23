@@ -14,6 +14,7 @@ import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Invented contract scene. Never sends private actor conversations to the model. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
@@ -59,7 +60,7 @@ class DialogueContinuityEvalTest {
             segment.putObject("channel_status").put("audio", "recorded").put("visual", "recorded");
         }
         var record = VideoRecord.empty(UUID.randomUUID(), 12000, true, new ActorMaterial("", "", "", "그 외", "", 12000));
-        VideoRecord.append(record, VideoRecord.prepareChunk(chunk, chunk.path("chunk_id").asText(), 12000), 0);
+        VideoRecord.append(record, VideoRecord.prepareChunk(chunk, LenientJson.asText(chunk.path("chunk_id")), 12000), 0);
         VideoRecord.finish(record, null);
         var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 record, "", "", "", 12000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
@@ -92,7 +93,7 @@ class DialogueContinuityEvalTest {
                     assertThat(message).doesNotMatch("(?s).*왜.{0,25}(?:이야기|꺼냈|꺼내).*");
                 }
                 ack = actor.equals("ㅇㅇ") ? ack + 1 : 0;
-                if (ack >= 2) assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isNotEqualTo("acknowledge");
+                if (ack >= 2) assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("move"))).isNotEqualTo("acknowledge");
                 if (actor.contains("어쩌라고")) assertThat(message).doesNotContain("카메라", "목소리에 힘", "정면");
             }
             output.set("state", result.session().coachingState());

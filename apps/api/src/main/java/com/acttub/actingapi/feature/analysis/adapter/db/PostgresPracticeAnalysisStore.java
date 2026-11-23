@@ -20,6 +20,7 @@ import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 0.1.0 회차의 분석 저장소 — 큐는 {@code ai_jobs}, 결과는 {@code analyses}·{@code video_transcripts} 다.
@@ -125,7 +126,7 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
             UUID videoId = row.get("video_id", UUID.class);
             boolean fullRecord = result.videoRecord() != null;
             UUID analysisId = fullRecord
-                    ? UUID.fromString(result.videoRecord().path("record_id").asText())
+                    ? UUID.fromString(LenientJson.asText(result.videoRecord().path("record_id")))
                     : UUID.randomUUID();
             JsonNode record = fullRecord ? result.videoRecord() : JSON.valueToTree(result.observationPack());
             // 못 본 구간이 있으면 partial 이다 — 채우지 않는다.

@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 예시 대본의 Postgres 구현 — {@code reading_examples} (V61, 미리 만든 음성 audio 는 V62). native SQL 만 쓴다(Schema Entity 없음). draft 는 jsonb 를 글로
@@ -99,7 +100,7 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
         List<ReadingExample.Line> lines = new ArrayList<>();
         draft.path("lines").forEach(line -> lines.add(new ReadingExample.Line(
                 line.path("kind").textValue(),
-                line.path("character").isIntegralNumber() ? line.path("character").intValue() : null,
+                line.path("character").isIntegralNumber() ? LenientJson.intValue(line.path("character")) : null,
                 line.path("text").textValue())));
         return new ReadingExample(row.get("id", String.class), row.get("title", String.class), row.get("summary", String.class),
                 row.get("raw_text", String.class), characters, lines, audio(row));

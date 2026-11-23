@@ -30,6 +30,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.notification 의 "검증 방법" 가운데 서버의 몫 — 토글 셋과 푸시 토큰의 수명 — 을 HTTP 와 실제
@@ -289,15 +290,15 @@ class AccountNotificationIT {
 
         for (var response : List.of(webPlatform, blank)) {
             assertThat(response.getStatus()).isEqualTo(422);
-            assertThat(mapper.readTree(response.getContentAsString()).at("/detail/0/type").asText())
+            assertThat(LenientJson.asText(mapper.readTree(response.getContentAsString()).at("/detail/0/type")))
                     .isEqualTo("value_error");
         }
         assertThat(tooLong.getStatus()).isEqualTo(422);
-        assertThat(mapper.readTree(tooLong.getContentAsString()).at("/detail/0/type").asText())
+        assertThat(LenientJson.asText(mapper.readTree(tooLong.getContentAsString()).at("/detail/0/type")))
                 .isEqualTo("string_too_long");
         assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/loc").toString())
                 .isEqualTo("[\"body\",\"platform\"]");
-        assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/input").asText()).isEqualTo("web");
+        assertThat(LenientJson.asText(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/input"))).isEqualTo("web");
         assertThat(mapper.readTree(blank.getContentAsString()).at("/detail/0/loc").toString())
                 .isEqualTo("[\"body\",\"token\"]");
         assertThat(count("push_tokens")).isZero();
@@ -309,9 +310,9 @@ class AccountNotificationIT {
         var webPlatform = postToken(bearer, "ExponentPushToken[web]", "web");
         var blank = postToken(bearer, "   ");
 
-        assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/msg").asText())
+        assertThat(LenientJson.asText(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/msg")))
                 .isEqualTo("Value error, platform must be one of: ios, android");
-        assertThat(mapper.readTree(blank.getContentAsString()).at("/detail/0/msg").asText())
+        assertThat(LenientJson.asText(mapper.readTree(blank.getContentAsString()).at("/detail/0/msg")))
                 .isEqualTo("Value error, token must be a non-empty string of at most 512 characters");
     }
 

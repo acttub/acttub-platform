@@ -13,6 +13,7 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class ReportEngineTest {
 
@@ -29,12 +30,12 @@ class ReportEngineTest {
             JsonNode report = engine.generateReport(branch, old,
                     branch.equals("analysis") ? handoff() : expressionHandoff(true, "실험", "변화"),
                     true, "handoff", null, null);
-            assertThat(report.path("report_type").asText()).isEqualTo(branch);
+            assertThat(LenientJson.asText(report.path("report_type"))).isEqualTo(branch);
             assertThat(generator.inputs).hasSize(1);
             JsonNode normalized = MAPPER.readTree(generator.inputs.getFirst()).path("video_summary");
             assertThat(normalized.has("timeline")).isFalse();
             assertThat(normalized.has("speech")).isFalse();
-            assertThat(normalized.at("/observations/0/what").asText()).isEqualTo("멈춘다");
+            assertThat(LenientJson.asText(normalized.at("/observations/0/what"))).isEqualTo("멈춘다");
         }
     }
 
@@ -46,7 +47,7 @@ class ReportEngineTest {
         pack.set("speech", speech);
         var engine = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry());
         var input = engine.buildReportInput("analysis", pack, handoff(), true, "id", null, null);
-        assertThat(input.at("/video_summary/timeline").asText()).isEqualTo("0:01에 멈춘다");
+        assertThat(LenientJson.asText(input.at("/video_summary/timeline"))).isEqualTo("0:01에 멈춘다");
         assertThat(input.at("/video_summary/speech")).isEqualTo(speech);
     }
 
@@ -107,8 +108,8 @@ class ReportEngineTest {
                 "analysis-id");
 
         assertThat(generator.inputs).hasSize(1);
-        assertThat(report.at("/source_handoff_ids/analysis").asText()).isEqualTo("analysis-id");
-        assertThat(report.at("/source_handoff_ids/expression").asText()).isEqualTo("expression-id");
+        assertThat(LenientJson.asText(report.at("/source_handoff_ids/analysis"))).isEqualTo("analysis-id");
+        assertThat(LenientJson.asText(report.at("/source_handoff_ids/expression"))).isEqualTo("expression-id");
     }
 
     @Test
@@ -121,7 +122,7 @@ class ReportEngineTest {
                 "analysis-id",
                 null);
 
-        assertThat(report.path("source_handoff_id").asText()).isEqualTo("analysis-id");
+        assertThat(LenientJson.asText(report.path("source_handoff_id"))).isEqualTo("analysis-id");
     }
 
     @Test
@@ -174,7 +175,7 @@ class ReportEngineTest {
         var report = engine.generateReport("analysis", pack(), handoff(), true, "handoff",
                 null, null, practice, userId);
 
-        assertThat(report.path("report_type").asText()).isEqualTo("analysis");
+        assertThat(LenientJson.asText(report.path("report_type"))).isEqualTo("analysis");
         assertThat(telemetry.calls()).singleElement().satisfies(call -> {
             assertThat(call.practiceSessionId()).isEqualTo(practice);
             assertThat(call.userId()).isEqualTo(userId);

@@ -31,6 +31,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.poster — 앱이 받는 포스터 고르기와 운영 토큰으로 여는 관리 경로. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret",
@@ -161,7 +162,7 @@ class PosterEndpointIT {
         assertThat(stored.path("published_at").textValue()).isNotBlank();
         assertThat(stored.path("ends_at").isNull()).isTrue();
         assertThat(stored.path("title").textValue()).isEqualTo("stored 제목");
-        assertThat(stored.path("revision").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(stored.path("revision"))).isEqualTo(2);
         assertThat(notices.get(1).path("image_asset").textValue()).isEqualTo("mascot-reading");
         assertThat(notices.get(1).path("image_url").isNull()).isTrue();
     }
@@ -193,7 +194,7 @@ class PosterEndpointIT {
         assertThat(stored.fieldNames()).toIterable().containsExactly("slug", "revision", "frequency", "audience",
                 "dismissible", "badge", "title", "body", "image_url", "image_asset", "audio_asset", "cta_label",
                 "cta_action", "cta_target", "footnote", "image_bg");
-        assertThat(stored.path("revision").intValue()).isEqualTo(3);
+        assertThat(LenientJson.intValue(stored.path("revision"))).isEqualTo(3);
         assertThat(stored.path("frequency").textValue()).isEqualTo("once");
         assertThat(stored.path("dismissible").booleanValue()).isFalse();
         assertThat(stored.path("image_url").textValue()).isEqualTo("signed:" + key + ":3600");
@@ -271,7 +272,7 @@ class PosterEndpointIT {
                 "starts_at", "ends_at", "platforms", "locale", "min_app_version", "frequency", "audience",
                 "dismissible", "badge", "title", "body", "image", "audio", "cta_label", "cta_action", "cta_target", "footnote", "image_bg",
                 "created_at", "updated_at");
-        assertThat(created.path("revision").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(created.path("revision"))).isEqualTo(1);
         assertThat(created.path("active").booleanValue()).isFalse();
         assertThat(created.path("platforms").toString()).isEqualTo("[\"ios\",\"android\"]");
         assertThat(created.path("frequency").textValue()).isEqualTo("daily");
@@ -319,18 +320,18 @@ class PosterEndpointIT {
         assertThat(patched.path("ends_at").isNull()).isTrue();
         assertThat(patched.path("active").booleanValue()).isTrue();
         assertThat(patched.path("body").textValue()).isEqualTo("본문");
-        assertThat(patched.path("priority").intValue()).isEqualTo(4);
-        assertThat(patched.path("revision").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(patched.path("priority"))).isEqualTo(4);
+        assertThat(LenientJson.intValue(patched.path("revision"))).isEqualTo(1);
         assertThat(patched.path("updated_at").textValue()).isGreaterThan(created.path("updated_at").textValue());
         assertThat(patched.path("created_at")).isEqualTo(created.path("created_at"));
 
         JsonNode bumped = json(admin(patch("/v2/admin/posters/" + id), "{\"bump_revision\":true}"), 200);
-        assertThat(bumped.path("revision").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(bumped.path("revision"))).isEqualTo(2);
         assertThat(bumped.path("title").textValue()).isEqualTo("바뀜");
 
         JsonNode off = json(admin(patch("/v2/admin/posters/" + id), "{\"active\":false}"), 200);
         assertThat(off.path("active").booleanValue()).isFalse();
-        assertThat(off.path("revision").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(off.path("revision"))).isEqualTo(2);
     }
 
     @Test
@@ -365,8 +366,8 @@ class PosterEndpointIT {
                         {"detail":[{"type":"value_error","loc":["body","bump_revision"],
                           "msg":"Value error, bump_revision must be a boolean","input":"yes","ctx":{"error":{}}}]}
                         """));
-        assertThat(json(admin(patch("/v2/admin/posters/" + id), "{\"bump_revision\":false,\"title\":\"새 제목\"}"), 200)
-                .path("revision").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(json(admin(patch("/v2/admin/posters/" + id), "{\"bump_revision\":false,\"title\":\"새 제목\"}"), 200)
+                .path("revision"))).isEqualTo(1);
     }
 
     @Test
@@ -377,7 +378,7 @@ class PosterEndpointIT {
         String key = upload.path("key").textValue();
         assertThat(key).matches("posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp");
         assertThat(upload.path("upload_url").textValue()).isEqualTo("put:" + key + ":image/webp:2048:600");
-        assertThat(upload.path("expires_in").intValue()).isEqualTo(600);
+        assertThat(LenientJson.intValue(upload.path("expires_in"))).isEqualTo(600);
 
         assertThat(json(admin(post("/v2/admin/poster-images"), "{\"content_type\":\"image/gif\",\"size_bytes\":10}"), 415))
                 .isEqualTo(mapper.readTree("{\"detail\":\"unsupported_media_type\"}"));

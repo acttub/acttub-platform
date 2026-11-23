@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 토스페이먼츠 자동결제(빌링) API 의 실물. 기본은 개별 연동 <b>테스트</b> 시크릿 키({@code test_sk_})만 쓰고, 호출 직전에도
@@ -106,10 +107,10 @@ public class TossBillingGateway implements PgReviewGateway {
             throw new GatewayException(GatewayException.Outcome.REJECTED, "billing_key_missing");
         }
         JsonNode json = reply.json();
-        String company = json.path("cardCompany").isTextual() ? json.path("cardCompany").asText() : null;
+        String company = json.path("cardCompany").isTextual() ? LenientJson.asText(json.path("cardCompany")) : null;
         String number = json.path("cardNumber").isTextual()
-                ? json.path("cardNumber").asText()
-                : (json.path("card").path("number").isTextual() ? json.path("card").path("number").asText() : null);
+                ? LenientJson.asText(json.path("cardNumber"))
+                : (json.path("card").path("number").isTextual() ? LenientJson.asText(json.path("card").path("number")) : null);
         return new IssuedKey(billingKey, shortText(company), shortText(number));
     }
 
@@ -147,8 +148,8 @@ public class TossBillingGateway implements PgReviewGateway {
         return new Approval(
                 json.path("status").asText(""),
                 json.path("orderId").asText(""),
-                total.isNumber() ? total.asLong() : -1L,
-                json.path("approvedAt").isTextual() ? json.path("approvedAt").asText() : null);
+                total.isNumber() ? LenientJson.asLong(total) : -1L,
+                json.path("approvedAt").isTextual() ? LenientJson.asText(json.path("approvedAt")) : null);
     }
 
     private String authorization() {

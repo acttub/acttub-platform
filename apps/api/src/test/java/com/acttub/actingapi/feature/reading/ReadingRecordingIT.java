@@ -64,6 +64,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * reading.recording 의 "검증 방법" 가운데 서버가 맡는 항목을 HTTP 와 실제 Postgres 로 본다. 오브젝트 스토리지는 메모리의
@@ -157,10 +158,10 @@ class ReadingRecordingIT {
                 "id", "line_id", "attempt_no", "duration_ms", "content_type", "byte_size", "transcript", "transcript_source",
                 "matched", "playback_url", "playback_expires_at");
         assertThat(one.path("line_id").textValue()).isEqualTo(script.dialogue(1).toString());
-        assertThat(one.path("attempt_no").intValue()).isEqualTo(1);
-        assertThat(one.path("duration_ms").intValue()).isEqualTo(1500);
+        assertThat(LenientJson.intValue(one.path("attempt_no"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(one.path("duration_ms"))).isEqualTo(1500);
         assertThat(one.path("content_type").textValue()).isEqualTo("audio/mp4");
-        assertThat(one.path("byte_size").longValue()).isEqualTo(M4A.length);
+        assertThat(LenientJson.longValue(one.path("byte_size"))).isEqualTo(M4A.length);
         String key = "reading/" + member + "/" + session + "/" + script.dialogue(1) + "/" + first + ".m4a";
         assertThat(one.path("playback_url").textValue()).isEqualTo("https://storage.test/get/" + key);
         assertThat(storage.objects).containsKeys(key).hasSize(2);
@@ -178,10 +179,10 @@ class ReadingRecordingIT {
         assertThat(storage.objects).hasSize(2);
 
         JsonNode card = json(get("/v2/reading/scripts/{id}/sessions", script.id), 200).path("sessions").get(0);
-        assertThat(card.path("recorded_line_count").intValue()).as("내 대사 4개 중 2개 녹음").isEqualTo(2);
-        assertThat(card.path("my_dialogue_count").intValue()).isEqualTo(4);
-        assertThat(json(get("/v2/reading/scripts"), 200).path("scripts").get(0).path("recording_count").intValue()).isEqualTo(2);
-        assertThat(json(get("/v2/reading/scripts/{id}", script.id), 200).path("recording_count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(card.path("recorded_line_count"))).as("내 대사 4개 중 2개 녹음").isEqualTo(2);
+        assertThat(LenientJson.intValue(card.path("my_dialogue_count"))).isEqualTo(4);
+        assertThat(LenientJson.intValue(json(get("/v2/reading/scripts"), 200).path("scripts").get(0).path("recording_count"))).isEqualTo(2);
+        assertThat(LenientJson.intValue(json(get("/v2/reading/scripts/{id}", script.id), 200).path("recording_count"))).isEqualTo(2);
     }
 
     @Test
@@ -198,8 +199,8 @@ class ReadingRecordingIT {
 
         String secondKey = "reading/" + member + "/" + session + "/" + script.dialogue(1) + "/" + second + ".m4a";
         assertThat(take2.path("id").textValue()).as("행은 하나다").isEqualTo(take1.path("id").textValue());
-        assertThat(take2.path("attempt_no").intValue()).isEqualTo(2);
-        assertThat(take2.path("byte_size").longValue()).isEqualTo(2100);
+        assertThat(LenientJson.intValue(take2.path("attempt_no"))).isEqualTo(2);
+        assertThat(LenientJson.longValue(take2.path("byte_size"))).isEqualTo(2100);
         assertThat(take2.path("playback_url").textValue()).endsWith(secondKey);
         assertThat(count("reading_recordings")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT object_key FROM reading_recordings", String.class)).isEqualTo(secondKey);
@@ -230,14 +231,14 @@ class ReadingRecordingIT {
         JsonNode take2 = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 2, "audio/mp4", M4A, 1100, "none", null, null, 201);
         JsonNode late = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/mp4", M4A, 900, "none", null, null, 200);
 
-        assertThat(late.path("attempt_no").intValue()).as("더 작은 시도 번호는 무시하고 현재 값").isEqualTo(2);
-        assertThat(late.path("duration_ms").intValue()).isEqualTo(1100);
+        assertThat(LenientJson.intValue(late.path("attempt_no"))).as("더 작은 시도 번호는 무시하고 현재 값").isEqualTo(2);
+        assertThat(LenientJson.intValue(late.path("duration_ms"))).isEqualTo(1100);
         assertThat(late.path("id").textValue()).isEqualTo(take2.path("id").textValue());
         assertThat(count("reading_recordings")).isEqualTo(1);
         assertThat(storage.objects).as("늦은 객체는 남지 않는다").hasSize(1);
         assertThat(count("account_cleanup_operations")).isZero();
-        assertThat(upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 2, "audio/mp4", M4A, 900, "none", null, null, 200)
-                .path("attempt_no").intValue()).as("같은 번호도 무시한다").isEqualTo(2);
+        assertThat(LenientJson.intValue(upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 2, "audio/mp4", M4A, 900, "none", null, null, 200)
+                .path("attempt_no"))).as("같은 번호도 무시한다").isEqualTo(2);
     }
 
     @Test
@@ -253,7 +254,7 @@ class ReadingRecordingIT {
         upload(guest.bearer(), guestSession, UUID.randomUUID(), guests.dialogue(3), 1, "audio/webm", webm, 1700, "none", null, null, 201);
 
         assertThat(first.path("content_type").textValue()).isEqualTo("audio/mp4");
-        assertThat(first.path("byte_size").longValue()).as("변환 뒤 크기").isEqualTo(FakeFfmpeg.OUTPUT.length);
+        assertThat(LenientJson.longValue(first.path("byte_size"))).as("변환 뒤 크기").isEqualTo(FakeFfmpeg.OUTPUT.length);
         assertThat(ffmpeg.commands).hasSize(2);
         assertThat(ffmpeg.commands.getFirst()).contains("-c:a", "aac").last().asString().endsWith(".m4a");
         assertThat(jdbc.queryForList("SELECT object_key FROM reading_recordings", String.class)).allSatisfy(key -> {
@@ -272,7 +273,7 @@ class ReadingRecordingIT {
         assertThat(detail.path("recordings").get(0).path("transcript").textValue()).isEqualTo("안녕하세요");
         assertThat(detail.path("recording_count").isMissingNode()).isTrue();
         assertThat(jdbc.queryForList("SELECT user_id FROM reading_recordings", UUID.class)).containsOnly(member);
-        assertThat(json(get("/v2/reading/scripts/{id}", guests.id), 200).path("recording_count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(json(get("/v2/reading/scripts/{id}", guests.id), 200).path("recording_count"))).isEqualTo(2);
     }
 
     @Test
@@ -309,8 +310,8 @@ class ReadingRecordingIT {
 
         JsonNode limit = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/mp4", new byte[10_000_000], 180_000, "none",
                 null, null, 201);
-        assertThat(limit.path("byte_size").longValue()).isEqualTo(10_000_000L);
-        assertThat(limit.path("duration_ms").intValue()).isEqualTo(180_000);
+        assertThat(LenientJson.longValue(limit.path("byte_size"))).isEqualTo(10_000_000L);
+        assertThat(LenientJson.intValue(limit.path("duration_ms"))).isEqualTo(180_000);
     }
 
     @Test
@@ -341,8 +342,8 @@ class ReadingRecordingIT {
         assertThat(storage.objects).as("올렸던 객체는 장부가 지운다").hasSize(1);
         assertThat(count("account_cleanup_operations")).isZero();
         // 대체는 앞 녹음의 바이트를 빼고 센다 — 같은 줄의 다시 말하기는 된다.
-        assertThat(upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 2, "audio/mp4", M4A, 1000, "none", null, null, 201)
-                .path("byte_size").longValue()).isEqualTo(M4A.length);
+        assertThat(LenientJson.longValue(upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 2, "audio/mp4", M4A, 1000, "none", null, null, 201)
+                .path("byte_size"))).isEqualTo(M4A.length);
 
         Guest guest = consentedGuest();
         Script guests = saveScript(guest.bearer());
@@ -443,14 +444,14 @@ class ReadingRecordingIT {
 
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
 
-        assertThat(detail.path("my_dialogue_count").intValue()).isEqualTo(4);
-        assertThat(detail.path("recorded_line_count").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(detail.path("my_dialogue_count"))).isEqualTo(4);
+        assertThat(LenientJson.intValue(detail.path("recorded_line_count"))).isEqualTo(2);
         assertThat(detail.path("recordings")).extracting(row -> row.path("line_id").textValue())
                 .as("줄 순서").containsExactly(script.dialogue(1).toString(), script.dialogue(7).toString());
         JsonNode first = detail.path("recordings").get(0);
         assertThat(first.path("playback_url").textValue()).startsWith("https://storage.test/get/reading/" + member + "/" + session + "/");
         assertThat(Instant.parse(first.path("playback_expires_at").textValue())).isEqualTo(clock.instant().plusSeconds(600));
-        assertThat(first.path("duration_ms").intValue()).isEqualTo(20_000);
+        assertThat(LenientJson.intValue(first.path("duration_ms"))).isEqualTo(20_000);
 
         clock.advance(Duration.ofMinutes(11));
         JsonNode again = json(get("/v2/reading/sessions/{id}", session), 200);
@@ -480,8 +481,8 @@ class ReadingRecordingIT {
         assertThat(count("account_cleanup_operations")).isZero();
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
         assertThat(detail.path("current_line_id").textValue()).as("회차 진행은 그대로").isEqualTo(script.dialogue(3).toString());
-        assertThat(detail.path("elapsed_seconds").intValue()).isEqualTo(12);
-        assertThat(detail.path("recorded_line_count").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(detail.path("elapsed_seconds"))).isEqualTo(12);
+        assertThat(LenientJson.intValue(detail.path("recorded_line_count"))).isEqualTo(1);
         assertThat(count("line_memorization")).as("암기 상태는 그대로").isEqualTo(1);
         assertThat(perform(delete("/v2/reading/recordings/{id}", removed.path("id").textValue()), bearer).getStatus()).isEqualTo(404);
     }
@@ -543,12 +544,12 @@ class ReadingRecordingIT {
                 .param("request_id", "not-a-uuid").param("line_id", script.dialogue(1).toString()).param("attempt_no", "1")
                 .param("duration_ms", "1000").param("transcript_source", "none"), bearer);
         assertThat(notUuid.getStatus()).isEqualTo(422);
-        assertThat(mapper.readTree(notUuid.getContentAsString()).path("detail").get(0).path("loc")).extracting(JsonNode::asText)
+        assertThat(mapper.readTree(notUuid.getContentAsString()).path("detail").get(0).path("loc")).extracting(LenientJson::asText)
                 .containsExactly("body", "request_id");
         var mismatch = perform(uploadRequest(session, UUID.randomUUID(), script.dialogue(1), 1, "audio/mp4", M4A, 1000, "none", null, null)
                 .header("X-Request-Id", UUID.randomUUID().toString()), bearer);
         assertThat(mismatch.getStatus()).isEqualTo(422);
-        assertThat(mapper.readTree(mismatch.getContentAsString()).path("detail").get(0).path("loc")).extracting(JsonNode::asText)
+        assertThat(mapper.readTree(mismatch.getContentAsString()).path("detail").get(0).path("loc")).extracting(LenientJson::asText)
                 .containsExactly("header", "X-Request-Id");
         assertThat(count("reading_recordings")).isZero();
         assertThat(storage.objects).isEmpty();

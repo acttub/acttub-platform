@@ -14,6 +14,7 @@ import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Entirely fictional material. Structural assertions require a separate semantic transcript review. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
@@ -64,7 +65,7 @@ class SceneContextConversationEvalTest {
             segment.putObject("channel_status").put("audio", "recorded").put("visual", "recorded");
         }
         var record = VideoRecord.empty(UUID.randomUUID(), 12000, true, new ActorMaterial("", "", "", "그 외", "", 12000));
-        VideoRecord.append(record, VideoRecord.prepareChunk(chunk, chunk.path("chunk_id").asText(), 12000), 0);
+        VideoRecord.append(record, VideoRecord.prepareChunk(chunk, LenientJson.asText(chunk.path("chunk_id")), 12000), 0);
         VideoRecord.finish(record, null);
         var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 record, "", "", "", 12000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
@@ -100,7 +101,7 @@ class SceneContextConversationEvalTest {
                     assertThat(result.reply().message()).doesNotContain("단호", "음량", "목소리", "속도", "짧게 끊");
                 }
                 if (reply.equals("ㅁㄹ") || reply.equals("모르겠어") || reply.equals("뭔 소리야?")) {
-                    assertThat(result.session().coachingState().path("last_reply").path("move").asText())
+                    assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("move")))
                             .isIn("explain", "clarify", "simplify");
                     assertThat(result.reply().message()).doesNotContain("말해보세요", "기다려보세요", "잡아보세요", "기다리세요");
                 }

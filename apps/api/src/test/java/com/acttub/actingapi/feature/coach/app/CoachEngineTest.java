@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class CoachEngineTest {
 
@@ -122,7 +123,7 @@ class CoachEngineTest {
             for (int turn : List.of(8, 9)) {
                 CoachReply reply = safeReplyAfterTwoFailures(turn, kind);
                 assertThat(reply.status()).isEqualTo("complete");
-                assertThat(reply.handoff().path("completion_level").asText()).isEqualTo("unavailable");
+                assertThat(LenientJson.asText(reply.handoff().path("completion_level"))).isEqualTo("unavailable");
                 assertThat(reply.handoff().path("actor_words")).isEmpty();
             }
         }

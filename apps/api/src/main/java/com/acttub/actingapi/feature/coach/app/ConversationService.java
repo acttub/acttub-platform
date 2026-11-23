@@ -24,6 +24,7 @@ import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
@@ -506,7 +507,7 @@ public class ConversationService {
     /** 상한에 닿아 끝났는지, 배우가 마쳤는지. 엔진이 사유를 주지 않으면 소진으로 본다. */
     private static String closeReason(CoachResult result) {
         JsonNode handoff = result.reply().handoff();
-        String reason = handoff == null ? null : handoff.path("end_reason").asText(null);
+        String reason = handoff == null ? null : LenientJson.asText(handoff.path("end_reason"), null);
         if (reason == null || reason.isBlank()) reason = result.session().closeReason();
         return switch (reason == null ? "" : reason) {
             case "actor_finished" -> "user_ended";

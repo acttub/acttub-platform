@@ -23,6 +23,7 @@ import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.HttpOptions;
 import com.google.genai.types.Part;
 import com.google.genai.types.ThinkingConfig;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 1층 관찰(SOMA-815): 받아쓰기로 대사 덩어리와 시간을 정하고, 관찰 모델(기본 Gemini 4 Argon)이 그 덩어리마다 본 것을 적는다.
@@ -195,7 +196,7 @@ public final class GeminiLayerOneObserver implements LayerOneObserver {
         for (int i = 0; i < chunks.size(); i++) {
             JsonNode row = null;
             for (JsonNode r : parsed.path("chunks")) {
-                if (r.path("i").asInt(-1) == i) {
+                if (LenientJson.asInt(r.path("i"), -1) == i) {
                     row = r;
                     break;
                 }

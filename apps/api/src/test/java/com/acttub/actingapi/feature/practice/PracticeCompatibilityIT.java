@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * specs/practice 「0.1.0 스키마 전환」 ② — <b>호환 읽기 경로</b>를 HTTP 로 본다.
@@ -73,7 +74,7 @@ class PracticeCompatibilityIT {
 
         assertThat(detail.path("id").textValue()).isEqualTo(second.toString());
         assertThat(detail.path("root_id").textValue()).as("체인이 묶음과 차수로 펴진다").isEqualTo(first.toString());
-        assertThat(detail.path("ordinal").intValue()).isEqualTo(2);
+        assertThat(LenientJson.intValue(detail.path("ordinal"))).isEqualTo(2);
         assertThat(detail.path("stage").textValue()).isEqualTo("conversing");
         assertThat(detail.path("analysis_status").textValue())
                 .as("구형 관찰은 상태만 낸다 — 못 본 구간이 있으면 partial").isEqualTo("partial");

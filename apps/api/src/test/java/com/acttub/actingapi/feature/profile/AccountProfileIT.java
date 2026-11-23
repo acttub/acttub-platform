@@ -36,6 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.profile 의 "검증 방법"을 HTTP 와 실제 Postgres 로 본다.
@@ -170,11 +171,11 @@ class AccountProfileIT {
         assertThat(save(body).getStatus()).isEqualTo(200);
 
         // 생일 전날(한국 시간 10월 2일).
-        assertThat(me().path("profile").path("age").intValue()).isEqualTo(25);
+        assertThat(LenientJson.intValue(me().path("profile").path("age"))).isEqualTo(25);
 
         // 한국 시간 10월 3일 0시 30분 — UTC 로는 아직 10월 2일이다.
         clock.set(Instant.parse("2026-10-02T15:30:00Z"));
-        assertThat(me().path("profile").path("age").intValue()).isEqualTo(26);
+        assertThat(LenientJson.intValue(me().path("profile").path("age"))).isEqualTo(26);
     }
 
     @Test
@@ -187,7 +188,7 @@ class AccountProfileIT {
         var saved = save(body);
 
         assertThat(saved.getStatus()).as(saved.getContentAsString()).isEqualTo(200);
-        assertThat(mapper.readTree(saved.getContentAsString()).path("profile").path("age").intValue())
+        assertThat(LenientJson.intValue(mapper.readTree(saved.getContentAsString()).path("profile").path("age")))
                 .isEqualTo(14);
     }
 
