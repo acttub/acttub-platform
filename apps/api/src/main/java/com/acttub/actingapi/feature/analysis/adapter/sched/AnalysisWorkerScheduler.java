@@ -111,20 +111,14 @@ class AnalysisWorkerScheduler {
 
     private void drainQueue() {
         for (AnalysisWorker worker : workers) {
-            long started = System.nanoTime();
-            int processed = 0;
             try {
-                while (worker.runOnce()) {
-                    // 일감이 있는 동안은 대기하지 않는다.
-                    processed++;
-                }
+                // 일감이 있는 동안은 대기하지 않는다.
+                ScheduledTaskLog.drain("AnalysisWorkerScheduler.drainQueue", worker::runOnce);
             } catch (Exception exception) {
                 LOGGER.log(Level.WARNING, "analysis worker cycle failed", exception);
                 failureReporter.report(
                         exception,
                         new FailureContext("AnalysisWorkerScheduler.cycle"));
-            } finally {
-                ScheduledTaskLog.drained("AnalysisWorkerScheduler.drainQueue", processed, started);
             }
         }
     }

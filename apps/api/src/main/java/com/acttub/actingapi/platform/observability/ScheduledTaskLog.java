@@ -1,5 +1,7 @@
 package com.acttub.actingapi.platform.observability;
 
+import java.util.function.BooleanSupplier;
+
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import org.slf4j.Logger;
@@ -21,6 +23,19 @@ import org.springframework.util.ClassUtils;
 public class ScheduledTaskLog implements ObservationHandler<ScheduledTaskObservationContext> {
     static final long SLOW_MS = 1_000;
     private static final Logger LOG = LoggerFactory.getLogger(ScheduledTaskLog.class);
+
+    /** {@code once} 가 false 를 낼 때까지 돌리고 처리한 수를 남긴다. 예외는 그대로 던진다(그때까지 처리한 수는 남긴다). */
+    public static void drain(String task, BooleanSupplier once) {
+        long started = System.nanoTime();
+        int processed = 0;
+        try {
+            while (once.getAsBoolean()) {
+                processed++;
+            }
+        } finally {
+            drained(task, processed, started);
+        }
+    }
 
     /** 일감 비우기 한 번이 끝났을 때 부른다. 처리한 것이 없으면 남기지 않는다. */
     public static void drained(String task, int processed, long startedNanos) {

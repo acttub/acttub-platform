@@ -1,7 +1,10 @@
 package com.acttub.actingapi.platform.observability;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -59,6 +62,20 @@ class ScheduledTaskLogTest {
 
         assertThat(events.list).hasSize(1);
         assertThat(fields(events.list.get(0))).containsEntry("task", "Jobs.drain").containsEntry("processed", 3);
+    }
+
+    @Test
+    void drainCountsUntilTheWorkerStopsAndKeepsTheCountWhenItThrows() {
+        Iterator<Boolean> turns = List.of(true, true, false).iterator();
+        ScheduledTaskLog.drain("Jobs.drain", turns::next);
+        Iterator<Boolean> failing = List.of(true).iterator();
+
+        assertThatThrownBy(() -> ScheduledTaskLog.drain("Jobs.failing", () -> {
+            if (failing.hasNext()) return failing.next();
+            throw new IllegalStateException("lease lost");
+        })).isInstanceOf(IllegalStateException.class);
+
+        assertThat(events.list).extracting(event -> fields(event).get("processed")).containsExactly(2, 1);
     }
 
     private void run(String method, Throwable error) throws Exception {

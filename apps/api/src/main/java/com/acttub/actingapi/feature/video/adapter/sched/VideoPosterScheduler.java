@@ -68,17 +68,11 @@ class VideoPosterScheduler {
     }
 
     private void drain() {
-        long started = System.nanoTime();
-        int processed = 0;
         try {
-            while (worker.runOnce()) {
-                // 일감이 있는 동안은 기다리지 않는다 — 한 번에 한 영상이고 ffmpeg 락이 차례를 정한다.
-                processed++;
-            }
+            // 일감이 있는 동안은 기다리지 않는다 — 한 번에 한 영상이고 ffmpeg 락이 차례를 정한다.
+            ScheduledTaskLog.drain("VideoPosterScheduler.drain", worker::runOnce);
         } catch (RuntimeException failure) {
             failures.report(failure, new FailureContext("VideoPosterScheduler.drain"));
-        } finally {
-            ScheduledTaskLog.drained("VideoPosterScheduler.drain", processed, started);
         }
     }
 }
