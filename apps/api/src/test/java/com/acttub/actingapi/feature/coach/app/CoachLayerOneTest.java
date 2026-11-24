@@ -19,7 +19,7 @@ class CoachLayerOneTest {
 
     @Test
     void armIsStableAndRoughlyHalf() {
-        try (var layer = new CoachLayerOne((v, m, s, p, u) -> "", 50, null)) {
+        try (var layer = new CoachLayerOne((v, m, s, p, u) -> "", 50, null, CoachPro.NONE)) {
             int on = 0;
             for (int i = 0; i < 2000; i++) {
                 UUID id = UUID.randomUUID();
@@ -33,7 +33,7 @@ class CoachLayerOneTest {
     @Test
     void zeroShareOrNoObserverIsOff() {
         UUID id = UUID.randomUUID();
-        try (var none = new CoachLayerOne(null, 50, null); var zero = new CoachLayerOne((v, m, s, p, u) -> "x", 0, null)) {
+        try (var none = new CoachLayerOne(null, 50, null, CoachPro.NONE); var zero = new CoachLayerOne((v, m, s, p, u) -> "x", 0, null, CoachPro.NONE)) {
             assertThat(none.arm(id)).isEqualTo(CoachLayerOne.OFF);
             assertThat(zero.arm(id)).isEqualTo(CoachLayerOne.OFF);
             assertThat(CoachLayerOne.NONE.ready(id)).isEmpty();
@@ -56,7 +56,7 @@ class CoachLayerOneTest {
             }
             return "## 1층 관찰\n" + scene;
         };
-        try (var layer = new CoachLayerOne(observer, 100, null)) {
+        try (var layer = new CoachLayerOne(observer, 100, null, CoachPro.NONE)) {
             UUID id = UUID.randomUUID();
             layer.start(id, null, video, "video/mp4", new CoachLayerOne.Scene("상황", ".", "목표"));
             layer.start(id, null, video, "video/mp4", null);
@@ -74,7 +74,7 @@ class CoachLayerOneTest {
     @Test
     void failureGivesEmptyBlock() throws Exception {
         Path video = Files.writeString(dir.resolve("v.mp4"), "video");
-        try (var layer = new CoachLayerOne((v, m, s, p, u) -> { throw new IllegalStateException("boom"); }, 100, null)) {
+        try (var layer = new CoachLayerOne((v, m, s, p, u) -> { throw new IllegalStateException("boom"); }, 100, null, CoachPro.NONE)) {
             UUID id = UUID.randomUUID();
             layer.start(id, null, video, "video/mp4", null);
             for (int i = 0; i < 100 && layer.pending(id); i++) Thread.sleep(20);

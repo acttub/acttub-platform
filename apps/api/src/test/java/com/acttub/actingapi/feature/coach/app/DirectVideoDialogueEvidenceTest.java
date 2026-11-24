@@ -79,7 +79,7 @@ class DirectVideoDialogueEvidenceTest {
 
     @Test void bothLoopPromptsCheckSpeechBeforeChoosingVisibleEvidence() {
         for (String prompt : List.of(DirectVideoPrompts.practiceLoop(), DirectVideoPrompts.practiceLoopEnglish(),
-                DirectVideoPrompts.practiceLoop(UUID.randomUUID()))) {
+                DirectVideoPrompts.practiceLoop(UUID.randomUUID(), null))) {
             assertThat(prompt).contains("대사 확인:", "확인된 대사:", "확인됨", "확인 안 됨")
                     .doesNotContain("그 대사 두 곳", "| 곳1: \"대사\"", "| 곳1: \"line\"", "with two lines from the video");
             assertThat(prompt.indexOf("\n대사 확인:")).isLessThan(prompt.indexOf("\n감정의 변화:"));

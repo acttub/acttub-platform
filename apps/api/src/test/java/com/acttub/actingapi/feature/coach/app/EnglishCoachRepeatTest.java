@@ -20,7 +20,7 @@ class EnglishCoachRepeatTest {
         String raw = "<코치>이 장면에서 [상대]는 어디서 어떤 얼굴로 듣고 있었어요?</코치>";
         for (int size : new int[] {1, 2, 3, 5}) {
             var out = new ArrayList<String>();
-            var visible = new VisibleCoachText(false, out::add);
+            var visible = new VisibleCoachText(false, null, out::add);
             for (int i = 0; i < raw.length(); i += size) visible.accept(raw.substring(i, Math.min(raw.length(), i + size)));
             assertThat(String.join("", out)).as("조각 크기 %d", size).isEqualTo("이 장면에서 상대는 어디서 어떤 얼굴로 듣고 있었어요?");
             assertThat(out).noneMatch(piece -> piece.contains("["));

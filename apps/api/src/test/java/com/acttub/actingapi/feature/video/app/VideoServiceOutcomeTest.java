@@ -37,7 +37,7 @@ class VideoServiceOutcomeTest {
     final VideoStorage storage = mock(VideoStorage.class);
     final VideoObjectCleanup cleanup = mock(VideoObjectCleanup.class);
     final MutableClock clock = new MutableClock(Instant.parse("2026-10-20T00:00:00Z"));
-    final VideoService service = new VideoService(videos, storage, cleanup, clock);
+    final VideoService service = new VideoService(videos, storage, cleanup, clock, VideoUploadWarmup.NONE);
     final UUID user = UUID.randomUUID();
     final UUID intent = UUID.randomUUID();
 
@@ -60,16 +60,16 @@ class VideoServiceOutcomeTest {
         VideoView already = video(null, null);
         completesWith(CompleteOutcome.REPLAYED, already);
         when(storage.presignPlayback(eq("videos/u/r.mp4"), anyInt())).thenReturn(null);
-        var completion = service.completeIntent(user, false, intent);
+        var completion = service.completeIntent(user, false, intent, false);
         assertThat(completion.created()).isFalse();
         assertThat(completion.video()).isEqualTo(already);
     }
 
     @Test void anIntentThatVanishedOrExpiredDuringCompletionIsRejected() {
         completesWith(CompleteOutcome.NOT_FOUND, null);
-        rejects(() -> service.completeIntent(user, false, intent), 404, "upload_intent_not_found");
+        rejects(() -> service.completeIntent(user, false, intent, false), 404, "upload_intent_not_found");
         completesWith(CompleteOutcome.EXPIRED, null);
-        rejects(() -> service.completeIntent(user, false, intent), 422, "upload_expired");
+        rejects(() -> service.completeIntent(user, false, intent, false), 422, "upload_expired");
     }
 
     @Test void anIntentWhoseVideoWasRemovedIsCompletedAgain() {
@@ -79,7 +79,7 @@ class VideoServiceOutcomeTest {
         when(storage.head("videos/u/r.mp4")).thenReturn(new VideoStorage.Stored(100, "etag"));
         VideoView created = video(null, null);
         when(videos.complete(eq(user), eq(intent), any(), anyLong(), any())).thenReturn(new Completed(CompleteOutcome.CREATED, created, List.of()));
-        assertThat(service.completeIntent(user, false, intent).created()).isTrue();
+        assertThat(service.completeIntent(user, false, intent, false).created()).isTrue();
     }
 
     @Test void purgingAFileInUseOrMissingIsRejected() {
@@ -111,11 +111,11 @@ class VideoServiceOutcomeTest {
         VideoUploadWarmup warmup = mock(VideoUploadWarmup.class);
         VideoService warming = new VideoService(videos, storage, cleanup, clock, warmup);
         completesWith(CompleteOutcome.CREATED, video(null, null));
-        assertThat(warming.completeIntent(user, false, intent).created()).isTrue();
+        assertThat(warming.completeIntent(user, false, intent, false).created()).isTrue();
         verify(warmup).uploaded("videos/u/r.mp4", "etag", "video/mp4");
 
         completesWith(CompleteOutcome.REPLAYED, video(null, null));
-        assertThat(warming.completeIntent(user, false, intent).created()).isFalse();
+        assertThat(warming.completeIntent(user, false, intent, false).created()).isFalse();
         verify(warmup, times(1)).uploaded(any(), any(), any());
     }
 
@@ -135,7 +135,7 @@ class VideoServiceOutcomeTest {
         VideoUploadWarmup warmup = mock(VideoUploadWarmup.class);
         doThrow(new IllegalStateException("gemini down")).when(warmup).uploaded(any(), any(), any());
         completesWith(CompleteOutcome.CREATED, video(null, null));
-        assertThat(new VideoService(videos, storage, cleanup, clock, warmup).completeIntent(user, false, intent).created()).isTrue();
-        assertThat(new VideoService(videos, storage, cleanup, clock, null).completeIntent(user, false, intent).created()).isTrue();
+        assertThat(new VideoService(videos, storage, cleanup, clock, warmup).completeIntent(user, false, intent, false).created()).isTrue();
+        assertThat(new VideoService(videos, storage, cleanup, clock, null).completeIntent(user, false, intent, false).created()).isTrue();
     }
 }

@@ -16,14 +16,14 @@ import org.junit.jupiter.api.Test;
 class DirectVideoPromptsLanguageTest {
     @Test void anExplicitKoreanLocaleReadsTheSamePromptsAsTheDefault() {
         UUID practice = UUID.fromString("00000000-0000-0000-0000-000000000007");
-        assertThat(DirectVideoPrompts.practiceLoop(practice, Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
+        assertThat(DirectVideoPrompts.practiceLoop(practice, Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoop(practice, null));
         assertThat(DirectVideoPrompts.practiceLoopTurn(Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoopTurn());
         assertThat(DirectVideoPrompts.practiceLoopShorten(Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoopShorten(null));
         assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, Locale.KOREAN))
                 .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null));
         assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, Locale.KOREAN))
                 .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, null));
-        assertThat(DirectVideoPrompts.persona("b1", Locale.KOREAN)).isEqualTo(DirectVideoPrompts.persona("b1", null));
+        assertThat(DirectVideoPrompts.persona("b1", Locale.KOREAN, null)).isEqualTo(DirectVideoPrompts.persona("b1", null, null));
     }
 
     @Test void otherLanguagesGetTheirOwnTextOrALanguageDirective() {
@@ -52,10 +52,10 @@ class DirectVideoPromptsLanguageTest {
 
     @Test void unknownTasksAndPersonasAreHandledExplicitly() {
         assertThatThrownBy(() -> DirectVideoPrompts.practiceLoopTask("없는 일", null)).hasMessage("practice loop task is missing: 없는 일");
-        assertThat(DirectVideoPrompts.persona(" ", null)).isEmpty();
-        assertThat(DirectVideoPrompts.persona(CoachPersonas.DEFAULT, null)).isEmpty();
-        assertThat(DirectVideoPrompts.persona("b1", Locale.ENGLISH)).isEmpty();
-        assertThat(DirectVideoPrompts.personaShortenNote("b1", null)).isEqualTo(
+        assertThat(DirectVideoPrompts.persona(" ", null, null)).isEmpty();
+        assertThat(DirectVideoPrompts.persona(CoachPersonas.DEFAULT, null, null)).isEmpty();
+        assertThat(DirectVideoPrompts.persona("b1", Locale.ENGLISH, null)).isEmpty();
+        assertThat(DirectVideoPrompts.personaShortenNote("b1", null, null)).isEqualTo(
                 "\n- 말투는 원래 말의 말투를 그대로 둔다. 원래 말이 \"~해요.\"로 방향을 줬으면 \"~해 봐도 좋아요\"로 바꾸지 않는다. 쿠션어나 칭찬을 더하지 않는다.");
         assertThat(DirectVideoPrompts.withAudioFacts("지시", new DirectVideoModel.Video("f", "u", "video/mp4", true))).isEqualTo("지시");
         assertThat(DirectVideoPrompts.withAudioFacts("지시", null)).isEqualTo("지시");

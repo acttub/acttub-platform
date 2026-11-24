@@ -33,7 +33,7 @@ class GeminiDirectVideoAudioUploadTest {
             var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> true, path -> {
                 frameCalls.incrementAndGet();
                 throw new IllegalStateException("must not inspect audible input frames");
-            });
+            }, path -> true);
             var facts = model.inspect(directory.resolve("voice.mp4"));
             assertThat(facts.hasAudioTrack()).isTrue();
             assertThat(facts.fullBlack()).isNull();
@@ -115,7 +115,7 @@ class GeminiDirectVideoAudioUploadTest {
         var externalUploadCalls = new AtomicInteger();
         var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
         try (var client = fakeClient(server)) {
-            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> false, path -> true);
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> false, path -> true, path -> true);
             Path source = directory.resolve("empty.mp4");
             var facts = model.inspect(source);
             assertThat(facts.emptyInput()).isTrue();
@@ -133,7 +133,7 @@ class GeminiDirectVideoAudioUploadTest {
             var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> {
                 audioCalls.incrementAndGet();
                 return false;
-            }, path -> false);
+            }, path -> false, path -> true);
             Path source = Files.write(directory.resolve("silent-acting.mp4"), new byte[]{1, 2, 3});
             var facts = model.inspect(source);
             assertThat(facts.emptyInput()).isFalse();
@@ -149,7 +149,7 @@ class GeminiDirectVideoAudioUploadTest {
         try (var client = fakeClient(server)) {
             var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> false, path -> {
                 throw new IllegalStateException("frame decoder failed");
-            });
+            }, path -> true);
             assertThatThrownBy(() -> model.inspect(directory.resolve("broken.mp4")))
                     .isInstanceOf(IllegalStateException.class).hasMessageContaining("frame decoder failed");
             assertThat(externalUploadCalls.get()).isZero();
@@ -163,7 +163,7 @@ class GeminiDirectVideoAudioUploadTest {
         try (var client = fakeClient(server)) {
             var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> {
                 throw new IllegalStateException("audio probe failed");
-            }, path -> { frameCalls.incrementAndGet(); return true; });
+            }, path -> { frameCalls.incrementAndGet(); return true; }, path -> true);
             assertThatThrownBy(() -> model.inspect(directory.resolve("broken.mp4")))
                     .isInstanceOf(IllegalStateException.class).hasMessageContaining("audio probe failed");
             assertThat(frameCalls.get()).isZero();
@@ -175,7 +175,7 @@ class GeminiDirectVideoAudioUploadTest {
         var externalUploadCalls = new AtomicInteger();
         var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
         try (var client = fakeClient(server)) {
-            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> true);
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> true, new com.acttub.actingapi.integration.media.VideoFrameEvidence()::entirelyBlack, path -> true);
             Path source = Files.write(directory.resolve("take.mp4"), new byte[]{1, 2, 3});
             DirectVideoModel.Video video = model.upload(source, "video/mp4");
             assertThat(video.hasAudioTrack()).isTrue();
@@ -189,7 +189,7 @@ class GeminiDirectVideoAudioUploadTest {
         var externalUploadCalls = new AtomicInteger();
         var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
         try (var client = fakeClient(server)) {
-            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> false);
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> false, new com.acttub.actingapi.integration.media.VideoFrameEvidence()::entirelyBlack, path -> true);
             Path source = Files.write(directory.resolve("silent.mp4"), new byte[]{1, 2, 3});
             DirectVideoModel.Video video = model.upload(source, "video/mp4");
             assertThat(video.hasAudioTrack()).isFalse();
@@ -205,7 +205,7 @@ class GeminiDirectVideoAudioUploadTest {
         try (var client = fakeClient(server)) {
             var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> {
                 throw new IllegalStateException("audio track probe failed");
-            });
+            }, new com.acttub.actingapi.integration.media.VideoFrameEvidence()::entirelyBlack, path -> true);
             Path source = Files.write(directory.resolve("unreadable.mp4"), new byte[]{1, 2, 3});
             assertThatThrownBy(() -> model.upload(source, "video/mp4"))
                     .isInstanceOf(IllegalStateException.class)

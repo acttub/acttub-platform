@@ -56,11 +56,11 @@ class CoachVideoWarmupTest {
         UUID practice = UUID.randomUUID();
         Path original = original();
 
-        new CoachVideoWarmup(model, cache).warm(context(practice), original);
+        new CoachVideoWarmup(model, cache, null, null).warm(context(practice), original);
         // 분석 작업은 곧바로 원본 임시 파일을 지운다.
         Files.delete(original);
 
-        var prepared = cache.claimWarm(key(practice), Duration.ofSeconds(5));
+        var prepared = cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null);
         assertThat(prepared).isNotNull();
         assertThat(prepared.video()).isEqualTo(file);
         assertThat(prepared.inspection()).isEqualTo(inspection);
@@ -78,8 +78,8 @@ class CoachVideoWarmupTest {
         when(model.upload(any(), eq("video/mp4"))).thenReturn(file);
         when(model.ready(file)).thenReturn(true);
         UUID practice = UUID.randomUUID();
-        new CoachVideoWarmup(model, cache).warm(context(practice), original());
-        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5)).video()).isEqualTo(file);
+        new CoachVideoWarmup(model, cache, null, null).warm(context(practice), original());
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null).video()).isEqualTo(file);
         verify(model, never()).upload(any(), anyString(), any(), anyString());
         cache.close();
     }
@@ -88,8 +88,8 @@ class CoachVideoWarmupTest {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
         when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null, false));
         UUID practice = UUID.randomUUID();
-        new CoachVideoWarmup(model, cache).warm(context(practice), original());
-        var prepared = cache.claimWarm(key(practice), Duration.ofSeconds(5));
+        new CoachVideoWarmup(model, cache, null, null).warm(context(practice), original());
+        var prepared = cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null);
         assertThat(prepared.video()).isNull();
         assertThat(prepared.inspection().unusableAudio()).isTrue();
         verify(model, never()).upload(any(), anyString());
@@ -105,21 +105,21 @@ class CoachVideoWarmupTest {
         when(model.upload(any(), eq("video/mp4"), eq(inspection))).thenReturn(file);
         when(model.ready(file)).thenThrow(new IllegalStateException("video processing failed"));
         UUID practice = UUID.randomUUID();
-        new CoachVideoWarmup(model, cache).warm(context(practice), original());
-        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5))).isNull();
+        new CoachVideoWarmup(model, cache, null, null).warm(context(practice), original());
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null)).isNull();
         verify(model).delete(file);
         assertThat(failures.contexts()).contains("CoachVideoCache.warm");
         cache.close();
     }
 
     @Test void aDisabledCacheTouchesNothing() throws Exception {
-        new CoachVideoWarmup(model, CoachVideoCache.NONE).warm(context(UUID.randomUUID()), original());
+        new CoachVideoWarmup(model, CoachVideoCache.NONE, null, null).warm(context(UUID.randomUUID()), original());
         verifyNoInteractions(model);
     }
 
     @Test void missingFactsMeanNoWarmupAndABlankTypeIsTreatedAsMp4() throws Exception {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
-        var warmup = new CoachVideoWarmup(model, cache);
+        var warmup = new CoachVideoWarmup(model, cache, null, null);
         warmup.warm(new AnalysisContext(UUID.randomUUID(), UUID.randomUUID(), null, "video/mp4", "e", 8000,
                 "", "", "", "그 외", "", "three_layers_v1", UUID.randomUUID()), original());
         warmup.warm(null, original());
@@ -132,13 +132,13 @@ class CoachVideoWarmupTest {
         UUID practice = UUID.randomUUID();
         warmup.warm(new AnalysisContext(UUID.randomUUID(), practice, "owned/video.mp4", " ", "etag", 8000,
                 "", "", "", "그 외", "", "three_layers_v1", UUID.randomUUID()), original());
-        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5)).video()).isEqualTo(file);
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null).video()).isEqualTo(file);
         cache.close();
     }
 
     @Test void anUnreadableAnalysisFileIsAnErrorTheAnalysisIgnores() {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
-        assertThatThrownBy(() -> new CoachVideoWarmup(model, cache).warm(context(UUID.randomUUID()),
+        assertThatThrownBy(() -> new CoachVideoWarmup(model, cache, null, null).warm(context(UUID.randomUUID()),
                 Path.of(System.getProperty("java.io.tmpdir"), "no-such-analysis-" + UUID.randomUUID() + ".mp4")))
                 .isInstanceOf(java.io.UncheckedIOException.class);
         assertThat(cache.warmingSize()).isZero();
@@ -152,8 +152,8 @@ class CoachVideoWarmupTest {
         when(model.ready(file)).thenReturn(false);
         doThrow(new IllegalStateException("delete failed")).when(model).delete(file);
         UUID practice = UUID.randomUUID();
-        new CoachVideoWarmup(model, cache, Duration.ofMillis(600)).warm(context(practice), original());
-        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5))).isNull();
+        new CoachVideoWarmup(model, cache, null, null, Duration.ofMillis(600)).warm(context(practice), original());
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null)).isNull();
         verify(model).delete(file);
         assertThat(failures.contexts()).contains("CoachVideoCache.warm");
         cache.close();
@@ -163,8 +163,8 @@ class CoachVideoWarmupTest {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
         when(model.inspect(any())).thenThrow(new IllegalStateException("audio decoder failed"));
         UUID practice = UUID.randomUUID();
-        new CoachVideoWarmup(model, cache, Duration.ofSeconds(5)).warm(context(practice), original());
-        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5))).isNull();
+        new CoachVideoWarmup(model, cache, null, null, Duration.ofSeconds(5)).warm(context(practice), original());
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null)).isNull();
         verify(model, never()).upload(any(), anyString());
         verify(model, never()).delete(any());
         cache.close();
@@ -201,10 +201,10 @@ class CoachVideoWarmupTest {
         UUID practice = UUID.randomUUID();
         assertThat(cache.warmingSource(key(practice))).isTrue();
         Path original = original();
-        new CoachVideoWarmup(model, cache).warm(context(practice), original);
+        new CoachVideoWarmup(model, cache, null, null).warm(context(practice), original);
         Files.delete(original);
 
-        var prepared = cache.claimWarm(key(practice), Duration.ofSeconds(5));
+        var prepared = cache.claimWarm(key(practice), Duration.ofSeconds(5), null, null);
         assertThat(prepared).isNotNull();
         assertThat(prepared.video()).isEqualTo(file);
         assertThat(inspected.get()).isEqualTo("uploaded video bytes");
@@ -231,14 +231,14 @@ class CoachVideoWarmupTest {
         Path masked = Files.createTempFile("analysis-masked-", ".mp4");
         Files.writeString(masked, "masked video bytes");
         var context = context(practice);
-        new CoachVideoWarmup(model, cache).warm(new AnalysisContext(context.operationId(), practice, context.objectKey(),
+        new CoachVideoWarmup(model, cache, null, null).warm(new AnalysisContext(context.operationId(), practice, context.objectKey(),
                 "video/quicktime", context.etag(), 8000, "", "", "", "그 외", "", "three_layers_v1", context.userId(), true),
                 masked);
         Files.delete(masked);
 
         assertThat(cache.warmingSource(key(practice))).as("원본 준비는 남지 않는다").isFalse();
         var prepared = cache.claimWarm(new CoachVideoCache.Key(practice,
-                CoachVideoCache.faceMosaicSource("owned/video.mp4"), "etag"), Duration.ofSeconds(5));
+                CoachVideoCache.faceMosaicSource("owned/video.mp4"), "etag"), Duration.ofSeconds(5), null, null);
         assertThat(prepared).isNotNull();
         assertThat(prepared.video()).isEqualTo(file);
         verify(model, org.mockito.Mockito.timeout(5000)).delete(originalUpload);
@@ -250,7 +250,7 @@ class CoachVideoWarmupTest {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
         Path work = workDir();
         new CoachVideoWarmup(model, cache, storageWith("other"), work).uploaded("owned/video.mp4", "etag", "video/mp4");
-        assertThat(cache.claimWarm(key(UUID.randomUUID()), Duration.ofSeconds(5))).isNull();
+        assertThat(cache.claimWarm(key(UUID.randomUUID()), Duration.ofSeconds(5), null, null)).isNull();
         verify(model, never()).upload(any(), anyString(), any(), anyString());
         try (var left = Files.list(work)) {
             assertThat(left).isEmpty();
@@ -264,7 +264,7 @@ class CoachVideoWarmupTest {
         ObjectStorage storage = mock(ObjectStorage.class);
         when(storage.downloadToPath(any(), any())).thenThrow(new IllegalStateException("storage down"));
         new CoachVideoWarmup(model, cache, storage, work).uploaded("owned/video.mp4", "etag", "video/mp4");
-        assertThat(cache.claimWarm(key(UUID.randomUUID()), Duration.ofSeconds(5))).isNull();
+        assertThat(cache.claimWarm(key(UUID.randomUUID()), Duration.ofSeconds(5), null, null)).isNull();
         try (var left = Files.list(work)) {
             assertThat(left).isEmpty();
         }
@@ -273,7 +273,7 @@ class CoachVideoWarmupTest {
 
     @Test void withoutStorageOrWithTheCacheOffAnUploadIsNotPrepared() throws Exception {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
-        new CoachVideoWarmup(model, cache).uploaded("owned/video.mp4", "etag", "video/mp4");
+        new CoachVideoWarmup(model, cache, null, null).uploaded("owned/video.mp4", "etag", "video/mp4");
         new CoachVideoWarmup(model, cache, storageWith("etag"), workDir()).uploaded(" ", "etag", "video/mp4");
         assertThat(cache.sourceWarmingSize()).isZero();
         new CoachVideoWarmup(model, CoachVideoCache.NONE, storageWith("etag"), workDir()).uploaded("owned/video.mp4", "etag", "video/mp4");
@@ -285,9 +285,9 @@ class CoachVideoWarmupTest {
     @Test
     void warmStartsLayerOneForAssignedPracticeEvenWithoutVideoCache() throws Exception {
         var started = new java.util.concurrent.atomic.AtomicReference<UUID>();
-        try (var layer = new CoachLayerOne((v, m, sc, p, u) -> { started.set(p); return "## 1층 관찰"; }, 100, null)) {
+        try (var layer = new CoachLayerOne((v, m, sc, p, u) -> { started.set(p); return "## 1층 관찰"; }, 100, null, CoachPro.NONE)) {
             UUID practice = UUID.randomUUID();
-            new CoachVideoWarmup(null, CoachVideoCache.NONE).withLayerOne(layer).warm(context(practice), original());
+            new CoachVideoWarmup(null, CoachVideoCache.NONE, null, null).withLayerOne(layer).warm(context(practice), original());
             for (int i = 0; i < 100 && layer.ready(practice).isEmpty(); i++) Thread.sleep(10);
             org.assertj.core.api.Assertions.assertThat(started.get()).isEqualTo(practice);
             org.assertj.core.api.Assertions.assertThat(layer.ready(practice)).isEqualTo("## 1층 관찰");

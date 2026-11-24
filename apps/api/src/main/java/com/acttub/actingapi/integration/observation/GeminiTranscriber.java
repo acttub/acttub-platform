@@ -57,14 +57,6 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
         }
     }
 
-    public SpeechAnalysis transcribe(Path audioPath) {
-        return transcribe(audioPath, null);
-    }
-
-    public SpeechAnalysis transcribe(Path audioPath, UUID practiceSessionId) {
-        return transcribe(audioPath, practiceSessionId, null);
-    }
-
     public SpeechAnalysis transcribe(Path audioPath, UUID practiceSessionId, UUID userId) {
         GeminiFile uploaded = null;
         try {

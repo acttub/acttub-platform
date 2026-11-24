@@ -58,10 +58,6 @@ public final class CoachLayerOne implements AutoCloseable {
     private final ExecutorService pool;
     private final Map<UUID, Entry> running = new ConcurrentHashMap<>();
 
-    public CoachLayerOne(LayerOneObserver observer, int share, FailureReporter failures) {
-        this(observer, share, failures, Clock.systemUTC(), null);
-    }
-
     /**
      * Pro 배우는 A/B 배정과 상관없이 1층을 받는다(SOMA-900 「상위 AI 모델」). 관찰은 상위 모델이 뒤에서 하고 코치는 기다리지
      * 않으므로 코칭이 늦어지지 않는다 — 끝난 턴부터 칸이 붙는다.

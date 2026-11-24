@@ -143,7 +143,7 @@ class ReportPromptSnapshotTest {
         JsonNode withProfile = engine.generateReport(
                 "analysis", analysisPack(), handoff, true, "analysis-id", null, null, null, member);
         engine.generateReport("analysis", analysisPack(), handoff, true, "analysis-id", null, null, null, guest);
-        engine.generateReport("analysis", analysisPack(), handoff, true, "analysis-id", null, null);
+        engine.generateReport("analysis", analysisPack(), handoff, true, "analysis-id", null, null, null, null);
 
         assertThat(calls.get(0)[0]).isEqualTo(
                 FrozenValue.of("report-system-prompt-analysis.txt") + ReportEngine.ACTOR_PROFILE_INSTRUCTION);

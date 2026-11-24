@@ -669,7 +669,7 @@ final class DirectVideoPracticeLoop {
         String design = LenientJson.asText(loop.path("design"), "");
         String habit = habit(design);
         // 설계의 "다음 테이크: 없음"(영상 없이 말로 첫 응답 등)은 다음 테이크가 아니다 — 그대로 쓰면 노트에 "없음"이 제안으로 남았다(10/26 운영 4건).
-        String next = noneAsBlank(first(DESIGN_NEXT, design));
+        String next = noneAsBlank(designNextTake(design));
         // 정리에서 정한 다음 테이크. 설계에 버릇·다음 테이크 줄이 없는 목적별 코칭(막힌 곳·고민 상담)도 이것으로 노트를 채운다 —
         // 예전에는 여기서 null 을 돌려 생성기로 넘어가 정리한 제안이 있어도 빈 노트(record_only)가 됐다(10/25·26 운영).
         String closingNext = closingNextTake(loop.path("statuses"));

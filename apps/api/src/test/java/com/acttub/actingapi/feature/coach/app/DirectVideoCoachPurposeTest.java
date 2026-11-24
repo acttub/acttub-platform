@@ -73,14 +73,13 @@ class DirectVideoCoachPurposeTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry);
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
     }
 
     static CoachSessionSnapshot fresh(String purpose) {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(),
-                PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "")
-                .withSessionPurpose(purpose);
+                PriorContext.EMPTY, "legacy", 0, null, null, purpose).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
     /** 첫 답을 한 번 돌린 세션에 배우 말과 코치 말을 이어 붙인다. */

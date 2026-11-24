@@ -40,21 +40,12 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
     /** 코칭 1층 관찰(SOMA-815). 분석 작업이 원본을 넘길 때 배정된 연습이면 함께 시작한다. */
     private CoachLayerOne layerOne = CoachLayerOne.NONE;
 
-    public CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache) {
-        this(model, cache, null, null, PROCESSING);
-    }
-
     /**
      * @param storage 있으면 영상 올리기가 끝날 때도 준비를 시작한다
      * @param workDir 올리기 끝 준비가 원본을 잠깐 내려받는 폴더
      */
     public CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache, ObjectStorage storage, Path workDir) {
         this(model, cache, storage, workDir, PROCESSING);
-    }
-
-    /** Test-only: 처리 대기 한도를 줄여 본다. */
-    CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache, Duration processingWait) {
-        this(model, cache, null, null, processingWait);
     }
 
     CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache, ObjectStorage storage, Path workDir,

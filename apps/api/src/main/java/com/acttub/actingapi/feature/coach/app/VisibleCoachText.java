@@ -37,12 +37,10 @@ final class VisibleCoachText {
     private final StringBuilder raw = new StringBuilder();
     private String sent = "";
 
-    /** @param opening 첫 응답이면 {@code <코치>} 안만 보인다. 그 앞은 숨은 설계다. */
-    VisibleCoachText(boolean opening, Consumer<String> out) {
-        this(opening, null, out);
-    }
-
-    /** @param language 답 언어. 깨진 글 판단에 쓴다({@code null} 이면 한국어). */
+    /**
+     * @param opening 첫 응답이면 {@code <코치>} 안만 보인다. 그 앞은 숨은 설계다.
+     * @param language 답 언어. 깨진 글 판단에 쓴다({@code null} 이면 한국어).
+     */
     VisibleCoachText(boolean opening, java.util.Locale language, Consumer<String> out) {
         this.opening = opening;
         this.language = language;

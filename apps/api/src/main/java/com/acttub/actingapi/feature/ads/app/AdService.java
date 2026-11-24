@@ -7,7 +7,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.ads.domain.Ad;
 import com.acttub.actingapi.feature.ads.domain.AdPicker;
 import com.acttub.actingapi.feature.ads.domain.AdSlot;
 
@@ -34,15 +33,6 @@ public class AdService {
     private final AdSlotSwitches switches;
     private final AdFrequency frequency;
     private final Clock clock;
-
-    public AdService(AdRepository repository, ProStatusReader proStatus, Settings settings, Clock clock) {
-        this(repository, proStatus, settings, AdSlotSwitches.ALWAYS_ON, clock);
-    }
-
-    public AdService(AdRepository repository, ProStatusReader proStatus, Settings settings, AdSlotSwitches switches,
-            Clock clock) {
-        this(repository, proStatus, settings, switches, AdFrequency.UNLIMITED, clock);
-    }
 
     public AdService(AdRepository repository, ProStatusReader proStatus, Settings settings, AdSlotSwitches switches,
             AdFrequency frequency, Clock clock) {

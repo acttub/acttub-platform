@@ -1,14 +1,12 @@
 package com.acttub.actingapi.feature.coach.app;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Loaded;
-import com.acttub.actingapi.feature.coach.app.ConversationRepository.NewNote;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Replay;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Saved;
@@ -69,18 +67,6 @@ public class ConversationService {
     private java.time.Duration startWait = java.time.Duration.ofSeconds(200);
 
     private record RequestKey(String operation, UUID userId, UUID targetId, UUID requestId) { }
-
-    public ConversationService(
-            ConversationRepository conversations,
-            CoachEngine coach,
-            NoteWriter notes,
-            Clock clock,
-            ConversationClosedListener closedListener,
-            CoachProfile profiles,
-            CoachMemory memory,
-            FailureReporter failureReporter) {
-        this(conversations, coach, notes, clock, closedListener, profiles, memory, failureReporter, null);
-    }
 
     public ConversationService(
             ConversationRepository conversations,

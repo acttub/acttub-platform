@@ -41,10 +41,6 @@ public class VideoService {
     private final Clock clock;
     private final VideoUploadWarmup warmup;
 
-    public VideoService(VideoRepository videos, VideoStorage storage, VideoObjectCleanup cleanup, Clock clock) {
-        this(videos, storage, cleanup, clock, VideoUploadWarmup.NONE);
-    }
-
     /** @param warmup 올리기가 끝난 영상으로 첫 질문용 준비를 미리 시작한다(SOMA-780). 없으면 하지 않는다 */
     public VideoService(VideoRepository videos, VideoStorage storage, VideoObjectCleanup cleanup, Clock clock,
             VideoUploadWarmup warmup) {
@@ -96,12 +92,7 @@ public class VideoService {
     /**
      * 올라온 것을 확인하고 보관함에 영상을 만든다. 판정 순서가 응답을 가른다 — 이미 확정된 예약은 시한을 보기
      * 전에 같은 영상을 돌려주고(응답만 유실된 마무리의 재시도), 시한이 지난 예약은 저장소에 묻기 전에 치운다.
-     */
-    public Completion completeIntent(UUID userId, boolean guest, UUID intentId) {
-        return completeIntent(userId, guest, intentId, false);
-    }
-
-    /**
+     *
      * @param faceMosaic 얼굴 가리기를 켜고 올린 영상(practice.start). 첫 질문용 미리 올리기를 시작하지 않는다 — 원본이 코치 AI 쪽으로
      *                   잠깐이라도 가지 않는다. 그 영상으로 만든 얼굴 가리기 회차는 분석 작업이 만든 가린 사본만 쓴다
      */

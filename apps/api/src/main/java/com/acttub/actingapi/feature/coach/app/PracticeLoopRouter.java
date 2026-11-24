@@ -290,16 +290,6 @@ final class PracticeLoopRouter {
     /** 짧은 답이 왔을 때, 다음 단계의 답을 코치가 하나 짐작해 이유와 함께 내밀고 맞는지 묻는다(SOMA-795 공통 수정 전에는 둘 중 고르기). */
     static final String EASY = "쉽게 묻기";
 
-    /**
-     * 할 일 표. 대화는 다섯 단계로 간다: 1 보여 주기(첫 응답) → 2 원하는 것 묻기 → 3 어긋남 보기 → 4 스스로 찾기 → 정리하기.
-     * 배우가 보통으로 답하면 다음 단계로 간다. 물음·정정·반박에는 먼저 답하고 단계는 그대로 둔다.
-     * 정리한 다음 배우 말이 맞장구면 닫고, 그 밖이면 한 번 받아 준 뒤 닫는다. 받아 준 다음에도 배우가 또 물으면 답하고,
-     * 묻지 않은 말에서 닫는다. 그만과 상한(24번째)은 바로 닫는다.
-     */
-    static String route(Kind kind, Before b) {
-        return route(kind, b, 0);
-    }
-
     /** 단계를 넘기지 않고 머문 할 일. 같은 단계에서 몇 번째 묻는지 셀 때 쓴다. */
     static final String PROPOSE = "답 제안하기";
     static final String LET_GO = "내려놓기";
@@ -329,14 +319,6 @@ final class PracticeLoopRouter {
         return stayed;
     }
 
-    /**
-     * @param stayed 이 단계에서 이미 머문 횟수. 같은 단계에서 같은 방식으로 다시 묻지 않게, 횟수에 따라 묻는 법을 바꾼다:
-     *               엇나감은 바꿔 묻기 → 쉽게 묻기(코치 짐작 하나) → 코치가 답을 제안, 모름·짧은 답은 쉽게 묻기 → 코치가 답을 제안.
-     */
-    static String route(Kind kind, Before b, int stayed) {
-        return route(new Classified(kind, false, "code"), b, stayed);
-    }
-
     /** 묻는 할 일 — 맞춤 코칭의 질문 수 상한이 세는 것. 물음·정정에 답하는 말(답하기·내려놓기)은 세지도 막지도 않는다. */
     static final java.util.Set<String> ASKING = java.util.Set.of(WANT, GAP, FIND, EASY, "다시 묻기", PROPOSE, POINT_OUT_OTHER);
 
@@ -359,12 +341,6 @@ final class PracticeLoopRouter {
      *
      * @param doing 대조 쪽 표가 정한 할 일
      * @param doneAsked 이 대화에서 한 일 묻기를 이미 했는지({@link #askedDone})
-     */
-    static String routeAlready(Classified c, Before b, String doing, boolean doneAsked) {
-        return routeAlready(c, b, doing, doneAsked, false);
-    }
-
-    /**
      * @param lastWasDone 바로 앞 코치 말이 이미 했다는 말에 답한 것인지(앞 상태 칸에 {@link #DONE_FIELD}가 있음). 정리 뒤 그 말에도
      *                    또 이미 했다고 하면 더 답하지 않고 닫는다 — 같은 제안을 피하려다 말만 바꾼 답이 이어진다(10/25 재생).
      */
@@ -448,6 +424,15 @@ final class PracticeLoopRouter {
         return asked;
     }
 
+    /**
+     * 할 일 표. 대화는 다섯 단계로 간다: 1 보여 주기(첫 응답) → 2 원하는 것 묻기 → 3 어긋남 보기 → 4 스스로 찾기 → 정리하기.
+     * 배우가 보통으로 답하면 다음 단계로 간다. 물음·정정·반박에는 먼저 답하고 단계는 그대로 둔다.
+     * 정리한 다음 배우 말이 맞장구면 닫고, 그 밖이면 한 번 받아 준 뒤 닫는다. 받아 준 다음에도 배우가 또 물으면 답하고,
+     * 묻지 않은 말에서 닫는다. 그만과 상한(24번째)은 바로 닫는다.
+     *
+     * <p>{@code stayed} 는 이 단계에서 이미 머문 횟수다. 같은 단계에서 같은 방식으로 다시 묻지 않게, 횟수에 따라 묻는 법을
+     * 바꾼다: 엇나감은 바꿔 묻기 → 쉽게 묻기(코치 짐작 하나) → 코치가 답을 제안, 모름·짧은 답은 쉽게 묻기 → 코치가 답을 제안.
+     */
     static String route(Classified c, Before b, int stayed) {
         Kind kind = c.kind();
         if (kind == Kind.STOP || b.reply() >= LAST_REPLY) return END;
@@ -610,12 +595,7 @@ final class PracticeLoopRouter {
         return false;
     }
 
-    /** 예전 판의 "답한 뒤 다음에 닫기". 이제는 단계로 정리에 가므로 쓰지 않는다. */
     /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. 그 말에서 또 물었으면 또 답하고 그다음에 닫는다. */
-    static boolean closesNext(Kind kind, Before b) {
-        return closesNext(new Classified(kind, false, "code"), b);
-    }
-
     static boolean closesNext(Classified c, Before b) {
         if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY) return false;
         if (b.closeNext()) return asksAgain(c);
@@ -659,13 +639,6 @@ final class PracticeLoopRouter {
      * 할 일 이름·배우의 말 종류·횟수는 싣지 않는다 — 모델이 이름을 보고 틀에 맞춰 쓰지 않게, 그 상황의 설명만 준다.
      *
      * @param task 할 일 파일에서 고른 한 칸({@code "- 이름: …"}과 그 아래 들여 쓴 줄)
-     */
-    static String instruction(java.util.Locale language, String doing, List<String> avoid, String observed,
-            String dialogue, String task) {
-        return instruction(language, doing, avoid, observed, dialogue, task, null, List.of());
-    }
-
-    /**
      * @param stage 지금 단계 줄({@link #stageLine}). 없으면 싣지 않는다
      * @param materials 이번 응답의 재료 줄(처음 짚은 버릇, 버릇이 가리는 것, 배우가 단계마다 한 말, 방금 한 말)
      */
@@ -695,16 +668,6 @@ final class PracticeLoopRouter {
      * 이번 응답의 상태 칸. 모델이 쓰던 것과 같은 칸 이름이다 — 노트·기억이 그대로 읽는다.
      * {@code 분류:} 줄은 이 분류를 누가 했는지(code/model/fallback) 남긴다.
      */
-    static String status(String observed, String dialogue, Classified classified, Before b, String doing,
-            String goal, List<String> avoid, String nextTake) {
-        return status(observed, dialogue, classified, b, doing, goal, avoid, nextTake, false);
-    }
-
-    static String status(String observed, String dialogue, Classified classified, Before b, String doing,
-            String goal, List<String> avoid, String nextTake, boolean closeNext) {
-        return status(observed, dialogue, classified, b, doing, goal, avoid, nextTake, closeNext, null);
-    }
-
     static String status(String observed, String dialogue, Classified classified, Before b, String doing,
             String goal, List<String> avoid, String nextTake, boolean closeNext, String actorText) {
         Tally after = b.tally().after(doing);

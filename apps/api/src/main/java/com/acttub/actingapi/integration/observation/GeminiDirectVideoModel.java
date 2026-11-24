@@ -74,16 +74,6 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                 new AudioSignalEvidence()::hasSignal);
     }
 
-    /** Test-only: existing upload tests do not inspect video frames. */
-    GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe) {
-        this(client, model, audioProbe, new VideoFrameEvidence()::entirelyBlack, path -> true);
-    }
-
-    /** Test-only: both track/frame probes are injected; audio signal is assumed valid. */
-    GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe, Predicate<Path> blackFrameProbe) {
-        this(client, model, audioProbe, blackFrameProbe, path -> true);
-    }
-
     GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe,
             Predicate<Path> blackFrameProbe, Predicate<Path> audioSignalProbe) {
         this(client, model, audioProbe, blackFrameProbe, audioSignalProbe, Hedge.NONE, null);

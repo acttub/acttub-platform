@@ -65,7 +65,7 @@ class DirectVideoCoachPathsTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry);
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
     }
 
     CoachSessionSnapshot fresh() {
@@ -151,7 +151,7 @@ class DirectVideoCoachPathsTest {
         when(model.ready(third)).thenReturn(true);
         when(model.reply(any(), anyList(), anyString())).thenReturn(OPENING, "그 마음이 먼저였군요. 어디서 커요?", "그 장면에서 누구를 봐요?");
         var cache = new CoachVideoCache(model, Duration.ofMinutes(10), new MutableClock(Instant.parse("2026-10-20T00:00:00Z")), failures);
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, cache);
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, cache, CoachLayerOne.NONE);
         var first = coach.turn(fresh(), null, UUID.randomUUID());
         var answered = coach.turn(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
         assertThat(coachCall().metadata()).containsEntry("video_reused", "false");
@@ -167,7 +167,7 @@ class DirectVideoCoachPathsTest {
         var compared = mock(DirectVideoModel.class);
         when(compared.model()).thenReturn("gemini-3.8-flash");
         when(compared.reply(eq(file), anyList(), anyString())).thenReturn(null, " ");
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, compared, 100);
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, compared, 100, CoachVideoCache.NONE, CoachLayerOne.NONE);
         var result = coach.turn(fresh(), null, UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo(DirectVideoCoachTest.OPENING_SHOWN);
         verify(compared, times(2)).reply(eq(file), anyList(), anyString());
@@ -179,7 +179,7 @@ class DirectVideoCoachPathsTest {
         when(compared.model()).thenReturn("gemini-3.8-flash");
         when(compared.reply(eq(file), anyList(), anyString())).thenReturn(null);
         when(model.reply(eq(file), anyList(), anyString())).thenReturn("<div>깨진 출력</div>");
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, compared, 100);
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, compared, 100, CoachVideoCache.NONE, CoachLayerOne.NONE);
         assertThatThrownBy(() -> coach.turn(fresh(), null, UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);
         assertThat(failures.contexts()).singleElement().asString().startsWith("DirectVideoCoach.turn ");
         verify(model).delete(file);
@@ -192,7 +192,7 @@ class DirectVideoCoachPathsTest {
     }
 
     @Test void aMissingPersonaAssignmentLeavesNoPersonaAndTheFlowIsA() {
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, session -> null, null, 0);
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, session -> null, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
         var result = coach.turn(fresh(), null, UUID.randomUUID());
         // 흐름 비교(SOMA-636)는 A 로 끝났지만 관리자 지표의 coach_flow 가 읽으므로 새 대화에 "a"를 남긴다.
         assertThat(LenientJson.asText(result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("flow"))).isEqualTo("a");

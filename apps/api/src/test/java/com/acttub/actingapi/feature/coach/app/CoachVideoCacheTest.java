@@ -55,14 +55,12 @@ class CoachVideoCacheTest {
     }
 
     CoachEngine engine(CoachVideoCache cache) {
-        var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE,
-                null, 0, cache);
+        var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, cache, CoachLayerOne.NONE);
         return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(direct));
     }
 
     CoachEngine loopEngine(CoachVideoCache cache) {
-        var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE,
-                null, 0, cache);
+        var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, cache, CoachLayerOne.NONE);
         return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(direct));
     }
 
@@ -247,7 +245,7 @@ class CoachVideoCacheTest {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
         UUID practice = UUID.randomUUID();
         cache.warm(new CoachVideoCache.Key(practice, "owned/video.mp4", "old"), () -> new CoachVideoCache.Prepared(null, file));
-        assertThat(cache.claimWarm(new CoachVideoCache.Key(practice, "owned/video.mp4", "new"), Duration.ofSeconds(1))).isNull();
+        assertThat(cache.claimWarm(new CoachVideoCache.Key(practice, "owned/video.mp4", "new"), Duration.ofSeconds(1), null, null)).isNull();
         verify(model, timeout(2000)).delete(file);
         assertThat(cache.warmingSize()).isZero();
         cache.close();
@@ -269,7 +267,7 @@ class CoachVideoCacheTest {
     @Test void disabledCacheNeverPrepares() {
         assertThat(CoachVideoCache.NONE.warm(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"),
                 () -> new CoachVideoCache.Prepared(null, file))).isFalse();
-        assertThat(CoachVideoCache.NONE.claimWarm(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"), Duration.ofSeconds(1))).isNull();
+        assertThat(CoachVideoCache.NONE.claimWarm(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"), Duration.ofSeconds(1), null, null)).isNull();
     }
 
     // --- SOMA-780: 배포해도 영상 유지 ---
@@ -360,11 +358,11 @@ class CoachVideoCacheTest {
             }
             return new CoachVideoCache.Prepared(null, file);
         });
-        assertThat(cache.claimWarm(key, Duration.ofMillis(100))).isNull();
+        assertThat(cache.claimWarm(key, Duration.ofMillis(100), null, null)).isNull();
         verify(model, never()).delete(any());
         release.countDown();
         verify(model, timeout(2000)).delete(file);
-        assertThat(cache.claimWarm(key, Duration.ofSeconds(1))).as("한 번 가져간 준비는 다시 없다").isNull();
+        assertThat(cache.claimWarm(key, Duration.ofSeconds(1), null, null)).as("한 번 가져간 준비는 다시 없다").isNull();
         cache.close();
     }
 
@@ -392,7 +390,7 @@ class CoachVideoCacheTest {
     @Test void withoutLabelsAMissNeverAsksGemini() {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
         assertThat(cache.take(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"))).isNull();
-        assertThat(cache.claimWarm(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"), Duration.ofSeconds(1))).isNull();
+        assertThat(cache.claimWarm(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"), Duration.ofSeconds(1), null, null)).isNull();
         cache.sweepOrphans();
         verify(model, never()).labeled(anyString());
         cache.close();
@@ -462,7 +460,7 @@ class CoachVideoCacheTest {
     @Test void anotherOriginalsUploadPreparationIsNotTaken() {
         var cache = scoped();
         cache.warmSource("owned/other.mp4", "etag", () -> new CoachVideoCache.Prepared(null, file));
-        assertThat(cache.claimWarm(new CoachVideoCache.Key(UUID.randomUUID(), "owned/video.mp4", "etag"), Duration.ofSeconds(1))).isNull();
+        assertThat(cache.claimWarm(new CoachVideoCache.Key(UUID.randomUUID(), "owned/video.mp4", "etag"), Duration.ofSeconds(1), null, null)).isNull();
         assertThat(cache.sourceWarmingSize()).isEqualTo(1);
         cache.close();
     }

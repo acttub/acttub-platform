@@ -196,22 +196,19 @@ class OpenAiResponsesClientTest {
     }
 
     @Test
-    void nonSuccessStatusesCarryTheStatusAndOnlyBusyAndServerFailuresAreRetryable() {
+    void onlyBusyAndServerFailuresAreRetryable() {
         var options = new GenerationOptions("gpt-6-luna", "low", 512, null, null, Duration.ofSeconds(90));
         StubTransport transport = new StubTransport(response(503, "{}"), response(429, "{}"), response(400, "{}"));
         OpenAiResponsesClient client = new OpenAiResponsesClient(OBJECT_MAPPER, transport, transport, timeout -> transport,
                 duration -> {}, name -> "OPENAI_API_KEY".equals(name) ? "k" : null);
 
         assertThatThrownBy(() -> client.generate("s", "i", options)).isInstanceOfSatisfying(OpenAiStatusException.class, failure -> {
-            assertThat(failure.status()).isEqualTo(503);
             assertThat(failure.retryable()).isTrue();
         });
         assertThatThrownBy(() -> client.generate("s", "i", options)).isInstanceOfSatisfying(OpenAiStatusException.class, failure -> {
-            assertThat(failure.status()).isEqualTo(429);
             assertThat(failure.retryable()).isTrue();
         });
         assertThatThrownBy(() -> client.generate("s", "i", options)).isInstanceOfSatisfying(OpenAiStatusException.class, failure -> {
-            assertThat(failure.status()).isEqualTo(400);
             assertThat(failure.retryable()).isFalse();
             assertThat(failure).hasMessage("OpenAI 생성 실패: OpenAI가 HTTP 400로 응답했습니다.");
         });

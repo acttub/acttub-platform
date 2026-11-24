@@ -9,10 +9,6 @@ public class OpenAiStatusException extends IllegalStateException {
         this.status = status;
     }
 
-    public int status() {
-        return status;
-    }
-
     /** 잠시 뒤 다시 보내면 될 수 있는 상태 — 붐빔(429)과 서버 쪽 실패(5xx). */
     public boolean retryable() {
         return status == 429 || status >= 500;
