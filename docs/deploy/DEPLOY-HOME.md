@@ -248,7 +248,7 @@ sha256sum restore.dump   # 위 값과 같아야 한다
 
    | 스위치 | 끄는 작업 |
    |---|---|
-   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·대본 나누기·챌린지 AI 리포트·참여작 검사와 모자이크·포스터 워커(모델 호출, 분석 완료 푸시) |
+   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·대본 나누기·챌린지 AI 리포트·참여작 검사와 모자이크·포스터 워커(모델 호출, 분석 완료 푸시), 시한 지난 올리기 예약 정리(객체 삭제) |
    | `ACCOUNT_CLEANUP_ENABLED` | 정리 장부의 객체 삭제와 제공자 연결 해제 |
    | `ACCOUNT_HOUSEKEEPING_ENABLED` | 매일 정리 — 옮기지 않은 게스트 30일 파기, 탈퇴 3년 파기, 정리 장부 실행, 광고 노출 기록 정리 |
    | `BILLING_WEB_ENABLED` | 매월 자동결제(토스 실결제) |
