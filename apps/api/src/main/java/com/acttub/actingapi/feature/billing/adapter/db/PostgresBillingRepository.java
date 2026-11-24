@@ -219,24 +219,29 @@ class PostgresBillingRepository implements BillingRepository {
     @Override
     public UUID saveCard(UUID userId, String customerKey, String sealedBillingKey, String cardCompany,
             String cardNumber, Instant now) {
-        return transaction.execute(tx -> NativeTuples.list(entityManager.createNativeQuery("""
-                INSERT INTO billing_subscriptions(id,user_id,status,provider,customer_key,billing_key,card_company,card_number,amount,
-                                                  created_at,updated_at)
-                VALUES (:id,:userId,'expired','toss',:customerKey,:billingKey,:company,:number,:amount,
-                        CAST(:now AS timestamptz),CAST(:now AS timestamptz))
-                ON CONFLICT (user_id) DO UPDATE SET provider='toss', store_product_id=NULL, store_transaction_id=NULL,
-                    billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
-                    card_number=EXCLUDED.card_number, customer_key=EXCLUDED.customer_key, updated_at=EXCLUDED.updated_at
-                RETURNING id
-                """, Tuple.class)
-                .setParameter("id", UUID.randomUUID())
-                .setParameter("userId", userId)
-                .setParameter("customerKey", customerKey)
-                .setParameter("billingKey", sealedBillingKey)
-                .setParameter("company", cardCompany)
-                .setParameter("number", cardNumber)
-                .setParameter("amount", (int) BillingRules.AMOUNT)
-                .setParameter("now", at(now))).get(0).get("id", UUID.class));
+        return transaction.execute(tx -> {
+            if (!lockActiveUser(userId)) {
+                return null;
+            }
+            return NativeTuples.list(entityManager.createNativeQuery("""
+                    INSERT INTO billing_subscriptions(id,user_id,status,provider,customer_key,billing_key,card_company,card_number,amount,
+                                                      created_at,updated_at)
+                    VALUES (:id,:userId,'expired','toss',:customerKey,:billingKey,:company,:number,:amount,
+                            CAST(:now AS timestamptz),CAST(:now AS timestamptz))
+                    ON CONFLICT (user_id) DO UPDATE SET provider='toss', store_product_id=NULL, store_transaction_id=NULL,
+                        billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
+                        card_number=EXCLUDED.card_number, customer_key=EXCLUDED.customer_key, updated_at=EXCLUDED.updated_at
+                    RETURNING id
+                    """, Tuple.class)
+                    .setParameter("id", UUID.randomUUID())
+                    .setParameter("userId", userId)
+                    .setParameter("customerKey", customerKey)
+                    .setParameter("billingKey", sealedBillingKey)
+                    .setParameter("company", cardCompany)
+                    .setParameter("number", cardNumber)
+                    .setParameter("amount", (int) BillingRules.AMOUNT)
+                    .setParameter("now", at(now))).get(0).get("id", UUID.class);
+        });
     }
 
     @Override
@@ -253,13 +258,30 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
-    public void activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now) {
-        update("""
-                UPDATE billing_subscriptions SET status='active', current_period_start=CAST(:start AS timestamptz),
-                    current_period_end=CAST(:end AS timestamptz), canceled_at=NULL, retry_count=0, next_retry_at=NULL,
-                    updated_at=CAST(:now AS timestamptz)
-                WHERE id=:id
-                """, subscriptionId, periodStart, periodEnd, now);
+    public boolean activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now) {
+        return transaction.execute(tx -> {
+            UUID userId = (UUID) entityManager.createNativeQuery("SELECT user_id FROM billing_subscriptions WHERE id=:id")
+                    .setParameter("id", subscriptionId)
+                    .getSingleResult();
+            if (!lockActiveUser(userId)) {
+                return false;
+            }
+            update("""
+                    UPDATE billing_subscriptions SET status='active', current_period_start=CAST(:start AS timestamptz),
+                        current_period_end=CAST(:end AS timestamptz), canceled_at=NULL, retry_count=0, next_retry_at=NULL,
+                        updated_at=CAST(:now AS timestamptz)
+                    WHERE id=:id
+                    """, subscriptionId, periodStart, periodEnd, now);
+            return true;
+        });
+    }
+
+    /** 탈퇴와 같은 users 행을 잡고 아직 활성인지 본다 — 탈퇴가 먼저 끝났으면 쓰지 않는다(CONTRACT 32, common 「탈퇴와 겹친 쓰기」). */
+    private boolean lockActiveUser(UUID userId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
+                        "SELECT status FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
+                .setParameter("userId", userId));
+        return !rows.isEmpty() && "active".equals(rows.getFirst().get("status", String.class));
     }
 
     @Override
