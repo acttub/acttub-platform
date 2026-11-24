@@ -9,6 +9,10 @@ spring:
     # url/username/password 는 DatabaseUrlEnvironmentPostProcessor 가 DATABASE_URL 에서 채운다.
     hikari:
       pool-name: acting-api-pool
+      # 기본값 10 이면 디스크 확정이 잠깐 멈출 때 녹음 올리기의 COMMIT 이 연결을 다 쥐어, 관계없는 요청까지
+      # 연결을 기다린다. dev 에서 10 과 30 을 번갈아 재어 정했다(SOMA-1113). DB 의 max_connections 는 100 이고
+      # 배포 중에는 API 가 잠깐 둘이라 최대 60 이다.
+      maximum-pool-size: 30
   flyway:
     enabled: true
     locations: classpath:db/migration
