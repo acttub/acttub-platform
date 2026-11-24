@@ -113,6 +113,8 @@ public final class RuleSplit {
     private static final Pattern SPACE_HEAD = Pattern.compile("(\\S{1,8})(\\s+)(?=\\S)");
     /** 글자 사이를 띄운 이름 머리: 「베 티 …」「헤 일 …」(양쪽 맞춤 PDF). 한 글자씩 띄운 2~4글자. */
     private static final Pattern SPACED_HEAD = Pattern.compile("(\\p{IsHangul}(?: \\p{IsHangul}){1,3})\\s+(?=\\S)");
+    /** 조연 이름으로 받지 않을 끝 글자 — 조사·어미(「당신이」「대해서」「사람들한테」). */
+    private static final Pattern MINOR_NOT = Pattern.compile(".*(?:이|서|고|도|만|지|니|나|한테|에게|께|랑|와|과|로|의|면|며|데|게|는|은|가|를|을|에|요|다|야|어|아)");
     /**
      * 탭으로 나눈 머리: 「택배⇥…」「7번 배심원⇥…」「경비 ⇥⇥…」「7번 배심원(웃으며)⇥…」. 이름은 앞뒤가 공백이 아닌 12자까지이고 이름 뒤 괄호
      * 지시는 이름에 넣지 않는다. 표에서 옮긴 대본이 이 모양이다.
@@ -126,6 +128,8 @@ public final class RuleSplit {
             "회장", "박사", "교수", "기자", "경관", "경비", "간호사", "엄마", "아빠", "모", "부", "할머니", "할아버지", "아저씨", "아줌마", "언니",
             "오빠", "누나", "형", "동생", "배심원", "주임", "반장", "경위", "경사", "순경", "의사", "실장", "팀장", "국장", "원장", "소장", "차장",
             "대표", "감독", "작가", "목소리", "소리", "여자", "남자", "노인", "소녀", "소년", "여인", "사내", "아이", "청년", "노파", "부부", "일행");
+    /** 이름 끝으로 오지 않는 조사·어미 — 줄 앞 낱말이 이것으로 끝나면 말이다(「당신의」「알파와」「두려운」「이해할」). */
+    private static final Pattern WORD_END = Pattern.compile(".*(?:의|와|과|랑|에게|한테|께서|에서|처럼|지만|려고|다고|했던|으로|로|도|만|는|은|을|를|에|게|며|면|듯|히|던|할|려운|러운|다운|겠|었|았)");
     /** 띄어쓰기 두 칸 이상이나 탭으로 나눈 머리({@link #wideName}). 강한 구분이다. */
     private static final Pattern WIDE_HEAD = Pattern.compile("(\\S{1,8})(\\s+)(?=\\S)");
     /** 마침표·서술 끝으로 닫힌 줄. */
@@ -1406,7 +1410,8 @@ public final class RuleSplit {
      * 대본의 머리 모양을 잰다. 머리 낱말 뒤가 두 칸 이상인 이름 같은 줄을 들여쓰기별로 세어, 가장 많은 들여쓰기가 여섯 줄 이상이고, 그 모양으로 두 번
      * 넘게 나온 이름이 둘 이상이고, 같은 들여쓰기의 한 칸 머리보다 두 배 이상 많을 때만 지배하는 모양이다. 한 칸 머리(「민수 안녕」)로 쓴 대본은 넓은
      * 칸이 드물어 켜지지 않는다. 2026-11-24 운영 대본: 대사는 「·민지··저 아직 …」(한 칸 들여 이름 뒤 두 칸)인데 대사가 이어지는 줄(「···빨리 이
-     * 모든 게 …」)과 지문(「쓰러진 참가자 9의 …」)의 첫 낱말이 횟수만으로 배역 「빨리」「쓰러진」이 됐다.
+     * 모든 게 …」)과 지문(「쓰러진 참가자 9의 …」)의 첫 낱말이 횟수만으로 배역 「빨리」「쓰러진」이 됐다. 번호 배역 머리(「·참가자 3 …」)는 한 칸
+     * 머리로 세지 않는다 — 번호 배역이 많은 짧은 대본에서 넓은 칸 10줄이 번호 머리 6줄에 밀려 모양이 꺼졌다(2026-11-24 합성 대본).
      */
     private static HeadShape headShape(Text text, List<NumberedLine> lines) {
         int[] indents = new int[text.size()];
@@ -1435,6 +1440,8 @@ public final class RuleSplit {
             }
             if (!nameLike(m.group(1))) continue;
             heads[i] = m.group(1);
+            // 번호 배역(「참가자 3 …」)은 번호가 구분이라 한 칸이어도 넓은 칸 대본의 머리다 — 한 칸 머리로 세지 않는다
+            if (!wide && NUMBERED_ROLE.matcher(m.group(1)).matches()) continue;
             (wide ? wideLines : narrowLines).merge(indent, 1, Integer::sum);
             if (wide) wideNames.computeIfAbsent(indent, key -> new HashMap<>()).merge(m.group(1), 1, Integer::sum);
         }
