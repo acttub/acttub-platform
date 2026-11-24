@@ -488,7 +488,9 @@ public final class DirectVideoCoach {
         // 미리 준비의 소리 검사에서 막혔으면 내려받지 않고 아래에서 바로 안내한다.
         boolean blocked = inspection != null && (inspection.unusableAudio() || inspection.emptyInput());
         if (!media.reused && !blocked && !media.omitted && !talk && !listen) {
-            media.local = Files.createTempFile("coach-original-", ".video");
+            // 주인만 읽고 쓴다 — 공용 임시 폴더에 다른 사용자가 끼어들 수 없게. 자바의 임시 파일 기본 권한과 같지만 미리 준비(prepareDirect)처럼 드러내 둔다.
+            media.local = Files.createTempFile("coach-original-", ".video", java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
             var metadata = storage.downloadToPath(source.objectKey(), media.local);
             if (source.etag() != null && !source.etag().isBlank()
                     && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
