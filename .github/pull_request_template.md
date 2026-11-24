@@ -15,6 +15,9 @@
 - [ ] `web` 잡
 - [ ] `api` 잡
 - [ ] `mobile` 잡
+- [ ] `smoke` 잡(배포 스크립트·compose·이미지를 바꿨다면)
+- [ ] `smoke-monitoring` 잡(모니터링을 바꿨다면)
+- [ ] `smoke-restore` 잡(백업·복원을 바꿨다면)
 - [ ] API 계약을 바꿨다면: apps/api/CONTRACT.md 「계약 변경 절차」의 완료 기준
 
 ## 참고
