@@ -91,12 +91,12 @@ class HttpMonitoringIT {
         UUID user = fixtures.insertUser();
         AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
-        UUID practice = currentPractice(user, true);
+        UUID practice = currentPractice(user);
         for (int i = 0; i < 3; i++) {
             UUID request = UUID.randomUUID();
             var response = post("/v2/coach/start", bearer, request,
                     "{\"practice_id\":\"" + practice + "\",\"request_id\":\"" + request + "\"}");
-            assertThat(response.statusCode()).isEqualTo(502);
+            assertThat(response.statusCode()).isEqualTo(500);
         }
         assertThat(get("/health", null).statusCode()).isEqualTo(200);
         String after = scrape();
@@ -124,11 +124,11 @@ class HttpMonitoringIT {
         assertThat(get("/another-sensitive-path", null).statusCode()).isEqualTo(404);
         assertThat(get("/health", null).statusCode()).isEqualTo(200);
 
-        UUID practice = currentPractice(user, true);
+        UUID practice = currentPractice(user);
         UUID request = UUID.randomUUID();
         var failure = post("/v2/coach/start", bearer, request,
                 "{\"practice_id\":\"" + practice + "\",\"request_id\":\"" + request + "\"}");
-        assertThat(failure.statusCode()).isEqualTo(502);
+        assertThat(failure.statusCode()).isEqualTo(500);
         assertThat(failure.body()).startsWith("{\"detail\":");
 
         String scrape = scrape();
@@ -138,9 +138,9 @@ class HttpMonitoringIT {
                 "status=\"404\"", "latency_class=\"ordinary\"", "environment=\"dev\""))
                 .isEqualTo(1);
         assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/coach/start\"",
-                "status=\"502\"", "latency_class=\"long_running\"")
+                "status=\"500\"", "latency_class=\"long_running\"")
                 - metric(before, "http_server_requests_seconds_count", "uri=\"/v2/coach/start\"",
-                "status=\"502\"", "latency_class=\"long_running\""))
+                "status=\"500\"", "latency_class=\"long_running\""))
                 .isEqualTo(1);
         assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/practices\"", "status=\"401\""))
                 .isEqualTo(1);
@@ -171,7 +171,7 @@ class HttpMonitoringIT {
         UUID user = fixtures.insertUser();
         AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
-        UUID practice = currentPractice(user, false);
+        UUID practice = currentPractice(user);
         UUID requestId = UUID.randomUUID();
         String path = "/v2/coach/start";
         String body = "{\"practice_id\":\"" + practice + "\",\"request_id\":\"" + requestId + "\"}";
@@ -236,7 +236,8 @@ class HttpMonitoringIT {
         });
     }
 
-    private UUID currentPractice(UUID owner, boolean structured) {
+    /** 옛(legacy) 회차. 가짜 생성기가 실패하면 코치 시작이 500 으로 끝난다(신형 회차는 직접 영상 코치라 저장소가 필요하다). */
+    private UUID currentPractice(UUID owner) {
         UUID id = UUID.randomUUID();
         UUID video = UUID.randomUUID();
         UUID analysis = UUID.randomUUID();
@@ -245,12 +246,9 @@ class HttpMonitoringIT {
         jdbc.update("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,blockage_kind,sub_branch)
                 VALUES (?,?,?,?,1,'conversing',?,'분석','캐릭터 분석')
-                """, id, owner, video, id, structured ? "three_layers_v1" : "legacy");
-        var record = (tools.jackson.databind.node.ObjectNode) com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
-        record.put("record_id", analysis.toString());
-        jdbc.update("INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at) VALUES (?,?,?,'ready','test',CAST(? AS jsonb),now())",
-                analysis, id, structured ? "video_record_v1" : "legacy",
-                structured ? record.toString() : "{\"observations\":[],\"uncertainties\":[]}");
+                """, id, owner, video, id, "legacy");
+        jdbc.update("INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at) VALUES (?,?,'legacy','ready','test',CAST(? AS jsonb),now())",
+                analysis, id, "{\"observations\":[],\"uncertainties\":[]}");
         return id;
     }
 
@@ -304,7 +302,8 @@ class HttpMonitoringIT {
     }
 
     static class GateGenerator implements TextGenerator {
-        private volatile String response = "malformed-external-response";
+        /** {@code null} 이면 바깥 모델 호출이 실패한 것처럼 던진다. */
+        private volatile String response;
         private volatile CountDownLatch entered = new CountDownLatch(0);
         private volatile CountDownLatch release = new CountDownLatch(0);
 
@@ -315,7 +314,7 @@ class HttpMonitoringIT {
         }
 
         void reset() {
-            response = "malformed-external-response";
+            response = null;
         }
 
         @Override
@@ -327,6 +326,7 @@ class HttpMonitoringIT {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(interrupted);
             }
+            if (response == null) throw new IllegalStateException("external model unavailable");
             return new GeneratedText(response, new TokenUsage(1, 1, 2));
         }
     }

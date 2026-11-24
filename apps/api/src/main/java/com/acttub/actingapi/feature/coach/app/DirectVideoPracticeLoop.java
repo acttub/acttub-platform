@@ -678,12 +678,12 @@ final class DirectVideoPracticeLoop {
         Round round = round(loop, session.turns());
         var quotes = mapper.createArrayNode();
         if (round.selfLine() != null) quotes.addObject().put("quote", round.selfLine()).put("kind", "actor")
-                .put("source_ref", StructuredCoachEngine.turnId(session, round.selfIndex()));
+                .put("source_ref", CoachTurns.turnId(session, round.selfIndex()));
         // 배우가 자기 한 줄을 남기지 않았으면 코치가 영상에서 본 버릇을 요약 첫 줄로 둔다. 마지막 답 하나만 남으면 엉뚱하다.
         if (round.selfLine() == null && !habit.isBlank()) quotes.addObject().put("quote", shorten(habit, 80)).put("kind", "observation")
-                .put("source_ref", StructuredCoachEngine.turnId(session, 0));
+                .put("source_ref", CoachTurns.turnId(session, 0));
         if (round.reason() != null) quotes.addObject().put("quote", round.reason()).put("kind", "actor")
-                .put("source_ref", StructuredCoachEngine.turnId(session, round.reasonIndex()));
+                .put("source_ref", CoachTurns.turnId(session, round.reasonIndex()));
         // 목적별 코칭은 상태 줄이 위 분류를 거의 남기지 않는다 — 배우가 채운 인물 카드·단계 답으로 요약을 채운다(SOMA-1051).
         PurposeLoop.addNoteQuotes(session, quotes, 2);
         String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);

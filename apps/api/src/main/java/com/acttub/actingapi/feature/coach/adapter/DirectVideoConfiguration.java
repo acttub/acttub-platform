@@ -15,9 +15,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.unit.DataSize;
 
-/** Durable coaching is deployment-controlled; disposable sessions remain dev-only. */
+/**
+ * 신형(three_layers_v1) 회차의 코치는 늘 직접 영상 코치다. 코치가 원본 영상을 객체 저장소에서 내려받으므로 저장소가 설정된
+ * 곳(저장소 빈과 같은 조건, dev·운영은 늘 있다)에서 선다. 버리는 실험 세션(dev 전용 API)만 dev 에서 선다.
+ */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "ACTTUB_DIRECT_VIDEO_ENABLED", havingValue = "true")
+@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${S3_BUCKET:}')"
+        + " && T(org.springframework.util.StringUtils).hasText('${AWS_REGION:}')")
 public class DirectVideoConfiguration {
     // Client 는 한정자 없이 받는다 — @Primary 인 코칭 키 클라이언트(GEMINI_COACH_API_KEY)가 들어온다.
     @Bean

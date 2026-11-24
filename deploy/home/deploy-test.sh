@@ -78,8 +78,6 @@ case "${1:-}" in
         printf '%s\n' "${TEST_GUEST_DAILY_LIMIT:-${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-true}}"
       elif [ "${2:-}" = PRACTICE_REMINDER_ENABLED ]; then
         printf '%s\n' "${TEST_PRACTICE_REMINDER:-${DEPLOY_PRACTICE_REMINDER_ENABLED:-false}}"
-      elif [ "${2:-}" = ACTTUB_DIRECT_VIDEO_ENABLED ]; then
-        printf '%s\n' "${TEST_DIRECT_VIDEO:-${DEPLOY_DIRECT_VIDEO_ENABLED:-false}}"
       else
         printf '%s\n' "${TEST_THREE_LAYERS:-${DEPLOY_THREE_LAYERS_ENABLED:-false}}"
       fi
@@ -110,7 +108,7 @@ printf 'COMPOSE_PROFILES=edge\n' > "$WORK/.env"
 run_deploy() {
   (cd "$WORK" && env PATH="$WORK/bin:$PATH" TEST_CALLS="$WORK/calls" TEST_STATE="$WORK/state" \
     SHA=0123456789abcdef API_IMAGE=example/api:0123456 WEB_IMAGE=example/web:0123456 \
-    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_DIRECT_VIDEO_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= DEPLOY_PRACTICE_REMINDER_ENABLED= DEPLOY_CPU_SHARES= "$@" \
+    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= DEPLOY_PRACTICE_REMINDER_ENABLED= DEPLOY_CPU_SHARES= "$@" \
     "$ROOT/deploy/home/deploy.sh") > "$WORK/log" 2>&1
 }
 success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
@@ -126,7 +124,6 @@ failure DEPLOY_WAIT_SECONDS=0
 failure DEPLOY_WAIT_SECONDS=oops
 failure DEPLOY_PULL_POLICY=never
 failure DEPLOY_THREE_LAYERS_ENABLED=invalid
-failure DEPLOY_DIRECT_VIDEO_ENABLED=invalid
 failure DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=invalid
 failure DEPLOY_PRACTICE_REMINDER_ENABLED=invalid
 failure DEPLOY_CPU_SHARES=oops
@@ -275,16 +272,6 @@ success TEST_HASH=h4 TEST_IMAGES='example/api:0123456 example/api:aaaaaaa exampl
 grep -qx '  지움 example/api:aaaaaaa' "$WORK/log"
 ! grep -q 'ddddddd' "$WORK/log" || exit 1
 success TEST_HASH=h4 TEST_IMAGE_LS_FAILURE=true
-success TEST_HASH=h4 DEPLOY_THREE_LAYERS_ENABLED=true DEPLOY_DIRECT_VIDEO_ENABLED=true
-grep -qx 'ACTTUB_DIRECT_VIDEO_ENABLED=true' "$WORK/release.env"
-cp "$WORK/release.env" "$WORK/direct-release.env"
-success TEST_HASH=h4 DEPLOY_THREE_LAYERS_ENABLED=true DEPLOY_DIRECT_VIDEO_ENABLED=true
-cmp "$WORK/direct-release.env" "$WORK/release.env"
-failure TEST_HASH=h4 DEPLOY_DIRECT_VIDEO_ENABLED=true TEST_DIRECT_VIDEO=false
-success TEST_HASH=h4 DEPLOY_DIRECT_VIDEO_ENABLED=false
-grep -qx 'ACTTUB_DIRECT_VIDEO_ENABLED=false' "$WORK/release.env"
-success TEST_HASH=h4
-! grep -q '^ACTTUB_DIRECT_VIDEO_ENABLED=' "$WORK/release.env" || exit 1
 # 설정·태그가 같아도 이미지 ID가 달라지면 API·웹을 교체하고, 다시 실행하면 그대로 유지한다.
 before_api="$(containers api)" before_web="$(containers web)"
 success TEST_HASH=h4 TEST_IMAGE_ID=image-v2

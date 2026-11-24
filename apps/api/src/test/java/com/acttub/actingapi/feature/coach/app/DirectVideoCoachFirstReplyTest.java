@@ -49,7 +49,7 @@ class DirectVideoCoachFirstReplyTest {
     CoachEngine engine() {
         var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0,
                 CoachVideoCache.NONE, true);
-        return new CoachEngine(oldGenerator, failures, telemetry, true, java.util.Optional.of(coach));
+        return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(coach));
     }
 
     CoachSessionSnapshot first() {

@@ -248,7 +248,7 @@ class CoachEngineTest {
                         "{\"message\":\"점수로 볼게요\"}",
                         "{\"message\":\"상대가 어떻게 되길 바라나요?\"}"),
                 failureReporter,
-                telemetry);
+                telemetry, java.util.Optional.empty());
 
         engine.reply(session(), "잘 모르겠어요", OPERATION);
 
@@ -279,7 +279,7 @@ class CoachEngineTest {
                         "{\"message\":\"점수로 볼게요\"}",
                         "{\"message\":\"상대가 어떻게 되길 바라나요?\"}"),
                 failureReporter,
-                telemetry)
+                telemetry, java.util.Optional.empty())
                 .reply(session(), "잘 모르겠어요", OPERATION);
 
         assertThat(telemetry.scoreNames())
@@ -309,7 +309,7 @@ class CoachEngineTest {
                     throw new IllegalStateException("OpenAI 생성 실패");
                 },
                 failureReporter,
-                telemetry);
+                telemetry, java.util.Optional.empty());
 
         assertThatThrownBy(() -> engine.reply(session(), "잘 모르겠어요", OPERATION))
                 .isInstanceOf(IllegalStateException.class);
@@ -365,19 +365,19 @@ class CoachEngineTest {
         var telemetry = new RecordingLlmTelemetry();
         var generator = new RecordingGenerator("상대가 어떻게 되길 바라나요?");
 
-        assertThat(new CoachEngine(generator, failureReporter, telemetry)
+        assertThat(new CoachEngine(generator, failureReporter, telemetry, java.util.Optional.empty())
                 .reply(unlinked, "잘 모르겠어요", OPERATION).reply().message())
                 .isEqualTo("상대가 어떻게 되길 바라나요?");
         var failure = new IllegalStateException("모델 오류");
         assertThatThrownBy(() -> new CoachEngine((system, user) -> { throw failure; },
-                failureReporter, telemetry).reply(unlinked, "잘 모르겠어요", OPERATION))
+                failureReporter, telemetry, java.util.Optional.empty()).reply(unlinked, "잘 모르겠어요", OPERATION))
                 .isSameAs(failure);
         assertThat(telemetry.calls()).isEmpty();
         assertThat(telemetry.scores()).isEmpty();
     }
 
     private CoachEngine engine(TextGenerator generator) {
-        return new CoachEngine(generator, failureReporter, new RecordingLlmTelemetry());
+        return new CoachEngine(generator, failureReporter, new RecordingLlmTelemetry(), java.util.Optional.empty());
     }
 
     private static CoachSessionSnapshot session() {
