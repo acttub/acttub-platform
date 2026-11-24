@@ -27,7 +27,8 @@
 ## '영상·장면 보기'
 
 분석 대기와 대화는 펼친 영상 `SceneFoldBody`를 `components/practice-chrome.tsx` 한곳에서 가져다 쓴다 — 화면마다 다시
-만들면 간격과 색이 조금씩 어긋난다. 펼침 상태는 화면이 들고(`sceneOpen`), 본문은 누르는 줄 **아래**에 전폭으로 그린다.
+만들면 간격과 색이 조금씩 어긋난다. 펼침 상태는 화면이 들고(`sceneOpen`), 본문은 누르는 줄 **아래**에 전폭으로 그린다
+(`components/coach-waiting.tsx`, `app/coach.tsx`).
 
 ### 영상 출처
 

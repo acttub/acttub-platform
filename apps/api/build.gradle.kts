@@ -160,7 +160,7 @@ tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
 //
 // 파일 이름을 어디에도 적지 않는다. 방침 버전이 오르면(privacy_v2 → v3, SOMA-326) manifest 는
 // 새 파일을 가리키는데 목록은 그대로라 **부팅이 FileNotFoundException 으로 죽는다** — 실제로
-// 그렇게 깨졌다. 과거 버전 문서도 함께 실린다 — 발행은 manifest 가 가리키는 판만 하지만, 그 판에 동의한 기록이 있어 파일을 지우지 않는다.
+// 그렇게 깨졌다. 발행은 manifest 가 가리키는 판만 한다. 옛 판 파일을 지우는 조건은 consent-docs/README.md 에 있다.
 tasks.named<org.gradle.language.jvm.tasks.ProcessResources>("processResources") {
     // 발행 절차 문서는 문서일 뿐이라 싣지 않는다. 파일들 옆에 두는 이유는 절차와 대상이
     // 갈리면 방침을 올릴 때 절차를 안 보게 되기 때문이다.

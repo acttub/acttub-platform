@@ -26,7 +26,7 @@ PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 이름을 받는다 — cloudflared는 `edge` 망, web은 `front` 망에만 있어 그 망의 `web`·`api`는 proxy 하나다.
 호스트 포트는 공개하지 않는다. 영상 S3 버킷과 OAuth의 운영 도메인은 유지한다.
 API 이미지는 `api:<sha>`, 웹 이미지는 빌드 시점의 공개 설정을 담은 `web:<env>-<sha>`, 백업은 `backup:<sha>`다.
-DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../../apps/api/CONTRACT.md#2-기술-스택-확정-변경-금지)),
+DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §5](../../apps/api/CONTRACT.md#5-영속-계층-규칙)),
 실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
 
 ## 2. 서버 준비와 시크릿
@@ -48,9 +48,8 @@ DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../..
 | 방문자 IP | `CLIENT_IP_TRUSTED_PROXIES`(선택). 보통 비워 둔다. 전제는 [CONTRACT §6-13](../../apps/api/CONTRACT.md#6-13-방문자-ip)이다. 배포 뒤 한 번 확인한다: 한 회선에서 공개 포트폴리오 조회를 분당 한도([account.portfolio](../specs/account/portfolio.md#규칙제약))보다 한 번 더 부르면 마지막이 429이고, 직후 다른 회선에서는 404여야 한다 |
 | 운영 절차 | 보관 동의 철회 요청은 [RETENTION-REVOCATION.md](RETENTION-REVOCATION.md)대로 처리한다 |
 | 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`, 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`. 없으면 처음 온 애플 신원의 로그인이 503). 카카오·네이버는 검수 승인 뒤에만 켜고, 그때 두 개발자 콘솔에 연결 끊기 콜백 주소를 등록한다(카카오는 POST·기본 어드민 키, [account.login](../specs/account/login.md#규칙제약)) |
-| 오디션 공고 | `AUDITION_ENABLED`(기본 false)·`AUDITION_SOURCES`(기본 `shinsee,emk,sejong,otr`, plfil 은 ADR-034 로 기본에서 뺐다)·`AUDITION_COLLECT_CRON`(기본 매일 07:00·19:00 KST). 켜면 API 가 바깥 출처의 목록 페이지에 요청을 보낸다([app.audition](../specs/app/audition.md)) |
-| 외부 서비스 | AI 키(바로 아래 행), 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
-| AI 키 | 기능마다 **전용 키 또는 공용 키(`GEMINI_API_KEY`·`OPENAI_API_KEY`) 중 하나**가 있으면 된다. 공용 키만, 전용 키만, 섞어서 모두 허용하며 전용 키가 있으면 공용 키보다 먼저 쓴다. Gemini: `GEMINI_COACH_API_KEY`(직접 영상 코칭 A/B·관찰·영상 기록·음성 전사), `GEMINI_TTS_API_KEY`(리딩 음성), `GEMINI_CHALLENGE_API_KEY`(챌린지 비교). OpenAI: `OPENAI_COACH_API_KEY`(기존·비직접 코칭), `OPENAI_SCRIPT_SPLIT_API_KEY`(대본 분리), `OPENAI_REPORT_API_KEY`(코칭 노트·리포트), `OPENAI_MEMORY_API_KEY`(배우 기억). Gemini 코칭·TTS·챌린지는 전용 키도 공용 키도 없으면 API 기동이 멈추고(다른 기능의 키로 대신하지 않는다), OpenAI는 호출할 때 실패한다. dev·prod 는 같은 변수 이름에 각 서버 `.env` 가 서로 다른 프로젝트·키의 값을 넣어 가른다(URL 로 가르지 않는다). 값은 서버 `.env` 에만 두고 저장소·로그·문서에 적지 않는다 |
+| 외부 서비스 | AI 키(바로 아래 행), 모델 설정, 오디션 공고 수집(`AUDITION_*`, 켜면 바깥 출처에 요청), `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
+| AI 키 | 기능별 전용 키와 공용 키(`GEMINI_API_KEY`·`OPENAI_API_KEY`)의 이름과 쓰임은 `.env.example`을 따른다. Gemini 코칭·TTS·챌린지는 전용 키도 공용 키도 없으면 API 기동이 멈추고(다른 기능의 키로 대신하지 않는다), OpenAI는 호출할 때 실패한다. 값은 서버 `.env` 에만 두고 저장소·로그·문서에 적지 않는다 |
 | 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000`(`edge` 망에서 proxy가 받는다, §1) |
@@ -68,13 +67,9 @@ JWT 서명 키를 유지해야 기존 로그인 세션을 이어받는다. `.env
   기본은 꺼짐이며, 운영 `.env`에는 넣지 않는다. 비밀번호 원문은 Vault에만 두고 서버에는 SHA-256 해시만 넣는다.
 - 토스 개발자 체험 상점의 API 개별 연동 **테스트** 키만 쓴다. 라이브 키를 넣으면 API는 살아 있어도 해당 기능은 닫힌다.
   일반 사용자 권한·DB·자동 갱신·실결제에는 연결하지 않는다.
-- 공개 경로는 `/pg-review`이다. 홈페이지·사이트맵에 링크하지 않으며 심사 전용 로그인으로만 테스트를 시작한다.
-  심사 계정은 실제 ACTTUB 앱 계정이 아니다.
 - `proxy:3000`의 `/v2/pg-review/`는 Next의 60초 프록시 제한을 거치지 않고 API로 직접 보낸다.
   빌링키 발급과 첫 테스트 승인에는 최대 15초+65초가 걸릴 수 있다. 두 API 프록시 경로에서 접근·오류 로그를 끄고,
   서버가 주는 `Cache-Control: no-store`와 `Referrer-Policy: no-referrer`는 유지한다.
-- 결과와 세션은 메모리뿐이다. 재기동·재로그인 뒤의 중복 주문 방지는 제공하지 않는다. `unknown`이면 새 주문을 만들지 말고
-  토스 테스트 결제내역에서 기존 주문을 확인한다. 정식 결제의 주문 원장·자동 갱신·환불 구현을 대신하지 않는다.
 - 심사 후 끌 때는 `ACTTUB_PG_REVIEW_ENABLED=false`로 바꾸고 승인된 개발 배포로 반영한다.
   동작과 검증은 [billing.pg-review](../specs/billing/pg-review.md)를 따른다.
 
@@ -96,11 +91,8 @@ gh workflow run deploy.yml --ref main -f environment=prod
 Actions가 이미지 세 개를 빌드·게시한 뒤 서버의 배포·복원 파일을 전송하고 `deploy.sh`를 실행한다.
 처음 만든 GHCR 백업 패키지도 서버가 읽을 수 있는지 확인한다. 복원 도구는 `restore-db.sh`와
 `db-manifest.sql`·`schema-fingerprint.sql`을 함께 전송한다.
-이 스크립트는 설정이나 이미지 ID가 바뀐 web·api만 새 컨테이너를 옛 것 옆에 띄우고, 둘 다 healthy가 되면 proxy를 reload해 한 번에
-넘긴 뒤 proxy 경유 `/health.commit`을 대조한다. 옛 판은 처리 중이던 요청을 끝낸 뒤 내린다. 넘긴 것을 확인하기 전에
-실패하면(새 컨테이너가 healthy가 못 되거나 commit이 다르면) 새 컨테이너를 지우고 `release.env`를 되돌려 옛 판이 계속
-응답한다. 롤백도 기존 대상으로 전환한 뒤 새 판이 처리 중이던 요청을 마칠 때까지 기다린다. 복구·요청 마무리를
-확인하지 못하면 새 컨테이너와 릴리스 설정을 남기고 실패한다. 단계와 상한은 [`deploy.sh`](../../deploy/home/deploy.sh) 머리말이 정한다.
+`deploy.sh`는 바뀐 web·api만 옛 것 옆에 새로 띄워 proxy를 넘기는 무중단 배포를 하고, 실패하면 옛 컨테이너가 계속 응답하게
+되돌린다. 단계·실패 처리·상한은 [`deploy.sh`](../../deploy/home/deploy.sh) 머리말이 정한다.
 성공하면 컨테이너가 쓰지 않는 옛 릴리스 이미지(`<sha>`·`<env>-<sha>` 태그)를 서버에서 지운다. dev와 운영이 같은 Docker를 쓰므로 한 환경의 배포가 다른 환경의 옛 이미지도 지운다.
 배포가 겹치는 동안(새 api 기동과 옛 판의 요청 마무리) 옛·새 api가 같은 DB에서 함께 돈다. 그래서 마이그레이션은 직전 운영
 API를 깨지 않아야 한다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)). proxy·cloudflared·db의 이미지나
@@ -123,12 +115,7 @@ curl -fsS https://acttub.com/health
 받은 값을 `release.env`에 `ACTTUB_` 이름으로 기록한 뒤 API 컨테이너에 실제 반영된 값을 대조한다. 넘기지 않은 스위치는
 `.env`·`compose.yml`·앱의 기본값을 따른다.
 
-- `ACTTUB_THREE_LAYERS_ENABLED`·`ACTTUB_DIRECT_VIDEO_ENABLED`: 두 환경 모두 true로 넘겨 새 연습(`three_layers_v1`, 입력과 무관, [practice.start](../specs/practice/start.md#규칙제약))을
-  새 코치와 Gemini 직접 코칭에 연결한다([practice.coach 「Gemini 직접 영상 코칭」](../specs/practice/coach.md#gemini-직접-영상-코칭)).
-- `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED`: dev는 false로 넘겨 게스트의 영상 분석·재분석 일일 한도([practice.analyze](../specs/practice/analyze.md#규칙제약))를
-  걸지 않는다. 운영은 true로 한도를 유지하며, 설정 미지정 기본값도 true다.
-- `ACTTUB_PRACTICE_REMINDER_ENABLED`(컨테이너에서는 `PRACTICE_REMINDER_ENABLED`): 개인화 연습 알림([account.notification](../specs/account/notification.md#규칙제약)).
-  dev·운영 모두 true로 넘긴다(운영은 2026-10-21 켬). 켜면 옛 저녁 8시 고정 알림은 보내지 않는다. 끄려면 워크플로 값을 false로 바꿔 배포한다. 설정 미지정 기본값은 false다.
+환경마다 넘기는 값은 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)의 `deploy.sh` 단계 `env`가 정본이다. 값을 바꾸려면 워크플로 값을 고쳐 배포한다. 스위치가 무엇을 켜는지는 각 기능 스펙이 정한다. `ACTTUB_PRACTICE_REMINDER_ENABLED`는 컨테이너에서 `PRACTICE_REMINDER_ENABLED`가 되고, 켜면 옛 저녁 8시 고정 알림을 보내지 않는다([account.notification](../specs/account/notification.md#규칙제약)).
 
 ### 로그
 
@@ -141,34 +128,7 @@ Boot 내장 logstash 형식)가 정한다. 로컬 `bootRun`과 테스트는 이 
 보낸 값을 믿지 않는다. `X-Request-Id`는 다른 뜻(본문 `request_id`와 같은지 보는 재전송 열쇠)이라 쓰지 않는다. web 서버가
 직접 API를 부르는 공유 미리보기(`/e/[id]`)는 헤더를 넘기지 않아 8080이 새 ID를 만든다.
 
-nginx 줄(`log_format proxy`):
-
-| 필드 | 뜻 |
-|---|---|
-| `time` | 요청이 끝난 시각(ISO 8601) |
-| `trace_id` | 요청 ID. api 줄의 `trace_id`와 같다 |
-| `port` | `3000`(터널에서 들어온 줄, web까지 걸린 시간) 또는 `8080`(web이 api를 부른 줄, api까지 걸린 시간) |
-| `method`·`path` | 쿼리를 뺀 경로. 카드 등록 주소의 일회용 state는 `{state}`로 가린다 |
-| `status`·`bytes` | 응답 상태와 본문 바이트 |
-| `request_time` | nginx가 잰 전체 시간(초) |
-| `upstream`·`upstream_status`·`upstream_time` | 넘겨준 컨테이너 주소, 그 응답 상태와 시간(초) |
-
-api 줄의 공통 필드는 logstash 형식의 `@timestamp`·`level`·`logger_name`·`thread_name`·`message`·`stack_trace`이고, 요청 안에서
-남긴 줄에는 아래가 더 붙는다.
-
-| 필드 | 뜻 |
-|---|---|
-| `trace_id` | 요청 ID. nginx를 거치지 않은 요청은 api가 만든다 |
-| `user_id` | 인증이 끝난 요청의 내부 사용자 ID(UUID). 이메일·닉네임·토큰은 싣지 않는다 |
-
-줄의 종류는 `message`로 가른다.
-
-| `message` | 언제 | 필드 |
-|---|---|---|
-| `request` | 요청마다 하나(`/health`·`/actuator` 제외) | `method`, `route`(값이 아니라 매핑 패턴, 컨트롤러 전에 끝나면 null), `status`, `took_ms` |
-| `failure reported` | 실패를 Sentry로 보고할 때마다(10분 묶음 억제와 무관) | `failure_location`, `failure_kind`, `operation_id`, `error`(예외 클래스). 예외 메시지는 싣지 않는다 |
-| `scheduled run` | 주기 작업 회차가 실패했거나, cron 작업이거나, 1초 이상 걸렸을 때 | `task`(클래스.메서드), `outcome`, `took_ms`, `error` |
-| `scheduled drain` | 일감 비우기가 하나 이상 처리했을 때 | `task`, `processed`, `took_ms` |
+줄의 필드는 코드가 정한다. nginx는 [`deploy/home/proxy/nginx.conf`](../../deploy/home/proxy/nginx.conf)의 `log_format proxy`다. `port`가 `3000`이면 터널에서 들어온 줄(web까지 걸린 시간), `8080`이면 web이 api를 부른 줄(api까지 걸린 시간)이다. api는 logstash 형식의 공통 필드에 요청 안에서 `trace_id`·`user_id`(`TraceIdFilter`)를 더하고, 줄의 종류를 `message`로 가른다. `request`는 `TraceIdFilter`, `failure reported`는 `SentryFailureReporter`, `scheduled run`·`scheduled drain`은 `ScheduledTaskLog`가 남긴다. 줄에는 내부 사용자 ID만 싣고 이메일·닉네임·토큰과 예외 메시지는 싣지 않는다.
 
 Sentry 이벤트에도 `trace_id` 태그를 붙여 로그와 잇는다. 주기 작업과 요청 스레드 밖(백그라운드 실행기)에서 남긴 줄에는
 `trace_id`·`user_id`가 없다.
@@ -243,12 +203,12 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 백업 업로드·복원, 로그인·업로드·분석, 리딩 녹음 업로드(ffmpeg 오디오 변환과 녹음 객체 저장)를 확인한다.
 `/health` 200만으로 이 전부가 검증되지는 않는다.
 
-지속 모니터링의 배경과 범위는 [수집 구성](../../deploy/monitoring/README.md#배경과-범위), 알림 기준은
+지속 모니터링의 범위는 [수집 구성](../../deploy/monitoring/README.md#범위), 알림 기준은
 [`rules.json`](../../deploy/monitoring/cloud/rules.json)을 따른다.
 [수집 구성과 적용 절차](../../deploy/monitoring/README.md)는 앱과 다른 Compose 프로젝트를 사용하고,
 [Cloud 설정 절차](MONITORING-CLOUD.md)는 대시보드·알림·외부 점검을 별도로 적용한다.
 앱 배포가 이 모니터링 프로젝트를 기동하거나 갱신하지 않는다. 저장소의 자동 검증과 실제 운영 검증의 구분은
-[수집 쪽](../../deploy/monitoring/README.md#자동-검증과-남은-운영-검증)과 [Cloud 쪽](MONITORING-CLOUD.md#실제-stack-인수-검증-기록)을 따른다.
+[수집 쪽](../../deploy/monitoring/README.md#자동-검증)과 [Cloud 쪽](MONITORING-CLOUD.md#실제-stack-인수-검증-기록)을 따른다.
 
 ## 7. DB와 호스트 복구
 
@@ -259,18 +219,30 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 1. 장애 시각, 마지막 정상 배포 SHA, 마지막 성공 백업 객체와 SHA-256을 기록한다. 현재 DB를
    읽을 수 있다면 변경 전에 별도 덤프를 보존한다. 서로 다른 시점의 DB는 행 수만으로 같다고 판정하지 않는다.
 2. 공개 유입을 차단하고 진행 중인 요청·작업이 끝났는지 확인한다. `.env`에 아래 스위치를 모두 `false`로 두고
-   `api`를 재생성해 적용한다. 옛 시점의 DB로 돌면 실제 사용자에게 바깥 영향을 주는 작업들이다(기본값은 모두 켜짐).
+   `api`를 재생성해 적용한다. 옛 시점의 DB로 돌면 실제 사용자에게 바깥 영향을 주거나 데이터를 바꾸는 예약 작업들이다.
+   기본값이 꺼짐인 스위치도 `.env`나 배포가 켤 수 있으므로 모두 적는다.
    복원 중에는 `backup`도 중지한다. `restore-db.sh`는 API를 다시 올리므로 유입 차단과 이 조건을 먼저 갖춘다.
 
    | 스위치 | 끄는 작업 |
    |---|---|
-   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·챌린지 AI 리포트·포스터 워커(모델 호출, 분석 완료 푸시) |
+   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·대본 나누기·챌린지 AI 리포트·참여작 검사와 모자이크·포스터 워커(모델 호출, 분석 완료 푸시) |
    | `ACCOUNT_CLEANUP_ENABLED` | 정리 장부의 객체 삭제와 제공자 연결 해제 |
-   | `ACCOUNT_HOUSEKEEPING_ENABLED` | 매일 정리 — 옮기지 않은 게스트 30일 파기, 탈퇴 3년 파기, 정리 장부 실행 |
+   | `ACCOUNT_HOUSEKEEPING_ENABLED` | 매일 정리 — 옮기지 않은 게스트 30일 파기, 탈퇴 3년 파기, 정리 장부 실행, 광고 노출 기록 정리 |
+   | `BILLING_WEB_ENABLED` | 매월 자동결제(토스 실결제) |
    | `CHALLENGE_NOTIFICATION_PUSH_ENABLED` | 챌린지 알림 푸시 |
+   | `CHALLENGE_VIEW_DIGEST_ENABLED` | 챌린지 하루 조회 요약 푸시 |
+   | `PRACTICE_REMINDER_ENABLED` | 개인화 연습 알림 푸시. `.env`로는 끌 수 없다. 배포가 `release.env`에 쓴 `ACTTUB_PRACTICE_REMINDER_ENABLED`가 `.env` 값을 덮으므로 `release.env`의 이 줄을 `false`로 바꾼다 |
+   | `EVENING_REMINDER_ENABLED` | 저녁 8시 고정 연습 알림 푸시. 개인화 연습 알림을 끄면 이 알림이 대신 돌므로 함께 끈다 |
    | `EXIT_SURVEY_SYNC_ENABLED` | 이탈 설문의 시트 재전송·연락처 정리 |
+   | `COMMUNITY_IMAGE_SWEEP_ENABLED` | 글에 붙지 않은 게시판 사진의 객체 삭제 |
+   | `SCRIPT_UPLOAD_SWEEP_ENABLED` | 대본에 연결되지 않은 원본 파일의 객체 삭제 |
+   | `READING_RETRANSCRIBE_ENABLED` | 리딩 녹음 다시 받아쓰기(모델 호출) |
+   | `PRON_REPORT_ENABLED` | 리딩 발음 보고서(채점 서비스 호출) |
    | `CHALLENGE_SETTLEMENT_ENABLED` | 챌린지 마감 집계·보관 기간 정리(DB만 바꾸지만 복원 검증 중 데이터가 바뀐다) |
-   | `AUDITION_ENABLED` | 오디션 공고 수집(바깥 출처에 요청, 공고 행 갱신·삭제). 이것만 기본이 꺼짐이다 |
+   | `AUDITION_ENABLED` | 오디션 공고 수집(바깥 출처에 요청, 공고 행 갱신·삭제) |
+
+   스위치가 없는 예약 작업 가운데 Airbridge 유입 조회(`AirbridgeLookupScheduler`)도 DB를 바꾼다. `.env`의
+   `AIRBRIDGE_API_TOKEN`을 비우면 서지 않는다.
 3. S3에서 선택한 백업을 받아 metadata의 SHA-256과 대조하고 격리된 스택에서 먼저 복원한다.
    호스트를 새로 준비해야 하면 §2의 서버·시크릿을 복구하고 같은 앱 버전의 이미지로 스택을 준비한다.
    검증용 스택에는 운영 터널을 연결하지 않고 2단계의 스위치를 모두 끈다. S3 DB 백업에는 `.env`와

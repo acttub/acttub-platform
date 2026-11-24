@@ -1,23 +1,13 @@
 # Grafana Cloud 모니터링 적용·확인 절차
 
-이 문서는 모니터링의 Cloud 설정을 적용하고 확인하는 절차다. 구성의 배경과 범위, 홈서버 쪽 수집은
-[수집 구성](../../deploy/monitoring/README.md#배경과-범위)을 따른다.
+이 문서는 모니터링의 Cloud 설정을 적용하고 확인하는 절차다. 구성의 범위와 홈서버 쪽 수집은
+[수집 구성](../../deploy/monitoring/README.md#범위)을 따른다.
 로컬 구현·검증과 **실제 Cloud/Slack 확인은 별개**다. Cloud stack·사용자 권한·Free 플랜·PDC 연결·Slack 수신을 확인하기 전에는 운영 적용 완료로 기록하지 않는다.
 
 ## 저장소 설정과 도구
 
 선언 파일과 도구는 [`deploy/monitoring/cloud`](../../deploy/monitoring/cloud)에 있다. **레포 파일이 정본**이고, `apply.py`가 그 내용을 Cloud에 맞춘다.
-
-| 파일 | 책임 |
-|---|---|
-| `cloud.json` | 비밀이 아닌 stack 값: stack 주소, 환경별 공개 origin(`health_origins`), 외부 점검 위치(probe), Cloud Metrics 데이터 소스 UID, 디스크 경로 |
-| `rules.json` | 알림 규칙(평가 간격·기준값 포함). 환경별 규칙은 `health_origins`의 환경마다, 공유 규칙은 한 번 만든다 |
-| `dashboards/*.json` | 서비스 전체·분석/코치·서버/DB/백업 화면(기본 시간대·기간 포함). 맨 위 한 줄 요약 + 접히는 구역 배치. 서버 화면의 API 프로세스 이하 구역은 grafana.com 대시보드 [19004](https://grafana.com/grafana/dashboards/19004)를 acttub 라벨(`job="api"`·`environment`)로 옮긴 것이다 |
-| `slack.tmpl` | Slack 메시지 제목·본문. `apply.py`가 알림 템플릿 `acttub-slack`으로 올린다 |
-| `apply.py` | 렌더링 → Cloud와의 차이(`diff`) → 적용(`apply`). 적용 직전 Cloud 설정을 `.backups/`에 저장 |
-| `check.sh` | 토큰·실제 stack 없이 실행하는 CI/로컬 검증 |
-
-2026-09-28까지는 Terraform으로 관리했다. 최초 적용(2026-09-14)의 state가 보관되지 않아 이후 적용이 소유권 검사에서 멈췄고, stack 하나를 3명이 쓰는 규모에 state 보관 부담이 맞지 않아 걷어냈다. `apply.py`의 렌더링은 Terraform 설정이 실제로 만든 Cloud 객체와 차이 0으로 대조한 뒤 옮겼다.
+2026-09까지 쓰던 Terraform과 그때의 로컬 검증 기록은 팀 위키 `research/2026-09-13-grafana-cloud-terraform-local-verification`에 있다.
 
 ## 관리 범위와 복구
 
@@ -86,7 +76,7 @@ Basic 점검은 JSONPath 대신 RE2 정규식을 지원하므로, `HealthRespons
 
 외부 장애 시간 예산은 다음 점검까지의 간격 + 세 번째 실패까지의 점검 + 요청 제한 시간 + 다음 규칙 평가까지의 간격 + 통지 묶음 대기의 합이다. 현재 설정으로 **설계상 최대 약 4분 10초**다. 전송/Cloud 지연은 실제 Slack 수신으로 확인하며, 5분 이내 수신하지 못하면 완료로 판정하지 않는다.
 SM의 사용자 label에 `label_` 접두어를 붙이는 기본 tenant도 있으므로 외부 규칙은 선택한 환경의 고유한 `job="acttub-health-<환경>"`로 대상을 찾고 규칙에 환경 label을 명시한다. tenant의 label 모드를 바꾸지 않는다.
-Cloud 외부 점검의 보관 기간(Free 플랜 14일)은 로컬 Prometheus의 보관 기간([수집 구성](../../deploy/monitoring/README.md#구성))과 다르다. 로컬 지표는 Cloud로 복제하지 않는다([하지 않는 것](../../deploy/monitoring/README.md#배경과-범위)).
+Cloud 외부 점검의 보관 기간(Free 플랜 14일)은 로컬 Prometheus의 보관 기간([수집 구성](../../deploy/monitoring/README.md#구성))과 다르다. 로컬 지표는 Cloud로 복제하지 않는다([하지 않는 것](../../deploy/monitoring/README.md#범위)).
 
 ## service
 
@@ -164,28 +154,4 @@ Slack 메시지의 일시 중지 링크는 Grafana의 공식 `.SilenceURL`을 �
 | 경계값 | HTTP 저트래픽/무표본, Expected Rejection, 새 실패 1건/미분류, 분석 대기·경과, inflight, 호스트·DB·백업의 `rules.json` 경계. 운영 데이터를 인위 변경하지 않음 |
 | Silence | 종료 날짜/시각·일치 labels·영향받는 규칙을 확인. 기간 내 미전송, 종료 후 조건이 남으면 재통지 |
 | 재적용/복구 | 실제 `diff` 검토, `apply` 뒤 `diff`가 변경 없음, 기존 타인 설정 보존, `.backups/`와 직전 커밋으로 복구 가능 |
-
-로컬 `check.sh`는 `apply.py`의 렌더링(환경 수에 따른 규칙 전개, Error/NoData 처리, Slack 라우팅, health 본문 정규식)과 로컬 대체 HTTP API에서의 첫 적용/재적용 무변경/UI 수정 되돌림/타인 객체 보존/사전 조건 누락 시 무쓰기를 검증한다. promtool은 실제 규칙식으로 threshold·지속·해제·낮은 표본 수·무표본·counter reset·Expected Rejection·분류 누락·공유 exporter·수집 갱신 중단을 평가하고 대시보드 PromQL도 파싱한다.
-수집 공백 뒤 실패만 돌아오는 경우와 histogram 누락은 promtool에서 **원래 쿼리의 No Data**를 검증한다. Prometheus 알림이 사라지는 것을 Grafana의 복구로 해석하지 않는다. 렌더링된 `noDataState`/`execErrState`가 서비스 규칙에서 `KeepLast`인지 별도로 검증하며, 실제 Grafana 평가기의 시간에 따른 동작과 Slack 전송은 위 실제 stack 인수 검증 범위로 남긴다.
-Grafana Cloud의 실제 권한·과금·PDC 네트워크·Grafana 평가기의 실제 Error/NoData 상태 전이와 Slack 전달 지연/수신은 위 실제 확인의 몫이다. 최초 7일 관측 뒤 임계값과 대응 결과를 검토한다.
-
-## 로컬 검증 기록 (2026-09-13, Terraform 시절)
-
-macOS arm64에서 `deploy/monitoring/cloud/check.sh`가 종료 코드 0으로 완료됐다. 공식 checksum으로 내려받은 Terraform 1.16.2와 promtool 3.14.0을 사용했다.
-
-- Terraform `fmt -check`, `validate`, native mock-provider 테스트 **3개 통과**.
-- 실제 promtool에서 규칙 정의 **37개** 파싱, 표본/시간 입력 **63개 시나리오·99개 알림 판정·16개 원래 쿼리 판정 통과**. 환경별 Cloud 규칙으로 전개하면 **59개**다.
-- 세 대시보드의 PromQL **48개 파싱 통과**.
-- 실제 Grafana provider가 로컬 HTTP 경계와 통신하는 검사 **4개 통과**: 미리보기 무변경, 첫 적용/동일 재적용/기존 리소스 수정, 타인 리소스 보존, 소유권 충돌과 미리보기 뒤 변경 차단, 사설 probe 거절을 확인했다.
-- 필수 지표의 유휴 0과 특정 종류/경로/분류 누락을 실제 promtool로 확인하는 **4개 검사·22개 판정 통과**. Python 검사는 provider 검사와 합쳐 8개다.
-- 여섯 검토 보완은 기존 쿼리에서 실패를 먼저 확인한 뒤 수정했다: 외부 점검 공백 후 거짓 복구, 새 라우트의 첫 오류 세 건, histogram 누락과 실제 저사용량의 구분, 필수 지표 조합 누락, DB 집계 장애 중 종료 실패 통지, 빠른 코치 요청과 분석 대기 p95의 분리. 실제 provider 출력의 서비스 `KeepLast` 및 데이터 소스의 2분 Error/NoData 통지 설정도 확인했다.
-- 실제 Cloud·Slack에는 요청을 보내지 않았다. Linux CI 전체 범위와 실제 stack 인수 검증은 별도로 수행한다.
-
-## 환경 선택 로컬 검증 기록 (2026-09-14, Terraform 시절)
-
-macOS arm64에서 `deploy/monitoring/cloud/check.sh`가 종료 코드 0으로 완료됐다.
-
-- Terraform `fmt -check`, `validate`, native mock-provider 테스트 **9개 통과**: dev 단독·prod 단독·기본 두 환경, 빈/알 수 없는 환경 집합과 잘못된 origin 거절을 확인했다. dev 생성물에 prod 점검·규칙·필수 지표 쿼리·화면 선택값·공유 알림 링크가 없고, 두 환경의 기존 UID·대시보드 3개·규칙 59개·선택값·예산이 유지됐다.
-- 실제 provider의 로컬 HTTP 경계 검사 **7개 통과**: dev 최초 적용과 변경 없는 재적용, 기존 UID와 규칙 설정을 유지하는 prod 확장, 확장 뒤 변경 없는 plan, 환경 축소의 `prevent_destroy` 차단을 확인했다. 선택하지 않은 prod의 예약된 점검/규칙 UID 충돌도 계속 거절했다.
-- 기존 promtool 규칙·대시보드 쿼리 검사와 필수 지표 검사 **4개**가 통과했다. Python 검사는 provider 검사와 합쳐 **11개**다.
-- 소유권·저장 계획 적용 도구와 규칙 원문의 조건/시간/KeepLast 계약은 변경하지 않았다. 실제 서버·Cloud·Slack 호출, 자격증명 조회, 운영 적용은 이 검증에 포함하지 않았다.
+| 호스트 지표 | 실제 홈서버에서 node의 CPU·`MemAvailable`·데이터 filesystem·디스크 쓰기 값을 `/proc/stat`·`/proc/meminfo`·`df`·`/proc/diskstats`와 대조. 30일 예상 저장량과 여유 공간 확인 |

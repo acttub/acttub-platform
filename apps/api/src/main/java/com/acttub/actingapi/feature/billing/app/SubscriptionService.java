@@ -46,6 +46,7 @@ public class SubscriptionService {
     private final BillingKeyCipher cipher;
     private final Clock clock;
     private final BillingMailer mailer;
+    private final RefundNotifier refunds;
     private final SecureRandom random = new SecureRandom();
     private static final long TERMS_RECHECK_MILLIS = 60_000L;
     private volatile Instant termsPublishedAt;
@@ -60,7 +61,13 @@ public class SubscriptionService {
 
     public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
             BillingKeyCipher cipher, Clock clock, BillingMailer mailer) {
+        this(settings, repository, gateway, cipher, clock, mailer, RefundNotifier.NONE);
+    }
+
+    public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
+            BillingKeyCipher cipher, Clock clock, BillingMailer mailer, RefundNotifier refunds) {
         this.mailer = mailer;
+        this.refunds = refunds;
         this.settings = settings;
         this.repository = repository;
         this.gateway = gateway;
@@ -331,6 +338,10 @@ public class SubscriptionService {
         }
         UUID subscriptionId = repository.saveCard(checkout.userId(), checkout.customerKey(),
                 cipher.seal(issued.billingKey()), issued.cardCompany(), issued.cardNumber(), now);
+        if (subscriptionId == null) {
+            // 키를 받는 사이에 탈퇴가 끝났다. 카드를 남기지 않고 결제하지 않는다.
+            return Result.FAILED;
+        }
         Subscription sub = repository.findById(subscriptionId).orElseThrow();
         if (checkout.purpose() == Purpose.CHANGE_CARD) {
             // 카드만 바꾼다. 자동결제가 실패해 있던 구독이면 새 카드로 바로 한 번 더 시도한다.
@@ -350,8 +361,13 @@ public class SubscriptionService {
         Charge charge = charge(sub, checkout.orderId(), "first", now, end, 1);
         return switch (charge) {
             case DONE -> {
-                repository.activate(sub.id(), now, end, clock.instant());
-                yield Result.DONE;
+                if (repository.activate(sub.id(), now, end, clock.instant())) {
+                    yield Result.DONE;
+                }
+                // 승인을 기다리는 사이에 탈퇴가 끝났다. 돈은 이미 나갔다 — 사람이 토스 관리자에서 환불하도록 알린다.
+                LOG.error("billing first payment approved after withdrawal order={}", checkout.orderId());
+                refunds.refundNeeded(new RefundNotifier.Refund(checkout.orderId(), sub.amount()));
+                yield Result.FAILED;
             }
             case FAILED -> Result.FAILED;
             case UNKNOWN -> Result.UNKNOWN;

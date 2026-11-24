@@ -2,7 +2,7 @@
 
 세 앱의 폴더 배치와 api 층 규칙의 정본이고, 데이터가 지나는 길을 한 번에 보는 지도다. 앱 안의 규칙은 각 앱의
 CLAUDE.md, 기능 행동은 [스펙](specs/README.md), API·DB 구현은 [CONTRACT](../apps/api/CONTRACT.md)가 정본이라
-여기서는 링크만 건다. 개수와 경로는 2026-09-29 트리 기준이다.
+여기서는 링크만 건다. 폴더 안의 실제 목록은 트리가 정본이다.
 
 ## 디렉토리 구조
 
@@ -11,17 +11,18 @@ apps/
 ├── web/                  Next.js 화면 (pnpm 워크스페이스)
 │   └── src/
 │       ├── app/          라우트
-│       ├── features/     화면 단위 기능 14개 (workspace·practice·reading·library …)
+│       ├── features/     화면 단위 기능 (workspace·practice·reading·library …)
 │       └── lib/          공용 계층 — api/v2(백엔드 클라이언트)·react(useResource)·auth·analytics …
 ├── api/                  Spring Boot 백엔드, dev·운영 공용 (Gradle)
 │   └── src/main/java/com/acttub/actingapi/
-│       ├── feature/      비즈니스 도메인 18개 — 도메인마다 필요한 층만(아래 「api 층 규칙」)
-│       ├── platform/     배관 10개 — security·persistence·ledger·migration·observability …
-│       └── integration/  외부 연동 5개 — llm(OpenAI)·observation(Gemini)·storage(S3)·media(ffmpeg)·oidc
-└── mobile/               Expo 앱 (npm/EAS, 워크스페이스 밖)
-    ├── app/              expo-router 라우트
-    ├── components/
-    └── lib/              api·auth·기능별 상태 모듈
+│       ├── feature/      비즈니스 도메인 — 도메인마다 필요한 층만(아래 「api 층 규칙」)
+│       ├── platform/     배관 — security·persistence·ledger·migration·observability …
+│       └── integration/  외부 연동 — llm(OpenAI)·observation(Gemini)·storage(S3)·media(ffmpeg)·oidc …
+├── mobile/               Expo 앱 (npm/EAS, 워크스페이스 밖)
+│   ├── app/              expo-router 라우트
+│   ├── components/
+│   └── lib/              api·auth·기능별 상태 모듈
+└── pron/                 리딩 발음 채점 실험 서비스 (파이썬, compose `pron` 프로필의 dev에서만 뜸)
 packages/                 두 번째 사용처가 생길 때만 채운다
 deploy/                   홈서버 배포 스크립트·모니터링 설정
 docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기능 스펙), deploy/, agents/
@@ -52,6 +53,8 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
 - `platform`(배관)과 `integration`(외부 연동)은 어느 도메인이든 쓸 수 있고, 배관이 도메인의 Port를 구현하기도 한다.
 - Port 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeSessionRepository`). `Impl` 접미사는
   쓰지 않는다. Port 시그니처에 제공자 패키지의 타입이 보이면 아직 안 끊긴 것이다.
+- Port 하나는 한 쪽만 구현한다. Port 안의 질문들이 서로 다른 도메인의 데이터를 물으면 답하는 쪽의 소유를 따라 Port를 나눈다
+  (예: 사용자 조회와 동의 여부를 가른 `PendingConsentGate`).
 - `apps/api`는 Gradle 모듈 하나다. 패키지 사이 순환은 모듈 경계가 아니라 `PackageCycleTest`가 막고, 공유 타입을 위한
   커널 패키지를 따로 만들지 않고 각자 제 역할의 패키지에 둔다.
 

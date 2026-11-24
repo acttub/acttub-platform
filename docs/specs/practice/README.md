@@ -1,10 +1,10 @@
 # 연습
 
-[쓰는 법](../README.md)과 [공통 규칙](../common.md)을 먼저 읽는다.
+[쓰는 법](../README.md)과 [공통 규칙](../common.md)을 먼저 읽는다. 기능마다의 결정 배경과 프롬프트 개정 경위는 팀 위키
+`research/2026-11-24-practice-spec-background`에 있다.
 연습은 제품의 본체다(PRD). 영상을 올리고, 관찰을 받고, 코치와 대화하고, 연습 노트를 남기는 한 바퀴이며, 배우 기억이 연습을
-가로질러 남는다. 이미 배포돼 돌고 있는 기능이라 이 문서는 현행 동작을 문장으로 옮기고 0.1.0에서 바꾸는 것만 드러낸다.
-바꾸는 것은 크게 셋이다. 영상을 연습에서 독립한 자산으로 두고(보관함), 연습을 회차(묶음의 n차)로 다시 세우고, 분석·대화·노트를
-세 테이블로 나눈다. 코치의 행동 규칙은 [practice.coach](coach.md), 노트는 [practice.note](note.md), 배우 기억은
+가로질러 남는다. 영상은 연습에서 독립한 자산(보관함)이고, 연습은 회차(묶음의 n차)이며, 분석·대화·노트는 세 테이블에 나뉜다.
+코치의 행동 규칙은 [practice.coach](coach.md), 노트는 [practice.note](note.md), 배우 기억은
 [practice.memory](memory.md)의 「규칙·제약」이 정본이다. 구현 규칙(락·트랜잭션·원장·데이터 전환 명령)은
 [CONTRACT](../../../apps/api/CONTRACT.md) §6-15·§7·§8-5·§8-6에 있다.
 
@@ -31,20 +31,8 @@
 안전성」). 옛 테이블을 남겨 두는 것만으로는 옛 서버가 새 테이블의 자료를 읽지 못하므로, 새 형식을 읽고 게이트·426을 유지하는
 호환 서버를 먼저 배포해 롤백 기준 태그로 삼고 그 뒤에 새 쓰기로 전환한다. 0.1.0은 넓히기·호환 서버·데이터 전환까지다.
 
-| 현행 | 0.1.0 | 옮기는 것 | 옮기지 않는 것·주의 |
-|---|---|---|---|
-| upload_intents | 예약 장부로 계속 쓴다 + videos | 확정된 업로드마다 videos 행(소유자·객체 키·형식·크기·길이·시각). 장부는 request_id·본문 지문·객체 키·만료·확정 video_id를 보존 | 미완료·만료 업로드는 영상이 아니고 만료 객체는 삭제 장부로 지운다 |
-| practice_sessions | practices | id·소유자·영상·상황·인물·목표·막힘·경험 판(legacy·three_layers_v1)·시각. continued_from 체인을 root_id + ordinal로 | 옛 개별 숨김은 legacy_hidden_at에 두고 묶음 hidden_at을 채우지 않는다. 진행 중 회차가 둘 이상인 묶음처럼 새 제약에 맞지 않는 것은 사전 집계해 임의로 닫거나 지우지 않고 호환 경로에 남긴다 |
-| transcripts | video_transcripts | 세션 → 영상 연결로 옮기고 원문·순서·단어 시각 보존 | 같은 영상의 서로 다른 전사를 하나로 덮지 않는다 |
-| summaries | analyses | 신형 raw는 format = video_record_v1로 acttub.video_record.v1 전체, id = record_id. 기존 갈래(분석·표현)의 결과는 format = legacy로 원문(ObservationPack) 그대로. 모델·완료 시각·상태 | 구형을 신형으로 위장하지 않는다. 새 회차의 기존 갈래 결과도 format = legacy로 analyses에 쓴다 |
-| anomalies | 없음 | 구형 기록을 읽는 데 필요한 것만 원문과 함께 보존 | 새 쓰기 없음. 구형 보존이 확인되기 전 삭제 없음 |
-| coach_sessions | coach_conversations | id·연습·상태·종료 사유·상태 json·revision | 한 연습에 대화가 여럿인 옛 자료는 최신 하나로 자르지 않고 옛 읽기 경로에 남긴다 |
-| coach_turns | coach_messages | 순서·역할·본문·시각 | request_id는 입증된 것만 채운다 |
-| coaching_handoffs, handoff_confirmations | 없음(대화 상태·노트로 역할 분리) | 방향·초점·출처·종료 revision과 원문 보존 | 새 노트에 확인 절차를 요구하지 않는다 |
-| practice_reports, reports | coach_notes | 노트 id·원문·종류·배우 문장·정정·다음 촬영 제안·시각·source_revision. 기존 갈래 노트는 format = legacy(종류 analysis·expression 그대로), 신형은 format = v2(action·observation·record_only) | analysis·expression을 action·observation으로 이름만 바꾸지 않는다. 새 회차의 기존 갈래 노트도 format = legacy로 coach_notes에 쓴다 |
-| actor_memory_entries | actor_memories(성별·나이는 user_profiles) | 네 항목(goal·blockage·speech_self·speech_actual)의 값·작성자·출처·시각 | 자유 입력 나이로 생년월일을 추정하지 않는다 |
-| external_operations | ai_jobs(analyze·memory_update만) | 요청 id·본문 지문·대상·소유자·상태·시도·lease·실패 분류·결과 | coach_start·coach_reply·report의 완료 응답은 재전송 호환이 끝날 때까지 남기고 AI 큐로 옮기지 않는다 |
-| (없음) | practice_feedback | 새 테이블 | 옛 시트 자료의 역이관은 하지 않는다 |
+옛 테이블과 0.1.0 테이블의 대응, 옮기지 않는 자료와 그 사유는 [CONTRACT §6-15](../../../apps/api/CONTRACT.md#6-15-연습-010--스키마v14와-영상-보관함-soma-546)의
+「데이터 전환」이 정본이다.
 
 순서: ① 넓히기(V14 이후, 새 테이블·인덱스, 옛 테이블 불변) → ② 호환 서버(옛·새 자료를 모두 읽고 게이트·426을 유지, 롤백
 기준 태그) 배포 → ③ 새 쓰기 전환과 데이터 전환(재실행 가능한 작은 묶음, id 대응·원문·순서·소유권·출처 대조, 새 제약에 맞지 않는
@@ -90,8 +78,7 @@ SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고
 웹·앱이 보내는 계약 헤더와 서버의 신형 생성 플래그로 새 연습의 경험 판(`three_layers_v1`·`legacy`)을 정한다. 규칙은
 [practice.start](start.md#규칙제약), 배포 환경의 플래그 값은 [DEPLOY-HOME §3](../../deploy/DEPLOY-HOME.md#3-actions와-일상-배포), 롤백은 [§4](../../deploy/DEPLOY-HOME.md#4-코드-배포-복구)에 있다.
 
-### 2·3층 개정 (SOMA-531, 2026-09-14)
-2026-09-14 합의. 1층 영상 기록은 유지한다. 2층은 직전 답변에 이어 현재 연기를 이해하고,
-3층이 처음으로 다음 촬영 제안을 만든다. 결과 화면의 순서는 [practice.note](note.md#규칙제약)에 있다.
+### 2·3층 프롬프트 (SOMA-531)
+2층은 직전 답변에 이어 현재 연기를 이해하고, 3층이 다음 촬영 제안을 만든다. 결과 화면의 순서는 [practice.note](note.md#규칙제약)에 있다.
 프롬프트의 실행 정본은 파일이며 모델에게 실제 JSON Schema를 함께 제공한다. 층마다의 프롬프트·스키마 파일은
 [CONTRACT §8-5](../../../apps/api/CONTRACT.md#8-5-영상만-올리는-새-코칭-계약-soma-526)에 있다.

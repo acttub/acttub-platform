@@ -12,3 +12,7 @@ export function captureRequestError(...args) {
 export function captureRouterTransitionStart(...args) {
   sentryCalls.push(["captureRouterTransitionStart", args]);
 }
+
+export function httpIntegration(options) {
+  return { name: "Http", options };
+}

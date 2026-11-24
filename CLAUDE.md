@@ -16,6 +16,7 @@
 | `apps/web` | Next.js 화면과 API 프록시. API·서버 로직은 `apps/api`에 둡니다([서버 경계](apps/web/CLAUDE.md#서버-경계)). |
 | `apps/api` | dev·운영이 함께 쓰는 유일한 Spring Boot 백엔드. |
 | `apps/mobile` | Expo 앱. npm/EAS로 자립하며 pnpm 워크스페이스 밖에 있습니다. |
+| `apps/pron` | 리딩 발음 채점 실험 서비스(파이썬). api만 내부망으로 부르고, compose의 `pron` 프로필을 켠 dev에서만 뜹니다. CI가 이 앱의 테스트를 돌리지 않습니다([README](apps/pron/README.md)). |
 | `packages/*` | 실제 두 번째 사용처가 생긴 뒤에만 공유 패키지로 분리합니다. |
 
 ## 조건부 정본
@@ -67,6 +68,6 @@
   `mobile`입니다. 루트·크로스커팅 변경은 스코프를 생략합니다.
 - 릴리스 PR 제목은 위 목록에 없는 `release` 타입을 쓰며, 형식은 [BRANCHING-STRATEGY 「PR과 Jira」](docs/BRANCHING-STRATEGY.md#pr과-jira)가
   정합니다.
-- 커밋 메시지에는 이슈 키를 넣지 않습니다. 브랜치·PR 제목의 키는 [PR과 Jira](docs/BRANCHING-STRATEGY.md#pr과-jira)가 정합니다.
+- 커밋 메시지에는 이슈 키를 넣지 않습니다. 브랜치·PR 제목과 Squash merge 커밋 제목의 키는 [PR과 Jira](docs/BRANCHING-STRATEGY.md#pr과-jira)가 정합니다.
 - API 계약을 깨면 타입 뒤에 `!`를 붙이고 `BREAKING CHANGE:` footer에 호환 배포 순서를
   기록합니다.

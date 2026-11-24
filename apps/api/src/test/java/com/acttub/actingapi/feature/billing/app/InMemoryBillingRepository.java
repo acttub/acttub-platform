@@ -147,10 +147,11 @@ class InMemoryBillingRepository implements BillingRepository {
     }
 
     @Override
-    public void activate(UUID id, Instant periodStart, Instant periodEnd, Instant now) {
+    public boolean activate(UUID id, Instant periodStart, Instant periodEnd, Instant now) {
         Subscription s = subscriptions.get(id);
         put(new Subscription(id, s.userId(), Status.ACTIVE, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
                 s.cardNumber(), s.amount(), periodStart, periodEnd, null, 0, null, s.provider(), s.plan()));
+        return true;
     }
 
     @Override
