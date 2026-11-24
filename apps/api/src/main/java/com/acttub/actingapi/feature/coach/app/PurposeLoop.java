@@ -172,9 +172,19 @@ final class PurposeLoop {
      */
     record Turn(Purpose purpose, String step, String doing, boolean advanced, boolean end, String kindLabel,
             boolean chip, String answeredStep, boolean asked, boolean direct, boolean dontKnow) {
-        Turn(Purpose purpose, String step, String doing, boolean advanced, boolean end, String kindLabel,
-                boolean chip, String answeredStep) {
-            this(purpose, step, doing, advanced, end, kindLabel, chip, answeredStep, false, false, false);
+        /** 다음 단계로 넘어가는 응답. 할 일은 그 단계 이름이다. */
+        static Turn moving(Purpose purpose, String step, String kindLabel, boolean chip, String answeredStep) {
+            return new Turn(purpose, step, step, true, false, kindLabel, chip, answeredStep, false, false, false);
+        }
+
+        /** 단계를 넘기지 않고 그 단계에 머무는 응답(물음에 답하기·정정 받기·쉽게 다시 묻기·코치 생각 내놓기·다른 곳 보기). */
+        static Turn staying(Purpose purpose, String step, String doing, String kindLabel, boolean chip) {
+            return new Turn(purpose, step, doing, false, false, kindLabel, chip, null, false, false, false);
+        }
+
+        /** 그만: 코치 AI 를 부르지 않고 닫는다. 단계는 그대로다. */
+        static Turn ending(Purpose purpose, String step, String kindLabel) {
+            return new Turn(purpose, step, END, false, true, kindLabel, false, null, false, false, false);
         }
 
         Turn asking() {
@@ -209,7 +219,7 @@ final class PurposeLoop {
 
     /** 배우가 그만하겠다고 했을 때. */
     static Turn ended(Purpose purpose, JsonNode state) {
-        return new Turn(purpose, current(purpose, loop(state)), END, false, true, PracticeLoopRouter.Kind.STOP.label, false, null);
+        return Turn.ending(purpose, current(purpose, loop(state)), PracticeLoopRouter.Kind.STOP.label);
     }
 
     /**
@@ -236,7 +246,7 @@ final class PurposeLoop {
         PracticeLoopRouter.Kind kind = classified == null ? PracticeLoopRouter.Kind.ANSWER : classified.kind();
         String label = chip ? "버튼" : kind.label;
         if (!chip && kind == PracticeLoopRouter.Kind.STOP) {
-            return new Turn(purpose, current, END, false, true, label, false, null);
+            return Turn.ending(purpose, current, label);
         }
         boolean answerLike = chip ? !DONT_KNOW.equals(pressed) && !FIX_TOGETHER.equals(pressed) && !ANOTHER.equals(pressed)
                 : switch (kind) {
@@ -247,12 +257,12 @@ final class PurposeLoop {
         if (resumedAt(loop) >= 0) replies = Math.max(0, replies - resumedAt(loop));
         // 상한을 채우는 응답은 무엇을 말했든 정리다.
         if (freeWrap || replies >= REPLY_CAP - 1) {
-            return new Turn(purpose, WRAP, WRAP, true, false, label, chip, answerLike ? current : null);
+            return Turn.moving(purpose, WRAP, label, chip, answerLike ? current : null);
         }
         // 영상 없이 말로: 정리한 뒤 이어 간 대화에서 배우가 물으면 정리를 다시 하지 않고 물음에만 답한다. 대화는 열어 둔다.
         // 2026-10-25·26 운영: 정리 뒤 "예시로 읽어줄 수 있어?", "드라마 연기를 따라 하고 싶으면 어떻게 하나요?"에 정리를 한 번 더 하고 닫았다.
         if (purpose.conversational() && !chip && WRAP.equals(current) && asksAfterWrap(kind, actorText)) {
-            return new Turn(purpose, current, ANSWER, false, false, label, false, null);
+            return Turn.staying(purpose, current, ANSWER, label, false);
         }
         // 스무고개 막기(10/20 페르소나 시험): "잘 모르겠어요"가 대화에서 두 번째이거나, 배우가 "그래서 어떻게 해요?"처럼
         // 방법을 달라고 하면 더 묻지 않고 코치가 영상에서 본 것으로 직접 방향을 정해 주며 끝낸다.
@@ -267,18 +277,18 @@ final class PurposeLoop {
         if (chip) {
             // "잘 모르겠어요" 버튼 처음: 코치가 자기 생각을 내놓는다.
             if (DONT_KNOW.equals(pressed)) {
-                return new Turn(purpose, current, PROPOSE, false, false, label, true, null).notKnowing();
+                return Turn.staying(purpose, current, PROPOSE, label, true).notKnowing();
             }
             if (ANOTHER.equals(pressed) && CARD.equals(current) && LenientJson.asInt(loop.path("another"), 0) < 1) {
-                return new Turn(purpose, current, ANOTHER_CARD, false, false, label, true, null);
+                return Turn.staying(purpose, current, ANOTHER_CARD, label, true);
             }
             return advance(purpose, loop, index, label, true, answerLike ? current : null, actorText);
         }
         Turn turn = switch (kind) {
             case QUESTION, EVALUATION -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText).asking()
-                    : new Turn(purpose, current, ANSWER, false, false, label, false, null);
+                    : Turn.staying(purpose, current, ANSWER, label, false);
             case CORRECTION, PUSHBACK -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText)
-                    : new Turn(purpose, current, ACCEPT, false, false, label, false, null);
+                    : Turn.staying(purpose, current, ACCEPT, label, false);
             case MISSED, SHORT -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText)
                     : stay(purpose, current, stays, label, false);
             default -> advance(purpose, loop, index, label, false, current, actorText);
@@ -366,7 +376,7 @@ final class PurposeLoop {
 
     /** 처음 막히면 쉽게 다시 묻고, 또 막히면 코치가 답 하나를 내놓는다. */
     private static Turn stay(Purpose purpose, String current, int stays, String label, boolean chip) {
-        return new Turn(purpose, current, stays >= 1 ? PROPOSE : EASY, false, false, label, chip, null);
+        return Turn.staying(purpose, current, stays >= 1 ? PROPOSE : EASY, label, chip);
     }
 
     private static Turn advance(Purpose purpose, ObjectNode loop, int index, String label, boolean chip,
@@ -375,20 +385,20 @@ final class PurposeLoop {
         if (purpose.character() && (VIEW.equals(current) || CELL.equals(current))) {
             int cells = LenientJson.asInt(loop.path("cells"), 0);
             if (cells < MAX_CELLS && filledCells(loop) < CELLS.size()) {
-                return new Turn(purpose, CELL, CELL, true, false, label, chip, answeredStep);
+                return Turn.moving(purpose, CELL, label, chip, answeredStep);
             }
-            return new Turn(purpose, WRAP, WRAP, true, false, label, chip, answeredStep);
+            return Turn.moving(purpose, WRAP, label, chip, answeredStep);
         }
         // 막힌 곳을 말하면서 대사까지 짚었으면 어느 대사인지 다시 묻지 않는다.
         if (purpose == Purpose.STUCK && REASON.equals(current) && mentionsLine(loop.path("lines"), actorText)) {
-            return new Turn(purpose, SEEN, SEEN, true, false, label, chip, answeredStep);
+            return Turn.moving(purpose, SEEN, label, chip, answeredStep);
         }
         // 영상 없이: 막힌 곳을 말하면서 대사를 따왔으면 어느 대사인지 다시 묻지 않고 방법으로 간다.
         if (purpose == Purpose.TALK_STUCK && REASON.equals(current) && QUOTED_BY_ACTOR.matcher(actorText == null ? "" : actorText).find()) {
-            return new Turn(purpose, METHOD, METHOD, true, false, label, chip, answeredStep);
+            return Turn.moving(purpose, METHOD, label, chip, answeredStep);
         }
         String next = purpose.steps.get(Math.min(index + 1, purpose.steps.size() - 1));
-        return new Turn(purpose, next, next, true, false, label, chip, answeredStep);
+        return Turn.moving(purpose, next, label, chip, answeredStep);
     }
 
     private static int index(Purpose purpose, JsonNode loop) {

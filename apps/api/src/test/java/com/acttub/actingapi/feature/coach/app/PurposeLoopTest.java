@@ -183,9 +183,9 @@ class PurposeLoopTest {
         var stayedTwice = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, state("{\"step\":1,\"stays\":2}"), "왜요", null,
                 kind(PracticeLoopRouter.Kind.QUESTION), 2);
         assertThat(stayedTwice.advanced() && stayedTwice.asked()).as("두 번 머물러 넘어가도 물음엔 먼저 답한다").isTrue();
-        var cell = new PurposeLoop.Turn(PurposeLoop.Purpose.CHARACTER, "cell", "cell", true, false, "답", false, "view");
+        var cell = PurposeLoop.Turn.moving(PurposeLoop.Purpose.CHARACTER, "cell", "답", false, "view");
         assertThat(PurposeLoop.instruction(cell, state("{}"), "엄마요")).doesNotContain("(영상)으로 채운다");
-        var wrap = new PurposeLoop.Turn(PurposeLoop.Purpose.CHARACTER, "wrap", "wrap", true, false, "답", false, "cell");
+        var wrap = PurposeLoop.Turn.moving(PurposeLoop.Purpose.CHARACTER, "wrap", "답", false, "cell");
         assertThat(PurposeLoop.instruction(wrap, state("{}"), "엄마요")).contains("(영상)으로 채운다", "다른 가능성");
     }
 
@@ -313,7 +313,7 @@ class PurposeLoopTest {
         assertThat(view.lines()).containsExactly(new PurposeView.Line(3, "가르쳐 줘"));
         assertThat(view.scene().partner()).isEqualTo("연인");
 
-        var wrap = new PurposeLoop.Turn(PurposeLoop.Purpose.EVALUATE, "wrap", "wrap", true, false, "버튼", true, "method");
+        var wrap = PurposeLoop.Turn.moving(PurposeLoop.Purpose.EVALUATE, "wrap", "버튼", true, "method");
         PurposeLoop.remember(state, wrap, PurposeLoop.extract("정리\n<보기>\n남은 버튼\n</보기>"));
         assertThat(PurposeView.from("evaluate", state).choices()).as("정리 뒤에는 버튼이 없다").isEmpty();
         var wrapped = StructuredJson.MAPPER.createObjectNode();
@@ -349,7 +349,7 @@ class PurposeLoopTest {
     @Test void stepAnswersAreKeptForTheNextReply() {
         ObjectNode state = StructuredJson.MAPPER.createObjectNode();
         PurposeLoop.rememberAnswer(state, "reason", "  감정이  안 따라와요 ");
-        var turn = new PurposeLoop.Turn(PurposeLoop.Purpose.STUCK, "line", "line", true, false, "버튼", true, "reason");
+        var turn = PurposeLoop.Turn.moving(PurposeLoop.Purpose.STUCK, "line", "버튼", true, "reason");
         String instruction = PurposeLoop.instruction(turn, state, "감정이 안 따라와요");
         assertThat(instruction).contains("목적: 막힌 곳 풀기", "이번 응답이 하는 단계: 어느 대사인지",
                 "배우가 「어떻게 막혔는지」 질문에 한 답: 감정이 안 따라와요", "(버튼을 눌렀다)", "[막힌 곳 풀기의 길]");
@@ -412,7 +412,7 @@ class PurposeLoopTest {
         for (PurposeLoop.Purpose purpose : List.of(PurposeLoop.Purpose.TALK_STUCK, PurposeLoop.Purpose.TALK_CHARACTER,
                 PurposeLoop.Purpose.CONCERN)) {
             for (String step : purpose.steps.subList(1, purpose.steps.size())) {
-                var turn = new PurposeLoop.Turn(purpose, step, step, true, false, "답", false, null);
+                var turn = PurposeLoop.Turn.moving(purpose, step, "답", false, null);
                 assertThat(PurposeLoop.instruction(turn, null, "말")).as(purpose + " " + step).contains("[이번 응답]", "영상 없이");
             }
         }
