@@ -47,6 +47,9 @@ public class ConversationService {
     public static final int LEGACY_REPLY_LIMIT = 8;
     public static final int THREE_LAYERS_REPLY_LIMIT = 24;
 
+    /** 무료 상한(SOMA-1131)으로 닫힌 마지막 코치 말 끝에 서버가 붙이는 한 줄. 모델이 쓰지 않는다. */
+    static final String FREE_LIMIT_NOTE = "무료 코칭은 여기까지예요. Pro는 끝까지 이어서 코칭받을 수 있어요.";
+
     private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     private static final String COMPLETE = "complete";
 
@@ -65,6 +68,8 @@ public class ConversationService {
     private final java.util.Map<UUID, java.util.concurrent.CompletableFuture<Void>> starting = new ConcurrentHashMap<>();
     /** 다른 시작을 기다리는 최대 시간. 영상 처리 대기(180초)와 첫 질문 쓰기를 넉넉히 덮는다. 넘으면 기다리지 않고 직접 쓴다. */
     private java.time.Duration startWait = java.time.Duration.ofSeconds(200);
+    /** 무료 코칭 한 번의 답 상한(SOMA-1131). 기본은 상한 없음. */
+    private CoachFreeReplies freeReplies = CoachFreeReplies.NONE;
 
     private record RequestKey(String operation, UUID userId, UUID targetId, UUID requestId) { }
 
@@ -175,6 +180,24 @@ public class ConversationService {
         }
     }
 
+    /** 무료 코칭 한 번의 답 상한(SOMA-1131)을 끼운다. 기본은 상한 없음. */
+    public ConversationService withFreeReplies(CoachFreeReplies free) {
+        this.freeReplies = free == null ? CoachFreeReplies.NONE : free;
+        return this;
+    }
+
+    /** 이 대화에 걸리는 무료 코치 응답 상한(시작 응답 포함). 신형 갈래만 걸고, 없으면 0. */
+    private int freeCap(CoachSessionSnapshot session) {
+        return session.threeLayers() ? CoachFreeReplies.coachReplyCap(freeReplies, session.userId()) : 0;
+    }
+
+    /** 화면에 보낼 응답 상한 — 대화 하나를 다시 읽을 때(GET). 무료 상한이 걸리면 그 값으로 줄인다. */
+    public int replyLimit(UUID userId, String experienceVersion) {
+        int limit = replyLimit(experienceVersion);
+        if (!ExperienceVersion.THREE_LAYERS_V1.dbValue().equals(experienceVersion)) return limit;
+        return CoachFreeReplies.within(limit, CoachFreeReplies.coachReplyCap(freeReplies, userId));
+    }
+
     /** Test-only: 다른 시작을 기다리는 시간을 줄여 본다. */
     ConversationService withStartWait(java.time.Duration wait) {
         this.startWait = wait;
@@ -254,7 +277,7 @@ public class ConversationService {
                     replayed.revision(),
                     replayed.coachMessage(),
                     (int) originalTurns.stream().filter(turn -> "coach".equals(turn.role())).count(),
-                    replyLimit(loaded.session()),
+                    CoachFreeReplies.within(replyLimit(loaded.session()), freeCap(loaded.session())),
                     originalTurns,
                     "closed".equals(replayed.status()) ? conversations.note(userId, loaded.practiceId()) : null,
                     PurposeView.from(loaded.session().sessionPurpose(), loaded.session().coachingState()),
@@ -267,19 +290,24 @@ public class ConversationService {
             throw new ApiException(409, "conversation_conflict");
         }
         if (stream != null) stream.begin();
+        int freeCap = freeCap(loaded.session());
         CoachResult result = generate(() -> stream == null ? coach.reply(withContext(loaded.session()), text, conversationId)
                         : coach.reply(withContext(loaded.session()), text, conversationId, stream));
         boolean closing = COMPLETE.equals(result.reply().status());
+        String reason = closing ? closeReason(result) : null;
+        // 무료 상한으로 닫힌 마지막 말에는 고정 한 줄을 붙여 저장한다. 스트리밍도 끝(done)에 저장한 말이 화면을 덮는다.
+        String coachMessage = freeCap > 0 && "limit".equals(reason)
+                ? result.reply().message().stripTrailing() + "\n" + FREE_LIMIT_NOTE : result.reply().message();
         Saved saved = activeOnly(() -> conversations.appendTurn(
                 conversationId,
                 loaded.session().stateRevision(),
                 requestId,
                 fingerprint,
                 text,
-                result.reply().message(),
+                coachMessage,
                 result.session().coachingState(),
                 closing ? "closed" : "open",
-                closing ? closeReason(result) : null,
+                reason,
                 clock.instant()));
         if (saved == null) {
             throw new ApiException(409, "conversation_conflict");
@@ -303,9 +331,9 @@ public class ConversationService {
                 saved.status(),
                 saved.closeReason(),
                 saved.revision(),
-                result.reply().message(),
+                coachMessage,
                 saved.coachReplyCount(),
-                displayLimit(result.session(), saved.coachReplyCount()),
+                displayLimit(result.session(), saved.coachReplyCount(), freeCap),
                 turns(after.session()).stream().limit(result.session().turns().size()).toList(),
                 note,
                 PurposeView.from(result.session().sessionPurpose(), result.session().coachingState()),
@@ -332,7 +360,10 @@ public class ConversationService {
             throw new ApiException(409, "conversation_not_resumable");
         }
         int replies = coachReplies(session);
-        if (replies >= THREE_LAYERS_REPLY_LIMIT - 2) {
+        int freeCap = freeCap(session);
+        // 무료 상한(SOMA-1131)으로 닫힌 대화는 이어 가지 않는다. 상한에 가까운 대화도 같다.
+        if (replies >= CoachFreeReplies.within(THREE_LAYERS_REPLY_LIMIT, freeCap) - 2
+                || freeCap > 0 && "limit".equals(session.closeReason())) {
             throw new ApiException(409, "conversation_limit_reached");
         }
         ObjectNode state = session.coachingState() instanceof ObjectNode object
@@ -428,7 +459,7 @@ public class ConversationService {
                 session.stateRevision(),
                 turns.isEmpty() ? "" : turns.getLast().text(),
                 coachReplies(session),
-                displayLimit(session, coachReplies(session)),
+                displayLimit(session, coachReplies(session), freeCap(session)),
                 turns,
                 note,
                 PurposeView.from(session.sessionPurpose(), session.coachingState()),
@@ -455,7 +486,12 @@ public class ConversationService {
      * "코치 응답 수 + 1"로 내려 앱이 "다음 답으로 마무리해요"를 띄우게 한다. 서버가 닫는 판단에는 쓰지 않는다.
      */
     static int displayLimit(CoachSessionSnapshot session, int coachReplies) {
-        int limit = replyLimit(session);
+        return displayLimit(session, coachReplies, 0);
+    }
+
+    /** @param freeCap 무료 코치 응답 상한(시작 응답 포함, SOMA-1131). 없으면 0 */
+    static int displayLimit(CoachSessionSnapshot session, int coachReplies, int freeCap) {
+        int limit = CoachFreeReplies.within(replyLimit(session), freeCap);
         // 목적별 코칭은 상한을 채우는 응답이 정리이고 그 응답에서 닫힌다.
         if (PurposeLoop.of(session) != null) {
             int resumed = session == null ? -1 : PurposeLoop.resumedAt(PurposeLoop.loop(session.coachingState()));

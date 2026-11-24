@@ -42,6 +42,8 @@ public final class DirectVideoCoach {
     // 리딩 녹음으로 시작한 회차(SOMA-791)의 소리와 대본. 없으면 그 회차는 답하지 못하고 닫힌다.
     private CoachReadingAudio readingAudio = CoachReadingAudio.NONE;
     private CoachPro coachPro = CoachPro.NONE;
+    /** 무료 코칭 한 번의 답 상한(SOMA-1131). 기본은 상한 없음. */
+    private CoachFreeReplies freeReplies = CoachFreeReplies.NONE;
     // 비교 모델을 Pro 배우에게만 쓴다(SOMA-657, 2026-11-19). 무료 배우의 새 대화는 기본 모델이다.
     private boolean alternateProOnly;
     private CoachProMemory proMemory = CoachProMemory.NONE;
@@ -181,6 +183,12 @@ public final class DirectVideoCoach {
         return this;
     }
 
+    /** 무료 코칭 한 번의 답 상한(SOMA-1131)을 끼운다. 기본은 상한 없음. */
+    public DirectVideoCoach withFreeReplies(CoachFreeReplies free) {
+        this.freeReplies = free == null ? CoachFreeReplies.NONE : free;
+        return this;
+    }
+
     /**
      * 켜면 새 대화의 코치 답 모델을 Pro 여부로 정한다(SOMA-657). Pro 는 비교 모델(3.8), 무료는 기본 모델이다.
      * 끄면 예전처럼 연습 세션 id 와 SHARE% 로 정한다. Pro 판정은 {@link #withProMemory} 로 끼운 것을 쓴다.
@@ -262,14 +270,16 @@ public final class DirectVideoCoach {
         boolean inspecting = false;
         boolean actorFinished = DialogueProgress.actorFinished(actorText);
         // ConversationService.THREE_LAYERS_REPLY_LIMIT 을 따른다 — 이번 응답이 그 상한을 채우면 강제 종료한다.
-        boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count()
-                >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
+        // 무료 상한(SOMA-1131)이 걸리면 그 상한을 채우는 응답에서 닫는다(배우 답 7번 = 코치 응답 8번째).
+        int freeCap = session.turns().isEmpty() || actorText == null ? 0 : CoachFreeReplies.coachReplyCap(freeReplies, session.userId());
+        int lastReply = CoachFreeReplies.within(ConversationService.THREE_LAYERS_REPLY_LIMIT, freeCap);
+        boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count() >= lastReply - 1;
         // 둘째 응답부터: 배우의 말을 따로 분류하고 할 일·횟수·피할 것을 코드가 정한다(PracticeLoopRouter).
         Branch branch = loop && purpose == null && !session.turns().isEmpty() && actorText != null
-                ? branch(session, actorText, operationId, coaching, alreadyArm, evidence) : null;
+                ? branch(session, actorText, operationId, coaching, alreadyArm, evidence, lastReply) : null;
         // 목적별 코칭의 둘째 응답부터: 버튼을 눌렀으면 분류 없이, 직접 썼으면 분류해서 코드가 단계를 정한다.
         PurposeLoop.Turn purposeTurn = purpose != null && !session.turns().isEmpty() && actorText != null
-                ? purposeTurn(session, purpose, actorText, actorFinished, operationId) : null;
+                ? purposeTurn(session, purpose, actorText, actorFinished, operationId, freeCap) : null;
         classifiedNanos = System.nanoTime();
         // 내려놓기 답은 영상 없이 쓴다 — 영상 준비·기다림도 건너뛴다. 영상 파일은 대화가 이어지면 다음 답에서 다시 쓰도록 그대로 둔다.
         // 한 일 묻기(SOMA-855)도 내려놓기처럼 배우 말에 답하는 짧은 질문이라 영상 없이 쓴다.
@@ -296,7 +306,7 @@ public final class DirectVideoCoach {
             DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", branch.status(), closing));
             // 닫힌 사유: 배우가 그만 → user_ended, 응답 상한 → limit, 그 밖(물을 것을 다 물음) → exhausted.
             boolean stopped = actorFinished || branch.classified().kind() == PracticeLoopRouter.Kind.STOP;
-            boolean ceiling = turnBudget || branch.before().reply() >= PracticeLoopRouter.LAST_REPLY - 1;
+            boolean ceiling = turnBudget || branch.before().reply() >= branch.before().last() - 1;
             return CoachTurns.result(session, actorText, closing, state,
                     stopped ? "actor_finished" : ceiling ? "turn_budget" : "interrupted");
         }
@@ -1159,19 +1169,19 @@ public final class DirectVideoCoach {
 
     /** 목적별 코칭의 이번 응답(SOMA-719). 버튼을 그대로 눌렀으면 분류 AI를 부르지 않는다. */
     private PurposeLoop.Turn purposeTurn(CoachSessionSnapshot session, PurposeLoop.Purpose purpose, String actorText,
-            boolean actorFinished, UUID operationId) {
+            boolean actorFinished, UUID operationId, int freeCap) {
         if (actorFinished) return PurposeLoop.ended(purpose, session.coachingState());
         int replies = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         String pressed = PurposeLoop.pressed(session.coachingState(), actorText);
         PracticeLoopRouter.Classified classified = pressed == null ? classify(session, actorText, operationId) : null;
-        return PurposeLoop.decide(purpose, session.coachingState(), actorText, pressed, classified, replies);
+        return PurposeLoop.decide(purpose, session.coachingState(), actorText, pressed, classified, replies, freeCap);
     }
 
     private Branch branch(CoachSessionSnapshot session, String actorText, UUID operationId, ActorCoaching coaching,
-            String alreadyArm, boolean evidence) {
+            String alreadyArm, boolean evidence, int lastReply) {
         var loopState = session.coachingState() == null ? null : session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY);
         int coachTurns = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
-        var before = PracticeLoopRouter.before(loopState, coachTurns);
+        var before = PracticeLoopRouter.before(loopState, coachTurns, lastReply);
         var classified = PracticeLoopRouter.unsureAfterWrap(
                 PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before), before, actorText);
         String design = loopState == null ? "" : LenientJson.asText(loopState.path("design"), "");
