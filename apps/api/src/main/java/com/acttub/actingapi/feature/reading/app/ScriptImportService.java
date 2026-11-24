@@ -32,10 +32,6 @@ public class ScriptImportService {
     private final Clock clock;
     private final ScriptPlan plan;
 
-    public ScriptImportService(ScriptImportRepository imports, ScriptUploadService uploads, CanonicalJson canonical, Clock clock) {
-        this(imports, uploads, canonical, clock, ScriptPlan.UNLIMITED);
-    }
-
     public ScriptImportService(ScriptImportRepository imports, ScriptUploadService uploads, CanonicalJson canonical, Clock clock,
             ScriptPlan plan) {
         this.plan = plan;

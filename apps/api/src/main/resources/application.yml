@@ -84,8 +84,6 @@ spring:
     # 서버가 영어로 잡힌 순간 AI 가 영어로 답해 버린다.
     locale: ko
     locale-resolver: accept-header
-  mvc:
-    throw-exception-if-no-handler-found: true
 
 # 파이썬 observability.py 와 같은 계약이다(docs/archive/soma287/M5-cutover.md §D).
 #

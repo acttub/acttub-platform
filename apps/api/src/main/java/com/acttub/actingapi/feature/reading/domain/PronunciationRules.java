@@ -210,10 +210,6 @@ public final class PronunciationRules {
     /** 줄을 쓰는 근거. {@code TRANSCRIPT}: 받아쓰기가 대본과 닮음. {@code AUDIO}: 받아쓰기는 다르지만 들은 소리가 대본과 같음. */
     enum Use { NO, TRANSCRIPT, AUDIO }
 
-    static boolean usable(LineInput line) {
-        return use(line) != Use.NO;
-    }
-
     static Use use(LineInput line) {
         String heard = line.transcript() == null ? "" : clean(line.transcript());
         if (heard.isEmpty()) {

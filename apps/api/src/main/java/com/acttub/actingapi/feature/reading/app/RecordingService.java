@@ -40,16 +40,6 @@ public class RecordingService {
     private final RetranscribeRepository retranscribe;
     private final RetranscribeSettings retranscribeSettings;
 
-    public RecordingService(
-            RecordingRepository recordings,
-            RecordingStorage storage,
-            AudioTranscoder transcoder,
-            RecordingPlayback playback,
-            ReadingRecordingCleanup cleanup,
-            Clock clock) {
-        this(recordings, storage, transcoder, playback, cleanup, clock, null, null);
-    }
-
     /**
      * @param retranscribe 기기 음성 인식이 빈 결과를 낸 녹음을 서버가 뒤에서 다시 받아쓰는 큐. {@code null} 이거나 꺼져
      *        있으면 줄 세우지 않는다

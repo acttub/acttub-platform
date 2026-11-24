@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code analyses.format} 의 값 — 관찰 기록의 형식 (practice.analyze).
  *
@@ -24,12 +22,5 @@ public enum AnalysisFormat implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<AnalysisFormat> {
-        public JpaConverter() {
-            super(AnalysisFormat.class);
-        }
     }
 }

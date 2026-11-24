@@ -16,9 +16,6 @@ import jakarta.validation.constraints.NotNull;
 
 /** 블로그(app.blog)의 요청·응답. 칸 이름은 snake_case 다. */
 final class BlogDtos {
-    private static final String[] CATEGORIES = {"practice", "admissions", "audition", "news"};
-    private static final String[] APP_CTAS = {"coaching", "reading", "challenge", "none"};
-
     private BlogDtos() {
     }
 

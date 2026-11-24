@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code coach_notes.format} 의 값 — 연습 노트의 형식 (practice.note).
  *
@@ -22,12 +20,5 @@ public enum NoteFormat implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<NoteFormat> {
-        public JpaConverter() {
-            super(NoteFormat.class);
-        }
     }
 }

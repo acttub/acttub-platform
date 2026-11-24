@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code practice_feedback.trigger} 의 값 — 설문을 부른 이탈 방식 (practice.feedback).
  *
@@ -24,12 +22,5 @@ public enum FeedbackTrigger implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<FeedbackTrigger> {
-        public JpaConverter() {
-            super(FeedbackTrigger.class);
-        }
     }
 }

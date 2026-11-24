@@ -31,9 +31,4 @@ public record PracticeSession(
     public boolean analyzed() {
         return "analyzed".equals(status);
     }
-
-    /** 분석이 실패해 오류 코드를 함께 보여줄 상태인지. */
-    public boolean failed() {
-        return "failed".equals(status);
-    }
 }

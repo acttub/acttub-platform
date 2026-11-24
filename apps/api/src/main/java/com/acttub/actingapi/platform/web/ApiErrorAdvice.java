@@ -63,7 +63,6 @@ public class ApiErrorAdvice {
                 Objects.requireNonNull(exception.getCause()), kind, API_EXCEPTION_CONTEXT));
         // 스트림 경로는 Accept: text/event-stream 만 보낸다. 형식을 못 박지 않으면 협상이 깨져 이 응답 대신 500 이 나간다.
         var response = ResponseEntity.status(exception.status()).contentType(MediaType.APPLICATION_JSON);
-        exception.headers().forEach(response::header);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("detail", exception.getMessage());
         body.putAll(exception.extras());

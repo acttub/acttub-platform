@@ -51,10 +51,6 @@ public record CommunityComment(
         return anonymous ? alias : authorNickname;
     }
 
-    public boolean isHidden() {
-        return "hidden".equals(status);
-    }
-
     public boolean isVisible() {
         return VISIBLE.equals(status);
     }
