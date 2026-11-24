@@ -230,7 +230,6 @@ public final class CoachStorageFixtures {
                 handoffId,
                 coachSessionId,
                 practiceSessionId,
-                handoffJson().toString(),
                 createdAt);
         return handoffId;
     }
@@ -264,12 +263,6 @@ public final class CoachStorageFixtures {
                 FROM coach_sessions
                 WHERE id = ?
                 """, String.class, sessionId);
-    }
-
-    public static JsonNode handoffJson() {
-        return JsonNodeFactory.instance.objectNode()
-                .put("handoff_type", "analysis")
-                .put("coach_summary", "상대를 붙잡는 목적을 찾았다");
     }
 
     public static JsonNode responsePayload(List<CoachTurnSnapshot> turns) {
