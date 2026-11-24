@@ -831,6 +831,16 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             entityManager.createNativeQuery("DELETE FROM billing_pro_grants WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
+            // 친구 초대(SOMA-865, V96): 내 초대 코드와 내가 넣은 초대 기록은 지우고, 내가 초대한 사람의 기록에서는 나를 뗀다.
+            entityManager.createNativeQuery("DELETE FROM invite_codes WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM invite_redemptions WHERE invitee_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("UPDATE invite_redemptions SET inviter_id=NULL WHERE inviter_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             entityManager.createNativeQuery("UPDATE billing_checkouts SET status='failed' WHERE user_id=:userId AND status='open'")
                     .setParameter("userId", userId)
                     .executeUpdate();
