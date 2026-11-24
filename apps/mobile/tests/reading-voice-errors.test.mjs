@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { VoicePrepareError, voiceErrorKind } from '../lib/reading/tts/voice-errors.ts';
+import { playbackFailureFields, VoicePrepareError, voiceErrorKind } from '../lib/reading/tts/voice-errors.ts';
 
 test('목소리 준비 실패 분류: 단계에서 붙인 종류를 그대로 쓴다', () => {
   for (const kind of ['network', 'storage', 'parse', 'model_load']) {
@@ -24,4 +24,18 @@ test('목소리 준비 실패: 필요한 용량을 함께 싣는다', () => {
   const e = new VoicePrepareError('storage', 'no space', { neededBytes: 123 });
   assert.equal(e.neededBytes, 123);
   assert.ok(e instanceof Error);
+});
+
+test('줄 재생 실패 기록(SOMA-1062): 재생기 실패와 시작 안 됨을 가르고, 그 밖은 other 다', () => {
+  assert.deepEqual(playbackFailureFields(new VoicePrepareError('playback', '재생 실패: failed')), { reason: 'failed', message: '재생 실패: failed' });
+  assert.deepEqual(playbackFailureFields(new VoicePrepareError('playback', '재생 실패: not_started')), { reason: 'not_started', message: '재생 실패: not_started' });
+  assert.equal(playbackFailureFields(new Error('재생 실패: failed')).reason, 'other', '종류가 playback 이 아니면 문구만 같아도 가르지 않는다');
+  assert.deepEqual(playbackFailureFields(new Error('player crashed')), { reason: 'other', message: 'player crashed' });
+  assert.deepEqual(playbackFailureFields(undefined), { reason: 'other', message: '' });
+});
+
+test('줄 재생 실패 기록: 문구의 파일 경로는 지우고 100자로 자른다', () => {
+  const { message } = playbackFailureFields(new Error('Cannot open file:///var/mobile/x/speech.wav at /private/tmp/a.wav'));
+  assert.equal(message, 'Cannot open <path> at <path>');
+  assert.equal(playbackFailureFields(new Error('가'.repeat(300))).message.length, 100);
 });
