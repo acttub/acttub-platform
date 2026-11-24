@@ -1,0 +1,14 @@
+// snapshot.sh 가 jar 를 만든 JDK(Gradle toolchain)와 같은 java 로 띄우도록, 그 java 실행 파일 경로를 찍는다.
+// PATH·JAVA_HOME 의 java 는 toolchain 과 다른 버전일 수 있다(예: 맥북 기본 21, API toolchain 25).
+allprojects {
+    afterEvaluate {
+        def toolchains = extensions.findByName('javaToolchains')
+        def java = extensions.findByName('java')
+        if (toolchains != null && java != null) {
+            def launcher = toolchains.launcherFor(java.toolchain)
+            tasks.register('printToolchainJava') {
+                doLast { println 'toolchain-java=' + launcher.get().executablePath.asFile.absolutePath }
+            }
+        }
+    }
+}

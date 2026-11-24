@@ -6,6 +6,7 @@ Spring Boot·Jackson·Java·Gradle처럼 API 전체에 닿는 것을 바꿀 때,
 | 파일 | 하는 일 |
 |---|---|
 | `snapshot.sh` | 이 체크아웃의 jar를 만들고 버리는 Postgres(`postgres:18-alpine`)에 띄워, 정해진 요청을 보내고 결과를 폴더 하나에 남긴다. |
+| `toolchain-java.gradle` | jar를 만든 JDK(Gradle toolchain)의 `java` 경로를 찍는다. `snapshot.sh`가 그 `java`로 jar를 띄운다. |
 | `digest.py` | `snapshot.sh`가 남긴 원본을 견줄 수 있는 요약으로 바꾼다. `snapshot.sh`가 부른다. |
 | `compare.py` | 두 폴더를 견준다. 매번 달라지는 값(UUID, 토큰, 시각)을 지우고, 다른 곳을 모두 찍는다. 다르면 1로 끝난다. |
 
@@ -33,6 +34,10 @@ git worktree remove --force /tmp/before
 ```
 
 포트는 `APP_PORT`(기본 18080)·`MGMT_PORT`(기본 18081)로 바꾼다. 앱이 기동하다 죽으면 `<출력 폴더>/startup.log`를 본다.
+
+jar는 그 체크아웃의 Gradle toolchain JDK로 띄운다. PATH·`JAVA_HOME`의 `java`는 toolchain과 다른 버전일 수 있어서다(예: 맥북 기본
+21, API toolchain 25). 그래서 Java를 올리는 비교에서도 전은 옛 JDK, 뒤는 새 JDK로 뜬다. 다른 `java`로 띄우려면 `SNAPSHOT_JAVA`에
+실행 파일 경로를 준다.
 
 ## 읽는다
 

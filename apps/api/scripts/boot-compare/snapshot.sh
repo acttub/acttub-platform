@@ -5,7 +5,8 @@
 #   apps/api/scripts/boot-compare/snapshot.sh <출력 폴더>
 set -euo pipefail
 
-API=$(cd "$(dirname "$0")/../.." && pwd)
+HERE=$(cd "$(dirname "$0")" && pwd)
+API=$(cd "$HERE/../.." && pwd)
 OUT=${1:?출력 폴더를 준다}
 APP_PORT=${APP_PORT:-18080}
 MGMT_PORT=${MGMT_PORT:-18081}
@@ -25,7 +26,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-(cd "$API" && ./gradlew bootJar --no-daemon -q)
+# jar 는 그것을 만든 JDK(Gradle toolchain)로 띄운다. PATH·JAVA_HOME 의 java 는 다른 버전일 수 있다(맥북 기본 21, API 25).
+# SNAPSHOT_JAVA 에 java 실행 파일을 주면 그것을 쓴다.
+BUILD_OUT=$(cd "$API" && ./gradlew bootJar printToolchainJava --no-daemon -q -I "$HERE/toolchain-java.gradle")
+grep -v '^toolchain-java=' <<<"$BUILD_OUT" >&2 || true
+JAVA=${SNAPSHOT_JAVA:-$(sed -n 's/^toolchain-java=//p' <<<"$BUILD_OUT" | tail -1)}
+[[ -x "$JAVA" ]] || { echo "jar 를 띄울 java 를 찾지 못했다: '$JAVA'" >&2; exit 1; }
+echo "jar 를 띄우는 java: $JAVA ($("$JAVA" -version 2>&1 | head -1))" >&2
 cp "$API/build/libs/acting-api.jar" "$OUT/acting-api.jar"
 
 docker run -d --name "$PG_NAME" -e POSTGRES_USER=acttub -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=acttub \
@@ -54,7 +61,7 @@ sleep 2
     MANAGEMENT_SERVER_PORT="$MGMT_PORT" SERVER_PORT="$APP_PORT" \
     VIDEO_POSTER_ENABLED=false AUDITION_ENABLED=false \
     CHALLENGE_MOSAIC_ENABLED=false CHALLENGE_MODERATION_ENABLED=false CHALLENGE_FACE_BACKFILL=false \
-    java -Dacttub.dotenv.enabled=false -jar acting-api.jar > startup.log 2>&1
+    "$JAVA" -Dacttub.dotenv.enabled=false -jar acting-api.jar > startup.log 2>&1
 ) &
 APP_PID=$!
 
@@ -152,5 +159,5 @@ docker exec "$PG_NAME" pg_dump -U acttub -d acttub --schema-only --no-owner --no
 docker exec "$PG_NAME" pg_dump -U acttub -d acttub --data-only --no-owner --inserts --rows-per-insert=1 \
   --exclude-table=flyway_schema_history | grep '^INSERT' | sort > "$OUT/db-data.sql"
 
-python3 -I "$(dirname "$0")/digest.py" "$OUT"
+python3 -I "$HERE/digest.py" "$OUT"
 echo "떠 둔 폴더: $OUT"

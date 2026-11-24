@@ -50,7 +50,7 @@ class DirectVideoCoachBranchTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry);
     }
 
     static CoachSessionSnapshot looped(String design, List<String> statuses, String flow, String... turns) {
@@ -120,7 +120,7 @@ class DirectVideoCoachBranchTest {
             onText.accept("그 마음이 먼저였군요. 누구를 봐요?");
             return "그 마음이 먼저였군요. 누구를 봐요?";
         });
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100);
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, compared, 100);
         var streamed = new ArrayList<String>();
         var session = looped("버릇: 말끝", List.of(""), "a", "첫 질문");
         ((ObjectNode) session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY)).put("coach_model", "b");
