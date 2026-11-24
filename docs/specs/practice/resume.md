@@ -12,18 +12,10 @@
 없으면 「다음 테이크 찍기」로 새 영상을 골라 같은 묶음의 다음 회차를 만든다. 코치는 같은 묶음의 이전 대화와 노트를 참고 맥락으로
 읽는다.
 
-## 의도
-PRD는 끝난 연습에서 같은 영상이나 새 영상으로 다음 회차를 만든다고 한다. 현행 continued_from 체인은 묶음을 클라이언트가 정렬해
-표현하고 진행 중 회차를 막지 못한다. root_id + ordinal과 진행 중 회차 하나 제약으로 서버가 묶음을 소유한다.
-
-## 목적
-배우가 같은 장면을 다시 찍어 다시 물어보되, 같은 이야기를 처음부터 되묻지 않는다. 멈춘 대화는 새 회차와 헷갈리지 않게 바로 다시
-열 수 있어야 한다.
-
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/practices/{practice_id}/continue` | `X-Request-Id`, `X-Acttub-Contract`, 필수 `request_id`, 선택 `video_id`(없으면 이어받을 회차의 영상)·`scene`·`blockage` (`PracticeContinueRequest`) | `Practice` 201(같은 root_id, 다음 ordinal) | `practice_in_progress` 409, `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
+| `POST /v2/practices/{practice_id}/continue` | `X-Request-Id`, `X-Acttub-Contract`, 필수 `request_id`, 선택 `video_id`(없으면 이어받을 회차의 영상)·`scene`·`blockage` (`PracticeContinueRequest`) | `Practice` 201(같은 root_id, 다음 ordinal) | `practice_in_progress` 409, `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `free_daily_coaching_limit` 429, `practice_not_found` 404 |
 
 진행 중 회차 id는 묶음 조회(`GET /v2/practices`, practice.library)의 `in_progress_practice_id`로 얻는다. 서버는 `video_id`를 빼면
 이어받을 회차의 영상을 쓰는 동작을 그대로 두지만, 앱은 늘 고른 `video_id`를 싣는다.
@@ -44,18 +36,19 @@ PRD는 끝난 연습에서 같은 영상이나 새 영상으로 다음 회차를
   고른다. 웹 A8.1도 새로 확정한 영상을 쓴다.
 - 홈 「최근 연습」과 연습 기록(A1.1)의 줄은 열린 테이크가 있으면 「대화 중」 배지를 달고, 누르면 「대화 이어 가기」와 같은 길로 그
   대화에 간다. 나머지 줄은 A1.2로 간다.
+- 묶음은 서버가 소유한다. 회차는 root_id + ordinal로 묶음에 매이고 묶음당 진행 중 회차는 하나다.
 - 묶음에 닫히지 않은 회차가 있으면 새 회차를 만들지 않고 409 practice_in_progress다(본문은 코드 하나, 공통 규칙). 화면은 묶음 조회에서
-  진행 중 회차 id를 얻어 복귀시킨다.
+  진행 중 회차 id를 얻어 복귀시킨다. 닫힌 대화 다시 열기도 같은 경우 409 practice_in_progress다([practice.coach](coach.md#예외)).
 - 회차마다 상황·인물·목표·막힘을 새로 확정한다. 앱에서 방금 끝낸 노트(A13)에서 이어갈 때만 이전 장면을 미리 채워 두고, 지난
   기록·지난 노트·닫힌 코치 대화나 웹에서 이어갈 때는 빈 준비 화면이다.
 - 코치는 같은 묶음의 이전 대화·노트를 참고 맥락으로 읽고 이번 영상·의도의 증거로 쓰지 않는다(ADR-027). 무관한 최근 대화를 넣지
   않는다.
 - 새 회차마다 분석은 한 번 돈다. 같은 영상이면 받아쓰기만 재사용한다. 게스트의 하루 분석 한도([practice.analyze](analyze.md#규칙제약))를
-  한 번 쓰고, 웹은 시작 전에 이를 알린다.
+  한 번 쓰고, 웹은 시작 전에 이를 알린다. 무료 한도 플래그가 켜졌으면 하루 코칭 회차 한도(429 free_daily_coaching_limit)에도 든다.
 - 차수는 묶음 안에서 (root_id, ordinal) 유일이다. 이어하기 요청도 [공통 규칙 「요청 재전송」](../common.md#요청-재전송)을 따른다.
   실패한 회차의 재시도는 다른 진행 중 회차가 없을 때만 된다.
 - 판정 순서: 같은 요청 id 재생 → 없는·남의 회차(404) → 묶음에 진행 중 회차(409 practice_in_progress) → 영상 확인(422
-  video_not_ready) → 게스트 하루 한도(429).
+  video_not_ready) → 하루 한도(429 guest_daily_analysis_limit 또는 free_daily_coaching_limit).
 
 ## 예외
 - 진행 중 회차가 있는 묶음에서 이어하기: 409 practice_in_progress. 회차 id는 묶음 조회에서 얻는다.
@@ -77,7 +70,7 @@ PRD는 끝난 연습에서 같은 영상이나 새 영상으로 다음 회차를
   video_not_ready. 새 영상: 된다.
 - 다른 묶음의 최근 대화: 새 회차의 코치 입력에 없다. 같은 묶음의 이전 노트: 참고 맥락으로 들어간다.
 - 앱에서 A13의 「다음 테이크 찍기」: 이전 상황·인물·목표가 실린다. 지난 기록·지난 노트·닫힌 코치 대화에서: 비어 있다.
-- 게스트가 하루 3회를 쓴 뒤 이어하기: 429 guest_daily_analysis_limit.
+- 게스트가 하루 1회를 쓴 뒤 이어하기: 429 guest_daily_analysis_limit.
 
 ## 범위 밖
 - 전/후 비교. 영상 비교도, 노트끼리의 비교도 없다(PRD 「지금 하지 않는 것」, ADR-007).

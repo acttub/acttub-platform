@@ -11,13 +11,6 @@
 대화가 끝나면 그 회차의 연습 노트를 한 번 만든다. 짧은 요약, 다음 촬영에서 해볼 한 가지(없을 수 있음), 응원 문구 순서로 보여
 주고, 지난 노트 목록에서 다시 본다.
 
-## 의도
-노트 생성 조건과 형식은 PRD와 아래 「3층 촬영 노트 (SOMA-531)」가 정한다. 나눈 이야기가 짧으면 노트를 만들지 않고(기존 갈래), 신형은 조기 종료에도
-근거 수준에 맞는 기록(record_only)을 남긴다. 저장은 대화와 1:1인 coach_notes로 바꾸고 대화 상태를 복제하지 않는다.
-
-## 목적
-배우가 대화에서 스스로 말한 것이 가장 크게 보이는 기록을 얻고, 다음에 해볼 한 가지를 가져간다.
-
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
@@ -26,11 +19,12 @@
 | `PUT /v2/practices/{practice_id}/note/rating` | 필수 `request_id`·`rating`(helpful·not_helpful), 선택 `comment` (`NoteRatingRequest`) | `NoteRating` 200 | `note_not_found` 404, `comment_too_long` 422, `request_fingerprint_mismatch` 422, `account_deactivated` 403 |
 
 ## 상태
-- 대화 closed → 노트 한 번 생성, 뒤에 바뀌지 않는다 (정본: [practice.coach](coach.md#상태))
+- 대화 closed → 노트 한 번 생성 (정본: [practice.coach](coach.md#상태)). 다시 연 대화가 다시 닫히면 그 노트를 새로 만든 것으로 고치고,
+  새로 만들지 못하면 있던 노트를 그대로 둔다. 그 밖에는 바뀌지 않는다.
 - 노트 평가(note_ratings)는 노트당 한 행이고 다시 누르면 값을 덮어쓴다. 상태 전이는 없다.
 
 ## 규칙·제약
-- 노트는 대화가 닫힌 뒤 한 번 만든다. 고정된 종료 revision(source_revision)으로 만들고 이미 있는 노트를 다시 만들지 않는다. 생성
+- 노트는 대화가 닫힌 뒤 한 번 만든다(대화와 1:1인 coach_notes). 고정된 종료 revision(source_revision)으로 만들고 이미 있는 노트를 다시 만들지 않는다(다시 연 대화는 「상태」). 생성
   실패는 한 번 재시도하고 그래도 실패하면 확인된 내용만 담은 폴백을 저장한다(fallback 표시). 내부 재시도가 성공하면 fallback = false이고,
   거듭 실패해도 이미 확인된 초점·근거는 보존한다. 배우의 방향(direction)과 촬영 제안(practice.instruction.text)을 혼동하지 않는다.
 - 노트도 format으로 갈린다. 기존 갈래(legacy)는 현행 종류(analysis·expression)와 응답 모양을 유지하고, 신형(v2)은 아래 규칙이다.
@@ -49,7 +43,7 @@
 - 노트가 소유하는 것은 제목·요약 인용·제안·종류·배우 문장·정정·태그·폴백 여부·source_revision이다. 방향·초점·출처는 대화 상태에서
   읽는다. practice_id는 두지 않고 대화를 거친다.
 - 화면 순서는 짧은 대화 요약 → 다음 촬영에서 해볼 한 가지 → 응원 문구다. 비교 기준·내부 출처 카탈로그는 기본 화면에서 빼고 기존
-  공개 필드는 호환 응답으로 남긴다. A12의 "분석 확정 · 배우님과 맞춘 내용"처럼 확인·비교를 강제하는 옛 카피는 고친다. (디자인에 반영할 것)
+  공개 필드는 호환 응답으로 남긴다. 확인·비교를 강제하는 카피를 쓰지 않는다.
 - 응답 모양: `summary_quotes`는 `{quote, kind, source_ref}` 배열이고 kind는 actor·observation이다. `actor_words`·`corrections`·`tags`는
   문자열 배열이다. `report`는 기존 공개 리포트 또는 `acttub.public_practice_note.v1`이며 내부 출처 목록·대화 상태를 보내지 않는다. 그 안의
   `note_id`는 coach_notes 행의 id다. 원문은 DB에 그대로 보존한다.
@@ -103,55 +97,17 @@
 
 
 ### 2→3 전달
-서버가 종료 직후 생성한다. 모델에게 별도 장문의 handoff 요약을 만들게 하지 않는다.
+서버가 종료 직후 생성한다. 모델에게 별도 장문의 handoff 요약을 만들게 하지 않는다. 모양은
+`apps/api/src/main/resources/coaching/three-layer-contracts.schema.json`의 `coach_handoff_v2`가 정본이다.
 
-```json
-{
-  "schema_version": "acttub.coach_handoff.v2",
-  "session_id": "session",
-  "state_revision": 3,
-  "end_reason": "actor_finished",
-  "record_ref": {"record_id": "record", "version": 1, "duration_ms": 8000},
-  "context": {
-    "direction": {"text": "상대의 대답을 기다리고 싶었어요", "origin": "actor_stated", "source_refs": ["m1"]},
-    "scene_context": {"situation": null, "character_goal": null, "partner_action": null},
-    "focus": {"label": "대사가 끝난 뒤 시선", "utterance_ref": null, "evidence_refs": ["e1"]},
-    "reading": null,
-    "open_points": []
-  },
-  "conversation": [
-    {"id": "m1", "role": "actor", "text": "상대의 대답을 기다리고 싶었어요"},
-    {"id": "c1", "role": "ai", "text": "지금까지 이야기한 내용으로 정리할게요."}
-  ],
-  "source_catalog": [
-    {"id": "m1", "kind": "actor_message", "text": "상대의 대답을 기다리고 싶었어요", "record_id": null, "record_version": null, "start_ms": null, "end_ms": null},
-    {"id": "c1", "kind": "coach_message", "text": "지금까지 이야기한 내용으로 정리할게요.", "record_id": null, "record_version": null, "start_ms": null, "end_ms": null},
-    {"id": "e1", "kind": "video_observation", "text": "대사가 끝난 뒤 시선이 아래로 내려간다.", "record_id": "record", "record_version": 1, "start_ms": 6000, "end_ms": 7000}
-  ]
-}
-```
-
-위 내용은 가상 예시다. 실제 전달에는 현재 대화 원문 전체와 사용한 근거·조회한 한계를 담는다.
+전달에는 현재 대화 원문 전체와 사용한 근거·조회한 한계를 담는다.
 배우의 최종 정정도 대화와 출처 목록에 포함한다. 과제·선택·실행 이력을 새로 생성해 전달하지 않는다.
 
 ### 3층 입력과 모델 출력
 입력은 `{coach_handoff: 위 객체, controls: {can_propose: boolean, max_next_takes: 1}}`이다.
 현재 배우 방향과 함께 논의한 실제 관찰이 있어야 can_propose=true다. 모름만 남았거나,
 방향/관찰이 부족하거나, 코치 생성 실패로 끝났으면 촬영 과제를 억지로 만들지 않는다.
-
-```json
-{
-  "summary": [
-    {"source_ref": "m1", "quote": "상대의 대답을 기다리고 싶었어요"},
-    {"source_ref": "e1", "quote": "대사가 끝난 뒤 시선이 아래로 내려간다."}
-  ],
-  "next_take": {
-    "instruction": "대사가 끝난 뒤에도 상대의 반응을 기다리는 동안 시선을 그대로 두고 찍어보세요.",
-    "comparison": "같은 대목에서 시선이 내려가는 시점을 비교해보세요.",
-    "basis_refs": ["m1", "e1"]
-  }
-}
-```
+모델 출력의 모양은 같은 스키마 파일의 `layer3_note`가 정본이다.
 
 - summary는 최대 두 개, 각각 원문 50자 이내다. 배우의 현재 발화 한 부분과 현재 관찰 한 부분을
   선택하며 서버가 짧은 요약으로 연결한다. 관련 출처 ID만 붙인 새 해석을 요약에 섞지 못한다.
@@ -184,17 +140,9 @@
 - 기존 저장 노트와 공개 응답은 구형 클라이언트에서도 같은 v1 형식이다. 내부 handoff v2는 구버전 API가 만들 수 없다 — 코드 롤백 때의
   확인은 [DEPLOY-HOME §4](../../deploy/DEPLOY-HOME.md#4-코드-배포-복구)에 있다.
 
-### 검증 경계
-실행 테스트는 직전 답변 연결, 잘못된 인용·출처, 중간 과제 거부, 짧은 답·정정·종료,
-3층 첫 제안 생성과 선택/실행 불변, 실패 폴백, 공개 응답의 비공개 필드 제외, 웹·앱의 세 부분 배치를 확인한다.
-실모델에 대해 “ㅁㄹ”, “그 말이 아니야”, “무슨 뜻이야”, “그만”, 지시문 탈취 요청을 이어 보내며
-답변 의미와 제안 적절성을 별도로 확인해야 한다. 테스트 스텁 통과는 실제 코칭 품질 검증과 다르다.
-
 ## 대화 연속성: 장면 분석을 노트로 잇기
 
-2층은 장면 전체의 말하는 이유·목표를 `focus.basis=scene`으로 다룰 수 있지만,
-3층은 영상의 표현 관찰과 별도의 배우 방향이 있어야 연습을 제안할 수 있었다.
-장면 분석을 마친 대화가 노트에서 표현 교정으로 바뀌거나 연습 없이 끝나는 불일치를 수정한다.
+2층이 장면 전체의 말하는 이유·목표를 `focus.basis=scene`으로 다룬 대화는 노트에서도 장면 분석으로 잇는다.
 
 ### 3층 규칙
 - 장면 분석은 현재 배우 방향 또는 배우가 직접 정리한 인물 목표와 대사/관찰로 연습을 만든다.
