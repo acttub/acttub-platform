@@ -23,7 +23,7 @@ repositories {
  * (.github/workflows/deploy.yml) 그 네이티브만 남긴 jar 를 만들어 쓴다 — 리눅스 .so 는 glibc·libstdc++ 밖에 기대지
  * 않아 이미지에 따로 깔 것이 없다. 로컬 맥에서 실제 얼굴 찾기를 돌려 볼 때만 -PopencvAllPlatforms 로 다 남긴다.
  */
-val opencvBundle: Configuration by configurations.creating { isTransitive = false }
+val opencvBundle = configurations.create("opencvBundle") { isTransitive = false }
 val opencvLinuxJar = tasks.register<Jar>("opencvLinuxJar") {
     val allPlatforms = findProperty("opencvAllPlatforms") != null
     // 남길 플랫폼이 바뀌면 다시 만든다(제외 목록만으로는 최신 판정이 바뀌지 않았다).
@@ -91,7 +91,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-postgresql")
     // 패키지 순환을 CI 에서 빨간불로 잡는다 (ADR-016). 단일 모듈이라 컴파일러가
     // 방향을 강제하지 못하므로 이 검사가 유일한 관문이다.
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
