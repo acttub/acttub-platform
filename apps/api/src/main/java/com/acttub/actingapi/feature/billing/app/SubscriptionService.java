@@ -55,16 +55,6 @@ public class SubscriptionService {
     private final java.util.concurrent.ConcurrentHashMap<UUID, Instant> signupTimes = new java.util.concurrent.ConcurrentHashMap<>();
 
     public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
-            BillingKeyCipher cipher, Clock clock) {
-        this(settings, repository, gateway, cipher, clock, BillingMailer.NONE);
-    }
-
-    public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
-            BillingKeyCipher cipher, Clock clock, BillingMailer mailer) {
-        this(settings, repository, gateway, cipher, clock, mailer, RefundNotifier.NONE);
-    }
-
-    public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
             BillingKeyCipher cipher, Clock clock, BillingMailer mailer, RefundNotifier refunds) {
         this.mailer = mailer;
         this.refunds = refunds;
@@ -201,22 +191,13 @@ public class SubscriptionService {
     // ── 카드 등록 창 ────────────────────────────────────────────────
 
     /**
-     * 일회용 카드 등록 창을 연다. state 원문은 돌려주는 주소에만 있고 DB 에는 해시만 남는다.
+     * 일회용 카드 등록 창을 연다. state 원문은 돌려주는 주소에만 있고 DB 에는 해시만 남는다. 요금제(monthly·yearly, 생략하면
+     * monthly)는 새 구독(subscribe)의 첫 결제에만 쓰고 카드 바꾸기에는 쓰지 않는다.
      *
      * @throws ApiException 403 {@code billing_member_required}(게스트), 409 {@code already_subscribed}(Pro 이용 중이거나
      *     자동결제 실패 중에 새 구독), 409 {@code no_subscription}(구독 없이 카드 바꾸기), 409
-     *     {@code payment_pending}(앞선 결제의 결과를 아직 모름), 422 {@code invalid_purpose}
-     */
-    public StartedCheckout startCheckout(UUID userId, boolean guest, String purposeValue) {
-        return startCheckout(userId, guest, purposeValue, null);
-    }
-
-    /**
-     * 요금제(monthly·yearly, 생략하면 monthly)를 골라 카드 등록 창을 연다. 요금제는 새 구독(subscribe)의 첫 결제에만 쓰고 카드 바꾸기에는
-     * 쓰지 않는다.
-     *
-     * @throws ApiException 위 오류에 더해 422 {@code invalid_plan}(모르는 요금제), 422 {@code plan_unavailable}(웹 연 구독 스위치
-     *     {@code BILLING_WEB_YEARLY_ENABLED} 가 꺼져 있는데 yearly)
+     *     {@code payment_pending}(앞선 결제의 결과를 아직 모름), 422 {@code invalid_purpose}, 422 {@code invalid_plan}(모르는
+     *     요금제), 422 {@code plan_unavailable}(웹 연 구독 스위치 {@code BILLING_WEB_YEARLY_ENABLED} 가 꺼져 있는데 yearly)
      */
     public StartedCheckout startCheckout(UUID userId, boolean guest, String purposeValue, String planValue) {
         requireWeb();

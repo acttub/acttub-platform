@@ -63,8 +63,6 @@ public final class LineLanguage {
      */
     public static final String MARK_OPEN = "\u27E6";
     public static final String MARK_CLOSE = "\u27E7";
-    /** 소리 낼 글에서 조각 표시를 지우는 정규식(SQL {@code regexp_replace} 도 같은 모양을 쓴다). */
-    public static final String MARK_PATTERN = "\u27E6[a-z]{2}\u27E7";
 
     /**
      * 모델 답을 읽는다. 한 줄은 {@code 줄번호<TAB>말<TAB>글} 이고, 서로 다른 말이 이어지면 {@code <TAB>말<TAB>글} 을 더 잇는다.

@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.adapter.decision.OpenRouterLineDecider;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
@@ -161,8 +162,7 @@ class ScriptSplitReplayTest {
         FakeImports imports = new FakeImports(Files.readString(input));
         RecordingFailureReporter failures = new RecordingFailureReporter();
         ReplayDecider decider = JEV ? new ReplayDecider() : null;
-        ScriptSplitWorker worker = new ScriptSplitWorker(new FakeLedger(), imports, generator, new RecordingLlmTelemetry(), failures,
-                Clock.systemUTC(), decider, env("ACTTUB_JEV_REVIEW").equals("0") ? null : JEV_SETTINGS, SAME);
+        ScriptSplitWorker worker = new ScriptSplitWorker(new FakeLedger(), imports, generator, new RecordingLlmTelemetry(), failures, Clock.systemUTC(), decider, env("ACTTUB_JEV_REVIEW").equals("0") ? null : JEV_SETTINGS, SAME, null, ScriptSplitMode.LLM);
         List<SplitDraft.Origin> origins = new ArrayList<>();
         long started = System.nanoTime();
         SplitDraft.TRACE.set(traced -> { origins.clear(); origins.addAll(traced); }); // Jev 단계가 있으면 두 번 조립한다 — 마지막 것만

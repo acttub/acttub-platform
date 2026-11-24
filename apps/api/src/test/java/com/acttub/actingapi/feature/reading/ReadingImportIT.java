@@ -29,6 +29,7 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.DeciderTally;
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitProgress;
@@ -831,7 +832,7 @@ class ReadingImportIT {
         LineReview.Settings r = ScriptSplitRules.REVIEW;
         LineReview.Settings oneAtATime = new LineReview.Settings(r.mode(), r.kindThreshold(), r.dropThreshold(), r.speakerThreshold(),
                 r.edgeThreshold(), r.speechThreshold(), r.blockThreshold(), 1);
-        ScriptSplitWorker reviewing = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, oneAtATime);
+        ScriptSplitWorker reviewing = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, oneAtATime, null, null, ScriptSplitMode.LLM);
         String text = "니나: 저는 갈매기예요.\n트레플레프: 아니, 당신은 배우예요.\n니나: 아니에요.\n트레플레프: 그래요.\n니나: 가요.";
         String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").stringValue(null);
         assertThat(LenientJson.intValue(json(get("/v2/reading/imports/{id}", id), 200).path("progress").path("percent"))).isZero();
@@ -871,7 +872,7 @@ class ReadingImportIT {
                 throw new AssertionError("같은 사람 판단은 꺼져 있다");
             }
         };
-        ScriptSplitWorker gated = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, null);
+        ScriptSplitWorker gated = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, null, null, null, ScriptSplitMode.LLM);
         String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").stringValue(null);
         assertThat(gated.runOnce(clock.instant())).isTrue();
         JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);

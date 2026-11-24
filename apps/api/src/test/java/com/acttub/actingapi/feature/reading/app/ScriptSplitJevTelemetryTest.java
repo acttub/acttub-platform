@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitProgress;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
@@ -84,7 +85,7 @@ class ScriptSplitJevTelemetryTest {
     }
 
     ScriptSplitWorker worker(LlmTelemetry into, TextGenerator generator, LineDecider decider) {
-        return new ScriptSplitWorker(ledger, imports, generator, into, failures, clock, decider, ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN);
+        return new ScriptSplitWorker(ledger, imports, generator, into, failures, clock, decider, ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN, null, ScriptSplitMode.LLM);
     }
 
     void claimed(String text) {
@@ -210,7 +211,7 @@ class ScriptSplitJevTelemetryTest {
 
     @Test void withoutDeciderNothingIsRecordedForJev() {
         claimed(TEXT);
-        new ScriptSplitWorker(ledger, imports, answering(ANSWER), telemetry, failures, clock).runOnce();
+        new ScriptSplitWorker(ledger, imports, answering(ANSWER), telemetry, failures, clock, null, null, null, null, ScriptSplitMode.LLM).runOnce();
         assertThat(recorded(LlmStep.SCRIPT_REVIEW)).isEmpty();
         assertThat(recorded(LlmStep.SCRIPT_SAME_SPEAKER)).isEmpty();
     }

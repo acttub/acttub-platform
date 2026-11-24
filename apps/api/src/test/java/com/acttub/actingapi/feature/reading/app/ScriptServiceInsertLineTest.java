@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class ScriptServiceInsertLineTest {
 
     private final ScriptRepository scripts = mock(ScriptRepository.class);
-    private final ScriptService service = new ScriptService(scripts, mock(ReadingRecordingCleanup.class), null, Clock.systemUTC());
+    private final ScriptService service = new ScriptService(scripts, mock(ReadingRecordingCleanup.class), null, Clock.systemUTC(), ScriptPlan.UNLIMITED);
     private final UUID user = UUID.randomUUID();
     private final UUID script = UUID.randomUUID();
     private final UUID line = UUID.randomUUID();

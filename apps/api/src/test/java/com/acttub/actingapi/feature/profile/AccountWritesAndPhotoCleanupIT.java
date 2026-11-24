@@ -188,7 +188,7 @@ class AccountWritesAndPhotoCleanupIT {
         Profile again = new Profile("다시 찬 이름", "female", LocalDate.of(2001, 3, 14), List.of("media"),
                 "exam_prep", "audition", null, "다시 찬 소개");
 
-        assertThat(profiles.saveProfile(member, again)).as("저장소는 닫힌 계정에 쓰지 않는다").isNull();
+        assertThat(profiles.saveProfile(member, again, null)).as("저장소는 닫힌 계정에 쓰지 않는다").isNull();
         assertThat(profiles.updateNotificationSettings(member, true, null, null)).isNull();
         assertDeactivated(() -> profileService.updateNotificationSettings(member, true, null, null));
         assertDeactivated(() -> profileService.beginPhotoUpload(member, "image/jpeg", BigInteger.valueOf(1_000)));

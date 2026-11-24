@@ -67,8 +67,6 @@ class LineLanguageTest {
                 "777\tko\t고맙습니다.\tar\tمنشان هيك لابسة نظارات.\n9\tko\t괜찮아.\tko\t고마워.", sent);
         assertThat(parsed.get(777)).isEqualTo(new LineLanguage.Result("ar", "\u27E6ko\u27E7고맙습니다. \u27E6ar\u27E7منشان هيك لابسة نظارات."));
         assertThat(parsed.get(9)).isEqualTo(new LineLanguage.Result("ko", null));
-        assertThat("\u27E6ko\u27E7고맙습니다. \u27E6ar\u27E7شكرا".replaceAll(LineLanguage.MARK_PATTERN, " ").strip())
-                .isEqualTo("고맙습니다.  شكرا");
     }
 
     @Test

@@ -52,22 +52,12 @@ public record BillingSettings(
                 legacySignupBefore, legacyLimitsFrom, false);
     }
 
-    /** 같은 설정에서 웹 연 구독 스위치만 바꾼 것. */
-    public BillingSettings withWebYearly(boolean yearly) {
-        return new BillingSettings(enabled, appEnabled, freeLimitsEnabled, origin, returnUrl, clientKey, secretKey,
-                legacySignupBefore, legacyLimitsFrom, yearly);
-    }
-
     public BillingSettings {
         legacyLimitsFrom = legacyLimitsFrom == null ? DEFAULT_LEGACY_LIMITS_FROM : legacyLimitsFrom;
         origin = strip(origin);
         returnUrl = strip(returnUrl);
         clientKey = strip(clientKey);
         secretKey = strip(secretKey);
-    }
-
-    public static BillingSettings disabled() {
-        return new BillingSettings(false, false, false, "", "", "", "");
     }
 
     private static String strip(String value) {

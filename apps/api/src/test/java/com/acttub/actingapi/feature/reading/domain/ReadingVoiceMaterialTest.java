@@ -45,8 +45,6 @@ class ReadingVoiceMaterialTest {
                 4. 윤서(내 대사, 녹음 없음): 그냥.
                 5. 윤서(내 대사, 녹음 2): 됐어.
                 """);
-        assertThat(prepared.lineOf(2)).isEqualTo(noStt.id());
-        assertThat(prepared.lineOf(9)).isNull();
     }
 
     @Test

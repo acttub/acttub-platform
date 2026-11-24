@@ -53,12 +53,6 @@ public final class ReadingVoiceMaterial {
 
     /** 모델에 보일 것 전부. */
     public record Prepared(String script, List<Clip> clips) {
-        public UUID lineOf(Integer clipNumber) {
-            if (clipNumber == null) {
-                return null;
-            }
-            return clips.stream().filter(c -> c.number() == clipNumber).map(Clip::lineId).findFirst().orElse(null);
-        }
     }
 
     public static boolean audible(Recording recording) {

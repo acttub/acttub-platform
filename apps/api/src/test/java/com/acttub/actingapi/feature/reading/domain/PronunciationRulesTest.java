@@ -206,10 +206,10 @@ class PronunciationRulesTest {
     @Test
     void 음절_자리가_없거나_그_자리에_올_수_없는_소리면_들린_말을_만들지_않는다() {
         Word noSyllable = new Word(0, "다리", false, List.of(new Phone("ㄹ", "ㄴ", -5, false, null, 0, 100, true)));
-        assertThat(PronunciationRules.heardWord(noSyllable, noSyllable.phones().get(0))).isNull();
+        assertThat(PronunciationRules.heard(noSyllable, noSyllable.phones().get(0))).isNull();
         Phone toTense = bad("ㅂ", "ㄸ", -5, false, 0);
         Word coda = word(0, "밥", ok("ㅂ", false, 0), ok("ㅏ", true, 0), toTense);
-        assertThat(PronunciationRules.heardWord(coda, toTense)).as("ㄸ은 받침에 올 수 없다").isNull();
+        assertThat(PronunciationRules.heard(coda, toTense)).as("ㄸ은 받침에 올 수 없다").isNull();
     }
 
     @Test

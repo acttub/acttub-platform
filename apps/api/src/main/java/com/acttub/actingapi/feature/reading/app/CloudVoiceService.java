@@ -74,16 +74,6 @@ public final class CloudVoiceService {
         return this;
     }
 
-    public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
-            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock) {
-        this(repository, storage, synthesizer, settings, clock, VoicePlan.NONE);
-    }
-
-    public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
-            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, VoicePlan plan) {
-        this(repository, storage, synthesizer, settings, clock, plan, UpcomingVoiceLines.NONE, null);
-    }
-
     /**
      * @param upcoming 회차에서 방금 요청한 줄 뒤의 상대 대사를 찾는다 — 그 줄들을 미리 만들어 둔다(SOMA-949)
      * @param background 미리 만들기를 돌릴 곳. {@code null} 이면 가상 스레드
@@ -95,10 +85,6 @@ public final class CloudVoiceService {
         this.settings = settings; this.clock = clock; this.plan = plan == null ? VoicePlan.NONE : plan;
         this.upcoming = upcoming == null ? UpcomingVoiceLines.NONE : upcoming;
         this.background = background == null ? Executors.newVirtualThreadPerTaskExecutor() : background;
-    }
-
-    public Status status(UUID userId) {
-        return status(userId, null, null);
     }
 
     /**
@@ -122,10 +108,6 @@ public final class CloudVoiceService {
                 pro ? settings.proMonthlyLineCap() : settings.dailyLineCap(),
                 pro ? repository.monthlyUsage(userId, YearMonth.from(today)) : repository.dailyUsage(userId, today),
                 access.reason(), access == Access.PRO_ONLY);
-    }
-
-    public Result synthesize(UUID userId, String rawText, String preset) {
-        return synthesize(userId, rawText, preset, null);
     }
 
     public Result synthesize(UUID userId, String rawText, String preset, UUID sessionId) {

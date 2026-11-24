@@ -23,7 +23,7 @@ class TossBillingGatewayReplyTest {
     private final MockRestServiceServer approveServer = MockRestServiceServer.bindTo(approveBuilder).build();
 
     private TossBillingGateway gateway() {
-        return new TossBillingGateway(() -> SECRET, issueBuilder.build(), approveBuilder.build());
+        return new TossBillingGateway(() -> SECRET, issueBuilder.build(), approveBuilder.build(), false);
     }
 
     @Test

@@ -44,12 +44,6 @@ public class StoreBillingService {
     private final Clock clock;
     private final boolean allowSandbox;
 
-    /** 샌드박스 구매는 받지 않는다(운영 기본). */
-    public StoreBillingService(BillingSettings settings, BillingRepository repository, SubscriptionService subscriptions,
-            RevenueCatGateway revenueCat, Clock clock) {
-        this(settings, repository, subscriptions, revenueCat, clock, false);
-    }
-
     /** @param allowSandbox 샌드박스 구매(is_sandbox)로도 Pro 를 여는가. dev 서버만 true({@code BILLING_REVENUECAT_ALLOW_SANDBOX}). */
     public StoreBillingService(BillingSettings settings, BillingRepository repository, SubscriptionService subscriptions,
             RevenueCatGateway revenueCat, Clock clock, boolean allowSandbox) {
