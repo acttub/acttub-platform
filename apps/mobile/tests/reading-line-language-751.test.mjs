@@ -68,7 +68,8 @@ test('reading.play: 상대 대사·받아쓰기가 줄의 말을 따른다(SOMA-
   const play = read('../app/reading/play.tsx');
   assert.match(play, /\.flatMap\(\(l\) => speechParts\(l\)\)/);
   // 실패한 조각부터 기기 목소리로 이어 읽으려고 순번으로 돈다(11/5 문의).
-  assert.match(play, /const \{ text, lang \} = parts\[at\]/);
+  // 기호만 있는 조각을 뺀 소리 낼 조각만 돈다(SOMA-951).
+  assert.match(play, /const \{ text, lang \} = voiced\[at\]/);
   assert.match(play, /take\(\{ text, preset, lang \}\)/);
   assert.match(play, /speakWithDevice\(text, preset, \{ locale: speechLocaleFor\(lang\) \}\)/);
   assert.match(play, /\.flatMap\(\(line\) => speechParts\(line\)\.map/);
