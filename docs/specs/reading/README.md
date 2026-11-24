@@ -23,7 +23,8 @@ AI 코치가 듣고 들린 것 하나를 짚는다.
 - 웹 녹음의 형식 변환([reading.recording](recording.md#규칙제약)).
 - 기기 받아쓰기가 빈 녹음의 다시 받아쓰기(`READING_RETRANSCRIBE_ENABLED`, [reading.recording](recording.md#규칙제약) 「다시 받아쓰기」).
 - 고품질 목소리를 켠 사람의 상대 대사 합성([reading.cloud-voice](cloud-voice.md), 선택 동의 cloud_voice).
-- Pro의 발음 보고서(`PRON_REPORT_ENABLED`, `GET /v2/reading/sessions/{session_id}/pronunciation`): 끝난 회차의 녹음을 발음 채점 서비스(`apps/pron`)로
+- Pro의 발음 보고서(`PRON_REPORT_ENABLED`, 기본 꺼짐. compose는 `pron` 프로필을 켠 dev에서만 켠다. `GET /v2/reading/sessions/{session_id}/pronunciation`):
+  켠 서버에서 Pro 회원과 허용 사용자 목록의 회원이 받는다(`PronunciationReportService`). 끝난 회차의 녹음을 발음 채점 서비스(`apps/pron`)로
   보낸다. 따로 된 기능 파일은 아직 없다.
 - 리딩 녹음으로 코칭 받기([reading.voice-coaching](voice-coaching.md)).
 
