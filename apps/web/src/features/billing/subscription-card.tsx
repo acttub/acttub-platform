@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { cancelBillingSubscription, fetchBillingMe, type BillingMe } from "@/lib/api/v2/billing";
-import { cancelDoneMessage, subscriptionViewOf } from "./billing-flow";
+import { cancelConfirmMessage, cancelDoneMessage, subscriptionViewOf } from "./billing-flow";
 
 type State = { kind: "loading" } | { kind: "closed" } | { kind: "error" } | { kind: "ready"; me: BillingMe };
 
@@ -98,7 +98,7 @@ export function SubscriptionCard() {
         ) : (
           <div className="mt-4 space-y-3">
             <p className="text-sm leading-6 text-[#4e5968]">
-              해지하면 다음 자동결제가 되지 않아요. 이미 결제한 기간이 끝날 때까지는 Pro를 그대로 써요. 환불은{" "}
+              {cancelConfirmMessage(state.me)} 환불은{" "}
               <Link href="/refund" className="font-semibold text-[#3182f6]">해지·환불 정책</Link>을 따라요.
             </p>
             <div className="flex gap-2">
