@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 어디에도 없었다: {@code CommunityEndpointIT} 는 차단 필터·커서·조회수·좋아요 재집계만 본다.
  *
  * <p><b>같은 detail 을 여러 엔드포인트가 쓴다.</b> {@code CommunityService} 는
- * {@code postNotFound()}·{@code commentNotFound()}·{@code notAuthor()} 헬퍼로 한 곳에서
+ * {@code postNotFound()}·{@code notAuthor()} 헬퍼로 한 곳에서
  * 만들므로 소스에는 {@code new ApiException} 이 각각 하나뿐이지만, <b>그것을 부르는 연산은
  * 여럿이다.</b> 헬퍼가 늘거나 한 연산이 다른 코드로 갈아타는 것을 인벤토리 검사기는 보지
  * 못하므로(→ {@code ErrorContractInventoryTest}), 경로마다 따로 때린다.
@@ -94,16 +94,12 @@ class CommunityErrorContractIT {
                         .content("{\"body\":\"댓글\",\"anonymous\":false}"),
                 404, "post_not_found");
 
-        assertError(authed(patch("/v2/community/comments/{id}", MISSING), STRANGER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"body\":\"댓글\",\"anonymous\":false}"),
-                404, "comment_not_found");
         assertError(authed(delete("/v2/community/comments/{id}", MISSING), STRANGER),
                 404, "comment_not_found");
     }
 
     /**
-     * 남의 글·댓글을 고치거나 지우면 404 가 아니라 403 이다. 존재는 하되 권한이 없다는 뜻이라,
+     * 남의 글을 고치거나 남의 글·댓글을 지우면 404 가 아니라 403 이다. 존재는 하되 권한이 없다는 뜻이라,
      * 여기서 404 로 뭉개면 "없는 글" 과 "남의 글" 을 구별하지 못한다.
      */
     @Test
@@ -116,10 +112,6 @@ class CommunityErrorContractIT {
                         .content("{\"title\":\"제목\",\"body\":\"본문\"}"),
                 403, "not_author");
         assertError(authed(delete("/v2/community/posts/{id}", postId), STRANGER),
-                403, "not_author");
-        assertError(authed(patch("/v2/community/comments/{id}", commentId), STRANGER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"body\":\"댓글\",\"anonymous\":false}"),
                 403, "not_author");
         assertError(authed(delete("/v2/community/comments/{id}", commentId), STRANGER),
                 403, "not_author");
@@ -193,13 +185,12 @@ class CommunityErrorContractIT {
     }
 
     /**
-     * 글·댓글의 쓰기·고치기 넷이 연락처를 담으면 422 {@code community_contact_info} 다. 없는 글을 고치려 해도
+     * 글 쓰기·고치기와 댓글 쓰기 셋이 연락처를 담으면 422 {@code community_contact_info} 다. 없는 글을 고치려 해도
      * 연락처가 먼저 걸린다(본문만 보고 정해지는 거절이다). 글은 남지 않는다.
      */
     @Test
     void contactInfoIsRejectedOnEveryWriteBeforeAnythingElse() throws Exception {
         UUID postId = insertPost(AUTHOR);
-        UUID commentId = insertComment(postId, AUTHOR);
         long before = jdbc.queryForObject("SELECT count(*) FROM community_posts", Long.class);
 
         assertError(authed(post("/v2/community/posts"), AUTHOR)
@@ -223,14 +214,8 @@ class CommunityErrorContractIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"body\":\"카카오톡 id 알려주세요\"}"),
                 422, "community_contact_info");
-        assertError(authed(patch("/v2/community/comments/{id}", commentId), AUTHOR)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"body\":\"01012345678\"}"),
-                422, "community_contact_info");
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM community_posts", Long.class)).isEqualTo(before);
-        assertThat(jdbc.queryForObject("SELECT body FROM community_comments WHERE id = ?", String.class, commentId))
-                .isEqualTo("댓글");
     }
 
     private static String reportBody(String targetType, UUID targetId) {

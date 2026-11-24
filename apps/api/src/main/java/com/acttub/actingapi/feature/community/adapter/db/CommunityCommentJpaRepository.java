@@ -12,15 +12,6 @@ interface CommunityCommentJpaRepository extends JpaRepository<CommunityCommentEn
     @Modifying
     @Query("""
             UPDATE CommunityCommentEntity comment
-            SET comment.body = :body,
-                comment.updatedAt = CURRENT_TIMESTAMP
-            WHERE comment.id = :commentId
-            """)
-    int updateBody(UUID commentId, String body);
-
-    @Modifying
-    @Query("""
-            UPDATE CommunityCommentEntity comment
             SET comment.status = :status,
                 comment.updatedAt = CURRENT_TIMESTAMP
             WHERE comment.id = :commentId

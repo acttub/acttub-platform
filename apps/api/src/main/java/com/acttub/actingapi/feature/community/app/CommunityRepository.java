@@ -3,7 +3,6 @@ package com.acttub.actingapi.feature.community.app;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.community.domain.BlockedUser;
 import com.acttub.actingapi.feature.community.domain.CommunityCategory;
 import com.acttub.actingapi.feature.community.domain.CommunityComment;
 import com.acttub.actingapi.feature.community.domain.CommunityPost;
@@ -94,12 +93,6 @@ public interface CommunityRepository {
      * @throws CommunityContentNotFound 댓글이 없거나 이미 지워졌을 때
      * @throws NotAuthor 남의 댓글일 때
      */
-    CommunityComment updateComment(UUID commentId, UUID authorId, String body);
-
-    /**
-     * @throws CommunityContentNotFound 댓글이 없거나 이미 지워졌을 때
-     * @throws NotAuthor 남의 댓글일 때
-     */
     void deleteComment(UUID commentId, UUID authorId);
 
     /**
@@ -109,8 +102,6 @@ public interface CommunityRepository {
      */
     void createReport(
             UUID reporterId, String targetType, UUID targetId, String reason, String detail);
-
-    List<BlockedUser> listBlocks(UUID blockerId);
 
     /**
      * 차단한다. 이미 차단했으면 아무 일도 일어나지 않는다.
@@ -122,9 +113,6 @@ public interface CommunityRepository {
      * @throws CommunityContentNotFound 그런 사용자가 없을 때
      */
     void blockUser(UUID blockerId, UUID blockedId);
-
-    /** 차단을 푼다. 차단한 적이 없어도 오류가 아니다. */
-    void unblockUser(UUID blockerId, UUID blockedId);
 
     /** 고친 글과, 뗀 사진의 객체 삭제를 올린 장부 id. */
     record PostWrite(CommunityPost post, List<UUID> cleanupOperationIds) {
