@@ -56,7 +56,8 @@ class PracticeRollbackCompatibilityTest {
             "script_cocreations", "actor_journals", "reading_examples", "support_inquiries", "billing_subscriptions",
             "billing_checkouts", "billing_payments", "billing_pro_grants", "ads", "ad_events", "ad_serves", "ad_settings",
             "push_opens", "ad_slot_switches", "reading_recording_retranscripts", "blog_posts",
-            "practice_deletion_marks", "deleted_practice_videos", "community_post_images");
+            "practice_deletion_marks", "deleted_practice_videos", "community_post_images",
+            "invite_codes", "invite_redemptions");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "

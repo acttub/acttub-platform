@@ -75,7 +75,9 @@ class ConversationConfiguration {
             FailureReporter failureReporter,
             com.acttub.actingapi.feature.coach.app.LineNoteWriter lineNotes,
             ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFreeReplies> freeReplies) {
-        return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable(),
+        // 듣는 쪽이 둘이다 — memory(배우 기억)와 invite(친구 초대 첫 연습, SOMA-865).
+        return new ConversationService(conversations, coach, notes, clock,
+                ConversationClosedListener.all(closedListener.orderedStream().toList()),
                 profiles, memory, failureReporter, lineNotes)
                 .withFreeReplies(freeReplies.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachFreeReplies.NONE));
     }

@@ -14,6 +14,7 @@ import com.acttub.actingapi.feature.reading.adapter.decision.OpenRouterLineDecid
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.MemorizationRepository;
 import com.acttub.actingapi.feature.reading.app.MemorizationService;
+import com.acttub.actingapi.feature.reading.app.ReadingCompletionListener;
 import com.acttub.actingapi.feature.reading.app.ReadingExampleRepository;
 import com.acttub.actingapi.feature.reading.app.ReadingExampleService;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
@@ -147,8 +148,10 @@ class ReadingConfiguration {
 
     @Bean
     SessionService sessionService(
-            SessionRepository sessions, ReadingRecordingCleanup cleanup, RecordingPlayback playback, Clock clock) {
-        return new SessionService(sessions, cleanup, playback, clock);
+            SessionRepository sessions, ReadingRecordingCleanup cleanup, RecordingPlayback playback, Clock clock,
+            // 완료 알림은 선택이다 — invite(친구 초대, SOMA-865)가 구현을 내지만, 없어도 리딩은 돌아야 한다.
+            ObjectProvider<ReadingCompletionListener> completion) {
+        return new SessionService(sessions, cleanup, playback, clock, completion.getIfAvailable());
     }
 
     @Bean
