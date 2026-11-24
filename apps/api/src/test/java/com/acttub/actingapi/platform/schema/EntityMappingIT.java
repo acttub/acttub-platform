@@ -90,10 +90,7 @@ class EntityMappingIT {
     private static final Set<String> RETIRED_TABLES = Set.of(
             "reports",
             "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
-            "handoff_confirmations", "practice_reports", "upload_intents",
-            // 옛 저녁 8시 고정 알림의 보내기 장부(V25). 코드를 지운 뒤 검증용 매핑도 내렸다. 집계를 남긴 뒤
-            // DROP 마이그레이션이 지운다(CONTRACT §5-1).
-            "evening_reminder_sends");
+            "handoff_confirmations", "practice_reports", "upload_intents");
 
     /**
      * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 0.1.0, V14). 스키마는 넓히기로 한 번에 들어가고
