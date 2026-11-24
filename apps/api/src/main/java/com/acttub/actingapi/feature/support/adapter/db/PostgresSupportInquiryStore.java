@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.support.adapter.db;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.support.app.SupportInquiryStore;
@@ -64,6 +65,16 @@ class PostgresSupportInquiryStore implements SupportInquiryStore {
                 row.get("client", String.class),
                 row.get("status", String.class),
                 row.get("created_at", Instant.class));
+    }
+
+    @Override
+    public Optional<Inquiry> setStatus(UUID id, String status) {
+        return transaction.execute(tx -> NativeTuples.list(entityManager.createNativeQuery("""
+                UPDATE support_inquiries SET status=:status WHERE id=:id
+                RETURNING id,category,email,body,user_id,client,status,created_at
+                """, Tuple.class)
+                .setParameter("status", status)
+                .setParameter("id", id)).stream().map(PostgresSupportInquiryStore::map).findFirst());
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.util.Map;
@@ -149,6 +150,32 @@ class SupportInquiryIT {
     }
 
     @Test
+    @DisplayName("운영 닫기 — PATCH 로 closed·open 을 바꾸고 바뀐 행을 낸다. 토큰 없음 401, 없는 문의 404, 값 밖은 422")
+    void adminClose() throws Exception {
+        send(inquiry("bug", "one@example.com", "닫을 문의 본문입니다"), null, ip(), 201);
+        UUID id = jdbc.queryForObject("SELECT id FROM support_inquiries", UUID.class);
+
+        assertThat(mvc.perform(patch("/v2/admin/support/inquiries/{id}", id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"closed\"}")).andReturn().getResponse().getStatus()).isEqualTo(401);
+        JsonNode closed = adminPatch(id, "{\"status\":\"closed\"}", 200);
+        assertThat(closed.path("id").stringValue(null)).isEqualTo(id.toString());
+        assertThat(closed.path("status").stringValue(null)).isEqualTo("closed");
+        assertThat(closed.path("email").stringValue(null)).isEqualTo("one@example.com");
+        assertThat(jdbc.queryForObject("SELECT status FROM support_inquiries WHERE id=?", String.class, id)).isEqualTo("closed");
+        assertThat(adminPatch(id, "{\"status\":\"closed\"}", 200).path("status").stringValue(null))
+                .as("같은 값을 다시 보내도 그대로다").isEqualTo("closed");
+        assertThat(adminPatch(id, "{\"status\":\"open\"}", 200).path("status").stringValue(null))
+                .as("잘못 닫은 문의는 다시 연다").isEqualTo("open");
+
+        assertThat(adminPatch(UUID.randomUUID(), "{\"status\":\"closed\"}", 404).path("detail").stringValue(null))
+                .isEqualTo("support_inquiry_not_found");
+        assertThat(adminPatch(id, "{\"status\":\"answered\"}", 422).path("detail").isArray()).isTrue();
+        assertThat(adminPatch(id, "{}", 422).path("detail").isArray()).isTrue();
+        assertThat(adminPatch(id, "{\"status\":\"closed\",\"note\":\"x\"}", 422).path("detail").isArray()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT status FROM support_inquiries WHERE id=?", String.class, id)).isEqualTo("open");
+    }
+
+    @Test
     @DisplayName("내 문의 — 로그인 필요, 내 문의만 새것부터, 요약은 앞 40자, 상태는 표 값 그대로")
     void myInquiries() throws Exception {
         jdbc.execute("TRUNCATE TABLE consent_documents CASCADE");
@@ -169,7 +196,8 @@ class SupportInquiryIT {
         send(inquiry("bug", "a@b.co", "앱이 자꾸 멈춰요, 확인 부탁드려요"), mine, ip(), 201);
         send(inquiry("bug", "a@b.co", "다른 사람의 문의입니다, 보이면 안 돼요"), "Bearer " + jwt.issueAccessToken(other).value(), ip(), 201);
         send(inquiry("other", "a@b.co", "로그인하지 않고 보낸 문의입니다"), null, ip(), 201);
-        jdbc.update("UPDATE support_inquiries SET status='closed' WHERE category='billing'");
+        adminPatch(jdbc.queryForObject("SELECT id FROM support_inquiries WHERE category='billing'", UUID.class),
+                "{\"status\":\"closed\"}", 200);
 
         JsonNode list = getJson("/v2/support/inquiries/mine", mine, 200).path("items");
         assertThat(list).hasSize(2);
@@ -184,6 +212,16 @@ class SupportInquiryIT {
 
     private JsonNode getJson(String path, String bearer, int status) throws Exception {
         MockHttpServletResponse response = mvc.perform(get(path).header("Authorization", bearer)).andReturn().getResponse();
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
+        return mapper.readTree(response.getContentAsString());
+    }
+
+    private JsonNode adminPatch(UUID id, String body, int status) throws Exception {
+        MockHttpServletResponse response = mvc.perform(patch("/v2/admin/support/inquiries/{id}", id)
+                        .header("Authorization", "Bearer admin-secret")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andReturn().getResponse();
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
         return mapper.readTree(response.getContentAsString());
     }

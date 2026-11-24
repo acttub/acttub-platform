@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.support.app;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /** 문의 저장소 — {@code support_inquiries} (app.support-inquiry, V63). */
@@ -14,6 +15,9 @@ public interface SupportInquiryStore {
 
     /** 새것부터. {@code status} 가 {@code null} 이면 전체. */
     List<Inquiry> list(String status, int limit);
+
+    /** 상태를 바꾸고 바뀐 행을 낸다. 같은 값이면 그대로 낸다. 없는 문의면 비어 있다. */
+    Optional<Inquiry> setStatus(UUID id, String status);
 
     /** @param userId 유효한 액세스 토큰이 붙어 왔을 때만. 비로그인이면 {@code null} */
     record NewInquiry(UUID id, String category, String email, String body, UUID userId, String client) {
