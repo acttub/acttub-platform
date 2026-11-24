@@ -223,6 +223,7 @@ class CoachTurnGoldenTest {
         all.put("practice-loop-resumed", CoachTurnGoldenTest::practiceLoopResumed);
         all.put("practice-loop-classifier-model", CoachTurnGoldenTest::classifierModel);
         all.put("reply-limits", CoachTurnGoldenTest::replyLimits);
+        all.put("free-reply-limit", CoachTurnGoldenTest::freeReplyLimit);
         all.put("purpose-evaluate", CoachTurnGoldenTest::purposeEvaluate);
         all.put("purpose-stuck", CoachTurnGoldenTest::purposeStuck);
         all.put("purpose-character", CoachTurnGoldenTest::purposeCharacter);
@@ -578,32 +579,83 @@ class CoachTurnGoldenTest {
     /** 응답 상한: 연습 루프는 24번째 응답을 코치 AI 없이 닫고, 목적별 코칭은 9번째 응답이 정리다. */
     static void replyLimits(CoachTurnGoldenRig rig) {
         rig.section("연습 루프 23번 뒤");
-        var turns = new java.util.ArrayList<com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot>();
-        var state = CoachingStateReducer.empty().put("revision", 45);
-        var loop = state.putObject(DirectVideoPracticeLoop.STATE_KEY).put("design", "버릇: 말끝을 길게 끈다\n확인할 대사: 가지 마")
-                .put("flow", "a").put("coach_model", "a");
-        var statuses = loop.putArray("statuses");
-        for (int i = 0; i < 23; i++) {
-            turns.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("ai", "코치 말 " + (i + 1)));
-            if (i < 22) turns.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("actor", "배우 말 " + (i + 1)));
-            statuses.add(i == 0 ? "" : "배우의 말: 답\n할 일: 답하기\n단계: 3");
-        }
-        var looped = new CoachSessionSnapshot(CoachTurnGoldenRig.SESSION, CoachTurnGoldenRig.PRACTICE, CoachTurnGoldenRig.USER,
-                com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null,
-                "open", "", turns, PriorContext.EMPTY, "three_layers_v1", 45, state, null, null);
         rig.model.classifies(signals("answered"));
-        rig.turn(looped, "배우 말 23");
+        rig.turn(loopedAfter(23), "배우 말 23");
         rig.section("목적별 코칭 8번 뒤");
         rig.model.says(STUCK_OPENING);
         var s = rig.turn(CoachTurnGoldenRig.fresh("", 8000, null, "stuck"), null).session();
-        var many = new java.util.ArrayList<>(s.turns());
-        for (int i = 0; i < 7; i++) {
-            many.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("actor", "배우 말 " + (i + 1)));
-            many.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("ai", "코치 말 " + (i + 2)));
-        }
         rig.model.says("<다음 테이크>\"취소해\"를 붙잡듯 말해 봐도 좋아요</다음 테이크>\n\"취소해\"를 붙잡듯 말해 봐도 좋아요.")
                 .classifies(signals("answered"));
-        rig.turn(s.withTurns(many), "그건 잘 모르겠어요 그냥 해볼게요");
+        rig.turn(purposeAfter(s, 8), "그건 잘 모르겠어요 그냥 해볼게요");
+    }
+
+    /**
+     * 무료 코칭 답 상한(SOMA-1131, 배우 답 7번): 연습 루프는 상한을 채우는 응답에서 코치 AI 가 정리하며 닫고, 그 앞 응답도 정리다.
+     * 목적별 코칭은 상한을 채우는 응답이 정리다. 첫 응답에는 걸지 않는다.
+     */
+    static void freeReplyLimit(CoachTurnGoldenRig rig) {
+        rig.coach.withFreeReplies(userId -> 7);
+        rig.section("첫 응답");
+        rig.model.says(OPENING);
+        rig.turn(CoachTurnGoldenRig.fresh(), null);
+        rig.section("연습 루프 배우 답 6번째");
+        rig.model.classifies(signals("answered")).says(
+                "<다음 테이크>\"가지 마\"를 짧게 끊어 봐도 좋아요</다음 테이크>\n\"가지 마\"를 짧게 끊어 봐도 좋아요.");
+        rig.turn(loopedAfter(6), "배우 말 6");
+        rig.section("연습 루프 배우 답 7번째");
+        rig.model.classifies(signals("answered")).says(
+                "<다음 테이크>\"가지 마\"를 짧게 끊어 봐도 좋아요</다음 테이크>\n오늘 말한 마음 그대로예요. \"가지 마\"를 짧게 끊어 봐도 좋아요.");
+        rig.turn(loopedAfter(7), "배우 말 7");
+        rig.section("연습 루프 배우 답 6번째에 정리한 뒤 7번째");
+        // 6번째 답에서 정리했으면 7번째(마지막) 응답은 정리를 되풀이하지 않고 받아 주고 닫는다. 정리에서 쓴 인정 말로 시작하면 뗀다.
+        var wrapped = loopedAfter(7);
+        var turns = new java.util.ArrayList<>(wrapped.turns());
+        turns.set(turns.size() - 1, new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("ai",
+                "맞아요, 그거예요. \"가지 마\"를 짧게 끊어 봐도 좋아요."));
+        wrapped = CoachTurnGoldenRig.editState(wrapped.withTurns(turns), state -> {
+            ((tools.jackson.databind.node.ArrayNode) state.path(DirectVideoPracticeLoop.STATE_KEY).path("statuses"))
+                    .set(6, tools.jackson.databind.node.StringNode.valueOf("배우의 말: 답\n할 일: 정리하기\n다음 테이크: \"가지 마\"를 짧게 끊어 봐도 좋아요\n단계: 4"));
+            return state;
+        });
+        rig.model.classifies(signals("answered")).says("맞아요, 그거예요. 오늘 말한 마음 그대로 다음 테이크에서 확인해 봐요.");
+        rig.turn(wrapped, "네 짧게 끊어 볼게요");
+        rig.section("연습 루프 배우 답 7번째에 그만");
+        rig.model.classifies(signals("stop"));
+        rig.turn(loopedAfter(7), "그만할래요");
+        rig.section("목적별 코칭 배우 답 7번째");
+        rig.model.says(STUCK_OPENING);
+        var s = rig.turn(CoachTurnGoldenRig.fresh("", 8000, null, "stuck"), null).session();
+        rig.model.says("<다음 테이크>\"취소해\"를 붙잡듯 말해 봐도 좋아요</다음 테이크>\n\"취소해\"를 붙잡듯 말해 봐도 좋아요.")
+                .classifies(signals("answered"));
+        rig.turn(purposeAfter(s, 7), "그건 잘 모르겠어요 그냥 해볼게요");
+    }
+
+    /** 코치 응답 {@code coachTurns}개와 그 사이 배우 말이 오간 연습 루프 대화. 다음은 배우 말 차례다. */
+    static CoachSessionSnapshot loopedAfter(int coachTurns) {
+        var turns = new java.util.ArrayList<com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot>();
+        long revision = coachTurns * 2L - 1;
+        var state = CoachingStateReducer.empty().put("revision", revision);
+        var loop = state.putObject(DirectVideoPracticeLoop.STATE_KEY).put("design", "버릇: 말끝을 길게 끈다\n확인할 대사: 가지 마")
+                .put("flow", "a").put("coach_model", "a");
+        var statuses = loop.putArray("statuses");
+        for (int i = 0; i < coachTurns; i++) {
+            turns.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("ai", "코치 말 " + (i + 1)));
+            if (i < coachTurns - 1) turns.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("actor", "배우 말 " + (i + 1)));
+            statuses.add(i == 0 ? "" : "배우의 말: 답\n할 일: 답하기\n단계: 3");
+        }
+        return new CoachSessionSnapshot(CoachTurnGoldenRig.SESSION, CoachTurnGoldenRig.PRACTICE, CoachTurnGoldenRig.USER,
+                com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null,
+                "open", "", turns, PriorContext.EMPTY, "three_layers_v1", revision, state, null, null);
+    }
+
+    /** 목적별 코칭 첫 응답 뒤 배우 말·코치 말을 더해 코치 응답을 {@code coachTurns}개로 만든다. */
+    static CoachSessionSnapshot purposeAfter(CoachSessionSnapshot opened, int coachTurns) {
+        var many = new java.util.ArrayList<>(opened.turns());
+        for (int i = 1; i < coachTurns; i++) {
+            many.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("actor", "배우 말 " + i));
+            many.add(new com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot("ai", "코치 말 " + (i + 1)));
+        }
+        return opened.withTurns(many);
     }
 
     // ---- 목적별 코칭 ----
