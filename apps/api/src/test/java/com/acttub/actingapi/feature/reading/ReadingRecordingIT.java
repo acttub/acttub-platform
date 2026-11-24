@@ -27,9 +27,12 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
@@ -555,7 +558,147 @@ class ReadingRecordingIT {
         assertThat(storage.objects).isEmpty();
     }
 
+    @Test
+    @DisplayName("reading.recording: 같은 요청 id 의 올리기 둘이 겹침(앞 요청이 저장하기 전에 다시 보냄) — 201·200, 행 하나, 저장된 행의 객체가 남는다")
+    void readingRecording_overlappingSameRequestUploadsKeepTheStoredObject() throws Exception {
+        UUID requestId = UUID.randomUUID();
+
+        List<MockHttpServletResponse> responses = overlappingUploads(bearer, session, requestId, List.of(script.dialogue(1), script.dialogue(1)), () -> { });
+
+        assertThat(responses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(201, 200);
+        assertThat(count("reading_recordings")).isEqualTo(1);
+        assertThat(storage.objects).as("저장된 행이 가리키는 객체는 지우지 않는다").containsOnlyKeys(storedKey(requestId));
+        assertThat(count("account_cleanup_operations")).isZero();
+    }
+
+    @Test
+    @DisplayName("reading.recording: 같은 요청 id 가 다른 줄로 겹침 — 키가 달라 저장되지 않은 쪽의 객체는 지금처럼 장부가 지운다")
+    void readingRecording_anOverlappingReplayForAnotherLineStillDeletesItsObject() throws Exception {
+        UUID requestId = UUID.randomUUID();
+
+        List<MockHttpServletResponse> responses = overlappingUploads(bearer, session, requestId,
+                List.of(script.dialogue(1), script.dialogue(3)), () -> { });
+
+        assertThat(responses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(201, 200);
+        assertThat(count("reading_recordings")).isEqualTo(1);
+        assertThat(storage.objects).as("저장된 행의 객체만 남고 다른 키는 지웠다").containsOnlyKeys(storedKey(requestId));
+        assertThat(count("account_cleanup_operations")).isZero();
+    }
+
+    @Test
+    @DisplayName("reading.recording: 겹친 같은 요청 id 사이에 회원으로 이관됨 — 뒤의 것은 404 이고 회원에게 옮겨진 녹음의 객체가 남는다")
+    void readingRecording_aReplayRejectedAfterTheTransferKeepsTheMovedObject() throws Exception {
+        Guest guest = consentedGuest();
+        Script guests = saveScript(guest.bearer());
+        UUID guestSession = startSession(guest.bearer(), guests, List.of(guests.nina), guests.dialogue(1), guests.dialogue(8));
+        UUID requestId = UUID.randomUUID();
+
+        List<MockHttpServletResponse> responses = overlappingUploads(guest.bearer(), guestSession, requestId, List.of(guests.dialogue(1), guests.dialogue(1)),
+                () -> transfer(guest));
+
+        assertThat(responses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(201, 404);
+        assertThat(jdbc.queryForObject("SELECT user_id FROM reading_recordings WHERE request_id=?", UUID.class, requestId))
+                .as("녹음은 회원에게 옮겨졌다").isEqualTo(member);
+        assertThat(storage.objects).as("옮겨진 녹음이 가리키는 객체는 지우지 않는다").containsKey(storedKey(requestId));
+    }
+
+    @Test
+    @DisplayName("reading.recording: 겹친 같은 요청 id 사이에 그 줄의 배역이 바뀜 — 뒤의 것은 422 invalid_line 이고 저장된 행의 객체가 남는다")
+    void readingRecording_aReplayRejectedAfterALineEditKeepsTheStoredObject() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID line = script.dialogue(1);
+
+        List<MockHttpServletResponse> responses = overlappingUploads(bearer, session, requestId, List.of(line, line), () -> {
+            var edited = perform(patch("/v2/reading/scripts/{scriptId}/lines/{lineId}", script.id(), line)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"character_id\":\"" + script.treplev() + "\"}"), bearer);
+            assertThat(edited.getStatus()).as(edited.getContentAsString()).isEqualTo(200);
+        });
+
+        assertThat(responses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(201, 422);
+        assertThat(count("reading_recordings")).isEqualTo(1);
+        assertThat(storage.objects).as("저장된 행이 가리키는 객체는 지우지 않는다").containsKey(storedKey(requestId));
+    }
+
+    @Test
+    @DisplayName("reading.recording: 겹친 같은 요청 id 사이에 보관 동의자가 탈퇴함 — 뒤의 것은 404 이고 보관된 녹음의 객체가 남는다")
+    void readingRecording_aReplayRejectedAfterARetainingWithdrawalKeepsTheRetainedObject() throws Exception {
+        // setUp 의 회원은 보관 동의까지 마쳤다(AccountFixtures.passGate 가 모든 문서에 동의한다).
+        UUID requestId = UUID.randomUUID();
+
+        List<MockHttpServletResponse> responses = overlappingUploads(bearer, session, requestId, List.of(script.dialogue(1), script.dialogue(1)), () -> {
+            var withdrawn = perform(delete("/v2/me"), bearer);
+            assertThat(withdrawn.getStatus()).as(withdrawn.getContentAsString()).isEqualTo(200);
+        });
+
+        assertThat(responses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(201, 404);
+        assertThat(jdbc.queryForObject("SELECT reading_session_id IS NULL FROM reading_recordings WHERE request_id=?",
+                Boolean.class, requestId)).as("녹음은 보관 행으로 남았다").isTrue();
+        assertThat(storage.objects).as("보관된 녹음이 가리키는 객체는 지우지 않는다").containsKey(storedKey(requestId));
+    }
+
     // ---- helpers ----
+
+    @FunctionalInterface
+    private interface Step {
+        void run() throws Exception;
+    }
+
+    /**
+     * 같은 요청 id 의 올리기 둘을 겹친다(앞 요청이 느린 사이 기기가 같은 id 로 다시 보낸 경우). 둘 다 사전 확인을 지나 객체를
+     * 올리러 간 뒤, 먼저 간 쪽이 저장을 끝내면 {@code between} 을 돌리고 그다음에 뒤의 것이 저장한다. 두 응답을 돌려준다.
+     * {@code lines} 는 두 요청의 줄이다. 어느 쪽이 먼저 저장할지는 정하지 않는다.
+     */
+    private List<MockHttpServletResponse> overlappingUploads(
+            String authorization, UUID sessionId, UUID requestId, List<UUID> lines, Step between) throws Exception {
+        AtomicInteger arrivals = new AtomicInteger();
+        CountDownLatch bothPassedPrecheck = new CountDownLatch(2);
+        CountDownLatch secondMayStore = new CountDownLatch(1);
+        storage.beforeUpload = key -> {
+            int arrival = arrivals.incrementAndGet();
+            bothPassedPrecheck.countDown();
+            awaitLatch(bothPassedPrecheck);
+            if (arrival == 2) {
+                awaitLatch(secondMayStore);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<MockHttpServletResponse>> sent = new ArrayList<>();
+            for (UUID lineId : lines) {
+                sent.add(pool.submit(() -> perform(uploadRequest(sessionId, requestId, lineId, 1, "audio/mp4", M4A, 1000, "none", null, null)
+                        .header("X-Request-Id", requestId.toString()), authorization)));
+            }
+            awaitUntil("먼저 올린 쪽의 저장", 1, () -> jdbc.queryForObject(
+                    "SELECT count(*) FROM reading_recordings WHERE request_id=?", Integer.class, requestId));
+            between.run();
+            secondMayStore.countDown();
+            List<MockHttpServletResponse> responses = new ArrayList<>();
+            for (Future<MockHttpServletResponse> response : sent) {
+                responses.add(response.get(30, TimeUnit.SECONDS));
+            }
+            return responses;
+        } finally {
+            storage.beforeUpload = null;
+            secondMayStore.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            if (!latch.await(20, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("the overlapping upload never arrived");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(interrupted);
+        }
+    }
+
+    private String storedKey(UUID requestId) {
+        return jdbc.queryForObject("SELECT object_key FROM reading_recordings WHERE request_id=?", String.class, requestId);
+    }
 
     private JsonNode upload(
             String authorization, UUID sessionId, UUID requestId, UUID lineId, int attemptNo, String contentType, byte[] bytes,
@@ -850,8 +993,15 @@ class ReadingRecordingIT {
             throw new UnsupportedOperationException();
         }
 
+        /** 올리기 직전에 부른다. 겹친 올리기의 순서를 맞출 때만 쓴다. */
+        volatile Consumer<String> beforeUpload;
+
         @Override
         public void upload(String objectKey, String mimeType, Path source) {
+            Consumer<String> hook = beforeUpload;
+            if (hook != null) {
+                hook.accept(objectKey);
+            }
             try {
                 objects.put(objectKey, Files.size(source));
                 contentTypes.put(objectKey, mimeType);
