@@ -2,9 +2,9 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: SOMA-876 (게시판 칸 키는 SOMA-873 용으로 예약), 전면 칸 SOMA-1085
+- 도입: SOMA-876 (게시판 칸 키는 SOMA-873 용으로 예약), 전면 칸 SOMA-1085, 보상형 광고 SOMA-1067
 - 화면: 둘러보기 화면 위쪽 칸, 연습 중 기다리는 화면의 칸 (앱 안 광고 상세 화면은 없다 — 상세는 광고주 쪽 페이지)
-- 테이블: ads, ad_events
+- 테이블: ads, ad_events, coaching_rewards
 
 ## 기능
 칸(slot)마다 서버가 띄울 것을 하나 고른다. 1) 광고주에게 직접 받은 광고(DIRECT — 연기학원·연극·극단 등) 2) 우리 앱 광고(HOUSE, 앱 안 경로로 이동)
@@ -31,6 +31,27 @@
 - 광고 단위: dev·개발 빌드는 Google 테스트 전면 단위, 운영 빌드는 `PRODUCTION_INTERSTITIAL_UNITS` — 비어 있으면 운영 빌드는 띄우지 않는다.
 - 건너뛰기 5초는 AdMob 설정으로 정한다: 앱 설정 「높은 참여도 광고」 끔(켜면 최대 12초), 계정 설정 「전면 광고의 건너뛸 수 없는 동영상」 끔
   (켜 두면 최대 30초 광고가 올 수 있다). 앱은 건너뛰기 시간을 정하지 못한다.
+
+## 보상형 광고 (SOMA-1067)
+무료 코칭 하루 한도(3회)를 다 쓴 무료 회원이 AdMob 보상형 광고를 끝까지 보면 그날 코칭 1회를 더 받는다.
+- **켜기**: 서버 `COACHING_REWARDED_AD_ENABLED`(기본 false). 꺼져 있으면 버튼이 보이지 않고 한도 계산도 그대로다.
+  하루(한국 시간) 상한은 `COACHING_REWARDED_AD_DAILY_LIMIT`(기본 1, 0 이하면 끔).
+- **대상**: 무료 한도가 걸리는 회원([billing.subscription 「무료 한도」](../billing/subscription.md#무료-한도-billing_free_limits_enabled-기본-false))만이다.
+  Pro·한도 꺼짐·기존 회원 유예·게스트에게는 보이지 않고 지급하지 않는다.
+- **버튼**: 한도에 걸린 안내(「오늘 무료 코칭을 다 썼어요」) 안에 Pro 안내와 함께 「광고 보고 1회 더」가 보인다. 서버가 `available` 이라고
+  할 때만이고(오늘 회차를 받은 보상분까지 다 썼고 상한이 남음), 앱 빌드에 보상형 광고 단위가 없으면 보이지 않는다.
+- **흐름**: 앱이 1회용 요청 id 를 만들어 AdMob 서버 측 확인 옵션(`userId` = 회원 id, `customData` = 요청 id)과 함께 광고를 띄운다.
+  끝까지 보면 AdMob 이 서버 콜백을 부르고, 서버는 Google 공개키로 서명을 확인한 뒤 `transaction_id` 하나에 한 번만 1회를 더한다.
+  앱은 「확인하는 중」을 보이며 요청 id 로 약 10초까지 지급을 묻고, 확인되면 바로 코칭을 다시 시작할 수 있다. 광고가 오지 않거나
+  중간에 닫거나 확인이 안 되면 짧은 안내만 보이고 횟수는 늘지 않는다.
+- 광고 단위: dev·개발 빌드는 Google 테스트 보상형 단위, 운영 빌드는 `PRODUCTION_REWARDED_UNITS`(아직 비어 있음 — 운영 빌드는 버튼을 숨긴다).
+- 기록: 지급은 `coaching_rewards`(V95)에 한 줄. 탈퇴하면 지운다. 계측은 버튼 노출·클릭·광고 표시·지급 확인 성공/실패다.
+
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/coaching-rewards` | 앱 토큰 | `{available}` | 게이트 오류 |
+| `GET /v2/coaching-rewards/requests/{request_id}` | 앱 토큰 | `{granted}` (모르는 id 는 false) | 게이트 오류 |
+| `GET /v2/coaching-rewards/ssv` | AdMob 쿼리(`ad_network`·`ad_unit`·`custom_data`·`key_id`·`reward_amount`·`reward_item`·`timestamp`·`transaction_id`·`user_id`·`signature`). 앱 토큰·앱 헤더 없음(게이트 밖) | 200 `{result: granted\|duplicate\|capped\|ignored}` — 서명이 맞으면 지급하지 않아도 200 | 403 `invalid_signature`, 503 `admob_keys_unavailable`(Google 공개키를 못 받음, AdMob 이 다시 보내도 된다) |
 
 ## 광고 콘텐츠 등급(AdMob)
 앱은 프로필 생년월일의 만 나이로 AdMob 요청 설정을 고른다(`adRequestConfigFor`). 만 19세 이상은 `maxAdContentRating` T 이고 그 밖의 설정은 기본이다.
