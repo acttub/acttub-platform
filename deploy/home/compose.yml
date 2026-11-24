@@ -87,6 +87,8 @@ services:
       AWS_REGION: ${AWS_REGION:?.env 의 AWS_REGION 이 없다}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?.env 의 AWS_ACCESS_KEY_ID 가 없다}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?.env 의 AWS_SECRET_ACCESS_KEY 가 없다}
+      # 비면 AWS S3. 있으면 그 주소의 S3 호환 저장소(Cloudflare R2)다. backup 서비스와 같은 값을 쓴다.
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
       # healthcheck·web rewrites 가 이 포트를 전제한다. .env 가 덮지 못하게 고정한다(systemd 와 같다).
       SERVER_PORT: "8080"
       # 관리 포트는 호스트에 공개하지 않는다. 토큰이 없어도 일반 앱은 기동하며 관리 접근만 거부한다.
@@ -363,6 +365,8 @@ services:
       AWS_REGION: ${AWS_REGION:?.env 의 AWS_REGION 이 없다}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?.env 의 AWS_ACCESS_KEY_ID 가 없다}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?.env 의 AWS_SECRET_ACCESS_KEY 가 없다}
+      # api 와 같은 키를 쓰므로 저장소 주소도 같다.
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
       BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-acttub-db-backups}
       # 프로필이 꺼졌을 때 빈 값을 허용한다. 켜진 서비스는 prefix를 dev/ 또는 prod/로 요구하며 실패한다.
       BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-}

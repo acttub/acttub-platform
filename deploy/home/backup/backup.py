@@ -99,9 +99,15 @@ def backup_once(cfg: dict) -> None:
                     checksum = hashlib.file_digest(file, "sha256").hexdigest()
                 key = cfg["prefix"] + datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S.%fZ.dump")
                 uri = f"s3://{cfg['bucket']}/{key}"
-                aws_options = ["--cli-connect-timeout", "10", "--cli-read-timeout", "60"]
+                # S3_ENDPOINT(api 와 같은 값)가 있으면 그 S3 호환 저장소(Cloudflare R2 등)에 올린다. R2 는 모든 객체를
+                # 저장할 때 암호화하므로 AWS 의 AES256 요청(--sse)은 보내지 않는다. R2 는 받아 주지만 하는 일이 없고,
+                # 거절하는 S3 호환 저장소도 있다.
+                endpoint = os.environ.get("S3_ENDPOINT", "").strip()
+                aws_options = ["--cli-connect-timeout", "10", "--cli-read-timeout", "60",
+                               *(["--endpoint-url", endpoint] if endpoint else [])]
+                encryption = [] if endpoint else ["--sse", "AES256"]
                 run_command("upload", ["aws", "s3", "cp", str(dump), uri, "--only-show-errors",
-                                       "--sse", "AES256", "--metadata", f"sha256={checksum}", *aws_options])
+                                       *encryption, "--metadata", f"sha256={checksum}", *aws_options])
                 raw = run_command("remote verification", ["aws", "s3api", "head-object", "--bucket", cfg["bucket"],
                                                           "--key", key, "--output", "json", *aws_options])
                 try:
