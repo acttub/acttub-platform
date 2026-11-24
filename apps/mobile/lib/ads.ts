@@ -180,6 +180,46 @@ export function interstitialUnitFor(platform: 'ios' | 'android', apiUrl: string 
   return PRODUCTION_INTERSTITIAL_UNITS[platform] || null;
 }
 
+/** Google 공식 테스트 보상형 광고 단위(SOMA-1067). 개발·dev 빌드는 늘 이것만 쓴다. */
+export const TEST_REWARDED_UNIT = {
+  android: 'ca-app-pub-3940256099942544/5224354917',
+  ios: 'ca-app-pub-3940256099942544/1712485313',
+} as const;
+
+/**
+ * 운영 AdMob 보상형 광고 단위(무료 코칭 1회 더, SOMA-1067). 아직 만들지 않아 비어 있다 — 비어 있으면 운영 빌드는 버튼을 보이지 않는다.
+ * 단위를 만들 때 AdMob 콘솔에서 서버 측 확인 URL 을 `<API 주소>/v2/coaching-rewards/ssv` 로 둔다.
+ */
+export const PRODUCTION_REWARDED_UNITS: { android: string; ios: string } = {
+  android: '',
+  ios: '',
+};
+
+/** 보상형 광고 단위. 운영 API 를 보는 빌드만 실제 단위(없으면 null — 버튼을 숨긴다), 나머지는 Google 테스트 단위다. */
+export function rewardedUnitFor(platform: 'ios' | 'android', apiUrl: string | undefined): string | null {
+  if (!isProductionApiUrl(apiUrl)) return TEST_REWARDED_UNIT[platform];
+  return PRODUCTION_REWARDED_UNITS[platform] || null;
+}
+
+/** 광고를 다 본 뒤 서버 지급을 묻는 간격(ms). 합이 약 10초다 — AdMob 콜백은 보통 몇 초 안에 온다. */
+export const REWARD_CONFIRM_DELAYS_MS = [1000, 1500, 2000, 2500, 3000] as const;
+
+/**
+ * 서버가 지급을 확인할 때까지 간격마다 묻는다. 확인되면 true, 끝까지 안 되면 false. 묻기 하나가 실패(네트워크)해도 다음 간격에 다시 묻는다.
+ * wait 는 테스트가 시간을 건너뛰게 넘긴다.
+ */
+export async function confirmReward(
+  check: () => Promise<boolean>,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  delays: readonly number[] = REWARD_CONFIRM_DELAYS_MS,
+): Promise<boolean> {
+  for (const delay of delays) {
+    await wait(delay);
+    if (await check().catch(() => false)) return true;
+  }
+  return false;
+}
+
 /** 같은 사람에게 전면 광고는 3분에 한 번까지(11/19 수익 모델 확정). */
 export const FULL_SCREEN_GAP_MS = 3 * 60_000;
 

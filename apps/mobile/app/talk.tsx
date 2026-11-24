@@ -101,7 +101,15 @@ export default function TalkScreen() {
         </View>
         {error ? <InlineErrorLine message={error} /> : null}
       </ScrollView>
-      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
+      <CoachingLimitSheet
+        visible={freeLimit}
+        onClose={() => setFreeLimit(false)}
+        onRewarded={() => {
+          // 광고를 보고 1회를 받았다(SOMA-1067) — 고른 목적으로 바로 다시 시작한다.
+          setFreeLimit(false);
+          if (picked) void start(picked);
+        }}
+      />
       <CtaBar>
         <PrimaryButton
           label={t('talk.next')}
