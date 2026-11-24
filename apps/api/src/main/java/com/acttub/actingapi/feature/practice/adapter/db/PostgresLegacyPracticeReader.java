@@ -56,11 +56,9 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
                          WHEN ps.status::text IN ('created','analyzing') THEN 'analyzing'
                          WHEN EXISTS (SELECT 1 FROM practice_sessions nxt WHERE nxt.continued_from = ps.id)
                               THEN 'closed'
-                         WHEN EXISTS (SELECT 1 FROM coach_sessions cs
-                                      WHERE cs.practice_session_id = ps.id AND cs.status::text = 'open')
-                              THEN 'conversing'
-                         WHEN EXISTS (SELECT 1 FROM coach_sessions cs
-                                      WHERE cs.practice_session_id = ps.id AND cs.status::text = 'closed')
+                         -- 옛 표의 대화는 열려 있어도 이어 말할 수 없다(답·이어 하기는 새 표만 본다). 화면이 입력을 받지
+                         -- 않게 closed 로 낸다. 옮긴 뒤에는 새 표에서 conversing 으로 이어진다.
+                         WHEN EXISTS (SELECT 1 FROM coach_sessions cs WHERE cs.practice_session_id = ps.id)
                               THEN 'closed'
                          ELSE 'conversing'
                        END AS stage,
@@ -91,12 +89,12 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
                                 THEN 'partial' ELSE 'ready' END
                     FROM summaries s WHERE s.session_id=l.id
                     ORDER BY s.created_at DESC LIMIT 1) AS analysis_status,
-                   cs.id AS conversation_id,cs.status AS conversation_status,
+                   cs.id AS conversation_id,CASE WHEN cs.id IS NULL THEN NULL ELSE 'closed' END AS conversation_status,
                    (SELECT count(*) FROM coach_turns t WHERE t.session_id=cs.id) AS conversation_count,
                    r.id AS note_id,r.title AS note_title,r.report_type AS note_kind,
                    j.id AS job_id,j.status AS job_status,j.error_code AS failure_reason,j.attempt_count
             FROM legacy l
-            LEFT JOIN LATERAL (SELECT id,status::text AS status
+            LEFT JOIN LATERAL (SELECT id
                                FROM coach_sessions
                                WHERE practice_session_id=l.id
                                ORDER BY created_at DESC,id DESC
@@ -178,7 +176,7 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
     @Override
     public List<PreviousConversation> previousConversations(UUID userId, UUID practiceId) {
         return NativeTuples.list(query("""
-                SELECT cs.id,cs.status::text AS status,cs.created_at
+                SELECT cs.id,'closed' AS status,cs.created_at
                 FROM coach_sessions cs
                 JOIN practice_sessions ps ON ps.id=cs.practice_session_id
                 WHERE cs.practice_session_id=:practiceId
