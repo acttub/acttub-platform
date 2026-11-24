@@ -131,6 +131,35 @@ class PortfolioSqlTraceIT {
                 Path.of("src/test/resources/portfolio-sql-trace-results.txt")).strip());
     }
 
+    /**
+     * 상한 경합: 두 스레드가 같은 회원의 마지막 한 자리(상한 1)를 동시에 노린다. 포트폴리오 행 잠금이 둘을 줄 세워
+     * 하나만 넣어야 한다. 네이티브는 FOR UPDATE, JPA 로 옮긴 판은 FOR NO KEY UPDATE 로 잠근다(SOMA-1112 P37).
+     */
+    @Test
+    void concurrentAddsRespectTheLimit() throws Exception {
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            for (int round = 0; round < 20; round++) {
+                UUID member = UUID.randomUUID();
+                jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", member);
+                var start = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.Callable<Portfolio.Credit> add = () -> {
+                    start.await();
+                    return portfolios.addCredit(member, "작품", "배역", 2024, "play", 1);
+                };
+                var first = pool.submit(add);
+                var second = pool.submit(add);
+                start.countDown();
+                long added = java.util.stream.Stream.of(first.get(), second.get()).filter(java.util.Objects::nonNull).count();
+                Integer stored = jdbc.queryForObject("SELECT count(*) FROM portfolio_credits WHERE user_id=?", Integer.class, member);
+                assertThat(added).as("round %d", round).isEqualTo(1);
+                assertThat(stored).as("round %d", round).isEqualTo(1);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     private <T> T step(String label, Supplier<T> body) {
         Recorder.STATEMENTS.clear();
         T value = body.get();
