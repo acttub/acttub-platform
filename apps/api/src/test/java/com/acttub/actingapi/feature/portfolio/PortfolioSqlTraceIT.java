@@ -133,7 +133,7 @@ class PortfolioSqlTraceIT {
 
     /**
      * 상한 경합: 두 스레드가 같은 회원의 마지막 한 자리(상한 1)를 동시에 노린다. 포트폴리오 행 잠금이 둘을 줄 세워
-     * 하나만 넣어야 한다. 네이티브는 FOR UPDATE, JPA 로 옮긴 판은 FOR NO KEY UPDATE 로 잠근다(SOMA-1112 P37).
+     * 하나만 넣어야 한다. 네이티브는 FOR UPDATE, JPA 로 옮긴 구현은 FOR NO KEY UPDATE 로 잠근다(SOMA-1112 P37).
      */
     @Test
     void concurrentAddsRespectTheLimit() throws Exception {
