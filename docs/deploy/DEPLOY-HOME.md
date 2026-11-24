@@ -51,9 +51,9 @@ DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §5](../..
 | 외부 서비스 | AI 키(바로 아래 행), 모델 설정, 오디션 공고 수집(`AUDITION_*`, 켜면 바깥 출처에 요청), `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
 | AI 키 | 기능별 전용 키와 공용 키(`GEMINI_API_KEY`·`OPENAI_API_KEY`)의 이름과 쓰임은 `.env.example`을 따른다. Gemini 코칭·TTS·챌린지는 전용 키도 공용 키도 없으면 API 기동이 멈추고(다른 기능의 키로 대신하지 않는다), OpenAI는 호출할 때 실패한다. 값은 서버 `.env` 에만 두고 저장소·로그·문서에 적지 않는다 |
 | 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
-| 파일 저장소 | Cloudflare R2. `S3_BUCKET`(환경별 파일 버킷), `S3_ENDPOINT`(R2 주소), `AWS_REGION`, `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`(R2 API 토큰. 그 환경의 파일 버킷과 dev·운영 공용 백업 버킷에 객체 읽기·쓰기 권한이 있다). 값의 모양은 `.env.example`을 따른다. 이름의 S3·AWS는 S3 API의 이름이다. 백업도 같은 주소와 키를 쓴다 |
+| 파일 저장소 | Cloudflare R2. `S3_BUCKET`(환경별 파일 버킷), `S3_ENDPOINT`(R2 주소), `AWS_REGION`, `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`(R2 API 토큰. 그 환경의 파일 버킷과 그 환경의 백업 버킷에만 객체 읽기·쓰기 권한이 있다). 값의 모양은 `.env.example`을 따른다. 이름의 S3·AWS는 S3 API의 이름이다. 백업도 같은 주소와 키를 쓴다 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000`(`edge` 망에서 proxy가 받는다, §1) |
-| 백업 | dev·운영 공용 R2 백업 버킷과 환경별 prefix(파일 저장소와 같은 토큰. 토큰은 prefix로 나뉘지 않는다), §5의 주기·실제 업로드 확인 |
+| 백업 | 환경별 R2 백업 버킷(`BACKUP_S3_BUCKET`)과 prefix(`BACKUP_S3_PREFIX`), 파일 저장소와 같은 토큰, §5의 주기·실제 업로드 확인 |
 | 운영 자원 | 운영 `.env`에 `.env.example`의 prod 값으로 `API_MEM_LIMIT`·`WEB_MEM_LIMIT`·`DB_MEM_LIMIT`을 적는다. 비우면 dev 크기다 |
 | 워커·인증 | 운영의 워커·정리 작업은 켜 둔다(복원 중에는 [§7](#7-db와-호스트-복구) 2단계의 스위치를 끈다). 운영에서 `DEVELOPMENT_AUTH_PROVIDER` 비활성 |
 
@@ -160,17 +160,18 @@ Git revert는 [브랜치 전략의 운영 롤백](../BRANCHING-STRATEGY.md#운�
 
 ## 5. 자동 백업과 복원 검증
 
-dev·운영 모두 매일 `pg_dump -Fc`를 R2 백업 버킷의 환경별 경로에 올리고 30일 보관한다.
-백업에는 사용자 데이터와 인증 정보가 포함되므로 버킷을 공개하지 않는다. 백업 버킷 `acttub-db-backups`는 dev·운영이
-prefix(`dev/`·`prod/`)로 나눠 함께 쓴다. 각 환경의 R2 API 토큰은 그 환경의 파일 버킷과 이 백업 버킷에 객체 읽기·쓰기
-권한이 있다. R2 토큰은 버킷 단위로만 좁혀지고 prefix로는 좁혀지지 않으므로, 한 환경의 토큰으로 다른 환경의 백업
-prefix도 읽고 쓸 수 있다.
-30일은 R2 백업 버킷의 객체 수명 규칙 `expire-backups-30d`(올린 뒤 30일에 삭제, Cloudflare 대시보드 설정)이며
+dev·운영 모두 매일 `pg_dump -Fc`를 환경별 R2 백업 버킷에 올리고 30일 보관한다.
+백업 버킷은 환경마다 따로다: 운영은 `acttub-db-backups`(prefix `prod/`), dev는 `acttub-db-backups-dev`(prefix `dev/`).
+백업에는 사용자 데이터와 인증 정보가 포함되므로 버킷을 공개하지 않는다. 각 환경의 R2 API 토큰은 그 환경의 파일 버킷과
+백업 버킷에만 객체 읽기·쓰기 권한이 있어 다른 환경의 백업을 읽지 못한다(R2 토큰은 prefix로는 좁혀지지 않아 버킷으로 나눈다).
+30일은 두 백업 버킷에 걸린 객체 수명 규칙 `expire-backups-30d`(올린 뒤 30일에 삭제, Cloudflare 대시보드 설정)이며
 저장소 밖에 있다. 컨테이너는 백업을 지우지 않으므로 이 규칙이 없으면 백업이 계속 쌓인다.
 [account.withdraw](../specs/account/withdraw.md)와 개인정보 처리방침이 이 기간을 인용하므로 바꿀 때 함께 고친다.
 
 백업 이미지는 `backup:<sha>`이며 `release.env`의 `BACKUP_IMAGE`로 고정한다.
-`.env`에 `BACKUP_S3_BUCKET=acttub-db-backups`, `BACKUP_S3_PREFIX=dev/` 또는 `prod/`를 설정한다.
+`.env`에 위 환경의 `BACKUP_S3_BUCKET`과 `BACKUP_S3_PREFIX`를 설정한다. `BACKUP_S3_BUCKET`을 비우면 `compose.yml`의
+기본값 `acttub-db-backups`(운영 버킷)가 들어가므로 dev는 반드시 적는다. 버킷을 바꾸면 모니터링 설정
+(`config.json`의 `environments.<env>.backup_bucket`)도 함께 바꾼다. 다르면 백업 목적지 대조(`acttub_backup_target_match`)가 0이 된다.
 실행 시각은 `BACKUP_SCHEDULE`(한국 시간, 생략하면 `compose.yml`의 기본값)이다. 백업은 `schedule` 모드로 실행하며
 기동할 때 아래 health가 실패이거나(첫 실행·실패 후·오래된 성공) 중단 중 예약을 놓쳤으면 바로 한 번 백업한다.
 
