@@ -220,7 +220,6 @@ public final class DirectVideoCoach {
      * 이어서 찍은 회차의 첫 답(두 답 중 하나를 고른다)과 소리 없는 영상(근거 검사가 말을 막을 수 있다)은 지금처럼 다 쓴 뒤 보낸다.
      */
     public CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId, CoachStream stream) {
-        java.util.Objects.requireNonNull(session, "coach session");
         TurnTrace trace = new TurnTrace();
         Plan plan = plan(session, actorText, operationId);
         trace.classifiedNanos = System.nanoTime();
@@ -311,6 +310,7 @@ public final class DirectVideoCoach {
     }
 
     private Plan plan(CoachSessionSnapshot session, String actorText, UUID operationId) {
+        java.util.Objects.requireNonNull(session, "coach session");
         // 영상 없이 말로 하는 회차(SOMA-745): 영상을 찾거나 올리지 않고 목적별 코칭을 영상 없는 모드로 탄다.
         PurposeLoop.Purpose selectedPurpose = PurposeLoop.of(session);
         boolean talk = selectedPurpose != null && selectedPurpose.talk();

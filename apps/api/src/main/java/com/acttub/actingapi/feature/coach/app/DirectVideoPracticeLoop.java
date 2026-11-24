@@ -511,8 +511,8 @@ final class DirectVideoPracticeLoop {
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
     static boolean applies(CoachSessionSnapshot session) {
-        return session.turns().isEmpty() || session.coachingState() != null
-                && session.coachingState().path(STATE_KEY).isObject();
+        JsonNode state = session.coachingState();
+        return session.turns().isEmpty() || state != null && state.path(STATE_KEY).isObject();
     }
 
     /**
@@ -699,12 +699,11 @@ final class DirectVideoPracticeLoop {
         // 마무리2의 상태 칸에 다시 정한 다음 테이크가 있으면 그것을 쓴다 — 배우가 그 버릇을 지키겠다고 했으면 설계의 "반대쪽"과 다르다.
         if (!closingNext.isBlank()) next = closingNext;
         String nextTake = next.isBlank() ? null : next;
-        var empty = mapper.createArrayNode();
         // 배우가 아니라고 한 것(정정·반박)은 노트의 corrections 에 남는다(세션.md, SOMA-602).
         var corrections = mapper.createArrayNode();
         round.corrections().forEach(corrections::add);
-        return new ConversationRepository.NewNote("v2", nextTake == null ? "observation" : "action", title, quotes,
-                nextTake, empty, corrections, empty, false, sourceRevision, null);
+        return ConversationRepository.NewNote.threeLayers(nextTake == null ? "observation" : "action", title, quotes, nextTake,
+                sourceRevision).withCorrections(corrections);
     }
 
     /**
