@@ -214,9 +214,17 @@ final class PracticeLoopRouter {
      * @param closeNext 예전 판의 "다음에 닫기" 표시. 있으면 이번 말에서 정리한다
      * @param stage 지금까지 물은 단계(1 보여 주기 · 2 원하는 것 · 3 어긋남 · 4 스스로 찾기)
      * @param last 이 대화의 응답 상한. 보통 {@link #LAST_REPLY}이고 무료 상한(SOMA-1131)이 걸리면 그보다 작다
+     * @param wrapped 이 대화에서 코치가 한 번이라도 정리(정리하기 계열)를 했는지. 무료 상한 마지막 응답이 정리를 되풀이하지 않게 본다
      */
     record Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
-            boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage, int last) {
+            boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage, int last, boolean wrapped) {
+        /** 정리 이력이 따로 없으면 직전 할 일과 다음에 닫기 표시로 짐작한다(정리 뒤에만 다음에 닫기가 붙는다). */
+        Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
+                boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage, int last) {
+            this(reply, lastDoing, lastKind, tally, avoid, habitDropped, choiceExplained, keep, closeNext, stage, last,
+                    closeNext || (lastDoing != null && lastDoing.startsWith(WRAP_UP)));
+        }
+
         Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
                 boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage) {
             this(reply, lastDoing, lastKind, tally, avoid, habitDropped, choiceExplained, keep, closeNext, stage, LAST_REPLY);
@@ -233,6 +241,11 @@ final class PracticeLoopRouter {
          */
         boolean freeCapped() {
             return last < LAST_REPLY;
+        }
+
+        /** 이번 응답이 무료 상한을 채우는 마지막 응답인가(서버가 이 응답에서 닫는다). */
+        boolean freeLast() {
+            return freeCapped() && reply >= last;
         }
     }
 
@@ -254,6 +267,7 @@ final class PracticeLoopRouter {
         boolean choice = false;
         boolean keep = false;
         boolean closeNext = false;
+        boolean wrapped = false;
         // 첫 응답이 버릇을 보여 주고(1) 원하는 것을 묻는다(2). 그래서 첫 답은 2단계 질문의 답이다.
         int stage = coachTurns >= 1 ? 2 : 1;
         for (int i = 0; i < coachTurns; i++) {
@@ -261,6 +275,7 @@ final class PracticeLoopRouter {
             String doing = DirectVideoPracticeLoop.action(status);
             tally = tally.after(doing);
             lastDoing = doing;
+            if (doing.startsWith(WRAP_UP)) wrapped = true;
             // 대화 이어하기(SOMA-782): 닫힌 대화를 다시 연 직후 첫 배우 말은 "정리한 다음 말"처럼 다룬다 — 이어 묻는 말에는 답하고,
             // 짧은 맞장구면 다시 닫는다. 그러지 않으면 마지막 할 일이 끝·마무리라 첫 말에 곧바로 닫힌다.
             if (i == coachTurns - 1 && loop != null && LenientJson.asInt(loop.path(RESUMED_AT), -1) == coachTurns
@@ -284,7 +299,8 @@ final class PracticeLoopRouter {
                 for (String part : avoided.split("\\s*[,·/]\\s*")) if (!part.isBlank()) avoid.add(part.strip());
             }
         }
-        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep, closeNext, stage, last);
+        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep, closeNext, stage, last,
+                wrapped || closeNext || lastDoing.startsWith(WRAP_UP));
     }
 
     /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
@@ -457,7 +473,15 @@ final class PracticeLoopRouter {
         Kind kind = c.kind();
         if (kind == Kind.STOP) return END;
         // 상한을 채우는 응답. 무료 상한(SOMA-1131)이면 코치 AI가 받아 주고 다음 연습 때 볼 한 가지로 정리하며 닫는다.
-        if (b.reply() >= b.last()) return b.freeCapped() ? WRAP_UP : END;
+        // 이미 정리했으면 정리를 되풀이하지 않고 정리 뒤 마지막 한마디로 받아 준다(closesNext가 마지막 말 지시를 붙인다).
+        // 2026-11-24 dev: 정리 → 답하기 → 상한에서 정리가 또 돌아 「맞아요, 그거예요.」와 같은 제안이 되풀이됐다.
+        // 마지막 말이라 배우 해석을 되묻는 내려놓기 대신 답하기다.
+        if (b.reply() >= b.last()) {
+            if (!b.freeCapped()) return END;
+            if (!b.wrapped()) return WRAP_UP;
+            String answer = answerTo(c, b);
+            return LET_GO.equals(answer) ? "답하기" : answer;
+        }
         // 정리 뒤 한 번 받아 준 다음 말: 또 물었으면(물음·방법·판단 요청·반박·정정) 답하고, 그 밖이면 닫는다.
         // 2026-10-11 17:56 운영: 받아 준 뒤 배우가 "?반응을 어케봐?"라고 물었는데 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
         // 정리 뒤 배우가 아니라고 해서 배우 해석을 물었으면(내려놓기), 배우가 말한 해석으로 한 번 더 정리한다.
@@ -619,7 +643,9 @@ final class PracticeLoopRouter {
 
     /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. 그 말에서 또 물었으면 또 답하고 그다음에 닫는다. */
     static boolean closesNext(Classified c, Before b) {
-        if (c.kind() == Kind.STOP || b.reply() >= b.last()) return false;
+        if (c.kind() == Kind.STOP) return false;
+        // 무료 상한 마지막 응답(SOMA-1131)이 이미 정리한 대화면 정리 뒤 마지막 말과 같다 — 같은 지시(질문 없음, 앞선 제안 되풀이 없음)를 붙인다.
+        if (b.reply() >= b.last()) return b.freeLast() && b.wrapped();
         if (b.closeNext()) return asksAgain(c);
         return b.lastDoing().startsWith(WRAP_UP) && !endsAfterWrap(c);
     }
