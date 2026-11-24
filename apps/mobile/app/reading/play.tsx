@@ -112,6 +112,7 @@ import {
   readAppVoiceSupport,
   type PartnerVoiceEngine,
 } from '@/lib/reading/voice-capability';
+import { InviteShareRow } from '@/components/invite-card';
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { translate as t } from '@/lib/i18n';
@@ -2082,6 +2083,7 @@ export default function ReadingPlay() {
               )}
               {rating}
               {ratingCard}
+              {completed && <InviteShareRow />}
             </View>
           </DoneScreen>
           {dialog}
@@ -2127,6 +2129,8 @@ export default function ReadingPlay() {
             ) : null}
             {rating}
             {ratingCard}
+            {/* 친구 초대(SOMA-865) — 센 회차로 끝났을 때만. 서버가 기능을 닫아 두었으면 그리지 않는다. */}
+            {completed && <InviteShareRow />}
           </View>
         </DoneScreen>
         {dialog}

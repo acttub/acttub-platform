@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
+import { InviteCard } from '@/components/invite-card';
 import { pt } from '@/components/ui/anchored-menu';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
@@ -258,6 +259,9 @@ export default function ProfileScreen() {
           <MonthCell label={t('profileTab.kindReading')} count={counts?.reading ?? null} />
           <MonthCell label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
         </View>
+
+        {/* 친구 초대(SOMA-865). 서버가 기능을 닫아 두었으면 그리지 않는다. */}
+        <InviteCard />
 
         <UnderlineTabs
           tabs={[
