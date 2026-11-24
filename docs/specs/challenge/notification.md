@@ -3,22 +3,14 @@
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
 - 도입: 0.1.0
-- 화면: 알림함(없음, 디자인에 반영할 것), A4 설정의 챌린지 알림 토글(account.notification), 잠금 화면 푸시
+- 화면: 알림함(앱 `notifications` 화면), A4 설정의 챌린지 알림 토글(account.notification), 잠금 화면 푸시
 - 테이블: notifications(ERD에 추가), notification_pushes(ERD에 추가), push_tokens, challenge_entries, challenges, entry_ai_reports, user_blocks
 
 토글과 토큰은 account.notification이 맡고, 이 기능은 어떤 사건에 언제 보내고 어떻게 묶는지와 알림함을 맡는다.
 
 ## 기능
-내 참여작에 좋아요·댓글이 달리면, 내가 참여한 챌린지가 끝나면, 요청한 AI 리포트가 준비되면 푸시로 알리고 알림함에 쌓는다. 챌린지 알림
+내 참여작에 좋아요·댓글이 달리면, 내가 참여한 챌린지가 끝나면 푸시로 알리고 알림함에 쌓는다. 챌린지 알림
 토글을 끄면 푸시는 가지 않고 알림함에는 남는다.
-
-## 의도
-알림함(notifications)은 계정 문서가 추가한 테이블이고 컬럼은 여기서 정한다. 한 행은 수신자 한 명에게 생긴 원인 사건 하나다. 좋아요는
-몰려 오므로 묶고, 밤에는 보내지 않는다. 오늘의 챌린지 소개·순위 변동·내 챌린지의 새 참여 푸시는 광고성에 가까워 0.1.0에서 뺀다(후속).
-푸시는 최선 노력이고 원래 행동의 성공을 좌우하지 않는다.
-
-## 목적
-배우가 자기 영상에 온 반응을 놓치지 않는다.
 
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
@@ -49,7 +41,8 @@ notifications.push_status와 읽음(read_at).
 
 ## 규칙·제약
 - 사건 kind는 entry_liked(내 참여작에 좋아요, 수신 = 참여작 작성자), entry_commented(내 참여작에 댓글), challenge_ended(내가 삭제되지 않은
-  참여작을 가진 챌린지 종료, 챌린지당 한 번), entry_ai_report_ready(내가 요청한 리포트 완료) 넷이다. 자기 행동은 알리지 않고, 차단 관계의
+  참여작을 가진 챌린지 종료, 챌린지당 한 번), entry_ai_report_ready(내가 요청한 리포트 완료) 넷이다. entry_ai_report_ready는 서버가 아직 만들지만 앱은 알림함에서 뺀다(앱에 AI 리포트 진입이 없다,
+  `apps/mobile/lib/challenge/notification-center.ts`). 자기 행동은 알리지 않고, 차단 관계의
   사건은 [challenge.block](block.md#규칙제약)대로 생기지 않는다.
 - 한 행 = 수신자 한 명의 원인 사건 하나. 컬럼: id, user_id, kind, actor_user_id(반응한 사람, 시스템 사건은 NULL), challenge_id, entry_id
   (challenge_ended는 NULL), comment_id(entry_commented는 필수, 그 밖은 NULL), event_key((user_id, event_key) 유일; 좋아요는 좋아요 행의 원인
@@ -65,8 +58,9 @@ notifications.push_status와 읽음(read_at).
   토큰의 현재 주인과 사건의 현재 노출 조건(반응 알림은 참여작·댓글의 [개인 노출 조건](README.md#노출-조건)과 행동자–수신자 차단, 종료 알림은 챌린지 조회
   권한, AI 완료 알림은 본인 열람 권한)을 다시 확인한다. 잠금 화면 문구는 일반 문구("내 참여작에 새 반응이 있어요")와 알림 식별자만이고
   이름·본문을 넣지 않는다. 문구의 언어는 토큰을 맡길 때 적은 언어를 따른다(한국어가 아니면 영어, 값이 없으면 한국어). 푸시 data에는 묶음 키·종류·챌린지·참여작 id만 싣는다. 보낸 사건은 attempted, 나머지는 skipped다.
-- 알림함은 묶음 단위로 20개씩, 묶음의 최신 사건 시각·id 역순이다. 묶음을 누르면 그때까지 포함된 사건 전부가 읽음이 되고 참여작·챌린지·리포트로
-  간다(AI 완료 알림은 비공개 참여작이어도 본인 리포트가 열린다). "모두 읽음"은 요청 시각·id까지의 본인 알림만 읽음으로 바꾸고 그 뒤 도착한 것은
+- 알림함은 묶음 단위로 20개씩, 묶음의 최신 사건 시각 역순이고 시각이 같으면 묶음 키(`group_key`) 역순이다(커서도 이 둘이다).
+  묶음을 누르면 그때까지 포함된 사건 전부가 읽음이 되고 참여작·챌린지로
+  간다. "모두 읽음"은 요청 시각·id까지의 본인 알림만 읽음으로 바꾸고 그 뒤 도착한 것은
   읽지 않음으로 남는다. 읽지 않은 수(사건 수 아닌 묶음 수)는 탭 배지다. 읽음 요청은 `group_keys`(그 묶음의 지금까지 사건 전부) 또는
   `all_before{created_at, id?}`(그 시각까지, id가 UUID면 그 id까지)이고 둘 다 없으면 422다. 인원(`actor_count`)·수는 지금도 유효한 사건만
   세고 유효한 사건이 없는 묶음은 뺀다. `target_available`이 거짓이면 대상이 삭제·비공개·숨김이다(본인 AI 리포트는 예외).
@@ -83,6 +77,7 @@ notifications.push_status와 읽음(read_at).
   `type`·`kind`=`entry_views_daily`와 `entry_id`(그날 가장 많은 사람이 본 참여작, 같으면 최근 올린 것)라 알림함으로 가지 않는다.
   새 앱은 눌렀을 때 `/entry/{entry_id}`로 그 참여작을 열고(없으면 챌린지 탭), 옛 앱은 앱만 열린다. 같은 한국 날짜에는 notification_pushes의
   (`views|수신자|날짜`, first)로 한 번만 보낸다. 밤(21시~09시)에는 보내지 않는다.
+- 푸시는 최선 노력이고 원래 행동(좋아요·댓글·마감 집계)의 성공을 좌우하지 않는다.
 
 ## 예외
 - 푸시 발송 실패(토큰 만료): 토큰을 지우고(account.notification) 알림함에는 남는다.
@@ -99,9 +94,9 @@ notifications.push_status와 읽음(read_at).
 - 남의 댓글: entry_commented 1행(comment_id 필수), 조회 때 댓글 앞부분이 조립되고 행에 본문 복사가 없다. 댓글 삭제 뒤 발송 시각: 푸시 없음.
   댓글이 신고로 숨겨진 뒤 발송 시각: 푸시 없음. 발송 대기 중 행동자를 차단: 푸시 없음.
 - 내가 참여한 챌린지 종료: challenge_ended 1행(entry_id NULL, 참여작이 둘이어도 하나). 참여작을 지운 챌린지 종료: 행 없음.
-- 요청한 리포트 완료(비공개 참여작): entry_ai_report_ready 1행·푸시, 누르면 리포트가 열린다.
+- 요청한 리포트 완료(서버): entry_ai_report_ready 1행. 앱 알림함에는 보이지 않는다.
 - 밤 11시 첫 좋아요: created_at 밤 11시, push_after 아침 9시, 즉시 발송 없음, 그때 push_attempted_at.
-- 토글 끔: push_status skipped, 행 있음. 토큰 없음: skipped. 발송 직전 토큰 주인이 다른 계정으로 바뀜·언어가 ko 아님: 보내지 않는다. 기기 둘:
+- 토글 끔: push_status skipped, 행 있음. 토큰 없음: skipped. 발송 직전 토큰 주인이 다른 계정으로 바뀜: 보내지 않는다. 토큰 언어가 ko가 아님: 영어 문구로 보낸다. 기기 둘:
   둘 다 받는다.
 - 알림함 조회: 묶음 20개, 최신 사건 순. 묶음 열람: 포함된 사건 전부 read_at. 모두 읽음(시각 T): T 이전만 read_at, 그 뒤 도착한 것은 NULL. 배지 =
   읽지 않은 묶음 수.

@@ -3,22 +3,17 @@
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
 - 도입: 0.1.3
-- 화면: 웹 문의하기 폼(로그인 없이 연다)
+- 화면: 웹 문의하기 폼(로그인 없이 연다), 웹 내 계정의 「내 문의」
 - 테이블: support_inquiries
 
 ## 기능
 웹의 문의하기 폼이 보낸 분류·이메일·본문을 로그인 없이 서버에 접수한다. 운영자는 운영 경로로 접수된 문의를 새것부터 읽는다.
 
-## 의도
-계정이 잠겼거나 로그인이 안 되는 사람도 문의를 남길 수 있어야 한다. 폼을 서버가 받기 전에는 문의가 메일 클라이언트로 흩어져 누락과 추적 불가가 생겼다.
-
-## 목적
-배우는 로그인 없이 문의를 보내고 접수 확인(id·시각)을 받는다. 운영자는 한곳에서 문의를 읽고 상태로 거른다.
-
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `POST /v2/support/inquiries` | 헤더 `X-Acttub-Client`(필수), 선택 `Authorization: Bearer`. 본문 `SupportInquiryRequest`: `category`(`account`·`billing`·`refund`·`usage`·`bug`·`report`·`other`·`feedback`), `email`, `body` | `SupportInquiryResponse` 201: `{id, created_at}` | 칸 규칙 위반·모르는 칸 422(배열), 한 IP 10분 5건 초과 429 `rate limit exceeded` |
+| `GET /v2/support/inquiries/mine` | 헤더 `Authorization`(게이트 통과) | `MySupportInquiryList` 200: 내 문의 새것부터 20건. 건마다 `id`·`category`·`summary`(본문 앞 40자)·`status`(`open`·`closed`)·`created_at` | — |
 | `GET /v2/admin/support/inquiries` | 헤더 `Authorization: Bearer $ADMIN_OPS_TOKEN`, 질의 `status`(`open`·`closed`, 선택), `limit`(1~200, 기본 50) | `{inquiries: [{id, category, email, body, user_id, client, status, created_at}]}` 200, 새것부터 | 토큰 없음·틀림 401 `Unauthorized`, 질의 값 위반 422(배열) |
 
 ## 상태
@@ -33,7 +28,9 @@
 - `email`: 앞뒤 공백을 걷은 뒤 254자 이하, `local@도메인.최상위` 모양. 닿는지는 확인하지 않는다.
 - `body`: 앞뒤 공백을 걷은 뒤 10~3000 유니코드 코드 포인트.
 - 한 IP(`ClientAddress`)에서 10분에 5건까지. 한도는 프로세스 안에서 센다.
-- 이메일·본문은 개인정보라 로그에 남기지 않는다. 메일·알림은 보내지 않는다.
+- 이메일·본문은 개인정보라 로그에 남기지 않는다. 사용자에게 메일은 보내지 않는다. 팀에는 접수가 저장된 뒤 Slack 「#문의-신고」로
+  알린다(`SUPPORT_SLACK_WEBHOOK_URL`, 비어 있으면 보내지 않는다). 알림에는 분류·보낸 곳(회원 여부·클라이언트)·본문 앞 500자·문의 id만 싣고 메일 주소는
+  싣지 않는다. 알림이 실패해도 접수는 그대로다.
 
 ## 예외
 - 검증 실패: 422 배열(`detail[].loc` 는 `body`·칸 이름). 아무것도 저장하지 않는다.
