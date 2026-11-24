@@ -28,7 +28,7 @@ class LegacyFreeCoachRepliesTest {
     final UUID octoberUser = UUID.randomUUID();
     final UUID novemberUser = UUID.randomUUID();
     final SubscriptionService subscriptions = new SubscriptionService(new BillingSettings(true, false, true, "https://dev.acttub.com",
-            "https://acttub.com/pricing/result", LegacyFreeLimitsTest.CLIENT, LegacyFreeLimitsTest.SECRET), repository, new FakeGateway(), null, clock);
+            "https://acttub.com/pricing/result", LegacyFreeLimitsTest.CLIENT, LegacyFreeLimitsTest.SECRET), repository, new FakeGateway(), null, clock, BillingMailer.NONE, RefundNotifier.NONE);
     final ConversationService conversations = new ConversationService(mock(ConversationRepository.class), mock(CoachEngine.class),
             mock(NoteWriter.class), clock, null, mock(CoachProfile.class), mock(CoachMemory.class), new RecordingFailureReporter(), null)
             .withFreeReplies(userId -> subscriptions.freeLimited(userId) ? 7 : 0);
