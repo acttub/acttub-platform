@@ -259,18 +259,30 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 1. 장애 시각, 마지막 정상 배포 SHA, 마지막 성공 백업 객체와 SHA-256을 기록한다. 현재 DB를
    읽을 수 있다면 변경 전에 별도 덤프를 보존한다. 서로 다른 시점의 DB는 행 수만으로 같다고 판정하지 않는다.
 2. 공개 유입을 차단하고 진행 중인 요청·작업이 끝났는지 확인한다. `.env`에 아래 스위치를 모두 `false`로 두고
-   `api`를 재생성해 적용한다. 옛 시점의 DB로 돌면 실제 사용자에게 바깥 영향을 주는 작업들이다(기본값은 모두 켜짐).
+   `api`를 재생성해 적용한다. 옛 시점의 DB로 돌면 실제 사용자에게 바깥 영향을 주거나 데이터를 바꾸는 예약 작업들이다.
+   기본값이 꺼짐인 스위치도 `.env`나 배포가 켤 수 있으므로 모두 적는다.
    복원 중에는 `backup`도 중지한다. `restore-db.sh`는 API를 다시 올리므로 유입 차단과 이 조건을 먼저 갖춘다.
 
    | 스위치 | 끄는 작업 |
    |---|---|
-   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·챌린지 AI 리포트·포스터 워커(모델 호출, 분석 완료 푸시) |
+   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·대본 나누기·챌린지 AI 리포트·참여작 검사와 모자이크·포스터 워커(모델 호출, 분석 완료 푸시) |
    | `ACCOUNT_CLEANUP_ENABLED` | 정리 장부의 객체 삭제와 제공자 연결 해제 |
-   | `ACCOUNT_HOUSEKEEPING_ENABLED` | 매일 정리 — 옮기지 않은 게스트 30일 파기, 탈퇴 3년 파기, 정리 장부 실행 |
+   | `ACCOUNT_HOUSEKEEPING_ENABLED` | 매일 정리 — 옮기지 않은 게스트 30일 파기, 탈퇴 3년 파기, 정리 장부 실행, 광고 노출 기록 정리 |
+   | `BILLING_WEB_ENABLED` | 매월 자동결제(토스 실결제) |
    | `CHALLENGE_NOTIFICATION_PUSH_ENABLED` | 챌린지 알림 푸시 |
+   | `CHALLENGE_VIEW_DIGEST_ENABLED` | 챌린지 하루 조회 요약 푸시 |
+   | `PRACTICE_REMINDER_ENABLED` | 개인화 연습 알림 푸시. `.env`로는 끌 수 없다. 배포가 `release.env`에 쓴 `ACTTUB_PRACTICE_REMINDER_ENABLED`가 `.env` 값을 덮으므로 `release.env`의 이 줄을 `false`로 바꾼다 |
+   | `EVENING_REMINDER_ENABLED` | 저녁 8시 고정 연습 알림 푸시. 개인화 연습 알림을 끄면 이 알림이 대신 돌므로 함께 끈다 |
    | `EXIT_SURVEY_SYNC_ENABLED` | 이탈 설문의 시트 재전송·연락처 정리 |
+   | `COMMUNITY_IMAGE_SWEEP_ENABLED` | 글에 붙지 않은 게시판 사진의 객체 삭제 |
+   | `SCRIPT_UPLOAD_SWEEP_ENABLED` | 대본에 연결되지 않은 원본 파일의 객체 삭제 |
+   | `READING_RETRANSCRIBE_ENABLED` | 리딩 녹음 다시 받아쓰기(모델 호출) |
+   | `PRON_REPORT_ENABLED` | 리딩 발음 보고서(채점 서비스 호출) |
    | `CHALLENGE_SETTLEMENT_ENABLED` | 챌린지 마감 집계·보관 기간 정리(DB만 바꾸지만 복원 검증 중 데이터가 바뀐다) |
-   | `AUDITION_ENABLED` | 오디션 공고 수집(바깥 출처에 요청, 공고 행 갱신·삭제). 이것만 기본이 꺼짐이다 |
+   | `AUDITION_ENABLED` | 오디션 공고 수집(바깥 출처에 요청, 공고 행 갱신·삭제) |
+
+   스위치가 없는 예약 작업 가운데 Airbridge 유입 조회(`AirbridgeLookupScheduler`)도 DB를 바꾼다. `.env`의
+   `AIRBRIDGE_API_TOKEN`을 비우면 서지 않는다.
 3. S3에서 선택한 백업을 받아 metadata의 SHA-256과 대조하고 격리된 스택에서 먼저 복원한다.
    호스트를 새로 준비해야 하면 §2의 서버·시크릿을 복구하고 같은 앱 버전의 이미지로 스택을 준비한다.
    검증용 스택에는 운영 터널을 연결하지 않고 2단계의 스위치를 모두 끈다. S3 DB 백업에는 `.env`와
