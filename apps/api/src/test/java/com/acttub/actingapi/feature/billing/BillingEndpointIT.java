@@ -219,6 +219,43 @@ class BillingEndpointIT {
     }
 
     @Test
+    @DisplayName("첫 결제가 거절되면 등록한 카드의 빌링키를 지운다 — 구독은 expired(응답은 none) 그대로다")
+    void aRejectedFirstPaymentDropsTheBillingKey() throws Exception {
+        String state = openCheckout("subscribe");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=failed");
+
+        assertThat(jdbc.queryForMap("SELECT status, billing_key IS NULL AS no_key FROM billing_subscriptions"))
+                .containsEntry("status", "expired").containsEntry("no_key", true);
+        assertThat(me().path("status").stringValue(null)).isEqualTo("none");
+    }
+
+    @Test
+    @DisplayName("결과를 모르던 첫 결제가 나중에 거절로 확인되면 빌링키를 지운다 — 결과를 모르는 동안은 남긴다")
+    void anUnknownFirstPaymentConfirmedAsRejectedDropsTheKey() throws Exception {
+        String state = openCheckout("subscribe");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=unknown");
+        assertThat(jdbc.queryForObject("SELECT billing_key IS NOT NULL FROM billing_subscriptions", Boolean.class))
+                .as("결과를 모르는 동안은 같은 키로 다시 물어야 해서 남긴다").isTrue();
+
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+        // 기록 시각은 DB 의 now() 일 수 있다. 다시 묻는 차례(10분 뒤)를 지금 기준으로 넘긴다.
+        clock.set(Instant.now().plus(Duration.ofMinutes(15)));
+        assertThat(worker.runOnce()).isTrue();
+
+        assertThat(jdbc.queryForObject("SELECT status FROM billing_payments", String.class)).isEqualTo("failed");
+        assertThat(jdbc.queryForMap("SELECT status, billing_key IS NULL AS no_key FROM billing_subscriptions"))
+                .containsEntry("status", "expired").containsEntry("no_key", true);
+    }
+
+    @Test
     @DisplayName("자동결제 — 성공하면 다음 기간, 거절되면 past_due 와 재시도, 「다시 시도」로 active, 결과 모르면 같은 주문으로 다시 묻는다")
     void renewals() throws Exception {
         subscribe();
