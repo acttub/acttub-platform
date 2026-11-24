@@ -84,7 +84,7 @@ class DirectVideoCoachReadingTest {
 
     DirectVideoCoach coach(CoachReadingAudio audio) {
         // 연습 루프 스위치가 꺼져 있어도 리딩 녹음 회차는 목적별 코칭을 탄다.
-        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry(), CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE)
+        return TestDirectVideoCoach.of(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry()).build()
                 .withReadingAudio(audio);
     }
 

@@ -55,12 +55,12 @@ class CoachVideoCacheTest {
     }
 
     CoachEngine engine(CoachVideoCache cache) {
-        var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, cache, CoachLayerOne.NONE);
+        var direct = TestDirectVideoCoach.of(model, videos, storage, failures, telemetry).cache(cache).build();
         return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(direct));
     }
 
     CoachEngine loopEngine(CoachVideoCache cache) {
-        var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, cache, CoachLayerOne.NONE);
+        var direct = TestDirectVideoCoach.of(model, videos, storage, failures, telemetry).cache(cache).build();
         return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(direct));
     }
 
