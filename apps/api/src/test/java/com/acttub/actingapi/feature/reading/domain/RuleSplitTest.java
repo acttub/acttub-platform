@@ -744,6 +744,58 @@ class RuleSplitTest {
         assertThat(one.roster()).containsExactly("지수");
     }
 
+    // ── 운영 풀규칙 점검 11/24 ───────────────────────────────
+
+    @Test
+    void wordsSeparatedByTabsAreNotTabHeads() {
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 4; k++) {
+            raw.append("유현\t \t 오늘은\t어디\t가?\n");
+            raw.append("미유키\t \t 그냥\t집에\t있을래.\n");
+            raw.append("꾸밈없는\t얼굴로\t미유키가\t웃는다.\n");
+            raw.append("유현이\t창밖을\t본다.\n");
+        }
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of(raw.toString()));
+
+        assertThat(result.roster()).containsExactly("유현", "미유키");
+        assertThat(row(result, 1)).extracting(Row::kind, Row::speaker).containsExactly(Kind.DIALOGUE, "유현");
+        assertThat(row(result, 3).kind()).isEqualTo(Kind.DIRECTION);
+    }
+
+    @Test
+    void episodeTitlesSettingLabelsAdverbsAndFragmentsAreNotCast() {
+        RuleSplit.Result result = RuleSplit.full(NumberedLine.of("""
+                에피소드 1 — 첫 만남
+
+                민수 안녕.
+                영희 응, 안녕.
+                배경: 학교 옥상, 늦은 오후.
+                민수 오늘 뭐 해?
+                영희 그냥 집에 갈 거야.
+                분명히 그랬어.
+                민수 정말?
+                영희 응.
+                분명히 기억나."""));
+
+        assertThat(row(result, 1).kind()).isEqualTo(Kind.SCENE);
+        assertThat(row(result, 5).kind()).isEqualTo(Kind.DIRECTION);
+        assertThat(result.roster()).containsExactly("민수", "영희");
+        assertThat(RuleSplit.spaceName("분명히", 9)).isFalse();
+        assertThat(RuleSplit.spaceName("여기서부터", 9)).isFalse();
+        assertThat(RuleSplit.spaceName("켜야한다고", 9)).isFalse();
+        assertThat(RuleSplit.spaceName("민수", 2)).isTrue();
+        assertThat(RuleSplit.spaceName("페르난도", 9)).isFalse();
+    }
+
+    @Test
+    void untabLeavesOrdinaryTabScriptsAlone() {
+        java.util.List<NumberedLine> lines = NumberedLine.of("민수\t안녕.\n영희\t응.\n민수\t가자.");
+        assertThat(RuleSplit.untab(lines)).isSameAs(lines);
+        assertThat(RuleSplit.particled("유현이", java.util.Set.of("유현"))).isTrue();
+        assertThat(RuleSplit.particled("유현수", java.util.Set.of("유현"))).isFalse();
+        assertThat(RuleSplit.particled("수", java.util.Set.of("유현"))).isFalse();
+    }
+
     // ── 줄 언어(규칙) ─────────────────────────────────────
 
     @Test

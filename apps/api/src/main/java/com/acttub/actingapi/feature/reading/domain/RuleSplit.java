@@ -91,7 +91,9 @@ public final class RuleSplit {
     /** 장면 표기 더 — 「12. 거실, 밤」「- 암전 -」「장면 2」「S# 골목 - 밤」. */
     private static final Pattern SCENE_MORE = Pattern.compile(
             "(?iu)\\d{1,3}\\.\\s*[^.!?]{1,20}?[,/\\-–].*|[-–—=~*]\\s*[가-힣A-Za-z]{1,4}\\s*[-–—=~*]|"
-                    + "(?:장면|막|장|씬|신|에피소드|챕터|파트|part|chapter|episode)\\s*\\d{1,3}\\s*[.:]?|s\\s*#.*");
+                    + "(?:장면|막|장|씬|신|에피소드|챕터|파트|part|chapter|episode)\\s*\\d{1,3}\\s*[.:]?|s\\s*#.*|"
+                    // 「에피소드 1 — 첫 만남」처럼 회차 번호 뒤에 짧은 제목이 붙은 줄(2026-11-24 운영 대본에서 「에피소드」가 배역이 됐다)
+                    + "(?:에피소드|챕터|파트|episode|chapter|part)[^\\S\\n]*+\\d{1,3}[^\\S\\n]*+[—–\\-:][^\\n]{0,40}");
     /** 작가·연출 표기 줄. 「작」「글」은 쌍점이 있을 때만(「글쎄, …」는 대사다). */
     private static final Pattern AUTHOR = Pattern.compile(
             "(?iu)(?:(?:작|글)\\s*+[:：]|(?:극본|각본|각색|원작|연출|작가|지은이)\\s*+[:：]?+|written by\\b|by(?=\\s))\\s*+\\S.*");
@@ -165,6 +167,7 @@ public final class RuleSplit {
     }
 
     public static Result of(List<NumberedLine> lines) {
+        lines = untab(lines);
         Text text = new Text(lines);
         Map<Integer, Row> rows = new LinkedHashMap<>();
         Set<String> names = new LinkedHashSet<>();
@@ -337,11 +340,16 @@ public final class RuleSplit {
                 labeled.forEach((name, n) -> { if (n >= 2 && !CREDIT.matcher(name).matches()) names.add(name); });
                 numberedFamily(labeled, labeledAtHead, names);
                 // 띄어쓰기형이 섰으면 두 칸 이상·탭으로 떨어진 머리는 한 번만 나와도 이름이다(조연 「택배」)
-                wide.forEach((name, n) -> { if (hangulName(name) && !CREDIT.matcher(name).matches()) names.add(name); });
+                // 두 칸 떨어진 머리라도 인용 끝말(「켜야한다고」)로 끝나면 끊긴 말 조각이다(2026-11-24 운영 대본). 「페르난도」「위고」 같은 이름은 받는다.
+                wide.forEach((name, n) -> { if (hangulName(name) && !CREDIT.matcher(name).matches() && !quoteEnd(name)) names.add(name); });
                 // 여럿이 함께 하는 말(「모두 안녕!」)도 두 번 넘게 줄 앞에 나오면 배역이다. 서술(「모두 퇴장한다.」)은 줄 판정에서 지문으로 간다.
                 groupHeads.forEach((name, n) -> { if (n >= 2) names.add(name); });
             }
         }
+        // 이미 배역인 이름에 조사 한 글자가 붙은 이름은 서술의 주어다(「유현이 …」「미유키가 …」「미유키의 …」, 2026-11-24 운영 대본).
+        // 소개에 적힌 이름은 그대로 둔다.
+        Set<String> base = Set.copyOf(names);
+        names.removeIf(name -> !castNames.contains(name) && particled(name, base));
 
         // 4. 줄마다 판정
         String block = null;
@@ -528,6 +536,7 @@ public final class RuleSplit {
     }
 
     static Result full(List<NumberedLine> lines, boolean rejectProse, boolean mergeSurnames) {
+        lines = untab(lines);
         Result base = of(lines);
         boolean blockFormat = base.format() == Format.BLOCK;
         Text text = new Text(lines);
@@ -1204,8 +1213,8 @@ public final class RuleSplit {
     private static final Pattern PAREN_COMMA = Pattern.compile("[(（][^()（）]{1,10}+[)）][^\\S\\n]*+[,，].*");
     /** 무대 신호 낱말만 있는 글 — 「등장.」「긴 침묵」. */
     private static final Pattern CUE_ONLY = Pattern.compile("(?:(?:긴|짧은|잠시|다시)[^\\S\\n]++)?+(?:등장|퇴장|입장|암전|사이|정적|침묵)[^\\S\\n]*+[.…]*+");
-    /** 연출 지시 머리 — 「화면: …」「[자막]: …」「음악 : …」. */
-    private static final Pattern SCREEN_HEAD = Pattern.compile("[\\[(]?+[^\\S\\n]*+(?:화면|자막|음악|음향|효과음|효과)[^\\S\\n]*+[\\])]?+[^\\S\\n]*+[:：]");
+    /** 연출 지시 머리 — 「화면: …」「[자막]: …」「음악 : …」「배경: …」「장소: …」. */
+    private static final Pattern SCREEN_HEAD = Pattern.compile("[\\[(]?+[^\\S\\n]*+(?:화면|자막|음악|음향|효과음|효과|배경|장소|시간|무대)[^\\S\\n]*+[\\])]?+[^\\S\\n]*+[:：]");
     /** 짧은 무대 신호로 끝나는 줄 — 「사이.」「긴 침묵」「암전.」「연수 등장.」. 30자 안의 앞말만 허용한다. */
     private static final Pattern CUE = Pattern.compile("[^\\n]{0,30}?(?:등장|퇴장|입장|암전|사이|정적|침묵)[^\\S\\n]*+[.…]*+");
     /** 확실한 대사 말끝 — 이름에는 오지 않는다. */
@@ -1740,7 +1749,7 @@ public final class RuleSplit {
     private static final List<String> NAME_OR_WORD_END = List.of("이", "서", "지", "나", "아", "야", "어", "니");
     /** 이름에는 오지 않는 조사·어미 끝. */
     private static final List<String> PARTICLE_END = List.of("는", "를", "을", "에", "요", "다", "도", "만", "고", "며", "면", "데", "게", "께",
-            "랑", "와", "과", "로", "의", "처럼");
+            "랑", "와", "과", "로", "의", "처럼", "부터", "까지", "마다", "조차");
 
     /**
      * 띄어쓰기형 머리 낱말을 이름으로 받을까 — 줄 앞에 {@code count} 번 나온 낱말. 한글 7자까지(「싸이먼스팀슨」), 대문자 로마자(「JOHN」), 흔한 말·
@@ -1759,6 +1768,8 @@ public final class RuleSplit {
         if (!name.matches("\\p{IsHangul}{1,7}")) return false;
         int length = name.length();
         if (length == 1) return count >= 5;
+        // 「분명히」「천천히」 — 세 글자 넘는 「~히」는 부사다(2026-11-24 운영 대본)
+        if (length >= 3 && name.endsWith("히")) return false;
         // 받침 뒤 「은」「이」는 조사다(「얀은」「문이」「경찰이」). 받침 없는 끝(「지은」「하은」「윤서」)은 이름일 수 있다.
         if (name.endsWith("은")) return length == 2 && !batchim(name, length - 2) && count >= 3;
         if (name.endsWith("이") && length >= 2 && batchim(name, length - 2)) return count >= 8;
@@ -1864,6 +1875,49 @@ public final class RuleSplit {
             return blockFormat ? new Handover(acting, null) : new Handover(null, acting);
         }
     }
+
+    /** 인용·전달 끝말(「~다고」「~라고」「~냐고」「~자고」)로 끝나는 네 글자 넘는 말. */
+    private static boolean quoteEnd(String name) {
+        return name.length() >= 4 && (name.endsWith("다고") || name.endsWith("라고") || name.endsWith("냐고") || name.endsWith("자고"));
+    }
+
+    /** 배역 이름 + 조사 한 글자(「유현이」「미유키가」「미유키의」)인가. */
+    static boolean particled(String name, Set<String> names) {
+        if (name.length() < 2) return false;
+        return names.contains(name.substring(0, name.length() - 1)) && "이가은는을를의도와과랑".indexOf(name.charAt(name.length() - 1)) >= 0;
+    }
+
+    /**
+     * 낱말 사이를 탭으로 띄운 원문을 고른다 — PDF·한글 글자 뽑기가 띄어쓰기 대신 탭을 넣은 대본(「꾸밈없는⇥…⇥…」)은 탭 머리 규칙이 서술 줄의 첫 낱말을
+     * 배역으로 받았다(2026-11-24 운영 대본: 배역 119명). 탭이 셋 넘는 줄이 글 줄의 20% 이상이고, 탭 사이에 공백이 낀 넓은 틈(「유현⇥ ⇥ 대사」)이
+     * 다섯 줄 넘게 있을 때만 — 줄 앞 넓은 틈은 이름 구분 탭 하나로, 나머지 탭은 띄어쓰기로 바꾼다. 줄 번호는 그대로다.
+     */
+    public static List<NumberedLine> untab(List<NumberedLine> lines) {
+        int content = 0;
+        int tabby = 0;
+        int wide = 0;
+        for (NumberedLine line : lines) {
+            String t = line.text();
+            if (t.isBlank()) continue;
+            content++;
+            if (t.chars().filter(c -> c == '\t').count() >= 3) tabby++;
+            if (WIDE_TAB_HEAD.matcher(t).lookingAt()) wide++;
+        }
+        if (content == 0 || tabby * 5 < content || wide <= 5) return lines;
+        List<NumberedLine> out = new ArrayList<>(lines.size());
+        for (NumberedLine line : lines) {
+            String t = line.text();
+            Matcher head = WIDE_TAB_HEAD.matcher(t);
+            String fixed = head.lookingAt()
+                    ? head.group(1) + "\t" + t.substring(head.end()).replace('\t', ' ')
+                    : t.replace('\t', ' ');
+            out.add(fixed.equals(t) ? line : new NumberedLine(line.no(), fixed));
+        }
+        return out;
+    }
+
+    /** 줄 앞 이름 + 탭 사이에 공백이 낀 넓은 틈(「유현⇥ ⇥ 」「유현⇥ ⇥」). */
+    private static final Pattern WIDE_TAB_HEAD = Pattern.compile("([^\\s]++)\\t[ ]++\\t[ ]*+");
 
     /** 「/」로 두 번 넘게 나눈 괄호 — 노랫말. */
     private static boolean lyrics(String t) {
