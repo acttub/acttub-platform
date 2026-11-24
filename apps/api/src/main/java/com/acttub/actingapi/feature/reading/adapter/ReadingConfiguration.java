@@ -21,6 +21,7 @@ import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
 import com.acttub.actingapi.feature.reading.app.RecordingService;
 import com.acttub.actingapi.feature.reading.app.RecordingStorage;
+import com.acttub.actingapi.feature.reading.app.RecordingUploadMetrics;
 import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileStorage;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
@@ -53,6 +54,7 @@ import com.acttub.actingapi.feature.reading.adapter.voice.GeminiVoiceSynthesizer
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -179,8 +181,14 @@ class ReadingConfiguration {
             ReadingRecordingCleanup cleanup,
             Clock clock,
             RetranscribeRepository retranscribe,
-            RetranscribeSettings retranscribeSettings) {
+            RetranscribeSettings retranscribeSettings,
+            RecordingUploadMetrics metrics) {
         return new RecordingService(recordings, storage, transcoder, playback, cleanup, clock, retranscribe,
-                retranscribeSettings);
+                retranscribeSettings, metrics);
+    }
+
+    @Bean
+    RecordingUploadMetrics recordingUploadMetrics(MeterRegistry registry) {
+        return new RecordingUploadMetrics(registry);
     }
 }
