@@ -69,18 +69,18 @@ class PackageLayerTest {
             // 통째로 내주는 것이라 우리가 걸 행위 규칙이 없다 — 남은 층이 셋이다.
             Map.entry("analysis", Set.of("app", "adapter", "schema")),
             // `users` 행의 Schema Entity 는 `auth/schema/UserEntity` 다 — 행을 만드는 쪽이
-            // 갖는다(SOMA-397 12단계). 프로필은 `user_profiles`·`user_profile_directions` 를 갖는다.
-            Map.entry("profile", FOUR_LAYERS),
-            // 포트폴리오와 게스트 이관은 테이블이 먼저 서고(V9, SOMA-528) 나머지 층이 뒤에 섰다.
-            Map.entry("portfolio", FOUR_LAYERS),
-            Map.entry("transfer", Set.of("app", "adapter", "schema")),
+            // 갖는다(SOMA-397 12단계). 프로필·포트폴리오·게스트 이관·영상 보관함은 스키마 검증에만 쓰이던
+            // Schema Entity 를 내려(SOMA-1126) 자기 표를 native SQL 로만 읽고 쓴다.
+            Map.entry("profile", Set.of("domain", "app", "adapter")),
+            Map.entry("portfolio", Set.of("domain", "app", "adapter")),
+            Map.entry("transfer", Set.of("app", "adapter")),
             // 대본 리딩(SOMA-546, ADR-031). 대본의 규칙(한도·배역 이름)이 domain 에 산다.
             Map.entry("reading", FOUR_LAYERS),
             Map.entry("challenge", FOUR_LAYERS),
             // 배우 게시판(SOMA-873). 0.1.0 에서 내렸다가 되살렸다.
             Map.entry("community", FOUR_LAYERS),
             // 영상 보관함(SOMA-546). 한도·형식·객체 키가 domain 에 산다.
-            Map.entry("video", FOUR_LAYERS),
+            Map.entry("video", Set.of("domain", "app", "adapter")),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가
             // 아니라 바깥에서 통째로 들어오는 문서라 그것에 걸리는 행위 규칙이 없고, 문서가 곧
             // 응답이라 형태는 `app` 에 산다(`report/app/PublicReport` 와 같은 자리). 네 층을

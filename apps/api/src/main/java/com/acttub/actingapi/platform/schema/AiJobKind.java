@@ -6,8 +6,8 @@ import jakarta.persistence.Converter;
  * {@code ai_jobs.kind} 의 값 — 비동기 AI 요청의 종류 (practice.analyze, practice.memory, challenge.ai-report,
  * reading.script 「나누기 작업」).
  *
- * <p><b>넷뿐이다.</b> 설문 전송·정리 장부는 AI 요청이 아니라 여기 넣지 않는다. 옛 {@link OperationKind} 는
- * 코치 시작·답·리포트까지 다섯이고 옛 테이블이 계속 쓴다.
+ * <p><b>넷뿐이다.</b> 설문 전송·정리 장부는 AI 요청이 아니라 여기 넣지 않는다. 옛 장부({@code external_operations})의
+ * 종류는 코치 시작·답·리포트까지 다섯이다.
  *
  * <p>값 이름은 DB CHECK 값이자 API 값이다. 한쪽만 고치면 {@code ValueCheckCatalogIT} 가 잡는다.
  */

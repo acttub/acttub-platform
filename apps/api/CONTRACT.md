@@ -68,8 +68,7 @@ NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라, 다
 Schema Entity, JPA 타입을 알지 않는다.
 
 Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 아무 코드도 쓰지 않는 매핑을
-`ddl-auto: validate` 스키마 검증만을 위해 두지 않는다(2026-10-01 결정). 지금은 이 결정과 달리 다른 코드가 쓰지 않고 스키마
-검증에만 쓰이는 엔티티가 남아 있다(예: `ReadingSessionEntity`). 그것들을 지울지는 아직 정하지 않았다. `actor_memory_entries`·`push_tokens`도
+`ddl-auto: validate` 스키마 검증만을 위해 두지 않는다(2026-10-01 결정). `actor_memory_entries`·`push_tokens`도
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
@@ -80,6 +79,13 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
+- 스키마 검증에만 쓰이던 엔티티를 내린 스물일곱 테이블(2026-11-24, SOMA-1126): `account_cleanup_operations`·`anomalies`·
+  `transcripts`·`user_active_days`·`entry_ai_reports`·`entry_comments`·`entry_likes`·`entry_reports`·`entry_saves`·`notifications`·
+  `notification_pushes`·`user_blocks`·`portfolios`·`portfolio_credits`·`portfolio_photos`·`user_profiles`·`user_profile_directions`·
+  `evening_reminder_sends`·`practice_reminder_sends`·`line_memorization`·`reading_recordings`·`reading_sessions`·`reading_voice_cache`·
+  `reading_voice_usage`·`guest_transfer_codes`·`videos`·`external_operations`. 저장소가 처음부터 native SQL로만 읽고 썼다(읽고 쓰는
+  곳은 표 이름으로 찾는다). 이 표들의 컬럼 이름·타입은 기동 때 `ddl-auto: validate`가 보지 않고, 각 저장소의 Postgres 통합
+  테스트가 그 SQL로 지킨다. 그 엔티티만 쓰던 값 enum도 함께 지웠다(`ValueCheckCatalogIT`의 `WITHOUT_JAVA_ENUM`).
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
@@ -134,18 +140,18 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    앱 코드(`BillingRules`·`AdRules`)와 저장소 SQL 이 값을 지킨다.
 
    **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
-   Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
-   (`"반전"`/`"약화"`/`"국소"`)이다. 값 자체가 계약이라 이름으로 바꿔 쓸 수 없다.
+   Java enum **상수 이름**을 저장하는데, DB 값은 소문자다(`anomalies.intent_impact` 처럼 한글인 값도 있다).
+   값 자체가 계약이라 이름으로 바꿔 쓸 수 없다.
 
    **매핑 방법**: 종마다 `AttributeConverter`(`platform/schema` 의 `PgEnum`·`PgEnumConverter`).
    컬럼이 text 라 커스텀 `JdbcType` 은 더 필요 없다 — 값 바인딩을 위해 두었던
    `PgEnumJdbcType` 과, 기동할 때 `pg_enum` 카탈로그를 대조하던 `PgEnumCatalogVerifier` 는
    대조할 타입이 없어져 함께 은퇴했다. **값 무결성의 그물은 이제 둘이다** — DB 의 CHECK 와,
    모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
-2. **앱이 만드는 PK 는 UUID 다**(`AppGeneratedUuidEntity`). 그 밖의 PK 모양: `push_tokens.id`는 DB default가 생성하고,
-   회원당 하나인 `user_profiles`·`portfolios` 는 PK 가 `user_id` 로 **FK 겸 PK** 다. 날짜가 붙는 장부(`user_active_days`·
-   `evening_reminder_sends`·`practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
-   `anomalies` 는 BIGSERIAL(5번)이다. 엔티티 없이 native SQL 만 쓰는 `audition_postings` 도 bigint identity 다(§6-26).
+2. **앱이 만드는 PK 는 UUID 다**(`AppGeneratedUuidEntity`). 그 밖의 PK 모양: `push_tokens.id`는 DB default가 생성한다.
+   엔티티 없이 native SQL 만 쓰는 표는 PK 모양이 여럿이다 — 회원당 하나인 `user_profiles`·`portfolios` 는 `user_id` 가
+   **FK 겸 PK**, 날짜가 붙는 장부(`user_active_days`·`evening_reminder_sends`·`practice_reminder_sends`·`reading_voice_usage`)는
+   복합 키, `reading_voice_cache` 는 해시, `anomalies` 는 BIGSERIAL, `audition_postings` 는 bigint identity 다(§6-26).
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
@@ -157,14 +163,14 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    활성 매핑의 `summaries.observations_json`/`.uncertainties_json`은 DB 기본값이 있고
    null 로 두면 NOT NULL 위반이다. 매핑을 내린 `coach_sessions.conversation_summary`(`''`)와
    구형 `reports.comparison`의 DB 기본값도 그대로 보존한다.
-4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`,
-   `external_operations.response_payload`(NULL 허용). 구형 `summaries.observation`과
+4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`. 구형 `summaries.observation`과
    `reports.biggest_problem`은 DB에 보존하며 활성 매핑에서 제외한다.
-   **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
+   **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** 매핑 없이 native SQL 로 쓰는 옛 장부
+   `external_operations.response_payload`(NULL 허용)는 신규 행의 아직 없는
    응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
    SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
-5. **BIGSERIAL PK** — 활성 매핑에서는 `Anomaly.id` 하나다. `IDENTITY` 전략은 JDBC 배치 INSERT 를
-   막는다.
+5. **BIGSERIAL PK** — 활성 매핑에는 없다(`anomalies.id` 는 매핑을 내렸다). 새로 매핑한다면 `IDENTITY` 전략은 JDBC 배치
+   INSERT 를 막는다.
 6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
    소유해야 하는 결정적 이유다.
    **개수도 목록도 문서에 박지 않는다** — `FlywayBaselineTest` 가 커밋된 fingerprint

@@ -41,11 +41,8 @@ class ValueCheckCatalogIT {
     private static final Map<String, Class<? extends PgEnum>> BY_CONSTRAINT = new LinkedHashMap<>();
 
     static {
-        BY_CONSTRAINT.put("ck_account_cleanup_operations_kind", AccountCleanupKind.class);
         BY_CONSTRAINT.put("ck_actor_memory_entries_field", ActorMemoryField.class);
         BY_CONSTRAINT.put("ck_actor_memory_entries_written_by", ActorMemoryAuthor.class);
-        BY_CONSTRAINT.put("ck_anomalies_intent_impact", IntentImpact.class);
-        BY_CONSTRAINT.put("ck_anomalies_severity", Severity.class);
         BY_CONSTRAINT.put("ck_coach_sessions_close_reason", CloseReason.class);
         // 커뮤니티는 코드를 내리고 테이블을 남겼다(0.1.0). 되살릴 때 값이 어긋나 있지 않게 계속 본다.
         BY_CONSTRAINT.put("ck_community_comments_status", ContentStatus.class);
@@ -54,8 +51,6 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_community_reports_reason", ReportReason.class);
         BY_CONSTRAINT.put("ck_community_reports_status", ReportStatus.class);
         BY_CONSTRAINT.put("ck_consent_documents_type", ConsentType.class);
-        BY_CONSTRAINT.put("ck_external_operations_kind", OperationKind.class);
-        BY_CONSTRAINT.put("ck_external_operations_status", OperationStatus.class);
         // 리딩(V13). 값 이름은 API 값이기도 하다.
         BY_CONSTRAINT.put("ck_line_memorization_status", MemorizationStatus.class);
         BY_CONSTRAINT.put("ck_reading_recordings_transcript_source", TranscriptSource.class);
@@ -88,7 +83,6 @@ class ValueCheckCatalogIT {
         // 리딩 회차 평가(V40). 값 이름은 API 값이기도 하다.
         BY_CONSTRAINT.put("ck_reading_session_ratings_rating", ReadingSessionRatingValue.class);
         BY_CONSTRAINT.put("ck_ai_jobs_kind", AiJobKind.class);
-        BY_CONSTRAINT.put("ck_ai_jobs_status", OperationStatus.class);
         BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);
         BY_CONSTRAINT.put("ck_practice_sessions_status", PracticeStatus.class);
         BY_CONSTRAINT.put("ck_user_consents_action", ConsentAction.class);
@@ -103,15 +97,6 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_challenges_ranking_state", ChallengeRankingState.class);
         BY_CONSTRAINT.put("ck_challenge_entries_visibility", ChallengeEntryVisibility.class);
         BY_CONSTRAINT.put("ck_challenge_entries_status", ChallengeEntryStatus.class);
-        BY_CONSTRAINT.put("ck_entry_comments_status", EntryCommentStatus.class);
-        BY_CONSTRAINT.put("ck_entry_reports_target_type", EntryReportTarget.class);
-        BY_CONSTRAINT.put("ck_entry_reports_reason", EntryReportReason.class);
-        BY_CONSTRAINT.put("ck_entry_reports_status", EntryReportStatus.class);
-        BY_CONSTRAINT.put("ck_entry_reports_resolution", EntryReportResolution.class);
-        BY_CONSTRAINT.put("ck_entry_ai_reports_status", EntryAiReportStatus.class);
-        BY_CONSTRAINT.put("ck_notifications_kind", NotificationKind.class);
-        BY_CONSTRAINT.put("ck_notifications_push_status", NotificationPushStatus.class);
-        BY_CONSTRAINT.put("ck_notification_pushes_stage", NotificationPushStage.class);
     }
 
     /**
@@ -176,7 +161,24 @@ class ValueCheckCatalogIT {
             // 블로그 글(V80)의 값 목록은 domain 의 BlogRules 상수가 들고 저장소 native SQL 만 쓴다.
             "ck_blog_posts_category",
             "ck_blog_posts_app_cta",
-            "ck_blog_posts_status");
+            "ck_blog_posts_status",
+            // 스키마 검증에만 쓰이던 엔티티를 내리며(SOMA-1126) 그 엔티티만 쓰던 enum 도 지웠다. 이 표들은 저장소 native SQL 만 쓴다.
+            // ai_jobs 의 상태는 옛 장부와 같은 값 목록이라 옛 장부의 enum 을 빌려 대조했었다.
+            "ck_account_cleanup_operations_kind",
+            "ck_anomalies_intent_impact",
+            "ck_anomalies_severity",
+            "ck_external_operations_kind",
+            "ck_external_operations_status",
+            "ck_ai_jobs_status",
+            "ck_entry_comments_status",
+            "ck_entry_reports_target_type",
+            "ck_entry_reports_reason",
+            "ck_entry_reports_status",
+            "ck_entry_reports_resolution",
+            "ck_entry_ai_reports_status",
+            "ck_notifications_kind",
+            "ck_notifications_push_status",
+            "ck_notification_pushes_stage");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");
