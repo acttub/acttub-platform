@@ -316,15 +316,11 @@ final class CoachTurnGoldenRig {
     }
 
     /**
-     * 기록을 뜬 뒤 자바 문자열에서 파일로 옮긴 지시문(SOMA-1133). 옮기기 전 기록과 바이트까지 견주려고 파일 이름으로 줄이지 않고
-     * 원문으로 적는다.
+     * 파일 이름으로 줄여 적는 지시문 파일의 최소 길이. 이보다 짧은 파일은 다른 글 속의 같은 낱말을 잘못 바꿀 수 있어 원문으로 둔다.
+     * 코치가 통째로 싣는 지시문 가운데 가장 짧은 것(purpose/asked.txt, 90자)이 줄어들게 정했다.
      */
-    static final java.util.Set<String> RAW = java.util.Set.of("direct-video/purpose/direct.txt",
-            "direct-video/purpose/talk/direct.txt", "direct-video/purpose/reading/direct.txt",
-            "direct-video/purpose/character/wrap-card.txt", "direct-video/purpose/talk/character/wrap-card.txt",
-            "direct-video/purpose/answer-after-wrap.txt", "direct-video/purpose/asked.txt");
+    static final int SHRINK_MIN = 80;
 
-    /** {@link #RAW} 보다 뒤에 둔다 — 정적 초기화 순서대로 읽는다. */
     static final List<Map.Entry<String, String>> BLOCKS = blocks();
 
     private static List<Map.Entry<String, String>> blocks() {
@@ -333,8 +329,7 @@ final class CoachTurnGoldenRig {
         try (Stream<Path> files = Files.walk(root)) {
             for (Path file : files.filter(path -> path.toString().endsWith(".txt")).sorted().toList()) {
                 String text = Files.readString(file, StandardCharsets.UTF_8).strip();
-                String name = root.relativize(file).toString();
-                if (text.length() >= 120 && !RAW.contains(name)) found.add(Map.entry(name, text));
+                if (text.length() >= SHRINK_MIN) found.add(Map.entry(root.relativize(file).toString(), text));
             }
         } catch (IOException failure) {
             throw new UncheckedIOException(failure);
