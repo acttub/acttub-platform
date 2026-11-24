@@ -906,32 +906,16 @@ final class PurposeLoop {
         if (loop.path("card").isObject()) lines.add("- 지금 결과 카드: " + loop.path("card"));
         if (loop.path("character_card").isObject()) lines.add("- 지금 인물 카드: " + loop.path("character_card"));
         if (loop.path("choices").size() > 0) lines.add("- 직전에 내준 버튼: " + loop.path("choices"));
-        if (turn.direct() && turn.purpose().listen()) {
-            lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 녹음에서 들은 것과 "
-                    + "대본으로 직접 정한다: 어느 대사에서, 상대에게 무엇을 하며 읽어 볼지. 표정·몸은 말하지 않는다. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
-        } else if (turn.direct() && turn.purpose().talk()) {
-            lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 배우가 한 말과 "
-                    + "배우가 적은 대사로 직접 정한다. 영상은 없다 — 본 것처럼 말하지 않는다. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
-        } else if (turn.direct()) {
-            lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 영상에서 본 것으로 "
-                    + "직접 정한다: 어느 대사에서, 상대에게 무엇을 하는지. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
+        // 상황마다 붙는 지시 문장은 다른 지시문처럼 파일에 둔다(purpose/…). 어느 응답에 붙는지만 여기서 정한다.
+        if (turn.direct()) {
+            // 배우가 방향을 달라고 했다 — 더 묻지 않고 코치가 직접 정해 준다. 무엇으로 정하는지가 영상·말·리딩 녹음마다 다르다.
+            lines.add(DirectVideoPrompts.purposeResource(turn.purpose().listen() ? "reading/direct"
+                    : turn.purpose().talk() ? "talk/direct" : "direct"));
         }
-        if (turn.purpose() == Purpose.TALK_CHARACTER && turn.wrap()) {
-            lines.add("- 인물 카드는 배우가 한 말(내 말)과 함께 찾은 것(같이 찾음)으로만 채운다. 영상이 없으므로 (영상) 칸은 쓰지 않는다. "
-                    + "정리 둘째 문장은 배우 해석과 다른 가능성 하나를 배우가 말한 대사·상황에 기대어 말한다.");
-        } else if (turn.purpose() == Purpose.CHARACTER && turn.wrap()) {
-            lines.add("- 인물 카드에는 첫 응답 <설계>의 대본 단서·테이크 속 인물·다른 가능성에서 배우가 말하지 않은 칸을 둘 이상 (영상)으로 채운다. "
-                    + "정리 둘째 문장은 배우 해석과 다른 가능성 하나를 그 단서 대사와 함께 말하고, 그 둘로 이 인물이 어떻게 더 입체적이 되는지 말한다.");
-        }
-        if (answersAfterWrap(turn)) {
-            lines.add("- 정리는 이미 했다. 이번에는 배우가 정리 뒤에 물은 것에만 답한다. 정리를 다시 쓰거나 새 질문을 하지 않고, <보기>도 쓰지 않는다. "
-                    + "할 수 없는 것을 물었으면 할 수 없다는 말로 끝내지 말고 배우가 지금 해 볼 수 있는 방법 하나를 함께 말한다. "
-                    + "해 보면 어떻게 될지 장담하는 말(\"~느껴질 거예요\", \"~될 거예요\")로 끝내지 않는다.");
-        }
-        if (turn.asked()) {
-            lines.add("- 배우가 이번 말에서 함께 물은 것이 있다. 이번 할 일을 하기 전에 그 물음에 먼저 한두 문장으로 솔직하게 답한다. "
-                    + "물음을 넘기거나 질문으로 되돌리지 않는다.");
-        }
+        // 인물 이해하기의 정리: 인물 카드를 무엇으로 채우는지가 영상 있음·없음에 따라 다르다.
+        if (turn.purpose().character() && turn.wrap()) lines.add(DirectVideoPrompts.purposeResource(turn.purpose().dir + "/wrap-card"));
+        if (answersAfterWrap(turn)) lines.add(DirectVideoPrompts.purposeResource("answer-after-wrap"));
+        if (turn.asked()) lines.add(DirectVideoPrompts.purposeResource("asked"));
         if (actorText != null && !actorText.isBlank()) {
             lines.add("- 배우가 방금 한 말: " + actorText.strip().replaceAll("\\s+", " ") + (turn.chip() ? " (버튼을 눌렀다)" : ""));
         }
