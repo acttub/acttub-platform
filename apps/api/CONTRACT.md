@@ -1059,7 +1059,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     NULL 은 "세대를 견주지 않는다" 는 뜻이다).
   - **이름을 바꾸지 않는다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 신형 노트만
     `v2`다. 관찰 기록도 신형 기록만 `video_record_v1`이고 구형은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만
-    새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`→`exhausted`). 옛 대화에는
+    새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
     시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
   - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`·`handoff_confirmations`는 새 표가 없어 옛 표에
     남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).

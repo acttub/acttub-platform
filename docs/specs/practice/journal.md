@@ -17,7 +17,7 @@
 - 응답: answers, draft_status, practice[{text,basis}], character[{aspect,text}], feedback[{text,giver,at}], 머리 줄용 title·purpose·role_name.
 
 ## 상태
-pending(자동 칸 만드는 중) → ready(만듦) / failed(두 번 실패, 배우 답만) / skipped(대화가 없어 만들지 않음). 배우가 고치면 edited_at 이
+pending(자동 칸 만드는 중) → ready(만듦. 대화가 없으면 모델을 부르지 않고 자동 칸 없이 ready) / failed(두 번 실패, 배우 답만). 배우가 고치면 edited_at 이
 찍히고, 그 뒤엔 늦게 끝난 생성이 일지를 덮지 않는다. 고칠 때 pending 이던 일지는 ready 가 된다.
 
 ## 규칙·제약

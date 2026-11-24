@@ -142,7 +142,8 @@ class ValueCheckCatalogIT {
             "ck_practices_session_purpose",
             // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
             "ck_entry_ranking_snapshots_basis",
-            // 배우 일지(SOMA-720)의 자동 칸 생성 상태(pending·ready·failed·skipped)는 저장소 SQL 과 JournalService 만 쓴다(JPA 매핑이 없다).
+            // 배우 일지(SOMA-720)의 자동 칸 생성 상태(pending·ready·failed)는 저장소 SQL 과 JournalService 만 쓴다(JPA 매핑이 없다).
+            // CHECK 에 남은 skipped 는 옛 서버가 쓰던 값이라 다음 배포에서 뺀다(SOMA-1130).
             "ck_actor_journals_draft_status",
             // 참여작 얼굴 모자이크 상태(pending·ready·failed, SOMA-809)는 저장소 SQL 만 읽고 쓴다(값 enum 이 따로 없다).
             "ck_challenge_entries_mosaic_status",

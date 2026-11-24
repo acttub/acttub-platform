@@ -218,7 +218,7 @@ class AdminEndpointIT {
                 insertVideo(ADVISOR_USER, "advisor-old.mp4", NOW.minusMinutes(40), NOW.minusMinutes(1)),
                 "closed", "conversation_closed", "three_layers_v1", NOW.minusMinutes(40));
         UUID olderConversation = UUID.randomUUID();
-        insertConversation(olderConversation, olderPractice, "closed", "gap_stated", NOW.minusMinutes(40));
+        insertConversation(olderConversation, olderPractice, "closed", "user_ended", NOW.minusMinutes(40));
         UUID newerPractice = UUID.randomUUID();
         insertPractice1(newerPractice, ADVISOR_USER, insertVideo(ADVISOR_USER, "advisor-new.mp4", NOW.minusMinutes(3)),
                 "conversing", null, "three_layers_v1", NOW.minusMinutes(3));
@@ -260,7 +260,7 @@ class AdminEndpointIT {
         assertThat(oldest.path("coach_session_id").stringValue(null)).isEqualTo(olderConversation.toString());
         assertThat(oldest.path("persona").isNull()).as("성격 배정 기록이 없으면 null").isTrue();
         assertThat(oldest.path("coach_flow").isNull()).as("흐름 배정 기록이 없으면 null").isTrue();
-        assertThat(oldest.path("close_reason").stringValue(null)).isEqualTo("gap_stated");
+        assertThat(oldest.path("close_reason").stringValue(null)).isEqualTo("user_ended");
         assertThat(oldest.path("turns")).isEmpty();
         assertThat(oldest.path("video_url").isNull()).as("지워진 영상은 재생 주소가 없다").isTrue();
 
@@ -336,7 +336,7 @@ class AdminEndpointIT {
         insertPractice1(realPractice, REAL_USER, realVideo, "closed", "conversation_closed",
                 "three_layers_v1", NOW.plusMinutes(1));
         UUID conversation = UUID.randomUUID();
-        insertConversation(conversation, realPractice, "closed", "gap_stated", NOW.plusMinutes(1));
+        insertConversation(conversation, realPractice, "closed", "user_ended", NOW.plusMinutes(1));
         UUID note = UUID.randomUUID();
         jdbc.update("INSERT INTO coach_notes (id,conversation_id,format,kind,source_revision) VALUES (?,?,'v2','action',0)",
                 note, conversation);
@@ -1240,7 +1240,7 @@ class AdminEndpointIT {
         UUID migratedVideo = insertVideo(REAL_USER, "real-v.mp4", NOW.minusMinutes(30));
         insertPractice1(migratedPractice, REAL_USER, migratedVideo, "closed", "conversation_closed",
                 "legacy", NOW.minusMinutes(30));
-        insertConversation(realFinalCoach, migratedPractice, "closed", "gap_stated", NOW.minusMinutes(30));
+        insertConversation(realFinalCoach, migratedPractice, "closed", "exhausted", NOW.minusMinutes(30));
         insertMessage(realFinalCoach, 0, "actor", "첫 질문");
 
         UUID newVideo = insertVideo(REAL_USER, "new.mp4", NOW.minusMinutes(5));
@@ -1875,7 +1875,7 @@ class AdminEndpointIT {
         UUID practice = UUID.randomUUID();
         insertPractice1(practice, REAL_USER, video, "closed", "conversation_closed", "three_layers_v1", NOW.minusMinutes(15));
         UUID conversation = UUID.randomUUID();
-        insertConversation(conversation, practice, "closed", "gap_stated", NOW.minusMinutes(14));
+        insertConversation(conversation, practice, "closed", "user_ended", NOW.minusMinutes(14));
         UUID note = UUID.randomUUID();
         jdbc.update("INSERT INTO coach_notes (id,conversation_id,format,kind,source_revision) VALUES (?,?,'v2','action',0)",
                 note, conversation);

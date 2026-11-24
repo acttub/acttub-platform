@@ -1263,7 +1263,7 @@ CONSTRAINT challenges ck_challenges_team CHECK (((origin <> 'team'::text) OR (ho
 CONSTRAINT challenges ck_challenges_work_length CHECK (((char_length(work) >= 1) AND (char_length(work) <= 100)))
 CONSTRAINT challenges uq_challenges_featured UNIQUE (featured_on)
 CONSTRAINT challenges uq_challenges_request UNIQUE (host_user_id, request_id)
-CONSTRAINT coach_conversations ck_coach_conversations_close_reason CHECK ((close_reason = ANY (ARRAY['gap_stated'::text, 'exhausted'::text, 'limit'::text, 'user_ended'::text, 'system_failure'::text])))
+CONSTRAINT coach_conversations ck_coach_conversations_close_reason CHECK ((close_reason = ANY (ARRAY['exhausted'::text, 'limit'::text, 'user_ended'::text, 'system_failure'::text])))
 CONSTRAINT coach_conversations ck_coach_conversations_state_revision CHECK ((state_revision >= 0))
 CONSTRAINT coach_conversations ck_coach_conversations_status CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
 CONSTRAINT coach_conversations coach_conversations_created_at_not_null NOT NULL created_at

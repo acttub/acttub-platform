@@ -30,7 +30,11 @@ class PostgresJournalRepository implements JournalRepository {
      * 적은 짧은 인물 칸). 영상 없는 회차의 목적도 저장된 값 그대로다.
      */
     private static final String SELECT = """
-            SELECT j.id,j.practice_id,j.conversation_id,j.answers,j.draft,j.draft_status,j.model,j.edited_at,j.created_at,j.updated_at,
+            SELECT j.id,j.practice_id,j.conversation_id,j.answers,j.draft,
+                   -- 옛 서버가 대화 없는 일지에 쓰던 skipped 는 ready 로 읽는다. 배포가 겹치는 동안 옛 서버가 쓴 행도 읽게 남기고,
+                   -- CHECK 에서 skipped 를 빼는 다음 배포에서 이 줄도 지운다(SOMA-1130).
+                   CASE WHEN j.draft_status='skipped' THEN 'ready' ELSE j.draft_status END AS draft_status,
+                   j.model,j.edited_at,j.created_at,j.updated_at,
                    COALESCE(NULLIF(btrim(p.title),''),NULLIF(btrim(root.title),'')) AS title,
                    p.session_purpose AS purpose,
                    COALESCE(NULLIF(btrim(c.state->'purpose_loop'->'scene'->>'character'),''),

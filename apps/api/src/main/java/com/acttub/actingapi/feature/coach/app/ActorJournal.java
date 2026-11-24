@@ -96,7 +96,7 @@ public final class ActorJournal {
     }
 
     /**
-     * @param draftStatus pending(만드는 중)·ready·failed(만들지 못해 배우 답만)·skipped(대화가 없어 만들지 않음)
+     * @param draftStatus pending(만드는 중)·ready(대화가 없어 만들지 않은 것 포함)·failed(만들지 못해 배우 답만)
      * @param title 장면 제목·{@code purpose} 코칭 목적·{@code roleName} 배역 이름 — 화면 머리 줄. 모르면 null
      */
     public record View(

@@ -26,7 +26,7 @@ coach_conversations.status — 회차의 코치 대화.
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
 | open | 회차 stage가 conversing일 때 시작 | practice.coach |
-| closed | 코치가 마무리하거나 응답 상한·"그만"·종료 생성 실패로 닫힘. close_reason은 신형에서 "그만"이면 user_ended, 응답 상한이면 limit, 종료 생성 실패면 system_failure, 그 밖의 마무리면 exhausted다. 기존 갈래(legacy)는 사유를 가리지 않고 exhausted다. gap_stated는 옛 대화를 옮긴 행에만 있다 | practice.coach |
+| closed | 코치가 마무리하거나 응답 상한·"그만"·종료 생성 실패로 닫힘. close_reason은 신형에서 "그만"이면 user_ended, 응답 상한이면 limit, 종료 생성 실패면 system_failure, 그 밖의 마무리면 exhausted다. 기존 갈래(legacy)는 사유를 가리지 않고 exhausted다. 옛 대화의 gap_stated는 옮길 때 exhausted로 바꾼다 | practice.coach |
 | open | closed에서 다시 열기(`…/continue`, SOMA-782). 신형 회차이고, 연기 영상이 아니라서 끊긴 대화가 아니고, 코치 응답이 22개 미만이고, 같은 묶음에 닫히지 않은 다른 회차가 없을 때 | practice.coach |
 
 - 불변 조건: 회차당 대화 하나(`uq_coach_conversations_practice`). 저장 때 state_revision이 읽은 값과 다르면 쓰지 않는다(409
