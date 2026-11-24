@@ -637,10 +637,10 @@ final class DirectVideoPracticeLoop {
      */
     static boolean finished(Parsed parsed) {
         String doing = statusField(parsed.status(), "할 일");
-        if (!doing.isEmpty()) return doing.startsWith("마무리2") || doing.startsWith("끝");
+        if (!doing.isEmpty()) return doing.startsWith(PracticeLoopRouter.OLD_CLOSE) || doing.startsWith(PracticeLoopRouter.END);
         for (String part : parsed.status().split("·")) {
             String action = part.strip();
-            if (action.startsWith("마무리2") || action.startsWith("끝")) return true;
+            if (action.startsWith(PracticeLoopRouter.OLD_CLOSE) || action.startsWith(PracticeLoopRouter.END)) return true;
         }
         return false;
     }
@@ -736,23 +736,24 @@ final class DirectVideoPracticeLoop {
             // 이 답을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
             String status = LenientJson.asText(statuses.path(coachIndex), "");
             String kind = statusField(status, "배우의 말");
-            if (kind.startsWith("자기 한 줄")) {
+            if (kind.startsWith(PracticeLoopRouter.Kind.SELF_LINE.label)) {
                 selfLine = text;
                 selfIndex = i;
-            } else if (kind.startsWith("정정") || kind.startsWith("반박")) {
+            } else if (kind.startsWith(PracticeLoopRouter.Kind.CORRECTION.label) || kind.startsWith(PracticeLoopRouter.Kind.PUSHBACK.label)) {
                 String topic = statusField(status, "피할 것");
                 if (topic.isEmpty() || topic.startsWith("없음")) topic = habit;
                 if (seen.add(text.replaceAll("[\\s!?.~…ㅠㅜ]+", ""))) {
                     corrections.add((topic.isBlank() ? "" : shorten(topic, 30) + ": ") + "\"" + shorten(text, 80) + "\"");
                 }
-            } else if (lastAction.startsWith("마무리1") && askedLine == null && !request(kind, text)) {
+            } else if (lastAction.startsWith(PracticeLoopRouter.OLD_ASK_LINE) && askedLine == null && !request(kind, text)) {
                 // 한 줄을 청한 자리에서 배우가 평가·방법을 청하거나 반박했으면 그 말은 한 줄이 아니다(SOMA-601).
                 askedLine = text;
                 askedIndex = i;
-            } else if (kind.startsWith("선택 설명")) {
+            } else if (kind.startsWith(PracticeLoopRouter.Kind.CHOICE.label)) {
                 choice = text;
                 choiceIndex = i;
-            } else if (lastAction.startsWith("파고들기") && !lastAction.startsWith("파고들기(") && !kind.startsWith("짧은 답")) {
+            } else if (lastAction.startsWith(PracticeLoopRouter.OLD_PROBE) && !lastAction.startsWith(PracticeLoopRouter.OLD_PROBE + "(")
+                    && !kind.startsWith(PracticeLoopRouter.Kind.SHORT.label)) {
                 // 고르기만 하면 되는 쉬운 질문(파고들기(쉬운))의 답은 이유가 아니다 — "무서워할 쪽이요"가 요약에 올라갔다.
                 // 버릇이 언제·왜 나오는지에 대한 배우의 마지막 답.
                 probe = text;
@@ -785,8 +786,9 @@ final class DirectVideoPracticeLoop {
             "평가|장점|단점|방법|예시|설명해|어떻게 해야|부족한|짚어 ?주|(?i:how (?:do|should) i|feedback|example)");
 
     private static boolean request(String kind, String text) {
-        if (kind.startsWith("평가 요청") || kind.startsWith("방법 요청") || kind.startsWith("반박")
-                || kind.startsWith("정정") || kind.startsWith("그만")) return true;
+        if (kind.startsWith(PracticeLoopRouter.Kind.EVALUATION.label) || kind.startsWith(PracticeLoopRouter.Kind.METHOD.label)
+                || kind.startsWith(PracticeLoopRouter.Kind.PUSHBACK.label) || kind.startsWith(PracticeLoopRouter.Kind.CORRECTION.label)
+                || kind.startsWith(PracticeLoopRouter.Kind.STOP.label)) return true;
         return kind.isEmpty() && REQUEST_WORDS.matcher(text).find();
     }
 
@@ -817,7 +819,7 @@ final class DirectVideoPracticeLoop {
 
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
     static String action(String status) {
-        if (status.isBlank()) return "비추기";
+        if (status.isBlank()) return PracticeLoopRouter.SHOW;
         String doing = statusField(status, "할 일");
         if (!doing.isEmpty()) return doing;
         for (String part : status.split("·")) {
