@@ -1,6 +1,6 @@
 # 커뮤니티
 
-- 진행: 되살림 (SOMA-873, 서버 API). 앱 화면은 별도 작업.
+- 진행: 되살림 (SOMA-873). 앱 화면 이름은 「배우 게시판」이다.
 
 [쓰는 법](../README.md)과 [공통 규칙](../common.md)을 먼저 읽는다.
 
@@ -29,7 +29,19 @@
 - 신고 사유는 챌린지와 같은 copyright·inappropriate·spam·duplicate·other이고, 옛 앱의 abuse·sexual·privacy도 받는다.
   자기 글·댓글 신고는 400 `cannot_report_own`, 같은 대상 재신고는 409 `already_reported`. 서로 다른 세 사람의 처리 전
   신고가 모이면 대상이 가려진다(`status: hidden`). 가려진 글·댓글은 남에게 보이지 않고 작성자에게만 `status: hidden`으로 보인다.
-  가려진 글에는 댓글을 달 수 없다. 되살리는 것은 운영이 한다.
+  가려진 글에는 댓글을 달 수 없다. 되살리는 API는 없고 운영이 DB에서 푼다(아래).
+- 가린 글·댓글 되살리기: 운영이 한 트랜잭션에서 대상의 `status`를 visible로 바꾸고, 그 대상의 처리 전(pending) 신고를 dismissed로
+  닫는다. 가리기는 처리 전 신고의 서로 다른 신고자 수로 세므로, 신고를 pending으로 두면 다음 신고 하나에 다시 가려진다.
+
+  ```sql
+  BEGIN;
+  UPDATE community_posts SET status = 'visible' WHERE id = '<글 id>' AND status = 'hidden';
+  UPDATE community_reports SET status = 'dismissed'
+   WHERE target_type = 'post' AND target_id = '<글 id>' AND status = 'pending';
+  COMMIT;
+  ```
+
+  댓글은 `community_comments`와 `target_type = 'comment'`로 같은 일을 한다.
 
 - 글 사진은 다섯 장까지다(V87 `community_post_images`). 포트폴리오 사진과 같은 길이다 — `POST /v2/community/images`
   (`mime_type`·`size_bytes`, JPEG·PNG·WebP·HEIC, 10MB)로 자리와 서명한 PUT 주소(30분)를 받고 `upload_headers`를 실어

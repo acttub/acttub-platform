@@ -1324,7 +1324,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-24. 앱 공지 포스터 (SOMA-599)
 
-> 제품 규칙의 정본: [app.poster](../../docs/specs/app/poster.md)(고르는 규칙, 빈도·다시 보지 않기·대상, 운영자 사용법)
+> 제품 규칙의 정본: [app.poster](../../docs/specs/app/poster.md)(고르는 규칙, 빈도·다시 보지 않기·대상). 운영자 curl 사용법은 팀 위키 `guides/app-poster-admin`에 있다.
 
 - 표는 `app_posters`(V29)다. Schema Entity 없이 `feature/poster/adapter/db/PostgresPosterRepository` 의 native SQL
   로만 읽고 쓴다(행이 적고 `platforms` 가 `text[]` 라서다, §5-1·`EntityMappingIT` 의 대기 목록). 값 목록(`frequency`·
