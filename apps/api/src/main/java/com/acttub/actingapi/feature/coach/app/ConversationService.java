@@ -348,7 +348,8 @@ public class ConversationService {
      * 닫힌 대화를 같은 대화로 다시 연다(SOMA-782 「더 얘기하기」). 새 회차·새 대화를 만들지 않으므로 무료 횟수와 통계에
      * 새 코칭으로 잡히지 않는다. 이미 열려 있으면 그대로 돌려준다(재전송). 코치 응답 상한에 가까우면 409
      * {@code conversation_limit_reached}, 신형이 아니거나 연기 영상이 아니어서 끊긴 대화면 409
-     * {@code conversation_not_resumable} 이다. 코치 프롬프트는 건드리지 않는다 — 다음 배우 말부터 평소 규칙으로 이어진다.
+     * {@code conversation_not_resumable}, 같은 묶음에 닫히지 않은 다른 회차가 있으면 409 {@code practice_in_progress} 다.
+     * 코치 프롬프트는 건드리지 않는다 — 다음 배우 말부터 평소 규칙으로 이어진다.
      */
     public Turn resume(UUID userId, UUID conversationId, Long revision) {
         Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
@@ -378,7 +379,12 @@ public class ConversationService {
             }
         }
         if (!marked) state.putObject(DirectVideoPracticeLoop.STATE_KEY).put(PracticeLoopRouter.RESUMED_AT, replies);
-        Saved reopened = activeOnly(() -> conversations.reopen(conversationId, session.stateRevision(), state, clock.instant()));
+        Saved reopened;
+        try {
+            reopened = activeOnly(() -> conversations.reopen(conversationId, session.stateRevision(), state, clock.instant()));
+        } catch (ConversationRepository.PracticeInProgress open) {
+            throw new ApiException(409, "practice_in_progress", open);
+        }
         if (reopened == null) {
             throw new ApiException(409, "conversation_conflict");
         }

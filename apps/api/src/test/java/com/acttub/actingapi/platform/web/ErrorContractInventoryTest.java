@@ -618,6 +618,9 @@ class ErrorContractInventoryTest {
                     "feature.coach.app.ConversationServiceTest"),
             covered("feature.coach.app.ConversationService|409|conversation_not_resumable", 1,
                     "feature.coach.app.ConversationServiceTest"),
+            // 다시 열 회차의 묶음에 닫히지 않은 다른 회차가 있다(묶음당 하나, practice.resume).
+            covered("feature.coach.app.ConversationService|409|practice_in_progress", 1,
+                    "feature.coach.CoachConversationIT"),
             covered("feature.coach.app.ConversationService|422|request_fingerprint_mismatch", 1,
                     "feature.coach.CoachConversationIT"),
             // 바깥 호출이 도는 사이에 탈퇴가 끝났다 — 저장 직전의 계정 상태 확인이 낸다(practice.coach).
