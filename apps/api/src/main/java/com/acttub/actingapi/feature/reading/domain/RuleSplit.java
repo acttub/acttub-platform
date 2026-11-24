@@ -1371,13 +1371,23 @@ public final class RuleSplit {
     private static final Pattern NUMBERED_ROLE = Pattern.compile("(\\p{IsHangul}{1,4}) ?(\\d{1,2})");
 
     /** 이름 뒤 두 칸 이상·탭 머리 — 「수아  …」「도냐 아순시온  …」「참가자 9  …」(두 낱말까지). */
-    private static final Pattern WIDE_GAP_HEAD = Pattern.compile("(\\S{1,8}(?: \\S{1,8})?)(?:\\s{2,}|\\t)");
+    private static final Pattern WIDE_GAP_HEAD = Pattern.compile("(\\S{1,8}(?: \\S{1,8})?)(\\s++)");
 
     /**
      * 대본의 머리 모양 — 줄마다 원문 들여쓰기 칸 수와 머리 낱말(넓은 칸 앞 두 낱말까지, 아니면 번호 머리나 첫 낱말), 그리고 대본을 지배하는
      * 「넓은 칸 머리」의 들여쓰기. {@code indent} 가 -1 이면 지배하는 모양이 없다.
      */
-    private record HeadShape(int[] indents, String[] heads, int indent) {
+    private static final class HeadShape {
+        private final int[] indents;
+        private final String[] heads;
+        private final int indent;
+
+        HeadShape(int[] indents, String[] heads, int indent) {
+            this.indents = indents;
+            this.heads = heads;
+            this.indent = indent;
+        }
+
         /**
          * 이 줄의 첫 낱말 {@code name} 을 이름 후보로 셀까 — 지배하는 모양이 없으면 그대로 센다. 있으면 그 들여쓰기 줄에서, 그 줄 머리 낱말이거나 두 낱말
          * 이름(「도냐 아순시온」)의 앞 낱말일 때만 센다. 번호 머리(「참가자 13 …」)의 앞말 「참가자」는 세지 않는다. 같은 들여쓰기의 한 칸 머리(「관리인
@@ -1421,7 +1431,7 @@ public final class RuleSplit {
             indents[i] = indent;
             String t = text.get(i);
             Matcher m = WIDE_GAP_HEAD.matcher(t);
-            boolean wide = m.lookingAt();
+            boolean wide = m.lookingAt() && (m.group(2).length() >= 2 || m.group(2).indexOf('\t') >= 0);
             if (!wide) {
                 m = LABELED_HEAD.matcher(t);
                 if (!m.lookingAt()) m = SPACE_HEAD.matcher(t);
