@@ -1417,8 +1417,8 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-6. 직접 영상 코칭의 코드 자리
 
-> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: 연습 루프와 옛 대화의 분류·지침 경로)
 
-- 직접 영상: dev 임시 세션 API는 `DirectVideoController`(조건부 등록, 공개 OpenAPI에서 `@Hidden`), 임시 세션은
-  `DirectVideoSessions` → `DirectVideoRouting`, 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 열리는 조건과
+- 직접 영상: 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 연습 루프 전에 시작한 옛 대화의 후속 답만
+  `DirectVideoCoach` → `DirectVideoRouting`이 지침을 고른다. 열리는 조건과
   경로 선택은 practice.coach 「규칙·제약」의 경로 표와 「Gemini 직접 영상 코칭」에 있다.
