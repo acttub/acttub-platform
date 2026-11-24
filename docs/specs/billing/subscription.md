@@ -116,7 +116,8 @@ Pro 진입점을 숨긴다.
 - Pro 판정 = (결제 기능이 열려 있음) AND ((구독이 Pro) OR (지금 유효한 grant 기간)). 결제 기능이 닫혀 있으면 아무도 Pro 가 아니다
   (그때는 무료 한도도 걸리지 않는다). 구독이 Pro 인 것은 토스 active(기간과 상관없이 — 스케줄러가
   늦어도 끊지 않는다), 스토어 active(기간 끝 + 6시간 안), canceled(기간 안)다(`BillingRules.pro`). grant는 카드 없이 서버가 주는 기간
-  (예: 11월 무료 한 달)이고 `billing_pro_grants`에 SQL·관리 경로로만 넣는다. 줄을 자동으로 넣는 로직은 없다. 다만 출시 주간
+  (예: 11월 무료 한 달)이고 `billing_pro_grants`에 SQL·관리 경로로 넣는다. 자동으로 넣는 곳은 친구 초대 보상(reason `friend_invite`,
+  [account.invite](../account/invite.md)) 하나다. 다만 출시 주간
   Pro(`BillingRules.launchWeekEnd`, 가입 시각으로 판정)가 grant 계산에 남아 있다 — 그 주간이 지나 지금은 효과가 없다.
 - 스위치: `BILLING_WEB_ENABLED`(기본 false)가 꺼져 있으면 카드 등록 창·콜백·재시도·자동결제가 모두 막혀 토스 호출이 나가지 않는다.
   키는 test_·live_ 둘 다 받되 두 키의 종류가 같아야 하고, 값은 환경변수로만 준다. 복귀 주소는 `BILLING_WEB_RETURN_URL`(웹 https).

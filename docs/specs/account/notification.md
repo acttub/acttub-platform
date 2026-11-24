@@ -22,6 +22,7 @@
 | `POST /v2/push-opens` | 헤더 `Authorization`(로그인한 회원, 동의·프로필 게이트 밖), `RecordPushOpenRequest`: `kind`(1~40자)·`reminder_kind`(40자 이하)·`template_id`(60자 이하)·`platform`(ios/android), 뒤의 셋은 없어도 된다 | 204. push_opens 에 한 줄 | 게스트 `member_only` 403, 422 배열, 한 회원당 분당 60회 초과 429 |
 | `PushService#onAnalysisComplete` (분석 워커가 분석을 끝낼 때) | 분석 세션 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시 | 실패는 밖으로 내보내지 않고 보고한다. `DeviceNotRegistered` 토큰은 지운다 |
 | `PushService#onScriptSplit` (대본 나누기 워커가 대본을 저장한 뒤, SOMA-960) | 회원·대본 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시(data `kind=script_split_complete`, `script_id`) | 분석 완료와 같다 |
+| `PushService#onInviteRewarded` (친구 초대 보상이 지급된 뒤, SOMA-865) | 회원·역할(초대한 사람/받은 사람) | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시(data `kind=invite_reward`) | 분석 완료와 같다. 행동은 [account.invite](invite.md) |
 | 챌린지 알림 발송 | 챌린지 사건 | 챌린지 토글이 켜진 회원에게 푸시 | 정본은 challenge.notification |
 | `PracticeReminderScheduler` (10분마다, `PRACTICE_REMINDER_ENABLED=true`일 때만) | 연습 알림 대상 회원(「개인화 연습 알림」) | 대상 회원의 토큰에 Expo 푸시. 한국 날짜마다 연습 권유와 연속 기록 중 하나만(하루 최대 하나, SOMA-987) | 실패는 보고한다(회원 한 명의 실패가 나머지를 막지 않는다). `DeviceNotRegistered` 토큰은 지운다 |
 
