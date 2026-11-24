@@ -2,7 +2,6 @@ package com.acttub.actingapi.feature.analysis.app;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
