@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -22,6 +24,7 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
 import com.acttub.actingapi.feature.billing.app.BillingMailer;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
+import com.acttub.actingapi.feature.billing.app.RefundNotifier;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
@@ -84,6 +87,9 @@ class BillingEndpointIT {
 
     @MockitoBean
     BillingMailer mailer;
+
+    @MockitoBean
+    RefundNotifier refunds;
 
     private String bearer;
 
@@ -180,11 +186,12 @@ class BillingEndpointIT {
                     .as("탈퇴한 계정의 결제").isZero();
             soft.assertThat(renewed).as("다음 달 자동결제").isFalse();
         });
+        verify(refunds, never()).refundNeeded(any());
     }
 
     @Test
-    @DisplayName("첫 결제 승인을 기다리는 사이에 다른 기기에서 탈퇴 — 승인된 결제는 기록에 남지만(환불 대상) 구독은 active 가 되지 않고 "
-            + "콜백은 failed 다")
+    @DisplayName("첫 결제 승인을 기다리는 사이에 다른 기기에서 탈퇴 — 승인된 결제는 기록에 남지만 구독은 active 가 되지 않고 "
+            + "콜백은 failed 다. 그 주문 ID 와 금액을 환불 대상으로 알린다")
     void withdrawalWhileTheFirstChargeIsApprovedLeavesNoSubscription() throws Exception {
         String state = openCheckout("subscribe");
         String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
@@ -204,6 +211,8 @@ class BillingEndpointIT {
             soft.assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments WHERE status='done'", Integer.class))
                     .as("이미 승인된 첫 결제").isEqualTo(1);
         });
+        String orderId = jdbc.queryForObject("SELECT order_id FROM billing_payments WHERE status='done'", String.class);
+        verify(refunds).refundNeeded(new RefundNotifier.Refund(orderId, 3900));
     }
 
     @Test
