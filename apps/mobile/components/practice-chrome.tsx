@@ -1,60 +1,19 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView, type VideoSource } from 'expo-video';
 
 import { palette } from '@/constants/palette';
 import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
-import type { SceneContext } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
-import { summaryRows } from '@/lib/practice/scene-summary';
 import { limitVideoBuffer } from '@/lib/video-memory';
 import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events';
 
 /**
- * 연습 흐름(막히는 지점 → 분석 → 질문 대화)의 화면들이 공유하는 머리 부분.
+ * 연습 흐름(분석 대기 → 질문 대화)의 화면들이 공유하는 '영상·장면 보기' 접이식.
  *
- * 목업에서 세 화면이 같은 진행 줄과 '영상·장면 보기' 접이식을 쓴다. 화면마다 다시
- * 만들면 간격과 색이 조금씩 어긋나서 한곳에 둔다.
+ * 화면마다 다시 만들면 간격과 색이 조금씩 어긋나서 한곳에 둔다.
  */
-
-/**
- * '영상 보기' 링크. 진행 줄 오른쪽에 놓는다.
- *
- * 펼친 내용은 이 링크 안에 두지 않는다 — 진행 줄은 좁은 가로 칸이라 영상이 그 안에
- * 갇혀 찌그러진다. 상태는 화면이 들고, 본문은 SceneFoldBody 가 전폭으로 그린다.
- */
-export function SceneFoldLink({
-  open,
-  onToggle,
-  label,
-  track,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  label: string;
-  /** 펼칠 때 어느 화면에서 펼쳤는지 기록한다(video_fold_open). */
-  track?: PreviewScreen;
-}) {
-  return (
-    <Pressable
-      onPress={() => {
-        if (!open && track) logFoldOpen(track);
-        onToggle();
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={`${label} ${open ? t('common.fold') : t('common.unfold')}`}
-      accessibilityState={{ expanded: open }}
-      // 글자는 12px 인데 화면 오른쪽 끝에 붙어 있어서, 누르는 칸을 글자보다 넓게 잡는다.
-      // 애플이 권하는 최소 44pt 를 세로로 확보한다 — 손가락으로는 글자만큼 정확히 못 짚는다.
-      style={({ pressed }) => [styles.foldTarget, pressed && styles.foldTargetOn]}
-      hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}>
-      <Text style={styles.foldLink}>
-        {label} {open ? '▴' : '▾'}
-      </Text>
-    </Pressable>
-  );
-}
 
 /**
  * 펼쳤을 때의 영상. 화면 폭을 그대로 쓴다.
@@ -126,58 +85,7 @@ export function SceneFoldBody({
   );
 }
 
-/** 제목·상황·인물·목표·막힌 곳 중 실제로 값이 있는 것만 라벨 열과 값 열로 늘어놓는다. */
-export function SceneSummary({
-  scene,
-  blockage,
-  title,
-  practiceTitle,
-}: {
-  scene: SceneContext;
-  blockage: { kind: string; detail: string | null } | null;
-  title?: string;
-  practiceTitle?: string | null;
-}) {
-  const labels = {
-    title: t('practiceChrome.rowTitle'),
-    situation: t('practiceChrome.rowSituation'),
-    character: t('practiceChrome.rowCharacter'),
-    goal: t('practiceChrome.rowGoal'),
-    blockage: t('practiceChrome.rowBlockage'),
-  };
-  const rows = summaryRows({ title: practiceTitle, scene, blockageKind: blockage?.kind });
-  const quote = blockage?.detail?.trim() || null;
-  if (rows.length === 0 && !quote) return null;
-
-  return (
-    <View style={title ? styles.summaryWithTitle : undefined}>
-      {title && <Text style={styles.summaryTitle}>{title}</Text>}
-      <View style={styles.rows}>
-        {rows.map((row) => (
-          <View key={row.key} style={styles.row}>
-            <View style={styles.rowLabelCell}>
-              <Text style={styles.rowLabel}>{labels[row.key]}</Text>
-            </View>
-            <Text style={styles.rowValue}>{row.value}</Text>
-          </View>
-        ))}
-        {quote ? (
-          <View style={styles.quote}>
-            <Text style={styles.quoteText}>“{quote}”</Text>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-
-  // padding 으로 누르는 칸을 넓히고 같은 크기의 음수 margin 으로 되돌린다 — 진행 줄의
-  // 높이는 목업 그대로 두면서 손가락이 닿는 면적만 키운다.
-  foldTarget: { paddingVertical: 8, paddingHorizontal: 8, marginVertical: -8, marginHorizontal: -8 },
-  foldTargetOn: { opacity: 0.4 },
-  foldLink: { fontSize: 12, fontWeight: '700', color: palette.textMeta },
   foldBody: { paddingHorizontal: 20, paddingTop: 14 },
   foldEmpty: { fontSize: 12.5, fontWeight: '600', color: palette.textMeta },
   video: { width: '100%', aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: palette.bgSoft },
@@ -191,21 +99,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   seekBadgeText: { fontSize: 12, fontWeight: '800', color: palette.onAccent },
-
-  summaryWithTitle: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 20 },
-  summaryTitle: { fontSize: 11.5, fontWeight: '900', color: palette.textMeta },
-  rows: { paddingTop: 14, gap: 12 },
-  row: { flexDirection: 'row', gap: 12 },
-  rowLabelCell: { width: 52 },
-  rowLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textDisabled },
-  rowValue: { flex: 1, fontSize: 13.5, fontWeight: '600', color: palette.textSub, lineHeight: 22 },
-  quote: {
-    borderLeftWidth: 2,
-    borderLeftColor: palette.border,
-    paddingLeft: 14,
-    paddingVertical: 2,
-  },
-  quoteText: { fontSize: 13, fontWeight: '600', color: palette.textMeta, lineHeight: 22 },
 });
 
 /** 연습 중 '영상·장면 보기'를 펼친 것을 남긴다. 화면 하나에서 여러 번 펼치면 그때마다 남는다. */

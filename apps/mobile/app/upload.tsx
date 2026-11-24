@@ -572,9 +572,7 @@ export default function UploadScreen() {
     ? t('loadingText.sending')
     : uploading
       ? t('upload.submitUploading')
-      : plan.prefilled
-        ? t('upload.submitRetake')
-        : t('upload.submitNew');
+      : t('upload.submitNew');
 
   const sourceOptions = [
     { key: 'record', icon: 'video' as const, title: t('upload.recordCta'), sub: t('upload.recordSub'), onPress: fromSheet(record) },

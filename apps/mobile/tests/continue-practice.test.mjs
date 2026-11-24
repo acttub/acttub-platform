@@ -4,19 +4,7 @@ import test from 'node:test';
 import { initialPickedVideo, peekPickedVideo, setPickedVideo } from '../lib/practice/picked-video.ts';
 import { setContinueOrigin, takeContinueOrigin } from '../lib/practice/session-state.ts';
 
-const SCENE = { situation: '이별 직후 카페', character: '참는 사람', goal: '붙잡기' };
 const VIDEO = { videoId: 'video-old', pendingId: null, uri: null, playbackUrl: null, durationMs: 1000 };
-
-test('practice.resume: 방금 끝낸 노트는 묶음·회차와 장면을 함께 싣는다', () => {
-  setContinueOrigin({ kind: 'note', rootId: 'root-1', practiceId: 'practice-1', scene: SCENE });
-
-  assert.deepEqual(takeContinueOrigin(), {
-    kind: 'note',
-    rootId: 'root-1',
-    practiceId: 'practice-1',
-    scene: SCENE,
-  });
-});
 
 test('practice.resume: 지난 기록은 묶음·회차만 싣는다 — 영상도 장면도 싣지 않는다(SOMA-672)', () => {
   setContinueOrigin({ kind: 'group', rootId: 'root-1', practiceId: 'practice-2' });
@@ -53,6 +41,5 @@ test('practice.resume: 리딩에서 넘어온 장면은 새 연습에 채워 두
   assert.deepEqual(planFor(takeContinueOrigin()), {
     continueFrom: null,
     scene: { situation: '봄날의 대화 · 1장 카페', character: '민재', goal: '' },
-    prefilled: false,
   });
 });

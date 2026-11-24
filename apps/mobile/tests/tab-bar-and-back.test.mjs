@@ -16,8 +16,6 @@ test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이
   assert.match(back, /<NavBackButton onPress=\{\(\) => router\.back\(\)\} \/>/);
   assert.match(back, /router\.back\(\)/);
   assert.match(back, /canGoBack\(\)/);
-  // 노트 화면은 뒤로 버튼을 두지 않는다(원래대로).
-  assert.match(read('app/report.tsx'), /headerLeft: \(\) => null/);
 });
 
 test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이드는 바닥에 붙은 전체 폭 막대', () => {

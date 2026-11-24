@@ -24,24 +24,23 @@ afterEach(() => {
 });
 
 test.each([
-  ['분석 진행', undefined, '/coach?preview=1'],
-  ['질문 대화', undefined, '/coach'],
-  ['분석 결과', { withReport: true }, '/report?preview=1'],
-])('%s 항목을 누르면 가짜 연습을 심고 그 화면으로 간다', async (label, seedArg, path) => {
+  ['분석 진행', '/coach?preview=1'],
+  ['질문 대화', '/coach'],
+])('%s 항목을 누르면 가짜 연습을 심고 그 화면으로 간다', async (label, path) => {
   await render(<UiPreviewScreen />);
   await fireEvent.press(screen.getByText(label));
 
-  expect((seedPractice as jest.Mock).mock.calls).toEqual([seedArg === undefined ? [] : [seedArg]]);
+  expect((seedPractice as jest.Mock).mock.calls).toEqual([[]]);
   expect(mockRouter.push).toHaveBeenCalledWith(path);
 });
 
 test('go 인자가 있으면 한 번만 곧장 그 화면으로 뛴다', async () => {
-  mockParams = { go: 'report' };
+  mockParams = { go: 'coach' };
   const view = await render(<UiPreviewScreen />);
   await view.rerender(<UiPreviewScreen />);
 
-  expect(seedPractice).toHaveBeenCalledWith({ withReport: true });
-  expect(mockRouter.push.mock.calls).toEqual([['/report?preview=1']]);
+  expect(seedPractice).toHaveBeenCalledTimes(1);
+  expect(mockRouter.push.mock.calls).toEqual([['/coach']]);
 });
 
 test('모르는 go 인자는 무시하고 목록만 보여 준다', async () => {

@@ -33,7 +33,6 @@ export const AD_SLOTS = {
   profile_top: { size: 'BANNER', phase: 'browse' },
   settings_top: { size: 'BANNER', phase: 'browse' },
   analyzing_top: { size: 'BANNER', phase: 'browse' },
-  report_top: { size: 'BANNER', phase: 'browse' },
   notifications_top: { size: 'BANNER', phase: 'browse' },
   line_search_top: { size: 'BANNER', phase: 'browse' },
   analyzing_wait: { size: 'MEDIUM_RECTANGLE', phase: 'practice' },

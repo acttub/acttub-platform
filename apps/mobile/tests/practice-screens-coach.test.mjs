@@ -42,28 +42,15 @@ test('practice.coach: 예시 답 버튼은 입력만 준비한다 — 누르는 
   assert.doesNotMatch(block, /replyToCoach|sendText/);
 });
 
-test('practice.note: 노트 화면은 새 노트 계약을 읽고 확인을 강제하던 옛 카피가 없다', () => {
-  const report = read('app/report.tsx');
+test('practice.note: 지난 노트는 새 노트 계약을 읽고 확인을 강제하던 옛 카피가 없다', () => {
+  const detail = read('app/report-detail.tsx');
 
-  assert.match(report, /readOptionalPracticeNote\(api\.getPracticeNote/);
-  // 본문 칸은 지난 노트(report-detail)와 같은 컴포넌트가 noteSections 로 그린다.
-  assert.match(report, /<NoteSections note=\{note\} \/>/);
-  assert.match(read('app/report-detail.tsx'), /<NoteSections note=\{note\} \/>/);
+  assert.match(detail, /readOptionalPracticeNote\(api\.getPracticeNote/);
+  // 본문 칸은 공용 컴포넌트가 noteSections 로 그린다.
+  assert.match(detail, /<NoteSections note=\{note\} \/>/);
   assert.match(read('components/note-sections.tsx'), /noteSections\(note\)/);
-  assert.match(report, /noteKindLabel/);
-  assert.match(report, /noteFallbackNotice/);
   // "분석 확정 · 배우님과 맞춘 내용"처럼 확인·비교를 강제하는 카피는 없앴다.
-  assert.doesNotMatch(report, /report\.confirmed/);
   assert.doesNotMatch(read('locales/ko.ts'), /분석 확정 · 배우님과 맞춘 내용/);
-});
-
-test('practice.note: 「다음 테이크 찍기」는 방금 끝낸 회차의 장면을 미리 채운다', () => {
-  const report = read('app/report.tsx');
-
-  assert.match(report, /t\(sceneVideo \? 'history\.nextTake' : 'note\.recordForCoach'\)/);
-  assert.doesNotMatch(report, /note\.nextPractice/);
-  assert.match(report, /setContinueOrigin\(\{\s*kind: 'note'/);
-  assert.match(report, /scene: practice\.scene/);
 });
 
 test('practice.library: 기록은 묶음을 읽고 숨김은 묶음 전체이며 대본 리딩은 섞지 않는다', () => {
@@ -97,13 +84,10 @@ test('practice.library: 묶음 상세는 회차 흐름과 「대화 이어 가�
   assert.doesNotMatch(group, /history\.continueCta|kind: 'history'/);
 });
 
-// 한줄평·이탈 설문은 SOMA-494에서 걷고 앱 평가 요청으로 바꿨다 — 코치·노트 화면은 나갈 때 붙잡지 않는다.
-test('액티·노트는 나갈 때 설문을 띄우지 않고, 노트를 마치면 앱 평가를 묻는다', () => {
-  const coach = read('app/coach.tsx');
-  const report = read('app/report.tsx');
-  assert.doesNotMatch(coach, /useExitReview|exitReview/);
-  assert.doesNotMatch(report, /useExitReview|exitReview/);
-  assert.match(report, /rating\.after\(\{ kind: 'coach', practiceId: practice\.practiceId \}/);
+// 한줄평·이탈 설문은 SOMA-494에서 걷고 앱 평가 요청으로 바꿨다 — 코치 화면은 나갈 때 붙잡지 않는다.
+test('액티는 나갈 때 설문을 띄우지 않고, 일지를 마치면 앱 평가를 묻는다', () => {
+  assert.doesNotMatch(read('app/coach.tsx'), /useExitReview|exitReview/);
+  assert.match(read('app/journal.tsx'), /rating\.after\(\{ kind: 'coach', practiceId \}/);
   assert.match(read('app/reading/play.tsx'), /askRating\(\{ kind: 'reading' \}\)/);
   assert.doesNotMatch(read('app/(tabs)/index.tsx'), /feedbackNudge|useFeedbackSheet/);
   assert.match(read('app/settings.tsx'), /openStoreReviewPage/);

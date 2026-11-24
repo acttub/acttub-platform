@@ -57,7 +57,7 @@ test('창이 지나면 같은 화면으로 다시 갈 수 있다', () => {
 test('다른 화면으로 이어 가는 호출은 막지 않는다', () => {
   const { router, calls } = guarded();
   router.push('/analyzing');
-  router.replace('/report');
+  router.replace('/coaching-done');
   router.navigate('/(tabs)');
   assert.deepEqual(calls.map((c) => c[0]), ['push', 'replace', 'navigate']);
 });

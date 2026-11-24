@@ -1,11 +1,6 @@
-import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen } from '@testing-library/react-native';
 
-import {
-  SceneFoldBody,
-  SceneFoldLink,
-  SceneSummary,
-  logFoldOpen,
-} from '@/components/practice-chrome';
+import { SceneFoldBody, logFoldOpen } from '@/components/practice-chrome';
 import { logEvent } from '@/lib/analytics';
 
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
@@ -53,42 +48,6 @@ beforeEach(() => {
   mockPlayers.length = 0;
 });
 
-describe('SceneFoldLink', () => {
-  test('접힌 링크를 누르면 펼치고, 어느 화면에서 펼쳤는지 남긴다', async () => {
-    const onToggle = jest.fn();
-    await render(<SceneFoldLink open={false} onToggle={onToggle} label="영상·장면 보기" track="analyzing" />);
-    const link = screen.getByRole('button', { name: '영상·장면 보기 펼치기' });
-    expect(link).not.toBeExpanded();
-    expect(screen.getByText('영상·장면 보기 ▾')).toBeOnTheScreen();
-
-    await userEvent.setup().press(link);
-
-    expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(log.mock.calls).toEqual([['video_fold_open', { screen: 'analyzing' }]]);
-  });
-
-  test('펼친 링크를 누르면 접기만 하고 남기지 않는다', async () => {
-    const onToggle = jest.fn();
-    await render(<SceneFoldLink open onToggle={onToggle} label="영상·장면 보기" track="report" />);
-    const link = screen.getByRole('button', { name: '영상·장면 보기 접기' });
-    expect(link).toBeExpanded();
-    expect(screen.getByText('영상·장면 보기 ▴')).toBeOnTheScreen();
-
-    await fireEvent.press(link);
-
-    expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(log).not.toHaveBeenCalled();
-  });
-
-  test('기록할 화면을 주지 않으면 펼쳐도 남기지 않는다', async () => {
-    const onToggle = jest.fn();
-    await render(<SceneFoldLink open={false} onToggle={onToggle} label="영상 보기" />);
-    await fireEvent.press(screen.getByRole('button', { name: '영상 보기 펼치기' }));
-    expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(log).not.toHaveBeenCalled();
-  });
-});
-
 test('logFoldOpen 은 화면 이름을 실어 펼침 이벤트를 보낸다', () => {
   logFoldOpen('coach');
   expect(log.mock.calls).toEqual([['video_fold_open', { screen: 'coach' }]]);
@@ -131,7 +90,7 @@ describe('SceneFoldBody', () => {
     ['빈 주소', ''],
     ['주소 없음', null],
   ])('%s 이면 영상 대신 없다고 알리고 세지 않는다', async (_, videoUri) => {
-    await render(<SceneFoldBody open videoUri={videoUri} track="report" />);
+    await render(<SceneFoldBody open videoUri={videoUri} track="coach" />);
     expect(screen.getByText('다시 볼 수 있는 영상이 없어요.')).toBeOnTheScreen();
     expect(screen.queryByText(/영상 재생기/)).not.toBeOnTheScreen();
     await act(async () => lastPlayer().emit('playingChange', { isPlaying: true }));
@@ -142,48 +101,5 @@ describe('SceneFoldBody', () => {
     await render(<SceneFoldBody open videoUri="file:///take.mp4" />);
     await act(async () => lastPlayer().emit('playingChange', { isPlaying: true }));
     expect(log).not.toHaveBeenCalled();
-  });
-});
-
-describe('SceneSummary', () => {
-  const scene = { situation: '  첫 오디션 날  ', character: '', goal: '떨림을 숨긴다' };
-
-  test('값이 있는 줄만 라벨과 함께 보이고, 막힌 곳의 설명은 따옴표로 보인다', async () => {
-    await render(
-      <SceneSummary
-        scene={scene}
-        blockage={{ kind: '감정이 안 올라와요', detail: '  마지막 대사에서 멈춰요 ' }}
-        title="분석에 쓰는 내용"
-        practiceTitle="햄릿 3막"
-      />,
-    );
-    expect(screen.getByText('분석에 쓰는 내용')).toBeOnTheScreen();
-    expect(screen.getByText('연습 제목')).toBeOnTheScreen();
-    expect(screen.getByText('햄릿 3막')).toBeOnTheScreen();
-    expect(screen.getByText('상황')).toBeOnTheScreen();
-    expect(screen.getByText('첫 오디션 날')).toBeOnTheScreen();
-    expect(screen.queryByText('인물')).not.toBeOnTheScreen();
-    expect(screen.getByText('목표')).toBeOnTheScreen();
-    expect(screen.getByText('막힌 곳')).toBeOnTheScreen();
-    expect(screen.getByText('감정이 안 올라와요')).toBeOnTheScreen();
-    expect(screen.getByText('“마지막 대사에서 멈춰요”')).toBeOnTheScreen();
-  });
-
-  test('제목을 주지 않으면 줄만 보이고, 설명이 비어 있으면 따옴표 칸을 두지 않는다', async () => {
-    await render(<SceneSummary scene={scene} blockage={{ kind: '대사가 막혀요', detail: '   ' }} />);
-    expect(screen.queryByText('분석에 쓰는 내용')).not.toBeOnTheScreen();
-    expect(screen.getByText('대사가 막혀요')).toBeOnTheScreen();
-    expect(screen.queryByText(/“/)).not.toBeOnTheScreen();
-  });
-
-  test('막힌 곳 설명만 있어도 보인다', async () => {
-    await render(<SceneSummary scene={{ situation: '', character: '', goal: '' }} blockage={{ kind: '', detail: '숨이 차요' }} />);
-    expect(screen.getByText('“숨이 차요”')).toBeOnTheScreen();
-    expect(screen.queryByText('막힌 곳')).not.toBeOnTheScreen();
-  });
-
-  test('보일 값이 하나도 없으면 아무것도 그리지 않는다', async () => {
-    await render(<SceneSummary scene={{ situation: ' ', character: '', goal: '' }} blockage={null} title="분석에 쓰는 내용" />);
-    expect(screen.queryByText('분석에 쓰는 내용')).not.toBeOnTheScreen();
   });
 });
