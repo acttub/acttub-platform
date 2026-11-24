@@ -365,15 +365,18 @@ class CoachTurnGoldenTest {
         rig.turn(s, "붙잡고 싶었어요");
     }
 
-    /** 이어서 찍은 회차: 받아 적기·지난 시도부터 묻는 첫 답을 기본 첫 답과 함께 돌리고, 같은 장면이면 그 답을 쓴다. */
+    /**
+     * 이어서 찍은 회차: 받아 적기·지난 시도부터 묻는 첫 답을 기본 첫 답과 함께 돌리고, 같은 장면이면 그 답을 쓴다.
+     * 다른 장면이면 곁가지 답을 취소하는데, 그 호출이 취소 전에 모델에 닿는지는 스레드 순서에 달려 기록으로 고정할 수 없다. 같은 장면만 적는다.
+     */
     static void continuedTake(CoachTurnGoldenRig rig) {
         var prior = new PriorContext(Map.of(), "배우: 끝을 늦춰 볼게\n코치: 좋아요", true, List.of(),
-                List.of("1차: 말끝 — 제안: 끝을 늦춘다"), List.of("가지 마"));
+                List.of("1차: 말끝 — 제안: 끝을 늦춘다"), List.of("가지 마, 제발 여기 있어 줘"));
         var session = CoachTurnGoldenRig.fresh("헤어지자는 말을 들은 밤", 8000, "첫 대사는 놀리면서 시작하고 싶었어", null).withPrior(prior);
         String heard = ContinuedTake.heardLinesPrompt();
-        rig.model.byInstruction = instruction -> instruction.equals(heard) ? "1. 가지 마"
-                : instruction.contains("[이어서 하는 연습]") || instruction.endsWith(DirectVideoPrompts.continuation(prior, null))
-                        ? CONTINUED : OPENING;
+        String continuation = DirectVideoPrompts.continuation(prior, null);
+        rig.model.byInstruction = instruction -> instruction.equals(heard) ? "1. 가지 마, 제발 여기 있어 줘"
+                : instruction.endsWith(continuation) ? CONTINUED : OPENING;
         rig.unordered = true;
         var s = rig.turn(session, null).session();
         rig.unordered = false;
