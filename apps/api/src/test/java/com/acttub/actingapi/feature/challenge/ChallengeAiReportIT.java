@@ -42,8 +42,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * AI 리포트 (challenge.ai-report). 실제 HTTP·Postgres·ai_jobs 장부를 쓰고 모델만 대체한다 — 모델이 받은 영상과 지시문을
  * 기록하고, 정해 둔 출력을 차례로 돌려준다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "CHALLENGE_SETTLEMENT_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ChallengeAiReportIT.Model.class})
 class ChallengeAiReportIT {

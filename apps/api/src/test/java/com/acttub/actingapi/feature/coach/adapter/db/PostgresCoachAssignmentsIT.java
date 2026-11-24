@@ -14,8 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /** 코치 성격 배정을 실제 사용자 행으로: 자문위원이 아닌 배우는 성격이 없다. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false",
-        "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PostgresCoachAssignmentsIT {
 
     @Autowired JdbcTemplate jdbc;

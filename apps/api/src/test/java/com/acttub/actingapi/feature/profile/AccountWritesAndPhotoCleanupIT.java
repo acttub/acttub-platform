@@ -59,9 +59,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "spring.datasource.hikari.maximum-pool-size=10"
-})
+    "spring.datasource.hikari.maximum-pool-size=10"})
 @AutoConfigureMockMvc
 @Import({StubProviders.class, MutableClock.Fixture.class, AccountWithdrawIT.Fixture.class})
 class AccountWritesAndPhotoCleanupIT {

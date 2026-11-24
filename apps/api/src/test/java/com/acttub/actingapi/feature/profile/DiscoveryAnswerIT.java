@@ -36,10 +36,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
     "ADMIN_OPS_TOKEN=admin-secret",
-    "ADMIN_OPS_EXCLUDE_EMAILS=team@acttub.com"
-})
+    "ADMIN_OPS_EXCLUDE_EMAILS=team@acttub.com"})
 @AutoConfigureMockMvc
 class DiscoveryAnswerIT {
 

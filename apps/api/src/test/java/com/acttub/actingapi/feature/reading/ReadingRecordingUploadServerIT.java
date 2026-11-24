@@ -50,8 +50,6 @@ import com.acttub.actingapi.platform.json.LenientJson;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "JWT_SECRET=test-secret",
-            "ACCOUNT_CLEANUP_ENABLED=false",
-            "ACCOUNT_HOUSEKEEPING_ENABLED=false",
             // 컨테이너 상한을 낮춰 413 도 같은 서버에서 본다(운영 값은 application.yml).
             "spring.servlet.multipart.max-file-size=1MB",
             "spring.servlet.multipart.max-request-size=2MB"

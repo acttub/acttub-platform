@@ -47,13 +47,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * reading.script 「예시 대본」의 서버 목록과 복사(V61 {@code reading_examples})를 HTTP·실제 Postgres 로 본다. 모델은 부르면 기록만
  * 하는 가짜다 — 이 길은 모델을 부르지 않아야 한다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "CHALLENGE_SETTLEMENT_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingExampleIT.Model.class, ReadingExampleIT.Storage.class})
 class ReadingExampleIT {

@@ -20,13 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 한 연습의 복수 대화, 이어하기 체인 셋. 여기서 보는 것은 "무엇이 옮겨졌고 무엇이 왜 남았는가" 와
  * "두 번 돌려도 같은가" 다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "EXIT_SURVEY_SYNC_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PracticeDataMigrationIT {
 
     @Autowired

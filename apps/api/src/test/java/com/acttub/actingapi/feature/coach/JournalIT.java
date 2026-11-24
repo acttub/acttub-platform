@@ -42,13 +42,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
 /**
  * practice.journal 배우 일지 — HTTP 와 실제 Postgres 로 만들기·읽기·고치기·소유권·탈퇴·코칭 숙제 알림을 본다. 모델은 정해 둔 답을 낸다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "EXIT_SURVEY_SYNC_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(JournalIT.Fixture.class)
 class JournalIT {

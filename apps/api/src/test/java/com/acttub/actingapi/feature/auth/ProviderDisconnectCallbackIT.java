@@ -41,7 +41,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "JWT_SECRET=test-secret",
-            "ACCOUNT_CLEANUP_ENABLED=false",
             "NAVER_OAUTH_CLIENT_ID=naver-client-id",
             "NAVER_OAUTH_CLIENT_SECRET=naver-client-secret",
             "KAKAO_ADMIN_KEY=kakao-admin-key",

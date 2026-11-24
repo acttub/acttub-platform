@@ -67,7 +67,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>여기서 보지 못하는 것: 제공자의 "연결된 서비스" 목록에서 실제로 사라지는지(사람이 확인), 챌린지
  * 댓글·참여작(그 테이블이 아직 없다), 탈퇴 3년 뒤의 파기(매일 도는 일), 폰의 앱 저장소(앱 갈래).
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({StubProviders.class, MutableClock.Fixture.class, AccountWithdrawIT.Fixture.class})
 class AccountWithdrawIT {

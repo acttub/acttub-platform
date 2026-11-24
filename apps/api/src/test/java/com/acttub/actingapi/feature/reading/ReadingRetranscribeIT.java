@@ -47,12 +47,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
     "READING_RETRANSCRIBE_ENABLED=true",
     "READING_RETRANSCRIBE_DAILY_LIMIT=3",
-    "READING_RETRANSCRIBE_POLL_MS=3600000"
-})
+    "READING_RETRANSCRIBE_POLL_MS=3600000"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingRetranscribeIT.Fakes.class})
 class ReadingRetranscribeIT {

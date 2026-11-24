@@ -65,12 +65,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    // 기억 갱신 워커는 테스트가 직접 구동한다. 자동 poll 이 작업을 먼저 집으면 안 된다.
-    "ANALYSIS_WORKER_ENABLED=false",
     // 겹쳐 보낸 요청 여섯이 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"
-})
+    "spring.datasource.hikari.maximum-pool-size=12"})
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class GuestTransferIT {

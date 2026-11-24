@@ -32,12 +32,10 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
     "AIRBRIDGE_API_TOKEN=test-token",
     "AIRBRIDGE_DEVICE_MIN_PRIVACY_VERSION=v9",
     "AIRBRIDGE_LOOKUP_INTERVAL_MS=86400000",
-    "AIRBRIDGE_LOOKUP_INITIAL_DELAY_MS=86400000"
-})
+    "AIRBRIDGE_LOOKUP_INITIAL_DELAY_MS=86400000"})
 @AutoConfigureMockMvc
 class AirbridgeDeviceIT {
     private static final String DEVICE = "11111111-2222-3333-4444-555555555555";

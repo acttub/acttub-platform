@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
  * <p>본문의 모양이 틀린 422 는 받은 값을 {@code input} 에 싣는다. 빠진 칸의 {@code input} 은 본문 전체라,
  * 다른 칸 하나가 빠졌을 뿐인 요청이 토큰·코드를 응답(과 그것을 찍는 클라이언트 로그·오류 수집)으로 되돌린다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class CredentialInputContractIT {
 

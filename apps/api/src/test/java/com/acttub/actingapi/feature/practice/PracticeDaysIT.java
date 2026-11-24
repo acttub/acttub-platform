@@ -28,11 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 연습한 날짜 목록 {@code GET /v2/practices/days} (SOMA-1003). 홈의 누적 연습일·연속일이 이걸 쓴다 — 기기를 바꾸거나
  * 다시 로그인해도 지난 리딩 날이 빠지지 않게 서버가 센다. 기준은 「연습 1회」(SOMA-773)와 같다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class PracticeDaysIT {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

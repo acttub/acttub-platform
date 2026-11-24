@@ -69,13 +69,10 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
     // 포스터 워커는 테스트가 직접 부른다(스케줄러는 test application.properties 가 끈다).
     "VIDEO_POSTER_ENABLED=false",
     // 한도 직전의 동시 업로드 둘이 저마다 커넥션을 쥔 채 사용자 행을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"
-})
+    "spring.datasource.hikari.maximum-pool-size=12"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, VideoLibraryIT.Fixture.class})
 class VideoLibraryIT {

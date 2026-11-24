@@ -36,8 +36,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.ads 운영 경로 — 토큰, 등록·수정·상태, 이미지 올릴 자리, 날짜별 통계, 앱 응답의 서명 이미지·link_url. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "ADS_PRACTICE_SLOT_PERCENT=0"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret", "ADS_PRACTICE_SLOT_PERCENT=0"})
 @AutoConfigureMockMvc
 @Import(AdAdminEndpointIT.StorageFixture.class)
 class AdAdminEndpointIT {

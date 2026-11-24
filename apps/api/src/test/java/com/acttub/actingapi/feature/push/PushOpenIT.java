@@ -20,7 +20,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** 푸시를 눌러 앱을 연 기록(POST /v2/push-opens) — 행이 남는 것, 동의 전에도 받는 것, 검증, 한도. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class PushOpenIT {
 

@@ -39,13 +39,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * {@code GET /v2/practices/{id}/note} 와 같다 — 없는 것·남의 것·노트가 아직 없는 것은 모두 같은 404
  * {@code note_not_found} 다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "EXIT_SURVEY_SYNC_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(NoteRatingIT.Fixture.class)
 class NoteRatingIT {

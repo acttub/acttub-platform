@@ -22,12 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 기억 갱신 워커가 지나는 저장소 길을 실제 Postgres 로 본다 — 재료(받아쓰기·관찰 인용), 다시 말하지 않을 것 덧붙이기,
  * 작업 완료 때의 계정·세대 판정 (practice.memory 「규칙·제약」·「상태」).
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PostgresActorMemoryStoreIT {
     private static final String CORRECTION_STATE = """
             {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: 손을 꽉 쥐기",

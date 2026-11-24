@@ -41,7 +41,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>바깥 호출은 전부 스텁이다({@link StubProviders}). 실제 제공자를 부르지 않는다. 요청 형식이 공식
  * 문서와 맞는지는 {@code integration/oidc} 의 테스트가 본다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({StubProviders.class, AccountProvidersIT.ReportFixture.class})
 class AccountProvidersIT {

@@ -41,8 +41,6 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
         "JWT_SECRET=test-secret",
-        "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false",
         "BILLING_APP_ENABLED=true",
         "REVENUECAT_WEBHOOK_AUTH=Bearer rc-secret",
         "BILLING_RENEWAL_POLL_MS=3600000",

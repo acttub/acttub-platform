@@ -27,8 +27,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 챌린지 HTTP 의 값 검사와 참여작 쪽 넘기기: 모르는 정렬·탭·공개 범위·신고 대상·처리 상태는 저장소에 닿기 전에 422 배열로
  * 거절하고, 참여작 목록은 20개씩 커서로 이어 주며 다른 범위의 커서는 거절한다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false",
-        "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false", "ADMIN_OPS_TOKEN=challenge-validation-ops"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=challenge-validation-ops"})
 @AutoConfigureMockMvc
 class ChallengeValidationIT {
     static final String OPS = "Bearer challenge-validation-ops";

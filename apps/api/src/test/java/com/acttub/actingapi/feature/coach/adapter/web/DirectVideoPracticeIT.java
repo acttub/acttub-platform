@@ -44,7 +44,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 새 저장소·HTTP·프로필을 실제로 연결하고 외부 영상/모델 경계만 대체한다. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(DirectVideoPracticeIT.Fixture.class)
 class DirectVideoPracticeIT {

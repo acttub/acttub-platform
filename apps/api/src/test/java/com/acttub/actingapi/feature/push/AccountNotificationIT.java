@@ -42,10 +42,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
     // 겹쳐 보낸 요청 둘이 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=10"
-})
+    "spring.datasource.hikari.maximum-pool-size=10"})
 @AutoConfigureMockMvc
 class AccountNotificationIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();

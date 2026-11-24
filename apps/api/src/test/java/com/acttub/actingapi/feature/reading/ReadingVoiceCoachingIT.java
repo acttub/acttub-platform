@@ -36,10 +36,7 @@ import com.acttub.actingapi.feature.coach.app.CoachReadingAudio;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ACTTUB_READING_VOICE_COACHING_ENABLED=true"
-})
+    "ACTTUB_READING_VOICE_COACHING_ENABLED=true"})
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class ReadingVoiceCoachingIT {

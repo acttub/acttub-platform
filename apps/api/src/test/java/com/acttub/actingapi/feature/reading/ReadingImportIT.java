@@ -74,13 +74,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "CHALLENGE_SETTLEMENT_ENABLED=false",
     // 한도 경쟁 테스트가 요청 여럿을 동시에 보낸다 — 저마다 커넥션을 쥔 채 users 행 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"
-})
+    "spring.datasource.hikari.maximum-pool-size=12"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingImportIT.Model.class})
 class ReadingImportIT {

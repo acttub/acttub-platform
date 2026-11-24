@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 알람, 마지막 제공자 강조, 비행기 모드는 앱 갈래가 본다. 그 기기의 푸시 토큰 삭제는 앱이 로그아웃의 첫
  * 단계로 따로 부르는 API 이고 {@code AccountNotificationIT} 가 본다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class AccountLogoutIT {
 

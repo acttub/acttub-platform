@@ -47,11 +47,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * {@code GET /v2/reading/sessions/{id}} 와 같다 — 없는 것·남의 것은 같은 404 {@code session_not_found} 다. 평가는
  * 회차 행에 매달려 회차 삭제·대본 삭제·탈퇴 때 함께 지워지고, 이관 때 회차를 따라 회원 것이 된다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class ReadingSessionRatingIT {

@@ -43,8 +43,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 좋아요·저장·댓글·차단·신고와 운영 처리 (challenge.react, challenge.block, challenge.report). 실제 HTTP 와 Postgres 로
  * 노출 조건·멱등·한도·숨김·해제를 본다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "CHALLENGE_SETTLEMENT_ENABLED=false", "ADMIN_OPS_TOKEN=reaction-test-ops"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=reaction-test-ops"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ChallengeReactionIT.Media.class})
 class ChallengeReactionIT {

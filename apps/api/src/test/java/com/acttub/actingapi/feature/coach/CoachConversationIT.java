@@ -49,12 +49,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * {@code CoachEngine}·{@code CoachPrompt} 가 그대로 갖고 있고 기존 테스트(`CoachEngineTest` 등)가 지킨다. 모델은
  * 스텁이라 여기서 보는 것은 "무엇이 어떻게 저장되고 무엇이 거절되는가"다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(CoachConversationIT.Fixture.class)
 class CoachConversationIT {
