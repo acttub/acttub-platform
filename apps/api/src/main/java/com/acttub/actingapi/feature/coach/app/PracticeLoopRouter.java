@@ -265,12 +265,26 @@ final class PracticeLoopRouter {
      * @param keep 배우가 그 버릇을 지키고 싶다고 했는지
      * @param closeNext 예전 판의 "다음에 닫기" 표시. 있으면 이번 말에서 정리한다
      * @param stage 지금까지 물은 단계(1 보여 주기 · 2 원하는 것 · 3 어긋남 · 4 스스로 찾기)
+     * @param last 이 대화의 응답 상한. 보통 {@link #LAST_REPLY}이고 무료 상한(SOMA-1131)이 걸리면 그보다 작다
      */
     record Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
-            boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage) {
+            boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage, int last) {
+        Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
+                boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage) {
+            this(reply, lastDoing, lastKind, tally, avoid, habitDropped, choiceExplained, keep, closeNext, stage, LAST_REPLY);
+        }
+
         Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
                 boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext) {
             this(reply, lastDoing, lastKind, tally, avoid, habitDropped, choiceExplained, keep, closeNext, 1);
+        }
+
+        /**
+         * 무료 상한이 기본 상한보다 먼저 걸린 대화인가. 그 상한을 채우는 응답은 코치 AI 없이 닫지 않고, 받아 주고 다음 연습 때 볼
+         * 한 가지로 정리하며 닫는다(서버가 그 응답에서 대화를 닫는다).
+         */
+        boolean freeCapped() {
+            return last < LAST_REPLY;
         }
     }
 
@@ -278,6 +292,11 @@ final class PracticeLoopRouter {
     static final String RESUMED_AT = "resumed_at";
 
     static Before before(JsonNode loop, int coachTurns) {
+        return before(loop, coachTurns, LAST_REPLY);
+    }
+
+    /** @param last 이 대화의 응답 상한({@link CoachFreeReplies#within}으로 무료 상한을 씌운 값) */
+    static Before before(JsonNode loop, int coachTurns, int last) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         Tally tally = new Tally(0, 0, 0);
         String lastDoing = SHOW;
@@ -317,7 +336,7 @@ final class PracticeLoopRouter {
                 for (String part : avoided.split("\\s*[,·/]\\s*")) if (!part.isBlank()) avoid.add(part.strip());
             }
         }
-        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep, closeNext, stage);
+        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep, closeNext, stage, last);
     }
 
     /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
@@ -366,10 +385,11 @@ final class PracticeLoopRouter {
      *                    또 이미 했다고 하면 더 답하지 않고 닫는다 — 같은 제안을 피하려다 말만 바꾼 답이 이어진다(10/25 재생).
      */
     static String routeAlready(Classified c, Before b, String doing, boolean doneAsked, boolean lastWasDone) {
-        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY) return END;
+        if (c.kind() == Kind.STOP) return END;
+        if (b.reply() >= b.last()) return b.freeCapped() ? doing : END;
         if (b.lastDoing().startsWith(ASK_DONE)) return WRAP_DONE;
         if (!c.already()) return doing;
-        if (!doneAsked) return b.reply() >= LAST_REPLY - 1 ? WRAP_DONE : ASK_DONE;
+        if (!doneAsked) return b.reply() >= b.last() - 1 ? WRAP_DONE : ASK_DONE;
         if (lastWasDone && b.closeNext()) return END;
         return LET_GO.equals(doing) || ASK_DONE.equals(doing) ? ANSWER : doing;
     }
@@ -456,7 +476,9 @@ final class PracticeLoopRouter {
      */
     static String route(Classified c, Before b, int stayed) {
         Kind kind = c.kind();
-        if (kind == Kind.STOP || b.reply() >= LAST_REPLY) return END;
+        if (kind == Kind.STOP) return END;
+        // 상한을 채우는 응답. 무료 상한(SOMA-1131)이면 코치 AI가 받아 주고 다음 연습 때 볼 한 가지로 정리하며 닫는다.
+        if (b.reply() >= b.last()) return b.freeCapped() ? WRAP_UP : END;
         // 정리 뒤 한 번 받아 준 다음 말: 또 물었으면(물음·방법·판단 요청·반박·정정) 답하고, 그 밖이면 닫는다.
         // 2026-10-11 17:56 운영: 받아 준 뒤 배우가 "?반응을 어케봐?"라고 물었는데 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
         // 정리 뒤 배우가 아니라고 해서 배우 해석을 물었으면(내려놓기), 배우가 말한 해석으로 한 번 더 정리한다.
@@ -466,7 +488,7 @@ final class PracticeLoopRouter {
         // 정리한 다음 말: 맞장구·짧은 말이면 닫는다. 그 밖(다른 해석, 덧붙인 생각, 물음, 반박)은 한 번 받아 주고 그다음 말에서 닫는다(closesNext).
         if (b.lastDoing().startsWith(WRAP_UP)) return endsAfterWrap(c) ? END : answerTo(c, b);
         if (b.lastDoing().startsWith(OLD_CLOSING) || b.lastDoing().startsWith(END)) return END;
-        if (b.reply() >= LAST_REPLY - 1) return WRAP_UP;
+        if (b.reply() >= b.last() - 1) return WRAP_UP;
         // 코치가 답을 제안했으면, 배우가 받든(네) 다르게 답하든 다음 단계로 간다. 물음·정정은 먼저 받는다.
         if (b.lastDoing().startsWith(PROPOSE) && kind != Kind.CORRECTION && kind != Kind.PUSHBACK && kind != Kind.METHOD
                 && kind != Kind.QUESTION && kind != Kind.EVALUATION) return next(b.stage());
@@ -614,7 +636,7 @@ final class PracticeLoopRouter {
 
     /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. 그 말에서 또 물었으면 또 답하고 그다음에 닫는다. */
     static boolean closesNext(Classified c, Before b) {
-        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY) return false;
+        if (c.kind() == Kind.STOP || b.reply() >= b.last()) return false;
         if (b.closeNext()) return asksAgain(c);
         return b.lastDoing().startsWith(WRAP_UP) && !endsAfterWrap(c);
     }

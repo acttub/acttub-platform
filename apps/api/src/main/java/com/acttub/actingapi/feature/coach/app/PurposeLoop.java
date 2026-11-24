@@ -218,6 +218,16 @@ final class PurposeLoop {
      */
     static Turn decide(Purpose purpose, JsonNode state, String actorText, String pressed,
             PracticeLoopRouter.Classified classified, int replies) {
+        return decide(purpose, state, actorText, pressed, classified, replies, 0);
+    }
+
+    /**
+     * @param freeCap 무료 코칭의 코치 응답 상한(시작 응답 포함, SOMA-1131). 없으면 0. 다시 연 대화도 처음부터 센다 — 무료 한 번의
+     *                답 수를 넘기지 않는다
+     */
+    static Turn decide(Purpose purpose, JsonNode state, String actorText, String pressed,
+            PracticeLoopRouter.Classified classified, int replies, int freeCap) {
+        boolean freeWrap = freeCap > 0 && freeCap < REPLY_CAP && replies >= freeCap - 1;
         ObjectNode loop = loop(state);
         int index = index(purpose, loop);
         String current = purpose.steps.get(index);
@@ -236,7 +246,7 @@ final class PurposeLoop {
         // 대화 이어하기(SOMA-782): 다시 연 뒤에는 그때부터 센다 — 상한이 이어 가는 말마다 곧바로 정리를 만들지 않게 한다.
         if (resumedAt(loop) >= 0) replies = Math.max(0, replies - resumedAt(loop));
         // 상한을 채우는 응답은 무엇을 말했든 정리다.
-        if (replies >= REPLY_CAP - 1) {
+        if (freeWrap || replies >= REPLY_CAP - 1) {
             return new Turn(purpose, WRAP, WRAP, true, false, label, chip, answerLike ? current : null);
         }
         // 영상 없이 말로: 정리한 뒤 이어 간 대화에서 배우가 물으면 정리를 다시 하지 않고 물음에만 답한다. 대화는 열어 둔다.

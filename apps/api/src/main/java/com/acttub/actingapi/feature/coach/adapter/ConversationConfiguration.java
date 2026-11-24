@@ -73,9 +73,11 @@ class ConversationConfiguration {
             CoachProfile profiles,
             CoachMemory memory,
             FailureReporter failureReporter,
-            com.acttub.actingapi.feature.coach.app.LineNoteWriter lineNotes) {
+            com.acttub.actingapi.feature.coach.app.LineNoteWriter lineNotes,
+            ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFreeReplies> freeReplies) {
         return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable(),
-                profiles, memory, failureReporter, lineNotes);
+                profiles, memory, failureReporter, lineNotes)
+                .withFreeReplies(freeReplies.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachFreeReplies.NONE));
     }
 
     /** 분석이 끝나면 첫 질문을 미리 쓴다(SOMA-780). false 면 예전처럼 앱의 시작 요청이 올 때 쓴다(롤백). */

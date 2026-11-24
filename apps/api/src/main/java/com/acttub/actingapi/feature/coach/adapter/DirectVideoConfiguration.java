@@ -134,6 +134,8 @@ public class DirectVideoConfiguration {
             // Pro 지난 연습 기억(SOMA-900). Pro 판정 스위치는 ACTTUB_COACH_PRO(값이 없으면 dev 만 켜짐).
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPro> coachPro,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachProMemory> proMemory,
+            // 무료 코칭 한 번의 답 상한(SOMA-1131, COACHING_FREE_REPLY_LIMIT). 결제 쪽이 없으면 상한 없음.
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFreeReplies> freeReplies,
             // 리딩 녹음 코칭(SOMA-791)의 소리·대본. 스위치(ACTTUB_READING_VOICE_COACHING_ENABLED)가 꺼졌으면 없다.
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachReadingAudio> readingAudio,
             // 비용 스위치. 기본값은 모두 지금 동작 그대로다.
@@ -165,7 +167,8 @@ public class DirectVideoConfiguration {
                 .withFreeVideoFirstOnly(freeVideoFirstOnly)
                 .withStaticRulesInPrefix(staticRulesInPrefix)
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
-                        proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE));
+                        proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
+                .withFreeReplies(freeReplies.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachFreeReplies.NONE));
     }
 
     /** "이미 그렇게 했다" 비교의 실험 쪽 비율. 설정값이 있으면 그것, 없으면(음수) dev 만 50 이다. */

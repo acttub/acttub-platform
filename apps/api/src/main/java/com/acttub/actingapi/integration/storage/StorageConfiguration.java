@@ -33,7 +33,9 @@ class StorageConfiguration {
             + " && T(org.springframework.util.StringUtils).hasText('${AWS_REGION:}')")
     ObjectStorage objectStorage(
             @Value("${S3_BUCKET}") String bucket,
-            @Value("${AWS_REGION}") String region) {
-        return new AwsS3Storage(bucket, region, DefaultCredentialsProvider.create());
+            @Value("${AWS_REGION}") String region,
+            // 비면 AWS S3. Cloudflare R2 는 https://<계정 id>.r2.cloudflarestorage.com 에 AWS_REGION=auto.
+            @Value("${S3_ENDPOINT:}") String endpoint) {
+        return new AwsS3Storage(bucket, region, endpoint, DefaultCredentialsProvider.create());
     }
 }
