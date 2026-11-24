@@ -52,28 +52,25 @@ public class CoachEngine {
     private final TextGenerator generate;
     private final FailureReporter failureReporter;
     private final LlmTelemetry telemetry;
-    private final boolean routedCoaching;
+    /**
+     * 신형(three_layers_v1) 회차의 코치. 옛(legacy) 회차는 이 엔진이 직접 쓴다. 객체 저장소가 없는 곳(로컬·테스트 기본 설정)에는
+     * 없다 — dev·운영은 늘 있다.
+     */
     private final DirectVideoCoach directVideo;
 
-    public CoachEngine(
-            TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry) {
-        this(generate, failureReporter, telemetry, false);
-    }
-
     public CoachEngine(TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry,
-            boolean routedCoaching) {
-        this(generate, failureReporter, telemetry, routedCoaching, java.util.Optional.empty());
-    }
-
-    @org.springframework.beans.factory.annotation.Autowired
-    public CoachEngine(TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry,
-            @org.springframework.beans.factory.annotation.Value("${acttub.coaching.routed-enabled:true}") boolean routedCoaching,
             java.util.Optional<DirectVideoCoach> directVideo) {
         this.generate = generate;
         this.failureReporter = failureReporter;
         this.telemetry = telemetry;
-        this.routedCoaching = routedCoaching;
         this.directVideo = directVideo.orElse(null);
+    }
+
+    private DirectVideoCoach directVideo() {
+        if (directVideo == null) {
+            throw new IllegalStateException("three_layers_v1 coaching needs the direct video coach; object storage is not configured");
+        }
+        return directVideo;
     }
 
     public static CoachReply parseCoachingResponse(String rawText) {
@@ -123,10 +120,7 @@ public class CoachEngine {
 
     /** {@code stream} 은 영상 코치(연습 루프)에서만 쓰인다. 다른 경로는 다 쓴 뒤 한 번에 돌려준다. */
     public CoachResult start(CoachSessionSnapshot session, UUID operationId, CoachStream stream) {
-        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, null, operationId, stream);
-        if (session.threeLayers()) {
-            return new StructuredCoachEngine(generate, failureReporter, telemetry, routedCoaching).turn(session, null, operationId);
-        }
+        if (session.threeLayers()) return directVideo().turn(session, null, operationId, stream);
         String latest = firstActorMessage(session);
         CoachReply response = generateValidated(session, latest, operationId);
         return appendTurns(session, latest, response);
@@ -165,10 +159,7 @@ public class CoachEngine {
 
     public CoachResult reply(
             CoachSessionSnapshot session, String actorText, UUID operationId, CoachStream stream) {
-        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, actorText, operationId, stream);
-        if (session.threeLayers()) {
-            return new StructuredCoachEngine(generate, failureReporter, telemetry, routedCoaching).turn(session, actorText, operationId);
-        }
+        if (session.threeLayers()) return directVideo().turn(session, actorText, operationId, stream);
         CoachReply response = generateValidated(session, actorText, operationId);
         return appendTurns(session, actorText, response);
     }

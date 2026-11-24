@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -58,13 +57,13 @@ class CoachVideoCacheTest {
     CoachEngine engine(CoachVideoCache cache) {
         var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, false, CoachPersonas.NONE,
                 null, 0, cache);
-        return new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(direct));
+        return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(direct));
     }
 
     CoachEngine loopEngine(CoachVideoCache cache) {
         var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE,
                 null, 0, cache);
-        return new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(direct));
+        return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(direct));
     }
 
     CoachVideoCache scoped() {

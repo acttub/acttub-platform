@@ -193,69 +193,6 @@ class CoachReadsProfileIT {
     }
 
     @Test
-    @DisplayName("account.profile: 구조화 대화와 그 노트는 프로필을 독립 키로 받고, 어디에도 저장하지 않는다")
-    void accountProfile_structuredConversationAndItsNoteReceiveTheProfileAsItsOwnKey() throws Exception {
-        jdbc.update("""
-                INSERT INTO actor_memory_entries(id,user_id,field,value,written_by)
-                VALUES (?,?,'gender','남','actor'),(?,?,'goal','입시 합격','actor')
-                """, UUID.randomUUID(), user, UUID.randomUUID(), user);
-        rememberGoal();
-        UUID practice = structuredPractice();
-        // 라우팅 경로(dialogue_actions_v2)는 한 턴에 분류 → 생성 두 번 부른다. 프로필은 생성 호출에만 실린다.
-        generator.enqueue("{\"route\":\"respond\"}");
-        generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
-
-        JsonNode started = startPractice(practice);
-
-        assertThat(generator.inputs()).as("분류·생성").hasSize(2);
-        JsonNode opening = mapper.readTree(generator.inputs().get(1));
-        assertThat(opening.path("actor_profile")).isEqualTo(mapper.readTree("""
-                {"name":"%s","gender":"여성","age":%d,"directions":["매체(TV·영화)"],
-                 "experience":"입시생","goal":"전문 배우"}
-                """.formatted(NAME, LenientJson.asInt(opening.path("actor_profile").path("age")))));
-        assertThat(LenientJson.asInt(opening.path("actor_profile").path("age"))).isGreaterThanOrEqualTo(25);
-        assertThat(opening.path("prior_context").path("memory"))
-                .isEqualTo(mapper.readTree("{\"goal\":\"입시 합격\"}"));
-        assertThat(generator.instructions().get(1)).contains("[actor_profile]");
-        // 분류는 프로필을 받지 않는다 — 이름이 실리는 호출을 생성 하나로 한정한다.
-        assertThat(mapper.readTree(generator.inputs().get(0)).has("actor_profile")).as("분류 입력").isFalse();
-        assertThat(generator.instructions().get(0)).doesNotContain("[actor_profile]");
-
-        UUID session = UUID.fromString(LenientJson.asText(started.path("conversation").path("id")));
-        JsonNode resumed = successful(get("/v2/coach/conversations/{id}", session).header("Authorization", bearer()));
-        assertThat(LenientJson.asInt(resumed.path("reply_limit"))).as("신형 대화 재조회도 신형 상한이다")
-                .isEqualTo(com.acttub.actingapi.feature.coach.app.ConversationService.THREE_LAYERS_REPLY_LIMIT);
-        // 마무리 턴은 분류를 건너뛴다: 생성 → 노트.
-        generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
-        generator.enqueue("{\"summary\":[],\"next_take\":null}");
-
-        JsonNode finished = reply(session, "three_layers_v1");
-
-        assertThat(LenientJson.asText(finished.path("conversation").path("status"))).isEqualTo("closed");
-        assertThat(LenientJson.asText(finished.path("note").path("report").path("schema_version")))
-                .isEqualTo("acttub.public_practice_note.v1");
-        assertThat(finished.path("note").path("report").has("source_catalog")).isFalse();
-        JsonNode noteInput = mapper.readTree(generator.lastInput());
-        assertThat(LenientJson.asText(noteInput.path("actor_profile").path("experience")))
-                .as("노트의 모델 입력 — 프로필은 handoff 와 나란히 최상위에 있다")
-                .isEqualTo("입시생");
-        assertThat(noteInput.path("coach_handoff").has("actor_profile")).isFalse();
-        assertThat(noteInput.path("coach_handoff").toString()).doesNotContain(NAME);
-        assertThat(generator.lastInstructions()).contains("[actor_profile]", "이번 장면의 목표로 채우지 않는다");
-        // 조회 결과는 저장하지 않는 입력이다. 대화·상태·handoff·노트·공개 응답 어디에도 남지 않는다 —
-        // 그래서 배우 발화만 읽는 기억 추출로 되먹임되지도 않는다.
-        assertThat(finished.toString()).doesNotContain(NAME);
-        for (String stored : List.of(
-                "SELECT coalesce(string_agg(text, ' '), '') FROM coach_messages",
-                "SELECT coalesce(string_agg(state::text, ' '), '') FROM coach_conversations",
-                "SELECT coalesce(string_agg(legacy_report::text, ' '), '') FROM coach_notes",
-                "SELECT coalesce(string_agg(response_payload::text, ' '), '') FROM external_operations")) {
-            assertThat(jdbc.queryForObject(stored, String.class)).as(stored).doesNotContain(NAME, "입시생");
-        }
-        assertTheNameStaysOutOfTheTelemetry("입시생");
-    }
-
-    @Test
     @DisplayName("account.profile: 종료 노트는 최신 프로필을 입력으로 받고 저장된 노트 조회는 다시 생성하지 않는다")
     void accountProfile_closingNoteReceivesProfileAndReadingItDoesNotRegenerate() throws Exception {
         UUID practice = analyzedPractice();
@@ -312,67 +249,6 @@ class CoachReadsProfileIT {
     }
 
     // ---- fixtures ----
-
-    @Test
-    @DisplayName("practice.coach: 첫 모델 호출 실패는 502이고 같은 시작 요청으로 다시 시작할 수 있다")
-    void practiceCoach_failedOpeningCanRetryWithoutSavingAFakeMessage() throws Exception {
-        UUID practice = structuredPractice();
-        String opening = mapper.writeValueAsString(Map.of("practice_id", practice, "request_id", UUID.randomUUID()));
-        generator.enqueue("{\"route\":\"invalid-route\"}");
-        var failed = mvc.perform(post("/v2/coach/start").header("Authorization", bearer())
-                .contentType(MediaType.APPLICATION_JSON).content(opening)).andReturn().getResponse();
-        assertThat(failed.getStatus()).as(failed.getContentAsString()).isEqualTo(502);
-        assertThat(LenientJson.asText(mapper.readTree(failed.getContentAsString()).path("detail"))).isEqualTo("coach_response_unavailable");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_messages", Integer.class)).isZero();
-
-        generator.enqueue("{\"route\":\"respond\"}");
-        generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
-        JsonNode recovered = successful(post("/v2/coach/start").header("Authorization", bearer())
-                .contentType(MediaType.APPLICATION_JSON).content(opening));
-        assertThat(recovered.at("/conversation/messages")).hasSize(1);
-        assertThat(LenientJson.asText(recovered.path("message"))).isEqualTo("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?");
-
-        generator.enqueue("{\"route\":\"invalid-route\"}");
-        var reply = mvc.perform(post("/v2/coach/reply").header("Authorization", bearer()).contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(Map.of("conversation_id", LenientJson.asText(recovered.at("/conversation/id")),
-                        "request_id", UUID.randomUUID(), "text", "상대가 남아 있으면 좋겠어요"))))
-                .andReturn().getResponse();
-        assertThat(reply.getStatus()).as(reply.getContentAsString()).isEqualTo(502);
-        JsonNode unchanged = successful(get("/v2/coach/conversations/{id}", LenientJson.asText(recovered.at("/conversation/id")))
-                .header("Authorization", bearer()));
-        assertThat(unchanged.path("messages")).hasSize(1);
-        assertThat(unchanged.path("revision")).isEqualTo(recovered.at("/conversation/revision"));
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    @DisplayName("practice.note: 신형 노트 생성 두 번 실패는 근거를 보존한 fallback 노트 하나이고 재전송은 생성하지 않는다")
-    void practiceNote_generationRetryKeepsEvidenceAndMarksOnlyFinalFallback(boolean recovers) throws Exception {
-        UUID practice = structuredPractice();
-        generator.enqueue("{\"route\":\"respond\"}");
-        generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
-        JsonNode started = startPractice(practice);
-        String closing = mapper.writeValueAsString(Map.of("conversation_id", LenientJson.asText(started.at("/conversation/id")),
-                "request_id", UUID.randomUUID(), "text", "정리해줘"));
-        generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
-        generator.enqueue("not valid JSON");
-        generator.enqueue(recovers ? "{\"summary\":[],\"next_take\":null}" : "not valid JSON again");
-
-        JsonNode ended = successful(post("/v2/coach/reply").header("Authorization", bearer())
-                .contentType(MediaType.APPLICATION_JSON).content(closing));
-
-        assertThat(LenientJson.asBoolean(ended.at("/note/fallback"))).isEqualTo(!recovers);
-        assertThat(LenientJson.asText(ended.at("/note/kind"))).isEqualTo("observation");
-        assertThat(LenientJson.asText(ended.at("/note/title"))).isEqualTo("가지 마 대사");
-        assertThat(ended.at("/note/next_take").isNull()).isTrue();
-        long noteCalls = generator.inputs().stream().filter(input -> input.contains("\"coach_handoff\"")).count();
-        assertThat(noteCalls).as("노트 생성은 재시도 포함 두 번까지만").isEqualTo(2);
-        int calls = generator.inputs().size();
-        JsonNode replay = successful(post("/v2/coach/reply").header("Authorization", bearer())
-                .contentType(MediaType.APPLICATION_JSON).content(closing));
-        assertThat(replay.path("note")).isEqualTo(ended.path("note"));
-        assertThat(generator.inputs()).hasSize(calls);
-    }
 
     @Test
     @DisplayName("practice.note: 다음 촬영에는 배우의 방향이 아니라 실제 촬영 제안을 저장하고 보여 준다")
@@ -686,23 +562,6 @@ class CoachReadsProfileIT {
 
     private String bearer() {
         return "Bearer " + jwt.issueAccessToken(user).value();
-    }
-
-    /** 라우팅 경로의 생성 응답(초안). revision·reply_link·flow 는 코드가 조립한다. */
-    private static String structuredDraft(String text, boolean opening) {
-        var draft = StructuredJson.MAPPER.createObjectNode().put("message", text);
-        if (opening) {
-            var context = draft.putObject("context_update").putNull("direction").putNull("reading");
-            context.putObject("scene_context").putNull("situation").putNull("character_goal").putNull("partner_action");
-            context.putArray("open_points");
-            var focus = context.putObject("focus").put("label", "가지 마 대사").put("utterance_ref", "u1");
-            focus.putArray("evidence_refs").add("u1");
-            draft.putArray("evidence_refs").add("u1");
-        } else {
-            draft.putNull("context_update");
-            draft.putArray("evidence_refs");
-        }
-        return draft.toString();
     }
 
     @TestConfiguration

@@ -74,7 +74,7 @@ class CoachQualityEvalTest {
         };
         try {
             CoachSessionSnapshot session = session(scenario);
-            CoachReply reply = new CoachEngine(recording, new RecordingFailureReporter(), new RecordingLlmTelemetry())
+            CoachReply reply = new CoachEngine(recording, new RecordingFailureReporter(), new RecordingLlmTelemetry(), java.util.Optional.empty())
                     .reply(session, LenientJson.asText(scenario.path("latest")), UUID.randomUUID()).reply();
             output.set("reply", MAPPER.valueToTree(reply));
             assertThat(reply.message()).isNotBlank();
