@@ -75,6 +75,15 @@ final class DirectVideoPracticeLoop {
         return rest.isEmpty() ? message.strip() : rest;
     }
 
+    /** 맨 앞의 인정 말이 앞선 코치 말에서 이미 쓴 것이면 뗀다({@link #withoutAgreement}). 처음 쓰는 인정 말이면 그대로 둔다. */
+    static String withoutRepeatedAgreement(String message, List<String> earlier) {
+        Matcher lead = AGREEMENT.matcher(message);
+        if (!lead.lookingAt()) return message;
+        String said = lead.group().replaceAll("[\\s,.!]", "");
+        boolean repeated = earlier.stream().anyMatch(text -> text != null && text.replaceAll("[\\s,.!]", "").contains(said));
+        return repeated ? withoutAgreement(message) : message;
+    }
+
     static Parsed parse(String raw) {
         String text = raw == null ? "" : closedNextTake(raw.strip());
         String design = first(DESIGN, text);

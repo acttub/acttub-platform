@@ -321,6 +321,59 @@ class DirectVideoCoachTest {
                 .isNotEqualTo(DirectVideoCoach.fixedClosing(null, false)).contains("다음 테이크");
     }
 
+    /** 11/24 dev 재현: 배우 5번째 답에 정리하고(코치 응답 6번째), 6번째 답에 답한(다음에 닫기) 뒤 7번째 답을 기다리는 무료 대화. */
+    CoachSessionSnapshot wrappedThenAnswered(String wrapText) {
+        var turns = new ArrayList<CoachTurnSnapshot>();
+        turns.add(new CoachTurnSnapshot("ai", "첫 질문"));
+        for (int i = 1; i < 7; i++) {
+            turns.add(new CoachTurnSnapshot("actor", "배우 답 " + i));
+            turns.add(new CoachTurnSnapshot("ai", i == 5 ? wrapText : "이전 코칭 " + i));
+        }
+        var loopState = CoachingStateReducer.empty();
+        var statuses = loopState.putObject("practice_loop").put("design", "버릇: 말이 빠른 편이에요").putArray("statuses");
+        statuses.add("");
+        for (String doing : List.of(PracticeLoopRouter.WANT, PracticeLoopRouter.GAP, PracticeLoopRouter.FIND, PracticeLoopRouter.PROPOSE)) {
+            statuses.add("할 일: " + doing);
+        }
+        statuses.add("할 일: " + PracticeLoopRouter.WRAP_UP + "\n단계: 4");
+        statuses.add("할 일: 답하기\n다음에 닫기: 예");
+        return session().withTurns(turns).withCoachingState("three_layers_v1", 0, loopState, "open", "");
+    }
+
+    @Test void aFreeLastReplyAfterAWrapUpGetsTheLastWordWithoutWrappingOrAgreeingAgain() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("맞아요, 그거예요.\n다음 테이크에서 그 쉼을 들어 봐요.");
+        var result = freeLoopEngine(userId -> 7).reply(wrappedThenAnswered("맞아요, 그거예요.\n쉬는 곳을 만들어 봐도 좋아요."),
+                "좋아요 다음에 해볼게요", UUID.randomUUID());
+        assertThat(result.session().closeReason()).isEqualTo("turn_budget");
+        var statuses = result.session().coachingState().path("practice_loop").path("statuses");
+        assertThat(DirectVideoPracticeLoop.action(LenientJson.asText(statuses.get(statuses.size() - 1), "")))
+                .as("정리를 되풀이하지 않는다").isEqualTo("답하기");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, atLeastOnce()).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getAllValues()).anySatisfy(prompt -> assertThat(prompt)
+                .contains("이번이 오늘 대화의 마지막 말이다. 배우가 방금 한 말을 한두 문장으로 받아 주고")
+                .contains("이 대화에서 이미 정리했다. 앞서 코치가 한 제안을 다시 하거나 같은 뜻의 다른 말로 바꿔 하지 않는다.")
+                .doesNotContain("정리 — 배우의 말을 다음 테이크에서 할 행동 하나로 확정한다"));
+        assertThat(result.reply().message()).as("정리에서 쓴 인정 말을 뗀다").doesNotStartWith("맞아요").contains("다음 테이크");
+    }
+
+    @Test void aFreeLastReplyKeepsAnAgreementTheCoachHadNotUsedBefore() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("맞아요, 그거예요.\n다음 테이크에서 그 쉼을 들어 봐요.");
+        var result = freeLoopEngine(userId -> 7).reply(wrappedThenAnswered("쉬는 곳을 만들어 봐도 좋아요."),
+                "좋아요 다음에 해볼게요", UUID.randomUUID());
+        assertThat(result.reply().message()).startsWith("맞아요, 그거예요.");
+    }
+
+    @Test void withoutAFreeLimitTheSameWrapHistoryStillClosesWithoutAModelLastWord() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("다음 테이크에서 그 쉼을 들어 봐요.");
+        freeLoopEngine(CoachFreeReplies.NONE).reply(wrappedThenAnswered("맞아요, 그거예요.\n쉬는 곳을 만들어 봐도 좋아요."),
+                "좋아요 다음에 해볼게요", UUID.randomUUID());
+        verify(model, never()).reply(any(), anyList(), argThat((String prompt) -> prompt.contains("이 대화에서 이미 정리했다")));
+    }
+
     @Test void withoutAFreeLimitTheSeventhAnswerKeepsTheConversationOpen() {
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn("그 장면에서 무엇을 얻고 싶었어요?");

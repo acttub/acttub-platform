@@ -806,6 +806,12 @@ public final class DirectVideoCoach {
                 if (shorter == null) break;
                 shown = shorter;
             }
+            // 무료 상한 마지막 응답(SOMA-1131)이 앞선 코치 말에서 이미 쓴 인정 말로 시작하면 뗀다. 다듬기·줄이기가 다시 붙일 수 있어 그 뒤에 본다.
+            // 2026-11-24 dev: 정리에서 쓴 「맞아요, 그거예요.」로 마지막 말을 또 시작했다.
+            if (branch != null && !streaming && branch.before().freeLast()) {
+                shown = DirectVideoPracticeLoop.withoutRepeatedAgreement(shown,
+                        session.turns().stream().filter(t -> "ai".equals(t.role())).map(t -> t.text()).toList());
+            }
             // 이번 답의 코치 입력을 회차 예산에 더한다(SOMA-1063). 첫 답이면 0 부터 다시 센다.
             if (!talk && !listen) budgetSpent = videoCache.spend(videoKey,
                     weightedInput(replyTrace.tokens(speaker.model())), session.turns().isEmpty());
@@ -1098,6 +1104,8 @@ public final class DirectVideoCoach {
             boolean doneLast = lastWord && done != null && !done.isBlank() && !doing.startsWith(PracticeLoopRouter.WRAP_UP);
             String stage = doneLast ? doneLastWordLine(language) : lastWord ? lastWordLine(language, classified.kind())
                     : PracticeLoopRouter.stageLine(doing, before);
+            // 무료 상한 마지막 응답(SOMA-1131)은 이미 정리한 뒤의 말이다. 정리에서 한 제안·인정 말을 되풀이하지 않는다.
+            if (lastWord && before.freeLast()) stage = stage + freeLastWordLine(language);
             return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, withGoal, stage, materials);
         }
 
@@ -1130,6 +1138,16 @@ public final class DirectVideoCoach {
             return "이번이 오늘 대화의 마지막 말이다. 배우는 재료의 제안을 이미 그렇게 했다고 했다. 그 제안을 다시 하거나 같은 뜻의 다른 말로 바꿔 하지 않는다."
                     + " 배우가 그렇게 했다는 것을 한 문장으로 받아들인다. 영상에서 아직 덜 들린 대사가 있으면 하나만 본 그대로 말하고, 다음 테이크에서 그 대사를 들어 보자고 한다."
                     + " 새 행동을 제안하지 않는다. 질문하지 않는다. 숨은 줄은 쓰지 않는다. 아래 모양 칸의 \"질문\"은 이번에는 쓰지 않는다.";
+        }
+
+        private static String freeLastWordLine(java.util.Locale language) {
+            boolean korean = language == null || "ko".equals(language.getLanguage());
+            if (!korean) {
+                return " You already wrapped up earlier in this conversation. Do not repeat a suggestion you made before or reword it,"
+                        + " and do not open with an agreement you already used (\"Right, that's it.\").";
+            }
+            return " 이 대화에서 이미 정리했다. 앞서 코치가 한 제안을 다시 하거나 같은 뜻의 다른 말로 바꿔 하지 않는다."
+                    + " 앞선 말에서 쓴 인정 말(\"맞아요, 그거예요.\")로 시작하지 않는다.";
         }
 
         private static String lastWordLine(java.util.Locale language, PracticeLoopRouter.Kind kind) {
