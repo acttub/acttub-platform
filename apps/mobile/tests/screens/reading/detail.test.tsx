@@ -166,6 +166,15 @@ test('더보기의 목소리 바꾸기는 목소리 정하기를 연다', async 
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/roles');
 });
 
+test('더보기를 열지 않아도 목소리 버튼으로 목소리 정하기를 연다', async () => {
+  await show();
+  await screen.findByText('1회차');
+
+  await fireEvent.press(screen.getByText('목소리'));
+  expect(screen.queryByText('목소리 바꾸기')).not.toBeOnTheScreen();
+  expect(mockRouter.push).toHaveBeenCalledWith('/reading/roles');
+});
+
 test('더보기의 대본 삭제는 확인을 받고 대본을 지운 뒤 내 대본으로 간다', async () => {
   const server = await show();
   await screen.findByText('1회차');

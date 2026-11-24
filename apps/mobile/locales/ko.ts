@@ -1935,6 +1935,7 @@ const ko = {
     viewScript: '대본 보기',
     practice: '연습하기',
     changeVoices: '목소리 바꾸기',
+    voicesButton: '목소리',
     sessionRecordings: '녹음 {{count}}개',
     sessionInProgressAt: '진행 중 · {{done}}/{{total}}',
     sessionTitle: '회차',
