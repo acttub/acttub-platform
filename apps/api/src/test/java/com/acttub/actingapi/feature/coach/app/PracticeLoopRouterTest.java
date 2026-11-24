@@ -192,7 +192,7 @@ class PracticeLoopRouterTest {
         assertThat(why.kind()).as("근거를 물으면 정정보다 먼저 답한다").isEqualTo(Kind.QUESTION);
         assertThat(why.respond()).isEqualTo(PracticeLoopRouter.WHY);
         var gap = at(3, 3, PracticeLoopRouter.GAP, Kind.ANSWER);
-        assertThat(PracticeLoopRouter.route(why, gap, 0, CoachFlows.B)).as("흐름 B에서도 정리로 건너뛰지 않고 답한다").isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.route(why, gap, 0)).as("정리로 건너뛰지 않고 답한다").isEqualTo("답하기");
         var afterWrap = at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER);
         assertThat(PracticeLoopRouter.forRouting(why, afterWrap).respond()).isEqualTo(PracticeLoopRouter.WHY);
         var proposed = at(3, 5, PracticeLoopRouter.PROPOSE, Kind.SHORT);
@@ -362,29 +362,12 @@ class PracticeLoopRouterTest {
         assertThat(DirectVideoPrompts.practiceLoopClassifier()).contains("want:", "line_fix:");
     }
 
-    @Test void flowBSkipsFindingAndGoesStraightToWrapUpAfterTheCoachSaysWhatItSaw() {
+    @Test void anAnswerAfterTheGapGoesToFindingAndACorrectionIsLetGo() {
         var classified = new Classified(Kind.ANSWER, false, "model");
         var afterGap = at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER);
-        assertThat(PracticeLoopRouter.route(classified, afterGap, 0, CoachFlows.A)).isEqualTo(PracticeLoopRouter.FIND);
-        assertThat(PracticeLoopRouter.route(classified, afterGap, 0, CoachFlows.B)).isEqualTo(PracticeLoopRouter.WRAP_UP);
-        var afterFirst = at(2, 2, "원하는 것 묻기", Kind.ANSWER);
-        assertThat(PracticeLoopRouter.route(classified, afterFirst, 0, CoachFlows.B))
-                .isEqualTo(PracticeLoopRouter.route(classified, afterFirst, 0, CoachFlows.A));
+        assertThat(PracticeLoopRouter.route(classified, afterGap, 0)).isEqualTo(PracticeLoopRouter.FIND);
         var correction = new Classified(Kind.CORRECTION, false, "model");
-        assertThat(PracticeLoopRouter.route(correction, afterGap, 0, CoachFlows.B)).as("정정은 B도 먼저 받는다").isEqualTo("내려놓기");
-    }
-
-    @Test void flowBTellsInsteadOfQuizzingAndCarriesTheThreeStepNote() {
-        var b = at(2, 2, "원하는 것 묻기", Kind.ANSWER);
-        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b, CoachFlows.B)).startsWith("2/4 코치가 본 것");
-        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b, CoachFlows.A)).isEqualTo(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b));
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.B)).contains("솔직하게 말해 주는 연출가");
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.A))
-                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null));
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, java.util.Locale.ENGLISH, CoachFlows.B)).contains("root problem");
-        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, null)).contains("세 단계");
-        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.A, null)).isEmpty();
-        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, java.util.Locale.ENGLISH)).isEmpty();
+        assertThat(PracticeLoopRouter.route(correction, afterGap, 0)).as("정정은 먼저 받는다").isEqualTo("내려놓기");
     }
 
     // 2026-10-31~11-01 운영(14f8348d, 9e1f84ed): 정리 뒤 「잘 모르겠어요」에 바로 닫혔다. 이제 한 번은 방법으로 답하고 다음 말에서 닫는다.

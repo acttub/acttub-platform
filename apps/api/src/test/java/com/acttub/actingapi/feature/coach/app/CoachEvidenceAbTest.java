@@ -37,12 +37,10 @@ class CoachEvidenceAbTest {
         assertThat(DirectVideoPrompts.practiceLoopTurn(ko, true)).contains("근거는 보이고 들린 것부터 말한다");
         assertThat(DirectVideoPrompts.practiceLoopTurn(ko, false)).doesNotContain("근거는 보이고 들린 것부터 말한다");
         assertThat(DirectVideoPrompts.practiceLoopTurn(Locale.ENGLISH, true)).isEqualTo(DirectVideoPrompts.practiceLoopTurn(Locale.ENGLISH));
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WRAP_UP, ko, CoachFlows.A, true)).contains("예를 들면");
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WRAP_UP, ko, CoachFlows.A, false))
-                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WRAP_UP, ko, CoachFlows.A));
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, ko, CoachFlows.B, true))
-                .as("B 흐름의 tell 은 그대로").isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, ko, CoachFlows.B));
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, ko, CoachFlows.A, true))
-                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, ko, CoachFlows.A));
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WRAP_UP, ko, true)).contains("예를 들면");
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WRAP_UP, ko, false))
+                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WRAP_UP, ko));
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, ko, true))
+                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, ko));
     }
 }

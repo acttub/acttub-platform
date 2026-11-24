@@ -114,7 +114,6 @@ class PracticeLoopRouterTableTest {
         assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 1)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 2)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouter.route(answer(true, "", false), find, 0)).isEqualTo(PracticeLoopRouter.WRAP_UP);
-        assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 0, CoachFlows.B)).isEqualTo(PracticeLoopRouter.REASK);
     }
 
     @Test void stagesAndGoalsFollowTheTask() {
@@ -125,11 +124,6 @@ class PracticeLoopRouterTableTest {
         assertThat(PracticeLoopRouter.easyGoal(at(5, "비추기"))).isEqualTo("그 버릇 대신 무엇으로 그걸 상대에게 전할 수 있을지");
         assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.WANT, second)).isEqualTo("1/4 첫 질문 — 근본 문제를 풀 실마리를 배우 입에서 듣는다");
         assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.EASY, at(4, "비추기"))).startsWith("3/4 스스로 찾기");
-        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, second, CoachFlows.B))
-                .isEqualTo("2/4 코치가 본 것 — 근본 문제를 대사 두 곳과 이유로 코치가 먼저 말한다. 해결책은 아직 말하지 않는다");
-        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.WRAP_UP, second, CoachFlows.B))
-                .isEqualTo("4/4 정리 — 배우가 말한 바람을 얻을 행동 하나를 코치가 제안해 확정한다");
-        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.WANT, second, CoachFlows.B)).startsWith("1/4 첫 질문");
         assertThat(PracticeLoopRouter.answerField(Kind.CHOICE, at(3, "비추기"))).isEqualTo("알아챈 것");
         assertThat(PracticeLoopRouter.answerField(Kind.QUESTION, at(3, "비추기"))).isNull();
     }

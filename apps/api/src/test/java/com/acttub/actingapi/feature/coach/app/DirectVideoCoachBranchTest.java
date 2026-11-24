@@ -111,16 +111,6 @@ class DirectVideoCoachBranchTest {
         assertThat(lastPrompt()).startsWith(DirectVideoPrompts.practiceLoopTurn());
     }
 
-    @Test void anAssignedFlowBIsStoredOnTheFirstReply() {
-        when(model.reply(eq(file), anyList(), anyString())).thenReturn(DirectVideoCoachTest.OPENING);
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, session -> CoachFlows.B);
-        var fresh = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(),
-                PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
-        var result = coach.turn(fresh, null, UUID.randomUUID());
-        assertThat(DirectVideoPracticeLoop.storedFlow(result.session().coachingState())).isEqualTo(CoachFlows.B);
-    }
-
     @Test void whileStreamingAnEmptyComparedModelFallsBackToTheDefaultStream() {
         var compared = mock(DirectVideoModel.class);
         when(compared.model()).thenReturn("gemini-3.8-flash");

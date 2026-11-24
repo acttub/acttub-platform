@@ -168,13 +168,13 @@ class ActorCoachingTest {
     void theQuestionCapSendsTheConversationToTheClosingOnceReached() throws Exception {
         Before stage2 = new Before(3, "어긋남 보기", Kind.ANSWER, new Tally(0, 0, 0), List.of(), false, false, false, false, 3);
         Classified shortAnswer = new Classified(Kind.SHORT, false, "code");
-        assertThat(PracticeLoopRouter.route(shortAnswer, stage2, 0, "a", null, 3)).isEqualTo(PracticeLoopRouter.EASY);
-        assertThat(PracticeLoopRouter.route(shortAnswer, stage2, 0, "a", 4, 3)).isEqualTo(PracticeLoopRouter.EASY);
-        assertThat(PracticeLoopRouter.route(shortAnswer, stage2, 0, "a", 3, 3)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.route(shortAnswer, stage2, 0, null, 3)).isEqualTo(PracticeLoopRouter.EASY);
+        assertThat(PracticeLoopRouter.route(shortAnswer, stage2, 0, 4, 3)).isEqualTo(PracticeLoopRouter.EASY);
+        assertThat(PracticeLoopRouter.route(shortAnswer, stage2, 0, 3, 3)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         Classified question = new Classified(Kind.QUESTION, false, "code");
-        assertThat(PracticeLoopRouter.route(question, stage2, 0, "a", 2, 3)).as("물음에는 상한이어도 답한다").isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.route(question, stage2, 0, 2, 3)).as("물음에는 상한이어도 답한다").isEqualTo("답하기");
         Classified correction = new Classified(Kind.CORRECTION, false, "code");
-        assertThat(PracticeLoopRouter.route(correction, stage2, 0, "a", 2, 3)).as("정정은 그대로 받는다").isEqualTo(PracticeLoopRouter.LET_GO);
+        assertThat(PracticeLoopRouter.route(correction, stage2, 0, 2, 3)).as("정정은 그대로 받는다").isEqualTo(PracticeLoopRouter.LET_GO);
 
         var loop = StructuredJson.MAPPER.readTree(
                 "{\"statuses\":[\"\",\"배우의 말: 답\\n할 일: 어긋남 보기\",\"배우의 말: 질문·설명\\n할 일: 답하기\",\"배우의 말: 짧은 답\\n할 일: 쉽게 묻기\"]}");
