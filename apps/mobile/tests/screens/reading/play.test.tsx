@@ -2524,6 +2524,51 @@ test('「...」뿐인 내 줄은 마이크를 켜지 않고 잠깐 보여 준 �
   expect(speakWithDevice).not.toHaveBeenCalled();
 });
 
+// SOMA-951 — 「?」「!」만 있는 줄은 기호를 소리 내 읽지 않는다.
+const MARK_BUNDLE_LINES = [
+  ['scene', '1장 카페'],
+  ['dialogue', '민재', '오늘 왔구나.'],
+  ['dialogue', '서연', '?!'],
+  ['dialogue', '서연', '정말이야?'],
+  ['dialogue', '민재', '괜찮아.'],
+] as Parameters<typeof scriptDetail>[0];
+
+test('SOMA-951: 묶인 상대 대사에 기호만 있는 줄이 섞이면 그 줄은 소리를 만들지도 읽지도 않고 나머지 줄만 읽는다', async () => {
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l5' }, scriptDetail(MARK_BUNDLE_LINES));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(screen.getByText('?!')).toBeOnTheScreen();
+  const taken = queue.take.mock.calls.map(([item]) => (item as { text: string }).text);
+  expect(taken).toEqual(['정말이야?']);
+  for (const [items] of queue.prime.mock.calls) {
+    expect((items as { text: string }[]).map((i) => i.text)).not.toContain('?!');
+  }
+  expect(tts.speak).not.toHaveBeenCalledWith('?!', expect.anything(), expect.anything());
+});
+
+test('SOMA-951: 기기 목소리도 묶인 대사의 기호만 있는 줄은 읽지 않는다', async () => {
+  await AsyncStorage.setItem('acttub.reading.appVoiceUnsupported', 'noticed');
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l5' }, scriptDetail(MARK_BUNDLE_LINES));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(jest.mocked(speakWithDevice).mock.calls.map(([text]) => text)).toEqual(['정말이야?']);
+});
+
+test('SOMA-951: 기기 목소리에서 「!」뿐인 상대 줄은 목소리 없이 잠깐 쉬었다가 내 차례로 넘어간다', async () => {
+  await AsyncStorage.setItem('acttub.reading.appVoiceUnsupported', 'noticed');
+  const detail = scriptDetail([
+    ['scene', '1장 카페'],
+    ['dialogue', '민재', '오늘 왔구나.'],
+    ['dialogue', '서연', '!'],
+    ['dialogue', '민재', '괜찮아.'],
+  ]);
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l4' }, detail);
+
+  expect(await screen.findByText(ME, {}, { timeout: 3000 })).toBeOnTheScreen();
+  expect(screen.getByText('!')).toBeOnTheScreen();
+  expect(speakWithDevice).not.toHaveBeenCalled();
+});
+
 test('자동 넘김(SOMA-954): 마이크 권한이 없어도 시작하고, 내 차례에는 마이크 없이 기본 2초 쉰 뒤 상대 대사로 넘어간다', async () => {
   jest.mocked(hasMicPermission).mockResolvedValue(false);
   await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });

@@ -638,7 +638,10 @@ export default function ReadingPlay() {
       for (let i = runRef.current?.index ?? config.startIndex; i <= config.endIndex; i++) {
         const l = config.lines[i];
         if (l?.type !== 'dialogue' || config.myRoles.includes(l.role)) continue;
-        for (const part of speechParts(l)) cloudLines.add(`${presetFor(l.role)}\u0000${speakableText(part.text)}`);
+        for (const part of speechParts(l)) {
+          // 기호만 있는 조각은 소리를 만들지 않으니 세지 않는다(SOMA-951).
+          if (!isWordless(speakableText(part.text))) cloudLines.add(`${presetFor(l.role)}\u0000${speakableText(part.text)}`);
+        }
       }
     }
     if (shouldUseCloudVoice({ enabled: cloudEnabled, status: cloudStatus, lines: cloudLines.size })) {
@@ -892,6 +895,8 @@ export default function ReadingPlay() {
     const parts = (current.lines.slice(span.start, span.end + 1) as DialogueLine[])
       .flatMap((l) => speechParts(l))
       .map((part) => ({ ...part, text: speakableText(part.text) }));
+    // 「?」「!」「?!」처럼 기호만 있는 조각은 읽지 않는다 — 기기·고품질 목소리 모두 기호를 이상한 소리로 읽었다(SOMA-951).
+    const voiced = parts.filter((part) => !isWordless(part.text));
     const preset = presetFor(line.role);
     let cancelled = false;
     // 멈춤(일시정지·배경)이 끊은 재생은 끝난 것으로 돌아온다 — 정리(cleanup)보다 먼저 와도 남은 조각·대체 목소리·넘김을 하지
@@ -907,7 +912,7 @@ export default function ReadingPlay() {
     };
     // 「...」처럼 소리 낼 글자가 없는 상대 줄은 목소리 없이 잠깐 쉬었다 넘긴다(SOMA-962). 글로 보기는 그대로 버튼을 기다리고,
     // 예시 대본은 줄마다 녹음된 소리가 있어 그대로 튼다.
-    if (engine !== 'text_only' && engine !== 'example' && parts.every((part) => isWordless(part.text))) {
+    if (engine !== 'text_only' && engine !== 'example' && voiced.length === 0) {
       const pause = setTimeout(finish, beatMs(parts.map((part) => part.text)));
       return () => {
         cancelled = true;
@@ -986,6 +991,7 @@ export default function ReadingPlay() {
                 readWithDeviceVoice(async () => {
                   for (const part of speechParts(l)) {
                     if (stale()) return;
+                    if (isWordless(speakableText(part.text))) continue;
                     await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
                   }
                 }),
@@ -1000,14 +1006,15 @@ export default function ReadingPlay() {
             setLineEngine('device_voice');
             for (const part of speechParts(l)) {
               if (stale()) return;
+              if (isWordless(speakableText(part.text))) continue;
               await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
             }
           }
           finish();
           return;
         }
-        for (; at < parts.length; at++) {
-          const { text, lang } = parts[at];
+        for (; at < voiced.length; at++) {
+          const { text, lang } = voiced[at];
           if (stale()) return;
           if (engine === 'device_voice') {
             setLineEngine('device_voice');
@@ -1059,7 +1066,7 @@ export default function ReadingPlay() {
         }
         setLineEngine('device_voice');
         try {
-          for (const { text, lang } of parts.slice(at)) {
+          for (const { text, lang } of voiced.slice(at)) {
             if (stale()) return;
             await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
           }
