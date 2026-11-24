@@ -488,7 +488,24 @@ test('자동 넘김 회차도 화면을 끄거나 다른 앱으로 가면 멈춘
   expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
-test('일시정지를 두 번 빠르게 눌러도 같은 자리에 생긴 「그만하기」가 바로 눌리지 않는다(11/1 폰 확인)', async () => {
+test('일시정지하면 일시정지를 누른 쪽(왼쪽)에 「이어서」, 오른쪽에 「그만하기」가 온다(SOMA-1119)', async () => {
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+
+  const before = screen.getAllByRole('button');
+  const pauseAt = before.indexOf(screen.getByRole('button', { name: '일시정지' }));
+  const nextAt = before.indexOf(screen.getByRole('button', { name: '다음' }));
+  expect(pauseAt).toBeLessThan(nextAt);
+
+  await fireEvent.press(screen.getByText('일시정지'));
+  const after = screen.getAllByRole('button');
+  const resumeAt = after.indexOf(screen.getByRole('button', { name: '이어서' }));
+  const stopAt = after.indexOf(screen.getByRole('button', { name: '그만하기' }));
+  expect(resumeAt).toBeGreaterThanOrEqual(0);
+  expect(resumeAt).toBeLessThan(stopAt);
+});
+
+test('일시정지를 두 번 빠르게 눌러도 「그만하기」가 바로 눌리지 않는다(11/1 폰 확인)', async () => {
   await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
   expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
 
