@@ -109,7 +109,7 @@ tasks.withType<Test>().configureEach {
     maxHeapSize = "1536m"
     // 설정(@Import·properties)이 다른 클래스마다 Spring 컨텍스트가 새로 떠서 한 줄로 돌면 느리다(SOMA-552).
     // fork 마다 JVM 이 따로라 PostgresContainerSupport 의 컨테이너도 fork 마다 따로 뜬다.
-    maxParallelForks = 3
+    maxParallelForks = 4
     systemProperty("file.encoding", "UTF-8")
     // ValueCheckCatalogIT 가 기능 스펙의 「상태」 표를 읽는다. 스펙만 고쳐도 테스트가 다시 돌게 입력으로 둔다.
     inputs.files(fileTree("../../docs/specs")).withPropertyName("featureSpecs").withPathSensitivity(PathSensitivity.RELATIVE)
