@@ -21,9 +21,14 @@ public final class PracticeLoopRound {
 
     private static final int PART_MAX = 60;
 
-    /** 상태 칸 "배우의 말"의 보기(practice-loop.txt). 긴 이름이 앞이다 — "답"이 "답하기"류를 먼저 잡지 않게. */
-    private static final List<String> KINDS = List.of("스스로 알아챔", "자기 한 줄", "방법 요청", "평가 요청", "선택 설명",
-            "질문·설명", "짧은 답", "그만", "정정", "반박", "답");
+    /**
+     * 상태 칸 "배우의 말"의 보기(practice-loop.txt). 긴 이름이 앞이다 — "답"이 "답하기"류를 먼저 잡지 않게.
+     * {@link PracticeLoopRouter.Kind} 가운데 {@code 질문 오해}는 이 목록에 없다.
+     */
+    private static final List<String> KINDS = List.of(PracticeLoopRouter.Kind.INSIGHT.label, PracticeLoopRouter.Kind.SELF_LINE.label,
+            PracticeLoopRouter.Kind.METHOD.label, PracticeLoopRouter.Kind.EVALUATION.label, PracticeLoopRouter.Kind.CHOICE.label,
+            PracticeLoopRouter.Kind.QUESTION.label, PracticeLoopRouter.Kind.SHORT.label, PracticeLoopRouter.Kind.STOP.label,
+            PracticeLoopRouter.Kind.CORRECTION.label, PracticeLoopRouter.Kind.PUSHBACK.label, PracticeLoopRouter.Kind.ANSWER.label);
 
     /**
      * 연습 루프 회차의 한 줄. 연습 루프 상태가 없으면 {@code null} — 부르는 쪽이 예전 줄("n차: 제목 — 제안")을 쓴다.

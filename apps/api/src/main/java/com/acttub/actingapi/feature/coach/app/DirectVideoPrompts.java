@@ -148,10 +148,10 @@ final class DirectVideoPrompts {
             java.util.Map.entry(PracticeLoopRouter.REASK, "reask"),
             java.util.Map.entry(PracticeLoopRouter.PROPOSE, "propose"),
             java.util.Map.entry(PracticeLoopRouter.WRAP_UP, "wrap-up"),
-            java.util.Map.entry("짚어주기", "point-out"),
-            java.util.Map.entry("짚어주기(다른 쪽)", "point-out-other"),
-            java.util.Map.entry("내려놓기", "let-go"),
-            java.util.Map.entry("답하기", "answer"),
+            java.util.Map.entry(PracticeLoopRouter.POINT_OUT, "point-out"),
+            java.util.Map.entry(PracticeLoopRouter.POINT_OUT_OTHER, "point-out-other"),
+            java.util.Map.entry(PracticeLoopRouter.LET_GO, "let-go"),
+            java.util.Map.entry(PracticeLoopRouter.ANSWER, "answer"),
             java.util.Map.entry(PracticeLoopRouter.ASK_DONE, "ask-done"),
             java.util.Map.entry(PracticeLoopRouter.WRAP_DONE, "wrap-done"));
 
