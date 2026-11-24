@@ -31,8 +31,8 @@ class StructuredJsonTest {
                 .hasMessage("unknown output contract: layer9_unknown");
         assertThatThrownBy(() -> StructuredJson.resource("/coaching/no-such.json"))
                 .hasMessage("missing JSON resource: /coaching/no-such.json");
-        assertThatThrownBy(() -> StructuredJson.resource("/coaching/video-record-prompt.txt"))
-                .hasMessage("cannot read JSON resource: /coaching/video-record-prompt.txt");
+        assertThatThrownBy(() -> StructuredJson.resource("/coach/coach-opening-policy.txt"))
+                .hasMessage("cannot read JSON resource: /coach/coach-opening-policy.txt");
         assertThatThrownBy(() -> StructuredJson.textResource("/coaching/no-such.txt"))
                 .hasMessage("missing prompt resource: /coaching/no-such.txt");
     }

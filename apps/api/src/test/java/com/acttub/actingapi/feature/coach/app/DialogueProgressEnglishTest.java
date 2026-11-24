@@ -2,13 +2,9 @@ package com.acttub.actingapi.feature.coach.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.acttub.actingapi.integration.llm.StructuredJson;
-import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 영어로 쓰는 배우의 뜻도 같은 판정에 닿는지 본다 (SOMA-544).
@@ -40,27 +36,5 @@ class DialogueProgressEnglishTest {
     @DisplayName("설명하는 문장은 마치자는 말로 보지 않는다")
     void keepsTalkingOnExplanation(String text) {
         assertThat(DialogueProgress.actorFinished(text)).isFalse();
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-        "What do you mean?", "I don't understand", "i dont get the question",
-        "Not sure what you're asking", "huh?", "???",
-    })
-    @DisplayName("영어로 질문을 못 알아들었다고 하면 쉬운 말로 풀어줄 때로 본다")
-    void marksConfusion(String text) {
-        assertThat(LenientJson.asBoolean(controlsFor(text).path("explain_instead_of_repeating_question"))
-                || LenientJson.asBoolean(controlsFor(text).path("confusion")))
-                .as("confusion 신호가 잡혀야 한다: %s", text)
-                .isTrue();
-    }
-
-    private static ObjectNode controlsFor(String text) {
-        ObjectNode input = StructuredJson.MAPPER.createObjectNode();
-        input.putObject("user_message").put("text", text).put("id", "m1");
-        input.putArray("recent_messages");
-        input.putObject("coaching_state").put("revision", 0);
-        input.putObject("record_view").putArray("source_catalog");
-        return DialogueProgress.controls(input);
     }
 }

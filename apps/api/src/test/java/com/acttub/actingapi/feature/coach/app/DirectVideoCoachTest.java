@@ -8,7 +8,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.UUID;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
@@ -31,7 +30,7 @@ class DirectVideoCoachTest {
     final DirectVideoModel.Video file = new DirectVideoModel.Video("files/test", "gemini://test", "video/mp4");
     final List<Path> temporary = new ArrayList<>();
     final DirectVideoCoach direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, false);
-    final CoachEngine engine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(direct));
+    final CoachEngine engine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(direct));
 
     DirectVideoCoachTest() {
         when(videos.find(any(), any())).thenReturn(new CoachVideoSource.Video("owned/video.mp4", "video/mp4", "etag"));
@@ -335,13 +334,12 @@ class DirectVideoCoachTest {
     static final String OPENING_SHOWN = "이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?";
 
     CoachEngine practiceLoopEngine() {
-        return new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(
-                new DirectVideoCoach(model, videos, storage, failures, telemetry, true)));
+        return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(model, videos, storage, failures, telemetry, true)));
     }
 
     @Test void advisorPersonaIsAssignedOnceStoredAndAddedToEveryCoachPrompt() {
         var asked = new java.util.concurrent.atomic.AtomicInteger();
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> { asked.incrementAndGet(); return "b1"; })));
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가\"에서도 상대를 안 봐요. 누구한테 하는 말이에요?");
@@ -360,7 +358,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void eachAdvisorGetsTheirOwnPromptOnEveryCoachCallAndALongerReplyLimit() {
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> "park-seunga")));
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
         // 90자쯤의 말: 공용 상한(60자)은 넘지만 이 사람의 상한(100자) 안쪽이라 줄이지 않는다.
@@ -388,7 +386,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void anActorWithoutAnAdvisorFileGetsTheirCoachingProfileInThePersonaSlot() {
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> "")));
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
         // 90자쯤의 말: 공용 상한(60자)은 넘지만 맞춤 코칭의 길이 줄(100자) 안쪽이라 줄이지 않는다.
@@ -413,7 +411,7 @@ class DirectVideoCoachTest {
 
     /** 짧은 답("몰라") 한 번이면 쉽게 묻기다. 둘째 코치 호출의 프롬프트. */
     private String easyPrompt(String profile) {
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> "")));
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 붙잡으려는 것처럼 보였어요. 맞아요?");
@@ -453,7 +451,7 @@ class DirectVideoCoachTest {
 
     /** 짧은 답 두 번이면 쉽게 묻기 다음 답 제안하기로 간다. 셋째 코치 호출의 프롬프트. */
     private String proposePrompt(String profile) {
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> "")));
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 무엇을 바랐어요?",
@@ -471,7 +469,7 @@ class DirectVideoCoachTest {
     }
 
     @Test void anAdvisorFileWinsOverTheCoachingProfile() {
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> "park-seunga")));
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(withProfile(session()), UUID.randomUUID());
@@ -514,7 +512,7 @@ class DirectVideoCoachTest {
         when(model.model()).thenReturn("gemini-3-flash-preview");
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
         when(compared.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가\"에서도 상대를 안 봐요. 누구한테 하는 말이에요?");
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100)));
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
@@ -533,7 +531,7 @@ class DirectVideoCoachTest {
     @Test void withoutAComparedModelOrForSessionsStartedBeforeItEveryReplyStaysOnTheDefaultModel() {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var compared = mock(DirectVideoModel.class);
-        var off = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var off = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 0))).start(session(), UUID.randomUUID());
         assertThat(LenientJson.asText(off.session().coachingState().path("practice_loop").path("coach_model"))).isEqualTo("a");
         verify(compared, never()).reply(any(), anyList(), anyString());
@@ -570,7 +568,7 @@ class DirectVideoCoachTest {
 
     @Test void defaultPersonaIsRecordedWithoutChangingThePromptAndOthersGetNothing() {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
-        var advisor = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var advisor = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> CoachPersonas.DEFAULT))).start(session(), UUID.randomUUID());
         assertThat(LenientJson.asText(advisor.session().coachingState().path("practice_loop").path("persona"))).isEqualTo("a");
         verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.practiceLoop(advisor.session().practiceSessionId()) + AnswerExamples.INSTRUCTION));
@@ -581,7 +579,7 @@ class DirectVideoCoachTest {
 
     @Test void aFailingPersonaLookupFallsBackToTheDefaultCoach() {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
-        var result = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var result = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> { throw new IllegalStateException("db down"); })))
                 .start(session(), UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo(OPENING_SHOWN);
@@ -1019,7 +1017,7 @@ class DirectVideoCoachTest {
                 .thenThrow(new IllegalStateException("empty video coaching reply"))
                 .thenThrow(new IllegalStateException("empty video coaching reply: output limit reached"));
         when(model.reply(eq(file), anyList(), anyString())).thenReturn("\"가\"에서도 상대를 안 봐요. 누구한테 하는 말이에요?");
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100)));
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
@@ -1226,7 +1224,7 @@ class DirectVideoCoachTest {
         assertThat(note.summaryQuotes()).hasSize(2);
         assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("나는 틈을 주면 밀릴까 봐 몰아치는 배우다");
         assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("kind"))).isEqualTo("actor");
-        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(closed, 9));
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(CoachTurns.turnId(closed, 9));
         assertThat(LenientJson.asText(note.summaryQuotes().get(1).path("quote"))).isEqualTo("틈을 주면 밀릴 것 같아서요");
         assertThat(note.legacyReport()).isNull();
         assertThat(DirectVideoPracticeLoop.note(session().withTurns(turns), 1)).isNull();
@@ -1286,7 +1284,7 @@ class DirectVideoCoachTest {
         var note = DirectVideoPracticeLoop.note(closed, 4);
         assertThat(note.summaryQuotes()).hasSize(2);
         assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("빈틈이 무서워서 말로 채우는 배우");
-        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(closed, 5));
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(CoachTurns.turnId(closed, 5));
         assertThat(LenientJson.asText(note.summaryQuotes().get(1).path("quote"))).isEqualTo("사이가 비면 연기가 끊긴 것 같아서요");
         assertThat(note.nextTake()).isEqualTo("문장 사이에 한 번씩 쉬기");
     }
@@ -1677,7 +1675,7 @@ class DirectVideoCoachTest {
         Path clip = Files.createTempFile("layer1-test-", ".mp4");
         var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰\n  \"됐어\" — 본 것: 정면을 본다", 100, failures);
         try {
-            var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+            var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                     model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, true, true, layer)));
             when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
             when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"됐어\"에서 정면을 봐요. 누구한테 하는 말이에요?");
@@ -1704,7 +1702,7 @@ class DirectVideoCoachTest {
     @Test void onArmWithoutReadyObservationAsksIntentInsteadOfNamingBehavior() {
         var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰", 100, failures);
         try {
-            var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+            var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                     model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, true, true, layer)));
             when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
             var first = loopEngine.start(session(), UUID.randomUUID());
@@ -1721,7 +1719,7 @@ class DirectVideoCoachTest {
 
     @Test void offArmGetsNoLayerOneBlock() {
         var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰", 0, failures);
-        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, true, true, layer)));
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(session(), UUID.randomUUID());

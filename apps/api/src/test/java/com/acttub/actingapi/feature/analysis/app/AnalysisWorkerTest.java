@@ -37,7 +37,7 @@ class AnalysisWorkerTest {
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
                 (path, mime, actor, practiceId, actorId) -> observations,
-                (path, practiceId, actorId) -> { throw failure; }, reporter, null);
+                (path, practiceId, actorId) -> { throw failure; }, reporter);
 
         assertThat(worker(store, analyzer, reporter).runOnce(NOW)).isTrue();
 
@@ -60,7 +60,7 @@ class AnalysisWorkerTest {
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
                 (path, mime, actor, practiceId, actorId) -> new ObservationPack("", List.of(), List.of()),
-                (path, practiceId, actorId) -> { throw failure; }, reporter, null);
+                (path, practiceId, actorId) -> { throw failure; }, reporter);
 
         worker(store, analyzer, reporter).runOnce(NOW);
 

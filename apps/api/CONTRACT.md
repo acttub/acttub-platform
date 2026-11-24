@@ -67,9 +67,9 @@ NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라, 다
 §5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
-Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 아무 코드도 쓰지 않는 매핑을
-`ddl-auto: validate` 스키마 검증만을 위해 두지 않는다(2026-10-01 결정). 지금은 이 결정과 달리 다른 코드가 쓰지 않고 스키마
-검증에만 쓰이는 엔티티가 남아 있다(예: `ReadingSessionEntity`). 그것들을 지울지는 아직 정하지 않았다. `actor_memory_entries`·`push_tokens`도
+Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 저장소가 아직 native SQL로만 읽고 쓰는 테이블의 매핑(예:
+`ReadingSessionEntity`)은 그 테이블을 JPA로 옮길 때까지 둔다(2026-11-24 결정). 그때까지 이 매핑은 `ddl-auto: validate`로
+기동 때 스키마를 검증하고, 옮길 때 출발점이 된다. `actor_memory_entries`·`push_tokens`도
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
@@ -80,9 +80,6 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
-- `community_blocks`(0.1.0 전 게시판 차단): 이 테이블을 지우던 게시판 차단 풀기 주소를 내리며 매핑을 내렸다. 게시판
-  가시성과 만 14세 미만 계정 닫기가 native SQL로만 읽으므로(읽는 곳은 `git grep -l -w community_blocks src/main/java`)
-  테이블은 그대로 둔다. 쓰는 코드는 없다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
@@ -653,7 +650,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 선다.
   토큰 등록 때 `X-Acttub-Client` 의 앱 버전을 `push_tokens.app_version` 에 남기고(`ClientAppVersion`), 버전을 모르거나
   `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25 `evening_reminder_sends`)의
-  코드는 지웠고 표만 남았다. 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  코드는 지웠고 표와 검증용 매핑(`EveningReminderSendEntity`)만 남았다. 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
   보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
   탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 
@@ -1367,10 +1364,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **이음매**는 읽는 쪽의 포트 둘이다: `coach/app/CoachProfile`, `report/app/ReportProfile`. 구현은
   `profile/adapter/reader` 에 있고 간선은 `profile → coach.app`·`profile → report.app` 한 방향이다. 교환 타입은
   소비자의 것이고 값은 표시말이다. 프로필이 없거나 여섯 항목 가운데 하나라도 비어 있으면 포트가 `null` 을 준다.
-- **코치**: 문자열 경로는 `CoachPrompt:actorProfileBlock` 이 맨 앞의 독립 블록(`## 배우 프로필`)으로, 구조화 경로는
-  `StructuredCoachEngine:input` 이 독립 키 `actor_profile` 로 싣는다. 기억 블록의 1,200자 상한과 분리돼 있다.
-  라우팅 경로(`dialogue_actions_v2`)에서는 그 입력이 **생성 호출**(`CoachingPipeline:generate`)에 실린다.
-  `ConversationService` 가 턴마다 다시 읽는다.
+- **코치**: 옛(legacy) 문자열 경로와 직접 영상 코치 모두 `CoachPrompt:actorProfileBlock` 이 맨 앞의 독립 블록(`## 배우 프로필`)으로
+  싣는다. 기억 블록의 1,200자 상한과 분리돼 있다. `ConversationService` 가 턴마다 다시 읽는다.
 - **기억과 겹침**: 모델에 넘기는 기억 사본에서 `gender`·`age` 를 빼는 자리는 `CoachSessionSnapshot:priorForModel` 이다.
 - **텔레메트리에는 이름을 가려 보낸다.** 모델에 보내는 입력은 그대로 두고, 같은 입력을 바깥 수탁사(Langfuse)에
   기록할 때만 이름 자리에 `[redacted]` 를 싣는다 — 문자열 경로는 프로필 블록의 이름 줄
@@ -1411,20 +1406,19 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
   | 쓰임 | 프롬프트 | 스키마 |
   |---|---|---|
-  | 1층 영상 기록(`GeminiVideoRecordAnalyzer`) | `coaching/video-record-prompt.txt` | `layer1_chunk` |
-  | 2층 구조화 코치(`StructuredCoachEngine`) | 라우팅 끔: `coaching/coach-prompt.txt` + 첫 질문 정책 `coach/coach-opening-policy.txt`, 라우팅 켬(`CoachingPipeline`): `coaching/routes/*.txt` | 응답 `layer2_dialogue_turn`, 2→3 전달 `coach_handoff_v2` |
   | 3층 노트(`DialogueNote`) | `coaching/note-prompt.txt` | `layer3_note` |
   | 기존 갈래 코치(`CoachPrompt`) | `coach/coach-v2-prompt.txt`·`coach-v3-prompt.txt`·`coach-response-policy.txt`, 막힘 `그 외`는 `coach-video-first-prompt.txt` + `coach-opening-policy.txt` | — |
-  | Gemini 직접 영상 코칭(`DirectVideoPrompts`) | `coaching/direct-video/*.txt`(`common`, 분류 `classifier`, 신호별 지침, 연습 루프 `practice-loop`) | — |
-- 2층 내부 출력은 `acttub.layer2_turn.v2`, 2→3 전달은 `acttub.coach_handoff.v2` 다. 노트는 v2 handoff에서만 조립한다.
+  | Gemini 직접 영상 코칭(`DirectVideoPrompts`) | `coaching/direct-video/*.txt`(`common`, 분류 `classifier`, 신호별 지침, 연습 루프 `practice-loop`) | 2→3 전달 `coach_handoff_v2`(`CoachTurns`) |
+- 2→3 전달은 `acttub.coach_handoff.v2` 다(닫히는 코치 답에서 `CoachTurns` 가 만든다). 노트는 v2 handoff에서만 조립한다.
+  1층 영상 기록(`layer1_chunk`)과 2층 구조화 코치(`layer2_*`)를 만들던 코드는 지웠다(SOMA-1126). 스키마 파일의 그 정의와
+  예전에 저장된 `video_record_v1` 분석은 읽기만 한다.
 - 새 계약의 검증은 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachConversationIT`에서
   대화 상태의 원자적 저장과 낡은 revision 충돌을 확인한다.
 
-### 8-6. 코드에서 선택하는 네 가지 코칭 프롬프트
+### 8-6. 직접 영상 코칭의 코드 자리
 
-> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「2층 대화 동작 분류와 코드 기반 프롬프트 선택」: 네 분류, 첫 응답, 입력·출력, 문장 수 세기, 실패 처리 / 「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
 
-- 2층 분류는 Luna, 선택은 Java 의 enum/switch 다(`CoachingPipeline`).
 - 직접 영상: dev 임시 세션 API는 `DirectVideoController`(조건부 등록, 공개 OpenAPI에서 `@Hidden`), 임시 세션은
   `DirectVideoSessions` → `DirectVideoRouting`, 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 열리는 조건과
   경로 선택은 practice.coach 「규칙·제약」의 경로 표와 「Gemini 직접 영상 코칭」에 있다.

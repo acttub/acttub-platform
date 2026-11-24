@@ -125,7 +125,7 @@ class PostgresAnalysisStoreIT {
                     assertThat(practiceId).isEqualTo(sessionId);
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     return result().observationPack().speech();
-                }, reporter, null);
+                }, reporter);
         AnalysisWorker worker = new AnalysisWorker(store, storage, analyzer,
                 Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, null, reporter);
 

@@ -20,7 +20,6 @@ import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.acttub.actingapi.platform.json.LenientJson;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -134,11 +133,10 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
             }
             UUID practiceId = row.get("practice_id", UUID.class);
             UUID videoId = row.get("video_id", UUID.class);
-            boolean fullRecord = result.videoRecord() != null;
-            UUID analysisId = fullRecord
-                    ? UUID.fromString(LenientJson.asText(result.videoRecord().path("record_id")))
-                    : UUID.randomUUID();
-            JsonNode record = fullRecord ? result.videoRecord() : JSON.valueToTree(result.observationPack());
+            // 새 분석은 늘 legacy 모양이다. 신형 회차는 1층 분석 없이 빈 관찰 묶음이다(DirectVideoPreparation).
+            // video_record_v1 행은 예전에 1층 영상 기록을 만들던 때의 것이고 읽기만 한다.
+            JsonNode record = JSON.valueToTree(result.observationPack());
+            UUID analysisId = UUID.randomUUID();
             // 못 본 구간이 있으면 partial 이다 — 채우지 않는다.
             boolean partial = result.observationPack() != null && !result.observationPack().uncertainties().isEmpty();
             entityManager.createNativeQuery("""
@@ -148,7 +146,7 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
                     """)
                     .setParameter("id", analysisId)
                     .setParameter("practiceId", practiceId)
-                    .setParameter("format", fullRecord ? "video_record_v1" : "legacy")
+                    .setParameter("format", "legacy")
                     .setParameter("status", partial ? "partial" : "ready")
                     .setParameter("model", model)
                     .setParameter("record", json(record))

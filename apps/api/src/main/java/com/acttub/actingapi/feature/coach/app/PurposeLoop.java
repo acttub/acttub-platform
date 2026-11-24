@@ -721,7 +721,7 @@ final class PurposeLoop {
             }
             for (int i = turns.size() - 1; i >= 0 && at < 0; i--) if ("ai".equals(turns.get(i).role())) at = i;
             quotes.addObject().put("quote", quote[0]).put("kind", "actor")
-                    .put("source_ref", StructuredCoachEngine.turnId(session, Math.max(at, 0)));
+                    .put("source_ref", CoachTurns.turnId(session, Math.max(at, 0)));
         }
     }
 

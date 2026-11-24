@@ -16,7 +16,6 @@ class DirectVideoPreparationTest {
         var result = processor.analyze(path, context("three_layers_v1"));
         assertThat(result.durationMs()).isEqualTo(8000);
         assertThat(result.wasCompressed()).isFalse();
-        assertThat(result.videoRecord()).isNull();
         assertThat(result.observationPack().observations()).isEmpty();
         verifyNoInteractions(legacy);
     }

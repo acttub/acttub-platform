@@ -34,11 +34,6 @@ final class OpeningQuestion {
         return failures;
     }
 
-    static boolean videoSource(JsonNode source) {
-        return source != null && !LenientJson.asText(source.path("text")).isBlank()
-                && List.of("video_observation", "video_utterance").contains(LenientJson.asText(source.path("kind")));
-    }
-
     static boolean legacyOpening(CoachSessionSnapshot session) {
         return CoachBranch.isBlockageUnspecified(session.blockageKind()) && CoachPrompt.turnNumber(session) == 1;
     }

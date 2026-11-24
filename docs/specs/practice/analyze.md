@@ -80,7 +80,7 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
   회차를 closed/analysis_failed로 닫아 배우가 다시 시도할 수 있다. 죽은 줄 알았던 워커가 뒤늦게 끝내면 토큰이 바뀌어 저장 전체가
   되돌아간다(「예외」).
 - 분석이 전부 실패한 회차는 코치 대화를 열 수 없다([practice.coach](coach.md#예외)).
-- 직접 영상 코칭이 켜진 서버(`ACTTUB_DIRECT_VIDEO_ENABLED=true`)에서 신형(three_layers_v1) 회차의 분석 작업은 영상 길이와 업로드
+- 신형(three_layers_v1) 회차의 분석 작업은 영상 길이와 업로드
   무결성만 확인하고 1층 영상 분석·받아쓰기 모델을 부르지 않는다. 코치가 원본 영상을 직접 받는다
   ([practice.coach 「Gemini 직접 영상 코칭」](coach.md#gemini-직접-영상-코칭)). 기존 갈래(legacy) 회차는 그대로 분석한다.
 

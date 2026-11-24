@@ -343,7 +343,7 @@ public final class DirectVideoCoach {
             ObjectNode state = nextState(session);
             DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", PurposeLoop.status(purposeTurn, ""), closing));
             PurposeLoop.remember(state, purposeTurn, PurposeLoop.extract(""));
-            return StructuredCoachEngine.result(session, actorText, closing, state, "actor_finished");
+            return CoachTurns.result(session, actorText, closing, state, "actor_finished");
         }
         if (branch != null && PracticeLoopRouter.END.equals(branch.doing())) {
             // 그만·자기 한 줄·응답 상한: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
@@ -354,14 +354,14 @@ public final class DirectVideoCoach {
             // 닫힌 사유: 배우가 그만 → user_ended, 응답 상한 → limit, 그 밖(물을 것을 다 물음) → exhausted.
             boolean stopped = actorFinished || branch.classified().kind() == PracticeLoopRouter.Kind.STOP;
             boolean ceiling = turnBudget || branch.before().reply() >= PracticeLoopRouter.LAST_REPLY - 1;
-            return StructuredCoachEngine.result(session, actorText, closing, state,
+            return CoachTurns.result(session, actorText, closing, state,
                     stopped ? "actor_finished" : ceiling ? "turn_budget" : "interrupted");
         }
         if (loop && !talk && !listen && DirectVideoPracticeLoop.tooShort(session)) {
             // 연기가 담길 수 없는 길이 — 영상을 올리거나 모델을 부르지 않고 끊는다. 노트도 만들지 않는다.
             ObjectNode cutState = nextState(session);
             DirectVideoPracticeLoop.markNotActing(cutState, "too_short");
-            return StructuredCoachEngine.result(session, actorText,
+            return CoachTurns.result(session, actorText,
                     DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText)),
                     cutState, "interrupted");
         }
@@ -461,7 +461,7 @@ public final class DirectVideoCoach {
                     if (inspection != null && inspection.unusableAudio()) {
                         ObjectNode cutState = nextState(session);
                         DirectVideoPracticeLoop.markInputIssue(cutState, "silent_audio");
-                        return StructuredCoachEngine.result(session, actorText,
+                        return CoachTurns.result(session, actorText,
                                 DirectVideoPracticeLoop.audioUnavailableMessage(
                                         DirectVideoPracticeLoop.replyLanguage(session, actorText)),
                                 cutState, "interrupted");
@@ -469,7 +469,7 @@ public final class DirectVideoCoach {
                     if (inspection != null && inspection.emptyInput()) {
                         ObjectNode cutState = nextState(session);
                         DirectVideoPracticeLoop.markNotActing(cutState, "empty_input");
-                        return StructuredCoachEngine.result(session, actorText,
+                        return CoachTurns.result(session, actorText,
                                 DirectVideoPracticeLoop.notActingMessage(
                                         DirectVideoPracticeLoop.replyLanguage(session, actorText)),
                                 cutState, "interrupted");
@@ -894,7 +894,7 @@ public final class DirectVideoCoach {
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
             String endReason = actorFinished ? "actor_finished" : turnBudget ? "turn_budget"
                     : cut || loop && DirectVideoPracticeLoop.finished(parsed) || purposeTurn != null && purposeTurn.wrap() ? "interrupted" : null;
-            CoachResult result = StructuredCoachEngine.result(session, actorText, shown, state, endReason);
+            CoachResult result = CoachTurns.result(session, actorText, shown, state, endReason);
             keepVideo = endReason == null;
             return result;
         } catch (Exception failure) {

@@ -1406,7 +1406,8 @@ public final class RuleSplit {
      * 대본의 머리 모양을 잰다. 머리 낱말 뒤가 두 칸 이상인 이름 같은 줄을 들여쓰기별로 세어, 가장 많은 들여쓰기가 여섯 줄 이상이고, 그 모양으로 두 번
      * 넘게 나온 이름이 둘 이상이고, 같은 들여쓰기의 한 칸 머리보다 두 배 이상 많을 때만 지배하는 모양이다. 한 칸 머리(「민수 안녕」)로 쓴 대본은 넓은
      * 칸이 드물어 켜지지 않는다. 2026-11-24 운영 대본: 대사는 「·민지··저 아직 …」(한 칸 들여 이름 뒤 두 칸)인데 대사가 이어지는 줄(「···빨리 이
-     * 모든 게 …」)과 지문(「쓰러진 참가자 9의 …」)의 첫 낱말이 횟수만으로 배역 「빨리」「쓰러진」이 됐다.
+     * 모든 게 …」)과 지문(「쓰러진 참가자 9의 …」)의 첫 낱말이 횟수만으로 배역 「빨리」「쓰러진」이 됐다. 번호 배역 머리(「·참가자 3 …」)는 한 칸
+     * 머리로 세지 않는다 — 번호 배역이 많은 짧은 대본에서 넓은 칸 10줄이 번호 머리 6줄에 밀려 모양이 꺼졌다(2026-11-24 합성 대본).
      */
     private static HeadShape headShape(Text text, List<NumberedLine> lines) {
         int[] indents = new int[text.size()];
@@ -1435,6 +1436,8 @@ public final class RuleSplit {
             }
             if (!nameLike(m.group(1))) continue;
             heads[i] = m.group(1);
+            // 번호 배역(「참가자 3 …」)은 번호가 구분이라 한 칸이어도 넓은 칸 대본의 머리다 — 한 칸 머리로 세지 않는다
+            if (!wide && NUMBERED_ROLE.matcher(m.group(1)).matches()) continue;
             (wide ? wideLines : narrowLines).merge(indent, 1, Integer::sum);
             if (wide) wideNames.computeIfAbsent(indent, key -> new HashMap<>()).merge(m.group(1), 1, Integer::sum);
         }
