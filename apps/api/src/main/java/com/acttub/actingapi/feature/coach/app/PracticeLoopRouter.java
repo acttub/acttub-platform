@@ -501,7 +501,7 @@ final class PracticeLoopRouter {
             if (!b.freeCapped()) return END;
             if (!b.wrapped()) return WRAP_UP;
             String answer = answerTo(c, b);
-            return LET_GO.equals(answer) ? "답하기" : answer;
+            return LET_GO.equals(answer) ? ANSWER : answer;
         }
         // 정리 뒤 한 번 받아 준 다음 말: 또 물었으면(물음·방법·판단 요청·반박·정정) 답하고, 그 밖이면 닫는다.
         // 2026-10-11 17:56 운영: 받아 준 뒤 배우가 "?반응을 어케봐?"라고 물었는데 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
