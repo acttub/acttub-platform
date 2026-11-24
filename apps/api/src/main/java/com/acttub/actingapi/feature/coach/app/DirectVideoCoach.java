@@ -745,7 +745,9 @@ public final class DirectVideoCoach {
             }, SIDE_CALLS);
         }
         // 스트리밍: 연습 루프의 보통 턴만. 이어서 찍은 첫 답(고르기)·소리 없는 영상(근거 검사)은 다 쓴 뒤 한 번에 보낸다.
-        final boolean streaming = stream != null && loop && continuedPrompt == null
+        // 무료 상한 마지막 응답(SOMA-1131)도 다 쓴 뒤 보낸다 — 반복 인정 말·질문을 떼야 하는데, 흘려보낸 답은 다듬지 않는다.
+        final boolean freeLast = plan.branch() != null && plan.branch().before().freeLast();
+        final boolean streaming = stream != null && loop && continuedPrompt == null && !freeLast
                 && (uploaded == null || !Boolean.FALSE.equals(uploaded.hasAudioTrack()));
         final VisibleCoachText visible = streaming ? new VisibleCoachText(session.turns().isEmpty(), replyLanguage, stream::delta) : null;
         // 답장(첫 질문이 아닌 턴)은 생각을 최소로 쓴다(SOMA-780). LOW 에서 가끔 생각 토큰이 약 3,900까지 늘어 빈 답·깨진 글·재시도로
@@ -977,9 +979,11 @@ public final class DirectVideoCoach {
         }
         // 무료 상한 마지막 응답(SOMA-1131)이 앞선 코치 말에서 이미 쓴 인정 말로 시작하면 뗀다. 다듬기·줄이기가 다시 붙일 수 있어 그 뒤에 본다.
         // 2026-11-24 dev: 정리에서 쓴 「맞아요, 그거예요.」로 마지막 말을 또 시작했다.
+        // 대화가 이 말로 닫히므로 질문 문장도 뗀다 — 2026-11-24 dev: 질문하지 말라는 지시에도 「…마음인가요?」를 남겼다.
         if (branch != null && !streaming && branch.before().freeLast()) {
             shown = DirectVideoPracticeLoop.withoutRepeatedAgreement(shown,
                     session.turns().stream().filter(t -> "ai".equals(t.role())).map(t -> t.text()).toList());
+            shown = DirectVideoPracticeLoop.withoutQuestions(shown);
         }
         return new Shown(parsed, purposeOut, purposeTake, shown, cut, timeStripped, polished, shortened);
     }

@@ -358,6 +358,31 @@ class DirectVideoCoachTest {
         assertThat(result.reply().message()).as("정리에서 쓴 인정 말을 뗀다").doesNotStartWith("맞아요").contains("다음 테이크");
     }
 
+    @Test void aFreeLastReplyDropsQuestionsBecauseTheConversationClosesOnIt() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "간격을 끝까지 재야 실력이 증명돼요.\n\"오라이\"를 멈추고 벽을 보는 게 인정받고 싶은 마음인가요?\n다음 테이크에서 확인해 봐요.");
+        var result = freeLoopEngine(userId -> 7).reply(wrappedThenAnswered("쉬는 곳을 만들어 봐도 좋아요."),
+                "네 다음에 해볼게요", UUID.randomUUID());
+        assertThat(result.reply().message()).as("닫히는 말이라 답할 수 없는 질문을 남기지 않는다")
+                .doesNotContain("?").contains("간격을 끝까지 재야 실력이 증명돼요.").contains("다음 테이크에서 확인해 봐요.");
+    }
+
+    @Test void aFreeLastReplyIsWrittenWholeEvenWhenTheAppAsksForAStream() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("맞아요, 그거예요.\n그 쉼이 마음에 들어요?\n다음 테이크에서 그 쉼을 들어 봐요.");
+        var deltas = new ArrayList<String>();
+        CoachStream stream = new CoachStream() {
+            @Override public void begin() { }
+            @Override public void delta(String text) { deltas.add(text); }
+        };
+        var result = freeLoopEngine(userId -> 7).reply(wrappedThenAnswered("맞아요, 그거예요.\n쉬는 곳을 만들어 봐도 좋아요."),
+                "좋아요 다음에 해볼게요", UUID.randomUUID(), stream);
+        verify(model, never()).replyStream(any(), anyList(), anyString(), any());
+        assertThat(deltas).as("다듬기 전 글을 흘려보내지 않는다").isEmpty();
+        assertThat(result.reply().message()).doesNotStartWith("맞아요").doesNotContain("?").contains("다음 테이크");
+    }
+
     @Test void aFreeLastReplyKeepsAnAgreementTheCoachHadNotUsedBefore() {
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn("맞아요, 그거예요.\n다음 테이크에서 그 쉼을 들어 봐요.");
