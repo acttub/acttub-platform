@@ -11,14 +11,11 @@ export function maskEmail(email: string | null | undefined): string {
   return `${email.slice(0, 1)}••••${email.slice(at)}`;
 }
 
-const STATUS: Record<string, { label: string; tone: "blue" | "gray" }> = {
-  open: { label: "확인 중", tone: "gray" },
-  answered: { label: "답변 완료", tone: "blue" },
-  closed: { label: "종료", tone: "gray" },
-};
+const STATUS_LABEL: Record<string, string> = { open: "확인 중", closed: "종료" };
 
-export function inquiryStatus(status: MyInquiry["status"]): { label: string; tone: "blue" | "gray" } {
-  return STATUS[status] ?? { label: "확인 중", tone: "gray" };
+/** 서버의 문의 상태는 open·closed 둘이다(app.support-inquiry). 모르는 값은 「확인 중」으로 보인다. */
+export function inquiryStatusLabel(status: MyInquiry["status"]): string {
+  return STATUS_LABEL[status] ?? "확인 중";
 }
 
 /** 10월 28일. 읽지 못하면 빈 문자열. */

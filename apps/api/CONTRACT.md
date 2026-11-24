@@ -1122,7 +1122,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   가 집기(시도 수를 올려 커밋) · 판정 받기(`EntryModerationModel`, Gemini — 원본 영상 + 챌린지 대사 + 캡션, 트랜잭션 밖) ·
   붙이기로 돈다. 붙이기는 신고와 같은 순서(챌린지 마감 집계 → 참여작 행)로 잡고, 집은 뒤 캡션이 바뀌었거나 다른 시도가
   앞섰으면 버린다. 실패 상한은 `ChallengeRules.MODERATION_MAX_ATTEMPTS`, 통과작을 숨기는 신고자 수는
-  `PASSED_ENTRY_REPORT_THRESHOLD` 다. AI 신고는 `entry_reports.source='ai'`, `reporter_id` 없음이다. 운영이 풀면(restored·dismissed)
+  `PASSED_ENTRY_REPORT_THRESHOLD` 다. AI 신고는 `entry_reports.source='ai'`, `reporter_id` 없음이다. 운영이 풀면(dismissed)
   그 대상에 남은 received 신고가 없을 때만 AI 판정(`flagged`·`review`·`failed`)을 `passed` 로 바꾼다(`PostgresEntryReportRepository`). 스위치는
   `ANALYSIS_WORKER_ENABLED` 와 `CHALLENGE_MODERATION_ENABLED`(테스트는 후자를 전역으로 끈다), 모델은
   `CHALLENGE_MODERATION_MODEL`(없으면 `GEMINI_MODEL`)이다. V70 은 이미 공개된 참여작을 한 번 검사 차례로 둔다.

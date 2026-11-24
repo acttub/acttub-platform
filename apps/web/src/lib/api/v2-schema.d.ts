@@ -4771,7 +4771,7 @@ export interface components {
          * ConsentAction
          * @enum {string}
          */
-        ConsentAction: "granted" | "declined" | "revoked";
+        ConsentAction: "granted" | "declined";
         /** ConsentEventResponse */
         ConsentEventResponse: {
             /**

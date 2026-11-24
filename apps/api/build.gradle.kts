@@ -111,6 +111,8 @@ tasks.withType<Test>().configureEach {
     // fork 마다 JVM 이 따로라 PostgresContainerSupport 의 컨테이너도 fork 마다 따로 뜬다.
     maxParallelForks = 2
     systemProperty("file.encoding", "UTF-8")
+    // ValueCheckCatalogIT 가 기능 스펙의 「상태」 표를 읽는다. 스펙만 고쳐도 테스트가 다시 돌게 입력으로 둔다.
+    inputs.files(fileTree("../../docs/specs")).withPropertyName("featureSpecs").withPathSensitivity(PathSensitivity.RELATIVE)
 
     // 로컬 .env 를 테스트가 읽지 못하게 막는다(DotenvEnvironmentPostProcessor). 이 가드가
     // 없으면 실 API 키가 흘러들어, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 된다.

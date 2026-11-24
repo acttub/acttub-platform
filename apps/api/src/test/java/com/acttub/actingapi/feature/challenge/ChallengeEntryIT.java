@@ -687,7 +687,7 @@ class ChallengeEntryIT {
         JsonNode pending = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(LenientJson.asText(pending.path("ranking_state"))).isEqualTo("pending");
         assertThat(pending.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
-        response(patch("/v2/admin/reports/{id}", report).content("{\"resolution\":\"restored\",\"reviewer\":\"운영\"}"), 200,
+        response(patch("/v2/admin/reports/{id}", report).content("{\"resolution\":\"dismissed\",\"reviewer\":\"운영\"}"), 200,
                 "Bearer entry-test-ops");
         JsonNode settled = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(ids(settled)).containsExactly(hidden.toString(), shown.toString());

@@ -26,7 +26,7 @@ challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값�
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| visible | 개설(회원·기획팀)의 시작값. review에서 신고 판정 restored·dismissed이고 그 챌린지에 남은 received 신고 없음. 운영 moderation 변경 | challenge.create, challenge.report |
+| visible | 개설(회원·기획팀)의 시작값. review에서 신고 판정 dismissed이고 그 챌린지에 남은 received 신고 없음. 운영 moderation 변경 | challenge.create, challenge.report |
 | review | 처리 전 신고의 서로 다른 신고자 수가 임계값에 닿음([challenge.report](report.md#규칙제약)). 운영 moderation 변경 | challenge.report, challenge.create(운영) |
 | hidden | 운영 moderation 변경(`PATCH /v2/admin/challenges/{id}/moderation`)만 | challenge.create(운영) |
 | 삭제(deleted_at) | 주최자 삭제. visible이고 참여 이력(삭제된 참여작 포함)이 0 | challenge.create |

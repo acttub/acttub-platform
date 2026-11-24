@@ -157,7 +157,7 @@ class PostgresEntryReportRepository implements ReportRepository {
     }
 
     /**
-     * 판정. 대상 행을 잠그고 이 신고를 처리한 뒤, restored·dismissed 는 그 대상에 처리되지 않은 신고가 남지 않았을 때만
+     * 판정. 대상 행을 잠그고 이 신고를 처리한 뒤, dismissed 는 그 대상에 처리되지 않은 신고가 남지 않았을 때만
      * 운영 숨김을 푼다. 푸는 것은 숨김뿐이라 작성자의 비공개·삭제·탈퇴와 챌린지 종료는 그대로다. kept_hidden 은 숨김
      * (챌린지는 검토)을 유지한다. 참여작·챌린지 판정 뒤에는 기다리던 종료 순위를 확정해 본다.
      */

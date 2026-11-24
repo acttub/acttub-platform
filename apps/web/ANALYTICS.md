@@ -82,7 +82,7 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Po
 > **단일 기준은 서버다.** 이 브라우저에 게스트 토큰이 있고, `GET /v2/consents/entry`의 `privacy` 종류 행이 `current_decision === "granted"`일 때만 켠다.
 
 - 웹에는 로그인이 없다(account.guest). 게스트는 처음 보호 기능을 쓰려 할 때 생기고, 동의는 기능 안의 시트(`src/features/consent/consent-sheet.tsx`)에서 받는다. `entry`는 **현재 판**에 대한 결정을 주므로, 새 판이 나오면 그 행이 미결정으로 돌아가 저절로 꺼진다 — 옛 판에만 동의한 사람에게 새 판의 수집을 적용하지 않는다.
-- **닫힌 쪽으로 실패한다.** 게스트 토큰이 없거나(랜딩만 본 방문자 — 서버에 묻지도 않고, 이 조회 때문에 게스트가 생기지도 않는다), 행이 없거나, 값이 `granted`가 아니거나(`declined`·`revoked`·미결정), 조회가 실패하면 끈다. **조회 중에도 꺼진 상태다.**
+- **닫힌 쪽으로 실패한다.** 게스트 토큰이 없거나(랜딩만 본 방문자 — 서버에 묻지도 않고, 이 조회 때문에 게스트가 생기지도 않는다), 행이 없거나, 값이 `granted`가 아니거나(`declined`·미결정), 조회가 실패하면 끈다. **조회 중에도 꺼진 상태다.**
 - **판 번호를 코드에 박지 않고, 계측 판단을 `localStorage`에 복제하지도 않는다.** 예전의 `EXPECTED_PRIVACY_VERSION` 상수와 `accepted_privacy_version` 기록은 없다. 브라우저에 남기는 것은 나이 확인 하나뿐이고 계측과 무관하다.
 - **서버에 묻는 때는 셋이다** — 앱을 시작할 때 한 번, 탭이 다시 보일 때(`visibilitychange`), 동의 제출 직후. 화면을 옮길 때마다 묻지 않는다.
 - **즉시 끄는 때** — 어떤 요청이든 403 `consent_required`를 받아 시트가 열리는 순간(제출 완료를 기다리지 않는다), 게스트가 끝나는 순간(갱신 거절·`account_deactivated`), 새 게스트가 시작되는 순간. 진행 중이던 조회의 답은 버린다. 시트를 닫기만 해도 다시 묻는다 — 빠진 것이 `privacy`가 아니었다면 서버의 답은 여전히 `granted`다.
@@ -91,7 +91,7 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Po
 - **opt-out은 브라우저에 남는다**(`opt_out_capturing_persistence_type` 기본 localStorage). 끈 채 새로고침하면 SDK가 꺼진 채로 init되므로, `startPostHog`는 켤 차례마다 `has_opted_out_capturing()`을 보고 푼다. **순서는 신원 → opt-in이다.** `opt_in_capturing()`은 그 자리에서 `$pageview`를 보내므로(1.434.14 `posthog-core.js` `_captureInitialPageview`), opt-in을 먼저 하면 새 게스트가 연 페이지가 앞 게스트에게 붙는다. 그래서 `startPostHog(userId)` 하나가 신원(필요하면 `reset(true)` → `identify`)을 맞춘 뒤 opt-in한다. `reset()`은 저장된 opt-out도 지우므로, 다른 게스트로 바뀐 경우에는 opt-in이 필요 없다.
 - 기기 식별(`posthog.reset(true)` — distinct id와 device id를 새로 만든다)은 끌 때마다 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새 기기로 세면 같은 게스트가 여럿으로 갈린다. **다른 게스트로 켜질 때** 끊는다(`startPostHog`). 앞 게스트는 SDK가 저장해 둔 `$user_id`로 알아본다 — 모듈 변수로 비교하면 새로고침 뒤 첫 게스트 교체를 놓쳐 앞 게스트와 같은 device id로 이어진다(2026-10-11 실제 빌드에서 재현).
 
-이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·revoked·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔), `tests/analytics-cross-tab.test.mjs`(다른 탭의 무관한 키·토큰 회전 → 묻지도 끄지도 않음 / 다른 탭의 게스트 끝·시작 → 묻지 않고 끔 / 탭이 다시 보임 → 물음), `tests/analytics-posthog.test.mjs`의 "계측 I-6"·새로고침 항목들이 고정한다.
+이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔), `tests/analytics-cross-tab.test.mjs`(다른 탭의 무관한 키·토큰 회전 → 묻지도 끄지도 않음 / 다른 탭의 게스트 끝·시작 → 묻지 않고 끔 / 탭이 다시 보임 → 물음), `tests/analytics-posthog.test.mjs`의 "계측 I-6"·새로고침 항목들이 고정한다.
 
 동의 전에 쌓인 이벤트는 **버린다.** 큐에 모았다가 동의 후 흘려보내지 않는다. 그렇게 하면 "동의 전에는 수집하지 않는다"는 약속이 "동의 전에는 전송하지 않는다"로 슬쩍 바뀐다.
 

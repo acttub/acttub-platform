@@ -26,7 +26,7 @@ export async function submitInquiry(
   return data;
 }
 
-export type InquiryStatus = "open" | "answered" | "closed";
+export type InquiryStatus = "open" | "closed";
 
 export type MyInquiry = {
   id: string;

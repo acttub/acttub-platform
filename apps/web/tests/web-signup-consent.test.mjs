@@ -7,7 +7,10 @@ import "./ts-module-loader.mjs";
 const { buildDecisions, canSubmit, consentLines, lineChecked, signupFailureAction, toggleAll, toggleLine } = await import(
   "../src/features/auth/signup-consent.ts"
 );
-const { inquiryStatus, maskEmail, shortDate } = await import("../src/features/account/account-format.ts");
+const { inquiryStatusLabel, maskEmail, shortDate } = await import("../src/features/account/account-format.ts");
+const React = await import("react");
+const { renderToStaticMarkup } = await import("react-dom/server");
+const { InquiryList } = await import("../src/features/account/inquiry-list.tsx");
 
 const doc = (id, type, required) => ({ id, type, version: "1", title: id, body: "본문", required, published_at: "2026-10-01T00:00:00Z" });
 const DOCS = [
@@ -67,7 +70,19 @@ test("가입 실패 중 토큰·문서가 낡은 것만 처음부터 다시 시�
 test("내 계정 표시: 이메일은 앞을 가리고, 문의 상태·날짜를 한국어로 보인다", () => {
   assert.equal(maskEmail("abcd@gmail.com"), "a••••@gmail.com");
   assert.equal(maskEmail(null), "없어요");
-  assert.deepEqual(inquiryStatus("answered"), { label: "답변 완료", tone: "blue" });
-  assert.equal(inquiryStatus("open").label, "확인 중");
+  assert.equal(inquiryStatusLabel("open"), "확인 중");
+  assert.equal(inquiryStatusLabel("closed"), "종료");
+  assert.equal(inquiryStatusLabel("answered"), "확인 중", "서버에 없는 값은 확인 중으로 보인다");
   assert.equal(shortDate("2026-10-28T03:00:00Z"), "10월 28일");
+});
+
+test("내 계정 「내 문의」: 상태는 서버 값을 한국어로, 없으면 안내 한 줄", () => {
+  const items = [
+    { id: "a", category: "bug", summary: "앱이 멈춰요", status: "open", created_at: "2026-10-28T03:00:00Z" },
+    { id: "b", category: "billing", summary: "결제가 두 번 됐어요", status: "closed", created_at: "2026-10-27T03:00:00Z" },
+  ];
+  const html = renderToStaticMarkup(React.createElement(InquiryList, { items }));
+  assert.match(html, /확인 중<\/span><span[^>]*>앱이 멈춰요<\/span><span[^>]*>10월 28일/);
+  assert.match(html, /종료<\/span><span[^>]*>결제가 두 번 됐어요/);
+  assert.equal(renderToStaticMarkup(React.createElement(InquiryList, { items: [] })).includes("아직 보낸 문의가 없어요."), true);
 });

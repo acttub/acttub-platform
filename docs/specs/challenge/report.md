@@ -25,19 +25,19 @@ entry_reports.status.
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
 | received | 신고 접수 | challenge.report |
-| reviewed(+resolution restored·kept_hidden·dismissed, reviewed_by, reviewed_at) | 운영 판정. received일 때만 | challenge.report |
+| reviewed(+resolution kept_hidden·dismissed, reviewed_by, reviewed_at) | 운영 판정. received일 때만 | challenge.report |
 
 - 불변 조건: reviewed ⇔ resolution·reviewed_at 있음(`ck_entry_reports_reviewed`). (target_type, target_id, reporter_id) 유일(`uq_entry_reports_target`) —
   한 사람은 한 대상을 한 번 신고한다. (reporter_id, request_id) 유일(`uq_entry_reports_request`).
 - 끝 상태: reviewed. 처리 뒤 90일이 지나면 행을 지운다.
 - 이 기능이 일으키는 다른 행의 전이:
   - 참여작 visible → hidden_by_report(첫 신고, AI 검사를 통과한 참여작은 서로 다른 신고자 2명. 운영 판정 kept_hidden도 아직 보이던
-    참여작을 숨긴다), hidden_by_report → visible(restored·dismissed, 남은 received 없음) (정본: [challenge.entry](entry.md#상태)).
+    참여작을 숨긴다), hidden_by_report → visible(dismissed, 남은 received 없음) (정본: [challenge.entry](entry.md#상태)).
   - 댓글 visible → hidden, hidden → visible(같은 조건) (정본: [challenge.react](react.md#상태)).
   - 챌린지 visible → review(서로 다른 신고자 수가 임계값에 닿음, 「규칙·제약」), review → visible(같은 조건) (정본: [challenge.create](create.md#상태)).
 
 ## 규칙·제약
-- 신고는 target_type(entry·comment·challenge)·target_id·reporter_id·reason·note(200자, 선택)·status(received·reviewed)·resolution(restored·
+- 신고는 target_type(entry·comment·challenge)·target_id·reporter_id·reason·note(200자, 선택)·status(received·reviewed)·resolution(
   kept_hidden·dismissed)·reviewed_by·reviewed_at·resolution_note·target_version(신고 당시 대상의 content_version; 참여작은 캡션 수정, 댓글·
   챌린지는 불변이라 1)·target_text(신고 당시 캡션·댓글·대사, 참여작·댓글 본문이 파기되면 비운다)를 가진다. 사유는 copyright(저작권 침해 — 대사·영상 출처), inappropriate
   (부적절한 콘텐츠 — 괴롭힘·성적·개인정보 노출 포함), spam(스팸), duplicate(중복 업로드), other(기타, 메모)다. 화면(A15.4)은 다섯을 각각
@@ -51,13 +51,13 @@ entry_reports.status.
   검사 전·검사 실패·애매 판정 참여작은 위처럼 첫 신고에 숨긴다.
 - 공개 참여작 AI 검사(SOMA-907): 공개 참여작은 검사를 기다리지 않고 바로 보이고, 올라간 직후(공개 전환·공개 중 캡션 변경 포함) 서버가
   영상·캡션·챌린지 대사를 모델에 보여 판정한다. 숨김 판정은 참여작을 hidden_by_report로 돌리고, 숨김·애매 판정과 3번 실패는 신고자 없는
-  AI 신고(source ai)로 운영 목록에 올린다(애매·실패는 보이게 둔다). 운영이 restored·dismissed로 풀고 그 참여작에
+  AI 신고(source ai)로 운영 목록에 올린다(애매·실패는 보이게 둔다). 운영이 dismissed로 풀고 그 참여작에
   남은 처리 전(received) 신고가 없으면, 검사가 끝난(flagged·review·failed) 참여작은 통과(passed)로 바꾼다. 검사 전(pending) 참여작의
   검사 상태는 바꾸지 않는다.
 - 챌린지는 즉시 숨기지 않는다. 처리되지 않은(received) 신고가 서로 다른 신고자 3명이 되는 순간 moderation review로 올려 목록·피드에서
   뺀다(참여작 행은 그대로이고 노출은 hidden처럼 막힌다). 동시에 3번째가 둘 와도 한 번만 바뀐다. 처리 완료된 신고는 다시 세지 않는다.
 - 운영은 관리 경로에서 신고를 처리한다. 첫 확인 24시간, 처리 또는 지연 안내 72시간이 초기 목표다. 판정은 적용하는 순간의 content_version과
-  남은 received 신고를 확인한 뒤 적용한다. restored·dismissed는 그 대상에 남은 received 신고가 없을 때 운영 숨김을 해제하고, kept_hidden은 숨김을
+  남은 received 신고를 확인한 뒤 적용한다. dismissed는 그 대상에 남은 received 신고가 없을 때 운영 숨김을 해제하고, kept_hidden은 숨김을
   유지한다(아직 보이던 참여작이면 숨긴다). 해제해도 작성자의 비공개·삭제·탈퇴와 챌린지 종료는 그대로다. 해제 뒤 같은 사람의 재신고는 유일 제약으로 200이고 다시 숨기지
   않는다(다른 사람의 새 신고는 다시 숨긴다). 캡션이 신고 뒤 바뀌었으면 운영 화면에 두 버전을 보여 준다. 챌린지의 kept_hidden은 review를
   그대로 두고, 챌린지를 내릴지는 운영이 moderation 경로(challenge.create)로 정한다.
@@ -83,8 +83,8 @@ entry_reports.status.
   않는다.
 - 같은 사람 재신고(숨김 전 접수 건): 200, 행 하나. 숨겨진 뒤 다른 사람의 새 신고: 404.
 - 본인 신고: 422 self_report. 하루 21번째: 429. 메모 200자: 200. 201자: 422.
-- 운영이 restored로 처리(남은 received 없음): 참여작이 목록에 돌아오고 status reviewed·reviewed_by·reviewed_at이 있다. 남은 received가 하나 더
-  있음: 숨김이 풀리지 않는다. dismissed: restored와 같이 해제. kept_hidden: 숨김 유지. 작성자가 그 사이 비공개로 바꿨으면: 비공개 그대로.
+- 운영이 dismissed로 처리(남은 received 없음): 참여작이 목록에 돌아오고 status reviewed·reviewed_by·reviewed_at이 있다. 남은 received가 하나 더
+  있음: 숨김이 풀리지 않는다. kept_hidden: 숨김 유지. 판정 값 restored(옛 해제 값): 422. 작성자가 그 사이 비공개로 바꿨으면: 비공개 그대로.
   챌린지가 종료됐으면: 종료 상태로 돌아온다. 캡션이 신고 뒤 바뀜: 운영 화면에 두 버전.
 - 되돌린 뒤 같은 사람 재신고: 숨기지 않는다. 다른 사람 신고: 다시 숨긴다.
 - 작성자가 신고된 참여작을 삭제: status deleted, entry_reports 행은 남는다. 신고자 탈퇴: 행 남음. 처리 완료 91일 뒤: 행 없음.

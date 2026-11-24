@@ -29,8 +29,8 @@ while IFS= read -r f; do
   [ -n "$f" ] || continue
   case "$f" in
     .github/workflows/ci.yml|.github/scripts/ci-changes.sh|.github/actions/*) api=true; monitoring=true; restore=true ;;
-    # ReadingExampleEnglishDraftTest 가 앱의 예시 대본을 읽는다.
-    apps/api/*|apps/mobile/lib/reading/sample.ts) api=true ;;
+    # ReadingExampleEnglishDraftTest 가 앱의 예시 대본을, ValueCheckCatalogIT 가 기능 스펙의 「상태」 표를 읽는다.
+    apps/api/*|apps/mobile/lib/reading/sample.ts|docs/specs/*) api=true ;;
   esac
   case "$f" in
     deploy/monitoring/*|deploy/home/compose.yml|deploy/home/deploy.sh) monitoring=true ;;

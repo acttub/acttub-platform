@@ -178,7 +178,7 @@ class AdminController {
 
     @Schema(name = "AdminReportResolution", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record Resolution(@NotNull @Schema(allowableValues = {"restored", "kept_hidden", "dismissed"}) String resolution,
+    record Resolution(@NotNull @Schema(allowableValues = {"kept_hidden", "dismissed"}) String resolution,
             @NotNull @Schema(description = "처리한 운영자") String reviewer,
             @Schema(nullable = true) String note) { }
 
@@ -251,7 +251,7 @@ class AdminController {
     @PatchMapping("/reports/{id}")
     @Operation(summary = "Resolve Challenge Report", operationId = "resolve_report_v2_admin_reports__id__patch", tags = "admin",
             description = """
-                    restored·dismissed 는 그 대상에 처리 전 신고가 남지 않았을 때만 운영 숨김을 푼다(작성자의 비공개·삭제와
+                    dismissed 는 그 대상에 처리 전 신고가 남지 않았을 때만 운영 숨김을 푼다(작성자의 비공개·삭제와
                     챌린지 종료는 그대로). kept_hidden 은 숨김(챌린지는 검토)을 유지한다. 이미 처리한 신고는 422
                     report_already_reviewed.""")
     AdminReport resolveReport(
