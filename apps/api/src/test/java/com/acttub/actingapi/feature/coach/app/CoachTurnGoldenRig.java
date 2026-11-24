@@ -12,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -83,9 +85,18 @@ final class CoachTurnGoldenRig {
             Files.writeString(path, "original video bytes");
             return new StoredObjectMetadata(20, "video/mp4", "\"etag\"");
         });
-        coach = TestDirectVideoCoach.of(model, videos, storage, failures, telemetry).build();
+        coach = builder().build();
         logs.start();
         coachLog.addAppender(logs);
+    }
+
+    /**
+     * 이 틀의 가짜 모델·저장소로 코치를 조립한다. 영상 기억은 끈 채로 두되 {@link CoachVideoCache#NONE} 대신 갈래마다 새 캐시를
+     * 쓴다 — NONE 은 정적이라 회차 영상 예산이 갈래 사이에 이어져, 뒤 갈래의 {@code video_budget_tokens} 가 앞 갈래에 기대게 된다.
+     */
+    TestDirectVideoCoach builder() {
+        return TestDirectVideoCoach.of(model, videos, storage, failures, telemetry)
+                .cache(new CoachVideoCache(null, Duration.ZERO, Clock.systemUTC(), null));
     }
 
     /** 이 틀이 기록하는 가짜 모델을 하나 더 만든다(비교 모델, 분류 모델). */
