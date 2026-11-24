@@ -1096,6 +1096,12 @@ class JpqlShapeProbeIT {
                 Map.of("userId", U1)), hqlRows(zone.replace("select cast", "select cast") , Map.of("userId", U1)));
         String interval = "select c.id from ProbeCoachConversation c where c.closedAt > instant - 60 day";
         check(lab.attempt(probe, "HQL instant - 60 day", interval, s -> s.createQuery(interval, UUID.class).getResultList()), true);
+        String nativeInterval = "SELECT c.id FROM coach_conversations c WHERE c.closed_at > now() - interval '60 days'";
+        same(probe, "now() - interval '60 days'", lab.nativeRows(nativeInterval, Map.of()),
+                hqlRows("select c.id from ProbeCoachConversation c where c.closedAt > instant - 60 day", Map.of()));
+        String old = "select c.id from ProbeCoachConversation c where c.closedAt > instant - 1 day";
+        same(probe, "now() - interval '1 day'(시드 대화는 나흘 전에 닫혀 빠져야 한다)", lab.nativeRows(
+                "SELECT c.id FROM coach_conversations c WHERE c.closed_at > now() - interval '1 day'", Map.of()), hqlRows(old, Map.of()));
     }
 
     @Test
