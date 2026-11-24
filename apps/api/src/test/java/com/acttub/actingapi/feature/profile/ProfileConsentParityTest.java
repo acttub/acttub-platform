@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -57,12 +57,12 @@ class ProfileConsentParityTest {
         String file = null;
         for (JsonNode entry : JSON.readTree(resource("/consent-docs/manifest.json"))) {
             // 번역본도 같은 종류로 올라온다 — 항목의 정본은 한국어 문서다 (SOMA-544).
-            String locale = entry.path("locale").textValue();
+            String locale = entry.path("locale").stringValue(null);
             boolean korean = locale == null || locale.isBlank() || "ko".equals(locale);
-            if ("privacy".equals(entry.path("type").textValue()) && korean) {
-                file = entry.path("file").textValue();
-                assertThat(entry.path("title").textValue()).isEqualTo("개인정보 수집·이용 동의");
-                assertThat(entry.path("required").booleanValue()).isTrue();
+            if ("privacy".equals(entry.path("type").stringValue(null)) && korean) {
+                file = entry.path("file").stringValue(null);
+                assertThat(entry.path("title").stringValue(null)).isEqualTo("개인정보 수집·이용 동의");
+                assertThat(entry.path("required").booleanValue(false)).isTrue();
             }
         }
         assertThat(file).as("manifest 에 privacy 문서가 있다").isNotNull();
@@ -92,7 +92,7 @@ class ProfileConsentParityTest {
                 .path("components").path("schemas").path("ProfileRequest").path("required");
         assertThat(required.isArray()).as("openapi.json 의 ProfileRequest.required").isTrue();
         List<String> fields = new ArrayList<>();
-        required.forEach(field -> fields.add(field.textValue()));
+        required.forEach(field -> fields.add(field.stringValue(null)));
         return fields;
     }
 

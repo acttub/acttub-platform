@@ -1,8 +1,8 @@
 package com.acttub.actingapi.feature.report.app;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ArrayNode;
 
 /** Synthetic whole-scene conversation, with no actual user material. */
 final class NoteContinuityFixtures {

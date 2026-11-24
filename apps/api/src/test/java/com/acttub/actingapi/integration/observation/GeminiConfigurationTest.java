@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.junit.jupiter.api.Test;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;

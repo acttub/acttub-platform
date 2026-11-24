@@ -100,13 +100,6 @@ export function shownVoices(characters: VoicedCharacter[], chosen: Record<string
   return assign(characters.map((c) => (c.id in chosen ? { ...c, voice_preset: chosen[c.id] } : c)));
 }
 
-/** 화면의 드롭다운 값 → 저장값. "자동"·빈 값은 null(자동). */
-export function normalizePresetValue(value: string | null | undefined): string | null {
-  const v = (value ?? '').trim();
-  if (!v || v.toLowerCase() === 'auto') return null;
-  return v;
-}
-
 /** 기기 음성 대체(expo-speech)의 높낮이. 여성 프리셋이 높다. 모르는 값은 기본 1. */
 const DEVICE_PITCH: Record<VoicePreset, number> = {
   F1: 1.15,

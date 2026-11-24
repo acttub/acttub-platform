@@ -13,9 +13,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class OpenAiResponsesClientTest {
 
@@ -37,7 +38,7 @@ class OpenAiResponsesClientTest {
         assertThat(request.headers()).containsExactly(
                 Map.entry("Authorization", "Bearer secret"),
                 Map.entry("Content-Type", "application/json"));
-        assertThat(request.body().fieldNames()).toIterable()
+        assertThat(request.body().propertyNames().iterator()).toIterable()
                 .containsExactly("model", "instructions", "input");
         assertThat(request.body()).isEqualTo(OBJECT_MAPPER.readTree("""
                 {"model":"gpt-6-luna","instructions":"시스템","input":"입력 문자열"}
@@ -134,7 +135,7 @@ class OpenAiResponsesClientTest {
 
         client.generate("s", "p");
 
-        assertThat(transport.requests.getFirst().body().path("model").asText())
+        assertThat(LenientJson.asText(transport.requests.getFirst().body().path("model")))
                 .isEqualTo(OpenAiModels.CHAT);
     }
 
@@ -154,12 +155,12 @@ class OpenAiResponsesClientTest {
         client.generate("regular", "data");
         assertThat(routed.model()).isEqualTo("gpt-5.6-luna");
         JsonNode body = transport.requests.getFirst().body();
-        assertThat(body.path("model").asText()).isEqualTo("gpt-5.6-luna");
-        assertThat(body.path("store").asBoolean(true)).isFalse();
-        assertThat(body.path("reasoning").path("effort").asText()).isEqualTo("low");
-        assertThat(body.path("text").path("format").path("strict").asBoolean()).isTrue();
+        assertThat(LenientJson.asText(body.path("model"))).isEqualTo("gpt-5.6-luna");
+        assertThat(LenientJson.asBoolean(body.path("store"), true)).isFalse();
+        assertThat(LenientJson.asText(body.path("reasoning").path("effort"))).isEqualTo("low");
+        assertThat(LenientJson.asBoolean(body.path("text").path("format").path("strict"))).isTrue();
         assertThat(body.path("text").path("format").path("schema")).isEqualTo(schema);
-        assertThat(transport.requests.getLast().body().path("model").asText()).isEqualTo(OpenAiModels.CHAT);
+        assertThat(LenientJson.asText(transport.requests.getLast().body().path("model"))).isEqualTo(OpenAiModels.CHAT);
     }
 
     @Test
@@ -191,7 +192,7 @@ class OpenAiResponsesClientTest {
         assertThat(client.generate("s", "i", patient).text()).as("같은 대기 시간은 전송기를 다시 만들지 않는다").isEqualTo("또 길게");
         assertThat(built).containsExactly(Duration.ofSeconds(90));
         assertThat(slow.requests).hasSize(2);
-        assertThat(slow.requests.getLast().body().path("model").asText()).isEqualTo("gpt-6-luna");
+        assertThat(LenientJson.asText(slow.requests.getLast().body().path("model"))).isEqualTo("gpt-6-luna");
     }
 
     @Test

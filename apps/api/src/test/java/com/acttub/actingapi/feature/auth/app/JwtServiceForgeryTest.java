@@ -13,7 +13,7 @@ import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /** 비밀키로 제대로 서명했어도 모양이 어긋난 토큰은 받지 않는다 — 어느 자리가 어긋났는지 사유가 갈린다. */

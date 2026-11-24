@@ -15,8 +15,9 @@ import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 합성 사례만 쓴다. 운영 대화·개인정보는 fixture에 넣지 않는다. */
 class CoachResponsePolicyTest {
@@ -154,7 +155,7 @@ class CoachResponsePolicyTest {
                 """), new RecordingFailureReporter(), new RecordingLlmTelemetry());
         CoachReply reply = engine.reply(session("표현", List.of(actor("말끝"), ai("설명"))), "그만", UUID.randomUUID()).reply();
         assertThat(reply.handoff().path("actor_words")).hasSize(1);
-        assertThat(reply.handoff().path("actor_words").get(0).asText()).isEqualTo("마지막 단어가 길게 나와요");
+        assertThat(LenientJson.asText(reply.handoff().path("actor_words").get(0))).isEqualTo("마지막 단어가 길게 나와요");
     }
 
     @Test
@@ -170,9 +171,9 @@ class CoachResponsePolicyTest {
             ReportEngine reportEngine = new ReportEngine((system, input) -> {
                 throw new AssertionError("Failed coaching must not become an invented report");
             }, MAPPER, new RecordingLlmTelemetry());
-            assertThat(reportEngine.generateReport(branch.equals("표현") ? "expression" : "analysis",
+            assertThat(LenientJson.asText(reportEngine.generateReport(branch.equals("표현") ? "expression" : "analysis",
                     session.observationPack(), fallback.handoff(), true, "handoff-id", null, null)
-                    .path("report_type").asText()).isEqualTo("blocked");
+                    .path("report_type"))).isEqualTo("blocked");
         }
     }
 

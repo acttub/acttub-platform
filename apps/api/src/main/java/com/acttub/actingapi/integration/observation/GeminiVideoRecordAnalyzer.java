@@ -20,9 +20,9 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.Part;
@@ -30,6 +30,7 @@ import com.google.genai.types.Schema;
 import com.google.genai.types.ThinkingConfig;
 import com.google.genai.types.ThinkingLevel;
 import com.google.genai.types.VideoMetadata;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 전체 기록의 청크 처리·검증·실패 구간 보존. 구형 관찰 팩으로 폴백하지 않는다. */
 final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
@@ -103,7 +104,7 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                     .put("chunk_duration_ms", end - start)
                     .put("source_duration_ms", actor.durationMs())
                     .put("chunk_start_ms", start).put("chunk_end_ms", end)
-                    .put("audio_track_present", record.path("media").path("audio_track_present").asBoolean());
+                    .put("audio_track_present", LenientJson.asBoolean(record.path("media").path("audio_track_present")));
             input.set("actor_context", record.path("actor_context"));
             input.putNull("reference_transcript");
             if (speech != null && !speech.words().isEmpty()) {
@@ -138,7 +139,7 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                     raw = generated.text();
                     tokens = GeminiUsage.tokens(generated);
                     JsonNode result = VideoRecord.prepareChunk(StructuredJson.parse(raw), chunkId, end - start);
-                    if (!record.path("media").path("audio_track_present").asBoolean()) {
+                    if (!LenientJson.asBoolean(record.path("media").path("audio_track_present"))) {
                         if (!result.path("utterances").isEmpty()) {
                             throw new IllegalArgumentException("speech in a video without audio");
                         }
@@ -191,19 +192,19 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
     /** Gemini가 지원하는 스키마로 변환한다. 전체 제약은 StructuredJson으로 검증한다. */
     private static JsonNode geminiSchema(JsonNode node, JsonNode definitions) {
         if (node.has("$ref")) {
-            return geminiSchema(definitions.path(node.path("$ref").asText().substring("#/$defs/".length())), definitions);
+            return geminiSchema(definitions.path(LenientJson.asText(node.path("$ref")).substring("#/$defs/".length())), definitions);
         }
         if (node.has("anyOf")) {
             JsonNode nonNull = null;
             for (JsonNode variant : node.path("anyOf")) {
-                if (!"null".equals(variant.path("type").asText())) nonNull = variant;
+                if (!"null".equals(LenientJson.asText(variant.path("type")))) nonNull = variant;
             }
             ObjectNode result = (ObjectNode) geminiSchema(nonNull, definitions);
             result.put("nullable", true);
             return result;
         }
         ObjectNode result = StructuredJson.MAPPER.createObjectNode();
-        result.put("type", node.path("type").asText(node.has("enum") ? "string" : "object").toUpperCase(Locale.ROOT));
+        result.put("type", LenientJson.asText(node.path("type"), node.has("enum") ? "string" : "object").toUpperCase(Locale.ROOT));
         if (node.has("enum")) result.set("enum", node.path("enum"));
         if (node.has("required")) result.set("required", node.path("required"));
         if (node.has("items")) result.set("items", geminiSchema(node.path("items"), definitions));

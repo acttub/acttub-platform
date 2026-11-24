@@ -42,10 +42,6 @@ val opencvLinuxJar = tasks.register<Jar>("opencvLinuxJar") {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
-    // JSON 은 Jackson 2 로 다룬다(com.fasterxml 를 쓰는 파일이 378개). Boot 4 는 Jackson 3 이 기본이라 Jackson 2
-    // 자동설정을 따로 붙이고, application.yml 의 spring.http.converters.preferred-json-mapper 로 MVC 가 이쪽을 쓰게 한다.
-    // Boot 4.x 안에서 지워질 예정인 모듈이다(Boot 4.0 이전 안내서 「Jackson 2 Compatibility」). Jackson 3 으로 옮기면 뺀다.
-    implementation("org.springframework.boot:spring-boot-jackson2")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -70,7 +66,7 @@ dependencies {
     implementation("org.postgresql:postgresql")
 
     implementation("com.google.genai:google-genai:1.68.0")
-    implementation("com.networknt:json-schema-validator:1.5.6")
+    implementation("com.networknt:json-schema-validator:3.0.9")
 
     // 대본 원본 파일의 글자 뽑기(reading.script). 둘 다 Apache-2.0. commons-logging 은 spring-jcl 이 같은 API 를 준다.
     implementation("org.apache.pdfbox:pdfbox:3.0.8") {

@@ -18,10 +18,11 @@ import java.util.zip.GZIPInputStream;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
 import com.acttub.actingapi.feature.reading.domain.RuleSplit;
 import com.acttub.actingapi.feature.reading.domain.SplitResponse;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 규칙 나누기(SOMA-1090)의 하이브리드·풀규칙과 지금 운영 AI 결과를 SOMA-663 정답 셋(팀 위키, gpt-6.1-sol·Opus 대조로 만든 정답 지점)으로
@@ -59,7 +60,7 @@ class ScriptSplitRuleGoldTest {
         Path adjudications = goldPath.resolveSibling("reference-adjudications.json");
         if (Files.exists(adjudications)) {
             json.readTree(adjudications.toFile()).path("policyDependentAnchors")
-                    .forEach(a -> policy.add(a.path("index").asInt() + ":" + a.path("sourceLine").asInt()));
+                    .forEach(a -> policy.add(LenientJson.asInt(a.path("index")) + ":" + LenientJson.asInt(a.path("sourceLine"))));
         }
         Map<String, JsonNode> corpus = corpus(json, match);
 
@@ -67,20 +68,20 @@ class ScriptSplitRuleGoldTest {
         Map<String, Integer> misses = new TreeMap<>();
         int scripts = 0;
         for (JsonNode item : gold) {
-            String id = match.path(item.path("index").asText()).asText(null);
+            String id = LenientJson.asText(match.path(LenientJson.asText(item.path("index"))), null);
             JsonNode script = id == null ? null : corpus.get(id);
             if (script == null) continue;
             scripts++;
-            List<NumberedLine> numbered = NumberedLine.of(script.path("raw").asText(""));
+            List<NumberedLine> numbered = NumberedLine.of(LenientJson.asText(script.path("raw"), ""));
             RuleSplit.Result rule = RuleSplit.of(numbered);
             RuleSplit.Result full = RuleSplit.full(numbered);
             List<String> storedCast = new ArrayList<>();
-            script.path("chars").forEach(c -> storedCast.add(c.asText()));
+            script.path("chars").forEach(c -> storedCast.add(LenientJson.asText(c)));
             Map<Integer, String> ai = ScriptSplitRuleCorpusTest.storedLabels(numbered, script.path("lines"), storedCast);
             String bucket = rule.confident() ? "규칙 맡음 " + rule.format() : "규칙 못 맡음";
             for (JsonNode anchor : item.path("anchors")) {
-                int no = anchor.path("sourceLine").asInt();
-                if (policy.contains(item.path("index").asInt() + ":" + no)) continue;
+                int no = LenientJson.asInt(anchor.path("sourceLine"));
+                if (policy.contains(LenientJson.asInt(item.path("index")) + ":" + no)) continue;
                 Gold expected = Gold.of(anchor);
                 boolean[] aiOk = expected.check(ai.getOrDefault(no, "none"));
                 boolean[] fullOk = expected.check(label(full.rows().get(no)));
@@ -117,12 +118,12 @@ class ScriptSplitRuleGoldTest {
     /** 정답 지점 하나 — 종류(제목·소개·무시는 하나로)와, 대사면 화자(허용 표기 포함). 여러 발화·동시 말하기 지점은 종류만 본다. */
     private record Gold(String kind, List<String> speakers) {
         static Gold of(JsonNode anchor) {
-            String kind = anchor.path("expectedKind").asText();
+            String kind = LenientJson.asText(anchor.path("expectedKind"));
             kind = NONE_KINDS.contains(kind) ? "none" : kind;
             List<String> speakers = new ArrayList<>();
             if (kind.equals("dialogue") && anchor.hasNonNull("expectedSpeaker") && !anchor.has("expectedSegments") && !anchor.has("mode")) {
-                speakers.add(anchor.path("expectedSpeaker").asText());
-                anchor.path("sourceSpeakerAliases").forEach(a -> speakers.add(a.asText()));
+                speakers.add(LenientJson.asText(anchor.path("expectedSpeaker")));
+                anchor.path("sourceSpeakerAliases").forEach(a -> speakers.add(LenientJson.asText(a)));
             }
             return new Gold(kind, speakers);
         }
@@ -152,7 +153,7 @@ class ScriptSplitRuleGoldTest {
 
     private static Map<String, JsonNode> corpus(ObjectMapper json, JsonNode match) throws IOException {
         Set<String> wanted = new HashSet<>();
-        match.forEach(id -> wanted.add(id.asText()));
+        match.forEach(id -> wanted.add(LenientJson.asText(id)));
         Map<String, JsonNode> corpus = new HashMap<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                 new GZIPInputStream(Files.newInputStream(Path.of(System.getenv("ACTTUB_SPLIT_CORPUS")))), StandardCharsets.UTF_8))) {
@@ -160,7 +161,7 @@ class ScriptSplitRuleGoldTest {
             while ((line = reader.readLine()) != null) {
                 if (!line.startsWith("{")) continue;
                 JsonNode script = json.readTree(line);
-                if (wanted.contains(script.path("id").asText())) corpus.put(script.path("id").asText(), script);
+                if (wanted.contains(LenientJson.asText(script.path("id")))) corpus.put(LenientJson.asText(script.path("id")), script);
             }
         }
         return corpus;

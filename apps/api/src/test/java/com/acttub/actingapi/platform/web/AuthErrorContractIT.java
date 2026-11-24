@@ -10,8 +10,8 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.oidc.ProviderConfigurationError;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -170,15 +170,15 @@ class AuthErrorContractIT {
     private static void assertMalformedJson(JsonNode response) {
         assertThat(response.path("detail")).hasSize(1);
         JsonNode error = response.path("detail").get(0);
-        assertThat(error.path("type").textValue()).isEqualTo("json_invalid");
-        assertThat(error.path("msg").textValue()).isEqualTo("JSON decode error");
+        assertThat(error.path("type").stringValue(null)).isEqualTo("json_invalid");
+        assertThat(error.path("msg").stringValue(null)).isEqualTo("JSON decode error");
         assertThat(error.path("loc")).hasSize(2);
-        assertThat(error.path("loc").get(0).textValue()).isEqualTo("body");
+        assertThat(error.path("loc").get(0).stringValue(null)).isEqualTo("body");
         assertThat(error.path("loc").get(1).isIntegralNumber()).isTrue();
         assertThat(error.path("input").isObject()).isTrue();
         assertThat(error.path("input")).isEmpty();
-        assertThat(error.path("ctx").path("error").isTextual()).isTrue();
-        assertThat(error.path("ctx").path("error").textValue()).isNotBlank();
+        assertThat(error.path("ctx").path("error").isString()).isTrue();
+        assertThat(error.path("ctx").path("error").stringValue(null)).isNotBlank();
     }
 
     private static MockHttpServletRequestBuilder jsonPost(String body) {

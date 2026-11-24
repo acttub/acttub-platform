@@ -13,9 +13,9 @@ import com.acttub.actingapi.feature.practice.domain.SessionDetail;
 import com.acttub.actingapi.integration.observation.VideoRecord;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.integration.observation.StoredObservationPack;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -140,7 +140,7 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository, Pr
         }
         try {
             return mapper.readTree(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("practice session contains invalid JSON", exception);
         }
     }

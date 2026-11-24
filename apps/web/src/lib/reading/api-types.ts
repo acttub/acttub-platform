@@ -11,8 +11,6 @@ import type { components } from "../api/v2-schema";
 /** PATCH /v2/reading/scripts/{id} — 제목·배역 이름·목소리만. 줄은 저장 뒤 고정이다. */
 export type ScriptUpdateRequest = components["schemas"]["ReadingScriptPatch"];
 
-export type ScriptLine = components["schemas"]["ReadingScriptLine"];
-
 /** POST /v2/reading/imports — 글(raw_text)이나 올린 파일(upload_id) 하나로 나누기를 맡긴다 */
 export type ImportRequest = components["schemas"]["ReadingImportRequest"];
 /** 새 작업이면 import_id, 같은 글의 대본이 이미 있으면 duplicate_script_id */

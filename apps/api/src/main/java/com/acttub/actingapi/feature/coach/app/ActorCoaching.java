@@ -1,13 +1,15 @@
 package com.acttub.actingapi.feature.coach.app;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 일반 배우의 맞춤 코칭 설정 (SOMA-795).
@@ -53,7 +55,7 @@ public record ActorCoaching(
             + " 먼저다. 영상에 있는 것만 말하기, 대사로 가리키기, 영상 시간 쓰지 않기, 한 번에 질문 하나는 그대로 지킨다."
             + " 이 글에는 장면 내용이 없다 — 장면은 이번 영상과 배우가 적은 것에서만 본다.";
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     public ActorCoaching {
         stuck = stuck != null && STUCK_OPTIONS.contains(stuck) ? stuck : null;
@@ -80,11 +82,11 @@ public record ActorCoaching(
             return new ActorCoaching(
                     textOrNull(node, "stuck"), textOrNull(node, "first_question"), textOrNull(node, "closing"),
                     strings(node.path("never_say")), bool(node, "reasons_first"), bool(node, "answer_directly"),
-                    node.path("max_questions").canConvertToInt() ? node.path("max_questions").asInt() : null,
+                    LenientJson.canConvertToInt(node.path("max_questions")) ? LenientJson.asInt(node.path("max_questions")) : null,
                     textOrNull(node, "feedback_focus"), strings(node.path("skip")),
-                    node.path("reply_length").canConvertToInt() ? node.path("reply_length").asInt() : null,
+                    LenientJson.canConvertToInt(node.path("reply_length")) ? LenientJson.asInt(node.path("reply_length")) : null,
                     textOrNull(node, "summary"), null);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException unreadable) {
+        } catch (tools.jackson.core.JacksonException unreadable) {
             return null;
         }
     }
@@ -344,19 +346,19 @@ public record ActorCoaching(
 
     private static String textOrNull(JsonNode node, String key) {
         JsonNode value = node.path(key);
-        return value.isTextual() && !value.asText().isBlank() ? value.asText().strip() : null;
+        return value.isString() && !LenientJson.asText(value).isBlank() ? LenientJson.asText(value).strip() : null;
     }
 
     private static Boolean bool(JsonNode node, String key) {
         JsonNode value = node.path(key);
-        return value.isBoolean() ? value.asBoolean() : null;
+        return value.isBoolean() ? LenientJson.asBoolean(value) : null;
     }
 
     private static List<String> strings(JsonNode array) {
         List<String> out = new ArrayList<>();
         if (array != null && array.isArray()) {
             for (JsonNode item : array) {
-                if (item.isTextual() && !item.asText().isBlank()) out.add(item.asText().strip());
+                if (item.isString() && !LenientJson.asText(item).isBlank()) out.add(LenientJson.asText(item).strip());
             }
         }
         return out;

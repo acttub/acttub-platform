@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.consent.adapter;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -16,14 +15,14 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.ConsentType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.exc.InvalidFormatException;
 import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -214,9 +213,9 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
         return false;
     }
 
-    public static final class StrictBooleanDeserializer extends JsonDeserializer<Boolean> {
+    public static final class StrictBooleanDeserializer extends ValueDeserializer<Boolean> {
         @Override
-        public Boolean deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+        public Boolean deserialize(JsonParser parser, DeserializationContext context) {
             if (parser.currentToken() == JsonToken.VALUE_TRUE) {
                 return true;
             }

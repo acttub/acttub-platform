@@ -38,6 +38,7 @@ class AnalysisWorkerPathsTest {
     AnalysisWorkerPathsTest() {
         when(store.execution(any(), any())).thenReturn(ExternalOperationExecution.unobserved());
         when(store.claimNext(any(), any(), eq(NOW))).thenReturn(operation);
+        when(store.complete(any(), any(), any(), any(), any())).thenReturn(UUID.randomUUID());
         when(storage.downloadToPath(any(), any())).thenAnswer(call -> {
             Files.writeString(call.getArgument(1), "video");
             return new StoredObjectMetadata(5, "video/mp4", "another-etag");

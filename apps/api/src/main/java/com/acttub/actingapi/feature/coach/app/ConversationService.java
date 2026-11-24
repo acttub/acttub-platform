@@ -21,9 +21,11 @@ import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
@@ -47,7 +49,7 @@ public class ConversationService {
     public static final int LEGACY_REPLY_LIMIT = 8;
     public static final int THREE_LAYERS_REPLY_LIMIT = 24;
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     private static final String COMPLETE = "complete";
 
     private final ConversationRepository conversations;
@@ -346,7 +348,8 @@ public class ConversationService {
      * 닫힌 대화를 같은 대화로 다시 연다(SOMA-782 「더 얘기하기」). 새 회차·새 대화를 만들지 않으므로 무료 횟수와 통계에
      * 새 코칭으로 잡히지 않는다. 이미 열려 있으면 그대로 돌려준다(재전송). 코치 응답 상한에 가까우면 409
      * {@code conversation_limit_reached}, 신형이 아니거나 연기 영상이 아니어서 끊긴 대화면 409
-     * {@code conversation_not_resumable} 이다. 코치 프롬프트는 건드리지 않는다 — 다음 배우 말부터 평소 규칙으로 이어진다.
+     * {@code conversation_not_resumable}, 같은 묶음에 닫히지 않은 다른 회차가 있으면 409 {@code practice_in_progress} 다.
+     * 코치 프롬프트는 건드리지 않는다 — 다음 배우 말부터 평소 규칙으로 이어진다.
      */
     public Turn resume(UUID userId, UUID conversationId, Long revision) {
         Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
@@ -376,7 +379,12 @@ public class ConversationService {
             }
         }
         if (!marked) state.putObject(DirectVideoPracticeLoop.STATE_KEY).put(PracticeLoopRouter.RESUMED_AT, replies);
-        Saved reopened = activeOnly(() -> conversations.reopen(conversationId, session.stateRevision(), state, clock.instant()));
+        Saved reopened;
+        try {
+            reopened = activeOnly(() -> conversations.reopen(conversationId, session.stateRevision(), state, clock.instant()));
+        } catch (ConversationRepository.PracticeInProgress open) {
+            throw new ApiException(409, "practice_in_progress", open);
+        }
         if (reopened == null) {
             throw new ApiException(409, "conversation_conflict");
         }
@@ -488,7 +496,7 @@ public class ConversationService {
         if (session == null || !"open".equals(session.status()) || session.coachingState() == null) return limit;
         var statuses = session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
         if (!statuses.isArray() || statuses.isEmpty()) return limit;
-        String last = statuses.get(statuses.size() - 1).asText("");
+        String last = LenientJson.asText(statuses.get(statuses.size() - 1), "");
         boolean closesNext = DirectVideoPracticeLoop.action(last).startsWith(PracticeLoopRouter.WRAP_UP)
                 || DirectVideoPracticeLoop.statusField(last, "다음에 닫기").startsWith("예");
         return closesNext ? Math.min(limit, coachReplies + 1) : limit;
@@ -506,7 +514,7 @@ public class ConversationService {
     /** 상한에 닿아 끝났는지, 배우가 마쳤는지. 엔진이 사유를 주지 않으면 소진으로 본다. */
     private static String closeReason(CoachResult result) {
         JsonNode handoff = result.reply().handoff();
-        String reason = handoff == null ? null : handoff.path("end_reason").asText(null);
+        String reason = handoff == null ? null : LenientJson.asText(handoff.path("end_reason"), null);
         if (reason == null || reason.isBlank()) reason = result.session().closeReason();
         return switch (reason == null ? "" : reason) {
             case "actor_finished" -> "user_ended";

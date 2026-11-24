@@ -8,15 +8,17 @@ import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Comparison;
 import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Evidence;
 import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Result;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeReportRules;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 모델 출력을 결과로 옮기며 검사한다 (challenge.ai-report). 모양이 틀리거나 금지 어휘가 들었으면 {@link Rejected} 로
  * 거절해 저장하지 않는다 — 워커가 그 실행을 한 번으로 세고 다시 만든다.
  */
 public final class ChallengeReportParser {
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     /** 저장하면 안 되는 출력. {@code reason} 은 실패 분류다. */
     public static final class Rejected extends RuntimeException {
@@ -40,8 +42,8 @@ public final class ChallengeReportParser {
         if (root == null || !root.isObject()) throw new Rejected("parse", "report output is not an object");
         var observations = new ArrayList<Evidence>();
         for (JsonNode item : root.path("observations")) {
-            int start = item.path("start_ms").asInt(-1);
-            int end = item.path("end_ms").asInt(-1);
+            int start = LenientJson.asInt(item.path("start_ms"), -1);
+            int end = LenientJson.asInt(item.path("end_ms"), -1);
             String said = text(item.path("text"));
             if (start < 0 || end < start || said == null) continue;
             observations.add(new Evidence(start, end, said));
@@ -54,7 +56,7 @@ public final class ChallengeReportParser {
                 String said = text(item.path("text"));
                 var used = new ArrayList<UUID>();
                 item.path("samples").forEach(label -> {
-                    UUID id = labels.get(label.asText());
+                    UUID id = labels.get(LenientJson.asText(label));
                     if (id != null && !used.contains(id)) used.add(id);
                 });
                 if (said != null && !used.isEmpty()) comparisons.add(new Comparison(said, List.copyOf(used)));
@@ -78,8 +80,8 @@ public final class ChallengeReportParser {
     }
 
     private static String text(JsonNode node) {
-        if (node == null || !node.isTextual()) return null;
-        String value = node.asText().strip();
+        if (node == null || !node.isString()) return null;
+        String value = LenientJson.asText(node).strip();
         return value.isEmpty() || "null".equals(value) ? null : value;
     }
 }

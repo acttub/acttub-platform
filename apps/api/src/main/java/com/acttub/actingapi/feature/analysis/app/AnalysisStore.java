@@ -14,6 +14,7 @@ public interface AnalysisStore {
 
     AnalysisContext getContext(UUID operationId);
 
+    /** @return 저장한 결과의 id. 작업이 이미 닫혔거나 계정이 탈퇴해 저장하지 않았으면 {@code null} — 완료를 알리지 않는다 */
     UUID complete(
             UUID operationId,
             UUID leaseToken,

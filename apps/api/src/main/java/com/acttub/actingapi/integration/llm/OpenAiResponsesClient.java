@@ -10,12 +10,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Python {@code acting_llm.openai_client.generate_text}의 Responses REST 동형 이식. */
 @Component
@@ -139,32 +140,32 @@ public class OpenAiResponsesClient implements TextGenerator {
         JsonNode payload;
         try {
             payload = objectMapper.readTree(response.body());
-        } catch (JsonProcessingException exc) {
+        } catch (JacksonException exc) {
             throw new IllegalStateException("OpenAI 평문 응답을 읽지 못했습니다.", exc);
         }
         if (payload == null || !payload.isObject()) {
             throw new IllegalStateException("OpenAI 평문 응답을 읽지 못했습니다.");
         }
-        if (options != null && payload.has("status") && !"completed".equals(payload.path("status").asText())) {
+        if (options != null && payload.has("status") && !"completed".equals(LenientJson.asText(payload.path("status")))) {
             throw new IllegalStateException("OpenAI response did not complete");
         }
 
         List<JsonNode> contents = outputItems(payload);
         JsonNode direct = payload.get("output_text");
-        String text = direct != null && direct.isTextual()
-                ? direct.textValue().strip()
+        String text = direct != null && direct.isString()
+                ? direct.stringValue(null).strip()
                 : contents.stream()
-                        .filter(content -> "output_text".equals(content.path("type").asText()))
+                        .filter(content -> "output_text".equals(LenientJson.asText(content.path("type"))))
                         .map(content -> content.path("text"))
-                        .filter(JsonNode::isTextual)
-                        .map(JsonNode::textValue)
+                        .filter(JsonNode::isString)
+                        .map(textNode -> textNode.stringValue(null))
                         .reduce("", String::concat)
                         .strip();
         if (text.isEmpty()) {
             String refusal = contents.stream()
                     .map(content -> content.get("refusal"))
-                    .filter(value -> value != null && value.isTextual() && !value.textValue().isEmpty())
-                    .map(JsonNode::textValue)
+                    .filter(value -> value != null && value.isString() && !value.stringValue(null).isEmpty())
+                    .map(textNode -> textNode.stringValue(null))
                     .reduce((left, right) -> left + " " + right)
                     .orElse("");
             String detail = refusal.isEmpty() ? "" : " (" + refusal + ")";
@@ -243,7 +244,7 @@ public class OpenAiResponsesClient implements TextGenerator {
         int completion = integer(usage, "output_tokens");
         JsonNode totalNode = usage == null ? null : usage.get("total_tokens");
         int total = totalNode != null && totalNode.isIntegralNumber()
-                ? totalNode.intValue()
+                ? LenientJson.intValue(totalNode)
                 : prompt + completion;
         return new TokenUsage(prompt, completion, total);
     }
@@ -253,7 +254,7 @@ public class OpenAiResponsesClient implements TextGenerator {
             return 0;
         }
         JsonNode value = parent.get(field);
-        return value != null && value.isIntegralNumber() ? value.intValue() : 0;
+        return value != null && value.isIntegralNumber() ? LenientJson.intValue(value) : 0;
     }
 
     @FunctionalInterface

@@ -37,7 +37,7 @@ public interface AiJobLedger {
 
     /**
      * @param reclaimExpired 참이면 lease 가 지난 {@code running} 작업도 다시 집는다 — 집은 워커가 죽었을 때 그 작업이 영원히
-     *        돌고 있는 것으로 남지 않게. 완료가 멱등인 종류(대본 나누기)만 켠다. 시도 수는 선점마다 하나 오른다
+     *        돌고 있는 것으로 남지 않게. 완료가 멱등인 종류(대본 나누기·영상 분석)만 켠다. 시도 수는 선점마다 하나 오른다
      */
     Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now, boolean reclaimExpired);
 

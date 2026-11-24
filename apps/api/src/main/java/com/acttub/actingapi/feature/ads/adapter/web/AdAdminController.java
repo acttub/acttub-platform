@@ -26,12 +26,12 @@ import com.acttub.actingapi.feature.ads.domain.AdDraft;
 import com.acttub.actingapi.feature.ads.domain.AdSize;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -50,6 +50,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 광고 운영 경로(app.ads, SOMA-876). 포스터와 같이 {@code ADMIN_OPS_TOKEN} 을 Bearer 로 받고, 토큰이 없는 기동에는
@@ -68,9 +69,13 @@ class AdAdminController {
         this.ads = ads;
         this.mapper = mapper;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
-        var snakeCase = new PropertyNamingStrategies.SnakeCaseStrategy();
+        var snakeCase = new PropertyNamingStrategies.SnakeCaseStrategy() {
+            String of(String name) {
+                return translate(name);
+            }
+        };
         this.fields = Arrays.stream(AdFields.class.getRecordComponents())
-                .map(component -> snakeCase.translate(component.getName()))
+                .map(component -> snakeCase.of(component.getName()))
                 .collect(Collectors.toUnmodifiableSet());
     }
 
@@ -97,7 +102,7 @@ class AdAdminController {
         ObjectNode changes = changes(body);
         if (!changes.has("share_percent")) {
             // 비율을 안 보내면 종류마다 기본값이다 — 직접 광고는 칸을 다 쓰고, 우리 앱 광고는 AdMob 과 반씩.
-            changes.put("share_percent", AdDraft.defaultSharePercent(changes.path("kind").asText(AdDraft.blank().kind())));
+            changes.put("share_percent", AdDraft.defaultSharePercent(LenientJson.asText(changes.path("kind"), AdDraft.blank().kind())));
         }
         AdDraft draft = merge(AdDraft.blank(), changes);
         return ResponseEntity.status(201).header(HttpHeaders.CACHE_CONTROL, "private, no-store")
@@ -165,7 +170,7 @@ class AdAdminController {
                     mapper.convertValue(body, Object.class));
         }
         ObjectNode changes = patch.deepCopy();
-        for (Iterator<String> names = changes.fieldNames(); names.hasNext(); ) {
+        for (Iterator<String> names = changes.propertyNames().iterator(); names.hasNext(); ) {
             String name = names.next();
             if (!fields.contains(name)) {
                 Map<String, Object> error = new LinkedHashMap<>();
@@ -185,12 +190,12 @@ class AdAdminController {
         merged.setAll(changes);
         try {
             return mapper.treeToValue(merged, AdFields.class).toDraft();
-        } catch (JsonMappingException invalid) {
-            String field = invalid.getPath().isEmpty() ? null : invalid.getPath().getFirst().getFieldName();
+        } catch (DatabindException invalid) {
+            String field = invalid.getPath().isEmpty() ? null : invalid.getPath().getFirst().getPropertyName();
             throw ApiValidationException.valueError(
                     field == null ? List.<Object>of("body") : List.<Object>of("body", field),
                     "Value error, invalid value", field == null ? null : mapper.convertValue(changes.get(field), Object.class));
-        } catch (JsonProcessingException invalid) {
+        } catch (JacksonException invalid) {
             throw ApiValidationException.valueError(List.<Object>of("body"), "Value error, invalid body", null);
         }
     }

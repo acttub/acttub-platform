@@ -4,10 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 저장 전 상태 전이 검사: 모델이 낸 응답 중 규칙을 어기는 것은 어느 규칙인지 밝혀 거절하고, 지키는 것은 그대로 반영한다. */
 class CoachingStateReducerRulesTest {
@@ -27,8 +28,8 @@ class CoachingStateReducerRulesTest {
     ObjectNode apply(JsonNode old, JsonNode output, ArrayNode sources, int i, boolean finish) {
         JsonNode ids = turn(i).path("input").path("reserved_ids");
         return CoachingStateReducer.apply(old, output, sources, i == 0 ? null : "m" + i,
-                ids.path("coach_message_id").asText(), ids.path("new_proposal_id").asText(),
-                ids.path("new_attempt_id").asText(), 120, 2, finish);
+                LenientJson.asText(ids.path("coach_message_id")), LenientJson.asText(ids.path("new_proposal_id")),
+                LenientJson.asText(ids.path("new_attempt_id")), 120, 2, finish);
     }
     ObjectNode first() { return apply(CoachingStateReducer.empty(), output(0), 0); }
     ObjectNode proposed() { return apply(first(), output(1), 1); }
@@ -69,8 +70,8 @@ class CoachingStateReducerRulesTest {
         ObjectNode response = output(1);
         ((ObjectNode) response.path("context_update").path("direction")).put("origin", "coach_proposed").putArray("source_refs").add("c1");
         ObjectNode state = apply(first(), response, 1);
-        assertThat(state.path("context").path("direction").path("origin").asText()).isEqualTo("coach_proposed");
-        assertThat(state.path("active_proposal_id").asText()).isEqualTo("p1");
+        assertThat(LenientJson.asText(state.path("context").path("direction").path("origin"))).isEqualTo("coach_proposed");
+        assertThat(LenientJson.asText(state.path("active_proposal_id"))).isEqualTo("p1");
     }
 
     @Test void focusMustRestOnObservedMaterial() {
@@ -90,7 +91,7 @@ class CoachingStateReducerRulesTest {
         focus(response).putNull("utterance_ref").putArray("evidence_refs").add("e4").add("l2");
         ObjectNode state = apply(CoachingStateReducer.empty(), response, 0);
         assertThat(state.path("context").path("focus").path("evidence_refs").toString()).isEqualTo("[\"e4\",\"l2\"]");
-        assertThat(state.path("source_catalog").findValuesAsText("id")).contains("e4", "l2").doesNotContain("u1");
+        assertThat(state.path("source_catalog").findValuesAsString("id")).contains("e4", "l2").doesNotContain("u1");
     }
 
     @Test void aReadingBackedOnlyByThisCoachMessageIsRejected() {
@@ -127,7 +128,7 @@ class CoachingStateReducerRulesTest {
         ObjectNode response = output(1);
         created(response).putObject("keep").put("text", "붙잡는 뜻은 남으면서").putArray("source_refs").add("c2");
         ObjectNode state = apply(first(), response, 1);
-        assertThat(state.path("proposals").get(0).path("keep").path("text").asText()).isEqualTo("붙잡는 뜻은 남으면서");
+        assertThat(LenientJson.asText(state.path("proposals").get(0).path("keep").path("text"))).isEqualTo("붙잡는 뜻은 남으면서");
         ObjectNode hidden = output(1);
         created(hidden).putObject("keep").put("text", "숨은 숙제").putArray("source_refs").add("c2");
         rejects(first(), hidden, 1, "undisclosed practice instruction");
@@ -149,9 +150,9 @@ class CoachingStateReducerRulesTest {
         response.putArray("attempt_changes");
         response.put("message", "그 연습은 내려놓을게요. 다음에 다시 봐요.");
         ArrayNode sources = sources(2);
-        sources.forEach(s -> { if (s.path("id").asText().equals("m2")) ((ObjectNode) s).put("text", "그건 안 할래. 다른 걸로 하자."); });
+        sources.forEach(s -> { if (LenientJson.asText(s.path("id")).equals("m2")) ((ObjectNode) s).put("text", "그건 안 할래. 다른 걸로 하자."); });
         ObjectNode state = apply(proposed(), response, sources, 2, true);
-        assertThat(state.path("proposals").get(0).path("lifecycle").asText()).isEqualTo("declined");
+        assertThat(LenientJson.asText(state.path("proposals").get(0).path("lifecycle"))).isEqualTo("declined");
         assertThat(state.path("proposals").get(0).path("retirement_refs").toString()).isEqualTo("[\"m2\"]");
         assertThat(state.path("active_proposal_id").isNull()).isTrue();
 
@@ -168,7 +169,7 @@ class CoachingStateReducerRulesTest {
         retire.putArray("attempt_changes");
         retire.put("message", "그 연습은 접어 둘게요.");
         ObjectNode retired = apply(proposed(), retire, 2);
-        assertThat(retired.path("proposals").get(0).path("lifecycle").asText()).isEqualTo("superseded");
+        assertThat(LenientJson.asText(retired.path("proposals").get(0).path("lifecycle"))).isEqualTo("superseded");
 
         ObjectNode select = output(2);
         select.put("base_state_revision", 3);
@@ -196,8 +197,8 @@ class CoachingStateReducerRulesTest {
         ObjectNode response = output(1);
         focus(response).put("label", "“가지 마”의 말끝 길이");
         ObjectNode state = apply(first(), response, 1);
-        assertThat(state.path("context").path("focus").path("label").asText()).isEqualTo("“가지 마”의 말끝 길이");
-        assertThat(state.path("active_proposal_id").asText()).isEqualTo("p1");
+        assertThat(LenientJson.asText(state.path("context").path("focus").path("label"))).isEqualTo("“가지 마”의 말끝 길이");
+        assertThat(LenientJson.asText(state.path("active_proposal_id"))).isEqualTo("p1");
     }
 
     @Test void attemptsMustUseTheReservedIdAndAKnownUnchangedProposal() {
@@ -222,8 +223,8 @@ class CoachingStateReducerRulesTest {
         ObjectNode response = finishTurn();
         attempt(response).put("execution", "unknown").putArray("execution_refs");
         ObjectNode state = apply(proposed(), response, 2);
-        assertThat(state.path("attempts").get(0).path("execution").asText()).isEqualTo("unknown");
-        assertThat(state.path("attempts").get(0).path("attempt_id").asText()).isEqualTo("a2");
+        assertThat(LenientJson.asText(state.path("attempts").get(0).path("execution"))).isEqualTo("unknown");
+        assertThat(LenientJson.asText(state.path("attempts").get(0).path("attempt_id"))).isEqualTo("a2");
     }
 
     ObjectNode triedState() {
@@ -236,9 +237,9 @@ class CoachingStateReducerRulesTest {
     @Test void aReportedResultIsKeptWithTheActorsWords() {
         ObjectNode state = triedState();
         JsonNode saved = state.path("attempts").get(0);
-        assertThat(saved.path("execution").asText()).isEqualTo("reported_tried");
-        assertThat(saved.path("result").path("direction").asText()).isEqualTo("closer");
-        assertThat(saved.path("result").path("statement").path("text").asText()).isEqualTo("짧게 끝내니 덜 애원하는 느낌");
+        assertThat(LenientJson.asText(saved.path("execution"))).isEqualTo("reported_tried");
+        assertThat(LenientJson.asText(saved.path("result").path("direction"))).isEqualTo("closer");
+        assertThat(LenientJson.asText(saved.path("result").path("statement").path("text"))).isEqualTo("짧게 끝내니 덜 애원하는 느낌");
     }
 
     @Test void aResultMustQuoteTheActor() {
@@ -264,17 +265,17 @@ class CoachingStateReducerRulesTest {
         ObjectNode updated = apply(tried, laterAttempt("reported_tried", "p1"), 2, false);
         assertThat(updated.path("attempts")).hasSize(1);
         assertThat(updated.path("attempts").get(0).path("result").isNull()).isTrue();
-        assertThat(updated.path("revision").asInt()).isEqualTo(4);
+        assertThat(LenientJson.asInt(updated.path("revision"))).isEqualTo(4);
     }
 
     @Test void aNotTriedAttemptMayLaterBeReportedTried() {
         ObjectNode notTried = apply(proposed(), finishTurn(), 2, false);
         ObjectNode updated = apply(notTried, laterAttempt("reported_tried", "p1"), 2, false);
-        assertThat(updated.path("attempts").get(0).path("execution").asText()).isEqualTo("reported_tried");
+        assertThat(LenientJson.asText(updated.path("attempts").get(0).path("execution"))).isEqualTo("reported_tried");
     }
 
     @Test void styleUpdateIsSaved() {
         ObjectNode state = apply(CoachingStateReducer.empty(), output(0).put("style_update", "brief"), 0);
-        assertThat(state.path("response_style").asText()).isEqualTo("brief");
+        assertThat(LenientJson.asText(state.path("response_style"))).isEqualTo("brief");
     }
 }

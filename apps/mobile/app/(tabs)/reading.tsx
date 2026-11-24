@@ -23,8 +23,6 @@ import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useSplitJobs } from '@/hooks/use-split-jobs';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
 import { skipsReadingTabGuide } from '@/lib/returning-account';
-import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
-import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
@@ -178,8 +176,6 @@ export default function ReadingList() {
       // 설정의 동의 목록에서 고품질 목소리 동의를 바꿨을 수 있다 — 스위치를 다시 맞춘다.
       void refreshVoice().catch(() => undefined);
       // 올 때마다 묻는다 — 설정에서 되살린 뒤 앱을 다시 켜야 보이면 아무도 못 본다.
-      // 대본 리딩 튜토리얼 중에 목록으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
-      if (currentTutorial()?.track === 'reading') finishTutorial('left');
       void hasSeenReadingTutorial().then((seen) => {
         // 예전 「대본 리딩 한 바퀴」 시트는 새 디자인에서 대본 탭 입구가 대신한다(SOMA-748).
         if (!seen) void markReadingTutorialSeen();

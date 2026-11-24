@@ -15,7 +15,6 @@ import {
 // 회원 토큰이 게스트 토큰 자리를 덮기 전에 게스트 토큰을 따로 둔다(BACKUP_KEY). 옮기기가
 // 실제로 끝났을 때만 지운다 — 실패해도 그 게스트에 다시 닿아 나중에 다시 옮길 수 있다.
 const BACKUP_KEY = "acttub.web.guest_backup";
-const STATUS_KEY = "acttub.web.carry_status";
 
 export type CarryOutcome = "none" | "moved" | "failed";
 
@@ -39,18 +38,6 @@ export function backupGuestBeforeLogin(): void {
   const refresh = getRefreshToken();
   if (!access || !refresh) return;
   store()?.setItem(BACKUP_KEY, JSON.stringify({ access_token: access, refresh_token: refresh }));
-}
-
-/** 옮기지 못한 게스트 연습이 남아 있는지. 내 계정 화면이 다시 옮기기를 보여 준다. */
-export function hasPendingCarry(): boolean {
-  return readBackup() !== null;
-}
-
-/** 로그인 직후의 결과를 한 번만 읽는다. */
-export function takeCarryStatus(): CarryOutcome | null {
-  const value = store()?.getItem(STATUS_KEY) ?? null;
-  store()?.removeItem(STATUS_KEY);
-  return value === "moved" || value === "failed" ? value : null;
 }
 
 async function guestTransferCode(backup: TokenPair): Promise<string | null> {
@@ -109,6 +96,5 @@ export async function redeemGuestCarry(): Promise<CarryOutcome> {
   } catch {
     result = "failed";
   }
-  if (result !== "none") store()?.setItem(STATUS_KEY, result);
   return result;
 }

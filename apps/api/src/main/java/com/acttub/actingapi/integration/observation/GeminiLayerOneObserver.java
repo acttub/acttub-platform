@@ -15,14 +15,15 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.HttpOptions;
 import com.google.genai.types.Part;
 import com.google.genai.types.ThinkingConfig;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 1층 관찰(SOMA-815): 받아쓰기로 대사 덩어리와 시간을 정하고, 관찰 모델(기본 Gemini 4 Argon)이 그 덩어리마다 본 것을 적는다.
@@ -188,23 +189,23 @@ public final class GeminiLayerOneObserver implements LayerOneObserver {
     /** 관찰 JSON 을 코치 지시문 칸으로 옮긴다. 들린 말이 받아쓰기와 다르면 들린 말을 대사로 쓴다. */
     static String block(List<Chunk> chunks, JsonNode parsed) {
         StringBuilder out = new StringBuilder(BLOCK_HEAD);
-        String overall = parsed.path("overall").asText("").strip();
+        String overall = LenientJson.asText(parsed.path("overall"), "").strip();
         if (!overall.isEmpty()) out.append("\n- 장면 흐름: ").append(overall);
         out.append("\n- 대사별 (시간 순서):");
         int written = 0;
         for (int i = 0; i < chunks.size(); i++) {
             JsonNode row = null;
             for (JsonNode r : parsed.path("chunks")) {
-                if (r.path("i").asInt(-1) == i) {
+                if (LenientJson.asInt(r.path("i"), -1) == i) {
                     row = r;
                     break;
                 }
             }
             if (row == null) continue;
-            String seen = row.path("seen").asText("").strip();
+            String seen = LenientJson.asText(row.path("seen"), "").strip();
             if (seen.isEmpty()) continue;
-            String heard = row.path("heard").asText("").strip();
-            String reading = row.path("reading").asText("").strip();
+            String heard = LenientJson.asText(row.path("heard"), "").strip();
+            String reading = LenientJson.asText(row.path("reading"), "").strip();
             out.append("\n  \"").append(heard.isEmpty() ? chunks.get(i).text() : heard).append("\" — 본 것: ").append(seen);
             if (!reading.isEmpty()) out.append(" / 해석 후보: ").append(reading);
             written++;

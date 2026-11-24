@@ -11,8 +11,8 @@ import com.acttub.actingapi.feature.admin.app.AdminService;
 import com.acttub.actingapi.feature.ads.app.AdFrequency;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 광고 빈도 상한 운영 경로(SOMA-876) — 광고 관리 웹이 "N분에 M개, 가입 첫날 K개"를 보고 바꾼다.
@@ -66,7 +67,7 @@ class AdSettingsAdminController {
             throw ApiValidationException.valueError(List.<Object>of("body"), "Value error, body must be an object",
                     mapper.convertValue(body, Object.class));
         }
-        body.fieldNames().forEachRemaining(name -> {
+        body.propertyNames().iterator().forEachRemaining(name -> {
             if (!FIELDS.contains(name)) {
                 throw ApiValidationException.valueError(List.<Object>of("body", name),
                         "Value error, unknown field", mapper.convertValue(body.get(name), Object.class));
@@ -85,12 +86,12 @@ class AdSettingsAdminController {
         if (value == null) {
             return fallback;
         }
-        if (!value.isIntegralNumber() || !value.canConvertToInt() || value.intValue() < min || value.intValue() > max) {
+        if (!value.isIntegralNumber() || !LenientJson.canConvertToInt(value) || LenientJson.intValue(value) < min || LenientJson.intValue(value) > max) {
             throw ApiValidationException.valueError(List.<Object>of("body", name),
                     "Value error, " + name + " must be an integer from " + min + " to " + max,
                     mapper.convertValue(value, Object.class));
         }
-        return value.intValue();
+        return LenientJson.intValue(value);
     }
 
     private static ResponseEntity<Map<String, Integer>> ok(AdFrequency.Limits limits) {

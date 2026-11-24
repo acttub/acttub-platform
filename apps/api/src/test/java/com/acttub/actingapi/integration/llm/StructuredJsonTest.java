@@ -4,13 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 모델 출력 JSON 은 객체 하나여야 하고, 키가 겹치거나 뒤에 남는 글이 있으면 받지 않는다. */
 class StructuredJsonTest {
 
     @Test
     void parsesASingleObject() {
-        assertThat(StructuredJson.parse(" {\"chunk_id\":\"c1\"} ").path("chunk_id").asText()).isEqualTo("c1");
+        assertThat(LenientJson.asText(StructuredJson.parse(" {\"chunk_id\":\"c1\"} ").path("chunk_id"))).isEqualTo("c1");
     }
 
     @Test
@@ -40,7 +41,7 @@ class StructuredJsonTest {
     void schemaCarriesItsReferencedDefinitionsAndTheDraft() {
         var schema = StructuredJson.schema("layer1_chunk");
 
-        assertThat(schema.path("$schema").asText()).isEqualTo("https://json-schema.org/draft/2020-12/schema");
+        assertThat(LenientJson.asText(schema.path("$schema"))).isEqualTo("https://json-schema.org/draft/2020-12/schema");
         assertThat(schema.path("$defs").isObject()).isTrue();
         assertThat(StructuredJson.instructions("지침", "layer1_chunk")).startsWith("지침\n\n출력 계약의 실제 JSON Schema:\n{");
     }

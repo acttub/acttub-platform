@@ -67,10 +67,6 @@ function normalizeBlockage(blockage: BlockageDraft): PracticeBlockage {
 /** 묶음 제목 상한 — 서버의 묶음 제목 PATCH 와 같다(SOMA-671). */
 export const PRACTICE_TITLE_MAX = 200;
 
-export function titleOverflow(title: string): boolean {
-  return title.trim().length > PRACTICE_TITLE_MAX;
-}
-
 export function buildStartBody(input: {
   requestId: string;
   videoId: string;

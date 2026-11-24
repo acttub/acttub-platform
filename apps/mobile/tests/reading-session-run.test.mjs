@@ -8,7 +8,6 @@ import {
   canGoBack,
   createRun,
   currentLineIdOf,
-  exitMessage,
   formatProgress,
   hiddenLineCount,
   isHidden,
@@ -155,18 +154,10 @@ test('reading.session: 이어하기 앞 상대 대사를 읽는 동안 나가도
   assert.equal(formatProgress(r), '2 / 5 · 00:00', '머리 숫자도 회차 버튼(끝낸 줄 수)과 같다');
 });
 
-test('reading.session: 나가기 확인 문구는 "지금 나가면 N번 대사까지 진행한 걸로 저장돼요"다', () => {
-  let r = run();
-  r = advance(advance(r));
-  assert.equal(exitMessage(r), '지금 나가면 2번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
-});
-
-test('reading.session: 나가기 확인 숫자는 화면 "K / N" 의 K 와 같다(구간이 중간에서 시작해도)', () => {
+test('reading.session: 끝낸 대사 수는 고른 구간 안에서 센다(구간이 중간에서 시작해도)', () => {
   let r = run({ startIndex: 4 }); // 대본 3번째 대사부터
-  assert.equal(exitMessage(r), '지금 나가면 0번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
   r = advance(r);
   assert.equal(progressOf(r).done, 1);
-  assert.equal(exitMessage(r), '지금 나가면 1번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
 });
 
 test('reading.session: 이전 — 바로 앞 대사 줄로 돌아가고 지문은 건너뛴다, 차례는 그 줄 배역으로', () => {

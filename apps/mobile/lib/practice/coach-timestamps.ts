@@ -8,12 +8,6 @@ export type TimestampPart = { kind: 'text'; text: string } | { kind: 'time'; tex
 
 const PATTERN = /(?<!\d)(\d{1,2}):([0-5]\d)(?!\d)/g;
 
-export function timestampSeconds(text: string): number | null {
-  const match = /^(\d{1,2}):([0-5]\d)$/.exec(text.trim());
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
-}
-
 export function splitTimestamps(text: string): TimestampPart[] {
   const parts: TimestampPart[] = [];
   let last = 0;

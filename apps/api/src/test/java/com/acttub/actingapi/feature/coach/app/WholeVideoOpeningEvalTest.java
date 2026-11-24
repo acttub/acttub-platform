@@ -13,9 +13,10 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.acttub.actingapi.feature.report.app.PracticeNote;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Synthetic records only. Passing structural assertions does not establish semantic quality. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
@@ -71,7 +72,7 @@ class WholeVideoOpeningEvalTest {
             segment.putObject("channel_status").put("audio", "recorded").put("visual", "recorded");
         }
         var record = VideoRecord.empty(UUID.randomUUID(), 12000, true, new ActorMaterial("", "", "", "그 외", "", 12000));
-        VideoRecord.append(record, VideoRecord.prepareChunk(chunk, chunk.path("chunk_id").asText(), 12000), 0);
+        VideoRecord.append(record, VideoRecord.prepareChunk(chunk, LenientJson.asText(chunk.path("chunk_id")), 12000), 0);
         VideoRecord.finish(record, null);
         var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 record, "", "", "", 12000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
@@ -94,8 +95,8 @@ class WholeVideoOpeningEvalTest {
         failures.reports().forEach(report -> openingErrors.add(report.failure().getMessage()));
         Path dir = Path.of("build", "whole-video-eval", name); Files.createDirectories(dir);
         StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(dir.resolve("opening.json").toFile(), output);
-        assertThat(output.path("focus").path("scope").asText()).isEqualTo("whole_video");
-        assertThat(output.path("focus").path("pattern").asText()).isEqualTo("recurring");
+        assertThat(LenientJson.asText(output.path("focus").path("scope"))).isEqualTo("whole_video");
+        assertThat(LenientJson.asText(output.path("focus").path("pattern"))).isEqualTo("recurring");
         assertThat(OpeningQuestion.questionCount(result.reply().message())).isLessThanOrEqualTo(1);
         var messages = output.putArray("conversation");
         messages.addObject().put("role", "ai").put("text", result.reply().message());
@@ -129,12 +130,12 @@ class WholeVideoOpeningEvalTest {
             var note = reports.generateReport("coaching", null, result.reply().handoff(), false, "synthetic", null, null);
             output.set("note", note);
             output.set("visible_note", PracticeNote.publicView(note));
-            if (!name.equals("confusion")) assertThat(note.path("focus").path("scope").asText()).isEqualTo("whole_video");
+            if (!name.equals("confusion")) assertThat(LenientJson.asText(note.path("focus").path("scope"))).isEqualTo("whole_video");
             if (name.equals("confusion") || name.equals("experience-only")) {
                 assertThat(note.path("direction").isNull()).isTrue();
                 assertThat(note.path("practice").isNull()).isTrue();
                 if (name.equals("experience-only")) {
-                    assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("편했어");
+                    assertThat(LenientJson.asText(PracticeNote.publicView(note).path("summary"))).contains("편했어");
                 }
             } else assertThat(note.path("practice").isObject()).isTrue();
             assertThat(note.path("attempts")).isEmpty();

@@ -2,24 +2,19 @@
  * 가이드를 봤는지 기기에 기록한다.
  *
  * <p>{@link hasSeenSpotlight} — 화면에서 누를 자리를 비춰 주는 가이드(SOMA-550). 홈·대본
- * <b>화면마다 따로</b> 기억한다. 홈을 봤다고 대본 가이드가 사라지면 안 된다. 설정의 "가이드
- * 다시 보기"로 여는 슬라이드 넉 장은 기록하지 않는다 — 첫 실행에 띄우지 않고 설정에서만 연다.
+ * <b>화면마다 따로</b> 기억한다. 홈을 봤다고 대본 가이드가 사라지면 안 된다.
  *
  * <p>못 읽으면 본 것으로 친다 — 매번 다시 뜨는 쪽이 한 번 못 보는 쪽보다 나쁘다.
  */
 
 import { spotlightKey, type SpotlightTopic } from './guide-spotlight';
 import { currentFirstUseOwner, firstUseOwnerReady } from './practice/first-use-graduation';
-import { AUTO_ADVANCE_TIP_KEY } from './reading/guide-flag';
 import { deviceStorage as storage } from './device-storage';
 
-/** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
+/** 홈의 첫 사용자 표시를 한 번 띄웠는지. 키 이름은 SOMA-494 연습 튜토리얼 때 것을 그대로 쓴다. */
 const TUTORIAL_KEY = 'acttub.tutorial.seen';
-/** 대본 리딩 한 바퀴 튜토리얼(SOMA-494). AI 연습 튜토리얼과 따로 센다. */
+/** 대본 탭을 처음 열었는지. 키 이름은 SOMA-494 대본 리딩 튜토리얼 때 것을 그대로 쓴다. */
 const READING_TUTORIAL_KEY = 'acttub.tutorial.reading.seen';
-
-/** 스포트라이트를 띄우는 화면들. "다시 보기"가 이만큼을 되돌린다. */
-const SPOTLIGHT_TOPICS: SpotlightTopic[] = ['home', 'reading', 'group'];
 
 async function seen(key: string): Promise<boolean> {
   try {
@@ -78,24 +73,4 @@ export function hasSeenReadingTutorial(): Promise<boolean> {
 
 export function markReadingTutorialSeen(): Promise<void> {
   return mark(READING_TUTORIAL_KEY);
-}
-
-/**
- * 설정의 "가이드 다시 보기"가 부른다. 슬라이드만 다시 열고 마는 게 아니라, 화면에서 누를
- * 자리를 비춰 주던 안내와 연습 한 바퀴 튜토리얼, 리딩의 자동 넘김 안내 팝업(「다시 보지 않기」)도
- * 되살린다 — "다시 보기"는 처음 안내를 다 다시 본다는 뜻이다.
- */
-export async function resetSpotlights(): Promise<void> {
-  try {
-    const store = storage();
-    await Promise.all([
-      ...SPOTLIGHT_TOPICS.map((topic) => store.removeItem(spotlightKey(topic))),
-      ...SPOTLIGHT_TOPICS.map((topic) => store.removeItem(ownedSpotlightKey(topic, currentFirstUseOwner()))),
-      store.removeItem(TUTORIAL_KEY),
-      store.removeItem(READING_TUTORIAL_KEY),
-      store.removeItem(AUTO_ADVANCE_TIP_KEY),
-    ]);
-  } catch {
-    // no-op
-  }
 }

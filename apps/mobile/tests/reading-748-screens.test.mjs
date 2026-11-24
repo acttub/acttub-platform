@@ -5,7 +5,6 @@ import test from 'node:test';
 import {
   coachMarkFor,
   COACH_MARKS,
-  firstPracticeRange,
   isSplitFailure,
   resumeCandidate,
   resumeSessionOf,
@@ -37,18 +36,6 @@ test('대본 넣기: 못 나눈 경우(읽지 못함·배역 없음·공용 오�
   for (const kind of ['daily_limit', 'file_too_large', 'too_long', 'script_limit', 'busy', 'upload_used', 'consent']) {
     assert.equal(isSplitFailure({ kind }), false);
   }
-});
-
-test('연습 구역: 첫 연습은 처음부터 대사 10줄을 짧은 구간으로 고르고, 내 대사 수를 센다', () => {
-  const lines = [dir(), ...Array.from({ length: 15 }, (_, i) => d(i % 2 ? '태오' : '윤서', `대사${i + 1}`))];
-  const r = firstPracticeRange(lines, ['윤서']);
-  assert.deepEqual(r, { startIndex: 1, endIndex: 10, dialogueCount: 10, myCount: 5, lastText: '대사10' });
-});
-
-test('연습 구역: 대사가 10줄 이하이거나 짧은 구간에 내 대사가 없으면 추천하지 않는다', () => {
-  assert.equal(firstPracticeRange(Array.from({ length: 10 }, () => d('윤서')), ['윤서']), null);
-  const lines = [...Array.from({ length: 10 }, () => d('태오')), d('윤서'), d('윤서')];
-  assert.equal(firstPracticeRange(lines, ['윤서']), null);
 });
 
 test('리딩 마무리: 끝 줄까지의 대사 번호와 다음 시작 번호를 낸다', () => {
@@ -143,12 +130,7 @@ test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 �
   assert.equal(readingCoachScene({ ...base, title: 'x'.repeat(400), startIndex: 1 }).situation.length, 300);
 });
 
-test('리딩 3번: 첫 연습 구간의 내 대사는 내 배역이 든 함께 말하는 줄까지 센다(turnRoles 를 넘긴다)', () => {
-  const lines = [...Array.from({ length: 9 }, () => d('태오')), d('윤서, 태오'), d('윤서'), d('윤서')];
-  assert.equal(firstPracticeRange(lines, ['윤서']), null, '이름 줄만 보면 내 대사가 없다');
-  assert.deepEqual(firstPracticeRange(lines, ['윤서', '윤서, 태오'])?.myCount, 1);
-  // 구간 고르기는 더 이상 처음 10줄을 추천하지 않는다 — 리딩 화면이 10줄씩 끊어 보인다(SOMA-934).
-  assert.doesNotMatch(src('app/reading/range.tsx'), /firstPracticeRange\(/);
+test('리딩 3번: 구간 고르기는 내 배역이 든 함께 말하는 줄까지 센다(turnRoles 를 넘긴다)', () => {
   assert.match(src('app/reading/range.tsx'), /fewLines\(lines, myTurnRoles,/);
   assert.match(src('app/reading/range.tsx'), /roleLineCount\(c, lines, script\.characters\)/);
 });

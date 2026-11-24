@@ -25,10 +25,6 @@ export async function rememberPurgeAfterAnalysis(practiceId: string, videoId: st
   await AsyncStorage.setItem(KEY, JSON.stringify(all)).catch(() => undefined);
 }
 
-export async function isPurgeAfterAnalysis(practiceId: string): Promise<boolean> {
-  return Boolean((await read())[practiceId]);
-}
-
 /** 분석이 끝난(노트가 열린) 회차에서 부른다. 지울 영상이 있었고 지웠으면 true. */
 export async function purgeVideoFileIfDue(
   practiceId: string,

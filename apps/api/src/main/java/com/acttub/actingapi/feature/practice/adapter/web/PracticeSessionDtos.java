@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public final class PracticeSessionDtos {

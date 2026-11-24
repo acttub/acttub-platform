@@ -8,7 +8,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 /** 모델 응답을 못 쓸 때의 고정 문구와 언어 판단, 첫 응답·도움 요청에 대한 서버 검사. */

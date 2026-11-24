@@ -21,10 +21,10 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -105,9 +105,9 @@ class ReadingSessionRatingIT {
         UUID requestId = UUID.randomUUID();
         JsonNode saved = json(rate(requestId, "good", "  상대역 속도가 딱 좋았어요  "), 200);
 
-        assertThat(saved.path("rating").textValue()).isEqualTo("good");
-        assertThat(saved.path("comment").textValue()).isEqualTo("상대역 속도가 딱 좋았어요");
-        assertThat(saved.path("updated_at").textValue()).isEqualTo("2026-10-11T00:00:00.000000Z");
+        assertThat(saved.path("rating").stringValue(null)).isEqualTo("good");
+        assertThat(saved.path("comment").stringValue(null)).isEqualTo("상대역 속도가 딱 좋았어요");
+        assertThat(saved.path("updated_at").stringValue(null)).isEqualTo("2026-10-11T00:00:00.000000Z");
         assertThat(saved.properties()).extracting(Map.Entry::getKey)
                 .containsExactlyInAnyOrder("rating", "comment", "updated_at");
 
@@ -130,9 +130,9 @@ class ReadingSessionRatingIT {
 
         JsonNode changed = json(rate(UUID.randomUUID(), "bad", null), 200);
 
-        assertThat(changed.path("rating").textValue()).isEqualTo("bad");
+        assertThat(changed.path("rating").stringValue(null)).isEqualTo("bad");
         assertThat(changed.path("comment").isNull()).isTrue();
-        assertThat(changed.path("updated_at").textValue()).isEqualTo("2026-10-11T00:03:00.000000Z");
+        assertThat(changed.path("updated_at").stringValue(null)).isEqualTo("2026-10-11T00:03:00.000000Z");
         assertThat(count("reading_session_ratings")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT created_at < updated_at FROM reading_session_ratings", Boolean.class))
                 .isTrue();
@@ -218,10 +218,10 @@ class ReadingSessionRatingIT {
         perform(rate(UUID.randomUUID(), "bad", "상대역이 너무 빨랐어요"), 200);
 
         JsonNode after = json(get("/v2/reading/sessions/{id}", session), 200);
-        assertThat(after.path("status").textValue()).isEqualTo("completed");
-        assertThat(after.path("my_rating").path("rating").textValue()).isEqualTo("bad");
-        assertThat(after.path("my_rating").path("comment").textValue()).isEqualTo("상대역이 너무 빨랐어요");
-        assertThat(after.path("my_rating").path("updated_at").textValue()).isEqualTo("2026-10-11T00:00:00.000000Z");
+        assertThat(after.path("status").stringValue(null)).isEqualTo("completed");
+        assertThat(after.path("my_rating").path("rating").stringValue(null)).isEqualTo("bad");
+        assertThat(after.path("my_rating").path("comment").stringValue(null)).isEqualTo("상대역이 너무 빨랐어요");
+        assertThat(after.path("my_rating").path("updated_at").stringValue(null)).isEqualTo("2026-10-11T00:00:00.000000Z");
     }
 
     @Test
@@ -265,8 +265,8 @@ class ReadingSessionRatingIT {
         assertThat(jdbc.queryForObject("SELECT user_id FROM reading_session_ratings WHERE session_id=?", UUID.class,
                 guestSession)).isEqualTo(member);
         JsonNode read = json(get("/v2/reading/sessions/{id}", guestSession), 200);
-        assertThat(read.path("my_rating").path("rating").textValue()).isEqualTo("good");
-        assertThat(read.path("my_rating").path("comment").textValue()).isEqualTo("게스트 때 남김");
+        assertThat(read.path("my_rating").path("rating").stringValue(null)).isEqualTo("good");
+        assertThat(read.path("my_rating").path("comment").stringValue(null)).isEqualTo("게스트 때 남김");
     }
 
     // --- 도우미 -------------------------------------------------------------
@@ -311,11 +311,11 @@ class ReadingSessionRatingIT {
         JsonNode saved = mapper.readTree(response.getContentAsString());
         List<UUID> dialogues = new ArrayList<>();
         for (JsonNode line : saved.path("lines")) {
-            dialogues.add(UUID.fromString(line.path("id").textValue()));
+            dialogues.add(UUID.fromString(line.path("id").stringValue(null)));
         }
         return new Script(
-                UUID.fromString(saved.path("id").textValue()),
-                UUID.fromString(saved.path("characters").get(0).path("id").textValue()),
+                UUID.fromString(saved.path("id").stringValue(null)),
+                UUID.fromString(saved.path("characters").get(0).path("id").stringValue(null)),
                 dialogues.getFirst(),
                 dialogues.getLast());
     }
@@ -335,7 +335,7 @@ class ReadingSessionRatingIT {
                         .content(body.toString()))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(201);
-        return UUID.fromString(mapper.readTree(response.getContentAsString()).path("id").textValue());
+        return UUID.fromString(mapper.readTree(response.getContentAsString()).path("id").stringValue(null));
     }
 
     private String bearer(UUID userId) {
@@ -363,8 +363,8 @@ class ReadingSessionRatingIT {
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
         Guest guest = new Guest(
-                UUID.fromString(body.path("user").path("id").textValue()),
-                "Bearer " + body.path("access_token").textValue());
+                UUID.fromString(body.path("user").path("id").stringValue(null)),
+                "Bearer " + body.path("access_token").stringValue(null));
         consent(guest, "terms", true);
         consent(guest, "privacy", null);
         return guest;
@@ -389,7 +389,7 @@ class ReadingSessionRatingIT {
         var issued = mvc.perform(post("/v2/guest/transfer-code").header("Authorization", guest.bearer()))
                 .andReturn().getResponse();
         assertThat(issued.getStatus()).as(issued.getContentAsString()).isEqualTo(201);
-        String code = mapper.readTree(issued.getContentAsString()).path("code").textValue();
+        String code = mapper.readTree(issued.getContentAsString()).path("code").stringValue(null);
         String from = address;
         var response = mvc.perform(post("/v2/guest-transfers")
                         .with(request -> {

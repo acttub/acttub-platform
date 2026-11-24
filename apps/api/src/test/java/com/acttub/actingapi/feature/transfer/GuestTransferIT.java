@@ -39,8 +39,8 @@ import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +53,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.guest 의 "검증 방법" 가운데 옮기기를 HTTP 와 실제 Postgres 로 본다. 동시성과 도중 실패는 같은
@@ -140,13 +141,13 @@ class GuestTransferIT {
                 """, member, clock.instant().minus(Duration.ofDays(1)).atOffset(ZoneOffset.UTC));
 
         JsonNode issued = issueCode(guest);
-        assertThat(issued.fieldNames()).toIterable().containsExactlyInAnyOrder("code", "expires_in", "expires_at");
-        assertThat(issued.path("code").textValue()).matches("[0-9]{6}");
-        assertThat(issued.path("expires_in").longValue()).isEqualTo(600);
+        assertThat(issued.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("code", "expires_in", "expires_at");
+        assertThat(issued.path("code").stringValue(null)).matches("[0-9]{6}");
+        assertThat(LenientJson.longValue(issued.path("expires_in"))).isEqualTo(600);
         assertThat(jdbc.queryForObject("SELECT code_hash FROM guest_transfer_codes", String.class))
-                .as("해시로만 저장한다").doesNotContain(issued.path("code").textValue());
+                .as("해시로만 저장한다").doesNotContain(issued.path("code").stringValue(null));
 
-        var response = transfer(member, issued.path("code").textValue(), null);
+        var response = transfer(member, issued.path("code").stringValue(null), null);
 
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(200);
         assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.readTree("{\"transferred\":true}"));
@@ -200,7 +201,7 @@ class GuestTransferIT {
                 """, guest.id(), clock.instant().minus(Duration.ofDays(1)).atOffset(ZoneOffset.UTC));
 
         JsonNode issued = issueCode(guest);
-        assertThat(transfer(member, issued.path("code").textValue(), null).getStatus()).isEqualTo(200);
+        assertThat(transfer(member, issued.path("code").stringValue(null), null).getStatus()).isEqualTo(200);
 
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM user_signup_attributions WHERE user_id IN (?,?)", Integer.class,
@@ -214,20 +215,20 @@ class GuestTransferIT {
         UUID member = member();
 
         Guest used = guest();
-        String usedCode = issueCode(used).path("code").textValue();
+        String usedCode = issueCode(used).path("code").stringValue(null);
         assertThat(transfer(member, usedCode, null).getStatus()).isEqualTo(200);
         assertNotFound(transfer(member, usedCode, null));
 
         Guest late = guest();
-        String lateCode = issueCode(late).path("code").textValue();
+        String lateCode = issueCode(late).path("code").stringValue(null);
         clock.advance(Duration.ofMinutes(11));
         assertNotFound(transfer(member, lateCode, null));
         assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, late.id()))
                 .isEqualTo("active");
 
         Guest replaced = guest();
-        String oldCode = issueCode(replaced).path("code").textValue();
-        String newCode = issueCode(replaced).path("code").textValue();
+        String oldCode = issueCode(replaced).path("code").stringValue(null);
+        String newCode = issueCode(replaced).path("code").stringValue(null);
         if (!oldCode.equals(newCode)) {
             assertNotFound(transfer(member, oldCode, null));
         }
@@ -242,7 +243,7 @@ class GuestTransferIT {
     void accountGuest_wrongAttemptsAreLimitedPerMember() throws Exception {
         UUID member = member();
         Guest guest = guest();
-        String code = issueCode(guest).path("code").textValue();
+        String code = issueCode(guest).path("code").stringValue(null);
         String wrong = code.equals("000000") ? "000001" : "000000";
 
         for (int attempt = 0; attempt < 5; attempt++) {
@@ -313,7 +314,7 @@ class GuestTransferIT {
         memory(member, "goal", "회원의 목표");
         Guest guest = guest();
         memory(guest.id(), "goal", "게스트의 목표");
-        String code = issueCode(guest).path("code").textValue();
+        String code = issueCode(guest).path("code").stringValue(null);
 
         for (int attempt = 0; attempt < 6; attempt++) {
             assertThat(transfer(member, code, null).getStatus()).isEqualTo(409);
@@ -339,7 +340,7 @@ class GuestTransferIT {
             openIssueGate(gate);
 
             List<String> issued = List.of(
-                    racing.get(0).get().path("code").textValue(), racing.get(1).get().path("code").textValue());
+                    racing.get(0).get().path("code").stringValue(null), racing.get(1).get().path("code").stringValue(null));
 
             assertThat(issued).allMatch(code -> code.matches("[0-9]{6}"));
             assertThat(jdbc.queryForObject("""
@@ -399,7 +400,7 @@ class GuestTransferIT {
         UUID session = practice(guest.id());
         memory(guest.id(), "goal", "게스트의 목표");
         memory(guest.id(), "gender", "여");
-        String code = issueCode(guest).path("code").textValue();
+        String code = issueCode(guest).path("code").stringValue(null);
 
         var undecided = transfer(member, code, null);
 
@@ -430,7 +431,7 @@ class GuestTransferIT {
         Guest guest = guest();
         memory(guest.id(), "goal", "게스트의 목표");
 
-        assertThat(transfer(member, issueCode(guest).path("code").textValue(), "member").getStatus()).isEqualTo(200);
+        assertThat(transfer(member, issueCode(guest).path("code").stringValue(null), "member").getStatus()).isEqualTo(200);
 
         assertThat(jdbc.queryForList("SELECT value FROM actor_memory_entries", String.class))
                 .containsExactly("회원의 목표");
@@ -439,7 +440,7 @@ class GuestTransferIT {
         Guest second = guest();
         memory(second.id(), "goal", "두 번째 게스트의 목표");
 
-        assertThat(transfer(blank, issueCode(second).path("code").textValue(), null).getStatus()).isEqualTo(200);
+        assertThat(transfer(blank, issueCode(second).path("code").stringValue(null), null).getStatus()).isEqualTo(200);
 
         assertThat(jdbc.queryForList(
                 "SELECT value FROM actor_memory_entries WHERE user_id=?", String.class, blank))
@@ -450,7 +451,7 @@ class GuestTransferIT {
     @DisplayName("account.guest: 옮긴 뒤 옛 게스트 토큰의 요청에는 사유 guest_transferred 가 온다 — 액세스 403, 갱신 401. account_deactivated 보다 먼저다")
     void accountGuest_aTransferredGuestsTokensSayWhy() throws Exception {
         Guest guest = guest();
-        assertThat(transfer(member(), issueCode(guest).path("code").textValue(), null).getStatus()).isEqualTo(200);
+        assertThat(transfer(member(), issueCode(guest).path("code").stringValue(null), null).getStatus()).isEqualTo(200);
 
         List<MockHttpServletResponse> access = List.of(
                 mvc.perform(get("/v2/me").header("Authorization", "Bearer " + guest.accessToken()))
@@ -502,7 +503,7 @@ class GuestTransferIT {
         UUID session = practice(guest.id());
         UUID operation = operation(guest.id(), session, "report", "succeeded");
         memory(guest.id(), "goal", "게스트의 목표");
-        String code = issueCode(guest).path("code").textValue();
+        String code = issueCode(guest).path("code").stringValue(null);
         // 올린 영상·연습·기억의 주인을 바꾼 뒤, 작업 장부에서 DB 가 거절한다.
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION fail_operation_transfer() RETURNS trigger AS $$
@@ -544,7 +545,7 @@ class GuestTransferIT {
     void accountGuest_twoMembersRacingForOneCode() throws Exception {
         Guest guest = guest();
         UUID session = practice(guest.id());
-        String code = issueCode(guest).path("code").textValue();
+        String code = issueCode(guest).path("code").stringValue(null);
         List<UUID> members = List.of(member(), member());
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
@@ -585,8 +586,8 @@ class GuestTransferIT {
         Guest second = guest();
         UUID finished = practice(second.id());
 
-        assertThat(transfer(member, issueCode(first).path("code").textValue(), null).getStatus()).isEqualTo(200);
-        assertThat(transfer(member, issueCode(second).path("code").textValue(), null).getStatus()).isEqualTo(200);
+        assertThat(transfer(member, issueCode(first).path("code").stringValue(null), null).getStatus()).isEqualTo(200);
+        assertThat(transfer(member, issueCode(second).path("code").stringValue(null), null).getStatus()).isEqualTo(200);
 
         assertThat(jdbc.queryForMap("SELECT user_id,status,lease_token FROM external_operations WHERE id=?", running))
                 .as("상태와 lease 는 그대로라 돌고 있던 워커가 끝낸다")
@@ -606,7 +607,7 @@ class GuestTransferIT {
         Guest guest = guest();
         UUID session = practice(guest.id());
         UUID update = operation(guest.id(), session, "memory_update", "pending");
-        String code = issueCode(guest).path("code").textValue();
+        String code = issueCode(guest).path("code").stringValue(null);
         // 워커는 자료(주인=게스트)를 읽은 뒤 모델을 부른다. 그 응답을 기다리는 사이에 이관이 끝난다.
         MemoryUpdateWorker worker = memoryWorker((system, user) -> {
             try {
@@ -635,7 +636,7 @@ class GuestTransferIT {
         Guest guest = guest();
         UUID session = practice(guest.id());
         operation(guest.id(), session, "memory_update", "pending");
-        String code = issueCode(guest).path("code").textValue();
+        String code = issueCode(guest).path("code").stringValue(null);
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION hold_memory_insert() RETURNS trigger AS $$
                 BEGIN
@@ -693,7 +694,7 @@ class GuestTransferIT {
         jdbc.update("UPDATE users SET exit_survey_asked_at=now() WHERE id=?", guest.id());
         UUID member = member();
 
-        var response = transfer(member, issueCode(guest).path("code").textValue(), null);
+        var response = transfer(member, issueCode(guest).path("code").stringValue(null), null);
 
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(200);
         assertThat(owner("practices", round)).isEqualTo(member);
@@ -720,7 +721,7 @@ class GuestTransferIT {
         UUID job = aiJob(guest.id(), round);
         jdbc.update("UPDATE ai_jobs SET kind='memory_update',memory_epoch=0 WHERE id=?", job);
 
-        assertThat(transfer(member, issueCode(guest).path("code").textValue(), "member").getStatus()).isEqualTo(200);
+        assertThat(transfer(member, issueCode(guest).path("code").stringValue(null), "member").getStatus()).isEqualTo(200);
 
         assertThat(jdbc.queryForObject("SELECT memory_epoch FROM users WHERE id=?", Integer.class, member))
                 .isEqualTo(1);
@@ -795,12 +796,12 @@ class GuestTransferIT {
         })).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        UUID id = UUID.fromString(body.path("user").path("id").textValue());
+        UUID id = UUID.fromString(body.path("user").path("id").stringValue(null));
         jdbc.update("""
                 INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
                 SELECT gen_random_uuid(),?,id,'granted',now() FROM consent_documents WHERE type='terms'
                 """, id);
-        return new Guest(id, body.path("access_token").textValue(), body.path("refresh_token").textValue());
+        return new Guest(id, body.path("access_token").stringValue(null), body.path("refresh_token").stringValue(null));
     }
 
     private UUID member() {
@@ -940,7 +941,7 @@ class GuestTransferIT {
     private static List<String> practiceIds(JsonNode groups) {
         List<String> ids = new java.util.ArrayList<>();
         groups.path("groups").forEach(group ->
-                group.path("practices").forEach(practice -> ids.add(practice.path("id").textValue())));
+                group.path("practices").forEach(practice -> ids.add(practice.path("id").stringValue(null))));
         return ids;
     }
 

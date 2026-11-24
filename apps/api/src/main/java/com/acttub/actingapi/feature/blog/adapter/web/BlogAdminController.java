@@ -22,12 +22,12 @@ import com.acttub.actingapi.feature.blog.app.BlogService;
 import com.acttub.actingapi.feature.blog.domain.BlogDraft;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -66,9 +66,13 @@ class BlogAdminController {
         this.blog = blog;
         this.mapper = mapper;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
-        var snakeCase = new PropertyNamingStrategies.SnakeCaseStrategy();
+        var snakeCase = new PropertyNamingStrategies.SnakeCaseStrategy() {
+            String of(String name) {
+                return translate(name);
+            }
+        };
         this.patchableFields = Arrays.stream(PostFields.class.getRecordComponents())
-                .map(component -> snakeCase.translate(component.getName()))
+                .map(component -> snakeCase.of(component.getName()))
                 .collect(Collectors.toUnmodifiableSet());
     }
 
@@ -108,7 +112,7 @@ class BlogAdminController {
             throw ApiValidationException.valueError(List.of("body"), "Value error, body must be an object",
                     mapper.convertValue(body, Object.class));
         }
-        for (Iterator<String> names = patch.fieldNames(); names.hasNext(); ) {
+        for (Iterator<String> names = patch.propertyNames().iterator(); names.hasNext(); ) {
             String name = names.next();
             if (!patchableFields.contains(name)) {
                 throw extraForbidden(name, patch.get(name));
@@ -141,12 +145,12 @@ class BlogAdminController {
                 return changes.has("published_at") ? next : new BlogDraft(next.slug(), next.title(), next.summary(),
                         next.category(), next.coverImageUrl(), next.bodyMarkdown(), next.appCta(), next.status(),
                         current.publishedAt());
-            } catch (JsonMappingException invalid) {
-                String field = invalid.getPath().isEmpty() ? null : invalid.getPath().getFirst().getFieldName();
+            } catch (DatabindException invalid) {
+                String field = invalid.getPath().isEmpty() ? null : invalid.getPath().getFirst().getPropertyName();
                 throw ApiValidationException.valueError(field == null ? List.<Object>of("body") : List.<Object>of("body", field),
                         "Value error, invalid value",
                         field == null ? null : mapper.convertValue(changes.get(field), Object.class));
-            } catch (JsonProcessingException invalid) {
+            } catch (JacksonException invalid) {
                 throw ApiValidationException.valueError(List.of("body"), "Value error, invalid body", null);
             }
         };

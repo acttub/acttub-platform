@@ -19,31 +19,6 @@ export function isSplitFailure(stop: Pick<ImportStop, 'kind'>): boolean {
   return stop.kind === 'file_unreadable' || stop.kind === 'no_characters' || stop.kind === 'error';
 }
 
-const FIRST_PRACTICE_DIALOGUES = 10;
-
-/**
- * 첫 연습의 짧은 구간 — 처음부터 대사 10줄. 대본이 그보다 짧거나 그 안에 내 대사가 없으면 추천하지 않는다(null).
- * lastText 는 구간 이름(「처음 ~ 「…」」)에 쓴다.
- */
-export function firstPracticeRange(
-  lines: readonly ScriptLine[],
-  myRoles: readonly string[],
-): { startIndex: number; endIndex: number; dialogueCount: number; myCount: number; lastText: string } | null {
-  const dialogues: number[] = [];
-  lines.forEach((l, i) => {
-    if (l.type === 'dialogue') dialogues.push(i);
-  });
-  if (dialogues.length <= FIRST_PRACTICE_DIALOGUES) return null;
-  const picked = dialogues.slice(0, FIRST_PRACTICE_DIALOGUES);
-  const myCount = picked.filter((i) => {
-    const l = lines[i];
-    return l.type === 'dialogue' && myRoles.includes(l.role);
-  }).length;
-  if (myCount === 0) return null;
-  const endIndex = picked[picked.length - 1];
-  return { startIndex: picked[0], endIndex, dialogueCount: picked.length, myCount, lastText: lines[endIndex].text };
-}
-
 /** 리딩 마무리 — 이번에 읽은 끝 줄의 대사 번호, 전체 대사 수, 다음에 시작할 대사 번호(끝까지 읽었으면 null). */
 export function wrapUpProgress(lines: readonly ScriptLine[], endIndex: number): { readTo: number; total: number; next: number | null } {
   let readTo = 0;

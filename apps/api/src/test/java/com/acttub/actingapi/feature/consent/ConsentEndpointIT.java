@@ -14,8 +14,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -91,15 +91,15 @@ class ConsentEndpointIT {
 
             assertThat(response.getStatus()).isEqualTo(200);
             JsonNode documents = mapper.readTree(response.getContentAsString()).path("documents");
-            assertThat(documents).extracting(document -> document.path("id").textValue())
+            assertThat(documents).extracting(document -> document.path("id").stringValue(null))
                     .as("약관 · 수집·이용 동의 · AI 분석 · 탈퇴 후 보관, 옛 판은 나오지 않는다")
                     .containsExactly(TERMS.toString(), PRIVACY.toString(),
                             AI_ANALYSIS.toString(), RETENTION.toString());
-            assertThat(documents.get(3).path("required").booleanValue()).isFalse();
+            assertThat(documents.get(3).path("required").booleanValue(false)).isFalse();
             // 시행일은 발행 시각이다.
-            assertThat(documents.get(0).path("published_at").textValue())
+            assertThat(documents.get(0).path("published_at").stringValue(null))
                     .isEqualTo("2026-01-02T00:00:00.000000Z");
-            assertThat(documents.get(0).path("body").textValue()).isEqualTo("서비스 이용약관 본문");
+            assertThat(documents.get(0).path("body").stringValue(null)).isEqualTo("서비스 이용약관 본문");
         }
     }
 
@@ -118,11 +118,11 @@ class ConsentEndpointIT {
             assertThat(response.getStatus()).isEqualTo(200);
             JsonNode notices = mapper.readTree(response.getContentAsString()).path("notices");
             assertThat(notices).hasSize(1);
-            assertThat(notices.get(0).fieldNames()).toIterable()
+            assertThat(notices.get(0).propertyNames().iterator()).toIterable()
                     .containsExactlyInAnyOrder("type", "title", "body");
-            assertThat(notices.get(0).path("type").textValue()).isEqualTo("privacy_policy");
-            assertThat(notices.get(0).path("title").textValue()).isEqualTo("개인정보 처리방침");
-            assertThat(notices.get(0).path("body").textValue())
+            assertThat(notices.get(0).path("type").stringValue(null)).isEqualTo("privacy_policy");
+            assertThat(notices.get(0).path("title").stringValue(null)).isEqualTo("개인정보 처리방침");
+            assertThat(notices.get(0).path("body").stringValue(null))
                     .contains("개인정보 처리의 위탁")
                     .contains("PostHog, Inc.");
         }
@@ -133,7 +133,7 @@ class ConsentEndpointIT {
                 .isZero();
         var documents = mapper.readTree(mvc.perform(get("/v2/consents/documents"))
                 .andReturn().getResponse().getContentAsString()).path("documents");
-        assertThat(documents).extracting(document -> document.path("type").textValue())
+        assertThat(documents).extracting(document -> document.path("type").stringValue(null))
                 .doesNotContain("privacy_policy");
     }
 
@@ -158,20 +158,20 @@ class ConsentEndpointIT {
         insertConsent(id(301), oldPrivacy, "granted", DECIDED);
 
         JsonNode before = privacyRow(consentEntry());
-        assertThat(before.path("id").textValue()).isEqualTo(PRIVACY.toString());
-        assertThat(before.path("version").textValue()).isEqualTo("v5");
+        assertThat(before.path("id").stringValue(null)).isEqualTo(PRIVACY.toString());
+        assertThat(before.path("version").stringValue(null)).isEqualTo("v5");
         assertThat(before.path("current_decision").isNull())
                 .as("옛 판(v4)에만 동의했다 — 현재 판은 미결정이다")
                 .isTrue();
 
         assertThat(decide(PRIVACY, "granted").getStatus()).isEqualTo(201);
 
-        assertThat(privacyRow(consentEntry()).path("current_decision").textValue()).isEqualTo("granted");
+        assertThat(privacyRow(consentEntry()).path("current_decision").stringValue(null)).isEqualTo("granted");
     }
 
     private static JsonNode privacyRow(JsonNode entry) {
         for (JsonNode document : entry.path("documents")) {
-            if ("privacy".equals(document.path("type").textValue())) {
+            if ("privacy".equals(document.path("type").stringValue(null))) {
                 return document;
             }
         }
@@ -188,19 +188,19 @@ class ConsentEndpointIT {
 
         JsonNode entry = consentEntry();
 
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("allowed");
+        assertThat(entry.path("entry_status").stringValue(null)).isEqualTo("allowed");
         assertThat(entry.path("undecided_documents")).isEmpty();
         assertThat(entry.path("documents")).hasSize(4);
         JsonNode terms = entry.path("documents").get(0);
-        assertThat(terms.path("title").textValue()).isEqualTo("서비스 이용약관");
-        assertThat(terms.path("version").textValue()).isEqualTo("v2");
-        assertThat(terms.path("published_at").textValue()).isEqualTo("2026-01-02T00:00:00.000000Z");
-        assertThat(terms.path("current_decision").textValue()).isEqualTo("granted");
-        assertThat(terms.path("decided_at").textValue()).isEqualTo("2026-01-03T00:00:00.000000Z");
+        assertThat(terms.path("title").stringValue(null)).isEqualTo("서비스 이용약관");
+        assertThat(terms.path("version").stringValue(null)).isEqualTo("v2");
+        assertThat(terms.path("published_at").stringValue(null)).isEqualTo("2026-01-02T00:00:00.000000Z");
+        assertThat(terms.path("current_decision").stringValue(null)).isEqualTo("granted");
+        assertThat(terms.path("decided_at").stringValue(null)).isEqualTo("2026-01-03T00:00:00.000000Z");
         JsonNode retention = entry.path("documents").get(3);
-        assertThat(retention.path("required").booleanValue()).isFalse();
-        assertThat(retention.path("current_decision").textValue()).isEqualTo("declined");
-        assertThat(retention.path("decided_at").textValue()).isEqualTo("2026-01-03T01:00:00.000000Z");
+        assertThat(retention.path("required").booleanValue(false)).isFalse();
+        assertThat(retention.path("current_decision").stringValue(null)).isEqualTo("declined");
+        assertThat(retention.path("decided_at").stringValue(null)).isEqualTo("2026-01-03T01:00:00.000000Z");
     }
 
     @Test
@@ -210,14 +210,14 @@ class ConsentEndpointIT {
 
         JsonNode entry = consentEntry();
 
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("decision_required");
+        assertThat(entry.path("entry_status").stringValue(null)).isEqualTo("decision_required");
         assertThat(entry.path("undecided_documents")).hasSize(4);
         for (JsonNode document : entry.path("documents")) {
             assertThat(document.has("current_decision")).isTrue();
             assertThat(document.path("current_decision").isNull()).isTrue();
             assertThat(document.path("decided_at").isNull()).isTrue();
         }
-        assertThat(pendingDocuments()).extracting(document -> document.path("id").textValue())
+        assertThat(pendingDocuments()).extracting(document -> document.path("id").stringValue(null))
                 .containsExactly(TERMS.toString(), PRIVACY.toString(),
                         AI_ANALYSIS.toString(), RETENTION.toString());
     }
@@ -228,7 +228,7 @@ class ConsentEndpointIT {
         insertConsent(id(311), RETENTION, "granted", DECIDED);
         insertConsent(id(312), RETENTION, "declined", DECIDED);
 
-        assertThat(consentEntry().path("documents").get(3).path("current_decision").textValue())
+        assertThat(consentEntry().path("documents").get(3).path("current_decision").stringValue(null))
                 .isEqualTo("declined");
     }
 
@@ -243,10 +243,10 @@ class ConsentEndpointIT {
 
         assertThat(changed.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(changed.getContentAsString());
-        assertThat(body.path("document_id").textValue()).isEqualTo(RETENTION.toString());
-        assertThat(body.path("action").textValue()).isEqualTo("declined");
-        assertThat(body.path("occurred_at").textValue()).matches("\\d{4}-\\d{2}-\\d{2}T.*\\.\\d{6}Z");
-        assertThat(consentEntry().path("documents").get(3).path("current_decision").textValue())
+        assertThat(body.path("document_id").stringValue(null)).isEqualTo(RETENTION.toString());
+        assertThat(body.path("action").stringValue(null)).isEqualTo("declined");
+        assertThat(body.path("occurred_at").stringValue(null)).matches("\\d{4}-\\d{2}-\\d{2}T.*\\.\\d{6}Z");
+        assertThat(consentEntry().path("documents").get(3).path("current_decision").stringValue(null))
                 .isEqualTo("declined");
         assertThat(rows(RETENTION, "declined")).isEqualTo(1);
         assertThat(rows(RETENTION, "granted")).as("결정은 쌓기만 하고 고치지 않는다").isEqualTo(1);
@@ -324,17 +324,17 @@ class ConsentEndpointIT {
         var blocked = protectedApi();
         assertThat(blocked.getStatus()).isEqualTo(403);
         JsonNode body = mapper.readTree(blocked.getContentAsString());
-        assertThat(body.path("detail").textValue()).isEqualTo("consent_required");
+        assertThat(body.path("detail").stringValue(null)).isEqualTo("consent_required");
         assertThat(body.path("pending_consents")).hasSize(1);
         JsonNode pending = body.path("pending_consents").get(0);
-        assertThat(pending.path("id").textValue()).isEqualTo(retentionV2.toString());
-        assertThat(pending.path("type").textValue()).isEqualTo("retention");
-        assertThat(pending.path("version").textValue()).isEqualTo("v2");
-        assertThat(pending.path("required").booleanValue()).isFalse();
-        assertThat(pending.path("body").textValue()).isEqualTo("탈퇴 후 영상·녹음 보관·활용 본문");
-        assertThat(pending.path("published_at").textValue()).isEqualTo("2026-02-01T00:00:00.000000Z");
+        assertThat(pending.path("id").stringValue(null)).isEqualTo(retentionV2.toString());
+        assertThat(pending.path("type").stringValue(null)).isEqualTo("retention");
+        assertThat(pending.path("version").stringValue(null)).isEqualTo("v2");
+        assertThat(pending.path("required").booleanValue(false)).isFalse();
+        assertThat(pending.path("body").stringValue(null)).isEqualTo("탈퇴 후 영상·녹음 보관·활용 본문");
+        assertThat(pending.path("published_at").stringValue(null)).isEqualTo("2026-02-01T00:00:00.000000Z");
         // 다른 문서의 결정은 그대로다.
-        assertThat(consentEntry().path("documents").get(0).path("current_decision").textValue())
+        assertThat(consentEntry().path("documents").get(0).path("current_decision").stringValue(null))
                 .isEqualTo("granted");
 
         assertThat(decide(retentionV2, "declined").getStatus()).isEqualTo(201);
@@ -352,13 +352,13 @@ class ConsentEndpointIT {
         var blocked = protectedApi();
         assertThat(blocked.getStatus()).isEqualTo(403);
         JsonNode body = mapper.readTree(blocked.getContentAsString());
-        assertThat(body.path("detail").textValue())
+        assertThat(body.path("detail").stringValue(null))
                 .as("거절·철회를 따로 가르던 consent_blocked 는 없다")
                 .isEqualTo("consent_required");
-        assertThat(body.path("pending_consents")).extracting(document -> document.path("id").textValue())
+        assertThat(body.path("pending_consents")).extracting(document -> document.path("id").stringValue(null))
                 .containsExactly(TERMS.toString(), PRIVACY.toString());
         JsonNode entry = consentEntry();
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("decision_required");
+        assertThat(entry.path("entry_status").stringValue(null)).isEqualTo("decision_required");
         assertThat(entry.path("documents").get(0).path("current_decision").isNull()).isTrue();
 
         assertThat(decide(TERMS, "granted").getStatus()).isEqualTo(201);

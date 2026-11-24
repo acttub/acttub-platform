@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class DirectVideoDialogueEvidenceTest {
     private final DirectVideoModel.Video silent = new DirectVideoModel.Video("files/test", "gemini://test", "video/mp4", false);
@@ -73,7 +74,7 @@ class DirectVideoDialogueEvidenceTest {
         assertThat(loop.path("statuses").size()).isEqualTo(1);
         loop.put("design", "대사 확인: 확인 안 됨\n확인된 대사: 없음\n버릇: 손을 펴요");
         DirectVideoDialogueEvidence.discardUngroundedDesign(silent, state, "");
-        assertThat(loop.path("design").asText()).contains("버릇: 손을 펴요");
+        assertThat(LenientJson.asText(loop.path("design"))).contains("버릇: 손을 펴요");
     }
 
     @Test void bothLoopPromptsCheckSpeechBeforeChoosingVisibleEvidence() {

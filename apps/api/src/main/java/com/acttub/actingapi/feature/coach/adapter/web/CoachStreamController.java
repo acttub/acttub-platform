@@ -20,7 +20,7 @@ import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.core.JacksonException;
 
 /**
  * 코치 답 스트리밍(2026-10-16). 요청 본문·재전송·충돌 규칙은 {@code /v2/coach/start}·{@code /v2/coach/reply} 와 같고,
@@ -107,8 +108,10 @@ class CoachStreamController {
             error.put("detail", rejected.getMessage());
             error.putAll(rejected.extras());
             events.sendQuietly("error", error, mapper);
-        } catch (RuntimeException | IOException failure) {
-            if (!events.opened() && failure instanceof RuntimeException runtime) throw runtime;
+        } catch (RuntimeException failure) {
+            // 응답 직렬화 실패(JacksonException)는 스트림을 열기 전이어도 오류 이벤트로 알린다. Jackson 2 에서는
+            // checked IOException 이라 이 분기로 왔다.
+            if (!events.opened() && !(failure instanceof JacksonException)) throw failure;
             failures.report(failure, FailureKind.UNEXPECTED, CONTEXT);
             events.sendQuietly("error", Map.of("status", 500, "detail", "internal_server_error"), mapper);
         } finally {
@@ -141,7 +144,7 @@ class CoachStreamController {
             if (text == null || text.isEmpty()) return;
             try {
                 send("delta", mapper.writeValueAsString(Map.of("text", text)));
-            } catch (IOException ignored) {
+            } catch (JacksonException ignored) {
                 // 직렬화 실패는 없다. 연결이 끊긴 것은 send 가 삼킨다.
             }
         }
@@ -171,7 +174,7 @@ class CoachStreamController {
         void sendQuietly(String event, Object data, ObjectMapper json) {
             try {
                 send(event, json.writeValueAsString(data));
-            } catch (IOException ignored) {
+            } catch (JacksonException ignored) {
                 // 오류를 알리는 중의 실패는 더 할 일이 없다.
             }
         }

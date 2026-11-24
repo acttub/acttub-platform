@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.report.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 /** 공개 연습 노트: 초점이 가리키는 구간, 시도 결과, 근거만 내보내고 배우 메시지·상태는 내보내지 않는다. */
@@ -26,7 +26,7 @@ class PracticeNotePublicViewTest {
     @Test void aLocalFocusWithoutUtterancePointsAtItsFirstEvidence() {
         JsonNode view = PracticeNote.publicView(note("{\"label\":\"숙인 고개\",\"utterance_ref\":null,\"evidence_refs\":[\"e1\"]}", "[]"));
         assertThat(view.path("focus").toString()).isEqualTo("{\"label\":\"숙인 고개\",\"start_ms\":1000,\"end_ms\":2000,\"quote\":null}");
-        assertThat(view.path("evidence").findValuesAsText("id")).containsExactly("u1", "e1", "e2", "l1");
+        assertThat(view.path("evidence").findValuesAsString("id")).containsExactly("u1", "e1", "e2", "l1");
         assertThat(view.path("open_points").toString()).isEqualTo("[\"끝 길이\"]");
     }
 

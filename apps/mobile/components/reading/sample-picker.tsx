@@ -14,7 +14,6 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { loadIntoCurrent } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
-import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useFirstReading } from '@/hooks/use-first-reading';
 import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 
@@ -76,7 +75,6 @@ export function useSamplePicker({ onNeedName, onLocal }: Options) {
       // 첫 리딩이면 대본 상세·구간을 건너뛰고 배역만 고른다(10/29).
       if (firstReadingRef.current) return router.replace(FIRST_READING_HREF);
       router.replace('/reading/detail');
-      if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
     } catch (error) {
       if (alive.current) fail(scriptErrorMessage(error));
     } finally {

@@ -3,15 +3,12 @@ import test from 'node:test';
 
 import {
   cardMeta,
-  lastActivityLabel,
   listHeader,
   myCharactersLabel,
   scriptTitle,
   statusChip,
 } from '../lib/reading/script-cards.ts';
 import { translate } from '../lib/i18n.ts';
-
-const NOW = Date.parse('2026-09-21T12:00:00+09:00');
 
 function card(overrides = {}) {
   return {
@@ -49,25 +46,6 @@ test('reading.script: 카드의 내 배역은 마지막 회차의 배역이고 �
 
 test('reading.script: 카드는 대사 수와 녹음 수(모든 회차 합)를 보여 준다', () => {
   assert.equal(cardMeta(card({ dialogue_count: 42, recording_count: 3 })), '대사 42개 · 녹음 3개');
-});
-
-test('reading.script: 마지막 활동 날짜 — "어제 연습", "5월 25일 업로드"', () => {
-  assert.equal(lastActivityLabel(card({ last_activity_at: '2026-09-20T21:00:00+09:00' }), NOW), '어제 연습');
-  assert.equal(lastActivityLabel(card({ last_activity_at: '2026-09-21T09:00:00+09:00' }), NOW), '오늘 연습');
-  assert.equal(
-    lastActivityLabel(card({ my_character_names: [], status: 'no_cast', last_practiced_at: null, last_activity_at: '2026-05-25T09:00:00+09:00' }), NOW),
-    '5월 25일 업로드',
-  );
-  assert.equal(lastActivityLabel(card({ last_activity_at: null }), NOW), '');
-  // 서버 계약(RA1): last_practiced_at 이 있으면 연습, null 이면 업로드
-  assert.equal(
-    lastActivityLabel(card({ my_character_names: [], last_practiced_at: '2026-09-20T21:00:00+09:00', last_activity_at: '2026-09-20T21:00:00+09:00' }), NOW),
-    '어제 연습',
-  );
-  assert.equal(
-    lastActivityLabel(card({ my_character_names: ['니나'], last_practiced_at: null, last_activity_at: '2026-05-25T09:00:00+09:00' }), NOW),
-    '5월 25일 업로드',
-  );
 });
 
 test('reading.script: 서버의 한국어 기본 제목만 지금 언어의 「제목 없는 대본」으로 바꾸고 다른 제목은 그대로 둔다(SOMA-1080 B15)', () => {

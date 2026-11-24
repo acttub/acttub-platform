@@ -7,10 +7,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Locale;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.i18n.LocaleContextHolder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 대화 복구 신호: 배우의 말에서 혼란·모름·손 질문을 읽고, 그에 맞지 않는 코치 응답을 거절한다. */
 class DialogueProgressRulesTest {
@@ -36,22 +37,22 @@ class DialogueProgressRulesTest {
     @Test void handQuestionsCountOnlyWhenTheHandIsTheSubjectAndCannotBeSeen() {
         String offScreen = "손과 하체가 화면 밖이므로 손동작은 확인할 수 없다.";
         JsonNode asked = DialogueProgress.controls(input("손동작이 영상에서 잘 보였어?", offScreen));
-        assertThat(asked.path("unobservable_hand_requested").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(asked.path("unobservable_hand_requested"))).isTrue();
         assertThat(asked.path("unobservable_hand_refs").toString()).isEqualTo("[\"l1\"]");
-        assertThat(DialogueProgress.controls(input("손동작 말고 표정이 영상에서 잘 보였어?", offScreen))
-                .path("unobservable_hand_requested").asBoolean()).isFalse();
-        assertThat(DialogueProgress.controls(input("Not my hands, but did my face read in the video?", offScreen))
-                .path("unobservable_hand_requested").asBoolean()).isFalse();
-        assertThat(DialogueProgress.controls(input("Did my hand gesture land in the video?", offScreen))
-                .path("unobservable_hand_requested").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("손동작 말고 표정이 영상에서 잘 보였어?", offScreen))
+                .path("unobservable_hand_requested"))).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("Not my hands, but did my face read in the video?", offScreen))
+                .path("unobservable_hand_requested"))).isFalse();
+        assertThat(LenientJson.asBoolean(DialogueProgress.controls(input("Did my hand gesture land in the video?", offScreen))
+                .path("unobservable_hand_requested"))).isTrue();
         JsonNode visible = DialogueProgress.controls(input("손동작이 영상에서 잘 보였어?", "손이 화면 가장자리에 걸쳐 있다."));
-        assertThat(visible.path("unobservable_hand_requested").asBoolean()).isFalse();
+        assertThat(LenientJson.asBoolean(visible.path("unobservable_hand_requested"))).isFalse();
         assertThat(visible.path("unobservable_hand_refs")).isEmpty();
     }
 
     @Test void notKnowingTheSceneAsksForExplanationInsteadOfPractice() {
         JsonNode progress = DialogueProgress.controls(input("모르겠어요."));
-        assertThat(progress.path("analysis_uncertain").asBoolean()).isTrue();
+        assertThat(LenientJson.asBoolean(progress.path("analysis_uncertain"))).isTrue();
         assertThat(DialogueProgress.turnInstruction(progress)).startsWith("\n\n[이번 응답에서 가장 먼저 지킬 것]\n배우는 아직 장면의 뜻을 모른다.");
         assertThatThrownBy(() -> DialogueProgress.validate(reply("explain", "한 번 말해 보세요."), progress))
                 .hasMessageStartingWith("아직 장면의 뜻을 모른다.");
@@ -99,14 +100,14 @@ class DialogueProgressRulesTest {
             ObjectNode input = input("Did my hand gesture land in the video?", "손은 화면 밖이다.");
             input.set("dialogue_progress", DialogueProgress.controls(input));
             JsonNode limit = DialogueProgress.observationLimitReply(input);
-            assertThat(limit.path("message").asText())
+            assertThat(LenientJson.asText(limit.path("message")))
                     .isEqualTo("I can't make out your hand movements in the video, so I can't judge how well that gesture landed.");
             assertThat(limit.path("reply_link").path("evidence_refs").toString()).isEqualTo("[\"l1\"]");
-            assertThat(limit.path("base_state_revision").asInt()).isEqualTo(4);
+            assertThat(LenientJson.asInt(limit.path("base_state_revision"))).isEqualTo(4);
             JsonNode correction = DialogueProgress.correctionTargetReply(input("I misspoke"));
-            assertThat(correction.path("message").asText())
+            assertThat(LenientJson.asText(correction.path("message")))
                     .isEqualTo("Do you mean you want to correct the answer you just gave me, or that you misspoke a line in the video?");
-            assertThat(correction.path("reply_link").path("move").asText()).isEqualTo("clarify");
+            assertThat(LenientJson.asText(correction.path("reply_link").path("move"))).isEqualTo("clarify");
         } finally {
             LocaleContextHolder.resetLocaleContext();
         }

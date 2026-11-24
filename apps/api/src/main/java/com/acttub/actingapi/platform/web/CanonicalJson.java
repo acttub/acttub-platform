@@ -1,10 +1,9 @@
 package com.acttub.actingapi.platform.web;
 
-import java.io.IOException;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
 import org.springframework.stereotype.Component;
 
 /**
@@ -33,7 +32,7 @@ public class CanonicalJson {
             return mapper.writer()
                     .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
                     .writeValueAsBytes(sortable);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("cannot encode canonical JSON", exception);
         }
     }

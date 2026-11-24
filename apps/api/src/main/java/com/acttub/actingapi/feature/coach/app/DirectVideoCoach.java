@@ -20,8 +20,9 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Gemini transport for the existing durable coach API; no layer-one model; response routing is a separate text call. */
 public final class DirectVideoCoach {
@@ -571,7 +572,7 @@ public final class DirectVideoCoach {
                 java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
                 history.clear();
                 history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText, false));
-                String design = state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
+                String design = LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("design"), "");
                 boolean koreanTurn = language == null || "ko".equals(language.getLanguage());
                 String stepTask = DirectVideoPrompts.practiceLoopTask(branch.doing(), language, flow, evidence);
                 // 맞춤 코칭은 단계 지시 자체를 바꿔 끼운다 — 끝에 붙인 메모로는 "둘 중 고르는 질문" 같은 단계 지시가 이겼다(SOMA-795).
@@ -1331,7 +1332,7 @@ public final class DirectVideoCoach {
         var before = PracticeLoopRouter.before(loopState, coachTurns);
         var classified = PracticeLoopRouter.unsureAfterWrap(
                 PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before), before, actorText);
-        String design = loopState == null ? "" : loopState.path("design").asText("");
+        String design = loopState == null ? "" : LenientJson.asText(loopState.path("design"), "");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
         String doing = PracticeLoopRouter.route(classified, before, stayed, flow,
                 coaching == null ? null : coaching.maxQuestions(), PracticeLoopRouter.questionsAsked(loopState, coachTurns));
@@ -1696,7 +1697,7 @@ public final class DirectVideoCoach {
      */
     private String proMemoryBlock(CoachSessionSnapshot session, ObjectNode state) {
         JsonNode stored = state.path(PRO_MEMORY);
-        if (stored.isObject()) return stored.path("block").asText("");
+        if (stored.isObject()) return LenientJson.asText(stored.path("block"), "");
         if (!session.turns().isEmpty()) return "";
         ObjectNode memory = state.putObject(PRO_MEMORY);
         boolean pro = CoachPro.safe(coachPro, session.userId());
@@ -1720,7 +1721,7 @@ public final class DirectVideoCoach {
     /** 1층 배정. 저장된 값이 있으면 그대로, 없으면 연습 id 로 정한다. */
     private String layerOneArm(CoachSessionSnapshot session) {
         JsonNode stored = session.coachingState() == null ? null : session.coachingState().path(LAYER1).path("arm");
-        if (stored != null && stored.isTextual() && !stored.asText().isEmpty()) return stored.asText();
+        if (stored != null && stored.isString() && !LenientJson.asText(stored).isEmpty()) return LenientJson.asText(stored);
         return layerOne.arm(session.practiceSessionId(), session.userId());
     }
 
@@ -1729,7 +1730,7 @@ public final class DirectVideoCoach {
         ObjectNode layer = state.path(LAYER1).isObject() ? (ObjectNode) state.path(LAYER1) : state.putObject(LAYER1);
         layer.put("arm", arm);
         if (!CoachLayerOne.on(arm)) return "";
-        String block = layer.path("block").asText("");
+        String block = LenientJson.asText(layer.path("block"), "");
         if (block.isEmpty()) {
             try {
                 block = layerOne.ready(session.practiceSessionId());
@@ -1740,7 +1741,7 @@ public final class DirectVideoCoach {
                 layer.put("block", block);
                 layer.put("from_turn", session.turns().size());
             } else {
-                layer.put("pending_turns", layer.path("pending_turns").asInt(0) + 1);
+                layer.put("pending_turns", LenientJson.asInt(layer.path("pending_turns"), 0) + 1);
             }
         }
         return block.isEmpty() ? "" : block.strip() + "\n\n";
@@ -1749,7 +1750,7 @@ public final class DirectVideoCoach {
     private static ObjectNode nextState(CoachSessionSnapshot session) {
         ObjectNode state = session.coachingState() == null ? CoachingStateReducer.empty()
                 : ((ObjectNode) session.coachingState()).deepCopy();
-        CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
+        CoachingStateReducer.require(LenientJson.asLong(state.path("revision")) == session.stateRevision(), "stored revision mismatch");
         state.put("revision", session.stateRevision() + 1);
         return state;
     }

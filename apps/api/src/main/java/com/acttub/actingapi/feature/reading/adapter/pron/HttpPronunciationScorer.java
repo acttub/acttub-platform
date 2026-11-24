@@ -18,8 +18,10 @@ import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Phone;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.ScoredLine;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.core.JacksonException;
 
 /** 채점 서비스(apps/pron) {@code POST /score} 를 multipart 로 부른다. 같은 compose 네트워크 안의 내부 주소다. */
 public class HttpPronunciationScorer implements PronunciationScorer {
@@ -54,7 +56,7 @@ public class HttpPronunciationScorer implements PronunciationScorer {
                 throw new IllegalStateException("pronunciation scorer returned " + response.statusCode());
             }
             return parse(mapper.readTree(response.body()));
-        } catch (IOException failure) {
+        } catch (IOException | JacksonException failure) {
             throw new IllegalStateException("pronunciation scorer failed", failure);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -67,20 +69,20 @@ public class HttpPronunciationScorer implements PronunciationScorer {
         for (JsonNode w : root.path("words")) {
             List<Phone> phones = new ArrayList<>();
             for (JsonNode p : w.path("phones")) {
-                phones.add(new Phone(p.path("expected").asText(), p.path("heard").asText(), p.path("lpr").asDouble(),
-                        p.path("vowel").asBoolean(), intOrNull(p.get("syllable")), intOrNull(p.get("start_ms")),
-                        intOrNull(p.get("end_ms")), p.path("flagged").asBoolean()));
+                phones.add(new Phone(LenientJson.asText(p.path("expected")), LenientJson.asText(p.path("heard")), LenientJson.asDouble(p.path("lpr")),
+                        LenientJson.asBoolean(p.path("vowel")), intOrNull(p.get("syllable")), intOrNull(p.get("start_ms")),
+                        intOrNull(p.get("end_ms")), LenientJson.asBoolean(p.path("flagged"))));
             }
-            words.add(new Word(w.path("index").asInt(), w.path("word").asText(), w.path("number").asBoolean(), phones));
+            words.add(new Word(LenientJson.asInt(w.path("index")), LenientJson.asText(w.path("word")), LenientJson.asBoolean(w.path("number")), phones));
         }
         JsonNode match = root.get("script_match");
-        Double scriptMatch = match == null || match.isNull() ? null : match.asDouble();
-        return new Scored(new ScoredLine(root.path("scored_text").asText(null), words, scriptMatch),
-                root.path("model_version").asText(null));
+        Double scriptMatch = match == null || match.isNull() ? null : LenientJson.asDouble(match);
+        return new Scored(new ScoredLine(LenientJson.asText(root.path("scored_text"), null), words, scriptMatch),
+                LenientJson.asText(root.path("model_version"), null));
     }
 
     private static Integer intOrNull(JsonNode node) {
-        return node == null || node.isNull() ? null : node.asInt();
+        return node == null || node.isNull() ? null : LenientJson.asInt(node);
     }
 
     private static void write(ByteArrayOutputStream out, String s) {

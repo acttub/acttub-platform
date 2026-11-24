@@ -9,7 +9,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 /** 코치 프롬프트 칸: 비어 있으면 칸을 만들지 않고, 있으면 정해진 제목과 줄로 싣는다. */

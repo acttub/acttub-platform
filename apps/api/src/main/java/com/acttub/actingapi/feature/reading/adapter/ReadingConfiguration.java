@@ -51,7 +51,7 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.feature.reading.adapter.voice.GeminiVoiceSynthesizer;
 import com.acttub.actingapi.platform.web.CanonicalJson;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;

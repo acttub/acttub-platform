@@ -31,7 +31,7 @@ class SummaryAnalyzerTest {
     @ValueSource(booleans = {false, true})
     void threeLayerAnalysisObservesBothPortsEvenWhenSpeechFallsBack(boolean speechFails) throws Exception {
         Path video = Files.writeString(temporary.resolve("record.mp4"), "video");
-        var record = (com.fasterxml.jackson.databind.node.ObjectNode)
+        var record = (tools.jackson.databind.node.ObjectNode)
                 StructuredJson.resource("/coaching/record.json");
         var speech = new SpeechAnalysis("가지 마", 2.0, List.of(), List.of());
         var reporter = new RecordingFailureReporter();

@@ -7,13 +7,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * springdoc 산출물을 커밋된 {@code spec/openapi.json} 에 고정한다.
@@ -65,13 +66,13 @@ class OpenApiSnapshotIT {
         }
         assertThat(paths.path("/v2/reports").has("get")).isFalse();
         // 같은 POST 주소는 챌린지 신고가 이어받는다. 옛 연습 리포트 작업을 노출하지 않는 것이 계약이다.
-        assertThat(paths.path("/v2/reports").path("post").path("operationId").asText())
+        assertThat(LenientJson.asText(paths.path("/v2/reports").path("post").path("operationId")))
                 .isNotEqualTo("create_report_v2_reports_post");
     }
 
     private static void assertReferences(JsonNode document, JsonNode value) {
         if (value.isObject() && value.has("$ref")) {
-            String ref = value.path("$ref").asText();
+            String ref = LenientJson.asText(value.path("$ref"));
             if (ref.startsWith("#/")) {
                 assertThat(document.at(ref.substring(1)).isMissingNode())
                         .as("클라이언트 타입 생성에 필요한 참조 %s가 정의되어야 한다", ref).isFalse();

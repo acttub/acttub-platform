@@ -10,7 +10,6 @@ import {
   emptyBlockageDraft,
   emptySceneDraft,
   fingerprintOf,
-  titleOverflow,
 } from '../lib/practice/start.ts';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
@@ -33,9 +32,6 @@ test('practice.title: 제목이 바뀌면 다른 요청이다(같은 요청 id �
 
 test('practice.title: 200자까지 보내고 201자는 화면이 먼저 막는다', () => {
   assert.equal(PRACTICE_TITLE_MAX, 200);
-  assert.equal(titleOverflow('가'.repeat(200)), false);
-  assert.equal(titleOverflow('가'.repeat(201)), true);
-  assert.equal(titleOverflow(`  ${'가'.repeat(200)}  `), false);
 });
 
 const practice = (ordinal, poster_url) => ({

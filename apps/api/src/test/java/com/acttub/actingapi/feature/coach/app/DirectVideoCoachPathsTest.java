@@ -33,10 +33,11 @@ import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 영상 직접 코치의 갈래: 이어서 찍은 회차, 영상 처리 대기·재사용, 비교 모델 대체, 줄이기, 마지막 말, 배정 실패. */
 class DirectVideoCoachPathsTest {
@@ -238,7 +239,7 @@ class DirectVideoCoachPathsTest {
         assertThat(lastCoachPrompt()).contains("이번이 오늘 대화의 마지막 말이다. 물은 것에 한두 문장으로 답만 하고")
                 .contains(" 배우가 정리에 다른 해석을 냈다.");
         assertThat(result.reply().message()).isEqualTo("그 해석이면 소리 지르며 따져 봐도 좋아요.");
-        String status = result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses").get(2).asText();
+        String status = LenientJson.asText(result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses").get(2));
         assertThat(DirectVideoPracticeLoop.statusField(status, "다음 테이크")).isEqualTo("소리 지르며 따져 봐도 좋아요");
     }
 

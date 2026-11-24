@@ -12,9 +12,10 @@ import java.util.stream.Collectors;
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 발표 시연용 정해진 코칭(2026-11 데모). 설정한 이메일의 배우가 영상 코칭(3층)을 하면 모델을 부르지 않고 대본의 코치 말을
@@ -64,8 +65,8 @@ public final class ScriptedCoach {
         List<Line> lines = new ArrayList<>();
         for (JsonNode line : script.path("lines")) {
             List<String> examples = new ArrayList<>();
-            line.path("examples").forEach(example -> examples.add(example.asText()));
-            lines.add(new Line(line.path("message").asText(), examples));
+            line.path("examples").forEach(example -> examples.add(LenientJson.asText(example)));
+            lines.add(new Line(LenientJson.asText(line.path("message")), examples));
         }
         if (lines.isEmpty() || lines.stream().anyMatch(line -> line.message().isBlank())) {
             throw new IllegalStateException("scripted coaching needs non-empty lines: " + resource);
@@ -74,7 +75,7 @@ public final class ScriptedCoach {
                 .map(email -> email.strip().toLowerCase(Locale.ROOT)).filter(email -> !email.isEmpty())
                 .collect(Collectors.toUnmodifiableSet());
         return new ScriptedCoach(enabled, parsed, users, firstDelay, nextDelay, lines,
-                script.path("note").path("title").asText(null), script.path("note").path("next_take").asText(null));
+                LenientJson.asText(script.path("note").path("title"), null), LenientJson.asText(script.path("note").path("next_take"), null));
     }
 
     /** 이 대화를 대본으로 할지. 3층(영상 코칭) 대화만이고, 대상 조회가 실패하면 평소대로 간다. */

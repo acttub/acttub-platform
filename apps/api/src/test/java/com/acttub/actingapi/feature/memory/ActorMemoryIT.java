@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -21,8 +23,8 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 
 /**
  * practice.memory 의 「검증 방법」 가운데 <b>서버</b> 항목을 HTTP 와 실제 Postgres 로 본다 —
@@ -165,7 +169,7 @@ class ActorMemoryIT {
                 INSERT INTO actor_memories(id,user_id,field,value,written_by) VALUES (?,?,'tone','짧게 답한다','agent')
                 """, UUID.randomUUID(), member);
         JsonNode memory = json(get("/v2/me/memory"), 200);
-        assertThat(memory.path("items").findValuesAsText("field")).contains("wants", "avoid").doesNotContain("tone");
+        assertThat(memory.path("items").findValuesAsString("field")).contains("wants", "avoid").doesNotContain("tone");
         perform(put("/v2/me/memory/tone").content(valueBody("반말")), 422);
         perform(put("/v2/me/memory/wants").content(valueBody("방법을 알려 줘요")), 200);
     }
@@ -197,7 +201,7 @@ class ActorMemoryIT {
             + "1,000자는 200 이고 1,001자는 422 다")
     void practiceMemory_actorWrittenFieldsSurviveTheWorker() throws Exception {
         JsonNode written = json(put("/v2/me/memory/goal").content("{\"value\":\"내가 적은 목표\"}"), 200);
-        assertThat(written.path("written_by_actor").booleanValue()).isTrue();
+        assertThat(written.path("written_by_actor").booleanValue(false)).isTrue();
         assertThat(written.path("source_practice_id").isNull()).isTrue();
 
         closeConversation(analyzedPractice(member));
@@ -256,6 +260,46 @@ class ActorMemoryIT {
     }
 
     @Test
+    @DisplayName("practice.memory: 갱신을 집은 워커가 끝내지 못하고 죽음 — lease 가 지나면 다음 워커가 다시 집어 기억을 쓴다. "
+            + "시도 수는 집을 때마다 오른다")
+    void practiceMemory_anUpdateLeftRunningByADeadWorkerIsPickedUpAgain() throws Exception {
+        UUID practice = analyzedPractice(member);
+        closeConversation(practice);
+        Instant now = Instant.now();
+        // 이 워커는 갱신을 집은 뒤 완료·놓기 없이 사라진다(배포 재시작, 메모리 부족 종료).
+        assertThat(updates.claim(UUID.randomUUID(), Duration.ofMinutes(5), now)).isNotNull();
+        generator.enqueue(EXTRACTED);
+
+        assertThat(worker.runOnce(now.plus(Duration.ofMinutes(6)))).as("lease 가 지난 갱신을 다시 집는다").isTrue();
+
+        assertThat(jdbc.queryForMap("SELECT status,attempt_count FROM ai_jobs WHERE kind='memory_update'"))
+                .containsEntry("status", "succeeded").containsEntry("attempt_count", 2);
+        assertThat(rows()).hasSize(WRITTEN);
+    }
+
+    @Test
+    @DisplayName("practice.memory: 갱신을 집은 워커가 세 번 모두 죽음 — 다시 집지 않고 정리가 작업을 failed/max_attempts 로 닫는다. "
+            + "회차는 건드리지 않는다")
+    void practiceMemory_anUpdateWhoseWorkersAllDiedIsClosed() throws Exception {
+        UUID practice = analyzedPractice(member);
+        closeConversation(practice);
+        Instant now = Instant.now();
+        for (int attempt = 0; attempt < AiJobLedger.MAX_ATTEMPTS; attempt++) {
+            updates.claim(UUID.randomUUID(), Duration.ofMinutes(5), now);
+            now = now.plus(Duration.ofMinutes(6));
+        }
+
+        assertThat(worker.runOnce(now)).as("시도를 다 쓴 갱신은 집지 않는다").isFalse();
+        assertThat(worker.closeAbandoned(now)).isEqualTo(1);
+
+        assertThat(jdbc.queryForMap("SELECT status,failure_reason,lease_token FROM ai_jobs WHERE kind='memory_update'"))
+                .containsEntry("status", "failed").containsEntry("failure_reason", "max_attempts")
+                .containsEntry("lease_token", null);
+        assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("closed");
+        assertThat(rows()).isEmpty();
+    }
+
+    @Test
     @DisplayName("practice.memory: 항목 하나 삭제는 그 칸만 지우고 두 번 삭제해도 204 다. 출처 회차를 숨기면 값은 "
             + "그대로고 출처 링크만 사라진다")
     void practiceMemory_deletingOneFieldIsIdempotentAndHiddenSourcesLoseTheirLink() throws Exception {
@@ -264,12 +308,12 @@ class ActorMemoryIT {
         assertThat(runWorker()).isTrue();
 
         JsonNode before = json(get("/v2/me/memory"), 200);
-        assertThat(item(before, "goal").path("source_practice_id").textValue()).isEqualTo(practice.toString());
+        assertThat(item(before, "goal").path("source_practice_id").stringValue(null)).isEqualTo(practice.toString());
 
         jdbc.update("UPDATE practices SET hidden_at=now() WHERE id=?", practice);
         JsonNode hidden = json(get("/v2/me/memory"), 200);
-        assertThat(item(hidden, "goal").path("value").textValue())
-                .isEqualTo(item(before, "goal").path("value").textValue());
+        assertThat(item(hidden, "goal").path("value").stringValue(null))
+                .isEqualTo(item(before, "goal").path("value").stringValue(null));
         assertThat(item(hidden, "goal").path("source_practice_id").isNull()).isTrue();
 
         perform(delete("/v2/me/memory/goal"), 204);
@@ -288,19 +332,19 @@ class ActorMemoryIT {
         legacyEntry("age", "20대", "actor");
 
         JsonNode before = json(get("/v2/me/memory"), 200);
-        assertThat(item(before, "goal").path("value").textValue()).isEqualTo("예전 목표");
-        assertThat(item(before, "goal").path("written_by_actor").booleanValue()).isFalse();
+        assertThat(item(before, "goal").path("value").stringValue(null)).isEqualTo("예전 목표");
+        assertThat(item(before, "goal").path("written_by_actor").booleanValue(false)).isFalse();
         assertThat(item(before, "goal").path("source_practice_id").isNull()).isTrue();
-        assertThat(item(before, "blockage").path("written_by_actor").booleanValue()).isTrue();
-        assertThat(item(before, "speech_self").path("value").textValue()).isEqualTo("차분하게 말하려 한다");
+        assertThat(item(before, "blockage").path("written_by_actor").booleanValue(false)).isTrue();
+        assertThat(item(before, "speech_self").path("value").stringValue(null)).isEqualTo("차분하게 말하려 한다");
         assertThat(fields(before)).doesNotContain("age", "gender");
 
         closeConversation(analyzedPractice(member));
         assertThat(runWorker()).isTrue();
 
         JsonNode after = json(get("/v2/me/memory"), 200);
-        assertThat(item(after, "goal").path("value").textValue()).as("옛 코치 칸은 새 값으로 갈린다").isEqualTo("새 목표");
-        assertThat(item(after, "blockage").path("value").textValue())
+        assertThat(item(after, "goal").path("value").stringValue(null)).as("옛 코치 칸은 새 값으로 갈린다").isEqualTo("새 목표");
+        assertThat(item(after, "blockage").path("value").stringValue(null))
                 .as("옛 표의 배우 칸은 워커가 덮지 않는다").isEqualTo("배우가 적은 막힘");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM actor_memories WHERE user_id=? AND field='blockage'", Integer.class, member))
@@ -325,7 +369,7 @@ class ActorMemoryIT {
 
     private static List<String> fields(JsonNode memory) {
         List<String> names = new ArrayList<>();
-        memory.path("items").forEach(row -> names.add(row.path("field").textValue()));
+        memory.path("items").forEach(row -> names.add(row.path("field").stringValue(null)));
         return names;
     }
 
@@ -365,14 +409,14 @@ class ActorMemoryIT {
         UUID conversation = UUID.fromString(json(
                 post("/v2/coach/start").content(
                         "{\"practice_id\":\"%s\",\"request_id\":\"%s\"}".formatted(practiceId, UUID.randomUUID())),
-                200).path("conversation").path("id").textValue());
+                200).path("conversation").path("id").stringValue(null));
         generator.enqueue(CONTINUE);
         json(post("/v2/coach/reply").content(replyBody(conversation, "첫 답")), 200);
         generator.enqueue(CLOSING);
         generator.enqueue(REPORT);
         JsonNode closed = json(post("/v2/coach/reply").content(replyBody(conversation, "둘째 답")), 200);
-        assertThat(closed.at("/note/report/report_type").asText()).isEqualTo("analysis");
-        assertThat(closed.at("/note/title").asText()).isEqualTo("기억의 출처가 되는 노트");
+        assertThat(LenientJson.asText(closed.at("/note/report/report_type"))).isEqualTo("analysis");
+        assertThat(LenientJson.asText(closed.at("/note/title"))).isEqualTo("기억의 출처가 되는 노트");
     }
 
     private String replyBody(UUID conversation, String text) {
@@ -429,7 +473,7 @@ class ActorMemoryIT {
 
     private static JsonNode item(JsonNode response, String field) {
         for (JsonNode item : response.path("items")) {
-            if (field.equals(item.path("field").textValue())) {
+            if (field.equals(item.path("field").stringValue(null))) {
                 return item;
             }
         }

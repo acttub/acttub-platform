@@ -11,7 +11,7 @@ import java.util.Map;
 
 import com.acttub.actingapi.feature.push.app.PushMessage;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /** 보낼 것이 없으면 Expo 를 부르지 않고, 보낸 것보다 많은 ticket 이나 data 가 아닌 답은 기기 이름이 되지 않는다. */

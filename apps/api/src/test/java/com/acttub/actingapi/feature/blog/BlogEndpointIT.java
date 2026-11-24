@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +32,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.blog — 로그인 없이 읽는 공개 경로와 운영 토큰으로 여는 관리 경로. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret",
@@ -70,13 +71,13 @@ class BlogEndpointIT {
     @Test
     void createValidatesAndRejectsADuplicateSlug() throws Exception {
         JsonNode created = admin(post("/v2/admin/blog/posts"), body("voice-warmup", "draft"), 201);
-        assertThat(created.path("status").textValue()).isEqualTo("draft");
+        assertThat(created.path("status").stringValue(null)).isEqualTo("draft");
         assertThat(created.path("published_at").isNull()).isTrue();
-        assertThat(created.path("author_name").textValue()).isEqualTo("액터브 팀");
-        assertThat(created.path("reading_minutes").intValue()).isEqualTo(1);
+        assertThat(created.path("author_name").stringValue(null)).isEqualTo("액터브 팀");
+        assertThat(LenientJson.intValue(created.path("reading_minutes"))).isEqualTo(1);
 
         JsonNode duplicate = admin(post("/v2/admin/blog/posts"), body("voice-warmup", "draft"), 409);
-        assertThat(duplicate.path("detail").textValue()).isEqualTo("slug_taken");
+        assertThat(duplicate.path("detail").stringValue(null)).isEqualTo("slug_taken");
 
         Map<String, Object> badSlug = fields("Bad Slug", "draft");
         JsonNode invalid = admin(post("/v2/admin/blog/posts"), badSlug, 422);
@@ -90,25 +91,25 @@ class BlogEndpointIT {
     void publishedPostsAreReadableWithoutLoginOrClientHeaderAndDraftsAreHidden() throws Exception {
         admin(post("/v2/admin/blog/posts"), body("draft-one", "draft"), 201);
         JsonNode live = admin(post("/v2/admin/blog/posts"), body("live-one", "published"), 201);
-        assertThat(live.path("published_at").isTextual()).isTrue();
+        assertThat(live.path("published_at").isString()).isTrue();
 
         JsonNode list = publicGet("/v2/blog/posts", 200);
         assertThat(list.path("items")).hasSize(1);
         JsonNode item = list.path("items").get(0);
-        assertThat(item.fieldNames()).toIterable().containsExactlyInAnyOrder("slug", "title", "summary", "category",
+        assertThat(item.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("slug", "title", "summary", "category",
                 "cover_image_url", "published_at", "reading_minutes");
-        assertThat(item.path("slug").textValue()).isEqualTo("live-one");
+        assertThat(item.path("slug").stringValue(null)).isEqualTo("live-one");
 
         assertThat(publicGet("/v2/blog/posts?category=news", 200).path("items")).isEmpty();
         assertThat(publicGet("/v2/blog/posts?category=bogus", 422).path("detail")).isNotEmpty();
         assertThat(publicGet("/v2/blog/posts?limit=0", 422).path("detail")).isNotEmpty();
 
         JsonNode detail = publicGet("/v2/blog/posts/live-one", 200);
-        assertThat(detail.path("body_markdown").textValue()).contains("본문");
-        assertThat(detail.path("app_cta").textValue()).isEqualTo("coaching");
-        assertThat(detail.path("author_name").textValue()).isEqualTo("액터브 팀");
-        assertThat(publicGet("/v2/blog/posts/draft-one", 404).path("detail").textValue()).isEqualTo("post_not_found");
-        assertThat(publicGet("/v2/blog/posts/missing", 404).path("detail").textValue()).isEqualTo("post_not_found");
+        assertThat(detail.path("body_markdown").stringValue(null)).contains("본문");
+        assertThat(detail.path("app_cta").stringValue(null)).isEqualTo("coaching");
+        assertThat(detail.path("author_name").stringValue(null)).isEqualTo("액터브 팀");
+        assertThat(publicGet("/v2/blog/posts/draft-one", 404).path("detail").stringValue(null)).isEqualTo("post_not_found");
+        assertThat(publicGet("/v2/blog/posts/missing", 404).path("detail").stringValue(null)).isEqualTo("post_not_found");
     }
 
     @Test
@@ -120,29 +121,29 @@ class BlogEndpointIT {
 
     @Test
     void patchPublishesOnceAndKeepsTheFirstPublishedAt() throws Exception {
-        String id = admin(post("/v2/admin/blog/posts"), body("later", "draft"), 201).path("id").textValue();
+        String id = admin(post("/v2/admin/blog/posts"), body("later", "draft"), 201).path("id").stringValue(null);
 
         JsonNode published = admin(patch("/v2/admin/blog/posts/" + id), Map.of("status", "published"), 200);
-        String first = published.path("published_at").textValue();
+        String first = published.path("published_at").stringValue(null);
         assertThat(first).isNotNull();
 
         JsonNode down = admin(patch("/v2/admin/blog/posts/" + id), Map.of("status", "draft", "title", "새 제목"), 200);
-        assertThat(down.path("title").textValue()).isEqualTo("새 제목");
-        assertThat(down.path("published_at").textValue()).isEqualTo(first);
-        assertThat(publicGet("/v2/blog/posts/later", 404).path("detail").textValue()).isEqualTo("post_not_found");
+        assertThat(down.path("title").stringValue(null)).isEqualTo("새 제목");
+        assertThat(down.path("published_at").stringValue(null)).isEqualTo(first);
+        assertThat(publicGet("/v2/blog/posts/later", 404).path("detail").stringValue(null)).isEqualTo("post_not_found");
 
         JsonNode backdated = admin(patch("/v2/admin/blog/posts/" + id), Map.of("published_at", "2026-01-01T00:00:00Z"), 200);
-        assertThat(backdated.path("published_at").textValue()).startsWith("2026-01-01T00:00:00");
+        assertThat(backdated.path("published_at").stringValue(null)).startsWith("2026-01-01T00:00:00");
         assertThat(admin(patch("/v2/admin/blog/posts/" + id), Map.of("bogus", 1), 422)
-                .path("detail").get(0).path("type").textValue()).isEqualTo("extra_forbidden");
+                .path("detail").get(0).path("type").stringValue(null)).isEqualTo("extra_forbidden");
         assertThat(admin(patch("/v2/admin/blog/posts/" + id), Map.of("category", "nope"), 422)
                 .path("detail").get(0).path("loc").toString()).isEqualTo("[\"body\",\"category\"]");
         assertThat(admin(patch("/v2/admin/blog/posts/" + java.util.UUID.randomUUID()), Map.of("title", "x"), 404)
-                .path("detail").textValue()).isEqualTo("post_not_found");
+                .path("detail").stringValue(null)).isEqualTo("post_not_found");
 
         admin(post("/v2/admin/blog/posts"), body("other", "draft"), 201);
         assertThat(admin(patch("/v2/admin/blog/posts/" + id), Map.of("slug", "other"), 409)
-                .path("detail").textValue()).isEqualTo("slug_taken");
+                .path("detail").stringValue(null)).isEqualTo("slug_taken");
         assertThat(mapper.readTree(mvc.perform(get("/v2/admin/blog/posts").header("Authorization", ADMIN))
                 .andReturn().getResponse().getContentAsString()).path("items")).hasSize(2);
     }
@@ -152,7 +153,7 @@ class BlogEndpointIT {
         MockHttpServletResponse ok = mvc.perform(multipart("/v2/admin/blog-images")
                 .file(new MockMultipartFile("image", "a.png", "image/png", new byte[] {1, 2, 3})).header("Authorization", ADMIN)).andReturn().getResponse();
         assertThat(ok.getStatus()).isEqualTo(200);
-        String url = mapper.readTree(ok.getContentAsString()).path("url").textValue();
+        String url = mapper.readTree(ok.getContentAsString()).path("url").stringValue(null);
         assertThat(url).startsWith("/v2/blog/images/").endsWith(".png");
 
         MockHttpServletResponse redirect = mvc.perform(get(url)).andReturn().getResponse();

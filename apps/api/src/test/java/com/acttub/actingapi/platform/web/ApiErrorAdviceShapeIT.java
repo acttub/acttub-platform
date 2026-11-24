@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 실제 앱의 필터·검증 인터셉터·Jackson 설정을 거친 422 오류 형상(apps/api/CONTRACT.md §6-2).
@@ -327,10 +328,10 @@ class ApiErrorAdviceShapeIT {
 
         assertThat(result.getResponse().getStatus()).isEqualTo(422);
         JsonNode error = JSON.readTree(result.getResponse().getContentAsString()).get("detail").get(0);
-        assertThat(error.get("type").asText()).isEqualTo("value_error");
+        assertThat(LenientJson.asText(error.get("type"))).isEqualTo("value_error");
         assertThat(error.get("loc")).isEqualTo(JSON.readTree("[\"path\",\"day\"]"));
-        assertThat(error.get("input").asText()).isEqualTo("nope");
-        assertThat(error.get("msg").asText()).contains("java.time.LocalDate");
+        assertThat(LenientJson.asText(error.get("input"))).isEqualTo("nope");
+        assertThat(LenientJson.asText(error.get("msg"))).contains("java.time.LocalDate");
     }
 
     private void assertBodyError(String path, String request, String expected) throws Exception {

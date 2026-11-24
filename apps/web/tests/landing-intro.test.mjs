@@ -4,14 +4,9 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { LANDING_INTRO_HREF, wantsLandingIntro } = await import("../src/lib/landing-intro.ts");
+const { LANDING_INTRO_HREF } = await import("../src/lib/landing-intro.ts");
 
-test("intro=1 이 있을 때만 게스트에게 랜딩을 보여 준다", () => {
-  assert.equal(wantsLandingIntro("?intro=1"), true);
-  assert.equal(wantsLandingIntro("?utm_source=ig&intro=1"), true);
-  assert.equal(wantsLandingIntro(""), false);
-  assert.equal(wantsLandingIntro("?intro=0"), false);
-  assert.equal(wantsLandingIntro("?utm_source=ig"), false);
+test("연습 화면 로고는 intro=1 을 단 랜딩 주소를 가리킨다", () => {
   assert.equal(new URL(LANDING_INTRO_HREF, "https://acttub.com").search, "?intro=1");
 });
 

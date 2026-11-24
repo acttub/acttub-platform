@@ -10,8 +10,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 챌린지 공개 HTTP 계약. 실제 Postgres를 쓰고 모델·스토리지 호출 없이 개설·노출을 검증한다. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false",
@@ -56,17 +57,17 @@ class ChallengeIT {
     @Test void challengeCreate_memberCanOpenASevenDayChallengeAndReadIt() throws Exception {
         JsonNode created = response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "line", "  가지   마. ", "work", "창작", "duration_days", 7))), 201);
-        assertThat(created.path("line").asText()).isEqualTo("가지 마.");
-        assertThat(created.path("work").asText()).isEqualTo("창작");
-        assertThat(created.path("origin").asText()).isEqualTo("member");
-        assertThat(created.path("moderation").asText()).isEqualTo("visible");
-        assertThat(created.path("host_name").asText()).isEqualTo("테스트 배우");
-        assertThat(created.path("is_host").asBoolean()).isTrue();
-        assertThat(created.path("entry_count").asInt()).isZero();
+        assertThat(LenientJson.asText(created.path("line"))).isEqualTo("가지 마.");
+        assertThat(LenientJson.asText(created.path("work"))).isEqualTo("창작");
+        assertThat(LenientJson.asText(created.path("origin"))).isEqualTo("member");
+        assertThat(LenientJson.asText(created.path("moderation"))).isEqualTo("visible");
+        assertThat(LenientJson.asText(created.path("host_name"))).isEqualTo("테스트 배우");
+        assertThat(LenientJson.asBoolean(created.path("is_host"))).isTrue();
+        assertThat(LenientJson.asInt(created.path("entry_count"))).isZero();
         assertThat(created.path("participants")).isEmpty();
-        assertThat(Instant.parse(created.path("starts_at").asText())).isEqualTo(NOW);
-        assertThat(Instant.parse(created.path("ends_at").asText())).isEqualTo(Instant.parse("2026-09-30T03:00:00Z"));
-        assertThat(response(get("/v2/challenges/{id}", created.path("id").asText()), 200)).isEqualTo(created);
+        assertThat(Instant.parse(LenientJson.asText(created.path("starts_at")))).isEqualTo(NOW);
+        assertThat(Instant.parse(LenientJson.asText(created.path("ends_at")))).isEqualTo(Instant.parse("2026-09-30T03:00:00Z"));
+        assertThat(response(get("/v2/challenges/{id}", LenientJson.asText(created.path("id"))), 200)).isEqualTo(created);
     }
 
     @Test void challengeCreate_replayPrecedesQuotaAndChangedBodiesAreRejected() throws Exception {
@@ -78,12 +79,12 @@ class ChallengeIT {
                     "request_id", UUID.randomUUID(), "line", line, "work", "창작", "duration_days", 7))), 201);
         }
         assertThat(response(post("/v2/challenges").content(body), 200)).isEqualTo(first);
-        assertThat(response(post("/v2/challenges").content(body.replace("돌아와 줘.", "다른 대사")), 422)
-                .path("detail").asText()).isEqualTo("request_fingerprint_mismatch");
-        assertThat(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
+        assertThat(LenientJson.asText(response(post("/v2/challenges").content(body.replace("돌아와 줘.", "다른 대사")), 422)
+                .path("detail"))).isEqualTo("request_fingerprint_mismatch");
+        assertThat(LenientJson.asText(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "line", "네 번째", "work", "창작", "duration_days", 7))), 429)
-                .path("detail").asText()).isEqualTo("daily_challenge_limit");
-        assertThat(Instant.parse(first.path("ends_at").asText())).isEqualTo(Instant.parse("2026-10-07T03:00:00Z"));
+                .path("detail"))).isEqualTo("daily_challenge_limit");
+        assertThat(Instant.parse(LenientJson.asText(first.path("ends_at")))).isEqualTo(Instant.parse("2026-10-07T03:00:00Z"));
     }
 
     @Test void challengeCreate_concurrentNormalizedDuplicateOnlyCreatesOneChallenge() throws Exception {
@@ -108,7 +109,7 @@ class ChallengeIT {
             for (var request : requests) responses.add(request.get(20, java.util.concurrent.TimeUnit.SECONDS));
             assertThat(responses.stream().map(r -> r.getStatus())).containsExactlyInAnyOrder(201, 422);
             for (var r : responses) if (r.getStatus() == 422) {
-                assertThat(json.readTree(r.getContentAsString()).path("detail").asText()).isEqualTo("duplicate_challenge");
+                assertThat(LenientJson.asText(json.readTree(r.getContentAsString()).path("detail"))).isEqualTo("duplicate_challenge");
             }
         }
     }
@@ -119,7 +120,7 @@ class ChallengeIT {
         create("하나 더", 429);
         clock.set(Instant.parse("2026-09-23T15:00:00Z"));
         create("다음 날 대사", 201);
-        assertThat(create("오늘 대사 0", 422).path("detail").asText()).isEqualTo("duplicate_challenge");
+        assertThat(LenientJson.asText(create("오늘 대사 0", 422).path("detail"))).isEqualTo("duplicate_challenge");
         clock.set(Instant.parse("2026-09-30T15:00:00Z"));
         create("오늘 대사 0", 201);
     }
@@ -128,9 +129,9 @@ class ChallengeIT {
         create("  " + "😀".repeat(200) + "  ", 201);
         assertThat(create("😀".repeat(201), 422).path("detail").isArray()).isTrue();
         assertThat(create("   ", 422).path("detail").isArray()).isTrue();
-        assertThat(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
+        assertThat(LenientJson.asText(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "line", "짧은 대사", "work", "창작", "duration_days", 10))), 422)
-                .path("detail").asText()).isEqualTo("invalid_duration");
+                .path("detail"))).isEqualTo("invalid_duration");
     }
 
     private JsonNode create(String line, int status) throws Exception {
@@ -148,17 +149,17 @@ class ChallengeIT {
                 "request_id", UUID.randomUUID(), "line", "기다려", "work", "달빛", "duration_days", 7))), 201);
         JsonNode search = response(get("/v2/challenges").param("tab", "latest").param("q", "달빛"), 200);
         assertThat(search.path("featured").isNull()).isTrue();
-        assertThat(search.path("challenges").findValuesAsText("id"))
-                .containsExactly(workMatch.path("id").asText(), first.path("id").asText());
+        assertThat(search.path("challenges").findValuesAsString("id"))
+                .containsExactly(LenientJson.asText(workMatch.path("id")), LenientJson.asText(first.path("id")));
         JsonNode latest = response(get("/v2/challenges").param("tab", "latest"), 200);
         assertThat(latest.at("/featured/id")).isEqualTo(workMatch.path("id"));
-        assertThat(latest.path("challenges").findValuesAsText("id"))
-                .containsExactly(characterOnly.path("id").asText(), first.path("id").asText());
+        assertThat(latest.path("challenges").findValuesAsString("id"))
+                .containsExactly(LenientJson.asText(characterOnly.path("id")), LenientJson.asText(first.path("id")));
         clock.advance(java.time.Duration.ofDays(8));
         JsonNode ended = response(get("/v2/challenges").param("tab", "ended"), 200);
         assertThat(ended.path("featured").isNull()).isTrue();
-        assertThat(ended.path("challenges").findValuesAsText("id"))
-                .containsExactly(workMatch.path("id").asText(), characterOnly.path("id").asText(), first.path("id").asText());
+        assertThat(ended.path("challenges").findValuesAsString("id"))
+                .containsExactly(LenientJson.asText(workMatch.path("id")), LenientJson.asText(characterOnly.path("id")), LenientJson.asText(first.path("id")));
         assertThat(response(get("/v2/challenges").param("tab", "latest"), 200).path("challenges")).isEmpty();
     }
 
@@ -171,26 +172,26 @@ class ChallengeIT {
                 "line", "오늘의 대사", "work", "창작", "duration_days", 7, "featured_on", "2026-09-23"));
         response(post("/v2/admin/challenges").content(body), 401);
         JsonNode team = response(post("/v2/admin/challenges").content(body), 201, "Bearer challenge-test-ops");
-        assertThat(team.path("origin").asText()).isEqualTo("team");
+        assertThat(LenientJson.asText(team.path("origin"))).isEqualTo("team");
         assertThat(team.path("host_name").isNull()).isTrue();
         assertThat(response(post("/v2/admin/challenges").content(body), 200, "Bearer challenge-test-ops")).isEqualTo(team);
         assertThat(response(get("/v2/challenges"), 200).at("/featured/id")).isEqualTo(team.path("id"));
-        assertThat(response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of("request_id", UUID.randomUUID(),
+        assertThat(LenientJson.asText(response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of("request_id", UUID.randomUUID(),
                 "line", "겹친 선정", "work", "창작", "duration_days", 7, "featured_on", "2026-09-23"))), 422, "Bearer challenge-test-ops")
-                .path("detail").asText()).isEqualTo("featured_date_conflict");
-        assertThat(response(post("/v2/admin/challenges").content(body.replace("오늘의 대사", "바뀐 대사")), 422, "Bearer challenge-test-ops")
-                .path("detail").asText()).isEqualTo("request_fingerprint_mismatch");
-        assertThat(response(post("/v2/admin/challenges").content(body.replace("\"duration_days\":7", "\"duration_days\":10")), 422, "Bearer challenge-test-ops")
-                .path("detail").asText()).isEqualTo("invalid_duration");
-        String path = "/v2/admin/challenges/" + team.path("id").asText() + "/moderation";
+                .path("detail"))).isEqualTo("featured_date_conflict");
+        assertThat(LenientJson.asText(response(post("/v2/admin/challenges").content(body.replace("오늘의 대사", "바뀐 대사")), 422, "Bearer challenge-test-ops")
+                .path("detail"))).isEqualTo("request_fingerprint_mismatch");
+        assertThat(LenientJson.asText(response(post("/v2/admin/challenges").content(body.replace("\"duration_days\":7", "\"duration_days\":10")), 422, "Bearer challenge-test-ops")
+                .path("detail"))).isEqualTo("invalid_duration");
+        String path = "/v2/admin/challenges/" + LenientJson.asText(team.path("id")) + "/moderation";
         response(patch(path).content("{\"moderation\":\"review\"}"), 200, "Bearer challenge-test-ops");
-        response(get("/v2/challenges/{id}", team.path("id").asText()), 404);
+        response(get("/v2/challenges/{id}", LenientJson.asText(team.path("id"))), 404);
         assertThat(response(get("/v2/challenges"), 200).path("featured").isNull()).isTrue();
         clock.advance(java.time.Duration.ofDays(8));
         response(patch(path).content("{\"moderation\":\"visible\"}"), 200, "Bearer challenge-test-ops");
         assertThat(response(get("/v2/challenges").param("tab", "ended"), 200).at("/challenges/0/id")).isEqualTo(team.path("id"));
-        assertThat(response(patch("/v2/admin/challenges/{id}/moderation", UUID.randomUUID())
-                .content("{\"moderation\":\"visible\"}"), 404, "Bearer challenge-test-ops").path("detail").asText())
+        assertThat(LenientJson.asText(response(patch("/v2/admin/challenges/{id}/moderation", UUID.randomUUID())
+                .content("{\"moderation\":\"visible\"}"), 404, "Bearer challenge-test-ops").path("detail")))
                 .isEqualTo("challenge_not_found");
     }
 
@@ -199,13 +200,13 @@ class ChallengeIT {
                 .header("X-Acttub-Client", "web/0.1.0").header("Accept-Language", "ko"))
                 .andReturn().getResponse();
         assertThat(web.getStatus()).isEqualTo(403);
-        assertThat(json.readTree(web.getContentAsString()).path("detail").asText()).isEqualTo("member_only");
+        assertThat(LenientJson.asText(json.readTree(web.getContentAsString()).path("detail"))).isEqualTo("member_only");
         var english = mvc.perform(get("/v2/challenges").header("Authorization", bearer)
                 .header("X-Acttub-Client", "app/0.1.0").header("Accept-Language", "en"))
                 .andReturn().getResponse();
         assertThat(english.getStatus()).isEqualTo(200);
         jdbc.update("UPDATE user_identities SET provider='guest' WHERE user_id=?", user);
-        assertThat(response(get("/v2/challenges"), 403).path("detail").asText()).isEqualTo("member_only");
+        assertThat(LenientJson.asText(response(get("/v2/challenges"), 403).path("detail"))).isEqualTo("member_only");
     }
 
     @Test void challengeCreate_withdrawalBeforeTheWritePreventsALateChallenge() throws Exception {
@@ -226,7 +227,7 @@ class ChallengeIT {
                 return request;
             }).get(20, java.util.concurrent.TimeUnit.SECONDS);
             assertThat(response.getStatus()).isEqualTo(403);
-            assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("account_deactivated");
+            assertThat(LenientJson.asText(json.readTree(response.getContentAsString()).path("detail"))).isEqualTo("account_deactivated");
         }
         jdbc.update("UPDATE users SET status='active',deactivated_at=NULL WHERE id=?", user);
         assertThat(response(get("/v2/challenges"), 200).path("challenges")).isEmpty();
@@ -242,8 +243,8 @@ class ChallengeIT {
     }
 
     @Test void challengeBrowse_countsPublicEntriesGloballyButFiltersPeopleAndSearchForTheViewer() throws Exception {
-        UUID challenge = UUID.fromString(create("같이 읽을 장면", 201).path("id").asText());
-        UUID other = UUID.fromString(create("내 비공개 참여", 201).path("id").asText());
+        UUID challenge = UUID.fromString(LenientJson.asText(create("같이 읽을 장면", 201).path("id")));
+        UUID other = UUID.fromString(LenientJson.asText(create("내 비공개 참여", 201).path("id")));
         UUID blocked = actor("가려진 배우");
         UUID nina = actor("니나");
         likes(entry(challenge, blocked, "public", "visible"), 2);
@@ -260,15 +261,15 @@ class ChallengeIT {
         jdbc.update("INSERT INTO user_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)", UUID.randomUUID(), user, blocked);
 
         JsonNode detail = response(get("/v2/challenges/{id}", challenge), 200);
-        assertThat(detail.path("entry_count").asLong()).isEqualTo(3);
-        assertThat(detail.path("like_sum").asLong()).isEqualTo(7);
-        assertThat(detail.path("participants").findValuesAsText("name")).containsExactly("니나");
-        assertThat(detail.path("more_count").asLong()).isZero();
+        assertThat(LenientJson.asLong(detail.path("entry_count"))).isEqualTo(3);
+        assertThat(LenientJson.asLong(detail.path("like_sum"))).isEqualTo(7);
+        assertThat(detail.path("participants").findValuesAsString("name")).containsExactly("니나");
+        assertThat(LenientJson.asLong(detail.path("more_count"))).isZero();
         assertThat(detail.at("/participants/0/photo_url").isNull()).isTrue();
         assertThat(detail.toString()).doesNotContain("bio");
-        assertThat(response(get("/v2/challenges").param("tab", "popular"), 200).at("/featured/id").asText())
+        assertThat(LenientJson.asText(response(get("/v2/challenges").param("tab", "popular"), 200).at("/featured/id")))
                 .isEqualTo(challenge.toString());
-        assertThat(response(get("/v2/challenges").param("q", "니나"), 200).path("challenges").findValuesAsText("id"))
+        assertThat(response(get("/v2/challenges").param("q", "니나"), 200).path("challenges").findValuesAsString("id"))
                 .containsExactly(challenge.toString());
         assertThat(response(get("/v2/challenges").param("q", "가려진"), 200).path("challenges")).isEmpty();
         assertThat(response(get("/v2/challenges").param("q", "x"), 200)).isEqualTo(response(get("/v2/challenges"), 200));
@@ -277,7 +278,7 @@ class ChallengeIT {
         assertThat(response(get("/v2/challenges").param("q", "가려진"), 200).path("challenges")).isEmpty();
         JsonNode mine = response(get("/v2/challenges").param("tab", "mine"), 200);
         assertThat(mine.path("featured").isNull()).isTrue();
-        assertThat(mine.path("challenges").findValuesAsText("id")).containsExactly(other.toString());
+        assertThat(mine.path("challenges").findValuesAsString("id")).containsExactly(other.toString());
     }
 
     private UUID actor(String name) {
@@ -292,24 +293,24 @@ class ChallengeIT {
         String body = json.writeValueAsString(Map.of("request_id", UUID.randomUUID(), "line", "지울 대사",
                 "work", "창작", "duration_days", 7));
         JsonNode created = response(post("/v2/challenges").content(body), 201);
-        String id = created.path("id").asText();
+        String id = LenientJson.asText(created.path("id"));
         UUID stranger = actor("다른 배우");
         AccountFixtures.grantAllConsents(jdbc, stranger);
-        assertThat(response(delete("/v2/challenges/{id}", id), 404, "Bearer " + jwt.issueAccessToken(stranger).value())
-                .path("detail").asText()).isEqualTo("challenge_not_found");
+        assertThat(LenientJson.asText(response(delete("/v2/challenges/{id}", id), 404, "Bearer " + jwt.issueAccessToken(stranger).value())
+                .path("detail"))).isEqualTo("challenge_not_found");
         response(delete("/v2/challenges/{id}", id), 204);
         response(delete("/v2/challenges/{id}", id), 204);
         response(get("/v2/challenges/{id}", id), 404);
         assertThat(response(post("/v2/challenges").content(body), 200).path("id")).isEqualTo(created.path("id"));
         create("삭제해도 한도에 남음", 201);
-        UUID entered = UUID.fromString(create("참여 이력이 있는 대사", 201).path("id").asText());
+        UUID entered = UUID.fromString(LenientJson.asText(create("참여 이력이 있는 대사", 201).path("id")));
         UUID entry = entry(entered, stranger, "public", "visible");
-        assertThat(response(delete("/v2/challenges/{id}", entered), 422).path("detail").asText())
+        assertThat(LenientJson.asText(response(delete("/v2/challenges/{id}", entered), 422).path("detail")))
                 .isEqualTo("challenge_has_entries");
         jdbc.update("UPDATE challenge_entries SET status='deleted',video_id=NULL,caption=NULL,deleted_at=now() WHERE id=?", entry);
-        assertThat(response(delete("/v2/challenges/{id}", entered), 422).path("detail").asText())
+        assertThat(LenientJson.asText(response(delete("/v2/challenges/{id}", entered), 422).path("detail")))
                 .isEqualTo("challenge_has_entries");
-        assertThat(create("네 번째는 안 됨", 429).path("detail").asText()).isEqualTo("daily_challenge_limit");
+        assertThat(LenientJson.asText(create("네 번째는 안 됨", 429).path("detail"))).isEqualTo("daily_challenge_limit");
     }
 
     private UUID entry(UUID challenge, UUID owner, String visibility, String status) {
@@ -340,48 +341,48 @@ class ChallengeIT {
             var created = response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of(
                     "request_id", UUID.randomUUID(), "line", "페이지 대사 " + i, "work", "창작", "duration_days", 7))),
                     201, "Bearer challenge-test-ops");
-            ids.add(created.path("id").asText());
+            ids.add(LenientJson.asText(created.path("id")));
         }
         JsonNode first = response(get("/v2/challenges").param("tab", "latest"), 200);
         assertThat(first.path("challenges")).hasSize(20);
-        assertThat(first.at("/featured/id").asText()).isEqualTo(ids.getLast());
-        assertThat(first.path("next_cursor").isTextual()).isTrue();
+        assertThat(LenientJson.asText(first.at("/featured/id"))).isEqualTo(ids.getLast());
+        assertThat(first.path("next_cursor").isString()).isTrue();
         JsonNode second = response(get("/v2/challenges").param("tab", "latest")
-                .param("cursor", first.path("next_cursor").asText()), 200);
+                .param("cursor", LenientJson.asText(first.path("next_cursor"))), 200);
         assertThat(second.path("challenges")).hasSize(5);
         assertThat(second.path("next_cursor").isNull()).isTrue();
         var seen = new java.util.ArrayList<String>();
-        seen.add(first.at("/featured/id").asText());
-        seen.addAll(first.path("challenges").findValuesAsText("id"));
-        seen.addAll(second.path("challenges").findValuesAsText("id"));
+        seen.add(LenientJson.asText(first.at("/featured/id")));
+        seen.addAll(first.path("challenges").findValuesAsString("id"));
+        seen.addAll(second.path("challenges").findValuesAsString("id"));
         java.util.Collections.reverse(ids);
         assertThat(seen).containsExactlyElementsOf(ids);
         assertThat(response(get("/v2/challenges").param("tab", "latest").param("q", "다른 검색")
-                .param("cursor", first.path("next_cursor").asText()), 422).path("detail").isArray()).isTrue();
+                .param("cursor", LenientJson.asText(first.path("next_cursor"))), 422).path("detail").isArray()).isTrue();
         assertThat(response(get("/v2/challenges").param("cursor", "not-a-cursor"), 422).path("detail").isArray()).isTrue();
     }
 
     @Test void challengeBrowse_usesTheLatestPastSelectionThenPublicEntryCountAndNeverPinsTomorrowEarly() throws Exception {
-        UUID popular = UUID.fromString(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
+        UUID popular = UUID.fromString(LenientJson.asText(response(post("/v2/challenges").content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "line", "참여 많은 장면", "work", "창작", "duration_days", 14))), 201)
-                .path("id").asText());
+                .path("id")));
         entry(popular, actor("참여자 하나"), "public", "visible");
         entry(popular, actor("참여자 둘"), "public", "visible");
         UUID yesterday = team("어제 선정", "2026-09-22");
         clock.advance(java.time.Duration.ofSeconds(1));
         UUID tomorrow = team("내일 선정", "2026-09-24");
-        assertThat(response(get("/v2/challenges"), 200).at("/featured/id").asText()).isEqualTo(yesterday.toString());
+        assertThat(LenientJson.asText(response(get("/v2/challenges"), 200).at("/featured/id"))).isEqualTo(yesterday.toString());
         clock.advance(java.time.Duration.ofDays(1));
-        assertThat(response(get("/v2/challenges"), 200).at("/featured/id").asText()).isEqualTo(tomorrow.toString());
+        assertThat(LenientJson.asText(response(get("/v2/challenges"), 200).at("/featured/id"))).isEqualTo(tomorrow.toString());
         clock.advance(java.time.Duration.ofDays(7));
-        assertThat(response(get("/v2/challenges"), 200).at("/featured/id").asText()).isEqualTo(popular.toString());
+        assertThat(LenientJson.asText(response(get("/v2/challenges"), 200).at("/featured/id"))).isEqualTo(popular.toString());
         assertThat(response(get("/v2/challenges").param("tab", "ended"), 200).path("featured").isNull()).isTrue();
     }
 
     private UUID team(String line, String day) throws Exception {
-        return UUID.fromString(response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of(
+        return UUID.fromString(LenientJson.asText(response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of(
                 "request_id", UUID.randomUUID(), "line", line, "work", "창작", "duration_days", 7, "featured_on", day))),
-                201, "Bearer challenge-test-ops").path("id").asText());
+                201, "Bearer challenge-test-ops").path("id")));
     }
 
 }

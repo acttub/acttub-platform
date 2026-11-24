@@ -11,7 +11,7 @@ import java.util.List;
 
 import com.acttub.actingapi.feature.audition.domain.AuditionPosting;
 import com.acttub.actingapi.platform.observability.ExternalFailure;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

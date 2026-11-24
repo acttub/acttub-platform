@@ -3,8 +3,9 @@ import { setAudioModeAsync } from 'expo-audio';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { Platform } from 'react-native';
 
-import { detectSttPolicy, SPEECH_END_GRACE_MS, STT_RESTART_MAX, sttCanPersist, sttVolumeToRms, useReadingStt } from '@/hooks/use-reading-stt';
+import { detectSttPolicy, STT_RESTART_MAX, sttCanPersist, sttVolumeToRms, useReadingStt } from '@/hooks/use-reading-stt';
 import { logEvent } from '@/lib/analytics';
+import { DEFAULT_APP_CONFIG } from '@/lib/app-config';
 import type { VadEvent } from '@/lib/reading/vad';
 
 type Handler = (event?: unknown) => void;
@@ -29,6 +30,7 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('expo-audio', () => ({ setAudioModeAsync: jest.fn(async () => undefined) }));
 
 const recognizer = jest.mocked(ExpoSpeechRecognitionModule);
+const GRACE_MS = DEFAULT_APP_CONFIG.reading.speechEndGraceMs;
 const permission = (granted: boolean, canAskAgain = true) => ({ granted, canAskAgain, status: granted ? 'granted' : 'denied', expires: 'never' }) as never;
 const emit = async (name: string, event?: unknown) => act(async () => mockHandlers[name]?.(event));
 const result = (transcript: string, isFinal = false) => ({ isFinal, results: [{ transcript, confidence: 1, segments: [] }] });
@@ -315,12 +317,12 @@ describe('useReadingStt', () => {
 
     await emit('speechend');
     await emit('speechstart');
-    await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+    await act(async () => jest.advanceTimersByTime(GRACE_MS));
     expect(events).toEqual(['speech_start']);
 
     await emit('speechend');
     await emit('speechend');
-    await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+    await act(async () => jest.advanceTimersByTime(GRACE_MS));
     expect(events).toEqual(['speech_start', 'speech_end']);
   });
 
@@ -329,7 +331,7 @@ describe('useReadingStt', () => {
     await emit('result', result('진짜?! ㅋㅋㅋ… 그래서요...'));
 
     await emit('speechend');
-    await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+    await act(async () => jest.advanceTimersByTime(GRACE_MS));
     expect(events).toEqual(['speech_end']);
   });
 
@@ -339,9 +341,9 @@ describe('useReadingStt', () => {
       const { events } = await listen();
 
       await emit('result', result('여기'));
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 200));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS - 200));
       await emit('result', result('여기 있을 줄'));
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 200));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS - 200));
       expect(events).toEqual([]);
 
       await act(async () => jest.advanceTimersByTime(200));
@@ -353,7 +355,7 @@ describe('useReadingStt', () => {
       const { events } = await listen();
 
       await emit('result', result(''));
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS * 2));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS * 2));
       expect(events).toEqual([]);
     });
 
@@ -363,7 +365,7 @@ describe('useReadingStt', () => {
       const { events } = await listen();
 
       await emit('result', result('여기 있을 줄 알았어'));
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 1));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS - 1));
       expect(events).toEqual([]);
       await act(async () => jest.advanceTimersByTime(1));
       expect(events).toEqual(['speech_end']);
@@ -374,10 +376,10 @@ describe('useReadingStt', () => {
       const { events } = await listen();
 
       await emit('speechend');
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS * 2));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS * 2));
       expect(events).toEqual([]);
       await emit('result', result('여기 있을 줄 알았어', true));
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS));
       expect(events).toEqual(['speech_end']);
     });
 
@@ -386,9 +388,9 @@ describe('useReadingStt', () => {
       const { events } = await listen();
 
       await emit('result', result('여기'));
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 100));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS - 100));
       await emit('result', result('여기 있을 줄'));
-      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 100));
+      await act(async () => jest.advanceTimersByTime(GRACE_MS - 100));
       expect(events).toEqual([]);
       await act(async () => jest.advanceTimersByTime(100));
       expect(events).toEqual(['speech_end']);
@@ -399,7 +401,7 @@ describe('useReadingStt', () => {
     const { events } = await listen();
 
     await emit('speechend');
-    await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+    await act(async () => jest.advanceTimersByTime(GRACE_MS));
     expect(events).toEqual([]);
   });
 
@@ -467,7 +469,7 @@ describe('useReadingStt', () => {
     await act(async () => stt.abort());
 
     await emit('speechend');
-    await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+    await act(async () => jest.advanceTimersByTime(GRACE_MS));
     expect(events).toEqual([]);
   });
 

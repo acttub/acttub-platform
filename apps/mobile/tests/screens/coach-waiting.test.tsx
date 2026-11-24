@@ -10,13 +10,10 @@ import { ApiError } from '@/lib/api-request';
 import { localCopyFor } from '@/lib/library/library-runner';
 import { clearPractice, getPractice } from '@/lib/practice/session-state';
 import type { CoachConversation, PracticeDetail, PracticeStatus } from '@/lib/practice/types';
-import { currentSpotlight } from '@/lib/spotlight-host';
-import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
-import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutorial-sample';
 
 /**
  * 분석 대기(옛 A10 analyzing 화면)는 코치 화면 안의 「영상 보는 중」이다(SOMA-778). 옛 analyzing 화면 테스트를 그대로 옮겼다 —
- * 조회 주기·푸시·복귀·그만두기·다시 시도·복구 기록·튜토리얼 예시. 「코치로 넘어간다」는 이제 같은 화면에서 대화가 열리는 것이다.
+ * 조회 주기·푸시·복귀·그만두기·다시 시도·복구 기록. 「코치로 넘어간다」는 이제 같은 화면에서 대화가 열리는 것이다.
  */
 const mockRouter = { dismissTo: jest.fn(), replace: jest.fn(), dismissAll: jest.fn() };
 const mockNavDispatch = jest.fn();
@@ -54,18 +51,12 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser }) }));
 const QUESTION = '첫 대사 전에 무엇을 결심했나요?';
 const mockLoop = {
-  getPractice: jest.fn(),
   getConversation: jest.fn(),
   getPracticeNote: jest.fn(),
   getPracticeAnalysis: jest.fn(),
   startConversation: jest.fn(),
   replyToCoach: jest.fn(),
 };
-let mockSampleLoop: LoopApi | null = null;
-jest.mock('@/lib/tutorial-loop', () => ({
-  sampleVideoUri: () => 'file:///sample.mp4',
-  loopApiFor: (practiceId: string | null | undefined) => (practiceId === 'tutorial-sample-practice' ? mockSampleLoop : mockLoop),
-}));
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ dispatch: mockNavDispatch, addListener: () => () => undefined }),
   usePreventRemove: jest.fn(),
@@ -89,6 +80,12 @@ jest.mock('@/lib/api', () => ({
     cancelPractice: jest.fn(),
     retryPracticeAnalysis: jest.fn(),
     listPracticeGroups: jest.fn(),
+    // 분석이 끝나고 열리는 대화(app/coach)가 부르는 것.
+    getConversation: (...args: unknown[]) => mockLoop.getConversation(...args),
+    getPracticeNote: (...args: unknown[]) => mockLoop.getPracticeNote(...args),
+    getPracticeAnalysis: (...args: unknown[]) => mockLoop.getPracticeAnalysis(...args),
+    startConversation: (...args: unknown[]) => mockLoop.startConversation(...args),
+    replyToCoach: (...args: unknown[]) => mockLoop.replyToCoach(...args),
   },
 }));
 
@@ -175,7 +172,6 @@ beforeEach(async () => {
   mockPushListener = null;
   appStateListener = null;
   clearPractice();
-  endTutorial();
   await AsyncStorage.clear();
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
     appStateListener = listener as (next: string) => void;
@@ -185,8 +181,6 @@ beforeEach(async () => {
   (api.getPracticeGroup as jest.Mock).mockResolvedValue({ title: '  서연의 이별  ' });
   (localCopyFor as jest.Mock).mockResolvedValue('file:///local/v1.mp4');
   getStatus.mockResolvedValue(status());
-  mockSampleLoop = createSampleLoop({ delayMs: 0 });
-  mockLoop.getPractice.mockResolvedValue({ conversation_id: 'c1' });
   mockLoop.getConversation.mockResolvedValue(conv());
   mockLoop.startConversation.mockResolvedValue({ conversation: conv(), message: QUESTION, note: null });
   mockLoop.getPracticeAnalysis.mockRejectedValue(new Error('analysis_not_found'));
@@ -803,87 +797,6 @@ describe('그만두기', () => {
     await act(async () => resolveStatus(READY));
     staysWaiting();
     expect(getPractice()).toBeNull();
-  });
-});
-
-describe('튜토리얼 예시', () => {
-  beforeEach(() => {
-    mockParams = { practiceId: SAMPLE_PRACTICE_ID };
-  });
-
-  test('서버 없이 단계 문구를 넘긴 뒤 예시 회차를 들고 액티로 간다', async () => {
-    jest.useFakeTimers();
-    await render(<CoachScreen />);
-
-    expect(screen.getByText(STAGES[0])).toBeOnTheScreen();
-    expect(screen.getByText('예시 영상이라 금방 끝나요. 실제 연습은 보통 30초쯤 걸려요.')).toBeOnTheScreen();
-    // 예시도 장면 요약은 대기 화면에 두지 않고, 「끝나면 알려 주세요」로 나가는 길도 없다.
-    expect(screen.queryByText('카페에서 오래 만난 연인에게 헤어지자는 말을 꺼내는 장면')).not.toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: '끝나면 알려 주세요' })).not.toBeOnTheScreen();
-    await act(async () => jest.advanceTimersByTime(1_200));
-    expect(screen.getByText(STAGES[1])).toBeOnTheScreen();
-    await act(async () => jest.advanceTimersByTime(1_400));
-    expect(screen.getByText(STAGES[2])).toBeOnTheScreen();
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-
-    await act(async () => jest.advanceTimersByTime(1_200));
-    expect(screen.queryByText(WATCHING)).not.toBeOnTheScreen();
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-    expect(getPractice()).toMatchObject({
-      practiceId: SAMPLE_PRACTICE_ID,
-      rootId: SAMPLE_PRACTICE_ID,
-      ordinal: 1,
-      scene: {
-        situation: '카페에서 오래 만난 연인에게 헤어지자는 말을 꺼내는 장면',
-        character: '말을 꺼내기 전까지 몇 번이나 망설인 서연',
-        goal: '담담하게 말하지만 아직 미련이 남아 있다는 게 보이게',
-      },
-      videoUri: 'file:///sample.mp4',
-      playbackUrl: null,
-      note: null,
-    });
-    expect(getStatus).not.toHaveBeenCalled();
-    expect(getPracticeApi).not.toHaveBeenCalled();
-    expect(await pendingKeys()).toEqual([]);
-  });
-
-  test('튜토리얼 설명을 다 보기 전에는 넘어가지 않는다', async () => {
-    jest.useFakeTimers();
-    startTutorial('sample');
-    await render(<CoachScreen />);
-
-    await act(async () => jest.advanceTimersByTimeAsync(5_000));
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-    expect(currentSpotlight()?.steps).toEqual([{ target: 'analyzing.progress', text: 'tutorial.anSample' }]);
-
-    expect(screen.getByText(WATCHING)).toBeOnTheScreen();
-
-    await act(async () => currentSpotlight()?.onDone('done'));
-    expect(getPractice()?.practiceId).toBe(SAMPLE_PRACTICE_ID);
-    expect(screen.queryByText(WATCHING)).not.toBeOnTheScreen();
-  });
-
-  test('도중에 화면을 떠나면 액티로 넘기지 않는다', async () => {
-    jest.useFakeTimers();
-    const view = await render(<CoachScreen />);
-    await act(async () => jest.advanceTimersByTime(1_200));
-    await view.unmount();
-
-    await act(async () => jest.advanceTimersByTime(5_000));
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-    expect(getPractice()).toBeNull();
-  });
-
-  test('그만두기는 확인 없이 튜토리얼을 나감으로 끝내고 홈으로 간다', async () => {
-    startTutorial('sample');
-    await render(<CoachScreen />);
-
-    await fireEvent.press(screen.getByText('그만두기'));
-
-    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
-    expect(screen.queryByText('분석을 그만둘까요?')).not.toBeOnTheScreen();
-    expect(currentTutorial()).toBeNull();
-    expect(logged('tutorial_finish')).toEqual([{ mode: 'sample', track: 'practice', how: 'left' }]);
   });
 });
 

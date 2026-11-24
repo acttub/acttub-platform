@@ -18,8 +18,8 @@ import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
 import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.support.AccountFixtures;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +31,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
         "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model",
@@ -75,16 +76,16 @@ class CloudVoiceIT {
         var response = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(200);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(body.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "available", "free_until", "consent", "daily_limit", "daily_used", "reason", "pro_only");
-        assertThat(body.path("available").booleanValue()).isTrue();
-        assertThat(body.path("reason").textValue()).isEqualTo("pro");
-        assertThat(body.path("pro_only").booleanValue()).isFalse();
+        assertThat(body.path("available").booleanValue(false)).isTrue();
+        assertThat(body.path("reason").stringValue(null)).isEqualTo("pro");
+        assertThat(body.path("pro_only").booleanValue(false)).isFalse();
         assertThat(body.path("free_until").isNull()).isTrue();
-        assertThat(body.path("consent").textValue()).isEqualTo("granted");
+        assertThat(body.path("consent").stringValue(null)).isEqualTo("granted");
         // Pro 에게 daily_limit 칸은 계정별 월 한도를 담는다(SOMA-949).
-        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
-        assertThat(body.path("daily_used").intValue()).isZero();
+        assertThat(LenientJson.intValue(body.path("daily_limit"))).isEqualTo(10_000);
+        assertThat(LenientJson.intValue(body.path("daily_used"))).isZero();
     }
 
     @Test
@@ -93,14 +94,14 @@ class CloudVoiceIT {
         var status = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
         assertThat(status.getStatus()).isEqualTo(200);
         JsonNode body = mapper.readTree(status.getContentAsString());
-        assertThat(body.path("available").booleanValue()).isFalse();
+        assertThat(body.path("available").booleanValue(false)).isFalse();
         assertThat(body.path("reason").isNull()).isTrue();
-        assertThat(body.path("pro_only").booleanValue()).isTrue();
+        assertThat(body.path("pro_only").booleanValue(false)).isTrue();
         assertThat(body.path("free_until").isNull()).isTrue();
 
         var refused = synthesize("{\"text\":\"가지 마\",\"voice\":\"F1\"}");
         assertThat(refused.getStatus()).isEqualTo(503);
-        assertThat(mapper.readTree(refused.getContentAsString()).path("detail").textValue()).isEqualTo("cloud_voice_unavailable");
+        assertThat(mapper.readTree(refused.getContentAsString()).path("detail").stringValue(null)).isEqualTo("cloud_voice_unavailable");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_voice_cache", Long.class)).isZero();
     }
 
@@ -109,13 +110,13 @@ class CloudVoiceIT {
         var response = mvc.perform(get("/v2/reading/voice-model").header("Authorization", bearer)).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(200);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder("version", "files", "expires_in");
-        assertThat(body.path("version").textValue()).isEqualTo("supertonic3-fp16-v1");
-        assertThat(body.path("expires_in").intValue()).isEqualTo(3600);
+        assertThat(body.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("version", "files", "expires_in");
+        assertThat(body.path("version").stringValue(null)).isEqualTo("supertonic3-fp16-v1");
+        assertThat(LenientJson.intValue(body.path("expires_in"))).isEqualTo(3600);
         assertThat(body.path("files")).hasSize(8);
         JsonNode first = body.path("files").get(0);
-        assertThat(first.fieldNames()).toIterable().containsExactlyInAnyOrder("name", "bytes", "sha256", "url");
-        assertThat(first.path("url").textValue())
+        assertThat(first.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("name", "bytes", "sha256", "url");
+        assertThat(first.path("url").stringValue(null))
                 .isEqualTo("https://example.test/reading-model/supertonic3-fp16-v1/duration_predictor.graph.onnx");
     }
 
@@ -138,7 +139,7 @@ class CloudVoiceIT {
 
     private String consent() throws Exception {
         var response = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
-        return mapper.readTree(response.getContentAsString()).path("consent").textValue();
+        return mapper.readTree(response.getContentAsString()).path("consent").stringValue(null);
     }
 
     @Test
@@ -203,12 +204,12 @@ class CloudVoiceIT {
     void reading_cloudVoice_aLineIsSynthesizedOnceThenServedFromTheCache() throws Exception {
         var first = synthesize("{\"text\":\" 가지 마. \",\"voice\":\"F1\"}");
         assertThat(first.getStatus()).isEqualTo(200);
-        assertThat(mapper.readTree(first.getContentAsString()).path("audio_url").textValue()).isEqualTo("https://example.test/voice.wav");
-        assertThat(mapper.readTree(first.getContentAsString()).path("cached").booleanValue()).isFalse();
+        assertThat(mapper.readTree(first.getContentAsString()).path("audio_url").stringValue(null)).isEqualTo("https://example.test/voice.wav");
+        assertThat(mapper.readTree(first.getContentAsString()).path("cached").booleanValue(false)).isFalse();
         var again = synthesize("{\"text\":\"가지 마.\",\"voice\":\"F1\"}");
-        assertThat(mapper.readTree(again.getContentAsString()).path("cached").booleanValue()).isTrue();
+        assertThat(mapper.readTree(again.getContentAsString()).path("cached").booleanValue(false)).isTrue();
         var status = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
-        assertThat(mapper.readTree(status.getContentAsString()).path("daily_used").intValue()).isEqualTo(1);
+        assertThat(LenientJson.intValue(mapper.readTree(status.getContentAsString()).path("daily_used"))).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_voice_cache", Long.class)).isEqualTo(1L);
     }
 
@@ -216,7 +217,7 @@ class CloudVoiceIT {
     void reading_cloudVoice_aLineOverFiveHundredCharsIsSynthesizedNotRejected() throws Exception {
         var response = synthesize("{\"text\":\"" + ("가".repeat(299) + ". ").repeat(2) + "\",\"voice\":\"F1\"}");
         assertThat(response.getStatus()).isEqualTo(200);
-        assertThat(mapper.readTree(response.getContentAsString()).path("cached").booleanValue()).isFalse();
+        assertThat(mapper.readTree(response.getContentAsString()).path("cached").booleanValue(false)).isFalse();
     }
 
     @Test
@@ -225,7 +226,7 @@ class CloudVoiceIT {
                 "{\"text\":\"가지 마\",\"voice\":\"X9\"}")) {
             var response = synthesize(body);
             assertThat(response.getStatus()).as(body).isEqualTo(400);
-            assertThat(mapper.readTree(response.getContentAsString()).path("detail").textValue()).isEqualTo("invalid_voice_request");
+            assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null)).isEqualTo("invalid_voice_request");
         }
     }
 
@@ -234,7 +235,7 @@ class CloudVoiceIT {
         for (String body : List.of("{}", "{\"text\":\"가지 마\"}")) {
             var response = synthesize(body);
             assertThat(response.getStatus()).as(body).isEqualTo(400);
-            assertThat(mapper.readTree(response.getContentAsString()).path("detail").textValue()).isEqualTo("invalid_voice_request");
+            assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null)).isEqualTo("invalid_voice_request");
         }
     }
 
@@ -246,7 +247,7 @@ class CloudVoiceIT {
         assertThat(consent()).isEqualTo("denied");
         var denied = synthesize("{\"text\":\"가지 마\",\"voice\":\"F1\"}");
         assertThat(denied.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(denied.getContentAsString()).path("detail").textValue()).isEqualTo("cloud_voice_consent_required");
+        assertThat(mapper.readTree(denied.getContentAsString()).path("detail").stringValue(null)).isEqualTo("cloud_voice_consent_required");
 
         jdbc.update("DELETE FROM user_consents WHERE user_id=? AND document_id=?", user, document);
         assertThat(consent()).isEqualTo("undecided");
@@ -273,9 +274,9 @@ class CloudVoiceIT {
         jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,80000)", other, today);
         var response = mvc.perform(get("/v2/reading/voice/status").header("Authorization", bearer)).andReturn().getResponse();
         JsonNode body = mapper.readTree(response.getContentAsString());
-        assertThat(body.path("available").booleanValue()).isTrue();
-        assertThat(body.path("daily_limit").intValue()).isEqualTo(10_000);
-        assertThat(body.path("daily_used").intValue()).isEqualTo(300);
+        assertThat(body.path("available").booleanValue(false)).isTrue();
+        assertThat(LenientJson.intValue(body.path("daily_limit"))).isEqualTo(10_000);
+        assertThat(LenientJson.intValue(body.path("daily_used"))).isEqualTo(300);
         assertThat(synthesize("{\"text\":\"Pro 새 대사\",\"voice\":\"F1\"}").getStatus()).isEqualTo(200);
         assertThat(voices.monthlyUsage(user, month)).isEqualTo(301);
     }
@@ -289,7 +290,7 @@ class CloudVoiceIT {
         var blocked = synthesize("{\"text\":\"한도 다음 줄\",\"voice\":\"F1\"}");
         assertThat(blocked.getStatus()).isEqualTo(429);
         assertThat(blocked.getContentAsString()).contains("cloud_voice_monthly_limit");
-        assertThat(mapper.readTree(synthesize(body).getContentAsString()).path("cached").booleanValue()).isTrue();
+        assertThat(mapper.readTree(synthesize(body).getContentAsString()).path("cached").booleanValue(false)).isTrue();
         assertThat(voices.monthlyUsage(user, YearMonth.from(today))).isEqualTo(10_000);
     }
 

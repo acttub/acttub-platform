@@ -5,7 +5,7 @@ import com.acttub.actingapi.integration.media.AudioExtractor;
 import com.acttub.actingapi.integration.llm.ApiKeys;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -102,7 +102,7 @@ class GeminiConfiguration {
     /** 코칭 1층 관찰(SOMA-815). 받아쓰기로 대사 덩어리를 정하고 관찰 모델이 덩어리마다 본 것을 적는다. */
     @Bean
     LayerOneObserver layerOneObserver(SpeechAnalyzer speechAnalyzer, GeminiGateway gateway,
-            com.fasterxml.jackson.databind.ObjectMapper mapper, FailureReporter failureReporter, LlmTelemetry telemetry,
+            tools.jackson.databind.ObjectMapper mapper, FailureReporter failureReporter, LlmTelemetry telemetry,
             @org.springframework.beans.factory.annotation.Value("${ACTTUB_COACH_LAYER1_MODEL:gemini-4-argon}") String model) {
         return new GeminiLayerOneObserver(speechAnalyzer, gateway, model, mapper, failureReporter, telemetry);
     }

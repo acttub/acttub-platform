@@ -5,8 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import java.util.List;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -32,9 +32,9 @@ class AdmissionsEndpointIT {
 
         JsonNode cau = getJson("/v2/admissions/cau", 200);
         assertThat(cau.path("universities")).hasSize(1);
-        assertThat(cau.at("/universities/0/id").textValue()).isEqualTo("cau");
+        assertThat(cau.at("/universities/0/id").stringValue(null)).isEqualTo("cau");
         cau.path("notices").forEach(notice ->
-                assertThat(notice.path("university_id").textValue()).isEqualTo("cau"));
+                assertThat(notice.path("university_id").stringValue(null)).isEqualTo("cau"));
 
         JsonNode missing = getJson("/v2/admissions/no-such-university", 404);
         assertThat(missing).isEqualTo(

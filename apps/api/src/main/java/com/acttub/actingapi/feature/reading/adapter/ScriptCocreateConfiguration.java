@@ -8,7 +8,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptCocreateModel;
 import com.acttub.actingapi.feature.reading.app.ScriptCocreateRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptCocreateService;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

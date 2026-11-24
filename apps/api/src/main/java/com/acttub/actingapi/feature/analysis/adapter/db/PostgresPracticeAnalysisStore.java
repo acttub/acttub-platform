@@ -13,13 +13,15 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.acttub.actingapi.platform.json.LenientJson;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 회차의 분석 저장소 — 큐는 {@code ai_jobs}, 결과는 {@code analyses}·{@code video_transcripts} 다.
@@ -36,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -55,9 +57,10 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
         return ExternalOperationExecution.unobserved();
     }
 
+    /** 집은 워커가 죽어 lease 가 지난 작업도 다시 집는다. 앞 워커가 뒤늦게 끝내면 토큰이 달라 그 완료는 되돌아간다. */
     @Override
     public UUID claimNext(UUID leaseToken, Duration leaseDuration, Instant now) {
-        AiJobLedger.Claimed claimed = jobs.claimNext("analyze", leaseToken, leaseDuration, now);
+        AiJobLedger.Claimed claimed = jobs.claimNext("analyze", leaseToken, leaseDuration, now, true);
         return claimed == null ? null : claimed.id();
     }
 
@@ -116,6 +119,14 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
                 throw new IllegalStateException("ai job not found: " + jobId);
             }
             Tuple row = rows.getFirst();
+            // 그만두기·탈퇴·연습 삭제가 작업을 먼저 닫았으면 늦게 끝난 결과를 받지 않는다. 작업 행을 잡아 두므로
+            // 이 트랜잭션이 끝날 때까지 그쪽도 작업을 닫지 못한다.
+            Object jobStatus = entityManager.createNativeQuery("SELECT status FROM ai_jobs WHERE id=:jobId FOR UPDATE")
+                    .setParameter("jobId", jobId)
+                    .getSingleResult();
+            if (!"running".equals(jobStatus)) {
+                return null;
+            }
             // 탈퇴가 먼저 끝났으면 결과를 저장하지 않고 작업만 닫는다 — 닫힌 계정에 분석이 남지 않는다.
             if (!"active".equals(row.get("status", String.class))) {
                 jobs.fail(jobId, leaseToken, "account_deactivated", now);
@@ -125,7 +136,7 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
             UUID videoId = row.get("video_id", UUID.class);
             boolean fullRecord = result.videoRecord() != null;
             UUID analysisId = fullRecord
-                    ? UUID.fromString(result.videoRecord().path("record_id").asText())
+                    ? UUID.fromString(LenientJson.asText(result.videoRecord().path("record_id")))
                     : UUID.randomUUID();
             JsonNode record = fullRecord ? result.videoRecord() : JSON.valueToTree(result.observationPack());
             // 못 본 구간이 있으면 partial 이다 — 채우지 않는다.
@@ -210,7 +221,10 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
         return List.of();
     }
 
-    /** 시도를 소진한 작업을 닫고, 그 회차도 함께 닫는다(분석이 없으면 배우에게 보여 줄 것이 없다). */
+    /**
+     * 시도를 소진한 작업을 닫고, 그 회차도 함께 닫는다(분석이 없으면 배우에게 보여 줄 것이 없다). 마지막 시도의 워커가 죽어
+     * lease 가 지난 running 작업도 여기서 닫는다.
+     */
     @Override
     public int sweepMaxAttempts(Instant now) {
         List<Tuple> exhausted = list(entityManager.createNativeQuery("""
@@ -222,7 +236,13 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
         for (Tuple row : exhausted) {
             closePractice(row.get("id", UUID.class), now);
         }
-        return swept;
+        // 작업과 회차를 한 트랜잭션에서 닫는다 — 사이에서 끊기면 failed 작업 옆에 analyzing 회차가 남아 다시 갇힌다.
+        int abandoned = transaction.execute(tx -> {
+            List<UUID> closed = jobs.failExpired("analyze", now);
+            closed.forEach(jobId -> closePractice(jobId, now));
+            return closed.size();
+        });
+        return swept + abandoned;
     }
 
     /** 분석이 최종 실패한 회차는 닫힌다. 배우가 명시적으로 다시 시도하면 PA2 의 재시도가 되살린다. */

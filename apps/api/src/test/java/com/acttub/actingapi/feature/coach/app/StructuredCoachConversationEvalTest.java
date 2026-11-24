@@ -11,6 +11,7 @@ import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Opt-in real-model conversations using only the repository's synthetic video record. */
 @EnabledIfEnvironmentVariable(named = "ACTTUB_COACH_EVAL", matches = "1")
@@ -64,13 +65,13 @@ class StructuredCoachConversationEvalTest {
                 result = engine.reply(session, answer, UUID.randomUUID());
                 session = result.session();
                 if (answer.equals("ㅁㄹ") || answer.equals("?")) {
-                    assertThat(session.coachingState().path("last_reply").path("move").asText())
+                    assertThat(LenientJson.asText(session.coachingState().path("last_reply").path("move")))
                             .isIn("explain", "clarify", "simplify");
                     assertThat(result.reply().message()).doesNotContain("말해보세요", "기다려보세요", "잡아보세요", "기다리세요");
                 }
                 if (answer.equals("내가 실수로 말했어")) {
                     assertThat(OpeningQuestion.questionCount(result.reply().message())).isEqualTo(1);
-                    assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("clarify");
+                    assertThat(LenientJson.asText(result.session().coachingState().path("last_reply").path("move"))).isEqualTo("clarify");
                 }
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요", "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
@@ -80,7 +81,7 @@ class StructuredCoachConversationEvalTest {
             if (profile != null) {
                 // 계약 검사까지만 한다. 프로필을 잘 썼는지는 저장된 출력을 사람이 본다(semantic_review).
                 for (var call : calls) {
-                    assertThat(call.path("input").path("actor_profile").path("experience").asText()).isEqualTo(profile.experience());
+                    assertThat(LenientJson.asText(call.path("input").path("actor_profile").path("experience"))).isEqualTo(profile.experience());
                     assertThat(call.path("input").path("prior_context").path("memory").has("gender")).isFalse();
                     assertThat(call.path("input").path("prior_context").path("memory").has("age")).isFalse();
                 }

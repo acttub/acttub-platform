@@ -11,9 +11,10 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 class StructuredCoachEngineTest {
     private CoachSessionSnapshot session() {
@@ -25,7 +26,7 @@ class StructuredCoachEngineTest {
     }
     static ObjectNode respond(JsonNode input, String text, String flow) {
         ObjectNode output = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
-                .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
+                .put("base_state_revision", LenientJson.asLong(input.path("coaching_state").path("revision")))
                 .put("message", text).putNull("context_update").putNull("style_update").put("flow", flow);
         ObjectNode link = output.putObject("reply_link").put("move", "finish".equals(flow) ? "close" : input.path("user_message").isNull() ? "open" : "explain");
         ObjectNode selection = link.putObject("selection").put("need", "장면 이해").put("blocker", "scene_understanding");
@@ -35,21 +36,21 @@ class StructuredCoachEngineTest {
         else selection.putNull("question");
         link.set("user_message_id", input.path("user_message").isNull() ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
         if (input.path("user_message").isNull()) link.putNull("actor_quote");
-        else link.put("actor_quote", input.path("user_message").path("text").asText());
+        else link.put("actor_quote", LenientJson.asText(input.path("user_message").path("text")));
         var refs = link.putArray("evidence_refs");
         if (input.path("user_message").isNull() && "continue".equals(flow)) {
             JsonNode selected = null;
             for (JsonNode source : input.path("record_view").path("source_catalog")) {
                 if (OpeningQuestion.videoSource(source)) {
                     selected = source;
-                    if ("video_observation".equals(source.path("kind").asText())) break;
+                    if ("video_observation".equals(LenientJson.asText(source.path("kind")))) break;
                 }
             }
             if (selected != null) {
-                refs.add(selected.path("id").asText());
-                ObjectNode context = input.path("coaching_state").path("context").deepCopy();
+                refs.add(LenientJson.asText(selected.path("id")));
+                ObjectNode context = (ObjectNode) input.path("coaching_state").path("context").deepCopy();
                 ObjectNode focus = context.putObject("focus").put("label", "가지 마 대사").putNull("utterance_ref");
-                focus.putArray("evidence_refs").add(selected.path("id").asText());
+                focus.putArray("evidence_refs").add(LenientJson.asText(selected.path("id")));
                 output.set("context_update", context);
             }
         }
@@ -84,7 +85,7 @@ class StructuredCoachEngineTest {
         engine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
             assertThat(input.has("actor_profile")).isFalse();
-            assertThat(input.path("prior_context").path("memory").path("gender").asText()).isEqualTo("남");
+            assertThat(LenientJson.asText(input.path("prior_context").path("memory").path("gender"))).isEqualTo("남");
             assertThat(system).doesNotContain("actor_profile");
             withoutProfile.add(system + "\n" + text);
             return generated(respond(input, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue"));
@@ -142,15 +143,15 @@ class StructuredCoachEngineTest {
     @Test void brevityPreferenceSurvivesAnUninformativeNextReply() {
         CoachResult result = engine((system, text) -> generated(respond(StructuredJson.parse(text), "말끝 한 곳만 살펴봐요.", "continue")))
                 .reply(session(), "너무 길어", UUID.randomUUID());
-        assertThat(result.session().coachingState().path("response_style").asText()).isEqualTo("brief");
+        assertThat(LenientJson.asText(result.session().coachingState().path("response_style"))).isEqualTo("brief");
         engine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
-            assertThat(input.path("controls").path("max_message_chars").asInt()).isEqualTo(80);
+            assertThat(LenientJson.asInt(input.path("controls").path("max_message_chars"))).isEqualTo(80);
             return generated(respond(input, "말끝이 이어지는 구간부터 볼게요.", "continue"));
         }).reply(result.session(), "응", UUID.randomUUID());
     }
     @Test void denseSingleSegmentCanBeReadAcrossBoundedPagesWithoutLosingFacts() {
-        ObjectNode record = session().observationPack().deepCopy();
+        ObjectNode record = (ObjectNode) session().observationPack().deepCopy();
         ObjectNode template = (ObjectNode) record.path("events").get(0).deepCopy();
         var events = record.putArray("events");
         ObjectNode segment = (ObjectNode) record.path("segments").get(0).deepCopy();
@@ -178,12 +179,12 @@ class StructuredCoachEngineTest {
         while (true) {
             JsonNode result = lookup.lookup(record, request);
             assertThat(result.toString().length()).isLessThanOrEqualTo(CoachRecordLookup.MAX_RESULT_CHARS);
-            assertThat(result.path("status").asText()).isIn("ok", "partial");
-            result.path("events").forEach(e -> ids.add(e.path("id").asText()));
-            result.path("speech").path("word_timings").path("items").forEach(w -> wordIds.add(w.path("id").asText()));
+            assertThat(LenientJson.asText(result.path("status"))).isIn("ok", "partial");
+            result.path("events").forEach(e -> ids.add(LenientJson.asText(e.path("id"))));
+            result.path("speech").path("word_timings").path("items").forEach(w -> wordIds.add(LenientJson.asText(w.path("id"))));
             assertThat(++pages).isLessThan(100);
-            if (!result.path("has_more").asBoolean()) break;
-            assertThat(cursors.add(result.path("continuation_token").asText())).isTrue();
+            if (!LenientJson.asBoolean(result.path("has_more"))) break;
+            assertThat(cursors.add(LenientJson.asText(result.path("continuation_token")))).isTrue();
             request.set("continuation_token", result.path("continuation_token"));
         }
         assertThat(pages).isGreaterThan(1);
@@ -192,14 +193,14 @@ class StructuredCoachEngineTest {
         request.putNull("continuation_token");
         request.putArray("dimensions").add("voice");
         assertThat(lookup.lookup(record, request).path("events")).isEmpty();
-        request.set("continuation_token", StructuredJson.MAPPER.getNodeFactory().textNode(cursors.iterator().next()));
+        request.set("continuation_token", StructuredJson.MAPPER.getNodeFactory().stringNode(cursors.iterator().next()));
         assertThatThrownBy(() -> lookup.lookup(record, request)).hasMessageContaining("invalid lookup continuation");
     }
 
     @Test void askingToSummarizeALineDoesNotForceTheConversationToEnd() {
         engine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
-            assertThat(input.path("controls").path("finish_required").asBoolean()).isFalse();
+            assertThat(LenientJson.asBoolean(input.path("controls").path("finish_required"))).isFalse();
             return generated(respond(input, "상대가 떠나지 않기를 바란다는 뜻의 말이에요.", "continue"));
         }).reply(session(), "이 대사 의도를 정리해줘", UUID.randomUUID());
     }
@@ -208,6 +209,6 @@ class StructuredCoachEngineTest {
         ObjectNode request = StructuredJson.MAPPER.createObjectNode();
         request.putObject("record_ref").put("record_id", "other").put("version", 1).put("duration_ms", 8000);
         assertThatThrownBy(() -> lookup.lookup(session().observationPack(), request)).hasMessageContaining("session record");
-        assertThat(lookup.lookup(null, request).path("status").asText()).isEqualTo("unavailable");
+        assertThat(LenientJson.asText(lookup.lookup(null, request).path("status"))).isEqualTo("unavailable");
     }
 }

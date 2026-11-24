@@ -26,8 +26,8 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 
 import com.acttub.actingapi.platform.http.RestClients;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +37,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 보내는 모양을 못박는다.
@@ -98,14 +99,14 @@ class LangfuseTelemetryTest {
         JsonNode span = payload.path("resourceSpans").path(0)
                 .path("scopeSpans").path(0).path("spans").path(0);
 
-        assertThat(span.path("traceId").asText()).isEqualTo("11112222333344445555666677778888");
-        assertThat(span.path("spanId").asText()).hasSize(16);
-        assertThat(span.path("name").asText()).isEqualTo("coach.turn");
+        assertThat(LenientJson.asText(span.path("traceId"))).isEqualTo("11112222333344445555666677778888");
+        assertThat(LenientJson.asText(span.path("spanId"))).hasSize(16);
+        assertThat(LenientJson.asText(span.path("name"))).isEqualTo("coach.turn");
         // 나노초 시각은 64비트라 문자열이어야 한다 — 숫자로 실으면 큰 값이 깨진다.
-        assertThat(span.path("startTimeUnixNano").isTextual()).isTrue();
-        assertThat(span.path("startTimeUnixNano").asText()).isEqualTo("1700000000123456789");
-        assertThat(span.path("endTimeUnixNano").asText()).isEqualTo("1700000002123456789");
-        assertThat(span.path("status").path("code").asInt()).isEqualTo(1);
+        assertThat(span.path("startTimeUnixNano").isString()).isTrue();
+        assertThat(LenientJson.asText(span.path("startTimeUnixNano"))).isEqualTo("1700000000123456789");
+        assertThat(LenientJson.asText(span.path("endTimeUnixNano"))).isEqualTo("1700000002123456789");
+        assertThat(LenientJson.asInt(span.path("status").path("code"))).isEqualTo(1);
 
         Map<String, String> attributes = attributes(span);
         assertThat(attributes)
@@ -130,8 +131,8 @@ class LangfuseTelemetryTest {
                 .tracePayload(call(LlmStep.OBSERVATION, "타임아웃"))
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
 
-        assertThat(span.path("status").path("code").asInt()).isEqualTo(2);
-        assertThat(span.path("status").path("message").asText()).isEqualTo("타임아웃");
+        assertThat(LenientJson.asInt(span.path("status").path("code"))).isEqualTo(2);
+        assertThat(LenientJson.asText(span.path("status").path("message"))).isEqualTo("타임아웃");
         assertThat(attributes(span)).containsEntry("langfuse.observation.level", "ERROR");
     }
 
@@ -147,7 +148,7 @@ class LangfuseTelemetryTest {
         Map<String, String> unpriced = attributes(telemetry(enabledEnvironment()).tracePayload(call)
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
 
-        assertThat(MAPPER.readTree(priced.get("langfuse.observation.cost_details")).path("total").asDouble()).isEqualTo(0.000015666);
+        assertThat(LenientJson.asDouble(MAPPER.readTree(priced.get("langfuse.observation.cost_details")).path("total"))).isEqualTo(0.000015666);
         assertThat(unpriced).doesNotContainKey("langfuse.observation.cost_details");
     }
 
@@ -174,19 +175,19 @@ class LangfuseTelemetryTest {
 
         JsonNode flag = telemetry.scorePayload(
                 LlmScore.flag(PRACTICE, "coach.fallback_used", true));
-        assertThat(flag.path("traceId").asText()).isEqualTo("11112222333344445555666677778888");
-        assertThat(flag.path("name").asText()).isEqualTo("coach.fallback_used");
-        assertThat(flag.path("dataType").asText()).isEqualTo("BOOLEAN");
-        assertThat(flag.path("value").asDouble()).isEqualTo(1.0);
+        assertThat(LenientJson.asText(flag.path("traceId"))).isEqualTo("11112222333344445555666677778888");
+        assertThat(LenientJson.asText(flag.path("name"))).isEqualTo("coach.fallback_used");
+        assertThat(LenientJson.asText(flag.path("dataType"))).isEqualTo("BOOLEAN");
+        assertThat(LenientJson.asDouble(flag.path("value"))).isEqualTo(1.0);
 
         JsonNode category = telemetry.scorePayload(
                 LlmScore.category(PRACTICE, "coach.validation_failure", "forbidden_language"));
-        assertThat(category.path("dataType").asText()).isEqualTo("CATEGORICAL");
-        assertThat(category.path("value").asText()).isEqualTo("forbidden_language");
+        assertThat(LenientJson.asText(category.path("dataType"))).isEqualTo("CATEGORICAL");
+        assertThat(LenientJson.asText(category.path("value"))).isEqualTo("forbidden_language");
 
         JsonNode number = telemetry.scorePayload(LlmScore.number(PRACTICE, "observation.count", 7));
-        assertThat(number.path("dataType").asText()).isEqualTo("NUMERIC");
-        assertThat(number.path("value").asDouble()).isEqualTo(7.0);
+        assertThat(LenientJson.asText(number.path("dataType"))).isEqualTo("NUMERIC");
+        assertThat(LenientJson.asDouble(number.path("value"))).isEqualTo(7.0);
     }
 
     /** 설정이 비면 통째로 꺼진다 — 로컬·시험에서 관측 없이 도는 것이 정상이다. */
@@ -375,8 +376,8 @@ class LangfuseTelemetryTest {
                     .tracePayload(call(LlmStep.COACH_TURN, null));
 
             assertThat(attributes(resource(payload))).as(value).containsOnlyKeys("service.name");
-            assertThat(payload.path("resourceSpans").path(0).path("scopeSpans").path(0)
-                    .path("spans").path(0).path("traceId").asText()).as(value)
+            assertThat(LenientJson.asText(payload.path("resourceSpans").path(0).path("scopeSpans").path(0)
+                    .path("spans").path(0).path("traceId"))).as(value)
                     .isEqualTo("11112222333344445555666677778888");
         }
     }
@@ -554,8 +555,8 @@ class LangfuseTelemetryTest {
 
     private static String intAttribute(JsonNode span, String key) {
         for (JsonNode entry : span.path("attributes")) {
-            if (key.equals(entry.path("key").asText())) {
-                return entry.path("value").path("intValue").asText(null);
+            if (key.equals(LenientJson.asText(entry.path("key")))) {
+                return LenientJson.asText(entry.path("value").path("intValue"), null);
             }
         }
         return null;
@@ -600,8 +601,8 @@ class LangfuseTelemetryTest {
     private static Map<String, String> attributes(JsonNode span) {
         Map<String, String> values = new java.util.LinkedHashMap<>();
         span.path("attributes").forEach(entry ->
-                values.put(entry.path("key").asText(),
-                        entry.path("value").path("stringValue").asText()));
+                values.put(LenientJson.asText(entry.path("key")),
+                        LenientJson.asText(entry.path("value").path("stringValue"))));
         return values;
     }
 }

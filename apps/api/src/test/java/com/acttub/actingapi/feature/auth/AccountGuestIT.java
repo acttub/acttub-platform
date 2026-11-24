@@ -27,8 +27,8 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +42,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * account.guest 의 "검증 방법" 가운데 게스트 발급과 게스트의 게이트를 HTTP 와 실제 Postgres 로 본다.
@@ -111,14 +112,14 @@ class AccountGuestIT {
 
         assertThat(response.getStatus()).isEqualTo(201);
         JsonNode body = mapper.readTree(response.getContentAsString());
-        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(body.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "access_token", "refresh_token", "token_type", "expires_in", "user", "account_type");
-        assertThat(body.path("account_type").textValue()).isEqualTo("guest");
-        assertThat(body.path("token_type").textValue()).isEqualTo("bearer");
-        assertThat(body.path("expires_in").longValue()).isEqualTo(1800);
+        assertThat(body.path("account_type").stringValue(null)).isEqualTo("guest");
+        assertThat(body.path("token_type").stringValue(null)).isEqualTo("bearer");
+        assertThat(LenientJson.longValue(body.path("expires_in"))).isEqualTo(1800);
         assertThat(body.path("user").path("email").isNull()).isTrue();
-        assertThat(body.path("user").path("status").textValue()).isEqualTo("active");
-        UUID guestId = UUID.fromString(body.path("user").path("id").textValue());
+        assertThat(body.path("user").path("status").stringValue(null)).isEqualTo("active");
+        UUID guestId = UUID.fromString(body.path("user").path("id").stringValue(null));
 
         assertThat(count("users")).isEqualTo(1);
         Map<String, Object> identity = jdbc.queryForMap(
@@ -130,16 +131,16 @@ class AccountGuestIT {
                 .isEqualTo(1);
         assertThat(count("user_profiles")).as("게스트에게는 프로필이 없다").isZero();
 
-        JsonNode me = json(authorized(get("/v2/me"), body.path("access_token").textValue()), 200);
-        assertThat(me.path("account_type").textValue()).isEqualTo("guest");
+        JsonNode me = json(authorized(get("/v2/me"), body.path("access_token").stringValue(null)), 200);
+        assertThat(me.path("account_type").stringValue(null)).isEqualTo("guest");
 
         // 토큰의 iat 는 실제 시계로 적히고(JwtService) 갱신의 확인은 이 시계로 한다. setUp 이 초 단위로 끊어 둔
         // 시각에 머물면, 그 사이 실제 시계가 초 경계를 넘었을 때 방금 받은 토큰이 "아직 유효하지 않다"가 된다.
         clock.set(Instant.now());
         JsonNode refreshed = json(mvc.perform(post("/v2/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"refresh_token\":\"" + body.path("refresh_token").textValue() + "\"}")), 200);
-        assertThat(refreshed.path("access_token").textValue()).as("갱신은 회원과 같다").isNotBlank();
+                .content("{\"refresh_token\":\"" + body.path("refresh_token").stringValue(null) + "\"}")), 200);
+        assertThat(refreshed.path("access_token").stringValue(null)).as("갱신은 회원과 같다").isNotBlank();
     }
 
     @Test
@@ -165,18 +166,18 @@ class AccountGuestIT {
 
         assertThat(blocked.getStatus()).isEqualTo(403);
         JsonNode body = mapper.readTree(blocked.getContentAsString());
-        assertThat(body.path("detail").textValue()).isEqualTo("consent_required");
-        assertThat(body.path("pending_consents")).extracting(document -> document.path("type").textValue())
+        assertThat(body.path("detail").stringValue(null)).isEqualTo("consent_required");
+        assertThat(body.path("pending_consents")).extracting(document -> document.path("type").stringValue(null))
                 .as("선택 문서는 게스트에게 묻지 않는다")
                 .containsExactly("terms", "privacy", "ai_analysis");
-        assertThat(body.path("pending_consents").get(0).fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(body.path("pending_consents").get(0).propertyNames().iterator()).toIterable().containsExactlyInAnyOrder(
                 "id", "type", "version", "title", "body", "required", "published_at");
 
         consent(token, "terms", true);
         consent(token, "privacy", null);
         JsonNode partly = mapper.readTree(
                 authorized(get("/v2/practices"), token).andReturn().getResponse().getContentAsString());
-        assertThat(partly.path("pending_consents")).extracting(document -> document.path("type").textValue())
+        assertThat(partly.path("pending_consents")).extracting(document -> document.path("type").stringValue(null))
                 .as("그 기능에 빠진 문서만 싣는다")
                 .containsExactly("ai_analysis");
 
@@ -191,8 +192,8 @@ class AccountGuestIT {
     @DisplayName("account.guest: 확인 없이 동의 API 를 부르면 422. 확인하고 동의하면 users.age_confirmed_at 이 차고, 그 뒤로는 다시 싣지 않아도 된다")
     void accountGuest_theFirstConsentNeedsTheAgeConfirmation() throws Exception {
         JsonNode guest = mapper.readTree(createGuest().getContentAsString());
-        String token = guest.path("access_token").textValue();
-        UUID guestId = UUID.fromString(guest.path("user").path("id").textValue());
+        String token = guest.path("access_token").stringValue(null);
+        UUID guestId = UUID.fromString(guest.path("user").path("id").stringValue(null));
 
         var unconfirmed = postConsent(token, "terms", null);
         var denied = postConsent(token, "terms", false);
@@ -239,9 +240,9 @@ class AccountGuestIT {
         JsonNode entry = json(authorized(get("/v2/consents/entry"), token), 200);
         var retention = postConsent(token, "retention", null);
 
-        assertThat(pending.path("documents")).extracting(document -> document.path("type").textValue())
+        assertThat(pending.path("documents")).extracting(document -> document.path("type").stringValue(null))
                 .containsExactly("ai_analysis");
-        assertThat(entry.path("documents")).extracting(document -> document.path("type").textValue())
+        assertThat(entry.path("documents")).extracting(document -> document.path("type").stringValue(null))
                 .containsExactly("terms", "privacy", "ai_analysis");
         assertThat(retention.getStatus()).isEqualTo(403);
         assertThat(mapper.readTree(retention.getContentAsString()))
@@ -257,7 +258,7 @@ class AccountGuestIT {
         assertThat(privacyDecision(before).isNull()).isTrue();
 
         consent(token, "privacy", true);
-        assertThat(privacyDecision(json(authorized(get("/v2/consents/entry"), token), 200)).textValue())
+        assertThat(privacyDecision(json(authorized(get("/v2/consents/entry"), token), 200)).stringValue(null))
                 .isEqualTo("granted");
 
         jdbc.update("""
@@ -309,8 +310,8 @@ class AccountGuestIT {
     @DisplayName("account.guest: 한도 하나 전까지 쓴 게스트가 서로 다른 회차 둘을 겹쳐 시작해도 그날의 분석은 한도를 넘지 않는다 — 하나는 429")
     void accountGuest_overlappingAnalysesCannotSlipPastTheDailyLimit() throws Exception {
         JsonNode guest = mapper.readTree(createGuest().getContentAsString());
-        String token = guest.path("access_token").textValue();
-        UUID guestId = UUID.fromString(guest.path("user").path("id").textValue());
+        String token = guest.path("access_token").stringValue(null);
+        UUID guestId = UUID.fromString(guest.path("user").path("id").stringValue(null));
         consent(token, "terms", true);
         consent(token, "privacy", null);
         consent(token, "ai_analysis", null);
@@ -361,8 +362,8 @@ class AccountGuestIT {
     @DisplayName("account.guest: 한도를 채운 게스트가 이미 받아들여진 회차 시작을 같은 요청 id 로 다시 보내면 429 가 아니라 같은 응답이다")
     void accountGuest_anIdempotentResendIsNotCountedAgainstTheDailyLimit() throws Exception {
         JsonNode guest = mapper.readTree(createGuest().getContentAsString());
-        String token = guest.path("access_token").textValue();
-        UUID guestId = UUID.fromString(guest.path("user").path("id").textValue());
+        String token = guest.path("access_token").stringValue(null);
+        UUID guestId = UUID.fromString(guest.path("user").path("id").stringValue(null));
         consent(token, "terms", true);
         consent(token, "privacy", null);
         consent(token, "ai_analysis", null);
@@ -442,7 +443,7 @@ class AccountGuestIT {
     }
 
     private String guestToken() throws Exception {
-        return mapper.readTree(createGuest().getContentAsString()).path("access_token").textValue();
+        return mapper.readTree(createGuest().getContentAsString()).path("access_token").stringValue(null);
     }
 
     private UUID member() {
@@ -498,7 +499,7 @@ class AccountGuestIT {
 
     private static JsonNode privacyDecision(JsonNode entry) {
         for (JsonNode document : entry.path("documents")) {
-            if ("privacy".equals(document.path("type").textValue())) {
+            if ("privacy".equals(document.path("type").stringValue(null))) {
                 return document.path("current_decision");
             }
         }

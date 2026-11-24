@@ -21,8 +21,8 @@ import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.acttub.actingapi.platform.http.RestClients;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +35,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 바깥 호출의 요청 형식은 각 제공자의 공식 문서가 정한다. 실제 제공자는 부르지 않는다 — 가짜 서버가
@@ -240,8 +241,8 @@ class ProviderHttpClientTest {
         assertThat(secret.getJWTClaimsSet().getIssueTime().toInstant()).isEqualTo(now);
         assertThat(secret.getJWTClaimsSet().getExpirationTime().toInstant()).isAfter(now).isBefore(now.plusSeconds(601));
         JsonNode packed = JSON.readTree(grant);
-        assertThat(packed.path("client_id").asText()).isEqualTo("com.acttub.app");
-        assertThat(packed.path("refresh_token").asText()).isEqualTo("apple-refresh");
+        assertThat(LenientJson.asText(packed.path("client_id"))).isEqualTo("com.acttub.app");
+        assertThat(LenientJson.asText(packed.path("refresh_token"))).isEqualTo("apple-refresh");
     }
 
     @Test

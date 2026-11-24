@@ -20,8 +20,8 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +37,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * practice.journal 배우 일지 — HTTP 와 실제 Postgres 로 만들기·읽기·고치기·소유권·탈퇴·코칭 숙제 알림을 본다. 모델은 정해 둔 답을 낸다.
@@ -97,19 +98,19 @@ class JournalIT {
     void create_keepsAnswersAndDropsGroundlessDraft() throws Exception {
         JsonNode made = json(post("/v2/practices/{id}/journal", practice).content(ANSWERS), 201);
 
-        assertThat(made.path("draft_status").asText()).isEqualTo("ready");
-        assertThat(made.path("answers").path("feeling").path("text").asText()).isEqualTo("낮게 하니까 오히려 더 떨렸어요");
-        assertThat(made.path("answers").path("next").path("text").asText()).isEqualTo("앞 대사부터 상대를 보며 말하기");
+        assertThat(LenientJson.asText(made.path("draft_status"))).isEqualTo("ready");
+        assertThat(LenientJson.asText(made.path("answers").path("feeling").path("text"))).isEqualTo("낮게 하니까 오히려 더 떨렸어요");
+        assertThat(LenientJson.asText(made.path("answers").path("next").path("text"))).isEqualTo("앞 대사부터 상대를 보며 말하기");
         assertThat(made.path("practice")).hasSize(1);
         assertThat(made.path("character")).isEmpty();
         assertThat(made.path("feedback").get(0).path("at").isNull()).isTrue();
         assertThat(made.path("purpose").isNull()).isTrue();
-        assertThat(made.path("title").asText()).isEqualTo("카페 이별");
+        assertThat(LenientJson.asText(made.path("title"))).isEqualTo("카페 이별");
 
         MODEL.set(null);
         JsonNode again = json(post("/v2/practices/{id}/journal", practice).content("{\"answers\":{}}"), 200);
-        assertThat(again.path("id").asText()).isEqualTo(made.path("id").asText());
-        assertThat(json(get("/v2/practices/{id}/journal", practice), 200).path("answers").path("review").asText())
+        assertThat(LenientJson.asText(again.path("id"))).isEqualTo(LenientJson.asText(made.path("id")));
+        assertThat(LenientJson.asText(json(get("/v2/practices/{id}/journal", practice), 200).path("answers").path("review")))
                 .isEqualTo("소리 안 질러도 붙잡을 수 있었다");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM actor_journals", Integer.class)).isEqualTo(1);
     }
@@ -119,9 +120,9 @@ class JournalIT {
     void create_failedModelKeepsAnswers() throws Exception {
         MODEL.set(null);
         JsonNode made = json(post("/v2/practices/{id}/journal", practice).content(ANSWERS), 201);
-        assertThat(made.path("draft_status").asText()).isEqualTo("failed");
+        assertThat(LenientJson.asText(made.path("draft_status"))).isEqualTo("failed");
         assertThat(made.path("practice")).isEmpty();
-        assertThat(made.path("answers").path("review").asText()).isEqualTo("소리 안 질러도 붙잡을 수 있었다");
+        assertThat(LenientJson.asText(made.path("answers").path("review"))).isEqualTo("소리 안 질러도 붙잡을 수 있었다");
     }
 
     @Test
@@ -135,10 +136,10 @@ class JournalIT {
                  "character":[{"aspect":"wants","text":"붙잡기"}],
                  "feedback":[{"text":"고친 피드백","giver":"coach","at":31}]}"""), 200);
 
-        assertThat(edited.path("answers").path("review").asText()).isEqualTo("고친 후기");
+        assertThat(LenientJson.asText(edited.path("answers").path("review"))).isEqualTo("고친 후기");
         assertThat(edited.path("answers").path("feeling").isNull()).isTrue();
         assertThat(edited.path("practice")).hasSize(1);
-        assertThat(edited.path("feedback").get(0).path("at").asInt()).isEqualTo(31);
+        assertThat(LenientJson.asInt(edited.path("feedback").get(0).path("at"))).isEqualTo(31);
         assertThat(edited.path("edited_at").isNull()).isFalse();
     }
 
@@ -147,12 +148,12 @@ class JournalIT {
     void ownershipAndValidation() throws Exception {
         UUID stranger = member();
         UUID theirs = practice(stranger);
-        assertThat(json(post("/v2/practices/{id}/journal", theirs).content(ANSWERS), 404).path("detail").asText())
+        assertThat(LenientJson.asText(json(post("/v2/practices/{id}/journal", theirs).content(ANSWERS), 404).path("detail")))
                 .isEqualTo("practice_not_found");
-        assertThat(json(get("/v2/practices/{id}/journal", practice), 404).path("detail").asText())
+        assertThat(LenientJson.asText(json(get("/v2/practices/{id}/journal", practice), 404).path("detail")))
                 .isEqualTo("journal_not_found");
-        assertThat(json(put("/v2/practices/{id}/journal", practice).content(
-                "{\"answers\":{},\"practice\":[],\"character\":[],\"feedback\":[]}"), 404).path("detail").asText())
+        assertThat(LenientJson.asText(json(put("/v2/practices/{id}/journal", practice).content(
+                "{\"answers\":{},\"practice\":[],\"character\":[],\"feedback\":[]}"), 404).path("detail")))
                 .isEqualTo("journal_not_found");
         perform(post("/v2/practices/{id}/journal", practice).content("{\"answers\":{\"review\":\"%s\"}}".formatted("가".repeat(301))), 422);
         perform(post("/v2/practices/{id}/journal", practice).content("{\"answers\":{},\"extra\":1}"), 422);

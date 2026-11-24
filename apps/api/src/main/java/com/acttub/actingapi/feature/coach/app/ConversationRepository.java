@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * 0.1.0 회차의 코치 대화 저장소 — {@code coach_conversations}·{@code coach_messages}·{@code coach_notes} (practice.coach,
@@ -127,8 +127,17 @@ public interface ConversationRepository {
      * 닫힌 대화를 같은 대화로 다시 연다(SOMA-782 대화 이어하기). 상태를 열림으로, 회차를 대화 중으로 돌리고
      * {@code state} 를 저장하며 revision 을 하나 올린다. 대화가 닫혀 있지 않거나 revision 이 다르면 아무것도
      * 쓰지 않고 {@code null} 이다. 새 대화·새 회차를 만들지 않는다.
+     *
+     * @throws PracticeInProgress 같은 묶음에 닫히지 않은 다른 회차가 있다. 아무것도 쓰지 않았다
      */
     Saved reopen(UUID conversationId, long expectedRevision, JsonNode state, Instant now);
+
+    /** 다시 열 회차의 묶음에 닫히지 않은 다른 회차가 있다 — 묶음당 진행 중 회차는 하나다(practice.resume). */
+    class PracticeInProgress extends RuntimeException {
+        public PracticeInProgress() {
+            super("another practice of the group is open");
+        }
+    }
 
     /**
      * @param title 초점 문구 원문. 초점 없이 끝난 {@code record_only} 는 {@code null}

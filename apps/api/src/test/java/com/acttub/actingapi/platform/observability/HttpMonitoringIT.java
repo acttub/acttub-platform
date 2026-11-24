@@ -246,7 +246,7 @@ class HttpMonitoringIT {
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,blockage_kind,sub_branch)
                 VALUES (?,?,?,?,1,'conversing',?,'분석','캐릭터 분석')
                 """, id, owner, video, id, structured ? "three_layers_v1" : "legacy");
-        var record = (com.fasterxml.jackson.databind.node.ObjectNode) com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
+        var record = (tools.jackson.databind.node.ObjectNode) com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
         record.put("record_id", analysis.toString());
         jdbc.update("INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at) VALUES (?,?,?,'ready','test',CAST(? AS jsonb),now())",
                 analysis, id, structured ? "video_record_v1" : "legacy",

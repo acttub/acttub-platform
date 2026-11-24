@@ -32,8 +32,8 @@ import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.StubProviders;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -216,7 +216,7 @@ class AccountWritesAndPhotoCleanupIT {
 
         json(authorized(photoUpload("/v2/me/photo")), 201);
 
-        assertThat(first.path("upload_url").textValue()).contains(abandoned);
+        assertThat(first.path("upload_url").stringValue(null)).contains(abandoned);
         assertThat(pendingProfileKey()).isNotEqualTo(abandoned);
         assertThat(jdbc.queryForObject("SELECT kind FROM account_cleanup_operations", String.class))
                 .as("키를 덮는 트랜잭션이 객체 삭제를 장부에 남긴다").isEqualTo("object_delete");
@@ -260,7 +260,7 @@ class AccountWritesAndPhotoCleanupIT {
     @DisplayName("account.portfolio: 사진 삭제 도중 저장소가 실패해도 204 이고, 지운 행의 객체는 다시 시도해 지운다")
     void accountPortfolio_aDeletedPhotoWhoseObjectCouldNotBeDeletedIsRetried() throws Exception {
         JsonNode begun = json(authorized(photoUpload("/v2/portfolio/photos")), 201);
-        String photoId = begun.path("photo_id").textValue();
+        String photoId = begun.path("photo_id").stringValue(null);
         String objectKey = jdbc.queryForObject("SELECT object_key FROM portfolio_photos", String.class);
         storage.objects.put(objectKey, 1_000L);
         json(authorized(post("/v2/portfolio/photos/{id}/complete", photoId)), 200);

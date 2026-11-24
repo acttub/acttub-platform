@@ -10,8 +10,8 @@ import com.acttub.actingapi.feature.billing.app.SubscriptionService.CheckoutPage
 import com.acttub.actingapi.feature.billing.app.SubscriptionService.Result;
 import com.acttub.actingapi.platform.security.ClientAddress;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 앱이 브라우저(expo-web-browser 인증 세션)로 여는 토스 카드 등록 창과 토스의 콜백(SOMA-818). 브라우저는 앱 헤더·토큰을
@@ -38,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v2/billing/web/checkout")
 class BillingCheckoutPageController {
     static final String TOSS_SDK_URL = "https://js.tosspayments.com/v2/standard";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final SubscriptionService service;
     private final FixedWindowRateLimiter limiter;
@@ -133,7 +134,7 @@ class BillingCheckoutPageController {
             values.put("failUrl", page.failUrl());
             values.put("cancelUrl", page.returnUrl() + "?status=canceled");
             config = JSON.writeValueAsString(values).replace("<", "\\u003c");
-        } catch (JsonProcessingException impossible) {
+        } catch (JacksonException impossible) {
             throw new IllegalStateException(impossible);
         }
         String body = """

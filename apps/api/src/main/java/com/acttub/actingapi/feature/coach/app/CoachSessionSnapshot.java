@@ -4,7 +4,7 @@ import java.util.List;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /** Python {@code acting_agent.schema.CoachSession}과 저장에 필요한 소유권 문맥. */
 public record CoachSessionSnapshot(

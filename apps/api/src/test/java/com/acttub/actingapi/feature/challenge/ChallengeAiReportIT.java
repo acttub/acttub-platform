@@ -18,10 +18,11 @@ import com.acttub.actingapi.feature.challenge.app.AiReportRepository;
 import com.acttub.actingapi.feature.challenge.app.ChallengeReportModel;
 import com.acttub.actingapi.feature.challenge.app.ChallengeReportWorker;
 import com.acttub.actingapi.feature.challenge.app.EntryMedia;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * AI 리포트 (challenge.ai-report). 실제 HTTP·Postgres·ai_jobs 장부를 쓰고 모델만 대체한다 — 모델이 받은 영상과 지시문을
@@ -89,6 +91,7 @@ class ChallengeAiReportIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired ChallengeReportWorker worker;
+    @Autowired AiJobLedger ledger;
     UUID me;
     String bearer;
     UUID challenge;
@@ -107,19 +110,19 @@ class ChallengeAiReportIT {
         for (int i = 0; i < 6; i++) entry(member("표본 " + i), "public", i);
         UUID mine = entry(me, "public", 10);
         JsonNode requested = response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
-        assertThat(requested.path("status").asText()).isEqualTo("pending");
+        assertThat(LenientJson.asText(requested.path("status"))).isEqualTo("pending");
         assertThat(jobs()).isEqualTo(1);
         assertThat(worker.runOnce(clock.instant())).isTrue();
         JsonNode report = response(get("/v2/entries/{id}/ai-report", mine), 200);
-        assertThat(report.path("status").asText()).isEqualTo("ready");
-        assertThat(report.at("/observations/0/start_ms").asInt()).isZero();
-        assertThat(report.at("/observations/0/text").asText()).contains("멈춘다");
+        assertThat(LenientJson.asText(report.path("status"))).isEqualTo("ready");
+        assertThat(LenientJson.asInt(report.at("/observations/0/start_ms"))).isZero();
+        assertThat(LenientJson.asText(report.at("/observations/0/text"))).contains("멈춘다");
         assertThat(report.path("comparisons")).hasSize(5);
         assertThat(report.path("limits")).isNotEmpty();
-        assertThat(report.path("suggestion").asText()).isNotBlank();
-        assertThat(report.path("sample_count").asInt()).isEqualTo(5);
+        assertThat(LenientJson.asText(report.path("suggestion"))).isNotBlank();
+        assertThat(LenientJson.asInt(report.path("sample_count"))).isEqualTo(5);
         assertThat(report.toString()).doesNotContain("점수", "등급", "순위", "백분위", "재능");
-        assertThat(response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 200).path("status").asText())
+        assertThat(LenientJson.asText(response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 200).path("status")))
                 .isEqualTo("ready");
         assertThat(jobs()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("succeeded");
@@ -132,7 +135,7 @@ class ChallengeAiReportIT {
         assertThat(jobs()).isZero();
         response(post("/v2/entries/{id}/ai-report", hidden).content(request(UUID.randomUUID())), 202);
         worker.runOnce(clock.instant());
-        assertThat(response(get("/v2/entries/{id}/ai-report", hidden), 200).path("status").asText()).isEqualTo("ready");
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}/ai-report", hidden), 200).path("status"))).isEqualTo("ready");
         assertThat(detail(get("/v2/entries/{id}/ai-report", hidden), 404, token(member("남")))).isEqualTo("ai_report_not_found");
         assertThat(detail(post("/v2/entries/{id}/ai-report", hidden).content(request(UUID.randomUUID())), 404, token(member("남2"))))
                 .isEqualTo("entry_not_found");
@@ -184,8 +187,8 @@ class ChallengeAiReportIT {
         assertThat(Model.CALLS.getFirst().samples()).isEmpty();
         JsonNode report = response(get("/v2/entries/{id}/ai-report", mine), 200);
         assertThat(report.path("comparisons")).isEmpty();
-        assertThat(report.at("/limits/0").asText()).isEqualTo("비교할 영상이 아직 부족해요");
-        assertThat(report.path("sample_count").asInt()).isZero();
+        assertThat(LenientJson.asText(report.at("/limits/0"))).isEqualTo("비교할 영상이 아직 부족해요");
+        assertThat(LenientJson.asInt(report.path("sample_count"))).isZero();
     }
 
     @Test void challengeAiReport_dailyLimitReplaysAndOneRunningGenerationPerEntry() throws Exception {
@@ -216,20 +219,55 @@ class ChallengeAiReportIT {
         }
         worker.runOnce(clock.instant());
         JsonNode afterFirst = response(get("/v2/entries/{id}/ai-report", mine), 200);
-        assertThat(afterFirst.path("status").asText()).isEqualTo("pending");
-        assertThat(afterFirst.path("attempt_count").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asText(afterFirst.path("status"))).isEqualTo("pending");
+        assertThat(LenientJson.asInt(afterFirst.path("attempt_count"))).isEqualTo(1);
         worker.runOnce(clock.instant());
         assertThat(jdbc.queryForObject("SELECT result IS NULL FROM entry_ai_reports", Boolean.class)).isTrue();
         worker.runOnce(clock.instant());
         JsonNode failed = response(get("/v2/entries/{id}/ai-report", mine), 200);
-        assertThat(failed.path("status").asText()).isEqualTo("failed");
-        assertThat(failed.path("attempt_count").asInt()).isEqualTo(3);
+        assertThat(LenientJson.asText(failed.path("status"))).isEqualTo("failed");
+        assertThat(LenientJson.asInt(failed.path("attempt_count"))).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("failed");
         assertThat(worker.runOnce(clock.instant())).isFalse();
         response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
         assertThat(jobs()).isEqualTo(2);
         worker.runOnce(clock.instant());
-        assertThat(response(get("/v2/entries/{id}/ai-report", mine), 200).path("status").asText()).isEqualTo("ready");
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}/ai-report", mine), 200).path("status"))).isEqualTo("ready");
+    }
+
+    /** 생성을 집은 워커가 끝내지 못하고 죽으면(배포 재시작) lease 가 지난 뒤 다음 워커가 다시 집어 리포트를 만든다. */
+    @Test void challengeAiReport_aGenerationLeftRunningByADeadWorkerIsPickedUpAgain() throws Exception {
+        UUID mine = entry(me, "public", 1);
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        assertThat(ledger.claimNext("challenge_report", UUID.randomUUID(), Duration.ofMinutes(10), clock.instant())).isNotNull();
+        clock.advance(Duration.ofMinutes(11));
+
+        assertThat(worker.runOnce(clock.instant())).as("lease 가 지난 생성을 다시 집는다").isTrue();
+
+        assertThat(LenientJson.asText(response(get("/v2/entries/{id}/ai-report", mine), 200).path("status"))).isEqualTo("ready");
+        assertThat(jdbc.queryForMap("SELECT status,attempt_count FROM ai_jobs"))
+                .containsEntry("status", "succeeded").containsEntry("attempt_count", 2);
+    }
+
+    /** 세 번 모두 워커가 죽으면 다시 집지 않고, 정리가 작업과 리포트를 failed 로 닫아 "다시 시도"가 새 생성을 연다. */
+    @Test void challengeAiReport_aGenerationWhoseWorkersAllDiedFailsAndRetryStartsANewOne() throws Exception {
+        UUID mine = entry(me, "public", 1);
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        for (int attempt = 0; attempt < AiJobLedger.MAX_ATTEMPTS; attempt++) {
+            ledger.claimNext("challenge_report", UUID.randomUUID(), Duration.ofMinutes(10), clock.instant(), true);
+            clock.advance(Duration.ofMinutes(11));
+        }
+
+        assertThat(worker.runOnce(clock.instant())).as("시도를 다 쓴 생성은 집지 않는다").isFalse();
+        assertThat(worker.closeAbandoned(clock.instant())).isEqualTo(1);
+
+        JsonNode failed = response(get("/v2/entries/{id}/ai-report", mine), 200);
+        assertThat(LenientJson.asText(failed.path("status"))).isEqualTo("failed");
+        assertThat(LenientJson.asInt(failed.path("attempt_count"))).isEqualTo(AiJobLedger.MAX_ATTEMPTS);
+        assertThat(jdbc.queryForObject("SELECT status || '/' || failure_reason FROM ai_jobs", String.class))
+                .isEqualTo("failed/max_attempts");
+        response(post("/v2/entries/{id}/ai-report", mine).content(request(UUID.randomUUID())), 202);
+        assertThat(jobs()).isEqualTo(2);
     }
 
     @Test void challengeAiReport_comparisonsLeaningOnSamplesThatLostEligibilityDisappear() throws Exception {
@@ -247,7 +285,7 @@ class ChallengeAiReportIT {
         jdbc.update("INSERT INTO user_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)", UUID.randomUUID(), authors.get(2), me);
         JsonNode report = response(get("/v2/entries/{id}/ai-report", mine), 200);
         assertThat(report.path("comparisons")).hasSize(1);
-        assertThat(report.path("sample_count").asInt()).isEqualTo(1);
+        assertThat(LenientJson.asInt(report.path("sample_count"))).isEqualTo(1);
         jdbc.update("UPDATE challenges SET moderation='review' WHERE id=?", challenge);
         assertThat(response(get("/v2/entries/{id}/ai-report", mine), 200).path("comparisons")).isEmpty();
     }
@@ -319,11 +357,11 @@ class ChallengeAiReportIT {
     private String request(UUID id) throws Exception { return json.writeValueAsString(Map.of("request_id", id)); }
 
     private String detail(MockHttpServletRequestBuilder request, int expected) throws Exception {
-        return response(request, expected).path("detail").asText();
+        return LenientJson.asText(response(request, expected).path("detail"));
     }
 
     private String detail(MockHttpServletRequestBuilder request, int expected, String authorization) throws Exception {
-        return response(request, expected, authorization).path("detail").asText();
+        return LenientJson.asText(response(request, expected, authorization).path("detail"));
     }
 
     private JsonNode response(MockHttpServletRequestBuilder request, int expected) throws Exception {

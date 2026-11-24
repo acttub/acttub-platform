@@ -7,8 +7,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository.ReportState;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportService;
 import com.acttub.actingapi.platform.security.AccessGate;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,7 +37,7 @@ class PronunciationController {
     }
 
     @GetMapping("/sessions/{session_id}/pronunciation")
-    Map<String, Object> get(@PathVariable("session_id") UUID sessionId, HttpServletRequest request) throws JsonProcessingException {
+    Map<String, Object> get(@PathVariable("session_id") UUID sessionId, HttpServletRequest request) throws JacksonException {
         UUID userId = auth.gatedUser(request).id();
         ReportState state = reports.find(userId, sessionId);
         Map<String, Object> body = new LinkedHashMap<>();

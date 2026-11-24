@@ -26,10 +26,10 @@ import com.acttub.actingapi.feature.reading.domain.PronunciationRules.ScoredLine
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * reading.pronunciation(실험, SOMA-606) — 허용 사용자가 끝낸 회차를 조회하면 큐에 들고, 일꾼이 줄 녹음을 채점해 보고서로
@@ -144,13 +145,13 @@ class ReadingPronunciationIT {
             + "일꾼이 받아쓴 줄만 채점해 done 보고서를 낸다")
     void finishedSessionIsQueuedOnceAndScored() throws Exception {
         record(List.of("대사 1", "대사 3", "대사 5"));
-        assertThat(json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200).path("status").textValue())
+        assertThat(json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200).path("status").stringValue(null))
                 .isEqualTo("not_ready");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_pronunciation_reports", Integer.class)).isZero();
 
         complete();
         JsonNode queued = json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
-        assertThat(queued.path("status").textValue()).isEqualTo("queued");
+        assertThat(queued.path("status").stringValue(null)).isEqualTo("queued");
         assertThat(queued.path("report").isNull()).isTrue();
         json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_pronunciation_reports", Integer.class)).isEqualTo(1);
@@ -161,8 +162,8 @@ class ReadingPronunciationIT {
         assertThat(Fakes.DOWNLOADED).containsExactly("rec/" + ninaLines.get(0), "rec/" + ninaLines.get(1), "rec/" + ninaLines.get(2));
 
         JsonNode done = json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
-        assertThat(done.path("status").textValue()).isEqualTo("done");
-        assertThat(done.path("report").path("summary").path("linesUsed").intValue()).isEqualTo(3);
+        assertThat(done.path("status").stringValue(null)).isEqualTo("done");
+        assertThat(LenientJson.intValue(done.path("report").path("summary").path("linesUsed"))).isEqualTo(3);
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT model_version, attempt_count, lease_token, failure FROM reading_pronunciation_reports");
         assertThat(row.get("model_version")).isEqualTo("pron-fake");
@@ -182,7 +183,7 @@ class ReadingPronunciationIT {
 
         assertThat(Fakes.SCORED).isEmpty();
         JsonNode skipped = json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
-        assertThat(skipped.path("status").textValue()).isEqualTo("skipped");
+        assertThat(skipped.path("status").stringValue(null)).isEqualTo("skipped");
         assertThat(skipped.path("report").path("skippedLines")).hasSize(3);
     }
 
@@ -201,7 +202,7 @@ class ReadingPronunciationIT {
         assertThat(retried.get("attempt_count")).isEqualTo(1);
 
         assertThatThrownBy(worker::runOnce).isInstanceOf(IllegalStateException.class);
-        assertThat(json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200).path("status").textValue())
+        assertThat(json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200).path("status").stringValue(null))
                 .isEqualTo("failed");
         assertThat(worker.runOnce()).isFalse();
     }
@@ -284,11 +285,11 @@ class ReadingPronunciationIT {
         JsonNode saved = json(post("/v2/reading/scripts").content(body.toString()), authorization, 201);
         List<UUID> all = new ArrayList<>();
         for (JsonNode line : saved.path("lines")) {
-            all.add(UUID.fromString(line.path("id").textValue()));
+            all.add(UUID.fromString(line.path("id").stringValue(null)));
         }
         ninaLines = List.of(all.get(0), all.get(2), all.get(4));
-        UUID scriptId = UUID.fromString(saved.path("id").textValue());
-        String nina = saved.path("characters").get(0).path("id").textValue();
+        UUID scriptId = UUID.fromString(saved.path("id").stringValue(null));
+        String nina = saved.path("characters").get(0).path("id").stringValue(null);
 
         ObjectNode start = mapper.createObjectNode();
         start.put("request_id", UUID.randomUUID().toString());
@@ -300,7 +301,7 @@ class ReadingPronunciationIT {
         start.put("record", true);
         JsonNode started = json(post("/v2/reading/scripts/{id}/sessions", scriptId).content(start.toString()),
                 authorization, 201);
-        return UUID.fromString(started.path("id").textValue());
+        return UUID.fromString(started.path("id").stringValue(null));
     }
 
     private void member(UUID id) {

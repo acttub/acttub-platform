@@ -23,6 +23,7 @@
 |---|---|---|---|
 | `POST /v2/coach/start` | 필수 `practice_id`·`request_id` (`CoachStartRequest`) | `CoachTurnResult` 200(`{conversation, message, note}`), 이미 열린 대화면 같은 대화 | `analysis_not_ready` 409, `conversation_closed` 409, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409 |
 | `POST /v2/coach/reply` | 필수 `conversation_id`·`request_id`, `text`(300자까지)·`revision` (`CoachReplyRequest`) | `CoachTurnResult` 200, 닫히면 `note` 포함 | `conversation_closed` 409, `conversation_conflict` 409, `request_fingerprint_mismatch` 422, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409, 301자 422(배열) |
+| `POST /v2/coach/conversations/{conversation_id}/continue` | 선택 `revision` | `CoachTurnResult` 200, 이미 열린 대화면 그대로 | `conversation_conflict` 409, `conversation_limit_reached` 409, `conversation_not_resumable` 409, `practice_in_progress` 409, `practice_not_found` 404, `account_deactivated` 403 |
 | `GET /v2/coach/conversations/{conversation_id}` | conversation_id | `CoachConversation` 200(`reply_limit` 포함, 목적별 코칭이면 `purpose` 포함) | `conversation_not_found` 404 |
 | `POST /v2/coach/direct-video`, `GET·DELETE /v2/coach/direct-video/{id}`, `POST /v2/coach/direct-video/{id}/messages` (dev 전용, openapi 밖) | 영상 파일(50MiB까지), 메시지 2,000자까지 | 아래 「Gemini 직접 영상 코칭」 | `unsupported_media_type` 415, `upload_too_large` 413, `empty_video` 422, `direct_video_session_limit` 429, `direct_video_turn_limit`·`direct_video_not_ready` 409, `direct_video_not_found` 404 |
 
@@ -108,6 +109,8 @@ coach_conversations.status — 회차의 코치 대화.
 - LLM 실패: 바깥 의존 실패로 다시 시도를 안내하고 revision·메시지는 늘지 않는다. 종료 응답 생성이 거듭 실패하면 신형은
   system_failure로 닫는다. 그때 노트는 [practice.note 「규칙·제약」](note.md#규칙제약)대로다.
 - 같은 요청 id·다른 본문: 422 request_fingerprint_mismatch.
+- 닫힌 대화를 다시 여는데 같은 묶음에 닫히지 않은 다른 회차가 있음(「다음 테이크 찍기」로 만든 회차 등): 409 practice_in_progress.
+  대화와 회차는 그대로다. 묶음당 닫히지 않은 회차는 하나다([practice.start 「상태」](start.md#상태)).
 
 ## 검증 방법
 - 분석 완료 회차에서 시작: coach_conversations 1행(start_request_id), 시작 재전송: 같은 대화, 행 하나.
@@ -124,6 +127,7 @@ coach_conversations.status — 회차의 코치 대화.
 - 닫힌 대화에 답: 409 conversation_closed. 닫힌 뒤 「다음 테이크 찍기」: 새 영상을 고른 새 회차가 만들어진다(practice.resume).
 - 게스트 대화: 프로필이 없어도 200.
 - 대화 중 탈퇴: 그 뒤 도착한 코치 응답이 저장되지 않고 403 account_deactivated.
+- 같은 묶음에 analyzing 회차가 있을 때 닫힌 대화 다시 열기: 409 practice_in_progress, 대화는 closed·revision 그대로. 그 회차가 닫힌 뒤: 200, 대화 open.
 
 ## 범위 밖
 - 점수·등급·레벨·랭킹·평가표(PRD 「지금 하지 않는 것」, ADR-005). 합격 가능성·재능·성격 판정.

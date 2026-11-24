@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.coach.adapter.db;
 import com.acttub.actingapi.feature.coach.app.CoachProMemory;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import java.time.Instant;
@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * Pro 지난 연습 기억 읽기(SOMA-900). 이번 연습과 다른 묶음(root)에서 최근 60일 안에 끝난 코칭의 신형 노트를 최신 순으로 읽는다.
@@ -64,7 +65,7 @@ class PostgresCoachProMemory implements CoachProMemory {
             JsonNode node = StructuredJson.MAPPER.readTree(json);
             List<String> out = new ArrayList<>();
             if (node.isArray()) node.forEach(item -> {
-                if (item.isTextual() && !item.asText().isBlank()) out.add(item.asText());
+                if (item.isString() && !LenientJson.asText(item).isBlank()) out.add(LenientJson.asText(item));
             });
             return out;
         } catch (Exception broken) {

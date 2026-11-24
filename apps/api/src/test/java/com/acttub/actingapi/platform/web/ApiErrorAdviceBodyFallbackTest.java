@@ -2,9 +2,8 @@ package com.acttub.actingapi.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.acttub.actingapi.support.Jackson2Converters;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.Filter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -28,7 +27,6 @@ class ApiErrorAdviceBodyFallbackTest {
 
     private static MockMvc mvc(Filter... filters) {
         return MockMvcBuilders.standaloneSetup(new ItemController())
-                .setMessageConverters(Jackson2Converters.server())
                 .setControllerAdvice(new ApiErrorAdvice(JSON, new RecordingFailureReporter()))
                 .addFilters(filters)
                 .build();

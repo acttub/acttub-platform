@@ -1,6 +1,6 @@
 import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
-import { SEARCH_MIN_LENGTH, type ChallengeCard, type ChallengeDetail, type ChallengeTab, type EntryCard, type EntrySort, type Participant } from './types.ts';
+import { SEARCH_MIN_LENGTH, type ChallengeCard, type ChallengeDetail, type EntryCard, type EntrySort, type Participant } from './types.ts';
 import { kstDayIndex } from '../kst.ts';
 
 /**
@@ -11,11 +11,6 @@ import { kstDayIndex } from '../kst.ts';
  * 최신순에는 순위 숫자가 없고 가장 최근 하나에만 NEW 가 붙는다. 좋아요가 모두 0이면 1위 배지가
  * 없다. 종료된 챌린지는 굳은 값을 보여 주고, 확정 전에는 "집계 중"이다.
  */
-
-/** 오늘의 챌린지는 인기·최신 탭 맨 위에만 고정한다(종료·내 챌린지에는 없다). */
-export function pinsFeatured(tab: ChallengeTab): boolean {
-  return tab === 'popular' || tab === 'latest';
-}
 
 /** 검색은 2자 이상일 때만 찾는다. */
 export function searchable(query: string): boolean {

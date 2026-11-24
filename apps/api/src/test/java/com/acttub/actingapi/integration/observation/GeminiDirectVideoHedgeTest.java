@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpExchange;
@@ -23,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 느린 요청 다시 보내기와 이름표 파일(SOMA-780)을 가짜 Gemini 서버로 본다. 서버는 요청을 동시에 받는다. */
 class GeminiDirectVideoHedgeTest {
@@ -189,7 +190,7 @@ class GeminiDirectVideoHedgeTest {
         var video = model.upload(source, "video/mp4", new DirectVideoModel.InputInspection(true, null, true),
                 "acttub-coach:prod:practice:abc");
         assertThat(video.hasAudioTrack()).isTrue();
-        assertThat(bodies.getFirst().path("file").path("displayName").asText()).isEqualTo("acttub-coach:prod:practice:abc:a1");
+        assertThat(LenientJson.asText(bodies.getFirst().path("file").path("displayName"))).isEqualTo("acttub-coach:prod:practice:abc:a1");
 
         bodies.clear();
         model.upload(source, "video/mp4");

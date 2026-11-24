@@ -8,7 +8,7 @@ import com.acttub.actingapi.feature.challenge.app.ReportRepository.Filed;
 import com.acttub.actingapi.feature.challenge.app.ReportRepository.NewReport;
 import com.acttub.actingapi.feature.challenge.app.ReportRepository.Receipt;
 import com.acttub.actingapi.platform.web.CanonicalJson;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

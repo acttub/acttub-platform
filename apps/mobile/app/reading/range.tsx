@@ -14,9 +14,6 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT as MASCOT_IMG, MASCOT_SIZE } from '@/components/ui/mascot';
 import { useAppDialog } from '@/components/app-dialog';
 import { BlueSwitch } from '@/components/ui/list-rows';
-import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
-import { TARGET } from '@/lib/spotlight-targets';
 import { micPermissionState, requestMicPermission, type MicPermission } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
@@ -122,9 +119,6 @@ export default function ReadingRange() {
   }, []);
   // 회차 시작의 요청 id — 이 화면에서 한 번 정해 재시도에도 같은 회차 하나가 된다.
   const requestId = useRef(newRequestId());
-  const rangePickTarget = useSpotlightTarget(TARGET.readingRangePick);
-  const rangeStartTarget = useSpotlightTarget(TARGET.readingRangeStart);
-  const tutorialGuide = useTutorialSpotlight('readingRange', { ready: !!script });
 
   useEffect(() => {
     if (!script || !hasHistory) return;
@@ -366,7 +360,7 @@ export default function ReadingRange() {
             </ScrollView>
           </View>
           <Text style={styles.section}>{t('reading.firstPickBelow')}</Text>
-          <View ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout} style={styles.list}>
+          <View style={styles.list}>
             {cast.map((c) => {
               const on = selected.includes(c.id);
               // 대본이 바로 위에 보이니 카드에는 대사 수만 둔다.
@@ -393,7 +387,7 @@ export default function ReadingRange() {
           <>
         <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
         {/* pen R8.6 「칩 줄」 — 배역이 많으면 옆으로 민다. */}
-        <View ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout} style={styles.bleed}>
+        <View style={styles.bleed}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {cast.map((c) => {
             const on = selected.includes(c.id);
@@ -586,13 +580,10 @@ export default function ReadingRange() {
             </Pressable>
           </View>
         )}
-        <View ref={rangeStartTarget.ref} onLayout={rangeStartTarget.onLayout}>
-          <PrimaryButton label={mainLabel} onPress={() => void onStart()} disabled={gate !== 'ready' || busy} />
-        </View>
+        <PrimaryButton label={mainLabel} onPress={() => void onStart()} disabled={gate !== 'ready' || busy} />
       </CtaBar>
       {dialog}
       {consentSheet}
-      {tutorialGuide.element}
     </View>
   );
 }

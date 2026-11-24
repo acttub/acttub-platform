@@ -59,7 +59,6 @@ jest.mock('@/lib/challenge/share-native', () => ({ saveVideoToLibrary: jest.fn(a
 import { saveVideoToLibrary } from '@/lib/challenge/share-native';
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
-jest.mock('@/lib/tutorial-loop', () => ({ sampleVideoUri: () => 'file:///sample.mp4' }));
 jest.mock('@/lib/notifications', () => ({ scheduleUploadLaterReminder: jest.fn().mockResolvedValue('scheduled') }));
 import { scheduleUploadLaterReminder } from '@/lib/notifications';
 jest.mock('@/lib/api', () => ({
@@ -695,42 +694,6 @@ describe('다음 테이크', () => {
     await checkRightsAndStart();
 
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coach', params: { practiceId: 'open-r1' } }));
-  });
-});
-
-describe('튜토리얼 예시', () => {
-  test('예시 영상과 장면을 채워 두고 시작하면 서버 없이 예시 회차로 간다', async () => {
-    mockParams = { sample: '1' };
-    const view = await render(<UploadScreen />);
-
-    expect(screen.getByText('예시')).toBeOnTheScreen();
-    expect(screen.getByText('카페에서 오래 만난 연인에게 헤어지자는 말을 꺼내는 장면')).toBeOnTheScreen();
-    // 예시는 바로 영상 단계(2단계)에서 연다.
-    expect(screen.queryByText('오늘은 어떤 도움이 필요해요?')).not.toBeOnTheScreen();
-    expect(screen.queryByText('영상 다시 선택')).not.toBeOnTheScreen();
-    expect(screen.queryByPlaceholderText('예: 카페 이별 장면 2차')).not.toBeOnTheScreen();
-    expect(useVideoPlayer).toHaveBeenLastCalledWith('file:///sample.mp4', expect.any(Function));
-
-    await fireEvent.press(screen.getByText(RIGHTS));
-    expect(screen.getByText('권리 확인에 체크해주세요')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-
-    await fireEvent.press(screen.getByText(RIGHTS));
-    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
-    // 화면은 떠날 표시를 먼저 그리고 다음 틱에 옮긴다(leaveThen) — 부하가 크면 누른 직후엔 아직이라 기다려서 본다.
-    await waitFor(() =>
-      expect(mockRouter.replace).toHaveBeenCalledWith({
-        pathname: '/coach',
-        params: { practiceId: 'tutorial-sample-practice' },
-      }),
-    );
-    expect(api.createPractice).not.toHaveBeenCalled();
-
-    await view.unmount();
-    expect(logEvent).not.toHaveBeenCalledWith('practice_upload_exit', expect.anything());
-    expect(logEvent).not.toHaveBeenCalledWith('practice_rights_toggle', expect.anything());
-    expect(logEvent).not.toHaveBeenCalledWith('practice_start_blocked', expect.anything());
   });
 });
 

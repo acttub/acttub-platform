@@ -6,9 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 목적별 코칭(SOMA-719): 단계표, 버튼 판정, 숨은 칸 걷기, 화면 값. 모델을 부르지 않는다. */
 class PurposeLoopTest {
@@ -222,8 +223,8 @@ class PurposeLoopTest {
         var out = PurposeLoop.extract(raw);
         assertThat(out.choices()).extracting(PurposeView.Choice::label).containsExactly("붙잡고 싶었어요", "따지고 싶었어요", "밀어내고 싶었어요");
         assertThat(out.choices().getFirst().at()).isEqualTo(12);
-        assertThat(out.scene().path("character").asText()).isEqualTo("헬레네");
-        assertThat(out.scene().path("partner").asText()).as("모르는 칸은 빈 문자열").isEmpty();
+        assertThat(LenientJson.asText(out.scene().path("character"))).isEqualTo("헬레네");
+        assertThat(LenientJson.asText(out.scene().path("partner"))).as("모르는 칸은 빈 문자열").isEmpty();
         assertThat(DirectVideoPracticeLoop.parse(raw).message()).isEqualTo("\"취소해\"에선 화내는 사람처럼 들려요. 그때 상대한테 뭘 하고 싶었어요?");
     }
 
@@ -248,7 +249,7 @@ class PurposeLoopTest {
                 </인물 카드>""");
         assertThat(out.choices()).extracting(PurposeView.Choice::label)
                 .containsExactly("엄마를 붙잡고 싶어요", "상대가 의심이 많아요", "무슨 생각인지 알고 싶어요");
-        assertThat(out.characterCard().path("cells").get(0).path("value").asText()).isEqualTo("상처 줄까 봐 망설이는 사람");
+        assertThat(LenientJson.asText(out.characterCard().path("cells").get(0).path("value"))).isEqualTo("상처 줄까 봐 망설이는 사람");
 
         assertThat(PurposeLoop.extract("<보기>\n- 하나요\n- 둘이요\n<인물 카드>\n누구: 망설이는 사람\n</인물 카드>").choices())
                 .extracting(PurposeView.Choice::label).as("다음 줄 태그도 버튼이 되지 않는다").containsExactly("하나요", "둘이요");
@@ -274,11 +275,11 @@ class PurposeLoopTest {
                 아쉬운 곳: [0:12] "취소해"에서 화내는 쪽으로 들려요
                 다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요
                 </카드>""").card();
-        assertThat(card.path("good").path("at").asInt()).isEqualTo(3);
-        assertThat(card.path("issue").path("at").asInt()).isEqualTo(12);
-        assertThat(card.path("issue").path("text").asText()).isEqualTo("\"취소해\"에서 화내는 쪽으로 들려요");
+        assertThat(LenientJson.asInt(card.path("good").path("at"))).isEqualTo(3);
+        assertThat(LenientJson.asInt(card.path("issue").path("at"))).isEqualTo(12);
+        assertThat(LenientJson.asText(card.path("issue").path("text"))).isEqualTo("\"취소해\"에서 화내는 쪽으로 들려요");
         assertThat(card.path("next").path("at").isNull()).isTrue();
-        assertThat(PurposeLoop.extract("<카드>\n아쉬운 곳: 0:11-0:35 손이 많아요\n</카드>").card().path("issue").path("text").asText())
+        assertThat(LenientJson.asText(PurposeLoop.extract("<카드>\n아쉬운 곳: 0:11-0:35 손이 많아요\n</카드>").card().path("issue").path("text")))
                 .as("구간이면 시작 시간만 쓰고 글에 남기지 않는다").isEqualTo("손이 많아요");
 
         var person = PurposeLoop.extract("""
@@ -288,16 +289,16 @@ class PurposeLoopTest {
                 막는 것: 없음
                 하는 일: 말을 돌려 떠보기
                 </인물 카드>""").characterCard();
-        assertThat(person.path("cells")).extracting(cell -> cell.path("key").asText()).containsExactly("who", "want", "action");
-        assertThat(person.path("cells").get(0).path("source").asText()).isEqualTo("내 말");
-        assertThat(person.path("cells").get(2).path("source").asText()).as("출처가 없으면 같이 찾음").isEqualTo("같이 찾음");
+        assertThat(person.path("cells")).extracting(cell -> LenientJson.asText(cell.path("key"))).containsExactly("who", "want", "action");
+        assertThat(LenientJson.asText(person.path("cells").get(0).path("source"))).isEqualTo("내 말");
+        assertThat(LenientJson.asText(person.path("cells").get(2).path("source"))).as("출처가 없으면 같이 찾음").isEqualTo("같이 찾음");
     }
 
     @Test void heardLinesComeFromTheDesignOnlyWhenSpeechWasConfirmed() {
         String design = "대사 확인: 확인됨\n대사 시간: 0:03 \"가르쳐 줘\" / 0:12 \"취소해\" / 1:05 「다신 안 와」";
-        assertThat(PurposeLoop.lines(design)).extracting(line -> line.path("at").asInt()).containsExactly(3, 12, 65);
+        assertThat(PurposeLoop.lines(design)).extracting(line -> LenientJson.asInt(line.path("at"))).containsExactly(3, 12, 65);
         assertThat(PurposeLoop.lines("대사 확인: 확인 안 됨\n대사 시간: 0:03 \"가르쳐 줘\"")).isEmpty();
-        assertThat(PurposeLoop.scene("장면: 헤어지자는 말을 들은 밤 | 모름 | 연인").path("situation").asText()).isEqualTo("헤어지자는 말을 들은 밤");
+        assertThat(LenientJson.asText(PurposeLoop.scene("장면: 헤어지자는 말을 들은 밤 | 모름 | 연인").path("situation"))).isEqualTo("헤어지자는 말을 들은 밤");
     }
 
     @Test void rememberedStateBecomesWhatTheScreenDraws() {
@@ -324,13 +325,13 @@ class PurposeLoopTest {
     @Test void aRewrittenCardKeepsEarlierTimesAndTheWrapKeepsTheSpotItFixed() {
         var first = PurposeLoop.card("잘 된 곳: 0:10 웃는 게 보여요\n아쉬운 곳: 0:22 한숨이 준비된 것 같아요\n다음 테이크: 떠올려 봐도 좋아요");
         var another = PurposeLoop.mergeCard(first, PurposeLoop.card("잘 된 곳: 웃는 게 보여요\n아쉬운 곳: 눈을 돌리면 상대가 없어져요"), false);
-        assertThat(another.path("good").path("at").asInt()).as("같은 줄은 앞 시간을 살린다").isEqualTo(10);
-        assertThat(another.path("issue").path("text").asText()).isEqualTo("눈을 돌리면 상대가 없어져요");
+        assertThat(LenientJson.asInt(another.path("good").path("at"))).as("같은 줄은 앞 시간을 살린다").isEqualTo(10);
+        assertThat(LenientJson.asText(another.path("issue").path("text"))).isEqualTo("눈을 돌리면 상대가 없어져요");
         assertThat(another.path("issue").path("at").isNull()).isTrue();
         var wrapped = PurposeLoop.mergeCard(first, PurposeLoop.card("잘 된 곳: 다르게 쓴 줄\n아쉬운 곳: 배우 말대로 고친 줄\n다음 테이크: 매달려 봐도 좋아요"), true);
-        assertThat(wrapped.path("issue").path("at").asInt()).as("정리가 고쳐 쓴 줄도 같은 곳의 시간을 살린다").isEqualTo(22);
-        assertThat(wrapped.path("issue").path("text").asText()).isEqualTo("배우 말대로 고친 줄");
-        assertThat(wrapped.path("next").path("text").asText()).isEqualTo("매달려 봐도 좋아요");
+        assertThat(LenientJson.asInt(wrapped.path("issue").path("at"))).as("정리가 고쳐 쓴 줄도 같은 곳의 시간을 살린다").isEqualTo(22);
+        assertThat(LenientJson.asText(wrapped.path("issue").path("text"))).isEqualTo("배우 말대로 고친 줄");
+        assertThat(LenientJson.asText(wrapped.path("next").path("text"))).isEqualTo("매달려 봐도 좋아요");
     }
 
     @Test void leadingTimesAreReadWithoutARegex() {

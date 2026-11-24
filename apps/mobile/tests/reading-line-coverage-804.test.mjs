@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { ADVANCE_COVERAGE, saidEnough, spokenCoverage } from '../lib/reading/line-coverage.ts';
+import { DEFAULT_APP_CONFIG } from '../lib/app-config.ts';
+import { saidEnough, spokenCoverage } from '../lib/reading/line-coverage.ts';
 
 test('SOMA-804: 글자 수는 띄어쓰기·문장부호·괄호 안 지시·낱자모를 빼고 센다', () => {
-  assert.equal(ADVANCE_COVERAGE, 0.9);
+  assert.equal(DEFAULT_APP_CONFIG.reading.advanceCoverage, 0.9);
   // 원문 10자(괄호 지시 빼고), 말한 글 10자
   assert.equal(spokenCoverage('(웃으며) 나는 정말 몰랐어, 진짜야!', '나는정말 몰랐어 진짜야'), 1);
   assert.equal(spokenCoverage('나는 정말 몰랐어', 'ㅋㅋ 나는'), 2 / 7);

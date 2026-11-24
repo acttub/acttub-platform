@@ -21,8 +21,9 @@ import com.acttub.actingapi.feature.reading.app.RecordingSounds;
 import com.acttub.actingapi.feature.reading.domain.ReadingVoiceMaterial.Clip;
 import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 채점 서비스(apps/pron) {@code POST /measure} 로 줄 녹음의 소리를 잰다(SOMA-791). 줄 하나의 실패는 그 줄만 뺀다. */
 public class HttpRecordingSounds implements RecordingSounds {
@@ -88,15 +89,15 @@ public class HttpRecordingSounds implements RecordingSounds {
     }
 
     static Sound parse(JsonNode root) {
-        if (!root.path("measured").asBoolean(false)) {
+        if (!LenientJson.asBoolean(root.path("measured"), false)) {
             return null;
         }
-        return new Sound(root.path("loud_db").asDouble(), doubleOrNull(root.get("rate")), root.path("max_pause_ms").asInt(),
-                doubleOrNull(root.get("end_semitones")), doubleOrNull(root.get("end_loud_db")), root.path("speech_ms").asInt());
+        return new Sound(LenientJson.asDouble(root.path("loud_db")), doubleOrNull(root.get("rate")), LenientJson.asInt(root.path("max_pause_ms")),
+                doubleOrNull(root.get("end_semitones")), doubleOrNull(root.get("end_loud_db")), LenientJson.asInt(root.path("speech_ms")));
     }
 
     private static Double doubleOrNull(JsonNode node) {
-        return node == null || node.isNull() ? null : node.asDouble();
+        return node == null || node.isNull() ? null : LenientJson.asDouble(node);
     }
 
     static String withoutTrailingSlash(String url) {

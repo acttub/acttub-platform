@@ -11,8 +11,8 @@ import com.acttub.actingapi.feature.coach.app.PracticeLoopRouter.Classified;
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRouter.Kind;
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRouter.Tally;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 /** 연습 루프의 할 일 표: 분류 읽기, 상태 칸에서 흐름 다시 세기, 할 일 고르기, 다음 상태 칸 쓰기. */

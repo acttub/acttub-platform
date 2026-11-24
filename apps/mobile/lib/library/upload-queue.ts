@@ -209,7 +209,7 @@ export function createUploadQueue(deps: UploadQueueDependencies) {
     },
     /**
      * 계정별로 한 번에 하나씩만 돈다. 도는 중에 부르면 같은 결과를 기다리되, 돌던 것이 끝나면 한 번 더 돈다 — 돌기
-     * 시작할 때 읽은 목록에 없는, 그 사이 들어온 영상(튜토리얼에서 막 고른 영상 등)이 「올리는 중」에 남지 않게(SOMA-734).
+     * 시작할 때 읽은 목록에 없는, 그 사이 들어온 영상이 「올리는 중」에 남지 않게(SOMA-734).
      */
     flush(owner: string): Promise<FlushResult> {
       const running = flushing.get(owner);

@@ -15,7 +15,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptCocreateService.Request;
 import com.acttub.actingapi.feature.reading.app.ScriptCocreateService.View;
 import com.acttub.actingapi.feature.reading.domain.CocreateRules.Experience;
 import com.acttub.actingapi.feature.reading.domain.CocreatedScript;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;

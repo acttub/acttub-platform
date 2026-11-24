@@ -9,9 +9,10 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.json.LenientJson;
 
 /** Validates a proposed transition before either the message or its state can be saved. */
 final class CoachingStateReducer {
@@ -39,9 +40,9 @@ final class CoachingStateReducer {
             String actorId, String coachId, String proposalId, String attemptId,
             int maxChars, int maxSentences, boolean finishRequired) {
         StructuredJson.validate("layer2_respond", response);
-        require(response.path("base_state_revision").asLong() == previous.path("revision").asLong(),
+        require(LenientJson.asLong(response.path("base_state_revision")) == LenientJson.asLong(previous.path("revision")),
                 "stale state revision");
-        String message = response.path("message").asText().strip();
+        String message = LenientJson.asText(response.path("message")).strip();
         require(!message.isBlank() && message.codePointCount(0, message.length()) <= maxChars,
                 "message exceeds current length limit");
         require(OpeningQuestion.questionCount(message) <= 1,
@@ -49,16 +50,16 @@ final class CoachingStateReducer {
         require(QUOTED_SENTENCES.matcher(message).replaceAll("quote").split("[.!?。！？]+(?:\\s|$)").length <= maxSentences,
                 "too many sentences");
         require(!message.contains("```") && !message.contains("source_refs"), "internal output in message");
-        require(!finishRequired || "finish".equals(response.path("flow").asText()), "must finish now");
+        require(!finishRequired || "finish".equals(LenientJson.asText(response.path("flow"))), "must finish now");
         require(!finishRequired || OpeningQuestion.questionCount(message) == 0, "closing response must not ask a question");
         Map<String, JsonNode> catalog = catalog(sources);
         catalog.put(coachId, source(coachId, "coach_message", message));
         validateReferences(response, catalog);
-        ObjectNode state = previous.deepCopy();
+        ObjectNode state = (ObjectNode) previous.deepCopy();
         if (!response.path("context_update").isNull()) {
             JsonNode context = response.get("context_update");
             JsonNode direction = context.path("direction");
-            if (!direction.isNull() && !"coach_proposed".equals(direction.path("origin").asText())) {
+            if (!direction.isNull() && !"coach_proposed".equals(LenientJson.asText(direction.path("origin")))) {
                 requireActor(direction.path("source_refs"), catalog, null);
             }
             JsonNode focus = context.path("focus");
@@ -66,15 +67,15 @@ final class CoachingStateReducer {
                 require(!focus.path("evidence_refs").isEmpty(), "focus needs evidence");
                 boolean observedMaterial = false;
                 for (JsonNode ref : focus.path("evidence_refs")) {
-                    String kind = catalog.get(ref.asText()).path("kind").asText();
+                    String kind = LenientJson.asText(catalog.get(LenientJson.asText(ref)).path("kind"));
                     observedMaterial |= kind.equals("video_observation") || kind.equals("video_utterance");
                     require(kind.equals("video_observation") || kind.equals("video_utterance") || kind.equals("record_limitation"),
                             "focus must refer to observed material");
                 }
                 require(observedMaterial, "a limitation alone cannot establish a focus; retain or clear focus");
                 if (!focus.path("utterance_ref").isNull()) {
-                    require("video_utterance".equals(catalog.get(focus.path("utterance_ref").asText())
-                            .path("kind").asText()), "focus utterance must be a transcript");
+                    require("video_utterance".equals(LenientJson.asText(catalog.get(LenientJson.asText(focus.path("utterance_ref")))
+                            .path("kind"))), "focus utterance must be a transcript");
                 }
             }
             for (String field : List.of("reading", "scene_context")) {
@@ -85,44 +86,44 @@ final class CoachingStateReducer {
         Map<String, JsonNode> proposals = indexed(state.path("proposals"), "proposal_id");
         Set<String> modified = new LinkedHashSet<>();
         for (JsonNode change : response.path("proposal_changes")) {
-            String kind = change.path("kind").asText();
+            String kind = LenientJson.asText(change.path("kind"));
             if (kind.equals("create")) {
                 JsonNode proposal = change.path("proposal");
-                String id = proposal.path("proposal_id").asText();
+                String id = LenientJson.asText(proposal.path("proposal_id"));
                 require(id.equals(proposalId) && !proposals.containsKey(id), "invalid new proposal id");
-                require("proposed".equals(proposal.path("selection").asText())
+                require("proposed".equals(LenientJson.asText(proposal.path("selection")))
                         && proposal.path("selection_refs").isEmpty()
-                        && "active".equals(proposal.path("lifecycle").asText())
+                        && "active".equals(LenientJson.asText(proposal.path("lifecycle")))
                         && proposal.path("retirement_refs").isEmpty(), "new proposal cannot invent history");
                 for (String field : List.of("instruction", "comparison", "keep")) {
                     JsonNode text = proposal.path(field);
                     if (!text.isNull()) {
-                        require(message.contains(text.path("text").asText()), "undisclosed practice instruction");
+                        require(message.contains(LenientJson.asText(text.path("text"))), "undisclosed practice instruction");
                         require(contains(text.path("source_refs"), coachId), "new instruction needs displayed message");
                     }
                 }
                 rejectOnlyCurrentCoachRefs(proposal.path("basis_refs"), coachId);
                 proposals.put(id, proposal.deepCopy());
             } else {
-                String id = change.path("proposal_id").asText();
+                String id = LenientJson.asText(change.path("proposal_id"));
                 require(proposals.containsKey(id) && modified.add(kind + ":" + id), "unknown or repeated proposal change");
                 ObjectNode proposal = (ObjectNode) proposals.get(id);
-                require("active".equals(proposal.path("lifecycle").asText()), "retired proposal is immutable");
+                require("active".equals(LenientJson.asText(proposal.path("lifecycle"))), "retired proposal is immutable");
                 if (kind.equals("select")) {
                     requireActor(change.path("source_refs"), catalog, actorId);
                     proposal.put("selection", "selected");
                     proposal.set("selection_refs", change.path("source_refs").deepCopy());
                 } else {
-                    if ("declined".equals(change.path("reason").asText())) {
+                    if ("declined".equals(LenientJson.asText(change.path("reason")))) {
                         requireActor(change.path("source_refs"), catalog, actorId);
                     }
-                    proposal.put("lifecycle", change.path("reason").asText());
+                    proposal.put("lifecycle", LenientJson.asText(change.path("reason")));
                     proposal.set("retirement_refs", change.path("source_refs").deepCopy());
                 }
             }
         }
         List<JsonNode> active = proposals.values().stream()
-                .filter(p -> "active".equals(p.path("lifecycle").asText())).toList();
+                .filter(p -> "active".equals(LenientJson.asText(p.path("lifecycle")))).toList();
         require(active.size() <= 1, "only one active proposal");
         if (!active.isEmpty()) {
             JsonNode p = active.getFirst();
@@ -131,9 +132,9 @@ final class CoachingStateReducer {
             if (!previous.path("context").path("direction").equals(state.path("context").path("direction"))
                     || !previous.path("context").path("focus").equals(state.path("context").path("focus"))) {
                 require(!indexed(previous.path("proposals"), "proposal_id")
-                        .containsKey(p.path("proposal_id").asText()), "changed focus requires reconsidering previous proposal");
+                        .containsKey(LenientJson.asText(p.path("proposal_id"))), "changed focus requires reconsidering previous proposal");
             }
-            state.put("active_proposal_id", p.path("proposal_id").asText());
+            state.put("active_proposal_id", LenientJson.asText(p.path("proposal_id")));
         } else {
             state.putNull("active_proposal_id");
         }
@@ -142,18 +143,18 @@ final class CoachingStateReducer {
         Map<String, JsonNode> attempts = indexed(state.path("attempts"), "attempt_id");
         for (JsonNode change : response.path("attempt_changes")) {
             JsonNode attempt = change.path("attempt");
-            String id = attempt.path("attempt_id").asText();
+            String id = LenientJson.asText(attempt.path("attempt_id"));
             JsonNode old = attempts.get(id);
             require(old != null || id.equals(attemptId), "invalid attempt id");
-            JsonNode proposal = proposals.get(attempt.path("proposal_id").asText());
+            JsonNode proposal = proposals.get(LenientJson.asText(attempt.path("proposal_id")));
             require(proposal != null, "unknown attempt proposal");
             require(attempt.path("instruction").equals(proposal.path("instruction")), "attempt instruction changed");
             if (old != null) {
                 require(old.path("proposal_id").equals(attempt.path("proposal_id")), "cannot reassign attempt");
-                require(!"reported_tried".equals(old.path("execution").asText())
-                        || "reported_tried".equals(attempt.path("execution").asText()), "cannot erase execution history");
+                require(!"reported_tried".equals(LenientJson.asText(old.path("execution")))
+                        || "reported_tried".equals(LenientJson.asText(attempt.path("execution"))), "cannot erase execution history");
             }
-            if (!"unknown".equals(attempt.path("execution").asText())) {
+            if (!"unknown".equals(LenientJson.asText(attempt.path("execution")))) {
                 requireActor(attempt.path("execution_refs"), catalog, actorId);
             }
             if (!attempt.path("result").isNull()) {
@@ -164,9 +165,9 @@ final class CoachingStateReducer {
         ArrayNode nextAttempts = state.putArray("attempts");
         attempts.values().forEach(nextAttempts::add);
         if (!response.path("style_update").isNull()) {
-            state.put("response_style", response.path("style_update").asText());
+            state.put("response_style", LenientJson.asText(response.path("style_update")));
         }
-        state.put("revision", previous.path("revision").asLong() + 1);
+        state.put("revision", LenientJson.asLong(previous.path("revision")) + 1);
         // Keep only cited sources. A later request cannot cite material it was never given.
         validateReferences(state, catalog);
         Set<String> cited = references(state);
@@ -193,9 +194,9 @@ final class CoachingStateReducer {
         value.properties().forEach(entry -> {
             String key = entry.getKey();
             if (key.equals("source_catalog")) { return; }
-            if (key.endsWith("_refs")) { entry.getValue().forEach(v -> refs.add(v.asText())); }
+            if (key.endsWith("_refs")) { entry.getValue().forEach(v -> refs.add(LenientJson.asText(v))); }
             else if (key.equals("utterance_ref") && !entry.getValue().isNull()) {
-                refs.add(entry.getValue().asText());
+                refs.add(LenientJson.asText(entry.getValue()));
             } else { collect(entry.getValue(), refs); }
         });
     }
@@ -204,7 +205,7 @@ final class CoachingStateReducer {
 
     private static Map<String, JsonNode> indexed(JsonNode array, String field) {
         Map<String, JsonNode> result = new LinkedHashMap<>();
-        array.forEach(item -> result.put(item.path(field).asText(), item.deepCopy()));
+        array.forEach(item -> result.put(LenientJson.asText(item.path(field)), item.deepCopy()));
         return result;
     }
 
@@ -217,9 +218,9 @@ final class CoachingStateReducer {
         require(!refs.isEmpty(), "actor evidence required");
         if (currentId != null) { require(contains(refs, currentId), "change needs the current actor message"); }
         for (JsonNode ref : refs) {
-            JsonNode source = catalog.get(ref.asText());
-            String text = source.path("text").asText().strip();
-            require(Set.of("actor_message", "actor_input").contains(source.path("kind").asText()),
+            JsonNode source = catalog.get(LenientJson.asText(ref));
+            String text = LenientJson.asText(source.path("text")).strip();
+            require(Set.of("actor_message", "actor_input").contains(LenientJson.asText(source.path("kind"))),
                     "coach text cannot prove actor intent or execution");
             require(!ClosingIntent.isClosing(text)
                     && !text.matches("(?iu)[\\s.!?]*(네+|예|응|어|음|좋아|좋아요|그래|알겠어|알겠어요|알았어|고마워|정리해줘|정리해주세요|여기까지 정리해줘|ㄱㄱ|ㅇㅇ|ㅇㅋ|오케이|ok|yes)[\\s.!?]*"),
@@ -234,11 +235,11 @@ final class CoachingStateReducer {
 
     private static void rejectOnlyCurrentCoachRefs(JsonNode refs, String coachId) {
         require(!refs.isEmpty() && java.util.stream.StreamSupport.stream(refs.spliterator(), false)
-                .anyMatch(ref -> !ref.asText().equals(coachId)), "practice needs prior evidence");
+                .anyMatch(ref -> !LenientJson.asText(ref).equals(coachId)), "practice needs prior evidence");
     }
 
     private static boolean contains(JsonNode refs, String id) {
-        for (JsonNode ref : refs) { if (ref.asText().equals(id)) { return true; } }
+        for (JsonNode ref : refs) { if (LenientJson.asText(ref).equals(id)) { return true; } }
         return false;
     }
 

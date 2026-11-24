@@ -10,11 +10,7 @@ import { AnchoredMenu, MENU_ITEM_HEIGHT, MENU_PAD, MenuItem, pt, type MenuAnchor
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { useAppDialog } from '@/components/app-dialog';
-import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api } from '@/lib/api';
-import { TARGET } from '@/lib/spotlight-targets';
-import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
@@ -69,9 +65,6 @@ export default function ReadingRoles() {
       .then(([enabled, status]) => shouldUseCloudVoice({ enabled, status }))
       .catch(() => false),
   );
-  const roleListTarget = useSpotlightTarget(TARGET.readingRoleList);
-  const saveTarget = useSpotlightTarget(TARGET.readingRoleStart);
-  const tutorialGuide = useTutorialSpotlight('readingRoles', { ready: !!script });
 
   // 상대역 목소리를 미리 준비한다 — 받아 둔 모델은 메모리에 올리고(첫 미리 듣기·실행 화면이 기다리지 않게), 없으면 Wi-Fi 에서만 받는다. 화면을 막지 않고 실패도 알리지 않는다.
   // 예시에서 온 대본(sample)은 미리 만든 음성으로 읽을 수 있어 받지 않는다(example-audio). 서버 답을 기다리면 받기와 엇갈려 입력 경로로 정한다.
@@ -189,13 +182,11 @@ export default function ReadingRoles() {
         setSaving(false);
       }
     }
-    const next = afterVoicesSaved(fromNew, currentTutorial());
-    if (next === 'back') {
+    if (!fromNew) {
       router.back();
       return;
     }
     router.replace('/reading/detail');
-    if (next === 'detail_then_range') router.push('/reading/range');
   };
 
 
@@ -230,7 +221,7 @@ export default function ReadingRoles() {
           <Text style={styles.meta}>{t('reading.voicesNote')}</Text>
         </View>
 
-        <View style={styles.list} ref={roleListTarget.ref} onLayout={roleListTarget.onLayout}>
+        <View style={styles.list}>
           {effective.map((c) => {
             const playing = previewing === c.id;
             const open = menu?.characterId === c.id;
@@ -278,9 +269,7 @@ export default function ReadingRoles() {
       </ScrollView>
 
       <CtaBar>
-        <View ref={saveTarget.ref} onLayout={saveTarget.onLayout}>
-          <PrimaryButton label={t('common.save')} loading={saving} loadingLabel={t('loadingText.saving')} onPress={onSave} />
-        </View>
+        <PrimaryButton label={t('common.save')} loading={saving} loadingLabel={t('loadingText.saving')} onPress={onSave} />
       </CtaBar>
 
       {menuFor && menuGender && (
@@ -303,7 +292,6 @@ export default function ReadingRoles() {
       )}
 
       {dialog}
-      {tutorialGuide.element}
     </View>
   );
 }

@@ -126,16 +126,6 @@ export function storeSubscribed(me: BillingMe | null | undefined): boolean {
   return me.status === 'active' || me.status === 'past_due';
 }
 
-/** 서버의 무료 한도 오류 → 띄울 시트. 플래그가 꺼져 있으면 서버가 이 코드를 보내지 않아 시트도 뜨지 않는다. */
-export type FreeLimit = 'coaching' | 'script';
-
-export function freeLimitOf(error: unknown): FreeLimit | null {
-  const code = errorCode(error);
-  if (code === 'free_daily_coaching_limit') return 'coaching';
-  if (code === 'free_script_limit') return 'script';
-  return null;
-}
-
 /** Pro 안내에 들어온 곳(라우트 `from`). 들어온 곳마다 위 안내·제목·혜택 세 줄이 다르다. */
 export type ProFrom = 'default' | 'coaching' | 'script' | 'pron';
 

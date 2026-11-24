@@ -40,7 +40,7 @@ class ConversationConfiguration {
             ConversationRepository conversations,
             com.acttub.actingapi.integration.llm.OpenAiTextGenerators generators,
             com.acttub.actingapi.platform.observability.LlmTelemetry telemetry,
-            com.fasterxml.jackson.databind.ObjectMapper json,
+            tools.jackson.databind.ObjectMapper json,
             Clock clock) {
         return new com.acttub.actingapi.feature.coach.app.JournalService(
                 journals, conversations, generators.report(), telemetry, json, clock, java.util.UUID::randomUUID);
