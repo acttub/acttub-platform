@@ -55,10 +55,6 @@ public record CommunityComment(
         return "hidden".equals(status);
     }
 
-    public boolean isVisible() {
-        return VISIBLE.equals(status);
-    }
-
     public boolean isDeleted() {
         return DELETED.equals(status);
     }

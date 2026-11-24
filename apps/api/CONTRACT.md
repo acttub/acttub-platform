@@ -80,6 +80,9 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
+- `community_blocks`(0.1.0 전 게시판 차단): 이 테이블을 지우던 게시판 차단 풀기 주소를 내리며 매핑을 내렸다. 게시판
+  가시성과 만 14세 미만 계정 닫기가 native SQL로만 읽으므로(읽는 곳은 `git grep -l -w community_blocks src/main/java`)
+  테이블은 그대로 둔다. 쓰는 코드는 없다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.

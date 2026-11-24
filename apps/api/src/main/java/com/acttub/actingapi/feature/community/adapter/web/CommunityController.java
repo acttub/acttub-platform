@@ -378,32 +378,6 @@ class CommunityController {
     }
 
     @Operation(
-            summary = "Update Comment",
-            operationId = "update_comment_v2_community_comments__comment_id__patch",
-            tags = "v2-community",
-            security = @SecurityRequirement(name = "HTTPBearer"))
-    @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "Successful Response",
-                content = @Content(schema = @Schema(implementation = CommentPayload.class))),
-        @ApiResponse(
-                responseCode = "422",
-                description = "Validation Error",
-                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
-    })
-    @PatchMapping(value = "/comments/{comment_id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    CommentPayload updateComment(
-            @PathVariable("comment_id") UUID commentId,
-            @Valid @RequestBody CommentWriteRequest body,
-            HttpServletRequest request) {
-        return commentPayload(community.updateComment(
-                commentId,
-                authorId(request),
-                trimmed("body", body.body())));
-    }
-
-    @Operation(
             summary = "Delete Comment",
             operationId = "delete_comment_v2_community_comments__comment_id__delete",
             tags = "v2-community",
@@ -451,22 +425,6 @@ class CommunityController {
     }
 
     @Operation(
-            summary = "List Blocks",
-            operationId = "list_blocks_v2_community_blocks_get",
-            tags = "v2-community",
-            security = @SecurityRequirement(name = "HTTPBearer"))
-    @ApiResponse(
-            responseCode = "200",
-            description = "Successful Response",
-            content = @Content(schema = @Schema(implementation = BlockListResponse.class)))
-    @GetMapping("/blocks")
-    BlockListResponse listBlocks(HttpServletRequest request) {
-        return new BlockListResponse(community.listBlocks(authorId(request)).stream()
-                .map(blocked -> new BlockPayload(blocked.id(), blocked.nickname()))
-                .toList());
-    }
-
-    @Operation(
             summary = "Block User",
             operationId = "block_user_v2_community_blocks_post",
             tags = "v2-community",
@@ -483,26 +441,6 @@ class CommunityController {
             @Valid @RequestBody BlockRequest body,
             HttpServletRequest request) {
         community.blockUser(authorId(request), body.userId());
-        return ResponseEntity.noContent().build();
-    }
-
-    @Operation(
-            summary = "Unblock User",
-            operationId = "unblock_user_v2_community_blocks__blocked_id__delete",
-            tags = "v2-community",
-            security = @SecurityRequirement(name = "HTTPBearer"))
-    @ApiResponses({
-        @ApiResponse(responseCode = "204", description = "Successful Response"),
-        @ApiResponse(
-                responseCode = "422",
-                description = "Validation Error",
-                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
-    })
-    @DeleteMapping("/blocks/{blocked_id}")
-    ResponseEntity<Void> unblockUser(
-            @PathVariable("blocked_id") UUID blockedId,
-            HttpServletRequest request) {
-        community.unblockUser(authorId(request), blockedId);
         return ResponseEntity.noContent().build();
     }
 

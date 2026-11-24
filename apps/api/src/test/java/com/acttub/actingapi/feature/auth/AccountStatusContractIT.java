@@ -79,7 +79,7 @@ class AccountStatusContractIT {
     @Test
     void communityRoutesNeedAnActiveAccount() throws Exception {
         for (String path : List.of("/v2/community/posts", "/v2/community/categories",
-                "/v2/community/posts/" + UUID.randomUUID() + "/comments", "/v2/community/blocks")) {
+                "/v2/community/posts/" + UUID.randomUUID() + "/comments")) {
             assertError(get(path), 401, "invalid or missing access token");
             assertError(get(path).header("Authorization", bearer(DEACTIVATED)),
                     403, "account_deactivated");
