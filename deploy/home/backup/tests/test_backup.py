@@ -65,7 +65,21 @@ class BackupCliTest(unittest.TestCase):
         self.assertEqual((self.root / "state" / "status.json").stat().st_mode & 0o777, 0o600)
         calls = [json.loads(line) for line in (self.root / "s3" / "calls.jsonl").read_text().splitlines()]
         self.assertEqual([call[:2] for call in calls], [["s3", "cp"], ["s3api", "head-object"]])
-        self.assertIn("AES256", calls[0])
+        self.assertEqual(calls[0][4:], ["--only-show-errors", "--sse", "AES256", "--metadata", "sha256=" + state["last_success_sha256"],
+                                        "--cli-connect-timeout", "10", "--cli-read-timeout", "60"])
+        self.assertNotIn("--endpoint-url", calls[1])
+
+    def test_storage_endpoint_sends_both_calls_there_without_aws_server_encryption(self):
+        result = self.run_cli("once", S3_ENDPOINT="https://account.r2.cloudflarestorage.com")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = [json.loads(line) for line in (self.root / "s3" / "calls.jsonl").read_text().splitlines()]
+        self.assertEqual([call[:2] for call in calls], [["s3", "cp"], ["s3api", "head-object"]])
+        for call in calls:
+            self.assertEqual(call[call.index("--endpoint-url") + 1], "https://account.r2.cloudflarestorage.com")
+        self.assertNotIn("--sse", calls[0])
+        # 목적지 표기는 주소와 무관하게 같다 — 모니터링의 acttub_backup_target_match 가 같은 표기를 만든다.
+        self.assertEqual(self.state()["backup_target"], "s3://acttub-db-backups/prod/:acttub")
+        self.assertEqual(self.run_cli("health").returncode, 0)
 
     def test_failed_upload_is_nonzero_unhealthy_and_preserves_previous_success(self):
         self.assertEqual(self.run_cli("once").returncode, 0)

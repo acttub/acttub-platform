@@ -52,7 +52,7 @@ DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../..
 | 외부 서비스 | AI 키(바로 아래 행), 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
 | AI 키 | 기능마다 **전용 키 또는 공용 키(`GEMINI_API_KEY`·`OPENAI_API_KEY`) 중 하나**가 있으면 된다. 공용 키만, 전용 키만, 섞어서 모두 허용하며 전용 키가 있으면 공용 키보다 먼저 쓴다. Gemini: `GEMINI_COACH_API_KEY`(직접 영상 코칭 A/B·관찰·영상 기록·음성 전사), `GEMINI_TTS_API_KEY`(리딩 음성), `GEMINI_CHALLENGE_API_KEY`(챌린지 비교). OpenAI: `OPENAI_COACH_API_KEY`(기존·비직접 코칭), `OPENAI_SCRIPT_SPLIT_API_KEY`(대본 분리), `OPENAI_REPORT_API_KEY`(코칭 노트·리포트), `OPENAI_MEMORY_API_KEY`(배우 기억). Gemini 코칭·TTS·챌린지는 전용 키도 공용 키도 없으면 API 기동이 멈추고(다른 기능의 키로 대신하지 않는다), OpenAI는 호출할 때 실패한다. dev·prod 는 같은 변수 이름에 각 서버 `.env` 가 서로 다른 프로젝트·키의 값을 넣어 가른다(URL 로 가르지 않는다). 값은 서버 `.env` 에만 두고 저장소·로그·문서에 적지 않는다 |
 | 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
-| 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
+| 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 자격증명. `S3_ENDPOINT`가 비면 AWS S3다. Cloudflare R2면 `S3_ENDPOINT=https://<계정 id>.r2.cloudflarestorage.com`, `AWS_REGION=auto`, 두 키는 R2 API 토큰의 키다. 백업도 같은 주소와 키를 쓴다 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000`(`edge` 망에서 proxy가 받는다, §1) |
 | 백업 | 백업 버킷과 환경별 prefix, AWS 권한, §5의 주기·실제 업로드 확인 |
 | 운영 자원 | 운영 `.env`에 `.env.example`의 prod 값으로 `API_MEM_LIMIT`·`WEB_MEM_LIMIT`·`DB_MEM_LIMIT`을 적는다. 비우면 dev 크기다 |
@@ -218,6 +218,9 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 ```
 
 업로드에는 S3의 AES256 서버 암호화와 SHA-256 metadata를 사용하고, HEAD로 크기와 metadata를 대조한다.
+`S3_ENDPOINT`가 있으면 업로드와 HEAD를 그 주소로 보내고 서버 암호화 요청은 뺀다(R2는 저장할 때 늘 암호화한다).
+그때 백업을 받는 명령에도 `--endpoint-url "$S3_ENDPOINT"`를 붙인다. 주소를 바꾼 직후에는 health가 옛 저장소의
+성공 기록으로 성공할 수 있으므로 위 `once`로 바로 백업하고 새 저장소에 올라갔는지 본다.
 `backup_state` 볼륨의 `/var/lib/acttub-backup/status.json`에는 마지막 성공 시각·객체 주소·해시와 실패 상태가
 남는다. 최근 성공이 26시간 이내이고 백업 목적지가 현재 설정과 같으며 미해결 실패가 없을 때만 health가 성공한다.
 이 26시간은 `backup.py`의 `healthy`와 모니터링 규칙(`rules.json`의 `backup-age`)에 따로 적혀 있어 바꿀 때 둘을 함께 바꾼다.
