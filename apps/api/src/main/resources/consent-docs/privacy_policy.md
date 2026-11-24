@@ -86,6 +86,7 @@
 | Google (Google Cloud / Gemini) | 영상·이미지·녹음과 대본·대사 글에 대한 AI 분석·코칭 처리(대본 리딩 녹음 코치, 대본 같이 만들기 포함. AI 분석 동의 v2 이상에 따름), 대본 리딩 상대 대사의 음성 합성(고품질 목소리를 켠 경우에만. 개인정보 수집·이용 동의 v9 이상 또는 「대본 리딩 고품질 목소리」 동의에 따름) |
 | Google (Google Analytics) | 웹 서비스 이용 통계 및 유입 경로 분석 |
 | Amazon Web Services (AWS) | 영상 및 데이터의 클라우드 저장 |
+| Cloudflare, Inc. (Cloudflare R2) | 영상 및 데이터의 클라우드 저장 |
 | OpenAI (OpenAI API) | 대본 리딩에 넣은 대본 글을 배역·대사·지문으로 나누는 처리(개인정보 수집·이용 동의 v9 이상 또는 「대본 나누기」 동의에 따름) |
 | OpenRouter, Inc. (OpenRouter API) | 대본 리딩에서 나눈 결과를 바로잡기 위해 대본 글의 일부와 배역 이름 목록을 AI 판단 모델로 판단하는 처리(개인정보 수집·이용 동의 v10 이상 또는 「대본 나누기」 동의 v3 이상에 따름) |
 | Functional Software, Inc. (Sentry) | 서비스 오류 기록의 수집 및 분석 |
