@@ -861,7 +861,8 @@ public final class DirectVideoCoach {
         String message = written.message();
         DirectVideoModel.Video uploaded = media.uploaded;
         String writtenWords = plan.written();
-        var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
+        // 숨은 칸은 연습 루프에서만 읽는다. 옛 대화(연습 루프 아님)는 본문을 그대로 쓰므로 나눈 결과를 읽지 않는다.
+        var parsed = DirectVideoPracticeLoop.parse(message);
         PurposeLoop.Output purposeOut = purpose != null ? PurposeLoop.extract(message) : null;
         String purposeTake = "";
         if (purposeTurn != null) {
