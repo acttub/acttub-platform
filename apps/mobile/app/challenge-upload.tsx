@@ -442,5 +442,6 @@ const styles = StyleSheet.create({
   optionSub: { ...type.caption, color: palette.textMeta },
   mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[1] },
   mosaicTitle: { ...type.body1Bold, color: palette.text },
-  suggest: { gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: palette.blueSoft },
+  // 바로 위 선택된 카드(파란 바탕)와 섞이지 않게 흰 바탕 테두리 칸으로 둔다.
+  suggest: { gap: space[2], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
 });
