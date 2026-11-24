@@ -41,7 +41,7 @@ test("결제 뒤 돌아온 주소의 status 만 읽고, 성립은 서버 상태�
 });
 
 test("내 계정 구독 칸은 서버 상태를 그대로 문장으로 바꾼다", async () => {
-  const { subscriptionViewOf, cancelDoneMessage, koreanDate } = await import("../src/features/billing/billing-flow.ts");
+  const { subscriptionViewOf, cancelConfirmMessage, cancelDoneMessage, koreanDate } = await import("../src/features/billing/billing-flow.ts");
   const base = { amount: 3900, card_company: null, card_last4: null, grant_ends_at: null, period_end: null, next_billing_at: null };
   const active = subscriptionViewOf({ ...base, status: "active", pro: true, provider: "toss", next_billing_at: "2026-11-30T06:29:37Z", period_end: "2026-11-30T06:29:37Z", card_last4: "123*" });
   assert.equal(active.title, "Pro 이용 중");
@@ -54,6 +54,15 @@ test("내 계정 구독 칸은 서버 상태를 그대로 문장으로 바꾼다
   assert.equal(canceled.cancelable, false);
   assert.match(canceled.lines[0], /2026년 11월 30일까지 Pro/);
   assert.equal(cancelDoneMessage({ ...base, status: "canceled", pro: true, period_end: "2026-11-30T06:29:37Z" }), "해지했어요. 2026년 11월 30일까지 Pro를 쓸 수 있어요.");
+
+  // past_due 는 Pro 가 아니다(billing.subscription 「상태」). 지난 기간 끝 날짜까지 Pro 라고 말하지 않는다.
+  const pastDue = subscriptionViewOf({ ...base, status: "past_due", pro: false, provider: "toss", period_end: "2026-11-30T06:29:37Z", next_billing_at: "2026-12-01T06:29:37Z" });
+  assert.equal(pastDue.cancelable, true);
+  assert.ok(pastDue.lines.every((line) => !/까지는 Pro를 그대로 써요/.test(line)), pastDue.lines.join(" / "));
+  assert.ok(pastDue.lines.includes("결제가 될 때까지 Pro를 쓸 수 없어요."));
+  assert.equal(cancelConfirmMessage({ ...base, status: "past_due", pro: false, provider: "toss" }), "결제가 안 된 구독이라 해지하면 바로 끝나요.");
+  assert.equal(cancelConfirmMessage({ ...base, status: "active", pro: true, provider: "toss" }), "해지하면 다음 자동결제가 되지 않아요. 이미 결제한 기간이 끝날 때까지는 Pro를 그대로 써요.");
+  assert.equal(cancelDoneMessage({ ...base, status: "expired", pro: false, period_end: "2026-11-30T06:29:37Z" }), "해지했어요. 구독이 끝났어요.");
 
   const store = subscriptionViewOf({ ...base, status: "active", pro: true, provider: "google" });
   assert.equal(store.cancelable, false);
