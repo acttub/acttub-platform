@@ -11,8 +11,8 @@
 신고 판정은 [challenge.create](../challenge/create.md)·[challenge.report](../challenge/report.md), 포스터·광고·문의의 운영 경로는
 [app.poster](poster.md)·[app.ads](ads.md)·[app.support-inquiry](support-inquiry.md)가 정본이다. 구독자 목록(`GET /v2/admin/subscribers`)은
 [billing.subscription](../billing/subscription.md)이 `plan` 칸만 적는다. `GET /v2/admin/sessions`·`GET /v2/admin/actor-names`, 광고 설정
-(`/v2/admin/ad-settings`), 블로그 운영 경로(`/v2/admin/blog/**`·`/v2/admin/blog-images`)는 아직 스펙이 없다(코드 `AdminController`·
-`AdSettingsAdminController`·`BlogAdminController`).
+(`/v2/admin/ad-settings`)은 아직 스펙이 없다(코드 `AdminController`·`AdSettingsAdminController`). 블로그 운영 경로(`/v2/admin/blog/**`·
+`/v2/admin/blog-images`)는 [app.blog](blog.md)가 정본이다.
 
 ## 입력·출력
 

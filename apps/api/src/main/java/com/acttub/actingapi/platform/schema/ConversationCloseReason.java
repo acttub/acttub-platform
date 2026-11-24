@@ -8,11 +8,11 @@ package com.acttub.actingapi.platform.schema;
  * <p>값 이름은 DB CHECK 값이자 API 값이다. 한쪽만 고치면 {@code ValueCheckCatalogIT} 가 잡는다.
  */
 public enum ConversationCloseReason implements PgEnum {
-    /** 배우가 막힘을 말로 정리했다. */
+    /** 배우가 막힘을 말로 정리했다. 지금 코드는 만들지 않고 옛 대화를 옮긴 행에만 있다(practice.coach). */
     GAP_STATED("gap_stated"),
     /** 더 물을 것이 없다. */
     EXHAUSTED("exhausted"),
-    /** 코치 응답 수 상한에 닿았다(기존 갈래 8, 신형 10). */
+    /** 코치 응답 수 상한에 닿았다. 상한 숫자는 practice.coach 와 {@code ConversationService} 가 정본이다. */
     LIMIT("limit"),
     /** 배우가 "그만"으로 마쳤다. */
     USER_ENDED("user_ended"),
