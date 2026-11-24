@@ -14,14 +14,14 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`, 선택 `video_id`(영상 없이 말로 하면 뺀다)·`scene`·`blockage`·`title`·`session_purpose` (`PracticeCreateRequest`) | `Practice` 201(`poster_url` 포함, [practice.library](library.md#규칙제약)), 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `free_daily_coaching_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
-| `POST /v2/practices/{practice_id}/analyze` (닫힌 회차 재시도) | `X-Request-Id`, 필수 `request_id` (`PracticeAnalyzeRequest`) | `Practice` 201, 새 analyze 작업 | `analysis_not_failed` 409, `practice_in_progress` 409, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
+| `POST /v2/practices/{practice_id}/analyze` (분석이 닫았거나 그만둔 회차 재시도) | `X-Request-Id`, 필수 `request_id` (`PracticeAnalyzeRequest`) | `Practice` 201, 새 analyze 작업 | `analysis_not_failed` 409, `practice_in_progress` 409, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
 
 ## 상태
 practices.stage — 회차 진행 상태의 정본이다.
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| analyzing | 영상으로 시작·이어하기로 회차 생성, closed 회차의 재시도(묶음에 다른 진행 중 회차가 없을 때) | practice.start, practice.resume |
+| analyzing | 영상으로 시작·이어하기로 회차 생성, closed(analysis_failed·cancelled) 회차의 재시도(묶음에 다른 진행 중 회차가 없을 때) | practice.start, practice.resume |
 | conversing | analyzing에서 분석 결과(ready·partial) 저장, 영상 없이 말로 시작(SOMA-745), 리딩 녹음으로 시작(SOMA-791), closed(conversation_closed) 회차의 대화 다시 열기(SOMA-782, 조건은 [practice.coach](coach.md#상태)) | practice.analyze, practice.start, practice.coach |
 | closed (close_reason analysis_failed) | analyzing에서 분석 즉시 실패 또는 3회 소진 | practice.analyze |
 | closed (close_reason cancelled) | 대기·진행 중인 분석 작업을 "그만두기"로 취소 | practice.analyze |
@@ -72,7 +72,7 @@ practices.stage — 회차 진행 상태의 정본이다.
   플래그를 꺼도 이미 만든 신형 자료는 계속 읽고 다시 분석하지 않는다. 전체를 신형으로 바꾸는 것은 별도 결정이다. 배포 환경의 플래그
   값은 [DEPLOY-HOME §3](../../deploy/DEPLOY-HOME.md#3-actions와-일상-배포)에 있다.
 - 판정 순서: 시작은 같은 요청 id 재생 → 영상 확인(422 video_not_ready) → 하루 한도(429)다. 재시도는 같은 요청 id 재생 →
-  없는·남의 회차(404) → 닫히지 않은 회차(409 analysis_not_failed) → 묶음에 진행 중 회차(409 practice_in_progress) → 게스트 하루
+  없는·남의 회차(404) → 닫히지 않았거나 대화까지 끝난(conversation_closed) 회차(409 analysis_not_failed) → 묶음에 진행 중 회차(409 practice_in_progress) → 게스트 하루
   한도(429)다. 재시도에서는 409가 429보다 먼저다.
 - 영상 없이 말로 코칭(SOMA-745): `video_id` 를 빼고 `session_purpose` 를 stuck(막힌 곳 풀기)·character(인물 이해하기)·concern(고민
   상담) 중 하나로 보내면 분석 작업 없이 첫 회차가 바로 conversing 으로 생긴다(`video_id` null, `job` null). 코치가 말로 하는 목적별 코칭을
@@ -130,6 +130,8 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 시작 뒤 상황 수정 API: 없다(속성 불변). 대화에서 장면을 답함: practices의 상황은 그대로다.
 - 분석 최종 실패: stage closed. 그 회차 재시도: 새 ai_jobs, stage analyzing. 다른 진행 중 회차가 있으면 재시도: 409 practice_in_progress.
 - 하루 1회를 쓴 게스트가 아직 분석 중인 회차를 재시도: 429가 아니라 409 analysis_not_failed.
+- 대화까지 끝난 회차(conversation_closed) 재시도: 409 analysis_not_failed, 회차·작업 그대로. 그만둔 회차(cancelled) 재시도: 201, analyzing
+  (웹은 「그만두기」 뒤 다시 분석을 부른다, `PracticeLifecycleIT`).
 - 웹 D4에 이론 선택이 없다.
 
 ## 범위 밖
@@ -140,5 +142,3 @@ practices.stage — 회차 진행 상태의 정본이다.
 ## 열린 질문
 - 다 올라갔다는 알림이 없다. 올리기는 앱 안 큐(압축 → PUT → 마무리)가 하고, 다 올라가도 로컬 알림을 띄우지 않는다. 그래서 안내는
   알림을 약속하지 않는다. 알림을 더하면 안내 문구도 바꾼다.
-- 재시도가 close_reason을 보지 않는다. `PostgresPracticeRepository.retryAnalysis`는 stage가 closed이기만 하면 받아 cancelled·
-  conversation_closed 회차도 analyzing으로 돌린다. 규칙은 "실패한 회차"만 다시 시도한다고 하므로 analysis_failed만 받을지 정한다.

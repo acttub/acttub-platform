@@ -253,7 +253,9 @@ class PostgresPracticeRepository implements PracticeRepository {
             }
             UUID rootId = rows.getFirst().get("root_id", UUID.class);
             lockGroup(rootId);
-            if (!"closed".equals(currentStage(practiceId))) {
+            if (!"closed".equals(currentStage(practiceId)) || "conversation_closed".equals(closeReason(practiceId))) {
+                // 다시 분석하는 것은 분석이 닫은 회차(analysis_failed)와 그만둔 회차(cancelled)뿐이다. 대화까지 끝난 회차를
+                // analyzing 으로 되돌리면 닫힌 대화가 붙은 채 분석을 다시 돈다(practice.start).
                 return new Started(StartOutcome.NOT_FAILED, null);
             }
             UUID open = openPracticeOf(rootId);
@@ -559,6 +561,12 @@ class PostgresPracticeRepository implements PracticeRepository {
 
     private String currentStage(UUID practiceId) {
         return (String) entityManager.createNativeQuery("SELECT stage FROM practices WHERE id=:practiceId")
+                .setParameter("practiceId", practiceId)
+                .getSingleResult();
+    }
+
+    private String closeReason(UUID practiceId) {
+        return (String) entityManager.createNativeQuery("SELECT close_reason FROM practices WHERE id=:practiceId")
                 .setParameter("practiceId", practiceId)
                 .getSingleResult();
     }
