@@ -18,6 +18,9 @@ public final class PracticeRules {
     /** 묶음 제목의 상한(자). 시작 때 적는 제목과 묶음 속성 수정이 같은 한도다. */
     public static final int GROUP_TITLE_MAX_CHARS = 200;
 
+    /** 한 장면(묶음)에서 권하는 연습 횟수. 코칭 탭의 「n/3번 해 봤어요」가 이 값을 목표로 쓴다(SOMA-810). */
+    public static final int SCENE_PRACTICE_GOAL = 3;
+
     /** 회차에 싣는 포스터 서명 주소의 수명(초). 보관함의 포스터·재생 주소와 같은 10분이다. */
     public static final int POSTER_URL_TTL_SECONDS = 600;
 

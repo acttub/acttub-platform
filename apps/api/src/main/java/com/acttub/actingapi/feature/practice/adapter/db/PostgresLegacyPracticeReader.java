@@ -169,7 +169,9 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
                         .map(PracticeView::id)
                         .findFirst()
                         .orElse(null),
-                List.copyOf(practices))));
+                List.copyOf(practices),
+                // 옛 자료는 「연습 1회」 기준(노트가 생긴 회차)으로 세지 않는다(SOMA-810) — 화면이 칸을 숨긴다.
+                null)));
         return List.copyOf(groups);
     }
 
@@ -234,6 +236,8 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
                                 ((Number) row.get("attempt_count")).intValue()),
                 previous,
                 // 옛 자료에는 세션 목적이 없다.
+                null,
+                // 옛 자료의 영상 길이는 읽지 않는다(SOMA-810).
                 null);
     }
 }

@@ -9768,6 +9768,14 @@
               "type" : "null"
             } ],
             "title" : "Session Purpose"
+          },
+          "video_duration_ms" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Video Duration Ms"
           }
         },
         "required" : [ "blockage_category", "blockage_detail", "character", "conversation_count", "created_at", "experience_version", "goal", "id", "ordinal", "previous_conversations", "root_id", "situation", "stage", "video_id" ],
@@ -12501,6 +12509,18 @@
               "$ref" : "#/components/schemas/Practice"
             },
             "title" : "Practices"
+          },
+          "practice_count" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Practice Count"
+          },
+          "practice_goal" : {
+            "type" : "integer",
+            "title" : "Practice Goal"
           }
         },
         "required" : [ "favorite", "ordinal_count", "practices", "root_id", "tags" ],

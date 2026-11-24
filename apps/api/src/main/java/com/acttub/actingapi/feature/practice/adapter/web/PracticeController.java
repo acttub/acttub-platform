@@ -28,6 +28,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,6 +56,8 @@ class PracticeController {
 
     private final PracticeService practices;
     private final AccessGate auth;
+    /** 코칭 탭 진행 표시(SOMA-810). 꺼져 있으면 회차·묶음 응답이 예전과 같은 바이트다. */
+    private final boolean coachingProgress;
 
     @Operation(summary = "Get Practice Analysis", tags = "v2-practices",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -65,9 +68,11 @@ class PracticeController {
         return PracticeDtos.AnalysisResponse.of(practices.analysis(auth.gatedUser(request).id(), practiceId));
     }
 
-    PracticeController(PracticeService practices, AccessGate auth) {
+    PracticeController(PracticeService practices, AccessGate auth,
+                       @Value("${ACTTUB_COACHING_TAB_PROGRESS_ENABLED:false}") boolean coachingProgress) {
         this.practices = practices;
         this.auth = auth;
+        this.coachingProgress = coachingProgress;
     }
 
     @Operation(
@@ -100,12 +105,13 @@ class PracticeController {
         requireBlockagePair(body.blockage());
         AuthenticatedUser user = auth.gatedUser(request);
         if (body.readingSessionId() != null) {
-            return PracticeResponse.of(practices.startFromReading(user.id(), body.requestId(), body.readingSessionId()));
+            return PracticeResponse.of(
+                    practices.startFromReading(user.id(), body.requestId(), body.readingSessionId()), coachingProgress);
         }
         return PracticeResponse.of(practices.start(
                 user.id(), user.guest(), contract,
                 draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), body.title(), body.sessionPurpose(),
-                        body.faceMosaic())));
+                        body.faceMosaic())), coachingProgress);
     }
 
     @Operation(
@@ -138,7 +144,8 @@ class PracticeController {
         AuthenticatedUser user = auth.gatedUser(request);
         return PracticeResponse.of(practices.continueGroup(
                 user.id(), user.guest(), contract, practiceId,
-                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), null, null, body.faceMosaic())));
+                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), null, null, body.faceMosaic())),
+                coachingProgress);
     }
 
     @Operation(
@@ -167,7 +174,8 @@ class PracticeController {
             HttpServletRequest request) {
         RequestIdHeader.requireMatching(requestIdHeader, body.requestId());
         AuthenticatedUser user = auth.gatedUser(request);
-        return PracticeResponse.of(practices.retryAnalysis(user.id(), user.guest(), practiceId, body.requestId()));
+        return PracticeResponse.of(
+                practices.retryAnalysis(user.id(), user.guest(), practiceId, body.requestId()), coachingProgress);
     }
 
     @Operation(
@@ -191,7 +199,7 @@ class PracticeController {
                     List.of("query", "filter"), "Value error, filter must be all, favorite or recent30", filter);
         }
         return new GroupListResponse(practices.groups(auth.gatedUser(request).id(), filter).stream()
-                .map(GroupResponse::of)
+                .map(group -> GroupResponse.of(group, coachingProgress))
                 .toList());
     }
 
@@ -226,7 +234,7 @@ class PracticeController {
             content = @Content(schema = @Schema(implementation = PracticeResponse.class)))
     @GetMapping("/{practice_id}")
     PracticeResponse find(@PathVariable("practice_id") UUID practiceId, HttpServletRequest request) {
-        return PracticeResponse.of(practices.find(auth.gatedUser(request).id(), practiceId));
+        return PracticeResponse.of(practices.find(auth.gatedUser(request).id(), practiceId), coachingProgress);
     }
 
     @Operation(
@@ -283,7 +291,7 @@ class PracticeController {
             @Valid @RequestBody GroupPatchRequest body,
             HttpServletRequest request) {
         return GroupResponse.of(practices.updateGroup(
-                auth.gatedUser(request).id(), rootId, body.favorite(), body.hidden(), body.title()));
+                auth.gatedUser(request).id(), rootId, body.favorite(), body.hidden(), body.title()), coachingProgress);
     }
 
     @Operation(
