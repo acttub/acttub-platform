@@ -57,7 +57,7 @@ public interface BillingRepository {
     /**
      * 새 빌링키(암호문)와 카드를 저장한다. 구독 줄이 없으면 expired 로 만든다(첫 결제가 끝나야 active).
      *
-     * @return 구독 id
+     * @return 구독 id. 탈퇴가 먼저 끝났으면 저장하지 않고 {@code null}
      */
     UUID saveCard(UUID userId, String customerKey, String sealedBillingKey, String cardCompany, String cardNumber,
             Instant now);
@@ -67,8 +67,8 @@ public interface BillingRepository {
      */
     void choosePlan(UUID subscriptionId, BillingRules.Plan plan, Instant now);
 
-    /** 첫 결제 성공 — active 와 새 기간. */
-    void activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now);
+    /** 첫 결제 성공 — active 와 새 기간. 탈퇴가 먼저 끝났으면 바꾸지 않고 거짓이다. */
+    boolean activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now);
 
     /** 자동결제 성공 — 다음 기간. canceled 는 canceled 로 남고, past_due 는 active 로 돌아간다. */
     void advance(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now);

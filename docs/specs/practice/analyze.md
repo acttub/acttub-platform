@@ -3,19 +3,12 @@
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
 - 도입: 0.1.0
-- 화면: A10(분석 진행 — 앱은 SOMA-778부터 코치 화면 A11 안의 「영상 보는 중」), D6, D7, W6, M6, M6.3, W6.3-R. A10·W6의 "끝날 때까지 이 화면을 켜 두세요"는 화면을 떠나도 분석이 계속된다는 문구로 고친다(디자인에 반영할 것)
+- 화면: A10(분석 진행 — 앱은 SOMA-778부터 코치 화면 A11 안의 「영상 보는 중」), D6, D7, W6, M6, M6.3, W6.3-R
 - 테이블: analyses, video_transcripts, ai_jobs
 
 ## 기능
 시작된 회차의 영상을 서버가 분석해 관찰 기록을 만들고 받아쓰기를 남긴다. 화면은 작업 상태를 폴링해 대기·진행·완료·실패를 보여
 주고, 완료되면 코치 대화로 넘어간다.
-
-## 의도
-현행 분석 워커·상태 전이·실패 분류·재시도(CONTRACT §5-7)는 그대로 두고, 결과 저장을 회차와 1:1인 analyses(기록 전체 jsonb, 완료
-뒤 불변)로, 큐를 ai_jobs로 옮긴다. 작업 상태와 결과 상태는 다른 것이다.
-
-## 목적
-배우가 분석이 어디까지 됐는지 알고, 끝나면 그 근거로 대화를 시작한다.
 
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
@@ -36,7 +29,7 @@ analyses.status — 분석 결과.
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
 | ready | 분석 완료, 못 본 구간 없음 | practice.analyze |
-| partial | 분석 완료, 못 본 구간 있음 | practice.analyze |
+| partial | 분석 완료, 기존 갈래(legacy) 관찰에 못 본 구간 있음. 신형 기록(video_record_v1)은 부분 실패여도 ready다 | practice.analyze |
 
 - 불변 조건: 회차당 하나(`uq_analyses_practice`). 완료 뒤 덮어쓰지 않는다. 같은 회차의 두 번째 완료는 무시된다.
 - 끝 상태: 처음 저장한 값.
@@ -54,7 +47,8 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
 
 분석 결과 저장 → 회차 conversing, 최종 실패 → closed/analysis_failed, 취소 → closed/cancelled (정본: [practice.start](start.md#상태))
 
-- 부분 실패는 partial로 남기고 못 본 구간을 채우지 않는다.
+- 부분 실패는 못 본 구간을 채우지 않는다. 기존 갈래는 analyses.status partial로, 신형 기록은 기록 안의 `processing.status=partial`과
+  `missing_ranges`로만 남는다(analyses.status는 ready).
 
 ## 규칙·제약
 - analyses는 format으로 갈린다. 신형(video_record_v1)은 acttub.video_record.v1 기록 전체를 jsonb 한 컬럼에 두고 id = record_id다. 기존
@@ -74,9 +68,11 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
   줄을 숨긴다. 본 장면을 배우가 고치는 API는 없다 — 앱에 「고치기」 버튼을 두지 않는다(열린 질문).
 - 실패 분류는 현행대로다. timeout·parse·unsupported는 즉시 failed, 저장소·ETag 같은 바깥 의존 실패는 다시 큐에 넣고 최대 3회다.
   같은 회차의 완료된 분석을 다시 돌리지 않는다.
-- 게스트 하루 3회는 한국 시간 하루의 새 분석 요청 수다(코드 guest_daily_analysis_limit). 같은 요청 id 재전송·워커 재시도·폴링은 세지
-  않는다. 회원은 한도가 없다. 두 흐름이 공존하는 동안 옛 external_operations의 분석 요청도 같은 하루에 센다. dev 배포는 이 한도를
+- 게스트 하루 1회는 한국 시간 하루의 새 분석 요청 수다(코드 guest_daily_analysis_limit). 같은 요청 id 재전송·워커 재시도·폴링은 세지
+  않는다. 회원은 이 한도가 없다. 두 흐름이 공존하는 동안 옛 external_operations의 분석 요청도 같은 하루에 센다. dev 배포는 이 한도를
   끈다([DEPLOY-HOME §3](../../deploy/DEPLOY-HOME.md#3-actions와-일상-배포)).
+- 무료 한도 플래그가 켜지면 Pro가 아닌 사람(게스트 포함)은 게스트 분석 한도 대신 하루 코칭 회차 3개 한도를 받고, 넘으면 429
+  free_daily_coaching_limit이다. 정본은 [billing.subscription](../billing/subscription.md)과 [practice.start](start.md#입력출력)다.
 - 명시적 취소("그만두기")는 failed/cancelled로 종결하고 늦은 완료·재큐를 받지 않는다. 화면 이탈은 취소가 아니다. 앱의 옛
   "분석 포기 = 연습 숨김"은 없앤다.
 - 작업을 집은 워커가 끝내지 못하고 죽으면(배포 재시작, 메모리 부족 종료) lease(`ANALYSIS_LEASE_SEC`, 기본 30분)가 지난 뒤 다음
@@ -93,13 +89,14 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
 - 탈퇴·이관 도중 완료: [공통 규칙 「저장 직전 재확인」](../common.md#저장-직전-재확인)대로 탈퇴면 결과 없이
   failed/account_deactivated, 이관이면 회원에게 결과·알림.
 - 3회 모두 바깥 의존 실패: failed, 화면은 다시 시도 버튼(새 작업)을 준다.
-- 부분 완료: partial이고 대화는 시작된다. 화면은 "일부 구간은 보지 못했어요"를 보인다.
+- 부분 완료(기존 갈래): partial이고 대화는 시작된다. 화면은 "일부 구간은 보지 못했어요"를 보인다.
 
 ## 검증 방법
 - 시작 뒤 폴링: pending → running → succeeded로 바뀌고 analyses 1행(id = record_id, status ready)이 생긴다.
-- 부분 실패 기록: analyses.status partial, 누락 구간이 기록에 있고 채워지지 않았다.
+- 신형 기록의 부분 실패: analyses.status ready, 기록의 processing.status partial, 누락 구간이 missing_ranges에 있고 채워지지 않았다.
+  기존 갈래 관찰에 못 본 구간이 있으면 analyses.status partial.
 - timeout 실패: 즉시 failed, 재큐 없음. 저장소 실패 1회: 재큐, 2회째 성공 → succeeded, 시도 수 2.
-- 게스트 3회 요청 뒤 4번째 시작: 429 guest_daily_analysis_limit. 같은 요청 id 재전송: 세지 않는다. 자정 뒤: 된다.
+- 게스트 1회 요청 뒤 2번째 시작: 429 guest_daily_analysis_limit. 같은 요청 id 재전송: 세지 않는다. 자정 뒤: 된다.
 - parse 실패: 즉시 failed. unsupported: 즉시 failed. 3회 소진: failed, stage closed, "다시 시도"로 새 작업이 생기고 stage analyzing.
 - 완료된 analyses의 record를 바꾸는 요청: 없다(불변). 앱은 4초, 웹은 10초 간격으로 status를 읽는다. 완료 시 앱에 푸시가 온다.
 - 이관 중 완료: 회원의 회차에 결과, 회원 폰에 푸시. 탈퇴 중 완료: 결과 없음, failed/account_deactivated.
@@ -133,7 +130,7 @@ video_transcripts.status — 영상 단위 받아쓰기(원문·단어 시각·�
 - 영상 파트에 6 FPS 샘플링을 명시하고 프레임 사이 미세 변화·추정 시각의 한계를 기록한다. LOW thinking으로 청크별 생성 예산을 유지한다. [Gemini 영상 문서](https://ai.google.dev/gemini-api/docs/video-understanding)의 기본 샘플링 한계를 고려한 설정이며 실제 영상으로 비용·시각 품질을 확인한다.
 - 전체 대사, 발성·호흡·리듬·시선·얼굴·움직임·환경의 관찰, 변화가 없는 상태, 관찰 한계를 저장한다. 상위 15개 등의 개수 제한을 두지 않는다. 각 구간의 참조와 처음부터 끝까지의 시간축을 검증한다.
 - 받아쓰기의 모든 단어 시각과 단어 사이 간격을 보존한다. 무음으로 단정하지 않고 `word_gap`으로 기록한다. ASR와 영상 대사가 충돌하면 양쪽을 보존하고 한계를 남긴다. 모델 추정 시각은 `estimated`, ASR 단어 시각은 `aligned`다.
-- 부분 실패는 `processing.status=partial`, `processed_ranges`, `missing_ranges`와 한계로 기록한다. 모든 청크가 실패하면 기존 분석 실패 흐름을 따른다.
+- 부분 실패는 `processing.status=partial`, `processed_ranges`, `missing_ranges`와 한계로 기록한다. analyses.status는 ready로 둔다. 모든 청크가 실패하면 기존 분석 실패 흐름을 따른다.
 - 영상 전체를 손실 없이 텍스트로 복원한다고 보장하지 않는다. 보이지 않거나 들리지 않는 부분은 설명을 만들어 채우지 않는다.
 
 프롬프트·출력 스키마 파일은 [CONTRACT §8-5](../../../apps/api/CONTRACT.md#8-5-영상만-올리는-새-코칭-계약-soma-526)에 있다. 공개 응답은 위 「규칙·제약」의 분석 조회다.

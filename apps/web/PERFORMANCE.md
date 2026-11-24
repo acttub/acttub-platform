@@ -6,14 +6,8 @@
 측정 횟수는 [lighthouserc.cjs](lighthouserc.cjs)가 정본입니다. 여러 번 측정한 중앙값으로
 판정해 한 번의 이례적인 측정이 결과를 결정하지 않게 합니다.
 
-저장소 루트의 성능 명령은 다음 용도로 사용합니다. Lighthouse CI(`@lhci/cli`)는 웹
-전용 도구라 `apps/web`의 devDependency이며, 루트 명령은 `--filter web`으로 위임만
-합니다. `apps/web`에서 직접 `pnpm perf`를 실행하면 빌드 없이 Lighthouse CI만 돌므로
-루트의 `pnpm perf:web`과 같습니다.
-
-- `pnpm perf` — 웹을 빌드한 뒤 Lighthouse CI 성능 예산을 검증합니다.
-- `pnpm perf:web` — 기존 빌드 결과를 대상으로 Lighthouse CI를 실행합니다.
-- `pnpm perf:healthcheck` — Lighthouse CI 실행 환경과 설정을 사전 점검합니다.
+성능 명령(`pnpm perf`, `pnpm perf:web`, `pnpm perf:healthcheck`)이 무엇을 하는지는 루트와 `apps/web`의
+`package.json` 스크립트가 정본입니다. 루트의 `pnpm perf`는 웹을 빌드한 뒤 예산을 검증하고, 빌드 없이 재려면 `pnpm perf:web`을 씁니다.
 
 최종 확인에서는 측정 횟수를 다섯 번으로 늘릴 수 있습니다.
 

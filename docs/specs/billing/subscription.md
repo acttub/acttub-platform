@@ -8,22 +8,22 @@
 - 테이블: `billing_subscriptions`·`billing_checkouts`·`billing_payments`(V64), 요금제 열 `plan`(V92, SOMA-1068)
 
 ## 기능
-Pro 는 월 3,900원(부가세 포함) 자동결제다. 결제는 앱 스토어 결제가 아니라 토스페이먼츠 자동결제(카드 등록 → 빌링키 → 첫
-3,900원 결제 → 매월 자동결제)다. 무료는 코칭 하루 3회차·리딩 대본 3개 보관이다(한도 강제는 별도 플래그). Pro 는 여기에 고도화된 코칭(상위 AI 모델, 습관을 기억하는 코칭, 장면·대사별로 더 자세한 코칭 노트)을 더한다 — 이 PR(무료 한도 개정)은 문구만이고 구현은 따로다. 구매 복원은 없다
-(구독은 계정에 붙는다). 7일 이내 전액 환불은 지금은 운영자가 토스 관리자에서 처리한다(앱 화면 없음).
+Pro 는 월 3,900원(부가세 포함) 구독이다(연 구독은 아래 개정 절). 결제는 출처별로 받는다. 웹은 토스페이먼츠 자동결제(카드 등록 →
+빌링키 → 첫 결제 → 매월 자동결제), 앱은 App Store·Google Play 구독이다(아래 「개정: 결제 출처별 구독」). 무료는 코칭 하루 3회차·리딩
+대본 3개 보관이다(한도 강제는 별도 플래그). 고도화된 코칭(상위 AI 모델, 습관을 기억하는 코칭, 장면·대사별로 더 자세한 코칭 노트)을
+Pro 혜택으로 안내한다. 이 혜택의 구현은 이 스펙이 정하지 않는다. 토스 구독은 계정에 붙어 구매 복원이 없다(스토어 구독은 아래 「앱의 복구」). 7일 이내 전액 환불은 지금은 운영자가 토스 관리자에서 처리한다(앱 화면 없음).
 
 ## 흐름
-1. 앱 `POST /v2/billing/checkout {purpose: subscribe|change_card}` → 서버가 일회용 카드 등록 창을 만들고 주소를 준다
-   (`/v2/billing/web/checkout/{state}`, 30분, 한 번만). state 원문은 주소에만 있고 DB 에는 SHA-256 만 남는다.
-2. 앱은 그 주소를 `expo-web-browser openAuthSessionAsync(url, 'actingapp://billing-result')` 로 연다. 페이지는 토스 SDK v2
-   `requestBillingAuth({method:'CARD'})` 를 바로 띄운다. 카드 정보는 토스 화면에서만 입력된다.
+1. 웹 `/pricing`의 「Pro 구독하기」가 `POST /v2/billing/checkout {purpose: subscribe, plan?}` 을 부르면 서버가 일회용 카드 등록 창을
+   만들고 주소를 준다(`/v2/billing/web/checkout/{state}`, 30분, 한 번만). state 원문은 주소에만 있고 DB 에는 SHA-256 만 남는다.
+   `purpose: change_card` 는 API 에만 있고 지금 웹·앱 화면은 부르지 않는다.
+2. 웹은 그 주소로 옮겨 간다. 페이지는 토스 SDK v2 `requestBillingAuth({method:'CARD'})` 를 바로 띄운다. 카드 정보는 토스 화면에서만 입력된다.
 3. 토스가 성공(`…/success?customerKey&authKey`)·실패(`…/fail?code`) 콜백으로 브라우저를 보낸다. 서버는 창을 한 번만 집어
-   빌링키를 받고(AccountSecrets AES-256-GCM 암호문으로 저장) subscribe 면 3,900원을 승인한다. 어느 결과든
-   `actingapp://billing-result?status=done|failed|unknown|canceled|invalid` 로 302 한다.
-4. 앱은 돌아오면 `GET /v2/billing/me` 로 서버 상태를 다시 읽어 결제 완료·결제하지 못했어요를 가른다(주소의 status 는 참고만).
+   빌링키를 받고(AccountSecrets AES-256-GCM 암호문으로 저장) subscribe 면 고른 요금제 금액을 승인한다. 어느 결과든
+   `BILLING_WEB_RETURN_URL?status=done|failed|unknown|canceled|invalid` 로 302 한다.
+4. 웹 결과 화면(`/pricing/result`)은 `GET /v2/billing/me` 로 서버 상태를 다시 읽어 결제 완료·결제하지 못했어요를 가른다(주소의 status 는 참고만).
 
-iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다. 실제 Apple StoreKit External Purchase 시스템 창과 entitlement 는
-아직 없다 — 출시 전에 Apple 승인과 네이티브 구현이 필요하다.
+앱은 토스 결제 창을 열지 않는다(아래 「개정: 결제 출처별 구독」).
 
 ## 상태
 | status | 뜻 | Pro |
@@ -34,11 +34,16 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 | past_due | 자동결제 실패. `retry_count` 번 실패, `next_billing_at` = 다음 재시도 | 아니오 |
 | expired | 끝남(해지 기간 만료·재시도 소진·탈퇴). 빌링키 삭제 | 아니오 |
 
-- 전이: none → active(첫 결제 성공). active → canceled(해지) → expired(기간 끝, 결제 없음). active → past_due(자동결제 거절,
+- 전이: none → active(첫 결제 성공). expired → active(다시 구독, 첫 결제 성공). active → canceled(해지) → expired(기간 끝, 결제 없음). active → past_due(자동결제 거절,
   하루 뒤 재시도) → active(성공) 또는 expired(1회 + 재시도 3회 모두 실패). past_due 에서 해지하면 바로 expired.
 - 다음 결제일은 한국 시간 같은 날짜의 다음 달(31일 → 말일).
 - 결제 수단 바꾸기는 결제 없이 카드만 바꾼다. past_due 였으면 새 카드로 바로 한 번 결제한다.
 - 탈퇴는 구독을 expired 로 바꾸고 빌링키를 지운다. 결제 기록은 남는다.
+- 성공 콜백이 빌링키를 받거나 첫 결제를 승인받는 사이에 다른 기기의 탈퇴가 끝날 수 있다([공통 「탈퇴와 겹친 쓰기」](../common.md#탈퇴와-겹친-쓰기)).
+  카드 저장과 active 전환은 탈퇴와 같은 users 행을 잡고 계정이 아직 활성인지 다시 본다. 키를 받는 사이에 탈퇴했으면 카드를 저장하지 않고
+  결제하지 않으며 `status=failed` 로 돌려보낸다. 승인을 기다리는 사이에 탈퇴했으면 승인된 결제 기록(done)은 남지만 구독은 active 가 되지
+  않고 `status=failed` 이다. 서버는 그 주문 ID 와 금액을 Slack #문의-신고에 환불 대상으로 알리고(`SUPPORT_SLACK_WEBHOOK_URL`, 회원 정보는
+  싣지 않는다) 오류 로그도 남긴다. 환불은 사람이 토스 관리자에서 한다. 자동 환불(결제 취소 API)은 하지 않는다.
 
 ## 두 번 결제하지 않는다
 - 결제 시도 하나 = 주문 ID 하나(`billing_payments.order_id` UNIQUE) = 토스 `Idempotency-Key`. 기록을 먼저 넣고 승인한다.
@@ -46,6 +51,8 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 - 자동결제 주문 ID 는 (구독, 기간 시작일, 시도 번호)로 정해진다. 재시도는 다음 번호다.
 - 결과를 모르면(시간 초과·5xx·검증 불일치) 실패로 단정하지 않고 `unknown` 으로 두고, 스케줄러가 10분 뒤부터 같은 키로 다시
   묻는다(최대 20번). 결과를 모르는 결제가 있는 구독은 새로 결제하지 않고, 그 사람의 새 구독 창도 열지 않는다(409 payment_pending).
+  20번 물어도 결과를 모르면 더 묻지 않는다. 그 결제는 unknown 으로 남고, 자동결제는 그 구독을 다시 집지 않으며, 새 구독 창은 계속
+  409다. 자동 알림은 없어 운영자가 토스 관리자에서 주문 ID 로 결과를 확인해 장부를 직접 고쳐야 풀린다.
 - 스케줄러(`BILLING_RENEWAL_POLL_MS`, 기본 10분)는 구독 하나를 `FOR UPDATE SKIP LOCKED` 와 5분 점유로 집는다.
 
 ## API (앱 토큰·동의·클라이언트 판 게이트 안, OpenAPI 미게재)
@@ -56,7 +63,10 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 | `POST /v2/billing/subscription/cancel` | me. 409 no_subscription |
 | `POST /v2/billing/subscription/retry` | me(결제 결과는 status 로). 409 no_subscription, 409 not_past_due, 429 |
 
-기능이 닫혀 있으면(플래그 꺼짐·키가 테스트 키가 아님·주소 설정 오류) 모두 404 `billing_unavailable` 이고 앱은 Pro 진입점을 숨긴다.
+경로마다 보는 스위치가 다르다. `checkout`·`retry` 는 웹 토스 설정만 본다 — 닫혀 있으면(플래그 꺼짐·키 모양이 틀림·클라이언트 키와
+시크릿 키의 test_·live_ 종류가 다름·주소 설정 오류) 404 `billing_unavailable` 이다. `me`·`cancel` 은 웹 토스가 열렸거나
+`BILLING_APP_ENABLED` 가 켜졌으면 열리고 둘 다 아닐 때만 404다(`BillingSettings.webUsable`·`usable`). 결제 기능이 닫히면 앱은
+Pro 진입점을 숨긴다.
 브라우저 경로 `GET /v2/billing/web/checkout/{state}`(HTML)·`/success`·`/fail` 은 게이트 밖이다.
 
 ## 무료 한도 (`BILLING_FREE_LIMITS_ENABLED`, 기본 false)
@@ -72,9 +82,9 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 약관 v2 발행 전에 가입한 회원(`users.created_at` < `consent_documents` 의 terms·v2·ko `published_at`. 아직 발행 전이면 모두 기존 회원. 찾은 값은 기억하고 못 찾으면 1분에 한 번만 다시 묻는다. `BILLING_LEGACY_SIGNUP_BEFORE` 로 덮어쓸 수 있다)에게는 무료 한도(코칭 하루 3회·리딩 대본 3개)를 `BILLING_LEGACY_LIMITS_FROM`(기본 `2026-11-30T15:00:00Z`, 12월 1일 00:00 KST) 전까지 걸지 않는다. 11월 1일부터 가입한 회원은 바로 걸린다. 게스트도 `users` 줄이라 같은 규칙이다. `GET /v2/billing/me` 의 `limits_enforced` 도 같은 판정을 써 회원마다 값이 다르다(앱은 이 값을 쓰지 않고 429·403 응답으로 시트를 띄운다). 한도만 미룬다 — Pro 판정·고품질 목소리·광고는 그대로다. 가입 시각은 바뀌지 않아 프로세스 안에 기억하고, 유예가 끝난 뒤에는 조회하지 않는다.
 
 ## 설정
-`BILLING_APP_ENABLED`, `BILLING_FREE_LIMITS_ENABLED`, `BILLING_PUBLIC_ORIGIN`(토스가 되돌려 보낼 이 API 의 https 주소),
-`BILLING_APP_RETURN_URL`(기본 `actingapp://billing-result`), `BILLING_TOSS_CLIENT_KEY`·`BILLING_TOSS_SECRET_KEY`(지금은 `test_ck_`·`test_sk_`
-만 받는다 — 운영 Toss 계약 심사 중), `BILLING_RENEWAL_POLL_MS`. dev `.env` 에서만 켠다.
+서버 환경 변수와 기본값은 `deploy/home/compose.yml`의 api 환경과 `deploy/home/.env.example`이 정본이다. 두 파일에 없는
+`BILLING_RENEWAL_POLL_MS`·`BILLING_RENEWAL_INITIAL_DELAY_MS`는 `BillingRenewalScheduler`, `BILLING_LEGACY_SIGNUP_BEFORE`·
+`BILLING_LEGACY_LIMITS_FROM`은 `BillingConfiguration`의 `@Value` 기본값이 정본이다. 비밀 값은 환경변수로만 준다.
 
 ## 구독 메일 (SOMA-961)
 
@@ -92,19 +102,22 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 
 ## 개정: 결제 출처별 구독 (SOMA-818, 1단계)
 
-앱 안에서 브라우저로 토스 결제창을 여는 방식은 Apple 규정에 어긋나 버렸다. 구독은 결제 출처(`provider`)별로 받는다.
+구독은 결제 출처(`provider`)별로 받는다. 이렇게 나눈 경위는 팀 위키 `decisions/billing-background`에 있다.
 
 - `toss`: 웹(acttub.com) 토스 정기결제. 카드 등록·첫 결제·자동결제 스케줄러·재시도는 이 출처만 처리한다.
 - `apple`·`google`: 앱 스토어 구독(2단계). 스토어 알림이 갱신하고, 스케줄러·서버 해지·서버 재결제는 건드리지 않는다.
   스키마는 `store_product_id`·`store_original_transaction_id`(apple)·`store_purchase_token`(google)로 준비돼 있다.
-- Pro 판정 = (활성 구독이고 기간 안, 출처 무관) OR (`billing_pro_grants`에 지금 유효한 기간). grant는 카드 없이 서버가 주는 기간
-  (예: 11월 무료 한 달)이고 SQL·관리 경로로만 넣는다. 자동 부여 로직은 없다.
+- Pro 판정 = (결제 기능이 열려 있음) AND ((구독이 Pro) OR (지금 유효한 grant 기간)). 결제 기능이 닫혀 있으면 아무도 Pro 가 아니다
+  (그때는 무료 한도도 걸리지 않는다). 구독이 Pro 인 것은 토스 active(기간과 상관없이 — 스케줄러가
+  늦어도 끊지 않는다), 스토어 active(기간 끝 + 6시간 안), canceled(기간 안)다(`BillingRules.pro`). grant는 카드 없이 서버가 주는 기간
+  (예: 11월 무료 한 달)이고 `billing_pro_grants`에 SQL·관리 경로로만 넣는다. 줄을 자동으로 넣는 로직은 없다. 다만 출시 주간
+  Pro(`BillingRules.launchWeekEnd`, 가입 시각으로 판정)가 grant 계산에 남아 있다 — 그 주간이 지나 지금은 효과가 없다.
 - 스위치: `BILLING_WEB_ENABLED`(기본 false)가 꺼져 있으면 카드 등록 창·콜백·재시도·자동결제가 모두 막혀 토스 호출이 나가지 않는다.
   키는 test_·live_ 둘 다 받되 두 키의 종류가 같아야 하고, 값은 환경변수로만 준다. 복귀 주소는 `BILLING_WEB_RETURN_URL`(웹 https).
   `BILLING_APP_ENABLED`(기본 false)는 앱 Pro 화면을 여는 스위치(2단계 자리)이고 토스를 열지 않는다.
 - 앱은 웹 결제로 보내는 버튼·링크·문구를 두지 않는다. 웹에서 결제한 구독은 「웹에서 결제한 구독이에요」 한 줄만 보인다.
 - 웹: `NEXT_PUBLIC_BILLING_WEB_ENABLED=true` 빌드에서만 `/pricing`의 「Pro 구독하기」가 서버 카드 등록 창으로 간다(꺼져 있으면
-  심사용 `/pg-review` 그대로). 결과 화면은 `/pricing/result`. 웹에는 아직 회원 로그인이 없어 게스트는 403 `billing_member_required`다.
+  심사용 `/pg-review` 그대로). 결과 화면은 `/pricing/result`. 게스트는 403 `billing_member_required`이고 웹은 로그인 화면으로 보낸다([account.login](../account/login.md#규칙제약) 웹 로그인).
 
 ## 개정: 스토어 구독 (SOMA-818, 2단계)
 
@@ -146,7 +159,7 @@ entitlement 를 읽어 사람당 한 줄을 덮어쓴다 — 여러 번 불러�
   → `past_due`(Pro 아님), 그 밖 → `expired`. 이번 기간 시작 뒤에 알아챈 환불(`refunded_at`)은 바로 `expired`.
 - RevenueCat 에 entitlement 가 없으면(산 적 없음·다른 계정으로 옮겨짐) 남아 있는 스토어 줄을 `expired` 로 끝낸다. 끝난 옛 구매만 있으면 새 줄을 만들지 않는다.
 - 스토어 구독은 `active` 여도 기간(+갱신 알림 여유 6시간)이 지나면 Pro 가 아니다 — 웹훅을 못 받아도 영구 Pro 로 남지 않는다.
-  `canceled` 는 기간 끝까지만. 토스 구독의 판정은 그대로다.
+  `canceled` 는 기간 끝까지만. 토스 active 는 기간과 상관없이 Pro 다(위 「개정: 결제 출처별 구독」의 Pro 판정).
 - 스토어 구독은 서버에서 해지·재시도하지 않는다(409 `managed_by_store`). 스케줄러는 `toss` 줄만 집는다. 탈퇴한(활성 아닌) 사람의 줄은 쓰지 않는다.
 - `store_transaction_id` 는 마지막으로 본 스토어 거래 ID 기록일 뿐 유일하지 않다.
 - 해지 예약(자동 갱신 끔)은 서버가 RevenueCat 을 다시 읽을 때만 `canceled`·`canceled_at`(= `unsubscribe_detected_at`)으로 기록되고, 다시 구독하면
@@ -162,10 +175,9 @@ entitlement 를 읽어 사람당 한 줄을 덮어쓴다 — 여러 번 불러�
   골라 각자 RevenueCat 을 다시 읽어 위 규칙으로 덮어쓴다. 그래서 같은 이벤트가 여러 번 오거나 순서가 바뀌어도 결과가 같다(멱등). `TEST`·익명 ID·기능
   꺼짐은 무시하고 200. 본문 꼴이 틀리면 400, RevenueCat 조회 실패는 502·503 으로 돌려 RevenueCat 이 다시 보내게 한다.
 
-### 설정(모두 기본 꺼짐, 비밀 값은 환경변수로만)
-서버: `BILLING_APP_ENABLED`(앱 화면·동기화 API), `BILLING_REVENUECAT_ENABLED`(기본 false), `REVENUECAT_SECRET_API_KEY`(V1 비밀 키), `REVENUECAT_WEBHOOK_AUTH`,
-`REVENUECAT_ENTITLEMENT_ID`(기본 pro), `BILLING_REVENUECAT_ALLOW_SANDBOX`(기본 false, dev 만 true).
-앱 빌드: `EXPO_PUBLIC_REVENUECAT_IOS_KEY`·`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`(RevenueCat 공개 SDK 키). RevenueCat SDK 는 네이티브 모듈이라 Expo Go 가 아니라
+### 설정
+서버 환경 변수(`BILLING_REVENUECAT_*`·`REVENUECAT_*`)와 기본값은 위 「설정」과 같은 곳이 정본이다. 앱 빌드에는 RevenueCat 공개 SDK 키
+(`EXPO_PUBLIC_REVENUECAT_IOS_KEY`·`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`)를 넣는다. RevenueCat SDK 는 네이티브 모듈이라 Expo Go 가 아니라
 개발 빌드·스토어 빌드에서만 실제 결제가 된다.
 
 ### 앱의 복구
@@ -175,12 +187,12 @@ Pro 가 아닌 사람에 한해 RevenueCat SDK 를 그 사람으로 열고(SDK �
 
 ## 개정: 웹 연 구독 (SOMA-1068)
 
-웹(토스)에서도 연 구독(32,500원, 부가세 포함)을 판다. 토스 계약 변경(서비스 제공 기간 1년) 승인 전이라 두 스위치 모두 기본 꺼짐이고,
-꺼져 있으면 지금 동작·화면·문구와 같다.
+웹(토스)에서도 연 구독(32,500원, 부가세 포함)을 판다. 두 스위치 모두 기본 꺼짐이고,
+꺼져 있으면 월 구독만 있을 때의 동작·화면·문구와 같다.
 
 - 스위치: 서버 `BILLING_WEB_YEARLY_ENABLED`(기본 false, `BILLING_WEB_ENABLED` 가 열려 있어야 의미가 있다), 웹 빌드
   `NEXT_PUBLIC_BILLING_WEB_YEARLY_ENABLED`(기본 false, `NEXT_PUBLIC_BILLING_WEB_ENABLED` 처럼 Dockerfile build-arg·deploy.yml 로 넣는다).
-  dev·운영 모두 false 다.
+  환경별 값은 서버 스위치는 서버 `.env`, 웹 빌드 스위치는 `.github/workflows/deploy.yml`이 정한다(웹 빌드 스위치는 dev만 켠다).
 - 요금제: `monthly` 3,900원·주문명 「ACTTUB Pro 월 구독」·기간 1개월, `yearly` 32,500원·「ACTTUB Pro 연 구독」·기간 결제일부터 1년(한국 시간 같은 날,
   2월 29일 → 다음 해 2월 28일).
 - 결제 창: `POST /v2/billing/checkout` 의 `plan`(생략하면 monthly). 모르는 값은 422 `invalid_plan`, 서버 스위치가 꺼져 있는데 `yearly` 면 목적과
@@ -199,5 +211,5 @@ Pro 가 아닌 사람에 한해 RevenueCat SDK 를 그 사람으로 열고(SDK �
   24시간 미만도 1일, 1원 미만은 올린다. 환불 처리 자체는 지금처럼 운영자가 토스 관리자에서 한다(서버 환불 API 없음).
 - 웹 화면: 빌드 스위치가 켜졌을 때만 `/pricing` Pro 카드에 월/연 선택(월 3,900원 / 연 32,500원)이 보이고 고른 요금제로 결제 창을 연다. 내 계정 구독
   칸과 결제 결과 화면은 `GET /v2/billing/me` 의 `plan`·`amount` 로 월/연과 금액을 보인다.
-- 약관: 토스 계약 변경은 11/9 승인됐다(정산 주기 익일+4영업일 → 익월+4영업일). 약관 v2 는 「웹 결제는 월 구독만」이라, 이용약관 v3(PR #1379)을
-  시행 7일 전 공지 뒤 발행하고 운영 스위치를 켠다. dev 웹 빌드는 스위치를 켠다(deploy.yml).
+- 약관: 약관 v2 는 「웹 결제는 월 구독만」이라, 이용약관 v3(PR #1379)을 시행 7일 전 공지 뒤 발행하고 운영 스위치를 켠다.
+  토스 계약 변경 경위는 팀 위키 `decisions/billing-background`에 있다.

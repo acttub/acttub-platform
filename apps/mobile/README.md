@@ -17,4 +17,4 @@ pen 파일입니다.
    (운영을 보는 예시다. 로컬 백엔드를 보려면 `localhost` 가 아니라 폰이 닿는 IP 를 적는다.)
 3. `npx expo start`. 어느 빌드로 열어 검증하는지는 [CLAUDE.md 「개발·검증」](CLAUDE.md#개발검증)을 따릅니다.
 
-주의: Expo Go로 열 때는 폰의 Expo Go가 SDK 54 지원 버전이어야 합니다 (이 프로젝트가 SDK 54인 이유).
+주의: Expo Go로 열 때는 폰의 Expo Go가 이 프로젝트의 Expo SDK(`package.json`의 `expo`)를 지원해야 합니다.

@@ -1,7 +1,7 @@
 spring:
   application:
     name: acting-api
-  # apps/api/CONTRACT.md §2 — Web MVC + virtual threads. WebFlux 는 쓰지 않는다.
+  # apps/api/CONTRACT.md §5 — Web MVC + virtual threads. WebFlux 는 쓰지 않는다.
   threads:
     virtual:
       enabled: true
@@ -18,7 +18,7 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      # apps/api/CONTRACT.md §2 — 스키마는 Flyway 가 소유한다. create/update 는 절대 금지.
+      # apps/api/CONTRACT.md §5-5 — 스키마는 Flyway 가 소유한다. create/update 는 절대 금지.
       ddl-auto: validate
     properties:
       hibernate:

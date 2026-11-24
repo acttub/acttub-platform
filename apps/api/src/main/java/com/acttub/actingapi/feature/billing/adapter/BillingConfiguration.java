@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.billing.app.BillingMailer;
 import com.acttub.actingapi.feature.billing.app.BillingRepository;
 import com.acttub.actingapi.feature.billing.app.BillingSettings;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
+import com.acttub.actingapi.feature.billing.app.RefundNotifier;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.feature.billing.app.SubscriptionService;
 import com.acttub.actingapi.platform.security.AccountSecrets;
@@ -105,8 +106,8 @@ class BillingConfiguration {
 
     @Bean
     SubscriptionService subscriptionService(BillingSettings settings, BillingRepository repository,
-            AppBillingGateway gateway, BillingKeyCipher cipher, Clock clock, BillingMailer mailer) {
-        return new SubscriptionService(settings, repository, gateway, cipher, clock, mailer);
+            AppBillingGateway gateway, BillingKeyCipher cipher, Clock clock, BillingMailer mailer, RefundNotifier refunds) {
+        return new SubscriptionService(settings, repository, gateway, cipher, clock, mailer, refunds);
     }
 
     @Bean

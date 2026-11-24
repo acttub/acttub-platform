@@ -12,7 +12,7 @@
 
 ## 노출 조건
 - 첫 연습(노트가 생긴 코칭·끝까지 읽은 리딩·챌린지 참여)을 끝내기 전이면 모든 칸이 NONE 이다. 앱의 첫 사용자 홈과 같은 기준이다.
-- 둘러보기 칸(BROWSE)은 Pro 도 본다(DIRECT·HOUSE·NETWORK 모두). Pro 에게 대상이 free 인 HOUSE(Pro 권유)는 가지 않는다.
+- Pro 는 어느 칸이든 NONE 이다(Pro 혜택 「광고 없음」, `AdPicker`). 그래서 대상이 pro 인 HOUSE 도 나가지 않는다.
 - 연습 중 칸(PRACTICE)은 무료 사용자만, 그중 `ADS_PRACTICE_SLOT_PERCENT`(기본 100)% 에게 켠다. 기본값이면 전원이다. 배정은 사용자 id 해시로 고정한다.
 - `ADS_ENABLED=false` 면 모든 칸이 NONE 이다.
 - DIRECT 는 칸 규격의 이미지와 http(s) `link_url` 이 있어야 하고(없으면 건너뛴다), 누르면 `link_url` 을 앱 밖 브라우저로 바로 연다. 학원 전용 칸(등록번호·교습과정·교습비)은 쓰지 않는다(열은 남아 있다).  HOUSE 는 `/` 로 시작하는 앱 안 경로와 이미지 또는 headline 이 있어야 한다.
@@ -38,13 +38,10 @@
 생년월일이 없거나 프로필을 아직 받지 못했으면 청소년 기준(G·미성년·비맞춤)으로 본다. 프로필이 바뀌거나 로그아웃·계정 전환이 있으면 전역 설정을 다시 걸고, 배너는 요청마다 비맞춤 옵션을 넘긴다.
 
 ## 칸과 규격
-| 규격 | 크기 | 칸 |
-|---|---|---|
-| LARGE_BANNER | 320x100 | auditions_top, admissions_top, admission_detail_top, reading_tab_top, challenges_tab_top, challenge_detail_top, archive_top, saved_videos_top, community_list_top(예약) |
-| BANNER | 320x50 | home_top, profile_top, settings_top, analyzing_top, report_top, notifications_top, line_search_top, community_post_top(예약) |
-| MEDIUM_RECTANGLE | 300x250 | analyzing_wait, voice_prepare_wait (연습 중) |
-| LARGE_BANNER | 320x100 | upload_wait, script_parse_wait, coaching_done, challenge_upload_done (연습 중) |
-| (전면) | 화면 전체 | analyzing_wait_full, script_parse_full, reading_done_full — 응답 size 는 MEDIUM_RECTANGLE 로 오지만 쓰지 않는다 |
+칸 키와 규격, 칸이 둘러보기(BROWSE)·연습 중(PRACTICE)·전면 가운데 어디인지는 서버 `AdSlot`
+(`apps/api/src/main/java/com/acttub/actingapi/feature/ads/domain/AdSlot.java`)이 정본이다. 앱의 칸 목록은
+`apps/mobile/lib/ads.ts`에 있다. 규격 크기는 LARGE_BANNER 320x100, BANNER 320x50, MEDIUM_RECTANGLE 300x250이다(`AdSize`).
+전면 칸은 응답 size 가 MEDIUM_RECTANGLE 로 오지만 쓰지 않는다.
 
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |

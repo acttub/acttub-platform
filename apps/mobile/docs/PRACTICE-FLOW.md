@@ -27,18 +27,12 @@
 
 ## 머리 부분과 '영상·장면 보기'
 
-연습 화면들은 머리 부분(스텝퍼 `Stepper`, 진행 줄 `ProgressRow`, '영상 보기' 접이식 `SceneFoldLink`·`SceneFoldBody`)을
+연습 화면들은 '영상 보기' 접이식(`SceneFoldLink`·`SceneFoldBody`)과 장면 요약(`SceneSummary`)을
 `components/practice-chrome.tsx` 한곳에서 가져다 쓴다 — 화면마다 다시 만들면 간격과 색이 조금씩 어긋난다.
 
-접이식이 **링크와 본문 두 조각으로 나뉘어 있는 이유**:
-
-```
-ProgressRow(right: SceneFoldLink)   ← 좁은 가로 줄
-SceneFoldBody                       ← 화면 전폭
-```
-
-진행 줄은 좁은 가로 칸이라, 영상을 그 안에 넣으면 갇혀서 찌그러진다. 그래서 펼침
-상태는 화면이 들고(`sceneOpen`), 본문은 진행 줄 **아래**에 전폭으로 그린다.
+접이식이 **링크와 본문 두 조각으로 나뉘어 있는 이유**: 링크는 좁은 가로 줄에 놓이는데, 영상을 그 안에 넣으면 갇혀서
+찌그러진다. 그래서 펼침 상태는 화면이 들고(`sceneOpen`), 본문은 링크가 놓인 줄 **아래**에 전폭으로 그린다
+(`app/report.tsx`, `app/coach.tsx`).
 
 링크는 작은 글자가 화면 오른쪽 끝에 붙어 있어서 손가락으로 글자만큼 정확히 짚을 수 없다. 누르는 칸은 `hitSlop`으로
 글자보다 넓힌다.
