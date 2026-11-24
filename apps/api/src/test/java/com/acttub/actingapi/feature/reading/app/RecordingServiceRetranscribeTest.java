@@ -27,6 +27,7 @@ import com.acttub.actingapi.feature.reading.app.RecordingRepository.Stored;
 import com.acttub.actingapi.feature.reading.app.SessionViews.RecordingView;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.io.TempDir;
 
 /** 녹음 저장 뒤 서버 다시 받아쓰기 줄 세우기: 기기 인식을 켰는데 글이 없을 때만, 실패해도 저장은 성공. */
@@ -45,7 +46,7 @@ class RecordingServiceRetranscribeTest {
 
     private RecordingService service(RetranscribeSettings settings) {
         return new RecordingService(recordings, storage, new AudioTranscoder(), new RecordingPlayback(storage, CLOCK), cleanup,
-                CLOCK, queue, settings);
+                CLOCK, queue, settings, new RecordingUploadMetrics(new SimpleMeterRegistry()));
     }
 
     private RecordingView stored(StoreOutcome outcome, String transcript, String source) throws Exception {
