@@ -100,7 +100,8 @@ def backup_once(cfg: dict) -> None:
                 key = cfg["prefix"] + datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S.%fZ.dump")
                 uri = f"s3://{cfg['bucket']}/{key}"
                 # S3_ENDPOINT(api 와 같은 값)가 있으면 그 S3 호환 저장소(Cloudflare R2 등)에 올린다. R2 는 모든 객체를
-                # 저장할 때 암호화하고 AES256 서버 암호화 요청은 받지 않으므로 그때는 --sse 를 빼고 보낸다.
+                # 저장할 때 암호화하므로 AWS 의 AES256 요청(--sse)은 보내지 않는다. R2 는 받아 주지만 하는 일이 없고,
+                # 거절하는 S3 호환 저장소도 있다.
                 endpoint = os.environ.get("S3_ENDPOINT", "").strip()
                 aws_options = ["--cli-connect-timeout", "10", "--cli-read-timeout", "60",
                                *(["--endpoint-url", endpoint] if endpoint else [])]
