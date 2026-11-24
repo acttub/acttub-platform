@@ -54,10 +54,6 @@ class AppConfigController {
             Map<String, List<String>> homeTips,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ChallengeResponse challenge) {
 
-        static AppConfigResponse of(AppConfig c) {
-            return of(c, true);
-        }
-
         static AppConfigResponse of(AppConfig c, boolean korean) {
             var cc = korean ? c.cocreate() : c.cocreateEn();
             var r = c.rating();

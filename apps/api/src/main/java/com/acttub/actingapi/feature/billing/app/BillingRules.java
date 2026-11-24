@@ -22,12 +22,9 @@ public final class BillingRules {
      * BILLING_WEB_YEARLY_ENABLED 뒤에 있다.
      */
     public static final String STORE_PRODUCT_YEARLY_ID = "acttub_pro_yearly";
-    public static final String GOOGLE_BASE_PLAN_YEARLY_ID = "yearly";
     public static final long YEARLY_AMOUNT = 32500L;
     /** 스토어 갱신 알림이 늦어도 갱신 직후 Pro 가 끊기지 않게 active 에 주는 여유. */
     public static final Duration STORE_RENEWAL_SKEW = Duration.ofHours(6);
-    /** 구글 결제 유예(IN_GRACE_PERIOD) 때 만료 시각 뒤로 Pro 를 이어 주는 기간. 알림이 상태를 바로잡는다. */
-    public static final Duration GOOGLE_GRACE = Duration.ofDays(7);
 
     /**
      * 출시 주간 Pro(SOMA-899, 10/26 대표 결정) — 11/1 0시(한국) 전에 가입한 사람은 11/1 0시부터 11/8 0시 전까지(11/1~11/7) 카드 없이
@@ -46,10 +43,6 @@ public final class BillingRules {
     public static final String ORDER_NAME = "ACTTUB Pro 월 구독";
     public static final String YEARLY_ORDER_NAME = "ACTTUB Pro 연 구독";
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-    /** 무료 코칭은 한국 시간 하루에 회차 3개. */
-    public static final int FREE_DAILY_COACHING = 3;
-    /** 무료 리딩 대본 보관 개수. */
-    public static final int FREE_SCRIPTS = 3;
     /** 자동결제가 실패한 뒤 다시 시도하는 간격과 횟수. 횟수를 다 쓰면 expired 다. */
     public static final Duration RETRY_DELAY = Duration.ofDays(1);
     public static final int MAX_RETRIES = 3;

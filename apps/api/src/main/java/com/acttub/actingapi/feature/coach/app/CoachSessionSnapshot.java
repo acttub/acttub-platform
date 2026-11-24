@@ -94,11 +94,4 @@ public record CoachSessionSnapshot(
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
                 status, closeReason, newTurns, prior, experienceVersion, stateRevision, coachingState, actorProfile, sessionPurpose);
     }
-
-    public CoachSessionSnapshot withStatus(String newStatus) {
-        return new CoachSessionSnapshot(
-                sessionId, practiceSessionId, userId, observationPack, situation,
-                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
-                newStatus, closeReason, turns, prior, experienceVersion, stateRevision, coachingState, actorProfile, sessionPurpose);
-    }
 }

@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code note_ratings.rating} 의 값 — 연습 노트에 남긴 "도움 됐어요·아쉬웠어요" (practice.note, V22).
  *
@@ -22,12 +20,5 @@ public enum NoteRatingValue implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<NoteRatingValue> {
-        public JpaConverter() {
-            super(NoteRatingValue.class);
-        }
     }
 }

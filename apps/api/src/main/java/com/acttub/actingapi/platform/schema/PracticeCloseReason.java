@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code practices.close_reason} 의 값 — 회차가 닫힌 사유 (practice.start, practice.analyze).
  *
@@ -24,12 +22,5 @@ public enum PracticeCloseReason implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<PracticeCloseReason> {
-        public JpaConverter() {
-            super(PracticeCloseReason.class);
-        }
     }
 }

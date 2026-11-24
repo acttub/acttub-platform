@@ -8,8 +8,6 @@ public final class SupportInquiryRules {
     private SupportInquiryRules() {
     }
 
-    public static final List<String> CATEGORIES =
-            List.of("account", "billing", "refund", "usage", "bug", "report", "other", "feedback");
     public static final Set<String> STATUSES = Set.of("open", "closed");
     public static final int EMAIL_MAX_CHARS = 254;
     public static final int BODY_MIN_CHARS = 10;
@@ -18,7 +16,6 @@ public final class SupportInquiryRules {
     /** 한 IP 가 창 안에 보낼 수 있는 문의 수. */
     public static final int PER_IP_LIMIT = 5;
     public static final int WINDOW_MINUTES = 10;
-    public static final int ADMIN_DEFAULT_LIMIT = 50;
     public static final int ADMIN_MAX_LIMIT = 200;
     /** 점 있는 도메인이 붙은 주소만 받는다. 실제로 닿는지는 확인하지 않는다(메일을 보내지 않는다). */
     public static final String EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";

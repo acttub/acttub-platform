@@ -51,16 +51,6 @@ public class PracticeService {
             PracticePosters posters,
             boolean threeLayersEnabled,
             boolean guestDailyAnalysisLimitEnabled,
-            Clock clock) {
-        this(practices, legacy, posters, threeLayersEnabled, guestDailyAnalysisLimitEnabled, CoachingPlan.UNLIMITED, clock);
-    }
-
-    public PracticeService(
-            PracticeRepository practices,
-            LegacyPracticeReader legacy,
-            PracticePosters posters,
-            boolean threeLayersEnabled,
-            boolean guestDailyAnalysisLimitEnabled,
             CoachingPlan plan,
             Clock clock) {
         this.plan = plan;

@@ -17,11 +17,6 @@ public interface BillingRepository {
 
     Optional<Subscription> findById(UUID subscriptionId);
 
-    /** 오늘(한국 시간 {@code since} 이후) 만든 코칭 회차 수와 보관 중인 리딩 대본 수 — 무료 한도 판정용. */
-    int coachingSessionsSince(UUID userId, Instant since);
-
-    int scriptCount(UUID userId);
-
     /** 회원(게스트 포함) 가입 시각 — users.created_at. 없는 사용자면 비어 있다. 기존 회원 무료 한도 유예 판정용. */
     Optional<Instant> signedUpAt(UUID userId);
 

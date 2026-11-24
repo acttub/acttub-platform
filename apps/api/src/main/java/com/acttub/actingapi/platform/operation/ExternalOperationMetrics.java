@@ -108,13 +108,6 @@ public class ExternalOperationMetrics implements ExternalOperationMonitoring {
     }
 
     @Override
-    public void accepted(String kind) {
-        if (KINDS.contains(kind)) {
-            afterCommit(() -> registry.counter(PREFIX + "accepted", "kind", kind).increment());
-        }
-    }
-
-    @Override
     public ExternalOperationExecution execution(UUID operationId, UUID leaseToken) {
         var kind = new java.util.concurrent.atomic.AtomicReference<String>();
         return new ExternalOperationExecution(operationId, () -> {
