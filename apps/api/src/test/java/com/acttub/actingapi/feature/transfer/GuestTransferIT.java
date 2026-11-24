@@ -37,6 +37,7 @@ import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RateLimitWindow;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import tools.jackson.databind.JsonNode;
@@ -246,6 +247,7 @@ class GuestTransferIT {
         String code = issueCode(guest).path("code").stringValue(null);
         String wrong = code.equals("000000") ? "000001" : "000000";
 
+        RateLimitWindow.awaitRoom(Duration.ofSeconds(10));
         for (int attempt = 0; attempt < 5; attempt++) {
             assertNotFound(transfer(member, wrong, null));
         }
@@ -264,6 +266,7 @@ class GuestTransferIT {
     @DisplayName("account.guest: 한 IP 에서 여러 회원으로 1분 안에 11번 — 열한 번째는 429. 모양이 틀린 코드(422)는 틀린 시도로 세지 않는다")
     void accountGuest_wrongAttemptsAreLimitedPerIp() throws Exception {
         List<UUID> members = List.of(member(), member(), member());
+        RateLimitWindow.awaitRoom(Duration.ofSeconds(10));
         var malformed = transfer(members.get(0), "12345", null);
         assertThat(malformed.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(malformed.getContentAsString()).path("detail").isArray()).isTrue();
@@ -281,6 +284,7 @@ class GuestTransferIT {
         UUID member = member();
         int attempts = 6;
         ExecutorService pool = Executors.newFixedThreadPool(attempts);
+        RateLimitWindow.awaitRoom(Duration.ofSeconds(10));
         try (Connection blocker = outsideConnection()) {
             // 코드 평가(lockLive)가 이 잠금에서 멈춘다 — 한도 확인과 세기 사이에 요청 여섯을 세워 둔다.
             blocker.setAutoCommit(false);

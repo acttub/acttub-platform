@@ -30,7 +30,9 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "EXTERNAL_OPERATION_SNAPSHOT_MS=25",
+// 큐는 테스트가 직접 집는다. 배경 워커가 켜져 있으면 실제 시각으로 돌아, 고정 시각(NOW)으로 잡은 lease 를 만료로 보고
+// 다시 집는다 — 테스트의 complete 가 LeaseOwnershipException 으로 흔들렸다(CI 에서 두 번 봄).
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "EXTERNAL_OPERATION_SNAPSHOT_MS=25", "ANALYSIS_WORKER_ENABLED=false",
         "spring.jpa.properties.hibernate.session_factory.statement_inspector="
                 + "com.acttub.actingapi.platform.operation.ExternalOperationIT$TransitionInspector"})
 @Import(MonitoringFailureFixture.class)

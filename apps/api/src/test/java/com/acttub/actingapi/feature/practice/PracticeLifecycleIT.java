@@ -58,6 +58,9 @@ import com.acttub.actingapi.platform.json.LenientJson;
     "ACCOUNT_CLEANUP_ENABLED=false",
     "ACCOUNT_HOUSEKEEPING_ENABLED=false",
     "ACTTUB_THREE_LAYERS_ENABLED=true",
+    // 작업 상태는 테스트가 직접 옮긴다. 배경 분석 워커가 켜져 있으면 pending 작업을 먼저 집어 running 으로 바꾸고, 기억 워커의
+    // 첫 폴은 setUp 의 TRUNCATE 와 교착한다(둘 다 CI 에서 봄).
+    "ANALYSIS_WORKER_ENABLED=false",
     // 겹쳐 온 이어하기 둘이 저마다 커넥션을 쥔 채 묶음 잠금을 기다린다.
     "spring.datasource.hikari.maximum-pool-size=12"
 })
