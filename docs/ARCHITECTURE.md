@@ -18,10 +18,11 @@ apps/
 │       ├── feature/      비즈니스 도메인 — 도메인마다 필요한 층만(아래 「api 층 규칙」)
 │       ├── platform/     배관 — security·persistence·ledger·migration·observability …
 │       └── integration/  외부 연동 — llm(OpenAI)·observation(Gemini)·storage(S3)·media(ffmpeg)·oidc …
-└── mobile/               Expo 앱 (npm/EAS, 워크스페이스 밖)
-    ├── app/              expo-router 라우트
-    ├── components/
-    └── lib/              api·auth·기능별 상태 모듈
+├── mobile/               Expo 앱 (npm/EAS, 워크스페이스 밖)
+│   ├── app/              expo-router 라우트
+│   ├── components/
+│   └── lib/              api·auth·기능별 상태 모듈
+└── pron/                 리딩 발음 채점 실험 서비스 (파이썬, compose `pron` 프로필의 dev에서만 뜸)
 packages/                 두 번째 사용처가 생길 때만 채운다
 deploy/                   홈서버 배포 스크립트·모니터링 설정
 docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기능 스펙), deploy/, agents/
