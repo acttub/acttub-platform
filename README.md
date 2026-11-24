@@ -24,3 +24,8 @@ pnpm dev
 
 웹 개발 서버는 `http://localhost:3000`에서 실행되며 API 요청을 `http://127.0.0.1:8080`으로
 프록시합니다([서버 경계](apps/web/CLAUDE.md#서버-경계)).
+
+파일 저장소는 Cloudflare R2입니다. 올리기·재생을 쓰려면 dev 파일 버킷만 쓰는 R2 API 토큰으로 `S3_BUCKET`,
+`S3_ENDPOINT`, `AWS_REGION=auto`는 `apps/api/.env`에 넣고, `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`는 `bootRun`의
+환경 변수로 넘깁니다(뜻은 [`.env.example`](deploy/home/.env.example)). `.env`는 Spring 설정으로만 읽혀 AWS SDK가 키를
+찾지 못하기 때문입니다. 저장소 설정이 없으면 API는 뜨지만 올리기는 503 `storage_not_configured`이고 재생 주소는 비어 있습니다.
