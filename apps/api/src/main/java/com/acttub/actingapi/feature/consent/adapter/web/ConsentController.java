@@ -74,6 +74,21 @@ class ConsentController {
     }
 
     @Operation(
+            summary = "List Pending Documents",
+            operationId = "list_pending_documents_v2_consents_pending_get",
+            tags = "v2-consents",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ConsentDocumentsResponse.class)))
+    @GetMapping("/pending")
+    ConsentDocumentsResponse listPendingDocuments(HttpServletRequest request) {
+        var user = auth.rateLimitedUser(request);
+        return documents(consents.pendingDocuments(user.id(), user.guest()));
+    }
+
+    @Operation(
             summary = "Get Consent Entry",
             operationId = "get_consent_entry_v2_consents_entry_get",
             tags = "v2-consents",

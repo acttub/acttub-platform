@@ -85,7 +85,7 @@ class AccessGateTest {
         // 게이트 밖: 로그인·갱신·로그아웃, 동의 조회와 제출, 내 계정 조회, 탈퇴, 공개·운영 경로.
         for (String[] open : new String[][] {
                 {"POST", "/v2/auth/login"}, {"POST", "/v2/auth/signup"}, {"POST", "/v2/auth/refresh"},
-                {"POST", "/v2/auth/logout"}, {"GET", "/v2/consents/documents"},
+                {"POST", "/v2/auth/logout"}, {"GET", "/v2/consents/documents"}, {"GET", "/v2/consents/pending"},
                 {"GET", "/v2/consents/entry"}, {"POST", "/v2/consents"}, {"GET", "/v2/me"},
                 {"DELETE", "/v2/me"}, {"DELETE", "/v2/push-tokens"}, {"POST", "/v2/push-opens"}, {"GET", "/v2/admissions"},
                 {"GET", "/v2/admissions/snu"}, {"GET", "/v2/auditions"}, {"GET", "/v2/admin/sessions"},

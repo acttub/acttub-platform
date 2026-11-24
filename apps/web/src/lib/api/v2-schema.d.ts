@@ -2485,6 +2485,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/consents/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pending Documents */
+        get: operations["list_pending_documents_v2_consents_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/consents/notices": {
         parameters: {
             query?: never;
@@ -6320,6 +6337,11 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** ConsentDocumentsResponse */
+        ConsentDocumentsResponse: {
+            /** Documents */
+            documents: components["schemas"]["ConsentDocument"][];
+        };
         /** ConsentNotice */
         ConsentNotice: {
             /**
@@ -6376,11 +6398,6 @@ export interface components {
          * @enum {string}
          */
         ConsentEntryStatus: "allowed" | "decision_required";
-        /** ConsentDocumentsResponse */
-        ConsentDocumentsResponse: {
-            /** Documents */
-            documents: components["schemas"]["ConsentDocument"][];
-        };
         /** PostListResponse */
         PostListResponse: {
             /** Posts */
@@ -11515,6 +11532,26 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_pending_documents_v2_consents_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentDocumentsResponse"];
+                };
             };
         };
     };

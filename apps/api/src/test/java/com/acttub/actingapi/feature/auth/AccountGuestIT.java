@@ -234,10 +234,11 @@ class AccountGuestIT {
         consent(token, "terms", true);
         consent(token, "privacy", null);
 
+        JsonNode pending = json(authorized(get("/v2/consents/pending"), token), 200);
         JsonNode entry = json(authorized(get("/v2/consents/entry"), token), 200);
         var retention = postConsent(token, "retention", null);
 
-        assertThat(entry.path("undecided_documents")).extracting(document -> document.path("type").stringValue(null))
+        assertThat(pending.path("documents")).extracting(document -> document.path("type").stringValue(null))
                 .containsExactly("ai_analysis");
         assertThat(entry.path("documents")).extracting(document -> document.path("type").stringValue(null))
                 .containsExactly("terms", "privacy", "ai_analysis");
