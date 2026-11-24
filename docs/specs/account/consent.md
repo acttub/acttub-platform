@@ -16,7 +16,6 @@
 |---|---|---|---|
 | `GET /v2/consents/documents` | 없음. 공개 조회라 토큰을 보지 않는다 | `ConsentDocumentsResponse` 200(현재 판 전문) | — |
 | `GET /v2/consents/notices` | 없음. 공개 조회라 토큰을 보지 않는다 | `ConsentNoticesResponse` 200(개인정보 처리방침 같은 고지) | — |
-| `GET /v2/consents/pending` | 헤더 `Authorization` | `ConsentDocumentsResponse` 200(미결정 문서, 게스트는 필수만) | 401, `account_deactivated` 403, 주체 한도 429 |
 | `GET /v2/consents/entry` | 헤더 `Authorization` | `ConsentEntryResponse` 200(문서마다 현재 판 결정, 게스트는 필수만) | 401, `account_deactivated` 403, 주체 한도 429 |
 | `POST /v2/consents` | 헤더 `Authorization`, `ConsentRequest`: `document_id`, `action`(granted·declined) | `ConsentEventResponse` 201, 같은 결정이면 200 | 401, `account_deactivated` 403, `consent_document_not_found` 404, `consent_document_outdated` 409(`ConsentDocumentOutdatedError`), `required_consent_cannot_be_declined` 422, 허용 밖 `action` 422 배열, 주체 한도 429. 게스트의 오류는 account.guest |
 | `ConsentDocumentPublisher` (서버 시작 때) | 배포에 든 동의 문서 파일 | 판이 DB보다 새로우면 새 판 행, 같은 판이면 본문 덮어쓰기 | 실패는 보고한다 |

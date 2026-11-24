@@ -34,11 +34,6 @@ class ExitSurveySyncTest {
         }
 
         @Override
-        public boolean asked(UUID userId) {
-            return false;
-        }
-
-        @Override
         public boolean claimAsk(UUID userId, Instant now) {
             return false;
         }

@@ -211,15 +211,14 @@ class ConsentEndpointIT {
         JsonNode entry = consentEntry();
 
         assertThat(entry.path("entry_status").stringValue(null)).isEqualTo("decision_required");
-        assertThat(entry.path("undecided_documents")).hasSize(4);
+        assertThat(entry.path("undecided_documents")).extracting(document -> document.path("id").stringValue(null))
+                .containsExactly(TERMS.toString(), PRIVACY.toString(),
+                        AI_ANALYSIS.toString(), RETENTION.toString());
         for (JsonNode document : entry.path("documents")) {
             assertThat(document.has("current_decision")).isTrue();
             assertThat(document.path("current_decision").isNull()).isTrue();
             assertThat(document.path("decided_at").isNull()).isTrue();
         }
-        assertThat(pendingDocuments()).extracting(document -> document.path("id").stringValue(null))
-                .containsExactly(TERMS.toString(), PRIVACY.toString(),
-                        AI_ANALYSIS.toString(), RETENTION.toString());
     }
 
     @Test
@@ -451,14 +450,6 @@ class ConsentEndpointIT {
                 INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
                 VALUES (?,?,?,?,?)
                 """, id, USER_ID, documentId, action, occurredAt);
-    }
-
-    private JsonNode pendingDocuments() throws Exception {
-        var response = mvc.perform(get("/v2/consents/pending")
-                        .header("Authorization", bearer()))
-                .andReturn().getResponse();
-        assertThat(response.getStatus()).isEqualTo(200);
-        return mapper.readTree(response.getContentAsString()).path("documents");
     }
 
     private JsonNode consentEntry() throws Exception {

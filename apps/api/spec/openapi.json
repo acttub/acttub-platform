@@ -5541,29 +5541,6 @@
         } ]
       }
     },
-    "/v2/me/practice-feedback/status" : {
-      "get" : {
-        "tags" : [ "v2-me" ],
-        "summary" : "Get Practice Feedback Status",
-        "description" : "이 계정에 이미 물어봤는지. 표식을 건드리지 않는다.",
-        "operationId" : "get_practice_feedback_status_v2_me_practice_feedback_status_get",
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeFeedbackStatus"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
     "/v2/me/notifications" : {
       "get" : {
         "tags" : [ "v2-challenges" ],
@@ -5748,28 +5725,6 @@
         "responses" : {
           "204" : {
             "description" : "Successful Response"
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/consents/pending" : {
-      "get" : {
-        "tags" : [ "v2-consents" ],
-        "summary" : "List Pending Documents",
-        "operationId" : "list_pending_documents_v2_consents_pending_get",
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ConsentDocumentsResponse"
-                }
-              }
-            }
           }
         },
         "security" : [ {
@@ -13875,21 +13830,6 @@
         "required" : [ "comments", "next_cursor" ],
         "title" : "EntryCommentPage"
       },
-      "ConsentDocumentsResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "documents" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ConsentDocument"
-            },
-            "title" : "Documents"
-          }
-        },
-        "required" : [ "documents" ],
-        "title" : "ConsentDocumentsResponse"
-      },
       "ConsentNotice" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -14010,6 +13950,21 @@
         "type" : "string",
         "enum" : [ "allowed", "decision_required" ],
         "title" : "ConsentEntryStatus"
+      },
+      "ConsentDocumentsResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "documents" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConsentDocument"
+            },
+            "title" : "Documents"
+          }
+        },
+        "required" : [ "documents" ],
+        "title" : "ConsentDocumentsResponse"
       },
       "PostListResponse" : {
         "type" : "object",

@@ -127,7 +127,7 @@ print(json.dumps({'signup_token':d['signup_token'],'age_confirmed':True,
 req signup POST /v2/auth/signup "$SIGNUP"
 TOKEN=$(python3 -I -c "import json,sys; print(json.loads(open(sys.argv[1]).read().split('\n\n',1)[1])['access_token'])" "$OUT/responses/signup.txt")
 req profile PUT /v2/me/profile '{"name":"스냅샷","gender":"unspecified","birth_date":"2001-03-14","directions":["stage"],"experience":"under_1y","goal":"hobby","bio":null}'
-for path in /v2/me /v2/consents/pending /v2/consents/documents /v2/consents/entry /v2/me/notification-settings \
+for path in /v2/me /v2/consents/documents /v2/consents/entry /v2/me/notification-settings \
     /v2/me/notifications /v2/me/notifications/unread-count /v2/practices /v2/practices/days /v2/videos /v2/portfolio \
     /v2/reading/scripts /v2/reading/examples /v2/app/config /v2/app/notices /v2/auth/providers /v2/community/categories \
     /v2/challenges /v2/me/memory /v2/support/inquiries/mine; do

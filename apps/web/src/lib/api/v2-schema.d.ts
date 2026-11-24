@@ -2361,26 +2361,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/me/practice-feedback/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Practice Feedback Status
-         * @description 이 계정에 이미 물어봤는지. 표식을 건드리지 않는다.
-         */
-        get: operations["get_practice_feedback_status_v2_me_practice_feedback_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v2/me/notifications": {
         parameters: {
             query?: never;
@@ -2500,23 +2480,6 @@ export interface paths {
          * @description 기억을 통째로 지운다. 다음 연습부터 다시 쌓인다.
          */
         delete: operations["delete_memory_v2_legacy_me_memory_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/consents/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Pending Documents */
-        get: operations["list_pending_documents_v2_consents_pending_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6357,11 +6320,6 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
-        /** ConsentDocumentsResponse */
-        ConsentDocumentsResponse: {
-            /** Documents */
-            documents: components["schemas"]["ConsentDocument"][];
-        };
         /** ConsentNotice */
         ConsentNotice: {
             /**
@@ -6418,6 +6376,11 @@ export interface components {
          * @enum {string}
          */
         ConsentEntryStatus: "allowed" | "decision_required";
+        /** ConsentDocumentsResponse */
+        ConsentDocumentsResponse: {
+            /** Documents */
+            documents: components["schemas"]["ConsentDocument"][];
+        };
         /** PostListResponse */
         PostListResponse: {
             /** Posts */
@@ -11394,26 +11357,6 @@ export interface operations {
             };
         };
     };
-    get_practice_feedback_status_v2_me_practice_feedback_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PracticeFeedbackStatus"];
-                };
-            };
-        };
-    };
     list_notifications_v2_me_notifications_get: {
         parameters: {
             query?: {
@@ -11572,26 +11515,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    list_pending_documents_v2_consents_pending_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConsentDocumentsResponse"];
-                };
             };
         };
     };

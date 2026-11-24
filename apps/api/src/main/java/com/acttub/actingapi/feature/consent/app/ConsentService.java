@@ -57,12 +57,7 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
 
     /** 현재 판 가운데 이 사람이 아직 결정하지 않은 문서. 선택 문서도 센다. */
     public List<ConsentDocument> pendingDocuments(UUID userId) {
-        return pendingDocuments(userId, false);
-    }
-
-    /** 게스트에게는 선택 문서를 묻지 않는다 — 선택 문서는 회원에게만 묻는다. */
-    public List<ConsentDocument> pendingDocuments(UUID userId, boolean guest) {
-        return entryFor(userId, guest).undecidedDocuments().stream()
+        return entryFor(userId, false).undecidedDocuments().stream()
                 .map(ConsentEntry.DocumentDecision::document)
                 .toList();
     }
