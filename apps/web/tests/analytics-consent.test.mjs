@@ -103,7 +103,6 @@ afterEach(() => {
 test("계측 I-6: privacy 행이 granted 일 때만 켠다(순수 판단)", () => {
   assert.equal(isPrivacyGranted(entry(entryDocument("privacy", "granted"))), true);
   assert.equal(isPrivacyGranted(entry(entryDocument("privacy", "declined"))), false);
-  assert.equal(isPrivacyGranted(entry(entryDocument("privacy", "revoked"))), false);
   assert.equal(isPrivacyGranted(entry(entryDocument("privacy", null))), false);
   assert.equal(isPrivacyGranted(entry(entryDocument("terms", "granted"))), false);
   assert.equal(isPrivacyGranted(entry()), false);
@@ -126,10 +125,9 @@ test("계측 I-6: 게스트의 privacy 가 granted 면 게스트 토큰으로 �
   ]);
 });
 
-test("계측 I-6: declined·revoked·미결정·행 없음은 끈다", async () => {
+test("계측 I-6: declined·미결정·행 없음은 끈다", async () => {
   for (const documents of [
     [entryDocument("privacy", "declined")],
-    [entryDocument("privacy", "revoked")],
     [entryDocument("privacy", null)],
     [entryDocument("terms", "granted")],
   ]) {

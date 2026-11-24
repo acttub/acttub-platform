@@ -9,7 +9,7 @@ import { errorMessage } from "@/lib/api/v2/errors";
 import { fetchMyInquiries, type MyInquiry } from "@/lib/api/v2/support";
 import { memberProvider, setMemberTokens, getAccessToken, getRefreshToken, subscribeAuthChange } from "@/lib/auth/token-store";
 
-import { PROVIDER_NAME, inquiryStatus, maskEmail, shortDate } from "./account-format";
+import { PROVIDER_NAME, inquiryStatusLabel, maskEmail, shortDate } from "./account-format";
 import { loadMarketing, saveMarketing, type MarketingState } from "./marketing-consent";
 
 type Loaded = { kind: "member"; me: Me } | { kind: "error"; message: string };
@@ -171,16 +171,13 @@ function MemberAccount({ me, provider, onError }: { me: Me; provider: string; on
             <p className="mt-4 text-[15px] leading-7 text-[#8b95a1]">아직 보낸 문의가 없어요.</p>
           ) : (
             <ul className="mt-3 divide-y divide-[#f2f4f6]">
-              {inquiries.items.map((item) => {
-                const status = inquiryStatus(item.status);
-                return (
-                  <li key={item.id} className="flex items-center gap-3 py-4">
-                    <span className={`shrink-0 rounded-lg px-2.5 py-1 text-[13px] font-bold ${status.tone === "blue" ? "bg-[#e8f3ff] text-[#1b64da]" : "bg-[#f2f4f6] text-[#4e5968]"}`}>{status.label}</span>
-                    <span className="min-w-0 flex-1 truncate text-[15px]">{item.summary}</span>
-                    <span className="shrink-0 text-sm text-[#8b95a1]">{shortDate(item.created_at)}</span>
-                  </li>
-                );
-              })}
+              {inquiries.items.map((item) => (
+                <li key={item.id} className="flex items-center gap-3 py-4">
+                  <span className="shrink-0 rounded-lg bg-[#f2f4f6] px-2.5 py-1 text-[13px] font-bold text-[#4e5968]">{inquiryStatusLabel(item.status)}</span>
+                  <span className="min-w-0 flex-1 truncate text-[15px]">{item.summary}</span>
+                  <span className="shrink-0 text-sm text-[#8b95a1]">{shortDate(item.created_at)}</span>
+                </li>
+              ))}
             </ul>
           )
         ) : null}

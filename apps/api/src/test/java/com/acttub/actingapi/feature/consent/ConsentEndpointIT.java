@@ -345,7 +345,7 @@ class ConsentEndpointIT {
     void accountConsent_memberWhoDeclinedARequiredDocumentBefore1_0_0IsTreatedAsUndecided()
             throws Exception {
         insertConsent(id(301), TERMS, "declined", DECIDED);
-        insertConsent(id(302), PRIVACY, "revoked", DECIDED);
+        insertConsent(id(302), PRIVACY, "declined", DECIDED);
         insertConsent(id(303), AI_ANALYSIS, "granted", DECIDED);
         insertConsent(id(304), RETENTION, "granted", DECIDED);
 

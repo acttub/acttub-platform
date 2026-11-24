@@ -242,7 +242,7 @@ class CloudVoiceIT {
     @Test
     void reading_cloudVoice_withdrawnOrUndecidedConsentBlocksSynthesisUntilPrivacyV9Covers() throws Exception {
         UUID document = jdbc.queryForObject("SELECT id FROM consent_documents WHERE type='cloud_voice'", UUID.class);
-        jdbc.update("INSERT INTO user_consents(id,user_id,document_id,action,occurred_at) VALUES (?,?,?,'revoked',now() + interval '1 second')",
+        jdbc.update("INSERT INTO user_consents(id,user_id,document_id,action,occurred_at) VALUES (?,?,?,'declined',now() + interval '1 second')",
                 UUID.randomUUID(), user, document);
         assertThat(consent()).isEqualTo("denied");
         var denied = synthesize("{\"text\":\"가지 마\",\"voice\":\"F1\"}");

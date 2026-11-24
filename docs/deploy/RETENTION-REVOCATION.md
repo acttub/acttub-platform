@@ -6,7 +6,7 @@
 
 끝났다고 말할 수 있는 조건은 넷이다: **본인 확인을 했고, 그 계정의 영상·포스터·녹음 객체가 저장소에 없고,
 보관함 영상 행에 파기 표시(`purged_at`)가 찍혔고 녹음 행(전사 포함)이 없고, 동의 기록의 마지막 줄이
-`revoked` 다.** 파기하는 범위는 서버가 탈퇴 3년 뒤에 스스로 하는 파기(`PostgresProfileRepository#purgeRetained`)와
+탈퇴 뒤에 적은 `declined` 다.** 파기하는 범위는 서버가 탈퇴 3년 뒤에 스스로 하는 파기(`PostgresProfileRepository#purgeRetained`)와
 같다.
 
 - 대상은 **탈퇴한 지 3년이 안 된 회원 계정**뿐이다. 3년이 지나면 매일 도는 일이 해시 행과 영상·녹음을 이미
@@ -146,7 +146,8 @@ aws s3api list-object-versions --bucket "$S3_BUCKET" --prefix '<object_key>' \
 ## 4. 파기 표시와 철회를 기록한다
 
 보관함 영상 행은 지우지 않고 파기 표시를 찍는다(회차·참여작 기록이 깨지지 않고 재생이 막힌다). 녹음 행은 음성과
-전사째 지운다. 동의 기록은 고쳐 쓰지 않고 **덧붙인다** — 마지막으로 결정했던 그 문서 판에 `revoked` 한 줄을 더한다.
+전사째 지운다. 동의 기록은 고쳐 쓰지 않고 **덧붙인다** — 마지막으로 결정했던 그 문서에 `declined` 한 줄을 더한다. 결정 값은
+`granted`·`declined` 둘뿐이다(CHECK). 탈퇴한 계정은 API 로 결정을 남기지 못하므로 탈퇴 시각 뒤의 `declined` 가 곧 이 철회다.
 
 ```sql
 BEGIN;
@@ -154,7 +155,7 @@ UPDATE videos SET purged_at = now(), updated_at = now()
 WHERE user_id = :'old_user_id' AND purged_at IS NULL;
 DELETE FROM reading_recordings WHERE user_id = :'old_user_id';
 INSERT INTO user_consents (id, user_id, document_id, action, occurred_at)
-VALUES (gen_random_uuid(), :'old_user_id', :'document_id', 'revoked', now());   -- document_id 는 3단계에서 읽은 값
+VALUES (gen_random_uuid(), :'old_user_id', :'document_id', 'declined', now());   -- document_id 는 3단계에서 읽은 값
 -- 확인한 뒤에 COMMIT. 한 행이 더해졌는지 본다.
 SELECT action, occurred_at FROM user_consents
 WHERE user_id = :'old_user_id' AND document_id = :'document_id'
@@ -171,7 +172,7 @@ COMMIT;
 ## 5. 확인한다
 
 ```sql
--- 파기 표시가 없는 영상과 녹음 행이 0 이고, 마지막 결정이 revoked 다.
+-- 파기 표시가 없는 영상과 녹음 행이 0 이고, 마지막 결정이 declined 다.
 SELECT
   (SELECT count(*) FROM videos WHERE user_id = :'old_user_id' AND purged_at IS NULL) AS videos_left,
   (SELECT count(*) FROM reading_recordings WHERE user_id = :'old_user_id') AS recordings_left,

@@ -26,7 +26,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 |---|---|---|
 | visibility public | 공개로 생성. private에서 공개 전환(진행 중 visible 챌린지, status visible, 영상 파일 있음, 활성 계정) | challenge.entry |
 | visibility private | 비공개로 생성. public에서 비공개 전환(언제든). 탈퇴(다시 공개할 수 없음) | challenge.entry, account.withdraw |
-| status visible | 생성. hidden_by_report에서 신고 판정 restored·dismissed이고 남은 received 신고 없음 | challenge.entry, challenge.report |
+| status visible | 생성. hidden_by_report에서 신고 판정 dismissed이고 남은 received 신고 없음 | challenge.entry, challenge.report |
 | status hidden_by_report | visible 참여작의 유효한 첫 신고(AI 검사를 통과한 참여작은 서로 다른 신고자 2명), AI 검사의 숨김 판정, 운영 판정 kept_hidden | challenge.report |
 | status deleted | 작성자 삭제 | challenge.entry |
 

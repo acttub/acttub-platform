@@ -10451,7 +10451,7 @@
       },
       "ConsentAction" : {
         "type" : "string",
-        "enum" : [ "granted", "declined", "revoked" ],
+        "enum" : [ "granted", "declined" ],
         "title" : "ConsentAction"
       },
       "ConsentEventResponse" : {

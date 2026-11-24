@@ -289,7 +289,7 @@ export type ConsentDocument = {
   published_at: string;
 };
 
-/** 앱이 보내는 결정은 둘뿐이다. 철회(revoked)는 운영자만 기록하고 API로 받지 않는다. */
+/** 결정 값은 둘뿐이다(서버 ConsentAction). 탈퇴 뒤 보관 동의 철회는 운영자가 declined로 기록한다. */
 export type ConsentDecision = 'granted' | 'declined';
 
 export type ConsentEntryDocument = ConsentDocument & {

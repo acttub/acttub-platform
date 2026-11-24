@@ -29,7 +29,7 @@ import org.springframework.stereotype.Service;
 public class ReactionService {
     private static final Set<String> TARGETS = Set.of("entry", "comment", "challenge");
     private static final Set<String> REASONS = Set.of("copyright", "inappropriate", "spam", "duplicate", "other");
-    private static final Set<String> RESOLUTIONS = Set.of("restored", "kept_hidden", "dismissed");
+    private static final Set<String> RESOLUTIONS = Set.of("kept_hidden", "dismissed");
     private final ReactionRepository reactions;
     private final ReportRepository reports;
     private final ReportNotifier notifier;

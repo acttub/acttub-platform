@@ -1502,7 +1502,7 @@ CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_fkey FOREIG
 CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_not_null NOT NULL viewer_id
 CONSTRAINT entry_reports ck_entry_reports_note CHECK ((char_length(note) <= 200))
 CONSTRAINT entry_reports ck_entry_reports_reason CHECK ((reason = ANY (ARRAY['copyright'::text, 'inappropriate'::text, 'spam'::text, 'duplicate'::text, 'other'::text])))
-CONSTRAINT entry_reports ck_entry_reports_resolution CHECK ((resolution = ANY (ARRAY['restored'::text, 'kept_hidden'::text, 'dismissed'::text])))
+CONSTRAINT entry_reports ck_entry_reports_resolution CHECK ((resolution = ANY (ARRAY['kept_hidden'::text, 'dismissed'::text])))
 CONSTRAINT entry_reports ck_entry_reports_reviewed CHECK (((status = 'reviewed'::text) = ((resolution IS NOT NULL) AND (reviewed_at IS NOT NULL))))
 CONSTRAINT entry_reports ck_entry_reports_source CHECK ((source = ANY (ARRAY['user'::text, 'ai'::text])))
 CONSTRAINT entry_reports ck_entry_reports_source_reporter CHECK (((source = 'ai'::text) = (reporter_id IS NULL)))
@@ -2047,7 +2047,7 @@ CONSTRAINT user_blocks user_blocks_blocker_id_not_null NOT NULL blocker_id
 CONSTRAINT user_blocks user_blocks_created_at_not_null NOT NULL created_at
 CONSTRAINT user_blocks user_blocks_id_not_null NOT NULL id
 CONSTRAINT user_blocks user_blocks_pkey PRIMARY KEY (id)
-CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY (ARRAY['granted'::text, 'declined'::text, 'revoked'::text])))
+CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY (ARRAY['granted'::text, 'declined'::text])))
 CONSTRAINT user_consents user_consents_action_not_null NOT NULL action
 CONSTRAINT user_consents user_consents_document_id_fkey FOREIGN KEY (document_id) REFERENCES consent_documents(id)
 CONSTRAINT user_consents user_consents_document_id_not_null NOT NULL document_id

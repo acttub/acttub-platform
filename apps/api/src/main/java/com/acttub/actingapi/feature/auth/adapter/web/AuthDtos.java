@@ -59,7 +59,7 @@ final class AuthDtos {
             @NotNull SignupAction action) {
     }
 
-    /** 철회({@code revoked})는 입력이 아니다. */
+    /** 가입 때 문서마다 고르는 결정. 동의 결정 값({@code ConsentAction})과 같은 둘이다. */
     @Schema(name = "SignupAction")
     enum SignupAction {
         granted,

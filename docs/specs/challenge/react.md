@@ -26,7 +26,7 @@ entry_comments.status와 삭제 표시(deleted_at). entry_likes·entry_saves는 
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| visible | 작성. hidden에서 신고 판정 restored·dismissed이고 남은 received 신고 없음 | challenge.react, challenge.report |
+| visible | 작성. hidden에서 신고 판정 dismissed이고 남은 received 신고 없음 | challenge.react, challenge.report |
 | hidden | visible 댓글의 유효한 첫 신고 | challenge.report |
 | 삭제(deleted_at, body NULL) | 본인 삭제. 부모 참여작 삭제 | challenge.react, challenge.entry |
 
