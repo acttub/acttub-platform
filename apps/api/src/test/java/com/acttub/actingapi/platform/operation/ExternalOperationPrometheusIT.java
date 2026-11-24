@@ -16,7 +16,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 
 class ExternalOperationPrometheusIT {
     @Test
-    void startupExposesZeroCountersAndBoundedDurationBucketsOverTheManagementHttpEndpoint() throws Exception {
+    void startupExposesOnlyTheSnapshotGaugesOverTheManagementHttpEndpoint() throws Exception {
         String url = PostgresContainerSupport.deployStyleUrl(
                 PostgresContainerSupport.createDatabaseName("operation_prometheus"));
         try (var app = new SpringApplicationBuilder(ActingApiApplication.class)
@@ -31,14 +31,15 @@ class ExternalOperationPrometheusIT {
                         HttpResponse.BodyHandlers.ofString());
                 assertThat(response.statusCode()).isEqualTo(200);
                 String body = response.body();
+                // 옛 큐 워커와 함께 카운터·histogram 은 지웠다(SOMA-1140). 상태 표본 게이지만 남는다.
                 for (String metric : new String[] {"accepted", "attempts", "requeues", "terminal", "external_calls"}) {
-                    assertThat(body.lines().filter(line -> line.startsWith("acttub_external_operations_" + metric + "_total{")))
-                            .isNotEmpty().allMatch(line -> line.endsWith(" 0.0") || line.endsWith(" 0"));
+                    assertThat(body).doesNotContain("acttub_external_operations_" + metric + "_total");
                 }
                 for (String timer : new String[] {"wait", "execution", "elapsed"}) {
-                    assertThat(body).contains("acttub_external_operations_" + timer + "_seconds_bucket{");
+                    assertThat(body).doesNotContain("acttub_external_operations_" + timer + "_seconds");
                 }
-                assertThat(body).contains("acttub_external_operations_unmeasured{");
+                assertThat(body).contains("acttub_external_operations_current{", "acttub_external_operations_unmeasured{",
+                        "acttub_external_operations_oldest_unfinished_age_seconds{");
                 assertThat(body).doesNotContain("operation_id=", "session_id=", "user_id=", "lease_token=");
                 java.util.concurrent.Callable<Double> snapshotTime = () -> {
                     var current = client.send(HttpRequest.newBuilder(

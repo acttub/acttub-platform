@@ -5,7 +5,6 @@ import java.time.Duration;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisCompletionListener;
 import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
-import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
 import com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
@@ -20,47 +19,14 @@ import org.springframework.context.annotation.Configuration;
 class AnalysisWorkerConfiguration {
 
     /**
-     * 스토리지 경계가 없으면 워커도 없다. Python 도 {@code s3_storage is not None} 일
-     * 때만 풀을 만든다({@code app.py:create_app}).
+     * 0.1.0 회차의 분석 워커 (practice.analyze). {@code ai_jobs} 를 집고 {@code analyses}·{@code video_transcripts} 에
+     * 쓴다. 옛 원장({@code external_operations})을 집던 워커는 SOMA-1140 에서 지웠다.
      *
-     * <p>이 판정을 {@code @ConditionalOnBean(ObjectStorage.class)} 로 하면 안 된다 —
-     * 그 조건은 <b>평가 시점까지 등록된</b> 빈만 보므로, 일반 {@code @Configuration}
-     * 사이에서는 설정 클래스 처리 순서에 따라 결과가 갈린다. 실제로 그렇게 갈렸다:
-     * {@code StorageConfiguration#objectStorage} 는 matched 인데
-     * {@code @ConditionalOnBean} 은 "did not find any beans" 로 워커를 통째로
-     * 빼버렸고, 분석 잡이 큐에 pending 으로 영원히 남았다. 격리 컨텍스트로 도는 단위
-     * 테스트는 설정 클래스를 직접 지정해 순서가 달라지므로 이 구멍을 통과시킨다 —
-     * 전체 부팅으로만 잡힌다({@code AnalysisWorkerWiringIT}).
-     *
-     * <p>{@code ObjectProvider} 로 받아 런타임에 판정하면 순서와 무관해진다.
-     */
-    @Bean
-    AnalysisWorker analysisWorker(
-            AnalysisStore store,
-            ObjectProvider<ObjectStorage> storage,
-            AnalysisProcessor analyzer,
-            Clock clock,
-            @Value("${ANALYSIS_LEASE_SEC:1800}") long leaseSeconds,
-            @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model,
-            // 완료 통지는 선택이다 — push(알림)·coach(첫 질문 미리 쓰기)가 구현을 내지만, 없어도 분석은 돌아야 한다.
-            ObjectProvider<AnalysisCompletionListener> completionListener,
-            FailureReporter failureReporter) {
-        if (leaseSeconds <= 0) {
-            throw new IllegalStateException("analysis worker settings must be positive");
-        }
-        ObjectStorage objectStorage = storage.getIfAvailable();
-        if (objectStorage == null) {
-            return null;
-        }
-        return new AnalysisWorker(
-                store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model,
-                AnalysisCompletionListener.all(completionListener.orderedStream().toList()), failureReporter);
-    }
-
-    /**
-     * 0.1.0 회차의 분석 워커 (practice.analyze). 위와 <b>같은 워커 클래스</b>에 다른 저장소를 끼운다 — 영상을
-     * 내려받고 etag 를 견주고 실패를 분류하고 lease 를 다루는 규칙은 한 벌이어야 하기 때문이다. 갈리는 것은
-     * 무엇을 집고(=ai_jobs) 어디에 쓰는가(=analyses·video_transcripts)뿐이다.
+     * <p>스토리지 경계가 없으면 워커도 없다. 이 판정을 {@code @ConditionalOnBean(ObjectStorage.class)} 로 하면 안 된다 —
+     * 그 조건은 <b>평가 시점까지 등록된</b> 빈만 보므로 설정 클래스 처리 순서에 따라 결과가 갈린다. 실제로 그렇게 갈려
+     * 워커가 통째로 빠지고 분석 잡이 pending 으로 영원히 남은 적이 있다. 격리 컨텍스트로 도는 단위 테스트는 이 구멍을
+     * 통과시키고 전체 부팅으로만 잡힌다({@code AnalysisWorkerWiringIT}). {@code ObjectProvider} 로 받아 런타임에
+     * 판정하면 순서와 무관해진다.
      */
     @Bean
     AnalysisWorker practiceAnalysisWorker(
@@ -74,6 +40,9 @@ class AnalysisWorkerConfiguration {
             FailureReporter failureReporter,
             // 얼굴 가리기 회차는 원본 대신 얼굴을 가린 사본으로 분석한다(practice.start). 없으면 그 회차는 실패로 닫힌다.
             ObjectProvider<FaceMosaic> faceMosaic) {
+        if (leaseSeconds <= 0) {
+            throw new IllegalStateException("analysis worker settings must be positive");
+        }
         ObjectStorage objectStorage = storage.getIfAvailable();
         if (objectStorage == null) {
             return null;

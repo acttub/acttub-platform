@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -21,17 +20,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
-import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
-import com.acttub.actingapi.integration.observation.ObservationItem;
-import com.acttub.actingapi.integration.observation.ObservationPack;
-import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
-import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
@@ -100,9 +93,6 @@ class AccountWithdrawIT {
 
     @Autowired
     PlatformTransactionManager transactionManager;
-
-    @Autowired
-    AnalysisStore analysis;
 
     @Autowired
     FakeStorage storage;
@@ -435,7 +425,7 @@ class AccountWithdrawIT {
     }
 
     @Test
-    @DisplayName("account.withdraw: 분석이 진행 중일 때 탈퇴 — 작업이 취소되고 결과가 저장되지 않는다")
+    @DisplayName("account.withdraw: 옛 장부의 분석이 진행 중일 때 탈퇴 — 작업이 취소되고 lease 가 떼어진다")
     void accountWithdraw_cancelsTheAnalysisInProgress() throws Exception {
         Member member = member("google", "g-1|actor@example.test|verified", "declined");
         UUID session = practiceWithVideo(member.id(), "videos/running.mp4", "analyzing");
@@ -444,8 +434,9 @@ class AccountWithdrawIT {
                 INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint)
                 VALUES (?,?,?,?,'analyze','pending',?)
                 """, operation, session, member.id(), UUID.randomUUID(), "a".repeat(64));
-        UUID lease = UUID.randomUUID();
-        assertThat(analysis.claimNext(lease, Duration.ofMinutes(5), clock.instant())).isEqualTo(operation);
+        // 옛 큐 워커는 지웠지만(SOMA-1140) 옛 장부에 running 으로 남은 행이 있으면 탈퇴가 닫는다.
+        jdbc.update("UPDATE external_operations SET status='running',lease_token=?,lease_expires_at=?,attempt_count=1 WHERE id=?",
+                UUID.randomUUID(), clock.instant().plus(Duration.ofMinutes(5)).atOffset(java.time.ZoneOffset.UTC), operation);
 
         withdraw(member.accessToken());
 
@@ -455,10 +446,6 @@ class AccountWithdrawIT {
                 .containsEntry("lease_token", null);
         assertThat(jdbc.queryForObject("SELECT status FROM practice_sessions WHERE id=?", String.class, session))
                 .isEqualTo("failed");
-        assertThatThrownBy(() -> analysis.complete(operation, lease, analysisResult(), "model", clock.instant()))
-                .as("돌고 있던 워커의 완료는 받아들여지지 않는다")
-                .isInstanceOf(LeaseOwnershipException.class);
-        assertThat(count("summaries")).as("결과가 저장되지 않는다").isZero();
     }
 
     @Test
@@ -731,20 +718,6 @@ class AccountWithdrawIT {
                 """, session, userId, upload, status);
         storage.put(objectKey);
         return session;
-    }
-
-    private static AnalysisResult analysisResult() {
-        return new AnalysisResult(
-                new ObservationPack(
-                        "여자가 문 앞에서 돌아선다.",
-                        "0:00에 돌아서며 대사를 시작한다.",
-                        SpeechFacts.calculate("지금 놓치면 끝이야", List.of(
-                                new SpeechFacts.Word("지금", 0, .3),
-                                new SpeechFacts.Word("놓치면", .3, .6),
-                                new SpeechFacts.Word("끝이야", .6, 1.2))),
-                        List.of(new ObservationItem(0, 1200, "호흡이 얕다", "지금 놓치면 끝이야", "호흡", 0.8)),
-                        List.of("조명이 어둡다")),
-                true, 12345);
     }
 
     private java.time.LocalDate today() {

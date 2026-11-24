@@ -22,7 +22,6 @@ public interface AnalysisStore {
             String model,
             Instant now);
 
-    List<String> sweepExpiredUploads(Instant now);
 
     int sweepMaxAttempts(Instant now);
     boolean fail(UUID operationId, UUID leaseToken, String errorCode, String classification, Instant now);

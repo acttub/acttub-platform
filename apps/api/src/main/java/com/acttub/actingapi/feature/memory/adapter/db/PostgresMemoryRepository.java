@@ -17,11 +17,8 @@ import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.memory.app.MemoryEntry;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
 import com.acttub.actingapi.feature.memory.app.MemoryRepository;
-import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
-import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
-import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -94,21 +91,6 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     @Override
     public MemoryEntry writeAsActor(UUID userId, ActorMemoryField field, String value) {
         return upsert(userId, field, value, ActorMemoryAuthor.ACTOR, null);
-    }
-
-    /**
-     * 에이전트가 갱신한다. 배우가 손댄 칸은 건드리지 않고 {@code null} 을 돌려준다 —
-     * 부르는 쪽이 "덮어썼다" 고 착각하지 않게 하려는 것이다.
-     *
-     * <p>성별·나이는 DB 제약이 막으므로 여기서 미리 걸러 불필요한 예외를 만들지 않는다.
-     */
-    @Override
-    public MemoryEntry writeAsAgent(
-            UUID userId, ActorMemoryField field, String value, UUID sourcePracticeSessionId) {
-        if (!AgentMemoryWrites.allows(field.dbValue())) {
-            return null;
-        }
-        return upsert(userId, field, value, ActorMemoryAuthor.AGENT, sourcePracticeSessionId);
     }
 
     private MemoryEntry upsert(
@@ -582,85 +564,6 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 takes.add(stripped);
             }
         }
-    }
-
-    /**
-     * 기억 갱신 잡이 읽을 재료 (`store.py:get_memory_update_material`).
-     *
-     * <p><b>배우가 한 말만 담는다</b> — 코치가 한 말까지 넣으면 코치가 제안한 표현이
-     * 배우 본인의 말로 굳어 기억에 남는다.
-     */
-    @Override
-    public MemoryUpdateMaterial material(UUID practiceSessionId) {
-        List<MemoryUpdateMaterial> sessions = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT ps.user_id,ps.goal,ps.blockage_kind,ps.sub_branch,ps.blockage_detail,
-                    s.raw::text AS raw_json, s.observations_json::text AS observations_json,
-                    s.uncertainties_json::text AS uncertainties_json
-                FROM practice_sessions ps
-                LEFT JOIN summaries s ON s.session_id=ps.id
-                WHERE ps.id=:practiceSessionId AND ps.hidden_at IS NULL
-                """, Tuple.class)
-                .setParameter("practiceSessionId", practiceSessionId)).stream()
-                .map(row -> new MemoryUpdateMaterial(
-                        row.get("user_id", UUID.class),
-                        practiceSessionId,
-                        row.get("goal", String.class),
-                        row.get("blockage_kind", String.class),
-                        row.get("sub_branch", String.class),
-                        row.get("blockage_detail", String.class),
-                        List.of(),
-                        List.of(),
-                        quotations(row)))
-                .toList();
-        if (sessions.isEmpty()) {
-            return null;
-        }
-        List<String> transcripts = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT text AS text
-                FROM transcripts
-                WHERE session_id=:practiceSessionId
-                ORDER BY ord
-                """, Tuple.class)
-                .setParameter("practiceSessionId", practiceSessionId)).stream()
-                .map(row -> row.get("text", String.class))
-                .toList();
-        List<String> actorMessages = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT turn.text
-                FROM coach_turns turn
-                JOIN coach_sessions coach ON coach.id=turn.session_id
-                WHERE coach.practice_session_id=:practiceSessionId AND turn.role='actor'
-                ORDER BY turn.turn_index
-                """, Tuple.class)
-                .setParameter("practiceSessionId", practiceSessionId)).stream()
-                .map(row -> row.get("text", String.class))
-                .toList();
-        MemoryUpdateMaterial session = sessions.getFirst();
-        return new MemoryUpdateMaterial(
-                session.userId(), practiceSessionId, session.goal(), session.blockageKind(),
-                session.subBranch(), session.blockageDetail(), transcripts, actorMessages, session.quotations());
-    }
-
-    private List<String> quotations(Tuple row) {
-        try {
-            JsonNode pack = StoredObservationPack.read(
-                    observationJson(row.get("raw_json", String.class)),
-                    observationJson(row.get("observations_json", String.class)),
-                    observationJson(row.get("uncertainties_json", String.class)));
-            List<String> quotes = new ArrayList<>();
-            for (JsonNode observation : pack.path("observations")) {
-                JsonNode quote = observation.path("quote");
-                if (quote.isString() && !quote.stringValue(null).isBlank()) {
-                    quotes.add(quote.stringValue(null));
-                }
-            }
-            return List.copyOf(quotes);
-        } catch (JacksonException exception) {
-            throw new IllegalStateException("stored observation JSON could not be parsed", exception);
-        }
-    }
-
-    private JsonNode observationJson(String value) throws JacksonException {
-        return value == null ? null : mapper.readTree(value);
     }
 
     /** 셋 다 비어 있을 수 있다 — 첫 연습이 그렇다. */

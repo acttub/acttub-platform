@@ -182,24 +182,13 @@ public class AnalysisWorker {
         }
     }
 
-    public SweepResult sweep() {
+    /** 시도를 다 쓴 작업을 닫는다. 시한 지난 올리기 예약은 보관함의 주기 작업이 닫는다(practice.record). @return 닫은 작업 수 */
+    public int sweep() {
         return sweep(clock.instant());
     }
 
-    public SweepResult sweep(Instant now) {
-        List<String> expired = store.sweepExpiredUploads(now);
-        for (String objectKey : expired) {
-            try {
-                storage.delete(objectKey);
-            } catch (Exception exception) {
-                LOGGER.log(Level.WARNING,
-                        "expired upload object deletion failed: " + objectKey, exception);
-                failureReporter.report(
-                        exception,
-                        new FailureContext("AnalysisWorker.expiredUploadDeletion"));
-            }
-        }
-        return new SweepResult(expired.size(), store.sweepMaxAttempts(now));
+    public int sweep(Instant now) {
+        return store.sweepMaxAttempts(now);
     }
 
     public static String errorCode(Throwable exception) {
@@ -250,8 +239,5 @@ public class AnalysisWorker {
         String name = Path.of(objectKey).getFileName().toString();
         int dot = name.lastIndexOf('.');
         return dot > 0 && dot < name.length() - 1 ? name.substring(dot) : ".video";
-    }
-
-    public record SweepResult(int expiredUploads, int exhaustedOperations) {
     }
 }

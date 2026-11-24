@@ -13,13 +13,12 @@ import java.util.Deque;
 import java.util.List;
 
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
-import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-/** 한 번의 폴이 두 큐를 어떤 순서로 비우는지, 풀이 바쁘면 건너뛰는지 (practice.memory 「입력·출력」). */
+/** 한 번의 폴이 말 끊긴 회차를 본 뒤 큐를 비우는지, 풀이 바쁘면 건너뛰는지 (practice.memory 「입력·출력」). */
 class MemoryWorkerSchedulerDrainTest {
     private final List<String> calls = new ArrayList<>();
     private final ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
@@ -32,25 +31,24 @@ class MemoryWorkerSchedulerDrainTest {
     }
 
     @Test
-    void pollDrainsTheLegacyQueueThenSweepsIdleRoundsThenDrainsTheNewQueue() {
-        MemoryWorkerScheduler scheduler = scheduler(legacyWorker(true, true, false), actorWorker(true, false));
+    void pollSweepsIdleRoundsThenDrainsTheQueueAndSkipsWhileBusy() {
+        MemoryWorkerScheduler scheduler = scheduler(actorWorker(true, false));
         when(executor.getActiveCount()).thenReturn(1, 0);
 
         scheduler.poll();
         assertThat(calls).isEmpty();
 
         scheduler.poll();
-        assertThat(calls).containsExactly("legacy", "legacy", "legacy", "sweep", "actor", "actor");
+        assertThat(calls).containsExactly("sweep", "actor", "actor");
     }
 
     @Test
-    void withOnlyTheNewWorkerThePollSweepsAndDrainsIt() {
+    void withoutAWorkerThePollDoesNothing() {
         when(executor.getActiveCount()).thenReturn(0);
 
-        scheduler(null, actorWorker(false)).poll();
-        scheduler(null, null).poll();
+        scheduler(null).poll();
 
-        assertThat(calls).containsExactly("sweep", "actor");
+        assertThat(calls).isEmpty();
     }
 
     @Test
@@ -61,16 +59,6 @@ class MemoryWorkerSchedulerDrainTest {
                 .hasMessage("memory worker settings must be positive");
         assertThatThrownBy(() -> MemoryWorkerScheduler.memoryWorkerPollIntervalMillis(Double.NaN))
                 .hasMessage("memory worker settings must be positive");
-    }
-
-    private MemoryUpdateWorker legacyWorker(Boolean... results) {
-        Deque<Boolean> queue = new ArrayDeque<>(List.of(results));
-        MemoryUpdateWorker worker = mock(MemoryUpdateWorker.class);
-        when(worker.runOnce()).thenAnswer(invocation -> {
-            calls.add("legacy");
-            return queue.removeFirst();
-        });
-        return worker;
     }
 
     private ActorMemoryUpdateWorker actorWorker(Boolean... results) {
@@ -88,11 +76,9 @@ class MemoryWorkerSchedulerDrainTest {
     }
 
     @SuppressWarnings("unchecked")
-    private MemoryWorkerScheduler scheduler(MemoryUpdateWorker legacy, ActorMemoryUpdateWorker actor) {
-        ObjectProvider<MemoryUpdateWorker> legacyProvider = mock(ObjectProvider.class);
-        when(legacyProvider.getIfAvailable()).thenReturn(legacy);
+    private MemoryWorkerScheduler scheduler(ActorMemoryUpdateWorker actor) {
         ObjectProvider<ActorMemoryUpdateWorker> actorProvider = mock(ObjectProvider.class);
         when(actorProvider.getIfAvailable()).thenReturn(actor);
-        return new MemoryWorkerScheduler(legacyProvider, actorProvider, executor, new RecordingFailureReporter());
+        return new MemoryWorkerScheduler(actorProvider, executor, new RecordingFailureReporter());
     }
 }

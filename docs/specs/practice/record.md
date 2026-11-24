@@ -16,7 +16,6 @@
 | `POST /v2/videos/intents` | `X-Request-Id`(있으면 본문 request_id와 같아야 한다), 필수 `request_id`·`content_type`(video/mp4·video/quicktime)·`byte_size`·`duration_ms` (`VideoIntentRequest`) | `VideoIntent` 201(올릴 주소·만료 시각), 같은 요청 id는 같은 자리 | `video_too_large` 422, `video_too_long` 422, `video_quota` 422, `request_fingerprint_mismatch` 422, 그 밖의 형식 422(배열), `consent_required` 403 |
 | `POST /v2/videos/intents/{intent_id}/complete` | intent_id, 선택 본문 `{"face_mosaic": true}`(`VideoIntentCompleteRequest`, 없으면 예전과 같다. true 면 첫 질문용 미리 올리기를 시작하지 않는다 — [practice.start](start.md#규칙제약) 얼굴 가리기) | `Video` 201(새로 만듦)·200(재전송) | `upload_expired` 422, `video_not_ready` 422(아직 안 올라옴·크기 불일치), `video_quota` 422, `upload_intent_not_found` 404, `consent_required` 403 |
 | `UploadIntentSweepScheduler.run` (`UPLOAD_INTENT_SWEEP_INTERVAL_MS`, 기본 60초) | 시한이 지난 `pending` 예약(한 번에 200개씩, 없을 때까지) | 예약 `expired`, 미확정 객체 삭제를 장부(`object_delete`)에 올림 | 객체 삭제 실패는 장부가 다시 시도한다. 그 밖의 실패는 보고하고 다음 주기에 다시 돈다 |
-| `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 시한이 지난 `pending` 예약 | 예약 `expired`, 미확정 객체 삭제 | 객체 삭제 실패는 보고만 한다(열린 질문) |
 
 ## 상태
 upload_intents.status — 올릴 자리 예약.
@@ -55,7 +54,7 @@ videos — 보관함 영상 행.
   알린다.
 - 올리기는 지금의 세 구간(Upload Stage: 올릴 자리 받기 · 올리기 · 마무리)을 유지한다. 예약은 예약 장부(upload_intents)에 두고,
   마무리가 videos 행을 만든다. 마무리 재전송은 같은 영상을 돌려준다. 시한이 지났거나 총량을 넘어 거절한 마무리의 미확정 객체는
-  삭제 장부로 지운다. 마무리 없이 시한이 지난 예약은 정리 작업이 닫고 객체를 지운다(「열린 질문」). 형식은 MP4·MOV,
+  삭제 장부로 지운다. 마무리 없이 시한이 지난 예약은 정리 작업이 닫고 객체 삭제를 장부에 올린다. 형식은 MP4·MOV,
   길이 5분, 서버에 올리는 파일은 100MiB 이하다(720px로 줄인 업로드본, 압축 결과 크기를 기기가 검사, 서버도 실제 바이트·길이를
   검사). 원본은 서버에 두지 않는다. 한도 직전에 겹친 업로드 둘이 함께 한도를 넘지 못한다.
 - 총량은 계정당 회원 5GiB, 게스트 500MiB(videos.byte_size 합)이고 넘으면 새 업로드만 422 video_quota, 기존은 보존한다. 이관으로
@@ -71,7 +70,7 @@ videos — 보관함 영상 행.
   값을 검사해 422 video_too_large·video_too_long.
 - 총량 초과: 422 video_quota, 화면은 보관함 정리(영상 삭제 또는 "파일만 파기", practice.library)로 안내한다.
 - 마무리 전에 앱이 죽음: 올릴 자리는 30분 뒤 만료되고(422 upload_expired) 기기는 처음부터 다시 올린다. 확정되지 않은 것은
-  보관함에 없고 미확정 객체는 만료 뒤 정리 작업이 지운다(「열린 질문」).
+  보관함에 없고 미확정 객체는 만료 뒤 정리 작업이 장부로 지운다.
 - 마무리 응답만 유실: 같은 request_id로 다시 마무리하면 같은 영상이다.
 - 카메라 권한 거절: 갤러리 선택은 된다.
 
@@ -96,9 +95,3 @@ videos — 보관함 영상 행.
 
 ## 범위 밖
 - 원본 영상의 서버 보관. 서버에는 720px로 줄인 업로드본만 둔다.
-
-## 열린 질문
-- 시한 지난 예약을 닫는 길이 둘이다(SOMA-1140). 새 주기 작업(`UploadIntentSweepScheduler.run` → `VideoService.sweepExpiredIntents`)은
-  expired로 닫고 객체 삭제를 장부에 올린다. 옛 분석 워커의 정리(`AnalysisWorkerScheduler.sweep` → `PostgresAnalysisStore.sweepExpiredUploads`)는
-  객체를 장부 없이 바로 지우고, 삭제가 실패하면 다시 지우지 않는다. 옛 큐 워커를 지울 때까지 둘이 함께 돌며 한 예약은 한쪽만 닫는다
-  (새 쪽은 `FOR UPDATE SKIP LOCKED`, 옛 쪽은 `pending`인 행만 바꾼다). 옛 워커를 지우면 이 질문은 닫힌다.

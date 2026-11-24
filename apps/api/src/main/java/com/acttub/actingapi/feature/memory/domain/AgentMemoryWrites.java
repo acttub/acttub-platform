@@ -20,9 +20,4 @@ public final class AgentMemoryWrites {
 
     private AgentMemoryWrites() {
     }
-
-    /** 이 칸을 에이전트가 쓸 수 있는가. 인자는 DB 에 저장되는 값(`gender`·`goal` …)이다. */
-    public static boolean allows(String field) {
-        return FIELDS.contains(field);
-    }
 }
