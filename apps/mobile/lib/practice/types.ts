@@ -216,7 +216,7 @@ export type CoachConversation = {
   close_reason: 'user_ended' | 'limit' | 'exhausted' | 'system_failure' | null;
   created_at: string | null;
   revision: number;
-  /** 시작 응답을 포함한 코치 응답 수. 상한은 기존 갈래 8, 신형 10이다. */
+  /** 시작 응답을 포함한 코치 응답 수. 상한은 서버가 reply_limit으로 준다. */
   coach_reply_count: number;
   reply_limit: number;
   messages: CoachMessage[];
