@@ -5,30 +5,10 @@ Prometheus·PDC·호스트·DB health·백업 수집과 앱 로그 전송(Alloy)
 절차는 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md)다.
 앱 배포 스크립트와 Actions의 앱 파일 전송에는 이 프로젝트를 넣지 않는다.
 
-## 배경과 범위
+## 범위
 
-dev·운영의 요청량·오류·응답시간, 분석·코치·리포트 실행, 호스트·DB·백업 상태를 한곳에서 보고 Slack으로 알리려고
-둔다. Sentry와 Langfuse는 상세 조사용이다. 반복 보고 억제와 수신 누락이 있어 실제 실행량·실패율을 대신하지 않고,
-Langfuse 수치는 완전한 비용 정산 자료가 아니다.
-
-- 홈서버 Prometheus가 지표를 수집·저장하고, Grafana Cloud가 PDC(Private Data source Connect, 사설 데이터 소스
-  연결)로 그것을 직접 조회해 대시보드·규칙 평가·통지를 맡는다.
-- 감시를 홈서버에만 두면 전원·회선 장애 때 알림도 함께 멈춘다. 그래서 규칙 평가와 통지는 Cloud가 하고,
-  Cloud 외부 점검이 두 환경의 공개 접근을 따로 확인한다.
-- 추가 월 비용 없이 Grafana Cloud Free로 운영한다. 사람 계정과 권한은 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md#처음-한-번-사람이-준비하는-것)를
-  따른다.
-- 화면은 Cloud 계정 로그인으로 연다. 초기의 Tailscale 전용 화면 접근 결정은 이 방식으로 대체했고, Tailscale은
-  서버 관리·배포에 유지한다. PDC는 브라우저 접속을 Tailscale로 제한하는 기능이 아니다.
-- 선언 설정으로 교체할 수 있는 관측 구성이라 별도 ADR을 두지 않는다. 설계 이유는 이 절에 둔다. 로그를 서버 밖에
-  저장하는 것([ADR-038](../../docs/ADR.md#adr-038-앱-로그는-서버-밖-grafana-cloud-loki에-저장한다))과 Docker 소켓 프록시
-  예외([ADR-039](../../docs/ADR.md#adr-039-docker-소켓은-읽기-호출만-통과시키는-프록시-하나만-쥐고-alloy는-그-프록시로만-읽는다))만 ADR로 둔다.
-- 앱 로그는 지표와 달리 Grafana Cloud Loki에 저장한다. 구성은 [로그 전송](#로그-전송)이다.
-
-알아 둘 한계:
-
-- 홈서버·회선·PDC가 끊긴 동안에는 Cloud에서 로컬의 과거 지표도 조회할 수 없고 서비스 지표 평가도 실패한다.
-  그래서 데이터 소스 연결 오류와 외부 접속 점검을 따로 감시한다.
-- Cloud·Slack의 가용성은 각 제공자에 의존한다.
+설계 배경(Grafana Cloud Free·PDC를 고른 이유, 알아 둘 한계)은 팀 위키 `decisions/home-server-monitoring-design`에 있다.
+요금·점검 수·데이터 없음 처리의 근거는 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md)에 있다.
 
 하지 않는 것:
 
@@ -44,22 +24,9 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
 - Cloud·Slack 자체 장애의 독립 감시, 유료 플랜·유료 사용자 추가
 - 운영 데이터 변경이나 운영 서버 전원 차단을 기본 검증 절차로 쓰는 것
 
-설계 근거: [PDC 공식 안내](https://grafana.com/blog/unify-and-query-private-network-data-in-grafana-cloud-private-data-source-connect-is-now-ga/),
-[PDC 문서](https://grafana.com/docs/grafana-cloud/observe-and-act/connect-externally-hosted/private-data-source-connect/).
-요금·점검 수·데이터 없음 처리의 근거는 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md)에 있다.
-
 ## 구성
 
-| 서비스 | 접근 범위 |
-|---|---|
-| Prometheus | 전용 조회망·수집기망·선택한 환경의 수집망 |
-| PDC | 전용 조회망만. OpenSSH 모드로 전달 목적지 `prometheus:9090`만 허용 |
-| node exporter | 수집기망, `/proc`·`/sys`·호스트 루트 읽기 전용 |
-| DB health·백업 exporter | 각각 환경별 수집망·수집기망, 또는 수집기망만 |
-| Alloy(`logs`를 켰을 때만) | Cloud로 나가는 전용 로그망과 내부 `docker-api` 망. 소켓 없음, 이미지의 비root 사용자(473)에 호스트 `systemd-journal` 그룹만 더해 `/var/log/journal` 읽기 전용, 자체 HTTP는 컨테이너 안 `127.0.0.1:12345` |
-| socket-proxy(`logs`를 켰을 때만) | 내부 `docker-api` 망만. Docker 소켓 읽기 전용 bind, `alloy`에서 온 허용 목록의 읽기 호출만 통과 |
-
-모든 이미지는 [compose.yml](compose.yml)·[compose.logs.yml](compose.logs.yml)에 버전과 SHA-256 digest를 함께 고정했다.
+서비스마다 붙는 망과 권한, 이미지 버전·digest는 [compose.yml](compose.yml)·[compose.logs.yml](compose.logs.yml)이 정한다.
 Prometheus는 **30초**마다 수집하고(`manage.py`가 렌더하는 `scrape_interval`) `metrics` 볼륨에 **30일**
 보관한다(`compose.yml`의 `retention.time`, `check`가 대조한다). 다른 문서는 이 두 값을 여기서 가리킨다.
 `retention_size`는 필수이며 실측하지 않은 기본 용량을 운영값으로 넣지 않는다. 용량 상한이 먼저 적용되면
@@ -219,22 +186,17 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
 - 표시(label)는 `environment`(`dev`·`prod`, 지표의 같은 이름 label과 같은 값)와 `service`뿐이다. 호스트 저널은 dev·운영이
   나뉘지 않아 호스트 지표처럼 `environment="shared"`이고 `service`는 `kernel`·`docker.service`다. Cloud가 `service`로
   `service_name`을 더한다. 요청 ID·사용자 ID처럼 값이 많은 것은 label로 만들지 않고 줄 안에서 찾는다.
-- 줄 형식은 [홈서버 배포 「로그」](../../docs/deploy/DEPLOY-HOME.md#로그)가 정한다(nginx·api 모두 한 줄 JSON). 그 전의
-  일반 글자 줄도 같은 규칙으로 다룬다. `trace_id`·`user_id`는 줄 안의 값으로만 남는다.
-- 버리는 줄: 경로가 `/health`·`/actuator`인 요청 줄(nginx `path`, api `route`, 일반 글자 `GET /health …`). 외부 점검이
-  1분마다 부른다.
-- 지우는 것: 일반 글자 요청 줄과 nginx error 줄(`request`·`upstream`·`referrer`)의 쿼리 문자열. 검색어와 콜백 키가 실린다.
-  JSON 요청 줄의 `path`에는 nginx가 쿼리를 싣지 않는다.
-- 가리는 값: `Bearer` 뒤 값, JWT 모양 값, 주소나 줄 안 `이름=값`의 `token`·`code`·`state`·`key`·`secret`·`password`·서명 값과 S3
-  서명(`X-Amz-*`), JSON의 `password`·`token`·`secret`·`authorization`·`cookie` 같은 키 값은 `[REDACTED]`로,
-  이메일은 `[EMAIL]`로 바꾼다. 64KiB가 넘는 줄은 자른다. 이 규칙은 정해진 모양만 잡으므로 로그에 개인정보를 쓰지 않는
-  것이 먼저다.
+- 줄은 nginx·api 모두 한 줄 JSON이다. nginx 필드는 [`deploy/home/proxy/nginx.conf`](../home/proxy/nginx.conf)의
+  `log_format proxy`, api 필드는 logstash 형식과 [홈서버 배포 「로그」](../../docs/deploy/DEPLOY-HOME.md#로그)가 가리키는 코드가 정한다.
+  `trace_id`·`user_id`는 줄 안의 값으로만 남는다.
+- 버리는 줄(`/health`·`/actuator` 요청), 지우는 쿼리 문자열, `[REDACTED]`·`[EMAIL]`로 가리는 값, 줄 길이 상한은
+  [config.alloy](config.alloy)가 정한다. 가림은 정해진 모양만 잡으므로 로그에 개인정보를 쓰지 않는 것이 먼저다.
 - 읽은 위치(컨테이너·저널)는 `alloy-data` 볼륨에 남아 Alloy를 다시 띄워도 이어 읽는다. 처음 켜면 이미 떠 있는 컨테이너의 남은 로그
   파일(앱은 20MB씩 5개)을 처음부터 읽지만, 6.5일(`156h`)보다 오래된 줄은 보내기 전에 버린다. Cloud Loki가 7일보다 오래된
   줄을 400으로 거절하고 그 묶음 전체를 재시도 없이 버리기 때문이다(배포 때 다시 만들지 않는 `proxy`의 로그가 몇 주 치 남아
   있다). 그래서 처음 켠 직후에도 최근 줄이 늦지 않고, Alloy 로그에 `final error sending batch`가 나오지 않아야 한다.
-- Cloud가 끊기면 보내지 못한 묶음은 메모리 큐(기본 10MiB)에 쌓이고 큐가 차면 읽기를 멈춘다. 묶음마다 최대 10번,
-  간격을 늘려 최대 5분까지 재시도한 뒤 버린다. 메모리 상한은 256MiB이고 Alloy가 그 90%를 Go 메모리 목표로 쓴다.
+- Cloud가 끊기면 보내지 못한 묶음은 메모리 큐에 쌓이고, 재시도를 다 쓰면 버린다. 재시도 값과 메모리 상한은 config.alloy와
+  compose.logs.yml이 정한다.
 
 끄기: `logs`를 뺀 설정으로 새 릴리스를 렌더·적용한다. `apply`가 고아 컨테이너를 지우므로 Alloy와 socket-proxy가 멈춘다. `logs`가
 없던 이전 릴리스로 `rollback`해도 같다. 위치 볼륨은 지우지 않으므로 다시 켜면 이어 읽는다.
@@ -312,33 +274,11 @@ DB 점검 컨테이너의 CPU 상한은 짧은 프로세스 초기화가 실행 
 경과 시간은 성공 시각으로 Cloud 규칙이 따로 평가한다(기준은 [DEPLOY-HOME §5](../../docs/deploy/DEPLOY-HOME.md#5-자동-백업과-복원-검증)).
 오류 원문·객체 주소·해시·토큰은 지표/label/로그에 넣지 않는다.
 
-## 자동 검증과 남은 운영 검증
+## 자동 검증
 
-```bash
-python3 -m unittest discover -s deploy/monitoring/tests -v
-deploy/home/deploy-test.sh
-
-# 앱 스모크의 이미지 빌드·검사(1·2 단계)만 돌리고 재사용 태그를 만든다. CI 의 smoke-monitoring 잡과 같다.
-SMOKE_BUILD_ONLY=1 SMOKE_EXPORT_API_IMAGE=acttub-api:monitoring-ci \
-SMOKE_EXPORT_WEB_IMAGE=acttub-web:monitoring-ci deploy/home/smoke.sh
-
-# 앱을 재빌드하지 않는다. 운영/Cloud 자격증명 없이 격리 프로젝트만 만든다.
-MONITORING_SMOKE_API_IMAGE=acttub-api:monitoring-ci \
-MONITORING_SMOKE_WEB_IMAGE=acttub-web:monitoring-ci deploy/monitoring/smoke.sh
-```
-
-통합 스모크는 실제 앱 배포·Prometheus scrape·관리 인증·공개 경로 차단·DB 장애/복구·root `600`
-상태 읽기·네트워크 차단·과거 지표 영속·모니터링 중단 중 앱 배포·재적용/복구를 확인한다.
-운영 토큰·수집망·백업 볼륨이 없는 DEV 전용 적용부터 시작해, 두 환경으로 확장하고 DEV 전용으로
-복구한 뒤에도 이전 지표가 남고 운영 앱 컨테이너가 유지되는지 검사한다.
-PDC의 실제 OpenSSH remote SOCKS 전달도 임시 SSH 서버에서 검사한다. Prometheus HTTP는 통과하고
-다른 호스트와 포트는 거부되어야 한다. 외부 터널 상대만 대체하며 Cloud API나 Slack을 부르지 않는다.
-테스트가 만든 고유 `soma520-*` 컨테이너·볼륨만 정리하며 재사용 앱 이미지 태그는 남긴다.
-
-별도 실제 홈서버에서 node의 CPU·`MemAvailable`·데이터 filesystem·디스크 쓰기 값을 `/proc/stat`,
-`/proc/meminfo`, `df`, `/proc/diskstats`와 대조하고 30일 예상 저장량·여유 공간을 확인한다. 실제 Cloud/PDC 조회,
-세 계정 권한·Free 사용량·Slack 최초/반복/복구 수신도 확인해야 한다. 로컬 테스트 통과는 이 운영
-검증의 완료를 의미하지 않는다.
+저장소 안의 검사(단위 테스트, `deploy-test.sh`, 통합 스모크)와 순서는 `.github/workflows/ci.yml`의 `smoke-monitoring` 잡이 정본이다.
+로컬에서는 그 잡의 명령을 그대로 돌린다. 로컬 통과는 실제 홈서버·Cloud 확인을 대신하지 않는다. 실제 확인 목록은
+[MONITORING-CLOUD 「실제 stack 인수 검증 기록」](../../docs/deploy/MONITORING-CLOUD.md#실제-stack-인수-검증-기록)이다.
 
 설정 근거: [Grafana PDC 목적지 제한](https://grafana.com/docs/grafana-cloud/observe-and-act/connect-externally-hosted/private-data-source-connect/scalability-and-security/),
 [PDC 0.0.64 소스](https://github.com/grafana/pdc-agent/tree/v0.0.64),
