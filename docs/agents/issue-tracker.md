@@ -71,21 +71,12 @@ GitHub Issues는 외부 제보용 인박스입니다. 참고 자료로 읽을 �
 
 외부 PR은 트리아지 큐로 쓰지 않습니다.
 
-## Wayfinding을 Jira에 적용할 때
-
-- **map**은 Jira Epic 하나이며, Notes / Decisions-so-far / Fog는
-  `.scratch/<에픽키>.md`에 둡니다.
-- **child**는 그 파일의 항목이고 종류(`research` / `prototype` / `grilling` / `task`)와
-  blocking 선행 관계를 함께 기록합니다.
-- Epic 상태는 사람이 정합니다. 에이전트는 다음 후보를 제안하고, 해결된 결정은
-  Decisions-so-far에 한 줄로 남깁니다.
-
 ## Atlassian MCP 연결
 
 이슈를 만들려면 Atlassian MCP가 연결돼 있어야 합니다. 없으면 아래로 등록합니다.
 
 ```bash
-claude mcp add --scope user --transport http atlassian https://mcp.atlassian.com/v1/mcp/authv2
+claude mcp add --scope user --transport http atlassian https://mcp.atlassian.com/v2/mcp
 ```
 
 인증은 세션에서 `/mcp` → `atlassian` → 브라우저 OAuth로 진행하고,
