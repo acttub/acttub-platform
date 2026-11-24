@@ -113,20 +113,6 @@ public final class DirectVideoCoach {
      * 맞춤 코칭이 공통 지시를 고쳐 쓰는 대화는 옮기지 않는다. 끄면 예전과 같다.
      */
     private boolean staticRulesInPrefix = false;
-    /**
-     * 둘째 답부터 매 턴 같은 두 칸, 근본 문제를 푸는 길(근본 문제 종류마다 고정 파일)과 예시 답 칸을 이번 답 지시에서 고정 앞부분 끝으로
-     * 옮긴다. 암묵 캐시는 앞부분이 약 2,048토큰 단위로 같을 때만 걸려서, 공통 앞부분을 두 번째 단위(4,096)까지 늘리려는 것이다.
-     * 문구는 그대로다. 적용 범위는 {@link #staticRulesInPrefix}와 같다. 끄면 예전과 같다.
-     * 11/23 로컬 재생(6회차): 4,096 적중은 후속 답 11번에 걸렸지만, 정리 단계 6번 중 3번에서 생각이 2.9~3.9K 토큰으로 늘어
-     * (두 번은 출력 한도로 다시 씀) 판 평균이 오히려 늘었다. 원인이 확인되기 전에는 켜지 않는다.
-     */
-    private boolean rootInPrefix = false;
-    /**
-     * 무료 배우의 영상이 붙지 않는 연습 루프 후속 답을 쓸 모델(비용). null 이면 지금처럼 코치 모델이다. 첫 답·새 영상의 첫 답·
-     * Pro·영상이 붙는 답은 그대로다. 빈 답·깨진 글·시간 표기로 다시 쓰는 호출도 이 모델이고, 다시 써도 비거나 깨지면 기본 모델로
-     * 한 번 더 쓴다(비교 모델과 같은 길).
-     */
-    private DirectVideoModel followupModel;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -248,18 +234,6 @@ public final class DirectVideoCoach {
     /** 둘째 답부터의 공통 지시를 고정 앞부분으로 옮길지. */
     public DirectVideoCoach withStaticRulesInPrefix(boolean enabled) {
         this.staticRulesInPrefix = enabled;
-        return this;
-    }
-
-    /** 근본 문제를 푸는 길과 예시 답 칸도 고정 앞부분으로 옮길지. */
-    public DirectVideoCoach withRootInPrefix(boolean enabled) {
-        this.rootInPrefix = enabled;
-        return this;
-    }
-
-    /** 무료 배우의 영상 없는 후속 답 모델. null 이면 지금처럼 코치 모델이다. */
-    public DirectVideoCoach withFollowupModel(DirectVideoModel followupModel) {
-        this.followupModel = followupModel;
         return this;
     }
 
@@ -580,23 +554,17 @@ public final class DirectVideoCoach {
                 String turnRules = DirectVideoPrompts.practiceLoopTurn(language, evidence);
                 // 회차 안에서 바뀌지 않는 칸은 켜면 고정 앞부분 끝으로 옮긴다. 영상이 붙지 않는 무료 배우의 답만 옮긴다 —
                 // Pro 나 영상이 붙는 답은 예전과 바이트까지 같다. 맞춤 코칭이 공통 지시를 고쳐 쓰는 대화도 옮기지 않는다.
-                boolean movable = (staticRulesInPrefix || rootInPrefix) && stablePrefix && uploaded == null
+                boolean rulesInPrefix = staticRulesInPrefix && stablePrefix && uploaded == null
                         && !(coaching != null && koreanTurn) && freeActor(session.userId());
-                boolean rulesInPrefix = staticRulesInPrefix && movable;
-                boolean rootMoved = rootInPrefix && movable;
-                String common = (rulesInPrefix ? "" : turnRules + "\n\n") + branch.instruction(language, stepTask, !rootMoved)
+                String common = (rulesInPrefix ? "" : turnRules + "\n\n") + branch.instruction(language, stepTask)
                         + DirectVideoPrompts.flowBlock(flow, language);
                 if (coaching != null && koreanTurn) common = coaching.turnTask(coaching.withoutNeverSay(common));
                 // 질문 아래 예시 답 1~2개(숨은 <보기>). 성격 글은 늘 맨 끝에 둔다.
-                task = common + (rootMoved ? "" : AnswerExamples.INSTRUCTION) + personaBlock(persona, profile, language);
+                task = common + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language);
                 // 자문위원과 맞춤 코칭 배우 모두 "어때요?" 예문을 뺀다(SOMA-795 재생 v2: 맞춤 코칭 배우에게 "~해 보는 건 어때요?"가 남았다).
                 // 성격이 없는 배우(맞춤 코칭 없음)의 할 일 파일은 그대로다.
                 if (!persona.isEmpty()) task = DirectVideoPrompts.withoutHowAbout(task);
-                // 이번 답 지시에 실릴 때와 같은 글자로 옮긴다(줄마다 앞뒤 공백을 떼고 빈 줄을 뺀다, PracticeLoopRouter.instruction).
-                String root = rootMoved ? DirectVideoPrompts.practiceLoopRoot(branch.rootField(), language).lines()
-                        .map(String::strip).filter(line -> !line.isEmpty()).collect(java.util.stream.Collectors.joining("\n")) : "";
-                String moved = (rulesInPrefix ? turnRules + "\n\n" : "")
-                        + (rootMoved ? (root.isEmpty() ? "" : root + "\n\n") + AnswerExamples.INSTRUCTION.strip() + "\n\n" : "");
+                String moved = rulesInPrefix ? turnRules + "\n\n" : "";
                 prefixRules = persona.isEmpty() ? moved : DirectVideoPrompts.withoutHowAbout(moved);
                 task = task + DirectVideoPrompts.openingTurnBlock(opening, language);
                 boolean korean = language == null || "ko".equals(language.getLanguage());
@@ -700,8 +668,6 @@ public final class DirectVideoCoach {
             // 답장(첫 질문이 아닌 턴)은 생각을 최소로 쓴다(SOMA-780). 첫 질문·분류·정리 노트는 그대로 LOW 다.
             final ReplyTrace trace = replyTrace.sibling(followUpMinimalThinking && !session.turns().isEmpty());
             replyTrace = trace;
-            // 무료 배우의 영상 없는 연습 루프 후속 답은 켜면 후속 답 모델로 쓴다. 생각 단계는 위 trace 를 그대로 따른다.
-            if (followupModel != null && branch != null && uploaded == null && freeActor(session.userId())) speaker = followupModel;
             ExternalOperationExecution.externalCall("model");
             String message = streaming ? streamOrNull(speaker, uploaded, history, prompt, visible, trace)
                     : replyOrNull(speaker, uploaded, history, prompt, loop, trace);
@@ -1229,15 +1195,10 @@ public final class DirectVideoCoach {
         }
 
         String instruction(java.util.Locale language, String task) {
-            return instruction(language, task, true);
-        }
-
-        /** @param withRoot 거짓이면 근본 문제를 푸는 길을 빼고 준다(고정 앞부분으로 옮긴 경우, rootInPrefix). */
-        String instruction(java.util.Locale language, String task, boolean withRoot) {
             // 쉽게 묻기는 이번에 알아낼 것(다음 단계의 목표)을 함께 준다.
             String withGoal = PracticeLoopRouter.EASY.equals(doing) ? task + "\n  이번에 알아낼 것: " + PracticeLoopRouter.easyGoal(before) : task;
             // 첫 응답이 찾은 근본 문제와 그 문제를 푸는 길을 매 턴 함께 준다.
-            String root = withRoot ? DirectVideoPrompts.practiceLoopRoot(rootField, language) : "";
+            String root = DirectVideoPrompts.practiceLoopRoot(rootField, language);
             if (!root.isEmpty()) withGoal = withGoal + "\n\n" + root;
             // 정리 뒤 한 번 답하는 말이면 단계 질문으로 돌아가지 않는다 — 배우가 답하면 바로 닫히기 때문이다.
             // 정리 뒤 내려놓기는 마지막 말이 아니다. 배우 해석을 묻는 질문이라 "질문하지 않는다"는 마지막 말 지시를 붙이지 않는다.

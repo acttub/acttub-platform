@@ -147,10 +147,6 @@ class DirectVideoCoachCostSwitchesTest {
         return session;
     }
 
-    static String fixedOf(String prompt) {
-        return prompt.substring(0, prompt.indexOf(DirectVideoModel.TURN_BOUNDARY));
-    }
-
     @Test void staticRulesMoveIntoTheFixedPartUnchanged() {
         String rules = DirectVideoPrompts.practiceLoopTurn() + "\n\n";
         String before = promptWithoutVideo(freeNoVideo(), later(), "문을 막았어");
@@ -179,89 +175,19 @@ class DirectVideoCoachCostSwitchesTest {
         assertThat(plainOn).isEqualTo(plain).doesNotContain(DirectVideoModel.TURN_BOUNDARY);
     }
 
-    @Test void rootAndExamplesMoveIntoTheFixedPartAndStayTheSame() {
-        // 이번 답 지시에 실리는 모양(줄마다 앞뒤 공백을 떼고 빈 줄을 뺀다).
-        String root = DirectVideoPrompts.practiceLoopRoot("2 목적성이 안 보인다", null).lines().map(String::strip)
-                .filter(line -> !line.isEmpty()).collect(java.util.stream.Collectors.joining("\n"));
-        assertThat(root).isNotEmpty();
-        String before = promptWithoutVideo(freeNoVideo(), withRoot(later()), "문을 막았어");
-        assertThat(before.substring(before.indexOf(DirectVideoModel.TURN_BOUNDARY))).contains(root, "[예시 답 칸]");
-
-        var coach = freeNoVideo().withStaticRulesInPrefix(true).withRootInPrefix(true);
-        String moved = promptWithoutVideo(coach, withRoot(later()), "문을 막았어");
-        String movedLater = promptWithoutVideo(freeNoVideo().withStaticRulesInPrefix(true).withRootInPrefix(true),
-                withRoot(f.session("누구를 봤어요?", "엄마를 봤어", "그때 엄마가 뭘 했어요?", "문을 막았어", "막고 뭘 했어요?")), "울었어");
-        String rules = DirectVideoPrompts.practiceLoopTurn() + "\n\n";
-        String fixed = fixedOf(moved);
-        String turn = moved.substring(moved.indexOf(DirectVideoModel.TURN_BOUNDARY));
-        // 공통 지시 → 근본 문제를 푸는 길 → 예시 답 칸 순서로 고정 앞부분 끝에 붙는다. 문구는 그대로다.
-        assertThat(fixed).isEqualTo(fixedOf(before) + rules + root + "\n\n" + AnswerExamples.INSTRUCTION.strip() + "\n\n");
-        // 이번 답 지시는 옮긴 칸만 빠졌다.
-        String beforeTurn = before.substring(before.indexOf(DirectVideoModel.TURN_BOUNDARY))
-                .replace(DirectVideoModel.TURN_BOUNDARY + rules, DirectVideoModel.TURN_BOUNDARY)
-                .replace("\n" + root, "").replace(AnswerExamples.INSTRUCTION, "");
-        assertThat(turn).isEqualTo(beforeTurn).doesNotContain("[예시 답 칸]");
-        // 고정 앞부분은 후속 답마다 바이트까지 같다.
-        assertThat(fixedOf(movedLater)).isEqualTo(fixed);
-    }
-
     @Test void proOrVideoRepliesAreByteForByteUnchangedWithTheSwitchesOn() {
         // Pro: 영상 빼기를 켜도 영상이 붙고, 옮기기를 켜도 예전 지시문과 같다.
         String proBefore = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true)
                 .withProMemory(userId -> true, CoachProMemory.NONE), withRoot(later()), "문을 막았어");
         String proOn = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true).withFreeVideoFirstOnly(true)
-                .withStaticRulesInPrefix(true).withRootInPrefix(true)
+                .withStaticRulesInPrefix(true)
                 .withProMemory(userId -> true, CoachProMemory.NONE), withRoot(later()), "문을 막았어");
         assertThat(proOn).isEqualTo(proBefore);
         // 무료라도 영상이 붙는 답(영상 빼기 꺼짐)은 그대로다.
         String videoBefore = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true), withRoot(later()), "문을 막았어");
         String videoOn = f.prompt(f.coach(DirectVideoCoachCostTest.counting()).withStablePrefix(true)
-                .withStaticRulesInPrefix(true).withRootInPrefix(true), withRoot(later()), "문을 막았어");
+                .withStaticRulesInPrefix(true), withRoot(later()), "문을 막았어");
         assertThat(videoOn).isEqualTo(videoBefore);
-    }
-
-    // ---- 5. 무료 영상 없는 후속 답 모델 ----
-
-    DirectVideoModel lite() {
-        DirectVideoModel lite = mock(DirectVideoModel.class);
-        when(lite.model()).thenReturn("gemini-3.1-flash-lite");
-        when(lite.reply(isNull(), anyList(), anyString())).thenReturn(DirectVideoCoachCostTest.REPLY);
-        return lite;
-    }
-
-    @Test void aFreeFollowUpWithoutTheVideoGoesToTheFollowUpModel() {
-        DirectVideoModel lite = lite();
-        freeNoVideo().withFollowupModel(lite).turn(later(), "문을 막았어", UUID.randomUUID());
-        verify(lite).reply(isNull(), anyList(), anyString());
-        verify(model, never()).reply(any(), anyList(), anyString());
-        assertThat(f.lastTurn().model()).isEqualTo("gemini-3.1-flash-lite");
-    }
-
-    @Test void anEmptyFollowUpIsRewrittenByTheFollowUpModelThenByTheDefaultModel() {
-        DirectVideoModel lite = lite();
-        when(lite.reply(isNull(), anyList(), anyString())).thenReturn("");
-        when(lite.replyLight(isNull(), anyList(), anyString())).thenReturn("");
-        when(model.reply(isNull(), anyList(), anyString())).thenReturn(DirectVideoCoachCostTest.REPLY);
-        freeNoVideo().withFollowupModel(lite).turn(later(), "문을 막았어", UUID.randomUUID());
-        // 처음 답과 빈 답 다시 쓰기는 후속 답 모델, 가볍게 한 번 더도 후속 답 모델, 그래도 비면 기본 모델이 한 번 쓴다.
-        verify(lite, times(2)).reply(isNull(), anyList(), anyString());
-        verify(lite).replyLight(isNull(), anyList(), anyString());
-        verify(model, times(1)).reply(isNull(), anyList(), anyString());
-    }
-
-    @Test void theFollowUpModelLeavesProVideoAndFirstRepliesAlone() {
-        DirectVideoModel lite = lite();
-        // Pro: 영상 빼기를 켜도 영상이 붙고 기본 모델이 쓴다.
-        f.coach(DirectVideoCoachCostTest.counting()).withFreeVideoFirstOnly(true).withFollowupModel(lite)
-                .withProMemory(userId -> true, CoachProMemory.NONE).turn(later(), "문을 막았어", UUID.randomUUID());
-        // 무료라도 영상이 붙는 후속 답(영상 빼기 꺼짐)은 기본 모델이다.
-        f.coach(DirectVideoCoachCostTest.counting()).withFollowupModel(lite).turn(later(), "문을 막았어", UUID.randomUUID());
-        // 첫 답도 기본 모델이다.
-        f.coach(DirectVideoCoachCostTest.counting()).withFreeVideoFirstOnly(true).withFollowupModel(lite)
-                .turn(f.session(), null, UUID.randomUUID());
-        verify(lite, never()).reply(any(), anyList(), anyString());
-        verify(lite, never()).replyStream(any(), anyList(), anyString(), any());
-        verify(model, times(3)).reply(eq(f.file), anyList(), anyString());
     }
 
     @Test void theFirstReplyIsUnchangedAndStillSeesTheVideo() {

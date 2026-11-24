@@ -198,7 +198,7 @@ class GeminiDirectVideoModelHttpTest {
         assertThat(bodies).extracting(body -> LenientJson.asText(body.path("generationConfig").path("thinkingConfig").path("thinkingLevel")))
                 .containsExactly("MINIMAL", "LOW", "LOW", "LOW");
         assertThat(GeminiDirectVideoModel.minimalThinking(null)).isFalse();
-        // 3.1 Flash-Lite 는 MINIMAL 을 받는다(후속 답 모델).
+        // 3.1 Flash-Lite 는 MINIMAL 을 받는다.
         assertThat(GeminiDirectVideoModel.minimalThinking("gemini-3.1-flash-lite")).isTrue();
     }
 
