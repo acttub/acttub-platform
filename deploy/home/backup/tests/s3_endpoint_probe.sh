@@ -45,11 +45,14 @@ printf 'probe' > "$work/small"
 aws s3 cp "$work/small" "s3://$BACKUP_S3_BUCKET/$prefix/sse" --only-show-errors --sse AES256 $opts >/dev/null 2>&1
 echo "INFO --sse AES256 올리기 종료 코드 $? (0 이면 받아 줌, 아니면 거절)"
 
-# shellcheck disable=SC2086
-aws s3 rm "s3://$BACKUP_S3_BUCKET/$prefix/" --recursive --only-show-errors $opts >/dev/null 2>&1
-code=$?
-# shellcheck disable=SC2086
-aws s3api head-object --bucket "$BACKUP_S3_BUCKET" --key "$prefix/backup.dump" $opts >/dev/null 2>&1 && code=1
+# 목록 조회(ListObjects) 없이 이번에 쓴 키만 하나씩 지운다. 토큰에 객체 권한만 있어도 된다.
+code=0
+for key in backup.dump sse; do
+  # shellcheck disable=SC2086
+  aws s3api delete-object --bucket "$BACKUP_S3_BUCKET" --key "$prefix/$key" $opts >/dev/null 2>&1 || code=1
+  # shellcheck disable=SC2086
+  aws s3api head-object --bucket "$BACKUP_S3_BUCKET" --key "$prefix/$key" $opts >/dev/null 2>&1 && code=1
+done
 result $code "04 정리: _probe/ 아래 이번 객체 지움"
 rm -rf "$work"
 exit $failed
