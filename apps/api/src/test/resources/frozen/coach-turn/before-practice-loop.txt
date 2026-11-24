@@ -1,0 +1,139 @@
+
+## 차례 1
+배우 말: 잘 모르겠어요
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 null
+  ← true
+[3] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |말끝을 가볍게 던진 선택이 보여요. 장난스럽게 겁주려는 건가요?
+    [user]
+      |네 겁주려고요
+    [model]
+      |그 마음이 끝까지 가요?
+    [user]
+      |잘 모르겠어요
+  지시문:
+    |⟪direct-video/classifier.txt⟫
+  분류 목록: [intention, correction, unsure, method, acknowledgement, other]
+  ← «{"signals":["unsure"]}»
+[4] reply · main
+  생각 최소: true
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |말끝을 가볍게 던진 선택이 보여요. 장난스럽게 겁주려는 건가요?
+    [user]
+      |네 겁주려고요
+    [model]
+      |그 마음이 끝까지 가요?
+    [user]
+      |잘 모르겠어요
+  지시문:
+    |⟪direct-video/common.txt⟫
+    |
+    |⟪direct-video/unsure.txt⟫
+  ← «겁주려는 마음이 끝까지 가요. 마지막 대사에서 상대를 봐요.»
+[5] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.direct.classifier
+    |⟪direct-video/classifier.txt⟫
+  metadata:
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.direct.unsure
+    |⟪direct-video/common.txt⟫
+    |
+    |⟪direct-video/unsure.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=unsure
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=4200
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 4
+코치 말:
+  |겁주려는 마음이 끝까지 가요. 마지막 대사에서 상대를 봐요.
+저장 상태:
+  |{
+  |  "revision" : 4,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ]
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: []

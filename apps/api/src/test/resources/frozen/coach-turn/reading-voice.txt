@@ -1,0 +1,716 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «reading voice bytes»
+  형식: audio/wav
+  검사: null
+  이름표: null
+  ← files/main-1 gemini://main-1 audio/wav 소리 트랙 null
+[2] ready · main
+  영상: files/main-1 gemini://main-1 audio/wav 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 audio/wav 소리 트랙 null
+  기록:
+    (비었음)
+  지시문:
+    |[리딩 녹음]
+    |[대본]
+    |1. 민수(내 대사, 녹음 1): 가지 마, 제발.
+    |2. 지혜(상대 대사): 이미 늦었어.
+    |[소리 안 줄별 시간] 내 대사 녹음을 대본 순서대로 이었다.
+    |- 녹음 1: 0:00~0:02 "가지 마, 제발."
+    |[서버가 잰 소리]
+    |- 녹음 1: 다른 대사들보다 빨라요 (rate)
+    |
+    |
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/reading/mode.txt⟫
+    |
+    |⟪direct-video/purpose/reading/first.txt⟫
+  ← «<설계>⏎입력: 리딩 녹음 (음성만)⏎고른 소리: 녹음 1 빨라요⏎</설계>⏎<코치>⏎"가지 마"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?⏎</코치>⏎<보기>⏎남아 줄게⏎미안해⏎</보기>»
+[4] delete · main
+  영상: files/main-1 gemini://main-1 audio/wav 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.reading
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/reading/mode.txt⟫
+    |
+    |⟪direct-video/purpose/reading/first.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:reading
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=0
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |[]
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |"가지 마"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "입력: 리딩 녹음 (음성만)\n고른 소리: 녹음 1 빨라요",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "reading",
+  |    "step" : 0,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 1,
+  |    "lines" : [ ],
+  |    "choices" : [ {
+  |      "label" : "남아 줄게",
+  |      "at" : null
+  |    }, {
+  |      "label" : "미안해",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ]
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=reading, step=hear, choices=[Choice[label=남아 줄게, at=null], Choice[label=미안해, at=null], Choice[label=잘 모르겠어요, at=null]], scene=null, lines=[], card=null, characterCard=null]
+화면의 예시 답: []
+
+## 차례 2
+배우 말: 남아 줄게
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «reading voice bytes»
+  형식: audio/wav
+  검사: null
+  이름표: null
+  ← files/main-2 gemini://main-2 audio/wav 소리 트랙 null
+[2] ready · main
+  영상: files/main-2 gemini://main-2 audio/wav 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-2 gemini://main-2 audio/wav 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |입력: 리딩 녹음 (음성만)
+      |고른 소리: 녹음 1 빨라요
+      |</설계>
+      |<코치>
+      |"가지 마"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?
+      |</코치>
+    [user]
+      |남아 줄게
+  지시문:
+    |[리딩 녹음]
+    |[대본]
+    |1. 민수(내 대사, 녹음 1): 가지 마, 제발.
+    |2. 지혜(상대 대사): 이미 늦었어.
+    |[소리 안 줄별 시간] 내 대사 녹음을 대본 순서대로 이었다.
+    |- 녹음 1: 0:00~0:02 "가지 마, 제발."
+    |[서버가 잰 소리]
+    |- 녹음 1: 다른 대사들보다 빨라요 (rate)
+    |
+    |
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |⟪direct-video/purpose/reading/mode.txt⟫
+    |
+    |[이번 응답]
+    |목적: 리딩 녹음 코칭
+    |이번 응답이 하는 단계: 그 대사에서 해 볼 것
+    |⟪direct-video/purpose/reading/try.txt⟫
+    |
+    |⟪direct-video/purpose/reading/path.txt⟫
+    |
+    |재료
+    |- 배우가 「녹음에서 들린 것」 질문에 한 답: 남아 줄게
+    |- 직전에 내준 버튼: [{"label":"남아 줄게","at":null},{"label":"미안해","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방금 한 말: 남아 줄게 (버튼을 눌렀다)
+  ← «남아 달라는 말이군요. "가지 마, 제발"을 천천히 읽어 봐요. 어떤 마음으로 읽을래요?⏎<보기>⏎매달리는 마음⏎</보기>»
+[4] delete · main
+  영상: files/main-2 gemini://main-2 audio/wav 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.reading.turn
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |⟪direct-video/purpose/reading/mode.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:reading:try
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=0
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |남아 달라는 말이군요. "가지 마, 제발"을 천천히 읽어 봐요. 어떤 마음으로 읽을래요?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "입력: 리딩 녹음 (음성만)\n고른 소리: 녹음 1 빨라요",
+  |    "statuses" : [ "", "목적: reading\n배우의 말: 버튼\n단계: try\n할 일: try\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "reading",
+  |    "step" : 1,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "lines" : [ ],
+  |    "choices" : [ {
+  |      "label" : "매달리는 마음",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ],
+  |    "answers" : {
+  |      "hear" : "남아 줄게"
+  |    }
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=reading, step=try, choices=[Choice[label=매달리는 마음, at=null], Choice[label=잘 모르겠어요, at=null]], scene=null, lines=[], card=null, characterCard=null]
+화면의 예시 답: []
+
+## 차례 3
+배우 말: 어떻게 읽어요?
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |"가지 마"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?
+    [user]
+      |남아 줄게
+    [model]
+      |남아 달라는 말이군요. "가지 마, 제발"을 천천히 읽어 봐요. 어떤 마음으로 읽을래요?
+    [user]
+      |어떻게 읽어요?
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["not_yet","method"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «reading voice bytes»
+  형식: audio/wav
+  검사: null
+  이름표: null
+  ← files/main-3 gemini://main-3 audio/wav 소리 트랙 null
+[3] ready · main
+  영상: files/main-3 gemini://main-3 audio/wav 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-3 gemini://main-3 audio/wav 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |입력: 리딩 녹음 (음성만)
+      |고른 소리: 녹음 1 빨라요
+      |</설계>
+      |<코치>
+      |"가지 마"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?
+      |</코치>
+    [user]
+      |남아 줄게
+    [model]
+      |남아 달라는 말이군요. "가지 마, 제발"을 천천히 읽어 봐요. 어떤 마음으로 읽을래요?
+    [user]
+      |어떻게 읽어요?
+  지시문:
+    |[리딩 녹음]
+    |[대본]
+    |1. 민수(내 대사, 녹음 1): 가지 마, 제발.
+    |2. 지혜(상대 대사): 이미 늦었어.
+    |[소리 안 줄별 시간] 내 대사 녹음을 대본 순서대로 이었다.
+    |- 녹음 1: 0:00~0:02 "가지 마, 제발."
+    |[서버가 잰 소리]
+    |- 녹음 1: 다른 대사들보다 빨라요 (rate)
+    |
+    |
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |⟪direct-video/purpose/reading/mode.txt⟫
+    |
+    |[이번 응답]
+    |목적: 리딩 녹음 코칭
+    |이번 응답이 하는 단계: 정리
+    |⟪direct-video/purpose/reading/wrap.txt⟫
+    |
+    |⟪direct-video/purpose/reading/path.txt⟫
+    |
+    |재료
+    |- 배우가 「녹음에서 들린 것」 질문에 한 답: 남아 줄게
+    |- 직전에 내준 버튼: [{"label":"매달리는 마음","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 녹음에서 들은 것과 대본으로 직접 정한다: 어느 대사에서, 상대에게 무엇을 하며 읽어 볼지. 표정·몸은 말하지 않는다. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.
+    |- 배우가 방금 한 말: 어떻게 읽어요?
+  ← «<다음 테이크>"가지 마, 제발."에서 매달리듯 천천히 읽어 봐도 좋아요</다음 테이크>⏎"가지 마, 제발"에서 매달리듯 천천히 읽어 봐도 좋아요. 그 한 줄을 영상으로 찍어 보면 더 깊게 볼게요.⏎천천히 읽기.»
+[5] delete · main
+  영상: files/main-3 gemini://main-3 audio/wav 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.reading.turn
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |⟪direct-video/purpose/reading/mode.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:reading:wrap
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=0
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: interrupted · 판: 3
+코치 말:
+  |"가지 마, 제발"에서 매달리듯 천천히 읽어 봐도 좋아요.
+  |그 한 줄을 영상으로 찍어 보면 더 깊게 볼게요.
+저장 상태:
+  |{
+  |  "revision" : 3,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "입력: 리딩 녹음 (음성만)\n고른 소리: 녹음 1 빨라요",
+  |    "statuses" : [ "", "목적: reading\n배우의 말: 버튼\n단계: try\n할 일: try\n다음 테이크: 없음", "목적: reading\n배우의 말: 방법 요청\n단계: wrap\n할 일: 정리하기\n다음 테이크: \"가지 마, 제발.\"에서 매달리듯 천천히 읽어 봐도 좋아요" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "reading",
+  |    "step" : 2,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "lines" : [ ],
+  |    "choices" : [ ],
+  |    "answers" : {
+  |      "hear" : "남아 줄게"
+  |    },
+  |    "card" : {
+  |      "next" : {
+  |        "at" : null,
+  |        "text" : "\"가지 마, 제발.\"에서 매달리듯 천천히 읽어 봐도 좋아요"
+  |      }
+  |    }
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 3,
+  |  "end_reason" : "interrupted",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "\"가지 마\"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "남아 줄게"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "남아 달라는 말이군요. \"가지 마, 제발\"을 천천히 읽어 봐요. 어떤 마음으로 읽을래요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "role" : "actor",
+  |    "text" : "어떻게 읽어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "role" : "ai",
+  |    "text" : "\"가지 마, 제발\"에서 매달리듯 천천히 읽어 봐도 좋아요.\n그 한 줄을 영상으로 찍어 보면 더 깊게 볼게요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가지 마\"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "남아 줄게",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "남아 달라는 말이군요. \"가지 마, 제발\"을 천천히 읽어 봐요. 어떤 마음으로 읽을래요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "kind" : "actor_message",
+  |    "text" : "어떻게 읽어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가지 마, 제발\"에서 매달리듯 천천히 읽어 봐도 좋아요.\n그 한 줄을 영상으로 찍어 보면 더 깊게 볼게요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: PurposeView[purpose=reading, step=wrap, choices=[], scene=null, lines=[], card=Card[good=null, issue=null, next=CardItem[at=null, text="가지 마, 제발."에서 매달리듯 천천히 읽어 봐도 좋아요]], characterCard=null]
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title=null, summaryQuotes=[{"quote":"남아 줄게","kind":"actor","source_ref":"turn:00000000-0000-4000-8000-000000000001:1"}], nextTake="가지 마, 제발."에서 매달리듯 천천히 읽어 봐도 좋아요, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=3, legacyReport=null]
+
+# 그만(리딩 녹음)
+
+## 차례 4
+배우 말: 그만
+
+### 모델 호출
+(없음)
+
+### 관측 기록
+(없음)
+
+### 실패 보고
+(없음)
+
+### 로그
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: actor_finished · 판: 2
+코치 말:
+  |오늘은 여기까지 해요. 그 한 줄을 영상으로 올리면 이어서 더 깊게 볼게요.
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "입력: 리딩 녹음 (음성만)\n고른 소리: 녹음 1 빨라요",
+  |    "statuses" : [ "", "목적: reading\n배우의 말: 그만\n단계: hear\n할 일: 끝\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "reading",
+  |    "step" : 0,
+  |    "stays" : 1,
+  |    "cells" : 0,
+  |    "questions" : 1,
+  |    "lines" : [ ],
+  |    "choices" : [ ]
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 2,
+  |  "end_reason" : "actor_finished",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "\"가지 마\"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "그만"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "오늘은 여기까지 해요. 그 한 줄을 영상으로 올리면 이어서 더 깊게 볼게요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가지 마\"는 다른 대사들보다 빨라요. 이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "그만",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "오늘은 여기까지 해요. 그 한 줄을 영상으로 올리면 이어서 더 깊게 볼게요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: PurposeView[purpose=reading, step=hear, choices=[], scene=null, lines=[], card=null, characterCard=null]
+화면의 예시 답: []
+연습 루프 노트:
+  |(없음)

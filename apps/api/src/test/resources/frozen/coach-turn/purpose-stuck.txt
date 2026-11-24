@@ -1,0 +1,1367 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] inspect · main
+  파일: 임시 파일 «original video bytes»
+  ← InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+[2] upload/3 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+[3] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  ← true
+[4] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/stuck/first.txt⟫
+  ← «<설계>⏎영상: 연기⏎관찰 근거: 화면·음성⏎대사 확인: 확인됨⏎확인된 대사: "가르쳐 줘"⏎대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"⏎장면: 헤어지자는 말을 들은 밤 | 헬레네 | 상대⏎버릇: "취소해"에서 화내는 사람처럼 들려요⏎확인할 대사: 취소해⏎다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요⏎</설계>⏎<코치>⏎어떤 게 막혔어요?⏎</코치>⏎<보기>⏎감정이 안 따라와요⏎대사가 입에 안 붙어요⏎뭘 원하는지 모르겠어요⏎</보기>»
+[5] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.stuck
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/stuck/first.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:stuck
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=840
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |[]
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |어떤 게 막혔어요?
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "영상: 연기\n관찰 근거: 화면·음성\n대사 확인: 확인됨\n확인된 대사: \"가르쳐 줘\"\n대사 시간: 0:03 \"가르쳐 줘\" / 0:12 \"취소해\"\n장면: 헤어지자는 말을 들은 밤 | 헬레네 | 상대\n버릇: \"취소해\"에서 화내는 사람처럼 들려요\n확인할 대사: 취소해\n다음 테이크: \"취소해\"에서 붙잡듯 말해 봐도 좋아요",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "stuck",
+  |    "step" : 0,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 1,
+  |    "scene" : {
+  |      "situation" : "헤어지자는 말을 들은 밤",
+  |      "character" : "헬레네",
+  |      "partner" : "상대"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ {
+  |      "label" : "감정이 안 따라와요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "대사가 입에 안 붙어요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "뭘 원하는지 모르겠어요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ]
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=stuck, step=reason, choices=[Choice[label=감정이 안 따라와요, at=null], Choice[label=대사가 입에 안 붙어요, at=null], Choice[label=뭘 원하는지 모르겠어요, at=null], Choice[label=잘 모르겠어요, at=null]], scene=Scene[situation=헤어지자는 말을 들은 밤, character=헬레네, partner=상대], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=null]
+화면의 예시 답: []
+
+# 대사를 짚은 답, 그다음 물음
+
+## 차례 2
+배우 말: 감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |어떤 게 막혔어요?
+    [user]
+      |감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["answered"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |확인된 대사: "가르쳐 줘"
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |확인할 대사: 취소해
+      |다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요
+      |</설계>
+      |<코치>
+      |어떤 게 막혔어요?
+      |</코치>
+    [user]
+      |감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 막힌 곳 풀기
+    |이번 응답이 하는 단계: 그곳에서 본 것
+    |⟪direct-video/purpose/stuck/seen.txt⟫
+    |
+    |⟪direct-video/purpose/stuck/path.txt⟫
+    |
+    |재료
+    |- 배우가 「어떻게 막혔는지」 질문에 한 답: 감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+    |- 직전에 내준 버튼: [{"label":"감정이 안 따라와요","at":null},{"label":"대사가 입에 안 붙어요","at":null},{"label":"뭘 원하는지 모르겠어요","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방금 한 말: 감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+  ← «"취소해"에서 자꾸 화내는 것처럼 되는군요. 그 대사에서 목소리가 커지고 끝이 높아져서 화난 사람처럼 들려요. 그때 상대 얼굴을 봤어요?⏎<보기>⏎상대 얼굴이요⏎바닥이요⏎</보기>»
+[5] delete · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:stuck:seen
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=1680
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |그 대사에서 목소리가 커지고 끝이 높아져서 화난 사람처럼 들려요.
+  |그때 상대 얼굴을 봤어요?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: stuck\n배우의 말: 답\n단계: seen\n할 일: seen\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "stuck",
+  |    "step" : 2,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "scene" : {
+  |      "situation" : "헤어지자는 말을 들은 밤",
+  |      "character" : "헬레네",
+  |      "partner" : "상대"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ {
+  |      "label" : "상대 얼굴이요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "바닥이요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ],
+  |    "answers" : {
+  |      "reason" : "감정이 안 따라와요 \"취소해\"에서 자꾸 화내는 것처럼 돼요"
+  |    }
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=stuck, step=seen, choices=[Choice[label=상대 얼굴이요, at=null], Choice[label=바닥이요, at=null], Choice[label=잘 모르겠어요, at=null]], scene=Scene[situation=헤어지자는 말을 들은 밤, character=헬레네, partner=상대], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=null]
+화면의 예시 답: []
+
+## 차례 3
+배우 말: 왜요? 무슨 뜻이에요?
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |어떤 게 막혔어요?
+    [user]
+      |감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+    [model]
+      |그 대사에서 목소리가 커지고 끝이 높아져서 화난 사람처럼 들려요.
+      |그때 상대 얼굴을 봤어요?
+    [user]
+      |왜요? 무슨 뜻이에요?
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["not_yet","question"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |확인된 대사: "가르쳐 줘"
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |확인할 대사: 취소해
+      |다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요
+      |</설계>
+      |<코치>
+      |어떤 게 막혔어요?
+      |</코치>
+    [user]
+      |감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+    [model]
+      |그 대사에서 목소리가 커지고 끝이 높아져서 화난 사람처럼 들려요.
+      |그때 상대 얼굴을 봤어요?
+    [user]
+      |왜요? 무슨 뜻이에요?
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 막힌 곳 풀기
+    |이번 응답이 하는 단계: 정리
+    |⟪direct-video/purpose/stuck/wrap.txt⟫
+    |
+    |⟪direct-video/purpose/stuck/path.txt⟫
+    |
+    |재료
+    |- 배우가 「어떻게 막혔는지」 질문에 한 답: 감정이 안 따라와요 "취소해"에서 자꾸 화내는 것처럼 돼요
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+    |- 직전에 내준 버튼: [{"label":"상대 얼굴이요","at":null},{"label":"바닥이요","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 영상에서 본 것으로 직접 정한다: 어느 대사에서, 상대에게 무엇을 하는지. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.
+    |- 배우가 이번 말에서 함께 물은 것이 있다. 이번 할 일을 하기 전에 그 물음에 먼저 한두 문장으로 솔직하게 답한다. 물음을 넘기거나 질문으로 되돌리지 않는다.
+    |- 배우가 방금 한 말: 왜요? 무슨 뜻이에요?
+  ← «<다음 테이크>"취소해"를 붙잡듯 낮게 말해 봐도 좋아요</다음 테이크>⏎커지는 건 화가 나서라기보다 매달려서일 수 있어요. "취소해"를 붙잡듯 낮게 말해 봐도 좋아요.»
+[5] delete · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:stuck:wrap
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=2520
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: interrupted · 판: 3
+코치 말:
+  |커지는 건 화가 나서라기보다 매달려서일 수 있어요.
+  |"취소해"를 붙잡듯 낮게 말해 봐도 좋아요.
+저장 상태:
+  |{
+  |  "revision" : 3,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: stuck\n배우의 말: 답\n단계: seen\n할 일: seen\n다음 테이크: 없음", "목적: stuck\n배우의 말: 질문·설명\n단계: wrap\n할 일: 정리하기\n다음 테이크: \"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "stuck",
+  |    "step" : 4,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "scene" : {
+  |      "situation" : "헤어지자는 말을 들은 밤",
+  |      "character" : "헬레네",
+  |      "partner" : "상대"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ ],
+  |    "answers" : {
+  |      "reason" : "감정이 안 따라와요 \"취소해\"에서 자꾸 화내는 것처럼 돼요"
+  |    },
+  |    "card" : {
+  |      "next" : {
+  |        "at" : null,
+  |        "text" : "\"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요"
+  |      }
+  |    }
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 3,
+  |  "end_reason" : "interrupted",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "어떤 게 막혔어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "감정이 안 따라와요 \"취소해\"에서 자꾸 화내는 것처럼 돼요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "그 대사에서 목소리가 커지고 끝이 높아져서 화난 사람처럼 들려요.\n그때 상대 얼굴을 봤어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "role" : "actor",
+  |    "text" : "왜요? 무슨 뜻이에요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "role" : "ai",
+  |    "text" : "커지는 건 화가 나서라기보다 매달려서일 수 있어요.\n\"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "어떤 게 막혔어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "감정이 안 따라와요 \"취소해\"에서 자꾸 화내는 것처럼 돼요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "그 대사에서 목소리가 커지고 끝이 높아져서 화난 사람처럼 들려요.\n그때 상대 얼굴을 봤어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "kind" : "actor_message",
+  |    "text" : "왜요? 무슨 뜻이에요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "kind" : "coach_message",
+  |    "text" : "커지는 건 화가 나서라기보다 매달려서일 수 있어요.\n\"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: PurposeView[purpose=stuck, step=wrap, choices=[], scene=Scene[situation=헤어지자는 말을 들은 밤, character=헬레네, partner=상대], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=Card[good=null, issue=null, next=CardItem[at=null, text="취소해"를 붙잡듯 낮게 말해 봐도 좋아요]], characterCard=null]
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title="취소해"에서 화내는 사람처럼 들려요, summaryQuotes=[{"quote":"\"취소해\"에서 화내는 사람처럼 들려요","kind":"observation","source_ref":"turn:00000000-0000-4000-8000-000000000001:0"},{"quote":"감정이 안 따라와요 \"취소해\"에서 자꾸 화내는 것처럼 돼요","kind":"actor","source_ref":"turn:00000000-0000-4000-8000-000000000001:1"}], nextTake="취소해"를 붙잡듯 낮게 말해 봐도 좋아요, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=3, legacyReport=null]
+
+# 버튼
+
+## 차례 4
+배우 말: 감정이 안 따라와요
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |확인된 대사: "가르쳐 줘"
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |확인할 대사: 취소해
+      |다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요
+      |</설계>
+      |<코치>
+      |어떤 게 막혔어요?
+      |</코치>
+    [user]
+      |감정이 안 따라와요
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 막힌 곳 풀기
+    |이번 응답이 하는 단계: 어느 대사인지
+    |⟪direct-video/purpose/stuck/line.txt⟫
+    |
+    |⟪direct-video/purpose/stuck/path.txt⟫
+    |
+    |재료
+    |- 배우가 「어떻게 막혔는지」 질문에 한 답: 감정이 안 따라와요
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+    |- 직전에 내준 버튼: [{"label":"감정이 안 따라와요","at":null},{"label":"대사가 입에 안 붙어요","at":null},{"label":"뭘 원하는지 모르겠어요","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방금 한 말: 감정이 안 따라와요 (버튼을 눌렀다)
+  ← «어느 대사에서 그랬어요? 앞쪽이었어요?⏎<보기>⏎0:12 취소해⏎0:03 가르쳐 줘⏎</보기>»
+[4] delete · main
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:stuck:line
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=3360
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |어느 대사에서 그랬어요?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: stuck\n배우의 말: 버튼\n단계: line\n할 일: line\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "stuck",
+  |    "step" : 1,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "scene" : {
+  |      "situation" : "헤어지자는 말을 들은 밤",
+  |      "character" : "헬레네",
+  |      "partner" : "상대"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ {
+  |      "label" : "취소해",
+  |      "at" : 12
+  |    }, {
+  |      "label" : "가르쳐 줘",
+  |      "at" : 3
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ],
+  |    "answers" : {
+  |      "reason" : "감정이 안 따라와요"
+  |    }
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=stuck, step=line, choices=[Choice[label=취소해, at=12], Choice[label=가르쳐 줘, at=3], Choice[label=잘 모르겠어요, at=null]], scene=Scene[situation=헤어지자는 말을 들은 밤, character=헬레네, partner=상대], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=null]
+화면의 예시 답: []
+
+# 모르겠다
+
+## 차례 5
+배우 말: 잘 모르겠어요
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-5 gemini://main-5 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-5 gemini://main-5 video/mp4 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-5 gemini://main-5 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |확인된 대사: "가르쳐 줘"
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |확인할 대사: 취소해
+      |다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요
+      |</설계>
+      |<코치>
+      |어떤 게 막혔어요?
+      |</코치>
+    [user]
+      |잘 모르겠어요
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 막힌 곳 풀기
+    |이번 응답이 하는 단계: 어떻게 막혔는지
+    |⟪direct-video/purpose/common/propose.txt⟫
+    |
+    |⟪direct-video/purpose/stuck/path.txt⟫
+    |
+    |재료
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+    |- 직전에 내준 버튼: [{"label":"감정이 안 따라와요","at":null},{"label":"대사가 입에 안 붙어요","at":null},{"label":"뭘 원하는지 모르겠어요","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방금 한 말: 잘 모르겠어요 (버튼을 눌렀다)
+  ← «저는 "취소해"에서 막힌 것 같아요. 맞아요?⏎<보기>⏎맞아요⏎</보기>»
+[4] delete · main
+  영상: files/main-5 gemini://main-5 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:stuck:propose
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=4200
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |저는 "취소해"에서 막힌 것 같아요. 맞아요?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: stuck\n배우의 말: 버튼\n단계: reason\n할 일: propose\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "stuck",
+  |    "step" : 0,
+  |    "stays" : 1,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "scene" : {
+  |      "situation" : "헤어지자는 말을 들은 밤",
+  |      "character" : "헬레네",
+  |      "partner" : "상대"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ {
+  |      "label" : "맞아요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ],
+  |    "dont_knows" : 1
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=stuck, step=reason, choices=[Choice[label=맞아요, at=null], Choice[label=잘 모르겠어요, at=null]], scene=Scene[situation=헤어지자는 말을 들은 밤, character=헬레네, partner=상대], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=null]
+화면의 예시 답: []
+
+# 방법 요청
+
+## 차례 6
+배우 말: 그래서 어떻게 해요?
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |어떤 게 막혔어요?
+    [user]
+      |그래서 어떻게 해요?
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["not_yet","method"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-6 gemini://main-6 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-6 gemini://main-6 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-6 gemini://main-6 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |확인된 대사: "가르쳐 줘"
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |확인할 대사: 취소해
+      |다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요
+      |</설계>
+      |<코치>
+      |어떤 게 막혔어요?
+      |</코치>
+    [user]
+      |그래서 어떻게 해요?
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 막힌 곳 풀기
+    |이번 응답이 하는 단계: 정리
+    |⟪direct-video/purpose/stuck/wrap.txt⟫
+    |
+    |⟪direct-video/purpose/stuck/path.txt⟫
+    |
+    |재료
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 헤어지자는 말을 들은 밤 | 헬레네 | 상대
+    |- 직전에 내준 버튼: [{"label":"감정이 안 따라와요","at":null},{"label":"대사가 입에 안 붙어요","at":null},{"label":"뭘 원하는지 모르겠어요","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 영상에서 본 것으로 직접 정한다: 어느 대사에서, 상대에게 무엇을 하는지. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.
+    |- 배우가 방금 한 말: 그래서 어떻게 해요?
+  ← «<다음 테이크>"취소해"를 붙잡듯 낮게 말해 봐도 좋아요</다음 테이크>⏎"취소해"를 붙잡듯 낮게 말해 봐도 좋아요.»
+[5] delete · main
+  영상: files/main-6 gemini://main-6 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:stuck:wrap
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=5040
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: interrupted · 판: 2
+코치 말:
+  |"취소해"를 붙잡듯 낮게 말해 봐도 좋아요.
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: stuck\n배우의 말: 방법 요청\n단계: wrap\n할 일: 정리하기\n다음 테이크: \"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "stuck",
+  |    "step" : 4,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 1,
+  |    "scene" : {
+  |      "situation" : "헤어지자는 말을 들은 밤",
+  |      "character" : "헬레네",
+  |      "partner" : "상대"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ ],
+  |    "card" : {
+  |      "next" : {
+  |        "at" : null,
+  |        "text" : "\"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요"
+  |      }
+  |    }
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 2,
+  |  "end_reason" : "interrupted",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "어떤 게 막혔어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "그래서 어떻게 해요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "\"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "어떤 게 막혔어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "그래서 어떻게 해요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "\"취소해\"를 붙잡듯 낮게 말해 봐도 좋아요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: PurposeView[purpose=stuck, step=wrap, choices=[], scene=Scene[situation=헤어지자는 말을 들은 밤, character=헬레네, partner=상대], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=Card[good=null, issue=null, next=CardItem[at=null, text="취소해"를 붙잡듯 낮게 말해 봐도 좋아요]], characterCard=null]
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title="취소해"에서 화내는 사람처럼 들려요, summaryQuotes=[{"quote":"\"취소해\"에서 화내는 사람처럼 들려요","kind":"observation","source_ref":"turn:00000000-0000-4000-8000-000000000001:0"}], nextTake="취소해"를 붙잡듯 낮게 말해 봐도 좋아요, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=2, legacyReport=null]
+
+# 그만
+
+## 차례 7
+배우 말: 그만
+
+### 모델 호출
+(없음)
+
+### 관측 기록
+(없음)
+
+### 실패 보고
+(없음)
+
+### 로그
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: actor_finished · 판: 2
+코치 말:
+  |오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: stuck\n배우의 말: 그만\n단계: reason\n할 일: 끝\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "stuck",
+  |    "step" : 0,
+  |    "stays" : 1,
+  |    "cells" : 0,
+  |    "questions" : 1,
+  |    "scene" : {
+  |      "situation" : "헤어지자는 말을 들은 밤",
+  |      "character" : "헬레네",
+  |      "partner" : "상대"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ ]
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 2,
+  |  "end_reason" : "actor_finished",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "어떤 게 막혔어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "그만"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "어떤 게 막혔어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "그만",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: PurposeView[purpose=stuck, step=reason, choices=[], scene=Scene[situation=헤어지자는 말을 들은 밤, character=헬레네, partner=상대], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=null]
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title="취소해"에서 화내는 사람처럼 들려요, summaryQuotes=[{"quote":"\"취소해\"에서 화내는 사람처럼 들려요","kind":"observation","source_ref":"turn:00000000-0000-4000-8000-000000000001:0"}], nextTake="취소해"에서 붙잡듯 말해 봐도 좋아요, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=2, legacyReport=null]
