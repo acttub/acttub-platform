@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.reading;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.nio.file.Files;
@@ -218,6 +219,60 @@ class ReadingRetranscribeIT {
                 waiting)).isEqualTo("done");
         assertThat(jdbc.queryForMap("SELECT transcript,matched FROM reading_recordings WHERE id=?", waiting))
                 .containsEntry("transcript", "대사 1").containsEntry("matched", null);
+    }
+
+    @Test
+    @DisplayName("reading.retranscribe: 탈퇴 뒤에는 보관한 녹음을 모델에 보내지 않고 전사도 채우지 않는다 — 줄 서 있던 행은 stale 로 닫는다")
+    void aRetainedRecordingIsNotTranscribedAfterWithdrawal() throws Exception {
+        UUID recording = recording(ninaLines.get(0), null, "stt");
+        queue.enqueue(recording, "rec/" + ninaLines.get(0), clock.instant());
+        perform(delete("/v2/me"), bearer(UUID.fromString(OWNER)), 200);
+        assertThat(jdbc.queryForMap("SELECT reading_session_id,line_id FROM reading_recordings WHERE id=?", recording))
+                .as("보관 동의자의 녹음은 연결만 비우고 남는다")
+                .containsEntry("reading_session_id", null).containsEntry("line_id", null);
+
+        assertThat(worker.runOnce()).isTrue();
+
+        assertThat(Fakes.DOWNLOADED).isEmpty();
+        assertThat(Fakes.TRANSCRIBED).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT transcript FROM reading_recordings WHERE id=?", String.class, recording)).isNull();
+        assertThat(jdbc.queryForObject("SELECT status FROM reading_recording_retranscripts WHERE recording_id=?", String.class,
+                recording)).isEqualTo("stale");
+    }
+
+    @Test
+    @DisplayName("reading.retranscribe: 받아쓰는 사이에 탈퇴했으면 녹음의 전사를 채우지 않고 stale 로 닫는다")
+    void aWithdrawalDuringTranscriptionLeavesTheRecordingAlone() throws Exception {
+        UUID recording = recording(ninaLines.get(0), null, "stt");
+        queue.enqueue(recording, "rec/" + ninaLines.get(0), clock.instant());
+        UUID token = UUID.randomUUID();
+        var claimed = queue.claimNext(token, java.time.Duration.ofMinutes(5), 2, clock.instant());
+        assertThat(claimed.current()).isTrue();
+        perform(delete("/v2/me"), bearer(UUID.fromString(OWNER)), 200);
+
+        assertThat(queue.fill(recording, token, claimed.objectKey(), "대사 1", -12.0, clock.instant())).isFalse();
+
+        assertThat(jdbc.queryForObject("SELECT transcript FROM reading_recordings WHERE id=?", String.class, recording)).isNull();
+        assertThat(jdbc.queryForObject("SELECT status FROM reading_recording_retranscripts WHERE recording_id=?", String.class,
+                recording)).isEqualTo("stale");
+    }
+
+    @Test
+    @DisplayName("reading.retranscribe: 임대를 잃은 일꾼은 녹음의 전사를 고치지 않는다")
+    void aWorkerThatLostItsLeaseDoesNotTouchTheRecording() {
+        UUID recording = recording(ninaLines.get(0), null, "stt");
+        queue.enqueue(recording, "rec/" + ninaLines.get(0), clock.instant());
+        UUID first = UUID.randomUUID();
+        var claimed = queue.claimNext(first, java.time.Duration.ofMinutes(5), 2, clock.instant());
+        clock.advance(java.time.Duration.ofMinutes(6));
+        UUID second = UUID.randomUUID();
+        assertThat(queue.claimNext(second, java.time.Duration.ofMinutes(5), 2, clock.instant())).isNotNull();
+
+        assertThat(queue.fill(recording, first, claimed.objectKey(), "늦게 온 글", -12.0, clock.instant())).isFalse();
+
+        assertThat(jdbc.queryForObject("SELECT transcript FROM reading_recordings WHERE id=?", String.class, recording)).isNull();
+        assertThat(jdbc.queryForObject("SELECT status FROM reading_recording_retranscripts WHERE recording_id=?", String.class,
+                recording)).isEqualTo("running");
     }
 
     @Test

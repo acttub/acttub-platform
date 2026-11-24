@@ -25,8 +25,8 @@ AI 코치가 듣고 들린 것 하나를 짚는다.
 - 고품질 목소리를 켠 사람의 상대 대사 합성([reading.cloud-voice](cloud-voice.md), 동의 cloud_voice).
 - Pro의 발음 보고서(`PRON_REPORT_ENABLED`, 기본 꺼짐. 채점 서비스 주소 `PRON_SCORER_URL`도 있어야 돈다. 채점 서비스는 compose `pron` 프로필로
   따로 띄운다. `GET /v2/reading/sessions/{session_id}/pronunciation`):
-  켠 서버에서 Pro 회원과 허용 사용자 목록의 회원이 받는다(`PronunciationReportService`). 끝난 회차의 녹음을 발음 채점 서비스(`apps/pron`)로
-  보낸다. 따로 된 기능 파일은 아직 없다.
+  켠 서버에서 Pro 회원과 허용 사용자 목록의 회원이 받는다. 끝난 회차의 녹음을 발음 채점 서비스(`apps/pron`)로 보낸다
+  ([reading.pronunciation](pronunciation.md)).
 - 리딩 녹음으로 코칭 받기([reading.voice-coaching](voice-coaching.md)).
 
 리딩 경로(`/v2/reading/**`)의 동의 판정은 회원과 게스트가 다르다. 회원은 다른 보호 경로와 같이 지금 버전의 문서를 모두 결정해야 하고,
@@ -86,7 +86,7 @@ AI 코치가 듣고 들린 것 하나를 짚는다.
 | 녹음 객체 | 그대로(주인만 바뀜) | 삭제 장부로 지움 | 삭제 장부로 지움 | 보관 동의자는 3년 뒤, 나머지는 즉시 삭제 장부로 지움 |
 | line_memorization | 줄 연결 그대로, user_id 바뀜 | 삭제 | 그대로 | 행째 삭제 |
 | reading_session_ratings(회차 평가, SOMA-661) | 회차 연결 그대로, user_id 바뀜 | 행째 삭제 | 행째 삭제 | 행째 삭제(한 줄 포함) |
-| reading_recording_retranscripts(다시 받아쓰기) | 녹음을 따라감 | 녹음과 함께 삭제 | 녹음과 함께 삭제 | 녹음과 함께 삭제. 보관 동의자의 녹음이 남으면 그 행도 남는다 |
+| reading_recording_retranscripts(다시 받아쓰기) | 녹음을 따라감 | 녹음과 함께 삭제 | 녹음과 함께 삭제 | 녹음과 함께 삭제. 보관 동의자의 녹음이 남으면 그 행도 남되, 줄 서 있던 것은 모델에 보내지 않고 stale로 닫는다 |
 | reading_pronunciation_reports(발음 보고서) | 회차를 따라감(user_id는 바꾸지 않는다, 기록용) | 행째 삭제(회차를 따라) | 행째 삭제 | 행째 삭제(회차를 따라) |
 | reading_voice_usage | 없음(게스트는 고품질 목소리를 못 쓴다) | 그대로 | 그대로 | 행째 삭제 |
 | script_imports(나누기 요청. 원문은 나누는 동안만, 끝나면 비움) | 없음(게스트는 나누기를 못 쓴다) | 그대로(`script_id`가 지워진 대본을 가리킨다) | 그대로 | 행째 삭제, 진행 중 작업은 ai_jobs 취소 |

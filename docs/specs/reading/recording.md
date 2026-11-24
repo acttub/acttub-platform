@@ -32,7 +32,7 @@ reading_recording_retranscripts.status — 녹음 하나의 서버 다시 받아
 | queued | 기기가 인식(stt)을 켰는데 받아쓴 글이 빈 녹음을 저장함. 같은 줄을 다시 녹음해 대체하면 끝 상태였어도 시도 수 0으로 다시 들어온다. 워커의 실패에 시도가 남음. 최근 24시간 한도에 닿아 워커가 놓음(시도 수를 1 되돌림) | reading.recording |
 | running | 워커가 집음 | reading.recording |
 | done | 받아쓴 글로 녹음의 transcript·matched를 채움 | reading.recording |
-| silent·empty·too_long·too_short·stale | 소리가 작아 보내지 않음, 모델도 글이 없음, 1분 넘음, 1.5초 못 됨, 녹음이 바뀜 | reading.recording |
+| silent·empty·too_long·too_short·stale | 소리가 작아 보내지 않음, 모델도 글이 없음, 1분 넘음, 1.5초 못 됨, 녹음이 바뀌었거나 녹음 주인이 탈퇴함 | reading.recording |
 | failed | 시도를 다 씀, 또는 시도를 다 쓴 채 임대가 지남(`lease_expired`) | reading.recording |
 
 - 불변 조건: 녹음당 하나(`recording_id`). 녹음이 지워지면 함께 지워진다(FK CASCADE).
@@ -112,7 +112,9 @@ reading_recording_retranscripts.status — 녹음 하나의 서버 다시 받아
   않는다. 워커는 1분 넘는 녹음(too_long)과 1.5초 못 되는 녹음(too_short)은 보내지 않고, 녹음의 순간 최댓값이 기준(-30dBFS)보다
   작으면 보내지 않는다(silent). 그 밖에는 받아쓰기 모델(Gemini)로 보내 받은 글로 transcript를 채우고 matched를 다시 정한다. 하루 호출
   한도(`READING_RETRANSCRIBE_DAILY_LIMIT`)에 닿으면 다음 주기로 미룬다. 시도는 2회, 임대는 300초다. 녹음 객체와 행은 그대로 두고
-  내용만 읽는다. 기준값은 `RetranscribeConfiguration`이 정본이다.
+  내용만 읽는다. 기준값은 `RetranscribeConfiguration`이 정본이다. 녹음 주인이 활성 계정이 아니면(탈퇴 뒤 남은 보관 녹음) 모델에 보내지
+  않고 stale로 닫으며, 받아쓰는 사이에 탈퇴했어도 녹음의 transcript를 채우지 않는다([공통 「모델을 기다린 뒤의 저장」](../common.md)).
+  임대를 잃은 워커는 녹음을 고치지 않는다.
 
 ## 예외
 - 올리기 실패(오프라인, 503): 기기가 파일과 요청 id를 들고 있다가 다시 시도한다. 회차가 끝난 뒤에도 남은 파일을
@@ -163,7 +165,8 @@ reading_recording_retranscripts.status — 녹음 하나의 서버 다시 받아
 - 일시정지 중에 말함: 녹음에 들어가지 않는다.
 - 응답만 유실된 올리기를 재시도: 같은 녹음 하나. 이관 처리 중 옛 게스트로 올리기: 옛 계정에 행이 없다.
 - 다시 받아쓰기를 켜고 stt·빈 전사로 녹음 저장: reading_recording_retranscripts queued 1행. 워커가 글을 받음: done, 녹음 transcript가
-  차고 matched가 정해진다. 소리가 기준보다 작음: silent, 모델 호출 없음. 녹음 삭제: 다시 받아쓰기 행도 없다(`ReadingRetranscribeIT`).
+  차고 matched가 정해진다. 소리가 기준보다 작음: silent, 모델 호출 없음. 녹음 삭제: 다시 받아쓰기 행도 없다. 줄 선 채 보관 동의자가
+  탈퇴: 녹음을 내려받지도 모델에 보내지도 않고 stale, 보관 녹음의 transcript는 빈 채다(`ReadingRetranscribeIT`).
 - 앞 요청이 저장하기 전에 같은 요청 id로 다시 보냄(둘 다 객체를 올림): 201·200, 행 하나, 그 행의 객체가 있다. 겹친 사이에 이관·그 줄의
   배역 변경·보관 동의자 탈퇴가 있어 뒤의 것이 404·422로 끝나도 남은 행의 객체가 있다. 다른 줄로 겹친 재전송의 객체는 지운다(`ReadingRecordingIT`).
 
