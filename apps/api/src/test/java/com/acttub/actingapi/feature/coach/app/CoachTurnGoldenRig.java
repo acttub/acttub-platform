@@ -316,6 +316,16 @@ final class CoachTurnGoldenRig {
         return shrunk;
     }
 
+    /**
+     * 기록을 뜬 뒤 자바 문자열에서 파일로 옮긴 지시문(SOMA-1133). 옮기기 전 기록과 바이트까지 견주려고 파일 이름으로 줄이지 않고
+     * 원문으로 적는다.
+     */
+    static final java.util.Set<String> RAW = java.util.Set.of("direct-video/purpose/direct.txt",
+            "direct-video/purpose/talk/direct.txt", "direct-video/purpose/reading/direct.txt",
+            "direct-video/purpose/character/wrap-card.txt", "direct-video/purpose/talk/character/wrap-card.txt",
+            "direct-video/purpose/answer-after-wrap.txt", "direct-video/purpose/asked.txt");
+
+    /** {@link #RAW} 보다 뒤에 둔다 — 정적 초기화 순서대로 읽는다. */
     static final List<Map.Entry<String, String>> BLOCKS = blocks();
 
     private static List<Map.Entry<String, String>> blocks() {
@@ -324,7 +334,8 @@ final class CoachTurnGoldenRig {
         try (Stream<Path> files = Files.walk(root)) {
             for (Path file : files.filter(path -> path.toString().endsWith(".txt")).sorted().toList()) {
                 String text = Files.readString(file, StandardCharsets.UTF_8).strip();
-                if (text.length() >= 120) found.add(Map.entry(root.relativize(file).toString(), text));
+                String name = root.relativize(file).toString();
+                if (text.length() >= 120 && !RAW.contains(name)) found.add(Map.entry(name, text));
             }
         } catch (IOException failure) {
             throw new UncheckedIOException(failure);
