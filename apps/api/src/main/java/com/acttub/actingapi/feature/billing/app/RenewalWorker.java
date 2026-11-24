@@ -108,6 +108,8 @@ public class RenewalWorker {
         if ("first".equals(payment.kind())) {
             if (charge == Charge.DONE && sub.status() == Status.EXPIRED) {
                 repository.activate(sub.id(), payment.periodStart(), payment.periodEnd(), now);
+            } else if (charge == Charge.FAILED && sub.status() == Status.EXPIRED) {
+                repository.dropUnpaidKey(sub.id(), now);
             }
             return;
         }

@@ -74,6 +74,12 @@ public interface BillingRepository {
     /** Pro 끝 — 빌링키를 지운다. */
     void expire(UUID subscriptionId, Instant now);
 
+    /**
+     * 첫 결제가 거절된 카드 등록 줄의 빌링키를 지운다. 아직 expired 인 줄만 — 그 사이 다른 창으로 구독했으면 그 키는 쓰이므로
+     * 그대로 둔다.
+     */
+    void dropUnpaidKey(UUID subscriptionId, Instant now);
+
     /** active 만 canceled 로. 바뀌었으면 true. */
     boolean cancel(UUID subscriptionId, Instant now);
 

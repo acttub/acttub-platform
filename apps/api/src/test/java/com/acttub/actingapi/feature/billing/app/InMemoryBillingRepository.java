@@ -171,6 +171,16 @@ class InMemoryBillingRepository implements BillingRepository {
     }
 
     @Override
+    public void dropUnpaidKey(UUID id, Instant now) {
+        Subscription s = subscriptions.get(id);
+        if (s == null || s.status() != Status.EXPIRED) {
+            return;
+        }
+        put(new Subscription(id, s.userId(), s.status(), s.customerKey(), null, s.cardCompany(), s.cardNumber(),
+                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), s.nextRetryAt(), s.provider(), s.plan()));
+    }
+
+    @Override
     public boolean cancel(UUID id, Instant now) {
         Subscription s = subscriptions.get(id);
         if (s.status() != Status.ACTIVE) {

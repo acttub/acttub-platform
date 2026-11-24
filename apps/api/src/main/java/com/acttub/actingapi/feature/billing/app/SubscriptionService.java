@@ -369,7 +369,12 @@ public class SubscriptionService {
                 refunds.refundNeeded(new RefundNotifier.Refund(checkout.orderId(), sub.amount()));
                 yield Result.FAILED;
             }
-            case FAILED -> Result.FAILED;
+            case FAILED -> {
+                // 쓰지 못한 카드의 키를 남기지 않는다. 다음 구독은 새 창에서 새 키를 받는다.
+                repository.dropUnpaidKey(sub.id(), clock.instant());
+                yield Result.FAILED;
+            }
+            // 결과를 모르면 같은 키로 다시 물어야 하므로 남긴다(RenewalWorker).
             case UNKNOWN -> Result.UNKNOWN;
         };
     }

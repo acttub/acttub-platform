@@ -306,6 +306,17 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
+    public void dropUnpaidKey(UUID subscriptionId, Instant now) {
+        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
+                UPDATE billing_subscriptions SET billing_key=NULL, updated_at=CAST(:now AS timestamptz)
+                WHERE id=:id AND status='expired' AND billing_key IS NOT NULL
+                """)
+                .setParameter("now", at(now))
+                .setParameter("id", subscriptionId)
+                .executeUpdate());
+    }
+
+    @Override
     public boolean cancel(UUID subscriptionId, Instant now) {
         Integer updated = transaction.execute(tx -> entityManager.createNativeQuery("""
                 UPDATE billing_subscriptions SET status='canceled', canceled_at=CAST(:now AS timestamptz),
