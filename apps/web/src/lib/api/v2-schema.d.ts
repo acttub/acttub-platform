@@ -3129,7 +3129,7 @@ export interface components {
          * JournalDraftStatus
          * @enum {string}
          */
-        JournalDraftStatus: "pending" | "ready" | "failed" | "skipped";
+        JournalDraftStatus: "pending" | "ready" | "failed";
         /** JournalFeedbackLine */
         JournalFeedbackLine: {
             /** Text */

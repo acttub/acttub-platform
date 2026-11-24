@@ -141,7 +141,7 @@ class JournalServiceTest {
             throw new AssertionError("must not call");
         }).create(userId, practiceId, ANSWERS).view();
 
-        assertThat(view.draftStatus()).isEqualTo("skipped");
+        assertThat(view.draftStatus()).isEqualTo("ready");
     }
 
     @Test

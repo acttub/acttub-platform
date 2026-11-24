@@ -145,6 +145,26 @@ class PracticeDataMigrationIT {
     }
 
     @Test
+    @DisplayName("practice.coach: 옛 대화의 종료 사유는 새 어휘로 옮긴다 — gap_stated·interrupted 는 exhausted, actor_finished 는 user_ended")
+    void practiceMigration_mapsOldCloseReasonsToTheNewVocabulary() {
+        UUID gap = conversation(session(intent("videos/gap.mp4"), null, "analyzed"), "closed", "gap_stated",
+                "2026-09-01 00:00:00+00");
+        UUID interrupted = conversation(session(intent("videos/cut.mp4"), null, "analyzed"), "closed", "interrupted",
+                "2026-09-01 00:00:00+00");
+        UUID finished = conversation(session(intent("videos/done.mp4"), null, "analyzed"), "closed", "actor_finished",
+                "2026-09-01 00:00:00+00");
+
+        migration.run(50);
+
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM coach_conversations WHERE id=?", String.class, gap))
+                .isEqualTo("exhausted");
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM coach_conversations WHERE id=?", String.class, interrupted))
+                .isEqualTo("exhausted");
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM coach_conversations WHERE id=?", String.class, finished))
+                .isEqualTo("user_ended");
+    }
+
+    @Test
     @DisplayName("practice.note·practice.memory: 기존 갈래 노트는 format legacy 로 종류를 그대로 두고, 배우 기억은 "
             + "성별·나이를 빼고 네 칸만 옮긴다. 끝난 AI 작업만 새 장부로 가고 진행 중인 것은 옛 워커에게 남는다")
     void practiceMigration_movesNotesMemoriesAndFinishedJobsOnly() {

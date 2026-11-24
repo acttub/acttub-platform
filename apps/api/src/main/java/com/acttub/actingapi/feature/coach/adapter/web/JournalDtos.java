@@ -29,7 +29,7 @@ final class JournalDtos {
     enum GiverValue { coach, other }
 
     @Schema(name = "JournalDraftStatus")
-    enum DraftStatusValue { pending, ready, failed, skipped }
+    enum DraftStatusValue { pending, ready, failed }
 
     /** 질문 1 「해 보니 어땠어요?」. 고른 선택지와 직접 쓴 글. */
     @Schema(name = "JournalFeeling", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -121,7 +121,7 @@ final class JournalDtos {
     }
 
     /**
-     * @param draftStatus pending(자동 칸을 만드는 중)·ready·failed(만들지 못해 배우 답만)·skipped(대화가 없어 만들지 않음)
+     * @param draftStatus pending(자동 칸을 만드는 중)·ready(대화가 없어 만들지 않은 것 포함)·failed(만들지 못해 배우 답만)
      * @param practice 오늘 한 연습(AI 칸) @param character 장면과 인물(AI 칸) @param feedback 받은 피드백(AI 칸)
      * @param editedAt 배우가 마지막으로 고친 때. 고친 적 없으면 null
      * @param title 장면 제목(사람·AI 가 붙인 것). 없으면 null — 화면은 목적·날짜로 대신한다

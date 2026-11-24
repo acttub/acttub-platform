@@ -21,7 +21,7 @@ export type JournalAnswers = {
 export type JournalPracticeLine = { text: string; basis: string };
 export type JournalCharacterLine = { aspect: 'wants' | 'partner' | 'situation' | string; text: string };
 export type JournalFeedbackLine = { text: string; giver: string; at: number | null };
-export type JournalDraftStatus = 'pending' | 'ready' | 'failed' | 'skipped';
+export type JournalDraftStatus = 'pending' | 'ready' | 'failed';
 
 /** GET·POST·PUT /v2/practices/{id}/journal 의 응답(PracticeJournal). */
 export type PracticeJournal = {

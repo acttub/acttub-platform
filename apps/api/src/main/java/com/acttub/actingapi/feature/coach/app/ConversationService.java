@@ -487,7 +487,7 @@ public class ConversationService {
         return switch (reason == null ? "" : reason) {
             case "actor_finished" -> "user_ended";
             case "turn_budget" -> "limit";
-            case "gap_stated", "exhausted", "limit", "user_ended", "system_failure" -> reason;
+            case "exhausted", "limit", "user_ended", "system_failure" -> reason;
             default -> "exhausted";
         };
     }
