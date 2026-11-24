@@ -22,8 +22,8 @@
 - 테스트는 두 러너로 나뉩니다. `lib`의 `.ts`는 `tests/*.test.mjs`(node --test, `npm run test:coverage`), 화면·컴포넌트·훅과
   `lib`의 `.tsx`는 `tests/**/*.test.tsx`(jest-expo와 React Native Testing Library, `npm run test:screens`)입니다. 한 파일의
   커버리지는 한 러너만 잽니다. 두 러너가 같이 재면 Sonar에서 분기가 두 벌로 잡힙니다.
-- 테스트에 런타임 외부 의존을 추가하면 CI `mobile` 잡처럼 설치 없이 실행 가능한지 확인하고,
-  설치가 필요해지면 CI에 반영합니다.
+- 테스트에 런타임 외부 의존을 추가하면 `package.json`에 넣고, CI `mobile` 잡(`npm ci` 뒤 `npm run test:coverage`·
+  `npm run test:screens`)에서 도는지 확인합니다.
 - 이벤트는 `lib/analytics.ts`로만 보냅니다. Firebase와 PostHog에 같이 갑니다. PostHog(화면 녹화 포함)는 운영 API
   빌드이고 `EXPO_PUBLIC_POSTHOG_KEY`가 있고(`eas.json`의 production·preview-prod) 현재 판 동의를 마친 동안만 켜집니다.
   규칙은 `lib/posthog.ts`의 `decidePostHog` 한 곳이고, development build에서는 꺼져 있으므로 녹화는 preview-prod로 확인합니다.

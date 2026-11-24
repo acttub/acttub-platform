@@ -116,10 +116,8 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Po
 
 수동으로 쏘는 20개 이벤트는 그대로 §1(7)의 화이트리스트를 지킨다. 자동 수집을 켰다고 **우리가 만드는 payload까지 느슨해지지는 않는다** — 두 경로는 별개다.
 
-⚠️ **입력값 마스킹은 일부러 껐다(사용자 결정).** 옛 기록: Amplitude 때는 마스킹을 따로 설정하지 않았지만 리플레이 SDK의
-기본 마스킹 수준이 `medium`이라 폼 입력값은 전부 가려지고 화면 글자는 담겼다(@amplitude/session-replay-browser 1.48.1
-`config/types.js`의 `DEFAULT_MASK_LEVEL`, 2026-10-11 소스로 확인). PostHog로 옮기면서 입력값도 그대로 녹화하므로
-**이전보다 덜 가린다.** 비밀번호 칸만 SDK가 가린다.
+⚠️ **입력값 마스킹은 일부러 껐다(사용자 결정).** 입력값도 그대로 녹화한다. 비밀번호 칸만 SDK가 가린다. Amplitude 때와의
+비교는 팀 위키 `research/2026-08-11-web-analytics-history`에 있다.
 
 #### 번들러 변경 검증
 
@@ -128,9 +126,8 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Po
 따로 받는다(posthog-js `external-scripts-loader.js`·`request-router.js`). 그래서 번들러를 바꿀 때 볼 것은
 "번들러가 녹화 청크를 깨뜨리는가"가 아니라 "SDK 번들이 레코더를 받아 실행하고 업로드하는가"다.
 
-옛 기록: Amplitude 때는 리플레이 SDK가 동적 import로 불러오는 rrweb 레코더 청크가 2026-08-11 Turbopack 빌드에서
-`SyntaxError`로 깨져 녹화가 조용히 0건이었다. 그래서 [package.json](package.json)의 `build`가 webpack(`--webpack`)을 쓴다.
-PostHog에서는 이 갈래가 다르지만, 번들러를 바꾸면 아래 런타임 검증을 다시 한다. 빌드 성공과 이벤트 수신만으로는
+[package.json](package.json)의 `build`는 webpack(`--webpack`)을 쓴다. 그 이유가 된 Amplitude 때의 Turbopack 사건은
+팀 위키 `research/2026-08-11-web-analytics-history`에 있다. 번들러를 바꾸면 아래 런타임 검증을 다시 한다. 빌드 성공과 이벤트 수신만으로는
 녹화가 도는지 알 수 없다.
 
 **완료 기준:** 변경한 번들러의 배포 빌드를 현재 판에 동의한 게스트·계측 키가 갖춰진 환경에서
@@ -143,8 +140,6 @@ SDK는 기동할 때 원격 설정(`https://us-assets.i.posthog.com/array/<key>/
 **PostHog 프로젝트 설정의 Session replay 켜짐·샘플 비율이 실제 적용값이다.** 녹화가 안 보이면 코드를
 고치기 전에 프로젝트 설정을 먼저 본다. 원격 설정을 못 받으면 녹화는 시작하지 않는다.
 
-옛 기록: Amplitude 때도 코드의 `sampleRate: 1`이 원격 설정 1%에 덮여 2026-08-11 리플레이가 하나도 안 잡힌 적이 있다.
-
 화면 전환은 autocapture와 별개로 `screen_viewed`도 직접 쏜다 — 이쪽은 주소가 씻긴 값이라 퍼널의 시작점으로 쓸 수 있다.
 
 ### (3) 주소는 경로만, UUID는 가린다
@@ -153,9 +148,13 @@ SDK는 기동할 때 원격 설정(`https://us-assets.i.posthog.com/array/<key>/
 
 ### (4) 환경은 호스트가 아니라 키로 나눈다
 
-GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트래픽을 막지만 — dev와 운영이 같은 측정 ID라 호스트로만 가를 수 있다 — PostHog는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다. 키를 두는 곳은 [§5 「환경 변수」](#환경-변수)다.
+GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트래픽을 막지만 — dev와 운영이 같은 측정 ID라 호스트로만 가를 수 있다 — PostHog는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다. 키를 두는 곳은 아래 예외 다음 문단이다.
 
 **예외 하나 — 개발자 PC는 호스트로 막는다(2026-10-12).** 2026-10-11 `localhost:3100`에서 운영 키로 띄운 테스트가 운영 프로젝트에 "업로드 실패" 6명으로 섞였다. 그래서 `isPostHogHost()`가 `localhost`·`127.*`·사설 IP(`10.*`·`172.16~31.*`·`192.168.*`)·`.local` 호스트에서는 키가 있어도 켜지 않는다. 배포된 호스트(`dev.acttub.com` 포함)는 그대로 키로 가른다. 로컬에서 설치를 확인할 때만 `.env.local`에 `NEXT_PUBLIC_POSTHOG_LOCAL=1`과 **dev 프로젝트 키**를 같이 넣는다.
+
+PostHog 프로젝트는 dev와 운영 둘로 나눈다. 키는 GitHub Actions의 Repository 변수가 아니라 **Environment 변수**
+`POSTHOG_KEY_WEB`(dev·prod 각각)에 두고, `deploy.yml`이 빌드 때 `NEXT_PUBLIC_POSTHOG_KEY`로 넣는다. 프로젝트를 하나만 쓸 수
+있으면 dev의 변수를 비워 dev 계측을 끈다.
 
 ### (5) 켜고 끄는 스위치는 프로젝트 키 하나다
 
@@ -173,30 +172,21 @@ GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트�
 
 연습 세션 UUID · 업로드 intent id · 파일명 · 장면 3칸 텍스트(situation/character/goal) · 막힘 상세 텍스트 · 대화 입력과 응답 본문 · 노트 본문과 제목 · 표시 이름 · 이메일 · 입시 검색어 원문 · 원본 영상 길이(ms)와 파일 크기(byte)
 
-숫자는 **버킷으로 뭉갠다.** 원본 밀리초·바이트는 특정 연습을 짚어내는 지문이 된다.
+숫자는 **버킷으로 뭉갠다.** 원본 밀리초·바이트는 특정 연습을 짚어내는 지문이 된다. 버킷 함수는 `posthog.ts`의 `to*Bucket`과
+`ga.ts`의 `toDurationBucket`이다.
+
+예외는 하나다. `practice_upload_profiled`(SOMA-381)는 압축·업로드 구간을 줄이려고 재는 이벤트라 원래 값(ms·byte)을 싣는다.
+이유는 `posthog.ts`의 `trackPracticeUploadProfiled` 주석에 있다. 이 밖의 이벤트에 원래 값을 더하지 않는다.
 
 > 세션 id는 **중복 방지 열쇠로만** 쓴다 — `workspace-app.tsx`의 `countStepOnce` 패턴을 그대로 복사한다. 열쇠로 쓰되 전송하지 않는다.
 
 ---
 
-## 2. 버킷
+## 3. 이벤트 사전
 
-`ga.ts`의 `toDurationBucket`은 그대로 재사용하고, 나머지는 `posthog.ts`에 둔다.
+웹의 연습·리딩 주소는 2026-11-19부터 앱 설치 안내로 가므로(SOMA-1087) A·B의 연습 이벤트는 지금 웹에서 거의 나오지 않는다.
 
-| 함수 | 구간 |
-| --- | --- |
-| `toDurationBucket(ms)` (기존) | `<30s` `30-60s` `60-180s` `180s+` `unknown` |
-| `toSizeBucket(bytes)` | `<10MB` `10-30MB` `30-60MB` `60MB+` `unknown` |
-| `toWaitBucket(ms)` | `<30s` `30-60s` `60-120s` `120s+` `unknown` |
-| `toLengthBucket(chars)` | `<20` `20-60` `60-150` `150+` |
-| `toAgeDaysBucket(days)` | `0` `1-3` `4-7` `8-30` `30+` |
-| `toPctBucket(pct)` | `0-25` `25-50` `50-75` `75-99` |
-
----
-
-## 3. 이벤트 사전 (1차 20개)
-
-이벤트를 더 늘리기 전에 **이 20개로 답이 나오는지 먼저 본다.** 입시 계측은 2차로 미룬다 — 지금 답해야 할 질문(퍼널 이탈·리텐션·대화 품질)에 필요 없다.
+이벤트를 더 늘리기 전에 **아래 이벤트로 답이 나오는지 먼저 본다.** 입시 계측은 2차로 미룬다 — 지금 답해야 할 질문(퍼널 이탈·리텐션·대화 품질)에 필요 없다.
 
 ### A. 연습 퍼널 — "어디서 나가나"
 
@@ -204,15 +194,14 @@ GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트�
 | --- | --- | --- |
 | `practice_prep_opened` | prep 모드 진입 | `entry`: `new` \| `reset` |
 | `practice_video_selected` | 파일 선택 완료 | `size_bucket`, `is_reselect` |
+| `practice_scene_skipped` | 시작할 때 장면 세 칸이 모두 비어 있음 | 없음 |
 | `practice_blockage_submitted` | 도움을 실제로 고른 채 시작 | `kind`, `sub_branch`, `has_detail` |
 | `practice_upload_failed` | 업로드·세션 생성 실패 | `stage`: `preflight`\|`intent`\|`put`\|`complete`\|`session_create`, `reason_code` |
 | `practice_session_created` | 회차 생성 성공 | `duration_bucket`, `kind`, `sub_branch`, `scene_skipped` |
 | `practice_analysis_settled` | 분석 종료 | `result`: `analyzed`\|`failed`, `error_code`, `wait_bucket` |
+| `practice_upload_profiled` | 업로드 마무리 | `compress_ms`, `upload_ms`, `original_bytes`, `uploaded_bytes`, `was_compressed`, `webcodecs_supported`, `video_duration_ms`(원래 값, §1(7) 예외) |
 
 `practice_blockage_submitted`는 도움 갈래를 실제로 고른 사람만 세며, 자동으로 채우는 `그 외` 기본값은 포함하지 않는다. 업로드는 준비 화면의 시작 버튼을 누른 뒤 바로 시작하고, 실패는 같은 진행 자리에서 안내한다.
-
-`theory_choice`는 0.1.0에서 준비 화면의 이론 선택과 함께 사라졌다(SOMA-546). 옛 이벤트에 남은 값은 그대로 두고 새 이벤트는 이 속성을 만들지 않는다.
-
 
 `error_code`는 회차 응답의 `job.failure_reason`을 웹이 옮긴 값([practice-view.ts](src/features/practice/practice-view.ts)의 `toErrorCode`, 값 목록은 `posthog.ts`의 `AnalysisErrorCode`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
 
@@ -299,44 +288,5 @@ GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트�
 
 웹은 판 번호를 들지 않고 서버가 답한 현재 판의 결정만 보므로(§1(1)), 웹과 api의 배포 순서가 어긋나도 현재 판에 동의하지 않은 동안에는 꺼져 있을 뿐이다.
 
-### 환경 변수
+PostHog 한도, 세션의 뜻, Amplitude 때의 규모 계산은 팀 위키 `research/2026-08-11-web-analytics-history`에 있다.
 
-| 변수 | 위치 | 값 |
-| --- | --- | --- |
-| `POSTHOG_KEY_WEB` | GitHub Actions **Environment 변수** (dev / prod 각각) | 환경별로 **다른** PostHog 프로젝트 키 |
-| `NEXT_PUBLIC_POSTHOG_KEY` | 빌드 시점 주입 (`deploy.yml`이 위 값을 넣는다) | — |
-| `NEXT_PUBLIC_POSTHOG_KEY` | 로컬 `apps/web/.env.local` | 확인용. `.env*`는 커밋되지 않는다 |
-| `NEXT_PUBLIC_POSTHOG_LOCAL` | 로컬 `apps/web/.env.local` | `1`일 때만 로컬 호스트에서 켠다(§1(4) 예외). 운영 키와 같이 쓰지 않는다 |
-
-**PostHog 프로젝트를 dev와 운영 둘로 나눈다.** §1(4)대로 호스트로 거르지 않으므로, dev와 운영에 같은 키를 주면 개발 트래픽이 운영 통계에 그대로 섞인다. 프로젝트를 하나만 쓸 수 있으면 dev의 변수를 비워 dev 계측을 끈다. Repository 변수가 아니라 **Environment 변수**로 넣어야 환경별로 갈린다.
-
-### 한도 검토
-
-PostHog 무료 한도(이벤트·녹화 수, 프로젝트 수)는 아직 확인하지 않았다. 키를 넣기 전에 PostHog 프로젝트의
-Billing 화면에서 확인해 여기에 날짜와 함께 적는다. 녹화 비율은 코드가 아니라 프로젝트 설정의 Session replay
-샘플 비율이 정한다(§1(2)).
-
-#### 세션이 무엇인지부터 — 연습 1회도, 사람 1명도 아니다
-
-PostHog의 세션은 **브라우저 활동 구간**이다. 30분 무활동이면 끊기고 다시 움직이면 새 세션이 되며, 한 세션은 24시간을 넘지 않는다(posthog-js `sessionid.js`의 기본값). 1·2·3층을 다 도는 것과는 무관하다.
-
-- 들어와서 아무것도 안 하고 나가도 1세션
-- 연습 한 번을 쭉 이어서 하면 보통 1세션
-- **분석이 250초 걸려 폰을 놓고 30분 뒤 돌아와 노트를 보면 2세션**
-- 한 사람이 한 달에 세 번 오면 3세션
-
-#### 옛 기록: Amplitude 때의 규모 계산 (2026-08-11)
-
-당시 Amplitude 무료 한도는 리플레이 10,000건/월, 이벤트 2,000,000건/월이었다.
-
-**동의 게이트가 익명 방문자를 통째로 걸러낸다.** 계측은 서버가 게스트의 `privacy` 동의를 `granted`라고 답한 뒤에만 init되므로(당시에는 로그인 + 최신 방침 동의), 랜딩만 보고 나가는 사람은 세션을 만들지 않는다. SOMA-332 기준 최근 30일 광고 링크 클릭이 **3,205건**인데 거의 다 익명 유입이라 녹화를 한 건도 쓰지 않는다. (SOMA-331이 "코어 GA가 로그인·동의 뒤에만 켜져서 그 이전 유입을 못 센다"고 지적한 것과 같은 구조다 — 귀속에는 불리하고 쿼터에는 유리하다.)
-
-가입자는 **175명**(SOMA-279, 2026-08-03 기준, `ADMIN_OPS_EXCLUDE_EMAILS`로 개발자 제외된 값). 전원이 매달 10번씩 들어와도 **1,750세션 = 당시 리플레이 한도의 17%**라는 계산이 당시 100% 녹화 유지의 근거였다.
-
-**다시 계산해야 하는 때는 둘이다.** PostHog 한도를 확인한 뒤 같은 방식으로 다시 센다.
-1. **동의 게이트를 풀면** 즉시 위험해진다 — 익명 방문자가 세션을 만들기 시작하면 위 3,205건이 그대로 녹화가 된다. 게이트는 방침 때문에 두는 것이지만 쿼터 방어도 겸하고 있다.
-2. **가입이 10배 나면**(1,750명 규모) 여유가 사라진다. 그때 프로젝트 설정의 샘플 비율을 0.2~0.3으로 낮추면 표본으로는 충분하다.
-
-### 성능
-
-화면 녹화는 DOM 변화를 계속 기록한다. 이 앱은 화면에서 연습 영상을 재생하므로 부담이 큰 축이다 — 2026-08-11 로컬 검증 중 Amplitude 리플레이가 켜진 탭에서 렌더러가 멈춘 적이 있다(검증용 후크가 함께 걸려 있어 리플레이 단독 탓으로 단정하지는 못한다). **운영에 켠 뒤 실제 기기에서 연습 화면의 반응성을 한 번 봐야 한다.** 무거우면 프로젝트 설정의 샘플 비율을 먼저 낮춘다.
