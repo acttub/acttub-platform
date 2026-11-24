@@ -8,13 +8,6 @@
 배우는 고치고(성공한 수정만 무료 3회) 확정한다. 확정한 대본은 기존 「내 대본」에 저장돼 리딩에서도 읽고, 「지금 찍을래요」로
 영상 코칭의 새 연습에 장면 정보를 채워 넘긴다.
 
-## 의도
-대본이 없어 코칭을 시작하지 못하는 배우에게 바로 찍을 수 있는 대사를 준다. 대본은 생성한 글만 쓴다 — 사용자 대본이나 기존
-작품을 프롬프트에 넣지 않는다.
-
-## 목적
-코칭 탭 입구에서 대본 없이 들어온 배우가 1분 안팎의 대본을 받아 찍기까지 이어지게 한다.
-
 ## 입력·출력
 - `POST /v2/sample-scripts` — request_id, 경력(beginner·exam·experienced, 앱은 프로필 경력에서 고른다), 나이·성별·목표(프로필),
   감정·상황·방향(자유 글), 배역 수 1~4(1 = 독백, 기본 1), 분량 1·3·10분(기본 1). 새로 만들면 201, 같은 request_id 는 200.
@@ -27,9 +20,11 @@
 
 ## 상태
 만드는 중(versions 없음) → 만듦(버전 1) → 고침(버전 n, 수정 횟수 +1) ⇄ 되돌림(지금 버전만 바뀜) → 확정(script_id). 확정 뒤에는
-고치거나 되돌리지 않는다. 확정한 대본을 지우면 script_id 만 비고 생성 기록은 남는다.
+고치거나 되돌리지 않는다. 확정한 대본을 지우면 script_id 만 비고 생성 기록은 남는다. 그러면 확정 전으로 돌아가 다시 고치고
+확정할 수 있다(무료 수정 횟수는 이어진다).
 
 ## 규칙·제약
+- 대본은 생성한 글만 쓴다 — 사용자 대본이나 기존 작품을 프롬프트에 넣지 않는다.
 - 모델: 코칭 키 Gemini 클라이언트, `ACTTUB_SAMPLE_SCRIPT_MODEL`(기본 gemini-4-argon). 프롬프트는 2026-10-19 인계본의 생성·수정·걸린
   줄 고치기 셋이고 독백판만 더했다(`apps/api/src/main/resources/reading/sample-script/`).
 - 검사: 구조(배역 수·내 배역 하나·모르는 배역·대사 없는 배역·분량·대화의 내 비중 25~60%), 줄(길이·괄호·감정 이름·글 같은
@@ -54,14 +49,14 @@
 | 상황 | 응답 |
 |---|---|
 | 배역 수·분량이 범위 밖 | 422 sample_script_invalid_options |
-| 같은 request_id 가 아직 만드는 중 | 409 sample_script_in_progress |
+| 같은 request_id 가 아직 만드는 중(만든 지 5분 안) | 409 sample_script_in_progress. 5분이 지난 「만드는 중」은 버려진 것으로 보고 지운 뒤 새로 만든다(하루 20개에 다시 센다) |
 | 24시간 20개 초과 | 429 sample_script_daily_limit |
 | 모델 실패·검사 불통과 | 502 sample_script_failed (기록 없음, 같은 request_id 로 다시 가능) |
 | 없는 것·남의 것 | 404 sample_script_not_found |
 | 무료 수정 소진 | 429 sample_script_revision_limit |
 | 지금 버전이 아님 | 409 sample_script_version_conflict |
-| 다른 수정 중 | 409 sample_script_busy |
-| 확정한 대본을 고치거나 되돌림 | 409 sample_script_saved |
+| 다른 수정 중(시작한 지 5분 안) | 409 sample_script_busy. 5분이 지난 수정은 버려진 것으로 보고 새 수정이 집는다 |
+| 확정한 대본(지우지 않은 것)을 고치거나 되돌림 | 409 sample_script_saved |
 | 바꿀 것이 없음 | 422 sample_script_no_change |
 | 수정 실패 | 502 sample_script_revision_failed (원본·횟수 그대로) |
 | 없는 버전으로 되돌림 | 422 sample_script_version_not_found |

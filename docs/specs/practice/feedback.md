@@ -3,7 +3,7 @@
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
 - 도입: 0.1.0
-- 화면: A7(이탈 설문, coach·report 공통 시트), 웹 대응 화면(없음, 디자인에 반영할 것)
+- 화면: A7(이탈 설문, coach·report 공통 시트)
 - 테이블: practice_feedback, practices
 
 ## 기능
@@ -12,13 +12,6 @@
 
 앱은 0.1.2부터 이 설문을 띄우지 않고 [practice.rating](rating.md)으로 바꾼다(SOMA-494). 서버 테이블과 접수 API는
 그대로 두고, 앱은 전에 기기에 밀려 있던 접수만 마저 보낸다. 아래 규칙은 웹과 기존 자료에 대한 것이다.
-
-## 의도
-지금 앱은 시트(Apps Script)로만 보내고 웹은 외부 폼을 띄운다. 서버에 없으니 "한 번만 묻기"를 기기마다 따로 판단하고 탈퇴 때 지울
-수 없다. DB를 정본으로 두고 시트는 복제본이다(ERD).
-
-## 목적
-배우가 나가는 순간의 소감을 부담 없이 남기고, 운영은 시트에서 그대로 읽는다.
 
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
@@ -51,6 +44,7 @@ practice_feedback.sheet_synced_at — 시트 복제.
 - 끝 상태: 없음. 연락처 파기가 미전송으로 되돌린다.
 
 ## 규칙·제약
+- DB가 정본이고 시트는 복제본이다. "한 번만 묻기"와 탈퇴 때 지우기는 서버의 행으로 판단한다.
 - 대상은 coach·report 화면에서의 이탈이고, 계기는 x·leave·back 셋이다. 홈 의견·스토어 평점·노트 미니 평가는 이 기능이 아니다.
 - 한 계정에 한 번만 묻는다. 자동 노출 직전에 서버가 계정의 노출 표식(users.exit_survey_asked_at)을 원자적으로 선점하고, 선점한 기기만
   시트를 띄운다(두 기기가 동시에 물어도 하나만). 건너뛰기도 practice_feedback에 body가 없는 행(dismissed)으로 남긴다. 오프라인에서는 새
@@ -58,7 +52,7 @@ practice_feedback.sheet_synced_at — 시트 복제.
   설문 이력 행은 모두 회원으로 옮긴다.
 - 본문은 공백 정리 뒤 1~100자(코드 포인트), 연락처(이메일·전화)는 각각 80자 선택이다. 연락처 없이도 보낼 수 있다.
 - 행은 user_id·practice_id·화면(coach·report)·계기·본문·연락처·시각·sheet_synced_at을 가진다. 계정에 연결되며 화면 문구는 "답변은
-  서비스 개선에만 써요 · 이름은 보이지 않아요"로 실제 수집 범위를 말한다("이름은 남지 않아요"는 고친다). (디자인에 반영할 것)
+  서비스 개선에만 써요 · 이름은 보이지 않아요"로 실제 수집 범위를 말한다.
 - 저장은 DB 커밋으로 끝난다. 시트 전송은 서버가 같은 설문 id와 변경 순번(sheet_seq)으로 보내고 실패하면 sheet_synced_at을 NULL로 두어
   매일 도는 일이 다시 보낸다. 시트는 설문 id로 한 줄만 두고 순번이 작은 전송은 무시한다(오래된 전송이 파기한 연락처를 되살리지 못한다).
   이 전송은 AI 작업이 아니라 ai_jobs에 넣지 않는다.
@@ -66,7 +60,7 @@ practice_feedback.sheet_synced_at — 시트 복제.
 - 연락처는 접수 90일 뒤 DB에서 지우고 같은 설문 id·새 순번으로 시트에 다시 보내 시트의 연락처도 지운다(성공까지 재시도). 탈퇴 때도
   같다([연습 README 「연습 자료의 이관·삭제·탈퇴」](README.md#연습-자료의-이관삭제탈퇴)). 연락처 컬럼을 지워도 본문에 식별 정보가 있을 수
   있다는 점은 법무 확인에 둔다.
-- 웹은 외부 폼 대신 같은 시트 화면을 쓴다. (디자인에 반영할 것)
+- 웹은 외부 폼 대신 같은 시트 화면을 쓴다.
 - 운영 피드백 조회: 한 항목은 `id`·`kind`(exit_survey·note_rating)·`created_at`·`actor`·`is_team`·`body`·`rating`·`status`·`source`·
   `trigger`·`practice_id`를 항상 싣고 해당 없는 값은 null이다. 설문은 body 유무에 따라 status answered·dismissed, source는 coach·report다.
   평가는 한 줄을 body, 평가 값을 rating, source를 practice_note로 낸다. 정렬은 `created_at DESC, kind ASC, id ASC`라 같은 시각에도 고정된다.
