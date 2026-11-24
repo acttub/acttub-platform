@@ -10,26 +10,29 @@
 글자 대조만 예외이며, 그 결과도 "맞음·틀림"이라 하지 않는다. 앱은 "원문과 다르게 말한 대사"로 원문에서 다르게 말한
 어절만 노랗게 칠하고 말한 것을 아래에 둔다([reading.session](session.md#규칙제약)). 웹 암기 대조는 넘어가기·다시·원문
 보기·아직 안 나온 줄로 보여 준다. (상대역 리딩 흐름 메모, 기획 6절)
-Pro의 발음 보고서와 [reading.voice-coaching](voice-coaching.md)(리딩 녹음으로 코칭 받기, 기본 꺼짐)는 이 원칙의 예외다 — 녹음을 채점하거나
+Pro의 발음 보고서와 [reading.voice-coaching](voice-coaching.md)(리딩 녹음으로 코칭 받기, 스위치 값이 없으면 dev에서만 켜짐)는 이 원칙의 예외다 — 녹음을 채점하거나
 AI 코치가 듣고 들린 것 하나를 짚는다.
 
 침묵 감지와 리딩 중 받아쓰기(STT)는 기기가 한다. 앱의 STT는 OS 음성 인식, 웹의 STT는 브라우저 음성 서비스라 말소리가 그
-제공자에게 갈 수 있다(ADR-037). 처리방침과 웹 화면이 이를 알린다. 배역 나누기는 서버가 한다 — 대본 글을 서버가 배역·대사로 나누고
-나누기 방식(`SCRIPT_SPLIT_MODE`)에 따라 OpenAI(gpt-6-luna)를 부르며([reading.script](script.md#규칙제약) 「나누기 작업」), 이 처리는
-선택 동의 script_split을 따로 받는다. 글자 대조도 서버가 한다 — 기기가 보낸 전사 글을 원문과 맞춰 본다([reading.session](session.md#규칙제약)).
+제공자에게 갈 수 있다(ADR-037). 웹 화면은 이를 알린다. 처리방침에는 이 내용이 없다. 배역 나누기는 서버가 한다 — 대본 글을 서버가 배역·대사로 나누고
+나누기 방식(`SCRIPT_SPLIT_MODE`)에 따라 OpenAI(gpt-6-luna)를 부르며([reading.script](script.md#규칙제약) 「나누기 작업」), 이 처리의
+동의는 script_split이다. 글자 대조도 서버가 한다 — 기기가 보낸 전사 글을 원문과 맞춰 본다([reading.session](session.md#규칙제약)).
 상대역 목소리는 기본이 기기(Supertonic 3 온디바이스)다.
 
 서버가 음성을 다루는 일은 아래뿐이다.
 - 웹 녹음의 형식 변환([reading.recording](recording.md#규칙제약)).
 - 기기 받아쓰기가 빈 녹음의 다시 받아쓰기(`READING_RETRANSCRIBE_ENABLED`, [reading.recording](recording.md#규칙제약) 「다시 받아쓰기」).
-- 고품질 목소리를 켠 사람의 상대 대사 합성([reading.cloud-voice](cloud-voice.md), 선택 동의 cloud_voice).
-- Pro의 발음 보고서(`PRON_REPORT_ENABLED`, 기본 꺼짐. compose는 `pron` 프로필을 켠 dev에서만 켠다. `GET /v2/reading/sessions/{session_id}/pronunciation`):
+- 고품질 목소리를 켠 사람의 상대 대사 합성([reading.cloud-voice](cloud-voice.md), 동의 cloud_voice).
+- Pro의 발음 보고서(`PRON_REPORT_ENABLED`, 기본 꺼짐. 채점 서비스 주소 `PRON_SCORER_URL`도 있어야 돈다. 채점 서비스는 compose `pron` 프로필로
+  따로 띄운다. `GET /v2/reading/sessions/{session_id}/pronunciation`):
   켠 서버에서 Pro 회원과 허용 사용자 목록의 회원이 받는다(`PronunciationReportService`). 끝난 회차의 녹음을 발음 채점 서비스(`apps/pron`)로
   보낸다. 따로 된 기능 파일은 아직 없다.
 - 리딩 녹음으로 코칭 받기([reading.voice-coaching](voice-coaching.md)).
 
-리딩 경로(`/v2/reading/**`)는 AI 분석 동의(ai_analysis)를 요구하지 않는다(고품질 목소리는 선택 동의 cloud_voice를, 대본 나누기는
-선택 동의 script_split을 받는다). 게스트가 받는 문서는 [account.guest](../account/guest.md#규칙제약)의 기능별 표다.
+리딩 경로(`/v2/reading/**`)의 동의 판정은 회원과 게스트가 다르다. 회원은 다른 보호 경로와 같이 지금 버전의 문서를 모두 결정해야 하고,
+필수 문서인 AI 분석 동의(ai_analysis)도 그 안에 든다(`AccessGate#gatedUser`). 게스트는 AI 분석 동의를 받지 않는다. 게스트가 받는
+문서는 [account.guest](../account/guest.md#규칙제약)의 기능별 표다. 대본 나누기(script_split)와 고품질 목소리(cloud_voice)의 동의는
+개인정보 수집·이용 동의 v9 이상에 동의했으면 있는 것으로 본다(`PostgresScriptImportRepository#privacyCoversReading`).
 
 
 ## 용어

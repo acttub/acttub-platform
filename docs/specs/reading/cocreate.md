@@ -55,7 +55,7 @@
 | 없는 것·남의 것 | 404 sample_script_not_found |
 | 무료 수정 소진 | 429 sample_script_revision_limit |
 | 지금 버전이 아님 | 409 sample_script_version_conflict |
-| 다른 수정 중(시작한 지 5분 안) | 409 sample_script_busy. 5분이 지난 수정은 버려진 것으로 보고 새 수정이 집는다 |
+| 다른 수정 중 | 409 sample_script_busy. 고치기만 시작한 지 5분이 지난 수정을 버려진 것으로 보고 새로 집는다. 되돌리기와 확정은 수정 중이면 시간과 상관없이 409다 |
 | 확정한 대본(지우지 않은 것)을 고치거나 되돌림 | 409 sample_script_saved |
 | 바꿀 것이 없음 | 422 sample_script_no_change |
 | 수정 실패 | 502 sample_script_revision_failed (원본·횟수 그대로) |

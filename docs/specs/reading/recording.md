@@ -29,7 +29,7 @@ reading_recording_retranscripts.status — 녹음 하나의 서버 다시 받아
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| queued | 기기가 인식(stt)을 켰는데 받아쓴 글이 빈 녹음을 저장함 | reading.recording |
+| queued | 기기가 인식(stt)을 켰는데 받아쓴 글이 빈 녹음을 저장함. 같은 줄을 다시 녹음해 대체하면 끝 상태였어도 시도 수 0으로 다시 들어온다. 워커의 실패에 시도가 남음. 최근 24시간 한도에 닿아 워커가 놓음(시도 수를 1 되돌림) | reading.recording |
 | running | 워커가 집음 | reading.recording |
 | done | 받아쓴 글로 녹음의 transcript·matched를 채움 | reading.recording |
 | silent·empty·too_long·too_short·stale | 소리가 작아 보내지 않음, 모델도 글이 없음, 1분 넘음, 1.5초 못 됨, 녹음이 바뀜 | reading.recording |
@@ -166,7 +166,8 @@ reading_recording_retranscripts.status — 녹음 하나의 서버 다시 받아
 
 ## 범위 밖
 - 시도마다 녹음 남기기. 같은 줄은 마지막 시도 하나만 남는다.
-- 서버의 음성 분석. 서버가 녹음 내용을 읽는 일은 「다시 받아쓰기」뿐이고 연기를 평가하지 않는다(README).
+- 이 기능 안의 서버 음성 분석. 서버가 녹음 내용을 읽는 일은 [README](README.md)의 목록(다시 받아쓰기, 발음 보고서, 리딩 녹음으로
+  코칭 받기)뿐이다.
 - 점수·거리 저장.
 - 영상처럼 올릴 자리를 따로 받는 업로드.
 - 옛 앱의 회차 전체 녹음 옮기기(reading.script).
