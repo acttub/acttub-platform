@@ -4,7 +4,9 @@
 
 이 디렉토리가 **발행 정본**이다. 같은 자리의 `manifest.json`이 "지금 발행 중인 판"을 가리키고,
 백엔드가 기동할 때 그것을 읽어 아직 없는 문서를 DB에 심는다
-(`consent/adapter/ConsentDocumentPublisher`). 옛 판 `.md`도 지우지 않고 함께 싣는다 — 그 판에 동의한 기록이 남아 있다.
+(`consent/adapter/ConsentDocumentPublisher`). manifest에서 빠진 옛 판의 본문은 발행 때 심은 DB 행과 git 이력에 남는다.
+그래서 옛 판 `.md`는 운영 DB에 그 판의 행이 있는 것을 확인한 뒤 지운다. `privacy_v4_en.md`는 운영 DB에 이 행이 없어(2026-11-24
+확인) 남긴다.
 
 규칙은 [account.consent](../../../../../../docs/specs/account/consent.md)가 정본이다 — 동의 문서와 고지의 구분, 문서
 종류와 필수 여부(「데이터」), 판을 올릴지와 재동의, 말(locale). 이 문서는 파일을 더하고 발행·확인하는 절차만 적는다.
@@ -21,10 +23,6 @@
   (`ck_consent_documents_type`)를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
 - `privacy` 문서의 "프로필 필수 항목" 표는 `ProfileConsentParityTest` 가 프로필 API 의 필수 항목과 대조한다(규칙은
   [account.profile](../../../../../../docs/specs/account/profile.md)).
-- ⚠ `privacy_v5`·`retention_v1` 의 본문은 요구사항이 정한 항목을 담은 **초안**이고 법무 확인 전이다. 얼굴/감정은
-  민감정보 소지가 있어 법률 검토를 권장한다. 자리표시자는 MVP 기본값으로 채웠다: 운영자 `Acttub`, 시행일
-  `2026-07-22`, 문의 `acttub0527@gmail.com`, 개인정보 보호책임자는 운영자로 통합, 기타 수탁자 행 삭제. 정식
-  법인명·대표자·시행일이 확정되면 값을 갱신한다.
 
 ## 말(locale) (SOMA-544)
 
@@ -39,14 +37,13 @@
 
 ## 발행 — **배포가 곧 발행이다**
 
-🔁 **손으로 발행하는 CLI 는 없다(`SOMA-403` 5단계).** 이관 기간에는 파이썬
-`python -m acting_api.consents publish` 를 서버에서 돌렸지만, 그 파이썬은 사라졌다. 지금은
-백엔드가 기동할 때 `ConsentDocumentPublisher` 가 `manifest.json` 을 읽어 **아직 없는 판을
+손으로 발행하는 CLI 는 없다. 백엔드가 기동할 때 `ConsentDocumentPublisher` 가 `manifest.json` 을 읽어 **아직 없는 판을
 자동으로 심는다.**
 
 그래서 새 판을 내는 절차는 이렇다.
 
-1. `.md` 파일을 이 디렉토리에 추가한다 (옛 파일은 **지우지 않는다**). 번역본도 함께 더한다(위 「말」).
+1. `.md` 파일을 이 디렉토리에 추가한다. 번역본도 함께 더한다(위 「말」). 옛 판 파일은 위 「동의 문서 발행」의 조건대로
+   운영 DB에 그 판이 있는 것을 확인한 뒤 지운다.
 2. `manifest.json` 의 해당 항목을 새 파일·새 버전으로 고친다
 3. 배포한다 — **그 순간 발행된다.** dev 를 먼저 배포해 동의 화면이 정상으로 뜨는지 확인한다.
 
@@ -70,9 +67,10 @@
 
 ## 검증
 ```bash
-curl -s -H 'X-Acttub-Client: web/0.1.0' https://dev.acttub.com/v2/consents/documents   # documents 6개
+curl -s -H 'X-Acttub-Client: web/0.1.0' https://dev.acttub.com/v2/consents/documents
 ```
-그 후 앱에서 소셜 로그인 → 동의 화면에 필수 3종과 선택 1종이 뜨는지 확인.
+응답의 문서 종류·판·필수 여부가 `manifest.json`의 한국어 항목과 같은지 본다. 그 후 앱에서 소셜 로그인 → 동의 화면에
+`manifest.json`의 필수·선택 문서가 뜨는지 확인한다.
 
 ⚠ **기동 실패로 드러나지 않는다.** `ConsentDocumentPublisher` 는 어떤 실패도 기동을 막지
 않는다(문서 시딩이 안 됐다고 앱이 안 뜨면 그 편이 더 나쁘다). 대신 실패를 **보고한다** — manifest 가
