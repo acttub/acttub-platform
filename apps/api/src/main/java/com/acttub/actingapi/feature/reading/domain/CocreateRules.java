@@ -70,10 +70,6 @@ public final class CocreateRules {
             this.lineMaxEn = lineMaxEn;
         }
 
-        public String label() {
-            return label;
-        }
-
         public String label(boolean english) {
             return english ? labelEn : label;
         }
@@ -343,10 +339,6 @@ public final class CocreateRules {
     }
 
     /** 배역 수와 요청을 프롬프트의 {@code characters} 자리에 넣을 예시 JSON. */
-    public static String charactersSchema(int count) {
-        return charactersSchema(count, false);
-    }
-
     public static String charactersSchema(int count, boolean english) {
         String item = english
                 ? "{\"name\":\"Name\",\"gender\":\"m or f\",\"age_band\":\"one of child, young, adult, senior\",\"mine\":"

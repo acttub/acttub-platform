@@ -11,12 +11,11 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.integration.llm.OpenAiResponsesClient;
 import com.acttub.actingapi.integration.llm.StructuredJson;
@@ -54,8 +53,7 @@ class ScriptSplitLiveTest {
         Expected expected = Expected.read(FIXTURES.resolve(name + ".expected.tsv"));
         FakeLedger ledger = new FakeLedger();
         FakeImports imports = new FakeImports(raw);
-        ScriptSplitWorker worker = new ScriptSplitWorker(ledger, imports, new OpenAiResponsesClient(StructuredJson.MAPPER),
-                new RecordingLlmTelemetry(), new RecordingFailureReporter(), Clock.systemUTC());
+        ScriptSplitWorker worker = new ScriptSplitWorker(ledger, imports, new OpenAiResponsesClient(StructuredJson.MAPPER), new RecordingLlmTelemetry(), new RecordingFailureReporter(), Clock.systemUTC(), null, null, null, null, ScriptSplitMode.LLM);
 
         assertThat(worker.runOnce()).isTrue();
 

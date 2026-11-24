@@ -332,12 +332,6 @@ public final class PronunciationRules {
     record Heard(String word, String syllable, String open, PronunciationAdvice.Slot slot) {
     }
 
-    /** {@link #heard} 의 들린 말만. */
-    static String heardWord(Word word, Phone target) {
-        Heard heard = heard(word, target);
-        return heard == null ? null : heard.word();
-    }
-
     /**
      * 어절을 소리 나는 대로 읽되 {@code target} 소리만 들린 소리로 바꾼 말(예: 안녕의 둘째 첫소리 ㄴ이 ㅁ으로 들렸으면 "안명").
      * 채점 소리는 음절마다 [첫소리] 모음 [받침] 순이다. 음절 자리가 없거나 바꾼 소리가 그 자리에 올 수 없으면 {@code null}.

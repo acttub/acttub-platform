@@ -59,15 +59,6 @@ public final class VoiceAssignment {
     public record Cast(String preset, CharacterGender gender, CharacterAgeBand ageBand) {
     }
 
-    /** 성별·나이대를 모르는 대본 — 고정값을 뺀 F1·M1·F2·M2… 순환이다. */
-    public static List<String> voices(List<String> presets) {
-        List<Cast> cast = new ArrayList<>(presets.size());
-        for (String preset : presets) {
-            cast.add(new Cast(preset, null, null));
-        }
-        return assign(cast);
-    }
-
     /**
      * @param cast 배역들, 저장 순서대로
      * @return 같은 순서의 목소리. 프리셋이면 그 값, 아니면 위 규칙의 값

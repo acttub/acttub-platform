@@ -27,7 +27,7 @@ class LegacyFreeLimitsTest {
 
     SubscriptionService service(boolean limits) {
         return new SubscriptionService(new BillingSettings(true, false, limits, "https://dev.acttub.com",
-                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, new FakeGateway(), null, clock);
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, new FakeGateway(), null, clock, BillingMailer.NONE, RefundNotifier.NONE);
     }
 
     @Test
@@ -94,8 +94,7 @@ class LegacyFreeLimitsTest {
     void overrideCutoff() {
         SubscriptionService service = new SubscriptionService(new BillingSettings(true, false, true,
                 "https://dev.acttub.com", "https://acttub.com/pricing/result", CLIENT, SECRET,
-                Instant.parse("2026-10-31T15:00:00Z"), BillingSettings.DEFAULT_LEGACY_LIMITS_FROM),
-                repository, new FakeGateway(), null, clock);
+                Instant.parse("2026-10-31T15:00:00Z"), BillingSettings.DEFAULT_LEGACY_LIMITS_FROM), repository, new FakeGateway(), null, clock, BillingMailer.NONE, RefundNotifier.NONE);
         repository.signups.put(oldUser, Instant.parse("2026-10-31T14:59:59Z"));
         assertThat(service.freeLimited(oldUser)).isFalse();
         assertThat(service.freeLimited(newUser)).isTrue();

@@ -16,10 +16,6 @@ public class RevenueCatWebhookAuth {
         this.expected = value.isEmpty() ? null : sha256(value);
     }
 
-    public boolean configured() {
-        return expected != null;
-    }
-
     public boolean accepts(String authorization) {
         if (expected == null || authorization == null || authorization.isEmpty()) {
             return false;

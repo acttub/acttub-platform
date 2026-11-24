@@ -101,32 +101,12 @@ public class ScriptSplitWorker {
     private final ScriptSplitListener listener;
     private final ScriptSplitMode mode;
 
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
-        this(ledger, imports, generator, telemetry, failures, clock, null, null);
-    }
-
-    /** @param decider 줄 두 번째 의견(SOMA-663 J1). {@code null} 이면 그 단계를 건너뛴다 */
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review) {
-        this(ledger, imports, generator, telemetry, failures, clock, decider, review, null);
-    }
-
-    /** @param sameSpeaker 「같은 사람인가」로 화자를 합치는 확신 하한(SOMA-663 H4). {@code null} 이거나 decider 가 없으면 건너뛴다 */
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
-            Double sameSpeaker) {
-        this(ledger, imports, generator, telemetry, failures, clock, decider, review, sameSpeaker, null);
-    }
-
-    /** @param listener 대본을 저장한 뒤 알릴 곳(SOMA-960). {@code null} 이면 알리지 않는다 */
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
-            Double sameSpeaker, ScriptSplitListener listener) {
-        this(ledger, imports, generator, telemetry, failures, clock, decider, review, sameSpeaker, listener, ScriptSplitMode.LLM);
-    }
-
-    /** @param mode 나누기 방식(SOMA-1090). {@link ScriptSplitMode#HYBRID} 면 규칙이 확신하는 대본은 모델 첫 판·줄 검토를 건너뛴다 */
+    /**
+     * @param decider 줄 두 번째 의견(SOMA-663 J1). {@code null} 이면 그 단계를 건너뛴다
+     * @param sameSpeaker 「같은 사람인가」로 화자를 합치는 확신 하한(SOMA-663 H4). {@code null} 이거나 decider 가 없으면 건너뛴다
+     * @param listener 대본을 저장한 뒤 알릴 곳(SOMA-960). {@code null} 이면 알리지 않는다
+     * @param mode 나누기 방식(SOMA-1090). {@link ScriptSplitMode#HYBRID} 면 규칙이 확신하는 대본은 모델 첫 판·줄 검토를 건너뛴다
+     */
     public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
             Double sameSpeaker, ScriptSplitListener listener, ScriptSplitMode mode) {

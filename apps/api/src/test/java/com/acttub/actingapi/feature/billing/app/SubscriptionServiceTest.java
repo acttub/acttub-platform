@@ -40,7 +40,7 @@ class SubscriptionServiceTest {
 
     SubscriptionService service(boolean enabled, boolean limits) {
         return new SubscriptionService(new BillingSettings(enabled, false, limits, "https://dev.acttub.com",
-                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock, mails::add);
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock, mails::add, RefundNotifier.NONE);
     }
 
     final SubscriptionService service = service(true, false);
@@ -51,7 +51,7 @@ class SubscriptionServiceTest {
     }
 
     private Subscription subscribe() {
-        String state = stateOf(service.startCheckout(user, false, "subscribe"));
+        String state = stateOf(service.startCheckout(user, false, "subscribe", null));
         String customerKey = service.page(state).orElseThrow().customerKey();
         assertThat(service.complete(state, customerKey, "auth_1")).isEqualTo(Result.DONE);
         return repository.find(user).orElseThrow();
@@ -86,9 +86,9 @@ class SubscriptionServiceTest {
     @DisplayName("웹 결제 플래그가 꺼져 있으면 카드 등록 창·콜백·재시도·자동결제가 모두 막혀 토스 호출이 한 번도 나가지 않는다")
     void webFlagOffBlocksEveryCharge() {
         SubscriptionService off = new SubscriptionService(new BillingSettings(false, true, true, "https://dev.acttub.com",
-                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock);
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock, BillingMailer.NONE, RefundNotifier.NONE);
         assertThat(off.available()).isTrue();
-        assertThatThrownBy(() -> off.startCheckout(user, false, "subscribe")).isInstanceOfSatisfying(ApiException.class,
+        assertThatThrownBy(() -> off.startCheckout(user, false, "subscribe", null)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.getMessage()).contains("billing_unavailable"));
         assertThat(off.page("x".repeat(43))).isEmpty();
         assertThat(off.complete("x".repeat(43), "c", "a")).isEqualTo(Result.INVALID);
@@ -152,7 +152,7 @@ class SubscriptionServiceTest {
         repository.storeSubscription(user, "apple", Status.ACTIVE, clock.instant().plusSeconds(86400));
         assertThatThrownBy(() -> service.cancel(user)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.getMessage()).contains("managed_by_store"));
-        assertThatThrownBy(() -> service.startCheckout(user, false, "subscribe")).isInstanceOfSatisfying(ApiException.class,
+        assertThatThrownBy(() -> service.startCheckout(user, false, "subscribe", null)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.getMessage()).contains("already_subscribed"));
     }
 
@@ -215,9 +215,8 @@ class SubscriptionServiceTest {
         UUID other = UUID.randomUUID();
         repository.emails.put(other, "other@example.com");
         SubscriptionService exploding = new SubscriptionService(new BillingSettings(true, false, false, "https://dev.acttub.com",
-                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock,
-                mail -> { throw new IllegalStateException("mail down"); });
-        String state = stateOf(exploding.startCheckout(other, false, "subscribe"));
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock, mail -> { throw new IllegalStateException("mail down"); }, RefundNotifier.NONE);
+        String state = stateOf(exploding.startCheckout(other, false, "subscribe", null));
         String customerKey = exploding.page(state).orElseThrow().customerKey();
         assertThat(exploding.complete(state, customerKey, "auth_2")).isEqualTo(Result.DONE);
     }
@@ -249,7 +248,7 @@ class SubscriptionServiceTest {
     @Test
     @DisplayName("같은 콜백이 두 번 와도 한 번만 결제한다 — 창은 한 번만 집힌다")
     void callbackIsSingleUse() {
-        String state = stateOf(service.startCheckout(user, false, "subscribe"));
+        String state = stateOf(service.startCheckout(user, false, "subscribe", null));
         String customerKey = service.page(state).orElseThrow().customerKey();
 
         assertThat(service.complete(state, customerKey, "auth_1")).isEqualTo(Result.DONE);
@@ -262,13 +261,13 @@ class SubscriptionServiceTest {
     @DisplayName("이미 Pro 이면 새 구독 창을 열지 않고, 게스트는 결제할 수 없다")
     void startGuards() {
         subscribe();
-        assertThatThrownBy(() -> service.startCheckout(user, false, "subscribe"))
+        assertThatThrownBy(() -> service.startCheckout(user, false, "subscribe", null))
                 .hasMessageContaining("already_subscribed");
-        assertThatThrownBy(() -> service.startCheckout(UUID.randomUUID(), true, "subscribe"))
+        assertThatThrownBy(() -> service.startCheckout(UUID.randomUUID(), true, "subscribe", null))
                 .hasMessageContaining("billing_member_required");
-        assertThatThrownBy(() -> service.startCheckout(UUID.randomUUID(), false, "change_card"))
+        assertThatThrownBy(() -> service.startCheckout(UUID.randomUUID(), false, "change_card", null))
                 .hasMessageContaining("no_subscription");
-        assertThatThrownBy(() -> service.startCheckout(UUID.randomUUID(), false, "refund"))
+        assertThatThrownBy(() -> service.startCheckout(UUID.randomUUID(), false, "refund", null))
                 .hasMessageContaining("invalid_purpose");
         assertThatThrownBy(() -> service.cancel(UUID.randomUUID())).hasMessageContaining("no_subscription");
     }
@@ -277,15 +276,15 @@ class SubscriptionServiceTest {
     @DisplayName("첫 결제가 거절되면 Pro 가 아니고 다시 창을 열 수 있다. 결과를 모르면 새 구독 결제를 막는다")
     void firstPaymentFailures() {
         gateway.nextFailures.push(FakeGateway.rejected());
-        String state = stateOf(service.startCheckout(user, false, "subscribe"));
+        String state = stateOf(service.startCheckout(user, false, "subscribe", null));
         assertThat(service.complete(state, service.page(state).orElseThrow().customerKey(), "a")).isEqualTo(Result.FAILED);
         assertThat(service.pro(user)).isFalse();
         assertThat(service.view(user).status()).isEqualTo("none");
 
         gateway.nextFailures.push(FakeGateway.unknown());
-        String second = stateOf(service.startCheckout(user, false, "subscribe"));
+        String second = stateOf(service.startCheckout(user, false, "subscribe", null));
         assertThat(service.complete(second, service.page(second).orElseThrow().customerKey(), "b")).isEqualTo(Result.UNKNOWN);
-        assertThatThrownBy(() -> service.startCheckout(user, false, "subscribe")).hasMessageContaining("payment_pending");
+        assertThatThrownBy(() -> service.startCheckout(user, false, "subscribe", null)).hasMessageContaining("payment_pending");
 
         // 스케줄러가 같은 주문 ID 로 다시 물어 성공을 확인하면 그때 active 가 된다.
         clock.advance(Duration.ofMinutes(15));
@@ -301,7 +300,7 @@ class SubscriptionServiceTest {
     @DisplayName("카드 등록 자체가 실패하면 승인을 시도하지 않는다")
     void issueFailureNeverCharges() {
         gateway.issueFailure = FakeGateway.rejected();
-        String state = stateOf(service.startCheckout(user, false, "subscribe"));
+        String state = stateOf(service.startCheckout(user, false, "subscribe", null));
         assertThat(service.complete(state, service.page(state).orElseThrow().customerKey(), "a")).isEqualTo(Result.FAILED);
         assertThat(gateway.idempotencyKeys).isEmpty();
         assertThat(repository.payments).isEmpty();
@@ -310,7 +309,7 @@ class SubscriptionServiceTest {
     @Test
     @DisplayName("customerKey 가 창과 다르면 등록하지 않는다")
     void customerKeyMustMatch() {
-        String state = stateOf(service.startCheckout(user, false, "subscribe"));
+        String state = stateOf(service.startCheckout(user, false, "subscribe", null));
         assertThat(service.complete(state, "someone_else", "a")).isEqualTo(Result.FAILED);
         assertThat(gateway.issued).isZero();
     }
@@ -318,17 +317,17 @@ class SubscriptionServiceTest {
     @Test
     @DisplayName("토스 실패 콜백 — 사용자가 닫으면 canceled, 그 밖은 failed")
     void failCallback() {
-        String state = stateOf(service.startCheckout(user, false, "subscribe"));
+        String state = stateOf(service.startCheckout(user, false, "subscribe", null));
         assertThat(service.fail(state, "PAY_PROCESS_CANCELED")).isEqualTo(Result.CANCELED);
         assertThat(service.fail(state, "PAY_PROCESS_CANCELED")).isEqualTo(Result.INVALID);
-        String other = stateOf(service.startCheckout(user, false, "subscribe"));
+        String other = stateOf(service.startCheckout(user, false, "subscribe", null));
         assertThat(service.fail(other, "<script>")).isEqualTo(Result.FAILED);
     }
 
     @Test
     @DisplayName("만료된 창은 열리지 않는다")
     void expiredCheckout() {
-        String state = stateOf(service.startCheckout(user, false, "subscribe"));
+        String state = stateOf(service.startCheckout(user, false, "subscribe", null));
         clock.advance(BillingRules.CHECKOUT_TTL.plusSeconds(1));
         assertThat(service.page(state)).isEmpty();
         assertThat(service.complete(state, "x", "a")).isEqualTo(Result.INVALID);
@@ -460,7 +459,7 @@ class SubscriptionServiceTest {
     @DisplayName("결제 수단 바꾸기 — 결제 없이 카드만 바뀌고, past_due 였으면 새 카드로 바로 결제한다")
     void changeCard() {
         Subscription sub = subscribe();
-        String state = stateOf(service.startCheckout(user, false, "change_card"));
+        String state = stateOf(service.startCheckout(user, false, "change_card", null));
         assertThat(service.complete(state, sub.customerKey(), "auth_2")).isEqualTo(Result.DONE);
         assertThat(gateway.approvedOrders).hasSize(1);
         assertThat(repository.find(user).orElseThrow().sealedBillingKey()).isNotEqualTo(sub.sealedBillingKey());
@@ -468,7 +467,7 @@ class SubscriptionServiceTest {
         clock.set(sub.periodEnd());
         gateway.nextFailures.push(FakeGateway.rejected());
         worker.runOnce();
-        String again = stateOf(service.startCheckout(user, false, "change_card"));
+        String again = stateOf(service.startCheckout(user, false, "change_card", null));
         assertThat(service.complete(again, sub.customerKey(), "auth_3")).isEqualTo(Result.DONE);
         assertThat(service.view(user).status()).isEqualTo("active");
         assertThat(gateway.approvedOrders).hasSize(2);

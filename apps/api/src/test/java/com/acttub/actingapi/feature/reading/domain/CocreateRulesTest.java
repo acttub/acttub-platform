@@ -166,7 +166,7 @@ class CocreateRulesTest {
         assertThat(CocreateRules.allowedCount(1)).isTrue();
         assertThat(CocreateRules.allowedCount(5)).isFalse();
         assertThat(CocreateRules.allowedCount(null)).isFalse();
-        assertThat(CocreateRules.charactersSchema(2)).contains("\"mine\":true").contains("\"mine\":false");
+        assertThat(CocreateRules.charactersSchema(2, false)).contains("\"mine\":true").contains("\"mine\":false");
         assertThat(CocreateRules.castRule(1, 12)).contains("독백 대사 12줄");
         assertThat(CocreateRules.castRule(2, 6)).contains("연속 금지", "6줄");
         Conditions resized = conditions(1, 1).resized(2, 3);
@@ -174,7 +174,7 @@ class CocreateRulesTest {
         assertThat(resized.myLines()).isEqualTo(18);
         assertThat(resized.monologue()).isFalse();
         assertThat(Experience.EXAM.lineLen()).isEqualTo("15~40");
-        assertThat(Experience.EXPERIENCED.label()).startsWith("경력자");
+        assertThat(Experience.EXPERIENCED.label(false)).startsWith("경력자");
     }
 
     @Test

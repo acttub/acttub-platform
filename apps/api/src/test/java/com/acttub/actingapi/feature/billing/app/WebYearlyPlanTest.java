@@ -42,11 +42,11 @@ class WebYearlyPlanTest {
 
     final BillingSettings base = new BillingSettings(true, false, false, "https://dev.acttub.com",
             "https://acttub.com/pricing/result", CLIENT, SECRET);
-    final SubscriptionService yearlyOn = service(base.withWebYearly(true));
+    final SubscriptionService yearlyOn = service(withWebYearly(base));
     final SubscriptionService yearlyOff = service(base);
 
     SubscriptionService service(BillingSettings settings) {
-        return new SubscriptionService(settings, repository, gateway, cipher, clock, mails::add);
+        return new SubscriptionService(settings, repository, gateway, cipher, clock, mails::add, RefundNotifier.NONE);
     }
 
     private static String stateOf(SubscriptionService.StartedCheckout started) {
@@ -135,10 +135,10 @@ class WebYearlyPlanTest {
     void yearlySwitchDefaultsOff() {
         assertThat(base.webYearlyEnabled()).isFalse();
         assertThat(base.webYearlyUsable()).isFalse();
-        assertThat(BillingSettings.disabled().webYearlyUsable()).isFalse();
-        assertThat(base.withWebYearly(true).webYearlyUsable()).isTrue();
-        BillingSettings webClosed = new BillingSettings(false, true, false, "https://dev.acttub.com",
-                "https://acttub.com/pricing/result", CLIENT, SECRET).withWebYearly(true);
+        assertThat(new BillingSettings(false, false, false, "", "", "", "").webYearlyUsable()).isFalse();
+        assertThat(withWebYearly(base).webYearlyUsable()).isTrue();
+        BillingSettings webClosed = withWebYearly(new BillingSettings(false, true, false, "https://dev.acttub.com",
+                "https://acttub.com/pricing/result", CLIENT, SECRET));
         assertThat(webClosed.webYearlyUsable()).isFalse();
     }
 
@@ -320,5 +320,11 @@ class WebYearlyPlanTest {
         assertThat(BillingRules.refundAmount(3900, MONTH_START, MONTH_END, MONTH_START.plus(Duration.ofDays(10)), false))
                 .isEqualTo(2340);
         assertThat(BillingRules.refundAmount(3900, MONTH_START, MONTH_END, MONTH_END.plusSeconds(1), true)).isZero();
+    }
+
+    /** 같은 설정에서 웹 연 구독 스위치만 켠 것. */
+    private static BillingSettings withWebYearly(BillingSettings s) {
+        return new BillingSettings(s.enabled(), s.appEnabled(), s.freeLimitsEnabled(), s.origin(), s.returnUrl(), s.clientKey(),
+                s.secretKey(), s.legacySignupBefore(), s.legacyLimitsFrom(), true);
     }
 }

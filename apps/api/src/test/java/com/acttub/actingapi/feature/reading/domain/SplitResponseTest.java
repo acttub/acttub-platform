@@ -339,7 +339,7 @@ class SplitResponseTest {
 
     @Test
     void rosterStripsBulletsAndTheJudgmentLine() {
-        assertThat(SplitResponse.roster("대본\t예\n- 윤서\n2. 태오\n* 로스\n윤서\n\n")).containsExactly("윤서", "태오", "로스");
+        assertThat(List.copyOf(SplitResponse.rosterTraits("대본\t예\n- 윤서\n2. 태오\n* 로스\n윤서\n\n").keySet())).containsExactly("윤서", "태오", "로스");
     }
 
     @Test
@@ -395,12 +395,12 @@ class SplitResponseTest {
     @DisplayName("SOMA-670: 배역 목록 답은 「이름<TAB>성별<TAB>나이대」 — 이름만 쓴 줄도 받는다")
     void rosterReadsNameGenderAndAge() {
         String answer = "대본\t예\n- 윤서\tf\tyoung\n2. 태오\tm\t\n로스\n배역\n";
-        assertThat(SplitResponse.roster(answer)).containsExactly("윤서", "태오", "로스");
+        assertThat(List.copyOf(SplitResponse.rosterTraits(answer).keySet())).containsExactly("윤서", "태오", "로스");
         assertThat(SplitResponse.rosterTraits(answer)).containsOnly(
                 Map.entry("윤서", new CharacterTraits(CharacterGender.FEMALE, CharacterAgeBand.YOUNG)),
                 Map.entry("태오", new CharacterTraits(CharacterGender.MALE, null)),
                 Map.entry("로스", CharacterTraits.UNKNOWN));
-        assertThat(SplitResponse.roster("대본<TAB>예\n윤서<TAB>f<TAB>young\n")).as("「<TAB>」을 글자 그대로 쓴 답(2026-10-20 053)")
+        assertThat(List.copyOf(SplitResponse.rosterTraits("대본<TAB>예\n윤서<TAB>f<TAB>young\n").keySet())).as("「<TAB>」을 글자 그대로 쓴 답(2026-10-20 053)")
                 .containsExactly("윤서");
     }
 
@@ -494,7 +494,7 @@ class SplitResponseTest {
     void rosterDropsCastDescriptions() {
         String answer = "지수 – 카페 주인\tf\tyoung\n민호의 친구들[(1)구두쇠, (2)허세남]\tm\tyoung\n멀티맨(남)- 할아버지 손님\tm\n"
                 + "J-1\n지수\n";
-        assertThat(SplitResponse.roster(answer)).containsExactly("지수", "구두쇠", "허세남", "멀티맨(남)", "J-1");
+        assertThat(List.copyOf(SplitResponse.rosterTraits(answer).keySet())).containsExactly("지수", "구두쇠", "허세남", "멀티맨(남)", "J-1");
     }
 
     @Test

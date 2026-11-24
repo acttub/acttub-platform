@@ -30,7 +30,7 @@ class TossBillingGatewayWireBytesTest {
     private final MockRestServiceServer issueServer = MockRestServiceServer.bindTo(issueBuilder).build();
     private final MockRestServiceServer approveServer = MockRestServiceServer.bindTo(approveBuilder).build();
     private final TossBillingGateway gateway =
-            new TossBillingGateway(() -> SECRET, issueBuilder.build(), approveBuilder.build());
+            new TossBillingGateway(() -> SECRET, issueBuilder.build(), approveBuilder.build(), false);
     private final List<byte[]> sent = new ArrayList<>();
 
     private void expect(MockRestServiceServer server, String path, String reply) {

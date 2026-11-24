@@ -27,13 +27,7 @@ public interface ProfileRepository {
     /**
      * 여섯 항목과 소개를 <b>한 번에</b> 저장한다. 부분 저장은 없다 — 방향도 같은 트랜잭션에서 통째로
      * 갈아 끼운다. 사진과 알림 토글은 건드리지 않는다. 없거나 계정이 활성이 아니면 {@code null}.
-     */
-    default Account saveProfile(UUID userId, Profile profile) {
-        return saveProfile(userId, profile, null);
-    }
-
-    /**
-     * 위와 같다. {@code signupClient} 는 프로필을 처음 완성한 클라이언트 판(V44)이고 이미 값이 있으면 바꾸지 않는다.
+     * {@code signupClient} 는 프로필을 처음 완성한 클라이언트 판(V44)이고 이미 값이 있으면 바꾸지 않는다.
      * 가입 중이 아니면 {@code null} 을 넘긴다.
      */
     Account saveProfile(UUID userId, Profile profile, String signupClient);

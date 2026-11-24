@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.challenge.app.ReactionService;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
 import com.acttub.actingapi.feature.practice.app.PracticeService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceService;
+import com.acttub.actingapi.feature.reading.app.ScriptPlan;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.video.app.VideoService;
@@ -50,7 +51,7 @@ class RequestFingerprintPinTest {
         assertThat(call(new ReactionService(null, null, canonical, clock), "fingerprint",
                 Arrays.asList("entry", A.toString(), "spam", null)))
                 .isEqualTo("c877a9e26315da09e8d91680c782b4fecd46e605af98eb2bef4d0c8617cd4c40");
-        assertThat(call(new ScriptService(null, null, canonical, clock), "fingerprint", ScriptDraft.class,
+        assertThat(call(new ScriptService(null, null, canonical, clock, ScriptPlan.UNLIMITED), "fingerprint", ScriptDraft.class,
                 new ScriptDraft("제목", "원문\n둘째 줄", "paste", List.of("철수", "영희"),
                         List.of(new ScriptDraft.Line(1, "dialogue", 0, "안녕"),
                                 new ScriptDraft.Line(2, "direction", null, "(웃는다)")))))

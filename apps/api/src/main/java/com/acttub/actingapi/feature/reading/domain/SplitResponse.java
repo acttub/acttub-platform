@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.reading.domain;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -153,11 +152,6 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
             rows.put(row.no(), row);
         }
         return new SplitResponse(rows, script, rejected, traits, refused);
-    }
-
-    /** 배역 목록 호출의 답에서 이름만 — 한 줄에 {@code 이름<TAB>성별<TAB>나이대}(이름만 써도 받는다). */
-    public static List<String> roster(String text) {
-        return new ArrayList<>(rosterTraits(text).keySet());
     }
 
     /**
