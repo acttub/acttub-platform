@@ -115,7 +115,7 @@ curl -fsS https://acttub.com/health
 받은 값을 `release.env`에 `ACTTUB_` 이름으로 기록한 뒤 API 컨테이너에 실제 반영된 값을 대조한다. 넘기지 않은 스위치는
 `.env`·`compose.yml`·앱의 기본값을 따른다.
 
-환경마다 넘기는 값은 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)의 `deploy.sh` 단계 `env`가 정본이다. 값을 바꾸려면 워크플로 값을 고쳐 배포한다. 스위치가 무엇을 켜는지는 각 기능 스펙이 정한다. `ACTTUB_PRACTICE_REMINDER_ENABLED`는 컨테이너에서 `PRACTICE_REMINDER_ENABLED`가 되고, 켜면 옛 저녁 8시 고정 알림을 보내지 않는다([account.notification](../specs/account/notification.md#규칙제약)).
+환경마다 넘기는 값은 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)의 `deploy.sh` 단계 `env`가 정본이다. 값을 바꾸려면 워크플로 값을 고쳐 배포한다. 스위치가 무엇을 켜는지는 각 기능 스펙이 정한다. `ACTTUB_PRACTICE_REMINDER_ENABLED`는 컨테이너에서 `PRACTICE_REMINDER_ENABLED`가 되고, 꺼져 있으면 연습 알림을 보내지 않는다([account.notification](../specs/account/notification.md#규칙제약)).
 
 ### 로그
 
@@ -232,7 +232,6 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
    | `CHALLENGE_NOTIFICATION_PUSH_ENABLED` | 챌린지 알림 푸시 |
    | `CHALLENGE_VIEW_DIGEST_ENABLED` | 챌린지 하루 조회 요약 푸시 |
    | `PRACTICE_REMINDER_ENABLED` | 개인화 연습 알림 푸시. `.env`로는 끌 수 없다. 배포가 `release.env`에 쓴 `ACTTUB_PRACTICE_REMINDER_ENABLED`가 `.env` 값을 덮으므로 `release.env`의 이 줄을 `false`로 바꾼다 |
-   | `EVENING_REMINDER_ENABLED` | 저녁 8시 고정 연습 알림 푸시. 개인화 연습 알림을 끄면 이 알림이 대신 돌므로 함께 끈다 |
    | `EXIT_SURVEY_SYNC_ENABLED` | 이탈 설문의 시트 재전송·연락처 정리 |
    | `COMMUNITY_IMAGE_SWEEP_ENABLED` | 글에 붙지 않은 게시판 사진의 객체 삭제 |
    | `SCRIPT_UPLOAD_SWEEP_ENABLED` | 대본에 연결되지 않은 원본 파일의 객체 삭제 |

@@ -298,7 +298,7 @@ jobs:
           THREE_LAYERS_ENABLED: 'true'
           DIRECT_VIDEO_ENABLED: 'true'
           GUEST_DAILY_LIMIT_ENABLED: ${{ needs.guard.outputs.environment == 'dev' && 'false' || 'true' }}
-          # 개인화 연습 알림(SOMA-720). dev·운영 모두 켠다. 켜면 옛 저녁 8시 고정 알림은 보내지 않는다. 끄려면 'false'로 바꿔 배포한다.
+          # 개인화 연습 알림(SOMA-720). dev·운영 모두 켠다. 끄면 연습 알림을 보내지 않는다. 끄려면 'false'로 바꿔 배포한다.
           PRACTICE_REMINDER_ENABLED: 'true'
           # dev·운영이 한 박스를 나눠 쓴다. CPU 가 모자랄 때 dev 몫을 1/4로 낮춰 운영 코칭이 먼저 쓴다(10/27). 운영은 비워 기본 1024.
           CPU_SHARES: ${{ needs.guard.outputs.environment == 'dev' && '256' || '' }}

@@ -32,7 +32,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 개인화 연습 알림의 SQL(후보 고르기·이어 하기·숙제·연속 일수·선점)을 실제 Postgres에서 확인한다 (SOMA-720).
  * 오늘은 한국 시간 2026-10-21 로 고정한다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "EVENING_REMINDER_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PracticeReminderRepositoryIT {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 21);
