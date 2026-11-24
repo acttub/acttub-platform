@@ -37,7 +37,7 @@
 | `frequency` | `daily` 는 한국 날짜 하루 한 번, `once` 는 한 번만, `every` 는 앱에 들어올 때마다(홈 재진입·앱 복귀 포함, SOMA-799). | daily |
 | `audience` | `all` 또는 `cloud_voice_off`(고품질 목소리를 쓸 수 있고 아직 켜지 않은 사람에게만 — 판정은 앱). | all |
 | `dismissible` | 「다시 보지 않기」 버튼을 보인다. | true |
-| `badge`·`title`·`body` | 배지·제목·본문. `title` 만 필수이고 비면 그 칸을 숨긴다. 제목의 줄바꿈은 그대로 보인다. | null |
+| `badge`·`title`·`body` | 배지·제목·본문. `title` 만 필수이고 비면 그 칸을 숨긴다. 제목과 본문의 줄바꿈(`\n`)은 앱에서 그대로 보인다. | null |
 | `image` | `asset:mascot-reading`(앱 번들) 또는 이미지 올리기로 받은 `posters/<uuid>.<png·jpg·webp>`. 앱이 모르는 자산 이름이면 숨긴다. | null |
 | `audio` | `asset:cloud-voice-sample`(앱 번들)만 재생 버튼이 된다. 객체 키는 받지만 앱에 내지 않는다. | null |
 | `cta_label`·`cta_action`·`cta_target` | 버튼 문구와 동작. `none`(버튼 없음)·`cloud_voice_enable`(고품질 목소리 켜기 동의 시트)·`route`(`/` 로 시작하는 앱 경로)·`url`(`https://` 주소). 문구가 없으면 버튼을 숨긴다. | none |

@@ -58,7 +58,10 @@ Pro 혜택으로 안내한다. 이 혜택의 구현은 이 스펙이 정하지 �
 | `POST /v2/billing/subscription/cancel` | me. 409 no_subscription |
 | `POST /v2/billing/subscription/retry` | me(결제 결과는 status 로). 409 no_subscription, 409 not_past_due, 429 |
 
-기능이 닫혀 있으면(플래그 꺼짐·키 모양이 틀림·클라이언트 키와 시크릿 키의 test_·live_ 종류가 다름·주소 설정 오류) 모두 404 `billing_unavailable` 이고 앱은 Pro 진입점을 숨긴다.
+경로마다 보는 스위치가 다르다. `checkout`·`retry` 는 웹 토스 설정만 본다 — 닫혀 있으면(플래그 꺼짐·키 모양이 틀림·클라이언트 키와
+시크릿 키의 test_·live_ 종류가 다름·주소 설정 오류) 404 `billing_unavailable` 이다. `me`·`cancel` 은 웹 토스가 열렸거나
+`BILLING_APP_ENABLED` 가 켜졌으면 열리고 둘 다 아닐 때만 404다(`BillingSettings.webUsable`·`usable`). 결제 기능이 닫히면 앱은
+Pro 진입점을 숨긴다.
 브라우저 경로 `GET /v2/billing/web/checkout/{state}`(HTML)·`/success`·`/fail` 은 게이트 밖이다.
 
 ## 무료 한도 (`BILLING_FREE_LIMITS_ENABLED`, 기본 false)
@@ -74,7 +77,9 @@ Pro 혜택으로 안내한다. 이 혜택의 구현은 이 스펙이 정하지 �
 약관 v2 발행 전에 가입한 회원(`users.created_at` < `consent_documents` 의 terms·v2·ko `published_at`. 아직 발행 전이면 모두 기존 회원. 찾은 값은 기억하고 못 찾으면 1분에 한 번만 다시 묻는다. `BILLING_LEGACY_SIGNUP_BEFORE` 로 덮어쓸 수 있다)에게는 무료 한도(코칭 하루 3회·리딩 대본 3개)를 `BILLING_LEGACY_LIMITS_FROM`(기본 `2026-11-30T15:00:00Z`, 12월 1일 00:00 KST) 전까지 걸지 않는다. 11월 1일부터 가입한 회원은 바로 걸린다. 게스트도 `users` 줄이라 같은 규칙이다. `GET /v2/billing/me` 의 `limits_enforced` 도 같은 판정을 써 회원마다 값이 다르다(앱은 이 값을 쓰지 않고 429·403 응답으로 시트를 띄운다). 한도만 미룬다 — Pro 판정·고품질 목소리·광고는 그대로다. 가입 시각은 바뀌지 않아 프로세스 안에 기억하고, 유예가 끝난 뒤에는 조회하지 않는다.
 
 ## 설정
-서버 환경 변수와 기본값은 `deploy/home/compose.yml`의 api 환경과 `deploy/home/.env.example`이 정본이다. 비밀 값은 환경변수로만 준다.
+서버 환경 변수와 기본값은 `deploy/home/compose.yml`의 api 환경과 `deploy/home/.env.example`이 정본이다. 두 파일에 없는
+`BILLING_RENEWAL_POLL_MS`·`BILLING_RENEWAL_INITIAL_DELAY_MS`는 `BillingRenewalScheduler`, `BILLING_LEGACY_SIGNUP_BEFORE`·
+`BILLING_LEGACY_LIMITS_FROM`은 `BillingConfiguration`의 `@Value` 기본값이 정본이다. 비밀 값은 환경변수로만 준다.
 
 ## 구독 메일 (SOMA-961)
 
@@ -97,9 +102,11 @@ Pro 혜택으로 안내한다. 이 혜택의 구현은 이 스펙이 정하지 �
 - `toss`: 웹(acttub.com) 토스 정기결제. 카드 등록·첫 결제·자동결제 스케줄러·재시도는 이 출처만 처리한다.
 - `apple`·`google`: 앱 스토어 구독(2단계). 스토어 알림이 갱신하고, 스케줄러·서버 해지·서버 재결제는 건드리지 않는다.
   스키마는 `store_product_id`·`store_original_transaction_id`(apple)·`store_purchase_token`(google)로 준비돼 있다.
-- Pro 판정 = (구독이 Pro) OR (`billing_pro_grants`에 지금 유효한 기간). 구독이 Pro 인 것은 토스 active(기간과 상관없이 — 스케줄러가
+- Pro 판정 = (결제 기능이 열려 있음) AND ((구독이 Pro) OR (지금 유효한 grant 기간)). 결제 기능이 닫혀 있으면 아무도 Pro 가 아니다
+  (그때는 무료 한도도 걸리지 않는다). 구독이 Pro 인 것은 토스 active(기간과 상관없이 — 스케줄러가
   늦어도 끊지 않는다), 스토어 active(기간 끝 + 6시간 안), canceled(기간 안)다(`BillingRules.pro`). grant는 카드 없이 서버가 주는 기간
-  (예: 11월 무료 한 달)이고 SQL·관리 경로로만 넣는다. 자동 부여 로직은 없다.
+  (예: 11월 무료 한 달)이고 `billing_pro_grants`에 SQL·관리 경로로만 넣는다. 줄을 자동으로 넣는 로직은 없다. 다만 출시 주간
+  Pro(`BillingRules.launchWeekEnd`, 가입 시각으로 판정)가 grant 계산에 남아 있다 — 그 주간이 지나 지금은 효과가 없다.
 - 스위치: `BILLING_WEB_ENABLED`(기본 false)가 꺼져 있으면 카드 등록 창·콜백·재시도·자동결제가 모두 막혀 토스 호출이 나가지 않는다.
   키는 test_·live_ 둘 다 받되 두 키의 종류가 같아야 하고, 값은 환경변수로만 준다. 복귀 주소는 `BILLING_WEB_RETURN_URL`(웹 https).
   `BILLING_APP_ENABLED`(기본 false)는 앱 Pro 화면을 여는 스위치(2단계 자리)이고 토스를 열지 않는다.
