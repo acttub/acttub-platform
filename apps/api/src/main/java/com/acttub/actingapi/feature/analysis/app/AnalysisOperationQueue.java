@@ -23,28 +23,6 @@ public interface AnalysisOperationQueue {
     /** 분석 대기 중인 작업 하나를 선점한다. 집을 게 없으면 {@code null}. */
     UUID claimNext(UUID leaseToken, Duration duration, Instant now);
 
-    /**
-     * 작업을 실패로 닫는다.
-     *
-     * <p><b>연습 세션도 함께 실패로 간다.</b> 기억 갱신과 다른 점이며, 분석이 없으면 그 연습은
-     * 배우에게 보여줄 것이 없기 때문이다.
-     *
-     * @return 그런 작업이 없으면 거짓
-     * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
-     */
-    default boolean fail(UUID operationId, UUID leaseToken, String errorCode, Instant now) {
-        return fail(operationId, leaseToken, errorCode, null, now);
-    }
-
-    /**
-     * 선점을 놓아 다시 대기 상태로 돌린다.
-     *
-     * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
-     */
-    default void release(UUID operationId, UUID leaseToken, Instant now) {
-        release(operationId, leaseToken, null, now);
-    }
-
     /** 시도 횟수가 소진된 작업들을 실패로 쓸어 담는다. 쓸어 담은 수. */
     int sweepMaxAttempts(Instant now);
     boolean fail(UUID operationId, UUID leaseToken, String errorCode, String classification, Instant now);

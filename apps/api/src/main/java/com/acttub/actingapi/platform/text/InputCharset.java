@@ -14,9 +14,6 @@ public final class InputCharset {
     private InputCharset() {
     }
 
-    /** 클라이언트가 보는 오류 코드. 앱은 이 코드를 "읽을 수 없는 글자" 안내로 바꾼다. */
-    public static final String ERROR_CODE = "unreadable_text";
-
     /** 대본처럼 여러 문자가 정상으로 들어오는 곳에서 허용하는 결합 기호 연속 상한. 한글·가나·한자·라틴 악센트는 1~2개면 충분하다. */
     public static final int MAX_COMBINING_RUN = 4;
 

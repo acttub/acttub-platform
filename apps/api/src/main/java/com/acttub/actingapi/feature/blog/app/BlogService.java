@@ -16,7 +16,6 @@ import com.acttub.actingapi.platform.web.ApiValidationException;
 
 /** 블로그 글(app.blog) — 공개 읽기와 운영자의 쓰기. 로그인 없이 읽고, 초안은 공개 경로에 나가지 않는다. */
 public class BlogService {
-    public static final int DEFAULT_LIMIT = 20;
     public static final int MAX_LIMIT = 50;
     public static final long MAX_IMAGE_BYTES = 2L * 1024 * 1024;
     public static final String IMAGE_URL_PREFIX = "/v2/blog/images/";

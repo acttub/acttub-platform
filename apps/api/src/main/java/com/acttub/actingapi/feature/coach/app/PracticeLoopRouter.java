@@ -23,16 +23,14 @@ final class PracticeLoopRouter {
 
     /** 배우의 말 종류. {@code label}은 상태 칸과 노트가 읽는 한국어 이름이다. */
     enum Kind {
-        STOP("stop", "그만"), SELF_LINE("self_line", "자기 한 줄"), CORRECTION("correction", "정정"),
-        PUSHBACK("pushback", "반박"), METHOD("method", "방법 요청"), EVALUATION("evaluation", "평가 요청"),
-        MISSED("missed", "질문 오해"), CHOICE("choice", "선택 설명"), INSIGHT("insight", "스스로 알아챔"), SHORT("short", "짧은 답"),
-        QUESTION("question", "질문·설명"), ANSWER("answer", "답");
+        STOP("그만"), SELF_LINE("자기 한 줄"), CORRECTION("정정"),
+        PUSHBACK("반박"), METHOD("방법 요청"), EVALUATION("평가 요청"),
+        MISSED("질문 오해"), CHOICE("선택 설명"), INSIGHT("스스로 알아챔"), SHORT("짧은 답"),
+        QUESTION("질문·설명"), ANSWER("답");
 
-        final String id;
         final String label;
 
-        Kind(String id, String label) {
-            this.id = id;
+        Kind(String label) {
             this.label = label;
         }
 

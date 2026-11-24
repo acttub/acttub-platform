@@ -30,10 +30,6 @@ public class ReadingExampleService {
         this.storage = storage;
     }
 
-    public List<ReadingExample> list() {
-        return examples.listActive();
-    }
-
     /** 목록은 기기 말의 예시만 보인다(한국어가 아니면 영어). 고르기·음성 찾기는 말과 상관없이 켜진 예시 전체에서 한다(SOMA-1033). */
     public List<ReadingExample> list(boolean korean) {
         return examples.listActive(korean ? "ko" : "en");

@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code coach_conversations.close_reason} 의 값 — 코치 대화가 닫힌 사유 (practice.coach).
  *
@@ -30,12 +28,5 @@ public enum ConversationCloseReason implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<ConversationCloseReason> {
-        public JpaConverter() {
-            super(ConversationCloseReason.class);
-        }
     }
 }

@@ -20,8 +20,6 @@ class InMemoryBillingRepository implements BillingRepository {
     final Map<String, Payment> payments = new LinkedHashMap<>();
     final Map<UUID, Instant> leases = new LinkedHashMap<>();
     final Map<UUID, java.util.List<Instant[]>> grants = new LinkedHashMap<>();
-    int sessionsToday;
-    int scripts;
 
     @Override
     public Optional<Subscription> find(UUID userId) {
@@ -31,11 +29,6 @@ class InMemoryBillingRepository implements BillingRepository {
     @Override
     public Optional<Subscription> findById(UUID subscriptionId) {
         return Optional.ofNullable(subscriptions.get(subscriptionId));
-    }
-
-    @Override
-    public int coachingSessionsSince(UUID userId, Instant since) {
-        return sessionsToday;
     }
 
     /** 테스트용 스토어(apple·google) 구독 한 줄. */
@@ -84,11 +77,6 @@ class InMemoryBillingRepository implements BillingRepository {
     public Optional<Instant> signedUpAt(UUID userId) {
         signupReads++;
         return Optional.ofNullable(signups.get(userId));
-    }
-
-    @Override
-    public int scriptCount(UUID userId) {
-        return scripts;
     }
 
     @Override

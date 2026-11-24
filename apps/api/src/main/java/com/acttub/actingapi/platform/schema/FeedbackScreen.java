@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code practice_feedback.screen} 의 값 — 이탈 설문이 뜬 화면 (practice.feedback).
  *
@@ -22,12 +20,5 @@ public enum FeedbackScreen implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<FeedbackScreen> {
-        public JpaConverter() {
-            super(FeedbackScreen.class);
-        }
     }
 }

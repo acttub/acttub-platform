@@ -4,8 +4,6 @@ import java.time.Instant;
 import java.util.UUID;
 /** Observations of successful ledger transitions, registered inside their transaction. */
 public interface ExternalOperationMonitoring {
-    void accepted(String kind);
-
     void terminal(Terminal terminal);
 
     void claimed(Claimed claimed);
