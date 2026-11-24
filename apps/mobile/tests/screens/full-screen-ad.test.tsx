@@ -1,4 +1,5 @@
 import { act, render } from '@testing-library/react-native';
+import { AppState, Platform } from 'react-native';
 
 import { api } from '@/lib/api';
 import { setFirstTimeState } from '@/lib/practice/first-time';
@@ -7,10 +8,10 @@ import { setFirstTimeState } from '@/lib/practice/first-time';
 
 type Listener = () => void;
 let mockAds: { listeners: Map<string, Listener>; load: jest.Mock; show: jest.Mock; options: unknown }[] = [];
-let mockBehavior: 'close' | 'error' | 'never' | 'show-fails' = 'close';
+let mockBehavior: 'close' | 'error' | 'never' | 'show-fails' | 'open-only' = 'close';
 
 jest.mock('react-native-google-mobile-ads', () => ({
-  AdEventType: { LOADED: 'loaded', CLOSED: 'closed', ERROR: 'error' },
+  AdEventType: { LOADED: 'loaded', OPENED: 'opened', CLICKED: 'clicked', CLOSED: 'closed', ERROR: 'error' },
   InterstitialAd: {
     createForAdRequest: (_unit: string, options: unknown) => {
       const ad = {
@@ -22,6 +23,8 @@ jest.mock('react-native-google-mobile-ads', () => ({
         }),
         show: jest.fn(() => {
           if (mockBehavior === 'show-fails') return Promise.reject(new Error('no activity'));
+          ad.listeners.get('opened')?.();
+          if (mockBehavior === 'open-only') return Promise.resolve();
           ad.listeners.get('closed')?.();
           return Promise.resolve();
         }),
@@ -78,6 +81,74 @@ describe('showInterstitial', () => {
   });
 });
 
+describe('showInterstitial 보는 기록 (SOMA-1129)', () => {
+  test('열리면 onOpened, 닫히면 onDone 에 본 시간·누름·나감을 준다', async () => {
+    const onOpened = jest.fn();
+    const onDone = jest.fn();
+    const result = showInterstitial('unit', false, 4000, { onOpened, onDone });
+    await expect(result).resolves.toBe('shown');
+    expect(onOpened).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ clicked: false, leftApp: false }));
+    expect(typeof onDone.mock.calls[0][0].watchedMs).toBe('number');
+  });
+
+  test('광고를 누른 뒤 닫히면 clicked 가 true 다', async () => {
+    mockBehavior = 'open-only';
+    const onDone = jest.fn();
+    const result = showInterstitial('unit', false, 4000, { onDone });
+    await Promise.resolve();
+    mockAds[0].listeners.get('clicked')?.();
+    mockAds[0].listeners.get('closed')?.();
+    await expect(result).resolves.toBe('shown');
+    expect(onDone.mock.calls[0][0].clicked).toBe(true);
+  });
+
+  test('iOS 에서 광고를 보다 앱을 벗어나면 onLeftApp, 광고를 눌러 나가면 세지 않는다', async () => {
+    expect(Platform.OS).toBe('ios'); // jest-expo 기본 플랫폼
+    let onChange: ((state: string) => void) | null = null;
+    const remove = jest.fn();
+    const original = AppState.addEventListener;
+    AppState.addEventListener = ((_type: string, handler: (state: string) => void) => {
+      onChange = handler;
+      return { remove };
+    }) as never;
+    try {
+      mockBehavior = 'open-only';
+      const onLeftApp = jest.fn();
+      const onDone = jest.fn();
+      const result = showInterstitial('unit', false, 4000, { onLeftApp, onDone });
+      await Promise.resolve();
+      (onChange as unknown as (state: string) => void)('background');
+      (onChange as unknown as (state: string) => void)('background');
+      mockAds[0].listeners.get('closed')?.();
+      await expect(result).resolves.toBe('shown');
+      expect(onLeftApp).toHaveBeenCalledTimes(1);
+      expect(onDone.mock.calls[0][0].leftApp).toBe(true);
+      expect(remove).toHaveBeenCalled();
+
+      onLeftApp.mockClear();
+      const second = showInterstitial('unit', false, 4000, { onLeftApp });
+      await Promise.resolve();
+      mockAds[1].listeners.get('clicked')?.();
+      (onChange as unknown as (state: string) => void)('background');
+      mockAds[1].listeners.get('closed')?.();
+      await expect(second).resolves.toBe('shown');
+      expect(onLeftApp).not.toHaveBeenCalled();
+    } finally {
+      AppState.addEventListener = original;
+    }
+  });
+
+  test('못 불러오면 onOpened 없이 본 시간은 null 이다', async () => {
+    mockBehavior = 'error';
+    const onOpened = jest.fn();
+    const onDone = jest.fn();
+    await expect(showInterstitial('unit', false, 4000, { onOpened, onDone })).resolves.toBe('skipped');
+    expect(onOpened).not.toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalledWith({ watchedMs: null, clicked: false, leftApp: false });
+  });
+});
+
 describe('useFullScreenAd', () => {
   async function setUp(firstTime: 'first' | 'practiced') {
     setFirstTimeState(firstTime);
@@ -103,6 +174,12 @@ describe('useFullScreenAd', () => {
     jest.mocked(api.getAdSlot).mockResolvedValue(pick('NETWORK') as never);
     await act(async () => expect(await show('reading_done_full')).toBe('shown'));
     expect(api.getAdSlot).toHaveBeenLastCalledWith('reading_done_full');
+    const { logEvent } = jest.requireMock('@/lib/analytics') as { logEvent: jest.Mock };
+    expect(logEvent).toHaveBeenCalledWith('ad_full_screen_opened', { slot: 'reading_done_full' });
+    expect(logEvent).toHaveBeenCalledWith(
+      'ad_full_screen_shown',
+      expect.objectContaining({ slot: 'reading_done_full', clicked: false, left_app: false, watched_ms: expect.any(Number) }),
+    );
     await act(async () => expect(await show('analyzing_wait_full')).toBe('skipped'));
     expect(mockAds).toHaveLength(1);
   });
