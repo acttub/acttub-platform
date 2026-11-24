@@ -75,17 +75,18 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 
 
 - 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다.
 - 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
-  `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 연습 데이터 이관(`platform/migration`), 호환 읽기
-  (`PostgresLegacyPracticeReader`, 이어하기 맥락), 운영 지표, 탈퇴, 옛 큐 워커(§5-7)가 native SQL로만 읽고 쓰므로
-  테이블과 값 CHECK는 그대로 둔다. `handoff_confirmations` 는 읽는 코드가 없다.
-- `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 보관함·이관·연습·분석·챌린지·탈퇴·운영 지표·데이터
-  전환이 native SQL로만 읽고 쓰므로(쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
+  `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
+  `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
+  `handoff_confirmations` 는 읽는 코드가 없다.
+- `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
+  쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
-  이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 프로필 이름이 없을 때 이 값을 대신 읽는다
-  (`PostgresJournalRepository`, `PostgresBillingRepository`, `PostgresBillingAdminReader`). **탈퇴의 파기는 이 컬럼에
+  이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 이 값을 읽는다. `PostgresBillingRepository`는 프로필 이름이
+  없을 때 대신 읽는다. `PostgresJournalRepository`는 배역 이름이 배우의 닉네임과 같으면 배역을 비우려고 읽는다.
+  `PostgresBillingAdminReader`는 운영 화면의 구독자·Pro 부여 목록에 따로 싣는다. **탈퇴의 파기는 이 컬럼에
   NULL을 쓴다** — 복사 뒤에도 옛 값이 남아 있고 탈퇴는 이름을 지체 없이 파기해야 하기 때문이다
   (`PostgresProfileRepository#withdraw`). 그래서 물리 삭제는 두 릴리스에 걸친다: 세 읽기와 그 쓰기를 걷어낸
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
@@ -709,7 +710,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 신뢰하는 프록시의 기본은 루프백과 사설 대역이다. `CLIENT_IP_TRUSTED_PROXIES`(쉼표로 가른 CIDR)로 바꾸고
   `none` 으로 끈다(언제나 연결한 상대).
 - ⚠ **web 과 proxy 는 헤더를 그대로 넘긴다** — Next 의 rewrite 는 `X-Forwarded-For` 를 덧붙이지도 새로
-  만들지도 않고(Next 16.2.10 에서 실측했다. Next 메이저·마이너를 올리면 다시 잰다), proxy(nginx)도 손대지 않는다. 이 규칙은 **web·proxy 가 Cloudflare 를 거친 요청만 받는다**는
+  만들지도 않고(Next 16.4.6 에서 2026-11-24 에 다시 쟀다. Next 메이저·마이너를 올리면 다시 잰다), proxy(nginx)도 손대지 않는다. 이 규칙은 **web·proxy 가 Cloudflare 를 거친 요청만 받는다**는
   배포 조건 위에 선다(Compose 는 둘의 포트를 밖으로 열지 않는다). 둘 중 하나를 직접 여는 길을 만들면 그 길의 방문자는
   헤더를 마음대로 쓴다.
 - Tomcat `RemoteIpValve`(`server.forward-headers-strategy`)를 쓰지 않는다: scheme·host·port 까지 전달 헤더로
@@ -923,7 +924,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   컬럼 셋(`request_id`·`request_fingerprint`·`video_id`), `users` 에 `exit_survey_asked_at`·`memory_epoch`. **옛
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
-  구조가 그대로다(옛 연습 흐름의 Java 쓰기 경로는 뒤에 지웠다, §5-1). 전환의 순서와 옛 테이블을 지우는 때는
+  구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로는 지웠다. 다만 옛 큐 워커(§5-7)는 옛 분석을 `summaries`에
+  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. `/v2/legacy-me/memory`는 `actor_memory_entries`에 쓴다.
+  전환의 순서와 옛 테이블을 지우는 때는
   specs/practice 「0.1.0 스키마 전환」이 정본이다.
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
     새 테이블이 자기 것을 갖는다 — `coach_conversations` 의 종료 사유에는 신형의 `system_failure` 가 하나 더 있다.
@@ -1049,12 +1052,20 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **옮기지 않는 것은 사유와 함께 적힌다**: 가지 쳐 차수가 겹치는 묶음(`branching_chain`), 닫히지 않은 회차가
     둘 이상인 묶음(`multiple_open_practices`), 확정되지 않은 업로드를 가리키는 묶음(`video_missing`), 한 연습의
     옛 대화 가운데 최신이 아닌 것(`superseded_conversation`), 같은 영상의 두 번째 전사(`transcript_conflict`).
+    **임의로 닫거나 지우지 않는다** — 그 자료는 호환 읽기 경로가 옛 표에서 그대로 보여 준다.
   - **옛 표에 쓰는 자리는 `upload_intents.video_id` 하나다** — V14 가 예약 장부에 더해 둔 칸이고 옛 서버는 그것을
     모른다. 그 밖의 옛 표는 읽기만 한다.
-  - 진행 중인 AI 작업은 고르지 않는다 — 끝나면 다음 실행이 집어 간다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛
-    예약에는 세대가 없고, NULL 은 "세대를 견주지 않는다" 는 뜻이다).
-  - 대화의 종료 사유만 새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`→`exhausted`).
-    옛 대화에는 시작 요청 id 가 없어 **세션 id 를 그대로** 쓴다.
+  - **작업 장부는 끝난 `analyze`·`memory_update`만 `ai_jobs`로 옮긴다.** 진행 중인 AI 작업은 고르지 않는다. 옛 워커가
+    끝내야 하고 두 큐에서 같은 작업이 동시에 돌면 안 된다 — 끝나면 다음 실행이 집어 간다. `coach_start`·`coach_reply`·
+    `report` 장부 행은 옮기지 않고 옛 표에 남는다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛 예약에는 세대가 없고,
+    NULL 은 "세대를 견주지 않는다" 는 뜻이다).
+  - **이름을 바꾸지 않는다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 신형 노트만
+    `v2`다. 관찰 기록도 신형 기록만 `video_record_v1`이고 구형은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만
+    새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`→`exhausted`). 옛 대화에는
+    시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
+  - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`·`handoff_confirmations`는 새 표가 없어 옛 표에
+    남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
+    새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
 - **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
     로 간다. 차수는 `continued_from` 체인을 그때그때 펴서 만들고 **전환 명령과 같은 규칙**이라 옮기기 전후의
@@ -1174,8 +1185,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   서버가 고정한다. 값은 앞뒤 공백을 걷고 선택 값이 비면 NULL이다. 각 값은 1~64자의 ASCII 영문·숫자로 시작하고
   이후 영문·숫자·점·밑줄·하이픈만 허용한다(`^[A-Za-z0-9][A-Za-z0-9._-]*$`). URL·이메일·자유 입력과 모르는 키는
   422다. 웹 UTM은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 같은 뜻이 아니다.
-- 앱의 `PUT /v2/me/discovery`(SOMA-649)의 행동은 [account.profile](../../docs/specs/account/profile.md)이 정본이다. 값 목록과
-  조합 검사는 `profile/domain/DiscoveryAnswer` 한 곳이다. ops-core `signup_rows` 에는 `discovery_answered`·`discovery_source`·
+- 앱의 `PUT /v2/me/discovery`(SOMA-649)의 행동은 [account.profile](../../docs/specs/account/profile.md)이 정본이다. 값 목록은
+  `profile/domain/DiscoveryAnswer`에 있고 조합 검사(422)는 `ProfileController`가 한다. 같은 값 목록을 OpenAPI
+  (`ProfileDtos`)와 V38 CHECK도 적고, V38은 조합도 막는다. 값을 바꾸면 이 넷을 함께 고친다. ops-core `signup_rows` 에는 `discovery_answered`·`discovery_source`·
   `discovery_detail` 만 싣고 `other_text` 는 싣지 않는다.
 - **처음 온 값만 남는다**(`ON CONFLICT DO NOTHING`). 어느 경로든 다시 보내면 바꾸지 않은 채 204 다 — 재시도에
   안전하다. DB는 `airbridge`×`ios|android`, `web_utm`×`web` 조합만 허용한다.

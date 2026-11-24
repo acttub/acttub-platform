@@ -8,8 +8,11 @@
 운영자가 운영 토큰으로 서비스 이용 기록, 자문단 대화, 챌린지 영상·댓글·목록, 리딩 회차를 조회하고 영상·녹음을 짧게 재생한다.
 배우는 가명으로 가리고, 개인을 알아볼 수 있는 값은 싣지 않는다. 구현 규칙은 [CONTRACT](../../../apps/api/CONTRACT.md) §6-15(ops-core·자문단
 대화)·§6-21·§6-22·§6-25·§6-27에 둔다. 운영 피드백 조회는 [practice.feedback](../practice/feedback.md), 챌린지 개설·moderation과
-신고 판정은 [challenge.create](../challenge/create.md)·[challenge.report](../challenge/report.md), 포스터·광고·블로그·문의의 운영
-경로는 각 기능 스펙이 정본이다.
+신고 판정은 [challenge.create](../challenge/create.md)·[challenge.report](../challenge/report.md), 포스터·광고·문의의 운영 경로는
+[app.poster](poster.md)·[app.ads](ads.md)·[app.support-inquiry](support-inquiry.md)가 정본이다. 구독자 목록(`GET /v2/admin/subscribers`)은
+[billing.subscription](../billing/subscription.md)이 `plan` 칸만 적는다. `GET /v2/admin/sessions`·`GET /v2/admin/actor-names`, 광고 설정
+(`/v2/admin/ad-settings`), 블로그 운영 경로(`/v2/admin/blog/**`·`/v2/admin/blog-images`)는 아직 스펙이 없다(코드 `AdminController`·
+`AdSettingsAdminController`·`BlogAdminController`).
 
 ## 입력·출력
 
@@ -120,7 +123,7 @@ ops-core
 
 - 삭제되지 않은 챌린지를 진행 중(`active`) → 예정(`scheduled`) → 종료(`ended`) 순으로, 같은 상태 안에서는 `featured_on` 최신·
   시작 최신 순으로 싣는다.
-- 각 행은 `id`·`line`·`work`·`character`·`origin`·`host_actor`(`md5(host_user_id)` 앞 8자리, 팀 개설은 null)·`host_is_team`·
+- 각 행은 `id`·`line`·`work`·`character`·`origin`·`host_actor`(`md5(host_user_id)` 앞 8자리, 운영 개설(`origin=team`)은 null)·`host_is_team`·
   `duration_days`·`featured_on`·`starts_at`·`ends_at`·`state`·`moderation`·`entries`·`public_entries`·`outside_entries`·`likes`·
   `outside_likes`다. 참여작 수는 삭제를 뺀 값이고 `outside_entries`는 팀의 참여작을 뺀 값이다. `likes`는 삭제되지 않은 참여작이
   받은 좋아요 전체(팀 포함)이고 `outside_likes`는 그중 팀이 누른 것을 뺀 값이다.
@@ -154,11 +157,13 @@ ops-core
 - 리딩 회차 목록: `started_at DESC, id DESC` 순이고 대본 본문·전사가 없다. 상세: 대본 전체 줄과 그 회차의 내 배역 녹음만 있다.
 - ops-core에서 팀 배우의 업로드만 한 영상: 빠지지 않고 `is_team=true`. 연습을 시작한 업로드: `upload_only_rows`에 없다.
 - ops-core `activity_rows`: 팀·삭제·미래 행이 없고, 기록이 없으면 `[]`.
-- 팀 계정이 연 챌린지: 목록에 있고 `host_is_team=true`, `host_actor`는 null.
+- 팀 계정이 연 챌린지: 목록에 있고 `host_is_team=true`, `host_actor`는 그 계정의 가명이다. 운영 개설 챌린지(`origin=team`, 주최
+  계정 없음): `host_actor`는 null, `host_is_team=false`.
 - 토큰을 둔 서버의 OpenAPI: 커밋된 `spec/openapi.json`에 없는 경로가 운영 경로 목록과 정확히 같다.
 
 ## 범위 밖
 
 - 운영 화면(ops 도구)의 그리기와 집계 방식.
-- 쓰기 경로. 챌린지 개설·moderation, 신고 판정, 포스터·광고·블로그 관리, 연습 자료 전환은 각 기능 스펙과 CONTRACT가 다룬다.
+- 쓰기 경로. 챌린지 개설·moderation, 신고 판정, 포스터·광고 관리, 연습 자료 전환은 각 기능 스펙과 CONTRACT가 다룬다. 블로그 관리는
+  스펙이 없다(위 「기능」).
 - 운영 피드백 조회는 [practice.feedback](../practice/feedback.md)이 다룬다.
