@@ -100,6 +100,14 @@ public class ScriptSplitWorker {
     private final Double sameSpeaker;
     private final ScriptSplitListener listener;
     private final ScriptSplitMode mode;
+    /** 다시 묻기 전에 쉬는 방법. 시험에서만 바꾼다({@link #pausingWith}). */
+    private Pause pause = Thread::sleep;
+
+    /** 다시 묻기 전에 쉬기. {@link Thread#sleep(Duration)} 과 같다. */
+    @FunctionalInterface
+    public interface Pause {
+        void sleep(Duration duration) throws InterruptedException;
+    }
 
     /**
      * @param decider 줄 두 번째 의견(SOMA-663 J1). {@code null} 이면 그 단계를 건너뛴다
@@ -121,6 +129,12 @@ public class ScriptSplitWorker {
         this.telemetry = telemetry;
         this.failures = failures;
         this.clock = clock;
+    }
+
+    /** 시험용 — 다시 묻기 전에 실제로 자지 않게 한다. {@code CloudVoiceService} 와 같은 방식이다. */
+    public ScriptSplitWorker pausingWith(Pause pause) {
+        this.pause = pause;
+        return this;
     }
 
     public boolean runOnce() {
@@ -805,7 +819,7 @@ public class ScriptSplitWorker {
             RuntimeException last = null;
             for (int attempt = 0; attempt <= ScriptSplitRules.CALL_RETRIES; attempt++) {
                 if (attempt > 0) {
-                    pause(Duration.ofSeconds(1L << (attempt - 1)));
+                    sleepBeforeRetry(Duration.ofSeconds(1L << (attempt - 1)));
                 }
                 Instant startedAt = clock.instant();
                 try {
@@ -857,9 +871,9 @@ public class ScriptSplitWorker {
         return true;
     }
 
-    private static void pause(Duration duration) {
+    private void sleepBeforeRetry(Duration duration) {
         try {
-            Thread.sleep(duration);
+            pause.sleep(duration);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("script split retry was interrupted", interrupted);

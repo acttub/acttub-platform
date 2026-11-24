@@ -10,10 +10,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.platform.schema.ScriptImportFailure;
@@ -188,8 +190,12 @@ class ScriptSplitWorkerOutcomeTest {
             throw new IllegalStateException("read cut", new java.io.InterruptedIOException());
         };
         doThrow(new LeaseOwnershipException("lost")).when(ledger).release(eq(job), any(), eq("shutdown"), any());
-        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock, null, null, null, null, ScriptSplitMode.LLM);
+        List<Duration> pauses = new CopyOnWriteArrayList<>();
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock, null, null, null, null, ScriptSplitMode.LLM)
+                .pausingWith(pauses::add);
         assertThat(stopping.runOnce()).isTrue();
+        assertThat(pauses).as("끊긴 것이 원인에만 보이면 다시 묻는다 — 그 전에 1초, 2초 쉰다")
+                .containsExactly(Duration.ofSeconds(1), Duration.ofSeconds(2));
         assertThat(Thread.currentThread().isInterrupted()).isFalse();
         assertThat(failures.contexts()).singleElement().asString().startsWith("ScriptSplitWorker.release");
         verify(imports, never()).fail(any(), any(), any(), any(), anyBoolean(), any());
