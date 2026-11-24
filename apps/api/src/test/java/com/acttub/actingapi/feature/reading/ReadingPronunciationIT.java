@@ -53,14 +53,11 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
     "PRON_REPORT_ENABLED=true",
     "PRON_SCORER_URL=http://pron.test",
-    "PRON_REPORT_ALLOWED_USERS=" + ReadingPronunciationIT.OWNER + "," + ReadingPronunciationIT.OTHER,
+    "PRON_REPORT_ALLOWED_USERS=" + ReadingPronunciationIT.OWNER + ", " + ReadingPronunciationIT.OTHER,
     "PRON_REPORT_MAX_ATTEMPTS=2",
-    "PRON_REPORT_POLL_MS=3600000"
-})
+    "PRON_REPORT_POLL_MS=3600000"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingPronunciationIT.Fakes.class})
 class ReadingPronunciationIT {

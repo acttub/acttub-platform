@@ -24,10 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ACTTUB_THREE_LAYERS_ENABLED=false"
-})
+    "ACTTUB_THREE_LAYERS_ENABLED=false"})
 @AutoConfigureMockMvc
 class PracticeLegacyFlagIT {
 

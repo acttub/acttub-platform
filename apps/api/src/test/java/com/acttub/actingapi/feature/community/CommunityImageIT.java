@@ -43,12 +43,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 게시판 글 사진(SOMA-873). 포트폴리오 사진과 같은 올리기 길이와, 글에 붙이고 떼고 지우는 규칙을 본다. 저장소는 메모리
  * 가짜이고 "올렸다"는 그 가짜에 객체를 넣는 것이다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "COMMUNITY_IMAGE_SWEEP_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, CommunityImageIT.StorageFixture.class})
 class CommunityImageIT {

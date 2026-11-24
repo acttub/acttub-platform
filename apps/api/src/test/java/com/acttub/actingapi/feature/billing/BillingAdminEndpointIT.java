@@ -28,8 +28,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
 
 /** ops 구독 화면 경로(SOMA-963): 토큰, 구독 상태별 Pro 판정, 팀 표시, Pro 지급, 출시 주간 인원, 개인정보 미포함. */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret",
-        "ADMIN_OPS_EXCLUDE_EMAILS= Team@Acttub.com ", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
+        "ADMIN_OPS_EXCLUDE_EMAILS= Team@Acttub.com "})
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class BillingAdminEndpointIT {

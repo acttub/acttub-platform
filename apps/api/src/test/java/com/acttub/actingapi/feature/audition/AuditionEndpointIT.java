@@ -37,8 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "AUDITION_ENABLED=true",
         "AUDITION_SOURCES=shinsee,emk,sejong,otr", "AUDITION_COLLECT_CRON=-",
-        "AUDITION_COLLECT_STARTUP_DELAY_MS=3600000",
-        "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
+        "AUDITION_COLLECT_STARTUP_DELAY_MS=3600000"})
 @AutoConfigureMockMvc
 @Import(AuditionEndpointIT.Fixture.class)
 class AuditionEndpointIT {

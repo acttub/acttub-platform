@@ -31,13 +31,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 읽어 <b>같은 응답 모양</b>을 내는지, 그리고 그 과정에서 <b>옛 테이블을 건드리지 않는지</b>가 여기서 보는
  * 전부다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "EXIT_SURVEY_SYNC_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class PracticeCompatibilityIT {
 

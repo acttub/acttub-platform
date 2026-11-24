@@ -24,12 +24,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 옛 기억 경로({@code /v2/legacy-me/memory}, 옛 표 {@code actor_memory_entries}) — practice.memory 「입력·출력」의
  * 옛 경로 줄. 스토어에 나간 옛 앱이 이 경로로 여섯 칸을 읽고 고친다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class MemoryControllerIT {
     private static final ObjectMapper JSON = new ObjectMapper();

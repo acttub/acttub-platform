@@ -55,13 +55,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>바깥은 전부 스텁이다 — 오브젝트 스토리지는 메모리의 가짜이고 분석기는 시험이 정해 준 결과·예외를 낸다.
  * 작업 상태를 읽고 취소하는 API 쪽은 PA2 의 {@code PracticeLifecycleIT} 가 본다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    // 스케줄러가 큐를 가로채면 시험이 워커를 직접 돌리지 못한다.
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, PracticeAnalysisIT.Fixture.class})
 class PracticeAnalysisIT {

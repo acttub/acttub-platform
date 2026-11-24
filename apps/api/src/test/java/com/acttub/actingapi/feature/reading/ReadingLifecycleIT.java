@@ -76,14 +76,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    // 기억 워커는 기동 직후 첫 폴에서 말이 끊긴 대화를 찾는다(coach_conversations→practices→users 순으로 잠금). setUp 의
-    // TRUNCATE users … CASCADE 는 users 부터 잠가, 둘이 겹치면 교착이 난다(CI 에서 한 번 봄). 이 클래스는 워커를 쓰지 않는다.
-    "ANALYSIS_WORKER_ENABLED=false",
     // 탈퇴 중의 쓰기는 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"
-})
+    "spring.datasource.hikari.maximum-pool-size=12"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingLifecycleIT.Fixture.class})
 class ReadingLifecycleIT {

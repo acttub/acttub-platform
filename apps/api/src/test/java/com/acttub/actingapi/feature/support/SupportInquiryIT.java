@@ -30,11 +30,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ADMIN_OPS_TOKEN=admin-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+    "ADMIN_OPS_TOKEN=admin-secret"})
 @AutoConfigureMockMvc
 class SupportInquiryIT {
 

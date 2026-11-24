@@ -50,12 +50,7 @@ import com.acttub.actingapi.platform.ledger.AiJobLedger;
  * <p>모델은 스텁이라 여기서 보는 것은 "무엇이 저장되고 무엇이 반영되지 않는가"다. 뽑는 규칙 자체는
  * {@code MemoryExtractorTest} 가 지킨다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(ActorMemoryIT.Fixture.class)
 class ActorMemoryIT {

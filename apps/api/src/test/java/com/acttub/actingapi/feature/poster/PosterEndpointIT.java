@@ -34,8 +34,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.poster — 앱이 받는 포스터 고르기와 운영 토큰으로 여는 관리 경로. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret",
-        "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret"})
 @AutoConfigureMockMvc
 @Import(PosterEndpointIT.StorageFixture.class)
 class PosterEndpointIT {

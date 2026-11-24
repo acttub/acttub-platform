@@ -55,8 +55,6 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
         "JWT_SECRET=test-secret",
-        "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false",
         "BILLING_WEB_ENABLED=true",
         "BILLING_WEB_RETURN_URL=https://acttub.com/pricing/result",
         "BILLING_FREE_LIMITS_ENABLED=true",

@@ -33,8 +33,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import com.acttub.actingapi.platform.json.LenientJson;
 
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model",
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "GEMINI_TTS_MODEL=test-tts-model",
         "READING_VOICE_MODEL_PREFIX=reading-model/supertonic3-fp16-v1",
         // 무료 기간은 설정하지 않는다(기본 없음). Pro 판정은 결제 도메인이 하고, 결제 기능이 열려 있어야 Pro 를 본다.
         "BILLING_APP_ENABLED=true"})

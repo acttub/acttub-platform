@@ -44,11 +44,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * <p>여기서 보지 못하는 것(화면·실기기): 암기 화면의 대상 계산·머리 문구·"외운 대사도 보기"·네 모드의 가림·듣고 따라 하기·
  * STT 대조와 유사도 문턱·오프라인 보관 뒤 재전송(서버는 마지막 요청만 본다). 탈퇴 때 행째 지우는 것은 RA5(탈퇴) 몫이다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class ReadingMemorizationIT {
