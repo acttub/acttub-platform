@@ -139,7 +139,7 @@ class HealthAndBootIT {
     }
 
     @Test
-    @DisplayName("virtual threads 가 켜져 있다 (apps/api/CONTRACT.md §2)")
+    @DisplayName("virtual threads 가 켜져 있다 (apps/api/CONTRACT.md §5)")
     void virtualThreadsAreEnabled() {
         // Boot 는 spring.threads.virtual.enabled=true 일 때만 이 빈을 등록한다
         // (@ConditionalOnThreading(VIRTUAL)). 설정이 조용히 빠지는 것을 이걸로 잡는다.

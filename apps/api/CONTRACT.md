@@ -12,9 +12,11 @@
 > 이관 사양(`SOMA-287`)에서 쓰던 번호를 그대로 이어받았다. §1·§3·§9~§12 가 없는 것은 그 장들이
 > 이관 절차였기 때문이다(`SOMA-403` 6단계에서 폐기). 원문은
 > [docs/archive/soma287/SPEC.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma287/SPEC.md) 에 있다.
+> §2(기술 스택 표)는 `build.gradle.kts` 를 옮겨 적은 것이라 지웠고 남길 두 규칙은 §5 머리로 옮겼다. §8-2·§8-3 도
+> 지웠다(경위는 팀 위키 `research/2026-11-24-api-contract-history`).
 
 **기능의 행동(누가 무엇을 할 수 있는지, 오류 코드, 한도, 응답의 뜻, 상태 전이)은 [docs/specs/](../../docs/specs/README.md)가
-정본이다.** 이 문서는 백엔드 공통 규칙(스택, 영속·트랜잭션·락, 스키마, 오류 계약의 모양, 검증)과 기능 절마다의
+정본이다.** 이 문서는 백엔드 공통 규칙(영속·트랜잭션·락, 스키마, 오류 계약의 모양, 검증)과 기능 절마다의
 구현 규칙만 둔다. 기능 절(§6-5 이후)은 첫 줄에 정본 스펙을 가리킨다. 둘 다 대응하는 Java 테스트가 판정한다.
 `spec/openapi.json`은 springdoc이
 만드는 요청·응답 스키마 산출물이자 웹 타입 생성원이다. 오류와 상태 전이 전체를 표현하지
@@ -44,21 +46,6 @@ API의 요청·응답·오류·상태 전이를 바꿀 때 아래 순서를 따�
 **완료 기준:** 행동 계약 테스트와 갱신 변수 없는 스냅샷 검사가 통과했고, 생성물 diff 및
 웹·모바일의 모든 영향받는 소비자를 확인했다. 축소 변경은 구·신 버전의 호환 배포 순서가 정해졌다.
 
-## 2. 기술 스택 (확정, 변경 금지)
-
-| 항목 | 결정 |
-|---|---|
-| 런타임 | Java 21 + Spring Boot 3.4, Spring Web MVC + **virtual threads** (WebFlux 금지) |
-| 빌드 | Gradle (Kotlin DSL) + wrapper, `bootJar` |
-| 영속 | Spring Data JPA + `EntityManager` native SQL로 일원화한다(ADR-024, §5-1·§5-2) |
-| 스키마 | **Flyway 가 소유**. `V1__baseline.sql` 에 스키마가 동결돼 있다(§5-5). Hibernate `ddl-auto: validate` (`create`/`update` 절대 금지) |
-| DB 연결 | `DATABASE_URL`(`postgresql://…`)을 **JDBC URL + username/password 로 변환**(§5-6). 변수 이름은 유지 |
-| 스펙 | springdoc-openapi (`openapi_3_1`) |
-| 인증 | nimbus-jose-jwt + 커스텀 필터. Apple/Google 은 `JwtDecoder`(JWKS 캐시) |
-| S3 | AWS SDK v2 `S3Presigner` |
-| DB 버전 | dev·운영 홈서버와 테스트는 **Postgres 18** 계열로 맞춘다(`deploy/home/compose.yml`). PG18 은 NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라 16 에서 통과한 스키마 검증이 운영을 보증하지 않는다 |
-| 테스트 | JUnit 5 + Testcontainers + MockMvc + **ArchUnit**(패키지 구조 검사, ADR-016). Testcontainers 버전 고정과 DB 실행 조건은 §8-4를 따른다 |
-
 ## 4. datetime 포맷
 
 **전 엔드포인트가 `Z` + 마이크로초 6자리다.**
@@ -67,11 +54,11 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 (**`LocalDateTime` 금지**), 소수 자릿수 **6자리 고정**(기본은 나노초까지 갈 수 있다).
 `JacksonContractTest` 가 못 박는다.
 
-🔁 이것은 이관에서 **의도적으로 낸 유일한 breaking change** 였다. 파이썬은 경로마다 갈려 있었다
-— dict 반환은 `...789012+00:00`, Pydantic 모델 반환은 `...789012Z`. 프론트가 전부
-`new Date()`/`Date.parse()` 를 쓰고 JS 표준 파서가 둘 다 처리하므로 무영향이었다.
-
 ## 5. 영속 계층 규칙
+
+웹은 Spring Web MVC 와 virtual threads 로 돈다(`spring.threads.virtual.enabled`, `HealthAndBootIT` 가 확인한다). WebFlux 는 쓰지 않는다.
+dev·운영 홈서버의 DB(`deploy/home/compose.yml`)와 테스트 DB(`PostgresContainerSupport`)는 **PostgreSQL 18** 계열로 맞춘다. PG18 은
+NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라, 다른 메이저에서 통과한 스키마 검증이 운영을 보증하지 않는다.
 
 ### 5-1. 운영 DB 접근은 JPA 로 일원화한다
 
@@ -81,25 +68,27 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 Schema Entity, JPA 타입을 알지 않는다.
 
 Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 아무 코드도 쓰지 않는 매핑을
-`ddl-auto: validate` 스키마 검증만을 위해 두지 않는다(2026-10-01 결정). `actor_memory_entries`·`push_tokens`도
+`ddl-auto: validate` 스키마 검증만을 위해 두지 않는다(2026-10-01 결정). 지금은 이 결정과 달리 다른 코드가 쓰지 않고 스키마
+검증에만 쓰이는 엔티티가 남아 있다(예: `ReadingSessionEntity`). 그것들을 지울지는 아직 정하지 않았다. `actor_memory_entries`·`push_tokens`도
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
 - 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다.
 - 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
-  `handoff_confirmations`·`practice_reports`): Java 쓰기 경로를 내렸다. 연습 데이터 이관
-  (`platform/migration`)과 호환 읽기(`PostgresLegacyPracticeReader`, 이어하기 맥락)가 native SQL로만 읽으므로
-  테이블과 값 CHECK는 그대로 둔다.
-- `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 보관함 저장소(`PostgresVideoRepository`)와
-  이관(`PostgresVideoOwnership`)이 native SQL로만 읽고 쓰므로 테이블과 값 CHECK는 그대로 둔다.
+  `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 연습 데이터 이관(`platform/migration`), 호환 읽기
+  (`PostgresLegacyPracticeReader`, 이어하기 맥락), 운영 지표, 탈퇴, 옛 큐 워커(§5-7)가 native SQL로만 읽고 쓰므로
+  테이블과 값 CHECK는 그대로 둔다. `handoff_confirmations` 는 읽는 코드가 없다.
+- `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 보관함·이관·연습·분석·챌린지·탈퇴·운영 지표·데이터
+  전환이 native SQL로만 읽고 쓰므로(쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
-  이 컬럼을 매핑하지 않으며 조회·수정은 이 컬럼을 보지 않는다. **탈퇴의 파기만 예외로 이 컬럼에
+  이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 프로필 이름이 없을 때 이 값을 대신 읽는다
+  (`PostgresJournalRepository`, `PostgresBillingRepository`, `PostgresBillingAdminReader`). **탈퇴의 파기는 이 컬럼에
   NULL을 쓴다** — 복사 뒤에도 옛 값이 남아 있고 탈퇴는 이름을 지체 없이 파기해야 하기 때문이다
-  (`PostgresProfileRepository#withdraw`). 그래서 물리 삭제는 두 릴리스에 걸친다: 그 쓰기를 걷어낸
-  릴리스 다음에 `DROP COLUMN` 한다. 이 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
+  (`PostgresProfileRepository#withdraw`). 그래서 물리 삭제는 두 릴리스에 걸친다: 세 읽기와 그 쓰기를 걷어낸
+  릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
 이 목록의 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
@@ -140,7 +129,8 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 ### 5-3. 엔티티 매핑 함정
 
 1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어낸 이유는
-   [ADR-023](../../docs/ADR.md)이다.
+   [ADR-023](../../docs/ADR.md)이다. 예외로 Schema Entity 없이 native SQL 만 쓰는 결제(V64)·광고(V66) 표는 CHECK 없이
+   앱 코드(`BillingRules`·`AdRules`)와 저장소 SQL 이 값을 지킨다.
 
    **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
    Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
@@ -151,10 +141,10 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    `PgEnumJdbcType` 과, 기동할 때 `pg_enum` 카탈로그를 대조하던 `PgEnumCatalogVerifier` 는
    대조할 타입이 없어져 함께 은퇴했다. **값 무결성의 그물은 이제 둘이다** — DB 의 CHECK 와,
    모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
-2. **PK 는 BIGSERIAL 둘을 뺀 나머지가 전부 UUID 다.** 대부분 앱에서 생성하고,
-   `CoachSession.id` 만 외부에서 오며 `push_tokens.id`는 DB default가 생성한다.
-   `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다. 회원당 하나인
-   `user_profiles`·`portfolios` 도 PK 가 `user_id` 로 같은 형태다.
+2. **앱이 만드는 PK 는 UUID 다**(`AppGeneratedUuidEntity`). 그 밖의 PK 모양: `push_tokens.id`는 DB default가 생성하고,
+   회원당 하나인 `user_profiles`·`portfolios` 는 PK 가 `user_id` 로 **FK 겸 PK** 다. 날짜가 붙는 장부(`user_active_days`·
+   `evening_reminder_sends`·`practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
+   `anomalies` 는 BIGSERIAL(5번)이다. 엔티티 없이 native SQL 만 쓰는 `audition_postings` 도 bigint identity 다(§6-26).
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
@@ -183,7 +173,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    `blockage_kind`×`sub_branch` 조합을 묶고, `actor_memory_entries` 에는 값의 공백·길이·
    대상 조합을 묶는 제약이 걸려 있다 — **임의의 값을 넣으면 INSERT 가 거부된다.**
 7. **`community_reports.target_id` 는 의도적으로 FK 가 없다** — 글과 댓글 양쪽을 가리킨다.
-   (매핑은 은퇴했고 테이블은 남아 있다, §5-1.)
+   (`CommunityReportEntity` 가 매핑한다 — SOMA-873 에서 게시판과 함께 되살렸다.)
 
 ### 5-4. 트랜잭션 경계
 
@@ -200,7 +190,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 
 ### 5-5. Flyway 가 스키마를 소유한다
 
-**정본이다.** 스키마 변경은 Flyway 마이그레이션으로 들어가고, API 이미지는 실행 jar를 포함한다 —
+**정본이다.** Hibernate 는 `ddl-auto: validate` 로만 쓴다(`create`·`update` 금지). 스키마 변경은 Flyway 마이그레이션으로 들어가고, API 이미지는 실행 jar를 포함한다 —
 마이그레이션이 **앱 기동의 일부**다. 배포 중에는 직전 판 API 가 새 마이그레이션 위에서 잠깐 함께 돌므로, 마이그레이션이
 지킬 호환 규칙은 [DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)을 따른다.
 
@@ -371,16 +361,16 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 ### 6-1. nullable — "null 로 보낼 것" 과 "키를 생략할 것" 이 다르다
 
-| 동작 | 대상 |
-|---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들, `AppPoster` 의 `badge`·`body`·`image_url`·`image_asset`·`audio_asset`·`cta_label`·`cta_target` |
-| **optional 인데 항상 포함** | `Video.purged_at`/`.playback_url`/`.playback_expires_at`/`.poster_url` |
+두 동작이 있다. **required 인데 `null` 값을 실어 보내는** 필드(예: `AuthUser.email`)와 **optional 인데 항상 포함하는**
+필드(예: `Video.purged_at`)다. 같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO 를 분리하거나 직렬화를 수동 제어한다.
 
-같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO 를 분리하거나 직렬화를 수동 제어한다.
+⚠ **대상 목록을 문서에 적지 않는다** — 도메인이 늘면 낡는다. 스펙에서 뽑는다: 각 컴포넌트의 `required` 에 있으면서
+`anyOf` 에 `type: null` 이 섞인 속성이 그 집합이다.
 
-⚠ **위 목록을 손으로 세지 않는다** — 도메인이 늘면 낡는다(실제로 `memory` 가 들어오며 한 줄이
-빠진 채였다). 스펙에서 뽑는다: 각 컴포넌트의 `required` 에 있으면서 `anyOf` 에 `type: null` 이
-섞인 속성이 그 집합이다.
+```sh
+jq -r '.components.schemas | to_entries[] | .key as $s | .value as $v | ($v.required // [])[]
+  | select(($v.properties[.].anyOf // []) | any(.type == "null")) | "\($s).\(.)"' spec/openapi.json
+```
 
 `default` 가 붙은 필드는 **`anyOf [T, null]` 과 겹치지 않는다** — default 가 있으면 nullable 로
 선언되지 않는다. 대부분 컬렉션 기본값(`[]`)이나 불리언이다.
@@ -389,9 +379,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 스펙이 명시하는 도메인 오류는 셋뿐이다 — `POST /v2/consents`의
 `409 consent_document_outdated`, 그리고 `POST /v2/auth/login`·`/v2/auth/signup`의
-`409 account_exists_with_different_provider`(본문에 `providers`). 그 밖의 상태코드는
-`200/201/202/204/422`이고, 422는 자동 생성된 validation 오류뿐이다. 실제 오류는 그보다 훨씬
-많다.
+`409 account_exists_with_different_provider`(본문에 `providers`). 그 밖에 스펙에 적힌 오류는 자동 생성된
+validation 422 와 `GET /v2/blog/posts/{slug}` 의 404 뿐이다. 실제 오류는 그보다 훨씬 많다.
 
 **오류 본문은 `detail` 하나다. 형제 필드를 싣는 오류는 둘뿐이다**(`ApiException#with`):
 
@@ -410,16 +399,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 자기 버그로 다룬다.
 
 불규칙에 주의한다 — 대부분 snake_case(`upload_not_found`)인데 일부는 공백 포함 문장이다:
-`invalid or missing access token`, `session not found`, `practice session not found`,
-`rate limit exceeded`, `request is still processing`, `request retry exhausted`,
-`session changed concurrently`, `session is closed`,
-`practice session analysis is not settled`, `report already exists`,
-`report already exists for practice session`, `invalid X-Request-Id`.
-
-**같은 상태코드에 두 표기가 공존한다** — 404 에 `practice session not found` 와
-`practice_session_not_found` 가 **둘 다** 있고, 409 에 `report already exists` 와
-`report already exists for practice session` 이 둘 다 있다. 라우터별로 어느 쪽인지 정확히
-갈라야 한다.
+`invalid or missing access token`, `rate limit exceeded`, `request is still processing`.
 
 미처리 예외의 500 응답은 `{"detail":"internal_server_error"}`다. 5xx
 `ApiException`은 분류와 원인을 빠뜨리지 않도록 `ApiException.external(...)`·
@@ -438,35 +418,31 @@ Unexpected Failure 로 가른다. `SentryFailureReporter` 는 보고 자리와 �
 
 **숫자를 완료 조건으로 쓰지 않는다** — 추출 방식에 따라 흔들린다(동적 502, admin 기본 401,
 멀티라인 detail). 인벤토리의 **집합 동등성**으로 판정한다. `ErrorContractInventoryTest` 가 그
-자리이며 **지점 수까지 센다.** admin 2개는 `ADMIN_OPS_TOKEN` 이 있을 때만 등록되므로 조건부
-라우트는 따로 센다.
+자리이며 **지점 수까지 센다.** 운영 경로(`/v2/admin/**`)는 `ADMIN_OPS_TOKEN` 이 있을 때만 등록되므로
+(`AdminService.ENABLED_WHEN`) 커밋된 `openapi.json` 에 없고, 그 경로 목록은 `AdminEndpointIT` 가 따로 센다.
 
-⚠ **커버리지를 문자열 유무로 세지 마라.** `report already exists` 는 더 긴
-`report already exists for practice session` 에 부분 일치로 가려, 덮이지 않은 계약이 덮인 것처럼
-보인 적이 있다.
+⚠ **커버리지를 문자열 유무로 세지 마라.** 짧은 오류 문장이 그것을 품은 더 긴 문장에 부분 일치로 가려(옛
+`report already exists`), 덮이지 않은 계약이 덮인 것처럼 보인 적이 있다.
 
 ### 6-3. unknown key 정책 — 전역 reject + DTO 별 예외
 
-요청 바디 27개 중 **5개가 unknown key 를 허용**한다(2026-09-21, 리딩 대본 뒤):
+요청 바디는 전역으로 unknown key 를 거부하고, 로그인·로그아웃·갱신(`AuthDtos`)과 동의 변경(`ConsentDtos`) 요청만 허용한다.
+0.1.0 에서 더한 요청 바디(리딩의 등록·수정 포함)는 전부 닫혀 있다.
 
-```
-POST /v2/auth/login      POST /v2/auth/logout     POST /v2/auth/refresh
-POST /v2/consents        POST /v2/uploads/intents
-```
-
-나머지 22개는 `additionalProperties: false` 다. 0.1.0 에서 더한 요청 바디(리딩의 등록·수정 포함)는 전부 닫혀 있다.
-
-**전역 `fail-on-unknown-properties: true` + 허용할 5개에
-`@JsonIgnoreProperties(ignoreUnknown = true)`.**
+**전역 `fail-on-unknown-properties: true` + 허용할 DTO 에만
+`@JsonIgnoreProperties(ignoreUnknown = true)`.** 지금 허용하는 DTO 는 `git grep -n 'ignoreUnknown = true' src/main/java` 로 찾는다.
 
 **반대 방향(전역 허용 + DTO 별 거부)은 Jackson 이 표현하지 못한다** — 실제로 시도해 실패했다.
 `ignoreUnknown = false` 는 "거부하라" 가 아니라 **"전역 설정을 따르라"** 는 뜻이라 기본값과 다를
 바 없고, 예외가 나지 않는다. Spring Boot 기본값은 `false`(무시)라서, **그 기본을 쓰면 거부해야
 할 나머지를 닫을 수단이 없다.**
 
-**개수를 박지 말고 `openapi.json` 에서 확인한다** — 이관 중에 이 집합이 7→5 로 바뀐 적이 있다.
+**개수를 박지 말고 코드에서 확인한다** — 이관 중에 이 집합이 7→5 로 바뀐 적이 있다.
 
-응답 쪽은 반대다 — 응답 컴포넌트는 **전부 닫혀 있다.**
+`openapi.json` 의 `additionalProperties: false` 는 DTO 마다 붙인 `@Schema(additionalProperties = FALSE)` 에서 나온다. 런타임의
+거부와 따로 붙이므로 둘이 어긋날 수 있다 — `SynthesizeRequest`(`POST /v2/reading/voice`)는 런타임에는 모르는 키를 거부하지만
+스펙에는 열려 있다. 응답 컴포넌트도 대부분 닫혀 있지만 이 어노테이션이 빠진 것(`LoginResponse` 등)은 열려 있다. 열린 것은
+`openapi.json` 에서 `additionalProperties: false` 가 없는 object 스키마로 찾는다.
 
 ### 6-4. 관리용 모니터링 경로
 
@@ -618,7 +594,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 ### 6-9. 웹 게스트와 이관
 
-> 제품 규칙의 정본: [account.guest](../../docs/specs/account/guest.md)(게스트 만들기, 기능별 동의 문서, `member_only`·`guest_only`, 첫 동의의 나이 확인, 이관 코드, 옮기기와 기억 선택, `guest_transferred`), [account.consent](../../docs/specs/account/consent.md)(게스트의 조회), [practice.analyze](../../docs/specs/practice/analyze.md)(게스트 분석 하루 3회)
+> 제품 규칙의 정본: [account.guest](../../docs/specs/account/guest.md)(게스트 만들기, 기능별 동의 문서, `member_only`·`guest_only`, 첫 동의의 나이 확인, 이관 코드, 옮기기와 기억 선택, `guest_transferred`), [account.consent](../../docs/specs/account/consent.md)(게스트의 조회), [practice.analyze](../../docs/specs/practice/analyze.md)(게스트 분석 하루 한도)
 
 - 게스트 여부는 `AuthenticatedUser#guest` 가 요청마다 한 질의로 본다(신원이 전부 `guest`). `users` 에 컬럼을
   늘리지 않는다.
@@ -627,7 +603,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `/v2/me/memory/**`, 리딩은 `/v2/reading/**` 다(기능마다의 문서는 [account.guest](../../docs/specs/account/guest.md#규칙제약)).
   이 목록에 없는 경로가 `member_only` 다.
 - **dev 분석 한도 예외**: `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`이면 새 연습·재분석 모두 일일 횟수 제한 없이 처리한다. 환경별 값은 [DEPLOY-HOME §3](../../docs/deploy/DEPLOY-HOME.md#3-actions와-일상-배포)이 정한다. 기본값은 true이며 회원 정책과 요청 ID 멱등성은 유지한다.
-- **분석 하루 3회**는 작업 장부의 `analyze` 행을 센다. **세는 일과 작업을 만드는 일은 한 트랜잭션이다**
+- **게스트의 분석 하루 한도**(횟수는 `PracticeRules.GUEST_DAILY_ANALYSES`)는 작업 장부의 `analyze` 행을 센다. **세는 일과 작업을 만드는 일은 한 트랜잭션이다**
   (`PostgresPracticeRepository#overQuota`, §6-15): 그 게스트의 `users` 행을 잡은 채 세므로 겹쳐 온 분석 둘이 같은 수를
   보고 함께 지나가지 못한다. 같은 요청 ID 의 재전송은 한도보다 **먼저** 갈라 재생한다. 판정 순서는
   [practice.start](../../docs/specs/practice/start.md#규칙제약)다. 잠금 순서는 올린 영상·연습 행 → `users` 다(이관과 같은 방향).
@@ -732,8 +708,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   없음) 연결한 상대로 돌아간다 — 헤더가 없는 로컬 개발도 같다.
 - 신뢰하는 프록시의 기본은 루프백과 사설 대역이다. `CLIENT_IP_TRUSTED_PROXIES`(쉼표로 가른 CIDR)로 바꾸고
   `none` 으로 끈다(언제나 연결한 상대).
-- ⚠ **web 과 proxy 는 헤더를 그대로 넘긴다** — Next 16.2.10 의 rewrite 는 `X-Forwarded-For` 를 덧붙이지도 새로
-  만들지도 않고(실측), proxy(nginx)도 손대지 않는다. 이 규칙은 **web·proxy 가 Cloudflare 를 거친 요청만 받는다**는
+- ⚠ **web 과 proxy 는 헤더를 그대로 넘긴다** — Next 의 rewrite 는 `X-Forwarded-For` 를 덧붙이지도 새로
+  만들지도 않고(Next 16.2.10 에서 실측했다. Next 메이저·마이너를 올리면 다시 잰다), proxy(nginx)도 손대지 않는다. 이 규칙은 **web·proxy 가 Cloudflare 를 거친 요청만 받는다**는
   배포 조건 위에 선다(Compose 는 둘의 포트를 밖으로 열지 않는다). 둘 중 하나를 직접 여는 길을 만들면 그 길의 방문자는
   헤더를 마음대로 쓴다.
 - Tomcat `RemoteIpValve`(`server.forward-headers-strategy`)를 쓰지 않는다: scheme·host·port 까지 전달 헤더로
@@ -749,9 +725,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   회원은 회원의 게이트(§6-5)를 지난다.
 - **스키마(V13, V33, V34, V40, V42, V50, V51)**: `scripts`·`script_characters`(V42 가 성별·나이대 `gender`·`age_band` 를, V50 이 묶음 배역의
   함께 말하는 배역 `member_ids uuid[]` 를, V51 이 이름 없는 독백의 임시 배역 표시 `unnamed boolean` 을 더함 — 원소에 FK 가 없으니 배역 하나만 지우는 경로를 만들면 묶음도 함께 고친다)·`script_lines`·`reading_sessions`·`reading_recordings`·
-  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34), 회차 평가 `reading_session_ratings`(V40). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
-  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`·
-  `ReadingSessionRatingValue`·`CharacterGender`·`CharacterAgeBand`).
+  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34), 회차 평가 `reading_session_ratings`(V40). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다.
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
@@ -799,7 +773,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     (`PostgresProfileRepository#eraseReading`)가 회차보다 먼저 행째 지운다. 노트 평가와 달리 사람과 끊어 남기지 않는다 — 매달린
     회차가 남지 않기 때문이다. **이관**은 `PostgresReadingOwnership` 이 다른 리딩 표와 함께 주인만 바꾼다.
   - 회차 조회·시작 응답의 `my_rating` 은 `SessionController` 가 평가를 한 번 더 읽어 싣는다. 실 DB 검증은 `ReadingSessionRatingIT` 다.
-  - OpenAPI 컴포넌트: `ReadingSessionRatingRequest`·`ReadingSessionRating`(`ReadingSession.my_rating`, 필수 아님·nullable).
 
 **표시값 — 장면·자동 목소리·구간 이름·진행 K/N (SOMA-593)**
 
@@ -819,8 +792,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   「배역」 블록(`SplitResponse.traits`)을 읽고 `SplitDraft` 가 이름을 맞춰 `ScriptDraft.characterTraits` 로 넘기면
   (긴 대본은 그 뒤 성별을 모르는 배역만 `LateCastTraits` 대목으로 한 번 더 물어 빈 칸만 채운다, SOMA-937)
   `PostgresScriptRepository#create` 가 저장한다. 다른 경로의 대본은 NULL 이고 PATCH 로 고치는 칸은 없다.
-- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`·`gender`·`age_band`(둘은 nullable), `ReadingSessionRangeName`·
-  `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
 
 **줄 단위 녹음 (SOMA-546 RA3)**
 
@@ -841,8 +812,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **저장**은 `INSERT … ON CONFLICT (user_id, line_id) DO UPDATE` 한 문장이다. 같은 상태의 재전송은 CASE 로 옛
   `updated_at` 을 유지한다. 판정과 저장은 그 줄의 **대본 행을 `FOR UPDATE` 로 잡은** 트랜잭션 안이다
   (`PostgresMemorizationRepository`).
-- OpenAPI 컴포넌트: `ReadingMemorizationRequest`·`ReadingMemorizationStatusInput`·`ReadingLineMemorization`(`status` 는
-  `MemorizationStatus`).
 
 **생애 — 이관·삭제·탈퇴·파기 (SOMA-546 RA5)**
 
@@ -860,6 +829,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 **나누기 작업 (SOMA-593 C1)** — 제품 규칙의 정본: [reading.script](../../docs/specs/reading/script.md#규칙제약) 「나누기 작업」
 
+- 나누는 방법은 `SCRIPT_SPLIT_MODE`(`ScriptSplitMode`: `llm`·`hybrid`·`rules`)가 고르고, 모드마다의 경로는 reading.script 가 정본이다. 아래의
+  lease·모델 호출은 모델을 부르는 경로의 것이다.
 - 코드의 자리: 접수·상태는 `reading/app/ScriptImportService`(원문 한도 → 예시 판별 → 동의(예시가 아닐 때만) → 지문), 저장소 `adapter/db/
   PostgresScriptImportRepository`(V33 `script_imports`), 워커 `app/ScriptSplitWorker`, 스케줄러 `adapter/sched/ScriptSplitScheduler`,
   순수 규칙은 `domain/`(`NumberedLine` 줄 번호·조각, `SplitResponse` 답 검사, `CharacterNames` 이름 바로잡기, `SplitDraft` 조립,
@@ -878,7 +849,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   SQL 로 한 번 채웠고 `ReadingSchemaMigrationTest` 가 두 식의 일치를 실제 Postgres 로 대조한다. 공백류는 로케일에 기대지 않게
   목록으로 적었다.
 - 워커의 lease 는 30분(최악 경로 = 호출 3시도×93초가 배역 목록·조각 두 묶음(16개씩)·재요청 2판으로 다섯 번 ≈ 24분), 선점·완료·
-  실패는 `AiJobLedger`(§5-7)다. **`script_split` 만 lease 가 지난 `running` 도 다시 집는다**(`claimNext(…, reclaimExpired=true)`) —
+  실패는 `AiJobLedger`(§5-7)다. **lease 가 지난 `running` 도 다시 집는다**(`claimNext(…, reclaimExpired=true)`, 다른 `ai_jobs` 종류도 같다, §6-15) —
   집은 워커가 죽어도 작업이 영원히 running 으로 남지 않게. 완료가 요청의 request_id 로 멱등이라 두 번 돌아도 대본은 하나다.
   시도 셋(`MAX_ATTEMPTS`)을 다 쓴 채 lease 가 지난 작업은 스케줄러의 `sweep`(`ScriptSplitWorker.sweep` → `AiJobLedger.failExpired`)이
   `failed(max_attempts)` 로 닫고 `script_imports.failure=failed` 를 쓴다. 호출 하나는 연결 실패·429·5xx·미완료 답에 두 번 더
@@ -889,13 +860,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `OVER_LIMIT` 이면 `failure=script_limit`, `FINGERPRINT_MISMATCH`(같은 request_id 의 다른 대본이 이미 있음)면 `failure=failed`,
   계정이 닫혔으면 `cancelled` 다. 끝난 요청(성공·실패·sweep)은 `raw_text=''` 로 비운다. `script_id` 에 FK 를 두지 않아 대본 삭제가
   이 표를 모른다.
-- 요청 플래그 `allow_duplicate`(R2.7 「새로 넣기」: 같은 글의 대본·진행 중 요청을 보지 않음)·`skip_script_check`(R2.8 「그래도
-  나누기」: 행에 남겨 워커가 판정 줄을 묻지 않음)는 지문에 든다. 요청 모양은 `raw_text` 에 보이는 글자가 없으면(U+3000·U+200B 만)
-  422 배열, 제목 200자다.
-- 동의 조회는 고품질 목소리와 같은 질의(현재 판 `script_split` 문서의 마지막 결정)다. 예시 대본과 같은 글은 모델을 부르지 않으므로
-  동의를 보지 않고 바로 저장한다(게스트도). `ConsentDocument.askedAtEntry` 가
-  `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
-  나누기는 늘 403 `script_split_consent_required` 다.
+- 요청 플래그 `allow_duplicate`·`skip_script_check` 는 지문에 든다. 플래그의 뜻과 요청 모양(제목 길이, 보이는 글자가 없는 `raw_text`)은
+  reading.script 가 정본이다.
+- 동의 판정 SQL 은 `PostgresScriptImportRepository#splitDecision` 한 곳이다 — 개인정보 수집·이용 동의 v9 이상에 동의했으면
+  (`privacyCoversReading`, SOMA-726) 동의로 보고, 아니면 현재 판 `script_split` 문서의 마지막 결정을 본다. 고품질 목소리도
+  `privacyCoversReading` 을 쓴다. 예시 대본과 같은 글은 모델을 부르지 않으므로 동의를 보지 않고 바로 저장한다(게스트도).
+  `ConsentDocument.askedAtEntry` 가 `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어
+  (`ConsentService`, 403 `member_only`) 개인정보 v9 이상에 동의하지 않은 게스트의 나누기는 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
   `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751)·`SCRIPT_CAST`(SOMA-937)·`SCRIPT_REVIEW`·`SCRIPT_SAME_SPEAKER`(SOMA-1019) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
@@ -906,7 +877,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - 코드의 자리: `reading/app/ScriptUploadService`(올릴 자리·읽기·정리), 저장소 `adapter/db/PostgresScriptUploadRepository`(V34
   `script_uploads`), 스토리지 `adapter/storage/ObjectStorageScriptFiles`, 정리 스케줄러 `adapter/sched/ScriptUploadSweepScheduler`(매시
-  15분, Asia/Seoul), 숫자와 객체 키는 `domain/ScriptFileRules`. 글자 뽑기는 `integration/document/DocumentText`(pdfbox 3.0.8·hwplib 1.1.11,
+  15분, Asia/Seoul), 숫자와 객체 키는 `domain/ScriptFileRules`. 글자 뽑기는 `integration/document/DocumentText`(pdfbox·hwplib, 버전은 `build.gradle.kts`,
   둘 다 Apache-2.0)이고 docx·hwpx 는 zip 안 XML 을 StAX 로 직접 읽는다(DTD·외부 엔티티 끔, 풀린 XML 200MB 상한).
 - 읽기는 트랜잭션 밖에서 객체를 임시 파일로 받아(§5-4) 뽑고 `raw_text` 를 한 문장으로 쓴다. 이미 읽은 행은 다시 받지 않는다.
   크기는 올릴 자리의 서명에 묶여 있고 읽기가 `head` 크기와 다시 견준다. PDF 는 내용 순서로 읽고 내용 캐시를 임시 파일에 둔다.
@@ -934,11 +905,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 **고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
 
-- 고품질 음성은 모델·저장소 설정과 동의를 공통으로 지키며, 무료 기간·Pro·무료 첫 리딩 판정은 제품 정본을 따른다.
-- Pro는 계정당 한국 달력 월 새 합성 10,000줄이며 일 300줄·서비스 전체 월 75,000줄로 차단하지 않는다(SOMA-949).
-  일반 계정만 기존 일·전체 월 한도를 따른다. Pro 초과 오류는 429 cloud_voice_monthly_limit이다.
-- 구버전 호환을 위해 status의 daily_limit·daily_used 필드는 유지한다. 일반 계정에는 오늘 값, Pro에는 이번 달 한도·사용량을 담는다.
-  현재 모바일 소비자는 이 두 숫자로만 회차 사용 여부를 계산하고 일일 수치로 화면에 표시하지 않는다.
+- 고품질 음성은 모델·저장소 설정과 동의를 공통으로 지킨다. 무료 기간·Pro·무료 첫 리딩 판정, 일·월 한도, 호환 필드
+  `daily_limit`·`daily_used` 의 뜻은 제품 정본을 따른다.
 - Pro 성공 차감은 계정별 advisory transaction lock 안에서 월 합계를 재검사한다. 외부 합성·업로드는 트랜잭션 밖이다.
 - 캐시 키는 `sha256(model + "\n" + geminiVoice + "\n" + text)` 이고 객체 키는 `reading-voice/{hash}.wav` 다. 캐시 적중은
   합성과 사용량 증가 없이 성공하고, 새 합성 성공만 일 사용량을 1 올린다(`PostgresCloudVoiceRepository`).
@@ -948,25 +916,21 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
-> 제품 규칙의 정본: [practice/](../../docs/specs/practice/README.md)(「0.1.0 스키마 전환」, 「연습 자료의 이관·삭제·탈퇴」 표, 옛 경로를 내린 것), [practice.record](../../docs/specs/practice/record.md)(올리기 세 구간·한도·시한), [practice.library](../../docs/specs/practice/library.md)(보관함·상세·삭제·파일만 파기·포스터, 묶음 목록·속성), [practice.start](../../docs/specs/practice/start.md)(시작·재시도, 경험 판, 판정 순서), [practice.resume](../../docs/specs/practice/resume.md)(이어하기), [practice.analyze](../../docs/specs/practice/analyze.md)(상태·취소, 분석 조회, 하루 3회), [practice.coach](../../docs/specs/practice/coach.md)(대화 시작·답장·조회, `reply_limit`), [practice.note](../../docs/specs/practice/note.md)(노트·평가, `my_rating`), [practice.memory](../../docs/specs/practice/memory.md)(배우 기억), [practice.feedback](../../docs/specs/practice/feedback.md)(이탈 설문, 운영 피드백 조회)
+> 제품 규칙의 정본: [practice/](../../docs/specs/practice/README.md)(「0.1.0 스키마 전환」, 「연습 자료의 이관·삭제·탈퇴」 표, 옛 경로를 내린 것), [practice.record](../../docs/specs/practice/record.md)(올리기 세 구간·한도·시한), [practice.library](../../docs/specs/practice/library.md)(보관함·상세·삭제·파일만 파기·포스터, 묶음 목록·속성), [practice.start](../../docs/specs/practice/start.md)(시작·재시도, 경험 판, 판정 순서), [practice.resume](../../docs/specs/practice/resume.md)(이어하기), [practice.analyze](../../docs/specs/practice/analyze.md)(상태·취소, 분석 조회, 게스트 하루 한도), [practice.coach](../../docs/specs/practice/coach.md)(대화 시작·답장·조회, `reply_limit`), [practice.note](../../docs/specs/practice/note.md)(노트·평가, `my_rating`), [practice.memory](../../docs/specs/practice/memory.md)(배우 기억), [practice.feedback](../../docs/specs/practice/feedback.md)(이탈 설문, 운영 피드백 조회)
 
 - **넓히기만 한 V14**: 새 테이블 열(`videos`·`video_transcripts`·`practices`·`analyses`·`coach_conversations`·
   `coach_messages`·`coach_notes`·`actor_memories`·`practice_feedback`·`ai_jobs`)과, `upload_intents` 에 NULL 허용
   컬럼 셋(`request_id`·`request_fingerprint`·`video_id`), `users` 에 `exit_survey_asked_at`·`memory_epoch`. **옛
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
-  구조가 그대로다(옛 연습 흐름의 Java 쓰기 경로는 뒤에 지웠다, §5-1).
-  데이터 전환은 Flyway 가 아니라 재실행 가능한 애플리케이션 명령이고, 옛 테이블의 삭제는 읽기·쓰기를 모두 중단한
-  버전을 배포한 **다음** 릴리스부터다(specs/practice 「0.1.0 스키마 전환」).
-  - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`PracticeStage`·`PracticeCloseReason`·
-    `ExperienceVersion`·`AnalysisFormat`·`AnalysisStatus`·`NoteFormat`·`NoteKind`·`MemoryField`·`FeedbackScreen`·
-    `FeedbackTrigger`·`AiJobKind`·`TranscriptStatus`·`ConversationCloseReason`). 옛 테이블의 값 목록은 그대로 두고
+  구조가 그대로다(옛 연습 흐름의 Java 쓰기 경로는 뒤에 지웠다, §5-1). 전환의 순서와 옛 테이블을 지우는 때는
+  specs/practice 「0.1.0 스키마 전환」이 정본이다.
+  - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
     새 테이블이 자기 것을 갖는다 — `coach_conversations` 의 종료 사유에는 신형의 `system_failure` 가 하나 더 있다.
   - `ai_jobs.failure_reason` 에는 CHECK 를 두지 않는다(분류가 열린 목록이다 — 옛 `external_operations.error_code` 와 같다).
   - **부분 유일 인덱스 둘**: `uq_practices_open_root`(묶음당 closed 아닌 회차 하나 — 409 `practice_in_progress` 가
     여기서 나온다)와 `uq_upload_intents_user_request`(옛 행의 NULL 요청 id 들이 서로 부딪히지 않는다).
-  - **테이블이 먼저 서고 코드가 뒤에 선다.** Schema Entity 가 아직 없는 아홉은 `EntityMappingIT.AWAITING_MAPPING`
-    에 적혀 있고, 각 기능을 붙이는 티켓이 거기서 빼고 엔티티 수를 올린다.
+  - Schema Entity 없이 native SQL 만 쓰는 표는 `EntityMappingIT.AWAITING_MAPPING` 에 적는다. V14 의 새 표 아홉도 거기 있다.
 - **보관함**(`/v2/videos/**`, `feature/video`)
   - 예약 장부(`upload_intents`)가 요청 id·지문·객체 키·시한·확정 `video_id` 를 들고 있어 마무리 재전송이 같은 영상을
     돌려준다.
@@ -1025,9 +989,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     서비스가 응답 직전에 채우므로 목록도 회차마다 쿼리를 더하지 않는다(서명은 바깥 호출이 아니다). 스토리지가 없는 기동은 null.
 - **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 상태와 lease 의 뜻은
   [공통 규칙 「공통 상태」](../../docs/specs/common.md#공통-상태)가 정본이다. 종류는 `platform/schema/AiJobKind`.
-  선점(`claimNext`)은 `pending` 만 `FOR UPDATE SKIP LOCKED` 로 집는다 — 만료된 `running` 을 다시 집지 않는 점이 §5-7 과
-  다르다. `release` 는 `attempt_count` 를 되돌리지 않고, 3회 뒤 `sweepMaxAttempts` 가 닫는다. `failure_reason` 에는
-  CHECK 가 없다(분류가 열린 목록이다).
+  선점(`claimNext`)은 `pending` 과 lease 가 지난 `running` 을 `FOR UPDATE SKIP LOCKED` 로 집는다 — 네 종류의 워커가 모두
+  `reclaimExpired=true` 로 부른다(SOMA-1105). 집은 워커가 죽어도 작업이 running 으로 남지 않는다. 시도 수는 선점마다 오르고
+  `release` 는 `attempt_count` 를 되돌리지 않는다. 3회 뒤 `sweepMaxAttempts` 가 닫고, 시도를 다 쓴 채 lease 가 지난 `running` 은
+  각 기능의 정리가 `failExpired` 로 닫는다. `failure_reason` 에는 CHECK 가 없다(분류가 열린 목록이다).
 - **분석 결과**(`analyses`, `feature/analysis`): 워커는 **한 클래스**(`AnalysisWorker`)이고 원장마다 저장소·빈이
   하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 0.1.0 `PracticeAnalysisStore`
   (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는
@@ -1054,55 +1019,19 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **이탈 설문**(`practice_feedback`) — 선점은 `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이다. 시트
   구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** — 성공을
   돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
-- **운영 통합 이용 기록**(`GET /v2/admin/ops-core`의 `activity_rows`) — 코칭 세션·대본 리딩 세션·삭제되지 않은
-  챌린지 참여작의 전체 기록을 한 목록으로 추가 제공한다. 기존 `sessions`·`features`의 의미와 인증은 바꾸지 않는다.
-  - 각 행은 `activity_id`(`coaching:`·`reading:`·`challenge:` + 원천 행 id), `feature`, `created_at`, `actor`,
-    `signup_at`, `signup_d7`, `platform`, `device`, `status`, `is_team`만 가진다. `actor`는 기존과 같은 `배우 ` +
-    `md5(user_id)` 앞 8자리여서 기능을 넘나드는 사람도 중복 제거할 수 있다. 이메일·원본 user id·대본·평가·댓글 등
-    자유 입력은 넣지 않는다. 활동 시각은 분, 가입 시각은 시간 단위로 뭉개 기존 스냅샷의 정밀도를 유지한다.
-    `signup_d7`은 뭉개기 전 시각으로 최근 7일 가입 여부를 계산해 SQL 퍼널과 정확히 같은 가입 코호트를 유지한다.
-  - 세 기능 모두 공통 `team` 제외 기준을 적용하고 미래 시각은 제외한다. 코칭은 0.1.0 이관 전후 같은 id를 한 번만
-    읽는 `ps_all`을 재사용한다. 단순 참여작 조회·좋아요·댓글은 연습 이용으로 합치지 않는다.
-  - 행 제한 없이 전체 이력을 제공하며 실제 기록이 없으면 `[]`다. 필드가 없는 구버전·결측 응답을 0으로 해석하거나
-    코칭 전용 숫자를 통합 수치로 대체하면 안 된다. 운영 개요 소비자는 동일 actor 기준 인원·반복·재방문을 계산한다.
-- **가입 코호트 원장**(`GET /v2/admin/ops-core`의 `signup_rows`, SOMA-591) — 팀을 뺀 가입자 한 명당 한 행이다.
-  `actor`(기존 가명)·`signup_at`(시간 단위)·`platform`(`앱`·`웹`)·`device`(가입 기기 분류)·`first_upload_at`
-  (가장 이른 `finalized` 업로드, 분 단위, 없으면 null)·`experience`·`goal`(가입 프로필 값 이름, 프로필이 없으면 null)·
-  `directions`(`media`·`stage` 정렬 배열, 없으면 `[]`, SOMA-632)·`discovery_answered`·`discovery_source`·`discovery_detail`
-  (가입 직후 유입 경로 자기 응답 값 이름, 답이 없으면 false·null·null, SOMA-649)만 가진다. 이름·생년월일·소개 글은 싣지 않는다. 미래 행은 뺀다. 운영 화면은 이를 `activity_rows`·
-  `signup_attributions`와 가명으로 이어 플랫폼×유입 소스 퍼널을 같은 기간 가입 코호트로 계산한다.
-  `signup_attributions`는 기존 키를 유지하면서 `source`와 nullable `medium`을 더 제공한다. 필드가 없는
-  구버전 응답을 0명으로 해석하면 안 된다.
-- **챌린지 참여작 목록**(`GET /v2/admin/ops-core`의 `features.challenges`) — `entries.private` 수와 `recent_entries`
-  (삭제되지 않은 최신 50건)를 더한다. 비공개 참여작도 운영이 봐야 하므로 `visibility`를 그대로 싣는다.
-  - 한 항목은 `entry_id`·`challenge_id`(둘 다 앞 8자리)·`challenge_origin`·`actor`(기존 가명)·`visibility`·`status`·
-    `has_video`·`created_at`·`published_at`(분 단위)·`views`·`likes`·`comments`(팀 제외)·`ai_report`(없으면 null)다.
-    캡션·챌린지 대사·이메일·원본 id 는 넣지 않는다(git 에 남는 JSON 이다). 팀·미래 시각 행은 제외한다.
-- **업로드 완료 · 연습 미시작 기록**(`GET /v2/admin/ops-core`의 `upload_only_rows`)는
-  조회 시점에 연습·챌린지와 연결되지 않은 확정 업로드를 별도 배열로 제공한다. 기존 `sessions`·
-  `activity_rows`·퍼널·코칭 지표의 계산과 의미는 바꾸지 않는다.
-  - 필드는 `upload_intent_id`·`created_at`·`actor`·`is_team`·`platform`·`device`·`duration_ms`다.
-    시각은 `finalized_at` 우선, 없으면 업로드 `created_at`을 쓰며 UTC 분 단위로 낮춘다.
-    가명과 가입 기기 분류는 기존 기준을 재사용한다. 원본 user id·이메일·파일경로·URL·자유 글은 싣지 않는다.
-    팀 행은 공통 `team` 기준으로 `is_team=true`를 표시하며 화면에서 기본 제외한다.
-  - `status='finalized'`인 업로드만 읽고 미래 완료 시각은 제외한다. 신형은 `video_id`, 구형 이관은
-    같은 소유자의 `object_key`로 영상 후보를 찾는다. 후보 중 하나라도 연습·챌린지에 연결되거나
-    `purged_at`이 있으면 제외한다. 옛 `practice_sessions.upload_intent_id` 연결도 별도로 제외한다.
-    영상 키는 유일하지 않으므로 첫 후보만 보고 판정하지 않는다. 같은 영상으로 연습을 시작하면 해당
-    업로드 전용 행은 사라지며, 동일 배우의 다른 미연결 업로드는 그대로 남는다.
-  - 업로드 목적은 저장되지 않으므로 보관용인지 이탈인지 단정하지 않는다. 삭제된 챌린지의 `video_id`나
-    삭제된 영상과의 연결은 사라질 수 있어 과거 연결 이력도 복원할 수 없다. 이는 현재 연결 상태의 조회이지
-    이탈 확정·코칭 실패·영상 재생 가능 여부의 판정이 아니다. 화면에도 이 한계를 알린다.
-  - 전체 이력을 완료 시각 내림차순, 같은 시각이면 업로드 id 내림차순으로 제공한다. 실제 기록이 없으면
-    `[]`이며 필드 누락·형식 오류는 0이 아닌 확인 불가로 처리한다. `AdminEndpointIT`에서 실 DB로 검증한다.
-- **운영 피드백 조회**(`GET /v2/admin/feedback`) — 연락처·원본 user id·이메일은 projection 과 DTO 에 없다. 팀 판정은
-  `ADMIN_OPS_EXCLUDE_EMAILS` 와 `exclude_actors`(ops-core 와 같은 검증)다.
-- **자문단 대화 조회**(`GET /v2/admin/advisor-sessions`, SOMA-622) — `limit`(1~200, 기본 100). 자문위원 판정은 코치 성격
-  배정과 같은 `coaching/direct-video/personas/advisors.txt`(이메일 SHA-256, 소문자·앞뒤 공백 제거)를 DB 에서 같은 방식으로
-  해싱해 대조한다. 새 대화와 이관 전 옛 코치 세션을 최신순(같은 시각이면 id)으로 내고, 가명(md5(user_id) 앞 8자리)·자문위원 해시(`advisor_hash`,
-  advisors.txt 에 이미 있는 값이라 새로 드러나는 것이 없다)·코치 성격(`state.practice_loop.persona`, 없으면 null)·대화 원문과 세션 목록과 같은 1시간 영상 재생 주소(`video_url`, 지워진 영상·서명 실패면 null)를
-  싣는다. 이메일·원본 user id 는 싣지 않고
-  `Cache-Control: private, no-store` 다. 팀 제외는 적용하지 않는다(자문위원 목록 자체가 범위다). `AdminEndpointIT` 에서 실 DB 로 검증한다.
+- **운영 조회**(`GET /v2/admin/ops-core` 의 `activity_rows`·`signup_rows`·`features.challenges`·`upload_only_rows`,
+  `GET /v2/admin/advisor-sessions`) — 응답 칸과 뜻, 팀 처리, 싣지 않는 값은 [app.admin-ops](../../docs/specs/app/admin-ops.md)가
+  정본이다. 운영 피드백(`GET /v2/admin/feedback`)은 [practice.feedback](../../docs/specs/practice/feedback.md)이다. 조건부 빈과 토큰은 §6-21.
+  - ops-core 는 `admin/ops-core.sql` 한 질의가 만든다. 가명은 `md5(user_id)` 앞 8자리이고 팀은 공통 `team`(운영 이메일과
+    `exclude_actors`)이다. 코칭 기록은 0.1.0 이관 전후 같은 id 를 한 번만 읽는 `ps_all` 을 재사용한다.
+  - `upload_only_rows` 는 `status='finalized'` 인 업로드만 읽고 미래 완료 시각은 뺀다. 신형은 `video_id`, 구형 이관은 같은 소유자의
+    `object_key` 로 영상 후보를 찾고, 후보 중 하나라도 연습·챌린지에 연결되거나 `purged_at` 이 있으면 뺀다. 옛
+    `practice_sessions.upload_intent_id` 연결도 따로 뺀다. 영상 키는 유일하지 않으므로 첫 후보만 보고 판정하지 않는다.
+  - 운영 피드백 조회의 연락처·원본 user id·이메일은 projection 과 DTO 에 없다. 팀 판정은 `ADMIN_OPS_EXCLUDE_EMAILS` 와
+    `exclude_actors`(ops-core 와 같은 검증)다.
+  - 자문단 대화의 자문위원 판정은 코치 성격 배정과 같은 `coaching/direct-video/personas/advisors.txt`(이메일 SHA-256, 소문자·앞뒤
+    공백 제거)를 DB 에서 같은 방식으로 해싱해 대조한다.
+  - 실 DB 검증은 `AdminEndpointIT` 다.
 - **연습 자료의 이관·삭제·탈퇴** — 제품 규칙은 specs/practice 의 처리표다.
   - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
     → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
@@ -1120,17 +1049,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **옮기지 않는 것은 사유와 함께 적힌다**: 가지 쳐 차수가 겹치는 묶음(`branching_chain`), 닫히지 않은 회차가
     둘 이상인 묶음(`multiple_open_practices`), 확정되지 않은 업로드를 가리키는 묶음(`video_missing`), 한 연습의
     옛 대화 가운데 최신이 아닌 것(`superseded_conversation`), 같은 영상의 두 번째 전사(`transcript_conflict`).
-    **임의로 닫거나 지우지 않는다** — 그 자료는 호환 읽기 경로가 옛 표에서 그대로 보여 준다.
   - **옛 표에 쓰는 자리는 `upload_intents.video_id` 하나다** — V14 가 예약 장부에 더해 둔 칸이고 옛 서버는 그것을
     모른다. 그 밖의 옛 표는 읽기만 한다.
-  - **진행 중인 AI 작업은 옮기지 않는다**(고르지도 않는다). 옛 워커가 끝내야 하고 두 큐에서 같은 작업이 동시에
-    돌면 안 된다 — 끝나면 다음 실행이 집어 간다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛 예약에는 세대가
-    없고, NULL 은 "세대를 견주지 않는다" 는 뜻이다).
-  - **이름을 바꾸지 않는다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 구형
-    관찰은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만 새 어휘로 옮긴다(`actor_finished`→`user_ended`,
-    `turn_budget`→`limit`, `interrupted`→`exhausted`). 옛 대화에는 시작 요청 id 가 없어 **세션 id 를 그대로** 쓴다.
-- **호환 읽기 경로**(specs/practice ②) — 넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회
-  API 는 **새 표를 먼저 보고 없으면 옛 표를 읽어 같은 응답 모양**을 낸다.
+  - 진행 중인 AI 작업은 고르지 않는다 — 끝나면 다음 실행이 집어 간다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛
+    예약에는 세대가 없고, NULL 은 "세대를 견주지 않는다" 는 뜻이다).
+  - 대화의 종료 사유만 새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`→`exhausted`).
+    옛 대화에는 시작 요청 id 가 없어 **세션 id 를 그대로** 쓴다.
+- **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
     로 간다. 차수는 `continued_from` 체인을 그때그때 펴서 만들고 **전환 명령과 같은 규칙**이라 옮기기 전후의
     응답이 같다.
@@ -1149,13 +1074,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **옛 경로를 내린 뒤**: 게스트 기능표에서도 `/v2/uploads/**`·`/v2/practice-sessions/**` 를 뺐다.
   `CoachReadsProfileIT` 는 새 코치 경로에서 프로필·기억을 읽는 규칙과 조회 실패의 폴백을 검증한다. 옛 저장 형식의
   회귀 검사는 테스트 전용 어댑터로 유지하며 이 어댑터는 운영 산출물에 포함하지 않는다.
-- OpenAPI 컴포넌트: 보관함은 `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`, 회차는
-  `Practice`·`PracticeGroup`·`PracticeGroupList`·`PracticeStatus`·`PracticeJob`·`PracticeScene`·`PracticeBlockage`·
-  `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`·
-  `PreviousConversation`, 기억은
-  `ActorMemoryItem`·`ActorMemoryResponse`·`UpdateActorMemoryRequest`(옛 여섯 칸의 `MemoryItem`·`MemoryResponse`·
-  `UpdateMemoryRequest` 는 `/v2/legacy-me/memory` 가 계속 쓴다), 설문은 `PracticeFeedbackRequest`·
-  `PracticeFeedbackResponse`·`PracticeFeedbackStatus`, 노트 평가는 `NoteRatingRequest`·`NoteRating`(`CoachNote.my_rating`).
 
 ### 6-16. 챌린지 개설·목록 (0.1.0)
 
@@ -1164,8 +1082,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 게이트는 `adapter/web/ChallengeMembers` 한 곳이다. 이후 챌린지 절(6-17~6-20)의 회원 경로도 이것을 지난다.
 - 개설의 검사·쓰기는 활성 사용자 행 잠금 아래 하므로 동시 개설·탈퇴 뒤 늦은 쓰기가 새 행을 만들지 않는다. 삭제된 챌린지의
   moderation 변경은 `PostgresChallengeRepository.moderate` 가 404 로 막는다.
-- V16은 `challenges`, V17은 공개 집계의 기반인 `challenge_entries`·`entry_likes`·`user_blocks`를 더한다.
-  기존 표·컬럼은 축소하지 않는다. 값 CHECK와 Schema Entity 매핑도 함께 검증한다.
 
 ### 6-17. 챌린지 참여·랭킹·조회수 (0.1.0)
 
@@ -1178,7 +1094,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   전체 순서와 순위를 `entry_ranking_snapshots`에 굳히고 커서는 그 위치다.
 - 조회 사건은 `entry_view_events`에 조회수 증가와 한 트랜잭션으로 남긴다.
 - 공유 조회(`GET /v2/public/entries/{id}`)의 IP별 한도는 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴 값으로 센다(§6-13).
-- V18은 `entry_view_events`·`entry_ranking_snapshots`를 더하고 기존 표는 바꾸지 않는다.
 
 ### 6-18. 챌린지 반응·차단·신고 (0.1.0)
 
@@ -1193,19 +1108,18 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 좋아요 수는 연결 행을 다시 센다(§7 머리말 1번).
 - POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
   (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
-- **공개 참여작 AI 검사**(V70, SOMA-907): 공개 참여작은 검사를 기다리지 않고 바로 보인다. 공개로 만들거나, 처음 공개로
-  바꾸거나, 공개 중 캡션이 바뀌면 `challenge_entries.moderation_status='pending'` 이 되고, `challenge/app/EntryModerationWorker`
+- **공개 참여작 AI 검사**(V70, SOMA-907): 언제 검사 차례가 되고 판정마다 어떻게 보이는지는 challenge.report 가 정본이다. 검사
+  차례는 `challenge_entries.moderation_status='pending'` 이고, `challenge/app/EntryModerationWorker`
   가 집기(시도 수를 올려 커밋) · 판정 받기(`EntryModerationModel`, Gemini — 원본 영상 + 챌린지 대사 + 캡션, 트랜잭션 밖) ·
   붙이기로 돈다. 붙이기는 신고와 같은 순서(챌린지 마감 집계 → 참여작 행)로 잡고, 집은 뒤 캡션이 바뀌었거나 다른 시도가
-  앞섰으면 버린다. 판정은 `passed`(그대로) · `flagged`(신고 숨김으로 돌리고 AI 신고를 남긴다) · `review`(보이게 두고 AI 신고)
-  이고, `ChallengeRules.MODERATION_MAX_ATTEMPTS` 번 실패하면 `failed`(보이게 두고 AI 신고)다. AI 신고는
-  `entry_reports.source='ai'`, `reporter_id` 없음이며 운영 판정 화면에 사람 신고와 함께 나온다. 운영이 풀면(restored·dismissed)
-  AI 판정은 `passed` 가 되고, 숨김 유지(kept_hidden)는 아직 보이던 참여작도 숨긴다. `passed` 참여작은 처리 전 사람 신고가
-  서로 다른 `PASSED_ENTRY_REPORT_THRESHOLD` 명에게서 모여야 숨기고, 그 밖의 참여작은 지금처럼 신고 하나에 숨긴다. 스위치는
+  앞섰으면 버린다. 실패 상한은 `ChallengeRules.MODERATION_MAX_ATTEMPTS`, 통과작을 숨기는 신고자 수는
+  `PASSED_ENTRY_REPORT_THRESHOLD` 다. AI 신고는 `entry_reports.source='ai'`, `reporter_id` 없음이다. 운영이 풀면(restored·dismissed)
+  그 대상에 남은 received 신고가 없을 때만 AI 판정(`flagged`·`review`·`failed`)을 `passed` 로 바꾼다(`PostgresEntryReportRepository`). 스위치는
   `ANALYSIS_WORKER_ENABLED` 와 `CHALLENGE_MODERATION_ENABLED`(테스트는 후자를 전역으로 끈다), 모델은
   `CHALLENGE_MODERATION_MODEL`(없으면 `GEMINI_MODEL`)이다. V70 은 이미 공개된 참여작을 한 번 검사 차례로 둔다.
   화면이 검거나 배우가 보이지 않아도 대사를 연기하는 목소리가 들리면 `passed` 다(face 만 false, SOMA-1082). 목소리 연기도
-  없는 빈 화면·화면 녹화·무관한 내용만 `review` 로 올린다.
+  없는 빈 화면·화면 녹화·무관한 내용만 `review` 로 올린다(판정 지시문은 `EntryModerationPrompt`). 이 판정 기준은 아직
+  challenge.report 에 없다.
 
 ### 6-19. 챌린지 AI 리포트 (0.1.0)
 
@@ -1216,7 +1130,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   영상과 챌린지 대사만 받는다 — 코치 대화·장면 입력·배우 기억을 실을 자리가 없다. Gemini 구현은 저장소에서 받은
   영상들을 라벨(내 영상·S1…)과 함께 한 번에 보인다.
 - 금지 어휘 목록과 실행 상한은 `ChallengeReportRules` 한 곳이다. 문장별 표본 id는 `entry_ai_reports.result`에만 있다.
-- V20은 `ck_ai_jobs_kind`에 `challenge_report`를 더하고 `entry_ai_reports`(참여작당 한 행)를 만든다.
 
 ### 6-20. 챌린지 알림함·푸시와 탈퇴 연결 (0.1.0)
 
@@ -1229,63 +1142,25 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `(group_key, stage first·summary)`를 한 번만 선점해 첫 푸시와 요약 푸시를 하나씩 보낸다.
 - 탈퇴는 계정을 비활성으로 바꾸기 전에 이 사람의 참여작이 있는 챌린지의 밀린 마감 집계를 먼저 한다
   (`ChallengeWithdrawal`). 진행 중 리포트 생성은 탈퇴의 `ai_jobs` 정리(`failed`/`account_deactivated`, §6-8)가 닫는다.
-- V21은 `notifications`·`notification_pushes`와 `entry_comments (id, entry_id)` 유일 제약을 더한다.
 
 ### 6-21. 운영용 챌린지 영상 목록·재생
 
-- `GET /v2/admin/challenge-videos?limit=50&exclude_actors=…&visibility=all|public|private`는
-  `limit` 1~100, 기본 50이다. 응답은 `entries`와 그 응답 묶음의 크기인 `count`다. 각 행은
-  `id`(참여작 UUID)·`actor`(`md5(user_id)` 앞 8자리)·`created_at`·`visibility`·`status`·
-  `challenge_kind`(`challenges.origin`)·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`has_video`·`likes`(받은 좋아요 전체, 팀 계정 포함)·
-  `outside_likes`(그중 팀 이메일과 `exclude_actors` 배우가 누른 것을 뺀 값)만 포함한다. raw 참여작 id는 이 live 운영 응답에서만 허용하며, user UUID·이메일·대사·작품·캡션 같은
-  자유 텍스트·원본 object key·재생 URL은 목록에 넣지 않는다.
-- `GET /v2/admin/challenge-videos/{id}/playback?exclude_actors=…`는
-  `{"playback_url":…,"expires_in":600}`을 반환한다. 스토리지 서명 TTL은 반드시 600초다.
-- 두 경로 모두 기존 `ADMIN_OPS_TOKEN`을 먼저 검사하고, `ADMIN_OPS_EXCLUDE_EMAILS`와
-  `exclude_actors`에 걸린 배우를 제외한다. 삭제된 참여작·삭제된 챌린지는 목록과 재생에서 제외한다.
-  재생에서는 없음·팀·삭제·영상 없음 또는 파기를 모두 404 `challenge_video_not_found`로 합친다.
-  스토리지 부재나 서명 실패는 503 `playback_unavailable`이다. 성공 응답은
-  `Cache-Control: private, no-store`다.
-- 관리자 빈은 토큰이 있을 때만 서므로 커밋된 기본 `spec/openapi.json`에는 이 경로가 없다.
-  `AdminEndpointIT`의 조건부 관리자 경로 명시 목록과 응답 스키마 검사가 이 계약을 지킨다.
-- `GET /v2/admin/upload-only-videos/{id}/playback?exclude_actors=…`(SOMA-570)는 ops-core
-  `upload_only_rows[].upload_intent_id` 하나를 받아 `{"playback_url":…,"expires_in":600}`을 반환한다.
-  `upload_only_rows`와 같은 판정(finalized · 연습 세션/연습/챌린지 참여작 미연결 · 미파기)을 통과하고
-  살아 있는 `videos` 행이 있는 업로드만 재생한다. 없음·팀·미완료·연결됨·파기·영상 행 없음은 모두
-  404 `upload_video_not_found`, 스토리지 부재나 서명 실패는 503 `playback_unavailable`이다.
-  토큰 검사·제외 규칙·`Cache-Control: private, no-store`는 챌린지 재생과 같다.
+> 제품 규칙의 정본: [app.admin-ops](../../docs/specs/app/admin-ops.md)(챌린지 영상 목록·재생, 업로드만 한 영상의 재생)
+
+- 운영 경로는 조건부 관리자 빈(`AdminService.ENABLED_WHEN`)이라 `ADMIN_OPS_TOKEN` 이 있을 때만 서고, 커밋된 기본
+  `spec/openapi.json` 에 없다. `AdminEndpointIT` 의 조건부 경로 목록과 응답 스키마 검사가 지킨다. §6-15 의 운영 조회와 §6-22·§6-25·§6-27 도 같다.
+- 토큰(`AdminController#requireToken`, 상수 시간 비교)을 질의 값 검증보다 먼저 본다.
+- 재생 주소는 `AdminPlayback#requiredUrl` 이 600초로 서명한다. 서명 실패는 원인을 보존한 503 이다.
+- 업로드만 한 영상의 재생은 ops-core `upload_only_rows`(§6-15)와 같은 판정을 쓴다.
 
 ### 6-22. 운영용 리딩 회차·대본·녹음 조회와 재생
 
-- 세 경로는 기존 조건부 관리자 빈과 `ADMIN_OPS_TOKEN`을 쓴다. 토큰을 질의값 검증보다 먼저 확인하고,
-  `ADMIN_OPS_EXCLUDE_EMAILS`와 요청의 `exclude_actors`(쉼표로 나눈 `md5(user_id)` 앞 8자리, 최대 100개)를
-  목록·상세·재생에 똑같이 적용한다. 성공 응답은 모두 `Cache-Control: private, no-store`다. 관리자 빈은
-  토큰이 있을 때만 서므로 기본 `spec/openapi.json`에는 실리지 않으며 `AdminEndpointIT`의 조건부 경로 명시
-  목록과 직렬화 검사가 이 계약을 지킨다.
-- `GET /v2/admin/reading-sessions?limit=50&status=all&exclude_actors=…`는 `limit` 1~100, 기본 50이고
-  `status`는 `all`·`in_progress`·`completed`다. 응답은 `{sessions, count}`이며 `count`는 지금
-  반환한 묶음의 크기다. 각 행은 `id`(회차 UUID)·`actor`(접두사 없는 8자리 가명)·`script_title`·
-  `started_at`·`ended_at`(항상 포함, 없으면 null)·`status`·`mode`(`read`·`quiz`)·`elapsed_seconds`·
-  `recording_count`만 가진다. `started_at DESC, id DESC`로 고정 정렬한다. 대본 본문·전사·원본 user id·이메일·
-  object key·재생 URL은 목록에 넣지 않는다.
-- `GET /v2/admin/reading-sessions/{id}?exclude_actors=…`는 `{session, lines, recordings}`다. `session`은 목록과
-  같은 메타데이터다. `lines`는 대본 전체를 원래 `ordinal ASC`로 내며 각 줄은 `id`·`ordinal`·`kind`·
-  `character_name`·`text`·`in_range`·`is_mine`이다. 실제 저장 enum은 `dialogue`·`direction`·`scene`이다
-  (`stage_direction`·`scene_header`로 다시 이름 붙이지 않는다). `in_range`는 회차의 시작·끝 줄 ordinal을
-  포함한 범위이고, `is_mine`은 줄의 배역이 회차 `my_character_ids`에 들었는지다. `recordings`는 그 회차의
-  내 배역 대사 녹음만 가지며 `id`·`line_id`·`attempt_no`·`duration_ms`·`created_at`·`transcript_source`
-  (`stt`·`none`)·`transcript`·`matched`를 싣는다. transcript·matched는 항상 포함하고 없으면 null이다.
-  대본과 전사는 git 스냅샷에 남기지 않는 이 live 상세 응답에서만 허용한다.
-- `GET /v2/admin/reading-recordings/{id}/playback?exclude_actors=…`는 저장된 m4a 녹음에
-  `AdminPlayback#requiredUrl`을 사용해 `{"playback_url":…, "expires_in":600}`을 반환한다. TTL은 고정 600초다.
-  없음·팀·비활성 계정·탈퇴 보관으로 회차/줄 연결이 끊긴 녹음·유효한 회차/대본/줄 부모와 맞지 않는 녹음·
-  내 배역 대사가 아닌 녹음·m4a가 아닌 녹음은 모두 404 `reading_recording_not_found`다. 스토리지 부재나
-  서명 실패는 원인을 보존한 503 `playback_unavailable`이다.
-- 세 조회는 `users.deactivated_at IS NULL`과 `users.retention_purged_at IS NULL`인 계정만 읽고,
-  `reading_sessions.user_id = scripts.user_id`, 시작·끝 줄이 그 대본 소속, 녹음의 user/session/line이 같은
-  회차·대본 소속이라는 부모 연결을 SQL에서 확인한다. 상세 회차가 없거나 제외되거나 부모가 어긋나면
-  404 `reading_session_not_found`다. 삭제된 리딩 자료는 행째 없어 자연히 보이지 않는다. 상대역 음성은 기기
-  TTS라 저장 대상이 아니므로 녹음 수·상세·재생 모두 `my_character_ids`에 속한 대사 줄만 센다.
+> 제품 규칙의 정본: [app.admin-ops](../../docs/specs/app/admin-ops.md)(리딩 회차)
+
+- 조건부 빈, 토큰 순서, 재생 서명은 §6-21 과 같다. `exclude_actors` 는 목록·상세·재생에 똑같이 적용한다.
+- 세 조회는 `users.deactivated_at IS NULL` 과 `users.retention_purged_at IS NULL` 인 계정만 읽고,
+  `reading_sessions.user_id = scripts.user_id`, 시작·끝 줄이 그 대본 소속, 녹음의 user/session/line 이 같은
+  회차·대본 소속이라는 부모 연결을 SQL 에서 확인한다.
 
 ### 6-23. 가입 유입 출처 (SOMA-588·SOMA-591 후속)
 
@@ -1299,14 +1174,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   서버가 고정한다. 값은 앞뒤 공백을 걷고 선택 값이 비면 NULL이다. 각 값은 1~64자의 ASCII 영문·숫자로 시작하고
   이후 영문·숫자·점·밑줄·하이픈만 허용한다(`^[A-Za-z0-9][A-Za-z0-9._-]*$`). URL·이메일·자유 입력과 모르는 키는
   422다. 웹 UTM은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 같은 뜻이 아니다.
-- 앱의 `PUT /v2/me/discovery` 는 **204** 다(SOMA-649). 가입 직후 배우가 답한 "액터브를 처음 어디서 알게 됐어요?"를
-  적는다. 동의와 프로필을 끝낸 회원만 부른다(게스트 403 `member_only`). 본문은 `source`·`detail`·`other_text` 이고
-  모두 nullable 이다. `source` 는 `instagram`·`naver_search`·`google_youtube`·`app_store_search`·`friend`·
-  `academy_school`·`community`·`other` 중 하나이거나 null(건너뜀)이다. `detail` 은 source=`instagram` 일 때만
-  `ad`·`official_post`·`other_post`·`unknown` 중 하나, `other_text` 는 source=`other` 일 때만 앞뒤 공백을 걷고
-  1~30자다. 그 밖의 조합·값은 422다. 계정마다 처음 온 값만 남고 다시 보내도 바꾸지 않은 채 204다. 탈퇴 때 행째
-  지운다. 자기 응답(기억)이며 광고 플랫폼 귀속과 같은 뜻이 아니다. ops-core `signup_rows` 에는
-  `discovery_answered`·`discovery_source`·`discovery_detail` 만 싣고 `other_text` 는 싣지 않는다.
+- 앱의 `PUT /v2/me/discovery`(SOMA-649)의 행동은 [account.profile](../../docs/specs/account/profile.md)이 정본이다. 값 목록과
+  조합 검사는 `profile/domain/DiscoveryAnswer` 한 곳이다. ops-core `signup_rows` 에는 `discovery_answered`·`discovery_source`·
+  `discovery_detail` 만 싣고 `other_text` 는 싣지 않는다.
 - **처음 온 값만 남는다**(`ON CONFLICT DO NOTHING`). 어느 경로든 다시 보내면 바꾸지 않은 채 204 다 — 재시도에
   안전하다. DB는 `airbridge`×`ios|android`, `web_utm`×`web` 조합만 허용한다.
 - 앱은 Airbridge SDK 의 설치 귀속 결과를 그 기기에서 **새로 가입한** 계정에만 한 번 보낸다. 기존 회원이 앱을
@@ -1324,7 +1194,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-24. 앱 공지 포스터 (SOMA-599)
 
-> 제품 규칙의 정본: [app.poster](../../docs/specs/app/poster.md)(고르는 규칙, 빈도·다시 보지 않기·대상, 운영자 사용법)
+> 제품 규칙의 정본: [app.poster](../../docs/specs/app/poster.md)(고르는 규칙, 빈도·다시 보지 않기·대상). 운영자 curl 사용법은 팀 위키 `guides/app-poster-admin`에 있다.
 
 - 표는 `app_posters`(V29)다. Schema Entity 없이 `feature/poster/adapter/db/PostgresPosterRepository` 의 native SQL
   로만 읽고 쓴다(행이 적고 `platforms` 가 `text[]` 라서다, §5-1·`EntityMappingIT` 의 대기 목록). 값 목록(`frequency`·
@@ -1333,15 +1203,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 유일은 `uq_app_posters_slug_locale (slug, COALESCE(locale,''))` 다 — 언어 없음(NULL)도 한 자리를 차지한다.
   만들기는 `ON CONFLICT DO NOTHING` 의 0행, 고치기는 겹치는 다른 행이 있으면 갱신하지 않는 조건의 0행으로 알고
   둘 다 422 `duplicate_poster` 다.
-- V29 가 지금 홍보(고품질 목소리 출시)를 `slug=cloud-voice-launch` ko·en 두 줄로 싣는다. 문구는 0.1.2 앱 번역
-  `cloudVoice.promo*` 의 값이다.
-- 앱 경로 `GET /v2/app/posters` 는 게이트(`ConsentGateInterceptor` 의 FULL)를 지난 회원·게스트 모두 받는다. 질의
-  검사는 받는 자리(`PosterController`)에서 하고 틀리면 배열 422 다 — `platform` 빠짐은 `missing`, 값이 틀리면
-  `value_error`. 기간·플랫폼·언어는 SQL 이, 판(`min_app_version`)과 5장 자르기는 `PosterRules.forApp` 이 고른다.
-  판 비교는 점으로 나눈 정수 비교다(`0.1.10 > 0.1.9`).
-- 이미지가 객체 키(`posters/<uuid>.<png|jpg|webp>`)면 기존 스토리지로 1시간 재생 주소를 서명한다. 스토리지가 없거나
-  서명이 실패하면 `image_url` 만 null 이고 목록은 그대로 나간다(서명 실패는 External Failure 로 보고,
-  `ObjectStoragePosterImages`). 소리는 번들 자산(`asset:`)만 내고 객체 키면 null 이다.
+- 앱 경로 `GET /v2/app/posters` 는 게이트(`ConsentGateInterceptor` 의 FULL)를 지난다. 질의 검사는 받는 자리(`PosterController`)에서
+  한다. 기간·플랫폼·언어는 SQL 이, 판(`min_app_version`)과 장수 자르기는 `PosterRules.forApp` 이 고른다.
+- 이미지 서명 실패는 External Failure 로 보고한다(`ObjectStoragePosterImages`). 소리는 번들 자산(`asset:`)만 내고 객체 키면 null 이다.
 - 운영 경로 `GET·POST /v2/admin/posters`, `PATCH /v2/admin/posters/{id}`, `POST /v2/admin/poster-images` 는 다른
   `/v2/admin` 과 같이 `ADMIN_OPS_TOKEN` Bearer 를 상수 시간 비교로 보고(401 `Unauthorized`), 토큰이 없는 기동에는
   경로째 없다(`AdminService.ENABLED_WHEN`) — 그래서 `spec/openapi.json` 에 실리지 않고 `AdminEndpointIT` 의 조건부
@@ -1349,25 +1213,15 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 만들기 본문은 닫혀 있다(§6-3). PATCH 는 보낸 칸만 바꾸므로 본문을 JSON 객체로 받아 지금 값 위에 얹고, 모르는
   칸은 `extra_forbidden`, 형태가 틀린 칸은 그 칸을 가리키는 `value_error` 422 다. `bump_revision: true` 면
   revision 을 하나 올린다. 둘 다 `updated_at` 을 그 시각으로 둔다.
-- 이미지 올릴 자리는 `{content_type, size_bytes}` 를 받는다. 기존 `ObjectStorage#presignUpload` 가 크기를 서명에
-  넣기 때문이다(스펙 초안의 `{content_type}` 에서 `size_bytes` 를 더했다). PNG·JPEG·WebP 만 받고(415
-  `unsupported_media_type`), 10MB 를 넘으면 413 `upload_too_large`, 주소는 10분이다. 스토리지 설정은 기존 `S3_*` 를
-  그대로 쓰고 없으면 503 `storage_not_configured`(§6-2 의 advice) 다.
+- 이미지 올릴 자리가 `size_bytes` 를 받는 것은 기존 `ObjectStorage#presignUpload` 가 크기를 서명에 넣기 때문이다. 형식·크기·
+  시한과 오류는 app.poster 다. 스토리지 설정은 기존 `S3_*` 를 그대로 쓰고, 없을 때의 503 `storage_not_configured` 는 §6-2 의
+  advice 가 낸다.
 
 ### 6-25. 운영용 챌린지 목록
 
-- `GET /v2/admin/challenges?limit=50&exclude_actors=…`는 `limit` 1~100, 기본 50이다. 응답은 `challenges`와
-  그 묶음의 크기인 `count`다. 삭제되지 않은 챌린지를 진행 중(`active`) → 예정(`scheduled`) → 종료(`ended`)
-  순으로, 같은 상태 안에서는 `featured_on` 최신·시작 최신 순으로 싣는다.
-- 각 행은 `id`·`line`·`work`·`character`·`origin`·`host_actor`(`md5(host_user_id)` 앞 8자리, 팀 개설은 null)·
-  `host_is_team`·`duration_days`·`featured_on`·`starts_at`·`ends_at`·`state`·`moderation`·`entries`·
-  `public_entries`·`outside_entries`·`likes`·`outside_likes`다. 참여작 수는 삭제를 뺀 값이고, `outside_entries`는
-  팀 이메일과 `exclude_actors` 배우의 참여작을 뺀 값이다. `likes`는 삭제되지 않은 참여작이 받은 좋아요 전체(팀
-  계정이 누른 것 포함)이고, `outside_likes`는 그중 팀 이메일과 `exclude_actors` 배우가 누른 좋아요를 뺀 값이다.
-- 챌린지는 앱에 공개되는 글이라 대사·작품·인물을 싣는다(§6-21의 참여작 목록과 다르다). 주최자의 user UUID·이메일과
-  참여작 캡션은 싣지 않는다. 이 응답은 live 운영 조회 전용이며, 저장되는 `ops-core`에는 대사를 넣지 않는다.
-- 팀 계정이 연 챌린지도 빼지 않고 `host_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은
-  `Cache-Control: private, no-store`다. `POST /v2/admin/challenges`(팀 챌린지 개설)와 같은 경로의 GET이다.
+> 제품 규칙의 정본: [app.admin-ops](../../docs/specs/app/admin-ops.md)(챌린지 목록)
+
+- 조건부 빈과 토큰 순서는 §6-21 과 같다. `POST /v2/admin/challenges`(팀 챌린지 개설, challenge.create)와 같은 경로의 GET 이다.
 
 ### 6-26. 오디션 공고 모아보기 (SOMA-564)
 
@@ -1381,18 +1235,14 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - upsert 는 칸을 새 값으로 덮고 `last_seen_at` 만 그 시각으로 둔다. `first_seen_at` 은 처음 그대로다. `collected_at` 은 따로
   저장하지 않고 `max(last_seen_at)` 이다 — 행이 하나도 없으면 null 이다. 그래서 모든 출처가 0건이거나 실패한 수집은
   `collected_at` 을 옮기지 않는다.
-- 열림은 SQL 이 후보(마감일 ≥ 오늘, 또는 마감일 없음 + 게시 45일 안)를 고르고 `AuditionRules#isOpen` 이 마감 표시까지 보고
-  최종 판정한다. 오늘은 KST 날짜다. **마감 표시**는 상태 문구에서는 `마감|완료|종료` 가 어디 있든, 제목에서는 괄호로 묶인
-  것만(`(완료)`·`[마감]`·`(모집마감)`·`【접수 종료】`) 본다 — 제목의 "10/20 마감" 같은 마감일 안내로 열린 공고가 숨지 않게.
-  정렬은 마감일 오름차순(null 뒤), 게시일 내림차순, id.
-- 삭제는 수집 끝에 한 문장이다: `apply_end < 오늘-30일` 또는 `apply_end IS NULL AND posted_on < 오늘-180일`. 0건이 나온
-  출처는 upsert 를 부르지 않으므로 기존 행은 이 삭제 규칙까지 남는다.
+- 열림은 SQL 이 후보를 고르고 `AuditionRules#isOpen` 이 마감 표시까지 보고 최종 판정한다(기준은 app.audition). 정렬은 마감일
+  오름차순(null 뒤), 게시일 내림차순, id.
+- 삭제는 수집 끝에 한 문장이다(기준은 app.audition). 0건이 나온 출처는 upsert 를 부르지 않으므로 기존 행은 이 삭제 규칙까지 남는다.
 - 수집은 `AuditionService#collect`, 출처 읽기는 app Port `AuditionSources` 의 `adapter/source/HttpAuditionSources`
-  (JDK `HttpClient`, User-Agent `Mozilla/5.0 (compatible; ActtubBot/1.0; +https://acttub.com)`, 같은 출처 요청 사이 2초,
-  OTR 1~3쪽·플필 `min(totalPage,3)` 쪽·나머지 1쪽)다. 파서는 `AuditionParsers` 의 순수 함수이고 목록 행을 하나도 못 찾으면
+  (JDK `HttpClient`, OTR 1~3쪽·플필 `min(totalPage,3)` 쪽·나머지 1쪽, User-Agent 와 요청 간격은 app.audition)다. 파서는 `AuditionParsers` 의 순수 함수이고 목록 행을 하나도 못 찾으면
   0건이 아니라 `AuditionSourceFailure`(`ExternalFailure`)다. 출처 하나의 실패는 `FailureKind.EXTERNAL` 로
-  `AuditionService.collect.<source>` 에 보고하고 다음 출처로 간다. 이메일·휴대폰 모양(번호는 앞뒤 숫자 경계)이 제목·출연료·상태·
-  주소 어디든 있으면 그 공고는 저장하지 않는다. 상세 페이지는 열지 않는다(플필 상세의 `__NEXT_DATA__` 에 담당자 연락처가 있다).
+  `AuditionService.collect.<source>` 에 보고하고 다음 출처로 간다. 연락처 거르기는 제목·출연료·상태·주소 칸을 모두 보고, 휴대폰
+  번호는 앞뒤 숫자 경계로 찾는다.
 - 파서가 파이썬 수집기(`collect.py`)와 다르게 읽는 것: OTR 의 `[공지사항]`(게시판 운영 고정글)은 버리고, 게시일 칸이 시각
   (`15:54`)뿐인 오늘 글은 수집일(KST)로 읽는다. 세종문화회관은 국악·합창·무용·관현악 단원 모집도 뺀다. EMK 는 두 게시판에
   같은 제목으로 겹쳐 올라온 공지를 앞(새것) 하나만 남긴다.
@@ -1407,26 +1257,19 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-27. 운영용 챌린지 참여작 댓글
 
-- `GET /v2/admin/challenge-comments?limit=100&exclude_actors=…`는 `limit` 1~200, 기본 100이다. 응답은 `comments`와
-  그 묶음의 크기인 `count`다. 챌린지 참여작에 달린 댓글을 `created_at` 최신 순으로 싣는다.
-- 각 행은 `id`(댓글 UUID)·`entry_id`(참여작 UUID, §6-21 목록의 `id`와 같다)·`entry_actor`·`entry_is_team`·
-  `entry_visibility`·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`actor`(작성자 `md5(user_id)` 앞 8자리)·
-  `actor_is_team`·`body`·`status`(`visible|hidden`)·`created_at`이다.
-- 댓글은 앱에서 다른 배우에게 보이는 글이라 본문을 싣는다(§6-21 참여작 목록과 다르다). user UUID·이메일·캡션·대사·
-  영상 정보는 싣지 않는다. 지워진 댓글·삭제된 참여작·삭제된 챌린지의 댓글은 뺀다.
-- 팀(`ADMIN_OPS_EXCLUDE_EMAILS`·`exclude_actors`)이 쓴 댓글과 팀 참여작의 댓글도 빼지 않고 `actor_is_team`·
-  `entry_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은 `Cache-Control: private, no-store`다.
-  live 운영 조회 전용이며, 저장되는 `ops-core`에는 댓글 본문을 넣지 않는다.
+> 제품 규칙의 정본: [app.admin-ops](../../docs/specs/app/admin-ops.md)(챌린지 댓글)
+
+- 조건부 빈과 토큰 순서는 §6-21 과 같다.
 
 ### 6-28. 리딩 녹음으로 코칭 받기 (SOMA-791)
 
-- 스위치 `ACTTUB_READING_VOICE_COACHING_ENABLED=true` 일 때만 카드 확인 경로(`GET /v2/reading/sessions/{id}/voice-coaching`,
-  `@Hidden`)와 리딩 녹음 재료 빈이 생긴다. 시작은 연습 시작(`POST /v2/practices`)의 `reading_session_id` 다 — 스위치가 꺼졌으면
+- 스위치가 켜져야(`ReadingVoiceConfiguration.ENABLED`: `ACTTUB_READING_VOICE_COACHING_ENABLED=true` 이거나, 값이 비어 있고
+  `SITE_URL` 이 dev 주소) 카드 확인 경로(`GET /v2/reading/sessions/{id}/voice-coaching`, `@Hidden`)와 리딩 녹음 재료 빈이 생긴다.
+  값을 주지 않으면 dev 에서만 켜지고 운영은 꺼진다. 시작은 연습 시작(`POST /v2/practices`)의 `reading_session_id` 다 — 스위치가 꺼졌으면
   404 `session_not_found`. 행동 계약은 [reading.voice-coaching](../../docs/specs/reading/voice-coaching.md)가 정본이고
   `ReadingVoiceCoachingIT`(스위치 켬)가 지킨다.
 - `practices.reading_session_id`(V69, reading_sessions ON DELETE SET NULL, 부분 유일 인덱스)로 묶음 첫 회차를 리딩 회차에 잇는다.
   시작은 사용자 행 잠금 뒤 있는지 보고 넣는다. 무료 코칭 한도는 `reading_session_id IS NULL` 회차만 센다.
-  예전 실험 표 `reading_recording_coaches`(V48)는 V69 가 지웠다.
 - 녹음 내려받기·잇기(ffmpeg)·모델 업로드는 코치 턴 안(트랜잭션 밖, §5-4)이다.
 
 ### 6-29. 찍을 대사 같이 만들기 (SOMA-721)
@@ -1447,7 +1290,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   행을 먼저 넣어 겹친 생성이 모델을 두 번 부르지 않게 한다. 생성 결과는 `draft_status='pending' AND edited_at IS NULL` 조건으로만 쓴다.
   배우 답(`answers`)과 자동 칸(`draft`)은 따로 둔 JSON 글이다. 사람·회차에 ON DELETE CASCADE, 대화에 ON DELETE SET NULL. 탈퇴의 연습 파기가 행을 지운다.
 - 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 연습 노트와 같은 `OpenAiTextGenerators.report()`(노트용 키)이고 기록 단계는 `report`
-  (`report_type=actor_journal`)다. 프롬프트 `coaching/journal-create.txt` 는 10/19 채택 v4 원문 그대로다.
+  (`report_type=actor_journal`)다. 프롬프트는 `coaching/journal-create.txt` 다.
 - 코칭 숙제 알림(`PostgresPracticeReminderRepository.latestHomework`)은 그 회차 일지의 「다음에 해 볼 것」이 있으면 노트 제안보다 먼저 쓴다.
 
 ### 6-31. ACTTUB Pro 정기결제 (SOMA-818)
@@ -1473,7 +1316,6 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   첫 결제 직전 `choosePlan` 이 expired 토스 줄에만 plan·amount 를 적는 조건부 UPDATE 다. `POST /v2/billing/checkout` 의 `plan`·`GET /v2/billing/me`
   의 `plan` 은 더하기만 하는 필드이고(`@Hidden`, OpenAPI 변화 없음), 새 오류 `422 invalid_plan`·`422 plan_unavailable` 은 `WebYearlyPlanTest` 가 지킨다.
   서버 스위치 `BILLING_WEB_YEARLY_ENABLED`(기본 false).
-- 이 Mac 에서 Testcontainers 를 못 돌려 저장소 SQL 의 통합 테스트는 CI 에서만 돈다(`BillingEndpointIT`, `StoreBillingEndpointIT`).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
@@ -1529,21 +1371,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ## 8. 검증
 
-### 8-2. 왜 통합 테스트가 필수인가
-
-**가짜 저장소를 쓰는 단위 테스트는 SQL 이 틀려도 초록이다.** Postgres 가 SQL 자체를 거부하는
-종류의 회귀는 실 DB 를 치는 통합 테스트에서만 잡힌다. 파이썬 시절 `FakePlatformStore` 를 쓰던
-계약 테스트가 그 구멍으로 Postgres 전용 쿼리 버그를 흘려보낸 사례가 있고, 자바에서도
-`PostgresAnalysisStore` 가 같은 이유로 실 DB 커버리지 0 이던 자리를 뒤늦게 찾아
-`PostgresAnalysisStoreIT` 를 세웠다.
-
-**그리고 통합 테스트가 있어도 CI 가 돌리지 않으면 소용이 없다.** 이관 초기에 Java 통합 테스트
-17개가 깨진 채로 dev 가 초록이었다 — `ci.yml` 에 Java 잡이 없었기 때문이다.
-
-### 8-3. 응답 스키마는 Java 쪽이 더 엄격하다
-
-Spring 은 DTO 반환 시 스키마가 강제된다. 응답 컴포넌트는 전부 닫혀 있으므로 여분 필드가 새어
-나가지 않는다.
+실제 Postgres 통합 테스트가 필요한 변경 갈래는 `apps/api/CLAUDE.md` 의 표가 정한다.
 
 ### 8-4. Testcontainers ↔ 최신 Docker Engine — 반드시 필요한 설정
 
@@ -1556,7 +1384,7 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
   같은 값을 전달한다. 외부에서 환경변수를 지정했을 때도 둘을 동기화해야 docker-java가
   기본 버전으로 접속하는 실패를 막는다. 기본값과 macOS 소켓 설정은 이 태스크에서 확인한다.
 - 테스트 DB는 [PostgresContainerSupport](src/test/java/com/acttub/actingapi/support/PostgresContainerSupport.java)의
-  Testcontainers가 띄운다. 이미지 메이저는 §2의 운영 DB와 맞춘다.
+  Testcontainers가 띄운다. 이미지 메이저는 §5 머리의 운영 DB와 맞춘다.
 - CI의 Docker 조건과 실행 범위는 [ci.yml](../../.github/workflows/ci.yml)의 `api` 잡에서 확인한다.
   DB 연결 수와 테스트 격리는 `PostgresContainerSupport` 및 `src/test/resources/application.properties`를 함께 본다.
 
@@ -1575,8 +1403,7 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
   | 3층 노트(`DialogueNote`) | `coaching/note-prompt.txt` | `layer3_note` |
   | 기존 갈래 코치(`CoachPrompt`) | `coach/coach-v2-prompt.txt`·`coach-v3-prompt.txt`·`coach-response-policy.txt`, 막힘 `그 외`는 `coach-video-first-prompt.txt` + `coach-opening-policy.txt` | — |
   | Gemini 직접 영상 코칭(`DirectVideoPrompts`) | `coaching/direct-video/*.txt`(`common`, 분류 `classifier`, 신호별 지침, 연습 루프 `practice-loop`) | — |
-- 2·3층 개정(2026-09-14): 2층 내부 출력은 `acttub.layer2_turn.v2`, 2→3 전달은 `acttub.coach_handoff.v2` 다. 공개
-  `PublicPracticeNote`와 저장 노트 v1의 필드는 유지한다. v1 handoff를 만드는 경로가 없어 노트는 v2 handoff에서만 조립한다.
+- 2층 내부 출력은 `acttub.layer2_turn.v2`, 2→3 전달은 `acttub.coach_handoff.v2` 다. 노트는 v2 handoff에서만 조립한다.
 - 새 계약의 검증은 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachConversationIT`에서
   대화 상태의 원자적 저장과 낡은 revision 충돌을 확인한다.
 

@@ -26,7 +26,7 @@ PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 이름을 받는다 — cloudflared는 `edge` 망, web은 `front` 망에만 있어 그 망의 `web`·`api`는 proxy 하나다.
 호스트 포트는 공개하지 않는다. 영상 S3 버킷과 OAuth의 운영 도메인은 유지한다.
 API 이미지는 `api:<sha>`, 웹 이미지는 빌드 시점의 공개 설정을 담은 `web:<env>-<sha>`, 백업은 `backup:<sha>`다.
-DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../../apps/api/CONTRACT.md#2-기술-스택-확정-변경-금지)),
+DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §5](../../apps/api/CONTRACT.md#5-영속-계층-규칙)),
 실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
 
 ## 2. 서버 준비와 시크릿
