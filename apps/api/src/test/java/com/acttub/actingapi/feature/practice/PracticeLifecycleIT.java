@@ -430,10 +430,34 @@ class PracticeLifecycleIT {
         UUID next = UUID.fromString(json(post("/v2/practices/{id}/continue", practiceId)
                 .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").stringValue(null));
         jdbc.update("UPDATE ai_jobs SET status='failed',failure_reason='timeout' WHERE target_id=?", practiceId);
+        jdbc.update("UPDATE practices SET close_reason='analysis_failed' WHERE id=?", practiceId);
         assertThat(json(post("/v2/practices/{id}/analyze", practiceId)
                 .content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 409))
                 .isEqualTo(mapper.readTree("{\"detail\":\"practice_in_progress\"}"));
         assertThat(next).isNotNull();
+    }
+
+    @Test
+    @DisplayName("practice.analyze: 다시 시도는 분석이 닫은 회차(analysis_failed)와 그만둔 회차(cancelled)만 받는다 — 대화가 닫혀 끝난 "
+            + "회차(conversation_closed)는 409 analysis_not_failed 이고 아무것도 바뀌지 않는다")
+    void practiceAnalyze_retryRefusesAPracticeWhoseConversationClosed() throws Exception {
+        UUID finished = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201)
+                .path("id").stringValue(null));
+        jdbc.update("UPDATE ai_jobs SET status='succeeded' WHERE target_id=?", finished);
+        jdbc.update("UPDATE practices SET stage='closed',close_reason='conversation_closed' WHERE id=?", finished);
+
+        assertThat(json(post("/v2/practices/{id}/analyze", finished)
+                .content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 409))
+                .isEqualTo(mapper.readTree("{\"detail\":\"analysis_not_failed\"}"));
+        assertThat(jdbc.queryForMap("SELECT stage,close_reason FROM practices WHERE id=?", finished))
+                .containsEntry("stage", "closed").containsEntry("close_reason", "conversation_closed");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs WHERE target_id=?", Integer.class, finished)).isEqualTo(1);
+
+        // 웹은 「그만두기」 뒤 다시 분석을 부른다 — 그만둔 회차는 그대로 받는다.
+        jdbc.update("UPDATE practices SET close_reason='cancelled' WHERE id=?", finished);
+        assertThat(json(post("/v2/practices/{id}/analyze", finished)
+                .content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 201).path("stage").stringValue(null))
+                .isEqualTo("analyzing");
     }
 
     @Test
