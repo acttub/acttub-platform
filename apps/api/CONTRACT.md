@@ -73,16 +73,12 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
-- 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다. 지운다(아래 문단).
 - 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
   `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
   `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
-- `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
-  현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
-- `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다. 지운다(아래 문단).
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 이 값을 읽는다. `PostgresBillingRepository`는 프로필 이름이
   없을 때 대신 읽는다. `PostgresJournalRepository`는 배역 이름이 배우의 닉네임과 같으면 배역을 비우려고 읽는다.
@@ -92,12 +88,7 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
-구형 `reports`, `summaries`의 다섯 칸, `users.role`, 그리고 매핑 없이 남은 `practice_sessions.subtext`와
-`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`)은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
-쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
-마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
-
-목록의 나머지 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
+이 목록의 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
 실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
 fingerprint는 바꾸지 않으며 `LegacyStorageCompatibilityIT`가 현재 스키마의 과거 값 보존과
 구형 구조를 제거한 격리 테스트 DB의 기동·현재 기능을 검증한다. `transcripts`, 소비 중인

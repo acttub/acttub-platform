@@ -83,12 +83,11 @@ class EntityMappingIT {
     EntityManager entityManager;
 
     /**
-     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports}, 옛 연습 흐름의 여섯, 그리고
+     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 옛 연습 흐름의 여섯과
      * 예약 장부({@code upload_intents})다. 옛 연습 여섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
      * native SQL 로만 읽고 쓴다.
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
-            "reports",
             "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
             "handoff_confirmations", "practice_reports", "upload_intents");
 
@@ -195,10 +194,8 @@ class EntityMappingIT {
         assertThat(entities.stream().map(type -> type.getAnnotation(Table.class).name())
                 .collect(java.util.stream.Collectors.toSet())).isEqualTo(activeTables);
         var retiredColumns = java.util.Map.of(
-                "summaries", Set.of("observation", "summary", "intent_alignment", "key_moment", "key_dimension"),
-                // nickname: 이름은 `user_profiles.name` 이 정본이다. 컬럼은 직전 릴리스의 서버를
-                // 위해 남아 있고, 새 코드가 건드리는 곳은 탈퇴의 파기 하나다(결정 I-3).
-                "users", Set.of("role", "nickname"));
+                // nickname: 이름은 `user_profiles.name` 이 정본이다. 결제·일지·운영 화면이 아직 읽고 탈퇴가 비운다(§5-1).
+                "users", Set.of("nickname"));
         for (Class<?> entity : entities) {
             String table = entity.getAnnotation(Table.class).name();
             Set<String> databaseColumns = new java.util.HashSet<>(jdbc.queryForList("""
