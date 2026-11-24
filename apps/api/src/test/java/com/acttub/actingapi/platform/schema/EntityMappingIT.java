@@ -150,7 +150,7 @@ class EntityMappingIT {
             "push_opens",
             // 게시판 글 사진(V87, SOMA-873)은 게시판 저장소의 native SQL 과 탈퇴 파기만 쓴다.
             "community_post_images",
-            // 친구 초대(V95, SOMA-865)는 초대 저장소의 native SQL(코드 upsert·조건부 지급·행 잠금)만 쓴다.
+            // 친구 초대(V96, SOMA-865)는 초대 저장소의 native SQL(코드 upsert·조건부 지급·행 잠금)만 쓴다.
             "invite_codes", "invite_redemptions");
 
     @Test

@@ -4,7 +4,7 @@
 
 - 도입: 1.0.x (SOMA-865). 서버 스위치 `INVITE_ENABLED`(기본 false) 뒤에 있다.
 - 화면: 프로필 탭의 「친구 초대」 칸, 리딩 끝 화면의 「친구 초대」 줄. 웹 화면은 없다.
-- 테이블: `invite_codes`·`invite_redemptions`(V95), 지급은 `billing_pro_grants`(reason `friend_invite`)
+- 테이블: `invite_codes`·`invite_redemptions`(V96), 지급은 `billing_pro_grants`(reason `friend_invite`)
 
 ## 기능
 회원마다 초대 코드가 하나 있다. 친구가 가입한 뒤 그 코드를 넣고 첫 연습을 끝내면 둘 다 Pro 1개월을 받는다.

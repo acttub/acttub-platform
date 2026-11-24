@@ -18,7 +18,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 친구 초대 장부(V95, SOMA-865). 두 표를 native SQL 로만 읽고 쓴다(엔티티 없음, EntityMappingIT 의 대기 목록).
+ * 친구 초대 장부(V96, SOMA-865). 두 표를 native SQL 로만 읽고 쓴다(엔티티 없음, EntityMappingIT 의 대기 목록).
  *
  * <p>⚠ 다른 feature 의 표를 같은 트랜잭션에서 읽고 쓴다 — {@code users}·{@code user_identities}({@code auth}),
  * {@code reading_sessions}({@code reading}), {@code practices}·{@code coach_conversations}·{@code coach_notes}({@code coach}),
