@@ -804,7 +804,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `reading/{user_id}/{session_id}/{line_id}/{request_id}.m4a` 다. **최종 저장은 회차 행을 `FOR UPDATE` 로 잡고**
   같은 확인을 다시 한 뒤 총량(저장된 `byte_size` 합)을 본다. 바깥 호출(변환·올림)은 트랜잭션 밖이다(§5-4).
 - 최종 저장이 거절(404·422)하거나 재전송·작은 시도 번호로 끝나면 방금 올린 객체의 키를 **같은 트랜잭션에서** 장부
-  (`reading_recording_delete`)에 올린다. 대체된 앞 객체도 같다.
+  (`reading_recording_delete`)에 올린다. 대체된 앞 객체도 같다. 단, 키에 요청 id가 들어 있어 같은 요청 id의 올리기가
+  겹치면 키가 같으므로, 그 키를 가리키는 녹음 행(그 회차의 행이나 회차 연결이 빈 보관 행)이 있으면 올리지 않는다
+  (`PostgresRecordingRepository.unstored`).
 - 재생 주소는 `reading/app/RecordingPlayback` 이 조회마다 만든다.
 - 저장소 포트 `ObjectStorage` 에 `upload(objectKey, mimeType, Path)` 가 생겼다(서버가 직접 올리는 유일한 객체).
 
