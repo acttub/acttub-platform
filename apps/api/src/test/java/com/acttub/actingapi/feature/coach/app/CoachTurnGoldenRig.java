@@ -83,8 +83,7 @@ final class CoachTurnGoldenRig {
             Files.writeString(path, "original video bytes");
             return new StoredObjectMetadata(20, "video/mp4", "\"etag\"");
         });
-        coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0,
-                CoachVideoCache.NONE, CoachLayerOne.NONE);
+        coach = TestDirectVideoCoach.of(model, videos, storage, failures, telemetry).build();
         logs.start();
         coachLog.addAppender(logs);
     }
