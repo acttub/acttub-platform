@@ -171,13 +171,15 @@ class PostgresInviteRepository implements InviteRepository {
         String counted = practice == Practice.READING ? READING_COUNTED : COACHING_COUNTED;
         return transaction.execute(tx -> {
             // 지급 시각을 채운 쪽만 지급한다 — 같은 줄의 동시 갱신은 행 잠금으로 줄 서고, 뒤에 온 쪽은 0행이다.
+            // AND 뒤에서 줄을 바꾼다: 텍스트 블록은 줄 끝 공백을 지우므로 `AND """ + counted` 는 "ANDEXISTS" 가 된다.
             List<Tuple> claimed = list(entityManager.createNativeQuery("""
                             WITH claimed AS (
                                 UPDATE invite_redemptions
                                 SET rewarded_at=CAST(:now AS timestamptz)
                                 WHERE invitee_id=:invitee
                                   AND rewarded_at IS NULL
-                                  AND """ + counted + """
+                                  AND
+                            """ + counted + """
                                 RETURNING inviter_id
                             )
                             SELECT inviter_id FROM claimed

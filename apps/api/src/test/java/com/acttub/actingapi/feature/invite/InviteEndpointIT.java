@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.platform.json.LenientJson;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +25,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -41,8 +45,18 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "INVITE_INVITER_MONTHLY_CAP=1",
         "INVITE_REDEEM_WINDOW_DAYS=7"})
 @AutoConfigureMockMvc
-@Import(MutableClock.Fixture.class)
+@Import({MutableClock.Fixture.class, InviteEndpointIT.Failures.class})
 class InviteEndpointIT {
+    /** 지급 경로는 실패를 삼키고 보고만 한다 — 보고를 모아 실패하면 원인을 assertion 메시지로 드러낸다. */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class Failures {
+        @Bean
+        @Primary
+        RecordingFailureReporter recordingFailureReporter() {
+            return new RecordingFailureReporter();
+        }
+    }
+
     private static final UUID INVITER = UUID.fromString("11111111-1111-4111-8111-111111111111");
     private static final UUID FRIEND = UUID.fromString("22222222-2222-4222-8222-222222222222");
     private static final UUID SECOND = UUID.fromString("33333333-3333-4333-8333-333333333333");
@@ -55,9 +69,11 @@ class InviteEndpointIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired SessionService sessions;
+    @Autowired RecordingFailureReporter failures;
 
     @BeforeEach
     void setUp() {
+        failures.clear();
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         for (String type : List.of("terms", "privacy", "ai_analysis", "retention")) {
             jdbc.update("""
@@ -205,6 +221,11 @@ class InviteEndpointIT {
                 VALUES (?,?,?,?,CAST(? AS uuid[]),'read',?,?,'manual',true,'in_progress',?)
                 """, session, script, user, UUID.randomUUID(), "{" + nina + "}", line, line, line);
         sessions.saveProgress(user, session, new ProgressChange(1, line, 10, List.of(), true));
+        List<String> swallowed = failures.reports().stream()
+                .filter(report -> "InviteService.practiced".equals(report.context()))
+                .map(report -> String.valueOf(report.failure()))
+                .toList();
+        assertThat(swallowed).as("삼켜진 지급 실패: %s", swallowed).isEmpty();
         return session;
     }
 
