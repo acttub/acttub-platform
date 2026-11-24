@@ -271,7 +271,8 @@ public class ScriptSplitWorker {
                 List<NumberedLine> lines = NumberedLine.of(material.rawText());
                 // 화면 폭에서 잘린 줄을 먼저 잇는다(2026-11-21 희곡 재생: 끊긴 줄 첫 글자가 배역이 됐다). 붙여넣기·한글·워드 원문도 PDF 를
                 // 복사해 끊긴 글이 많아 파일 종류와 상관없이 쓴다 — 끊김이 보이지 않는 원문은 unwrap 이 그대로 둔다
-                lines = RuleSplit.unwrap(lines);
+                // 낱말 사이를 탭으로 띄운 원문은 먼저 띄어쓰기로 고른다 — 화면에 보이는 대사 글에도 탭이 남지 않게
+                lines = RuleSplit.unwrap(RuleSplit.untab(lines));
                 // 한 줄에 여러 사람 대사를 이어 쓴 원문은 사람마다 줄을 나눈다(배역은 먼저 한 번 나눠 본 이름)
                 lines = RuleSplit.splitTurns(lines, new java.util.HashSet<>(RuleSplit.full(lines, rulesJudge(material)).roster()));
                 imports.percent(importId, ScriptSplitProgress.SPACED);
