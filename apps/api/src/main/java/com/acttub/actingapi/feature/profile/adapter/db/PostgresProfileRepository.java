@@ -831,6 +831,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             entityManager.createNativeQuery("DELETE FROM billing_pro_grants WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
+            // 보상형 광고로 받은 코칭 1회(SOMA-1067, V95)의 기록도 행째 지운다 — 그날 한도를 세는 데만 쓰는 값이다.
+            entityManager.createNativeQuery("DELETE FROM coaching_rewards WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             entityManager.createNativeQuery("UPDATE billing_checkouts SET status='failed' WHERE user_id=:userId AND status='open'")
                     .setParameter("userId", userId)
                     .executeUpdate();

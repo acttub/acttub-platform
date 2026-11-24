@@ -149,7 +149,9 @@ class EntityMappingIT {
             // 푸시 탭 기록(V72, SOMA-926)은 푸시 탭 저장소의 native INSERT 와 탈퇴 파기만 쓴다.
             "push_opens",
             // 게시판 글 사진(V87, SOMA-873)은 게시판 저장소의 native SQL 과 탈퇴 파기만 쓴다.
-            "community_post_images");
+            "community_post_images",
+            // 보상형 광고로 받은 코칭 1회(V95, SOMA-1067)는 보상 저장소의 native SQL(지급·세기·확인)과 탈퇴 파기만 쓴다.
+            "coaching_rewards");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 47개 활성 엔티티를 포함한다")
