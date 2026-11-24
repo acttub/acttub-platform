@@ -323,12 +323,12 @@ class PurposeLoopTest {
     }
 
     @Test void aRewrittenCardKeepsEarlierTimesAndTheWrapKeepsTheSpotItFixed() {
-        var first = PurposeLoop.card("잘 된 곳: 0:10 웃는 게 보여요\n아쉬운 곳: 0:22 한숨이 준비된 것 같아요\n다음 테이크: 떠올려 봐도 좋아요");
-        var another = PurposeLoop.mergeCard(first, PurposeLoop.card("잘 된 곳: 웃는 게 보여요\n아쉬운 곳: 눈을 돌리면 상대가 없어져요"), false);
+        var first = PurposeLoop.cardOf("잘 된 곳: 0:10 웃는 게 보여요\n아쉬운 곳: 0:22 한숨이 준비된 것 같아요\n다음 테이크: 떠올려 봐도 좋아요");
+        var another = PurposeLoop.mergeCard(first, PurposeLoop.cardOf("잘 된 곳: 웃는 게 보여요\n아쉬운 곳: 눈을 돌리면 상대가 없어져요"), false);
         assertThat(LenientJson.asInt(another.path("good").path("at"))).as("같은 줄은 앞 시간을 살린다").isEqualTo(10);
         assertThat(LenientJson.asText(another.path("issue").path("text"))).isEqualTo("눈을 돌리면 상대가 없어져요");
         assertThat(another.path("issue").path("at").isNull()).isTrue();
-        var wrapped = PurposeLoop.mergeCard(first, PurposeLoop.card("잘 된 곳: 다르게 쓴 줄\n아쉬운 곳: 배우 말대로 고친 줄\n다음 테이크: 매달려 봐도 좋아요"), true);
+        var wrapped = PurposeLoop.mergeCard(first, PurposeLoop.cardOf("잘 된 곳: 다르게 쓴 줄\n아쉬운 곳: 배우 말대로 고친 줄\n다음 테이크: 매달려 봐도 좋아요"), true);
         assertThat(LenientJson.asInt(wrapped.path("issue").path("at"))).as("정리가 고쳐 쓴 줄도 같은 곳의 시간을 살린다").isEqualTo(22);
         assertThat(LenientJson.asText(wrapped.path("issue").path("text"))).isEqualTo("배우 말대로 고친 줄");
         assertThat(LenientJson.asText(wrapped.path("next").path("text"))).isEqualTo("매달려 봐도 좋아요");

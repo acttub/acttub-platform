@@ -500,7 +500,7 @@ final class PurposeLoop {
         }
         ObjectNode card = null;
         m = CARD_TAG.matcher(text);
-        if (m.find()) card = card(m.group(1));
+        if (m.find()) card = cardOf(m.group(1));
         ObjectNode character = null;
         m = CHARACTER_CARD.matcher(text);
         if (m.find()) character = characterCard(m.group(1));
@@ -511,7 +511,7 @@ final class PurposeLoop {
     }
 
     /** 평가 결과 카드: 「잘 된 곳: 0:12 …」「아쉬운 곳: 0:31 …」「다음 테이크: …」. 없는 칸은 빠진다. */
-    static ObjectNode card(String body) {
+    static ObjectNode cardOf(String body) {
         ObjectNode card = JsonNodeFactory.instance.objectNode();
         for (String[] pair : new String[][] {{"잘 된 곳", "good"}, {"아쉬운 곳", "issue"}, {"다음 테이크", "next"}}) {
             String value = DirectVideoPracticeLoop.statusField(body, pair[0]);

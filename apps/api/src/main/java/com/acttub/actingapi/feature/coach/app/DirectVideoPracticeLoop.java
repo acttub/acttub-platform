@@ -511,8 +511,8 @@ final class DirectVideoPracticeLoop {
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
     static boolean applies(CoachSessionSnapshot session) {
-        return session.turns().isEmpty() || session.coachingState() != null
-                && session.coachingState().path(STATE_KEY).isObject();
+        JsonNode state = session.coachingState();
+        return session.turns().isEmpty() || state != null && state.path(STATE_KEY).isObject();
     }
 
     /**
