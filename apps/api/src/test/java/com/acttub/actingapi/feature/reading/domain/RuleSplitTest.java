@@ -1455,4 +1455,52 @@ class RuleSplitTest {
         assertThat(result.roster()).containsExactly("민수", "지영", "하준");
         assertThat(label(result, 7)).isEqualTo("하준");
     }
+
+    @Test
+    void aShortWideGapScriptFullOfNumberedRolesKeepsItsHeadShape() {
+        String raw = """
+                S#1. 실험실. 밤
+
+                연구원들이 모여 있다.
+                진행자가 앞으로 나선다.
+
+                 하윤  여기가 어디예요?
+                 도겸  나도 몰라. 눈 떠 보니 여기였어.
+                 하윤  문이 잠겼어요.
+                   빨리 나가고 싶어요.
+                 참가자 3 우리 다 같은 처지예요.
+                 도겸  누구세요?
+                 참가자 3 저도 방금 깼어요.
+                 참가자 5 다들 진정해요.
+                 하윤  어떻게 진정해요!
+                   빨리 문 열어 주세요.
+                 참가자 5 소리 지르지 마요.
+
+                쓰러진 참가자 5의 손이 떨린다.
+                 진행요원 1 자리로 돌아가십시오.
+                 도겸  싫은데요.
+                 진행요원 2 경고합니다.
+                 하윤  도겸 씨, 그만해요.
+                   빨리 앉아요.
+                 도겸  알았어.
+
+                쓰러진 도겸을 하윤이 부축한다.
+                 하윤  괜찮아요?
+                 도겸  응.
+
+                분류 : 스릴러 (단막)
+                """;
+        java.util.List<NumberedLine> lines = RuleSplit.unwrap(NumberedLine.of(raw));
+        lines = RuleSplit.splitTurns(lines, new java.util.HashSet<>(RuleSplit.full(lines, true).roster()));
+        RuleSplit.Result result = RuleSplit.full(lines, true);
+
+        assertThat(result.roster()).containsExactly("하윤", "도겸", "참가자 3", "참가자 5", "진행요원 1", "진행요원 2");
+        assertThat(label(result, 9)).isEqualTo("하윤");
+        assertThat(label(result, 15)).isEqualTo("하윤");
+        assertThat(label(result, 18)).isEqualTo("DIRECTION");
+        assertThat(label(result, 19)).isEqualTo("진행요원 1");
+        assertThat(label(result, 21)).isEqualTo("진행요원 2");
+        assertThat(label(result, 23)).isEqualTo("하윤");
+        assertThat(label(result, 30)).isEqualTo("IGNORE");
+    }
 }
