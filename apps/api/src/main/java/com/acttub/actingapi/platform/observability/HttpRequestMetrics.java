@@ -4,21 +4,34 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.micrometer.common.KeyValue;
+import io.micrometer.common.KeyValues;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.LongTaskTimer;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
+import org.springframework.http.server.observation.DefaultServerRequestObservationConvention;
 import org.springframework.http.server.observation.ServerRequestObservationContext;
 import org.springframework.stereotype.Component;
 
-/** Tracks the server request, including authentication, database waits and response serialization. */
+/**
+ * Tracks the server request, including authentication, database waits and response serialization.
+ *
+ * <p>요청 수를 클라이언트 판별로도 센다({@code acttub.http.requests.by.client}). 판은 {@link ClientLabel} 로 줄인 값이고,
+ * 경로·메서드·상태는 {@code http.server.requests} 와 같은 값(매핑 템플릿 또는 {@code NOT_FOUND}·{@code UNKNOWN})이다.
+ * 426 으로 막힌 요청도 여기서 센다.
+ */
 @Component
 public class HttpRequestMetrics implements ObservationHandler<ServerRequestObservationContext> {
+    private static final DefaultServerRequestObservationConvention LABELS = new DefaultServerRequestObservationConvention();
+
+    private final MeterRegistry registry;
     private final Map<String, LongTaskTimer> timers;
     private final Map<String, Counter> completed;
 
     public HttpRequestMetrics(MeterRegistry registry) {
+        this.registry = registry;
         Map<String, LongTaskTimer> active = new HashMap<>();
         HttpMonitoringConfiguration.ACTIVE_POST_ROUTES.forEach(
                 (route, feature) -> active.put(route, timer(registry, feature, route)));
@@ -61,5 +74,16 @@ public class HttpRequestMetrics implements ObservationHandler<ServerRequestObser
         int status = context.getResponse() == null ? 0 : context.getResponse().getStatus();
         String statusClass = status >= 100 && status < 600 ? status / 100 + "xx" : "other";
         completed.get(statusClass + ":" + HttpMonitoringConfiguration.latencyClass(context)).increment();
+        KeyValues labels = LABELS.getLowCardinalityKeyValues(context);
+        registry.counter("acttub.http.requests.by.client",
+                "client", ClientLabel.of(context.getCarrier()),
+                "method", value(labels, "method"),
+                "uri", value(labels, "uri"),
+                "status", value(labels, "status")).increment();
+    }
+
+    private static String value(KeyValues labels, String key) {
+        return labels.stream().filter(label -> label.getKey().equals(key)).findFirst()
+                .map(KeyValue::getValue).orElse("UNKNOWN");
     }
 }

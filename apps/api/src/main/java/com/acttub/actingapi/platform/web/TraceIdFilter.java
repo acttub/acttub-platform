@@ -8,6 +8,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.acttub.actingapi.platform.observability.ClientLabel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -52,6 +53,8 @@ public class TraceIdFilter extends OncePerRequestFilter {
                         .addKeyValue("route", request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))
                         .addKeyValue("status", response.getStatus())
                         .addKeyValue("took_ms", (System.nanoTime() - started) / 1_000_000)
+                        // 클라이언트 판은 정해진 꼴만 그대로 싣는다(그 밖은 other, 없으면 none). 426 으로 막힌 요청도 남는다.
+                        .addKeyValue("client", ClientLabel.of(request))
                         .log("request");
             }
             MDC.remove(TRACE_ID);

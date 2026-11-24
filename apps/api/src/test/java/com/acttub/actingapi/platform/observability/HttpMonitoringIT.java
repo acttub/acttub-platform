@@ -165,6 +165,29 @@ class HttpMonitoringIT {
                         .filter(line -> line.startsWith("http_server_requests_seconds_count{")).toList());
     }
 
+    @Test
+    void requestsAreCountedByANormalizedClientVersionIncludingThoseSentToUpdate() throws Exception {
+        String before = scrape();
+        // 판 헤더가 없으면 426(업데이트)이다. 막힌 요청도 경로 템플릿과 함께 센다.
+        assertThat(getAs("/v2/consents/documents", null).statusCode()).isEqualTo(426);
+        assertThat(getAs("/v2/consents/documents", "app/1.2.3").statusCode()).isEqualTo(200);
+        assertThat(getAs("/v2/consents/documents", "app/1.2.3").statusCode()).isEqualTo(200);
+        assertThat(getAs("/v2/consents/documents", "evil/\"forged\"").statusCode()).isEqualTo(200);
+
+        String scrape = scrape();
+        String uri = "uri=\"/v2/consents/documents\"";
+        assertThat(metric(scrape, "http_server_requests_seconds_count", uri, "status=\"426\"", "method=\"GET\""))
+                .as("426 도 UNKNOWN 이 아니라 부른 경로로 남는다").isEqualTo(1);
+        assertThat(metric(scrape, "acttub_http_requests_by_client_total", "client=\"none\"", uri, "status=\"426\"",
+                "method=\"GET\"", "environment=\"dev\"")).isEqualTo(1);
+        assertThat(metric(scrape, "acttub_http_requests_by_client_total", "client=\"app/1.2.3\"", uri,
+                "status=\"200\"")).isEqualTo(2);
+        assertThat(metric(scrape, "acttub_http_requests_by_client_total", "client=\"other\"", uri,
+                "status=\"200\"")).isEqualTo(1);
+        assertThat(before).doesNotContain("client=\"app/1.2.3\"");
+        assertThat(scrape).doesNotContain("forged", "evil");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"start", "reply"})
     void activeHttpLifetimeIncludesExternalCallsAndDatabaseWaits(String feature) throws Exception {
@@ -256,6 +279,13 @@ class HttpMonitoringIT {
         var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .header(DefaultClientHeader.NAME, DefaultClientHeader.APP).GET();
         if (bearer != null) request.header("Authorization", bearer);
+        return CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** 판 헤더를 직접 정한다. {@code null} 이면 싣지 않는다. */
+    private HttpResponse<String> getAs(String path, String client) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET();
+        if (client != null) request.header(DefaultClientHeader.NAME, client);
         return CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
