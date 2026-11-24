@@ -17,6 +17,7 @@ class AwsS3StorageTest {
         try (AwsS3Storage storage = new AwsS3Storage(
                 "videos",
                 "ap-northeast-2",
+                null,
                 StaticCredentialsProvider.create(AwsBasicCredentials.create("key", "secret")))) {
             String url = storage.presignUpload(
                     "users/user-id/uploads/video.mp4",

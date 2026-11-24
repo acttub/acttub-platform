@@ -13,6 +13,8 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -24,7 +26,10 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
-/** 실제 S3 경계. presign endpoint는 global이 아니라 설정된 region에 고정한다. */
+/**
+ * 실제 S3 경계. endpoint 가 비면 AWS 이고, presign endpoint는 global이 아니라 설정된 region에 고정한다.
+ * endpoint 가 있으면 그 주소의 S3 호환 저장소(Cloudflare R2 등)에 경로 방식(주소/버킷/키)으로 붙는다.
+ */
 public final class AwsS3Storage implements ObjectStorage, AutoCloseable {
     private final String bucket;
     private final AwsCredentialsProvider credentials;
@@ -34,24 +39,34 @@ public final class AwsS3Storage implements ObjectStorage, AutoCloseable {
     public AwsS3Storage(
             String bucket,
             String regionName,
+            String endpoint,
             AwsCredentialsProvider credentials) {
         if (bucket == null || bucket.isBlank()) {
             throw new IllegalArgumentException("S3 bucket must not be empty");
         }
         Region region = Region.of(regionName);
-        URI regionalEndpoint = URI.create("https://s3." + region.id() + ".amazonaws.com");
+        boolean compatible = endpoint != null && !endpoint.isBlank();
+        URI endpointUri = URI.create(compatible
+                ? endpoint.strip()
+                : "https://s3." + region.id() + ".amazonaws.com");
         this.bucket = bucket;
         this.credentials = credentials;
-        this.client = S3Client.builder()
+        S3ClientBuilder clientBuilder = S3Client.builder()
                 .region(region)
-                .endpointOverride(regionalEndpoint)
-                .credentialsProvider(credentials)
-                .build();
-        this.presigner = S3Presigner.builder()
+                .endpointOverride(endpointUri)
+                .credentialsProvider(credentials);
+        S3Presigner.Builder presignerBuilder = S3Presigner.builder()
                 .region(region)
-                .endpointOverride(regionalEndpoint)
-                .credentialsProvider(credentials)
-                .build();
+                .endpointOverride(endpointUri)
+                .credentialsProvider(credentials);
+        if (compatible) {
+            // 버킷 이름이 호스트에 들어가지 않게 한다 — S3 호환 저장소가 모두 받는 방식이고 호스트가 하나로 고정된다.
+            S3Configuration pathStyle = S3Configuration.builder().pathStyleAccessEnabled(true).build();
+            clientBuilder.serviceConfiguration(pathStyle);
+            presignerBuilder.serviceConfiguration(pathStyle);
+        }
+        this.client = clientBuilder.build();
+        this.presigner = presignerBuilder.build();
     }
 
     @Override
