@@ -11,7 +11,7 @@ import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { setPickedVideo } from '@/lib/practice/picked-video';
 import { ChallengeDone } from '@/components/challenge-done';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
@@ -187,20 +187,6 @@ export default function ChallengeUploadScreen() {
     setVisibility(next);
   };
 
-  // 나만 보기를 고르면 얼굴을 가리고 공개하는 길을 바로 아래에 보여 준다(SOMA-1136).
-  // 비공개 참여작이 절반이고 모자이크는 공개를 고른 뒤에만 보여 거의 쓰이지 않았다.
-  const suggestShown = useRef(false);
-  useEffect(() => {
-    if (visibility !== 'private' || suggestShown.current) return;
-    suggestShown.current = true;
-    logEvent(CHALLENGE_FUNNEL_EVENTS.mosaicSuggestShown, {});
-  }, [visibility]);
-  const acceptMosaicSuggest = () => {
-    logEvent(CHALLENGE_FUNNEL_EVENTS.mosaicSuggestAccepted, {});
-    chooseVisibility('public');
-    setFaceMosaic(true);
-  };
-
   // 찍은 영상은 보관함에 남는다 — 카메라를 다시 열어 새로 찍으면 그 영상으로 올린다.
   const retake = () => {
     if (!challengeId) return;
@@ -368,14 +354,6 @@ export default function ChallengeUploadScreen() {
           onPress={() => chooseVisibility('private')}
         />
 
-        {visibility === 'private' && (
-          <View style={styles.suggest}>
-            <Text style={styles.mosaicTitle}>{t('challengeUpload.mosaicSuggestTitle')}</Text>
-            <Text style={styles.optionSub}>{t('challengeUpload.mosaicSuggestSub')}</Text>
-            <SecondaryButton label={t('challengeUpload.mosaicSuggestCta')} onPress={acceptMosaicSuggest} />
-          </View>
-        )}
-
         {/* 공개를 고르면 얼굴 모자이크를 켤 수 있다(SOMA-809). 켜면 다른 사람에게는 얼굴을 가린 사본만 간다. */}
         {visibility === 'public' && (
           <View style={styles.mosaicRow}>
@@ -442,6 +420,4 @@ const styles = StyleSheet.create({
   optionSub: { ...type.caption, color: palette.textMeta },
   mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[1] },
   mosaicTitle: { ...type.body1Bold, color: palette.text },
-  // 바로 위 선택된 카드(파란 바탕)와 섞이지 않게 흰 바탕 테두리 칸으로 둔다.
-  suggest: { gap: space[2], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
 });

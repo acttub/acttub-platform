@@ -25,8 +25,6 @@ export const CHALLENGE_FUNNEL_EVENTS = {
   visibilitySelected: 'challenge_visibility_selected',
   submitFailed: 'challenge_submit_failed',
   uploadExit: 'challenge_upload_exit',
-  mosaicSuggestShown: 'challenge_mosaic_suggest_shown',
-  mosaicSuggestAccepted: 'challenge_mosaic_suggest_accepted',
 } as const;
 
 type PermissionLike = { granted: boolean } | null | undefined;
