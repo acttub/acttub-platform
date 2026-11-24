@@ -50,6 +50,28 @@ class FreeCoachingLimitTest {
     }
 
     @Test
+    @DisplayName("보상형 광고로 받은 회차(SOMA-1067)가 있으면 그만큼 오늘 한도가 늘고, 한도 비대상에게는 묻지도 않는다")
+    void rewardedSessionsRaiseTodaysLimit() {
+        when(practices.startWithoutVideo(eq(user), any(), any(), any())).thenReturn(new Started(StartOutcome.QUOTA, null));
+        java.util.List<Instant> asked = new java.util.ArrayList<>();
+        CoachingBonus bonus = (id, since) -> {
+            asked.add(since);
+            return 1;
+        };
+        assertThatThrownBy(() -> service(id -> true).withCoachingBonus(bonus).start(user, false, null, talk()))
+                .isInstanceOf(ApiException.class);
+        ArgumentCaptor<Quota> quota = ArgumentCaptor.forClass(Quota.class);
+        verify(practices).startWithoutVideo(eq(user), any(), quota.capture(), any());
+        assertThat(quota.getValue().limit()).isEqualTo(4);
+        assertThat(asked).containsExactly(quota.getValue().since());
+
+        asked.clear();
+        assertThatThrownBy(() -> service(CoachingPlan.UNLIMITED).withCoachingBonus(bonus).start(user, false, null, talk()))
+                .isInstanceOf(ApiException.class);
+        assertThat(asked).isEmpty();
+    }
+
+    @Test
     @DisplayName("플래그가 꺼져 있거나 Pro 면 한도를 넘기지 않는다")
     void unlimited() {
         when(practices.startWithoutVideo(eq(user), any(), any(), any())).thenReturn(new Started(StartOutcome.QUOTA, null));

@@ -121,6 +121,11 @@ class ErrorContractInventoryTest {
                     "feature.billing.app.WebYearlyPlanTest"),
             covered("feature.practice.app.PracticeService|429|free_daily_coaching_limit", 1,
                     "feature.practice.app.FreeCoachingLimitTest"),
+            // 보상형 광고 확인 콜백(SOMA-1067). 서명이 틀리면 403, Google 공개키를 못 받으면 503(AdMob 이 다시 보낸다).
+            covered("feature.practice.adapter.web.CoachingRewardController|403|invalid_signature", 1,
+                    "feature.practice.adapter.web.CoachingRewardControllerTest"),
+            covered("feature.practice.adapter.web.CoachingRewardController|503|admob_keys_unavailable", 1,
+                    "feature.practice.adapter.web.CoachingRewardControllerTest"),
             covered("feature.reading.app.ScriptImportService|403|free_script_limit", 1,
                     "feature.reading.app.FreeScriptLimitTest"),
             covered("feature.reading.app.ScriptService|403|free_script_limit", 1,

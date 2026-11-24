@@ -82,6 +82,8 @@ public class ClientVersionFilter extends OncePerRequestFilter {
                 || path.startsWith("/v2/billing/web/")
                 // 스토어 서버 알림(SOMA-818 2단계): Apple·Google 서버가 부른다. 앱 헤더가 없고 서명·푸시 인증이 권한이다.
                 || path.startsWith("/v2/billing/store-notify/")
+                // 보상형 광고 확인 콜백(SOMA-1067): AdMob 서버가 부른다. 앱 헤더가 없고 Google 서명이 권한이다.
+                || path.equals("/v2/coaching-rewards/ssv")
                 || PATHS.match("/v2/auth/providers/*/disconnect", path);
     }
 

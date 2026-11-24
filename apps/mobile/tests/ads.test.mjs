@@ -7,10 +7,48 @@ import {
   adRequestConfigFor,
   TEST_BANNER_UNIT,
   bannerUnitFor,
+  confirmReward,
   isHttpLink,
+  PRODUCTION_REWARDED_UNITS,
+  REWARD_CONFIRM_DELAYS_MS,
   renderableKind,
+  rewardedUnitFor,
   shouldRequestSlot,
+  TEST_REWARDED_UNIT,
 } from '../lib/ads.ts';
+
+test('보상형 광고(SOMA-1067) — dev·개발 빌드는 Google 테스트 단위, 운영 빌드는 운영 단위가 비어 있으면 null(버튼 숨김)', () => {
+  assert.equal(rewardedUnitFor('ios', 'https://dev.acttub.com'), TEST_REWARDED_UNIT.ios);
+  assert.equal(rewardedUnitFor('android', undefined), TEST_REWARDED_UNIT.android);
+  assert.equal(rewardedUnitFor('android', 'https://acttub.com'), PRODUCTION_REWARDED_UNITS.android || null);
+  const saved = { ...PRODUCTION_REWARDED_UNITS };
+  try {
+    PRODUCTION_REWARDED_UNITS.ios = '';
+    assert.equal(rewardedUnitFor('ios', 'https://acttub.com'), null);
+    PRODUCTION_REWARDED_UNITS.ios = 'ca-app-pub-1/2';
+    assert.equal(rewardedUnitFor('ios', 'https://acttub.com'), 'ca-app-pub-1/2');
+  } finally {
+    Object.assign(PRODUCTION_REWARDED_UNITS, saved);
+  }
+});
+
+test('지급 확인은 간격마다 묻고 확인되면 멈춘다 — 전체 약 10초, 묻기 실패는 다음 간격에 다시', async () => {
+  assert.equal(REWARD_CONFIRM_DELAYS_MS.reduce((sum, ms) => sum + ms, 0), 10_000);
+  const waited = [];
+  const wait = async (ms) => {
+    waited.push(ms);
+  };
+  let calls = 0;
+  const answers = [Promise.reject(new Error('offline')), Promise.resolve(false), Promise.resolve(true)];
+  answers[0].catch(() => {});
+  assert.equal(await confirmReward(() => answers[calls++], wait), true);
+  assert.equal(calls, 3);
+  assert.deepEqual(waited, [1000, 1500, 2000]);
+
+  waited.length = 0;
+  assert.equal(await confirmReward(async () => false, wait), false);
+  assert.deepEqual(waited, [...REWARD_CONFIRM_DELAYS_MS]);
+});
 
 const pick = (kind, ad = null) => ({ kind, slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad });
 const creative = (over) => ({ id: 'a', image_url: null, headline: null, body: null, app_path: null, advertiser_name: null, link_url: null, ...over });

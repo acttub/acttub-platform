@@ -775,7 +775,15 @@ export default function UploadScreen() {
         onClose={() => setTitleOpen(false)}
       />
       {dialog}
-      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
+      <CoachingLimitSheet
+        visible={freeLimit}
+        onClose={() => setFreeLimit(false)}
+        onRewarded={() => {
+          // 광고를 보고 1회를 받았다(SOMA-1067) — 같은 요청으로 바로 다시 시작한다.
+          setFreeLimit(false);
+          void start();
+        }}
+      />
     </SafeAreaView>
   );
 }

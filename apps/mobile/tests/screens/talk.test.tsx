@@ -14,6 +14,8 @@ jest.mock('expo-image', () => ({ Image: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({ api: { createPractice: jest.fn(), listPracticeGroups: jest.fn() } }));
 jest.mock('@/lib/practice/session-state', () => ({ startPractice: jest.fn() }));
+// 한도 확인창의 「광고 보고 1회 더」(SOMA-1067)가 회원 id 를 읽는다.
+jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: '11111111-1111-4111-8111-111111111111' } }) }));
 
 const createPractice = api.createPractice as jest.Mock;
 const listPracticeGroups = api.listPracticeGroups as jest.Mock;

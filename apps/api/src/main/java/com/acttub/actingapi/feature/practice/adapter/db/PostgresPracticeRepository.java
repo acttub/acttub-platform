@@ -68,6 +68,18 @@ class PostgresPracticeRepository implements PracticeRepository {
                                LIMIT 1) j ON true
             """;
 
+    /**
+     * 무료 코칭 한도(SOMA-818)가 세는 오늘 회차 수. 보상형 광고 버튼(SOMA-1067)이 한도 소진을 볼 때도 같은 문장을 쓴다.
+     * 리딩 녹음으로 시작한 코칭(SOMA-791)은 무료라 세지 않는다. 그 묶음을 영상으로 이은 회차는 센다.
+     * 지운 연습(SOMA-985)도 그날 쓴 횟수다 — 지우고 다시 하는 길로 한도가 풀리지 않는다.
+     */
+    static final String FREE_COACHING_SESSIONS_SINCE = """
+            SELECT (SELECT count(*) FROM practices
+                    WHERE user_id=:userId AND created_at>=:since AND reading_session_id IS NULL)
+                 + (SELECT count(*) FROM practice_deletion_marks
+                    WHERE user_id=:userId AND practice_created_at>=:since AND NOT from_reading)
+            """;
+
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final ObjectMapper mapper;
@@ -585,15 +597,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("userId", userId));
         if (quota.kind() == Quota.Kind.SESSIONS) {
             // 무료 코칭 한도(SOMA-818): 오늘 만든 회차 수. 영상 있는·없는 코칭과 이어하기가 모두 든다.
-            Number sessions = (Number) entityManager.createNativeQuery(
-                    // 리딩 녹음으로 시작한 코칭(SOMA-791)은 무료라 세지 않는다. 그 묶음을 영상으로 이은 회차는 센다.
-                    // 지운 연습(SOMA-985)도 그날 쓴 횟수다 — 지우고 다시 하는 길로 한도가 풀리지 않는다.
-                    """
-                    SELECT (SELECT count(*) FROM practices
-                            WHERE user_id=:userId AND created_at>=:since AND reading_session_id IS NULL)
-                         + (SELECT count(*) FROM practice_deletion_marks
-                            WHERE user_id=:userId AND practice_created_at>=:since AND NOT from_reading)
-                    """)
+            Number sessions = (Number) entityManager.createNativeQuery(FREE_COACHING_SESSIONS_SINCE)
                     .setParameter("userId", userId)
                     .setParameter("since", quota.since().atOffset(ZoneOffset.UTC))
                     .getSingleResult();

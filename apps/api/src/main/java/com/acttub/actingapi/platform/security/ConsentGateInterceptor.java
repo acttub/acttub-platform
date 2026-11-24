@@ -49,7 +49,9 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
             // 앱 Pro 카드 등록 창과 토스 콜백(SOMA-818) — 브라우저가 열고, 주소의 일회용 state 로 판정한다.
             route(HttpMethod.GET, "/v2/billing/web/**"),
             // 스토어 서버 알림(SOMA-818 2단계) — Apple·Google 서버가 부르고 서명·푸시 인증으로 판정한다.
-            route(null, "/v2/billing/store-notify/**"));
+            route(null, "/v2/billing/store-notify/**"),
+            // 보상형 광고 확인 콜백(SOMA-1067) — AdMob 서버가 부르고 Google 서명으로 판정한다.
+            route(HttpMethod.GET, "/v2/coaching-rewards/ssv"));
 
     /** 게스트만 쓰는 자리. 필요한 동의 문서가 없어 게이트 밖이고, 회원이 부르면 403 {@code guest_only} 다. */
     private static final List<Route> GUEST_ONLY = List.of(
