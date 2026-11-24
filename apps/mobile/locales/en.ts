@@ -1938,6 +1938,7 @@ const en: DeepStringShape<typeof ko> = {
     viewScript: 'View script',
     practice: 'Practice',
     changeVoices: 'Change voices',
+    voicesButton: 'Voices',
     sessionRecordings: '{{count}} recordings',
     sessionInProgressAt: 'In progress · {{done}}/{{total}}',
     sessionTitle: 'Session',
