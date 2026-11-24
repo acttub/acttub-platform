@@ -330,7 +330,7 @@ class PostgresBillingRepository implements BillingRepository {
                       AND (s.lease_until IS NULL OR s.lease_until < CAST(:now AS timestamptz))
                       -- 결과를 모르는 결제가 있으면 그 결제를 먼저 확인한다(같은 키로 다시 묻는 쪽이 맡는다).
                       AND NOT EXISTS (SELECT 1 FROM billing_payments p
-                                      WHERE p.subscription_id=s.id AND p.status IN ('pending','unknown'))
+                                      WHERE p.subscription_id=s.id AND p.status NOT IN ('done','failed'))
                     ORDER BY s.current_period_end
                     LIMIT 1
                     FOR UPDATE OF s SKIP LOCKED)
@@ -380,7 +380,7 @@ class PostgresBillingRepository implements BillingRepository {
     @Override
     public boolean hasUnresolvedPayment(UUID userId) {
         return transaction.execute(tx -> ((Number) entityManager.createNativeQuery(
-                "SELECT count(*) FROM billing_payments WHERE user_id=:userId AND status IN ('pending','unknown')")
+                "SELECT count(*) FROM billing_payments WHERE user_id=:userId AND status NOT IN ('done','failed')")
                 .setParameter("userId", userId)
                 .getSingleResult()).intValue() > 0);
     }
@@ -417,7 +417,7 @@ class PostgresBillingRepository implements BillingRepository {
                 UPDATE billing_payments SET check_count=check_count+1, updated_at=CAST(:now AS timestamptz)
                 WHERE id = (
                     SELECT id FROM billing_payments
-                    WHERE status IN ('unknown','pending') AND updated_at < CAST(:quiet AS timestamptz)
+                    WHERE status NOT IN ('done','failed') AND updated_at < CAST(:quiet AS timestamptz)
                       AND check_count < :maxChecks
                     ORDER BY updated_at
                     LIMIT 1

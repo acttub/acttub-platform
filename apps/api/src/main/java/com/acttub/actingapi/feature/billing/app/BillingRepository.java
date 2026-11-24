@@ -92,7 +92,10 @@ public interface BillingRepository {
 
     Optional<Payment> findPayment(String orderId);
 
-    /** 결과를 아직 모르는(pending·unknown) 결제가 있는가 — 있으면 새 구독 결제를 열지 않는다. */
+    /**
+     * 결과를 아직 모르는 결제가 있는가 — 있으면 새 구독 결제를 열지 않는다. 결제 기록의 상태는 unknown·done·failed 이고, 끝난 값(done·failed)이
+     * 아니면 모두 결과를 모르는 것으로 읽는다. 승인 전 기록을 pending 으로 넣던 옛 서버가 배포 중에 멈춰 남긴 행도 그래서 다시 묻는다.
+     */
     boolean hasUnresolvedPayment(UUID userId);
 
     /** 이 구독의 이 기간에 대한 가장 마지막 시도. */
