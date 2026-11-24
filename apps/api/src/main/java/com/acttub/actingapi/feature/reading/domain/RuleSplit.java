@@ -216,6 +216,9 @@ public final class RuleSplit {
         Set<String> spacedAll = Set.copyOf(spacedNames);
         spacedNames.removeIf(name -> spacedAll.stream().anyMatch(other -> other.length() > name.length() && other.startsWith(name)
                 && spacedCount.get(other) * 2 >= spacedCount.get(name)));
+        HeadShape shape = headShape(text, lines);
+        // 대본의 머리 모양(들여쓰기 칸)에 놓인 번호 머리 — 아래 번호 배역 가족에서 한 번만 나와도 받는다
+        Set<String> labeledAtHead = new HashSet<>();
         for (int i = 0; i < text.size(); i++) {
             if (cast.contains(i) || text.blank(i)) continue;
             String t = text.get(i);
@@ -244,10 +247,14 @@ public final class RuleSplit {
             // 문장 중간에서 끊긴 줄 다음 줄의 첫 낱말(PDF 의 「고」「게」)은 이름 후보로 세지 않는다. 화면 폭 기준(앞 줄이 폭까지 찼을 때만)으로
             // 좁히면 놓친 이름은 되찾지만 가짜 이름이 더 들어와 운영 대본 일치가 75.8→75.1% 로 떨어졌다(2026-11-21) — 끝 부호 기준을 둔다.
             boolean cut = i > 0 && text.adjacent(i - 1, i) && !TERMINAL.matcher(text.get(i - 1)).matches();
-            if (name != null && nameLike(name) && !spacedLine && !cut) first.merge(name, 1, Integer::sum);
+            // 머리 모양이 분명한 대본에서 그 모양이 아닌 줄의 첫 낱말은 세지 않는다 — 횟수만으로 새 이름이 되지 않게({@link #headShape})
+            if (name != null && nameLike(name) && !spacedLine && !cut && shape.fits(i, name)) first.merge(name, 1, Integer::sum);
             if (name != null && GROUP_SPEAKERS.contains(name) && !cut) groupHeads.merge(name, 1, Integer::sum);
             Matcher numbered = LABELED_HEAD.matcher(t);
-            if (numbered.lookingAt() && !cut && numbered.group(1).length() > 1) labeled.merge(numbered.group(1), 1, Integer::sum);
+            if (numbered.lookingAt() && !cut && numbered.group(1).length() > 1) {
+                labeled.merge(numbered.group(1), 1, Integer::sum);
+                if (shape.indentFits(i)) labeledAtHead.add(numbered.group(1));
+            }
             name = group(TAB_HEAD, t);
             if (name != null && nameLike(name.strip())) tab.merge(name.strip(), 1, Integer::sum);
             name = wideName(t);
@@ -332,6 +339,7 @@ public final class RuleSplit {
                 first.forEach((name, n) -> { if (n >= 2 && spaceName(name, n)) names.add(name); });
                 // 번호·기호가 붙은 이름(「남자1」「기자 1」)도 두 번 넘게 줄 앞에 나오면 받는다
                 labeled.forEach((name, n) -> { if (n >= 2 && !CREDIT.matcher(name).matches()) names.add(name); });
+                numberedFamily(labeled, labeledAtHead, names);
                 // 띄어쓰기형이 섰으면 두 칸 이상·탭으로 떨어진 머리는 한 번만 나와도 이름이다(조연 「택배」)
                 wide.forEach((name, n) -> { if (hangulName(name) && !CREDIT.matcher(name).matches()) names.add(name); });
                 // 여럿이 함께 하는 말(「모두 안녕!」)도 두 번 넘게 줄 앞에 나오면 배역이다. 서술(「모두 퇴장한다.」)은 줄 판정에서 지문으로 간다.
@@ -534,6 +542,7 @@ public final class RuleSplit {
         Set<String> colonSeen = new HashSet<>();
         Map<String, Map<String, Integer>> marked = new HashMap<>();
         Map<String, Integer> colonLines = new LinkedHashMap<>();
+        HeadShape shape = headShape(text, lines);
         for (int i = 0; i < text.size(); i++) {
             if (text.blank(i) || rows.containsKey(lines.get(i).no())) continue;
             String colonHead = colonName(text.get(i));
@@ -541,7 +550,9 @@ public final class RuleSplit {
             if (colonHead != null) colonSeen.add(colonHead);
             if (i > 0 && text.adjacent(i - 1, i) && !TERMINAL.matcher(text.get(i - 1)).matches()) continue;
             String name = leadingName(text.get(i));
-            if (name != null) fresh.merge(name, 1, Integer::sum);
+            // 띄어쓰기 첫 낱말은 대본의 머리 모양 줄에서만 센다({@link #headShape}) — 쌍점·번호 머리는 그대로
+            boolean plainWord = name != null && colonHead == null && name.matches("\\p{IsHangul}+");
+            if (name != null && (!plainWord || shape.fits(i, name))) fresh.merge(name, 1, Integer::sum);
             Matcher sep = SEP_HEAD.matcher(text.get(i));
             if (sep.lookingAt() && sepName(sep.group(1), sep.group(2))) {
                 marked.computeIfAbsent(sep.group(2), key -> new HashMap<>()).merge(sep.group(1), 1, Integer::sum);
@@ -789,6 +800,7 @@ public final class RuleSplit {
             }
         }
         frontMatter(text, lines, rows);
+        backMatter(text, lines, rows, base.format());
         scoreLines(text, lines, rows);
         singerLines(text, lines, rows);
         fullNames(rows, text, lines);
@@ -949,6 +961,36 @@ public final class RuleSplit {
             }
             if (r.kind() == Kind.DIALOGUE && !front && !synopsis) return;
             if (front || synopsis) rows.put(no, row(no, Kind.IGNORE));
+        }
+    }
+
+    /**
+     * 마지막 대사 뒤 끝부분을 대본에서 뺀다(풀규칙). 쌍점 대본이 아닌데 맨 끝 사람이 그 자리 「낱말 : …」 한 줄로 처음 나왔고 그 줄이 말투가 아니면,
+     * 그 이름은 배역이 아니라 작품 정보 항목이다 — 그 줄과 그 이름에 이어 붙은 끝 줄을 뺀다. 2026-11-24 운영 대본(띄어쓰기형): 마지막 대사 뒤
+     * 「분류 : 인공지능 (AI)」가 배역 「분류」가 되고 그 밑 두 줄이 「분류」 대사로 붙었다.
+     */
+    private static void backMatter(Text text, List<NumberedLine> lines, Map<Integer, Row> rows, Format format) {
+        if (format == Format.COLON) return;
+        String name = null;
+        int start = -1;
+        for (int i = 0; i < text.size(); i++) {
+            Row r = rows.get(lines.get(i).no());
+            if (r == null || r.kind() != Kind.DIALOGUE || r.speaker().equals(name)) continue;
+            name = r.speaker();
+            start = i;
+        }
+        if (name == null || !name.equals(colonName(text.get(start)))) return;
+        String t = text.get(start);
+        String body = t.substring(t.indexOf(t.contains(":") ? ':' : '：') + 1).strip();
+        if (speechEnd(body)) return;
+        for (int i = 0; i < start; i++) {
+            Row r = rows.get(lines.get(i).no());
+            if (r != null && r.kind() == Kind.DIALOGUE && r.speaker().equals(name)) return;
+        }
+        for (int i = start; i < text.size(); i++) {
+            int no = lines.get(i).no();
+            Row r = rows.get(no);
+            if (r != null && r.kind() == Kind.DIALOGUE) rows.put(no, row(no, Kind.IGNORE));
         }
     }
 
@@ -1325,6 +1367,101 @@ public final class RuleSplit {
 
     /** 번호·기호가 붙은 이름 머리 — 「남자 2 …」「여자1 …」「학생A …」「A …」. */
     private static final Pattern LABELED_HEAD = Pattern.compile("(\\p{IsHangul}{1,4} ?[0-9A-Z]{1,2}|[A-Z])\\s+(?=\\S)");
+    /** 숫자 번호 배역 — 「참가자 9」「남자1」의 앞말과 번호. */
+    private static final Pattern NUMBERED_ROLE = Pattern.compile("(\\p{IsHangul}{1,4}) ?(\\d{1,2})");
+
+    /** 이름 뒤 두 칸 이상·탭 머리 — 「수아  …」「도냐 아순시온  …」「참가자 9  …」(두 낱말까지). */
+    private static final Pattern WIDE_GAP_HEAD = Pattern.compile("(\\S{1,8}(?: \\S{1,8})?)(?:\\s{2,}|\\t)");
+
+    /**
+     * 대본의 머리 모양 — 줄마다 원문 들여쓰기 칸 수와 머리 낱말(넓은 칸 앞 두 낱말까지, 아니면 번호 머리나 첫 낱말), 그리고 대본을 지배하는
+     * 「넓은 칸 머리」의 들여쓰기. {@code indent} 가 -1 이면 지배하는 모양이 없다.
+     */
+    private record HeadShape(int[] indents, String[] heads, int indent) {
+        /**
+         * 이 줄의 첫 낱말 {@code name} 을 이름 후보로 셀까 — 지배하는 모양이 없으면 그대로 센다. 있으면 그 들여쓰기 줄에서, 그 줄 머리 낱말이거나 두 낱말
+         * 이름(「도냐 아순시온」)의 앞 낱말일 때만 센다. 번호 머리(「참가자 13 …」)의 앞말 「참가자」는 세지 않는다. 같은 들여쓰기의 한 칸 머리(「관리인
+         * 저..」)는 센다 — 넓은 칸 대본의 한 칸 조연이 사라졌다(2026-11-24 운영 대본 대조).
+         */
+        boolean fits(int i, String name) {
+            if (indent < 0) return true;
+            String head = heads[i];
+            return indents[i] == indent && head != null
+                    && (head.equals(name) || head.startsWith(name + " ") && !NUMBERED_ROLE.matcher(head).matches());
+        }
+
+        /** 지배하는 모양이 있고 이 줄이 그 들여쓰기인가. */
+        boolean indentFits(int i) {
+            return indent >= 0 && indents[i] == indent;
+        }
+    }
+
+    /**
+     * 대본의 머리 모양을 잰다. 머리 낱말 뒤가 두 칸 이상인 이름 같은 줄을 들여쓰기별로 세어, 가장 많은 들여쓰기가 여섯 줄 이상이고, 그 모양으로 두 번
+     * 넘게 나온 이름이 둘 이상이고, 같은 들여쓰기의 한 칸 머리보다 두 배 이상 많을 때만 지배하는 모양이다. 한 칸 머리(「민수 안녕」)로 쓴 대본은 넓은
+     * 칸이 드물어 켜지지 않는다. 2026-11-24 운영 대본: 대사는 「·민지··저 아직 …」(한 칸 들여 이름 뒤 두 칸)인데 대사가 이어지는 줄(「···빨리 이
+     * 모든 게 …」)과 지문(「쓰러진 참가자 9의 …」)의 첫 낱말이 횟수만으로 배역 「빨리」「쓰러진」이 됐다.
+     */
+    private static HeadShape headShape(Text text, List<NumberedLine> lines) {
+        int[] indents = new int[text.size()];
+        String[] heads = new String[text.size()];
+        Map<Integer, Integer> wideLines = new HashMap<>();
+        Map<Integer, Integer> narrowLines = new HashMap<>();
+        Map<Integer, Map<String, Integer>> wideNames = new HashMap<>();
+        for (int i = 0; i < text.size(); i++) {
+            if (text.blank(i)) continue;
+            String raw = lines.get(i).text();
+            int indent = 0;
+            for (int k = 0; k < raw.length(); k++) {
+                char c = raw.charAt(k);
+                if (INVISIBLE.matcher(String.valueOf(c)).matches()) continue;
+                if (!Character.isWhitespace(c) && !Character.isSpaceChar(c)) break;
+                indent++;
+            }
+            indents[i] = indent;
+            String t = text.get(i);
+            Matcher m = WIDE_GAP_HEAD.matcher(t);
+            boolean wide = m.lookingAt();
+            if (!wide) {
+                m = LABELED_HEAD.matcher(t);
+                if (!m.lookingAt()) m = SPACE_HEAD.matcher(t);
+                if (!m.lookingAt()) continue;
+            }
+            if (!nameLike(m.group(1))) continue;
+            heads[i] = m.group(1);
+            (wide ? wideLines : narrowLines).merge(indent, 1, Integer::sum);
+            if (wide) wideNames.computeIfAbsent(indent, key -> new HashMap<>()).merge(m.group(1), 1, Integer::sum);
+        }
+        int indent = wideLines.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(-1);
+        if (indent < 0) return new HeadShape(indents, heads, -1);
+        int count = wideLines.get(indent);
+        long repeated = wideNames.get(indent).values().stream().filter(n -> n >= 2).count();
+        boolean dominant = count >= 6 && repeated >= 2 && count >= 2 * narrowLines.getOrDefault(indent, 0);
+        return new HeadShape(indents, heads, dominant ? indent : -1);
+    }
+
+    /**
+     * 번호 배역 가족: 받은 번호 배역(「참가자 9」「참가자 10」)이 둘 이상인 대본은 번호로 배역을 나누는 대본이다 — 번호 머리가 한 번만 나와도
+     * 같은 앞말의 번호가 이미 받은 배역이거나, 그 줄이 대본의 머리 모양 들여쓰기에 있으면 배역으로 받는다. 번호 배역이 하나뿐인 대본은 우연한
+     * 「낱말 + 숫자」(「사과 3 개」)일 수 있어 켜지 않는다. 2026-11-24 운영 대본: 한 번 나온 「참가자 7」「참가자 11」이 앞말 「참가자」 대사가
+     * 되고, 한 번씩 나온 「진행요원 1」「진행요원 2」는 「진행요원」이 됐다.
+     */
+    private static void numberedFamily(Map<String, Integer> labeled, Set<String> atHead, Set<String> names) {
+        Set<String> prefixes = new HashSet<>();
+        int members = 0;
+        for (String name : names) {
+            Matcher m = NUMBERED_ROLE.matcher(name);
+            if (m.matches()) {
+                prefixes.add(m.group(1));
+                members++;
+            }
+        }
+        if (members < 2) return;
+        labeled.forEach((name, n) -> {
+            Matcher m = NUMBERED_ROLE.matcher(name);
+            if (m.matches() && !CREDIT.matcher(name).matches() && (prefixes.contains(m.group(1)) || atHead.contains(name))) names.add(name);
+        });
+    }
 
     /** 이름을 못 찾은 글이 산문인가 — 글 있는 줄의 60% 이상이 서술로 닫힌다. */
     private static boolean proseLike(Text text) {
