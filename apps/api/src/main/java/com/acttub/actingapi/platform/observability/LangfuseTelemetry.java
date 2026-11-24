@@ -248,10 +248,6 @@ public class LangfuseTelemetry implements LlmTelemetry {
 
     // --- OTLP 조립 ----------------------------------------------------------
 
-    JsonNode tracePayload(LlmCall call) {
-        return tracePayload(call, null);
-    }
-
     /**
      * OTLP/JSON 한 건. 바이트 필드(추적 ID·구간 ID)는 이 형식에서 16진수 문자열이고,
      * 나노초 시각은 64비트라 문자열로 싣는다 — 숫자로 실으면 큰 값이 깨진다.

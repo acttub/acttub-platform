@@ -98,28 +98,6 @@ public final class DirectVideoCoach {
     private boolean staticRulesInPrefix = false;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry) {
-        this(model, videos, storage, failures, telemetry, CoachPersonas.NONE);
-    }
-
-    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas) {
-        this(model, videos, storage, failures, telemetry, personas, null, 0);
-    }
-
-    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas,
-            DirectVideoModel alternate, int alternateShare) {
-        this(model, videos, storage, failures, telemetry, personas, alternate, alternateShare, CoachVideoCache.NONE);
-    }
-
-    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas,
-            DirectVideoModel alternate, int alternateShare, CoachVideoCache videoCache) {
-        this(model, videos, storage, failures, telemetry, personas, alternate, alternateShare, videoCache, CoachLayerOne.NONE);
-    }
-
-    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare, CoachVideoCache videoCache, CoachLayerOne layerOne) {
         this.layerOne = layerOne == null ? CoachLayerOne.NONE : layerOne;

@@ -298,16 +298,9 @@ public final class CoachVideoCache implements AutoCloseable {
 
     /**
      * 첫 질문: 미리 준비한 결과를 가져간다. 아직 하는 중이면 {@code wait} 까지 기다린다. 준비가 없거나, 원본이 다르거나,
-     * 실패했거나, 너무 오래 걸리면 null — 그때는 지금처럼 직접 올린다.
-     */
-    public Prepared claimWarm(Key key, Duration wait) {
-        return claimWarm(key, wait, null, null);
-    }
-
-    /**
-     * {@link #claimWarm(Key, Duration)} 와 같되, 미리 준비가 {@code hedgeAfter} 안에 끝나지 않으면 {@code hedge}(같은 원본을
-     * 새로 검사·올리는 일)를 함께 시작해 먼저 끝난 쪽을 돌려준다. 진 쪽이 올린 영상은 끝나는 대로 지운다. 둘 다 실패하거나
-     * {@code wait} 를 넘기면 null — 그때는 지금처럼 직접 올린다.
+     * 실패했거나, 너무 오래 걸리면 null — 그때는 지금처럼 직접 올린다. 미리 준비가 {@code hedgeAfter} 안에 끝나지 않으면
+     * {@code hedge}(같은 원본을 새로 검사·올리는 일)를 함께 시작해 먼저 끝난 쪽을 돌려준다(둘 다 null 이면 기다리기만 한다).
+     * 진 쪽이 올린 영상은 끝나는 대로 지운다.
      */
     public Prepared claimWarm(Key key, Duration wait, Duration hedgeAfter, Supplier<Prepared> hedge) {
         if (!enabled() || key == null) return null;

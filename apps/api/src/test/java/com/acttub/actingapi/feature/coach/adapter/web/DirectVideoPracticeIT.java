@@ -13,6 +13,9 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.coach.adapter.db.CoachStorageFixtures;
+import com.acttub.actingapi.feature.coach.app.CoachLayerOne;
+import com.acttub.actingapi.feature.coach.app.CoachPersonas;
+import com.acttub.actingapi.feature.coach.app.CoachVideoCache;
 import com.acttub.actingapi.feature.coach.app.CoachVideoSource;
 import com.acttub.actingapi.feature.coach.app.DirectVideoCoach;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -237,7 +240,7 @@ class DirectVideoPracticeIT {
         @Bean @Primary RecordingLlmTelemetry recordingTelemetry() { return new RecordingLlmTelemetry(); }
         @Bean DirectVideoCoach directVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
                 FailureReporter failures, RecordingLlmTelemetry telemetry) {
-            return new DirectVideoCoach(model, videos, storage, failures, telemetry);
+            return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
         }
     }
 }

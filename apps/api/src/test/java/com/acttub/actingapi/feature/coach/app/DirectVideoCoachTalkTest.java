@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -51,14 +50,13 @@ class DirectVideoCoachTalkTest {
 
     DirectVideoCoach coach() {
         // 연습 루프 스위치가 꺼져 있어도 말로 하는 회차는 목적별 코칭을 탄다.
-        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry(), CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
     }
 
     static CoachSessionSnapshot fresh(String purpose) {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "", "", "", 0, "그 외", "그 외", null, "open", "", List.of(),
-                PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "")
-                .withSessionPurpose(PurposeLoop.TALK_PREFIX + purpose);
+                PriorContext.EMPTY, "legacy", 0, null, null, PurposeLoop.TALK_PREFIX + purpose).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
     @SuppressWarnings("unchecked")

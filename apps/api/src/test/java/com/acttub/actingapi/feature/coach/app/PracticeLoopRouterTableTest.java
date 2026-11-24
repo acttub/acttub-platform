@@ -90,17 +90,17 @@ class PracticeLoopRouterTableTest {
 
     @Test void afterAProposalTheConversationMovesOnUnlessTheActorObjected() {
         Before proposed = at(3, PracticeLoopRouter.PROPOSE);
-        assertThat(PracticeLoopRouter.route(Kind.ANSWER, proposed)).isEqualTo(PracticeLoopRouter.FIND);
-        assertThat(PracticeLoopRouter.route(Kind.CORRECTION, proposed)).isEqualTo("내려놓기");
-        assertThat(PracticeLoopRouter.route(Kind.METHOD, proposed)).isEqualTo(PracticeLoopRouter.WRAP_UP);
-        assertThat(PracticeLoopRouter.route(Kind.ANSWER, at(3, "마무리2"))).isEqualTo(PracticeLoopRouter.END);
-        assertThat(PracticeLoopRouter.route(Kind.ANSWER, at(3, "끝"))).isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, proposed)).isEqualTo(PracticeLoopRouter.FIND);
+        assertThat(PracticeLoopRouterTest.route(Kind.CORRECTION, proposed)).isEqualTo("내려놓기");
+        assertThat(PracticeLoopRouterTest.route(Kind.METHOD, proposed)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, at(3, "마무리2"))).isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, at(3, "끝"))).isEqualTo(PracticeLoopRouter.END);
     }
 
     @Test void stayingTooLongOnAStepMakesTheCoachPropose() {
-        assertThat(PracticeLoopRouter.route(Kind.MISSED, at(2, "다시 묻기"), 2)).isEqualTo(PracticeLoopRouter.PROPOSE);
-        assertThat(PracticeLoopRouter.route(Kind.SHORT, at(2, "다시 묻기"), 2)).isEqualTo(PracticeLoopRouter.PROPOSE);
-        assertThat(PracticeLoopRouter.route(Kind.QUESTION, at(2, "다시 묻기"), 2)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouterTest.route(Kind.MISSED, at(2, "다시 묻기"), 2)).isEqualTo(PracticeLoopRouter.PROPOSE);
+        assertThat(PracticeLoopRouterTest.route(Kind.SHORT, at(2, "다시 묻기"), 2)).isEqualTo(PracticeLoopRouter.PROPOSE);
+        assertThat(PracticeLoopRouterTest.route(Kind.QUESTION, at(2, "다시 묻기"), 2)).isEqualTo("답하기");
     }
 
     @Test void anUndecidedFinalAnswerStaysUntilAnActionIsChosen() {

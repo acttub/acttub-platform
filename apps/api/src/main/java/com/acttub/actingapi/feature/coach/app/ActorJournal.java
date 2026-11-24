@@ -68,12 +68,6 @@ public final class ActorJournal {
         public static Answers empty() {
             return new Answers(null, null, null, null);
         }
-
-        /** 「다음에 해 볼 것」으로 보일 글. 「아직 안 정했어요」만 골랐거나 건너뛰었으면 null. */
-        public String nextAction() {
-            if (next == null || next.text() == null || next.text().isBlank()) return null;
-            return next.text().strip();
-        }
     }
 
     /** @param basis actor_report·observed·discussed */

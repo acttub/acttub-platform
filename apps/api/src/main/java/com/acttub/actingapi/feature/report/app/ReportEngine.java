@@ -88,23 +88,6 @@ public class ReportEngine {
         this.profiles = profiles;
     }
 
-    /**
-     * 어느 연습의 노트인지 모르는 자리에서 부를 때. 그때는 기록을 남기지 않는다 — 묶을
-     * 열쇠가 없는 기록은 화면에서 떠돌기만 한다.
-     */
-    public JsonNode generateReport(
-            String reportType,
-            JsonNode videoSummary,
-            JsonNode confirmedHandoff,
-            boolean confirmed,
-            String coachingHandoffId,
-            JsonNode analysisHandoff,
-            String analysisHandoffId) {
-        return generateReport(
-                reportType, videoSummary, confirmedHandoff, confirmed,
-                coachingHandoffId, analysisHandoff, analysisHandoffId, null, null);
-    }
-
     public JsonNode generateReport(
             String reportType,
             JsonNode videoSummary,

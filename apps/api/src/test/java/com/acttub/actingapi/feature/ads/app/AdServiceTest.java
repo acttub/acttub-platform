@@ -91,10 +91,10 @@ class AdServiceTest {
     void disabledAndFirstTime() {
         FakeRepository repo = new FakeRepository();
         repo.ads.add(direct());
-        var off = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(false, 50), CLOCK);
+        var off = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(false, 50), AdSlotSwitches.ALWAYS_ON, AdFrequency.UNLIMITED, CLOCK);
         assertThat(off.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
         repo.practiced = false;
-        var on = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 50), CLOCK);
+        var on = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 50), AdSlotSwitches.ALWAYS_ON, AdFrequency.UNLIMITED, CLOCK);
         assertThat(on.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
     }
 
@@ -104,7 +104,7 @@ class AdServiceTest {
         FakeRepository repo = new FakeRepository();
         repo.ads.add(direct());
         AdSlotSwitches homeOff = slotKey -> "home_top".equals(slotKey);
-        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 100), homeOff, CLOCK);
+        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 100), homeOff, AdFrequency.UNLIMITED, CLOCK);
         assertThat(service.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
         assertThat(service.pick(USER, AdSlot.SETTINGS_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
         assertThat(service.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NETWORK);
@@ -126,11 +126,11 @@ class AdServiceTest {
         assertThat(AdSlotSwitches.ALWAYS_ON.switchedOn("reading_done_full")).isTrue();
         assertThat(((AdSlotSwitches) slotKey -> true).switchedOn("reading_done_full")).isFalse();
         var settings = new AdService.Settings(true, 100);
-        assertThat(new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, none, CLOCK).pick(USER, AdSlot.READING_DONE_FULL).kind())
+        assertThat(new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, none, AdFrequency.UNLIMITED, CLOCK).pick(USER, AdSlot.READING_DONE_FULL).kind())
                 .isEqualTo(AdPicker.Kind.NONE);
-        assertThat(new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, none, CLOCK).pick(USER, AdSlot.ANALYZING_WAIT).kind())
+        assertThat(new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, none, AdFrequency.UNLIMITED, CLOCK).pick(USER, AdSlot.ANALYZING_WAIT).kind())
                 .isEqualTo(AdPicker.Kind.NETWORK);
-        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, onlyReading, CLOCK);
+        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, settings, onlyReading, AdFrequency.UNLIMITED, CLOCK);
         assertThat(service.pick(USER, AdSlot.READING_DONE_FULL).kind()).isEqualTo(AdPicker.Kind.NETWORK);
         assertThat(service.pick(USER, AdSlot.SCRIPT_PARSE_FULL).kind()).isEqualTo(AdPicker.Kind.NONE);
     }
@@ -139,12 +139,12 @@ class AdServiceTest {
     @DisplayName("Pro 판정을 결제 도메인에 묻고 Pro 면 어느 칸이든 NONE, 연습 중 칸 비율 0% 면 무료도 NONE, 100% 면 채운다")
     void proAndPercent() {
         FakeRepository repo = new FakeRepository();
-        var pro = new AdService(repo, userId -> true, new AdService.Settings(true, 100), CLOCK);
+        var pro = new AdService(repo, userId -> true, new AdService.Settings(true, 100), AdSlotSwitches.ALWAYS_ON, AdFrequency.UNLIMITED, CLOCK);
         assertThat(pro.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NONE);
         assertThat(pro.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
-        var none = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 0), CLOCK);
+        var none = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 0), AdSlotSwitches.ALWAYS_ON, AdFrequency.UNLIMITED, CLOCK);
         assertThat(none.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NONE);
-        var all = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 100), CLOCK);
+        var all = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 100), AdSlotSwitches.ALWAYS_ON, AdFrequency.UNLIMITED, CLOCK);
         assertThat(all.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NETWORK);
     }
 
@@ -254,9 +254,6 @@ class AdServiceTest {
         frequency.limits = new AdFrequency.Limits(10, 1, 1);
         assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
         assertThat(limited(repo, frequency, CLOCK).pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
-        assertThat(new AdFrequency.Limits(0, 5, 3).valid()).isFalse();
-        assertThat(new AdFrequency.Limits(1440, 100, 0).valid()).isTrue();
-        assertThat(new AdFrequency.Limits(10, 101, 3).valid()).isFalse();
     }
 
     @Test
@@ -265,7 +262,7 @@ class AdServiceTest {
         FakeRepository repo = new FakeRepository();
         Ad ad = direct();
         repo.ads.add(ad);
-        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 50), CLOCK);
+        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 50), AdSlotSwitches.ALWAYS_ON, AdFrequency.UNLIMITED, CLOCK);
         assertThat(service.record(USER, ad.id(), AdSlot.HOME_TOP, AdService.Event.IMPRESSION)).isTrue();
         assertThat(service.record(USER, ad.id(), AdSlot.HOME_TOP, AdService.Event.CLICK)).isTrue();
         assertThat(service.record(USER, UUID.randomUUID(), AdSlot.HOME_TOP, AdService.Event.CLICK)).isFalse();

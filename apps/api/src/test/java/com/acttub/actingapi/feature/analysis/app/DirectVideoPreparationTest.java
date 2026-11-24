@@ -12,7 +12,7 @@ class DirectVideoPreparationTest {
         var duration = mock(DurationResolver.class);
         var path = Path.of("original.mp4");
         when(duration.durationMs(path, 8000)).thenReturn(8000);
-        var processor = new DirectVideoPreparation(duration, legacy);
+        var processor = new DirectVideoPreparation(duration, legacy, DirectVideoWarmup.NONE);
         var result = processor.analyze(path, context("three_layers_v1"));
         assertThat(result.durationMs()).isEqualTo(8000);
         assertThat(result.wasCompressed()).isFalse();
@@ -25,7 +25,7 @@ class DirectVideoPreparationTest {
         var duration = mock(DurationResolver.class);
         var path = Path.of("original.mp4");
         var context = context("legacy");
-        new DirectVideoPreparation(duration, legacy).analyze(path, context);
+        new DirectVideoPreparation(duration, legacy, DirectVideoWarmup.NONE).analyze(path, context);
         verify(legacy).analyze(path, context);
         verifyNoInteractions(duration);
     }

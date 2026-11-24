@@ -51,7 +51,7 @@ class NoteContinuityTest {
 
         JsonNode note = engine.generateReport("coaching", null, handoff, false, "handoff", null, null, null, member);
         engine.generateReport("coaching", null, handoff, false, "handoff", null, null, null, java.util.UUID.randomUUID());
-        engine.generateReport("coaching", null, handoff, false, "handoff", null, null);
+        engine.generateReport("coaching", null, handoff, false, "handoff", null, null, null, null);
 
         ObjectNode withProfile = (ObjectNode) StructuredJson.parse(inputs.get(0));
         assertThat(withProfile.path("actor_profile")).isEqualTo(StructuredJson.parse("""

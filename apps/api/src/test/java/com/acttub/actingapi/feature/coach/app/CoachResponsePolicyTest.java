@@ -171,8 +171,7 @@ class CoachResponsePolicyTest {
             ReportEngine reportEngine = new ReportEngine((system, input) -> {
                 throw new AssertionError("Failed coaching must not become an invented report");
             }, MAPPER, new RecordingLlmTelemetry());
-            assertThat(LenientJson.asText(reportEngine.generateReport(branch.equals("표현") ? "expression" : "analysis",
-                    session.observationPack(), fallback.handoff(), true, "handoff-id", null, null)
+            assertThat(LenientJson.asText(reportEngine.generateReport(branch.equals("표현") ? "expression" : "analysis", session.observationPack(), fallback.handoff(), true, "handoff-id", null, null, null, null)
                     .path("report_type"))).isEqualTo("blocked");
         }
     }

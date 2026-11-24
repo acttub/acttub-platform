@@ -53,7 +53,7 @@ class ConversationServiceTest {
     }
 
     ConversationService service(ConversationClosedListener closed) {
-        return new ConversationService(conversations, coach, notes, clock, closed, profiles, memory, failures);
+        return new ConversationService(conversations, coach, notes, clock, closed, profiles, memory, failures, null);
     }
 
     CoachSessionSnapshot session(String status, String version, JsonNode state, String... turns) {

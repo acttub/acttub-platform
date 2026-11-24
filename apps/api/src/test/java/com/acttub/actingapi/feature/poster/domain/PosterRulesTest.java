@@ -59,44 +59,44 @@ class PosterRulesTest {
     @Test
     void aWellFormedDraftHasNoViolation() {
         assertThat(PosterRules.check(draft())).isEmpty();
-        assertThat(PosterRules.check(draft().withCta("route", "/reading"))).isEmpty();
-        assertThat(PosterRules.check(draft().withCta("url", "https://acttub.com/a"))).isEmpty();
-        assertThat(PosterRules.check(draft().withImage("posters/" + UUID.randomUUID() + ".jpg"))).isEmpty();
+        assertThat(PosterRules.check(with(draft(), "ctaAction", "route", "ctaTarget", "/reading"))).isEmpty();
+        assertThat(PosterRules.check(with(draft(), "ctaAction", "url", "ctaTarget", "https://acttub.com/a"))).isEmpty();
+        assertThat(PosterRules.check(with(draft(), "image", "posters/" + UUID.randomUUID() + ".jpg"))).isEmpty();
     }
 
     @Test
     void everyEntryIsAnAcceptedFrequency() {
-        assertThat(PosterRules.check(draft().withFrequency("every"))).isEmpty();
+        assertThat(PosterRules.check(with(draft(), "frequency", "every"))).isEmpty();
     }
 
     @Test
     void eachRuleNamesTheFieldItBreaks() {
-        assertThat(field(draft().withSlug("Bad Slug"))).isEqualTo("slug");
-        assertThat(field(draft().withSlug(""))).isEqualTo("slug");
-        assertThat(field(draft().withTitle("  "))).isEqualTo("title");
-        assertThat(field(draft().withTitle(null))).isEqualTo("title");
-        assertThat(field(draft().withPlatforms(List.of()))).isEqualTo("platforms");
-        assertThat(field(draft().withPlatforms(List.of("ios", "web")))).isEqualTo("platforms");
-        assertThat(field(draft().withPlatforms(List.of("ios", "ios")))).isEqualTo("platforms");
-        assertThat(field(draft().withLocale("korean"))).isEqualTo("locale");
-        assertThat(field(draft().withMinAppVersion("0.1.x"))).isEqualTo("min_app_version");
-        assertThat(field(draft().withFrequency("weekly"))).isEqualTo("frequency");
-        assertThat(field(draft().withAudience("everyone"))).isEqualTo("audience");
-        assertThat(field(draft().withImage("https://example.com/a.png"))).isEqualTo("image");
-        assertThat(field(draft().withAudio("posters/x.mp3"))).isEqualTo("audio");
-        assertThat(field(draft().withCta("open", null))).isEqualTo("cta_action");
-        assertThat(field(draft().withCta("url", null))).isEqualTo("cta_target");
-        assertThat(field(draft().withCta("url", "http://acttub.com"))).isEqualTo("cta_target");
-        assertThat(field(draft().withCta("route", "reading"))).isEqualTo("cta_target");
-        assertThat(field(draft().withPeriod(NOW, NOW))).isEqualTo("ends_at");
+        assertThat(field(with(draft(), "slug", "Bad Slug"))).isEqualTo("slug");
+        assertThat(field(with(draft(), "slug", ""))).isEqualTo("slug");
+        assertThat(field(with(draft(), "title", "  "))).isEqualTo("title");
+        assertThat(field(with(draft(), "title", null))).isEqualTo("title");
+        assertThat(field(with(draft(), "platforms", List.of()))).isEqualTo("platforms");
+        assertThat(field(with(draft(), "platforms", List.of("ios", "web")))).isEqualTo("platforms");
+        assertThat(field(with(draft(), "platforms", List.of("ios", "ios")))).isEqualTo("platforms");
+        assertThat(field(with(draft(), "locale", "korean"))).isEqualTo("locale");
+        assertThat(field(with(draft(), "minAppVersion", "0.1.x"))).isEqualTo("min_app_version");
+        assertThat(field(with(draft(), "frequency", "weekly"))).isEqualTo("frequency");
+        assertThat(field(with(draft(), "audience", "everyone"))).isEqualTo("audience");
+        assertThat(field(with(draft(), "image", "https://example.com/a.png"))).isEqualTo("image");
+        assertThat(field(with(draft(), "audio", "posters/x.mp3"))).isEqualTo("audio");
+        assertThat(field(with(draft(), "ctaAction", "open", "ctaTarget", null))).isEqualTo("cta_action");
+        assertThat(field(with(draft(), "ctaAction", "url", "ctaTarget", null))).isEqualTo("cta_target");
+        assertThat(field(with(draft(), "ctaAction", "url", "ctaTarget", "http://acttub.com"))).isEqualTo("cta_target");
+        assertThat(field(with(draft(), "ctaAction", "route", "ctaTarget", "reading"))).isEqualTo("cta_target");
+        assertThat(field(with(draft(), "startsAt", NOW, "endsAt", NOW))).isEqualTo("ends_at");
     }
 
     @Test
     void selectionDropsPostersTheAppIsTooOldForAndKeepsAtMostFive() {
         List<Poster> candidates = new ArrayList<>();
-        candidates.add(poster("needs-new", draft().withSlug("needs-new").withMinAppVersion("0.1.10")));
+        candidates.add(poster("needs-new", with(draft(), "slug", "needs-new", "minAppVersion", "0.1.10")));
         for (int index = 0; index < 6; index++) {
-            candidates.add(poster("p" + index, draft().withSlug("p" + index)));
+            candidates.add(poster("p" + index, with(draft(), "slug", "p" + index)));
         }
 
         assertThat(PosterRules.forApp(candidates, "0.1.9")).extracting(poster -> poster.draft().slug())
@@ -113,6 +113,26 @@ class PosterRulesTest {
 
     private static Poster poster(String slug, PosterDraft draft) {
         return new Poster(UUID.randomUUID(), 1, draft, NOW, NOW);
+    }
+
+    /** 초안에서 칸 몇 개만 바꾼 사본. {@code changes} 는 칸 이름(레코드 성분 이름)과 값을 번갈아 준다. */
+    private static PosterDraft with(PosterDraft draft, Object... changes) {
+        var values = new java.util.HashMap<String, Object>();
+        for (int i = 0; i < changes.length; i += 2) values.put((String) changes[i], changes[i + 1]);
+        var components = PosterDraft.class.getRecordComponents();
+        Object[] arguments = new Object[components.length];
+        Class<?>[] types = new Class<?>[components.length];
+        try {
+            for (int i = 0; i < components.length; i++) {
+                types[i] = components[i].getType();
+                String name = components[i].getName();
+                arguments[i] = values.containsKey(name) ? values.remove(name) : components[i].getAccessor().invoke(draft);
+            }
+            if (!values.isEmpty()) throw new IllegalArgumentException("unknown poster fields " + values.keySet());
+            return PosterDraft.class.getDeclaredConstructor(types).newInstance(arguments);
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException(failure);
+        }
     }
 
     private static PosterDraft draft() {

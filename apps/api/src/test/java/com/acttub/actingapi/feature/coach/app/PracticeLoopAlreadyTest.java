@@ -41,17 +41,17 @@ class PracticeLoopAlreadyTest {
         var c = new Classified(Kind.CORRECTION, false, "model").withAlready(true);
         String control = PracticeLoopRouter.route(c, b, 0);
         assertThat(control).as("대조 쪽은 지금처럼 내려놓기").isEqualTo(PracticeLoopRouter.LET_GO);
-        assertThat(PracticeLoopRouter.routeAlready(c, b, control, false)).isEqualTo(PracticeLoopRouter.ASK_DONE);
+        assertThat(PracticeLoopRouter.routeAlready(c, b, control, false, false)).isEqualTo(PracticeLoopRouter.ASK_DONE);
     }
 
     @Test void theAnswerToAskDoneWrapsDifferently() {
         var b = at(4, 8, PracticeLoopRouter.ASK_DONE, Kind.CORRECTION, false);
         var answer = new Classified(Kind.ANSWER, false, "model");
-        assertThat(PracticeLoopRouter.routeAlready(answer, b, PracticeLoopRouter.route(answer, b, 1), true))
+        assertThat(PracticeLoopRouter.routeAlready(answer, b, PracticeLoopRouter.route(answer, b, 1), true, false))
                 .isEqualTo(PracticeLoopRouter.WRAP_DONE);
         assertThat(PracticeLoopRouter.WRAP_DONE).startsWith(PracticeLoopRouter.WRAP_UP);
         var stop = new Classified(Kind.STOP, false, "model");
-        assertThat(PracticeLoopRouter.routeAlready(stop, b, PracticeLoopRouter.END, true)).isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.routeAlready(stop, b, PracticeLoopRouter.END, true, false)).isEqualTo(PracticeLoopRouter.END);
     }
 
     @Test void aSecondAlreadyDoesNotAskTheIntentAgain() {
@@ -59,7 +59,7 @@ class PracticeLoopAlreadyTest {
         var c = new Classified(Kind.CORRECTION, false, "model").withAlready(true);
         String control = PracticeLoopRouter.route(c, b, 0);
         assertThat(control).isEqualTo(PracticeLoopRouter.LET_GO);
-        assertThat(PracticeLoopRouter.routeAlready(c, b, control, true)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.routeAlready(c, b, control, true, false)).isEqualTo("답하기");
     }
 
     @Test void afterAnsweringAnAlreadyOnceMoreItCloses() throws Exception {
@@ -76,13 +76,13 @@ class PracticeLoopAlreadyTest {
         var b = at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER, false);
         var c = new Classified(Kind.ANSWER, false, "model");
         String control = PracticeLoopRouter.route(c, b, 0);
-        assertThat(PracticeLoopRouter.routeAlready(c, b, control, false)).isEqualTo(control);
+        assertThat(PracticeLoopRouter.routeAlready(c, b, control, false, false)).isEqualTo(control);
     }
 
     @Test void nearTheReplyLimitItWrapsRightAway() {
         var b = at(4, PracticeLoopRouter.LAST_REPLY - 1, PracticeLoopRouter.WRAP_UP, Kind.ANSWER, false);
         var c = new Classified(Kind.CORRECTION, false, "model").withAlready(true);
-        assertThat(PracticeLoopRouter.routeAlready(c, b, PracticeLoopRouter.WRAP_UP, false)).isEqualTo(PracticeLoopRouter.WRAP_DONE);
+        assertThat(PracticeLoopRouter.routeAlready(c, b, PracticeLoopRouter.WRAP_UP, false, false)).isEqualTo(PracticeLoopRouter.WRAP_DONE);
     }
 
     @Test void theProposalTheActorAlreadyDidIsRememberedAndGivenAsMaterial() throws Exception {

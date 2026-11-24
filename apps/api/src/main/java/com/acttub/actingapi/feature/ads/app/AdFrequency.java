@@ -13,15 +13,6 @@ public interface AdFrequency {
     record Limits(int windowMinutes, int windowCap, int firstDayCap) {
         public static final int MAX_WINDOW_MINUTES = 1440;
         public static final int MAX_CAP = 100;
-
-        public boolean valid() {
-            return windowMinutes >= 1 && windowMinutes <= MAX_WINDOW_MINUTES
-                    && inRange(windowCap) && inRange(firstDayCap);
-        }
-
-        private static boolean inRange(int cap) {
-            return cap >= 0 && cap <= MAX_CAP;
-        }
     }
 
     /** 상한을 두지 않는 구현 — 기록도 하지 않는다. 빈도 저장소가 없는 조립(테스트)에서 쓴다. */

@@ -7,8 +7,4 @@ import java.util.UUID;
 @FunctionalInterface
 public interface SpeechAnalyzer {
     SpeechAnalysis analyze(Path videoPath, UUID practiceSessionId, UUID userId);
-
-    default SpeechAnalysis analyze(Path videoPath, UUID practiceSessionId) {
-        return analyze(videoPath, practiceSessionId, null);
-    }
 }

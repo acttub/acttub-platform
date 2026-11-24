@@ -46,11 +46,6 @@ public class LineNoteWriter implements AutoCloseable {
     private final ExecutorService owned;
     private final String template;
 
-    public LineNoteWriter(boolean enabled, CoachPro pro, LineNoteModel model, ConversationRepository conversations,
-            FailureReporter failures, Executor executor) {
-        this(enabled, pro, model, conversations, failures, executor, null, loadTemplate());
-    }
-
     /** 자기 배경 실행기를 갖는다(스프링 조립용). */
     public static LineNoteWriter withOwnExecutor(boolean enabled, CoachPro pro, LineNoteModel model,
             ConversationRepository conversations, FailureReporter failures) {
@@ -170,7 +165,7 @@ public class LineNoteWriter implements AutoCloseable {
         return trimmed;
     }
 
-    private static String loadTemplate() {
+    static String loadTemplate() {
         try (InputStream input = LineNoteWriter.class.getResourceAsStream(PROMPT_RESOURCE)) {
             if (input == null) throw new IllegalStateException("missing " + PROMPT_RESOURCE);
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);

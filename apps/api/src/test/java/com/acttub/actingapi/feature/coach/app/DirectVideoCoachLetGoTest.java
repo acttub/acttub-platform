@@ -47,8 +47,7 @@ class DirectVideoCoachLetGoTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0,
-                CoachVideoCache.NONE);
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
     }
 
     CoachSessionSnapshot session() {

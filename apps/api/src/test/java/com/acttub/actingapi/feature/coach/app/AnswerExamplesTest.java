@@ -61,7 +61,7 @@ class AnswerExamplesTest {
     @Test
     void 스트리밍에도_보기_칸은_나가지_않는다() {
         var sent = new ArrayList<String>();
-        var visible = new VisibleCoachText(false, sent::add);
+        var visible = new VisibleCoachText(false, null, sent::add);
         for (String piece : List.of("상대는 어디 있었어요?\n<보", "기>\n멀리 있었", "어요\n</보기>")) visible.accept(piece);
         assertThat(String.join("", sent)).doesNotContain("멀리").doesNotContain("<");
     }
