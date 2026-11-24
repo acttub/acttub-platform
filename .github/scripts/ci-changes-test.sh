@@ -101,6 +101,7 @@ check "mobile smoke web" pull_request dev .github/workflows/deploy.yml
 
 # api 테스트가 읽는 다른 앱의 파일(ReadingExampleEnglishDraftTest).
 check "api mobile" pull_request dev apps/mobile/lib/reading/sample.ts
+check "api" pull_request dev docs/specs/account/consent.md
 # web·mobile 테스트·빌드가 읽는 다른 앱의 파일.
 check "api mobile smoke web" pull_request dev apps/api/spec/openapi.json
 check "api smoke web" pull_request dev apps/api/src/main/resources/admissions/notices.json
