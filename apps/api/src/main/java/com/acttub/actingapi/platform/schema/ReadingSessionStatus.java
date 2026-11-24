@@ -10,7 +10,7 @@ import jakarta.persistence.Converter;
 public enum ReadingSessionStatus implements PgEnum {
     /** 진행 중 — 한 대본에 여럿일 수 있다. */
     IN_PROGRESS("in_progress"),
-    /** 구간의 끝 대사를 지났다. */
+    /** 기기가 진행 저장에 complete=true 를 보냈다. 서버는 위치를 보지 않는다 — 언제 보내는지는 reading.session 「규칙·제약」. */
     COMPLETED("completed");
 
     private final String dbValue;

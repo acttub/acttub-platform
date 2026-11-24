@@ -77,11 +77,13 @@ class PostgresRetranscribeRepository implements RetranscribeRepository {
             Tuple row = rows.get(0);
             UUID recordingId = row.get("recording_id", UUID.class);
             String objectKey = row.get("object_key", String.class);
+            // 탈퇴한 계정의 보관 녹음은 모델에 보내지 않는다(common.md 「모델을 기다린 뒤의 저장」) — 지금 녹음이 아닌 것으로 닫는다.
             List<Tuple> recording = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT duration_ms,
-                           (object_key=:key AND transcript_source='stt' AND (transcript IS NULL OR btrim(transcript)=''))
-                               AS current
-                    FROM reading_recordings WHERE id=:id
+                    SELECT r.duration_ms,
+                           (r.object_key=:key AND r.transcript_source='stt' AND (r.transcript IS NULL OR btrim(r.transcript)='')
+                            AND u.status='active') AS current
+                    FROM reading_recordings r JOIN users u ON u.id=r.user_id
+                    WHERE r.id=:id
                     """, Tuple.class)
                     .setParameter("id", recordingId)
                     .setParameter("key", objectKey));
@@ -118,11 +120,13 @@ class PostgresRetranscribeRepository implements RetranscribeRepository {
         Boolean filled = transaction.execute(status -> {
             String line = lineText(recordingId);
             Boolean matched = line == null ? null : RecordingRules.matched(transcript, line);
+            // 받아쓰는 사이에 탈퇴했으면 채우지 않는다(stale).
             int updated = entityManager.createNativeQuery("""
-                    UPDATE reading_recordings
+                    UPDATE reading_recordings r
                     SET transcript=:transcript, matched=CAST(:matched AS boolean), updated_at=CAST(:now AS timestamptz)
-                    WHERE id=:id AND object_key=:key AND transcript_source='stt'
-                      AND (transcript IS NULL OR btrim(transcript)='')
+                    WHERE r.id=:id AND r.object_key=:key AND r.transcript_source='stt'
+                      AND (r.transcript IS NULL OR btrim(r.transcript)='')
+                      AND EXISTS (SELECT 1 FROM users u WHERE u.id=r.user_id AND u.status='active')
                     """)
                     .setParameter("transcript", transcript)
                     .setParameter("matched", matched)
@@ -130,7 +134,7 @@ class PostgresRetranscribeRepository implements RetranscribeRepository {
                     .setParameter("id", recordingId)
                     .setParameter("key", objectKey)
                     .executeUpdate();
-            entityManager.createNativeQuery("""
+            int leased = entityManager.createNativeQuery("""
                     UPDATE reading_recording_retranscripts
                     SET status=:status, transcript=:transcript, peak_db=CAST(:peak AS double precision), failure=NULL, lease_token=NULL,
                         lease_until=NULL, updated_at=CAST(:now AS timestamptz)
@@ -143,6 +147,11 @@ class PostgresRetranscribeRepository implements RetranscribeRepository {
                     .setParameter("id", recordingId)
                     .setParameter("token", leaseToken)
                     .executeUpdate();
+            if (leased == 0) {
+                // 임대를 잃었다 — 녹음을 고친 것까지 되돌린다. 잠그는 순서(녹음 → 큐)는 녹음 삭제의 CASCADE 와 같게 둔다.
+                status.setRollbackOnly();
+                return false;
+            }
             return updated == 1;
         });
         return Boolean.TRUE.equals(filled);
