@@ -991,10 +991,62 @@ test('저장한 소리를 못 틀면 기기 목소리로 읽고, 지운 저장�
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', { engine: 'supertonic', kind: 'unknown' });
+  expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', expect.objectContaining({ engine: 'supertonic', kind: 'unknown', reason: 'other', message: 'player crashed' }));
   expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(tts.discardSpeechFile).toHaveBeenCalledWith('file:///speech.wav');
   expect(queue.forget).toHaveBeenCalledWith('file:///speech.wav');
+});
+
+// SOMA-1062 — 원인을 가르려고 실패 기록에 경우·앱 상태·직전 마이크 실패를 싣는다.
+test('저장한 소리를 못 틀면 어느 경우인지·화면 밖이었는지·직전 마이크 실패를 함께 남긴다', async () => {
+  mockMic.start.mockResolvedValue(false);
+  jest.mocked(tts.play).mockRejectedValueOnce(new VoicePrepareError('playback', '재생 실패: not_started'));
+  const state = AppState as unknown as { currentState: unknown };
+  const original = state.currentState;
+  state.currentState = 'background';
+  try {
+    await startPlay();
+    expect(await screen.findByText('말이 들리지 않아요. 다음을 눌러 넘길 수 있어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('다음'));
+    await waitFor(() => expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', expect.objectContaining({
+      engine: 'supertonic',
+      kind: 'playback',
+      reason: 'not_started',
+      message: '재생 실패: not_started',
+      app_state: 'background',
+      mic_failed_ms_ago: expect.any(Number),
+    })));
+  } finally {
+    state.currentState = original;
+  }
+});
+
+// SOMA-1062 — 멈춤의 tts.stop() 이 재생을 끝난 것으로 돌려주자 줄이 다음으로 넘어가 화면 밖에서 다음 재생을 시작했다.
+test('상대 줄을 읽다 배경으로 가며 멈추면 넘기지도 다른 목소리로 바꾸지도 않고, 이어서 그 줄을 같은 소리로 다시 읽는다', async () => {
+  let endPlay: () => void = () => undefined;
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>((resolve) => (endPlay = resolve)));
+  // 실제 엔진처럼 멈춤은 읽던 재생을 끝난 것으로 돌려준다.
+  jest.mocked(tts.stop).mockImplementation(() => endPlay());
+  const server = await startPlay(PARTNER_FIRST);
+  await waitFor(() => expect(tts.play).toHaveBeenCalledTimes(1));
+  expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
+
+  await act(async () => appStateListeners.forEach((l) => l('background')));
+  await afterControlsSwap();
+  expect(screen.getByText('이어서')).toBeOnTheScreen();
+  expect(mockMic.start).not.toHaveBeenCalled();
+  expect(speakWithDevice).not.toHaveBeenCalled();
+  expect(tts.speak).not.toHaveBeenCalled();
+  expect(logEvent).not.toHaveBeenCalledWith('reading_line_voice_failed', expect.anything());
+  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ current_line_id: 'l5' }));
+
+  jest.mocked(tts.stop).mockImplementation(() => undefined);
+  jest.mocked(tts.play).mockResolvedValue(undefined);
+  await fireEvent.press(screen.getByText('이어서'));
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.play).toHaveBeenCalledTimes(2);
+  expect(tts.play).toHaveBeenLastCalledWith('file:///speech.wav');
+  expect(speakWithDevice).not.toHaveBeenCalled();
 });
 
 // 11/5 문의 「인원이 많은 대본에서 상대 배역 대사 하나가 씹힌다」 — 목소리 실패를 기록만 하고 넘기던 길을 막는다.

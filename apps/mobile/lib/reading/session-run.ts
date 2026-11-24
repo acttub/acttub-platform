@@ -84,9 +84,11 @@ export function currentLineIdOf(run: RunState): string | null {
 
 /**
  * 다음 대사 줄로. fromIndex 를 주면 그 줄에서의 넘김만 받는다 — 침묵 완료와 버튼이 겹쳐도 한 줄만 넘어간다.
+ * 멈춘 동안에는 넘기지 않는다 — 멈춤이 끊은 재생·녹음이 끝난 것으로 돌아와도 그 줄에 머물고, 이어서는 그 줄을 처음부터
+ * 다시 한다(SOMA-1062, 배경으로 가며 멈춘 리딩이 다음 줄로 넘어가 화면 밖에서 재생을 시작했다).
  */
 export function advance(run: RunState, fromIndex?: number): RunState {
-  if (run.status === 'done') return run;
+  if (run.status === 'done' || run.status === 'paused') return run;
   if (fromIndex !== undefined && fromIndex !== run.index) return run;
   const next = nextDialogue(run.lines, turnSpan(run).end + 1, run.endIndex);
   if (next < 0) return { ...run, index: run.endIndex + 1, status: 'done', resumeTo: null, leadInUntil: null };
