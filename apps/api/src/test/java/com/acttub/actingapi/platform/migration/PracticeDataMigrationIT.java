@@ -327,9 +327,8 @@ class PracticeDataMigrationIT {
     private UUID conversation(UUID practiceSessionId, String status, String closeReason, String createdAt) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO coach_sessions(id,practice_session_id,status,close_reason,conversation_summary,
-                                           created_at,updated_at)
-                VALUES (?,?,?,?,'',?::timestamptz,?::timestamptz)
+                INSERT INTO coach_sessions(id,practice_session_id,status,close_reason,created_at,updated_at)
+                VALUES (?,?,?,?,?::timestamptz,?::timestamptz)
                 """, id, practiceSessionId, status, closeReason, createdAt, createdAt);
         return id;
     }
