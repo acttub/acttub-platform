@@ -223,11 +223,9 @@ public final class CoachStorageFixtures {
                     id,
                     coach_session_id,
                     practice_session_id,
-                    branch_kind,
-                    handoff_json,
                     created_at
                 )
-                VALUES (?, ?, ?, 'analysis', ?::jsonb, ?)
+                VALUES (?, ?, ?, ?)
                 """,
                 handoffId,
                 coachSessionId,

@@ -74,12 +74,9 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
 - 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다.
-- 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
-  `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
+- 옛 연습 흐름의 다섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
+  `practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
   `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
-  다만 `handoff_confirmations` 표와 `coaching_handoffs.branch_kind`·`handoff_json`, `coach_sessions.conversation_summary`는
-  읽고 쓰는 코드가 없어 값을 보관하지 않고 지운다. `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과
-  현재 기능을 검증하고, DROP 마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
@@ -1065,7 +1062,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
     시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
   - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`는 새 표가 없어 옛 표에
-    남는다(`handoff_confirmations`는 옮기지 않고 지운다, §5-1). 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
+    남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
     새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
 - **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`

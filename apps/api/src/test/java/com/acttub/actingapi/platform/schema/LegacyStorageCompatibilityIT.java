@@ -52,11 +52,6 @@ class LegacyStorageCompatibilityIT {
         Map<String, Object> before = historicalValues(jdbc, user, historical);
         if (removeRetiredStorage) {
             // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다.
-            // 옛 코칭 연결(확인 표, 넘김의 갈래·원문 칸, 대화 요약 칸)은 코드가 읽고 쓰지 않으며 다음 릴리스의 DROP
-            // 마이그레이션이 운영에서도 지운다(apps/api/CONTRACT.md §5-1).
-            jdbc.execute("DROP TABLE handoff_confirmations");
-            jdbc.execute("ALTER TABLE coaching_handoffs DROP COLUMN branch_kind, DROP COLUMN handoff_json");
-            jdbc.execute("ALTER TABLE coach_sessions DROP COLUMN conversation_summary");
             jdbc.execute("DROP TABLE reports");
             jdbc.execute("""
                     ALTER TABLE summaries DROP COLUMN observation, DROP COLUMN summary,
@@ -149,10 +144,9 @@ class LegacyStorageCompatibilityIT {
                 INSERT INTO reports(session_id,headline,biggest_problem,evidence,self_discovery,encouragement,next_step)
                 VALUES (?,'구형 리포트','{"old":true}'::jsonb,'근거','발견','격려','다음')
                 """, coach);
-        // 갈래·원문 칸은 지울 칸이지만 NOT NULL 이라, 칸이 있는 동안 옛 행을 심으려면 값을 넣어야 한다.
         jdbc.update("""
-                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,handoff_json)
-                VALUES (?,?,?,'analysis','{}'::jsonb)
+                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id)
+                VALUES (?,?,?)
                 """, handoff, coach, practice);
         jdbc.update("""
                 INSERT INTO practice_reports(practice_session_id,report_type,report_json,source_handoff_id)

@@ -127,13 +127,12 @@ class ValueCheckCatalogIT {
      * 값 CHECK 이지만 대응하는 Java enum 이 <b>없는</b> 것들. 여기 적힌 것만 표 밖에 있을 수 있다.
      *
      * <p>{@code ck_users_role} 은 읽는 코드가 아직 없어서(SOMA-462), 나머지 셋은 enum 을 쓴 적이
-     * 없이 처음부터 text + CHECK 였다.
+     * 없이 처음부터 text + CHECK 였다(넷째였던 넘김의 갈래 CHECK 는 V98 이 칸과 함께 지웠다).
      */
     private static final Set<String> WITHOUT_JAVA_ENUM = Set.of(
             "ck_users_role",
             "ck_external_operations_last_failure_classification",
             "ck_practice_reports_report_type",
-            "ck_coaching_handoffs_branch_kind",
             "ck_practice_sessions_blockage_branch",
             "ck_practice_sessions_experience_version",
             // 막힘의 큰 갈래와 세부는 <b>조합</b> 검사라 값 목록 하나로 떨어지지 않는다(V14 는 옛 것과 같은 조합이다).
