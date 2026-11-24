@@ -228,6 +228,26 @@ class AdminController {
                 supportInquiries.list(filter, limit).stream().map(SupportInquiryRow::of).toList()));
     }
 
+    @Schema(name = "AdminSupportInquiryStatus", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record SupportInquiryStatus(@NotNull @Schema(allowableValues = {"open", "closed"}) String status) { }
+
+    @PatchMapping("/support/inquiries/{id}")
+    @Operation(summary = "Set Support Inquiry Status", operationId = "set_support_inquiry_status_v2_admin_support_inquiries__id__patch",
+            tags = "admin",
+            description = "운영자가 답한 문의를 closed 로 닫는다. 잘못 닫았으면 open 으로 되돌린다. 같은 값이면 그대로다. 없는 문의는 404 "
+                    + "support_inquiry_not_found.")
+    SupportInquiryRow setSupportInquiryStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody SupportInquiryStatus body,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        if (!SupportInquiryRules.STATUSES.contains(body.status())) {
+            throw ApiValidationException.valueError(List.of("body", "status"), "Value error, status must be 'open' or 'closed'",
+                    body.status());
+        }
+        return SupportInquiryRow.of(supportInquiries.setStatus(id, body.status()));
+    }
+
     @PatchMapping("/reports/{id}")
     @Operation(summary = "Resolve Challenge Report", operationId = "resolve_report_v2_admin_reports__id__patch", tags = "admin",
             description = """

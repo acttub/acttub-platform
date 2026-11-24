@@ -2163,8 +2163,8 @@ class AdminEndpointIT {
                 "/v2/admin/posters", "/v2/admin/posters/{id}", "/v2/admin/poster-images",
                 // 앱 광고(app.ads)의 운영 경로도 같은 토큰 조건을 진다.
                 "/v2/admin/ads", "/v2/admin/ads/{id}", "/v2/admin/ads/{id}/stats", "/v2/admin/ad-images", "/v2/admin/ad-settings",
-                // 웹 문의하기(app.support-inquiry)의 운영 조회도 같은 토큰 조건을 진다.
-                "/v2/admin/support/inquiries",
+                // 웹 문의하기(app.support-inquiry)의 운영 조회·닫기도 같은 토큰 조건을 진다.
+                "/v2/admin/support/inquiries", "/v2/admin/support/inquiries/{id}",
                 // 웹 블로그(app.blog)의 운영 경로도 같은 토큰 조건을 진다.
                 "/v2/admin/blog/posts", "/v2/admin/blog/posts/{id}", "/v2/admin/blog-images",
                 // ops 구독 화면(SOMA-963)도 같은 토큰 조건을 진다.

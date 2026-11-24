@@ -701,6 +701,8 @@ class ErrorContractInventoryTest {
                     "feature.auth.AccountGuestIT"),
             covered("feature.push.adapter.web.PushOpenController|429|rate limit exceeded", 1,
                     "feature.push.PushOpenIT"),
+            covered("feature.support.app.SupportInquiryService|404|support_inquiry_not_found", 1,
+                    "feature.support.SupportInquiryIT"),
             covered("feature.support.adapter.web.SupportInquiryController|429|rate limit exceeded", 1,
                     "feature.support.SupportInquiryIT"),
             // 앱 광고 칸(app.ads, SOMA-876). 상세와 노출·클릭 기록이 없는 광고에 같은 404 를 낸다.
