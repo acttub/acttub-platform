@@ -243,6 +243,26 @@ class AccountProfileIT {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("account.profile: 게이트에서 만 14세 미만을 넣은 계정에 새 연습 표(practices) 행이 있으면 — 외래 키로 "
+            + "계정 행을 지우지 못해 실패하지 않고 탈퇴 절차로 닫힌다")
+    void accountProfile_aPracticeOnlyInTheNewTableCountsAsHistory() throws Exception {
+        UUID practice = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,root_id,ordinal,stage,experience_version,blockage_kind,sub_branch,session_purpose)
+                VALUES (?,?,?,1,'conversing','three_layers_v1','표현','감정','concern')
+                """, practice, userId, practice);
+        Map<String, Object> body = profile();
+        body.put("birth_date", "2013-01-01");
+
+        var closed = save(body);
+
+        assertThat(closed.getStatus()).as(closed.getContentAsString()).isEqualTo(422);
+        assertThat(mapper.readTree(closed.getContentAsString()))
+                .isEqualTo(mapper.readTree("{\"detail\":\"under_14_account_closed\"}"));
+        assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, userId)).isEqualTo("deactivated");
+    }
+
+    @Test
     void accountProfile_memberFromBefore1_0_0WithPracticesWhoIsUnderFourteenIsClosedLikeAWithdrawal()
             throws Exception {
         jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'옛 닉네임')", userId);
