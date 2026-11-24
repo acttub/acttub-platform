@@ -283,6 +283,66 @@ class DirectVideoCoachTest {
         assertThat(result.reply().status()).isEqualTo("complete");
     }
 
+    /** 무료 코칭(SOMA-1131): 배우 답 7번 = 코치 응답 8번째에서 서버가 닫는다. 첫 코치 응답 뒤 배우 답이 n번이면 코치 응답은 n번 있다. */
+    CoachSessionSnapshot loopSessionAfter(int actorAnswers) {
+        var turns = new ArrayList<CoachTurnSnapshot>();
+        turns.add(new CoachTurnSnapshot("ai", "첫 질문"));
+        for (int i = 1; i < actorAnswers; i++) {
+            turns.add(new CoachTurnSnapshot("actor", "배우 답 " + i));
+            turns.add(new CoachTurnSnapshot("ai", "이전 코칭 " + i));
+        }
+        var loopState = CoachingStateReducer.empty();
+        loopState.putObject("practice_loop").put("design", "버릇: 말이 빠른 편이에요");
+        return session().withTurns(turns).withCoachingState("three_layers_v1", 0, loopState, "open", "");
+    }
+
+    CoachEngine freeLoopEngine(CoachFreeReplies free) {
+        return new CoachEngine(oldGenerator, failures, telemetry, java.util.Optional.of(new DirectVideoCoach(model, videos, storage, failures,
+                telemetry, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE).withFreeReplies(free)));
+    }
+
+    @Test void aFreeActorsSixthAnswerIsAnsweredWithAWrapUpAndTheConversationStaysOpen() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("다음 테이크에서는 끝 대사만 상대를 보고 해 봐요.");
+        var result = freeLoopEngine(userId -> 7).reply(loopSessionAfter(6), "배우 답 6", UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("continue");
+        var statuses = result.session().coachingState().path("practice_loop").path("statuses");
+        assertThat(DirectVideoPracticeLoop.action(LenientJson.asText(statuses.get(statuses.size() - 1), "")))
+                .as("배우 6번째 답(코치 응답 7번째)은 정리").startsWith(PracticeLoopRouter.WRAP_UP);
+    }
+
+    @Test void aFreeActorsSeventhAnswerGetsTheModelsClosingWrapUpAndClosesAtTheFreeLimit() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"ack\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("좋아요. 다음 테이크에서는 끝 대사만 상대를 보고 해 봐요.");
+        var result = freeLoopEngine(userId -> 7).reply(loopSessionAfter(7), "붙잡고 싶었던 것 같아요", UUID.randomUUID());
+        assertThat(result.session().closeReason()).as("무료 상한으로 닫힌다 → closeReason limit").isEqualTo("turn_budget");
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.reply().message()).as("코치 AI 없는 고정 마무리가 아니라 받아 주고 한 가지로 정리한 말")
+                .isNotEqualTo(DirectVideoCoach.fixedClosing(null, false)).contains("다음 테이크");
+    }
+
+    @Test void withoutAFreeLimitTheSeventhAnswerKeepsTheConversationOpen() {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("그 장면에서 무엇을 얻고 싶었어요?");
+        for (CoachFreeReplies plan : List.<CoachFreeReplies>of(CoachFreeReplies.NONE, userId -> 0)) {
+            var result = freeLoopEngine(plan).reply(loopSessionAfter(7), "붙잡고 싶었어요", UUID.randomUUID());
+            assertThat(result.session().closeReason()).as("Pro·유예·한도 꺼짐은 상한 24 그대로").isEmpty();
+            assertThat(result.reply().status()).isEqualTo("continue");
+        }
+    }
+
+    @Test void aFreeConversationClosesAtTheEighthCoachReplyAtTheServerTurnBudget() {
+        direct.withFreeReplies(userId -> 7);
+        var turns = new ArrayList<CoachTurnSnapshot>();
+        for (int i = 0; i < 6; i++) turns.add(new CoachTurnSnapshot("ai", "이전 코칭 " + i));
+        var sixth = engine.reply(session().withTurns(turns), "알겠어", UUID.randomUUID());
+        assertThat(sixth.session().closeReason()).as("코치 응답 7번째는 열려 있다").isEmpty();
+        turns.add(new CoachTurnSnapshot("ai", "이전 코칭 6"));
+        var seventh = engine.reply(session().withTurns(turns), "알겠어", UUID.randomUUID());
+        assertThat(seventh.session().closeReason()).as("코치 응답 8번째에서 서버 상한으로 닫힌다").isEqualTo("turn_budget");
+        assertThat(seventh.reply().status()).isEqualTo("complete");
+    }
+
     @Test void unavailableReplyDoesNotMutateHistoryAndCleansMedia() {
         var initial = session();
         when(model.reply(any(), anyList(), anyString())).thenThrow(new IllegalStateException("provider failed"));

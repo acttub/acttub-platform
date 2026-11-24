@@ -128,8 +128,9 @@ class ConversationController {
     @GetMapping("/conversations/{conversation_id}")
     ConversationResponse conversation(
             @PathVariable("conversation_id") UUID conversationId, HttpServletRequest request) {
-        var view = conversations.conversation(auth.gatedUser(request).id(), conversationId);
-        return ConversationResponse.of(view, ConversationService.replyLimit(view.experienceVersion()));
+        UUID userId = auth.gatedUser(request).id();
+        var view = conversations.conversation(userId, conversationId);
+        return ConversationResponse.of(view, conversations.replyLimit(userId, view.experienceVersion()));
     }
 
 }
