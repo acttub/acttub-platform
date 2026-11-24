@@ -109,6 +109,8 @@ JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
 
 Schema Entity는 스키마 검증과 런타임 영속화를 함께 맡는다. 자기 feature의 Adapter와 영속 내부
 repository만 Schema Entity를 사용할 수 있고, app·domain과 다른 feature에서는 접근하지 않는다.
+테이블마다 주인이 하나이고 주인만 그 테이블을 SQL·JPQL·Schema Entity로 읽고 쓴다. 주인 표와 지금 어긋난 곳은
+[ARCHITECTURE 「테이블 주인」](../../docs/ARCHITECTURE.md#테이블-주인)에 있다.
 
 **관계 매핑은 FK ID + 명시적 JOIN이 기본이다.** 같은 feature 안에서 같은 객체 탐색이 서로 다른
 운영 경로 둘 이상에 반복되고 명시적 JOIN보다 단순해지는 것이 증명된 경우에만 lazy 단방향 관계를
