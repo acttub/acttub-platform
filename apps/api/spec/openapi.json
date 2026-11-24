@@ -3442,26 +3442,6 @@
       }
     },
     "/v2/community/blocks" : {
-      "get" : {
-        "tags" : [ "v2-community" ],
-        "summary" : "List Blocks",
-        "operationId" : "list_blocks_v2_community_blocks_get",
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/BlockListResponse"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      },
       "post" : {
         "tags" : [ "v2-community" ],
         "summary" : "Block User",
@@ -4890,91 +4870,6 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/PostPayload"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/community/comments/{comment_id}" : {
-      "delete" : {
-        "tags" : [ "v2-community" ],
-        "summary" : "Delete Comment",
-        "operationId" : "delete_comment_v2_community_comments__comment_id__delete",
-        "parameters" : [ {
-          "name" : "comment_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Comment Id"
-          }
-        } ],
-        "responses" : {
-          "204" : {
-            "description" : "Successful Response"
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      },
-      "patch" : {
-        "tags" : [ "v2-community" ],
-        "summary" : "Update Comment",
-        "operationId" : "update_comment_v2_community_comments__comment_id__patch",
-        "parameters" : [ {
-          "name" : "comment_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Comment Id"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/CommentWriteRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CommentPayload"
                 }
               }
             }
@@ -6508,19 +6403,19 @@
         } ]
       }
     },
-    "/v2/community/blocks/{blocked_id}" : {
+    "/v2/community/comments/{comment_id}" : {
       "delete" : {
         "tags" : [ "v2-community" ],
-        "summary" : "Unblock User",
-        "operationId" : "unblock_user_v2_community_blocks__blocked_id__delete",
+        "summary" : "Delete Comment",
+        "operationId" : "delete_comment_v2_community_comments__comment_id__delete",
         "parameters" : [ {
-          "name" : "blocked_id",
+          "name" : "comment_id",
           "in" : "path",
           "required" : true,
           "schema" : {
             "type" : "string",
             "format" : "uuid",
-            "title" : "Blocked Id"
+            "title" : "Comment Id"
           }
         } ],
         "responses" : {
@@ -14200,42 +14095,6 @@
         },
         "required" : [ "description", "name", "slug" ],
         "title" : "CategoryPayload"
-      },
-      "BlockListResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "blocks" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/BlockPayload"
-            },
-            "title" : "Blocks"
-          }
-        },
-        "required" : [ "blocks" ],
-        "title" : "BlockListResponse"
-      },
-      "BlockPayload" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "user_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "User Id"
-          },
-          "nickname" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Nickname"
-          }
-        },
-        "required" : [ "nickname", "user_id" ],
-        "title" : "BlockPayload"
       },
       "ChallengeList" : {
         "type" : "object",

@@ -5,7 +5,8 @@
 [쓰는 법](../README.md)과 [공통 규칙](../common.md)을 먼저 읽는다.
 
 2026-09-17 계정 요구사항 검토에서 커뮤니티(게시판)를 0.1.0에서 뺐고, SOMA-873에서 서버 API를 되살렸다.
-경로와 JSON 칸 이름은 내리기 전(git `80932a582^`의 `feature/community`)과 같다. 앱의 탭과 화면 머리 제목은 "게시판"이다.
+내리기 전(git `80932a582^`의 `feature/community`)에 있던 경로와 JSON 칸 이름은 차단 목록·차단 풀기·댓글 고치기 세 주소를 빼고
+그대로 쓰고(아래 「규칙·제약」), 사진 주소와 그 칸은 되살린 뒤에 더했다. 앱의 탭과 화면 머리 제목은 "게시판"이다.
 
 ## 용어
 
@@ -22,10 +23,16 @@
   ([account.profile](../account/profile.md#규칙제약)). 별도 닉네임은 없다. 탈퇴하면 글·댓글 행은 남기고 작성자는
   [공통 규칙 「탈퇴·삭제」](../common.md#탈퇴삭제)대로 "탈퇴한 사용자"로 보인다. 탈퇴 화면 안내에 이 문장을 다시 넣는다.
 - 새 글·댓글은 실명(anonymous=false)이 기본이고 앱은 익명을 보내지 않는다. 옛 익명 행은 내리기 전처럼 "익명"·"글쓴이"·"익명N"으로 보인다.
-- 글·댓글의 제목·본문에 연락처(휴대전화 번호, 카톡·인스타·텔레그램 아이디, 오픈채팅·인스타 링크)가 있으면 쓰기·고치기가
-  422 `community_contact_info`로 거절된다. 판정은 보수적이다 — 평범한 문장이 막히지 않는 쪽을 택하고 전자우편은 보지 않는다.
+- 글의 제목·본문이나 댓글 본문에 연락처(휴대전화 번호, 카톡·인스타·텔레그램 아이디, 오픈채팅·인스타 링크)가 있으면 글 쓰기·고치기와
+  댓글 쓰기가 422 `community_contact_info`로 거절된다. 판정은 보수적이다 — 평범한 문장이 막히지 않는 쪽을 택하고 전자우편은 보지 않는다.
 - 차단은 사람 단위 `user_blocks`를 챌린지와 함께 쓴다(challenge.block, ADR-032). 어느 쪽이 걸었든 서로의 실명 글·댓글이
   보이지 않는다. 0.1.0 전의 `community_blocks`는 옮기지 않고 그대로 읽어 차단한 쪽에서만 가린다. 익명 행은 차단으로 가리지 않는다.
+- 게시판에서는 차단 걸기(`POST /v2/community/blocks`, `user_blocks`에 넣는다)만 하고, 차단 목록 보기와 풀기는 챌린지와 같은
+  `/v2/me/blocks`([challenge.block](../challenge/block.md))로 한다. 게시판의 차단 목록(`GET /v2/community/blocks`)·풀기
+  (`DELETE /v2/community/blocks/{blocked_id}`)는 앱·웹이 부르지 않아 SOMA-1126에서 지웠다. `/v2/me/blocks`는 `user_blocks`만
+  보여 주고 풀므로 0.1.0 전 `community_blocks` 행은 목록에 나오지 않고 풀 수도 없다.
+- 댓글은 고치지 않고 지운다(`DELETE /v2/community/comments/{comment_id}`). 댓글 고치기(`PATCH /v2/community/comments/{comment_id}`)는
+  앱·웹이 부르지 않아 SOMA-1126에서 지웠다.
 - 신고 사유는 챌린지와 같은 copyright·inappropriate·spam·duplicate·other이고, 옛 앱의 abuse·sexual·privacy도 받는다.
   자기 글·댓글 신고는 400 `cannot_report_own`, 같은 대상 재신고는 409 `already_reported`. 서로 다른 세 사람의 처리 전
   신고가 모이면 대상이 가려진다(`status: hidden`). 가려진 글·댓글은 남에게 보이지 않고 작성자에게만 `status: hidden`으로 보인다.
