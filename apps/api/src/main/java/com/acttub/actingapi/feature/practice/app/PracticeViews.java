@@ -20,6 +20,8 @@ public final class PracticeViews {
      * @param noteTitle 그 회차 노트의 제목. 없거나 record_only 면 {@code null}
      * @param posterKey 그 회차 영상의 포스터 객체 키. 아직 없거나 영상 파일을 파기했으면 {@code null}
      * @param posterUrl 포스터의 서명 주소. 저장소는 {@code null} 로 내고 서비스가 채운다
+     * @param videoDurationMs 그 회차 영상의 길이(밀리초, {@code videos.duration_ms}). 영상이 없거나 길이를 모르거나(0)
+     *                        옛 자료면 {@code null}
      */
     public record PracticeView(
             UUID id,
@@ -48,20 +50,21 @@ public final class PracticeViews {
             JobView job,
             List<PreviousConversation> previousConversations,
             // 코칭 세션 목적(SOMA-719). 목적 없이 시작한 회차·옛 자료는 null 이다.
-            String sessionPurpose) {
+            String sessionPurpose,
+            Integer videoDurationMs) {
 
         public PracticeView withPrevious(List<PreviousConversation> previous) {
             return new PracticeView(id, rootId, ordinal, videoId, posterKey, posterUrl, stage, closeReason,
                     experienceVersion, situation, characterContext, goal, blockageKind, subBranch, blockageNote,
                     createdAt, analysisStatus, conversationId, conversationStatus, conversationCount, noteId,
-                    noteTitle, noteKind, job, previous, sessionPurpose);
+                    noteTitle, noteKind, job, previous, sessionPurpose, videoDurationMs);
         }
 
         public PracticeView withPoster(String url) {
             return new PracticeView(id, rootId, ordinal, videoId, posterKey, url, stage, closeReason,
                     experienceVersion, situation, characterContext, goal, blockageKind, subBranch, blockageNote,
                     createdAt, analysisStatus, conversationId, conversationStatus, conversationCount, noteId,
-                    noteTitle, noteKind, job, previousConversations, sessionPurpose);
+                    noteTitle, noteKind, job, previousConversations, sessionPurpose, videoDurationMs);
         }
     }
 
@@ -87,6 +90,8 @@ public final class PracticeViews {
      *
      * @param title 첫 행의 제목. 없으면 화면이 마지막 회차 노트 제목 → 상황 문장 → "제목 없는 연습" 순으로 채운다
      * @param inProgressPracticeId 닫히지 않은 회차. 없으면 {@code null} — 409 뒤 복귀가 이 한 값으로 끝난다
+     * @param practicedCount 묶음에서 노트가 생긴 회차 수(「연습 1회」 기준, SOMA-773). 필터와 무관하게 묶음 전체를
+     *                       센다. 옛 자료 묶음은 {@code null}
      */
     public record GroupView(
             UUID rootId,
@@ -97,11 +102,12 @@ public final class PracticeViews {
             boolean favorite,
             Instant hiddenAt,
             UUID inProgressPracticeId,
-            List<PracticeView> practices) {
+            List<PracticeView> practices,
+            Integer practicedCount) {
 
         public GroupView withPractices(List<PracticeView> replaced) {
             return new GroupView(rootId, title, ordinalCount, lastConversationAt, tags, favorite, hiddenAt,
-                    inProgressPracticeId, replaced);
+                    inProgressPracticeId, replaced, practicedCount);
         }
     }
 

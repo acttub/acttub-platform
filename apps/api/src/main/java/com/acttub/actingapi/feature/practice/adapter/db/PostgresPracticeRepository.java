@@ -51,6 +51,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                    p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,p.session_purpose,
                    p.created_at,
                    CASE WHEN v.purged_at IS NULL THEN v.poster_key END AS poster_key,
+                   NULLIF(v.duration_ms,0) AS video_duration_ms,
                    a.status AS analysis_status,
                    c.id AS conversation_id,c.status AS conversation_status,
                    (SELECT count(*) FROM coach_messages m WHERE m.conversation_id=c.id) AS conversation_count,
@@ -339,6 +340,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                        p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,p.session_purpose,
                        p.created_at,
                        CASE WHEN v.purged_at IS NULL THEN v.poster_key END AS poster_key,
+                       NULLIF(v.duration_ms,0) AS video_duration_ms,
                        a.status AS analysis_status,
                        c.id AS conversation_id,c.status AS conversation_status,
                        (SELECT count(*) FROM coach_messages m WHERE m.conversation_id=c.id) AS conversation_count,
@@ -349,7 +351,12 @@ class PostgresPracticeRepository implements PracticeRepository {
                        (SELECT max(gc.updated_at)
                         FROM coach_conversations gc
                         JOIN practices gp ON gp.id=gc.practice_id
-                        WHERE gp.root_id=p.root_id) AS last_conversation_at
+                        WHERE gp.root_id=p.root_id) AS last_conversation_at,
+                       (SELECT count(DISTINCT gp.id)
+                        FROM practices gp
+                        JOIN coach_conversations gc ON gc.practice_id=gp.id
+                        JOIN coach_notes gn ON gn.conversation_id=gc.id
+                        WHERE gp.root_id=p.root_id) AS practiced_count
                 FROM practices p
                 JOIN practices root ON root.id=p.root_id
                 LEFT JOIN videos v ON v.id=p.video_id
@@ -382,6 +389,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                     first.get("group_tags", String.class),
                     first.get("group_favorite", Boolean.class),
                     first.get("group_hidden_at", Instant.class),
+                    ((Number) first.get("practiced_count")).intValue(),
                     rows));
         });
         return List.copyOf(groups);
@@ -472,7 +480,12 @@ class PostgresPracticeRepository implements PracticeRepository {
                        (SELECT max(gc.updated_at)
                         FROM coach_conversations gc
                         JOIN practices gp ON gp.id=gc.practice_id
-                        WHERE gp.root_id=:rootId) AS last_conversation_at
+                        WHERE gp.root_id=:rootId) AS last_conversation_at,
+                       (SELECT count(DISTINCT gp.id)
+                        FROM practices gp
+                        JOIN coach_conversations gc ON gc.practice_id=gp.id
+                        JOIN coach_notes gn ON gn.conversation_id=gc.id
+                        WHERE gp.root_id=:rootId) AS practiced_count
                 FROM practices WHERE id=:rootId
                 """, Tuple.class)
                 .setParameter("rootId", rootId));
@@ -484,12 +497,16 @@ class PostgresPracticeRepository implements PracticeRepository {
                 root.get("tags", String.class),
                 root.get("favorite", Boolean.class),
                 root.get("hidden_at", Instant.class),
+                ((Number) root.get("practiced_count")).intValue(),
                 rows);
     }
 
-    /** 묶음 속성과 그 회차 행들로 묶음 하나를 짓는다. 진행 중 회차는 닫히지 않은 첫 회차다. */
+    /**
+     * 묶음 속성과 그 회차 행들로 묶음 하나를 짓는다. 진행 중 회차는 닫히지 않은 첫 회차다. {@code practicedCount} 는 노트가
+     * 생긴 회차 수로, 필터가 회차를 걸러도 묶음 전체를 센다(SOMA-810).
+     */
     private static GroupView groupView(UUID rootId, String title, Instant lastConversationAt, String tags,
-                                       Boolean favorite, Instant hiddenAt, List<Tuple> rows) {
+                                       Boolean favorite, Instant hiddenAt, int practicedCount, List<Tuple> rows) {
         List<PracticeView> practices = rows.stream().map(PostgresPracticeRepository::view).toList();
         return new GroupView(
                 rootId,
@@ -500,7 +517,8 @@ class PostgresPracticeRepository implements PracticeRepository {
                 favorite,
                 hiddenAt,
                 practices.stream().filter(p -> !"closed".equals(p.stage())).map(PracticeView::id).findFirst().orElse(null),
-                practices);
+                practices,
+                practicedCount);
     }
 
     /** 같은 요청 id 가 이미 만든 회차. 지문이 다르면 {@link StartOutcome#FINGERPRINT_MISMATCH}. */
@@ -727,6 +745,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                                 row.get("attempt_count", Integer.class)),
                 // 새 표는 회차당 대화 하나다 — 이전 대화는 옛 자료를 읽는 호환 경로에서만 나온다.
                 List.of(),
-                row.get("session_purpose", String.class));
+                row.get("session_purpose", String.class),
+                row.get("video_duration_ms", Integer.class));
     }
 }

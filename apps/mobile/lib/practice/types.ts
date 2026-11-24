@@ -107,6 +107,8 @@ export type PracticeResponse = Practice & {
   previous_conversations: PreviousConversation[];
   /** 그 회차 영상의 첫 장면 사진(서명 주소, 10분). 서버가 만들기 전이거나 옛 서버면 없다(SOMA-671). */
   poster_url?: string | null;
+  /** 그 회차 영상의 길이(밀리초). 서버 스위치가 꺼져 있으면 없고, 영상이 없거나 길이를 모르면 null이다(SOMA-810). */
+  video_duration_ms?: number | null;
 };
 
 export type PracticeGroupResponse = {
@@ -119,6 +121,10 @@ export type PracticeGroupResponse = {
   hidden_at: string | null;
   in_progress_practice_id: string | null;
   practices: PracticeResponse[];
+  /** 이 장면에서 노트가 생긴 회차 수(「n/3번 해 봤어요」의 n). 서버 스위치가 꺼져 있으면 없고, 옛 자료면 null이다(SOMA-810). */
+  practice_count?: number | null;
+  /** 장면마다 권하는 연습 횟수(지금 3). 서버 스위치가 꺼져 있으면 없다(SOMA-810). */
+  practice_goal?: number;
 };
 
 /** 묶음 목록의 한 줄. 진행 중 회차 id로 복귀시킨다(409의 본문은 코드뿐이다). */

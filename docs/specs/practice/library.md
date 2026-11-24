@@ -18,7 +18,7 @@
 | `PATCH /v2/videos/{video_id}` | 필수 `favorite` (`VideoPatch`) | `Video` 200 | `video_not_found` 404 |
 | `DELETE /v2/videos/{video_id}` | video_id | 204 | `video_in_use` 422, `video_not_found` 404 |
 | `POST /v2/videos/{video_id}/purge-file` | video_id | `Video` 200(이미 파기됐어도 200) | `video_not_found` 404 |
-| `GET /v2/practices` | `filter`(all·favorite·recent30) | `PracticeGroupList` 200(묶음마다 회차 요약·진행 중 회차 id, 회차마다 `poster_url`) | 필터 값 오류 422(배열) |
+| `GET /v2/practices` | `filter`(all·favorite·recent30) | `PracticeGroupList` 200(묶음마다 회차 요약·진행 중 회차 id, 회차마다 `poster_url`. 스위치를 켜면 진행 값, 「규칙·제약」의 코칭 탭) | 필터 값 오류 422(배열) |
 | `GET /v2/practices/{practice_id}` | practice_id | `Practice` 200(`poster_url` 포함) | `practice_not_found` 404 |
 | `PATCH /v2/practices/{root_id}/group` | 첫 회차 id, `favorite`·`hidden`·`title` 중 보낸 것만 (`PracticeGroupPatch`) | `PracticeGroup` 200 | `practice_not_found` 404 |
 | `DELETE /v2/practices/{root_id}/group` | 첫 회차 id | 204(연습 삭제, SOMA-985) | `practice_not_found` 404(없음·남의 것·이미 지움), `member_only` 403(게스트) |
@@ -99,6 +99,11 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
 - 코칭 탭(연습 뒤)의 「저번 코치 메모」는 노트가 있는 가장 최근 묶음, 「최근 코칭」은 숨기지 않은 묶음 2개다. 타일은 「새 영상으로
   코칭 받기」와 「다른 방법으로 코칭 받기」 둘이고 묶음 수를 적지 않는다. 지난 코칭은 「최근 코칭」 머리의 「상세보기」로 본다.
   디자인의 「n/3번 해 봤어요」·줄 태그(감정 기억·해결)·영상 길이는 서버 값이 없어 보이지 않는다.
+- 코칭 탭 진행 값(SOMA-810)은 서버 설정 `ACTTUB_COACHING_TAB_PROGRESS_ENABLED`(기본 꺼짐)가 켜졌을 때만 싣는다. 꺼져 있으면 아래
+  키가 응답에 아예 없다. 켜면 `PracticeGroup`에 `practice_count`(그 묶음에서 노트가 생긴 회차 수, 「연습 1회」 기준과 같다. 필터가
+  회차를 걸러도 묶음 전체를 센다. 옛 표에만 있는 묶음은 null)와 `practice_goal`(3)을, `Practice`(묶음 목록·묶음 수정·회차 상세·시작·
+  이어하기·재시도 응답)에 `video_duration_ms`(그 회차 영상의 길이. 영상이 없거나 길이를 모르거나 옛 표의 회차면 null)를 싣는다. 화면은
+  null인 칸을 숨긴다. 줄 태그(감정 기억·해결)는 저장된 값이 없어 싣지 않는다.
 - 웹 보관함은 `/library`(목록)와 `/library/<영상 id>`(상세)이고 연습 화면에서 들어간다.
 - 게스트도 웹에서 보관함·기록을 본다. 이관 뒤 회원 앱에 같은 것이 보인다.
 
