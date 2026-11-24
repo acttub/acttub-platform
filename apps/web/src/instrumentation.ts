@@ -15,7 +15,16 @@ export async function register() {
   // edge 런타임은 쓰지 않는다 — middleware도 Route Handler도 두지 않기 때문이다.
   // 나중에 생기면 여기에 'edge' 분기를 더한다.
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    Sentry.init(sentryBaseOptions);
+    Sentry.init({
+      ...sentryBaseOptions,
+      integrations: [
+        // 요청 세션 집계를 끈다. 에러만 보므로 쓰지 않는데, 응답마다 close 리스너를 하나 붙인다. Next 의
+        // rewrites 프록시가 응답 하나에 이미 9개를 붙여서, 이것까지 붙으면 Node 기본 한도 10을 넘어 프록시
+        // 요청마다 MaxListenersExceededWarning 이 찍혔다(SOMA-1109). 들어오는 요청 span 을 끄는 것은
+        // @sentry/nextjs 가 기본으로 넣는 Http 통합과 같은 값이다. 이 통합이 그 기본을 대신한다.
+        Sentry.httpIntegration({ trackIncomingRequestsAsSessions: false, disableIncomingRequestSpans: true }),
+      ],
+    });
   }
 }
 
