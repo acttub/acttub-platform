@@ -2404,6 +2404,8 @@ export default function ReadingPlay() {
         </Pressable>
         {paused ? (
           <>
+            {/* 일시정지를 누른 자리에는 「이어서」가 온다 — 「그만하기」가 그 자리에 오면 잘못 눌러 끝내기 쉬웠다(SOMA-1119). */}
+            <Button key="resume" style={styles.ctrl} onPress={doResume} label={t('reading.resume')} icon={<Feather name="play" size={16} color={palette.onAccent} />} />
             <Button
               key="stop"
               variant="secondary"
@@ -2413,7 +2415,6 @@ export default function ReadingPlay() {
               icon={<Feather name="square" size={16} color={palette.textSub} />}
               phLabel="reading_play_stop"
             />
-            <Button key="resume" style={styles.ctrl} onPress={doResume} label={t('reading.resume')} icon={<Feather name="play" size={16} color={palette.onAccent} />} />
           </>
         ) : (
           <>
