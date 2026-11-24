@@ -339,15 +339,6 @@ final class PracticeLoopRouter {
         return route(new Classified(kind, false, "code"), b, stayed);
     }
 
-    /**
-     * 흐름(SOMA-636 A/B)을 따르는 할 일. B는 "스스로 찾기"를 건너뛴다 — 코치가 본 것을 말한 다음(어긋남 보기 자리)
-     * 배우가 받으면 바로 정리에서 코치가 행동 하나를 제안한다. 물음·정정·반박·제안 같은 나머지 표는 A와 같다.
-     */
-    static String route(Classified c, Before b, int stayed, String flow) {
-        String doing = route(c, b, stayed);
-        return CoachFlows.B.equals(flow) && FIND.equals(doing) ? WRAP_UP : doing;
-    }
-
     /** 묻는 할 일 — 맞춤 코칭의 질문 수 상한이 세는 것. 물음·정정에 답하는 말(답하기·내려놓기)은 세지도 막지도 않는다. */
     static final java.util.Set<String> ASKING = java.util.Set.of(WANT, GAP, FIND, EASY, "다시 묻기", PROPOSE, POINT_OUT_OTHER);
 
@@ -357,8 +348,8 @@ final class PracticeLoopRouter {
      *
      * @param asked 지금까지 코치가 물은 수(첫 질문 포함, {@link #questionsAsked})
      */
-    static String route(Classified c, Before b, int stayed, String flow, Integer maxQuestions, int asked) {
-        String doing = route(c, b, stayed, flow);
+    static String route(Classified c, Before b, int stayed, Integer maxQuestions, int asked) {
+        String doing = route(c, b, stayed);
         if (maxQuestions == null || asked < maxQuestions || !ASKING.contains(doing)) return doing;
         return WRAP_UP;
     }
@@ -545,15 +536,6 @@ final class PracticeLoopRouter {
     /** 단계 이름과 이번 목표. [이번 응답]의 "지금 단계"에 실린다. */
     /** 배우가 단계 질문을 다르게 알아들었을 때. 같은 단계를 다른 말로 다시 묻는다. */
     static final String REASK = "다시 묻기";
-
-    /** 흐름을 따르는 단계 줄. B는 어긋남 보기 자리에서 코치가 본 것을 먼저 말하고, 스스로 찾기 없이 정리로 간다. */
-    static String stageLine(String doing, Before b, String flow) {
-        String line = stageLine(doing, b);
-        if (!CoachFlows.B.equals(flow)) return line;
-        if (line.startsWith("2/4 ")) return "2/4 코치가 본 것 — 근본 문제를 대사 두 곳과 이유로 코치가 먼저 말한다. 해결책은 아직 말하지 않는다";
-        if (line.startsWith("4/4 ")) return "4/4 정리 — 배우가 말한 바람을 얻을 행동 하나를 코치가 제안해 확정한다";
-        return line;
-    }
 
     static String stageLine(String doing, Before b) {
         int target = switch (doing) {

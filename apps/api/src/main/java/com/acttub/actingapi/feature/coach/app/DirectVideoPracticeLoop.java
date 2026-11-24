@@ -586,24 +586,10 @@ final class DirectVideoPracticeLoop {
         if (LenientJson.asText(loop.path("persona"), "").isEmpty()) loop.put("persona", persona);
     }
 
-    /** 이 대화의 코치 흐름(SOMA-636 A/B). "a"는 지금 흐름, "b"는 세 단계 흐름. 없으면 빈 문자열(배포 전 대화). */
-    static String storedFlow(JsonNode state) {
-        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("flow"), "");
-    }
-
+    /** 이 대화의 코치 흐름(SOMA-636 A/B, A로 끝남). 관리자 지표의 {@code coach_flow} 칸이 읽는다. 이미 있으면 그대로 둔다. */
     static void rememberFlow(ObjectNode state, String flow) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
         if (LenientJson.asText(loop.path("flow"), "").isEmpty()) loop.put("flow", flow);
-    }
-
-    /** 이 대화의 첫 말 쪽(첫 코칭 첫 말 A/B). "a"는 질문 한 줄, "b"는 본 것과 다음 테이크를 먼저. 없으면 빈 문자열(배포 전 대화). */
-    static String storedOpening(JsonNode state) {
-        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("opening"), "");
-    }
-
-    static void rememberOpening(ObjectNode state, String opening) {
-        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (LenientJson.asText(loop.path("opening"), "").isEmpty()) loop.put("opening", opening);
     }
 
     /** 이 대화의 "이미 그렇게 했다" 처리 쪽(SOMA-855). "on"은 실험, "off"는 대조. 없으면 빈 문자열(배포 전 대화). */

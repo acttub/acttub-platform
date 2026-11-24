@@ -48,7 +48,7 @@ class DirectVideoCoachLetGoTest {
 
     DirectVideoCoach coach(boolean letGoWithoutVideo) {
         return new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0,
-                CoachFlows.NONE, CoachVideoCache.NONE, letGoWithoutVideo);
+                CoachVideoCache.NONE, letGoWithoutVideo);
     }
 
     CoachSessionSnapshot session() {

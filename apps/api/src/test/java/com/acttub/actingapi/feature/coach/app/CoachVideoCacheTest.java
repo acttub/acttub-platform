@@ -57,13 +57,13 @@ class CoachVideoCacheTest {
 
     CoachEngine engine(CoachVideoCache cache) {
         var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, false, CoachPersonas.NONE,
-                null, 0, CoachFlows.NONE, cache);
+                null, 0, cache);
         return new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(direct));
     }
 
     CoachEngine loopEngine(CoachVideoCache cache) {
         var direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE,
-                null, 0, CoachFlows.NONE, cache);
+                null, 0, cache);
         return new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(direct));
     }
 

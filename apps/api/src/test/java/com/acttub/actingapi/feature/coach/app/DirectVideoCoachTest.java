@@ -1678,8 +1678,7 @@ class DirectVideoCoachTest {
         var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰\n  \"됐어\" — 본 것: 정면을 본다", 100, failures);
         try {
             var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
-                    model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachFlows.NONE,
-                    CoachVideoCache.NONE, true, true, layer)));
+                    model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, true, true, layer)));
             when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
             when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"됐어\"에서 정면을 봐요. 누구한테 하는 말이에요?");
             var start = session();
@@ -1706,8 +1705,7 @@ class DirectVideoCoachTest {
         var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰", 100, failures);
         try {
             var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
-                    model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachFlows.NONE,
-                    CoachVideoCache.NONE, true, true, layer)));
+                    model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, true, true, layer)));
             when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
             var first = loopEngine.start(session(), UUID.randomUUID());
             assertThat(LenientJson.asText(first.session().coachingState().path("layer1").path("arm"))).isEqualTo("on");
@@ -1724,8 +1722,7 @@ class DirectVideoCoachTest {
     @Test void offArmGetsNoLayerOneBlock() {
         var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰", 0, failures);
         var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
-                model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachFlows.NONE,
-                CoachVideoCache.NONE, true, true, layer)));
+                model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, true, true, layer)));
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(session(), UUID.randomUUID());
         assertThat(LenientJson.asText(first.session().coachingState().path("layer1").path("arm"))).isEqualTo("off");

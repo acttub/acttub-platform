@@ -19,8 +19,8 @@ class DirectVideoPromptsLanguageTest {
         assertThat(DirectVideoPrompts.practiceLoop(practice, Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
         assertThat(DirectVideoPrompts.practiceLoopTurn(Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoopTurn());
         assertThat(DirectVideoPrompts.practiceLoopShorten(Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoopShorten(null));
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, Locale.KOREAN, CoachFlows.B))
-                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.B));
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, Locale.KOREAN))
+                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null));
         assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, Locale.KOREAN))
                 .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.WANT, null));
         assertThat(DirectVideoPrompts.persona("b1", Locale.KOREAN)).isEqualTo(DirectVideoPrompts.persona("b1", null));
@@ -29,11 +29,8 @@ class DirectVideoPromptsLanguageTest {
     @Test void otherLanguagesGetTheirOwnTextOrALanguageDirective() {
         assertThat(DirectVideoPrompts.practiceLoopShorten(Locale.JAPANESE))
                 .isEqualTo(DirectVideoPrompts.practiceLoopShorten(null) + OutputLanguage.directiveFor(Locale.JAPANESE));
-        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, Locale.ENGLISH, CoachFlows.B))
-                .isNotEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.B));
-        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, Locale.KOREAN)).startsWith("\n\n").hasSizeGreaterThan(10);
-        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, Locale.ENGLISH)).isEmpty();
-        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.A, null)).isEmpty();
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, Locale.ENGLISH))
+                .isNotEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null));
     }
 
     @Test void theRootPathIsPickedByNumberOrNameAndUnknownValuesGetNothing() {

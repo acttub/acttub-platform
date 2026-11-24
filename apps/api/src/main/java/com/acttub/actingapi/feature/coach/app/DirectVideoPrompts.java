@@ -126,13 +126,12 @@ final class DirectVideoPrompts {
         return evidence && korean ? resource("evidence/practice-loop-turn") : practiceLoopTurn(language);
     }
 
-    /** 실험 쪽(SOMA-955) 한국어 대화의 답하기·어긋남 보기·짚어주기·정리하기는 {@code evidence/tasks/ko}를 쓴다. B 흐름의 tell 은 그대로다. */
-    static String practiceLoopTask(String doing, java.util.Locale language, String flow, boolean evidence) {
+    /** 실험 쪽(SOMA-955) 한국어 대화의 답하기·어긋남 보기·짚어주기·정리하기는 {@code evidence/tasks/ko}를 쓴다. */
+    static String practiceLoopTask(String doing, java.util.Locale language, boolean evidence) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
         String id = TASK_FILES.get(doing);
-        boolean tell = CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(doing);
-        if (evidence && korean && !tell && id != null && EVIDENCE_TASKS.contains(id)) return resource("evidence/tasks/ko/" + id);
-        return practiceLoopTask(doing, language, flow);
+        if (evidence && korean && id != null && EVIDENCE_TASKS.contains(id)) return resource("evidence/tasks/ko/" + id);
+        return practiceLoopTask(doing, language);
     }
 
     /** 답할 말에 맞는 둘째 응답부터의 공통 지시. 말을 고르는 규칙은 {@link #practiceLoop(UUID, java.util.Locale)}와 같다. */
@@ -183,24 +182,6 @@ final class DirectVideoPrompts {
         return "";
     }
 
-    /**
-     * 흐름(SOMA-636 A/B)을 따르는 할 일 파일. B의 어긋남 보기는 질문으로 떠보지 않고 코치가 본 것을 말하는 {@code tell}이다.
-     * 그 밖의 할 일은 A와 같은 파일이다.
-     */
-    static String practiceLoopTask(String doing, java.util.Locale language, String flow) {
-        if (CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(doing)) {
-            boolean korean = language == null || "ko".equals(language.getLanguage());
-            return resource("tasks/" + (korean ? "ko" : "en") + "/tell");
-        }
-        return practiceLoopTask(doing, language);
-    }
-
-    /** 첫 코칭 첫 말 B의 첫 응답 지시. 한국어 B 대화의 첫 응답 시스템 프롬프트 맨 끝에 붙는다. */
-    static String openingBlock(String opening, java.util.Locale language) {
-        boolean korean = language == null || "ko".equals(language.getLanguage());
-        return CoachOpenings.B.equals(opening) && korean ? "\n\n" + resource("openings/b") : "";
-    }
-
     /** 이 장면에서 배우가 아니라고 한 진단이 이만큼 쌓이면 첫 응답에서 그 진단을 피하라고 맨 끝에 붙인다. */
     static final int REJECTED_MIN = 2;
 
@@ -227,18 +208,6 @@ final class DirectVideoPrompts {
         StringBuilder list = new StringBuilder();
         keys.stream().limit(6).forEach(k -> list.append("- ").append(k).append('\n'));
         return "\n\n" + resource("openings/rejected").replace("{{count}}", String.valueOf(count)).replace("{{list}}", list.toString().strip());
-    }
-
-    /** 첫 코칭 첫 말 B 대화의 둘째 응답부터의 지시. 연습 루프 턴 조립 맨 끝에 붙는다. */
-    static String openingTurnBlock(String opening, java.util.Locale language) {
-        boolean korean = language == null || "ko".equals(language.getLanguage());
-        return CoachOpenings.B.equals(opening) && korean ? "\n\n" + resource("openings/b-turn") : "";
-    }
-
-    /** B 흐름에서 [이번 응답] 끝에 붙는 흐름 안내. 공통 지시의 네 단계 순서 대신 세 단계를 따르게 한다. 한국어 대화에만 붙는다. */
-    static String flowBlock(String flow, java.util.Locale language) {
-        boolean korean = language == null || "ko".equals(language.getLanguage());
-        return CoachFlows.B.equals(flow) && korean ? "\n\n" + resource("flows/b") : "";
     }
 
     static String practiceLoopTask(String doing, java.util.Locale language) {

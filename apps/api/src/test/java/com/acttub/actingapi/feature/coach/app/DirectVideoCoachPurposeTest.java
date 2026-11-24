@@ -105,7 +105,7 @@ class DirectVideoCoachPurposeTest {
                 .containsExactly("감정이 안 따라와요", "대사가 입에 안 붙어요", "뭘 원하는지 모르겠어요", "잘 모르겠어요");
         assertThat(view.lines()).extracting(PurposeView.Line::at).containsExactly(3, 12);
         assertThat(view.scene().situation()).isEqualTo("헤어지자는 말을 들은 밤");
-        assertThat(DirectVideoPracticeLoop.storedFlow(result.session().coachingState())).as("흐름 A/B에 넣지 않는다").isEmpty();
+        assertThat(result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).has("flow")).as("흐름 값을 남기지 않는다").isFalse();
         assertThat(DirectVideoPracticeLoop.storedCoachModel(result.session().coachingState())).as("모델 A/B에 넣지 않는다").isEmpty();
     }
 

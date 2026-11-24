@@ -151,7 +151,7 @@ class DirectVideoCoachPathsTest {
         when(model.ready(third)).thenReturn(true);
         when(model.reply(any(), anyList(), anyString())).thenReturn(OPENING, "그 마음이 먼저였군요. 어디서 커요?", "그 장면에서 누구를 봐요?");
         var cache = new CoachVideoCache(model, Duration.ofMinutes(10), new MutableClock(Instant.parse("2026-10-20T00:00:00Z")), failures);
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachFlows.NONE, cache);
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, cache);
         var first = coach.turn(fresh(), null, UUID.randomUUID());
         var answered = coach.turn(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
         assertThat(coachCall().metadata()).containsEntry("video_reused", "false");
@@ -191,13 +191,13 @@ class DirectVideoCoachPathsTest {
         assertThat(failures.reports()).singleElement().satisfies(report -> assertThat(report.failure()).hasMessage("quota exceeded"));
     }
 
-    @Test void failedAssignmentsFallBackToTheDefaultFlowAndNoPersona() {
-        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, session -> null, null, 0,
-                session -> { throw new IllegalStateException("assignment table down"); });
+    @Test void aMissingPersonaAssignmentLeavesNoPersonaAndTheFlowIsA() {
+        var coach = new DirectVideoCoach(model, videos, storage, failures, telemetry, true, session -> null, null, 0);
         var result = coach.turn(fresh(), null, UUID.randomUUID());
-        assertThat(DirectVideoPracticeLoop.storedFlow(result.session().coachingState())).isEqualTo("a");
+        // 흐름 비교(SOMA-636)는 A 로 끝났지만 관리자 지표의 coach_flow 가 읽으므로 새 대화에 "a"를 남긴다.
+        assertThat(LenientJson.asText(result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("flow"))).isEqualTo("a");
         assertThat(DirectVideoPracticeLoop.storedPersona(result.session().coachingState())).isEmpty();
-        assertThat(failures.contexts()).singleElement().asString().startsWith("DirectVideoCoach.flow ");
+        assertThat(failures.contexts()).isEmpty();
     }
 
     @Test void anEnglishActorWhoStopsGetsTheEnglishClosingWithoutAModelCall() {

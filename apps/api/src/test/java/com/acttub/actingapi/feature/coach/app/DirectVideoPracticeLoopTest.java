@@ -103,12 +103,11 @@ class DirectVideoPracticeLoopTest {
         DirectVideoPracticeLoop.markInputIssue(state, "silent");
         DirectVideoPracticeLoop.markNotActing(state, "뉴스");
         assertThat(DirectVideoPracticeLoop.storedPersona(state)).isEqualTo("b1");
-        assertThat(DirectVideoPracticeLoop.storedFlow(state)).isEqualTo("b");
+        assertThat(LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("flow"))).isEqualTo("b");
         assertThat(DirectVideoPracticeLoop.storedCoachModel(state)).isEqualTo("b");
         assertThat(DirectVideoPracticeLoop.wasCut(state)).isTrue();
         assertThat(LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("input_issue"))).isEqualTo("silent");
         assertThat(DirectVideoPracticeLoop.storedPersona(null)).isEmpty();
-        assertThat(DirectVideoPracticeLoop.storedFlow(null)).isEmpty();
         assertThat(DirectVideoPracticeLoop.storedCoachModel(null)).isEmpty();
         ObjectNode issueOnly = StructuredJson.MAPPER.createObjectNode();
         DirectVideoPracticeLoop.markInputIssue(issueOnly, "silent");
@@ -121,7 +120,7 @@ class DirectVideoPracticeLoopTest {
         ObjectNode flowOnly = StructuredJson.MAPPER.createObjectNode();
         DirectVideoPracticeLoop.rememberFlow(flowOnly, "a");
         assertThat(DirectVideoPracticeLoop.storedCoachModel(modelOnly)).isEqualTo("a");
-        assertThat(DirectVideoPracticeLoop.storedFlow(flowOnly)).isEqualTo("a");
+        assertThat(LenientJson.asText(flowOnly.path(DirectVideoPracticeLoop.STATE_KEY).path("flow"))).isEqualTo("a");
     }
 
     @Test void onlySessionsStartedAsALoopContinueAsOne() {

@@ -52,7 +52,7 @@ class DirectVideoCoachFollowUpThinkingTest {
 
     DirectVideoCoach coach(boolean followUpMinimal) {
         return new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0,
-                CoachFlows.NONE, CoachVideoCache.NONE, true, followUpMinimal);
+                CoachVideoCache.NONE, true, followUpMinimal);
     }
 
     @Test void aFollowUpReplyAsksForMinimalThinking() {
