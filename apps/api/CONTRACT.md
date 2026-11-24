@@ -80,6 +80,8 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
+- `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 값을 보관하지 않고 지운다. DROP 마이그레이션은 매핑을
+  내린 코드가 운영에 나간 다음 릴리스에 넣는다 — 직전 API 의 `ddl-auto: validate`가 두 칸을 요구하기 때문이다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.

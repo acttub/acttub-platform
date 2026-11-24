@@ -37,12 +37,6 @@ public class VideoEntity extends AppGeneratedUuidEntity {
     @Column(name = "duration_ms", nullable = false)
     private int durationMs;
 
-    @Column(name = "width")
-    private Integer width;
-
-    @Column(name = "height")
-    private Integer height;
-
     @Column(name = "favorite", nullable = false)
     private boolean favorite;
 
@@ -91,14 +85,6 @@ public class VideoEntity extends AppGeneratedUuidEntity {
 
     public int durationMs() {
         return durationMs;
-    }
-
-    public Integer width() {
-        return width;
-    }
-
-    public Integer height() {
-        return height;
     }
 
     public boolean favorite() {
