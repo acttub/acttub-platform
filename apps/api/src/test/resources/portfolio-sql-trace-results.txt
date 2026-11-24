@@ -1,0 +1,25 @@
+find(빈 포트폴리오) → intro=null credits=[] photos=[] share=Share[enabled=false, slug=null]
+saveIntro → ok
+addCredit(첫째) → Credit[id=<생성 id>, title=햄릿, role=햄릿, year=2024, kind=play]
+addCredit(둘째) → Credit[id=<생성 id>, title=갈매기, role=트레플료프, year=2025, kind=film]
+updateCredit(제목만) → Credit[id=<생성 id>, title=햄릿(재공연), role=햄릿, year=2024, kind=play]
+updateCredit(없는 id) → null
+orderCredits → true
+orderCredits(목록이 다름) → false
+deleteCredit → true
+deleteCredit(두 번째) → false
+beginPhoto(시한 지난 올리기를 치움) → true
+completePhoto → ok
+beginPhoto(상한) → false
+beginPhoto → true
+completePhoto(둘째) → ok
+photo → PendingPhoto[id=00000000-0000-0000-0000-00000000bb01, objectKey=portfolio/p1, mimeType=image/jpeg, sizeBytes=1000, expiresAt=2026-11-24T03:10:00Z, uploaded=true]
+orderPhotos → true
+deletePhoto → 1
+deletePhoto(없음) → null
+share(켬) → Share[enabled=true, slug=slug-trace]
+share(끔) → Share[enabled=false, slug=slug-trace]
+sharedOwner(꺼짐) → null
+share(다시 켬) → Share[enabled=true, slug=slug-trace]
+sharedOwner → 00000000-0000-0000-0000-00000000aa01
+find(채운 포트폴리오) → intro=소개 credits=[햄릿(재공연)/햄릿/2024/play] photos=[portfolio/p1] share=Share[enabled=true, slug=slug-trace]
