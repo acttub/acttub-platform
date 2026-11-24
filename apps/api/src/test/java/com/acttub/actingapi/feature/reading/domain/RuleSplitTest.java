@@ -1348,4 +1348,111 @@ class RuleSplitTest {
         assertThat(label(result, 2)).isEqualTo("IGNORE");
         assertThat(label(result, 3)).isEqualTo("세찬");
     }
+
+    // ── 머리 모양·번호 배역·끝부분 ─────────────────────────
+
+    @Test
+    void firstWordsOutsideTheDominantHeadShapeDoNotBecomeNames() {
+        // 대사는 「한 칸 들여 이름 + 두 칸」, 이어지는 대사는 세 칸 들여, 지문은 들여쓰기 없이
+        RuleSplit.Result result = full("""
+                 민지  저 아직 음식 못 받았는데요?!
+                 수아  나도 못 받았어.
+                 민지  누가 먼저 먹은 거야?
+                 수아  모르지.
+                 민지  우리 중에.. 진짜 AI가 있긴 할까요?
+                   빨리 이 모든 게 끝났으면 좋겠어요.
+                 수아  나도 그래.
+
+                쓰러진 민지를 내려다본다.
+
+                 수아  일어나 봐.
+                   빨리 일어나.
+                 민지  (눈을 뜨며) 왜.
+                 수아  다행이다.
+
+                쓰러진 의자를 일으켜 세운다.
+
+                 민지  이제 가자.
+                   빨리 가자.""");
+
+        assertThat(result.roster()).containsExactly("민지", "수아");
+        assertThat(label(result, 6)).isEqualTo("민지");
+        assertThat(label(result, 9)).isEqualTo("DIRECTION");
+        assertThat(label(result, 12)).isEqualTo("수아");
+        assertThat(label(result, 16)).isEqualTo("DIRECTION");
+        assertThat(label(result, 19)).isEqualTo("민지");
+    }
+
+    @Test
+    void numberedRolesOfAConfirmedFamilyAreNamesEvenOnce() {
+        RuleSplit.Result result = full("""
+                 수아  여기가 어디야?
+                 민지  모르겠어.
+                 참가자 9  내가 진짜 AI라고 생각하는 거예요?
+                 참가자 13 계속 거짓말만 했잖아.
+                 참가자 12 맞아. 앞뒤가 맞아야 믿지!
+                 참가자 9  아니 기억이 안 났다니까?!
+                 수아  다들 그만해요.
+                 진행자  판별을 진행하겠습니다.
+                 참가자 12 난 반대야.
+                 참가자 13 나도.
+                 민지  나는 찬성.
+                 진행자  동의하십니까?
+                 수아  잠깐만요.
+                 참가자 7 누가 목숨 걸고 실험하고 싶다고 했어.
+                 진행요원 1 물러나십시오.
+                 진행자  계속하겠습니다.
+                 민지  무서워.
+                 수아  괜찮아.
+                 진행요원 2 식사는 인간의 수만큼만 준비됩니다.
+                 민지  배고파.
+                 수아  나도.
+                 참가자 11 난 나갑니다.
+                 진행자  좋습니다.
+                 민지  나도 나갈래.
+                 수아  같이 가.""");
+
+        assertThat(result.roster()).contains("참가자 7", "참가자 11", "진행요원 1", "진행요원 2")
+                .doesNotContain("참가자", "진행요원");
+        assertThat(label(result, 14)).isEqualTo("참가자 7");
+        assertThat(label(result, 15)).isEqualTo("진행요원 1");
+        assertThat(label(result, 19)).isEqualTo("진행요원 2");
+        assertThat(label(result, 22)).isEqualTo("참가자 11");
+    }
+
+    @Test
+    void aColonLineAfterTheLastSpeechIsWorkInfoNotARole() {
+        RuleSplit.Result result = full("""
+                민지 저 아직 음식 못 받았는데요?
+                수아 나도 못 받았어.
+                민지 누가 먼저 먹은 거야?
+                수아 모르지.
+                민지 이제 끝났으면 좋겠어.
+                수아 나도 그래.
+
+                분류 : 인공지능 (AI)
+                외부 배치 승인""");
+
+        assertThat(result.roster()).containsExactly("민지", "수아");
+        assertThat(label(result, 6)).isEqualTo("수아");
+        assertThat(label(result, 8)).isEqualTo("IGNORE");
+        assertThat(label(result, 9)).isEqualTo("IGNORE");
+    }
+
+    @Test
+    void scriptsWrittenWithOneSpaceAfterTheNameKeepTheirNames() {
+        RuleSplit.Result result = full("""
+                민수 안녕.
+                지영 응 안녕.
+                민수  밥 먹었어?
+                지영 아니 아직.
+                민수 같이 먹자.
+                지영 좋아.
+                하준 나도 갈래.
+                민수 그래 같이 가.
+                하준 고마워.""");
+
+        assertThat(result.roster()).containsExactly("민수", "지영", "하준");
+        assertThat(label(result, 7)).isEqualTo("하준");
+    }
 }
