@@ -1581,4 +1581,21 @@ class JpqlShapeProbeIT {
         lab.note(probe, "JSON 값으로 견줌: " + (sameJson ? "같음" : "다름") + " — 네이티브 " + nativeDoc + " / HQL " + agg.observed());
         assertThat(sameJson).isTrue();
     }
+
+    @Test
+    void p45CurrentTimestampRendering() {
+        var probe = lab.probe("P45", "JPQL CURRENT_TIMESTAMP 와 now()", "PostgresPortfolioRepository#saveIntro 의 updated_at=now() (표본)",
+                "UPDATE portfolios SET intro=CAST(:intro AS text),updated_at=now() WHERE user_id=:userId");
+        for (String zone : List.of("UTC", "America/New_York", "Asia/Seoul")) {
+            check(lab.attempt(probe, "세션 TimeZone=" + zone + " 에서 JPQL current_timestamp 를 timestamptz 열에 쓰고 now() 와 견줌",
+                    "select set_config('TimeZone', :zone, true)\nupdate … set updatedAt = current_timestamp", s -> {
+                        s.createQuery("select set_config('TimeZone', :zone, true)", Object.class).setParameter("zone", zone).getSingleResult();
+                        s.createMutationQuery("update ProbeAdSettings a set a.updatedAt = current_timestamp where a.id = 1").executeUpdate();
+                        Object gap = s.createNativeQuery(
+                                "SELECT abs(extract(epoch FROM (updated_at - now()))) FROM ad_settings WHERE id=1", Object.class)
+                                .getSingleResult();
+                        return "updated_at 과 now() 의 차이(초)=" + gap;
+                    }), true);
+        }
+    }
 }
