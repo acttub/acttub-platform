@@ -35,8 +35,9 @@ class PublicEntryControllerTest {
     private final EntryRepository entries = mock(EntryRepository.class);
     private final EntryService service =
             new EntryService(entries, mock(EntryMedia.class), new CanonicalJson(JSON), Clock.systemUTC());
+    // 한도의 시계를 멈춰 둔다. 실제 시계면 61번이 분 경계에 걸칠 때 카운터가 처음부터 세어 61번째가 200 이 된다(CI 에서 한 번 봄).
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new PublicEntryController(service, new FixedWindowRateLimiter(System::nanoTime), new ClientAddress("")))
+            .standaloneSetup(new PublicEntryController(service, new FixedWindowRateLimiter(() -> 0L), new ClientAddress("")))
             .setControllerAdvice(new ApiErrorAdvice(JSON, new RecordingFailureReporter()))
             .build();
 

@@ -57,6 +57,14 @@ class DirectVideoSessionsLifecycleTest {
         throw new AssertionError("session did not settle");
     }
 
+    static void awaitDeleted(Path file) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (Files.exists(file)) {
+            if (System.nanoTime() > deadline) throw new AssertionError("upload was not cleaned up");
+            Thread.sleep(5);
+        }
+    }
+
     void notFound(DirectVideoSessions sessions, UUID id) {
         assertThatThrownBy(() -> sessions.get(owner, id))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(404))
@@ -78,8 +86,12 @@ class DirectVideoSessionsLifecycleTest {
         try (var sessions = sessions()) {
             when(model.reply(any(), anyList(), anyString())).thenReturn("왜 이 말을 건네나요?");
             doThrow(new IllegalStateException("gemini 500")).when(model).delete(video);
-            UUID id = start(sessions);
+            Path upload = Files.createTempFile("direct-video-test-", ".mp4");
+            UUID id = sessions.start(owner, upload, "video/mp4").id();
             settled(sessions, id);
+            // 시작 작업은 ready 를 알린 뒤 finally 에서 올린 파일을 지우고, 그때 세션이 닫혀 있으면 영상도 지운다. 그 전에 만료시키면
+            // 그 finally 와 정리 작업이 저마다 지우기를 불러(첫 삭제가 실패해 영상이 남는다) 두 번이 된다(CI 에서 세 번 봄).
+            awaitDeleted(upload);
             clock.set(clock.instant().plus(Duration.ofMinutes(31)));
             notFound(sessions, id);
             sessions.expire();
