@@ -213,8 +213,12 @@ class ReadingImportIT {
     private UUID member;
     private String bearer;
 
+    /** 나누기 호출을 다시 묻기 전의 쉼. 실제로 자지 않고 길이만 적는다(재시도 테스트가 1·2초를 쉬지 않게). */
+    private final List<Duration> pauses = new CopyOnWriteArrayList<>();
+
     @BeforeEach
     void setUp() {
+        worker.pausingWith(pauses::add);
         clock.set(NOW);
         Model.CALLS.clear();
         Model.answer = Model::oracle;
@@ -887,6 +891,7 @@ class ReadingImportIT {
         assertThat(failed.path("status").stringValue(null)).isEqualTo("failed");
         assertThat(failed.path("failure").stringValue(null)).isEqualTo("failed");
         assertThat(Model.CALLS).hasSize(3);
+        assertThat(pauses).as("다시 묻기 전에 1초, 2초 쉰다").containsExactly(Duration.ofSeconds(1), Duration.ofSeconds(2));
         assertThat(failures.reports()).singleElement().satisfies(report -> {
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context()).startsWith("ScriptSplitWorker.run");
@@ -971,6 +976,7 @@ class ReadingImportIT {
         String scriptId = split(SPACED);
 
         assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(true, true, true, false);
+        assertThat(pauses).containsExactly(Duration.ofSeconds(1), Duration.ofSeconds(2));
         assertThat(failures.reports()).singleElement().satisfies(report -> {
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context()).startsWith("ScriptSplitWorker.spacing");
