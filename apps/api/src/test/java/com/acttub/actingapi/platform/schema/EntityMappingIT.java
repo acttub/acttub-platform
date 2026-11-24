@@ -90,7 +90,10 @@ class EntityMappingIT {
     private static final Set<String> RETIRED_TABLES = Set.of(
             "reports",
             "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
-            "handoff_confirmations", "practice_reports", "upload_intents");
+            "handoff_confirmations", "practice_reports", "upload_intents",
+            // 옛 저녁 8시 고정 알림의 보내기 장부(V25). 코드를 지운 뒤 검증용 매핑도 내렸다. 집계를 남긴 뒤
+            // DROP 마이그레이션이 지운다(CONTRACT §5-1).
+            "evening_reminder_sends");
 
     /**
      * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 0.1.0, V14). 스키마는 넓히기로 한 번에 들어가고
@@ -152,13 +155,13 @@ class EntityMappingIT {
             "community_post_images");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 47개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 46개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개다.
-        assertThat(entities).hasSize(47);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개다.
+        assertThat(entities).hasSize(46);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
