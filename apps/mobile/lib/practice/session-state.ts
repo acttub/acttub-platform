@@ -5,9 +5,9 @@ import type { PracticeNote } from './types.ts';
 /**
  * 화면 사이로 들고 다니는 진행 중 회차(모듈 스토어). 정본은 서버이고 여기는 표시에 필요한 만큼만 둔다.
  *
- * - practiceId·rootId·ordinal: 묶음의 몇 번째 회차인지. 대화 시작·노트가 쓴다.
+ * - practiceId·rootId·ordinal: 묶음의 몇 번째 회차인지. 대화 시작이 쓴다.
  * - videoUri·playbackUrl: 기다리는 동안과 대화 중에 영상을 다시 트는 데 쓴다.
- * - conversationId·note: 대화 화면이 채우고 노트 화면이 읽는다(정본은 서버).
+ * - conversationId·note: 대화 화면이 채우고 읽는다(정본은 서버).
  * - 이어하기 출처(continue origin)와 고른 영상은 준비 화면이 꺼내 간다.
  */
 export type Practice = {
@@ -20,7 +20,7 @@ export type Practice = {
   /** 기기 복사본 uri 또는 빈 문자열. 없으면 playbackUrl 로 튼다. */
   videoUri: string;
   playbackUrl: string | null;
-  /** 대화가 닫히며 함께 온 노트. 없으면 노트 화면이 서버에서 읽는다. */
+  /** 대화가 닫히며 함께 온 노트. 대화 화면이 마치는 버튼(노트 보기·그냥 마치기)을 고른다. */
   note: PracticeNote | null;
   /** 회차를 시작한 시각(서버 created_at). 모르면 null — 코칭 끝 화면이 연습한 날을 미리 적을지 정한다. */
   createdAt: string | null;
@@ -29,7 +29,7 @@ export type Practice = {
 let current: Practice | null = null;
 let origin: ContinueOrigin | null = null;
 
-/** 이어하기로 들어갈 때 준비 화면에 넘기는 것(A13 노트·A1.2 기록·A8.1 이전 연습). */
+/** 이어하기로 들어갈 때 준비 화면에 넘기는 것(A1.2 기록·A8.1 이전 연습·리딩 마무리). */
 export function setContinueOrigin(next: ContinueOrigin | null): void {
   origin = next;
 }

@@ -77,9 +77,9 @@ test('첫 사용자면 서버에 묻지 않고 아무것도 그리지 않는다'
 test('받기 전에는 자리를 잡고, NONE 이면 비운다', async () => {
   let resolve: (value: unknown) => void = () => undefined;
   getAdSlot.mockReturnValue(new Promise((r) => { resolve = r; }));
-  const view = await render(<AdSlot slot="report_top" />);
+  const view = await render(<AdSlot slot="profile_top" />);
   expect(view.toJSON()).not.toBeNull();
-  await act(async () => resolve({ kind: 'NONE', slot: 'report_top', size: 'BANNER', width: 320, height: 50, ad: null }));
+  await act(async () => resolve({ kind: 'NONE', slot: 'profile_top', size: 'BANNER', width: 320, height: 50, ad: null }));
   await waitFor(() => expect(view.toJSON()).toBeNull());
 });
 

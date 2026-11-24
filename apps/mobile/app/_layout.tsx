@@ -502,7 +502,6 @@ function RootNavigator() {
         />
         <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
         <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
-        <Stack.Screen name="report" options={{ title: t('stack.report') }} />
         {/* 의견 보내기(SOMA-953)는 화면 안에 자체 헤더가 있다. */}
         <Stack.Screen name="feedback" options={{ headerShown: false }} />
         {/* 아래 셋은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가

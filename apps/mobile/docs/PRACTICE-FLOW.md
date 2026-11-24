@@ -13,7 +13,6 @@
 | A10 | `app/coach.tsx` · `components/coach-waiting.tsx` | 분석 대기. 코치 화면 안의 「영상 보는 중」 말풍선이고, 끝나면 같은 화면에서 대화를 연다. `app/analyzing.tsx`는 옛 주소를 코치로 넘기기만 한다 |
 | A11 · A11.1 | `app/coach.tsx` | 대화. 위에 「AI가 본 장면」 한 줄, 코치 말과 내 답(파란 말풍선)이 카톡처럼 쌓이고, 아래에 지금 질문의 예시 답 1~2개·잘 모르겠어요(세로 칩)와 입력 줄 |
 | ⑧ | `app/journal.tsx` | 배우 일지(SOMA-720). 코칭이 끝나면 고정 질문 4개 → 요약형 완성 일지 → 「편집」. 「저장하기」 뒤 `app/coaching-done.tsx`(오늘 코칭 끝·코칭 평가). 연습 기록에서 일지가 있는 회차를 열어도 여기다 |
-| A13 | `app/report.tsx` | 연습 노트(제품 화면에서 여기로 오는 길은 없고 개발용 `app/ui-preview.tsx`만 연다). 「다음 테이크 찍기」는 장면을 채운 준비 화면으로 간다(영상은 새로 고른다) |
 | A12 | `app/report-detail.tsx` | 지난 연습 노트(연습 기록에서 연다. 배우 일지가 있으면 일지 화면으로 넘긴다). 묶음에 열린 테이크가 있으면 「대화 이어 가기」, 없으면 「다음 테이크 찍기」 |
 | A1.1 · A1.2 | `app/(tabs)/history.tsx` · `app/practice-group.tsx` | 연습 기록과 묶음 상세. 열린 테이크가 있으면 「대화 중」 줄·「대화 이어 가기」가 코치 화면(분석 중이면 기다렸다 대화)으로, 없으면 「다음 테이크 찍기」가 준비 화면으로 간다 |
 
@@ -25,30 +24,17 @@
 - **분석 확인 대화·확정(옛 목업 M7.1-R·M7.2-R)** — 기존 갈래 전용 화면이다(practice.coach). 앱은 분석이 끝나면 대화로 곧장 간다.
 - **세션 목록 드로어(옛 목업 M8-R)** — 앱은 탭 구조라서 드로어를 넣으면 이동 경로가 둘이 된다. 지난 연습은 연습 기록(A1.1)에서 본다.
 
-## 머리 부분과 '영상·장면 보기'
+## '영상·장면 보기'
 
-연습 화면들은 머리 부분(스텝퍼 `Stepper`, 진행 줄 `ProgressRow`, '영상 보기' 접이식 `SceneFoldLink`·`SceneFoldBody`)을
-`components/practice-chrome.tsx` 한곳에서 가져다 쓴다 — 화면마다 다시 만들면 간격과 색이 조금씩 어긋난다.
-
-접이식이 **링크와 본문 두 조각으로 나뉘어 있는 이유**:
-
-```
-ProgressRow(right: SceneFoldLink)   ← 좁은 가로 줄
-SceneFoldBody                       ← 화면 전폭
-```
-
-진행 줄은 좁은 가로 칸이라, 영상을 그 안에 넣으면 갇혀서 찌그러진다. 그래서 펼침
-상태는 화면이 들고(`sceneOpen`), 본문은 진행 줄 **아래**에 전폭으로 그린다.
-
-링크는 작은 글자가 화면 오른쪽 끝에 붙어 있어서 손가락으로 글자만큼 정확히 짚을 수 없다. 누르는 칸은 `hitSlop`으로
-글자보다 넓힌다.
+분석 대기와 대화는 펼친 영상 `SceneFoldBody`를 `components/practice-chrome.tsx` 한곳에서 가져다 쓴다 — 화면마다 다시
+만들면 간격과 색이 조금씩 어긋난다. 펼침 상태는 화면이 들고(`sceneOpen`), 본문은 누르는 줄 **아래**에 전폭으로 그린다.
 
 ### 영상 출처
 
 | 화면 | 출처 |
 |---|---|
 | `coach`의 분석 대기 | 보관함의 기기 복사본(`localCopyFor`) → 없으면 서버 재생 주소 |
-| `coach` · `report` | `practice.videoUri` → 없으면 `practice.playbackUrl` |
+| `coach` | `practice.videoUri` → 없으면 `practice.playbackUrl` |
 
 ## 개발용 UI 미리보기
 
@@ -56,7 +42,7 @@ SceneFoldBody                       ← 화면 전폭
 열린다 (`__DEV__`).
 
 - 들어가는 곳: 설정 → `UI 미리보기 (개발용)`
-- 딥링크: `actingapp://ui-preview`, `actingapp://ui-preview?go=<analyzing|coach|report>`
+- 딥링크: `actingapp://ui-preview`, `actingapp://ui-preview?go=<analyzing|coach>`
 
 가짜 장면·가짜 연습은 `lib/ui-preview.ts` 에 있고, 서버에는 아무것도 보내지 않는다 —
 화면이 읽는 모듈 스토어만 채운다.
@@ -82,7 +68,7 @@ SceneFoldBody                       ← 화면 전폭
 화면 확인은 시뮬레이터에서 위 딥링크로 한다.
 
 ```
-xcrun simctl openurl booted "actingapp://ui-preview?go=report"
+xcrun simctl openurl booted "actingapp://ui-preview?go=coach"
 xcrun simctl io booted screenshot out.png
 ```
 

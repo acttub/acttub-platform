@@ -613,51 +613,9 @@ describe('보내기 전에 화면이 먼저 막는 길이', () => {
     await waitFor(() => expect(api.createPractice).toHaveBeenCalled());
     expect((api.createPractice as jest.Mock).mock.calls[0][0]).not.toHaveProperty('title');
   });
-
-  test('이어받은 장면이 300자를 넘으면 보내지 않는다', async () => {
-    setContinueOrigin({
-      kind: 'note',
-      rootId: 'r1',
-      practiceId: 'p0',
-      scene: { situation: '가'.repeat(301), character: '', goal: '' },
-    });
-    await render(<UploadScreen />);
-    await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
-    await fireEvent.press(screen.getByText(RIGHTS));
-    await fireEvent.press(screen.getByRole('button', { name: '이대로 이어가기' }));
-
-    expect(await screen.findByText('상황·인물·목표는 각각 300자까지 쓸 수 있어요.')).toBeOnTheScreen();
-    expect(api.continuePractice).not.toHaveBeenCalled();
-  });
 });
 
 describe('다음 테이크', () => {
-  test('노트에서 이어오면 지난 장면을 그대로 실어 같은 묶음에 이어 만든다', async () => {
-    setContinueOrigin({
-      kind: 'note',
-      rootId: 'r1',
-      practiceId: 'p0',
-      scene: { situation: '카페', character: '서연', goal: '' },
-    });
-    await render(<UploadScreen />);
-    await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
-
-    expect(screen.getByText('다음 테이크 찍기')).toBeOnTheScreen();
-    expect(logged('practice_video_picked')).toEqual([{ source: 'record', needs_upload: 'no', length: 'lt3s' }]);
-    expect(screen.queryByPlaceholderText('예: 카페 이별 장면 2차')).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByText(RIGHTS));
-    await fireEvent.press(screen.getByRole('button', { name: '이대로 이어가기' }));
-
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coach', params: { practiceId: 'p2' } }));
-    expect(api.continuePractice).toHaveBeenCalledWith('p0', {
-      request_id: expect.any(String),
-      video_id: 'v1',
-      scene: { situation: '카페', character: '서연', goal: '' },
-      blockage: { category: '그 외', detail: '그 외', note: null },
-    });
-    expect(logged('practice_start')).toEqual([{ ordinal: 2, continued: true }]);
-  });
-
   test('리딩에서 넘어오면 대본의 장면을 화면 없이 그대로 실어 새 연습을 만든다', async () => {
     setContinueOrigin({ kind: 'reading', scene: { situation: '카페', character: '서연', goal: '붙잡지 않게' } });
     await renderWithSavedVideo();

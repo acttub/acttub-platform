@@ -1,6 +1,6 @@
 import type { SceneContext } from '@/lib/api';
 import { getPractice, startPractice } from '@/lib/practice/session-state';
-import type { PracticeBlockage, PracticeDetail, PracticeNote } from '@/lib/practice/types';
+import type { PracticeBlockage, PracticeDetail } from '@/lib/practice/types';
 
 /**
  * 화면만 보기 위한 가짜 데이터.
@@ -25,8 +25,8 @@ const BLOCKAGE: PracticeBlockage = {
     '마지막에 “그럼 나 갈게” 하고 돌아서는 대목이요. 담담하게 참는 얼굴을 하려고 했는데, 막상 보니까 아무 표정도 안 남았어요.',
 };
 
-/** 분석까지 지난 상태. 질문 대화·분석 결과 화면이 이 상태를 읽는다. */
-export function seedPractice(options: { withReport?: boolean } = {}) {
+/** 분석까지 지난 상태. 질문 대화 화면이 이 상태를 읽는다. */
+export function seedPractice() {
   startPractice({
     practiceId: 'preview-practice',
     rootId: 'preview-practice',
@@ -38,28 +38,7 @@ export function seedPractice(options: { withReport?: boolean } = {}) {
   const practice = getPractice();
   if (!practice) return;
   practice.conversationId = 'preview-conversation';
-  if (options.withReport) practice.note = PREVIEW_NOTE;
 }
-
-const PREVIEW_NOTE: PracticeNote = {
-  id: 'preview-note',
-  conversation_id: 'preview-conversation',
-  format: 'v2',
-  kind: 'action',
-  title: '확신보다 확인을 원했다',
-  summary_quotes: [
-    { quote: '먼저 미안하다고 말해주길 기다렸던 것 같아요.', kind: 'actor', source_ref: 'actor:2' },
-    { quote: '0:41 — 말을 끝낸 직후 시선이 먼저 내려간다', kind: 'observation', source_ref: 'observation:1' },
-  ],
-  next_take: '대답하기 전에 2초를 더 듣고, 그 뒤에 시선을 든다.',
-  actor_words: ['상대가 먼저 미안하다고 말해주길 기다렸어요.'],
-  corrections: [],
-  tags: [],
-  fallback: false,
-  report: null,
-  source_revision: 7,
-  created_at: new Date().toISOString(),
-};
 
 /**
  * 분석 화면이 미리보기로 곧장 열렸을 때 쓸 값.
