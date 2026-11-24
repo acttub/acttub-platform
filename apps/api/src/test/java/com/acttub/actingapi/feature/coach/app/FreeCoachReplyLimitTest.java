@@ -85,9 +85,10 @@ class FreeCoachReplyLimitTest {
     }
 
     @Test
-    @DisplayName("무료 7번째 답(코치 응답 8번째)은 코치 AI 없이 닫지 않고 정리하며 닫는다 — 그만은 그대로 닫는다")
+    @DisplayName("아직 정리하지 않은 무료 7번째 답(코치 응답 8번째)은 코치 AI 없이 닫지 않고 정리하며 닫는다 — 그만은 그대로 닫는다")
     void theSeventhFreeAnswerIsTheModelsClosingWrapUp() {
-        Before seventh = free(FREE_CAP, PracticeLoopRouter.WRAP_UP, 4);
+        Before seventh = free(FREE_CAP, PracticeLoopRouter.FIND, 4);
+        assertThat(seventh.wrapped()).isFalse();
         assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, seventh)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouterTest.route(Kind.SHORT, seventh)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouterTest.route(Kind.QUESTION, seventh)).isEqualTo(PracticeLoopRouter.WRAP_UP);
@@ -101,6 +102,94 @@ class FreeCoachReplyLimitTest {
                 .isEqualTo(PracticeLoopRouter.END);
         assertThat(PracticeLoopRouter.routeAlready(PracticeLoopRouterTest.code(Kind.ANSWER), proAtLimit, "답하기", false, false))
                 .isEqualTo(PracticeLoopRouter.END);
+    }
+
+    /** 코치 응답 7번(시작 포함)의 상태 칸. 마지막 둘은 {@code sixth}·{@code seventh}(빈 문자열이면 그 칸 없음). */
+    static JsonNode sevenStatuses(String sixth, String seventh) throws Exception {
+        var loop = StructuredJson.MAPPER.createObjectNode();
+        var statuses = loop.putArray("statuses");
+        statuses.add("");
+        for (String doing : List.of(PracticeLoopRouter.WANT, PracticeLoopRouter.GAP, PracticeLoopRouter.FIND, PracticeLoopRouter.PROPOSE)) {
+            statuses.add("할 일: " + doing);
+        }
+        statuses.add(sixth);
+        statuses.add(seventh);
+        return loop;
+    }
+
+    @Test
+    @DisplayName("정리 → 답하기 → 무료 상한(11/24 dev 재현): 마지막 응답은 정리를 되풀이하지 않고 마지막 한마디로 받아 준다")
+    void afterAWrapUpAndAnAnswerTheFreeLastReplyDoesNotWrapAgain() throws Exception {
+        JsonNode loop = sevenStatuses("할 일: 정리하기\n단계: 4", "할 일: 답하기\n다음에 닫기: 예");
+        Before last = PracticeLoopRouter.before(loop, 7, FREE_CAP);
+        assertThat(last.reply()).isEqualTo(FREE_CAP);
+        assertThat(last.lastDoing()).isEqualTo("답하기");
+        assertThat(last.wrapped()).as("정리 뒤 답하기가 끼어 있어도 이력에서 정리를 본다").isTrue();
+        assertThat(last.freeLast()).isTrue();
+        for (Kind kind : List.of(Kind.ANSWER, Kind.SHORT, Kind.QUESTION, Kind.METHOD)) {
+            assertThat(PracticeLoopRouterTest.route(kind, last)).as(kind.name()).isEqualTo("답하기");
+            assertThat(PracticeLoopRouter.closesNext(PracticeLoopRouterTest.code(kind), last))
+                    .as("마지막 한마디 지시(lastWordLine)가 붙는다: " + kind.name()).isTrue();
+        }
+        assertThat(PracticeLoopRouterTest.route(Kind.EVALUATION, last)).isEqualTo("짚어주기");
+        assertThat(PracticeLoopRouterTest.route(Kind.CORRECTION, last)).as("마지막 말이라 배우 해석을 되묻지 않는다").isEqualTo("답하기");
+        assertThat(PracticeLoopRouterTest.route(Kind.STOP, last)).isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.closesNext(PracticeLoopRouterTest.code(Kind.STOP), last)).isFalse();
+        assertThat(PracticeLoopRouter.routeAlready(PracticeLoopRouterTest.code(Kind.ANSWER), last, "답하기", false, false))
+                .isEqualTo("답하기");
+    }
+
+    @Test
+    @DisplayName("직전에 정리했거나, 정리 뒤 다음에 닫기 표시 없이 답했어도 무료 마지막 응답은 정리하지 않는다")
+    void anyEarlierWrapUpKeepsTheFreeLastReplyFromWrappingAgain() throws Exception {
+        Before justWrapped = PracticeLoopRouter.before(sevenStatuses("할 일: 답하기", "할 일: 정리하기\n단계: 4"), 7, FREE_CAP);
+        assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, justWrapped)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(PracticeLoopRouterTest.code(Kind.ANSWER), justWrapped)).isTrue();
+        Before answeredAfter = PracticeLoopRouter.before(sevenStatuses("할 일: 정리하기\n단계: 4", "할 일: 답하기"), 7, FREE_CAP);
+        assertThat(answeredAfter.lastDoing()).isEqualTo("답하기");
+        assertThat(answeredAfter.closeNext()).isFalse();
+        assertThat(answeredAfter.wrapped()).as("lastDoing·다음에 닫기만으로는 모른다 — 이력에서 본다").isTrue();
+        assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, answeredAfter)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(PracticeLoopRouterTest.code(Kind.ANSWER), answeredAfter)).isTrue();
+    }
+
+    @Test
+    @DisplayName("정리를 아직 안 한 채 무료 상한에 닿으면 정리(WRAP_UP)로 한 번 닫는다")
+    void withoutAnEarlierWrapUpTheFreeLastReplyWrapsUpOnce() throws Exception {
+        Before last = PracticeLoopRouter.before(sevenStatuses("할 일: " + PracticeLoopRouter.FIND, "할 일: 답하기"), 7, FREE_CAP);
+        assertThat(last.wrapped()).isFalse();
+        assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, last)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouterTest.route(Kind.QUESTION, last)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.closesNext(PracticeLoopRouterTest.code(Kind.QUESTION), last))
+                .as("정리 지시만 붙고 마지막 한마디 지시는 붙지 않는다").isFalse();
+    }
+
+    @Test
+    @DisplayName("Pro(상한 24)는 같은 정리 이력이어도 지금 그대로다 — 8번째는 평소 표, 24번째는 코치 AI 없이 닫는다")
+    void proKeepsTheSameRoutesWithTheSameWrapHistory() throws Exception {
+        JsonNode loop = sevenStatuses("할 일: 정리하기\n단계: 4", "할 일: 답하기\n다음에 닫기: 예");
+        Before eighth = PracticeLoopRouter.before(loop, 7);
+        assertThat(eighth.freeCapped()).isFalse();
+        assertThat(eighth.freeLast()).isFalse();
+        assertThat(PracticeLoopRouterTest.route(Kind.ANSWER, eighth)).as("정리 뒤 받아 준 다음 묻지 않은 말은 닫는다").isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouterTest.route(Kind.QUESTION, eighth)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(PracticeLoopRouterTest.code(Kind.QUESTION), eighth)).isTrue();
+        Before atLimit = PracticeLoopRouter.before(loop, PracticeLoopRouter.LAST_REPLY - 1);
+        assertThat(atLimit.reply()).isEqualTo(PracticeLoopRouter.LAST_REPLY);
+        assertThat(PracticeLoopRouterTest.route(Kind.QUESTION, atLimit)).isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.closesNext(PracticeLoopRouterTest.code(Kind.QUESTION), atLimit)).isFalse();
+    }
+
+    @Test
+    @DisplayName("무료 마지막 응답의 인정 말은 앞선 코치 말에서 이미 썼을 때만 뗀다")
+    void theFreeLastReplyDropsAnAgreementOnlyWhenItWasAlreadyUsed() {
+        String reply = "맞아요, 그거예요.\n\"오라이\"를 짧게 끊고 한 템포 쉬어 보세요.";
+        assertThat(DirectVideoPracticeLoop.withoutRepeatedAgreement(reply, List.of("첫 질문", "맞아요, 그거예요.\n쉬는 곳을 만들어 봐도 좋아요.")))
+                .isEqualTo("\"오라이\"를 짧게 끊고 한 템포 쉬어 보세요.");
+        assertThat(DirectVideoPracticeLoop.withoutRepeatedAgreement(reply, List.of("첫 질문", "쉬는 곳을 만들어 봐도 좋아요.")))
+                .as("앞에 없던 인정 말이면 그대로").isEqualTo(reply);
+        assertThat(DirectVideoPracticeLoop.withoutRepeatedAgreement("다음 테이크에서 확인해 봐요.", List.of("맞아요, 그거예요.")))
+                .isEqualTo("다음 테이크에서 확인해 봐요.");
     }
 
     // ---- 목적별 코칭(PurposeLoop) ----
