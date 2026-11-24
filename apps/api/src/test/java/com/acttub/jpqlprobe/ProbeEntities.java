@@ -327,6 +327,17 @@ final class ProbeEntities {
         UUID scriptId;
     }
 
+    @Entity(name = "ProbeScriptLineText")
+    @Table(name = "script_lines")
+    static class ProbeScriptLineText {
+        @Id
+        UUID id;
+        @Column(name = "script_id")
+        UUID scriptId;
+        int ordinal;
+        String text;
+    }
+
     @Entity(name = "ProbeScriptUpload")
     @Table(name = "script_uploads")
     static class ProbeScriptUpload {
@@ -380,6 +391,38 @@ final class ProbeEntities {
         UUID scriptId;
         @Column(name = "member_ids")
         UUID[] memberIds;
+        String name;
+        @Column(name = "sort_order")
+        int sortOrder;
+    }
+
+    @Entity(name = "ProbeScript")
+    @Table(name = "scripts")
+    static class ProbeScript {
+        @Id
+        UUID id;
+        @Column(name = "user_id")
+        UUID userId;
+        String title;
+        @Column(name = "updated_at")
+        Instant updatedAt;
+    }
+
+    @Entity(name = "ProbeRankingSnapshot")
+    @Table(name = "entry_ranking_snapshots")
+    static class ProbeRankingSnapshot {
+        @Id
+        UUID id;
+        @Column(name = "challenge_id")
+        UUID challengeId;
+        @Column(name = "viewer_id")
+        UUID viewerId;
+        String basis;
+        @Column(name = "entry_ids")
+        UUID[] entryIds;
+        Integer[] ranks;
+        @Column(name = "created_at")
+        Instant createdAt;
     }
 
     @Entity(name = "ProbePostImage")

@@ -133,6 +133,13 @@ class JpqlShapeProbeIT {
                         + "(gen_random_uuid(),'" + U1 + "','" + SCRIPT + "',ARRAY['" + CHAR1 + "']::uuid[],'[]','{}','manual','read',false,'in_progress','" + LINE + "','" + LINE2 + "','2026-11-02Z')",
                 "INSERT INTO script_characters(id,script_id,name,sort_order,member_ids) VALUES "
                         + "('" + SC + "','" + SCRIPT + "','둘',1,ARRAY['" + CHAR1 + "','" + CHAR2 + "']::uuid[])",
+                "INSERT INTO script_characters(id,script_id,name,sort_order) VALUES "
+                        + "('" + CHAR1 + "','" + SCRIPT + "','햄릿',2),('" + CHAR2 + "','" + SCRIPT + "','오필리어',3)",
+                "INSERT INTO scripts(id,user_id,title,raw_text,request_fingerprint,source,updated_at) VALUES "
+                        + "('" + SCRIPT + "','" + U1 + "','덴마크 왕자','raw','f','paste','2026-11-03Z'),"
+                        + "(gen_random_uuid(),'" + U1 + "','갈매기','raw','f','paste','2026-11-02Z')",
+                "INSERT INTO challenges(id,line,work,origin,duration_days,starts_at,ends_at,request_fingerprint,request_id) VALUES "
+                        + "('" + CH + "','대사','작품','team',7,'2026-11-01Z','2026-11-08Z','f',gen_random_uuid())",
                 "INSERT INTO script_lines(id,script_id,kind,ordinal,text) VALUES ('" + LINE + "','" + SCRIPT + "','direction',1,'x'),('" + LINE2 + "','" + SCRIPT + "','direction',2,'y')",
                 "INSERT INTO line_memorization(id,line_id,user_id,status) VALUES (gen_random_uuid(),'" + LINE + "','" + U1 + "','memorized'),(gen_random_uuid(),'" + LINE2 + "','" + U1 + "','not_yet')",
                 "INSERT INTO script_uploads(id,user_id,object_key,byte_size,expires_at,raw_text) VALUES ('" + UPLOAD + "','" + U1 + "','s/1',1,'2027-01-01Z','raw')",
@@ -949,6 +956,13 @@ class JpqlShapeProbeIT {
                     .setParameter("userId", U1).executeUpdate();
             return "영향 행 " + first + " 다음 " + second;
         }), true);
+        String batch = """
+                insert into ProbeUserActiveDay(userId, day)
+                select u.id, :day from ProbeUser u where u.deactivatedAt is null order by u.createdAt, u.id limit :batch
+                on conflict do nothing
+                """;
+        check(lab.attempt(probe, "HQL insert … select … order by … limit :batch … on conflict do nothing", batch, s -> s.createMutationQuery(batch)
+                .setParameter("day", LocalDate.parse("2026-11-25")).setParameter("batch", 1).executeUpdate() + "행"), true);
     }
 
     // ── 함수·연산자 ───────────────────────────────────────────────────────────
@@ -1208,6 +1222,9 @@ class JpqlShapeProbeIT {
     void p33SelectOne() {
         var probe = lab.probe("P33", "FROM 없는 SELECT 1(상태 확인)", "DatabaseHealthIndicator#checkDatabase#1", "SELECT 1");
         check(lab.attempt(probe, "HQL select 1", "select 1", s -> s.createQuery("select 1", Integer.class).getSingleResult()), true);
+        String nulls = "select e.finalRank from ProbeEntry e where e.challengeId = :id order by e.finalRank desc nulls last, e.id";
+        check(lab.attempt(probe, "HQL order by … nulls last", nulls, s -> s.createQuery(nulls, Integer.class)
+                .setParameter("id", CH).getResultList()), true);
     }
 
     @Test
@@ -1409,5 +1426,159 @@ class JpqlShapeProbeIT {
         lab.note(probe, "보낸 SQL 수: 한 쿼리 " + single.sql().size() + "개, 행마다 " + perRow.sql().size() + "개(참여작 " + ids.size() + "개).");
         assertThat(single.sql()).hasSize(1);
         assertThat(perRow.sql()).hasSize(1 + ids.size());
+    }
+
+    // ── 앞에서 다루지 않은 모양(ILIKE·널 매개변수·배열 집계·빈 목록·배열 매개변수·JSON 함수) ─────────────
+
+    @Test
+    void p41IlikeNullableParamArrayMembership() {
+        String sql = """
+                SELECT s.id, s.title,
+                       (SELECT string_agg(c.name,:sep ORDER BY c.sort_order) FROM script_characters c
+                        WHERE c.id=ANY(ls.my_character_ids)) AS my_character_names
+                FROM scripts s
+                LEFT JOIN LATERAL (
+                    SELECT rs.status,rs.my_character_ids FROM reading_sessions rs
+                    WHERE rs.script_id=s.id ORDER BY rs.started_at DESC,rs.id DESC LIMIT 1
+                ) ls ON true
+                WHERE s.user_id=:userId
+                  AND (CAST(:pattern AS text) IS NULL
+                       OR s.title ILIKE CAST(:pattern AS text) ESCAPE '\\'
+                       OR EXISTS (SELECT 1 FROM script_characters c
+                                  WHERE c.script_id=s.id AND c.name ILIKE CAST(:pattern AS text) ESCAPE '\\'))
+                ORDER BY s.updated_at DESC,s.id DESC
+                """;
+        var probe = lab.probe("P41", "ILIKE … ESCAPE · CAST(:p AS text) IS NULL(널 매개변수) · = ANY(배열 열) · LATERAL",
+                "PostgresScriptRepository#list#1(부분)", sql);
+        String hql = """
+                select s.id, s.title,
+                       (select listagg(c.name, :sep) within group (order by c.sortOrder) from ProbeScriptCharacter c
+                        where array_contains(ls.myCharacterIds, c.id)) as myCharacterNames
+                from ProbeScript s
+                left join lateral (
+                    select rs.status as status, rs.myCharacterIds as myCharacterIds from ProbeReadingSession rs
+                    where rs.scriptId = s.id order by rs.startedAt desc, rs.id desc limit 1
+                ) ls on true
+                where s.userId = :userId
+                  and (:pattern is null
+                       or s.title ilike :pattern escape '\\'
+                       or exists (select 1 from ProbeScriptCharacter c where c.scriptId = s.id and c.name ilike :pattern escape '\\'))
+                order by s.updatedAt desc, s.id desc
+                """;
+        java.util.HashMap<String, Object> none = new java.util.HashMap<>(Map.of("userId", U1, "sep", ","));
+        none.put("pattern", null);
+        check(lab.attempt(probe, "HQL ilike … escape, :pattern is null(널), array_contains(배열 열, 값)", hql, s -> {
+            var query = s.createQuery(hql, Tuple.class);
+            none.forEach(query::setParameter);
+            return ProbeLab.rows(query.getResultList());
+        }), true);
+        same(probe, "검색어 없음(널)", lab.nativeRows(sql, none), hqlRows(hql, none));
+        Map<String, Object> hamlet = Map.of("userId", U1, "sep", ",", "pattern", "%햄%");
+        same(probe, "배역 이름으로 찾음", lab.nativeRows(sql, hamlet), hqlRows(hql, hamlet));
+        Map<String, Object> nothing = Map.of("userId", U1, "sep", ",", "pattern", "%없는말%");
+        same(probe, "없음", lab.nativeRows(sql, nothing), hqlRows(hql, nothing));
+    }
+
+    @Test
+    void p42ArrayAggElementBoolOr() {
+        String sql = """
+                SELECT c.document_id, count(DISTINCT c.action) AS kinds,
+                       count(*) FILTER (WHERE c.action='granted') AS granted,
+                       (array_agg(c.action ORDER BY c.occurred_at DESC,c.id DESC))[1] AS latest,
+                       bool_or(c.action='revoked') AS ever_revoked
+                FROM user_consents c WHERE c.user_id=:userId GROUP BY c.document_id ORDER BY c.document_id
+                """;
+        var probe = lab.probe("P42", "(array_agg(… ORDER BY …))[1] · bool_or · count(DISTINCT)", "PostgresNotificationRepository#inbox#1(같은 연산)", sql);
+        String hql = """
+                select c.documentId, count(distinct c.action),
+                       count(*) filter (where c.action = 'granted'),
+                       array_get(array_agg(c.action) within group (order by c.occurredAt desc, c.id desc), 1),
+                       any(c.action = 'revoked')
+                from ProbeUserConsent c where c.userId = :userId group by c.documentId order by c.documentId
+                """;
+        check(lab.attempt(probe, "HQL array_agg … within group 의 첫 원소(array_get), any(조건)", hql, s -> ProbeLab.rows(
+                s.createQuery(hql, Tuple.class).setParameter("userId", U1).getResultList())), false);
+        lab.note(probe, "Hibernate 가 array_get(array_agg(…), 1) 을 괄호 없이 'array_agg(…)[1]' 로 내서 PostgreSQL 이 문법 오류로 거절한다.");
+        String latest = """
+                select c.documentId, count(distinct c.action),
+                       count(*) filter (where c.action = 'granted'),
+                       (select c2.action from ProbeUserConsent c2 where c2.userId = c.userId and c2.documentId = c.documentId
+                        order by c2.occurredAt desc, c2.id desc limit 1),
+                       any(c.action = 'revoked')
+                from ProbeUserConsent c where c.userId = :userId group by c.userId, c.documentId order by c.documentId
+                """;
+        check(lab.attempt(probe, "다시 쓰기: 첫 원소를 상관 서브쿼리(order by … limit 1)로", latest, s -> ProbeLab.rows(
+                s.createQuery(latest, Tuple.class).setParameter("userId", U1).getResultList())), true);
+        same(probe, "U1 문서 셋", lab.nativeRows(sql, Map.of("userId", U1)), hqlRows(latest, Map.of("userId", U1)));
+    }
+
+    @Test
+    void p43EmptyListAndArrayParameters() {
+        String sql = """
+                WITH removed AS (
+                    DELETE FROM community_post_images
+                    WHERE post_id = :postId AND NOT (id = ANY (CAST(:keep AS uuid[])))
+                    RETURNING object_key
+                )
+                SELECT object_key AS object_key FROM removed
+                """;
+        var probe = lab.probe("P43", "빈 목록: NOT (id = ANY(빈 배열)) · 배열 매개변수 INSERT(CAST(:x AS uuid[]))",
+                "PostgresCommunityRepository#replaceImages#1 · PostgresEntryRepository#byLikes#2", sql);
+        int nativeDeleted;
+        try (Session session = lab.factory.openSession()) {
+            var tx = session.beginTransaction();
+            nativeDeleted = session.createNativeQuery(sql, Tuple.class).setParameter("postId", POST)
+                    .setParameter("keep", new UUID[0]).getResultList().size();
+            tx.rollback();
+        }
+        String notIn = "delete from ProbePostImage i where i.postId = :postId and i.id not in :keep";
+        var emptyNotIn = lab.attempt(probe, "HQL not in :keep 에 빈 List", notIn, s -> s.createMutationQuery(notIn)
+                .setParameter("postId", POST).setParameter("keep", List.of()).executeUpdate());
+        check(emptyNotIn, true);
+        String contains = "delete from ProbePostImage i where i.postId = :postId and not array_contains(:keep, i.id)";
+        var emptyArray = lab.attempt(probe, "HQL not array_contains(:keep, id) 에 빈 배열", contains, s -> s.createMutationQuery(contains)
+                .setParameter("postId", POST).setParameter("keep", new UUID[0]).executeUpdate());
+        check(emptyArray, true);
+        lab.note(probe, "빈 목록으로 지운 행 수: 원본 " + nativeDeleted + ", HQL not in 빈 List " + emptyNotIn.observed()
+                + ", HQL not array_contains 빈 배열 " + emptyArray.observed() + ".");
+        String insert = """
+                insert into ProbeRankingSnapshot(id, challengeId, viewerId, basis, entryIds, ranks, createdAt)
+                values (:id, :challenge, :viewer, :basis, :entries, :ranks, :now)
+                """;
+        check(lab.attempt(probe, "HQL insert … values 에 UUID[]·Integer[] 매개변수", insert, s -> s.createMutationQuery(insert)
+                .setParameter("id", UUID.randomUUID()).setParameter("challenge", CH).setParameter("viewer", U2)
+                .setParameter("basis", "live").setParameter("entries", new UUID[] {E1, E2})
+                .setParameter("ranks", new Integer[] {1, 2}).setParameter("now", NOW).executeUpdate()), true);
+    }
+
+    @Test
+    void p44JsonFunctionsByName() {
+        String sql = """
+                SELECT jsonb_typeof(line_results) AS kind, jsonb_array_length(line_results) AS length
+                FROM reading_sessions WHERE id=:id
+                """;
+        var probe = lab.probe("P44", "jsonb_typeof·jsonb_array_length·jsonb_agg(jsonb_build_object(…) ORDER BY …)",
+                "PostgresLegacyPracticeReader#find#1 · PostgresPracticeDataMigration#applyTranscripts#1", sql);
+        String hql = "select cast(jsonb_typeof(s.lineResults) as String), cast(jsonb_array_length(s.lineResults) as Integer) from ProbeReadingSession s where s.id = :id";
+        check(lab.attempt(probe, "등록 안 된 jsonb_* 함수를 이름으로 부르고 cast", hql, s -> ProbeLab.rows(
+                s.createQuery(hql, Tuple.class).setParameter("id", SESSION).getResultList())), true);
+        same(probe, "회차 하나", lab.nativeRows(sql, Map.of("id", SESSION)), hqlRows(hql, Map.of("id", SESSION)));
+        String aggSql = """
+                SELECT CAST(jsonb_agg(jsonb_build_object('ord',l.ordinal,'text',l.text) ORDER BY l.ordinal) AS text) AS doc
+                FROM script_lines l WHERE l.script_id=:id
+                """;
+        String aggHql = """
+                select cast(json_arrayagg(json_object('ord', l.ordinal, 'text', l.text) order by l.ordinal) as String)
+                from ProbeScriptLineText l where l.scriptId = :id
+                """;
+        check(lab.attempt(probe, "HQL json_arrayagg(json_object(…) order by …)(앱 설정 그대로)", aggHql, s -> s.createQuery(aggHql, String.class)
+                .setParameter("id", SCRIPT).getResultList()), false);
+        var agg = lab.attempt(probe, "HQL json_arrayagg(json_object(…) order by …)", aggHql, s -> s.createQuery(aggHql, String.class)
+                .setParameter("id", SCRIPT).getSingleResult(), true);
+        check(agg, true);
+        Object nativeDoc = lab.nativeRows(aggSql, Map.of("id", SCRIPT)).getFirst().getFirst();
+        boolean sameJson = JSON.readTree(String.valueOf(nativeDoc)).equals(JSON.readTree(agg.observed()));
+        lab.note(probe, "JSON 값으로 견줌: " + (sameJson ? "같음" : "다름") + " — 네이티브 " + nativeDoc + " / HQL " + agg.observed());
+        assertThat(sameJson).isTrue();
     }
 }
