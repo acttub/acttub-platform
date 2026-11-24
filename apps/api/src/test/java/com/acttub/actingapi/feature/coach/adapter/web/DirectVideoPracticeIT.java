@@ -237,7 +237,7 @@ class DirectVideoPracticeIT {
         @Bean @Primary RecordingLlmTelemetry recordingTelemetry() { return new RecordingLlmTelemetry(); }
         @Bean DirectVideoCoach directVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
                 FailureReporter failures, RecordingLlmTelemetry telemetry) {
-            return new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
+            return new DirectVideoCoach(model, videos, storage, failures, telemetry);
         }
     }
 }

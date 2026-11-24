@@ -85,8 +85,8 @@ class DirectVideoCoachCostTest {
     }
 
     DirectVideoCoach coach(CoachVideoCache cache) {
-        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), telemetry, true, CoachPersonas.NONE,
-                null, 0, cache, true);
+        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), telemetry, CoachPersonas.NONE,
+                null, 0, cache);
     }
 
     /** 영상 기억은 끄고(답마다 올림) 예산만 센다. */

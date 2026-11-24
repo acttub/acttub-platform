@@ -46,9 +46,9 @@ class DirectVideoCoachLetGoTest {
         when(model.model()).thenReturn("gemini-3-flash-preview");
     }
 
-    DirectVideoCoach coach(boolean letGoWithoutVideo) {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0,
-                CoachVideoCache.NONE, letGoWithoutVideo);
+    DirectVideoCoach coach() {
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0,
+                CoachVideoCache.NONE);
     }
 
     CoachSessionSnapshot session() {
@@ -65,7 +65,7 @@ class DirectVideoCoachLetGoTest {
     @Test void aLetGoReplyIsWrittenWithoutTheVideo() {
         classifiedAs(CORRECTION);
         when(model.reply(isNull(), anyList(), anyString())).thenReturn(REPLY);
-        var result = coach(true).turn(session(), "아니야, 렌즈 본 거 아니야", UUID.randomUUID());
+        var result = coach().turn(session(), "아니야, 렌즈 본 거 아니야", UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo(REPLY);
         verify(model).reply(isNull(), anyList(), anyString());
         verify(model, never()).reply(eq(file), anyList(), anyString());
@@ -83,7 +83,7 @@ class DirectVideoCoachLetGoTest {
             return REPLY;
         });
         var streamed = new ArrayList<String>();
-        var result = coach(true).turn(session(), "아니야, 렌즈 본 거 아니야", UUID.randomUUID(), new CoachStream() {
+        var result = coach().turn(session(), "아니야, 렌즈 본 거 아니야", UUID.randomUUID(), new CoachStream() {
             @Override public void begin() { }
             @Override public void delta(String text) { streamed.add(text); }
         });
@@ -97,7 +97,7 @@ class DirectVideoCoachLetGoTest {
     @Test void theEmptyRetryOfALetGoReplyAlsoGoesWithoutTheVideo() {
         classifiedAs(CORRECTION);
         when(model.reply(isNull(), anyList(), anyString())).thenReturn("  ", REPLY);
-        var result = coach(true).turn(session(), "아니야, 렌즈 본 거 아니야", UUID.randomUUID());
+        var result = coach().turn(session(), "아니야, 렌즈 본 거 아니야", UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo(REPLY);
         verify(model, never()).reply(eq(file), anyList(), anyString());
         verify(model, never()).upload(any(), anyString());
@@ -106,7 +106,7 @@ class DirectVideoCoachLetGoTest {
     @Test void otherRepliesStillCarryTheVideo() {
         classifiedAs(ANSWERED);
         when(model.reply(eq(file), anyList(), anyString())).thenReturn("그때 누구를 봤어요?");
-        coach(true).turn(session(), "붙잡고 싶었어", UUID.randomUUID());
+        coach().turn(session(), "붙잡고 싶었어", UUID.randomUUID());
         verify(model).reply(eq(file), anyList(), anyString());
         verify(model, never()).reply(isNull(), anyList(), anyString());
         assertThat(telemetry.calls().getLast().metadata()).containsEntry("video_omitted", "false");
@@ -119,21 +119,11 @@ class DirectVideoCoachLetGoTest {
             onText.accept("그때 누구를 봤어요?");
             return "그때 누구를 봤어요?";
         });
-        coach(true).turn(session(), "붙잡고 싶었어", UUID.randomUUID(), new CoachStream() {
+        coach().turn(session(), "붙잡고 싶었어", UUID.randomUUID(), new CoachStream() {
             @Override public void begin() { }
             @Override public void delta(String text) { }
         });
         verify(model).replyStream(eq(file), anyList(), anyString(), any());
         verify(model, never()).replyStream(isNull(), anyList(), anyString(), any());
-    }
-
-    @Test void withTheSwitchOffALetGoReplyCarriesTheVideoAsBefore() {
-        classifiedAs(CORRECTION);
-        when(model.reply(eq(file), anyList(), anyString())).thenReturn(REPLY);
-        var result = coach(false).turn(session(), "아니야, 렌즈 본 거 아니야", UUID.randomUUID());
-        assertThat(result.reply().message()).isEqualTo(REPLY);
-        verify(model).reply(eq(file), anyList(), anyString());
-        verify(model, never()).reply(isNull(), anyList(), anyString());
-        assertThat(telemetry.calls().getLast().metadata()).containsEntry("video_omitted", "false");
     }
 }

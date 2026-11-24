@@ -50,23 +50,18 @@ class DirectVideoCoachFollowUpThinkingTest {
         });
     }
 
-    DirectVideoCoach coach(boolean followUpMinimal) {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0,
-                CoachVideoCache.NONE, true, followUpMinimal);
+    DirectVideoCoach coach() {
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0,
+                CoachVideoCache.NONE);
     }
 
     @Test void aFollowUpReplyAsksForMinimalThinking() {
-        coach(true).turn(DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a", "첫 질문"), "붙잡고 싶었어", UUID.randomUUID());
+        coach().turn(DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a", "첫 질문"), "붙잡고 싶었어", UUID.randomUUID());
         assertThat(minimalRequests).containsExactly(true);
     }
 
     @Test void theFirstQuestionKeepsTheUsualThinking() {
-        coach(true).turn(DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a"), "", UUID.randomUUID());
-        assertThat(minimalRequests).containsExactly(false);
-    }
-
-    @Test void theSwitchTurnsMinimalThinkingOff() {
-        coach(false).turn(DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a", "첫 질문"), "붙잡고 싶었어", UUID.randomUUID());
+        coach().turn(DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a"), "", UUID.randomUUID());
         assertThat(minimalRequests).containsExactly(false);
     }
 }

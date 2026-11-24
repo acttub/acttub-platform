@@ -37,8 +37,6 @@ public final class DirectVideoCoach {
     private final FailureReporter failures;
     private final LlmTelemetry telemetry;
     private final DirectVideoRouting routing;
-    // 연습 루프로 대화를 끌고 간다. 첫 응답은 연습 루프 프롬프트, 둘째 응답부터는 코드가 할 일을 정한다. 배포가 정한다.
-    private final boolean practiceLoop;
     // 자문위원 연습만 코치 성격을 번갈아 받는다(SOMA-622). 그 밖의 배우는 늘 기본 성격이다.
     private final CoachPersonas personas;
     // 리딩 녹음으로 시작한 회차(SOMA-791)의 소리와 대본. 없으면 그 회차는 답하지 못하고 닫힌다.
@@ -53,18 +51,6 @@ public final class DirectVideoCoach {
     private final int alternateShare;
     /** 한 대화 안에서 올린 영상을 다시 쓴다(SOMA-735). NONE 이면 답마다 올리고 지운다(롤백). */
     private final CoachVideoCache videoCache;
-    /**
-     * '내려놓기'(배우가 코치 말을 정정한 답)는 영상을 붙이지 않고 글(지시문·대화·상태)만 보내 쓴다(SOMA-780).
-     * 이 답만 영상이 붙으면 Gemini 가 글을 내기 전에 생각 루프에 빠져 15~20초 걸렸다(2026-10-21 운영 실측, 10회 중 6회).
-     * 영상을 빼면 생각 0·첫 글자 약 1.3초였고 답도 정정을 반영했다. false 면 예전처럼 영상과 함께 쓴다(롤백).
-     */
-    private final boolean letGoWithoutVideo;
-    /**
-     * 연습 루프의 답장(첫 질문이 아닌 턴)은 생각 단계를 MINIMAL 로 보낸다(SOMA-780). LOW 에서 가끔 생각 토큰이 약 3,900까지 늘어
-     * 빈 답·깨진 글·재시도로 20~28초 걸렸다(2026-10-22 실제 대화 10턴×3회: MINIMAL 은 루프 0회, 중앙값 4.0초·최대 8.8초, 지금은 6.3·23.2초).
-     * 첫 질문·분류·정리 노트는 LOW 그대로다. MINIMAL 을 받지 않는 모델은 LOW 로 둔다. false 면 모두 LOW(롤백).
-     */
-    private final boolean followUpMinimalThinking;
     /** 코칭 1층 관찰 A/B(SOMA-815). NONE 이면 칸이 없다(롤백). */
     static final String LAYER1 = "layer1";
     /**
@@ -112,65 +98,41 @@ public final class DirectVideoCoach {
     private boolean staticRulesInPrefix = false;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
-        this(model, videos, storage, failures, telemetry, practiceLoop, CoachPersonas.NONE);
+            FailureReporter failures, LlmTelemetry telemetry) {
+        this(model, videos, storage, failures, telemetry, CoachPersonas.NONE);
     }
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas) {
-        this(model, videos, storage, failures, telemetry, practiceLoop, personas, null, 0);
+            FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas) {
+        this(model, videos, storage, failures, telemetry, personas, null, 0);
     }
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare) {
-        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, CoachVideoCache.NONE);
+        this(model, videos, storage, failures, telemetry, personas, alternate, alternateShare, CoachVideoCache.NONE);
     }
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare, CoachVideoCache videoCache) {
-        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, videoCache, true);
+        this(model, videos, storage, failures, telemetry, personas, alternate, alternateShare, videoCache, CoachLayerOne.NONE);
     }
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
-            DirectVideoModel alternate, int alternateShare, CoachVideoCache videoCache,
-            boolean letGoWithoutVideo) {
-        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, videoCache,
-                letGoWithoutVideo, true);
-    }
-
-    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
-            DirectVideoModel alternate, int alternateShare, CoachVideoCache videoCache,
-            boolean letGoWithoutVideo, boolean followUpMinimalThinking) {
-        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, videoCache,
-                letGoWithoutVideo, followUpMinimalThinking, CoachLayerOne.NONE);
-    }
-
-    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
-            DirectVideoModel alternate, int alternateShare, CoachVideoCache videoCache,
-            boolean letGoWithoutVideo, boolean followUpMinimalThinking, CoachLayerOne layerOne) {
+            FailureReporter failures, LlmTelemetry telemetry, CoachPersonas personas,
+            DirectVideoModel alternate, int alternateShare, CoachVideoCache videoCache, CoachLayerOne layerOne) {
         this.layerOne = layerOne == null ? CoachLayerOne.NONE : layerOne;
-        this.followUpMinimalThinking = followUpMinimalThinking;
-        this.letGoWithoutVideo = letGoWithoutVideo;
         this.videoCache = videoCache == null ? CoachVideoCache.NONE : videoCache;
         this.alternate = alternate;
         this.alternateShare = alternate == null ? 0 : Math.max(0, Math.min(100, alternateShare));
         this.personas = personas == null ? CoachPersonas.NONE : personas;
-        this.practiceLoop = practiceLoop;
         this.model = model;
         this.videos = videos;
         this.storage = storage;
         this.failures = failures;
         this.telemetry = telemetry;
         this.routing = new DirectVideoRouting(model, failures, telemetry::record);
-    }
-
-    public boolean practiceLoop() {
-        return practiceLoop;
     }
 
     /** 얼굴 가리기 회차의 사본을 만들 곳을 끼운다. null 이면 만들 수 없는 것으로 본다. */
@@ -291,7 +253,9 @@ public final class DirectVideoCoach {
         boolean talk = selectedPurpose != null && selectedPurpose.talk();
         // 리딩 녹음으로 시작한 회차(SOMA-791): 영상 대신 리딩 녹음을 이은 소리를 올리고 대본을 함께 보인다.
         boolean listen = selectedPurpose != null && selectedPurpose.listen();
-        boolean loop = (practiceLoop || talk || listen) && DirectVideoPracticeLoop.applies(session);
+        // 연습 루프로 대화를 끌고 간다. 첫 응답은 연습 루프 프롬프트, 둘째 응답부터는 코드가 할 일을 정한다. 연습 루프 상태 없이
+        // 시작한 옛 대화(2026-09-24 전)만 분류·과제 조립 경로로 이어 간다.
+        boolean loop = DirectVideoPracticeLoop.applies(session);
         // 목적별 코칭(SOMA-719): 앱이 목적을 골라 시작한 회차. 지금 흐름의 실험(모델·흐름 A/B, 자문위원 성격)과 섞지 않는다.
         PurposeLoop.Purpose purpose = loop ? selectedPurpose : null;
         String persona = loop && purpose == null ? persona(session, operationId) : "";
@@ -331,7 +295,8 @@ public final class DirectVideoCoach {
         classifiedNanos = System.nanoTime();
         // 내려놓기 답은 영상 없이 쓴다 — 영상 준비·기다림도 건너뛴다. 영상 파일은 대화가 이어지면 다음 답에서 다시 쓰도록 그대로 둔다.
         // 한 일 묻기(SOMA-855)도 내려놓기처럼 배우 말에 답하는 짧은 질문이라 영상 없이 쓴다.
-        boolean videoOmitted = letGoWithoutVideo && branch != null
+        // 영상이 붙으면 Gemini 가 글을 내기 전에 생각 루프에 빠져 15~20초 걸렸다(SOMA-780, 2026-10-21 운영 실측, 10회 중 6회).
+        boolean videoOmitted = branch != null
                 && (PracticeLoopRouter.LET_GO.equals(branch.doing()) || PracticeLoopRouter.ASK_DONE.equals(branch.doing()));
         // 회차 영상 예산(SOMA-1063)을 넘겨 영상을 뺀 답인지. 아래에서 영상 키를 안 뒤에 정한다.
         boolean budgetOmitted = false;
@@ -643,8 +608,9 @@ public final class DirectVideoCoach {
                     && (uploaded == null || !Boolean.FALSE.equals(uploaded.hasAudioTrack()));
             java.util.Locale replyLanguage = DirectVideoPracticeLoop.replyLanguage(session, actorText);
             final VisibleCoachText visible = streaming ? new VisibleCoachText(session.turns().isEmpty(), replyLanguage, stream::delta) : null;
-            // 답장(첫 질문이 아닌 턴)은 생각을 최소로 쓴다(SOMA-780). 첫 질문·분류·정리 노트는 그대로 LOW 다.
-            final ReplyTrace trace = replyTrace.sibling(followUpMinimalThinking && !session.turns().isEmpty());
+            // 답장(첫 질문이 아닌 턴)은 생각을 최소로 쓴다(SOMA-780). LOW 에서 가끔 생각 토큰이 약 3,900까지 늘어 빈 답·깨진 글·재시도로
+            // 20~28초 걸렸다. 첫 질문·분류·정리 노트는 그대로 LOW 다. MINIMAL 을 받지 않는 모델은 LOW 로 둔다.
+            final ReplyTrace trace = replyTrace.sibling(!session.turns().isEmpty());
             replyTrace = trace;
             ExternalOperationExecution.externalCall("model");
             String message = streaming ? streamOrNull(speaker, uploaded, history, prompt, visible, trace)

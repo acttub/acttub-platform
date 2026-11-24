@@ -9,7 +9,6 @@ import com.google.genai.Client;
 import jakarta.servlet.MultipartConfigElement;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.servlet.MultipartConfigFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,33 +56,28 @@ public class DirectVideoConfiguration {
 
     // 한 대화 안에서 올린 영상을 다시 쓴다(SOMA-735). 마지막으로 쓴 뒤 이 분만큼 안 쓰면 지운다. 0 이면 답마다 올리고 지운다(롤백).
     // 올린 파일에 배포 환경 이름표를 달아 배포 뒤에도 이어 쓰고, 아무도 기억하지 않는 이름표 파일은 ORPHAN 분 뒤 지운다(SOMA-780).
-    // ACTTUB_COACH_VIDEO_LABELS=false 면 이름표 없이 예전처럼 서버가 꺼질 때 다 지운다(롤백).
     @Bean(destroyMethod = "close")
     com.acttub.actingapi.feature.coach.app.CoachVideoCache coachVideoCache(
             com.acttub.actingapi.integration.observation.DirectVideoModel model, FailureReporter failures, Clock clock,
             @Value("${ACTTUB_COACH_VIDEO_REUSE_MINUTES:20}") int minutes,
-            @Value("${ACTTUB_COACH_VIDEO_LABELS:true}") boolean labels,
             @Value("${MONITORING_ENVIRONMENT:local}") String environment,
             @Value("${ACTTUB_COACH_VIDEO_ORPHAN_MINUTES:60}") int orphanMinutes) {
         return new com.acttub.actingapi.feature.coach.app.CoachVideoCache(model,
                 java.time.Duration.ofMinutes(Math.max(0, minutes)), clock, failures,
-                labels ? environment : null, java.time.Duration.ofMinutes(Math.max(0, orphanMinutes)));
+                environment, java.time.Duration.ofMinutes(Math.max(0, orphanMinutes)));
     }
 
-    // 분석 작업이 내려받은 원본으로 첫 질문용 영상을 미리 올린다(SOMA-780). false 면 첫 질문이 직접 올린다(롤백).
+    // 분석 작업이 내려받은 원본으로 첫 질문용 영상을 미리 올린다(SOMA-780).
     @Bean
-    @ConditionalOnProperty(name = "ACTTUB_COACH_VIDEO_WARMUP", havingValue = "true", matchIfMissing = true)
     com.acttub.actingapi.feature.coach.app.CoachVideoWarmup coachVideoWarmup(
             com.acttub.actingapi.integration.observation.DirectVideoModel model,
             com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache,
             com.acttub.actingapi.integration.storage.ObjectStorage storage,
             // 영상 올리기가 끝난 순간에도 준비를 시작한다(10/21). 코칭하지 않는 영상도 잠깐 올라갔다 10분 안에 지워진다.
-            // false 면 예전처럼 분석 작업에서만 시작한다(롤백).
-            @Value("${ACTTUB_COACH_VIDEO_UPLOAD_WARMUP:true}") boolean uploadWarmup,
             @Value("${ACTTUB_COACH_WARM_DIR:${java.io.tmpdir}}") String warmDir,
             com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne) {
         return new com.acttub.actingapi.feature.coach.app.CoachVideoWarmup(model, videoCache,
-                uploadWarmup ? storage : null, uploadWarmup ? java.nio.file.Path.of(warmDir) : null).withLayerOne(layerOne);
+                storage, java.nio.file.Path.of(warmDir)).withLayerOne(layerOne);
     }
 
     // 코칭 1층 관찰 A/B(SOMA-815). 새 연습의 SHARE% 는 분석 작업 때 받아쓰기+관찰 모델을 뒤에서 돌리고 코치 지시문에 칸을 붙인다.
@@ -105,11 +99,8 @@ public class DirectVideoConfiguration {
             com.acttub.actingapi.feature.coach.app.CoachVideoSource videos,
             com.acttub.actingapi.integration.storage.ObjectStorage storage,
             FailureReporter failures, com.acttub.actingapi.platform.observability.LlmTelemetry telemetry,
-            // 연습 루프가 기본이다 — 운영도 핫픽스(#388)로 이미 켜져 있다. false 를 명시하면 분류·과제 조립 경로로 돌아간다(롤백).
-            @Value("${ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP:true}") boolean practiceLoop,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPersonas> personas,
-            // 자문위원 코치 성격 비교(SOMA-622). false 면 모두 기본 성격이다(롤백).
-            @Value("${ACTTUB_COACH_PERSONAS:true}") boolean personasEnabled,
+            // 자문위원 코치 성격 비교(SOMA-622).
             Client client,
             // 코치 모델 비교(SOMA-657). 새 대화의 SHARE% 는 코치 답을 이 모델로 쓴다. SHARE=0 이면 모두 GEMINI_MODEL(롤백).
             // 2026-10-20 끔(SOMA-780): 운영 서버에서 같은 영상으로 재 보니 3.8 이 첫 질문 12.8초·답장 6.8초로 기본 모델(7.4초·4.5초)보다
@@ -132,12 +123,6 @@ public class DirectVideoConfiguration {
             @Value("${SITE_URL:}") String siteUrl,
             com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache,
             GeminiDirectVideoModel.Hedge coachHedge,
-            // 정정에 답하는 '내려놓기'는 영상을 붙이지 않고 글만 보내 쓴다(SOMA-780). 영상이 붙으면 생각 루프에 빠져 15~20초 걸렸다.
-            // false 면 예전처럼 영상과 함께 쓴다(롤백).
-            @Value("${ACTTUB_COACH_LET_GO_WITHOUT_VIDEO:true}") boolean letGoWithoutVideo,
-            // 답장(첫 질문이 아닌 턴)은 생각 단계를 MINIMAL 로 보낸다(SOMA-780). LOW 에서 가끔 생각 루프에 빠져 20~28초 걸렸다.
-            // false 면 모두 LOW(롤백).
-            @Value("${ACTTUB_COACH_FOLLOWUP_MINIMAL_THINKING:true}") boolean followUpMinimalThinking,
             com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne,
             // 고정 앞부분(SOMA-1063): 회차 안에서 바뀌지 않는 지시만 systemInstruction 에 두고 이번 답 지시는 마지막 user 메시지로
             // 보내 Gemini 암묵 캐시가 걸리게 한다. false 면 예전과 같은 요청이다(롤백).
@@ -166,11 +151,9 @@ public class DirectVideoConfiguration {
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge).withVideoFps(fps(videoFps));
         var classifier = classifyModel == null || classifyModel.isBlank() ? null
                 : new GeminiDirectVideoModel(client, classifyModel.strip()).withHedge(coachHedge).withClassifyThinking(classifyThinking);
-        return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
-                personasEnabled ? personas.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE)
-                        : com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE,
-                alternate, modelBShare,
-                videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne)
+        return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry,
+                personas.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE),
+                alternate, modelBShare, videoCache, layerOne)
                 .withFaceMosaic(faceMosaic.getIfAvailable(() -> com.acttub.actingapi.integration.media.FaceMosaic.NONE))
                 .withReadingAudio(readingAudio.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachReadingAudio.NONE))
                 .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))

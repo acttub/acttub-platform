@@ -73,7 +73,7 @@ class DirectVideoCoachPurposeTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry);
     }
 
     static CoachSessionSnapshot fresh(String purpose) {
