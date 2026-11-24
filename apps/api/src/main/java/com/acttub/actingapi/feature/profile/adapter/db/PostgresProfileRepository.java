@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
 
@@ -639,46 +640,76 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
         return replaced == null ? List.of() : List.of(cleanups.schedule(userId, List.of(replaced), now, now));
     }
 
+    /** {@code users} 를 무는 칸 하나. */
+    record UserReference(String table, String column) { }
+
+    /**
+     * 자료가 있으면 계정 행을 지우지 않고 탈퇴 절차로 닫게 하는 칸들. {@code users} 를 ON DELETE 없이 무는 외래 키는 모두 여기나
+     * {@link #ERASED_WITH_THE_ACCOUNT} 에 있어야 한다 — 빠지면 그 표에 행이 있을 때 {@code DELETE FROM users} 가 외래 키로 실패한다
+     * ({@code UnderageClosureReferencesIT} 가 DB 의 외래 키 목록과 맞춰 본다). {@code actor_memory_entries} 는 외래 키가 지우기를
+     * 막지 않지만 0.1.0 이전 배우 기억이라 남긴다.
+     */
+    static final List<UserReference> HISTORY = List.of(
+            new UserReference("practice_sessions", "user_id"),
+            new UserReference("upload_intents", "user_id"),
+            new UserReference("external_operations", "user_id"),
+            new UserReference("actor_memory_entries", "user_id"),
+            new UserReference("account_cleanup_operations", "user_id"),
+            new UserReference("scripts", "user_id"),
+            new UserReference("reading_recordings", "user_id"),
+            new UserReference("community_posts", "author_id"),
+            new UserReference("community_comments", "author_id"),
+            new UserReference("community_post_likes", "user_id"),
+            new UserReference("community_post_images", "uploader_id"),
+            new UserReference("community_anonymous_aliases", "user_id"),
+            new UserReference("community_reports", "reporter_id"),
+            new UserReference("community_blocks", "blocker_id"),
+            new UserReference("community_blocks", "blocked_id"),
+            new UserReference("challenges", "host_user_id"),
+            new UserReference("challenge_entries", "user_id"),
+            new UserReference("entry_likes", "user_id"),
+            new UserReference("entry_comments", "user_id"),
+            new UserReference("entry_reports", "reporter_id"),
+            new UserReference("entry_saves", "user_id"),
+            new UserReference("entry_view_events", "user_id"),
+            new UserReference("user_blocks", "blocker_id"),
+            new UserReference("user_blocks", "blocked_id"),
+            new UserReference("notifications", "user_id"),
+            new UserReference("notifications", "actor_user_id"),
+            // 0.1.0 의 연습·리딩·챌린지 표(SOMA-1130 에서 채움). 지금은 프로필이 찬 회원만 만들 수 있지만 목록에서 빠지면 위 실패가 난다.
+            new UserReference("practices", "user_id"),
+            new UserReference("videos", "user_id"),
+            new UserReference("ai_jobs", "user_id"),
+            new UserReference("actor_memories", "user_id"),
+            new UserReference("note_ratings", "user_id"),
+            new UserReference("practice_feedback", "user_id"),
+            new UserReference("reading_sessions", "user_id"),
+            new UserReference("reading_session_ratings", "user_id"),
+            new UserReference("line_memorization", "user_id"),
+            new UserReference("script_imports", "user_id"),
+            new UserReference("script_uploads", "user_id"),
+            new UserReference("entry_ai_reports", "user_id"),
+            new UserReference("entry_ranking_snapshots", "viewer_id"),
+            new UserReference("notification_pushes", "user_id"));
+
+    /** 자료가 없을 때 계정과 함께 지우는 표(동의·토큰·신원·푸시 토큰). 나머지는 {@code ON DELETE CASCADE} 로 함께 지워진다. */
+    static final List<String> ERASED_WITH_THE_ACCOUNT = List.of("user_consents", "refresh_tokens", "user_identities", "push_tokens");
+
     /**
      * 가입 중에 만 14세 미만으로 드러난 계정.
      *
      * <p>⚠ <b>남의 테이블을 여기서 함께 치는 것은 탈퇴와 같은 이유다</b> — 파기의 원자성이 트랜잭션
-     * 하나를 요구한다. 자료가 있는지 보는 표는 {@code users} 를 FK 로 물고 있으면서 지우면 안 되는
-     * 것들이다(연습·업로드·작업 장부·배우 기억, 그리고 0.1.0 이전에 쓴 커뮤니티 행). 하나라도 있으면
-     * 행을 지울 수 없어 탈퇴와 같은 절차로 닫는다 — 그때는 보관 동의와 무관하게 영상을 파기한다.
+     * 하나를 요구한다. 자료가 있는지 보는 칸은 {@link #HISTORY} 다. 하나라도 있으면 행을 지울 수 없어
+     * 탈퇴와 같은 절차로 닫는다 — 그때는 보관 동의와 무관하게 영상을 파기한다.
      */
     @Override
     public Closed closeUnderage(UUID userId, Instant now, LocalDate today) {
         return transaction.execute(status -> {
-            List<Tuple> rows = list(entityManager.createNativeQuery("""
-                    SELECT (EXISTS (SELECT 1 FROM practice_sessions WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM upload_intents WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM external_operations WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM actor_memory_entries WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM account_cleanup_operations WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM scripts WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM reading_recordings WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM community_posts WHERE author_id=:userId)
-                         OR EXISTS (SELECT 1 FROM community_comments WHERE author_id=:userId)
-                         OR EXISTS (SELECT 1 FROM community_post_likes WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM community_post_images WHERE uploader_id=:userId)
-                         OR EXISTS (SELECT 1 FROM community_anonymous_aliases WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM community_reports WHERE reporter_id=:userId)
-                         OR EXISTS (SELECT 1 FROM community_blocks
-                                    WHERE blocker_id=:userId OR blocked_id=:userId)
-                         OR EXISTS (SELECT 1 FROM challenges WHERE host_user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM challenge_entries WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM entry_likes WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM entry_comments WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM entry_reports WHERE reporter_id=:userId)
-                         OR EXISTS (SELECT 1 FROM entry_saves WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM entry_view_events WHERE user_id=:userId)
-                         OR EXISTS (SELECT 1 FROM user_blocks WHERE blocker_id=:userId OR blocked_id=:userId)
-                         OR EXISTS (SELECT 1 FROM notifications WHERE user_id=:userId OR actor_user_id=:userId)) AS has_history
-                    FROM users
-                    WHERE id=:userId
-                    FOR UPDATE
-                    """, Tuple.class)
+            List<Tuple> rows = list(entityManager.createNativeQuery(
+                    "SELECT (" + HISTORY.stream()
+                            .map(ref -> "EXISTS (SELECT 1 FROM " + ref.table() + " WHERE " + ref.column() + "=:userId)")
+                            .collect(Collectors.joining(" OR "))
+                            + ") AS has_history FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
                     .setParameter("userId", userId));
             if (rows.isEmpty()) {
                 return null;
@@ -687,7 +718,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                 Withdrawn withdrawn = withdraw(userId, true, now, today);
                 return new Closed(Closure.DEACTIVATED, withdrawn.cleanupOperationIds());
             }
-            for (String owned : List.of("user_consents", "refresh_tokens", "user_identities", "push_tokens")) {
+            for (String owned : ERASED_WITH_THE_ACCOUNT) {
                 entityManager.createNativeQuery("DELETE FROM " + owned + " WHERE user_id=:userId")
                         .setParameter("userId", userId)
                         .executeUpdate();
