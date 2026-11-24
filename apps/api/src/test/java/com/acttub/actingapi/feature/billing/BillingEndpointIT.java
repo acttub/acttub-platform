@@ -1,9 +1,11 @@
 package com.acttub.actingapi.feature.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -23,6 +25,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
 import com.acttub.actingapi.feature.billing.app.BillingMailer;
+import com.acttub.actingapi.feature.billing.app.BillingRules;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
 import com.acttub.actingapi.feature.billing.app.RefundNotifier;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
@@ -252,6 +255,56 @@ class BillingEndpointIT {
                 .isEqualTo(Instant.parse("2027-02-23T01:00:00Z"));
         assertThat(jdbc.queryForObject("SELECT count(DISTINCT order_id) FROM billing_payments", Integer.class))
                 .isEqualTo(jdbc.queryForObject("SELECT count(*) FROM billing_payments", Integer.class));
+    }
+
+    @Test
+    @DisplayName("결제 기록은 승인 전에 unknown 으로 들어간다 — 승인이 예상 밖 예외로 끊겨도 결과 모름으로 남아 같은 키로 다시 묻는다")
+    void aPaymentInterruptedBeforeTheAnswerStaysUnknownAndIsRechecked() throws Exception {
+        subscribe();
+        clock.set(Instant.parse("2026-11-23T01:00:01Z"));
+        doThrow(new IllegalStateException("서버가 승인 응답을 받기 전에 멈춘 것과 같다"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+        assertThatThrownBy(worker::runOnce).isInstanceOf(IllegalStateException.class);
+
+        assertThat(jdbc.queryForList("SELECT status FROM billing_payments WHERE kind='renewal'", String.class))
+                .containsExactly("unknown");
+        assertThat(worker.runOnce()).as("결과를 모르는 동안 새로 결제하지 않는다").isFalse();
+
+        approveAll();
+        // 승인 전 기록의 시각은 DB 의 now() 다. 다시 묻는 차례(10분 뒤)를 그 시각 기준으로 넘긴다.
+        clock.set(Instant.now().plus(Duration.ofMinutes(15)));
+        assertThat(worker.runOnce()).isTrue();
+        assertThat(jdbc.queryForList("SELECT status FROM billing_payments WHERE kind='renewal'", String.class))
+                .containsExactly("done");
+        assertThat(jdbc.queryForObject("SELECT current_period_end FROM billing_subscriptions", OffsetDateTime.class).toInstant())
+                .isEqualTo(Instant.parse("2026-12-23T01:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("옛 서버가 남긴 pending 결제도 결과 모름으로 읽는다 — 새로 결제하지 않고 같은 키로 다시 물은 뒤 풀린다")
+    void aPendingPaymentLeftByTheOldServerIsStillUnresolved() throws Exception {
+        subscribe();
+        UUID subscription = jdbc.queryForObject("SELECT id FROM billing_subscriptions", UUID.class);
+        Instant start = Instant.parse("2026-11-23T01:00:00Z");
+        jdbc.update("""
+                INSERT INTO billing_payments(id,subscription_id,user_id,order_id,kind,amount,status,period_start,period_end,attempt,
+                    created_at,updated_at)
+                VALUES (?,?,?,?,'renewal',3900,'pending',?,?,1,?,?)
+                """, UUID.randomUUID(), subscription, USER,
+                BillingRules.renewalOrderId(subscription, start, 1),
+                OffsetDateTime.ofInstant(start, ZoneOffset.UTC),
+                OffsetDateTime.parse("2026-12-23T01:00:00Z"),
+                OffsetDateTime.parse("2026-11-23T00:59:00Z"), OffsetDateTime.parse("2026-11-23T00:59:00Z"));
+        clock.set(Instant.parse("2026-11-23T01:00:01Z"));
+
+        assertThat(worker.runOnce()).as("pending 이 있는 구독은 새로 결제하지 않는다").isFalse();
+
+        clock.advance(Duration.ofMinutes(15));
+        assertThat(worker.runOnce()).isTrue();
+        assertThat(jdbc.queryForList("SELECT status FROM billing_payments WHERE kind='renewal'", String.class))
+                .containsExactly("done");
+        verify(gateway).approve(anyString(), anyString(), eq(BillingRules.renewalOrderId(subscription, start, 1)),
+                anyLong(), anyString(), any(), anyString());
     }
 
     @Test

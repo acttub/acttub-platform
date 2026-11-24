@@ -189,7 +189,7 @@ class InMemoryBillingRepository implements BillingRepository {
                         || (s.status() == Status.PAST_DUE && s.nextRetryAt() != null && !s.nextRetryAt().isAfter(now))))
                 .filter(s -> leases.get(s.id()) == null || leases.get(s.id()).isBefore(now))
                 .filter(s -> payments.values().stream().noneMatch(p -> p.subscriptionId().equals(s.id())
-                        && ("pending".equals(p.status()) || "unknown".equals(p.status()))))
+                        && unresolved(p)))
                 .findFirst()
                 .map(s -> {
                     leases.put(s.id(), now.plus(lease));
@@ -219,7 +219,12 @@ class InMemoryBillingRepository implements BillingRepository {
     @Override
     public boolean hasUnresolvedPayment(UUID userId) {
         return payments.values().stream()
-                .anyMatch(p -> p.userId().equals(userId) && ("pending".equals(p.status()) || "unknown".equals(p.status())));
+                .anyMatch(p -> p.userId().equals(userId) && unresolved(p));
+    }
+
+    /** 저장소 SQL 의 {@code status NOT IN ('done','failed')} 와 같다. */
+    private static boolean unresolved(Payment payment) {
+        return !"done".equals(payment.status()) && !"failed".equals(payment.status());
     }
 
     @Override
@@ -242,7 +247,7 @@ class InMemoryBillingRepository implements BillingRepository {
     @Override
     public Optional<Payment> claimUnknownPayment(Instant now, Duration quietFor, int maxChecks) {
         List<Payment> unknown = new ArrayList<>(payments.values().stream()
-                .filter(p -> "unknown".equals(p.status())).toList());
+                .filter(InMemoryBillingRepository::unresolved).toList());
         return unknown.isEmpty() ? Optional.empty() : Optional.of(unknown.get(0));
     }
 

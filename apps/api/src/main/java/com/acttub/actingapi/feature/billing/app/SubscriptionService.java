@@ -425,7 +425,8 @@ public class SubscriptionService {
             repository.advance(sub.id(), start, end, now);
             return Charge.DONE;
         }
-        if (last.isPresent() && ("unknown".equals(last.get().status()) || "pending".equals(last.get().status()))) {
+        if (last.isPresent() && !"failed".equals(last.get().status())) {
+            // done 이 아니고 failed 도 아니면 결과를 모른다.
             return Charge.UNKNOWN;
         }
         int attempt = last.map(payment -> payment.attempt() + 1).orElse(1);
@@ -451,13 +452,13 @@ public class SubscriptionService {
     }
 
     /**
-     * 주문 하나를 승인한다. 주문 ID 의 기록을 먼저 남기고(이미 있으면 그 기록의 결과를 따른다) 그 주문 ID 를 멱등 키로
-     * 승인한다.
+     * 주문 하나를 승인한다. 주문 ID 의 기록을 결과 모름(unknown)으로 먼저 남기고(이미 있으면 그 기록의 결과를 따른다) 그 주문 ID 를
+     * 멱등 키로 승인한다. 승인을 기다리다 서버가 멈춰도 기록은 unknown 으로 남아 {@link RenewalWorker} 가 같은 키로 다시 묻는다.
      */
     Charge charge(Subscription sub, String orderId, String kind, Instant start, Instant end, int attempt) {
         Instant now = clock.instant();
         boolean inserted = repository.insertPayment(new Payment(UUID.randomUUID(), sub.id(), sub.userId(), orderId, kind,
-                sub.amount(), "pending", start, end, attempt));
+                sub.amount(), "unknown", start, end, attempt));
         if (!inserted) {
             Payment existing = repository.findPayment(orderId).orElseThrow();
             if ("done".equals(existing.status())) {
@@ -466,7 +467,7 @@ public class SubscriptionService {
             if ("failed".equals(existing.status())) {
                 return Charge.FAILED;
             }
-            // pending·unknown: 같은 키로 다시 묻는다 — 토스가 같은 결제로 본다.
+            // 결과 모름: 같은 키로 다시 묻는다 — 토스가 같은 결제로 본다.
         }
         return ask(sub, orderId, now);
     }
