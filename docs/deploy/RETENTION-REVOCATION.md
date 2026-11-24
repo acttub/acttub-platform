@@ -122,22 +122,17 @@ LIMIT 1;
 
 4단계가 녹음 행을 지우면 녹음 키를 다시 읽을 수 없다. **키마다 삭제하고 404 를 확인한 뒤에** 4단계로 간다.
 
-객체는 앱 버킷(`.env` 의 `S3_BUCKET`, 리전 `AWS_REGION`)에 있다. 녹음 키는 `reading/` 로 시작한다. 키마다:
+객체는 Cloudflare R2의 파일 버킷(`.env` 의 `S3_BUCKET`)에 있다. 녹음 키는 `reading/` 로 시작한다. `backup` 컨테이너에
+aws CLI와 그 환경의 R2 토큰(파일 버킷·백업 버킷 객체 읽기·쓰기)과 주소(`S3_ENDPOINT`)가 있으므로 거기서 돌린다. 키마다:
 
 ```sh
-aws s3api delete-object --bucket "$S3_BUCKET" --key '<object_key>'
-aws s3api head-object --bucket "$S3_BUCKET" --key '<object_key>'   # 404 여야 한다
+B=$(grep '^S3_BUCKET=' .env | cut -d= -f2)
+s3() { dc exec -T backup sh -c 'aws s3api "$@" --endpoint-url "$S3_ENDPOINT"' _ "$@"; }
+s3 delete-object --bucket "$B" --key '<object_key>'
+s3 head-object --bucket "$B" --key '<object_key>'   # 404 여야 한다
 ```
 
-버킷에 **버전 관리**가 켜져 있으면 위 명령은 삭제 표시만 남긴다. 먼저 확인하고, 켜져 있으면 그 키의 모든
-버전을 지운다.
-
-```sh
-aws s3api get-bucket-versioning --bucket "$S3_BUCKET"
-aws s3api list-object-versions --bucket "$S3_BUCKET" --prefix '<object_key>' \
-  --query '{Objects: [Versions,DeleteMarkers][].{Key:Key,VersionId:VersionId}}'
-# 위 목록의 VersionId 마다: aws s3api delete-object --bucket … --key … --version-id …
-```
+R2에는 버전 관리가 없어 지운 객체는 그 자리에서 없어진다(삭제 표시나 옛 버전이 남지 않는다).
 
 정리 장부(`account_cleanup_operations`)에 손으로 행을 넣지 않는다 — payload 가 서버 키로 암호화한 값이라 SQL 로
 만들 수 없다. 이미 올라가 있는 이 계정의 `object_delete` 행은 그대로 둔다(같은 키를 다시 지우는 것은 실패가

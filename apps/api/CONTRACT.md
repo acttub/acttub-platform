@@ -332,7 +332,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 5 | 상태값 표기 | text 컬럼 + CHECK. 종마다 `AttributeConverter`, **`@Enumerated` 금지**(§5-3-1) |
 | 6 | refresh 회전 | 소진 토큰 재사용의 전 세션 무효화는 의도된 동작이다 — [account.login 「상태」](../../docs/specs/account/login.md#상태) |
 | 7 | 404 | [common.md 「오류 응답」](../../docs/specs/common.md#오류-응답) |
-| 8 | S3 presign | **리전 엔드포인트 고정.** 글로벌 엔드포인트는 신규 버킷에 307 |
+| 8 | S3 presign | **주소는 `S3_ENDPOINT`(Cloudflare R2)이고 경로 방식으로 붙는다.** 비면 AWS 리전 엔드포인트에 고정한다(글로벌 엔드포인트는 신규 버킷에 307) |
 | 9 | ffmpeg | 동시 실행 1개 락, 600초 타임아웃, 실패·부재 시 원본 폴백 |
 | 10 | 제약명 문자열 의존 | **`consent_documents` 유니크 위반** 판정을 `PSQLException.getServerErrorMessage().getConstraint()` 로 한다. 그래서 `org.postgresql:postgresql` 이 `runtimeOnly` 가 아니라 `implementation` 이다 |
 | 11 | (은퇴) 테이블 락 획득 순서 | 옛 연습 원장·리포트 원장의 순서였고 두 원장과 함께 지웠다. 번호는 테스트 주석의 `§6 #N` 인용 때문에 당기지 않는다 |

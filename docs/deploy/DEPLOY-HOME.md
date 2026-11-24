@@ -1,8 +1,8 @@
 # 홈서버 배포
 
 dev와 운영의 웹·API·PostgreSQL은 홈서버의 별도 Docker Compose 프로젝트로 배포한다.
-현재 배포 경로는 GHCR → Tailscale SSH → 홈서버다. AWS에는 영상·DB 백업 S3와 이를 사용하는
-환경별 IAM 권한을 유지한다. 기존 AWS 인프라를 재시작하는 복구 경로는 폐기하며, 코드 복구는
+현재 배포 경로는 GHCR → Tailscale SSH → 홈서버다. 파일(영상·사진·녹음 등)과 DB 백업은 Cloudflare R2에 있고
+S3 API로 읽고 쓴다. AWS 자원은 2026-11-25에 모두 지웠다([ADR-026](../ADR.md) 개정). 코드 복구는
 §4, DB와 호스트 복구는 §7을 따른다. 이전 절차와 AWS 구성은 [보관 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/README.md)에 있다.
 
 ## 1. 구조와 범위
@@ -10,7 +10,7 @@ dev와 운영의 웹·API·PostgreSQL은 홈서버의 별도 Docker Compose 프�
 ```text
 Cloudflare → 환경별 Tunnel → cloudflared → proxy:3000 → web:3000 → proxy:8080 → api:8080 → db:5432
 GitHub Actions → GHCR 이미지 → Tailscale 임시 노드 → SSH → deploy.sh
-PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
+PostgreSQL → 매일 pg_dump → R2 백업 버킷 / 파일 → 환경별 R2 파일 버킷
 ```
 
 | 항목 | dev | 운영 |
@@ -24,7 +24,7 @@ PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 `proxy`(nginx, [`proxy/nginx.conf`](../../deploy/home/proxy/nginx.conf))는 배포 때 다시 만들지 않는 앞단이다.
 터널의 서비스 주소 `http://web:3000`과 웹 이미지에 굳은 `http://api:8080`은 그대로 두고 Compose 망 별칭으로 proxy가 그
 이름을 받는다 — cloudflared는 `edge` 망, web은 `front` 망에만 있어 그 망의 `web`·`api`는 proxy 하나다.
-호스트 포트는 공개하지 않는다. 영상 S3 버킷과 OAuth의 운영 도메인은 유지한다.
+호스트 포트는 공개하지 않는다. OAuth의 운영 도메인은 유지한다.
 API 이미지는 `api:<sha>`, 웹 이미지는 빌드 시점의 공개 설정을 담은 `web:<env>-<sha>`, 백업은 `backup:<sha>`다.
 DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §5](../../apps/api/CONTRACT.md#5-영속-계층-규칙)),
 실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
@@ -51,9 +51,9 @@ DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §5](../..
 | 외부 서비스 | AI 키(바로 아래 행), 모델 설정, 오디션 공고 수집(`AUDITION_*`, 켜면 바깥 출처에 요청), `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
 | AI 키 | 기능별 전용 키와 공용 키(`GEMINI_API_KEY`·`OPENAI_API_KEY`)의 이름과 쓰임은 `.env.example`을 따른다. Gemini 코칭·TTS·챌린지는 전용 키도 공용 키도 없으면 API 기동이 멈추고(다른 기능의 키로 대신하지 않는다), OpenAI는 호출할 때 실패한다. 값은 서버 `.env` 에만 두고 저장소·로그·문서에 적지 않는다 |
 | 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
-| 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 자격증명. `S3_ENDPOINT`가 비면 AWS S3다. Cloudflare R2면 `S3_ENDPOINT=https://<계정 id>.r2.cloudflarestorage.com`, `AWS_REGION=auto`, 두 키는 R2 API 토큰의 키다. 백업도 같은 주소와 키를 쓴다 |
+| 파일 저장소 | Cloudflare R2. `S3_BUCKET`(환경별 파일 버킷), `S3_ENDPOINT`(R2 주소), `AWS_REGION`, `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`(그 환경의 파일 버킷과 백업 버킷만 허용하는 R2 API 토큰). 값의 모양은 `.env.example`을 따른다. 이름의 S3·AWS는 S3 API의 이름이다. 백업도 같은 주소와 키를 쓴다 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000`(`edge` 망에서 proxy가 받는다, §1) |
-| 백업 | 백업 버킷과 환경별 prefix, AWS 권한, §5의 주기·실제 업로드 확인 |
+| 백업 | R2 백업 버킷과 환경별 prefix(파일 저장소와 같은 토큰), §5의 주기·실제 업로드 확인 |
 | 운영 자원 | 운영 `.env`에 `.env.example`의 prod 값으로 `API_MEM_LIMIT`·`WEB_MEM_LIMIT`·`DB_MEM_LIMIT`을 적는다. 비우면 dev 크기다 |
 | 워커·인증 | 운영의 워커·정리 작업은 켜 둔다(복원 중에는 [§7](#7-db와-호스트-복구) 2단계의 스위치를 끈다). 운영에서 `DEVELOPMENT_AUTH_PROVIDER` 비활성 |
 
@@ -160,9 +160,10 @@ Git revert는 [브랜치 전략의 운영 롤백](../BRANCHING-STRATEGY.md#운�
 
 ## 5. 자동 백업과 복원 검증
 
-dev·운영 모두 매일 `pg_dump -Fc`를 S3의 환경별 경로에 올리고 30일 보관한다.
-백업에는 사용자 데이터와 인증 정보가 포함되므로 S3의 공개 접근을 차단하고 환경별 권한을 둔다.
-30일은 S3 lifecycle의 만료 규칙(AWS 설정)이며 컨테이너가 뜬 것만으로 생기지 않는다.
+dev·운영 모두 매일 `pg_dump -Fc`를 R2 백업 버킷의 환경별 경로에 올리고 30일 보관한다.
+백업에는 사용자 데이터와 인증 정보가 포함되므로 버킷을 공개하지 않고 환경별 토큰에 그 환경의 버킷만 허용한다.
+30일은 R2 백업 버킷의 객체 수명 규칙 `expire-backups-30d`(올린 뒤 30일에 삭제, Cloudflare 대시보드 설정)이며
+저장소 밖에 있다. 컨테이너는 백업을 지우지 않으므로 이 규칙이 없으면 백업이 계속 쌓인다.
 [account.withdraw](../specs/account/withdraw.md)와 개인정보 처리방침이 이 기간을 인용하므로 바꿀 때 함께 고친다.
 
 백업 이미지는 `backup:<sha>`이며 `release.env`의 `BACKUP_IMAGE`로 고정한다.
@@ -177,24 +178,39 @@ docker compose --env-file .env --env-file release.env exec -T backup python3 /op
 docker compose --env-file .env --env-file release.env logs --since 26h --tail 100 backup
 ```
 
-업로드에는 S3의 AES256 서버 암호화와 SHA-256 metadata를 사용하고, HEAD로 크기와 metadata를 대조한다.
-`S3_ENDPOINT`가 있으면 업로드와 HEAD를 그 주소로 보내고 서버 암호화 요청은 뺀다(R2는 저장할 때 늘 암호화한다).
-그때 백업을 받는 명령에도 `--endpoint-url "$S3_ENDPOINT"`를 붙인다. 주소를 바꾼 직후에는 health가 옛 저장소의
+업로드는 `S3_ENDPOINT`의 R2로 보내고 SHA-256 metadata를 붙이며, HEAD로 크기와 metadata를 대조한다.
+R2는 저장할 때 늘 암호화하므로 서버 암호화 요청(`--sse`)은 보내지 않는다(`S3_ENDPOINT`가 비면 AWS S3로 보내고
+`--sse AES256`을 붙이는 경로가 코드에 남아 있다). 저장소 주소나 버킷을 바꾼 직후에는 health가 옛 저장소의
 성공 기록으로 성공할 수 있으므로 위 `once`로 바로 백업하고 새 저장소에 올라갔는지 본다.
+
+백업은 실행 중인 `backup` 컨테이너의 aws CLI와 R2 토큰으로 받는다. 마지막 성공 객체의 주소는 아래 `status.json`의
+`last_success_uri`에 있고, 다른 날짜는 첫 명령의 목록에서 고른다. `<객체 키>`는 `prod/`(또는 `dev/`)를 포함한 전체 키다.
+
+```bash
+cd /svc/acttub/prod
+docker compose --env-file .env --env-file release.env exec -T backup \
+  sh -c 'aws s3 ls "s3://$BACKUP_S3_BUCKET/$BACKUP_S3_PREFIX" --endpoint-url "$S3_ENDPOINT"'
+docker compose --env-file .env --env-file release.env exec -T backup \
+  sh -c 'aws s3 cp "s3://$BACKUP_S3_BUCKET/<객체 키>" - --endpoint-url "$S3_ENDPOINT" --only-show-errors' > restore.dump
+docker compose --env-file .env --env-file release.env exec -T backup \
+  sh -c 'aws s3api head-object --bucket "$BACKUP_S3_BUCKET" --key "<객체 키>" --endpoint-url "$S3_ENDPOINT" --query Metadata.sha256 --output text'
+sha256sum restore.dump   # 위 값과 같아야 한다
+```
+
 `backup_state` 볼륨의 `/var/lib/acttub-backup/status.json`에는 마지막 성공 시각·객체 주소·해시와 실패 상태가
 남는다. 최근 성공이 26시간 이내이고 백업 목적지가 현재 설정과 같으며 미해결 실패가 없을 때만 health가 성공한다.
 이 26시간은 `backup.py`의 `healthy`와 모니터링 규칙(`rules.json`의 `backup-age`)에 따로 적혀 있어 바꿀 때 둘을 함께 바꾼다.
-실패 시 Docker 재시작과 unhealthy 상태를 확인한다. S3에서 받은 파일은 metadata의 SHA-256과 다시 대조한다.
+실패 시 Docker 재시작과 unhealthy 상태를 확인한다. R2에서 받은 파일은 metadata의 SHA-256과 다시 대조한다.
 
 백업 설정을 바꿨거나 복원 가능성을 검증할 때 즉시 백업을 실행하고 업로드된 객체를
-**S3에서 다시 받아** 격리된 DB에 복원한다.
+**R2에서 다시 받아** 격리된 DB에 복원한다.
 덤프 파일이 있거나 업로드 명령이 성공한 것만으로 복원 검증을 통과한 것으로 기록하지 않는다.
 복원한 DB의 스키마·Flyway 이력·행 수·내용과 애플리케이션 기동을 확인한다. 검증 스택은 운영 트래픽과
 분리하고 [§7](#7-db와-호스트-복구) 2단계의 스위치를 모두 끈다. 운영 복사본으로 그 작업들이 돌면 실제 외부 호출·푸시·
 객체 삭제가 일어난다.
 
-백업 성공 시각·S3 객체 키·SHA-256·복원 결과를 남긴다. 복원이 끝난 전송용 로컬 덤프는 지우되
-유일한 복구본이나 정해진 보존 기간의 S3 백업을 지우지 않는다. 일일 백업만으로는 장애 직전까지의
+백업 성공 시각·R2 객체 키·SHA-256·복원 결과를 남긴다. 복원이 끝난 전송용 로컬 덤프는 지우되
+유일한 복구본이나 정해진 보존 기간의 R2 백업을 지우지 않는다. 일일 백업만으로는 장애 직전까지의
 복구를 보장하지 못한다. 마지막 성공 백업 이후 데이터는 손실될 수 있으며, 백업이 실패한 기간만큼
 복구 가능한 시점이 더 오래된다.
 
@@ -245,9 +261,9 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 
    스위치가 없는 예약 작업 가운데 Airbridge 유입 조회(`AirbridgeLookupScheduler`)도 DB를 바꾼다. `.env`의
    `AIRBRIDGE_API_TOKEN`을 비우면 서지 않는다.
-3. S3에서 선택한 백업을 받아 metadata의 SHA-256과 대조하고 격리된 스택에서 먼저 복원한다.
+3. R2에서 선택한 백업을 받아(§5의 명령) metadata의 SHA-256과 대조하고 격리된 스택에서 먼저 복원한다.
    호스트를 새로 준비해야 하면 §2의 서버·시크릿을 복구하고 같은 앱 버전의 이미지로 스택을 준비한다.
-   검증용 스택에는 운영 터널을 연결하지 않고 2단계의 스위치를 모두 끈다. S3 DB 백업에는 `.env`와
+   검증용 스택에는 운영 터널을 연결하지 않고 2단계의 스위치를 모두 끈다. R2의 DB 백업에는 `.env`와
    호스트 설정이 들어 있지 않으므로 이를 별도 보호 사본에서 복구해야 한다.
 4. 검증한 덤프로 환경 DB를 복원한다. 같은 정지 시점의 manifest(행 내용·시퀀스·스키마 지문)가
    있다면 `--expect-manifest`를 함께 전달한다. 운영 복원은 기존 DB를 남기도록 `--keep-old`를 쓴다.
@@ -260,11 +276,11 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
    스크립트는 새 DB에 복원하고 DB 이름을 교체한 뒤 API·Flyway를 확인한다. 백업보다 앱 스키마가
    새로울 때는 기본적으로 거부한다. 필요한 마이그레이션의 호환성을 격리 복원으로 검증한 경우에만
    `--allow-migrate`를 추가한다. 실패하면 원래 DB로 복구를 시도하며, 원본 복구 실패 시 API를 정지해 둔다.
-5. 스키마·Flyway 이력·데이터와 DB를 읽는 API를 확인한다. 백업을 다시 켜서 실제 S3 업로드가
+5. 스키마·Flyway 이력·데이터와 DB를 읽는 API를 확인한다. 백업을 다시 켜서 실제 R2 업로드가
    성공했는지 확인하고, 2단계에서 끈 스위치를 되돌려 적용한 뒤 공개 유입을 연다. 새 호스트라면
    Cloudflare Tunnel 연결과 Tailscale 배포 경로도 검증한다. 로그인·영상 업로드·분석·코치 응답을
    끝까지 확인하고 백업 시각 이후 손실 또는 별도 복구한 데이터를 기록한다.
 
 `--keep-old`가 남긴 `<DB명>_old`는 다음 복원을 차단한다. 복구 검증과 필요한 보존을 끝낸 뒤
-어느 시점의 데이터인지 확인하고 별도로 정리한다. 일일 S3 백업과 별개로 남긴 AWS 최종 스냅샷은
-과거 보존본이다. 홈서버 전환 이후 쓰기를 포함하지 않으며 최신 서비스 복구본으로 대신할 수 없다.
+어느 시점의 데이터인지 확인하고 별도로 정리한다. AWS에 남겨 두었던 최종 스냅샷과 S3 사본은 2026-11-25에 지웠다.
+DB 복구본은 R2의 일일 백업뿐이다.
