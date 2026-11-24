@@ -264,6 +264,28 @@ class VideoLibraryIT {
     }
 
     @Test
+    @DisplayName("practice.record: 총량을 넘어 expired 가 된 예약은 끝이다 — 공간을 비운 뒤 같은 예약을 다시 마무리해도 422 upload_expired 이고 "
+            + "삭제 장부에 오른 객체로 영상을 만들지 않는다")
+    void practiceRecord_anIntentExpiredByTheQuotaStaysExpired() throws Exception {
+        JsonNode intent = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 2_000, 9_000)), 201);
+        String key = jdbc.queryForObject("SELECT object_key FROM upload_intents WHERE id=?", String.class, intentId(intent));
+        deviceUploads(intent, 2_000);
+        UUID filler = seedVideo(member, VideoRules.MEMBER_QUOTA_BYTES - 1_000, null);
+        storage.failing.add(key);
+        assertThat(json(post("/v2/videos/intents/{id}/complete", intentId(intent)), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"video_quota\"}"));
+        assertThat(jdbc.queryForObject("SELECT status FROM upload_intents WHERE id=?", String.class, intentId(intent)))
+                .isEqualTo("expired");
+        assertThat(count("account_cleanup_operations")).as("지우지 못한 객체가 장부에 남아 있다").isEqualTo(1);
+
+        jdbc.update("DELETE FROM videos WHERE id=?", filler);
+        assertThat(json(post("/v2/videos/intents/{id}/complete", intentId(intent)), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"upload_expired\"}"));
+        assertThat(count("videos")).isZero();
+        assertThat(count("account_cleanup_operations")).as("장부에 한 번만 오른다").isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("practice.record: 한도 직전에 동시 업로드 둘 — 하나만 확정되고 다른 것은 422 video_quota 다(사용자 행에서 줄을 선다)")
     void practiceRecord_concurrentCompletionsCannotBothPassTheQuota() throws Exception {
         seedVideo(member, VideoRules.MEMBER_QUOTA_BYTES - 1_500, null);

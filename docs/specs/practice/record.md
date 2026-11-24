@@ -27,7 +27,8 @@ upload_intents.status — 올릴 자리 예약.
 | expired | 시한이 지난 마무리, 총량을 넘어 거절한 마무리, 또는 시한 지난 pending을 정리 작업이 닫음 | practice.record |
 
 - 불변 조건: (user_id, request_id)당 예약 하나(`uq_upload_intents_user_request`).
-- 끝 상태: finalized·expired.
+- 끝 상태: finalized·expired. expired 예약의 마무리는 시한 안이어도 422 upload_expired다 — 총량을 넘어 닫힌 예약을 공간을 비운 뒤 다시
+  마무리해도 영상을 만들지 않고, 객체를 장부에 다시 올리지 않는다. 기기는 처음부터 다시 올린다.
 
 videos — 보관함 영상 행.
 
@@ -86,6 +87,8 @@ videos — 보관함 영상 행.
   영상의 첫 분석 둘이 동시에: 묶음 하나.
 - 새 게스트의 첫 업로드: 시트에 문서 셋. 동의 없이 마무리 API: 403 consent_required.
 - 올릴 자리만 받고 31분 뒤 마무리: 422 upload_expired, videos 행 없음, 미확정 객체가 장부에 들어간다.
+- 총량을 넘어 거절된 마무리(422 video_quota) 뒤 공간을 비우고 같은 예약을 다시 마무리: 422 upload_expired, videos 행 없음, 장부의 행은
+  하나 그대로(`VideoLibraryIT`).
 - 마무리 응답 유실 뒤 같은 request_id 재전송: 같은 video_id, 행 하나.
 - 오프라인에서 촬영 뒤 연결: 큐가 올리고 같은 요청 id라 행은 하나다. 앱을 다시 열어도 큐가 남아 이어 올린다. 7일 지난 대기 파일: 버리고 알린다.
 - 카메라 권한 거절: 갤러리 선택 화면으로 간다. 웹에서 마무리 전 탭 닫기: 경고가 뜬다.
@@ -97,6 +100,3 @@ videos — 보관함 영상 행.
 - 시한 지난 예약의 정리 경로가 규칙과 다르다. `VideoService.sweepExpiredIntents`(expired로 닫고 객체 삭제를 장부에 올림)는 부르는 곳이
   없다. 지금은 옛 분석 워커의 정리(`AnalysisWorkerScheduler.sweep` → `PostgresAnalysisStore.sweepExpiredUploads`)가 시한 지난 pending
   예약을 모두 expired로 닫고 객체를 장부 없이 바로 지운다. 삭제가 실패하면 다시 지우지 않고, 옛 워커가 사라지면 정리하는 곳이 없다.
-- 총량을 넘어 expired가 된 예약도 마무리는 status를 보지 않아(`PostgresVideoRepository.complete`), 공간을 비운 배우가 시한 안에
-  다시 마무리하면 다시 확정을 시도한다. 그 사이 장부가 객체를 지웠으면 422 video_not_ready이고, 아직이면 확정된 영상의 객체를 장부가
-  뒤에 지울 수 있다. 끝 상태 expired를 지켜 422 upload_expired로 답할지 정한다.

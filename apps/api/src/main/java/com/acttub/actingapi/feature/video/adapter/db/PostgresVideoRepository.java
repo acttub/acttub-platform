@@ -122,7 +122,7 @@ class PostgresVideoRepository implements VideoRepository {
                     "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
                     .setParameter("userId", userId));
             List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT object_key,mime_type,size_bytes,duration_ms,expires_at,video_id
+                    SELECT status,object_key,mime_type,size_bytes,duration_ms,expires_at,video_id
                     FROM upload_intents
                     WHERE id=:intentId
                       AND user_id=:userId
@@ -137,6 +137,10 @@ class PostgresVideoRepository implements VideoRepository {
             UUID already = intent.get("video_id", UUID.class);
             if (already != null) {
                 return new Completed(CompleteOutcome.REPLAYED, find(userId, already), List.of());
+            }
+            if ("expired".equals(intent.get("status", String.class))) {
+                // 끝 상태다(practice.record). 총량을 넘어 닫힌 예약의 객체는 이미 삭제 장부에 올랐으므로 다시 올리지 않는다.
+                return new Completed(CompleteOutcome.EXPIRED, null, List.of());
             }
             if (!now.isBefore(intent.get("expires_at", Instant.class))) {
                 return new Completed(CompleteOutcome.EXPIRED, null, expire(userId, intentId, intent, now));
