@@ -5,7 +5,7 @@
 #
 # 컨텍스트에서 jar 하나만 올라온다(apps/api/.dockerignore). 환경 무관 이미지 하나이며
 # 설정은 전부 런타임 env 로 받는다(deploy/home/compose.yml, .env.example).
-FROM eclipse-temurin:21-jre-noble
+FROM eclipse-temurin:25-jre-noble
 
 # ffmpeg·ffprobe 는 영상 압축(GeminiVideoCompressor)·음성 추출(AudioExtractor)·영상 청크(VideoRecordChunks)·
 # 리딩 녹음 변환(AudioTranscoder)·길이 측정(VideoDurationProbe)·보관함 포스터(PosterFrameExtractor)가 PATH 에서 찾는다. 문서에 없던 호스트 의존을 이미지에 넣는다.

@@ -54,7 +54,11 @@ class JacksonDefaultsContractTest {
             byte[] bytes, char letter, Nested nested, JsonNode tree, double notNumber) {
     }
 
-    /** 레코드가 아닌 클래스: 필드·게터 순서. */
+    /**
+     * 레코드가 아닌 클래스: 필드가 있는 속성은 필드 순서로, 게터만 있는 속성은 그 뒤에 온다.
+     * 게터만 있는 속성이 둘이면 그 둘의 순서는 JVM 이 돌려주는 메서드 순서를 따라 정해져 있지 않다. Java 25 에서
+     * 실제로 뒤집혀서(SOMA-1125) 하나만 둔다.
+     */
     static final class Bean {
         private final String zeta = "z";
         private final int alpha = 1;
@@ -69,10 +73,6 @@ class JacksonDefaultsContractTest {
 
         public boolean isReady() {
             return true;
-        }
-
-        public String getComputed() {
-            return zeta + alpha;
         }
     }
 
@@ -169,7 +169,7 @@ class JacksonDefaultsContractTest {
      * 숫자 {@code 2} 로 쓴다. 코드에 Month 를 JSON 으로 내는 곳이 없어 맞추지 않았다(SOMA-1103 진행 기록).
      */
     private static final String EXPECTED_ZOO = "{\"zeta\":\"마지막 \\\"따옴\\\" /슬래시\\n줄 \u2028 😀\",\"alpha\":7,\"big\":9007199254740993,\"half\":0.5,\"whole\":2.0,\"single\":1.25,\"decimal\":1.10,\"integer\":123456789012345678901234567890,\"flag\":true,\"missing\":null,\"text\":\"\",\"instant\":\"2026-08-06T01:02:03.456789Z\",\"offset\":\"2026-08-06T01:02:03.000000Z\",\"date\":\"2026-01-02\",\"time\":\"03:04:05\",\"local\":\"2026-01-02T03:04:05\",\"zoned\":\"2026-01-02T03:04:05Z\",\"duration\":\"PT1M30S\",\"month\":2,\"utilDate\":\"2023-11-14T22:13:20.123+00:00\",\"timestamp\":\"2023-11-14T22:13:20.123+00:00\",\"sqlDate\":\"2026-01-02\",\"uuid\":\"123e4567-e89b-12d3-a456-426614174000\",\"present\":\"있음\",\"absent\":null,\"list\":[1,\"두\",3.5,false],\"map\":{\"z\":1,\"a\":null,\"m\":[\"x\"]},\"kind\":\"FIRST_KIND\",\"bytes\":\"AQID\",\"letter\":\"ㄱ\",\"nested\":{\"zeta\":\"n\",\"alpha\":2},\"tree\":{\"b\":1,\"a\":[2.5,null]},\"notNumber\":\"NaN\"}";
-    private static final String EXPECTED_BEAN = "{\"zeta\":\"z\",\"alpha\":1,\"ready\":true,\"computed\":\"z1\"}";
+    private static final String EXPECTED_BEAN = "{\"zeta\":\"z\",\"alpha\":1,\"ready\":true}";
     private static final String EXPECTED_TRAILING = "Text[value=a]";
     private static final String EXPECTED_SECOND_DOCUMENT = "Text[value=a]";
     private static final String EXPECTED_NULL_PRIMITIVES = "ERROR";

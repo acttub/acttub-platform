@@ -10,7 +10,7 @@ version = "0.1.0"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -150,6 +150,9 @@ tasks.named<JacocoReport>("jacocoTestReport") {
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     archiveFileName = "acting-api.jar"
+    // 얼굴 찾기(OpenCV)가 System.load 로 네이티브를 올린다. Java 24 부터 이것이 경고를 내고, 앞으로 막는다고 예고돼 있다(JEP 472).
+    // `java -jar` 로 띄울 때 JVM 이 이 줄을 읽어 클래스패스 코드의 네이티브 접근을 허용한다(Dockerfile 의 ENTRYPOINT).
+    manifest { attributes("Enable-Native-Access" to "ALL-UNNAMED") }
 }
 
 // 동의 문서와 심사 공고는 `src/main/resources/` 에 있어 기본 규칙대로 jar 에 실린다.
