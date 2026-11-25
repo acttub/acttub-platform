@@ -33,7 +33,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 리딩 회차 저장소가 내는 결과·잠금·경합·문장을 고정한다. 시작·진행·완료·조회·삭제의 HTTP 흐름과 화면에 보이는 값은
  * {@link ReadingSessionIT} 가 본다. 여기서는 저장소 한 번의 부름이 적는 칸 전체(배열·jsonb 포함), 회차 번호와 집계의 세는 법,
  * 대본 행과 회차 행의 잠금, 잠금을 기다린 뒤 다시 보는 것(같은 요청 id·앞선 순번·지워진 회차), 요청 하나가 보내는 문장을 본다 —
- * 회차 시작과 진행 저장은 요청이 많은 경로라 문장 수가 늘면 안 되고, 진행 저장은 디스크 확정을 기다리지 않는 설정을 그 트랜잭션에만 건다.
+ * 회차 시작과 진행 저장은 요청이 많은 경로라 문장 수가 늘면 안 되고, 진행 저장은 디스크 확정을 기다리지 않는 설정을 그 트랜잭션에만 건다. *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — 회차를 지울 때 녹음의
+ * {@code DELETE … RETURNING} 을 잠가 읽기와 id 로 지우기로 나눠, 녹음이 있는 회차를 지울 때 문장이 하나 늘었다. 시작·진행 저장·
+ * 상세·목록의 문장 수는 그대로이고 결과·잠금·경합 테스트는 고치지 않았다.
  */
 class SessionRepositoryIT extends ReadingRepositoryFixture {
 
@@ -477,9 +480,12 @@ class SessionRepositoryIT extends ReadingRepositoryFixture {
         assertThat(statementsOf(() -> sessions.saveProgress(owner, session, new ProgressChange(3, last, 1, List.of(), false), now)))
                 .as("닫힌 회차").containsExactly(sessionLock);
         assertThat(statementsOf(() -> sessions.delete(owner, session, now))).as("녹음이 있는 회차 지우기").containsExactly(
-                sessionLock, "delete reading_recordings returning", "delete reading_session_ratings", "delete reading_sessions",
-                "insert account_cleanup_operations");
+                sessionLock, "select reading_recordings for update", "delete reading_recordings", "delete reading_session_ratings",
+                "delete reading_sessions", "insert account_cleanup_operations");
         assertThat(statementsOf(() -> sessions.delete(owner, session, now))).containsExactly(sessionLock);
+        UUID bare = sessions.start(owner, script, UUID.randomUUID(), plan(List.of(nina), first, last), now).sessionId();
+        assertThat(statementsOf(() -> sessions.delete(owner, bare, now))).as("녹음이 없는 회차 지우기").containsExactly(
+                sessionLock, "select reading_recordings for update", "delete reading_session_ratings", "delete reading_sessions");
     }
 
     /** 읽기 방식, 손으로 넘김, 녹음 켬. */

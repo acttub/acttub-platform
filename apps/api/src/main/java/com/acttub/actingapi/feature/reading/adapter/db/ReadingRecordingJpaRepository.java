@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -60,6 +61,29 @@ interface ReadingRecordingJpaRepository extends Repository<ReadingRecordingEntit
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(ROW + "where r.readingSessionId = :sessionId and r.lineId = :lineId")
     Optional<Row> lockByLine(UUID sessionId, UUID lineId);
+
+    /** 그 회차의 녹음, 줄 순서. */
+    @Query(ROW + "join ScriptLineEntity l on l.id = r.lineId where r.readingSessionId = :sessionId order by l.ordinal")
+    List<Row> ofSession(UUID sessionId);
+
+    /** 지울 녹음의 id 와 객체 키. */
+    interface Stored {
+        UUID getId();
+
+        String getObjectKey();
+    }
+
+    /**
+     * 그 회차의 녹음을 잠가 읽는다. 다른 트랜잭션이 지우는 중인 행은 그 커밋을 기다렸다가 빠진다. 회차 행을 먼저 잡고 부르면
+     * 새 녹음이 들어오지 못해(녹음의 FK 가 회차 행의 잠금 뒤에서 기다린다) 읽은 행이 지울 행의 전부다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r.id as id, r.objectKey as objectKey from ReadingRecordingEntity r where r.readingSessionId = :sessionId")
+    List<Stored> lockOfSession(UUID sessionId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from ReadingRecordingEntity r where r.id in :ids")
+    int deleteAll(Collection<UUID> ids);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r.objectKey from ReadingRecordingEntity r where r.id = :id and r.userId = :userId")

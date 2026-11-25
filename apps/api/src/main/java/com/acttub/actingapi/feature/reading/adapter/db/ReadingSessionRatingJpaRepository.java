@@ -27,6 +27,10 @@ interface ReadingSessionRatingJpaRepository extends Repository<ReadingSessionRat
     int upsert(UUID id, UUID sessionId, UUID userId, String rating, String comment, UUID requestId, Instant now);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from ReadingSessionRatingEntity r where r.sessionId = :sessionId")
+    int deleteOfSession(UUID sessionId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ReadingSessionRatingEntity r set r.userId = :to where r.userId = :from")
     int reassign(UUID from, UUID to);
 }

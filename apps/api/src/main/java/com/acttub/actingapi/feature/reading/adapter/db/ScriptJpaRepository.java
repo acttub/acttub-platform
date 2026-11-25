@@ -26,6 +26,11 @@ interface ScriptJpaRepository extends Repository<ScriptEntity, UUID> {
     @Query("select s.rawHash from ScriptEntity s where s.userId = :userId and s.id = :scriptId")
     Optional<String> rawHash(UUID userId, UUID scriptId);
 
+    /** 같은 대본의 회차 시작이 여기서 줄을 선다. 이관·삭제 뒤에는 남의 것이라 비어 있다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s.id from ScriptEntity s where s.id = :scriptId and s.userId = :userId")
+    Optional<UUID> lockOwned(UUID scriptId, UUID userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s.id from ScriptEntity s where s.id = :scriptId")
     Optional<UUID> lock(UUID scriptId);
