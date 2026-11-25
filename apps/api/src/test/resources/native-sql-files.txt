@@ -61,7 +61,6 @@ feature/reading/adapter/db/PostgresMemorizationRepository.java 1 남김: 줄을 
 feature/reading/adapter/db/PostgresReadingExampleRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 잠금(withOwnerLock). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresReadingOwnership.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 이관의 첫 문장(reassign). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresReadingVoiceMaterials.java 3 남김: 줄마다 마지막 녹음을 고르는 DISTINCT ON 은 HQL 에 없다(material). 코칭 회차를 찾는 두 조회(practiceOf·readingSessionOf)는 다른 기능(practice)의 practices 를 읽는데 practice 에 이 조회를 내주는 Port 가 없다
-feature/reading/adapter/db/PostgresRecordingRepository.java 11
 feature/reading/adapter/db/PostgresRetranscribeRepository.java 2 남김: 집은 뒤의 녹음 읽기(claimNext)와 전사 채우기(fill)는 한 문장 안에서 다른 기능(auth)의 users 로 주인이 활성인지 본다. 읽고 나서 쓰는 두 문장으로 풀면 받아쓰는 사이의 탈퇴를 놓친다
 feature/reading/adapter/db/PostgresScriptCocreateRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 잠금(withSaveLock). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresScriptImportRepository.java 21

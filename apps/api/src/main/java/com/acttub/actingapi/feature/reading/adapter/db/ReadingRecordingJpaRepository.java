@@ -1,15 +1,106 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.schema.ReadingRecordingEntity;
+import com.acttub.actingapi.platform.schema.TranscriptSource;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Limit;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
 /** {@code reading_recordings} 를 읽고 쓰는 문장(apps/api/CONTRACT.md §5-9). */
 interface ReadingRecordingJpaRepository extends Repository<ReadingRecordingEntity, UUID> {
+
+    /** 응답에 싣는 녹음의 칸과 객체 키. */
+    interface Row {
+        UUID getId();
+
+        UUID getLineId();
+
+        int getAttemptNo();
+
+        int getDurationMs();
+
+        String getContentType();
+
+        long getByteSize();
+
+        String getTranscript();
+
+        TranscriptSource getTranscriptSource();
+
+        Boolean getMatched();
+
+        String getObjectKey();
+    }
+
+    String ROW = """
+            select r.id as id, r.lineId as lineId, r.attemptNo as attemptNo, r.durationMs as durationMs,
+                   r.contentType as contentType, r.byteSize as byteSize, r.transcript as transcript,
+                   r.transcriptSource as transcriptSource, r.matched as matched, r.objectKey as objectKey
+            from ReadingRecordingEntity r
+            """;
+
+    @Query(ROW + "where r.id = :id")
+    Optional<Row> row(UUID id);
+
+    @Query(ROW + "where r.userId = :userId and r.requestId = :requestId")
+    Optional<Row> byRequest(UUID userId, UUID requestId);
+
+    @Query(ROW + "where r.readingSessionId = :sessionId and r.lineId = :lineId")
+    Optional<Row> byLine(UUID sessionId, UUID lineId);
+
+    /** 같은 줄의 올리기가 겹치면 여기서 줄을 선다. 방언 덕에 {@code for update} 로 나간다(§5-2). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(ROW + "where r.readingSessionId = :sessionId and r.lineId = :lineId")
+    Optional<Row> lockByLine(UUID sessionId, UUID lineId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r.objectKey from ReadingRecordingEntity r where r.id = :id and r.userId = :userId")
+    Optional<String> lockObjectKey(UUID id, UUID userId);
+
+    @Query("select coalesce(sum(r.byteSize), 0) from ReadingRecordingEntity r where r.userId = :userId")
+    long storedBytes(UUID userId);
+
+    /** 그 키를 이 회차의 행이나 회차 연결이 빈 보관 행이 가리키는가. */
+    @Query("""
+            select r.id from ReadingRecordingEntity r
+            where (r.readingSessionId = :sessionId or r.readingSessionId is null) and r.objectKey = :objectKey
+            """)
+    List<UUID> pointingAt(UUID sessionId, String objectKey, Limit limit);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            insert into ReadingRecordingEntity (id, userId, readingSessionId, lineId, requestId, attemptNo, objectKey, contentType,
+                                                byteSize, durationMs, transcript, transcriptSource, matched, createdAt, updatedAt)
+            values (:id, :userId, :sessionId, :lineId, :requestId, :attemptNo, :objectKey, :contentType,
+                    :byteSize, :durationMs, :transcript, :transcriptSource, :matched, :now, :now)
+            """)
+    int insert(UUID id, UUID userId, UUID sessionId, UUID lineId, UUID requestId, int attemptNo, String objectKey,
+            String contentType, long byteSize, int durationMs, String transcript, TranscriptSource transcriptSource,
+            Boolean matched, Instant now);
+
+    /** 같은 줄의 다시 말하기 — 행은 하나이고 요청·시도 번호·객체·전사를 바꾼다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ReadingRecordingEntity r
+            set r.requestId = :requestId, r.attemptNo = :attemptNo, r.objectKey = :objectKey, r.contentType = :contentType,
+                r.byteSize = :byteSize, r.durationMs = :durationMs, r.transcript = :transcript,
+                r.transcriptSource = :transcriptSource, r.matched = :matched, r.updatedAt = :now
+            where r.id = :id
+            """)
+    int replace(UUID id, UUID requestId, int attemptNo, String objectKey, String contentType, long byteSize, int durationMs,
+            String transcript, TranscriptSource transcriptSource, Boolean matched, Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from ReadingRecordingEntity r where r.id = :id")
+    int delete(UUID id);
 
     /** 녹음한 줄과 그 줄을 말할 때의 글. */
     interface Spoken {

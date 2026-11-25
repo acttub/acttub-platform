@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -54,6 +55,29 @@ interface ReadingSessionJpaRepository extends Repository<ReadingSessionEntity, U
                and not exists (select 1 from ReadingSessionEntity r where r.userId = :userId)
             """)
     boolean noneYetFor(UUID userId, UUID scriptId);
+
+    @Query("select rs.id from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
+    Optional<UUID> owned(UUID sessionId, UUID userId);
+
+    /**
+     * 그 회차의 구간 안 내 대사 줄(내 배역이 든 함께 말하는 줄 포함)의 소리 낼 글. 상대역 줄·지문·구간 밖·남의 줄이면 비어 있다.
+     * native 의 {@code = ANY(배열 칸)} 은 HQL 에 없어 {@code array_contains}({@code @>})로 쓴다.
+     */
+    @Query("""
+            select coalesce(regexp_replace(l.speech, '⟦[a-z][a-z]⟧', ' ', 'g'), l.text)
+            from ReadingSessionEntity rs
+            join ScriptLineEntity s on s.id = rs.startLineId
+            join ScriptLineEntity e on e.id = rs.endLineId
+            join ScriptLineEntity l on l.scriptId = rs.scriptId
+            where rs.id = :sessionId
+              and l.id = :lineId
+              and l.kind = com.acttub.actingapi.platform.schema.ScriptLineKind.DIALOGUE
+              and l.ordinal between s.ordinal and e.ordinal
+              and (array_contains(rs.myCharacterIds, l.characterId)
+                   or exists (select 1 from ScriptCharacterEntity lc
+                              where lc.id = l.characterId and array_overlaps(lc.memberIds, rs.myCharacterIds)))
+            """)
+    List<String> myDialogueLine(UUID sessionId, UUID lineId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select rs.id from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
