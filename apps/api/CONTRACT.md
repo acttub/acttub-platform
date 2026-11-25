@@ -950,6 +950,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     서비스가 한다.
   - 시한이 지난 마무리는 예약을 `expired` 로 닫으며 **미확정 객체의 삭제를 같은 트랜잭션에서 장부**(`object_delete`)에
     올린다.
+  - 마무리 없이 시한이 지난 예약은 `video/adapter/sched/UploadIntentSweepScheduler` 가 60초마다(`UPLOAD_INTENT_SWEEP_INTERVAL_MS`)
+    200개씩 `FOR UPDATE SKIP LOCKED` 로 잡아 같은 방식으로 닫는다. 옛 분석 워커의 정리(`PostgresAnalysisStore.sweepExpiredUploads`)가
+    같은 일을 겸하므로 옛 큐 워커를 지울 때까지 함께 돈다. 스위치는 포스터와 같이 `ANALYSIS_WORKER_ENABLED` 와
+    `UPLOAD_INTENT_SWEEP_ENABLED`(테스트는 후자를 전역으로 끈다)다.
   - 목록의 커서는 저장 시각과 id 다.
   - 삭제는 참조 확인과 삭제를 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다). 지운 영상과 포스터
     객체는 장부로 간다. 파일만 파기해도 `poster_key` 는 `object_key` 처럼 행에 남지만 객체는 없다.
