@@ -97,7 +97,7 @@ class RefreshRotationIT {
         assertThat(rotated.reused()).isFalse();
         List<String> normal = RecordingInspector.refreshStatements();
         assertThat(normal).hasSize(3);
-        assertThat(normal.get(0)).startsWith("select * from refresh_tokens").endsWith("for update");
+        assertThat(normal.get(0)).startsWith("select ").contains(" from refresh_tokens ").endsWith("for update of rte1_0");
         assertThat(normal.get(1)).startsWith("insert into refresh_tokens");
         assertThat(normal.get(2)).startsWith("update refresh_tokens");
 
@@ -113,7 +113,7 @@ class RefreshRotationIT {
         assertThat(reused.reused()).isTrue();
         List<String> reuse = RecordingInspector.refreshStatements();
         assertThat(reuse).hasSize(2);
-        assertThat(reuse.get(0)).startsWith("select * from refresh_tokens").endsWith("for update");
+        assertThat(reuse.get(0)).startsWith("select ").contains(" from refresh_tokens ").endsWith("for update of rte1_0");
         assertThat(reuse.get(1)).startsWith("update refresh_tokens");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM refresh_tokens WHERE user_id=? AND revoked_at IS NULL",
