@@ -81,6 +81,7 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   읽고 쓰는 코드가 없다. 지운다(아래 문단).
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
+- `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 매핑을 내렸다. 지운다(아래 문단).
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다. 지운다(아래 문단).
@@ -94,7 +95,7 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   대상에는 넣지 않는다.
 
 구형 `reports`, `summaries`의 다섯 칸, `users.role`, `handoff_confirmations`와 `coaching_handoffs`·`coach_sessions`의 옛 칸(위 목록), 그리고 매핑 없이 남은 `practice_sessions.subtext`와
-`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`)은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
+`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`), `videos`의 크기 두 칸은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
 쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
 마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
 
@@ -477,7 +478,13 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 > 제품 규칙의 정본: [common.md](../../docs/specs/common.md) 「게이트와 보호 기능」·「클라이언트 판과 강제 업데이트」(판정 순서, 게이트 밖 경로 표, 426 문장, `account_deactivated` 의 예외), [account.consent](../../docs/specs/account/consent.md)·[account.profile](../../docs/specs/account/profile.md)(동의·프로필 게이트가 세는 것)
 
 - **426** 은 `platform/security/ClientVersionFilter` 가 토큰 검증보다 먼저 낸다. 헤더를 보지 않는 경로는
-  `ClientVersionFilter#shouldNotFilter` 한 곳에 있다.
+  `ClientVersionFilter#shouldNotFilter` 한 곳에 있다. 경로 템플릿을 붙이는 `RoutePatternFilter` 는 이 필터보다 앞이라
+  426 요청도 지표 `uri`·로그 `route` 에 부른 경로가 남는다.
+- **버전 헤더를 로그·지표에 싣는 값**은 `platform/observability/ClientLabel` 이 줄인다 — `app`·`web` 에 숫자 마디 버전이
+  붙은 꼴만 그대로, 그 밖은 `other`, 없으면 `none`. 받은 글자를 그대로 싣지 않는다. 요청 로그의 `client` 칸은 이 값이다.
+  이 꼴만으로는 값 종류가 묶이지 않으므로(수조 가지, 헤더는 로그인 없이 누구나 보낸다) `acttub.http.requests.by.client`
+  지표는 `HttpRequestMetrics` 가 프로세스마다 처음 본 값을 `CLIENT_LIMIT` 가지까지만 제 이름으로 세고, 그 뒤의 새 값은
+  `other` 로 센다(§6-4 의 범위가 정해진 label).
 - **회원 게이트**는 `platform/security/ConsentGateInterceptor` 의 경로 목록(`OUTSIDE_THE_GATE`·`GUEST_ONLY`·
   `CONSENT_ONLY`)과 `AccessGate` 다. common.md 의 표와 이 목록은 같이 바꾼다. 회원과 웹 게스트(§6-9)는 같은
   `AccessGate#gatedUser` 가 주체를 보고 가른다.
@@ -929,7 +936,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
   구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로는 지웠다. 다만 옛 큐 워커(§5-7)는 옛 분석을 `summaries`에
-  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. `/v2/legacy-me/memory`는 `actor_memory_entries`에 쓴다.
+  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. 옛 기억 갱신 워커는 `actor_memory_entries`에 쓴다.
   전환의 순서와 옛 테이블을 지우는 때는
   specs/practice 「0.1.0 스키마 전환」이 정본이다.
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
@@ -946,6 +953,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     서비스가 한다.
   - 시한이 지난 마무리는 예약을 `expired` 로 닫으며 **미확정 객체의 삭제를 같은 트랜잭션에서 장부**(`object_delete`)에
     올린다.
+  - 마무리 없이 시한이 지난 예약은 `video/adapter/sched/UploadIntentSweepScheduler` 가 60초마다(`UPLOAD_INTENT_SWEEP_INTERVAL_MS`)
+    200개씩 `FOR UPDATE SKIP LOCKED` 로 잡아 같은 방식으로 닫는다. 옛 분석 워커의 정리(`PostgresAnalysisStore.sweepExpiredUploads`)가
+    같은 일을 겸하므로 옛 큐 워커를 지울 때까지 함께 돈다. 스위치는 포스터와 같이 `ANALYSIS_WORKER_ENABLED` 와
+    `UPLOAD_INTENT_SWEEP_ENABLED`(테스트는 후자를 전역으로 끈다)다.
   - 목록의 커서는 저장 시각과 id 다.
   - 삭제는 참조 확인과 삭제를 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다). 지운 영상과 포스터
     객체는 장부로 간다. 파일만 파기해도 `poster_key` 는 `object_key` 처럼 행에 남지만 객체는 없다.
@@ -1423,8 +1434,8 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-6. 직접 영상 코칭의 코드 자리
 
-> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: 연습 루프와 옛 대화의 분류·지침 경로)
 
-- 직접 영상: dev 임시 세션 API는 `DirectVideoController`(조건부 등록, 공개 OpenAPI에서 `@Hidden`), 임시 세션은
-  `DirectVideoSessions` → `DirectVideoRouting`, 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 열리는 조건과
+- 직접 영상: 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 연습 루프 전에 시작한 옛 대화의 후속 답만
+  `DirectVideoCoach` → `DirectVideoRouting`이 지침을 고른다. 열리는 조건과
   경로 선택은 practice.coach 「규칙·제약」의 경로 표와 「Gemini 직접 영상 코칭」에 있다.

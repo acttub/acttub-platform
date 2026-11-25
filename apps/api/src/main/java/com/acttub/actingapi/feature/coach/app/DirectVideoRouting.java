@@ -42,7 +42,6 @@ final class DirectVideoRouting {
     Selection select(List<DirectVideoModel.Message> history, String actorText, boolean finish,
             UUID practiceId, UUID userId, UUID operationId) {
         if (finish) return new Selection(List.of(DirectVideoRoute.CLOSING), false);
-        if (actorText == null) return new Selection(List.of(DirectVideoRoute.OPENING), false);
         Instant started = Instant.now();
         String output = "";
         String error = null;

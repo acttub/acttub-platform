@@ -269,7 +269,11 @@ class MemoryUpdateWorkerIT {
     @Test
     void actorEditDuringExtractionWinsAndIsExcludedFromThePayload() throws Exception {
         MemoryUpdateWorker worker = worker((system, user) -> {
-            memory.writeAsActor(userId, ActorMemoryField.GOAL, "직접 쓴 목표");
+            // 옛 화면 경로가 배우 이름으로 쓰던 행과 같은 모양이다.
+            jdbc.update("""
+                    INSERT INTO actor_memory_entries (id,user_id,field,value,written_by)
+                    VALUES (?,?,'goal','직접 쓴 목표','actor')
+                    """, UUID.randomUUID(), userId);
             return new GeneratedText("{\"goal\":\"새 목표\",\"blockage\":\"새 막힘\"}", new TokenUsage(0, 0, 0));
         });
 

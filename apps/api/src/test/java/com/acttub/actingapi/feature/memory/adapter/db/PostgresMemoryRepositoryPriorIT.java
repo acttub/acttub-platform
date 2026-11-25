@@ -9,11 +9,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -380,35 +375,18 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     @Test
-    void actorWriteWinsAnAgentRaceAndMemoryKeepsTheDisplayOrder() throws Exception {
-        UUID userId = insertUser("memory-race@example.com");
+    void agentDoesNotOverwriteAFieldTheActorWroteAndListKeepsTheDisplayOrder() {
+        UUID userId = insertUser("memory-actor-rows@example.com");
         UUID practiceId = insertPractice(userId);
-        CountDownLatch start = new CountDownLatch(1);
-
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<?> actor = executor.submit(() -> {
-                start.await();
-                return repository.writeAsActor(userId, ActorMemoryField.GOAL, "배우의 목표");
-            });
-            Future<?> agent = executor.submit(() -> {
-                start.await();
-                return repository.writeAsAgent(
-                        userId, ActorMemoryField.GOAL, "추출된 목표", practiceId);
-            });
-            start.countDown();
-            actor.get(5, TimeUnit.SECONDS);
-            agent.get(5, TimeUnit.SECONDS);
-        } finally {
-            executor.shutdownNow();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
+        // 옛 화면 경로가 배우 이름으로 쓴 행이 남아 있다.
+        for (String[] row : new String[][] {
+                {"speech_actual", "실제 화법"}, {"gender", "성별"}, {"goal", "배우의 목표"},
+                {"blockage", "막힘"}, {"age", "나이"}, {"speech_self", "스스로 본 화법"}}) {
+            jdbc.update("""
+                    INSERT INTO actor_memory_entries (id,user_id,field,value,written_by)
+                    VALUES (?,?,?,?,'actor')
+                    """, UUID.randomUUID(), userId, row[0], row[1]);
         }
-
-        repository.writeAsActor(userId, ActorMemoryField.SPEECH_ACTUAL, "실제 화법");
-        repository.writeAsActor(userId, ActorMemoryField.GENDER, "성별");
-        repository.writeAsActor(userId, ActorMemoryField.BLOCKAGE, "막힘");
-        repository.writeAsActor(userId, ActorMemoryField.AGE, "나이");
-        repository.writeAsActor(userId, ActorMemoryField.SPEECH_SELF, "스스로 본 화법");
 
         assertThat(repository.writeAsAgent(
                 userId, ActorMemoryField.GOAL, "뒤늦은 추출", practiceId)).isNull();
@@ -423,11 +401,6 @@ class PostgresMemoryRepositoryPriorIT {
                     assertThat(entry.writtenByActor()).isTrue();
                     assertThat(entry.sourcePracticeSessionId()).isNull();
                 });
-
-        repository.delete(userId, ActorMemoryField.GOAL);
-        assertThat(repository.list(userId)).noneMatch(entry -> entry.field().equals("goal"));
-        repository.delete(userId, null);
-        assertThat(repository.list(userId)).isEmpty();
     }
 
     @Test

@@ -84,6 +84,7 @@ Cloud 외부 점검의 보관 기간(Free 플랜 14일)은 로컬 Prometheus의 
 
 서비스 전체 화면은 공개 health, 요청량·5xx·평균·p95(응답시간을 빠른 순서로 놓았을 때 95% 지점), 활성 알림, 마지막 갱신 시각을 보여 준다.
 API 요청량은 HTTP 재요청·폴링·멱등 응답 재사용도 포함한다. 일반 API 지연은 실제 `latency_class="ordinary"`만 사용해 health·metrics와 분석·코치·리포트의 장시간 경로를 제외한다.
+클라이언트 버전별 요청 수는 `acttub_http_requests_by_client_total{client,method,uri,status}`다. `client`는 요청 로그의 `client`와 같은 규칙으로 줄인 값(정해진 꼴만, 그 밖은 `other`, 없으면 `none`)이다. 다만 API 프로세스마다 처음 본 값을 상한(`HttpRequestMetrics.CLIENT_LIMIT`)까지만 제 이름으로 세고, 그 뒤의 새 값은 `other`로 센다. 재시작 전까지 `other`에 실제 새 버전이 섞일 수 있으므로 정확한 버전은 요청 로그의 `client` 칸에서 본다. `uri`·`status`는 `http_server_requests`와 같다. 426(업데이트)으로 막힌 요청도 부른 경로로 센다. 어떤 버전이 어떤 경로를 아직 부르는지 볼 때 쓴다(SOMA-1140).
 요청량·5xx 건수/비율·일반 지연의 요청 수 조건은 `acttub_http_requests_total`을 사용한다. API가 `status_class`·`latency_class`의 모든 조합을 0으로 먼저 등록하므로(값은 `HttpRequestMetrics`, 규칙은 [CONTRACT §6-4](../../apps/api/CONTRACT.md#6-4-관리용-모니터링-경로)), 새 라우트/상태의 첫 오류도 다음 수집에서 증가량으로 관측한다. 평균·p95·라우트별 상세는 기존 `http_server_requests_seconds_*`를 사용한다.
 
 - 공개 health 실패: Cloud SM 표본과 공개 URL을 확인한다. DB 연결은 별도 점검한다.

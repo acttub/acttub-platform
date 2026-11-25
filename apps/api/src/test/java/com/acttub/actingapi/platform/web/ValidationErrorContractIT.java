@@ -45,7 +45,7 @@ class ValidationErrorContractIT {
 
     /**
      * 실물 엔드포인트가 내는 도메인 검증 오류. 위의 케이스들은 합성 컨트롤러로 <b>형상</b>만
-     * 보지만, 이것은 {@code MemoryController} 가 {@code ApiValidationException} 을 직접 만드는
+     * 보지만, 이것은 {@code ActorMemoryController} 가 {@code ApiValidationException} 을 직접 만드는
      * 자리다 — {@code ctx.error} 가 사유 문자열이 아니라 <b>빈 객체</b>인 것까지가 계약이다.
      *
      * <p><b>계약 하네스에서 옮겨 온 기대값이다</b>(SOMA-403 2단계). 인벤토리 검사기는

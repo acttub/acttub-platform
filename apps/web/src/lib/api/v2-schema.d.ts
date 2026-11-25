@@ -354,33 +354,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/legacy-me/memory/{field}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update Memory
-         * @description 배우가 한 칸을 쓰거나 고친다.
-         *
-         *     여기서 쓴 칸은 이후 에이전트가 덮지 않는다. 되돌리려면 지우면 되고,
-         *     지우면 다음 연습부터 에이전트가 다시 채운다.
-         */
-        put: operations["update_memory_v2_legacy_me_memory__field__put"];
-        post?: never;
-        /**
-         * Delete Memory Field
-         * @description 한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.
-         */
-        delete: operations["delete_memory_field_v2_legacy_me_memory__field__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v2/entries/{id}/save": {
         parameters: {
             query?: never;
@@ -2361,26 +2334,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/me/practice-feedback/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Practice Feedback Status
-         * @description 이 계정에 이미 물어봤는지. 표식을 건드리지 않는다.
-         */
-        get: operations["get_practice_feedback_status_v2_me_practice_feedback_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v2/me/notifications": {
         parameters: {
             query?: never;
@@ -2476,30 +2429,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/legacy-me/memory": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Memory
-         * @description 기억을 전부 읽는다. 아직 채워지지 않은 칸은 빠진 채로 온다.
-         */
-        get: operations["get_memory_v2_legacy_me_memory_get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Memory
-         * @description 기억을 통째로 지운다. 다음 연습부터 다시 쌓인다.
-         */
-        delete: operations["delete_memory_v2_legacy_me_memory_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3413,25 +3342,6 @@ export interface components {
             platform: "ios" | "android";
             /** Device Uuid */
             device_uuid: string;
-        };
-        /** UpdateMemoryRequest */
-        UpdateMemoryRequest: {
-            /** Value */
-            value: string;
-        };
-        /** MemoryItem */
-        MemoryItem: {
-            /**
-             * Field
-             * @enum {string}
-             */
-            field: "gender" | "age" | "goal" | "blockage" | "speech_self" | "speech_actual";
-            /** Value */
-            value: string;
-            /** Edited By Me */
-            edited_by_me: boolean;
-            /** Source Practice Session Id */
-            source_practice_session_id: string | null;
         };
         /** EntrySaveState */
         EntrySaveState: {
@@ -6345,11 +6255,6 @@ export interface components {
             /** Users */
             users: components["schemas"]["BlockedUser"][];
         };
-        /** MemoryResponse */
-        MemoryResponse: {
-            /** Items */
-            items: components["schemas"]["MemoryItem"][];
-        };
         /** EntryCommentPage */
         EntryCommentPage: {
             /** Comments */
@@ -7990,70 +7895,6 @@ export interface operations {
                 "application/json": components["schemas"]["AirbridgeDeviceRequest"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_memory_v2_legacy_me_memory__field__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                field: "gender" | "age" | "goal" | "blockage" | "speech_self" | "speech_actual";
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateMemoryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MemoryItem"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_memory_field_v2_legacy_me_memory__field__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                field: "gender" | "age" | "goal" | "blockage" | "speech_self" | "speech_actual";
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             204: {
@@ -11394,26 +11235,6 @@ export interface operations {
             };
         };
     };
-    get_practice_feedback_status_v2_me_practice_feedback_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PracticeFeedbackStatus"];
-                };
-            };
-        };
-    };
     list_notifications_v2_me_notifications_get: {
         parameters: {
             query?: {
@@ -11534,44 +11355,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BlockedUsers"];
                 };
-            };
-        };
-    };
-    get_memory_v2_legacy_me_memory_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MemoryResponse"];
-                };
-            };
-        };
-    };
-    delete_memory_v2_legacy_me_memory_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

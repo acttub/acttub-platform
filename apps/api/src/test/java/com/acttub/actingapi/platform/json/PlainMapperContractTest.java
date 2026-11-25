@@ -30,6 +30,11 @@ class PlainMapperContractTest {
             Kind kind, List<Object> list, Map<String, Object> map, Nested nested, double notNumber) {
     }
 
+    /**
+     * getter 만 있는 클래스. 칸 순서는 Jackson 2·3 모두 {@code Class.getDeclaredMethods()} 가 주는 순서를 따른다.
+     * HotSpot 은 이 순서를 메서드 이름 Symbol 의 메모리 주소로 정하고(method.cpp 의 method_comparator), 그 주소는
+     * 먼저 올라간 클래스와 메모리 할당에 따라 JVM 마다 달라진다. 그래서 이 클래스는 칸 이름과 값만 본다.
+     */
     static final class Bean {
         public String getZeta() {
             return "z";
@@ -37,6 +42,27 @@ class PlainMapperContractTest {
 
         public int getAlpha() {
             return 1;
+        }
+
+        public boolean isReady() {
+            return true;
+        }
+    }
+
+    /**
+     * 필드가 있는 클래스. Jackson 은 필드를 먼저 모으므로 칸 순서가 필드 선언 순서로 정해지고, 필드 없는 getter
+     * (ready)는 그 뒤에 온다. 필드 없는 getter 가 둘 이상이면 그 사이 순서는 {@link Bean} 처럼 정해지지 않는다.
+     */
+    static final class FieldBean {
+        private final String zeta = "z";
+        private final int alpha = 1;
+
+        public String getZeta() {
+            return zeta;
+        }
+
+        public int getAlpha() {
+            return alpha;
         }
 
         public boolean isReady() {
@@ -60,9 +86,16 @@ class PlainMapperContractTest {
                 Kind.FIRST_KIND, List.of(1, "두", 3.5, false), map, new Nested("n", 2), Double.NaN);
 
         assertThat(MAPPER.writeValueAsString(body)).isEqualTo(EXPECTED_BODY);
-        assertThat(MAPPER.writeValueAsString(new Bean())).isEqualTo(EXPECTED_BEAN);
+        assertThat(MAPPER.writeValueAsString(new FieldBean())).isEqualTo(EXPECTED_FIELD_BEAN);
         assertThat(MAPPER.writeValueAsString(MAPPER.readTree("{\"b\":1.50,\"a\":[2.0,1e400,12345678901234567890]}")))
                 .isEqualTo(EXPECTED_TREE);
+    }
+
+    @Test
+    @DisplayName("getter 만 있는 클래스는 칸 이름과 값을 Jackson 2 때와 같게 쓴다(칸 순서는 JVM 마다 다르다)")
+    void writesGetterOnlyClassAsBefore() {
+        // ObjectNode 의 equals 는 칸 순서를 보지 않는다.
+        assertThat(MAPPER.readTree(MAPPER.writeValueAsString(new Bean()))).isEqualTo(MAPPER.readTree(EXPECTED_BEAN));
     }
 
     @Test
@@ -103,6 +136,7 @@ class PlainMapperContractTest {
 
     private static final String EXPECTED_BODY = "{\"zeta\":\"마지막 \\\"따옴\\\" /슬래시\\n줄 \u2028 😀\",\"alpha\":7,\"half\":0.5,\"whole\":2.0,\"decimal\":1.10,\"missing\":null,\"flag\":true,\"kind\":\"FIRST_KIND\",\"list\":[1,\"두\",3.5,false],\"map\":{\"z\":1,\"a\":null},\"nested\":{\"zeta\":\"n\",\"alpha\":2},\"notNumber\":\"NaN\"}";
     private static final String EXPECTED_BEAN = "{\"zeta\":\"z\",\"alpha\":1,\"ready\":true}";
+    private static final String EXPECTED_FIELD_BEAN = "{\"zeta\":\"z\",\"alpha\":1,\"ready\":true}";
     private static final String EXPECTED_TREE = "{\"b\":1.5,\"a\":[2.0,\"Infinity\",12345678901234567890]}";
     private static final String EXPECTED_EMPTY = "MissingNode:";
     private static final String EXPECTED_BLANK = "MissingNode:";
