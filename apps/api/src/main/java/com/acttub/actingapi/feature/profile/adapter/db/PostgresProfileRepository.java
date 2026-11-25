@@ -64,6 +64,7 @@ class PostgresProfileRepository
             AccountErasureStep.READING_VOICE_USAGE,
             AccountErasureStep.BILLING,
             AccountErasureStep.BILLING_CUSTOMER,
+            AccountErasureStep.LEGACY_PRACTICES,
             AccountErasureStep.LEGACY_OPERATIONS);
 
     private final EntityManager entityManager;
@@ -867,8 +868,12 @@ class PostgresProfileRepository
             case BILLING_CUSTOMER -> revenueCat.enabled()
                     ? List.of(cleanups.enqueue(userId, "revenuecat_delete", secrets.encrypt(userId.toString()), now, now))
                     : List.of();
+            case LEGACY_PRACTICES -> {
+                failAnalyzingLegacyPractices(userId, now);
+                yield List.of();
+            }
             case LEGACY_OPERATIONS -> {
-                cancelOperations(userId, now);
+                cancelLegacyOperations(userId, now);
                 yield List.of();
             }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE,
@@ -1147,11 +1152,8 @@ class PostgresProfileRepository
                 .toList();
     }
 
-    /**
-     * 진행 중인 비동기 작업(분석·코치·노트·기억 갱신)을 실패로 닫는다. 분석 중이던 연습도 함께 닫는다.
-     * lease 를 떼므로 돌고 있던 워커의 완료는 받아들여지지 않는다(CONTRACT.md §5-7).
-     */
-    private void cancelOperations(UUID userId, Instant now) {
+    /** 옛 연습 흐름의 분석 중이던 연습을 실패로 닫는다. */
+    private void failAnalyzingLegacyPractices(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE practice_sessions
                 SET status='failed',updated_at=:now
@@ -1161,6 +1163,13 @@ class PostgresProfileRepository
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
+    }
+
+    /**
+     * 옛 연습 흐름의 진행 중인 비동기 작업(분석·코치·노트·기억 갱신)을 실패로 닫는다. lease 를 떼므로 돌고 있던 워커의 완료는
+     * 받아들여지지 않는다(CONTRACT.md §5-7).
+     */
+    private void cancelLegacyOperations(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE external_operations
                 SET status='failed',error_code='account_deactivated',

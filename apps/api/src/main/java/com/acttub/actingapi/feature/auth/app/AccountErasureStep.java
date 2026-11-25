@@ -59,6 +59,8 @@ public enum AccountErasureStep {
     SESSIONS,
     /** 푸시 토큰, 연습 알림 보낸 기록, 푸시를 눌러 연 기록. */
     PUSH,
-    /** 옛 연습 흐름의 분석 중이던 연습과 진행 중인 작업. */
+    /** 옛 연습 흐름의 분석 중이던 연습. */
+    LEGACY_PRACTICES,
+    /** 옛 연습 흐름의 진행 중인 작업. */
     LEGACY_OPERATIONS
 }
