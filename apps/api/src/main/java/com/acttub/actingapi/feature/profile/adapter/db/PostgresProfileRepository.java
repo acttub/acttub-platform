@@ -67,7 +67,6 @@ class PostgresProfileRepository
             AccountErasureStep.DISCOVERY_ANSWER,
             AccountErasureStep.BILLING_CUSTOMER,
             AccountErasureStep.PROFILE,
-            AccountErasureStep.PUSH,
             AccountErasureStep.LEGACY_OPERATIONS);
 
     private final EntityManager entityManager;
@@ -885,15 +884,11 @@ class PostgresProfileRepository
                 blurProfile(userId, account.today());
                 yield List.of();
             }
-            case PUSH -> {
-                erasePush(userId);
-                yield List.of();
-            }
             case LEGACY_OPERATIONS -> {
                 cancelOperations(userId, now);
                 yield List.of();
             }
-            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES ->
+            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -1212,23 +1207,6 @@ class PostgresProfileRepository
                 WHERE last_decision.action='granted'
                 """, Tuple.class)
                 .setParameter("userId", userId)).isEmpty();
-    }
-
-    private void erasePush(UUID userId) {
-        // 연습 알림 보낸 기록(V47)도 사람과 끊어 남기지 않고 지운다.
-        entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        // 푸시를 눌러 연 기록(V72)도 같다.
-        entityManager.createNativeQuery("DELETE FROM push_opens WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        entityManager.createNativeQuery("""
-                DELETE FROM push_tokens
-                WHERE user_id=:userId
-                """)
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     /** 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 이미 뭉갠 프로필은 연령대를 그대로 둔다. */
