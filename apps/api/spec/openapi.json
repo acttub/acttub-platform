@@ -820,93 +820,6 @@
         } ]
       }
     },
-    "/v2/legacy-me/memory/{field}" : {
-      "put" : {
-        "tags" : [ "v2-me" ],
-        "summary" : "Update Memory",
-        "description" : "배우가 한 칸을 쓰거나 고친다.\n\n여기서 쓴 칸은 이후 에이전트가 덮지 않는다. 되돌리려면 지우면 되고,\n지우면 다음 연습부터 에이전트가 다시 채운다.",
-        "operationId" : "update_memory_v2_legacy_me_memory__field__put",
-        "parameters" : [ {
-          "name" : "field",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "enum" : [ "gender", "age", "goal", "blockage", "speech_self", "speech_actual" ],
-            "title" : "Field"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/UpdateMemoryRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/MemoryItem"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      },
-      "delete" : {
-        "tags" : [ "v2-me" ],
-        "summary" : "Delete Memory Field",
-        "description" : "한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.",
-        "operationId" : "delete_memory_field_v2_legacy_me_memory__field__delete",
-        "parameters" : [ {
-          "name" : "field",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "enum" : [ "gender", "age", "goal", "blockage", "speech_self", "speech_actual" ],
-            "title" : "Field"
-          }
-        } ],
-        "responses" : {
-          "204" : {
-            "description" : "Successful Response"
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
     "/v2/entries/{id}/save" : {
       "put" : {
         "tags" : [ "v2-challenges" ],
@@ -5718,43 +5631,6 @@
         } ]
       }
     },
-    "/v2/legacy-me/memory" : {
-      "get" : {
-        "tags" : [ "v2-me" ],
-        "summary" : "Get Memory",
-        "description" : "기억을 전부 읽는다. 아직 채워지지 않은 칸은 빠진 채로 온다.",
-        "operationId" : "get_memory_v2_legacy_me_memory_get",
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/MemoryResponse"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      },
-      "delete" : {
-        "tags" : [ "v2-me" ],
-        "summary" : "Delete Memory",
-        "description" : "기억을 통째로 지운다. 다음 연습부터 다시 쌓인다.",
-        "operationId" : "delete_memory_v2_legacy_me_memory_delete",
-        "responses" : {
-          "204" : {
-            "description" : "Successful Response"
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
     "/v2/consents/pending" : {
       "get" : {
         "tags" : [ "v2-consents" ],
@@ -7615,50 +7491,6 @@
         },
         "required" : [ "device_uuid", "platform" ],
         "title" : "AirbridgeDeviceRequest"
-      },
-      "UpdateMemoryRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "value" : {
-            "type" : "string",
-            "maxLength" : 1000,
-            "minLength" : 1,
-            "title" : "Value"
-          }
-        },
-        "required" : [ "value" ],
-        "title" : "UpdateMemoryRequest"
-      },
-      "MemoryItem" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "field" : {
-            "type" : "string",
-            "enum" : [ "gender", "age", "goal", "blockage", "speech_self", "speech_actual" ],
-            "title" : "Field"
-          },
-          "value" : {
-            "type" : "string",
-            "title" : "Value"
-          },
-          "edited_by_me" : {
-            "type" : "boolean",
-            "title" : "Edited By Me"
-          },
-          "source_practice_session_id" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "uuid"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Source Practice Session Id"
-          }
-        },
-        "required" : [ "edited_by_me", "field", "source_practice_session_id", "value" ],
-        "title" : "MemoryItem"
       },
       "EntrySaveState" : {
         "type" : "object",
@@ -13836,21 +13668,6 @@
         },
         "required" : [ "users" ],
         "title" : "BlockedUsers"
-      },
-      "MemoryResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "items" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/MemoryItem"
-            },
-            "title" : "Items"
-          }
-        },
-        "required" : [ "items" ],
-        "title" : "MemoryResponse"
       },
       "EntryCommentPage" : {
         "type" : "object",
