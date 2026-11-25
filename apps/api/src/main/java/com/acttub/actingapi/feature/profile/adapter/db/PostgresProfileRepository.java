@@ -19,9 +19,7 @@ import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
-import com.acttub.actingapi.feature.auth.app.PendingSettlement;
 import com.acttub.actingapi.feature.auth.app.RetentionPurge;
-import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
 import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
@@ -49,7 +47,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository
-        implements ProfileRepository, SignupAttributionOwnership, DiscoveryAnswerOwnership, AccountErasure, PendingSettlement {
+        implements ProfileRepository, SignupAttributionOwnership, DiscoveryAnswerOwnership, AccountErasure {
 
     /**
      * 계정을 닫을 때 이 저장소가 맡는 자리. 모두 아직 주인에게 옮기지 않은 남의 표의 자리다. 주인 기능이
@@ -59,15 +57,11 @@ class PostgresProfileRepository
             AccountErasureStep.MEDIA_OBJECTS,
             AccountErasureStep.ACTOR_JOURNALS,
             AccountErasureStep.NOTE_RATINGS,
-            AccountErasureStep.DELETED_PRACTICES,
-            AccountErasureStep.CHALLENGE);
+            AccountErasureStep.DELETED_PRACTICES);
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final PostgresObjectCleanupLedger cleanups;
-
-    /** 탈퇴 전 챌린지 마감 집계 — 이 저장소가 남의 표를 함께 치는 다른 정리와 같은 트랜잭션에서 돈다. */
-    private final ChallengeWithdrawal challenges;
 
     /** 앞서 지운 연습의 영상(보관 동의로 남긴 것)과 무료 횟수 표시를 탈퇴·매일 정리에서 함께 치운다(SOMA-985). */
     private final PostgresPracticeGroupErasure deletedPractices;
@@ -93,7 +87,6 @@ class PostgresProfileRepository
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             PostgresObjectCleanupLedger cleanups,
-            ChallengeWithdrawal challenges,
             PostgresPracticeGroupErasure deletedPractices,
             PushTokenRevocation pushTokens,
             VideoRetention retainedVideos,
@@ -103,7 +96,6 @@ class PostgresProfileRepository
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanups = cleanups;
-        this.challenges = challenges;
         this.deletedPractices = deletedPractices;
         this.pushTokens = pushTokens;
         this.retainedVideos = retainedVideos;
@@ -737,15 +729,6 @@ class PostgresProfileRepository
         });
     }
 
-    /**
-     * 탈퇴도 마감 뒤 첫 변경이다 — 계정이 아직 활성일 때 밀린 챌린지 마감 집계를 먼저 해, 마감 당시 자격이 있던 참여작이 이 탈퇴
-     * 때문에 최종 순위에서 빠지지 않게 한다(challenge.browse 종료 랭킹).
-     */
-    @Override
-    public void settleBeforeDeactivation(UUID userId, Instant now) {
-        challenges.settleBeforeWithdrawal(userId, now);
-    }
-
     @Override
     public Set<AccountErasureStep> steps() {
         return STEPS;
@@ -773,14 +756,10 @@ class PostgresProfileRepository
                 deletedPractices.forgetMarks(userId);
                 yield account.retainMedia() ? List.of() : deletedPractices.purgeAllOf(userId, now);
             }
-            case CHALLENGE -> {
-                eraseChallenge(userId, now);
-                yield List.of();
-            }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
                     PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
                     LEGACY_OPERATIONS, LEGACY_PRACTICES, READING,
-                    READING_VOICE_USAGE ->
+                    READING_VOICE_USAGE, CHALLENGE ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -801,30 +780,6 @@ class PostgresProfileRepository
         return objectKeys.isEmpty()
                 ? List.of()
                 : List.of(cleanups.schedule(account.userId(), objectKeys, account.now(), account.now()));
-    }
-
-    /**
-     * 챌린지 자료 (specs/challenge 「챌린지 자료의 삭제·탈퇴」). 참여작은 비공개로 내려 집계·표본에서 빠지고(다시 공개할 수 없다 —
-     * 공개 전환은 활성 계정만 된다), 개설한 챌린지는 주최자를 비운다. 건 차단·받은 차단, 개인 북마크(저장), 받은 알림은
-     * 행째 지우고, AI 리포트는 본문·비교 자료를 파기해 생성 이력만 남긴다(90일 뒤 매시 일이 지운다). 진행 중인 리포트
-     * 생성은 위 {@code ai_jobs} 취소가 닫는다. 남긴 좋아요·댓글은 남아 "탈퇴한 사용자"로 보인다.
-     */
-    private void eraseChallenge(UUID userId, Instant now) {
-        for (String statement : List.of(
-                "UPDATE challenges SET host_user_id=NULL WHERE host_user_id=:userId",
-                "DELETE FROM user_blocks WHERE blocker_id=:userId OR blocked_id=:userId",
-                "DELETE FROM entry_saves WHERE user_id=:userId",
-                "DELETE FROM notifications WHERE user_id=:userId")) {
-            entityManager.createNativeQuery(statement).setParameter("userId", userId).executeUpdate();
-        }
-        for (String statement : List.of(
-                "UPDATE challenge_entries SET visibility='private',updated_at=:now WHERE user_id=:userId AND status<>'deleted'",
-                "UPDATE entry_ai_reports SET result=NULL,purged_at=coalesce(purged_at,:now) WHERE user_id=:userId")) {
-            entityManager.createNativeQuery(statement)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-        }
     }
 
     /**

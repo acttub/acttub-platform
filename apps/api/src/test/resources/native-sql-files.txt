@@ -53,7 +53,7 @@ feature/profile/adapter/db/PostgresAirbridgeLookupStore.java 4
 feature/profile/adapter/db/PostgresObjectCleanupLedger.java 1
 feature/profile/adapter/db/PostgresPracticeGroupErasure.java 22
 feature/profile/adapter/db/PostgresProfileAccountErasure.java 3
-feature/profile/adapter/db/PostgresProfileRepository.java 29
+feature/profile/adapter/db/PostgresProfileRepository.java 27
 feature/profile/adapter/db/RetentionDecisions.java 1
 feature/push/adapter/db/PostgresPracticeReminderRepository.java 9 남김: 후보·연속 일수·이어 하기·숙제·잠금 화면에서 지울 말·올려 둔 영상·안 읽은 대본은 다른 기능의 표(users·user_profiles·practices·coach_conversations·coach_messages·coach_notes·actor_journals·reading_sessions·reading_recordings·line_memorization·scripts·script_characters·script_lines·videos·challenge_entries)를 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/push/adapter/db/PostgresPushAccountErasure.java 1 남김: 탈퇴가 push_opens 의 행을 지우는 한 문장. push_opens 는 Schema Entity 가 없다(넣는 문장이 native 로 남아 매핑하지 않았다)
