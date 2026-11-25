@@ -49,7 +49,7 @@ class DirectVideoCoachAlreadyTest {
     }
 
     DirectVideoCoach coach(int share) {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE).withAlreadyShare(share);
+        return TestDirectVideoCoach.of(model, videos, storage, failures, telemetry).build().withAlreadyShare(share);
     }
 
     static final String WRAPPED = "할 일: 정리하기\n다음 테이크: 처음엔 다그치다가 \"하지만\"부터는 달래 봐도 좋아요.\n단계: 4";
