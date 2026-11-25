@@ -68,6 +68,15 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresAuthAccountErasure")
     AccountErasure authErasure;
 
+    @MockitoSpyBean(name = "postgresPortfolioAccountErasure")
+    AccountErasure portfolioErasure;
+
+    @MockitoSpyBean(name = "postgresTransferAccountErasure")
+    AccountErasure transferErasure;
+
+    @MockitoSpyBean(name = "postgresPushAccountErasure")
+    AccountErasure pushErasure;
+
     private AccountLifecycleSeed seed;
 
     @BeforeEach
@@ -79,14 +88,15 @@ class AccountErasureRollbackIT {
     }
 
     @ParameterizedTest(name = "{0} 자리에서 실패")
-    @EnumSource(value = AccountErasureStep.class, names = {"IDENTITIES", "EMAIL", "SESSIONS"})
+    @EnumSource(value = AccountErasureStep.class, names = {"IDENTITIES", "EMAIL", "PORTFOLIO", "TRANSFER_CODES", "SESSIONS", "PUSH"})
     @DisplayName("구현 하나가 예외를 던지면 탈퇴 전체가 되돌아간다: 계정은 활성 그대로이고 어느 표도 달라지지 않는다")
     void aFailingOwnerRollsTheWholeWithdrawalBack(AccountErasureStep failing) throws Exception {
         UUID self = seed.full("본인", Identity.MEMBER, "declined");
         seed.full("남", Identity.MEMBER, "granted");
         seed.cross("본인", "남");
         seed.cross("남", "본인");
-        doThrow(new IllegalStateException("erasure failed")).when(authErasure).erase(eq(failing), any());
+        AccountErasure owner = ownerOf(failing);
+        doThrow(new IllegalStateException("erasure failed")).when(owner).erase(eq(failing), any());
         DatabaseChanges changes = new DatabaseChanges(jdbc);
         DatabaseChanges.Snapshot before = changes.read();
 
@@ -94,9 +104,20 @@ class AccountErasureRollbackIT {
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(500);
-        verify(authErasure).erase(eq(failing), any());
+        verify(owner).erase(eq(failing), any());
         assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, self)).isEqualTo("active");
         assertThat(changes.read()).as("앞선 자리들이 지운 것도 남지 않는다").isEqualTo(before);
+    }
+
+    /** 그 자리를 맡은 구현. 주인에게 옮긴 자리만 있다 — 옮기지 않은 자리는 빈이 따로 없어 여기서 던지게 할 수 없다. */
+    private AccountErasure ownerOf(AccountErasureStep step) {
+        return switch (step) {
+            case IDENTITIES, EMAIL, SESSIONS -> authErasure;
+            case PORTFOLIO -> portfolioErasure;
+            case TRANSFER_CODES -> transferErasure;
+            case PUSH -> pushErasure;
+            default -> throw new IllegalArgumentException("no spied owner for " + step);
+        };
     }
 
     @Test

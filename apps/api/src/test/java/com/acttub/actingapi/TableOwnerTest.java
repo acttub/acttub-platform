@@ -49,7 +49,7 @@ class TableOwnerTest {
      *
      * <p>늘려야 할 것 같으면 먼저 주인의 {@code app} 층에 Port 를 두거나 주인을 다시 정한다.
      */
-    private static final int EXCEPTION_CEILING = 300;
+    private static final int EXCEPTION_CEILING = 299;
 
     private static final Pattern OWNER_ROW = Pattern.compile("^\\| `((?:feature|platform)/[a-z]+)` \\| (.+) \\|$");
 

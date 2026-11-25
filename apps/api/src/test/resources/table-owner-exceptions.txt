@@ -172,7 +172,6 @@ feature/profile/adapter/db/PostgresProfileRepository.java note_ratings
 feature/profile/adapter/db/PostgresProfileRepository.java notification_pushes
 feature/profile/adapter/db/PostgresProfileRepository.java notifications
 feature/profile/adapter/db/PostgresProfileRepository.java portfolio_photos
-feature/profile/adapter/db/PostgresProfileRepository.java portfolios
 feature/profile/adapter/db/PostgresProfileRepository.java practice_feedback
 feature/profile/adapter/db/PostgresProfileRepository.java practice_reminder_sends
 feature/profile/adapter/db/PostgresProfileRepository.java practice_sessions

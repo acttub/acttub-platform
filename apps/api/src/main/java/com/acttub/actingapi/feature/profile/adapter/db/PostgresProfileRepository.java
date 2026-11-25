@@ -67,9 +67,6 @@ class PostgresProfileRepository
             AccountErasureStep.DISCOVERY_ANSWER,
             AccountErasureStep.BILLING_CUSTOMER,
             AccountErasureStep.PROFILE,
-            AccountErasureStep.PORTFOLIO,
-            AccountErasureStep.TRANSFER_CODES,
-            AccountErasureStep.PUSH,
             AccountErasureStep.LEGACY_OPERATIONS);
 
     private final EntityManager entityManager;
@@ -794,9 +791,8 @@ class PostgresProfileRepository
      *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다.</li>
      * </ul>
      *
-     * <p>⚠ <b>이 저장소가 아직 남의 테이블을 함께 친다.</b> {@code auth} 의 표는 {@code auth} 가 고친다. 나머지 주인
-     * ({@code push}·{@code portfolio}·{@code transfer}·{@code consent}·영상·리딩·챌린지·작업 장부 등)의 몫은 주인이
-     * {@link AccountErasure} 를 구현할 때까지 여기 남는다({@link #STEPS}). 다른 feature의 Schema Entity를 import하면 패키지
+     * <p>⚠ <b>이 저장소가 아직 남의 테이블을 함께 친다.</b> 주인이 {@link AccountErasure} 를 구현한 자리는 주인이 고친다.
+     * 아직 구현하지 않은 주인의 몫은 그때까지 여기 남는다({@link #STEPS}). 다른 feature의 Schema Entity를 import하면 패키지
      * 경계를 우회하므로 그때까지 명시적 native SQL 로 둔다.
      *
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
@@ -888,31 +884,12 @@ class PostgresProfileRepository
                 blurProfile(userId, account.today());
                 yield List.of();
             }
-            case PORTFOLIO -> {
-                // 경력·사진 행은 `ON DELETE CASCADE` 로 따라 지워진다. 공유 링크는 이 순간부터 404 다.
-                entityManager.createNativeQuery("DELETE FROM portfolios WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
-            case TRANSFER_CODES -> {
-                // 살아 있는 이관 코드만 지운다. 쓰인 코드는 "이 게스트는 옮겨졌다"는 표식이라 남긴다
-                // (그 게스트의 토큰으로 온 요청에 guest_transferred 를 답한다).
-                entityManager.createNativeQuery(
-                        "DELETE FROM guest_transfer_codes WHERE user_id=:userId AND used_at IS NULL")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
-            case PUSH -> {
-                erasePush(userId);
-                yield List.of();
-            }
             case LEGACY_OPERATIONS -> {
                 cancelOperations(userId, now);
                 yield List.of();
             }
-            case IDENTITIES, EMAIL, SESSIONS -> throw new IllegalArgumentException("not a step of this repository: " + step);
+            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH ->
+                    throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
 
@@ -1230,23 +1207,6 @@ class PostgresProfileRepository
                 WHERE last_decision.action='granted'
                 """, Tuple.class)
                 .setParameter("userId", userId)).isEmpty();
-    }
-
-    private void erasePush(UUID userId) {
-        // 연습 알림 보낸 기록(V47)도 사람과 끊어 남기지 않고 지운다.
-        entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        // 푸시를 눌러 연 기록(V72)도 같다.
-        entityManager.createNativeQuery("DELETE FROM push_opens WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        entityManager.createNativeQuery("""
-                DELETE FROM push_tokens
-                WHERE user_id=:userId
-                """)
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     /** 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 이미 뭉갠 프로필은 연령대를 그대로 둔다. */
