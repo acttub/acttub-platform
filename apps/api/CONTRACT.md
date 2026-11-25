@@ -62,9 +62,10 @@ NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라, 다
 
 ### 5-1. 운영 DB 접근은 JPA 로 일원화한다
 
-외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부에서
-단순 CRUD·조회는 Spring Data repository·JPQL·projection으로, PostgreSQL 의미가 필요한 연산은
-§5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
+외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부는
+Spring Data repository·JPQL·HQL·projection으로 구현하고, HQL로 같은 문장을 낼 수 없는 연산만
+`EntityManager` native SQL로 둔다(§5-2). 지금은 native SQL이 대부분이고 기능 영역마다 옮기는 중이다. 옮기는 법과
+native가 남은 자리의 목록은 §5-9에 있다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
 Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 저장소가 아직 native SQL로만 읽고 쓰는 테이블의 매핑(예:
@@ -121,10 +122,11 @@ repository만 Schema Entity를 사용할 수 있고, app·domain과 다른 featu
 허용한다. 그때는 명시적 fetch 계획과 쿼리 수 회귀 검사가 필요하다. 양방향 관계, JPA cascade,
 orphan removal은 금지하고 DB FK와 `ON DELETE CASCADE`를 유지한다.
 
-### 5-2. PostgreSQL 의미가 필요한 연산은 custom native SQL 로 남긴다
+### 5-2. PostgreSQL 의미가 필요한 연산은 한 문장 그대로 지킨다
 
 `UPDATE/INSERT … RETURNING`, `ON CONFLICT`, `DISTINCT ON`, 특정 행 잠금, 컬럼식 증감,
 JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조회 후 쓰기로 풀지 않는다.
+HQL 한 문장이 같은 SQL 을 내면 HQL 로 쓰고, 내지 못하면 custom native SQL 로 둔다(§5-9).
 
 - `@Modifying` 은 rowcount 만 반환하므로 **RETURNING 계열을 대체할 수 없다.**
 - `save()` 는 upsert가 아니며, 조회 후 쓰기는 **동시성 winner 판정을 깨뜨린다.**
@@ -332,6 +334,47 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `Object[]`는 쓰지 않는다. native bulk 앞의 pending 변경은 `flush`, 뒤의 managed entity는
 `clear`·재조회한다
 (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:explicitFlushAndClearPreserveNativeMutationOrderingAndVisibility`).
+
+### 5-9. native SQL 을 JPA 로 옮기는 법
+
+기능 영역(`feature/<이름>`) 하나씩 옮긴다. 옮기는 PR 은 그 영역의 저장소만 고치고 스키마·FK·마이그레이션·API 응답은 바꾸지 않는다.
+첫 사례는 `feature/transfer` 다(`PostgresTransferCodeRepository`·`GuestTransferCodeJpaRepository`).
+
+**옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
+통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
+(예: `TransferCodeRepositoryIT`).
+
+1. 같은 입력에 같은 결과. 경계값(시한과 같은 시각, 없는 id, 0행)과 시각의 정밀도를 넣는다.
+2. 잠금 세기. 바깥 연결이 그 행을 `FOR KEY SHARE` 로 먼저 잡고 잠그는 메서드를 부른다. `FOR UPDATE` 는 그 뒤에서
+   기다리고, 기다리는 문장이 `pg_stat_activity` 에 남는다.
+3. 경합. 같은 행을 다투는 두 요청, 유일성이 걸린 동시 INSERT 처럼 승자를 DB 가 정하는 자리.
+4. 포트 메서드마다 나가는 문장의 수와 종류. `StatementInspector` 로 잡는다. 조건부 갱신이 읽고 쓰는 두 문장으로 풀리면
+   여기서 드러난다.
+
+**모양마다 옮기는 법**
+
+- 매개변수: 시각은 `Instant` 를 그대로 넘긴다. §5-8 ② 의 `OffsetDateTime` 변환은 native 에만 필요하다. 나노초는 native 와
+  같게 마이크로초로 반올림된다.
+- 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
+  나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) 조인한 표를 모두
+  잠근다(inner join). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
+- 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 엔티티를 읽고 고쳐 저장하거나
+  Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
+  `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
+- `ON CONFLICT`: HQL `insert … values … on conflict [대상] do nothing | do update set … = excluded.…` 는 원본과 같은 꼴로
+  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. 엔티티에서
+  `insertable = false` 인 칸도 HQL insert 로 값을 넣는다. `insert … select … on conflict do update` 는 Hibernate 가 풀지 못한다.
+- `RETURNING`·데이터를 바꾸는 CTE: HQL 에 없다. UPDATE 는 JPQL UPDATE 뒤 같은 트랜잭션에서 다시 읽는다(고친 행은 이
+  트랜잭션이 잡고 있다). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
+  없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다.
+- JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다.
+
+**native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
+테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다.
+
+**native 가 남은 자리의 목록**은 `src/test/resources/native-sql-files.txt` 하나다. `NativeSqlInventoryTest` 가 코드와
+대조한다. 파일마다 자리 수를 적고, 까닭이 없는 줄은 아직 옮기지 않은 자리라 그 합은 줄기만 한다. 옮기지 않기로 한 자리는
+`남김:` 과 까닭을 붙인 줄로 둔다. 영역을 옮기면 그 줄을 빼고 테스트의 상한을 내린다.
 
 ## 6. 계약 보존 체크리스트
 
