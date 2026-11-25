@@ -31,12 +31,11 @@ feature/challenge/adapter/db/UnseenEntryBoost.java 1 남김: 공개 조건(Chall
 feature/coach/adapter/db/PostgresCoachPersonas.java 1 남김: 자문위원인지 가리려고 다른 기능(auth)의 users.email 을 읽는다. auth 에 이 값을 내주는 Port 가 없다(§5-1)
 feature/coach/adapter/db/PostgresCoachProMemory.java 1 남김: Pro 지난 연습 기억은 다른 기능(practice)의 practices 로 주인과 다른 묶음을 가른 뒤 닫힌 대화·노트·평가를 한 문장으로 읽는다. practice 에 이 조회를 내주는 Port 가 없고, 답마다 도는 조회라 나누면 문장이 는다(§5-1)
 feature/coach/adapter/db/PostgresCoachVideoSource.java 1 남김: 코치가 볼 영상은 다른 기능의 표만 읽는다(practice 의 practices, video 의 videos, 매핑을 내린 upload_intents). 그 기능들에 이 조회를 내주는 Port 가 없다(§5-1)
-feature/coach/adapter/db/PostgresConversationRepository.java 4
 feature/coach/adapter/db/PostgresConversationRepository.java 10 남김: 다른 기능의 표를 읽고 쓰거나 잠근다. 엔진이 읽는 묶음(load)은 practice 의 practices·video 의 videos·analysis 의 analyses 를 대화 행과 한 문장으로 조인하고, 회차의 말(practiceLanguage)·주인 확인(currentOwner·conversation 의 머리·note 의 주인 확인)·닫기·되돌리기(UPDATE practices 셋)·이어하기의 묶음 첫 행 잠금과 열린 다른 회차 찾기는 practices 를 쓴다. practice 에 이 일을 내주는 Port 가 없고, 시작·답마다 도는 문장이라 나누면 문장이 는다(§5-1)
 feature/coach/adapter/db/PostgresConversationRepository.java 1 남김: 저장 직전에 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡고 활성인지 본다(탈퇴·이관과 같은 잠금). auth 에 이 잠금을 내주는 Port 가 없다(§5-1)
 feature/coach/adapter/db/PostgresConversationRepository.java 3 남김: 옛 대화·옛 노트는 매핑을 내린 옛 연습 흐름 표(coach_sessions·coach_turns·practice_sessions·practice_reports·coaching_handoffs, §5-1)를 읽는다
-feature/coach/adapter/db/PostgresJournalRepository.java 2
-feature/coach/adapter/db/PostgresNoteRatingStore.java 6
+feature/coach/adapter/db/PostgresJournalRepository.java 1 남김: 일지를 화면 머리(제목·목적·배역)와 함께 읽는 한 문장이 다른 기능의 표(practice 의 practices, auth 의 users, profile 의 user_profiles)를 조인하고, 대화 상태의 jsonb 안쪽(state->purpose_loop->scene->>character)과 매핑하지 않는 users.nickname 을 읽는다. 그 기능들에 이 값을 내주는 Port 가 없다(§5-1)
+feature/coach/adapter/db/PostgresNoteRatingStore.java 2 남김: 쓰기 전에 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡고 활성인지 보고(탈퇴와 같은 잠금), 회차의 주인을 다른 기능(practice)의 practices 로 확인하며 노트를 찾는다. 그 기능들에 이 일을 내주는 Port 가 없다(§5-1)
 feature/community/adapter/db/PostgresCommunityImageRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 올리기 상한 확인(begin). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/community/adapter/db/PostgresCommunityRepository.java 4 남김: 다른 기능의 표를 쓰는 문장. 글·댓글 조회(목록·하나·방금 쓴 댓글)는 작성자 이름과 탈퇴 여부(auth 의 users, profile 의 user_profiles)와 차단(challenge 의 user_blocks)을 한 문장에서 조인하고 이를 내주는 Port 가 없다(Port 로 나누면 목록 읽기의 문장이 는다). 차단하기의 대상 확인(users)과 넣기(user_blocks)는 challenge 의 차단 Port 가 활성 계정만 받고 users 행을 잠가 뜻이 달라진다
 feature/consent/adapter/db/PostgresConsentRepository.java 4

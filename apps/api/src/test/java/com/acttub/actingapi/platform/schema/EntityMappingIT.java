@@ -23,6 +23,9 @@ import com.acttub.actingapi.feature.blog.schema.BlogPostEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityPostImageEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachConversationEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachMessageEntity;
+import com.acttub.actingapi.feature.coach.schema.CoachNoteEntity;
+import com.acttub.actingapi.feature.coach.schema.NoteRatingEntity;
+import com.acttub.actingapi.feature.coach.schema.ActorJournalEntity;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntity;
 import com.acttub.actingapi.feature.practice.schema.PracticeEntity;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
@@ -117,13 +120,11 @@ class EntityMappingIT {
      * <p>{@code videos} 는 여기 없다 — 보관함(PA1)이 이미 매핑을 갖는다.
      */
     private static final Set<String> AWAITING_MAPPING = Set.of(
-            "coach_notes", "practice_feedback", "ai_jobs",
+            "practice_feedback", "ai_jobs",
             // 연습 삭제(V85, SOMA-985)의 무료 횟수 표시·지운 영상 장부는 연습 삭제의 native SQL 만 쓴다.
             "practice_deletion_marks", "deleted_practice_videos",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
-            // 노트 평가(V22)는 코치 저장소의 native SQL(upsert·잠금)만 읽고 쓴다.
-            "note_ratings",
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_signup_attributions",
             // 앱이 넘긴 Airbridge 기기 ID 임시 보관(V43, SOMA-643)은 프로필 저장소·재조회 저장소의 native SQL 만 쓴다.
@@ -131,8 +132,6 @@ class EntityMappingIT {
             // 가입 직후 유입 경로 자기 응답(V38)도 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_discovery_answers",
             // 리딩 녹음 코치(V48, 실험)는 리딩 저장소의 native SQL(재료 읽기·넣기·답 남기기)만 쓴다.
-            // 배우 일지(V59, SOMA-720)는 코치 저장소의 native SQL(만들기·생성 결과·고치기)과 탈퇴 파기만 쓴다.
-            "actor_journals",
             // 앱 광고 칸(V66, SOMA-876)은 광고 저장소의 native SQL(고르기·노출 upsert·클릭)만 쓴다.
             "ads", "ad_events", "ad_serves", "ad_settings",
             // 화면별 광고 칸 스위치(V76, SOMA-876)는 광고 칸 스위치 저장소의 native SELECT 만 쓴다.
@@ -141,13 +140,13 @@ class EntityMappingIT {
             "push_opens");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 68개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 73개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개, 리딩의 같이 만들기·발음 보고서·다시 받아쓰기를 매핑해 60개, 배우 기억을 매핑해 61개, 연습 회차를 매핑해 62개, 결제 표 넷을 매핑해 66개, 코치 대화와 턴을 매핑해 68개, 조회수 사건·좋아요순의 굳힌 순서를 매핑해 70개다.
-        assertThat(entities).hasSize(70);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개, 리딩의 같이 만들기·발음 보고서·다시 받아쓰기를 매핑해 60개, 배우 기억을 매핑해 61개, 연습 회차를 매핑해 62개, 결제 표 넷을 매핑해 66개, 코치 대화와 턴을 매핑해 68개, 조회수 사건·좋아요순의 굳힌 순서를 매핑해 70개, 연습 노트를 매핑해 71개, 노트 평가를 매핑해 72개, 배우 일지를 매핑해 73개다.
+        assertThat(entities).hasSize(73);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -402,6 +401,14 @@ class EntityMappingIT {
         save(CoachMessageEntity.class,new CoachMessageEntity(UUID.randomUUID(),conversationId,0,"ai","첫 질문",
                 java.time.Instant.now()));
         entityManager.flush();
+        UUID coachNoteId=UUID.randomUUID();
+        save(CoachNoteEntity.class,new CoachNoteEntity(coachNoteId,conversationId,"v2","action",1,java.time.Instant.now()));
+        entityManager.flush();
+        save(NoteRatingEntity.class,new NoteRatingEntity(UUID.randomUUID(),newPracticeId,coachNoteId,userId,"helpful",
+                UUID.randomUUID(),java.time.Instant.now()));
+        entityManager.flush();
+        save(ActorJournalEntity.class,new ActorJournalEntity(UUID.randomUUID(),userId,newPracticeId,"{}",java.time.Instant.now()));
+        entityManager.flush();
         // 리딩(V13): 대본 → 배역 → 줄 → 회차 → 녹음·암기 상태 순으로 FK 를 따른다.
         UUID scriptId=UUID.randomUUID(), characterId=UUID.randomUUID(), lineId=UUID.randomUUID(), readingId=UUID.randomUUID();
         save(ScriptEntity.class,new ScriptEntity(scriptId,userId,"대본","원문","d".repeat(64),ScriptSource.PASTE,UUID.randomUUID(),"c".repeat(64)));
@@ -429,7 +436,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(43);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(46);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }

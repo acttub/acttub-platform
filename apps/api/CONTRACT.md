@@ -334,7 +334,9 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 첫 사례이기도 하다. `feature/community` 는 다른 기능의 표를 조인하는 조회(글·댓글 목록과 하나 읽기)를 native 로 남기고 자기 표만
 쓰는 문장을 옮긴 사례다(`CommunityRepositoryIT`). `feature/memory` 는 문장 대부분이 다른 기능의 표를 함께 봐서 자기 표 둘만
 쓰는 문장(칸 읽기·지우기·이관)만 옮겼다(`ActorMemoryRepositoryIT`). `feature/practice` 는 `practices` 한 표만 쓰는 문장을 옮기고
-회차를 화면에 싣는 조회와 작업·영상·사용자를 쓰는 문장을 남겼다(`PracticeRepositoryIT`).
+회차를 화면에 싣는 조회와 작업·영상·사용자를 쓰는 문장을 남겼다(`PracticeRepositoryIT`). `feature/coach` 는 대화·턴·노트·평가·일지의
+자기 표만 쓰는 문장을 옮기고 회차·영상·분석·사용자를 함께 보는 문장과 옛 표를 읽는 문장을 남겼다. 요청이 많은 경로(코치 시작·답·
+대화 읽기)는 요청 하나가 보내는 문장과 새로 여는 트랜잭션의 수까지 고정한 사례다(`ConversationRepositoryIT`).
 
 **옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
 통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
@@ -350,7 +352,11 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
    값을 바꾸면 `FOR UPDATE`, 그 밖에는 `FOR NO KEY UPDATE` 다(`BlogRepositoryIT`·`PosterRepositoryIT`).
    포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운
    행 수를 부르기 앞뒤로 읽어 차이를 본다. 그 뷰에는 그 연결이 아직 내보내지 않은 앞 트랜잭션의 수도 섞여 있다
-   (`AuditionRepositoryIT`).
+   (`AuditionRepositoryIT`). 요청이 많은 경로는 요청 하나(MockMvc)가 보내는 문장과 새로 여는 트랜잭션의 수도 고정한다. 트랜잭션은
+   테스트 설정에 `TransactionExecutionListener` 빈을 두면 Spring Boot 가 트랜잭션 관리자에 붙이므로, `afterBegin` 에서
+   `isNewTransaction()` 인 것을 스레드별로 센다(`CoachStoreFixture`).
+5. 설정(properties·`@Import`)이 다른 `@SpringBootTest` 마다 Spring 컨텍스트가 하나씩 더 떠 테스트 JVM 힙을 차지한다. 한 영역의 고정
+   테스트는 설정을 한 곳에 두어 컨텍스트 하나를 함께 쓴다(`@ChallengeStoreTest`, `@CoachStoreTest`).
 
 **매핑을 새로 만들 때**: 엔티티를 `feature/<이름>/schema` 에 두고, `ActingApiApplication` 의 `@EntityScan` 목록과
 `PackageLayerTest` 의 층 목록에 더하고, `EntityMappingIT` 의 대기 목록에서 빼고 엔티티 수를 올린 뒤 옮긴다. 앱이 만드는 UUID
@@ -441,7 +447,9 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
 - JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다. 값 하나를 통째로
   넣는 것(`CAST(:x AS jsonb)`)은 JSON 칸에 `JsonNode` 매개변수를 넘기는 HQL 로 같다. Java `null` 은 SQL NULL 이 되므로 JSON
   null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`). 칸을 `String` 으로
-  매핑했으면 글 매개변수를 그대로 넘긴다(`ReadingPronunciationReportJpaRepository#complete`).
+  매핑했으면 글 매개변수를 그대로 넘긴다(`ReadingPronunciationReportJpaRepository#complete`). 이때 JSON null 은 글자 `null` 을 넘기면
+  된다(`CoachNoteJpaRepository#insert`, `CoachNoteRepositoryIT` 가 `jsonb_typeof` 로 본다). `on conflict … do update set 칸 = '[]'` 처럼
+  JSON 칸에 글 리터럴을 대입하는 것도 그대로 나간다.
 - 읽기 잠금: `@Lock(PESSIMISTIC_READ)` 는 `for share of <별칭>` 으로 나간다(`ChallengeEntryJpaRepository#lockForRead`). 잠금
   절은 스칼라 투영(`select new …`)에도 붙고, 건너뛰는 잠금도 같다(`ChallengeEntryJpaRepository#lockExhaustedModeration`,
   잡힌 행을 건너뛰는 것은 `EntryModerationStoreIT`).
