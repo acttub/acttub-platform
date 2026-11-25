@@ -36,8 +36,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 문의 저장소의 네 문장이 지금 내는 결과·잠금·경합·문장 수를 실제 PostgreSQL 에서 고정한다. 저장소를 네이티브 SQL 에서
- * JPA 로 옮길 때 같은 테스트가 그대로 통과해야 한다(apps/api/CONTRACT.md §5-9). 상태 바꾸기의 문장 수만 예외다 —
- * {@code UPDATE … RETURNING} 을 UPDATE 뒤 다시 읽기로 나누면 하나 는다.
+ * JPA 로 옮길 때 같은 테스트가 그대로 통과했다(apps/api/CONTRACT.md §5-9). 상태 바꾸기의 문장 수만 달라졌다 —
+ * {@code UPDATE … RETURNING} 을 UPDATE 뒤 다시 읽기로 나눠 하나 늘었다. 결과·잠금·경합 테스트는 고치지 않았다.
  *
  * <p>HTTP 쪽 검증·IP 한도·응답 모양·토큰 판정은 {@link SupportInquiryIT} 가 본다. 여기서는 그 테스트가 밟지 않는 같은 시각의
  * 순서, 개수 제한, 비로그인 행, 시각의 정밀도, 없는 id, 행 잠금, 두 운영자가 함께 바꿀 때의 결과, 포트 메서드마다 나가는
@@ -216,7 +216,7 @@ class SupportInquiryStoreIT {
     }
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장: 넣기는 INSERT 하나, 두 목록은 SELECT 하나씩, 상태 바꾸기는 UPDATE … RETURNING 하나다")
+    @DisplayName("포트 메서드마다 나가는 문장: 넣기는 INSERT 하나, 두 목록은 SELECT 하나씩, 상태 바꾸기는 UPDATE 와 같은 id 의 SELECT 다. 바뀐 행이 없으면 UPDATE 만 나간다")
     void eachPortMethodSendsTheseStatements() {
         assertThat(statementsOf(() -> {
             store.insert(new NewInquiry(id(1), "bug", "a@b.co", "문장을 셀 문의입니다", UUID.randomUUID(), null), now);
@@ -228,8 +228,9 @@ class SupportInquiryStoreIT {
                 .satisfies(sql -> assertThat(sql).matches("(?is)select\\s.*\\sfrom\\s+support_inquiries\\b.*"));
         assertThat(statementsOf(() -> store.list("open", 20))).singleElement()
                 .satisfies(sql -> assertThat(sql).matches("(?is)select\\s.*\\sfrom\\s+support_inquiries\\b.*"));
-        assertThat(statementsOf(() -> store.setStatus(id(1), "closed"))).singleElement()
-                .satisfies(sql -> assertThat(sql).matches("(?is)update\\s+support_inquiries\\b.*\\sreturning\\s.*"));
+        assertThat(statementsOf(() -> store.setStatus(id(1), "closed"))).satisfiesExactly(
+                update -> assertThat(update).matches("(?is)update\\s+support_inquiries\\b.*\\swhere\\s+\\S+\\.id=\\?"),
+                select -> assertThat(select).matches("(?is)select\\s.*\\sfrom\\s+support_inquiries\\b.*\\swhere\\s+\\S+\\.id=\\?"));
         assertThat(statementsOf(() -> store.setStatus(UUID.randomUUID(), "closed"))).singleElement()
                 .satisfies(sql -> assertThat(sql).matches("(?is)update\\s+support_inquiries\\b.*"));
     }

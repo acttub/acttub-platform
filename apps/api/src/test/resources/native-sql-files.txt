@@ -72,7 +72,6 @@ feature/reading/adapter/db/PostgresScriptRepository.java 45
 feature/reading/adapter/db/PostgresScriptUploadRepository.java 5
 feature/reading/adapter/db/PostgresSessionRatingStore.java 7
 feature/reading/adapter/db/PostgresSessionRepository.java 17
-feature/support/adapter/db/PostgresSupportInquiryStore.java 4
 feature/video/adapter/db/PostgresVideoOwnership.java 2
 feature/video/adapter/db/PostgresVideoRepository.java 26
 platform/migration/PostgresPracticeDataMigration.java 4
