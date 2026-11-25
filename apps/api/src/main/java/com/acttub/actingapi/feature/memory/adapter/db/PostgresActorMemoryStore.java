@@ -27,6 +27,7 @@ import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.platform.web.Hashing;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -39,6 +40,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 배우 기억의 Postgres 구현 — {@code actor_memories}·{@code users.memory_epoch}·{@code ai_jobs} (V14).
+ *
+ * <p>기억 표 둘만 쓰는 문장(코치가 읽는 칸의 행, 지우기, 이관)은 {@link ActorMemoryJpaRepository} 의 JPQL 이다. 다른 기능의 표
+ * (practices·coach_*·analyses·video_transcripts·users·ai_jobs)를 함께 보거나 쓰는 문장은 native 로 남았다(apps/api/CONTRACT.md
+ * §5-9, {@code native-sql-files.txt} 의 남김 줄).
  *
  * <p>옛 표({@code actor_memory_entries})는 호환 읽기와 이관·탈퇴 때만 함께 다룬다. <b>이관의 주인 바꾸기는 여기
  * 있다</b> — 이관은 두 표를 함께 다뤄야 해서 그 앎을 0.1.0 저장소 한 곳에 둔다.
@@ -66,14 +71,20 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
      */
     private static final String LEGACY_FIELDS = "('goal','blockage','speech_self','speech_actual')";
 
+    /** {@link #LEGACY_FIELDS} 의 JPQL 매개변수. */
+    private static final List<ActorMemoryField> LEGACY = List.of(
+            ActorMemoryField.GOAL, ActorMemoryField.BLOCKAGE, ActorMemoryField.SPEECH_SELF, ActorMemoryField.SPEECH_ACTUAL);
+
     private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
+    private final ActorMemoryJpaRepository memories;
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final AiJobLedger jobs;
 
-    PostgresActorMemoryStore(
-            EntityManager entityManager, PlatformTransactionManager transactionManager, AiJobLedger jobs) {
+    PostgresActorMemoryStore(ActorMemoryJpaRepository memories, EntityManager entityManager,
+            PlatformTransactionManager transactionManager, AiJobLedger jobs) {
+        this.memories = memories;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.jobs = jobs;
@@ -139,28 +150,9 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     }
 
     private List<MemoryScope.Row> scopedRows(UUID userId) {
-        return NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT m.field,m.value,m.written_by,m.scene_root_id
-                FROM (
-                    SELECT n.field,n.value,n.written_by,n.scene_root_id,n.updated_at
-                    FROM actor_memories n
-                    WHERE n.user_id=:userId
-                    UNION ALL
-                    SELECT o.field,o.value,o.written_by,CAST(NULL AS uuid),o.updated_at
-                    FROM actor_memory_entries o
-                    WHERE o.user_id=:userId
-                      AND o.field IN %s
-                      AND NOT EXISTS (SELECT 1 FROM actor_memories n
-                                      WHERE n.user_id=o.user_id AND n.field=o.field)
-                ) m
-                ORDER BY m.updated_at DESC
-                """.formatted(LEGACY_FIELDS), Tuple.class)
-                .setParameter("userId", userId)).stream()
+        return memories.scopedRows(userId, LEGACY).stream()
                 .map(row -> new MemoryScope.Row(
-                        row.get("field", String.class),
-                        row.get("value", String.class),
-                        "actor".equals(row.get("written_by", String.class)),
-                        row.get("scene_root_id", UUID.class)))
+                        row.getField(), row.getValue(), "actor".equals(row.getWrittenBy()), row.getSceneRootId()))
                 .toList();
     }
 
@@ -218,23 +210,15 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     @Override
     public void delete(UUID userId, String field) {
         transaction.executeWithoutResult(tx -> {
-            var removal = entityManager.createNativeQuery(
-                    "DELETE FROM actor_memories WHERE user_id=:userId"
-                            + (field == null ? "" : " AND field=:field"))
-                    .setParameter("userId", userId);
-            if (field != null) {
-                removal.setParameter("field", field);
+            if (field == null) {
+                memories.deleteAll(userId);
+            } else {
+                memories.deleteField(userId, field);
             }
-            removal.executeUpdate();
-            // 호환 읽기로 보이던 옛 칸도 지운다 — 남기면 지운 기억이 다시 나타난다.
-            var legacyRemoval = entityManager.createNativeQuery(
-                    "DELETE FROM actor_memory_entries WHERE user_id=:userId AND field IN " + LEGACY_FIELDS
-                            + (field == null ? "" : " AND field=:field"))
-                    .setParameter("userId", userId);
-            if (field != null) {
-                legacyRemoval.setParameter("field", field);
-            }
-            legacyRemoval.executeUpdate();
+            // 호환 읽기로 보이던 옛 칸도 지운다 — 남기면 지운 기억이 다시 나타난다. 옛 네 칸이 아닌 칸이면 지울 것이 없다.
+            memories.deleteLegacyFields(userId, field == null
+                    ? LEGACY
+                    : LEGACY.stream().filter(legacy -> legacy.dbValue().equals(field)).toList());
             bumpEpoch(userId);
         });
     }
@@ -244,33 +228,20 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     /** 옛 표와 새 표를 함께 본다 — 어느 쪽에라도 있으면 "기억이 있다"다. */
     @Override
     public boolean hasMemory(UUID userId) {
-        return ((Number) entityManager.createNativeQuery("""
-                SELECT (SELECT count(*) FROM actor_memories WHERE user_id=:userId)
-                     + (SELECT count(*) FROM actor_memory_entries WHERE user_id=:userId)
-                """)
-                .setParameter("userId", userId)
-                .getSingleResult()).intValue() > 0;
+        return memories.countBoth(userId) > 0;
     }
 
     /** 트랜잭션을 열지 않는다 — 부르는 쪽(이관)의 것에 참여한다. */
     @Override
     public void discard(UUID userId) {
-        for (String table : List.of("actor_memories", "actor_memory_entries")) {
-            entityManager.createNativeQuery("DELETE FROM " + table + " WHERE user_id=:userId")
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-        }
+        memories.deleteAll(userId);
+        memories.deleteAllLegacy(userId);
     }
 
     @Override
     public void reassign(UUID from, UUID to) {
-        for (String table : List.of("actor_memories", "actor_memory_entries")) {
-            entityManager.createNativeQuery(
-                    "UPDATE " + table + " SET user_id=:to WHERE user_id=:from")
-                    .setParameter("to", to)
-                    .setParameter("from", from)
-                    .executeUpdate();
-        }
+        memories.reassign(from, to);
+        memories.reassignLegacy(from, to);
     }
 
     @Override

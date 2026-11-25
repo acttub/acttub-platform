@@ -23,6 +23,7 @@ import tools.jackson.core.JacksonException;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.OutputLanguage;
 import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.Limit;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -37,6 +38,11 @@ import tools.jackson.databind.json.JsonMapper;
  * 요청 id 로 겹쳐 온 이어하기 가운데 하나만 차수를 받는다). 게스트의 하루 한도는 <b>사용자 행</b>을 잡고 센다.
  *
  * <p>회차와 작업은 한 트랜잭션이다 — 도중에 실패하면 둘 다 없다.
+ *
+ * <p>{@code practices} 한 표만 쓰는 문장은 {@link PracticeJpaRepository} 의 JPQL·HQL 이다. 회차를 화면에 싣는 조회와 다른 기능의
+ * 표(videos·analyses·coach_*·ai_jobs·users·external_operations·practice_deletion_marks·reading_sessions·challenge_entries,
+ * 옛 practice_sessions·practice_reports)를 함께 보거나 쓰는 문장은 native 로 남았다(apps/api/CONTRACT.md §5-9,
+ * {@code native-sql-files.txt} 의 남김 줄).
  */
 @Repository
 class PostgresPracticeRepository implements PracticeRepository {
@@ -68,13 +74,16 @@ class PostgresPracticeRepository implements PracticeRepository {
                                LIMIT 1) j ON true
             """;
 
+    private final PracticeJpaRepository practices;
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final ObjectMapper mapper;
     private final PracticeSessionRepository legacySessions;
 
-    PostgresPracticeRepository(EntityManager entityManager, PlatformTransactionManager transactionManager,
-                               ObjectMapper mapper, PracticeSessionRepository legacySessions) {
+    PostgresPracticeRepository(PracticeJpaRepository practices, EntityManager entityManager,
+                               PlatformTransactionManager transactionManager, ObjectMapper mapper,
+                               PracticeSessionRepository legacySessions) {
+        this.practices = practices;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.mapper = mapper;
@@ -167,21 +176,15 @@ class PostgresPracticeRepository implements PracticeRepository {
             }
             UUID id = UUID.randomUUID();
             insertPractice(id, id, 1, userId, practice, now, "conversing");
-            entityManager.createNativeQuery("UPDATE practices SET reading_session_id=:readingSessionId WHERE id=:id")
-                    .setParameter("readingSessionId", readingSessionId)
-                    .setParameter("id", id)
-                    .executeUpdate();
+            practices.linkReading(id, readingSessionId);
             return new Started(StartOutcome.CREATED, find(userId, id));
         });
     }
 
     @Override
     public UUID existingFromReading(UUID userId, UUID readingSessionId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM practices WHERE user_id=:userId AND reading_session_id=:readingSessionId", Tuple.class)
-                .setParameter("userId", userId)
-                .setParameter("readingSessionId", readingSessionId));
-        return rows.isEmpty() ? null : rows.getFirst().get("id", UUID.class);
+        List<UUID> rows = practices.fromReading(userId, readingSessionId);
+        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     @Override
@@ -191,19 +194,16 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (replayed != null) {
                 return replayed;
             }
-            List<Tuple> source = NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT root_id,video_id,face_mosaic FROM practices WHERE id=:from AND user_id=:userId", Tuple.class)
-                    .setParameter("from", from)
-                    .setParameter("userId", userId));
-            if (source.isEmpty()) {
+            PracticeJpaRepository.Source source = practices.source(from, userId).orElse(null);
+            if (source == null) {
                 return new Started(StartOutcome.NOT_FOUND, null);
             }
-            UUID rootId = source.getFirst().get("root_id", UUID.class);
+            UUID rootId = source.getRootId();
             lockGroup(rootId);
             if (openPracticeOf(rootId) != null) {
                 return new Started(StartOutcome.IN_PROGRESS, null);
             }
-            UUID video = videoId == null ? source.getFirst().get("video_id", UUID.class) : videoId;
+            UUID video = videoId == null ? source.getVideoId() : videoId;
             if (!lockUsableVideo(userId, video)) {
                 return new Started(StartOutcome.VIDEO_NOT_READY, null);
             }
@@ -211,17 +211,13 @@ class PostgresPracticeRepository implements PracticeRepository {
                 return new Started(StartOutcome.QUOTA, null);
             }
             UUID id = UUID.randomUUID();
-            int ordinal = 1 + ((Number) entityManager.createNativeQuery(
-                    "SELECT COALESCE(max(ordinal),0) AS last FROM practices WHERE root_id=:rootId")
-                    .setParameter("rootId", rootId)
-                    .getSingleResult()).intValue();
+            int ordinal = 1 + practices.lastOrdinal(rootId);
             insertPractice(id, rootId, ordinal, userId,
                     new NewPractice(practice.requestId(), practice.fingerprint(), video, practice.experienceVersion(),
                             practice.situation(), practice.characterContext(), practice.goal(),
                             practice.blockageKind(), practice.subBranch(), practice.blockageNote(), null, null,
                             // 얼굴 가리기를 보내지 않았으면 이어받을 회차의 값을 쓴다.
-                            practice.faceMosaic() != null ? practice.faceMosaic()
-                                    : source.getFirst().get("face_mosaic", Boolean.class)),
+                            practice.faceMosaic() != null ? practice.faceMosaic() : source.getFaceMosaic()),
                     now);
             insertAnalyzeJob(userId, id, practice.requestId(), practice.fingerprint(), now);
             return new Started(StartOutcome.CREATED, find(userId, id));
@@ -244,14 +240,10 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (!existing.isEmpty()) {
                 return new Started(StartOutcome.REPLAYED, find(userId, existing.getFirst().get("id", UUID.class)));
             }
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT root_id,stage FROM practices WHERE id=:practiceId AND user_id=:userId", Tuple.class)
-                    .setParameter("practiceId", practiceId)
-                    .setParameter("userId", userId));
-            if (rows.isEmpty()) {
+            UUID rootId = practices.rootOf(practiceId, userId).orElse(null);
+            if (rootId == null) {
                 return new Started(StartOutcome.NOT_FOUND, null);
             }
-            UUID rootId = rows.getFirst().get("root_id", UUID.class);
             lockGroup(rootId);
             if (!"closed".equals(currentStage(practiceId)) || "conversation_closed".equals(closeReason(practiceId))) {
                 // 다시 분석하는 것은 분석이 닫은 회차(analysis_failed)와 그만둔 회차(cancelled)뿐이다. 대화까지 끝난 회차를
@@ -265,14 +257,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (overQuota(userId, quota)) {
                 return new Started(StartOutcome.QUOTA, null);
             }
-            entityManager.createNativeQuery("""
-                    UPDATE practices
-                    SET stage='analyzing',close_reason=NULL,updated_at=:now
-                    WHERE id=:practiceId
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("practiceId", practiceId)
-                    .executeUpdate();
+            practices.reopenForAnalysis(practiceId, now);
             insertAnalyzeJob(userId, practiceId, requestId, fingerprint, now);
             return new Started(StartOutcome.CREATED, find(userId, practiceId));
         });
@@ -390,11 +375,7 @@ class PostgresPracticeRepository implements PracticeRepository {
     @Override
     public Cancelled cancel(UUID userId, UUID practiceId, Instant now) {
         return transaction.execute(tx -> {
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT stage FROM practices WHERE id=:practiceId AND user_id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("practiceId", practiceId)
-                    .setParameter("userId", userId));
-            if (rows.isEmpty()) {
+            if (practices.lockStage(practiceId, userId).isEmpty()) {
                 return new Cancelled(CancelOutcome.NOT_FOUND, null);
             }
             // lease 를 지운다 — 돌고 있던 워커의 늦은 완료와 재큐가 받아들여지지 않는다(CONTRACT §5-7).
@@ -412,14 +393,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (closed == 0) {
                 return new Cancelled(CancelOutcome.ALREADY_DONE, null);
             }
-            entityManager.createNativeQuery("""
-                    UPDATE practices
-                    SET stage='closed',close_reason='cancelled',updated_at=:now
-                    WHERE id=:practiceId
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("practiceId", practiceId)
-                    .executeUpdate();
+            practices.closeCancelled(practiceId, now);
             return new Cancelled(CancelOutcome.CANCELLED, status(userId, practiceId));
         });
     }
@@ -428,32 +402,10 @@ class PostgresPracticeRepository implements PracticeRepository {
     public GroupView updateGroup(
             UUID userId, UUID rootId, Boolean favorite, Boolean hidden, String title, Instant now) {
         return transaction.execute(tx -> {
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT id FROM practices
-                    WHERE id=:rootId AND user_id=:userId AND root_id=:rootId
-                    FOR UPDATE
-                    """, Tuple.class)
-                    .setParameter("rootId", rootId)
-                    .setParameter("userId", userId));
-            if (rows.isEmpty()) {
+            if (practices.lockOwnGroup(rootId, userId).isEmpty()) {
                 return null;
             }
-            entityManager.createNativeQuery("""
-                    UPDATE practices
-                    SET favorite=COALESCE(CAST(:favorite AS boolean),favorite),
-                        hidden_at=CASE WHEN CAST(:hidden AS boolean) IS NULL THEN hidden_at
-                                       WHEN CAST(:hidden AS boolean) THEN COALESCE(hidden_at,:now)
-                                       ELSE NULL END,
-                        title=COALESCE(CAST(:title AS text),title),
-                        updated_at=:now
-                    WHERE id=:rootId
-                    """)
-                    .setParameter("favorite", favorite)
-                    .setParameter("hidden", hidden)
-                    .setParameter("title", title)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("rootId", rootId)
-                    .executeUpdate();
+            practices.updateGroup(rootId, favorite, hidden, title, now);
             return group(userId, rootId);
         });
     }
@@ -505,22 +457,15 @@ class PostgresPracticeRepository implements PracticeRepository {
 
     /** 같은 요청 id 가 이미 만든 회차. 지문이 다르면 {@link StartOutcome#FINGERPRINT_MISMATCH}. */
     private Started replay(UUID userId, NewPractice practice) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,request_fingerprint
-                FROM practices
-                WHERE user_id=:userId AND request_id=:requestId
-                """, Tuple.class)
-                .setParameter("userId", userId)
-                .setParameter("requestId", practice.requestId()));
-        if (rows.isEmpty()) {
+        PracticeJpaRepository.Requested row = practices.requested(userId, practice.requestId()).orElse(null);
+        if (row == null) {
             return null;
         }
-        Tuple row = rows.getFirst();
-        String stored = row.get("request_fingerprint", String.class);
+        String stored = row.getRequestFingerprint();
         if (stored != null && !practice.fingerprint().equals(stored.strip())) {
             return new Started(StartOutcome.FINGERPRINT_MISMATCH, null);
         }
-        return new Started(StartOutcome.REPLAYED, find(userId, row.get("id", UUID.class)));
+        return new Started(StartOutcome.REPLAYED, find(userId, row.getId()));
     }
 
     /**
@@ -542,33 +487,21 @@ class PostgresPracticeRepository implements PracticeRepository {
 
     /** 묶음의 첫 행을 잡는다 — 겹쳐 온 이어하기·재시도가 여기서 줄을 선다. */
     private void lockGroup(UUID rootId) {
-        NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM practices WHERE id=:rootId FOR UPDATE", Tuple.class)
-                .setParameter("rootId", rootId));
+        practices.lockGroup(rootId);
     }
 
     /** 묶음에 닫히지 않은 회차. 없으면 {@code null}. */
     private UUID openPracticeOf(UUID rootId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id FROM practices
-                WHERE root_id=:rootId AND stage<>'closed'
-                ORDER BY ordinal
-                LIMIT 1
-                """, Tuple.class)
-                .setParameter("rootId", rootId));
-        return rows.isEmpty() ? null : rows.getFirst().get("id", UUID.class);
+        List<UUID> rows = practices.open(rootId, Limit.of(1));
+        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private String currentStage(UUID practiceId) {
-        return (String) entityManager.createNativeQuery("SELECT stage FROM practices WHERE id=:practiceId")
-                .setParameter("practiceId", practiceId)
-                .getSingleResult();
+        return practices.stage(practiceId);
     }
 
     private String closeReason(UUID practiceId) {
-        return (String) entityManager.createNativeQuery("SELECT close_reason FROM practices WHERE id=:practiceId")
-                .setParameter("practiceId", practiceId)
-                .getSingleResult();
+        return practices.closeReason(practiceId);
     }
 
     /**
@@ -617,42 +550,11 @@ class PostgresPracticeRepository implements PracticeRepository {
 
     private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now,
             String stage) {
-        entityManager.createNativeQuery("""
-                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,request_id,
-                                      request_fingerprint,situation,character_context,goal,blockage_kind,sub_branch,
-                                      blockage_detail,title,session_purpose,face_mosaic,language,created_at,updated_at)
-                VALUES (:id,:userId,CAST(:videoId AS uuid),:rootId,:ordinal,:stage,:experienceVersion,:requestId,:fingerprint,
-                        :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
-                        CAST(:title AS text),
-                        COALESCE(CAST(:sessionPurpose AS text),
-                                 -- 리딩 녹음으로 시작한 묶음(SOMA-791)을 영상으로 이으면 그 회차는 평가 받기 코칭이다.
-                                 (SELECT CASE WHEN r.session_purpose='reading' THEN 'evaluate' ELSE r.session_purpose END
-                                  FROM practices r WHERE r.id=:rootId)),
-                        COALESCE(CAST(:faceMosaic AS boolean), false),
-                        :language,:now,:now)
-                """)
-                .setParameter("id", id)
-                .setParameter("userId", userId)
-                .setParameter("videoId", practice.videoId())
-                .setParameter("rootId", rootId)
-                .setParameter("ordinal", ordinal)
-                .setParameter("stage", stage)
-                .setParameter("experienceVersion", practice.experienceVersion())
-                .setParameter("requestId", practice.requestId())
-                .setParameter("fingerprint", practice.fingerprint())
-                .setParameter("situation", practice.situation())
-                .setParameter("characterContext", practice.characterContext())
-                .setParameter("goal", practice.goal())
-                .setParameter("blockageKind", practice.blockageKind())
-                .setParameter("subBranch", practice.subBranch())
-                .setParameter("blockageNote", practice.blockageNote())
-                .setParameter("title", practice.title())
-                .setParameter("sessionPurpose", practice.sessionPurpose())
-                .setParameter("faceMosaic", practice.faceMosaic())
-                // 회차를 만드는 요청의 말. 분석이 끝난 뒤 첫 질문을 미리 쓸 때 이 값으로 쓴다(V84, SOMA-946).
-                .setParameter("language", OutputLanguage.current().getLanguage())
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .executeUpdate();
+        // 회차를 만드는 요청의 말. 분석이 끝난 뒤 첫 질문을 미리 쓸 때 이 값으로 쓴다(V84, SOMA-946).
+        practices.insert(id, userId, practice.videoId(), rootId, ordinal, stage, practice.experienceVersion(),
+                practice.requestId(), practice.fingerprint(), practice.situation(), practice.characterContext(),
+                practice.goal(), practice.blockageKind(), practice.subBranch(), practice.blockageNote(), practice.title(),
+                practice.sessionPurpose(), practice.faceMosaic(), OutputLanguage.current().getLanguage(), now);
     }
 
     /** 분석 작업 하나. 회차를 만든 트랜잭션 안이라 둘은 함께 생기거나 함께 없다. */
