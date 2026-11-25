@@ -87,6 +87,9 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresVideoAccountErasure")
     AccountErasure videoErasure;
 
+    @MockitoSpyBean(name = "postgresBillingAccountErasure")
+    AccountErasure billingErasure;
+
     private AccountLifecycleSeed seed;
 
     @BeforeEach
@@ -99,7 +102,8 @@ class AccountErasureRollbackIT {
 
     @ParameterizedTest(name = "{0} 자리에서 실패")
     @EnumSource(value = AccountErasureStep.class, names = {
-        "VIDEO_FILES", "COMMUNITY_IMAGES", "SIGNUP_ATTRIBUTION", "DISCOVERY_ANSWER", "IDENTITIES", "EMAIL", "PROFILE", "PORTFOLIO", "TRANSFER_CODES", "SESSIONS", "PUSH"
+        "VIDEO_FILES", "COMMUNITY_IMAGES", "SIGNUP_ATTRIBUTION", "BILLING", "DISCOVERY_ANSWER", "IDENTITIES",
+        "BILLING_CUSTOMER", "EMAIL", "PROFILE", "PORTFOLIO", "TRANSFER_CODES", "SESSIONS", "PUSH"
     })
     @DisplayName("구현 하나가 예외를 던지면 탈퇴 전체가 되돌아간다: 계정은 활성 그대로이고 어느 표도 달라지지 않는다")
     void aFailingOwnerRollsTheWholeWithdrawalBack(AccountErasureStep failing) throws Exception {
@@ -131,6 +135,7 @@ class AccountErasureRollbackIT {
             case SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE -> profileErasure;
             case COMMUNITY_IMAGES -> communityErasure;
             case VIDEO_FILES -> videoErasure;
+            case BILLING, BILLING_CUSTOMER -> billingErasure;
             default -> throw new IllegalArgumentException("no spied owner for " + step);
         };
     }
@@ -150,7 +155,7 @@ class AccountErasureRollbackIT {
         assertThat(profileErasure.hasRecords(full)).isTrue();
         assertThat(videoErasure.hasRecords(light)).isFalse();
         assertThat(videoErasure.hasRecords(full)).isTrue();
-        for (AccountErasure accountOnly : List.of(authErasure, portfolioErasure, transferErasure, pushErasure)) {
+        for (AccountErasure accountOnly : List.of(authErasure, portfolioErasure, transferErasure, pushErasure, billingErasure)) {
             assertThat(accountOnly.hasRecords(full)).isFalse();
         }
     }
