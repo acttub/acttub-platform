@@ -50,7 +50,7 @@ class DirectVideoCoachTalkTest {
 
     DirectVideoCoach coach() {
         // 연습 루프 스위치가 꺼져 있어도 말로 하는 회차는 목적별 코칭을 탄다.
-        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry(), CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
+        return TestDirectVideoCoach.of(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry()).build();
     }
 
     static CoachSessionSnapshot fresh(String purpose) {
