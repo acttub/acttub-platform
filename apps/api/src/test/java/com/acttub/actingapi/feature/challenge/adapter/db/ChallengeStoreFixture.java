@@ -108,11 +108,27 @@ public class ChallengeStoreFixture {
         return id;
     }
 
-    /** 공개된 참여작과 그 영상. 만든 시각과 공개 시각은 {@code at} 이다. */
-    UUID entry(UUID challenge, UUID owner, Instant at) {
+    /** 회원이 연 챌린지. */
+    UUID memberChallenge(UUID host, Instant startsAt, Instant endsAt) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges(id,line,work,duration_days,origin,host_user_id,request_id,request_fingerprint,starts_at,ends_at)
+                VALUES (?,?,'창작',7,'member',?,?,?,?,?)
+                """, id, "대사 " + id, host, UUID.randomUUID(), "0".repeat(64), utc(startsAt), utc(endsAt));
+        return id;
+    }
+
+    /** 그 회원의 확정된 영상. 객체 키는 {@code videos/<id>} 다. */
+    UUID video(UUID owner) {
         UUID video = UUID.randomUUID();
         jdbc.update("INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms) VALUES (?,?,?,'video/mp4',100,30000)",
                 video, owner, "videos/" + video);
+        return video;
+    }
+
+    /** 공개된 참여작과 그 영상. 만든 시각과 공개 시각은 {@code at} 이다. */
+    UUID entry(UUID challenge, UUID owner, Instant at) {
+        UUID video = video(owner);
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,visibility,status,request_id,request_fingerprint,
