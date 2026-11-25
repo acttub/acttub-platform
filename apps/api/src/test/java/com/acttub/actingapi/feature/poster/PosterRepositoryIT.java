@@ -53,7 +53,9 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * 포스터 저장소의 여섯 문장이 내는 결과·잠금·경합·문장 수를 실제 PostgreSQL 에서 고정한다. 저장소를 네이티브 SQL 에서 JPA 로
- * 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과해야 한다(apps/api/CONTRACT.md §5-9).
+ * 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과했다(apps/api/CONTRACT.md §5-9). 문장 테스트만 달라졌다 —
+ * 넣기({@code WITH … INSERT … ON CONFLICT DO NOTHING RETURNING})와 고치기({@code WITH … UPDATE … NOT EXISTS … RETURNING})를
+ * 한 문장으로 쓴 뒤 다시 읽기로 나눠 쓴 행이 있을 때 하나 늘었다. 결과·잠금·경합 테스트는 고치지 않았다.
  *
  * <p>HTTP 쪽 값 검증·토큰·앱 버전 거르기·응답 모양은 {@link PosterEndpointIT} 가 본다. 여기서는 그 테스트가 밟지 않는 모든 칸,
  * 플랫폼 배열의 순서, 기간의 경계, 같은 값의 정렬, 언어 없음(NULL)까지 묶는 유일 판정, revision 올리기, 잠금 세기, 같은
@@ -425,21 +427,23 @@ class PosterRepositoryIT {
     // ---- 문장 ----
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류")
+    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류. 넣기·고치기는 한 문장으로 쓰고, 쓴 행이 있으면 같은 트랜잭션에서 id 로 다시 읽는다")
     void eachPortMethodSendsTheseStatements() {
         assertThat(statementsOf(() -> posters.insert(draft("counted", "ko"), now)))
-                .containsExactly("insert app_posters on conflict returning");
+                .as("RETURNING 대신 같은 트랜잭션에서 id 로 다시 읽는다")
+                .containsExactly("insert app_posters on conflict", "select app_posters");
         assertThat(statementsOf(() -> posters.insert(draft("counted", "ko"), now)))
-                .as("같은 (slug, 언어) 가 있으면")
-                .containsExactly("insert app_posters on conflict returning");
+                .as("같은 (slug, 언어) 가 있으면 0행이라 다시 읽지 않는다")
+                .containsExactly("insert app_posters on conflict");
         UUID id = jdbc.queryForObject("SELECT id FROM app_posters", UUID.class);
         row(id(9), "other", "ko", true, 0, null, null, "{ios}", now, now);
 
         assertThat(statementsOf(() -> posters.update(id, draft("counted", "ko"), true, now)))
-                .containsExactly("update app_posters not exists returning");
+                .as("조건부 갱신은 한 문장 그대로이고 RETURNING 대신 다시 읽는다")
+                .containsExactly("update app_posters not exists", "select app_posters");
         assertThat(statementsOf(() -> posters.update(id, draft("other", "ko"), true, now)))
-                .as("다른 포스터가 그 (slug, 언어) 를 쓰면")
-                .containsExactly("update app_posters not exists returning");
+                .as("다른 포스터가 그 (slug, 언어) 를 쓰면 0행이라 다시 읽지 않는다")
+                .containsExactly("update app_posters not exists");
         assertThat(statementsOf(() -> posters.live("ios", "ko", now))).containsExactly("select app_posters");
         assertThat(statementsOf(() -> posters.live("ios", null, now))).containsExactly("select app_posters");
         assertThat(statementsOf(() -> posters.history("ios", "ko", now, 50))).containsExactly("select app_posters");
