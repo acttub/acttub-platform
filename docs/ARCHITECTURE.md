@@ -58,6 +58,41 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
 - `apps/api`는 Gradle 모듈 하나다. 패키지 사이 순환은 모듈 경계가 아니라 `PackageCycleTest`가 막고, 공유 타입을 위한
   커널 패키지를 따로 만들지 않고 각자 제 역할의 패키지에 둔다.
 
+### 테이블 주인
+
+DB 테이블마다 주인이 하나다. 주인은 `feature/<이름>`이거나 `platform/<이름>`이다. 주인만 그 테이블을 SQL·JPQL·Schema
+Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규칙대로 주인의 `app` 층을 본다.
+
+`TableOwnerTest`가 아래 표를 읽어 `apps/api/src/main`의 SQL 문자열·JPQL·`@Table`과 대조한다. 테이블을 새로 만들면 이 표에도
+주인을 적는다. 지금 어긋난 곳은 허용 목록 `apps/api/src/test/resources/table-owner-exceptions.txt`에 있다. 이 목록은 줄을
+빼기만 한다. 어긋난 곳을 고쳤으면 그 줄과 테스트의 상한을 함께 줄인다.
+
+| 주인 | 테이블 |
+|---|---|
+| `feature/auth` | `users`, `user_identities`, `refresh_tokens`, `user_active_days` |
+| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups`, `account_cleanup_operations`, `practice_deletion_marks`, `deleted_practice_videos` |
+| `feature/consent` | `consent_documents`, `user_consents` |
+| `feature/transfer` | `guest_transfer_codes` |
+| `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
+| `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends`, `evening_reminder_sends` |
+| `feature/video` | `videos`, `video_transcripts`, `upload_intents` |
+| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `handoff_confirmations`, `practice_reports`, `reports` |
+| `feature/analysis` | `analyses`, `summaries`, `transcripts`, `anomalies` |
+| `feature/coach` | `coach_conversations`, `coach_messages`, `coach_notes`, `note_ratings`, `actor_journals` |
+| `feature/memory` | `actor_memories`, `actor_memory_entries` |
+| `feature/feedback` | `practice_feedback` |
+| `feature/reading` | `scripts`, `script_lines`, `script_characters`, `script_imports`, `script_uploads`, `script_cocreations`, `reading_sessions`, `reading_recordings`, `reading_session_ratings`, `reading_recording_retranscripts`, `reading_pronunciation_reports`, `reading_voice_cache`, `reading_voice_usage`, `reading_examples`, `line_memorization` |
+| `feature/challenge` | `challenges`, `challenge_entries`, `entry_likes`, `entry_comments`, `entry_reports`, `entry_saves`, `entry_ai_reports`, `entry_view_events`, `entry_ranking_snapshots`, `notifications`, `notification_pushes`, `user_blocks` |
+| `feature/community` | `community_posts`, `community_comments`, `community_post_likes`, `community_post_images`, `community_anonymous_aliases`, `community_reports`, `community_blocks`, `community_categories` |
+| `feature/billing` | `billing_subscriptions`, `billing_checkouts`, `billing_payments`, `billing_pro_grants` |
+| `feature/ads` | `ads`, `ad_events`, `ad_serves`, `ad_settings`, `ad_slot_switches` |
+| `feature/poster` | `app_posters` |
+| `feature/audition` | `audition_postings` |
+| `feature/blog` | `blog_posts` |
+| `feature/support` | `support_inquiries` |
+| `platform/operation` | `ai_jobs`, `external_operations` |
+| `platform/migration` | `practice_migration_entries` |
+
 ### 연습 화면의 전환
 
 연습 하나는 **Practice Stage** 여섯을 지난다(`준비 → 막힘 선택 → 업로드 → 분석 → 대화 → 연습 노트`).
