@@ -254,7 +254,7 @@ class BillingEndpointIT {
     }
 
     @Test
-    @DisplayName("자동결제 — 성공하면 다음 기간, 거절되면 past_due 와 재시도, 「다시 시도」로 active, 결과 모르면 같은 주문으로 다시 묻는다")
+    @DisplayName("자동결제 — 성공하면 다음 기간, 거절되면 past_due 와 재시도, 재시도가 성공하면 active, 결과 모르면 같은 주문으로 다시 묻는다")
     void renewals() throws Exception {
         subscribe();
         clock.set(Instant.parse("2026-11-23T01:00:01Z"));
@@ -272,8 +272,9 @@ class BillingEndpointIT {
         assertThat(worker.runOnce()).isFalse();
 
         approveAll();
-        assertThat(json(post("/v2/billing/subscription/retry"), 200).path("status").stringValue(null)).isEqualTo("active");
-        assertThat(LenientJson.asText(json(post("/v2/billing/subscription/retry"), 409).path("detail"))).contains("not_past_due");
+        clock.set(Instant.parse("2026-12-24T01:00:02Z"));
+        assertThat(worker.runOnce()).isTrue();
+        assertThat(me().path("status").stringValue(null)).isEqualTo("active");
 
         clock.set(Instant.parse("2027-01-23T01:00:01Z"));
         doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"))
