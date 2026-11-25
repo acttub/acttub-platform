@@ -407,6 +407,13 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   skip locked` 로 나간다. 잠근 행은 트랜잭션이 끝날 때까지 다른 워커가 건너뛰므로 읽은 값(시도 수)에서 계산한 값이 방금 쓴
   값이다. 집을 것이 있을 때 문장이 하나 늘고 없을 때는 같다(`PostgresPronunciationReportRepository#claimNext`, 선점과 두 워커
   경합은 `PronunciationReportRepositoryIT`).
+- 배열 칸: 칸에 값이 들었는지 보는 `x = ANY(배열 칸)` 은 HQL 에 없다. `array_contains(배열 칸, x)` 로 쓰면 `배열 칸@>array[x]`
+  로 나가고 고르는 행이 같다(x 가 NULL 이면 둘 다 고르지 않는다). 두 배열이 겹치는지 보는 `&&` 는 `array_overlaps` 로 그대로
+  나간다(`ReadingRecordingJpaRepository#myLineText`). `text[]` 칸에 문자열 매개변수를 견줄 때는 `array_position` 을 쓴다
+  (`AppPosterJpaRepository`).
+- 권고 잠금 `SELECT 1 FROM pg_advisory_xact_lock(…)`: FROM 절의 함수는 HQL 이 받지 않는다. `select pg_advisory_xact_lock(…)` 로
+  쓰면 같은 잠금이다(`ReadingVoiceCacheJpaRepository#lockUntilCommit`). FROM 없는 `select exists (…) and not exists (…)` 와 행 값
+  비교 `(a, b) < (c, d)` 는 그대로 나간다.
 - JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다. 값 하나를 통째로
   넣는 것(`CAST(:x AS jsonb)`)은 JSON 칸에 `JsonNode` 매개변수를 넘기는 HQL 로 같다. Java `null` 은 SQL NULL 이 되므로 JSON
   null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`). 칸을 `String` 으로

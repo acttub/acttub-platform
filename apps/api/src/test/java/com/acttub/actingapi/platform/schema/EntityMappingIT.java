@@ -121,8 +121,6 @@ class EntityMappingIT {
             "note_ratings",
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_signup_attributions",
-            // 리딩 녹음 서버 다시 받아쓰기(V79)는 다시 받아쓰기 저장소의 native SQL(줄 세우기·작업 점유·결과 저장)만 읽고 쓴다.
-            "reading_recording_retranscripts",
             // 앱이 넘긴 Airbridge 기기 ID 임시 보관(V43, SOMA-643)은 프로필 저장소·재조회 저장소의 native SQL 만 쓴다.
             "user_airbridge_device_lookups",
             // 가입 직후 유입 경로 자기 응답(V38)도 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
@@ -145,8 +143,8 @@ class EntityMappingIT {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개다.
-        assertThat(entities).hasSize(59);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개, 리딩의 같이 만들기·발음 보고서·다시 받아쓰기를 매핑해 60개다.
+        assertThat(entities).hasSize(60);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())

@@ -38,6 +38,26 @@ interface ReadingRecordingJpaRepository extends Repository<ReadingRecordingEntit
             """)
     List<Spoken> spokenLines(UUID sessionId);
 
+    /**
+     * 그 녹음을 저장할 때 대조한 원문과 같은 글 — 회차 연습 구간 안의 내 대사 줄(내 배역이 든 함께 말하는 줄 포함)이 아니면
+     * 비어 있다. native 의 {@code = ANY(배열 칸)} 은 HQL 에 없어 {@code array_contains}({@code @>})로 쓴다.
+     */
+    @Query("""
+            select coalesce(regexp_replace(l.speech, '⟦[a-z][a-z]⟧', ' ', 'g'), l.text)
+            from ReadingRecordingEntity r
+            join ReadingSessionEntity rs on rs.id = r.readingSessionId
+            join ScriptLineEntity s on s.id = rs.startLineId
+            join ScriptLineEntity e on e.id = rs.endLineId
+            join ScriptLineEntity l on l.id = r.lineId and l.scriptId = rs.scriptId
+            where r.id = :id
+              and l.kind = com.acttub.actingapi.platform.schema.ScriptLineKind.DIALOGUE
+              and l.ordinal between s.ordinal and e.ordinal
+              and (array_contains(rs.myCharacterIds, l.characterId)
+                   or exists (select 1 from ScriptCharacterEntity lc
+                              where lc.id = l.characterId and array_overlaps(lc.memberIds, rs.myCharacterIds)))
+            """)
+    List<String> myLineText(UUID id);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ReadingRecordingEntity r set r.userId = :to where r.userId = :from")
     int reassign(UUID from, UUID to);

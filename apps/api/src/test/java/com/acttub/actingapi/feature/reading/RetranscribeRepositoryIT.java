@@ -26,6 +26,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 탈퇴 뒤의 녹음은 {@link ReadingRetranscribeIT} 가 본다. 여기서는 그 테스트가 밟지 않는 집는 순서, 다른 워커가 잡은 행
  * 건너뛰기, 두 워커가 함께 집을 때, 임대가 끝난 행을 다시 집거나 닫는 경계, 다시 줄 세울 때 비우는 칸, 임대 없이 온 완료·실패·
  * 미루기, 대조할 원문을 고르는 규칙(구간·내 배역·함께 말하는 줄), 시각의 정밀도, 나가는 문장을 본다.
+ *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — 집는 문장
+ * ({@code UPDATE … WHERE recording_id=(SELECT … FOR UPDATE SKIP LOCKED) RETURNING})을 잠가 읽기와 임대 적기로 나눠 집을 것이
+ * 있을 때 문장이 하나 늘었다. 결과·선점·경합 테스트는 고치지 않았다.
  */
 class RetranscribeRepositoryIT extends ReadingRepositoryFixture {
 
@@ -292,7 +296,7 @@ class RetranscribeRepositoryIT extends ReadingRepositoryFixture {
     }
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장: 줄 세우기는 upsert 하나, 집기는 시한 지난 것 닫기·집는 문장·녹음 읽기다. 채우기는 원문 읽기·녹음 고치기·큐 닫기이고 그 밖의 닫기와 세기는 한 문장이다")
+    @DisplayName("포트 메서드마다 나가는 문장: 줄 세우기는 upsert 하나, 집기는 시한 지난 것 닫기·SKIP LOCKED 로 잠가 읽기·임대 적기·녹음 읽기다. 집을 것이 없으면 잠가 읽기에서 멈춘다. 채우기는 원문 읽기·녹음 고치기·큐 닫기이고 그 밖의 닫기와 세기는 한 문장이다")
     void eachPortMethodSendsTheseStatements() {
         UUID recording = recording("reading/a.m4a", mine);
         String update = "update reading_recording_retranscripts";
@@ -300,10 +304,11 @@ class RetranscribeRepositoryIT extends ReadingRepositoryFixture {
 
         assertThat(statementsOf(() -> queue.enqueue(recording, "reading/a.m4a", now)))
                 .containsExactly("insert reading_recording_retranscripts on conflict");
-        assertThat(statementsOf(() -> queue.claimNext(token, LEASE, 3, now)))
-                .containsExactly(update, update, "select reading_recordings");
+        String lockNext = "select reading_recording_retranscripts for update skip locked";
+        assertThat(statementsOf(() -> queue.claimNext(token, LEASE, 3, now))).as("잠가 읽은 행에 임대를 적는다")
+                .containsExactly(update, lockNext, update, "select reading_recordings");
         assertThat(statementsOf(() -> queue.claimNext(UUID.randomUUID(), LEASE, 3, now))).as("집을 것이 없을 때")
-                .containsExactly(update, update);
+                .containsExactly(update, lockNext);
         assertThat(statementsOf(() -> queue.transcribedSince(now))).containsExactly("count reading_recording_retranscripts");
         assertThat(statementsOf(() -> queue.markTranscribing(recording, token, now))).containsExactly(update);
         assertThat(statementsOf(() -> queue.fill(recording, token, "reading/a.m4a", "안녕하세요", null, now)))
