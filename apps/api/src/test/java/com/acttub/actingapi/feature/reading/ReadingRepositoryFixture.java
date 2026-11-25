@@ -88,6 +88,11 @@ abstract class ReadingRepositoryFixture {
             return matcher.group(1).split(" ")[0] + " " + matcher.group(2)
                     + (text.contains(" on conflict") ? " on conflict" : "") + " returning";
         }
+        // 괄호 안(서브쿼리·열 목록)은 비우고 본다 — select 절의 서브쿼리가 고르는 표를 바깥 문장의 표로 잘못 읽지 않게.
+        for (String flattened = null; !text.equals(flattened);) {
+            flattened = text;
+            text = text.replaceAll("\\([^()]*\\)", "()");
+        }
         if (text.startsWith("select") && (matcher = LOCKED.matcher(text)).matches()) {
             return "select " + tableOfAlias(text, matcher.group(1)) + " for update"
                     + (matcher.group(2) == null ? "" : " skip locked");
