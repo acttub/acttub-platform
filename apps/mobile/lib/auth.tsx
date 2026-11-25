@@ -32,6 +32,7 @@ import {
 } from '@/lib/auth-session';
 import { rememberSkeletonHints } from '@/lib/skeleton-hint';
 import { createConsentEntrySession } from '@/lib/consent-entry';
+import { consentGate } from '@/lib/consent-gate';
 import {
   buildSignupDecisions,
   signupFailureAction,
@@ -198,6 +199,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? await consentEntrySession.refresh()
           : await consentEntrySession.readOnce();
         if (generation === consentLoadGeneration.current) {
+          // 동의가 필요하면 게이트에 막힐 요청을 붙잡고, allowed 가 되는 순간 붙잡은 요청을 바로 보낸다(SOMA-1155).
+          if (entry.entry_status === 'allowed') consentGate.open();
+          else consentGate.close();
           setConsentEntry({
             status: entry.entry_status,
             entry,
@@ -218,6 +222,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetConsentEntry = useCallback(() => {
     consentLoadGeneration.current += 1;
     consentEntrySession.clear();
+    // 붙잡혀 있던 요청은 세션이 바뀌었으므로 풀려나자마자 session_changed 로 끝난다.
+    consentGate.open();
     setConsentEntry({ status: 'checking', entry: null, error: null });
   }, [consentEntrySession]);
 
@@ -289,8 +295,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setStatus('signedOut');
     });
-    // 403 에 실린 미결정 목록은 요약이다. 화면은 판정 전체(entry)를 다시 읽어 그린다.
+    // 403 에 실린 미결정 목록은 요약이다. 화면은 판정 전체(entry)를 다시 읽어 그린다. 이미 읽는 중이거나 '동의 필요'로
+    // 알고 있으면 다시 읽지 않는다 — 한꺼번에 막힌 요청마다 판정을 다시 읽어 한 실행에 다섯 번씩 나갔다(SOMA-1155).
     const unsubConsent = onConsentRequired(() => {
+      if (!consentEntrySession.shouldRecheckOnRejection()) return;
       void loadConsentEntry({ refresh: true }).catch(() => undefined);
     });
     const unsubProfile = onProfileRequired(() => {

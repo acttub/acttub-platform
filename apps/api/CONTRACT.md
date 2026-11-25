@@ -74,7 +74,6 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
-- 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다. 지운다(아래 문단).
 - 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
   `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
   `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
@@ -82,12 +81,6 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   읽고 쓰는 코드가 없다. 지운다(아래 문단).
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
-- `evening_reminder_sends`(옛 저녁 8시 고정 알림의 보내기 장부, V25): 코드와 매핑을 지웠다. 알림 집계를 따로 남긴 뒤
-  표를 지운다. DROP 마이그레이션은 매핑을 내린 코드가 운영에 나간 다음 릴리스에 넣는다.
-- `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 매핑을 내렸다. 지운다(아래 문단).
-- `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
-  현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
-- `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다. 지운다(아래 문단).
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 이 값을 읽는다. `PostgresBillingRepository`는 프로필 이름이
   없을 때 대신 읽는다. `PostgresJournalRepository`는 배역 이름이 배우의 닉네임과 같으면 배역을 비우려고 읽는다.
@@ -97,9 +90,8 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
-구형 `reports`, `summaries`의 다섯 칸, `users.role`, `handoff_confirmations`와 `coaching_handoffs`·`coach_sessions`의 옛 칸(위 목록), 그리고 매핑 없이 남은 `practice_sessions.subtext`와
-`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`), `videos`의 크기 두 칸은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
-쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
+`handoff_confirmations`와 `coaching_handoffs`·`coach_sessions`의 옛 칸(위 목록)은 값을 보관하지 않고 지운다. 코드는
+이것들을 읽고 쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
 마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
 
 목록의 나머지 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
@@ -720,8 +712,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   본문과 토큰은 싣지 않는다). receipt 는 읽지 않는다.
 - **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 선다.
   토큰 등록 때 `X-Acttub-Client` 의 앱 버전을 `push_tokens.app_version` 에 남기고(`ClientAppVersion`), 버전을 모르거나
-  `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25 `evening_reminder_sends`)의
-  코드와 검증용 매핑은 지웠고 표만 남았다(§5-1). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25)은
+  코드와 보내기 장부를 모두 지웠다(V98). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
   보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
   탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 
