@@ -55,8 +55,6 @@ class PostgresProfileRepository
      */
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
             AccountErasureStep.MEDIA_OBJECTS,
-            AccountErasureStep.ACTOR_JOURNALS,
-            AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES);
 
     private final EntityManager entityManager;
@@ -741,25 +739,14 @@ class PostgresProfileRepository
         Instant now = account.now();
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
-            case ACTOR_JOURNALS -> {
-                // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
-                entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
-            case NOTE_RATINGS -> {
-                blankNoteRatingComments(userId, now);
-                yield List.of();
-            }
             case DELETED_PRACTICES -> {
                 deletedPractices.forgetMarks(userId);
                 yield account.retainMedia() ? List.of() : deletedPractices.purgeAllOf(userId, now);
             }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
                     PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
-                    LEGACY_OPERATIONS, LEGACY_PRACTICES, READING,
-                    READING_VOICE_USAGE, CHALLENGE ->
+                    LEGACY_OPERATIONS, LEGACY_PRACTICES, READING, READING_VOICE_USAGE, CHALLENGE, ACTOR_JOURNALS,
+                    NOTE_RATINGS ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -844,21 +831,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /**
-     * 노트 평가의 한 줄(자유 입력)을 비우고 평가 값은 사람과 끊어 남긴다(practice.note). 평가를 쓰는 쪽이 같은 {@code users} 행을
-     * 잡으므로 늦게 온 평가가 한 줄을 되살리지 못한다.
-     */
-    private void blankNoteRatingComments(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE note_ratings
-                SET comment=NULL,updated_at=:now
-                WHERE user_id=:userId AND comment IS NOT NULL
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     private static Account account(Tuple row) {
