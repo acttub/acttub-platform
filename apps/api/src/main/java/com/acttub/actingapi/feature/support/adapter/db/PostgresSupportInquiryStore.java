@@ -1,15 +1,13 @@
 package com.acttub.actingapi.feature.support.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.support.app.SupportInquiryStore;
-import com.acttub.actingapi.platform.persistence.NativeTuples;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
+import com.acttub.actingapi.feature.support.schema.SupportInquiryEntity;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -18,85 +16,38 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Repository
 class PostgresSupportInquiryStore implements SupportInquiryStore {
 
-    private final EntityManager entityManager;
+    private final SupportInquiryJpaRepository inquiries;
     private final TransactionTemplate transaction;
 
-    PostgresSupportInquiryStore(EntityManager entityManager, PlatformTransactionManager transactionManager) {
-        this.entityManager = entityManager;
+    PostgresSupportInquiryStore(SupportInquiryJpaRepository inquiries, PlatformTransactionManager transactionManager) {
+        this.inquiries = inquiries;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
     public void insert(NewInquiry inquiry, Instant now) {
-        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
-                INSERT INTO support_inquiries(id,category,email,body,user_id,client,status,created_at)
-                VALUES (:id,:category,:email,:body,CAST(:userId AS uuid),CAST(:client AS text),'open',:now)
-                """)
-                .setParameter("id", inquiry.id())
-                .setParameter("category", inquiry.category())
-                .setParameter("email", inquiry.email())
-                .setParameter("body", inquiry.body())
-                .setParameter("userId", inquiry.userId())
-                .setParameter("client", inquiry.client())
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .executeUpdate());
+        inquiries.save(new SupportInquiryEntity(inquiry.id(), inquiry.category(), inquiry.email(), inquiry.body(),
+                inquiry.userId(), inquiry.client(), "open", now));
     }
 
     @Override
     public List<Inquiry> listByUser(UUID userId, int limit) {
-        return NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,category,email,body,user_id,client,status,created_at
-                FROM support_inquiries
-                WHERE user_id=:userId
-                ORDER BY created_at DESC,id DESC
-                LIMIT :limit
-                """, Tuple.class)
-                .setParameter("userId", userId)
-                .setParameter("limit", limit)).stream().map(PostgresSupportInquiryStore::map).toList();
+        return inquiries.listByUser(userId, Limit.of(limit));
     }
 
-    private static Inquiry map(Tuple row) {
-        return new Inquiry(
-                row.get("id", UUID.class),
-                row.get("category", String.class),
-                row.get("email", String.class),
-                row.get("body", String.class),
-                row.get("user_id", UUID.class),
-                row.get("client", String.class),
-                row.get("status", String.class),
-                row.get("created_at", Instant.class));
-    }
-
+    /**
+     * UPDATE 가 행을 잡은 채 같은 트랜잭션에서 다시 읽는다 — 커밋까지 다른 운영자의 UPDATE 는 기다리므로 읽은 값은 방금 쓴
+     * 값이다. HQL 에 {@code RETURNING} 이 없어 문장이 하나 는다(apps/api/CONTRACT.md §5-9).
+     */
     @Override
     public Optional<Inquiry> setStatus(UUID id, String status) {
-        return transaction.execute(tx -> NativeTuples.list(entityManager.createNativeQuery("""
-                UPDATE support_inquiries SET status=:status WHERE id=:id
-                RETURNING id,category,email,body,user_id,client,status,created_at
-                """, Tuple.class)
-                .setParameter("status", status)
-                .setParameter("id", id)).stream().map(PostgresSupportInquiryStore::map).findFirst());
+        return transaction.execute(tx -> inquiries.updateStatus(id, status) == 0
+                ? Optional.<Inquiry>empty()
+                : inquiries.find(id));
     }
 
     @Override
     public List<Inquiry> list(String status, int limit) {
-        return NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,category,email,body,user_id,client,status,created_at
-                FROM support_inquiries
-                WHERE CAST(:status AS text) IS NULL OR status=CAST(:status AS text)
-                ORDER BY created_at DESC,id DESC
-                LIMIT :limit
-                """, Tuple.class)
-                .setParameter("status", status)
-                .setParameter("limit", limit)).stream()
-                .map(row -> new Inquiry(
-                        row.get("id", UUID.class),
-                        row.get("category", String.class),
-                        row.get("email", String.class),
-                        row.get("body", String.class),
-                        row.get("user_id", UUID.class),
-                        row.get("client", String.class),
-                        row.get("status", String.class),
-                        row.get("created_at", Instant.class)))
-                .toList();
+        return inquiries.list(status, Limit.of(limit));
     }
 }

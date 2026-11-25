@@ -62,9 +62,10 @@ NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라, 다
 
 ### 5-1. 운영 DB 접근은 JPA 로 일원화한다
 
-외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부에서
-단순 CRUD·조회는 Spring Data repository·JPQL·projection으로, PostgreSQL 의미가 필요한 연산은
-§5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
+외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부는
+Spring Data repository·JPQL·HQL·projection으로 구현하고, HQL로 같은 문장을 낼 수 없는 연산만
+`EntityManager` native SQL로 둔다(§5-2). 지금은 native SQL이 대부분이고 기능 영역마다 옮기는 중이다. 옮기는 법과
+native가 남은 자리의 목록은 §5-9에 있다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
 Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 저장소가 아직 native SQL로만 읽고 쓰는 테이블의 매핑(예:
@@ -116,14 +117,18 @@ repository만 Schema Entity를 사용할 수 있고, app·domain과 다른 featu
 허용한다. 그때는 명시적 fetch 계획과 쿼리 수 회귀 검사가 필요하다. 양방향 관계, JPA cascade,
 orphan removal은 금지하고 DB FK와 `ON DELETE CASCADE`를 유지한다.
 
-### 5-2. PostgreSQL 의미가 필요한 연산은 custom native SQL 로 남긴다
+### 5-2. PostgreSQL 의미가 필요한 연산은 한 문장 그대로 지킨다
 
 `UPDATE/INSERT … RETURNING`, `ON CONFLICT`, `DISTINCT ON`, 특정 행 잠금, 컬럼식 증감,
 JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조회 후 쓰기로 풀지 않는다.
+HQL 한 문장이 같은 SQL 을 내면 HQL 로 쓰고, 내지 못하면 custom native SQL 로 둔다(§5-9).
 
 - `@Modifying` 은 rowcount 만 반환하므로 **RETURNING 계열을 대체할 수 없다.**
 - `save()` 는 upsert가 아니며, 조회 후 쓰기는 **동시성 winner 판정을 깨뜨린다.**
 - `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 의미가 다르므로 기존 문장과 판정을 그대로 옮긴다.
+- JPA 로 거는 쓰기 잠금(`PESSIMISTIC_WRITE`)은 네이티브 SQL 처럼 `FOR UPDATE` 로 나간다. Hibernate 7.4 의 PostgreSQL 방언은
+  `FOR NO KEY UPDATE` 를 내서 FK 로 그 행을 가리키는 자식 행 INSERT 를 막지 않으므로, `platform/persistence/ForUpdatePostgreSQLDialect`
+  가 바꾼다(`application.yml` 의 `hibernate.dialect`). `PessimisticWriteLockIT` 가 실제로 나가는 문장과 막는 범위를 지킨다.
 - 반환 행은 data-modifying CTE(`WITH changed AS (… RETURNING …) SELECT …`)와
   `EntityManager.createNativeQuery(sql, Tuple.class)`의 **별칭 기반 `Tuple`**로 매핑한다.
   0행·1행·복합 행, DB 생성 UUID, transaction rollback, 행 잠금은
@@ -151,7 +156,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 2. **앱이 만드는 PK 는 UUID 다**(`AppGeneratedUuidEntity`). 그 밖의 PK 모양: `push_tokens.id`는 DB default가 생성하고,
    회원당 하나인 `user_profiles`·`portfolios` 는 PK 가 `user_id` 로 **FK 겸 PK** 다. 날짜가 붙는 장부(`user_active_days`·
    `practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
-   `anomalies` 는 BIGSERIAL(5번)이다. 엔티티 없이 native SQL 만 쓰는 `audition_postings` 도 bigint identity 다(§6-26).
+   `anomalies` 는 BIGSERIAL(5번)이다. `audition_postings` 도 bigint identity 다(§6-26).
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
@@ -167,8 +172,8 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
    응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
    SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
-5. **BIGSERIAL PK** — 활성 매핑에서는 `Anomaly.id` 하나다. `IDENTITY` 전략은 JDBC 배치 INSERT 를
-   막는다.
+5. **DB 가 매기는 bigint PK** — 활성 매핑에서는 `Anomaly.id`(BIGSERIAL)와 `AuditionPostingEntity.id`(identity)다.
+   `IDENTITY` 전략은 JDBC 배치 INSERT 를 막는다. 공고는 HQL upsert 로만 넣고 그 문장은 id 를 싣지 않는다.
 6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
    소유해야 하는 결정적 이유다.
    **개수도 목록도 문서에 박지 않는다** — `FlywayBaselineTest` 가 커밋된 fingerprint
@@ -324,6 +329,57 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `Object[]`는 쓰지 않는다. native bulk 앞의 pending 변경은 `flush`, 뒤의 managed entity는
 `clear`·재조회한다
 (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:explicitFlushAndClearPreserveNativeMutationOrderingAndVisibility`).
+
+### 5-9. native SQL 을 JPA 로 옮기는 법
+
+기능 영역(`feature/<이름>`) 하나씩 옮긴다. 옮기는 PR 은 그 영역의 저장소만 고치고 스키마·FK·마이그레이션·API 응답은 바꾸지 않는다.
+첫 사례는 `feature/transfer` 다(`PostgresTransferCodeRepository`·`GuestTransferCodeJpaRepository`). 매핑을 새로 만든 사례는
+`feature/support`(UUID PK, `RETURNING` 나누기)와 `feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)이다.
+
+**옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
+통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
+(예: `TransferCodeRepositoryIT`).
+
+1. 같은 입력에 같은 결과. 경계값(시한과 같은 시각, 없는 id, 0행)과 시각의 정밀도를 넣는다.
+2. 잠금 세기. 바깥 연결이 그 행을 `FOR KEY SHARE` 로 먼저 잡고 잠그는 메서드를 부른다. `FOR UPDATE` 는 그 뒤에서
+   기다리고, 기다리는 문장이 `pg_stat_activity` 에 남는다.
+3. 경합. 같은 행을 다투는 두 요청, 유일성이 걸린 동시 INSERT 처럼 승자를 DB 가 정하는 자리.
+4. 포트 메서드마다 나가는 문장의 수와 종류. `StatementInspector` 로 잡는다. 조건부 갱신이 읽고 쓰는 두 문장으로 풀리면
+   여기서 드러난다. 포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운 행
+   수를 부르기 앞뒤로 읽어 차이를 본다. 그 뷰에는 그 연결이 아직 내보내지 않은 앞 트랜잭션의 수도 섞여 있다
+   (`AuditionRepositoryIT`).
+
+**매핑을 새로 만들 때**: 엔티티를 `feature/<이름>/schema` 에 두고, `ActingApiApplication` 의 `@EntityScan` 목록과
+`PackageLayerTest` 의 층 목록에 더하고, `EntityMappingIT` 의 대기 목록에서 빼고 엔티티 수를 올린 뒤 옮긴다. 앱이 만드는 UUID
+PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOnSave` 에 더한다. DB 가 매기는 identity PK 는
+`@GeneratedValue(strategy = IDENTITY)` 이고 HQL insert 가 id 를 빼고 낸다.
+
+**모양마다 옮기는 법**
+
+- 매개변수: 시각은 `Instant` 를 그대로 넘긴다. §5-8 ② 의 `OffsetDateTime` 변환은 native 에만 필요하다. 나노초는 native 와
+  같게 마이크로초로 반올림된다. native 의 `CAST(:x AS text) IS NULL OR x = CAST(:x AS text)` 는 JPQL `:x is null or c.x = :x`
+  로 쓰면 null 도 그대로 된다. `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다.
+- 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
+  나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) 조인한 표를 모두
+  잠근다(inner join). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
+- 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 엔티티를 읽고 고쳐 저장하거나
+  Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
+  `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
+- `ON CONFLICT`: HQL `insert … values … on conflict [대상] do nothing | do update set … = excluded.…` 는 원본과 같은 꼴로
+  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. 엔티티에서
+  `insertable = false` 인 칸도 HQL insert 로 값을 넣는다. `insert … select … on conflict do update` 는 Hibernate 가 풀지 못한다.
+- `RETURNING`·데이터를 바꾸는 CTE: HQL 에 없다. UPDATE 는 JPQL UPDATE 뒤 같은 트랜잭션에서 다시 읽는다(고친 행은 이
+  트랜잭션이 잡고 있다). 영향 행 수가 0 이면 다시 읽지 않는다. 문장이 하나 는다(`PostgresSupportInquiryStore#setStatus`,
+  두 운영자 경합은 `SupportInquiryStoreIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
+  없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다.
+- JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다.
+
+**native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
+테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다.
+
+**native 가 남은 자리의 목록**은 `src/test/resources/native-sql-files.txt` 하나다. `NativeSqlInventoryTest` 가 코드와
+대조한다. 파일마다 자리 수를 적고, 까닭이 없는 줄은 아직 옮기지 않은 자리라 그 합은 줄기만 한다. 옮기지 않기로 한 자리는
+`남김:` 과 까닭을 붙인 줄로 둔다. 영역을 옮기면 그 줄을 빼고 테스트의 상한을 내린다.
 
 ## 6. 계약 보존 체크리스트
 
@@ -1251,9 +1307,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 > 제품 규칙의 정본: [app.audition](../../docs/specs/app/audition.md)(열림·삭제 규칙, 저장 칸, 출처와 켜는 설정), 출처 등급은 ADR-034
 
-- 표는 `audition_postings`(V36)다. Schema Entity 없이 `feature/audition/adapter/db/PostgresAuditionRepository` 의 native
-  SQL 로만 읽고 쓴다 — 쓰기가 전부 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제라서다(§5-1·§5-2,
-  `EntityMappingIT` 의 대기 목록). PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`).
+- 표는 `audition_postings`(V36)이고 `AuditionPostingEntity` 가 매핑한다. `feature/audition/adapter/db/PostgresAuditionRepository`
+  가 HQL 로 읽고 쓴다 — 쓰기는 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제다(§5-2·§5-9).
+  PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`). HQL upsert 는 id 를 싣지 않는다.
   출처·분야 값 목록은 Java enum 없이 `AuditionRules` 의 `SOURCES`·`CATEGORIES` 와 CHECK 가 같은 선을 긋는다
   (`ValueCheckCatalogIT` 의 `WITHOUT_JAVA_ENUM`, 같은 선인지는 `AuditionSchemaMigrationTest`).
 - upsert 는 칸을 새 값으로 덮고 `last_seen_at` 만 그 시각으로 둔다. `first_seen_at` 은 처음 그대로다. `collected_at` 은 따로

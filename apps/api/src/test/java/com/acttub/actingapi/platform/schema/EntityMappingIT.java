@@ -32,6 +32,7 @@ import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.video.schema.VideoEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
 import com.acttub.actingapi.feature.transfer.schema.GuestTransferCodeEntity;
+import com.acttub.actingapi.feature.support.schema.SupportInquiryEntity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Table;
@@ -103,8 +104,6 @@ class EntityMappingIT {
     private static final Set<String> AWAITING_MAPPING = Set.of(
             "video_transcripts", "practices", "analyses", "coach_conversations", "coach_messages",
             "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
-            // 웹 문의(V63, SOMA-834)는 문의 저장소의 native SQL(접수·운영 조회)만 쓴다.
-            "support_inquiries",
             // 블로그 글(V80)은 블로그 저장소의 native SQL(공개 읽기·운영 쓰기)만 쓴다.
             "blog_posts",
             // 연습 삭제(V85, SOMA-985)의 무료 횟수 표시·지운 영상 장부는 연습 삭제의 native SQL 만 쓴다.
@@ -131,8 +130,6 @@ class EntityMappingIT {
             "script_imports",
             // 대본 원본 파일(V34)도 리딩 저장소의 native SQL(올릴 자리·읽기·연결·정리)만 쓴다.
             "script_uploads",
-            // 오디션 공고(V36)는 오디션 저장소의 native SQL(upsert·열림 후보·삭제)만 쓴다.
-            "audition_postings",
             // 리딩 회차 평가(V40)는 리딩 저장소의 native SQL(upsert·잠금·이관·삭제)만 읽고 쓴다.
             "reading_session_ratings",
             // 리딩 녹음 코치(V48, 실험)는 리딩 저장소의 native SQL(재료 읽기·넣기·답 남기기)만 쓴다.
@@ -154,13 +151,13 @@ class EntityMappingIT {
             "community_post_images");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 46개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 48개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개다.
-        assertThat(entities).hasSize(46);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개다.
+        assertThat(entities).hasSize(48);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -368,6 +365,8 @@ class EntityMappingIT {
                 java.time.Instant.now().plusSeconds(60)));
         save(GuestTransferCodeEntity.class,new GuestTransferCodeEntity(UUID.randomUUID(),userId,"c".repeat(64),
                 java.time.Instant.now().plusSeconds(600)));
+        save(SupportInquiryEntity.class,new SupportInquiryEntity(UUID.randomUUID(),"bug","a@example.test","문의 본문입니다",
+                userId,null,"open",java.time.Instant.now()));
         save(AccountCleanupOperationEntity.class,new AccountCleanupOperationEntity(UUID.randomUUID(),userId,
                 AccountCleanupKind.KAKAO_UNLINK,"d1:payload",java.time.Instant.now(),java.time.Instant.now().plusSeconds(600)));
         entityManager.persist(new AnomalyEntity(summaryId,IntentImpact.REVERSAL,Severity.HIGH));
@@ -393,7 +392,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(25);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
