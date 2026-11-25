@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.transfer.adapter;
 import java.time.Clock;
 
 import com.acttub.actingapi.feature.auth.app.GuestAccounts;
+import com.acttub.actingapi.feature.auth.app.TransferredGuestActiveDays;
 import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
@@ -38,12 +39,13 @@ class GuestTransferConfiguration {
             ExitSurveyOwnership surveys,
             NoteRatingOwnership ratings,
             SignupAttributionOwnership attributions,
+            TransferredGuestActiveDays activeDays,
             PushRecords pushRecords,
             DiscoveryAnswerOwnership discoveryAnswers,
             Clock clock,
             @Value("${JWT_SECRET:}") String secret) {
         return new GuestTransferService(
                 codes, guests, practices, operations, memories, readings, videos, surveys, ratings, attributions,
-                pushRecords, discoveryAnswers, clock, secret);
+                activeDays, pushRecords, discoveryAnswers, clock, secret);
     }
 }

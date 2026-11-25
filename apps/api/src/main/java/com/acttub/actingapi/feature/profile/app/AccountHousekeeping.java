@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.StaleRefreshTokens;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class AccountHousekeeping {
 
     private final ProfileRepository profiles;
     private final ProfileService accounts;
+    private final StaleRefreshTokens refreshTokens;
     private final StaleTransferCodes transferCodes;
     private final AccountCleanup cleanup;
     private final FailureReporter failureReporter;
@@ -46,12 +48,14 @@ public class AccountHousekeeping {
     public AccountHousekeeping(
             ProfileRepository profiles,
             ProfileService accounts,
+            StaleRefreshTokens refreshTokens,
             StaleTransferCodes transferCodes,
             AccountCleanup cleanup,
             FailureReporter failureReporter,
             Clock clock) {
         this.profiles = profiles;
         this.accounts = accounts;
+        this.refreshTokens = refreshTokens;
         this.transferCodes = transferCodes;
         this.cleanup = cleanup;
         this.failureReporter = failureReporter;
@@ -60,7 +64,7 @@ public class AccountHousekeeping {
 
     public void runDaily() {
         Instant now = clock.instant();
-        step("refreshTokens", () -> profiles.deleteStaleRefreshTokens(now.minus(TOKEN_RETENTION)));
+        step("refreshTokens", () -> refreshTokens.deleteStale(now.minus(TOKEN_RETENTION)));
         step("idleGuests", () -> {
             for (UUID guest : profiles.idleGuests(now.minus(GUEST_IDLE))) {
                 step("idleGuest", () -> accounts.withdraw(guest));

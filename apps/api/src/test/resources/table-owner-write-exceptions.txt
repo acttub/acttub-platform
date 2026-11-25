@@ -66,7 +66,6 @@ feature/profile/adapter/db/PostgresProfileRepository.java script_lines
 feature/profile/adapter/db/PostgresProfileRepository.java script_uploads
 feature/profile/adapter/db/PostgresProfileRepository.java scripts
 feature/profile/adapter/db/PostgresProfileRepository.java upload_intents
-feature/profile/adapter/db/PostgresProfileRepository.java user_active_days
 feature/profile/adapter/db/PostgresProfileRepository.java user_blocks
 feature/profile/adapter/db/PostgresProfileRepository.java user_consents
 feature/profile/adapter/db/PostgresProfileRepository.java user_identities

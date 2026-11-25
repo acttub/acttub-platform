@@ -13,6 +13,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.acttub.actingapi.feature.auth.app.GuestAccounts;
+import com.acttub.actingapi.feature.auth.app.TransferredGuestActiveDays;
 import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
@@ -56,6 +57,7 @@ public class GuestTransferService {
     private final ExitSurveyOwnership surveys;
     private final NoteRatingOwnership ratings;
     private final SignupAttributionOwnership attributions;
+    private final TransferredGuestActiveDays activeDays;
     private final PushRecords pushRecords;
     private final DiscoveryAnswerOwnership discoveryAnswers;
     private final Clock clock;
@@ -73,6 +75,7 @@ public class GuestTransferService {
             ExitSurveyOwnership surveys,
             NoteRatingOwnership ratings,
             SignupAttributionOwnership attributions,
+            TransferredGuestActiveDays activeDays,
             PushRecords pushRecords,
             DiscoveryAnswerOwnership discoveryAnswers,
             Clock clock,
@@ -90,6 +93,7 @@ public class GuestTransferService {
         this.surveys = surveys;
         this.ratings = ratings;
         this.attributions = attributions;
+        this.activeDays = activeDays;
         this.pushRecords = pushRecords;
         this.discoveryAnswers = discoveryAnswers;
         this.clock = clock;
@@ -149,7 +153,8 @@ public class GuestTransferService {
             ratings.reassign(guestId, memberId);
             // 이 회원이 게스트 뒤에 새로 가입했는지 증명할 신호가 없다. 과거 회원의 가입 출처로 추정 이관하지 않는다.
             attributions.discardTransferredGuest(guestId);
-            // 푸시 기록과 유입 경로 답도 게스트 쪽에서 지운다. 회원에게 옮기지 않는다.
+            // 접속일·푸시 기록·유입 경로 답도 게스트 쪽에서 지운다. 회원에게 옮기지 않는다.
+            activeDays.discard(guestId);
             pushRecords.discardTransferredGuest(guestId);
             discoveryAnswers.discardTransferredGuestAnswer(guestId);
             guests.closeTransferredGuest(guestId, now);

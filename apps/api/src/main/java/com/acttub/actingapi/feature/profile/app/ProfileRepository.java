@@ -106,9 +106,6 @@ public interface ProfileRepository {
      */
     List<UUID> purgeDeletedPracticeMedia(Instant deletedBefore, Instant now);
 
-    /** 만료되거나 폐기된 지 오래된 리프레시 토큰 행을 지운다. 그 전까지는 재사용 탐지와 문제 추적에 쓴다. */
-    int deleteStaleRefreshTokens(Instant before);
-
     /** 개인정보 처리방침의 웹 이용 분석 기록 보관 상한(14개월)을 지난 web_utm 행을 지운다. */
     int deleteExpiredWebAttributions(Instant before);
 
