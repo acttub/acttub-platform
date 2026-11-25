@@ -49,8 +49,7 @@ class PostgresProfileRepository
         implements ProfileRepository, SignupAttributionOwnership, AccountErasure, PendingSettlement {
 
     /**
-     * 계정을 닫을 때 이 저장소가 맡는 자리. {@code profile} 의 표를 고치는 자리({@code SIGNUP_ATTRIBUTION}·
-     * {@code DISCOVERY_ANSWER}·{@code PROFILE})와, 아직 주인에게 옮기지 않은 남의 표의 자리다. 뒤의 것은 주인 기능이
+     * 계정을 닫을 때 이 저장소가 맡는 자리. 모두 아직 주인에게 옮기지 않은 남의 표의 자리다. 주인 기능이
      * {@link AccountErasure} 를 구현하면 여기서 빠진다.
      */
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
@@ -61,11 +60,8 @@ class PostgresProfileRepository
             AccountErasureStep.CHALLENGE,
             AccountErasureStep.COMMUNITY_IMAGES,
             AccountErasureStep.READING_VOICE_USAGE,
-            AccountErasureStep.SIGNUP_ATTRIBUTION,
             AccountErasureStep.BILLING,
-            AccountErasureStep.DISCOVERY_ANSWER,
             AccountErasureStep.BILLING_CUSTOMER,
-            AccountErasureStep.PROFILE,
             AccountErasureStep.LEGACY_OPERATIONS);
 
     private final EntityManager entityManager;
@@ -851,26 +847,8 @@ class PostgresProfileRepository
                         .executeUpdate();
                 yield List.of();
             }
-            case SIGNUP_ATTRIBUTION -> {
-                // 가입 유입 기록(SOMA-588)은 사람과 끊어 남기지 않고 행째 지운다 — 통계는 탈퇴 전 값으로 충분하다.
-                entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                // 재조회용 기기 ID(SOMA-643, V43)도 지운다 — 24시간 안에 남아 있을 수 있다.
-                entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
             case BILLING -> {
                 endBilling(userId);
-                yield List.of();
-            }
-            case DISCOVERY_ANSWER -> {
-                // 가입 직후 답한 유입 경로(SOMA-649)도 행째 지운다 — 기타의 직접 입력이 남지 않게.
-                entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
                 yield List.of();
             }
             // RevenueCat 고객 정보(SOMA-818, V65)도 지운다 — 앱이 RevenueCat SDK 에 우리 user id 로 붙으므로 app_user_id 가 곧
@@ -879,15 +857,11 @@ class PostgresProfileRepository
             case BILLING_CUSTOMER -> revenueCat.enabled()
                     ? List.of(cleanups.enqueue(userId, "revenuecat_delete", secrets.encrypt(userId.toString()), now, now))
                     : List.of();
-            case PROFILE -> {
-                blurProfile(userId, account.today());
-                yield List.of();
-            }
             case LEGACY_OPERATIONS -> {
                 cancelOperations(userId, now);
                 yield List.of();
             }
-            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH ->
+            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -1182,34 +1156,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /** 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 이미 뭉갠 프로필은 연령대를 그대로 둔다. */
-    private void blurProfile(UUID userId, LocalDate today) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT birth_date
-                FROM user_profiles
-                WHERE user_id=:userId
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("userId", userId));
-        if (rows.isEmpty()) {
-            return;
-        }
-        Date birthDate = rows.getFirst().get("birth_date", Date.class);
-        entityManager.createNativeQuery("""
-                UPDATE user_profiles
-                SET name=NULL,photo_key=NULL,bio=NULL,birth_date=NULL,
-                    age_band=COALESCE(CAST(:ageBand AS integer),age_band),
-                    photo_upload_key=NULL,photo_upload_mime_type=NULL,
-                    photo_upload_size_bytes=NULL,photo_upload_expires_at=NULL,
-                    notify_analysis_done=false,notify_challenge=false,notify_evening_reminder=false,
-                    updated_at=now()
-                WHERE user_id=:userId
-                """)
-                .setParameter("ageBand", birthDate == null ? null : AgeBand.of(birthDate.toLocalDate(), today))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     /**
