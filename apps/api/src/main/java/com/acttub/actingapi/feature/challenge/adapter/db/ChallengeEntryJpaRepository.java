@@ -49,6 +49,11 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
             """)
     Optional<Content> lockForRead(UUID id);
 
+    /** 참여작 행을 쓰기로 잡기만 한다. 상태는 보지 않는다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select e.id from ChallengeEntryEntity e where e.id = :id")
+    Optional<UUID> lockRow(UUID id);
+
     /** 그 회원의 지우지 않은 참여작이면 그 id. */
     @Query("select e.id from ChallengeEntryEntity e where e.id = :id and e.userId = :userId and e.status <> DELETED")
     Optional<UUID> findLiveOwnedBy(UUID id, UUID userId);
