@@ -439,6 +439,20 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   넣는 것(`CAST(:x AS jsonb)`)은 JSON 칸에 `JsonNode` 매개변수를 넘기는 HQL 로 같다. Java `null` 은 SQL NULL 이 되므로 JSON
   null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`). 칸을 `String` 으로
   매핑했으면 글 매개변수를 그대로 넘긴다(`ReadingPronunciationReportJpaRepository#complete`).
+- 읽기 잠금·건너뛰는 잠금·권고 잠금: `@Lock(PESSIMISTIC_READ)` 는 `for share of <별칭>` 으로 나간다. `PESSIMISTIC_WRITE` 에
+  `@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2")` 와 `Limit` 을 함께 주면
+  `… fetch first ? rows only for update of <별칭> skip locked` 다(`ChallengeEntryJpaRepository#lockExhaustedModeration`,
+  잡힌 행을 건너뛰는 것은 `EntryModerationStoreIT`). 잠금은 스칼라 투영(`select new …`)에도 붙는다.
+  `pg_advisory_xact_lock(…)` 은 FROM 없이 select 절에 둔다(`ChallengeJpaRepository#lockTeamCreation`).
+- 값 목록 칸(변환기가 붙은 enum): 조건에 `e.status <> DELETED` 처럼 상수 이름을 따옴표 없이 쓰면 `status<>'deleted'` 글자로
+  나간다. `case … then <상수>` 처럼 형을 짐작할 수 없는 자리에는 매개변수로 넘긴다.
+- 있는지 확인: Spring Data `existsBy…` 는 `select <id> … fetch first ? rows only` 로 나가 native 의 `SELECT 1 … LIMIT 1` 과
+  고르는 칸이 다르다. 요청이 많은 경로에서는 `@Query("select 1 from …")` 에 `Limit.of(1)` 을 넘겨 같은 꼴로 낸다
+  (`NotificationJpaRepository#anyInGroup`).
+- 같은 트랜잭션에 그 표를 고치는 native SQL 이 남아 있으면 엔티티가 아니라 값(스칼라 투영)으로 읽는다. 영속성 컨텍스트에 둔
+  엔티티는 native 가 고친 뒤 낡은 값을 돌려준다(§5-4 ④, `ChallengeEntryJpaRepository`).
+- `UPDATE … FROM (창 함수 서브쿼리)`: HQL 에 `update … from` 이 없다. 상관 서브쿼리로 쓰면 행마다 창 함수를 다시 계산하는
+  다른 문장이 되므로 native 로 둔다(`ChallengeSettlement#confirm` 의 순위 매기기).
 
 **native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
 테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다. §5-1 에서 매핑을 내린 표(옛 연습
