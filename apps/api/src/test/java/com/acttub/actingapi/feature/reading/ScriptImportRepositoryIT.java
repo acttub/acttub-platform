@@ -37,7 +37,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 대본 나누기 요청 저장소가 내는 결과·잠금·경합·문장을 고정한다. 접수에서 나누기·실패·다시 쓰기까지의 HTTP 흐름과 모델 호출은
  * {@link ReadingImportIT} 가 본다. 여기서는 저장소 한 번의 부름이 적는 칸 전체, 접수 판정의 순서(재전송 → 같은 글 → 진행 중 →
  * 대본 수 → 하루 한도), 다시 쓰는 대본을 고르는 조건, 진행률이 뒤로 가지 않는 것, 완료·실패가 요청과 원본 파일에 남기는 것,
- * 사람 행의 잠금과 겹친 접수, 요청 하나가 보내는 문장을 본다 — 접수와 상태 읽기는 요청이 많은 경로다.
+ * 사람 행의 잠금과 겹친 접수, 요청 하나가 보내는 문장을 본다 — 접수와 상태 읽기는 요청이 많은 경로다. *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — 실패를 적는 {@code UPDATE … RETURNING} 을
+ * UPDATE 뒤 다시 읽기로 나눠 워커가 실패를 적을 때 문장이 하나 늘었다. 접수·상태 읽기·진행의 문장 수는 그대로이고 결과·잠금·
+ * 경합 테스트는 고치지 않았다.
  */
 class ScriptImportRepositoryIT extends ReadingRepositoryFixture {
 
@@ -423,7 +426,11 @@ class ScriptImportRepositoryIT extends ReadingRepositoryFixture {
         assertThat(statementsOf(() -> imports.fail(job.id(), token, id, ScriptImportFailure.FAILED, false, now)))
                 .as("실패 — 작업 장부가 보내는 문장은 장부의 것이라 여기서 세지 않는다")
                 .filteredOn(statement -> statement.contains("script_imports"))
-                .containsExactly("update script_imports returning");
+                .containsExactly("update script_imports", "select script_imports");
+        assertThat(statementsOf(() -> imports.fail(job.id(), token, UUID.randomUUID(), ScriptImportFailure.FAILED, false, now)))
+                .as("고친 요청이 없으면 다시 읽지 않는다")
+                .filteredOn(statement -> statement.contains("script_imports"))
+                .containsExactly("update script_imports");
     }
 
     private static Submission text(String rawText, String hash) {

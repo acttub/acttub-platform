@@ -49,6 +49,21 @@ interface ScriptUploadJpaRepository extends Repository<ScriptUploadEntity, UUID>
             """)
     Optional<Found> find(UUID id, UUID userId);
 
+    @Query("select u.fileName from ScriptUploadEntity u where u.id = :id and u.userId = :userId")
+    Optional<String> fileName(UUID id, UUID userId);
+
+    /**
+     * 그 나누기 요청이 원본 파일로 넣은 것이면 그 파일을 대본에 잇고 뽑은 글을 비운다 — 글은 대본에 있고 원본은 대본과 함께
+     * 지워진다. 이미 이어진 파일은 0행이다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ScriptUploadEntity u set u.scriptId = :scriptId, u.rawText = null, u.updatedAt = :now
+            where u.scriptId is null
+              and u.id = (select i.uploadId from ScriptImportEntity i where i.id = :importId)
+            """)
+    int linkToScript(UUID importId, UUID scriptId, Instant now);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             update ScriptUploadEntity u

@@ -43,6 +43,30 @@ interface ScriptLineJpaRepository extends Repository<ScriptLineEntity, UUID> {
             """)
     List<Outline> outline(UUID scriptId);
 
+    /** 줄의 모든 내용. */
+    interface Content {
+        UUID getId();
+
+        int getOrdinal();
+
+        ScriptLineKind getKind();
+
+        UUID getCharacterId();
+
+        String getText();
+
+        String getLang();
+
+        String getSpeech();
+    }
+
+    @Query("""
+            select l.id as id, l.ordinal as ordinal, l.kind as kind, l.characterId as characterId, l.text as text,
+                   l.lang as lang, l.speech as speech
+            from ScriptLineEntity l where l.scriptId = :scriptId order by l.ordinal
+            """)
+    List<Content> content(UUID scriptId);
+
     /** 줄의 종류, 장면 머리의 글, 구간 안 대사 줄의 소리 낼 글. */
     interface Reading {
         UUID getId();
