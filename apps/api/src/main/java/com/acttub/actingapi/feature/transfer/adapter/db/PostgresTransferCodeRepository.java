@@ -1,28 +1,23 @@
 package com.acttub.actingapi.feature.transfer.adapter.db;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
 import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
 import com.acttub.actingapi.platform.security.TransferredGuests;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresTransferCodeRepository implements TransferCodeRepository, TransferredGuests {
-    private final EntityManager entityManager;
+    private final GuestTransferCodeJpaRepository codes;
     private final TransactionTemplate transaction;
 
-    PostgresTransferCodeRepository(EntityManager entityManager, PlatformTransactionManager transactionManager) {
-        this.entityManager = entityManager;
+    PostgresTransferCodeRepository(GuestTransferCodeJpaRepository codes, PlatformTransactionManager transactionManager) {
+        this.codes = codes;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -38,30 +33,10 @@ class PostgresTransferCodeRepository implements TransferCodeRepository, Transfer
     @Override
     public boolean issue(UUID guestId, String codeHash, Instant now, Instant expiresAt) {
         return Boolean.TRUE.equals(transaction.execute(status -> {
-            // 새로 받으면 이전 코드는 무효다. 쓰인 코드는 "옮겨졌다"는 표식이라 남긴다. 다른 게스트의 같은
-            // 숫자는 시한이 지났을 때만 비킨다 — 살아 있는 것과 겹치면 아래 INSERT 가 0행이다.
-            entityManager.createNativeQuery("""
-                    DELETE FROM guest_transfer_codes
-                    WHERE used_at IS NULL
-                      AND (user_id=:guestId
-                           OR (code_hash=:codeHash AND expires_at<=:now))
-                    """)
-                    .setParameter("guestId", guestId)
-                    .setParameter("codeHash", codeHash)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
-            int issued = entityManager.createNativeQuery("""
-                    INSERT INTO guest_transfer_codes(id,user_id,code_hash,created_at,expires_at)
-                    VALUES (:id,:guestId,:codeHash,:now,:expiresAt)
-                    ON CONFLICT DO NOTHING
-                    """)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("guestId", guestId)
-                    .setParameter("codeHash", codeHash)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("expiresAt", expiresAt.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
-            if (issued == 0) {
+            // 새로 받으면 이전 코드는 무효다. 다른 게스트의 같은 숫자는 시한이 지났을 때만 비킨다 — 살아 있는 것과
+            // 겹치면 아래 INSERT 가 0행이다.
+            codes.deleteReplaceable(guestId, codeHash, now);
+            if (codes.insertUnlessTaken(UUID.randomUUID(), guestId, codeHash, now, expiresAt) == 0) {
                 // 아무것도 적지 않는다 — 앞의 코드를 지운 것도 되돌린다.
                 status.setRollbackOnly();
                 return false;
@@ -76,32 +51,13 @@ class PostgresTransferCodeRepository implements TransferCodeRepository, Transfer
      */
     @Override
     public LiveCode lockLive(String codeHash, Instant now) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT id,user_id
-                FROM guest_transfer_codes
-                WHERE code_hash=:codeHash
-                  AND used_at IS NULL
-                  AND expires_at>:now
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("codeHash", codeHash)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)));
-        if (rows.size() != 1) {
-            return null;
-        }
-        return new LiveCode(rows.getFirst().get("id", UUID.class), rows.getFirst().get("user_id", UUID.class));
+        List<LiveCode> live = codes.lockLive(codeHash, now);
+        return live.size() == 1 ? live.getFirst() : null;
     }
 
     @Override
     public void markUsed(UUID codeId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE guest_transfer_codes
-                SET used_at=:now
-                WHERE id=:codeId
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("codeId", codeId)
-                .executeUpdate();
+        codes.markUsed(codeId, now);
     }
 
     /**
@@ -110,14 +66,7 @@ class PostgresTransferCodeRepository implements TransferCodeRepository, Transfer
      */
     @Override
     public boolean transferredGuest(UUID userId) {
-        return !list(entityManager.createNativeQuery("""
-                SELECT 1 AS transferred
-                FROM guest_transfer_codes
-                WHERE user_id=:userId
-                  AND used_at IS NOT NULL
-                LIMIT 1
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
+        return codes.existsByUserIdAndUsedAtIsNotNull(userId);
     }
 
     @Override
