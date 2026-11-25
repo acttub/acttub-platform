@@ -2,7 +2,6 @@ package com.acttub.actingapi.feature.reading.adapter.db;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -12,71 +11,49 @@ import com.acttub.actingapi.feature.reading.domain.RecordingRules;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 리딩 녹음 서버 다시 받아쓰기 큐(V79). 표는 이 저장소의 native SQL 만 읽고 쓴다. */
+/**
+ * 리딩 녹음 서버 다시 받아쓰기 큐(V79)의 Postgres 구현. 큐의 문장은 {@link ReadingRecordingRetranscriptJpaRepository} 에 있다.
+ *
+ * <p>집기는 잠가 읽기({@code for update … skip locked})와 임대 적기 두 문장이다(apps/api/CONTRACT.md §5-9). 녹음의 주인이
+ * 활성인지 보는 두 문장(집은 뒤의 녹음 읽기, 전사 채우기)은 auth 의 {@code users} 를 한 문장 안에서 읽어 native SQL 로 둔다.
+ */
 @Repository
 class PostgresRetranscribeRepository implements RetranscribeRepository {
     private final EntityManager entityManager;
+    private final ReadingRecordingRetranscriptJpaRepository queue;
+    private final ReadingRecordingJpaRepository recordings;
     private final TransactionTemplate transaction;
 
-    PostgresRetranscribeRepository(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    PostgresRetranscribeRepository(EntityManager entityManager, ReadingRecordingRetranscriptJpaRepository queue,
+            ReadingRecordingJpaRepository recordings, PlatformTransactionManager transactionManager) {
         this.entityManager = entityManager;
+        this.queue = queue;
+        this.recordings = recordings;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
     public void enqueue(UUID recordingId, String objectKey, Instant now) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                INSERT INTO reading_recording_retranscripts(recording_id,object_key,status,created_at,updated_at)
-                VALUES (:id,:key,'queued',CAST(:now AS timestamptz),CAST(:now AS timestamptz))
-                ON CONFLICT (recording_id) DO UPDATE
-                SET object_key=EXCLUDED.object_key, status='queued', attempt_count=0, lease_token=NULL, lease_until=NULL,
-                    peak_db=NULL, transcript=NULL, failure=NULL, updated_at=EXCLUDED.updated_at
-                """)
-                .setParameter("id", recordingId)
-                .setParameter("key", objectKey)
-                .setParameter("now", utc(now))
-                .executeUpdate());
+        transaction.executeWithoutResult(status -> queue.enqueue(recordingId, objectKey, now));
     }
 
     @Override
     public Claimed claimNext(UUID leaseToken, Duration lease, int maxAttempts, Instant now) {
         return transaction.execute(status -> {
-            entityManager.createNativeQuery("""
-                    UPDATE reading_recording_retranscripts
-                    SET status='failed', failure='lease_expired', lease_token=NULL, lease_until=NULL,
-                        updated_at=CAST(:now AS timestamptz)
-                    WHERE status='running' AND lease_until < CAST(:now AS timestamptz) AND attempt_count >= :maxAttempts
-                    """)
-                    .setParameter("now", utc(now))
-                    .setParameter("maxAttempts", maxAttempts)
-                    .executeUpdate();
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    UPDATE reading_recording_retranscripts q
-                    SET status='running', lease_token=:token, lease_until=CAST(:until AS timestamptz),
-                        attempt_count=q.attempt_count+1, updated_at=CAST(:now AS timestamptz)
-                    WHERE q.recording_id = (
-                        SELECT recording_id FROM reading_recording_retranscripts
-                        WHERE (status='queued' OR (status='running' AND lease_until < CAST(:now AS timestamptz)))
-                          AND attempt_count < :maxAttempts
-                        ORDER BY created_at
-                        LIMIT 1
-                        FOR UPDATE SKIP LOCKED)
-                    RETURNING q.recording_id, q.object_key, q.attempt_count
-                    """, Tuple.class)
-                    .setParameter("token", leaseToken)
-                    .setParameter("until", utc(now.plus(lease)))
-                    .setParameter("now", utc(now))
-                    .setParameter("maxAttempts", maxAttempts));
-            if (rows.isEmpty()) {
+            queue.closeExhausted(now, maxAttempts);
+            List<ReadingRecordingRetranscriptJpaRepository.Claimable> next = queue.lockNext(now, maxAttempts, Limit.of(1));
+            if (next.isEmpty()) {
                 return null;
             }
-            Tuple row = rows.get(0);
-            UUID recordingId = row.get("recording_id", UUID.class);
-            String objectKey = row.get("object_key", String.class);
+            UUID recordingId = next.getFirst().getRecordingId();
+            String objectKey = next.getFirst().getObjectKey();
+            int attempt = next.getFirst().getAttemptCount() + 1;
+            queue.lease(recordingId, leaseToken, now.plus(lease), now);
             // 탈퇴한 계정의 보관 녹음은 모델에 보내지 않는다(common.md 「모델을 기다린 뒤의 저장」) — 지금 녹음이 아닌 것으로 닫는다.
             List<Tuple> recording = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT r.duration_ms,
@@ -89,37 +66,26 @@ class PostgresRetranscribeRepository implements RetranscribeRepository {
                     .setParameter("key", objectKey));
             Integer durationMs = recording.isEmpty() ? null : recording.get(0).get("duration_ms", Integer.class);
             boolean current = !recording.isEmpty() && Boolean.TRUE.equals(recording.get(0).get("current", Boolean.class));
-            return new Claimed(recordingId, objectKey, durationMs, row.get("attempt_count", Integer.class), current);
+            return new Claimed(recordingId, objectKey, durationMs, attempt, current);
         });
     }
 
     @Override
     public long transcribedSince(Instant since) {
-        Number count = transaction.execute(status -> (Number) entityManager.createNativeQuery(
-                "SELECT count(*) FROM reading_recording_retranscripts WHERE transcribed_at >= CAST(:since AS timestamptz)")
-                .setParameter("since", utc(since))
-                .getSingleResult());
-        return count == null ? 0 : count.longValue();
+        Long count = transaction.execute(status -> queue.transcribedSince(since));
+        return count == null ? 0 : count;
     }
 
     @Override
     public void markTranscribing(UUID recordingId, UUID leaseToken, Instant now) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                UPDATE reading_recording_retranscripts
-                SET transcribed_at=CAST(:now AS timestamptz), updated_at=CAST(:now AS timestamptz)
-                WHERE recording_id=:id AND lease_token=:token AND status='running'
-                """)
-                .setParameter("now", utc(now))
-                .setParameter("id", recordingId)
-                .setParameter("token", leaseToken)
-                .executeUpdate());
+        transaction.executeWithoutResult(status -> queue.markTranscribing(recordingId, leaseToken, now));
     }
 
     @Override
     public boolean fill(UUID recordingId, UUID leaseToken, String objectKey, String transcript, Double peakDb, Instant now) {
         Boolean filled = transaction.execute(status -> {
-            String line = lineText(recordingId);
-            Boolean matched = line == null ? null : RecordingRules.matched(transcript, line);
+            List<String> line = recordings.myLineText(recordingId);
+            Boolean matched = line.isEmpty() ? null : RecordingRules.matched(transcript, line.getFirst());
             // 받아쓰는 사이에 탈퇴했으면 채우지 않는다(stale).
             int updated = entityManager.createNativeQuery("""
                     UPDATE reading_recordings r
@@ -130,23 +96,11 @@ class PostgresRetranscribeRepository implements RetranscribeRepository {
                     """)
                     .setParameter("transcript", transcript)
                     .setParameter("matched", matched)
-                    .setParameter("now", utc(now))
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", recordingId)
                     .setParameter("key", objectKey)
                     .executeUpdate();
-            int leased = entityManager.createNativeQuery("""
-                    UPDATE reading_recording_retranscripts
-                    SET status=:status, transcript=:transcript, peak_db=CAST(:peak AS double precision), failure=NULL, lease_token=NULL,
-                        lease_until=NULL, updated_at=CAST(:now AS timestamptz)
-                    WHERE recording_id=:id AND lease_token=:token AND status='running'
-                    """)
-                    .setParameter("status", updated == 1 ? "done" : "stale")
-                    .setParameter("transcript", transcript)
-                    .setParameter("peak", peakDb)
-                    .setParameter("now", utc(now))
-                    .setParameter("id", recordingId)
-                    .setParameter("token", leaseToken)
-                    .executeUpdate();
+            int leased = queue.close(recordingId, leaseToken, updated == 1 ? "done" : "stale", transcript, peakDb, now);
             if (leased == 0) {
                 // 임대를 잃었다 — 녹음을 고친 것까지 되돌린다. 잠그는 순서(녹음 → 큐)는 녹음 삭제의 CASCADE 와 같게 둔다.
                 status.setRollbackOnly();
@@ -159,69 +113,16 @@ class PostgresRetranscribeRepository implements RetranscribeRepository {
 
     @Override
     public void finish(UUID recordingId, UUID leaseToken, String status, Double peakDb, Instant now) {
-        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
-                UPDATE reading_recording_retranscripts
-                SET status=:status, peak_db=CAST(:peak AS double precision), failure=NULL, lease_token=NULL, lease_until=NULL,
-                    updated_at=CAST(:now AS timestamptz)
-                WHERE recording_id=:id AND lease_token=:token AND status='running'
-                """)
-                .setParameter("status", status)
-                .setParameter("peak", peakDb)
-                .setParameter("now", utc(now))
-                .setParameter("id", recordingId)
-                .setParameter("token", leaseToken)
-                .executeUpdate());
+        transaction.executeWithoutResult(tx -> queue.finish(recordingId, leaseToken, status, peakDb, now));
     }
 
     @Override
     public void fail(UUID recordingId, UUID leaseToken, String failure, boolean retry, Instant now) {
-        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
-                UPDATE reading_recording_retranscripts
-                SET status=:status, failure=:failure, lease_token=NULL, lease_until=NULL, updated_at=CAST(:now AS timestamptz)
-                WHERE recording_id=:id AND lease_token=:token AND status='running'
-                """)
-                .setParameter("status", retry ? "queued" : "failed")
-                .setParameter("failure", failure)
-                .setParameter("now", utc(now))
-                .setParameter("id", recordingId)
-                .setParameter("token", leaseToken)
-                .executeUpdate());
+        transaction.executeWithoutResult(tx -> queue.fail(recordingId, leaseToken, retry ? "queued" : "failed", failure, now));
     }
 
     @Override
     public void release(UUID recordingId, UUID leaseToken, Instant now) {
-        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
-                UPDATE reading_recording_retranscripts
-                SET status='queued', attempt_count=GREATEST(attempt_count-1,0), lease_token=NULL, lease_until=NULL,
-                    updated_at=CAST(:now AS timestamptz)
-                WHERE recording_id=:id AND lease_token=:token AND status='running'
-                """)
-                .setParameter("now", utc(now))
-                .setParameter("id", recordingId)
-                .setParameter("token", leaseToken)
-                .executeUpdate());
-    }
-
-    /** 녹음을 저장할 때 대조한 원문과 같은 글 — 회차 연습 구간 안의 내 대사 줄이 아니면 {@code null}. */
-    private String lineText(UUID recordingId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT COALESCE(regexp_replace(l.speech,'⟦[a-z][a-z]⟧',' ','g'),l.text) AS text
-                FROM reading_recordings r
-                JOIN reading_sessions rs ON rs.id=r.reading_session_id
-                JOIN script_lines s ON s.id=rs.start_line_id
-                JOIN script_lines e ON e.id=rs.end_line_id
-                JOIN script_lines l ON l.id=r.line_id AND l.script_id=rs.script_id
-                WHERE r.id=:id
-                  AND l.kind='dialogue'
-                  AND l.ordinal BETWEEN s.ordinal AND e.ordinal
-                  AND (l.character_id=ANY(rs.my_character_ids)
-                       OR EXISTS (SELECT 1 FROM script_characters lc
-                                  WHERE lc.id=l.character_id AND lc.member_ids && rs.my_character_ids))
-                """, Tuple.class).setParameter("id", recordingId));
-        return rows.isEmpty() ? null : rows.get(0).get("text", String.class);
-    }
-
-    private static OffsetDateTime utc(Instant instant) {
-        return instant.atOffset(ZoneOffset.UTC);
+        transaction.executeWithoutResult(tx -> queue.release(recordingId, leaseToken, now));
     }
 }
