@@ -5,8 +5,10 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.ChallengeRankingState;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,48 +18,33 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class ChallengeSettlement {
-    /**
-     * 순위 확정을 기다리게 하는 참여작. 마감 당시 자격이 있었고 지금 신고로 숨겨져 처리되지 않은 신고가 남아 있다.
-     * 참가 자격은 신고 숨김을 통과로 셈해 두고(되돌리면 그 자리에서 순위에 든다), 숨김 유지(kept_hidden)로 끝난 것은
-     * 순위 밖에 두고 확정한다.
-     */
-    static final String UNDER_REVIEW = """
-            e.status='hidden_by_report' AND e.final_eligible AND EXISTS(SELECT 1 FROM entry_reports r
-              WHERE r.target_type='entry' AND r.target_id=e.id AND r.status='received')
-            """;
     private final EntityManager em;
+    private final ChallengeJpaRepository challenges;
     private final NotificationEvents events;
-    ChallengeSettlement(EntityManager em, NotificationEvents events) { this.em = em; this.events = events; }
+    ChallengeSettlement(EntityManager em, ChallengeJpaRepository challenges, NotificationEvents events) {
+        this.em = em; this.challenges = challenges; this.events = events;
+    }
 
     /** 챌린지 행을 잠근 뒤 마감이 지났고 아직 집계 전이면 집계하고, 집계 중이면 확정을 시도한다. */
     void settle(UUID challengeId, Instant now) {
-        var rows = NativeTuples.list(em.createNativeQuery(
-                "SELECT ends_at,ranking_state FROM challenges WHERE id=:id FOR UPDATE", Tuple.class).setParameter("id", challengeId));
-        if (rows.isEmpty()) return;
-        String state = rows.getFirst().get("ranking_state", String.class);
-        if (state == null && !now.isBefore(rows.getFirst().get("ends_at", Instant.class))) {
+        var locked = challenges.lockDeadline(challengeId);
+        if (locked.isEmpty()) return;
+        ChallengeRankingState state = locked.get().rankingState();
+        if (state == null && !now.isBefore(locked.get().endsAt())) {
             aggregate(challengeId, now);
-            state = "pending";
+            state = ChallengeRankingState.PENDING;
         }
-        if ("pending".equals(state)) confirm(challengeId, now);
+        if (state == ChallengeRankingState.PENDING) confirm(challengeId, now);
     }
 
     /** 집계 전이면 잠그고 집계만 한다(읽기가 부른다 — 확정 시도는 변경·운영 처리·매시 일이 한다). */
     void aggregateIfDue(UUID challengeId, Instant now) {
-        var due = NativeTuples.list(em.createNativeQuery(
-                "SELECT 1 AS due FROM challenges WHERE id=:id AND ranking_state IS NULL AND ends_at<=:now", Tuple.class)
-                .setParameter("id", challengeId).setParameter("now", now.atOffset(ZoneOffset.UTC)));
-        if (!due.isEmpty()) settle(challengeId, now);
+        if (challenges.dueForAggregation(challengeId, now).isPresent()) settle(challengeId, now);
     }
 
     /** 매시 도는 일의 대상 — 집계가 밀렸거나 확정을 기다리는 챌린지. */
     List<UUID> waiting(Instant now) {
-        return NativeTuples.list(em.createNativeQuery("""
-                SELECT id FROM challenges
-                WHERE (ranking_state IS NULL AND ends_at<=:now) OR ranking_state='pending'
-                ORDER BY ends_at LIMIT 200
-                """, Tuple.class).setParameter("now", now.atOffset(ZoneOffset.UTC)))
-                .stream().map(row -> row.get("id", UUID.class)).toList();
+        return challenges.waitingForSettlement(now, Limit.of(200));
     }
 
     private void aggregate(UUID challengeId, Instant now) {
@@ -71,8 +58,7 @@ class ChallengeSettlement {
                     updated_at=:now
                 WHERE e.challenge_id=:id AND e.status<>'deleted'
                 """).setParameter("id", challengeId).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-        em.createNativeQuery("UPDATE challenges SET ranking_state='pending' WHERE id=:id")
-                .setParameter("id", challengeId).executeUpdate();
+        challenges.markAggregated(challengeId);
         // 삭제되지 않은 참여작을 가진 사람마다 종료 알림 하나(챌린지당 한 번, 참여작이 여럿이어도 하나).
         NativeTuples.list(em.createNativeQuery("""
                 SELECT DISTINCT e.user_id FROM challenge_entries e JOIN users u ON u.id=e.user_id
@@ -82,18 +68,13 @@ class ChallengeSettlement {
     }
 
     private void confirm(UUID challengeId, Instant now) {
-        var blocked = NativeTuples.list(em.createNativeQuery("""
-                SELECT 1 AS waiting FROM challenges c WHERE c.id=:id AND (c.moderation='review'
-                  OR EXISTS(SELECT 1 FROM challenge_entries e WHERE e.challenge_id=c.id AND %s))
-                """.formatted(UNDER_REVIEW), Tuple.class).setParameter("id", challengeId));
-        if (!blocked.isEmpty()) return;
+        if (challenges.confirmationBlocked(challengeId).isPresent()) return;
         em.createNativeQuery("""
                 UPDATE challenge_entries e SET final_rank=ranked.position,updated_at=:now
                 FROM (SELECT id,rank() OVER (ORDER BY final_like_count DESC) AS position
                       FROM challenge_entries WHERE challenge_id=:id AND final_eligible AND status='visible') ranked
                 WHERE e.id=ranked.id
                 """).setParameter("id", challengeId).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-        em.createNativeQuery("UPDATE challenges SET ranking_state='final',finalized_at=:now WHERE id=:id")
-                .setParameter("id", challengeId).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+        challenges.markFinal(challengeId, now);
     }
 }
