@@ -37,7 +37,7 @@
     "type": "data_sharing",
     "version": "v1",
     "locale": "ko",
-    "title": "영상 데이터 제3자 제공(선택)",
+    "title": "영상 데이터 제3자 제공",
     "required": false
   },
   {
@@ -110,7 +110,7 @@
     "type": "data_sharing",
     "version": "v1",
     "locale": "en",
-    "title": "Sharing practice videos with third parties (optional)",
+    "title": "Sharing practice videos with third parties",
     "required": false
   },
   {
