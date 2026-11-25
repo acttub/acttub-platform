@@ -363,8 +363,11 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   으로 쓴다(`revision + case …` 같은 열 증감은 한 문장 그대로다). `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다. native 의
   `now()` 는 HQL `instant` 로 쓴다. `current_timestamp` 로 나가 같은 트랜잭션 시작 시각이 된다(`PortfolioRepositoryIT`).
 - 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
-  나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) 조인한 표를 모두
-  잠근다(inner join). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
+  나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) select 절에 칸이 나온
+  표를 잠근다(inner join. 대본과 줄을 조인해 줄의 칸만 고르면 `for update of <줄 별칭>` 이다). 그래서 한 표를 잠그면서
+  조인한 다른 표의 칸을 읽는 문장(`… JOIN … FOR UPDATE OF s`)은 HQL 로 같게 나오지 않는다. 그 칸을 select 절 서브쿼리로
+  읽으면 잠금 절 생성이 `AssertionError` 다(Hibernate 7.4.15). where 절 서브쿼리는 된다. 이런 문장은 native 로 둔다
+  (`PostgresMemorizationRepository#set`). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
   Port 가 없어 native 로 두면 목록에 `남김:` 줄을 쓰고, `table-owner-exceptions.txt` 의 그 줄은 남는다
   (`PostgresPortfolioRepository#lockOrCreate` 의 `users` 행 잠금).
 - 배열: native 의 `:x = ANY(칸)` 은 HQL 에 없다(`any(…)` 는 `bool_or` 집계로 풀린다). `array_contains(칸, :x)` 는 매개변수를
@@ -375,7 +378,9 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
   `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
 - `ON CONFLICT`: HQL `insert … values … on conflict [대상] do nothing | do update set … = excluded.…` 는 원본과 같은 꼴로
-  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분·표현식 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. 엔티티에서
+  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분·표현식 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. `do update set`
+  의 오른쪽에 엔티티 칸 이름을 그대로 쓰면 이미 있는 행의 값이다(`case when status = excluded.status then updatedAt else
+  excluded.updatedAt end`, `LineMemorizationJpaRepository#upsert`). 엔티티에서
   `insertable = false` 인 칸도 HQL insert 로 값을 넣는다. `insert … select … on conflict do update` 는 Hibernate 가 풀지 못한다.
 - `RETURNING`·데이터를 바꾸는 CTE: HQL 에 없다. UPDATE 는 JPQL UPDATE 뒤 같은 트랜잭션에서 다시 읽는다(고친 행은 이
   트랜잭션이 잡고 있다). 영향 행 수가 0 이면 다시 읽지 않는다. 문장이 하나 는다(`PostgresSupportInquiryStore#setStatus`,

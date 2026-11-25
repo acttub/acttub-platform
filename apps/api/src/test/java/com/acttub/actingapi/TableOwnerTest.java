@@ -147,8 +147,7 @@ class TableOwnerTest {
         Map<String, Set<String>> references = references();
         assertThat(references).as("표를 하나도 못 찾았다 — 읽는 법이 코드와 어긋났다").isNotEmpty();
         // 표 이름을 변수로 붙이는 SQL("UPDATE " + table)
-        assertThat(references.get("feature/reading/adapter/db/PostgresReadingOwnership.java"))
-                .contains("reading_session_ratings");
+        assertThat(references.get("feature/video/adapter/db/PostgresVideoOwnership.java")).contains("videos");
         // FROM a, b
         assertThat(references.get("feature/memory/adapter/db/PostgresActorMemoryStore.java")).contains("users");
         // JPQL 의 엔티티 이름과 Schema Entity 의 @Table
