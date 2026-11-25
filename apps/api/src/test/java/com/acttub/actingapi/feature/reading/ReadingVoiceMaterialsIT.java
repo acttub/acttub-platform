@@ -16,6 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 /**
  * 리딩 녹음 코칭이 읽는 재료의 결과와 문장을 고정한다. 코칭을 시작하고 코치가 묻는 흐름은 {@link ReadingVoiceCoachingIT} 가
  * 본다. 여기서는 그 테스트가 밟지 않는 구간 밖의 줄, 배역 없는 줄, 다른 대본·다른 회차의 행, 남의 회차, 나가는 문장을 본다.
+ *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — 회차 행과 내 배역 배열을 따로 읽던 두 조회가
+ * 하나가 되어 문장이 하나 줄었다. 결과 테스트는 고치지 않았다.
  */
 class ReadingVoiceMaterialsIT extends ReadingRepositoryFixture {
 
@@ -79,8 +82,7 @@ class ReadingVoiceMaterialsIT extends ReadingRepositoryFixture {
         UUID session = session(owner, script, only, only);
 
         assertThat(statementsOf(() -> materials.material(owner, session))).containsExactly(
-                "select reading_sessions", "select reading_sessions", "select script_lines",
-                "select reading_recordings");
+                "select reading_sessions", "select script_lines", "select reading_recordings");
         assertThat(statementsOf(() -> materials.material(member(), session))).containsExactly("select reading_sessions");
     }
 }

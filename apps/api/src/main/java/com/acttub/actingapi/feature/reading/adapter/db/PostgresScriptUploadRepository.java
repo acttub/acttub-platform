@@ -21,52 +21,41 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 대본 원본 파일 장부의 Postgres 구현 (V34 {@code script_uploads}, V39 {@code failure}·{@code kept_until}). 대본에 연결하는 쪽은
  * 나누기 저장소({@code PostgresScriptImportRepository#linkUpload})이고, 지우는 쪽은 대본 삭제·탈퇴·이 클래스의 미연결 정리다.
+ *
+ * <p>실패 남기기와 미연결 정리는 한 문장 안에서 동의(consent 의 표)와 진행 중인 나누기 작업(`ai_jobs`)을 함께 읽어 native SQL 로
+ * 둔다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 class PostgresScriptUploadRepository implements ScriptUploadRepository {
     private final EntityManager em;
+    private final ScriptUploadJpaRepository rows;
     private final TransactionTemplate transaction;
     private final ScriptFileCleanup cleanup;
 
-    PostgresScriptUploadRepository(EntityManager em, PlatformTransactionManager manager, ScriptFileCleanup cleanup) {
+    PostgresScriptUploadRepository(EntityManager em, ScriptUploadJpaRepository rows, PlatformTransactionManager manager,
+            ScriptFileCleanup cleanup) {
         this.em = em;
+        this.rows = rows;
         this.transaction = new TransactionTemplate(manager);
         this.cleanup = cleanup;
     }
 
     @Override
     public void reserve(UUID userId, UUID uploadId, String objectKey, String fileName, long byteSize, Instant expiresAt, Instant now) {
-        transaction.executeWithoutResult(status -> em.createNativeQuery("""
-                INSERT INTO script_uploads(id,user_id,object_key,file_name,byte_size,expires_at,created_at,updated_at)
-                VALUES (:id,:userId,:objectKey,:fileName,:byteSize,:expiresAt,:now,:now)
-                """).setParameter("id", uploadId).setParameter("userId", userId).setParameter("objectKey", objectKey)
-                .setParameter("fileName", fileName).setParameter("byteSize", byteSize).setParameter("expiresAt", expiresAt.atOffset(ZoneOffset.UTC))
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate());
+        transaction.executeWithoutResult(status -> rows.insert(uploadId, userId, objectKey, fileName, byteSize, expiresAt, now));
     }
 
     @Override
     public Upload find(UUID userId, UUID uploadId) {
-        // 연결 때 원본 행의 글은 비우므로 연결된 원본의 글은 그 대본의 원문에서 읽는다 — 대본은 이 글로 만들었다.
-        var rows = list(em.createNativeQuery("""
-                SELECT u.id,u.object_key,u.byte_size,COALESCE(u.raw_text,s.raw_text) AS raw_text,u.script_id,
-                       (SELECT i.request_id FROM script_imports i WHERE i.upload_id=u.id AND i.script_id=u.script_id
-                        ORDER BY i.created_at LIMIT 1) AS linked_request_id
-                FROM script_uploads u LEFT JOIN scripts s ON s.id=u.script_id
-                WHERE u.id=:id AND u.user_id=:userId
-                """, Tuple.class).setParameter("id", uploadId).setParameter("userId", userId));
-        if (rows.isEmpty()) return null;
-        Tuple row = rows.getFirst();
-        return new Upload(row.get("id", UUID.class), row.get("object_key", String.class),
-                ((Number) row.get("byte_size")).longValue(), row.get("raw_text", String.class),
-                row.get("script_id", UUID.class) != null, row.get("linked_request_id", UUID.class));
+        return rows.find(uploadId, userId)
+                .map(row -> new Upload(row.getId(), row.getObjectKey(), row.getByteSize(), row.getRawText(),
+                        row.getScriptId() != null, row.getLinkedRequestId()))
+                .orElse(null);
     }
 
     @Override
     public void saveText(UUID uploadId, String rawText, Instant now) {
-        transaction.executeWithoutResult(status -> em.createNativeQuery("""
-                UPDATE script_uploads SET raw_text=:rawText,failure=NULL,kept_until=NULL,updated_at=:now WHERE id=:id
-                """).setParameter("rawText", rawText).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("id", uploadId).executeUpdate());
+        transaction.executeWithoutResult(status -> rows.saveText(uploadId, rawText, now));
     }
 
     @Override

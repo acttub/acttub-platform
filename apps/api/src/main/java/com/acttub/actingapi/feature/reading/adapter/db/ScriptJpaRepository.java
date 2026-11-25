@@ -1,10 +1,12 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +17,14 @@ interface ScriptJpaRepository extends Repository<ScriptEntity, UUID> {
 
     @Query("select s.id from ScriptEntity s where s.id = :scriptId and s.userId = :userId")
     Optional<UUID> owned(UUID scriptId, UUID userId);
+
+    /** 그 사람의 대본 가운데 원문 해시가 같은 것, 먼저 만든 것부터. */
+    @Query("select s.id from ScriptEntity s where s.userId = :userId and s.rawHash = :rawHash order by s.createdAt, s.id")
+    List<UUID> sameText(UUID userId, String rawHash, Limit limit);
+
+    /** 해시가 비어 있으면(V33 앞의 행) 값이 없는 것으로 나온다. */
+    @Query("select s.rawHash from ScriptEntity s where s.userId = :userId and s.id = :scriptId")
+    Optional<String> rawHash(UUID userId, UUID scriptId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s.id from ScriptEntity s where s.id = :scriptId")

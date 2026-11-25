@@ -14,58 +14,40 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 리딩 녹음 코칭(SOMA-791)의 재료. 리딩 회차·대본 줄·녹음은 리딩 표에서, 시작한 코칭 회차는 practices.reading_session_id 로 찾는다. */
+/**
+ * 리딩 녹음 코칭(SOMA-791)의 재료. 리딩 회차·대본 줄·녹음은 리딩 표에서, 시작한 코칭 회차는 practices.reading_session_id 로 찾는다.
+ * {@code practices} 는 practice 의 표라 그 두 조회는 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
+ */
 @Repository
 class PostgresReadingVoiceMaterials implements ReadingVoiceMaterials {
 
     private final EntityManager entityManager;
+    private final ReadingSessionJpaRepository sessions;
+    private final ScriptLineJpaRepository scriptLines;
     private final TransactionTemplate transaction;
 
-    PostgresReadingVoiceMaterials(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    PostgresReadingVoiceMaterials(EntityManager entityManager, ReadingSessionJpaRepository sessions,
+            ScriptLineJpaRepository scriptLines, PlatformTransactionManager transactionManager) {
         this.entityManager = entityManager;
+        this.sessions = sessions;
+        this.scriptLines = scriptLines;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
     @Override
     public Material material(UUID userId, UUID readingSessionId) {
         return transaction.execute(tx -> {
-            List<Tuple> session = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT script_id,start_line_id,end_line_id FROM reading_sessions
-                    WHERE id=:readingSessionId AND user_id=:userId
-                    """, Tuple.class)
-                    .setParameter("readingSessionId", readingSessionId)
-                    .setParameter("userId", userId));
-            if (session.isEmpty()) {
+            ReadingSessionJpaRepository.Range session = sessions.range(readingSessionId, userId).orElse(null);
+            if (session == null) {
                 return null;
             }
-            Set<UUID> mine = new LinkedHashSet<>();
-            for (Tuple row : NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT unnest(my_character_ids) AS id FROM reading_sessions WHERE id=:readingSessionId
-                    """, Tuple.class).setParameter("readingSessionId", readingSessionId))) {
-                mine.add(row.get("id", UUID.class));
-            }
-            // 구간은 시작 줄과 끝 줄의 순번 사이다. 대본을 고쳐 끝 줄이 사라졌으면 대본 끝까지로 본다.
-            List<ReadingVoiceMaterial.Line> lines = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT l.id,l.ordinal,l.kind,l.text,l.character_id,c.name AS character_name
-                    FROM script_lines l
-                    LEFT JOIN script_characters c ON c.id=l.character_id
-                    WHERE l.script_id=:scriptId
-                      AND l.ordinal>=COALESCE((SELECT ordinal FROM script_lines WHERE id=:startLineId),0)
-                      AND l.ordinal<=COALESCE((SELECT ordinal FROM script_lines WHERE id=:endLineId),2147483647)
-                    ORDER BY l.ordinal
-                    """, Tuple.class)
-                    .setParameter("scriptId", session.getFirst().get("script_id", UUID.class))
-                    .setParameter("startLineId", session.getFirst().get("start_line_id", UUID.class))
-                    .setParameter("endLineId", session.getFirst().get("end_line_id", UUID.class)))
-                    .stream()
-                    .map(row -> new ReadingVoiceMaterial.Line(
-                            row.get("id", UUID.class),
-                            row.get("ordinal", Integer.class),
-                            row.get("kind", String.class),
-                            row.get("text", String.class),
-                            row.get("character_id", UUID.class),
-                            row.get("character_name", String.class)))
-                    .toList();
+            Set<UUID> mine = new LinkedHashSet<>(List.of(session.getMyCharacterIds()));
+            List<ReadingVoiceMaterial.Line> lines =
+                    scriptLines.castInRange(session.getScriptId(), session.getStartLineId(), session.getEndLineId()).stream()
+                            .map(row -> new ReadingVoiceMaterial.Line(row.getId(), row.getOrdinal(), row.getKind().dbValue(),
+                                    row.getText(), row.getCharacterId(), row.getCharacterName()))
+                            .toList();
+            // 줄마다 마지막 녹음을 고르는 DISTINCT ON 은 HQL 에 없어 native SQL 로 둔다(§5-9).
             List<ReadingVoiceMaterial.Recording> recordings = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT DISTINCT ON (line_id) line_id,object_key,content_type,duration_ms,byte_size,
                            transcript,transcript_source

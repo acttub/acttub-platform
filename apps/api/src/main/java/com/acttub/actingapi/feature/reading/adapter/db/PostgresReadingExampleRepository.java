@@ -8,74 +8,67 @@ import java.util.function.Supplier;
 import com.acttub.actingapi.feature.reading.app.ReadingExampleRepository;
 import com.acttub.actingapi.feature.reading.domain.ReadingExample;
 import com.acttub.actingapi.feature.reading.domain.ReadingExampleAudio;
-import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.feature.reading.schema.ReadingExampleEntity;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
- * 예시 대본의 Postgres 구현 — {@code reading_examples} (V61, 미리 만든 음성 audio 는 V62). native SQL 만 쓴다(Schema Entity 없음). draft 는 jsonb 를 글로
- * 읽어 여기서 푼다: {@code {"characters": [...], "lines": [{"kind","character","text"}...]}}.
+ * 예시 대본의 Postgres 구현 — {@code reading_examples} (V61, 미리 만든 음성 audio 는 V62). draft 는 jsonb 를 글로
+ * 읽어 여기서 푼다: {@code {"characters": [...], "lines": [{"kind","character","text"}...]}}. {@code users} 는 auth 의 표라 그
+ * 잠금만 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 class PostgresReadingExampleRepository implements ReadingExampleRepository {
     private static final Logger log = LoggerFactory.getLogger(PostgresReadingExampleRepository.class);
 
-    private static final String SELECT = "SELECT id,title,summary,raw_text,CAST(draft AS text) AS draft,CAST(audio AS text) AS audio FROM reading_examples WHERE active";
-
     private final EntityManager entityManager;
+    private final ReadingExampleJpaRepository examples;
+    private final ScriptJpaRepository scripts;
     private final TransactionTemplate transaction;
     private final ObjectMapper mapper;
 
-    PostgresReadingExampleRepository(EntityManager entityManager, PlatformTransactionManager transactionManager, ObjectMapper mapper) {
+    PostgresReadingExampleRepository(EntityManager entityManager, ReadingExampleJpaRepository examples, ScriptJpaRepository scripts,
+            PlatformTransactionManager transactionManager, ObjectMapper mapper) {
         this.entityManager = entityManager;
+        this.examples = examples;
+        this.scripts = scripts;
         this.transaction = new TransactionTemplate(transactionManager);
         this.mapper = mapper;
     }
 
     @Override
     public List<ReadingExample> listActive() {
-        return NativeTuples.list(entityManager.createNativeQuery(SELECT + " ORDER BY sort_order,id", Tuple.class))
-                .stream().map(this::example).toList();
+        return examples.active().stream().map(this::example).toList();
     }
 
     @Override
     public List<ReadingExample> listActive(String language) {
-        return NativeTuples.list(entityManager.createNativeQuery(SELECT + " AND language=:language ORDER BY sort_order,id", Tuple.class)
-                .setParameter("language", language)).stream().map(this::example).toList();
+        return examples.active(language).stream().map(this::example).toList();
     }
 
     @Override
     public ReadingExample findActive(String id) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(SELECT + " AND id=:id", Tuple.class)
-                .setParameter("id", id));
-        return rows.isEmpty() ? null : example(rows.getFirst());
+        return examples.findActive(id).map(this::example).orElse(null);
     }
 
     @Override
     public UUID sameText(UUID userId, String rawHash) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM scripts WHERE user_id=:userId AND raw_hash=:hash ORDER BY created_at,id LIMIT 1", Tuple.class)
-                .setParameter("userId", userId)
-                .setParameter("hash", rawHash));
-        return rows.isEmpty() ? null : rows.getFirst().get("id", UUID.class);
+        List<UUID> oldest = scripts.sameText(userId, rawHash, Limit.of(1));
+        return oldest.isEmpty() ? null : oldest.getFirst();
     }
 
     @Override
     public String rawHash(UUID userId, UUID scriptId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT raw_hash FROM scripts WHERE user_id=:userId AND id=:id", Tuple.class)
-                .setParameter("userId", userId)
-                .setParameter("id", scriptId));
-        return rows.isEmpty() ? null : rows.getFirst().get("raw_hash", String.class);
+        return scripts.rawHash(userId, scriptId).orElse(null);
     }
 
     @Override
@@ -88,12 +81,12 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
         });
     }
 
-    private ReadingExample example(Tuple row) {
+    private ReadingExample example(ReadingExampleEntity row) {
         JsonNode draft;
         try {
-            draft = mapper.readTree(row.get("draft", String.class));
+            draft = mapper.readTree(row.getDraft());
         } catch (JacksonException e) {
-            throw new IllegalStateException("reading_examples.draft is not JSON: " + row.get("id", String.class), e);
+            throw new IllegalStateException("reading_examples.draft is not JSON: " + row.getId(), e);
         }
         List<String> characters = new ArrayList<>();
         draft.path("characters").forEach(name -> characters.add(name.stringValue(null)));
@@ -102,16 +95,15 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
                 line.path("kind").stringValue(null),
                 line.path("character").isIntegralNumber() ? LenientJson.intValue(line.path("character")) : null,
                 line.path("text").stringValue(null))));
-        return new ReadingExample(row.get("id", String.class), row.get("title", String.class), row.get("summary", String.class),
-                row.get("raw_text", String.class), characters, lines, audio(row));
+        return new ReadingExample(row.getId(), row.getTitle(), row.getSummary(), row.getRawText(), characters, lines, audio(row));
     }
 
     /** 깨진 audio 칸은 음성이 없는 것으로 다룬다 — 목록·복사까지 막지 않고, 앱은 예전처럼 모델로 읽는다. */
-    private ReadingExampleAudio audio(Tuple row) {
+    private ReadingExampleAudio audio(ReadingExampleEntity row) {
         try {
-            return ReadingExampleAudioJson.parse(mapper, row.get("audio", String.class));
+            return ReadingExampleAudioJson.parse(mapper, row.getAudio());
         } catch (IllegalArgumentException e) {
-            log.warn("reading_examples.audio is malformed: id={}", row.get("id", String.class), e);
+            log.warn("reading_examples.audio is malformed: id={}", row.getId(), e);
             return null;
         }
     }

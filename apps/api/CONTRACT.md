@@ -362,6 +362,10 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   로 쓰면 null 도 그대로 된다. `CASE WHEN :flag THEN …` 의 boolean 매개변수는 HQL 이 술어로 받지 않아 `case when :flag = true then …`
   으로 쓴다(`revision + case …` 같은 열 증감은 한 문장 그대로다). `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다. native 의
   `now()` 는 HQL `instant` 로 쓴다. `current_timestamp` 로 나가 같은 트랜잭션 시작 시각이 된다(`PortfolioRepositoryIT`).
+- 읽기: 칸 몇 개만 읽는 조회는 `select … as 이름` 과 Spring Data 인터페이스 프로젝션으로 받는다(배열 칸도 `UUID[]` 그대로
+  온다, `ReadingSessionJpaRepository.Range`). jsonb 를 글로 읽던 `CAST(칸 AS text)` 는 `@JdbcTypeCode(SqlTypes.JSON)` 을 붙인
+  `String` 칸으로 같은 글이 온다(SQL NULL 은 `null`, JSON null 은 글자 `null`, `ReadingExampleEntity`). 서브쿼리의 `ORDER BY …
+  LIMIT 1` 은 HQL `order by … limit 1` 로 쓰고 `fetch first 1 rows only` 로 나간다.
 - 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
   나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) select 절에 칸이 나온
   표를 잠근다(inner join. 대본과 줄을 조인해 줄의 칸만 고르면 `for update of <줄 별칭>` 이다). 그래서 한 표를 잠그면서
