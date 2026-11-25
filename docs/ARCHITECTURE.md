@@ -67,6 +67,16 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 주인을 적는다. 지금 어긋난 곳은 허용 목록 `apps/api/src/test/resources/table-owner-exceptions.txt`에 있다. 이 목록은 줄을
 빼기만 한다. 어긋난 곳을 고쳤으면 그 줄과 테스트의 상한을 함께 줄인다.
 
+쓰기는 주인만 한다([ADR-040](ADR.md)). 허용 목록에 남길 수 있는 것은 읽는 문장뿐이다. 다른 기능의 테이블에 쓰는 문장, 다른 기능의
+테이블 한 행을 잠그는 문장, 한 기능의 테이블만 읽는 조회는 그 기능의 Port로 옮긴다. 자기 테이블과 남의 테이블을 한 문장으로 읽어야
+하는 조회와 운영 지표만 읽기 전용으로 남는다. 허용 목록에 있는 쓰는 줄은 옮기는 중인 것이고, 0이 될 때까지 줄인다.
+
+한 계정의 자료를 여러 기능의 테이블에서 고치는 일(탈퇴, 만 14세 미만 계정 닫기)은 각 기능이 `feature/auth/app`의
+`AccountErasure`를 구현해 자기 테이블을 고친다. 계정을 닫는 순서는 `AccountErasureSequence`와 `AccountErasureStep`에만 있다.
+구현은 트랜잭션을 열지 않는다(`AccountErasureStructureTest`, `AccountErasureRollbackIT`). 테이블마다의 결과와 문장의 순서는
+`AccountLifecycleFreezeIT`가 기준 파일(`apps/api/src/test/resources/frozen/account-lifecycle/`)로 고정한다. 테이블을 새로 만들어
+사람을 가리키게 하면 그 테스트의 심는 자료에도 더한다.
+
 | 주인 | 테이블 |
 |---|---|
 | `feature/auth` | `users`, `user_identities`, `refresh_tokens`, `user_active_days` |
