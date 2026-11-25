@@ -80,7 +80,6 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
-- `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 매핑을 내렸다. 지운다(아래 문단).
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다. 지운다(아래 문단).
@@ -94,7 +93,7 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   대상에는 넣지 않는다.
 
 구형 `reports`, `summaries`의 다섯 칸, `users.role`, 그리고 매핑 없이 남은 `practice_sessions.subtext`와
-`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`), `videos`의 크기 두 칸은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
+`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`)은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
 쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
 마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
 
