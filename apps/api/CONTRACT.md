@@ -334,7 +334,9 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 기능 영역(`feature/<이름>`) 하나씩 옮긴다. 옮기는 PR 은 그 영역의 저장소만 고치고 스키마·FK·마이그레이션·API 응답은 바꾸지 않는다.
 첫 사례는 `feature/transfer` 다(`PostgresTransferCodeRepository`·`GuestTransferCodeJpaRepository`). 매핑을 새로 만든 사례는
-`feature/support`(UUID PK, `RETURNING` 나누기)와 `feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)이다.
+`feature/support`(UUID PK, `RETURNING` 나누기)와 `feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)이다. native 를
+남긴 첫 사례는 `feature/portfolio`(다른 기능의 `users` 행 잠금)이고, `DELETE … RETURNING` 을 잠가 읽기와 id 로 지우기로 나눈
+첫 사례이기도 하다.
 
 **옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
 통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
@@ -345,8 +347,9 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
    기다리고, 기다리는 문장이 `pg_stat_activity` 에 남는다.
 3. 경합. 같은 행을 다투는 두 요청, 유일성이 걸린 동시 INSERT 처럼 승자를 DB 가 정하는 자리.
 4. 포트 메서드마다 나가는 문장의 수와 종류. `StatementInspector` 로 잡는다. 조건부 갱신이 읽고 쓰는 두 문장으로 풀리면
-   여기서 드러난다. 포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운 행
-   수를 부르기 앞뒤로 읽어 차이를 본다. 그 뷰에는 그 연결이 아직 내보내지 않은 앞 트랜잭션의 수도 섞여 있다
+   여기서 드러난다. 문장이 많으면 "종류 표 [잠금]" 으로 줄여 견주면 별칭·열 목록 차이에 흔들리지 않는다
+   (`PortfolioRepositoryIT`). 포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운
+   행 수를 부르기 앞뒤로 읽어 차이를 본다. 그 뷰에는 그 연결이 아직 내보내지 않은 앞 트랜잭션의 수도 섞여 있다
    (`AuditionRepositoryIT`).
 
 **매핑을 새로 만들 때**: 엔티티를 `feature/<이름>/schema` 에 두고, `ActingApiApplication` 의 `@EntityScan` 목록과
@@ -358,10 +361,13 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
 
 - 매개변수: 시각은 `Instant` 를 그대로 넘긴다. §5-8 ② 의 `OffsetDateTime` 변환은 native 에만 필요하다. 나노초는 native 와
   같게 마이크로초로 반올림된다. native 의 `CAST(:x AS text) IS NULL OR x = CAST(:x AS text)` 는 JPQL `:x is null or c.x = :x`
-  로 쓰면 null 도 그대로 된다. `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다.
+  로 쓰면 null 도 그대로 된다. `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다. native 의
+  `now()` 는 HQL `instant` 로 쓴다. `current_timestamp` 로 나가 같은 트랜잭션 시작 시각이 된다(`PortfolioRepositoryIT`).
 - 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
   나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) 조인한 표를 모두
   잠근다(inner join). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
+  Port 가 없어 native 로 두면 목록에 `남김:` 줄을 쓰고, `table-owner-exceptions.txt` 의 그 줄은 남는다
+  (`PostgresPortfolioRepository#lockOrCreate` 의 `users` 행 잠금).
 - 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 엔티티를 읽고 고쳐 저장하거나
   Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
   `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
@@ -371,7 +377,10 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
 - `RETURNING`·데이터를 바꾸는 CTE: HQL 에 없다. UPDATE 는 JPQL UPDATE 뒤 같은 트랜잭션에서 다시 읽는다(고친 행은 이
   트랜잭션이 잡고 있다). 영향 행 수가 0 이면 다시 읽지 않는다. 문장이 하나 는다(`PostgresSupportInquiryStore#setStatus`,
   두 운영자 경합은 `SupportInquiryStoreIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
-  없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다.
+  없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다. 잠가 읽기는 읽은 행을 다른 트랜잭션의 지우기·고치기에서 지킬 뿐이라,
+  조건에 맞는 행이 새로 들어올 수 있으면 그것을 따로 막아야 한다. `PostgresPortfolioRepository#beginPhoto` 는 앞서 잡은 부모
+  행(`portfolios`)의 `FOR UPDATE` 가 자식 INSERT 의 FK 잠금을 막아서 이 꼴로 옮겼다(`PortfolioRepositoryIT` 가 기다리는 INSERT 로
+  보인다). 읽은 행이 없으면 지우지 않고, 있으면 문장이 하나 는다.
 - JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다.
 
 **native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
