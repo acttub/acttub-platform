@@ -20,12 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 class PostgresChallengeRepository implements ChallengeRepository {
     private final EntityManager em;
+    private final ChallengeJpaRepository challenges;
     private final PostgresChallengeBrowse browse;
     private final ChallengeSettlement settlement;
     private final EntryLocks locks;
-    PostgresChallengeRepository(EntityManager em, PostgresChallengeBrowse browse, ChallengeSettlement settlement,
-                                EntryLocks locks) {
-        this.em = em; this.browse = browse; this.settlement = settlement; this.locks = locks;
+    PostgresChallengeRepository(EntityManager em, ChallengeJpaRepository challenges, PostgresChallengeBrowse browse,
+                                ChallengeSettlement settlement, EntryLocks locks) {
+        this.em = em; this.challenges = challenges; this.browse = browse; this.settlement = settlement; this.locks = locks;
     }
 
     @Override @Transactional
@@ -64,7 +65,7 @@ class PostgresChallengeRepository implements ChallengeRepository {
     @Override @Transactional
     public Creation createTeam(UUID requestId, String fingerprint, Draft draft, LocalDate featuredOn, Instant now) {
         // 주최자 없는 운영 개설도 요청 ID·선정일 검사를 한 트랜잭션에서 직렬화한다.
-        em.createNativeQuery("SELECT 1 FROM pg_advisory_xact_lock(hashtext('challenge_team_create'))").getSingleResult();
+        challenges.lockTeamCreation();
         var previous = em.createQuery("SELECT c FROM ChallengeEntity c WHERE c.origin=:origin AND c.requestId=:request", ChallengeEntity.class)
                 .setParameter("origin", ChallengeOrigin.TEAM).setParameter("request", requestId).getResultList();
         if (!previous.isEmpty()) {
