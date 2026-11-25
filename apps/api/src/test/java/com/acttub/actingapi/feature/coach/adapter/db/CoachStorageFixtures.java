@@ -155,11 +155,10 @@ public final class CoachStorageFixtures {
                     practice_session_id,
                     summary_id,
                     status,
-                    conversation_summary,
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, '', ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 sessionId,
                 practiceSessionId,
