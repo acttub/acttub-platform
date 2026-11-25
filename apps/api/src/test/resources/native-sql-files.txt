@@ -66,8 +66,8 @@ feature/reading/adapter/db/PostgresReadingOwnership.java 1 남김: 다른 기능
 feature/reading/adapter/db/PostgresReadingVoiceMaterials.java 3 남김: 줄마다 마지막 녹음을 고르는 DISTINCT ON 은 HQL 에 없다(material). 코칭 회차를 찾는 두 조회(practiceOf·readingSessionOf)는 다른 기능(practice)의 practices 를 읽는데 practice 에 이 조회를 내주는 Port 가 없다
 feature/reading/adapter/db/PostgresRetranscribeRepository.java 2 남김: 집은 뒤의 녹음 읽기(claimNext)와 전사 채우기(fill)는 한 문장 안에서 다른 기능(auth)의 users 로 주인이 활성인지 본다. 읽고 나서 쓰는 두 문장으로 풀면 받아쓰는 사이의 탈퇴를 놓친다
 feature/reading/adapter/db/PostgresScriptCocreateRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 잠금(withSaveLock). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
-feature/reading/adapter/db/PostgresScriptImportRepository.java 21
-feature/reading/adapter/db/PostgresScriptRepository.java 45
+feature/reading/adapter/db/PostgresScriptImportRepository.java 7 남김: 다른 기능의 표를 읽고 쓰는 문장이다. 사람 행 잠금(lockActive)과 손님 판정이 든 재료 읽기(material)는 auth 의 users·user_identities, 동의(consent)는 consent 의 표, 진행 중 확인·오늘 작업 수·작업 넣기(request)와 상태 읽기(find)는 platform/operation 의 ai_jobs 다. 그 기능들에 이 조회·넣기를 내주는 Port 가 없다
+feature/reading/adapter/db/PostgresScriptRepository.java 6 남김: HQL 로 같은 문장을 낼 수 없는 자리다. 사람 행 잠금(lockActive, auth 의 users), 배역 이름을 맞바꿀 때의 SET CONSTRAINTS … DEFERRED(update), 회차 행만 잠그면서 조인한 줄의 순번을 읽는 FOR UPDATE OF rs 와 jsonb 안쪽을 고치는 줄 결과 지우기(deleteLine), 대본을 지울 때 녹음·원본 파일의 DELETE … RETURNING 둘(delete. 대본 행의 잠금이 새 녹음·새 연결을 막지 못해 읽고 지우는 두 문장으로 나눌 수 없다)
 feature/reading/adapter/db/PostgresScriptUploadRepository.java 2 남김: 실패 남기기(recordFailure)는 UPDATE 한 문장 안에서 다른 기능(consent)의 동의 결정을 읽어 보관 시한을 정한다. 미연결 정리(sweepUnlinked)는 SKIP LOCKED 로 고른 행을 DELETE … RETURNING 하는 CTE 이고 동의와 ai_jobs(platform/operation)를 함께 읽는다
 feature/reading/adapter/db/PostgresSessionRatingStore.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(save). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresSessionRepository.java 1 남김: 진행 저장의 SET LOCAL synchronous_commit = off 는 HQL 에 없는 문장이다(SOMA-701 의 디스크 확정 대기 줄이기). set_config 함수로 바꾸면 다른 문장이 된다

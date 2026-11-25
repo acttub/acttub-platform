@@ -38,6 +38,17 @@ interface LineMemorizationJpaRepository extends Repository<LineMemorizationEntit
     int upsert(UUID id, UUID userId, UUID lineId, MemorizationStatus status, Instant now);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from LineMemorizationEntity m where m.lineId = :lineId")
+    int deleteOfLine(UUID lineId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            delete from LineMemorizationEntity m
+            where m.lineId in (select l.id from ScriptLineEntity l where l.scriptId = :scriptId)
+            """)
+    int deleteOfScript(UUID scriptId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update LineMemorizationEntity m set m.userId = :to where m.userId = :from")
     int reassign(UUID from, UUID to);
 }

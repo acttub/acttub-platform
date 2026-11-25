@@ -81,6 +81,14 @@ interface ReadingRecordingJpaRepository extends Repository<ReadingRecordingEntit
     @Query("select r.id as id, r.objectKey as objectKey from ReadingRecordingEntity r where r.readingSessionId = :sessionId")
     List<Stored> lockOfSession(UUID sessionId);
 
+    /**
+     * 그 줄의 녹음을 잠가 읽는다. 줄 행을 먼저 잡고 부르면 새 녹음이 들어오지 못해(녹음의 FK 가 줄 행의 잠금 뒤에서 기다린다)
+     * 읽은 행이 지울 행의 전부다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r.id as id, r.objectKey as objectKey from ReadingRecordingEntity r where r.lineId = :lineId")
+    List<Stored> lockOfLine(UUID lineId);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from ReadingRecordingEntity r where r.id in :ids")
     int deleteAll(Collection<UUID> ids);

@@ -412,6 +412,16 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   보인다). 주기 작업의 치우기처럼 읽은 뒤에 조건에 든 행을 다음 차례가 다시 고르는 곳은 따로 막지 않는다
   (`PostgresCommunityImageRepository#sweepUnattached`). 읽은 행이 없으면 지우지 않고, 있으면 문장이 하나 는다. 남길 id 목록을
   `not in :목록` 으로 거를 때 목록이 비면 거르지 않는 조회를 따로 부른다(`PostgresCommunityRepository#replaceImages`).
+- 한 문장으로 두는 집계 조회: `LEFT JOIN LATERAL (… ORDER BY … LIMIT 1)` 은 HQL `left join lateral (… order by … limit 1) 별칭`,
+  `string_agg(x, 구분자 ORDER BY y)` 는 `listagg(x, :sep) within group (order by y)`, `count(*) FILTER (WHERE …)`·`count(DISTINCT x)`·
+  `ILIKE … ESCAPE`·select 절의 `exists (…)` 는 그대로 쓴다. 서브쿼리가 고르는 칸과 조인 유도 표의 칸에는 `as 이름` 을 붙인다
+  (`ScriptJpaRepository#overview`·`#cards`, `ReadingSessionJpaRepository` 의 카드 조회). 요청이 많은 경로의 조회는 이렇게 옮겨
+  문장 수를 그대로 둔다 — 행마다 저장소 메서드를 부르는 꼴로 풀지 않는다.
+- `UPDATE … FROM 다른 표` 는 where 절 서브쿼리로 쓴다(`ScriptUploadJpaRepository#linkToScript`). `DELETE … USING` 은 `in (서브쿼리)`
+  로 쓴다(`LineMemorizationJpaRepository#deleteOfScript`).
+- HQL 에 없어 native 로 두는 문장: `SET LOCAL …`·`SET CONSTRAINTS …`, 조인한 표 가운데 하나만 잠그는 `FOR UPDATE OF 별칭`,
+  `DISTINCT ON`, 두 표를 한 문장으로 고치는 CTE, 새 행이 들어오는 것을 잠금으로 막지 못하는 자리의 `DELETE … RETURNING`
+  (`PostgresScriptRepository#delete`).
 - 작업을 집는 문장(`UPDATE … WHERE id = (SELECT … ORDER BY … LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING …`): 잠가 읽기와 임대
   적기 두 문장으로 나눈다. 잠가 읽기는 `@Lock(PESSIMISTIC_WRITE)` 에 `@QueryHints(@QueryHint(name =
   "jakarta.persistence.lock.timeout", value = "-2"))` 와 `Limit.of(1)` 을 주면 `… fetch first ? rows only for update of <별칭>

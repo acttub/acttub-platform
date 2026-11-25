@@ -19,6 +19,7 @@ import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.schema.ScriptImportFailure;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,6 +28,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 나누기 요청의 Postgres 구현 (V33 {@code script_imports}). 접수는 대본 등록처럼 {@code users} 행을 {@code FOR UPDATE} 로 잡은
  * 채 하므로 같은 회원의 요청이 겹쳐도 하루 한도·대본 수 한도가 정확하다(CONTRACT §6-14). 대본 저장은 {@link ScriptRepository}
  * 를 그대로 쓴다 — 저장 규칙이 두 벌이 되지 않게.
+ *
+ * <p>리딩의 표만 읽고 쓰는 문장은 Spring Data 저장소에 있다. 사람 행의 잠금·손님 판정(auth 의 표), 동의(consent 의 표), 나누기
+ * 작업({@code ai_jobs}, platform/operation 의 표)을 읽고 쓰는 문장은 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 class PostgresScriptImportRepository implements ScriptImportRepository {
@@ -39,12 +43,17 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     private final ScriptRepository scripts;
     private final ScriptUploadRepository uploads;
     private final AiJobLedger ledger;
+    private final ScriptImportJpaRepository requests;
+    private final ScriptJpaRepository scriptRows;
+    private final ScriptUploadJpaRepository uploadRows;
+    private final ScriptCharacterJpaRepository characterRows;
+    private final ScriptLineJpaRepository lineRows;
     private final boolean reuseEnabled;
     private final int reuseMaxAgeDays;
 
-    @org.springframework.beans.factory.annotation.Autowired
     PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
-            ScriptUploadRepository uploads, AiJobLedger ledger,
+            ScriptUploadRepository uploads, AiJobLedger ledger, ScriptImportJpaRepository requests, ScriptJpaRepository scriptRows,
+            ScriptUploadJpaRepository uploadRows, ScriptCharacterJpaRepository characterRows, ScriptLineJpaRepository lineRows,
             @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_ENABLED:true}") boolean reuseEnabled,
             @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS:30}") int reuseMaxAgeDays) {
         this.em = em;
@@ -52,13 +61,13 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
         this.scripts = scripts;
         this.uploads = uploads;
         this.ledger = ledger;
+        this.requests = requests;
+        this.scriptRows = scriptRows;
+        this.uploadRows = uploadRows;
+        this.characterRows = characterRows;
+        this.lineRows = lineRows;
         this.reuseEnabled = reuseEnabled;
         this.reuseMaxAgeDays = reuseMaxAgeDays;
-    }
-
-    PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
-            ScriptUploadRepository uploads, AiJobLedger ledger) {
-        this(em, manager, scripts, uploads, ledger, true, 30);
     }
 
     /**
@@ -118,21 +127,16 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             int scriptLimit, int dailyLimit, Instant now) {
         return transaction.execute(status -> {
             lockActive(userId);
-            var replay = list(em.createNativeQuery(
-                    "SELECT id,request_fingerprint FROM script_imports WHERE user_id=:userId AND request_id=:requestId", Tuple.class)
-                    .setParameter("userId", userId).setParameter("requestId", requestId));
-            if (!replay.isEmpty()) {
-                Tuple row = replay.getFirst();
-                return fingerprint.equals(row.get("request_fingerprint", String.class).strip())
-                        ? new Requested(row.get("id", UUID.class), null, Outcome.REPLAYED)
+            var replay = requests.byRequest(userId, requestId);
+            if (replay.isPresent()) {
+                return fingerprint.equals(replay.get().getRequestFingerprint().strip())
+                        ? new Requested(replay.get().getId(), null, Outcome.REPLAYED)
                         : new Requested(null, null, Outcome.FINGERPRINT_MISMATCH);
             }
             if (!submission.allowDuplicate()) {
-                var duplicate = list(em.createNativeQuery(
-                        "SELECT id FROM scripts WHERE user_id=:userId AND raw_hash=:hash ORDER BY created_at,id LIMIT 1", Tuple.class)
-                        .setParameter("userId", userId).setParameter("hash", submission.rawHash()));
+                List<UUID> duplicate = scriptRows.sameText(userId, submission.rawHash(), Limit.of(1));
                 if (!duplicate.isEmpty()) {
-                    return new Requested(null, duplicate.getFirst().get("id", UUID.class), Outcome.DUPLICATE);
+                    return new Requested(null, duplicate.getFirst(), Outcome.DUPLICATE);
                 }
                 var inFlight = list(em.createNativeQuery("""
                         SELECT i.id FROM script_imports i JOIN ai_jobs j ON j.id=i.job_id
@@ -144,8 +148,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                     return new Requested(inFlight.getFirst().get("id", UUID.class), null, Outcome.IN_FLIGHT);
                 }
             }
-            long owned = ((Number) em.createNativeQuery("SELECT count(*) FROM scripts WHERE user_id=:userId")
-                    .setParameter("userId", userId).getSingleResult()).longValue();
+            long owned = scriptRows.countOf(userId);
             if (owned >= scriptLimit) {
                 return new Requested(null, null, Outcome.OVER_SCRIPT_LIMIT);
             }
@@ -182,16 +185,8 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                         .setParameter("target", importId).setParameter("requestId", requestId).setParameter("fingerprint", fingerprint)
                         .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
             }
-            em.createNativeQuery("""
-                    INSERT INTO script_imports(id,user_id,request_id,request_fingerprint,title,source,raw_text,raw_hash,job_id,script_id,
-                                               skip_script_check,upload_id,done_lines,total_lines,created_at,updated_at)
-                    VALUES (:id,:userId,:requestId,:fingerprint,:title,:source,:rawText,:hash,:jobId,:scriptId,:skip,:uploadId,:lines,:lines,:now,:now)
-                    """).setParameter("id", importId).setParameter("skip", submission.skipScriptCheck()).setParameter("userId", userId).setParameter("requestId", requestId)
-                    .setParameter("uploadId", submission.uploadId())
-                    .setParameter("fingerprint", fingerprint).setParameter("title", submission.title())
-                    .setParameter("source", submission.source()).setParameter("rawText", submission.rawText())
-                    .setParameter("hash", submission.rawHash()).setParameter("jobId", jobId).setParameter("scriptId", scriptId)
-                    .setParameter("lines", lines).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+            requests.insert(importId, userId, requestId, fingerprint, submission.title(), submission.source(), submission.rawText(),
+                    submission.rawHash(), jobId, scriptId, submission.skipScriptCheck(), submission.uploadId(), lines, now);
             if (scriptId != null) linkUpload(importId, scriptId, now);
             if (reused) {
                 LOG.info("script split reused: reused=true importId={} scriptId={} lines={}", importId, scriptId, lines);
@@ -209,58 +204,32 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
      * 쓰지 않는다 ③ 나이 상한 이내. 줄·배역만 읽는다 — 메모·회차·녹음·목소리 설정은 만지지 않는다(배역 목소리는 새로 비움).
      */
     private ScriptDraft reusable(Submission submission, UUID userId, Instant now) {
-        var found = list(em.createNativeQuery("""
-                SELECT s.id,s.title,i.title AS requested_title,u.file_name
-                FROM scripts s
-                JOIN LATERAL (SELECT i.title,i.upload_id FROM script_imports i WHERE i.script_id=s.id
-                              ORDER BY i.created_at LIMIT 1) i ON true
-                LEFT JOIN script_uploads u ON u.id=i.upload_id
-                WHERE s.raw_hash=:hash AND s.source IN ('file','paste','typed') AND s.updated_at=s.created_at
-                  AND s.created_at>=:since AND s.user_id<>:userId
-                ORDER BY s.created_at DESC,s.id DESC LIMIT 1
-                """, Tuple.class).setParameter("hash", submission.rawHash()).setParameter("userId", userId)
-                .setParameter("since", now.minus(java.time.Duration.ofDays(reuseMaxAgeDays)).atOffset(ZoneOffset.UTC)));
-        if (found.isEmpty()) return null;
-        Tuple origin = found.getFirst();
-        UUID source = origin.get("id", UUID.class);
-        String fileName = null;
-        if (submission.uploadId() != null) {
-            var own = list(em.createNativeQuery("SELECT file_name FROM script_uploads WHERE id=:id AND user_id=:userId", Tuple.class)
-                    .setParameter("id", submission.uploadId()).setParameter("userId", userId));
-            if (!own.isEmpty()) fileName = own.getFirst().get("file_name", String.class);
-        }
+        var origin = scriptRows.reusable(submission.rawHash(), userId, now.minus(java.time.Duration.ofDays(reuseMaxAgeDays)))
+                .orElse(null);
+        if (origin == null) return null;
+        UUID source = origin.getId();
+        String fileName = submission.uploadId() == null ? null : uploadRows.fileName(submission.uploadId(), userId).orElse(null);
         String title = com.acttub.actingapi.feature.reading.domain.SplitDraft.reusedTitle(submission.title(),
-                origin.get("title", String.class), origin.get("requested_title", String.class),
-                origin.get("file_name", String.class), fileName);
-        var characters = list(em.createNativeQuery("""
-                SELECT c.id,c.name,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,c.unnamed
-                FROM script_characters c WHERE c.script_id=:id ORDER BY c.sort_order
-                """, Tuple.class).setParameter("id", source));
-        var lines = list(em.createNativeQuery("""
-                SELECT l.ordinal,l.kind,l.character_id,l.text,l.lang,l.speech
-                FROM script_lines l WHERE l.script_id=:id ORDER BY l.ordinal
-                """, Tuple.class).setParameter("id", source));
+                origin.getTitle(), origin.getRequestedTitle(), origin.getFileName(), fileName);
+        var characters = characterRows.cast(source);
+        var lines = lineRows.content(source);
         if (lines.isEmpty()) return null;
         java.util.Map<UUID, Integer> index = new java.util.HashMap<>();
-        for (int i = 0; i < characters.size(); i++) index.put(characters.get(i).get("id", UUID.class), i);
+        for (int i = 0; i < characters.size(); i++) index.put(characters.get(i).getId(), i);
         List<String> names = new java.util.ArrayList<>();
         List<CharacterTraits> traits = new java.util.ArrayList<>();
         List<List<Integer>> members = new java.util.ArrayList<>();
         boolean unnamed = false;
-        for (Tuple c : characters) {
-            names.add(c.get("name", String.class));
-            traits.add(CharacterTraits.parse(c.get("gender", String.class), c.get("age_band", String.class)));
-            String ids = c.get("member_ids", String.class);
-            members.add(ids == null || ids.isEmpty() ? List.of()
-                    : java.util.stream.Stream.of(ids.split(",")).map(id -> index.get(UUID.fromString(id))).toList());
-            unnamed |= Boolean.TRUE.equals(c.get("unnamed", Boolean.class));
+        for (var c : characters) {
+            names.add(c.getName());
+            traits.add(new CharacterTraits(c.getGender(), c.getAgeBand()));
+            members.add(c.getMemberIds() == null ? List.of() : java.util.stream.Stream.of(c.getMemberIds()).map(index::get).toList());
+            unnamed |= Boolean.TRUE.equals(c.getUnnamed());
         }
         List<ScriptDraft.Line> draftLines = new java.util.ArrayList<>();
-        for (Tuple l : lines) {
-            UUID character = l.get("character_id", UUID.class);
-            draftLines.add(new ScriptDraft.Line(((Number) l.get("ordinal")).intValue(), l.get("kind", String.class),
-                    character == null ? null : index.get(character), l.get("text", String.class), l.get("lang", String.class),
-                    l.get("speech", String.class)));
+        for (var l : lines) {
+            draftLines.add(new ScriptDraft.Line(l.getOrdinal(), l.getKind().dbValue(),
+                    l.getCharacterId() == null ? null : index.get(l.getCharacterId()), l.getText(), l.getLang(), l.getSpeech()));
         }
         return new ScriptDraft(title, submission.rawText(), submission.source(), names, draftLines, traits, members, unnamed);
     }
@@ -310,18 +279,12 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
 
     @Override
     public void progress(UUID importId, int doneLines, int totalLines) {
-        transaction.executeWithoutResult(status -> em.createNativeQuery("""
-                UPDATE script_imports SET done_lines=:done,total_lines=:total,updated_at=now()
-                WHERE id=:id AND script_id IS NULL AND failure IS NULL
-                """).setParameter("done", doneLines).setParameter("total", totalLines).setParameter("id", importId).executeUpdate());
+        transaction.executeWithoutResult(status -> requests.progress(importId, doneLines, totalLines));
     }
 
     @Override
     public void percent(UUID importId, int percent) {
-        transaction.executeWithoutResult(status -> em.createNativeQuery("""
-                UPDATE script_imports SET progress_percent=:percent,updated_at=now()
-                WHERE id=:id AND script_id IS NULL AND failure IS NULL AND progress_percent<:percent
-                """).setParameter("percent", Math.clamp(percent, 0, 99)).setParameter("id", importId).executeUpdate());
+        transaction.executeWithoutResult(status -> requests.percent(importId, Math.clamp(percent, 0, 99)));
     }
 
     @Override
@@ -346,10 +309,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             if (created.outcome() == ScriptRepository.Outcome.FINGERPRINT_MISMATCH) {
                 return Completion.FINGERPRINT_MISMATCH;
             }
-            em.createNativeQuery("""
-                    UPDATE script_imports SET script_id=:scriptId,done_lines=total_lines,raw_text='',updated_at=:now WHERE id=:id
-                    """).setParameter("scriptId", created.scriptId()).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("id", importId).executeUpdate();
+            requests.linkScript(importId, created.scriptId(), now);
             linkUpload(importId, created.scriptId(), now);
             if (!ledger.succeed(jobId, leaseToken, now)) throw new IllegalStateException("script split job was closed: " + jobId);
             return Completion.SAVED;
@@ -359,15 +319,8 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     @Override
     public void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, boolean keepFile, Instant now) {
         transaction.executeWithoutResult(status -> {
-            var failed = list(em.createNativeQuery("""
-                    WITH failed AS (
-                        UPDATE script_imports SET failure=:failure,raw_text='',updated_at=:now WHERE id=:id AND script_id IS NULL
-                        RETURNING upload_id
-                    )
-                    SELECT upload_id FROM failed
-                    """, Tuple.class).setParameter("failure", failure.dbValue()).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("id", importId));
-            UUID uploadId = failed.isEmpty() ? null : failed.getFirst().get("upload_id", UUID.class);
+            // 조건부 UPDATE 한 문장이 승패를 정하고, 고친 요청의 원본 파일은 같은 트랜잭션에서 다시 읽는다(§5-9).
+            UUID uploadId = requests.fail(importId, failure.dbValue(), now) == 1 ? requests.uploadOf(importId).orElse(null) : null;
             if (uploadId != null && keepFile) {
                 uploads.recordFailure(uploadId, failure.dbValue(), now.plus(ScriptFileRules.FAILED_TTL), now);
             }
@@ -377,12 +330,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
 
     /** 원본 파일로 넣은 요청이면 그 파일을 대본에 연결하고 뽑은 글을 비운다 — 글은 대본에 있고 원본은 대본과 함께 지워진다. */
     private void linkUpload(UUID importId, UUID scriptId, Instant now) {
-        em.createNativeQuery("""
-                UPDATE script_uploads u SET script_id=:scriptId,raw_text=NULL,updated_at=:now
-                FROM script_imports i
-                WHERE i.id=:importId AND u.id=i.upload_id AND u.script_id IS NULL
-                """).setParameter("scriptId", scriptId).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("importId", importId).executeUpdate();
+        uploadRows.linkToScript(importId, scriptId, now);
     }
 
     @Override
@@ -390,10 +338,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
         return transaction.execute(status -> {
             List<UUID> closed = ledger.failExpired(KIND, now);
             if (closed.isEmpty()) return 0;
-            return em.createNativeQuery("""
-                    UPDATE script_imports SET failure='failed',raw_text='',updated_at=:now
-                    WHERE job_id IN (:jobs) AND script_id IS NULL AND failure IS NULL
-                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("jobs", closed).executeUpdate();
+            return requests.failOfJobs(closed, now);
         });
     }
 
