@@ -40,7 +40,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 대본 저장소가 내는 결과·잠금·경합·문장을 고정한다. 등록·목록·상세·고치기·줄 편집·삭제의 HTTP 흐름과 화면에 보이는 값은
  * {@link ReadingScriptIT} 가 본다. 여기서는 저장소 한 번의 부름이 적는 칸 전체, 카드와 상세의 집계를 세는 법, 찾기의 글자 그대로
  * 견주기, 줄을 지우고 나누고 넣을 때 순번·회차·녹음·암기에 남기는 것, 사람 → 대본 → 줄 순서의 잠금, 겹친 등록, 요청 하나가
- * 보내는 문장을 본다 — 대본 목록·상세는 요청이 많은 경로라 문장 수가 늘면 안 된다.
+ * 보내는 문장을 본다 — 대본 목록·상세는 요청이 많은 경로라 문장 수가 늘면 안 된다. *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — 줄을 지울 때 그 줄의 녹음
+ * {@code DELETE … RETURNING} 을 잠가 읽기와 id 로 지우기로 나눠, 녹음이 있는 줄을 지울 때 문장이 하나 늘었다. 목록·상세·등록·
+ * 고치기·줄 넣기·나누기·대본 지우기의 문장 수는 그대로이고 결과·잠금·경합 테스트는 고치지 않았다.
  */
 class ScriptRepositoryIT extends ReadingRepositoryFixture {
 
@@ -543,6 +546,25 @@ class ScriptRepositoryIT extends ReadingRepositoryFixture {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM scripts WHERE user_id=?", Integer.class, owner)).isEqualTo(3);
     }
 
+    @Test
+    @DisplayName("줄 행을 잡고 있는 동안 그 줄의 새 녹음은 들어오지 못한다 — 녹음 INSERT 가 줄 행의 잠금 뒤에서 기다린다. 그래서 줄을 지울 때 읽은 녹음이 지우는 녹음의 전부다")
+    void aHeldLineLockKeepsNewRecordingsOut() throws Exception {
+        UUID session = session(owner, script, first, last, nina);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try (Connection probe = probe()) {
+            run(probe, "SELECT 1 FROM script_lines WHERE id=? FOR UPDATE", first);
+            Future<UUID> inserting = pool.submit(() -> recording(owner, session, first, 1, "reading/late.m4a"));
+            String waiting = awaitWaiting("insert into reading_recordings");
+            assertThat(count("reading_recordings")).isZero();
+            probe.rollback();
+
+            assertThat(waiting).startsWith("insert into reading_recordings");
+            inserting.get(20, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     // ---- 문장 ----
 
     @Test
@@ -592,11 +614,12 @@ class ScriptRepositoryIT extends ReadingRepositoryFixture {
         assertThat(statementsOf(() -> scripts.deleteLine(owner, script, first, now))).as("회차 하나가 가리키고 녹음이 있는 줄").containsExactly(
                 "select users for update", "select scripts for update", "select script_lines for update", "count script_lines",
                 "select reading_sessions for update", "select script_lines", "update reading_sessions", "update reading_sessions",
-                "delete reading_recordings returning", "delete line_memorization", "delete script_lines", "update scripts", ledger);
+                "select reading_recordings for update", "delete reading_recordings", "delete line_memorization", "delete script_lines",
+                "update scripts", ledger);
         assertThat(statementsOf(() -> scripts.deleteLine(owner, script, together, now))).as("가리키는 회차도 녹음도 없는 줄").containsExactly(
                 "select users for update", "select scripts for update", "select script_lines for update", "count script_lines",
                 "select reading_sessions for update", "update reading_sessions",
-                "delete reading_recordings returning", "delete line_memorization", "delete script_lines", "update scripts");
+                "select reading_recordings for update", "delete line_memorization", "delete script_lines", "update scripts");
 
         recording(owner, session, last, 1, "reading/last.m4a");
         assertThat(statementsOf(() -> scripts.delete(owner, script, now))).as("녹음이 있는 대본 지우기").containsExactly(

@@ -220,6 +220,20 @@ interface ScriptJpaRepository extends Repository<ScriptEntity, UUID> {
     @Query("select s.id from ScriptEntity s where s.id = :scriptId")
     Optional<UUID> lock(UUID scriptId);
 
+    /** 제목이 {@code null} 이면 그대로 두고 고친 시각만 DB 의 지금으로 올린다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ScriptEntity s set s.title = coalesce(:title, s.title), s.updatedAt = instant where s.id = :scriptId")
+    int retitle(UUID scriptId, String title);
+
+    /** 고친 시각을 DB 의 지금으로 올린다 — 다시 쓰기가 고친 대본을 이것으로 알아본다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ScriptEntity s set s.updatedAt = instant where s.id = :scriptId")
+    int touch(UUID scriptId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from ScriptEntity s where s.id = :scriptId")
+    int delete(UUID scriptId);
+
     /** 회원이 같은 요청 id 의 대본을 갖고 있으면 게스트 쪽 값을 비운다(이관). */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

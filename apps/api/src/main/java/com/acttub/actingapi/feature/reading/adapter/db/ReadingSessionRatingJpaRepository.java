@@ -31,6 +31,13 @@ interface ReadingSessionRatingJpaRepository extends Repository<ReadingSessionRat
     int deleteOfSession(UUID sessionId);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            delete from ReadingSessionRatingEntity r
+            where r.sessionId in (select rs.id from ReadingSessionEntity rs where rs.scriptId = :scriptId)
+            """)
+    int deleteOfScript(UUID scriptId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ReadingSessionRatingEntity r set r.userId = :to where r.userId = :from")
     int reassign(UUID from, UUID to);
 }

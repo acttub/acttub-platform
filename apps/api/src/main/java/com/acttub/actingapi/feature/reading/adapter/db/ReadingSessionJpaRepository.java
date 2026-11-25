@@ -270,6 +270,26 @@ interface ReadingSessionJpaRepository extends Repository<ReadingSessionEntity, U
     @Query("select rs.id from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
     Optional<UUID> lockOwned(UUID sessionId, UUID userId);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ReadingSessionEntity rs
+            set rs.startLineId = :startLineId, rs.endLineId = :endLineId, rs.currentLineId = :currentLineId
+            where rs.id = :sessionId
+            """)
+    int moveRange(UUID sessionId, UUID startLineId, UUID endLineId, UUID currentLineId);
+
+    /** 구간이 그 줄로 끝나던 회차의 끝을 새 줄로 옮긴다(줄 나누기). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ReadingSessionEntity rs set rs.endLineId = :newEndLineId
+            where rs.scriptId = :scriptId and rs.endLineId = :lineId
+            """)
+    int extendEnd(UUID scriptId, UUID lineId, UUID newEndLineId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from ReadingSessionEntity rs where rs.scriptId = :scriptId")
+    int deleteOfScript(UUID scriptId);
+
     /** 회원이 같은 요청 id 의 회차를 갖고 있으면 게스트 쪽 값을 비운다(이관). */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
