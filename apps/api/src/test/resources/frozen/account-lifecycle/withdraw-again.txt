@@ -2,7 +2,7 @@
 account_cleanup_operations: 10행 → 12행
   user_id=본인: 9 → 11
   user_id=남: 1 → 1
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/mosaic/1.mp4","users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/mosaic/1.mp4","users/본인/share-frames/1.jpg","users/본인/share-frames/1.mp4","users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4"]>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='revenuecat_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: <본인>>, updated_at=<now>, user_id=<본인>
 actor_journals: 1행 → 1행
   user_id=남: 1 → 1

@@ -381,10 +381,12 @@ final class AccountLifecycleSeed {
         UUID entry = id(who + "/참여작");
         jdbc.update("""
                 INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,caption,published_at,visibility,request_id,
-                                              request_fingerprint,face_mosaic,mosaic_status,mosaic_key)
-                VALUES (?,?,?,?,'참여작 글',?,'public',?,?,true,'ready',?)
+                                              request_fingerprint,face_mosaic,mosaic_status,mosaic_key,share_frame_keys)
+                VALUES (?,?,?,?,'참여작 글',?,'public',?,?,true,'ready',?,ARRAY[?,?])
                 """, entry, teamChallenge, user, sharedVideo, at(Duration.ofHours(-5)), id(who + "/참여작/요청"),
-                hash(who + "/참여작"), key(who, "mosaic/1.mp4"));
+                hash(who + "/참여작"), key(who, "mosaic/1.mp4"),
+                // 공유 프레임을 씌운 영상과 미리보기(SOMA-1156). 영상에서 나온 객체라 영상과 같이 지운다.
+                key(who, "share-frames/1.mp4"), key(who, "share-frames/1.jpg"));
         UUID reportJob = job(who, user, "참여작 리포트", "challenge_report", entry, "succeeded");
         jdbc.update("""
                 INSERT INTO entry_ai_reports(id,entry_id,user_id,job_id,status,model,result,requested_at,completed_at)
