@@ -46,7 +46,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 결제 저장소({@code PostgresBillingRepository})가 내는 결과·멱등·경합·문장 수를 실제 PostgreSQL 에서 고정한다. 자기 표(구독·카드
  * 등록 창·결제·Pro 부여)만 쓰는 문장을 네이티브 SQL 에서 JPA 로 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로
- * 통과해야 한다(apps/api/CONTRACT.md §5-9). 다른 기능의 표를 쓰는 문장과 점유 조건부 갱신은 네이티브로 남겨 문장 테스트에서만
+ * 통과했다(apps/api/CONTRACT.md §5-9). 문장 테스트만 달라졌다 — 카드 저장과 창 집기의 {@code RETURNING} 을 같은 트랜잭션의 다시
+ * 읽기로 나눠, 쓴 행이 있을 때 문장이 하나 는다. 다른 기능의 표를 쓰는 문장과 점유 조건부 갱신은 네이티브로 남겨 문장 테스트에서만
  * 본다.
  *
  * <p>HTTP 를 거친 카드 등록·결제·해지·갱신·스토어 웹훅·운영 화면은 {@link BillingEndpointIT}·{@link StoreBillingEndpointIT}·
@@ -519,7 +520,9 @@ class BillingRepositoryIT {
         UUID user = member();
         UUID id = billing.saveCard(user, "ck-s", "k1:s", "신한", "1", now);
         soft.assertThat(statementsOf(() -> billing.saveCard(user, "ck-s", "k1:s", "신한", "1", now)))
-                .containsExactly("select users for update", "insert billing_subscriptions on conflict returning");
+                .as("upsert 는 한 문장이고 RETURNING 대신 회원의 한 행을 다시 읽는다")
+                .containsExactly("select users for update", "insert billing_subscriptions on conflict",
+                        "select billing_subscriptions");
         soft.assertThat(statementsOf(() -> billing.find(user))).containsExactly("select billing_subscriptions");
         soft.assertThat(statementsOf(() -> billing.findById(id))).containsExactly("select billing_subscriptions");
         soft.assertThat(statementsOf(() -> billing.displayName(user))).containsExactly("select users");
@@ -534,9 +537,10 @@ class BillingRepositoryIT {
         })).containsExactly("insert billing_checkouts");
         soft.assertThat(statementsOf(() -> billing.findOpenCheckout("state-s", now))).containsExactly("select billing_checkouts");
         soft.assertThat(statementsOf(() -> billing.claimCheckout("state-s", now)))
-                .containsExactly("update billing_checkouts returning");
+                .as("조건부 갱신은 한 문장이고 집었으면 RETURNING 대신 다시 읽는다")
+                .containsExactly("update billing_checkouts", "select billing_checkouts");
         soft.assertThat(statementsOf(() -> billing.claimCheckout("state-s", now)))
-                .as("집을 창이 없을 때").containsExactly("update billing_checkouts returning");
+                .as("집을 창이 없으면 다시 읽지 않는다").containsExactly("update billing_checkouts");
         soft.assertThat(statementsOf(() -> {
             billing.finishCheckout(checkout.id(), "done", null, now);
             return null;
