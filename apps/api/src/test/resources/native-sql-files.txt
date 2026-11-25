@@ -31,7 +31,6 @@ feature/challenge/adapter/db/UnseenEntryBoost.java 1 남김: 공개 조건(Chall
 feature/coach/adapter/db/PostgresCoachPersonas.java 1 남김: 자문위원인지 가리려고 다른 기능(auth)의 users.email 을 읽는다. auth 에 이 값을 내주는 Port 가 없다(§5-1)
 feature/coach/adapter/db/PostgresCoachProMemory.java 1 남김: Pro 지난 연습 기억은 다른 기능(practice)의 practices 로 주인과 다른 묶음을 가른 뒤 닫힌 대화·노트·평가를 한 문장으로 읽는다. practice 에 이 조회를 내주는 Port 가 없고, 답마다 도는 조회라 나누면 문장이 는다(§5-1)
 feature/coach/adapter/db/PostgresCoachVideoSource.java 1 남김: 코치가 볼 영상은 다른 기능의 표만 읽는다(practice 의 practices, video 의 videos, 매핑을 내린 upload_intents). 그 기능들에 이 조회를 내주는 Port 가 없다(§5-1)
-feature/coach/adapter/db/PostgresConversationRepository.java 4
 feature/coach/adapter/db/PostgresConversationRepository.java 10 남김: 다른 기능의 표를 읽고 쓰거나 잠근다. 엔진이 읽는 묶음(load)은 practice 의 practices·video 의 videos·analysis 의 analyses 를 대화 행과 한 문장으로 조인하고, 회차의 말(practiceLanguage)·주인 확인(currentOwner·conversation 의 머리·note 의 주인 확인)·닫기·되돌리기(UPDATE practices 셋)·이어하기의 묶음 첫 행 잠금과 열린 다른 회차 찾기는 practices 를 쓴다. practice 에 이 일을 내주는 Port 가 없고, 시작·답마다 도는 문장이라 나누면 문장이 는다(§5-1)
 feature/coach/adapter/db/PostgresConversationRepository.java 1 남김: 저장 직전에 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡고 활성인지 본다(탈퇴·이관과 같은 잠금). auth 에 이 잠금을 내주는 Port 가 없다(§5-1)
 feature/coach/adapter/db/PostgresConversationRepository.java 3 남김: 옛 대화·옛 노트는 매핑을 내린 옛 연습 흐름 표(coach_sessions·coach_turns·practice_sessions·practice_reports·coaching_handoffs, §5-1)를 읽는다

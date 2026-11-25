@@ -36,13 +36,16 @@ class PostgresConversationRepository implements ConversationRepository {
     private final EntityManager entityManager;
     private final CoachConversationJpaRepository conversations;
     private final CoachMessageJpaRepository messages;
+    private final CoachNoteJpaRepository notes;
     private final TransactionTemplate transaction;
 
     PostgresConversationRepository(EntityManager entityManager, CoachConversationJpaRepository conversations,
-            CoachMessageJpaRepository messages, PlatformTransactionManager transactionManager) {
+            CoachMessageJpaRepository messages, CoachNoteJpaRepository notes,
+            PlatformTransactionManager transactionManager) {
         this.entityManager = entityManager;
         this.conversations = conversations;
         this.messages = messages;
+        this.notes = notes;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -242,46 +245,19 @@ class PostgresConversationRepository implements ConversationRepository {
     public NoteView saveNote(UUID conversationId, NewNote note, Instant now) {
         return transaction.execute(tx -> {
             if (!lockActiveOwner(conversationId)) return null;
-            entityManager.createNativeQuery("""
-                    INSERT INTO coach_notes(id,conversation_id,format,kind,title,summary_quotes,next_take,
-                                            actor_words,corrections,tags,fallback,source_revision,legacy_report,created_at)
-                    VALUES (CAST(:id AS uuid),CAST(:conversationId AS uuid),CAST(:format AS text),
-                            CAST(:kind AS text),CAST(:title AS text),CAST(:quotes AS jsonb),
-                            CAST(:nextTake AS text),CAST(:actorWords AS jsonb),CAST(:corrections AS jsonb),
-                            CAST(:tags AS jsonb),CAST(:fallback AS boolean),CAST(:sourceRevision AS integer),
-                            CAST(:legacyReport AS jsonb),:now)
-                    ON CONFLICT (conversation_id) DO NOTHING
-                    """)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("conversationId", conversationId)
-                    .setParameter("format", note.format())
-                    .setParameter("kind", note.kind())
-                    .setParameter("title", note.title())
-                    .setParameter("quotes", text(note.summaryQuotes()))
-                    .setParameter("nextTake", note.nextTake())
-                    .setParameter("actorWords", text(note.actorWords()))
-                    .setParameter("corrections", text(note.corrections()))
-                    .setParameter("tags", text(note.tags()))
-                    .setParameter("fallback", note.fallback())
-                    .setParameter("sourceRevision", note.sourceRevision())
-                    // jsonb 파라미터에 SQL NULL 을 바인딩하면 드라이버가 타입을 추론하지 못한다 — JSON null 로 넘긴다.
-                    .setParameter("legacyReport", note.legacyReport() == null ? "null" : text(note.legacyReport()))
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
-            return noteOf("n.conversation_id=:id", conversationId);
+            notes.insert(UUID.randomUUID(), conversationId, note.format(), note.kind(), note.title(),
+                    text(note.summaryQuotes()), note.nextTake(), text(note.actorWords()), text(note.corrections()),
+                    text(note.tags()), note.fallback(), (int) note.sourceRevision(),
+                    // 원문이 없으면 SQL NULL 이 아니라 JSON null 을 넣는다(옛 문장과 같다).
+                    note.legacyReport() == null ? "null" : text(note.legacyReport()), now);
+            return view(notes.ofConversation(conversationId).orElse(null));
         });
     }
 
     @Override
     public void saveLineNotes(UUID conversationId, JsonNode lineNotes) {
         transaction.execute(tx -> {
-            entityManager.createNativeQuery("""
-                    UPDATE coach_notes SET line_notes=CAST(:lineNotes AS jsonb)
-                    WHERE conversation_id=CAST(:conversationId AS uuid)
-                    """)
-                    .setParameter("lineNotes", text(lineNotes))
-                    .setParameter("conversationId", conversationId)
-                    .executeUpdate();
+            notes.saveLineNotes(conversationId, text(lineNotes));
             return null;
         });
     }
@@ -290,39 +266,12 @@ class PostgresConversationRepository implements ConversationRepository {
     public NoteView replaceNote(UUID conversationId, NewNote note, Instant now) {
         return transaction.execute(tx -> {
             if (!lockActiveOwner(conversationId)) return null;
-            entityManager.createNativeQuery("""
-                    INSERT INTO coach_notes(id,conversation_id,format,kind,title,summary_quotes,next_take,
-                                            actor_words,corrections,tags,fallback,source_revision,legacy_report,created_at)
-                    VALUES (CAST(:id AS uuid),CAST(:conversationId AS uuid),CAST(:format AS text),
-                            CAST(:kind AS text),CAST(:title AS text),CAST(:quotes AS jsonb),
-                            CAST(:nextTake AS text),CAST(:actorWords AS jsonb),CAST(:corrections AS jsonb),
-                            CAST(:tags AS jsonb),CAST(:fallback AS boolean),CAST(:sourceRevision AS integer),
-                            CAST(:legacyReport AS jsonb),:now)
-                    ON CONFLICT (conversation_id) DO UPDATE SET
-                        format=EXCLUDED.format,kind=EXCLUDED.kind,title=EXCLUDED.title,
-                        summary_quotes=EXCLUDED.summary_quotes,next_take=EXCLUDED.next_take,
-                        actor_words=EXCLUDED.actor_words,corrections=EXCLUDED.corrections,tags=EXCLUDED.tags,
-                        fallback=EXCLUDED.fallback,source_revision=EXCLUDED.source_revision,
-                        legacy_report=EXCLUDED.legacy_report,
-                        line_notes='[]'::jsonb
-                    """)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("conversationId", conversationId)
-                    .setParameter("format", note.format())
-                    .setParameter("kind", note.kind())
-                    .setParameter("title", note.title())
-                    .setParameter("quotes", text(note.summaryQuotes()))
-                    .setParameter("nextTake", note.nextTake())
-                    .setParameter("actorWords", text(note.actorWords()))
-                    .setParameter("corrections", text(note.corrections()))
-                    .setParameter("tags", text(note.tags()))
-                    .setParameter("fallback", note.fallback())
-                    .setParameter("sourceRevision", note.sourceRevision())
-                    // jsonb 파라미터에 SQL NULL 을 바인딩하면 드라이버가 타입을 추론하지 못한다 — JSON null 로 넘긴다.
-                    .setParameter("legacyReport", note.legacyReport() == null ? "null" : text(note.legacyReport()))
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
-            return noteOf("n.conversation_id=:id", conversationId);
+            notes.upsert(UUID.randomUUID(), conversationId, note.format(), note.kind(), note.title(),
+                    text(note.summaryQuotes()), note.nextTake(), text(note.actorWords()), text(note.corrections()),
+                    text(note.tags()), note.fallback(), (int) note.sourceRevision(),
+                    // 원문이 없으면 SQL NULL 이 아니라 JSON null 을 넣는다(옛 문장과 같다).
+                    note.legacyReport() == null ? "null" : text(note.legacyReport()), now);
+            return view(notes.ofConversation(conversationId).orElse(null));
         });
     }
 
@@ -405,7 +354,7 @@ class PostgresConversationRepository implements ConversationRepository {
         if (owned.isEmpty()) {
             return legacyNote(userId, practiceId);
         }
-        NoteView note = noteOf("c.practice_id=:id", practiceId);
+        NoteView note = view(notes.ofPractice(practiceId).orElse(null));
         return note == null ? legacyNote(userId, practiceId) : note;
     }
 
@@ -463,38 +412,26 @@ class PostgresConversationRepository implements ConversationRepository {
                 : LenientJson.asText(value);
     }
 
-    private NoteView noteOf(String where, UUID id) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT n.id,n.conversation_id,n.format,n.kind,n.title,CAST(n.summary_quotes AS text) AS summary_quotes,
-                       n.next_take,CAST(n.actor_words AS text) AS actor_words,
-                       CAST(n.corrections AS text) AS corrections,CAST(n.tags AS text) AS tags,
-                       n.fallback,n.source_revision,CAST(n.legacy_report AS text) AS legacy_report,n.created_at,
-                       CAST(n.line_notes AS text) AS line_notes
-                FROM coach_notes n
-                JOIN coach_conversations c ON c.id=n.conversation_id
-                WHERE %s
-                """.formatted(where), Tuple.class)
-                .setParameter("id", id));
-        if (rows.isEmpty()) {
+    private static NoteView view(CoachNoteJpaRepository.Stored row) {
+        if (row == null) {
             return null;
         }
-        Tuple row = rows.getFirst();
         return new NoteView(
-                row.get("id", UUID.class),
-                row.get("conversation_id", UUID.class),
-                row.get("format", String.class),
-                row.get("kind", String.class),
-                row.get("title", String.class),
-                json(row.get("summary_quotes", String.class)),
-                row.get("next_take", String.class),
-                json(row.get("actor_words", String.class)),
-                json(row.get("corrections", String.class)),
-                json(row.get("tags", String.class)),
-                row.get("fallback", Boolean.class),
-                ((Number) row.get("source_revision")).longValue(),
-                json(row.get("legacy_report", String.class)),
-                row.get("created_at", Instant.class),
-                json(row.get("line_notes", String.class)));
+                row.getId(),
+                row.getConversationId(),
+                row.getFormat(),
+                row.getKind(),
+                row.getTitle(),
+                json(row.getSummaryQuotes()),
+                row.getNextTake(),
+                json(row.getActorWords()),
+                json(row.getCorrections()),
+                json(row.getTags()),
+                row.getFallback(),
+                row.getSourceRevision(),
+                json(row.getLegacyReport()),
+                row.getCreatedAt(),
+                json(row.getLineNotes()));
     }
 
     @Override
