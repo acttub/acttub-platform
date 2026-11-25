@@ -18,7 +18,6 @@
 | `POST /v2/coach/reply` | 필수 `conversation_id`·`request_id`, `text`(300자까지)·`revision` (`CoachReplyRequest`) | `CoachTurnResult` 200, 닫히면 `note` 포함 | `conversation_closed` 409, `conversation_conflict` 409, `request_fingerprint_mismatch` 422, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409, 301자 422(배열) |
 | `POST /v2/coach/conversations/{conversation_id}/continue` | 선택 `revision` | `CoachTurnResult` 200, 이미 열린 대화면 그대로 | `conversation_conflict` 409, `conversation_limit_reached` 409, `conversation_not_resumable` 409, `practice_in_progress` 409, `practice_not_found` 404, `account_deactivated` 403 |
 | `GET /v2/coach/conversations/{conversation_id}` | conversation_id | `CoachConversation` 200(`reply_limit` 포함, 목적별 코칭이면 `purpose` 포함) | `conversation_not_found` 404 |
-| `POST /v2/coach/direct-video`, `GET·DELETE /v2/coach/direct-video/{id}`, `POST /v2/coach/direct-video/{id}/messages` (dev 전용, openapi 밖) | 영상 파일(50MiB까지), 메시지 2,000자까지 | 아래 「Gemini 직접 영상 코칭」 | `unsupported_media_type` 415, `upload_too_large` 413, `empty_video` 422, `direct_video_session_limit` 429, `direct_video_turn_limit`·`direct_video_not_ready` 409, `direct_video_not_found` 404 |
 
 ## 상태
 coach_conversations.status — 회차의 코치 대화.
@@ -172,8 +171,7 @@ coach_conversations.status — 회차의 코치 대화.
 응답 프롬프트는 공통 원칙과 서비스가 고른 작업 지침으로 조합한다.
 
 API와 화면, 대화 저장·재개·멱등 요청·응답 상한·종료·3층 노트는 기존 것을 사용한다.
-별도 실험 페이지는 배포하지 않는다. 임시 세션 API(`/v2/coach/direct-video/**`)는 dev(`SITE_URL=https://dev.acttub.com`)에서만
-열린다(공개 스키마 밖). 임시 세션의 명시적 종료는 `finished`다.
+별도 실험 페이지는 배포하지 않는다.
 구조화된 영상 관찰은 생성하지 않는다(코치 응답을 배우 의도·실행 기록으로 바꾸지 않는 것은 「규칙·제약」).
 프로필([account.profile](../account/profile.md#규칙제약))과 같은 묶음의 이전 맥락은 생성 호출에만 별도 블록으로 싣고 분류에는 싣지 않는다.
 코칭 출력은 평문이다. 서버는 모델 응답에서 Markdown 제목·강조·목록 기호·표·코드 블록 기호를 걷어 낸 평문을 대화
@@ -182,14 +180,12 @@ API와 화면, 대화 저장·재개·멱등 요청·응답 상한·종료·3층
 legacy 연습은 기존 모델 경로를 유지한다.
 
 ### 응답 분류와 지침 선택 (2026-09-22)
-첫 응답은 전체 인상 → 가장 크게 보완할 점과 영상 속 근거 → 개선 방향으로 제공한다.
-장면 전체의 자연스러움·전달력에 영향을 주는 문제를 최대 두 개 우선하며, 부족함을 억지로 만들지 않는다.
-반복되는 문제는 여러 구간으로 뒷받침하고 화면 밖 상대의 답변·표정을 사실이나 진단 근거로 지어내지 않는다.
-기본은 서너 개의 짧은 문단이며 공통의 한두 문장 제한을 없앴다. 끝의 질문은 필요한 경우에만 한다.
+이 경로는 연습 루프 전에 시작한 옛 대화(아래 「연습 루프」)의 후속 답만 탄다. 그 대화들은 첫 응답이 이미 끝났으므로 첫 응답
+지침(`opening`)은 dev 임시 세션 API와 함께 지웠다(SOMA-1140).
 후속 분류와 각 작업 지침은 유지하며, 기존 진단과 배우의 최신 말을 이어서 다룬다.
 기초 연기 용어는 사용하되 이해하기 쉬운 문장으로 설명하고, 근거 없이 새 결점을 늘리지 않는다.
 
-첫 응답은 코드에서 `opening`을 선택한다. 후속 답은 별도 Gemini 텍스트 호출이
+후속 답은 별도 Gemini 텍스트 호출이
 직전 코치 발화와 실제 대화 원문을 보고 `intention`, `correction`, `unsure`, `method`,
 `acknowledgement`, `other` 신호로 분류한다. 분류에는 영상을 보내지 않는다.
 분류 JSON과 지침 목록은 코칭 모델·사용자 대화에 섞지 않는다.
@@ -215,7 +211,7 @@ legacy 연습은 기존 모델 경로를 유지한다.
 ### 연습 루프 (2026-09-24, SOMA-508)
 직접 영상 코칭(영속 코칭)은 분류·지침 조합 대신 `coaching/direct-video/practice-loop.txt` 하나로 대화 전체를 이끈다.
 새 대화는 늘 연습 루프다(연습 루프 스위치 `ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP`는 SOMA-1126에서 지웠다). 연습 루프 상태 없이
-시작한 옛 대화(2026-09-24 전)만 위의 분류·지침 경로로 이어 간다. dev 임시 세션 API는 연습 루프를 쓰지 않는다.
+시작한 옛 대화(2026-09-24 전)만 위의 분류·지침 경로로 이어 간다.
 
 코치는 이 테이크에서 두 곳 이상 반복된 배우 자신의 버릇 하나를 비춰 주고(소리 쪽 — 빠르기·말끝·크기·쉬는 곳 — 을
 먼저, 혼자 찍은 영상에서 흔한 시선은 뒷순위), 질문으로 배우가 그 버릇을 들여다보게 한다.

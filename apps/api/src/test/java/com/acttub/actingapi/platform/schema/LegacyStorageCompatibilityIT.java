@@ -62,6 +62,7 @@ class LegacyStorageCompatibilityIT {
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
             jdbc.execute("ALTER TABLE ads DROP COLUMN academy_registration_no, DROP COLUMN course_name, DROP COLUMN tuition");
             jdbc.execute("DROP TABLE evening_reminder_sends");
+            jdbc.execute("ALTER TABLE videos DROP COLUMN width, DROP COLUMN height");
             // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
 
