@@ -58,7 +58,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 보관함 저장소({@code PostgresVideoRepository}·{@code PostgresVideoOwnership})가 내는 결과·잠금·경합·문장 수를 실제
  * PostgreSQL 에서 고정한다. 자기 표({@code videos}·{@code video_transcripts})만 쓰는 문장을 네이티브 SQL 에서 JPA 로 옮길 때
- * 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과해야 한다(apps/api/CONTRACT.md §5-9). 은퇴한 예약 장부
+ * 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과했다(apps/api/CONTRACT.md §5-9). 문장 테스트만 달라졌다 — 영상 행 잠금이
+ * {@code for update} 에서 {@code for update of ve1_0} 로 나간다(문장 수·세기는 같다). 은퇴한 예약 장부
  * ({@code upload_intents})와 다른 기능의 표를 쓰는 문장은 네이티브로 남겨 문장 테스트에서만 본다.
  *
  * <p>HTTP 를 거친 올리기·마무리·총량 경합·목록·삭제·파기·포스터·이관은 {@link VideoLibraryIT}, 시한 지난 예약 치우기는
@@ -438,19 +439,19 @@ class VideoRepositoryIT {
         soft.assertThat(statementsOf(() -> videos.setFavorite(owner, UUID.randomUUID(), true, now)))
                 .as("없는 영상이면 다시 읽지 않는다").containsExactly("update videos");
         soft.assertThat(statementsOf(() -> videos.attachPoster(new PosterJob(video[0], owner, "k", 1), "posters/p.jpg", now)))
-                .containsExactly("select users for update", "select videos for update", "update videos");
+                .containsExactly("select users for update", "select videos for update of ve1_0", "update videos");
         soft.assertThat(statementsOf(() -> videos.purgeFile(owner, video[0], now)))
-                .containsExactly("select videos for update", "delete video_transcripts", "update videos",
+                .containsExactly("select videos for update of ve1_0", "delete video_transcripts", "update videos",
                         "select challenge_entries", "select videos");
         soft.assertThat(statementsOf(() -> videos.delete(owner, video[0], now)))
-                .containsExactly("select videos for update", "select (none)", "delete video_transcripts",
+                .containsExactly("select videos for update of ve1_0", "select (none)", "delete video_transcripts",
                         "update upload_intents", "delete videos");
         soft.assertThat(statementsOf(() -> videos.delete(owner, video[0], now)))
-                .as("없으면 잠금 조회 하나").containsExactly("select videos for update");
+                .as("없으면 잠금 조회 하나").containsExactly("select videos for update of ve1_0");
         UUID used = video(owner, 100, now, false);
         practice(owner, used);
         soft.assertThat(statementsOf(() -> videos.delete(owner, used, now)))
-                .as("참조가 있으면 지우지 않는다").containsExactly("select videos for update", "select (none)");
+                .as("참조가 있으면 지우지 않는다").containsExactly("select videos for update of ve1_0", "select (none)");
         soft.assertThat(statementsOf(() -> videos.claimPoster(3))).containsExactly("with select for update of v skip locked");
         UUID guest = member();
         soft.assertThat(statementsOf(() -> {
@@ -471,8 +472,9 @@ class VideoRepositoryIT {
 
     /**
      * 문장을 "<종류> <표>[ 덧붙임]" 으로 줄인다. 별칭·열 목록·매개변수 표기는 두 구현이 달라 견주지 않는다. SELECT 의 표는 바깥
-     * FROM 의 첫 표이고 바깥 FROM 이 없으면 "(none)" 이다. 잠금은 {@code for update [of 별칭] [skip locked]} 를 붙인다 — 별칭은
-     * 네이티브 문장에서만 뜻이 있어, 옮긴 문장은 별칭을 지우고 견준다.
+     * FROM 의 첫 표이고 바깥 FROM 이 없으면 "(none)" 이다. 잠금은 {@code for update [of 별칭] [skip locked]} 를 그대로 붙인다 —
+     * 표 하나를 잠그는 조회에서 네이티브 {@code FOR UPDATE} 와 JPQL 의 {@code for update of <별칭>} 은 같은 세기다
+     * ({@code PessimisticWriteLockIT}, 위 잠금 테스트).
      */
     static String label(String sql) {
         String text = sql.strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);

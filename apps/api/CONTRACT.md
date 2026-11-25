@@ -406,7 +406,8 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`).
 
 **native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
-테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다.
+테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다. §5-1 에서 매핑을 내린 표(옛 연습
+흐름의 다섯 표, `upload_intents`)를 쓰는 문장도 남긴다 — 옮기려고 매핑을 되살리지 않는다(`PostgresVideoRepository` 의 예약 장부).
 
 **native 가 남은 자리의 목록**은 `src/test/resources/native-sql-files.txt` 하나다. `NativeSqlInventoryTest` 가 코드와
 대조한다. 파일마다 자리 수를 적고, 까닭이 없는 줄은 아직 옮기지 않은 자리라 그 합은 줄기만 한다. 옮기지 않기로 한 자리는
