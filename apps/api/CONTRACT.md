@@ -432,6 +432,9 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   로 나가고 고르는 행이 같다(x 가 NULL 이면 둘 다 고르지 않는다). 두 배열이 겹치는지 보는 `&&` 는 `array_overlaps` 로 그대로
   나간다(`ReadingRecordingJpaRepository#myLineText`). `text[]` 칸에 문자열 매개변수를 견줄 때는 `array_position` 을 쓴다
   (`AppPosterJpaRepository`).
+  그 칸에 `array_contains` 를 쓰면 `text[] @> varchar[]` 연산자가 없어 실패한다. `array_position` 은 값이 없을 때 NULL 이
+  아니라 0 을 돌려준다(`coalesce(array_position(…),0)`). 그래서 "아직 없으면" 은 `= 0` 으로 쓴다. `array_append(칸, x)` 는
+  `칸||?` 로 나간다(`ChallengeEntryJpaRepository#appendShareFrameKey`, `EntryShareFrameStoreIT`).
 - 권고 잠금 `SELECT 1 FROM pg_advisory_xact_lock(…)`: FROM 절의 함수는 HQL 이 받지 않는다. `select pg_advisory_xact_lock(…)` 로
   쓰면 같은 잠금이다(`ReadingVoiceCacheJpaRepository#lockUntilCommit`). FROM 없는 `select exists (…) and not exists (…)` 와 행 값
   비교 `(a, b) < (c, d)` 는 그대로 나간다.
@@ -439,11 +442,9 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   넣는 것(`CAST(:x AS jsonb)`)은 JSON 칸에 `JsonNode` 매개변수를 넘기는 HQL 로 같다. Java `null` 은 SQL NULL 이 되므로 JSON
   null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`). 칸을 `String` 으로
   매핑했으면 글 매개변수를 그대로 넘긴다(`ReadingPronunciationReportJpaRepository#complete`).
-- 읽기 잠금·건너뛰는 잠금·권고 잠금: `@Lock(PESSIMISTIC_READ)` 는 `for share of <별칭>` 으로 나간다. `PESSIMISTIC_WRITE` 에
-  `@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2")` 와 `Limit` 을 함께 주면
-  `… fetch first ? rows only for update of <별칭> skip locked` 다(`ChallengeEntryJpaRepository#lockExhaustedModeration`,
-  잡힌 행을 건너뛰는 것은 `EntryModerationStoreIT`). 잠금은 스칼라 투영(`select new …`)에도 붙는다.
-  `pg_advisory_xact_lock(…)` 은 FROM 없이 select 절에 둔다(`ChallengeJpaRepository#lockTeamCreation`).
+- 읽기 잠금: `@Lock(PESSIMISTIC_READ)` 는 `for share of <별칭>` 으로 나간다(`ChallengeEntryJpaRepository#lockForRead`). 잠금
+  절은 스칼라 투영(`select new …`)에도 붙고, 건너뛰는 잠금도 같다(`ChallengeEntryJpaRepository#lockExhaustedModeration`,
+  잡힌 행을 건너뛰는 것은 `EntryModerationStoreIT`).
 - 값 목록 칸(변환기가 붙은 enum): 조건에 `e.status <> DELETED` 처럼 상수 이름을 따옴표 없이 쓰면 `status<>'deleted'` 글자로
   나간다. `case … then <상수>` 처럼 형을 짐작할 수 없는 자리에는 매개변수로 넘긴다.
 - 있는지 확인: Spring Data `existsBy…` 는 `select <id> … fetch first ? rows only` 로 나가 native 의 `SELECT 1 … LIMIT 1` 과
