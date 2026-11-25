@@ -10,7 +10,6 @@ feature/ads/adapter/db/PostgresAdRepository.java 10
 feature/ads/adapter/db/PostgresAdSlotSwitches.java 2
 feature/analysis/adapter/db/PostgresAnalysisStore.java 7
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java 9
-feature/audition/adapter/db/PostgresAuditionRepository.java 4
 feature/auth/adapter/db/PostgresAuthRepository.java 13
 feature/auth/adapter/db/RefreshTokenJpaRepository.java 1
 feature/billing/adapter/db/PostgresBillingAdminReader.java 3
