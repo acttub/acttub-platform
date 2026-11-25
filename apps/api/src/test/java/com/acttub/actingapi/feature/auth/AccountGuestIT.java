@@ -51,10 +51,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 문서 집합으로 본다. 챌린지·포트폴리오의 경로도 아직 없어, 회원 전용은 지금 있는 경로(프로필·알림·푸시
  * 토큰·옮기기)로 본다. 웹의 시트와 브라우저 저장소는 웹 갈래의 테스트가 본다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    // 겹쳐 보낸 분석 요청 둘이 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=10"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class AccountGuestIT {

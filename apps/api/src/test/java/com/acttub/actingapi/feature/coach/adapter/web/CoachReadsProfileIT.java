@@ -19,6 +19,7 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -56,7 +57,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
 // 났다. 워커의 동작은 MemoryUpdateWorkerIT 가 따로 본다.
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import(CoachReadsProfileIT.GeneratorFixture.class)
+@Import({RecordingFailureReporter.Fixture.class, CoachReadsProfileIT.GeneratorFixture.class})
 class CoachReadsProfileIT {
     private static final String COACH_REPLY = "{\"message\":\"질문\",\"status\":\"continue\",\"handoff\":null}";
     private static final String OBSERVATIONS = "[{\"start_ms\":0,\"end_ms\":100,\"what\":\"멈춘다\","
@@ -89,8 +90,9 @@ class CoachReadsProfileIT {
     @Autowired
     RecordingLlmTelemetry telemetry;
 
+    /** 엔진이 삼키고 보고만 하는 실패를 붙잡아 둔다 — 502 의 까닭이 단언 메시지에 실린다. */
     @Autowired
-    com.acttub.actingapi.support.RecordingFailureReporter failures;
+    RecordingFailureReporter failures;
 
     @Autowired
     com.acttub.actingapi.platform.migration.PracticeDataMigration migration;
@@ -576,13 +578,6 @@ class CoachReadsProfileIT {
         @Primary
         RecordingLlmTelemetry profileRecordingTelemetry() {
             return new RecordingLlmTelemetry();
-        }
-
-        /** 엔진이 삼키고 보고만 하는 실패를 붙잡아 둔다 — 502 의 까닭이 단언 메시지에 실린다. */
-        @Bean
-        @Primary
-        com.acttub.actingapi.support.RecordingFailureReporter profileRecordingFailures() {
-            return new com.acttub.actingapi.support.RecordingFailureReporter();
         }
     }
 

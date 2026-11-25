@@ -6,6 +6,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 
 /**
  * 보고를 메모리에 모으는 가짜. 보고는 테스트 스레드 밖에서도 온다 — {@code MonitoringFailures} 의 가상 스레드, 스케줄러, 요청 스레드.
@@ -35,5 +38,18 @@ public final class RecordingFailureReporter implements FailureReporter {
     }
 
     public record Report(Throwable failure, FailureKind kind, String context) {
+    }
+
+    /**
+     * {@code @Import(RecordingFailureReporter.Fixture.class)} 로 실패 보고를 이 가짜로 바꾼다. 설정이 같은 클래스끼리
+     * 컨텍스트를 같이 쓰므로 보고를 보는 클래스는 {@code @BeforeEach} 에서 {@link #clear()} 한다.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
+    public static class Fixture {
+        @Bean
+        @Primary
+        RecordingFailureReporter recordingFailureReporter() {
+            return new RecordingFailureReporter();
+        }
     }
 }

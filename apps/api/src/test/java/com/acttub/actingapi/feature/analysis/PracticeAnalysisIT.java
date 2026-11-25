@@ -57,7 +57,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, PracticeAnalysisIT.Fixture.class})
+@Import({MutableClock.Fixture.class, RecordingFailureReporter.Fixture.class, PracticeAnalysisIT.Fixture.class})
 class PracticeAnalysisIT {
     private static final Duration LEASE = Duration.ofMinutes(30);
 
@@ -481,12 +481,6 @@ class PracticeAnalysisIT {
         @Primary
         StubAnalyzer stubAnalyzer() {
             return new StubAnalyzer();
-        }
-
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
         }
     }
 

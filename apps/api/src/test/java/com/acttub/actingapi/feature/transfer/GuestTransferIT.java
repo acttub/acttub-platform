@@ -54,10 +54,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * <p>여기서 옮기는 것은 연습 쪽의 {@code user_id} 가 있는 자료 행이다 — 올린 영상, 연습, 작업 장부, 배우 기억.
  * 대본·리딩 회차·녹음·암기 상태의 이관은 {@code feature.reading.ReadingScriptIT} 가 본다(SOMA-546).
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    // 겹쳐 보낸 요청 여섯이 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class GuestTransferIT {
