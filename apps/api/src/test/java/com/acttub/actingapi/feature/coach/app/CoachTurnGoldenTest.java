@@ -359,7 +359,7 @@ class CoachTurnGoldenTest {
     static void comparedModel(CoachTurnGoldenRig rig) {
         var compared = rig.model("gemini-3.8-flash", "compared");
         compared.says(null, null, "\"가지 마\"에서 끝이 길어요. 누구한테 했어요?").saysLight((Object) null);
-        rig.coach = TestDirectVideoCoach.of(rig.model, rig.videos, rig.storage, rig.failures, rig.telemetry).compared(compared, 100).build();
+        rig.coach = rig.builder().compared(compared, 100).build();
         rig.model.says(OPENING).classifies(signals("answered"));
         var s = rig.turn(CoachTurnGoldenRig.fresh(), null).session();
         rig.turn(s, "붙잡고 싶었어요");
@@ -430,12 +430,12 @@ class CoachTurnGoldenTest {
     /** 자문위원 성격(b1)과, 자문위원 파일이 없는 배우의 맞춤 코칭(단계 지시 바꿔 끼우기·질문 수 상한·길이). */
     static void personaAndProfile(CoachTurnGoldenRig rig) {
         rig.section("자문위원 성격 b1");
-        rig.coach = TestDirectVideoCoach.of(rig.model, rig.videos, rig.storage, rig.failures, rig.telemetry).personas(session -> "b1").build();
+        rig.coach = rig.builder().personas(session -> "b1").build();
         rig.model.says(OPENING, "\"가지 마\"에서 끝이 길어요. 그건 어때요?").classifies(signals("answered"));
         var s = rig.turn(CoachTurnGoldenRig.fresh(), null).session();
         rig.turn(s, "붙잡고 싶었어요");
         rig.section("맞춤 코칭");
-        rig.coach = TestDirectVideoCoach.of(rig.model, rig.videos, rig.storage, rig.failures, rig.telemetry).personas(session -> "").build();
+        rig.coach = rig.builder().personas(session -> "").build();
         var prior = new PriorContext(Map.of("coaching_profile", PROFILE, "tone", "짧게 존댓말로 답한다"), null, true, List.of(), List.of());
         rig.model.says(OPENING, "\"가지 마\"에서 붙잡으려는 것처럼 보였어요. 맞아요?",
                 "\"소소한 행복\"에서도 상대 마음을 떠보는 말로 안 들려요.\n오래된 연인이라도 이 말은 마음을 묻는 말이라서요.\n그럼 상대가 대답해 줬을까요?").classifies(signals("not_yet"), signals("answered"));
@@ -479,7 +479,7 @@ class CoachTurnGoldenTest {
         var cache = new CoachVideoCache(rig.model, Duration.ofMinutes(10), new MutableClock(Instant.parse("2026-11-24T00:00:00Z")),
                 rig.failures);
         try {
-            rig.coach = TestDirectVideoCoach.of(rig.model, rig.videos, rig.storage, rig.failures, rig.telemetry).cache(cache).build().withStablePrefix(true).withStaticRulesInPrefix(true).withFreeVideoFirstOnly(true);
+            rig.coach = rig.builder().cache(cache).build().withStablePrefix(true).withStaticRulesInPrefix(true).withFreeVideoFirstOnly(true);
             rig.model.says(OPENING, "\"가지 마\"에서 끝이 길어요. 누구한테 했어요?", "그 사람이 떠나면 어때요?").classifies(signals("answered"), signals("answered"));
             var s = rig.turn(CoachTurnGoldenRig.fresh(), null).session();
             s = rig.turn(s, "붙잡고 싶었어요").session();
@@ -494,7 +494,7 @@ class CoachTurnGoldenTest {
         var cache = new CoachVideoCache(rig.model, Duration.ofMinutes(10), new MutableClock(Instant.parse("2026-11-24T00:00:00Z")),
                 rig.failures);
         try {
-            rig.coach = TestDirectVideoCoach.of(rig.model, rig.videos, rig.storage, rig.failures, rig.telemetry).cache(cache).build().withVideoTokenBudget(800);
+            rig.coach = rig.builder().cache(cache).build().withVideoTokenBudget(800);
             rig.model.says(OPENING, "\"가지 마\"에서 끝이 길어요. 누구한테 했어요?").classifies(signals("answered"));
             var s = rig.turn(CoachTurnGoldenRig.fresh(), null).session();
             rig.turn(s, "붙잡고 싶었어요");
@@ -512,7 +512,7 @@ class CoachTurnGoldenTest {
         try {
             var past = new CoachProMemory.Past(Instant.parse("2026-11-20T03:00:00Z"), "이별 장면", "말끝이 길다",
                     "끝을 짧게 끊는다", List.of(), "helpful");
-            rig.coach = TestDirectVideoCoach.of(rig.model, rig.videos, rig.storage, rig.failures, rig.telemetry).compared(compared, 100).cache(cache).build()
+            rig.coach = rig.builder().compared(compared, 100).cache(cache).build()
                     .withProMemory(userId -> true, (userId, practiceId, limit) -> List.of(past))
                     .withAlternateProOnly(true);
             rig.model.classifies(signals("answered"));
@@ -529,7 +529,7 @@ class CoachTurnGoldenTest {
     /** 1층 관찰: 아직 안 끝났으면 기다림 칸, 상태에 관찰이 있으면 그 칸을 붙인다. */
     static void layerOne(CoachTurnGoldenRig rig) {
         try (var layer = new CoachLayerOne((video, mime, scene, practice, user) -> "", 100, rig.failures, CoachPro.NONE)) {
-            rig.coach = TestDirectVideoCoach.of(rig.model, rig.videos, rig.storage, rig.failures, rig.telemetry).layerOne(layer).build();
+            rig.coach = rig.builder().layerOne(layer).build();
             rig.model.says(OPENING, "\"가지 마\"에서 고개를 숙여요. 누구한테 했어요?").classifies(signals("answered"));
             var s = rig.turn(CoachTurnGoldenRig.fresh(), null).session();
             s = CoachTurnGoldenRig.editState(s, state -> {
