@@ -65,9 +65,8 @@ Pro 혜택으로 안내한다. 이 혜택의 구현은 이 스펙이 정하지 �
 | `GET /v2/billing/me` | `{status, pro, amount, period_end, next_billing_at, card_company, card_last4, retry_count, limits_enforced, provider, grant_ends_at, app_enabled, plan}`. `plan` 은 `monthly`·`yearly`(구독 없음은 monthly) |
 | `POST /v2/billing/checkout` | 본문 `{purpose: subscribe\|change_card, plan: monthly\|yearly}`(둘 다 생략 가능, plan 기본 monthly) → `{checkout_url, return_url, expires_at}`. 403 billing_member_required(게스트), 409 already_subscribed, 409 no_subscription, 409 payment_pending, 422 invalid_purpose, 422 invalid_plan, 422 plan_unavailable(웹 연 구독 스위치 꺼짐), 429 |
 | `POST /v2/billing/subscription/cancel` | me. 409 no_subscription |
-| `POST /v2/billing/subscription/retry` | me(결제 결과는 status 로). 409 no_subscription, 409 not_past_due, 429 |
 
-경로마다 보는 스위치가 다르다. `checkout`·`retry` 는 웹 토스 설정만 본다 — 닫혀 있으면(플래그 꺼짐·키 모양이 틀림·클라이언트 키와
+경로마다 보는 스위치가 다르다. `checkout` 은 웹 토스 설정만 본다 — 닫혀 있으면(플래그 꺼짐·키 모양이 틀림·클라이언트 키와
 시크릿 키의 test_·live_ 종류가 다름·주소 설정 오류) 404 `billing_unavailable` 이다. `me`·`cancel` 은 웹 토스가 열렸거나
 `BILLING_APP_ENABLED` 가 켜졌으면 열리고 둘 다 아닐 때만 404다(`BillingSettings.webUsable`·`usable`). 결제 기능이 닫히면 앱은
 Pro 진입점을 숨긴다.

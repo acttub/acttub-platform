@@ -18,9 +18,7 @@ import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,9 +31,8 @@ import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.feature.video.app.VideoPosterWorker;
 import com.acttub.actingapi.feature.video.domain.VideoRules;
 import com.acttub.actingapi.integration.media.PosterFrameExtractor;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import tools.jackson.databind.JsonNode;
@@ -70,11 +67,9 @@ import com.acttub.actingapi.platform.json.LenientJson;
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
     // 포스터 워커는 테스트가 직접 부른다(스케줄러는 test application.properties 가 끈다).
-    "VIDEO_POSTER_ENABLED=false",
-    // 한도 직전의 동시 업로드 둘이 저마다 커넥션을 쥔 채 사용자 행을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"})
+    "VIDEO_POSTER_ENABLED=false"})
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, VideoLibraryIT.Fixture.class})
+@Import({MutableClock.Fixture.class, FakeObjectStorage.Fixture.class, VideoLibraryIT.Fixture.class})
 class VideoLibraryIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final long QUOTA_GATE = 546_006L;
@@ -99,7 +94,7 @@ class VideoLibraryIT {
     MutableClock clock;
 
     @Autowired
-    FakeStorage storage;
+    FakeObjectStorage storage;
 
     @Autowired
     AccountCleanup cleanup;
@@ -131,9 +126,7 @@ class VideoLibraryIT {
                     VALUES (?,?,'v1',?,?,?,?)
                     """, id, type, type + " 제목", type + " 본문", !"retention".equals(type), PUBLISHED);
         }
-        storage.objects.clear();
-        storage.failing.clear();
-        storage.contentTypes.clear();
+        storage.clear();
         frames.reset();
         clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         address = "10.56.0." + ADDRESSES.incrementAndGet();
@@ -906,12 +899,6 @@ class VideoLibraryIT {
     @TestConfiguration(proxyBeanMethods = false)
     static class Fixture {
         @Bean
-        @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-
-        @Bean
         FakeFrames fakeFrames() {
             return new FakeFrames();
         }
@@ -953,60 +940,5 @@ class VideoLibraryIT {
     @FunctionalInterface
     interface ThrowingRunnable {
         void run() throws Exception;
-    }
-
-    /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
-    static final class FakeStorage implements ObjectStorage {
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-        final Map<String, String> contentTypes = new ConcurrentHashMap<>();
-        final Set<String> failing = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, "video/mp4", "etag-" + objectKey.hashCode());
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            Long size = objects.get(objectKey);
-            if (size == null) {
-                throw new IllegalStateException("no such object");
-            }
-            try {
-                Files.writeString(destination, "video");
-            } catch (java.io.IOException exception) {
-                throw new java.io.UncheckedIOException(exception);
-            }
-            return new StoredObjectMetadata(size, "video/mp4", "etag-" + objectKey.hashCode());
-        }
-
-        @Override
-        public void upload(String objectKey, String mimeType, Path source) {
-            try {
-                objects.put(objectKey, Files.size(source));
-            } catch (java.io.IOException exception) {
-                throw new java.io.UncheckedIOException(exception);
-            }
-            contentTypes.put(objectKey, mimeType);
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            if (failing.contains(objectKey)) {
-                throw new IllegalStateException("storage refused the delete");
-            }
-            objects.remove(objectKey);
-        }
     }
 }

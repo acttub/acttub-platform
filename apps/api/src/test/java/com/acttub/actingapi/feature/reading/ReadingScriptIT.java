@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
@@ -18,9 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -29,11 +26,11 @@ import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -45,10 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -64,12 +58,9 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * <p>여기서 보지 못하는 것: 기기 파서(콜론·블록·공백 형식, 등장인물 목록, 장면 줄 판정, hwp·pdf), 확인 화면,
  * 옛 앱 대본 옮기기, 탈퇴 뒤 대본 파기(RA5), 정리 장부의 7일 뒤 키 유지(RA5).
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    // 이관 처리 중의 등록은 요청 둘이 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, ReadingScriptIT.StorageFixture.class})
+@Import({MutableClock.Fixture.class, FakeObjectStorage.Fixture.class, RecordingFailureReporter.Fixture.class})
 class ReadingScriptIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final long TRANSFER_GATE = 546_001L;
@@ -94,7 +85,7 @@ class ReadingScriptIT {
     MutableClock clock;
 
     @Autowired
-    FakeStorage storage;
+    FakeObjectStorage storage;
 
     @Autowired
     AccountCleanup cleanup;
@@ -118,8 +109,7 @@ class ReadingScriptIT {
                     VALUES (?,?,'v1',?,?,?,?)
                     """, id, type, type + " 제목", type + " 본문", !"retention".equals(type), PUBLISHED);
         }
-        storage.objects.clear();
-        storage.failing.clear();
+        storage.clear();
         clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         address = "10.46.0." + ADDRESSES.incrementAndGet();
         member = member();
@@ -1214,58 +1204,5 @@ class ReadingScriptIT {
 
     private int count(String table) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class StorageFixture {
-        @Bean
-        @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-    }
-
-    /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
-    static final class FakeStorage implements ObjectStorage {
-        @Override
-        public void upload(String objectKey, String mimeType, java.nio.file.Path source) {
-            try {
-                objects.put(objectKey, java.nio.file.Files.size(source));
-            } catch (java.io.IOException failure) {
-                throw new java.io.UncheckedIOException(failure);
-            }
-        }
-
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-        final Set<String> failing = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, "audio/mp4", "etag");
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            if (failing.contains(objectKey)) {
-                throw new IllegalStateException("storage refused the delete");
-            }
-            objects.remove(objectKey);
-        }
     }
 }

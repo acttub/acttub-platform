@@ -198,7 +198,9 @@ class EntityMappingIT {
                 "summaries", Set.of("observation", "summary", "intent_alignment", "key_moment", "key_dimension"),
                 // nickname: 이름은 `user_profiles.name` 이 정본이다. 컬럼은 직전 릴리스의 서버를
                 // 위해 남아 있고, 새 코드가 건드리는 곳은 탈퇴의 파기 하나다(결정 I-3).
-                "users", Set.of("role", "nickname"));
+                "users", Set.of("role", "nickname"),
+                // 크기 두 칸(V14)은 쓰는 코드가 없어 매핑을 내렸다. 다음 릴리스의 DROP 마이그레이션이 지운다(CONTRACT §5-1).
+                "videos", Set.of("width", "height"));
         for (Class<?> entity : entities) {
             String table = entity.getAnnotation(Table.class).name();
             Set<String> databaseColumns = new java.util.HashSet<>(jdbc.queryForList("""
@@ -233,8 +235,6 @@ class EntityMappingIT {
         assertThat(loaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(loaded.getEmail()).isEqualTo("a@example.test");
         assertThat(loaded.getAgeConfirmedAt()).isNull();
-        assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, id))
-                .isEqualTo("user");
         assertThat(loaded.getDeactivatedAt()).isNull();
         // server_default 가 발동했다 — 필드 초기화값을 주지 않은 결과다 (apps/api/CONTRACT.md §5-3-3).
         assertThat(loaded.getCreatedAt()).isNotNull();

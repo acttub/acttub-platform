@@ -272,19 +272,9 @@ class MemoryUpdateWorkerPayloadTest {
         }
 
         @Override
-        public MemoryEntry writeAsActor(UUID userId, ActorMemoryField field, String value) {
-            throw new AssertionError("워커는 배우 이름으로 쓰지 않는다");
-        }
-
-        @Override
         public MemoryEntry writeAsAgent(
                 UUID userId, ActorMemoryField field, String value, UUID sourcePracticeSessionId) {
             return new MemoryEntry(field.dbValue(), value, false, sourcePracticeSessionId);
-        }
-
-        @Override
-        public void delete(UUID userId, ActorMemoryField field) {
-            throw new AssertionError("워커는 지우지 않는다");
         }
 
         @Override

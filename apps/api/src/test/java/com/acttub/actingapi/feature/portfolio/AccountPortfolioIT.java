@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -17,13 +16,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -33,10 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -53,7 +47,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
     "JWT_SECRET=test-secret",
     "SITE_URL=https://acttub.test/"})
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, AccountPortfolioIT.StorageFixture.class})
+@Import({MutableClock.Fixture.class, FakeObjectStorage.Fixture.class})
 class AccountPortfolioIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
 
@@ -73,7 +67,7 @@ class AccountPortfolioIT {
     MutableClock clock;
 
     @Autowired
-    FakeStorage storage;
+    FakeObjectStorage storage;
 
     private UUID member;
     private String bearer;
@@ -85,7 +79,7 @@ class AccountPortfolioIT {
                 INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
                 VALUES (?,'terms','v1','약관','본문',true,?)
                 """, UUID.randomUUID(), OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC));
-        storage.objects.clear();
+        storage.clear();
         clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         member = member();
         bearer = "Bearer " + jwt.issueAccessToken(member).value();
@@ -509,54 +503,5 @@ class AccountPortfolioIT {
 
     private int count(String table) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class StorageFixture {
-        @Bean
-        @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-    }
-
-    /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. */
-    static final class FakeStorage implements ObjectStorage {
-        @Override
-        public void upload(String objectKey, String mimeType, java.nio.file.Path source) {
-            try {
-                objects.put(objectKey, java.nio.file.Files.size(source));
-            } catch (java.io.IOException failure) {
-                throw new java.io.UncheckedIOException(failure);
-            }
-        }
-
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, "image/jpeg", "etag");
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            objects.remove(objectKey);
-        }
     }
 }
