@@ -377,7 +377,7 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   (`PostgresMemorizationRepository#set`). FK 로 늘 맞는 조인이 잠그는 조회에 붙어 있고 그 칸을 쓰지 않으면 조인을 빼고 자기
   표만 잠근다(`PostgresCommunityRepository#deleteComment` 는 작성자 이름을 읽던 `users`·`user_profiles` 조인을 뺐다). 다른
   기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
-  Port 가 없어 native 로 두면 목록에 `남김:` 줄을 쓰고, `table-owner-exceptions.txt` 의 그 줄은 남는다
+  Port 가 없어 native 로 두면 목록에 `남김:` 줄을 쓰고, `table-owner-read-only.txt` 의 그 줄은 남는다
   (`PostgresPortfolioRepository#lockOrCreate` 의 `users` 행 잠금).
 - 배열: native 의 `:x = ANY(칸)` 은 HQL 에 없다(`any(…)` 는 `bool_or` 집계로 풀린다). `array_contains(칸, :x)` 는 매개변수를
   `varchar` 배열로 감싸 `text[] @> varchar[]` 연산자가 없다고 실패한다. `array_position(칸, :x) > 0` 이 같은 행을 고른다. 칸에
