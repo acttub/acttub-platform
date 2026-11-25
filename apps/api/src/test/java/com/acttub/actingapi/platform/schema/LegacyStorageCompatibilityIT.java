@@ -51,7 +51,8 @@ class LegacyStorageCompatibilityIT {
         UUID historical = seedHistory(jdbc, user, upload);
         Map<String, Object> before = historicalValues(jdbc, user, historical);
         if (removeRetiredStorage) {
-            // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다.
+            // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다. 여기서 지우는 구조는
+            // 코드가 읽고 쓰지 않으며, 다음 릴리스의 DROP 마이그레이션이 운영에서도 지운다(apps/api/CONTRACT.md §5-1).
             jdbc.execute("DROP TABLE reports");
             jdbc.execute("""
                     ALTER TABLE summaries DROP COLUMN observation, DROP COLUMN summary,
@@ -59,6 +60,7 @@ class LegacyStorageCompatibilityIT {
                     """);
             jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
+            jdbc.execute("ALTER TABLE ads DROP COLUMN academy_registration_no, DROP COLUMN course_name, DROP COLUMN tuition");
             jdbc.execute("DROP TABLE evening_reminder_sends");
             // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
@@ -119,7 +121,7 @@ class LegacyStorageCompatibilityIT {
         UUID practice = UUID.randomUUID();
         UUID coach = UUID.randomUUID();
         UUID handoff = UUID.randomUUID();
-        jdbc.update("INSERT INTO users(id,status,role) VALUES (?,'active','admin')", user);
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
         jdbc.update("""
                 INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,
                     mime_type,size_bytes,expires_at)
@@ -127,13 +129,12 @@ class LegacyStorageCompatibilityIT {
                 """, upload, user);
         jdbc.update("""
                 INSERT INTO practice_sessions(id,user_id,upload_intent_id,status,situation,character_context,
-                    subtext,blockage_kind,sub_branch,goal)
-                VALUES (?,?,?,'analyzed','과거 상황','과거 인물','보존할 서브텍스트','분석','대사 분석','과거 목표')
+                    blockage_kind,sub_branch,goal)
+                VALUES (?,?,?,'analyzed','과거 상황','과거 인물','분석','대사 분석','과거 목표')
                 """, practice, user, upload);
         jdbc.update("""
-                INSERT INTO summaries(session_id,observation,summary,intent_alignment,key_moment,key_dimension,
-                    model,was_compressed,raw,observations_json,uncertainties_json)
-                VALUES (?,'{"legacy":true}'::jsonb,'옛 요약','옛 의도','옛 순간','옛 차원','old-model',true,'{}'::jsonb,
+                INSERT INTO summaries(session_id,model,was_compressed,raw,observations_json,uncertainties_json)
+                VALUES (?,'old-model',true,'{}'::jsonb,
                     '[{"start_ms":0,"end_ms":500,"label":"과거 관찰","confidence":0.9}]'::jsonb,'[]'::jsonb)
                 """, practice);
         jdbc.update("INSERT INTO transcripts(session_id,ord,text) VALUES (?,0,'과거 전체 대사')", practice);
@@ -141,10 +142,6 @@ class LegacyStorageCompatibilityIT {
                 INSERT INTO coach_sessions(id,practice_session_id,status,conversation_summary,close_reason)
                 VALUES (?,?,'closed','과거 대화 요약','user_ended')
                 """, coach, practice);
-        jdbc.update("""
-                INSERT INTO reports(session_id,headline,biggest_problem,evidence,self_discovery,encouragement,next_step)
-                VALUES (?,'구형 리포트','{"old":true}'::jsonb,'근거','발견','격려','다음')
-                """, coach);
         jdbc.update("""
                 INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,handoff_json)
                 VALUES (?,?,?,'analysis','{}'::jsonb)
@@ -162,19 +159,10 @@ class LegacyStorageCompatibilityIT {
 
     private Map<String, Object> historicalValues(JdbcTemplate jdbc, UUID user, UUID practice) {
         return Map.of(
-                "user", jdbc.queryForMap("SELECT role FROM users WHERE id=?", user),
-                "practice", jdbc.queryForMap("SELECT subtext FROM practice_sessions WHERE id=?", practice),
-                "summary", jdbc.queryForMap("""
-                        SELECT observation::text,summary,intent_alignment,key_moment,key_dimension,
-                            model,was_compressed FROM summaries WHERE session_id=?
-                        """, practice),
+                "summary", jdbc.queryForMap("SELECT model,was_compressed FROM summaries WHERE session_id=?", practice),
                 "coach", jdbc.queryForMap("""
                         SELECT conversation_summary,close_reason FROM coach_sessions WHERE practice_session_id=?
                         """, practice),
-                "report", jdbc.queryForObject("""
-                        SELECT to_jsonb(report)::text FROM reports report JOIN coach_sessions coach
-                            ON coach.id=report.session_id WHERE coach.practice_session_id=?
-                        """, String.class, practice),
                 "community", jdbc.queryForObject(
                         "SELECT to_jsonb(post)::text FROM community_posts post WHERE author_id=?",
                         String.class, user));

@@ -28,6 +28,7 @@ import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
@@ -57,11 +58,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 게이트를 지난 <b>뒤에</b> 탈퇴가 커밋된 요청은 HTTP 로 만들 수 없어(게이트가 먼저 막는다) 같은 저장
  * 이음매를 직접 부른다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "spring.datasource.hikari.maximum-pool-size=10"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({StubProviders.class, MutableClock.Fixture.class, AccountWithdrawIT.Fixture.class})
+@Import({StubProviders.class, MutableClock.Fixture.class, FakeObjectStorage.Fixture.class, RecordingFailureReporter.Fixture.class})
 class AccountWritesAndPhotoCleanupIT {
     private static final long SAVE_GATE = 528_001L;
 
@@ -96,7 +95,7 @@ class AccountWritesAndPhotoCleanupIT {
     PortfolioService portfolioService;
 
     @Autowired
-    AccountWithdrawIT.FakeStorage storage;
+    FakeObjectStorage storage;
 
     @Autowired
     RecordingFailureReporter failures;
@@ -108,8 +107,7 @@ class AccountWritesAndPhotoCleanupIT {
     void setUp() {
         dropHooks();
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
-        storage.objects.clear();
-        storage.failing.clear();
+        storage.clear();
         failures.clear();
         clock.set(Instant.now());
         member = UUID.randomUUID();
