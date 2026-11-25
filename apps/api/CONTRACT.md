@@ -935,7 +935,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
   구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로는 지웠다. 다만 옛 큐 워커(§5-7)는 옛 분석을 `summaries`에
-  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. `/v2/legacy-me/memory`는 `actor_memory_entries`에 쓴다.
+  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. 옛 기억 갱신 워커는 `actor_memory_entries`에 쓴다.
   전환의 순서와 옛 테이블을 지우는 때는
   specs/practice 「0.1.0 스키마 전환」이 정본이다.
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
@@ -1433,8 +1433,8 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-6. 직접 영상 코칭의 코드 자리
 
-> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: 연습 루프와 옛 대화의 분류·지침 경로)
 
-- 직접 영상: dev 임시 세션 API는 `DirectVideoController`(조건부 등록, 공개 OpenAPI에서 `@Hidden`), 임시 세션은
-  `DirectVideoSessions` → `DirectVideoRouting`, 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 열리는 조건과
+- 직접 영상: 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 연습 루프 전에 시작한 옛 대화의 후속 답만
+  `DirectVideoCoach` → `DirectVideoRouting`이 지침을 고른다. 열리는 조건과
   경로 선택은 practice.coach 「규칙·제약」의 경로 표와 「Gemini 직접 영상 코칭」에 있다.
