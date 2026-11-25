@@ -46,7 +46,7 @@ public class EntryShareFrameService {
     private final Map<String, State> jobs = new ConcurrentHashMap<>();
 
     public EntryShareFrameService(EntryRepository entries, EntryShareFrames frames, EntryMedia media, VideoObjectCleanup cleanup,
-                                  FailureReporter failures, @Qualifier("entryShareFrameExecutor") Executor executor, Clock clock) {
+                                  FailureReporter failures, @Qualifier("shareFrameRenderExecutor") Executor executor, Clock clock) {
         this.entries = entries; this.frames = frames; this.media = media; this.cleanup = cleanup; this.failures = failures;
         this.executor = executor; this.clock = clock;
     }

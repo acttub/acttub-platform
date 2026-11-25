@@ -13,8 +13,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 class EntryShareFrameExecutor {
     static final int QUEUE = 8;
 
-    @Bean("entryShareFrameExecutor")
-    static ThreadPoolTaskExecutor entryShareFrameExecutor() {
+    @Bean("shareFrameRenderExecutor")
+    static ThreadPoolTaskExecutor shareFrameRenderExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
