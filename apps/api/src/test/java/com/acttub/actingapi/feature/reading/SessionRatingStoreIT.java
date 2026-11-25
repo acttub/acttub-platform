@@ -24,6 +24,9 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 리딩 회차 평가 저장소가 내는 결과·잠금·경합·문장을 고정한다. HTTP 쪽 검증·응답 모양·회차와 대본 삭제·탈퇴·이관은
  * {@link ReadingSessionRatingIT} 가 본다. 여기서는 그 테스트가 밟지 않는 시각의 정밀도, 닫힌 계정, 사람 → 대본 → 회차 순서의
  * 잠금, 잠금을 기다린 뒤 다시 보는 회차, 두 요청이 함께 남길 때의 결과, 포트 메서드마다 나가는 문장을 본다.
+ *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — upsert 의 {@code RETURNING} 을 같은
+ * 트랜잭션의 다시 읽기로 나눠 저장할 때 문장이 하나 늘었다. 결과·잠금·경합 테스트는 고치지 않았다.
  */
 class SessionRatingStoreIT extends ReadingRepositoryFixture {
 
@@ -193,14 +196,14 @@ class SessionRatingStoreIT extends ReadingRepositoryFixture {
     }
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장: save 는 잠금 셋과 읽기 둘 뒤에 upsert 하나다. 재전송은 쓰지 않고, 닫힌 계정·없는 회차는 거기서 멈춘다. mine 은 조회 하나다")
+    @DisplayName("포트 메서드마다 나가는 문장: save 는 잠금 셋과 읽기 둘 뒤에 upsert 와 쓴 행 다시 읽기다. 재전송은 쓰지 않고, 닫힌 계정·없는 회차는 거기서 멈춘다. mine 은 조회 하나다")
     void eachPortMethodSendsTheseStatements() {
         UUID request = UUID.randomUUID();
 
         assertThat(statementsOf(() -> ratings.save(owner, session, request, "good", null, now))).containsExactly(
                 "select users for update", "select reading_sessions", "select scripts for update",
                 "select reading_sessions for update", "select reading_session_ratings",
-                "insert reading_session_ratings on conflict returning");
+                "insert reading_session_ratings on conflict", "select reading_session_ratings");
         assertThat(statementsOf(() -> ratings.save(owner, session, request, "good", null, now))).containsExactly(
                 "select users for update", "select reading_sessions", "select scripts for update",
                 "select reading_sessions for update", "select reading_session_ratings");

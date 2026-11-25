@@ -23,6 +23,9 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 암기 표시 저장소가 내는 결과·잠금·경합·문장을 고정한다. HTTP 쪽 검증과 대본·회차 삭제, 이관은
  * {@link ReadingMemorizationIT} 가 본다. 여기서는 그 테스트가 밟지 않는 시각의 정밀도, 대본 행만 잡는 잠금, 잠금을 기다린
  * 뒤 다시 보는 주인, 두 요청이 같은 줄을 다툴 때의 결과, 포트 메서드마다 나가는 문장을 본다.
+ *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — upsert 의 {@code RETURNING} 을 같은
+ * 트랜잭션의 다시 읽기로 나눠 표시할 때 문장이 하나 늘었다. 결과·잠금·경합 테스트는 고치지 않았다.
  */
 class MemorizationRepositoryIT extends ReadingRepositoryFixture {
 
@@ -171,10 +174,11 @@ class MemorizationRepositoryIT extends ReadingRepositoryFixture {
     }
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장: set 은 대본 행을 잠그는 조회 하나와 upsert, 줄이 없거나 대사가 아니면 조회 하나다. list 는 대본 확인과 목록, 남의 대본이면 확인 하나다")
+    @DisplayName("포트 메서드마다 나가는 문장: set 은 대본 행을 잠그는 조회 하나와 upsert, 쓴 행 다시 읽기다. 줄이 없거나 대사가 아니면 조회 하나다. list 는 대본 확인과 목록, 남의 대본이면 확인 하나다")
     void eachPortMethodSendsTheseStatements() {
         assertThat(statementsOf(() -> memorization.set(owner, dialogue, "memorized", now)))
-                .containsExactly("select scripts for update", "insert line_memorization on conflict returning");
+                .containsExactly("select scripts for update", "insert line_memorization on conflict",
+                        "select line_memorization");
         assertThat(statementsOf(() -> memorization.set(owner, direction, "memorized", now)))
                 .containsExactly("select scripts for update");
         assertThat(statementsOf(() -> memorization.set(owner, UUID.randomUUID(), "memorized", now)))

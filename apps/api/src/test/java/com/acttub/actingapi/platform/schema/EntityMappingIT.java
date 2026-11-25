@@ -29,6 +29,7 @@ import com.acttub.actingapi.feature.profile.schema.AccountCleanupOperationEntity
 import com.acttub.actingapi.feature.reading.schema.LineMemorizationEntity;
 import com.acttub.actingapi.feature.reading.schema.ReadingRecordingEntity;
 import com.acttub.actingapi.feature.reading.schema.ReadingSessionEntity;
+import com.acttub.actingapi.feature.reading.schema.ReadingSessionRatingEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.video.schema.VideoEntity;
@@ -125,8 +126,6 @@ class EntityMappingIT {
             "script_imports",
             // 대본 원본 파일(V34)도 리딩 저장소의 native SQL(올릴 자리·읽기·연결·정리)만 쓴다.
             "script_uploads",
-            // 리딩 회차 평가(V40)는 리딩 저장소의 native SQL(upsert·잠금·이관·삭제)만 읽고 쓴다.
-            "reading_session_ratings",
             // 리딩 녹음 코치(V48, 실험)는 리딩 저장소의 native SQL(재료 읽기·넣기·답 남기기)만 쓴다.
             // 찍을 대사 같이 만들기(V56)는 리딩 저장소의 native SQL(접수·버전·잇기)만 쓴다.
             "script_cocreations",
@@ -151,8 +150,8 @@ class EntityMappingIT {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개다.
-        assertThat(entities).hasSize(50);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개다.
+        assertThat(entities).hasSize(51);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -385,11 +384,13 @@ class EntityMappingIT {
         save(ReadingRecordingEntity.class,new ReadingRecordingEntity(UUID.randomUUID(),userId,readingId,lineId,UUID.randomUUID(),1,
                 "reading/"+userId+".m4a","audio/mp4",1,1,null,TranscriptSource.NONE,null));
         save(LineMemorizationEntity.class,new LineMemorizationEntity(UUID.randomUUID(),userId,lineId,MemorizationStatus.MEMORIZED));
+        save(ReadingSessionRatingEntity.class,new ReadingSessionRatingEntity(UUID.randomUUID(),readingId,userId,"good",null,
+                UUID.randomUUID(),java.time.Instant.now(),java.time.Instant.now()));
         entityManager.flush();
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(27);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(28);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
