@@ -41,9 +41,9 @@ import com.acttub.actingapi.platform.json.LenientJson;
 /**
  * 배우 기억 6칸의 저장 계층 (`db/store.py:PostgresStore.list_actor_memory` 외).
  *
- * <p><b>배우가 손댄 칸은 에이전트가 덮지 않는다.</b> 읽고 나서 판단하면 그 사이 배우가
- * 고친 것을 덮을 수 있어, 조건을 {@code ON CONFLICT ... WHERE} 안에 둬서 한 문장으로
- * 끝낸다 — 건너뛰면 {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
+ * <p><b>배우가 손댄 칸은 에이전트가 덮지 않는다.</b> 배우가 이 표에 쓰던 옛 경로는 내렸지만 그때 쓴 행이
+ * 남아 있다. 조건은 {@code ON CONFLICT ... WHERE} 안에 둬서 한 문장으로 끝낸다 — 건너뛰면
+ * {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
  */
 @Repository
 public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
@@ -90,12 +90,6 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 .toList();
     }
 
-    /** 배우가 직접 쓰거나 고친다. 항상 이긴다. */
-    @Override
-    public MemoryEntry writeAsActor(UUID userId, ActorMemoryField field, String value) {
-        return upsert(userId, field, value, ActorMemoryAuthor.ACTOR, null);
-    }
-
     /**
      * 에이전트가 갱신한다. 배우가 손댄 칸은 건드리지 않고 {@code null} 을 돌려준다 —
      * 부르는 쪽이 "덮어썼다" 고 착각하지 않게 하려는 것이다.
@@ -108,19 +102,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         if (!AgentMemoryWrites.allows(field.dbValue())) {
             return null;
         }
-        return upsert(userId, field, value, ActorMemoryAuthor.AGENT, sourcePracticeSessionId);
-    }
-
-    private MemoryEntry upsert(
-            UUID userId,
-            ActorMemoryField field,
-            String value,
-            ActorMemoryAuthor author,
-            UUID sourcePracticeSessionId) {
         OffsetDateTime stamp = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
-        String guard = author == ActorMemoryAuthor.ACTOR
-                ? "true"
-                : "actor_memory_entries.written_by <> 'actor'";
         return transaction.execute(status -> {
             List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                     WITH upserted AS (
@@ -137,30 +119,19 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                             written_by=EXCLUDED.written_by,
                             source_practice_session_id=EXCLUDED.source_practice_session_id,
                             updated_at=EXCLUDED.updated_at
-                        WHERE %s
+                        WHERE actor_memory_entries.written_by <> 'actor'
                         RETURNING field,value,written_by,source_practice_session_id
                     )
                     SELECT field,value,written_by,source_practice_session_id FROM upserted
-                    """.formatted(guard), Tuple.class)
+                    """, Tuple.class)
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("userId", userId)
                     .setParameter("field", field.dbValue())
                     .setParameter("value", value)
-                    .setParameter("author", author.dbValue())
+                    .setParameter("author", ActorMemoryAuthor.AGENT.dbValue())
                     .setParameter("sourcePracticeSessionId", sourcePracticeSessionId)
                     .setParameter("stamp", stamp));
             return rows.isEmpty() ? null : entry(rows.getFirst());
-        });
-    }
-
-    @Override
-    public void delete(UUID userId, ActorMemoryField field) {
-        transaction.executeWithoutResult(status -> {
-            if (field == null) {
-                entries.deleteAllByUserId(userId);
-            } else {
-                entries.deleteFieldByUserId(userId, field);
-            }
         });
     }
 

@@ -36,8 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>워커가 채우고 배우가 나중에 고친다. <b>그래서 이 화면이 이 기능의 안전판이다</b> — 워커가 잘못 적은 것을
  * 되돌릴 경로가 여기밖에 없다.
  *
- * <p><b>성별·나이 칸은 없다</b> — 프로필로 옮겼다(account.profile). 옛 여섯 칸 화면은
- * {@code /v2/legacy-me/memory} 에 남아 있고 옛 표를 읽는다.
+ * <p><b>성별·나이 칸은 없다</b> — 프로필로 옮겼다(account.profile).
  */
 @RestController
 @RequestMapping("/v2/me/memory")

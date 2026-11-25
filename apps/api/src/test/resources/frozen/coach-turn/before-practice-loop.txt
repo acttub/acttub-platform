@@ -91,7 +91,7 @@
     timestamp_stripped=false
     transport=gemini_direct_video
     video_budget_omitted=false
-    video_budget_tokens=4200
+    video_budget_tokens=840
     video_ms=(시간)
     video_omitted=false
     video_reused=false

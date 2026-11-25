@@ -206,7 +206,7 @@ class WebYearlyPlanTest {
     }
 
     @Test
-    @DisplayName("연 구독 자동결제가 거절돼 past_due 가 된 뒤 다시 시도해도 같은 금액·1년 기간이다")
+    @DisplayName("연 구독 자동결제가 거절돼 past_due 가 된 뒤 자동으로 다시 결제해도 같은 금액·1년 기간이다")
     void yearlyRetryKeepsThePlan() {
         Subscription sub = subscribe(yearlyOn, "yearly");
         RenewalWorker worker = new RenewalWorker(yearlyOn, repository, clock);
@@ -215,7 +215,8 @@ class WebYearlyPlanTest {
         worker.runOnce();
         assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.PAST_DUE);
 
-        yearlyOn.retry(user);
+        clock.advance(BillingRules.RETRY_DELAY);
+        worker.runOnce();
         Subscription after = repository.find(user).orElseThrow();
         assertThat(after.status()).isEqualTo(Status.ACTIVE);
         assertThat(after.periodEnd()).isEqualTo(Instant.parse("2028-10-23T01:00:00Z"));

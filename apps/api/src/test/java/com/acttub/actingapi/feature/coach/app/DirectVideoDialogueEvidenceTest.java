@@ -88,10 +88,9 @@ class DirectVideoDialogueEvidenceTest {
         assertThat(DirectVideoPrompts.practiceLoopEnglish()).contains("Do not quote dialogue, lip-read", "Silent acting");
     }
 
-    @Test void classifierOpeningUsesTheSameUnconfirmedAudioConstraint() {
-        assertThat(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.OPENING)))
-                .contains("음성이 없거나 알아듣기 어렵거나 확신할 수 없으면", "작성한 글로만 다루며", "무언 연기는")
-                .contains("음성이 없거나 불명확하면 보이는 구간만 쓰고 입모양으로 대사를 채우지 마라");
+    @Test void classifierRoutesUseTheSameUnconfirmedAudioConstraint() {
+        assertThat(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.GENERAL)))
+                .contains("음성이 없거나 알아듣기 어렵거나 확신할 수 없으면", "작성한 글로만 다루며", "무언 연기는");
     }
 
     @Test void unconfirmedSpeechIsHiddenFromTheActorAndReplayedIntoLaterHistory() {

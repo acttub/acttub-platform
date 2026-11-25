@@ -128,7 +128,7 @@ Boot 내장 logstash 형식)가 정한다. 로컬 `bootRun`과 테스트는 이 
 보낸 값을 믿지 않는다. `X-Request-Id`는 다른 뜻(본문 `request_id`와 같은지 보는 재전송 열쇠)이라 쓰지 않는다. web 서버가
 직접 API를 부르는 공유 미리보기(`/e/[id]`)는 헤더를 넘기지 않아 8080이 새 ID를 만든다.
 
-줄의 필드는 코드가 정한다. nginx는 [`deploy/home/proxy/nginx.conf`](../../deploy/home/proxy/nginx.conf)의 `log_format proxy`다. `port`가 `3000`이면 터널에서 들어온 줄(web까지 걸린 시간), `8080`이면 web이 api를 부른 줄(api까지 걸린 시간)이다. api는 logstash 형식의 공통 필드에 요청 안에서 `trace_id`·`user_id`(`TraceIdFilter`)를 더하고, 줄의 종류를 `message`로 가른다. `request`는 `TraceIdFilter`, `failure reported`는 `SentryFailureReporter`, `scheduled run`·`scheduled drain`은 `ScheduledTaskLog`가 남긴다. 줄에는 내부 사용자 ID만 싣고 이메일·닉네임·토큰과 예외 메시지는 싣지 않는다.
+줄의 필드는 코드가 정한다. nginx는 [`deploy/home/proxy/nginx.conf`](../../deploy/home/proxy/nginx.conf)의 `log_format proxy`다. `port`가 `3000`이면 터널에서 들어온 줄(web까지 걸린 시간), `8080`이면 web이 api를 부른 줄(api까지 걸린 시간)이다. api는 logstash 형식의 공통 필드에 요청 안에서 `trace_id`·`user_id`(`TraceIdFilter`)를 더하고, 줄의 종류를 `message`로 가른다. `request` 줄의 `client`는 클라이언트 버전 헤더(`X-Acttub-Client`)를 줄인 값이다. `app/1.1.2`·`web/0.1.0`처럼 정해진 꼴만 그대로이고, 그 밖은 `other`, 없으면 `none`이다(`ClientLabel`). 426으로 막힌 요청도 `route`와 함께 남는다. `request`는 `TraceIdFilter`, `failure reported`는 `SentryFailureReporter`, `scheduled run`·`scheduled drain`은 `ScheduledTaskLog`가 남긴다. 줄에는 내부 사용자 ID만 싣고 이메일·닉네임·토큰과 예외 메시지는 싣지 않는다.
 
 Sentry 이벤트에도 `trace_id` 태그를 붙여 로그와 잇는다. 주기 작업과 요청 스레드 밖(백그라운드 실행기)에서 남긴 줄에는
 `trace_id`·`user_id`가 없다.
@@ -248,7 +248,7 @@ sha256sum restore.dump   # 위 값과 같아야 한다
 
    | 스위치 | 끄는 작업 |
    |---|---|
-   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·대본 나누기·챌린지 AI 리포트·참여작 검사와 모자이크·포스터 워커(모델 호출, 분석 완료 푸시) |
+   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·대본 나누기·챌린지 AI 리포트·참여작 검사와 모자이크·포스터 워커(모델 호출, 분석 완료 푸시), 시한 지난 올리기 예약 정리(객체 삭제) |
    | `ACCOUNT_CLEANUP_ENABLED` | 정리 장부의 객체 삭제와 제공자 연결 해제 |
    | `ACCOUNT_HOUSEKEEPING_ENABLED` | 매일 정리 — 옮기지 않은 게스트 30일 파기, 탈퇴 3년 파기, 정리 장부 실행, 광고 노출 기록 정리 |
    | `BILLING_WEB_ENABLED` | 매월 자동결제(토스 실결제) |
