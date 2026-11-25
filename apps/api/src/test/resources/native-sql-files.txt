@@ -41,7 +41,7 @@ feature/consent/adapter/db/PostgresConsentRepository.java 4
 feature/feedback/adapter/db/PostgresExitSurveyStore.java 9
 feature/memory/adapter/db/PostgresActorMemoryStore.java 23
 feature/memory/adapter/db/PostgresMemoryRepository.java 8
-feature/portfolio/adapter/db/PostgresPortfolioRepository.java 20
+feature/portfolio/adapter/db/PostgresPortfolioRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(lockOrCreate). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/poster/adapter/db/PostgresPosterRepository.java 6
 feature/practice/adapter/db/PostgresLegacyPracticeReader.java 1
 feature/practice/adapter/db/PostgresPracticeRepository.java 30
