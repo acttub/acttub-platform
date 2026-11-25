@@ -47,14 +47,7 @@ class LegacyStorageCompatibilityIT {
         if (removeRetiredStorage) {
             // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다. 여기서 지우는 구조는
             // 코드가 읽고 쓰지 않으며, 다음 릴리스의 DROP 마이그레이션이 운영에서도 지운다(apps/api/CONTRACT.md §5-1).
-            jdbc.execute("DROP TABLE reports");
-            jdbc.execute("""
-                    ALTER TABLE summaries DROP COLUMN observation, DROP COLUMN summary,
-                        DROP COLUMN intent_alignment, DROP COLUMN key_moment, DROP COLUMN key_dimension
-                    """);
-            jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
-            jdbc.execute("ALTER TABLE users DROP COLUMN role");
-            jdbc.execute("ALTER TABLE ads DROP COLUMN academy_registration_no, DROP COLUMN course_name, DROP COLUMN tuition");
+            // 지금은 지울 은퇴 구조가 없다(V96~V99 가 모두 지웠다). 다음 은퇴 대상은 여기에 더한다(CONTRACT §5-1).
             // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
 
@@ -117,12 +110,12 @@ class LegacyStorageCompatibilityIT {
                 """, practice);
         jdbc.update("INSERT INTO transcripts(session_id,ord,text) VALUES (?,0,'과거 전체 대사')", practice);
         jdbc.update("""
-                INSERT INTO coach_sessions(id,practice_session_id,status,conversation_summary,close_reason)
-                VALUES (?,?,'closed','과거 대화 요약','user_ended')
+                INSERT INTO coach_sessions(id,practice_session_id,status,close_reason)
+                VALUES (?,?,'closed','user_ended')
                 """, coach, practice);
         jdbc.update("""
-                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,handoff_json)
-                VALUES (?,?,?,'analysis','{}'::jsonb)
+                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id)
+                VALUES (?,?,?)
                 """, handoff, coach, practice);
         jdbc.update("""
                 INSERT INTO practice_reports(practice_session_id,report_type,report_json,source_handoff_id)
@@ -139,7 +132,7 @@ class LegacyStorageCompatibilityIT {
         return Map.of(
                 "summary", jdbc.queryForMap("SELECT model,was_compressed FROM summaries WHERE session_id=?", practice),
                 "coach", jdbc.queryForMap("""
-                        SELECT conversation_summary,close_reason FROM coach_sessions WHERE practice_session_id=?
+                        SELECT close_reason FROM coach_sessions WHERE practice_session_id=?
                         """, practice),
                 "community", jdbc.queryForObject(
                         "SELECT to_jsonb(post)::text FROM community_posts post WHERE author_id=?",

@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.memory.adapter.db;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -14,154 +13,47 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.coach.app.CoachMemory;
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
-import com.acttub.actingapi.feature.memory.app.MemoryEntry;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
-import com.acttub.actingapi.feature.memory.app.MemoryRepository;
-import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.PythonText;
-import com.acttub.actingapi.platform.schema.ActorMemoryAuthor;
-import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
- * 배우 기억 6칸의 저장 계층 (`db/store.py:PostgresStore.list_actor_memory` 외).
+ * 코치가 대화를 시작할 때 읽는 지난 연습의 맥락(지난 대화 발췌, 장면 이력, 해 보기로 한 것). 기억 칸은
+ * {@link ActorMemoryStore} 에서 읽는다.
  *
- * <p><b>배우가 손댄 칸은 에이전트가 덮지 않는다.</b> 읽고 나서 판단하면 그 사이 배우가
- * 고친 것을 덮을 수 있어, 조건을 {@code ON CONFLICT ... WHERE} 안에 둬서 한 문장으로
- * 끝낸다 — 건너뛰면 {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
+ * <p>옛 기억 표({@code actor_memory_entries})를 읽고 쓰던 메서드는 그 표에 쓰던 옛 기억 갱신 워커·화면 경로와 함께
+ * 지웠다(SOMA-1140).
  */
 @Repository
-public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
+public class PostgresMemoryRepository implements CoachMemory {
     /** 차수 날짜는 배우가 보는 시간대로 적는다 — 자정 직전 연습이 "다른 날" 이 되면 어색하다. */
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
-    private final ActorMemoryEntryJpaRepository entries;
     private final EntityManager entityManager;
-    private final Clock clock;
     private final ObjectMapper mapper;
-    private final TransactionTemplate transaction;
     private final FailureReporter failureReporter;
     private final ActorMemoryStore actorMemories;
 
     public PostgresMemoryRepository(
-            ActorMemoryEntryJpaRepository entries,
             EntityManager entityManager,
-            Clock clock,
             ObjectMapper mapper,
-            PlatformTransactionManager transactionManager,
             FailureReporter failureReporter,
             ActorMemoryStore actorMemories) {
-        this.entries = entries;
         this.entityManager = entityManager;
-        this.clock = clock;
         this.mapper = mapper;
-        this.transaction = new TransactionTemplate(transactionManager);
         this.failureReporter = failureReporter;
         this.actorMemories = actorMemories;
     }
-
-    /**
-     * 빈 칸은 행이 없는 것이므로 6개보다 적게 돌아올 수 있다.
-     *
-     * <p><b>정렬은 화면이 읽는 칸 순서다</b> — 성별·나이·목표·막힘·자기 화술·실제 화술.
-     * 컬럼이 {@code actor_memory_field_t} 이던 시절에는 enum 정의 순서가 이 일을 대신했지만,
-     * text 가 된 지금은 그냥 두면 사전순({@code age, blockage, gender, …})으로 갈린다.
-     * 그래서 {@code CASE} 로 옛 순서를 못박는다 (SOMA-462).
-     */
-    @Override
-    public List<MemoryEntry> list(UUID userId) {
-        return entries.findOrderedByUserId(userId).stream()
-                .map(PostgresMemoryRepository::entry)
-                .toList();
-    }
-
-    /** 배우가 직접 쓰거나 고친다. 항상 이긴다. */
-    @Override
-    public MemoryEntry writeAsActor(UUID userId, ActorMemoryField field, String value) {
-        return upsert(userId, field, value, ActorMemoryAuthor.ACTOR, null);
-    }
-
-    private MemoryEntry upsert(
-            UUID userId,
-            ActorMemoryField field,
-            String value,
-            ActorMemoryAuthor author,
-            UUID sourcePracticeSessionId) {
-        OffsetDateTime stamp = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
-        String guard = author == ActorMemoryAuthor.ACTOR
-                ? "true"
-                : "actor_memory_entries.written_by <> 'actor'";
-        return transaction.execute(status -> {
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH upserted AS (
-                        INSERT INTO actor_memory_entries (
-                            id,user_id,field,value,written_by,
-                            source_practice_session_id,created_at,updated_at
-                        )
-                        VALUES (
-                            :id,:userId,:field,:value,:author,
-                            :sourcePracticeSessionId,:stamp,:stamp
-                        )
-                        ON CONFLICT ON CONSTRAINT uq_actor_memory_user_field DO UPDATE
-                        SET value=EXCLUDED.value,
-                            written_by=EXCLUDED.written_by,
-                            source_practice_session_id=EXCLUDED.source_practice_session_id,
-                            updated_at=EXCLUDED.updated_at
-                        WHERE %s
-                        RETURNING field,value,written_by,source_practice_session_id
-                    )
-                    SELECT field,value,written_by,source_practice_session_id FROM upserted
-                    """.formatted(guard), Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("userId", userId)
-                    .setParameter("field", field.dbValue())
-                    .setParameter("value", value)
-                    .setParameter("author", author.dbValue())
-                    .setParameter("sourcePracticeSessionId", sourcePracticeSessionId)
-                    .setParameter("stamp", stamp));
-            return rows.isEmpty() ? null : entry(rows.getFirst());
-        });
-    }
-
-    @Override
-    public void delete(UUID userId, ActorMemoryField field) {
-        transaction.executeWithoutResult(status -> {
-            if (field == null) {
-                entries.deleteAllByUserId(userId);
-            } else {
-                entries.deleteFieldByUserId(userId, field);
-            }
-        });
-    }
-
-    private static MemoryEntry entry(ActorMemoryEntryEntity entity) {
-        return new MemoryEntry(
-                entity.getField().dbValue(),
-                entity.getValue(),
-                entity.getWrittenBy() == ActorMemoryAuthor.ACTOR,
-                entity.getSourcePracticeSessionId());
-    }
-
-    private static MemoryEntry entry(Tuple row) {
-        return new MemoryEntry(
-                row.get("field", String.class),
-                row.get("value", String.class),
-                "actor".equals(row.get("written_by", String.class)),
-                row.get("source_practice_session_id", UUID.class));
-    }
-
 
     // --- 코치가 대화를 시작할 때 알고 있어야 하는 지난 것들 -----------------------
 

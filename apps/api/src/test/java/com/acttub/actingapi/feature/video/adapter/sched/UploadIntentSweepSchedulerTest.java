@@ -20,7 +20,7 @@ class UploadIntentSweepSchedulerTest {
             .withBean(VideoService.class, () -> mock(VideoService.class))
             .withBean(FailureReporter.class, RecordingFailureReporter::new);
 
-    /** 격리 복원은 {@code ANALYSIS_WORKER_ENABLED=false} 하나로 옛 정리와 이 정리를 함께 멈춘다. */
+    /** 격리 복원은 {@code ANALYSIS_WORKER_ENABLED=false} 하나로 다른 워커와 이 정리를 함께 멈춘다. */
     @Test
     @DisplayName("practice.record 예약 정리: 분석 워커 스위치나 예약 정리 스위치 가운데 하나라도 꺼지면 스케줄러가 없다")
     void eitherSwitchTurnsTheSweepOff() {

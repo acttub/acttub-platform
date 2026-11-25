@@ -62,9 +62,10 @@ NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라, 다
 
 ### 5-1. 운영 DB 접근은 JPA 로 일원화한다
 
-외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부에서
-단순 CRUD·조회는 Spring Data repository·JPQL·projection으로, PostgreSQL 의미가 필요한 연산은
-§5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
+외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부는
+Spring Data repository·JPQL·HQL·projection으로 구현하고, HQL로 같은 문장을 낼 수 없는 연산만
+`EntityManager` native SQL로 둔다(§5-2). 지금은 native SQL이 대부분이고 기능 영역마다 옮기는 중이다. 옮기는 법과
+native가 남은 자리의 목록은 §5-9에 있다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
 Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 저장소가 아직 native SQL로만 읽고 쓰는 테이블의 매핑(예:
@@ -73,16 +74,11 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
-- 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다. 지운다(아래 문단).
-- 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
-  `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
+- 옛 연습 흐름의 다섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
+  `practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
   `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
-  `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
-- `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
-  현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
-- `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다. 지운다(아래 문단).
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 이 값을 읽는다. `PostgresBillingRepository`는 프로필 이름이
   없을 때 대신 읽는다. `PostgresJournalRepository`는 배역 이름이 배우의 닉네임과 같으면 배역을 비우려고 읽는다.
@@ -92,10 +88,14 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
-구형 `reports`, `summaries`의 다섯 칸, `users.role`, 그리고 매핑 없이 남은 `practice_sessions.subtext`와
-`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`)은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
-쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
-마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
+구형 `reports`, `summaries`의 다섯 칸, `users.role`, `practice_sessions.subtext`, `ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`),
+`videos`의 크기 두 칸, `evening_reminder_sends`, `handoff_confirmations`, `coaching_handoffs.branch_kind`·`handoff_json`,
+`coach_sessions.conversation_summary`는 코드가 읽고 쓰지 않게 된 릴리스 다음에 V96~V99가 지웠다. 지우기 전 운영 값은 R2
+`acttub-db-backups` 버킷의 `archive/2026-11-25-dropped-tables/`에 CSV로 남겼다(`users.role`은 값별 행 수만, 값이 없던
+`videos`의 크기 두 칸과 `coach_sessions.conversation_summary`는 빼고). 조회 방법은 그 폴더의 `README.md`에 있고, 이 폴더는
+30일 자동 삭제 규칙 밖이다. 다음 은퇴 대상도 같은 순서를 따른다: 코드를 걷어내고 `LegacyStorageCompatibilityIT`가 그 구조를 지운
+격리 테스트 DB에서 기동과 현재 기능을 검증한 뒤, 그 상태가 운영에 나간 다음 릴리스에 DROP 마이그레이션을 넣는다
+([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
 
 목록의 나머지 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
 실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
@@ -117,14 +117,18 @@ repository만 Schema Entity를 사용할 수 있고, app·domain과 다른 featu
 허용한다. 그때는 명시적 fetch 계획과 쿼리 수 회귀 검사가 필요하다. 양방향 관계, JPA cascade,
 orphan removal은 금지하고 DB FK와 `ON DELETE CASCADE`를 유지한다.
 
-### 5-2. PostgreSQL 의미가 필요한 연산은 custom native SQL 로 남긴다
+### 5-2. PostgreSQL 의미가 필요한 연산은 한 문장 그대로 지킨다
 
 `UPDATE/INSERT … RETURNING`, `ON CONFLICT`, `DISTINCT ON`, 특정 행 잠금, 컬럼식 증감,
 JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조회 후 쓰기로 풀지 않는다.
+HQL 한 문장이 같은 SQL 을 내면 HQL 로 쓰고, 내지 못하면 custom native SQL 로 둔다(§5-9).
 
 - `@Modifying` 은 rowcount 만 반환하므로 **RETURNING 계열을 대체할 수 없다.**
 - `save()` 는 upsert가 아니며, 조회 후 쓰기는 **동시성 winner 판정을 깨뜨린다.**
 - `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 의미가 다르므로 기존 문장과 판정을 그대로 옮긴다.
+- JPA 로 거는 쓰기 잠금(`PESSIMISTIC_WRITE`)은 네이티브 SQL 처럼 `FOR UPDATE` 로 나간다. Hibernate 7.4 의 PostgreSQL 방언은
+  `FOR NO KEY UPDATE` 를 내서 FK 로 그 행을 가리키는 자식 행 INSERT 를 막지 않으므로, `platform/persistence/ForUpdatePostgreSQLDialect`
+  가 바꾼다(`application.yml` 의 `hibernate.dialect`). `PessimisticWriteLockIT` 가 실제로 나가는 문장과 막는 범위를 지킨다.
 - 반환 행은 data-modifying CTE(`WITH changed AS (… RETURNING …) SELECT …`)와
   `EntityManager.createNativeQuery(sql, Tuple.class)`의 **별칭 기반 `Tuple`**로 매핑한다.
   0행·1행·복합 행, DB 생성 UUID, transaction rollback, 행 잠금은
@@ -151,8 +155,8 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
 2. **앱이 만드는 PK 는 UUID 다**(`AppGeneratedUuidEntity`). 그 밖의 PK 모양: `push_tokens.id`는 DB default가 생성하고,
    회원당 하나인 `user_profiles`·`portfolios` 는 PK 가 `user_id` 로 **FK 겸 PK** 다. 날짜가 붙는 장부(`user_active_days`·
-   `evening_reminder_sends`·`practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
-   `anomalies` 는 BIGSERIAL(5번)이다. 엔티티 없이 native SQL 만 쓰는 `audition_postings` 도 bigint identity 다(§6-26).
+   `practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
+   `anomalies` 는 BIGSERIAL(5번)이다. `audition_postings` 도 bigint identity 다(§6-26).
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
@@ -162,15 +166,14 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 3. **`server_default` vs 앱 측 default 이원화.** JPA 에는 "앱 측 default" 개념이 없다. 필드
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
    활성 매핑의 `summaries.observations_json`/`.uncertainties_json`은 DB 기본값이 있고
-   null 로 두면 NOT NULL 위반이다. 매핑을 내린 `coach_sessions.conversation_summary`(`''`)의 DB 기본값도
-   그대로 보존한다.
+   null 로 두면 NOT NULL 위반이다.
 4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`,
    `external_operations.response_payload`(NULL 허용).
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
    응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
    SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
-5. **BIGSERIAL PK** — 활성 매핑에서는 `Anomaly.id` 하나다. `IDENTITY` 전략은 JDBC 배치 INSERT 를
-   막는다.
+5. **DB 가 매기는 bigint PK** — 활성 매핑에서는 `Anomaly.id`(BIGSERIAL)와 `AuditionPostingEntity.id`(identity)다.
+   `IDENTITY` 전략은 JDBC 배치 INSERT 를 막는다. 공고는 HQL upsert 로만 넣고 그 문장은 id 를 싣지 않는다.
 6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
    소유해야 하는 결정적 이유다.
    **개수도 목록도 문서에 박지 않는다** — `FlywayBaselineTest` 가 커밋된 fingerprint
@@ -298,7 +301,7 @@ ORDER BY CASE latest.type WHEN 'terms' THEN 1 WHEN 'privacy' THEN 2 WHEN 'ai_ana
 컬럼이 enum 이던 시절에는 **선언 순서**가 정렬 순서였고, 그 순서에 뜻이 실려 있었다.
 text 가 되면서 사전순으로 갈리므로, 순서가 화면에 보이는 두 곳은 `CASE` 로 옛 순서를
 고정했다 — 동의 문서 목록(`PostgresConsentRepository#listLatestDocuments`)과 배우 기억
-항목(`PostgresMemoryRepository#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
+항목(`PostgresActorMemoryStore#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
 
 ⚠ `DISTINCT ON` 이 붙은 질의는 `ORDER BY` 선행 표현식이 자기와 같기를 요구한다. 안쪽에
 `CASE` 를 넣으면 `SELECT DISTINCT ON expressions must match initial ORDER BY expressions` 로
@@ -320,6 +323,57 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `Object[]`는 쓰지 않는다. native bulk 앞의 pending 변경은 `flush`, 뒤의 managed entity는
 `clear`·재조회한다
 (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:explicitFlushAndClearPreserveNativeMutationOrderingAndVisibility`).
+
+### 5-9. native SQL 을 JPA 로 옮기는 법
+
+기능 영역(`feature/<이름>`) 하나씩 옮긴다. 옮기는 PR 은 그 영역의 저장소만 고치고 스키마·FK·마이그레이션·API 응답은 바꾸지 않는다.
+첫 사례는 `feature/transfer` 다(`PostgresTransferCodeRepository`·`GuestTransferCodeJpaRepository`). 매핑을 새로 만든 사례는
+`feature/support`(UUID PK, `RETURNING` 나누기)와 `feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)이다.
+
+**옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
+통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
+(예: `TransferCodeRepositoryIT`).
+
+1. 같은 입력에 같은 결과. 경계값(시한과 같은 시각, 없는 id, 0행)과 시각의 정밀도를 넣는다.
+2. 잠금 세기. 바깥 연결이 그 행을 `FOR KEY SHARE` 로 먼저 잡고 잠그는 메서드를 부른다. `FOR UPDATE` 는 그 뒤에서
+   기다리고, 기다리는 문장이 `pg_stat_activity` 에 남는다.
+3. 경합. 같은 행을 다투는 두 요청, 유일성이 걸린 동시 INSERT 처럼 승자를 DB 가 정하는 자리.
+4. 포트 메서드마다 나가는 문장의 수와 종류. `StatementInspector` 로 잡는다. 조건부 갱신이 읽고 쓰는 두 문장으로 풀리면
+   여기서 드러난다. 포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운 행
+   수를 부르기 앞뒤로 읽어 차이를 본다. 그 뷰에는 그 연결이 아직 내보내지 않은 앞 트랜잭션의 수도 섞여 있다
+   (`AuditionRepositoryIT`).
+
+**매핑을 새로 만들 때**: 엔티티를 `feature/<이름>/schema` 에 두고, `ActingApiApplication` 의 `@EntityScan` 목록과
+`PackageLayerTest` 의 층 목록에 더하고, `EntityMappingIT` 의 대기 목록에서 빼고 엔티티 수를 올린 뒤 옮긴다. 앱이 만드는 UUID
+PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOnSave` 에 더한다. DB 가 매기는 identity PK 는
+`@GeneratedValue(strategy = IDENTITY)` 이고 HQL insert 가 id 를 빼고 낸다.
+
+**모양마다 옮기는 법**
+
+- 매개변수: 시각은 `Instant` 를 그대로 넘긴다. §5-8 ② 의 `OffsetDateTime` 변환은 native 에만 필요하다. 나노초는 native 와
+  같게 마이크로초로 반올림된다. native 의 `CAST(:x AS text) IS NULL OR x = CAST(:x AS text)` 는 JPQL `:x is null or c.x = :x`
+  로 쓰면 null 도 그대로 된다. `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다.
+- 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
+  나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) 조인한 표를 모두
+  잠근다(inner join). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
+- 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 엔티티를 읽고 고쳐 저장하거나
+  Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
+  `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
+- `ON CONFLICT`: HQL `insert … values … on conflict [대상] do nothing | do update set … = excluded.…` 는 원본과 같은 꼴로
+  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. 엔티티에서
+  `insertable = false` 인 칸도 HQL insert 로 값을 넣는다. `insert … select … on conflict do update` 는 Hibernate 가 풀지 못한다.
+- `RETURNING`·데이터를 바꾸는 CTE: HQL 에 없다. UPDATE 는 JPQL UPDATE 뒤 같은 트랜잭션에서 다시 읽는다(고친 행은 이
+  트랜잭션이 잡고 있다). 영향 행 수가 0 이면 다시 읽지 않는다. 문장이 하나 는다(`PostgresSupportInquiryStore#setStatus`,
+  두 운영자 경합은 `SupportInquiryStoreIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
+  없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다.
+- JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다.
+
+**native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
+테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다.
+
+**native 가 남은 자리의 목록**은 `src/test/resources/native-sql-files.txt` 하나다. `NativeSqlInventoryTest` 가 코드와
+대조한다. 파일마다 자리 수를 적고, 까닭이 없는 줄은 아직 옮기지 않은 자리라 그 합은 줄기만 한다. 옮기지 않기로 한 자리는
+`남김:` 과 까닭을 붙인 줄로 둔다. 영역을 옮기면 그 줄을 빼고 테스트의 상한을 내린다.
 
 ## 6. 계약 보존 체크리스트
 
@@ -471,7 +525,13 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 > 제품 규칙의 정본: [common.md](../../docs/specs/common.md) 「게이트와 보호 기능」·「클라이언트 판과 강제 업데이트」(판정 순서, 게이트 밖 경로 표, 426 문장, `account_deactivated` 의 예외), [account.consent](../../docs/specs/account/consent.md)·[account.profile](../../docs/specs/account/profile.md)(동의·프로필 게이트가 세는 것)
 
 - **426** 은 `platform/security/ClientVersionFilter` 가 토큰 검증보다 먼저 낸다. 헤더를 보지 않는 경로는
-  `ClientVersionFilter#shouldNotFilter` 한 곳에 있다.
+  `ClientVersionFilter#shouldNotFilter` 한 곳에 있다. 경로 템플릿을 붙이는 `RoutePatternFilter` 는 이 필터보다 앞이라
+  426 요청도 지표 `uri`·로그 `route` 에 부른 경로가 남는다.
+- **버전 헤더를 로그·지표에 싣는 값**은 `platform/observability/ClientLabel` 이 줄인다 — `app`·`web` 에 숫자 마디 버전이
+  붙은 꼴만 그대로, 그 밖은 `other`, 없으면 `none`. 받은 글자를 그대로 싣지 않는다. 요청 로그의 `client` 칸은 이 값이다.
+  이 꼴만으로는 값 종류가 묶이지 않으므로(수조 가지, 헤더는 로그인 없이 누구나 보낸다) `acttub.http.requests.by.client`
+  지표는 `HttpRequestMetrics` 가 프로세스마다 처음 본 값을 `CLIENT_LIMIT` 가지까지만 제 이름으로 세고, 그 뒤의 새 값은
+  `other` 로 센다(§6-4 의 범위가 정해진 label).
 - **회원 게이트**는 `platform/security/ConsentGateInterceptor` 의 경로 목록(`OUTSIDE_THE_GATE`·`GUEST_ONLY`·
   `CONSENT_ONLY`)과 `AccessGate` 다. common.md 의 표와 이 목록은 같이 바꾼다. 회원과 웹 게스트(§6-9)는 같은
   `AccessGate#gatedUser` 가 주체를 보고 가른다.
@@ -649,8 +709,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   본문과 토큰은 싣지 않는다). receipt 는 읽지 않는다.
 - **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 선다.
   토큰 등록 때 `X-Acttub-Client` 의 앱 버전을 `push_tokens.app_version` 에 남기고(`ClientAppVersion`), 버전을 모르거나
-  `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25 `evening_reminder_sends`)의
-  코드는 지웠고 표와 검증용 매핑(`EveningReminderSendEntity`)만 남았다. 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25)은
+  코드와 보내기 장부를 모두 지웠다(V98). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
   보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
   탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 
@@ -922,8 +982,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   컬럼 셋(`request_id`·`request_fingerprint`·`video_id`), `users` 에 `exit_survey_asked_at`·`memory_epoch`. **옛
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
-  구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로와 옛 큐 워커(SOMA-1140)는 지웠다. 탈퇴는 옛 표의 상태를
-  고친다. `/v2/legacy-me/memory`는 `actor_memory_entries`에 쓴다.
+  구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로와 옛 큐 워커·옛 기억 화면(SOMA-1140)은 지웠다. 탈퇴는 옛 표의
+  상태를 고친다.
   전환의 순서와 옛 테이블을 지우는 때는
   specs/practice 「0.1.0 스키마 전환」이 정본이다.
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
@@ -1065,7 +1125,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     `v2`다. 관찰 기록도 신형 기록만 `video_record_v1`이고 구형은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만
     새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
     시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
-  - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`·`handoff_confirmations`는 새 표가 없어 옛 표에
+  - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`는 새 표가 없어 옛 표에
     남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
     새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
 - **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
@@ -1241,9 +1301,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 > 제품 규칙의 정본: [app.audition](../../docs/specs/app/audition.md)(열림·삭제 규칙, 저장 칸, 출처와 켜는 설정), 출처 등급은 ADR-034
 
-- 표는 `audition_postings`(V36)다. Schema Entity 없이 `feature/audition/adapter/db/PostgresAuditionRepository` 의 native
-  SQL 로만 읽고 쓴다 — 쓰기가 전부 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제라서다(§5-1·§5-2,
-  `EntityMappingIT` 의 대기 목록). PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`).
+- 표는 `audition_postings`(V36)이고 `AuditionPostingEntity` 가 매핑한다. `feature/audition/adapter/db/PostgresAuditionRepository`
+  가 HQL 로 읽고 쓴다 — 쓰기는 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제다(§5-2·§5-9).
+  PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`). HQL upsert 는 id 를 싣지 않는다.
   출처·분야 값 목록은 Java enum 없이 `AuditionRules` 의 `SOURCES`·`CATEGORIES` 와 CHECK 가 같은 선을 긋는다
   (`ValueCheckCatalogIT` 의 `WITHOUT_JAVA_ENUM`, 같은 선인지는 `AuditionSchemaMigrationTest`).
 - upsert 는 칸을 새 값으로 덮고 `last_seen_at` 만 그 시각으로 둔다. `first_seen_at` 은 처음 그대로다. `collected_at` 은 따로
@@ -1419,8 +1479,8 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-6. 직접 영상 코칭의 코드 자리
 
-> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: 연습 루프와 옛 대화의 분류·지침 경로)
 
-- 직접 영상: dev 임시 세션 API는 `DirectVideoController`(조건부 등록, 공개 OpenAPI에서 `@Hidden`), 임시 세션은
-  `DirectVideoSessions` → `DirectVideoRouting`, 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 열리는 조건과
+- 직접 영상: 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 연습 루프 전에 시작한 옛 대화의 후속 답만
+  `DirectVideoCoach` → `DirectVideoRouting`이 지침을 고른다. 열리는 조건과
   경로 선택은 practice.coach 「규칙·제약」의 경로 표와 「Gemini 직접 영상 코칭」에 있다.

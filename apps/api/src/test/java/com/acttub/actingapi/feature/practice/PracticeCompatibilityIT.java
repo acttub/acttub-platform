@@ -225,9 +225,8 @@ class PracticeCompatibilityIT {
     private UUID conversation(UUID practiceSessionId, String status, String createdAt) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO coach_sessions(id,practice_session_id,status,conversation_summary,
-                                           created_at,updated_at)
-                VALUES (?,?,?,'',?::timestamptz,?::timestamptz)
+                INSERT INTO coach_sessions(id,practice_session_id,status,created_at,updated_at)
+                VALUES (?,?,?,?::timestamptz,?::timestamptz)
                 """, id, practiceSessionId, status, createdAt, createdAt);
         return id;
     }
@@ -240,9 +239,8 @@ class PracticeCompatibilityIT {
     private UUID handoff(UUID practiceSessionId, UUID coachSessionId) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,
-                                              handoff_json,state_revision)
-                VALUES (?,?,?,'expression','{}'::jsonb,3)
+                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,state_revision)
+                VALUES (?,?,?,3)
                 """, id, coachSessionId, practiceSessionId);
         return id;
     }

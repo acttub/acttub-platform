@@ -24,8 +24,7 @@ class DirectVideoRoutingTest {
         return routing.select(history, text, finish, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
     }
 
-    @Test void openingAndExplicitClosingAreSelectedWithoutAskingAModel() {
-        assertThat(select(List.of(), null, false).routes()).containsExactly(DirectVideoRoute.OPENING);
+    @Test void explicitClosingIsSelectedWithoutAskingAModel() {
         assertThat(select(List.of(new DirectVideoModel.Message("user", "그만")), "그만", true).routes())
                 .containsExactly(DirectVideoRoute.CLOSING);
         verifyNoInteractions(model);

@@ -155,11 +155,10 @@ public final class CoachStorageFixtures {
                     practice_session_id,
                     summary_id,
                     status,
-                    conversation_summary,
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, '', ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 sessionId,
                 practiceSessionId,
@@ -224,16 +223,13 @@ public final class CoachStorageFixtures {
                     id,
                     coach_session_id,
                     practice_session_id,
-                    branch_kind,
-                    handoff_json,
                     created_at
                 )
-                VALUES (?, ?, ?, 'analysis', ?::jsonb, ?)
+                VALUES (?, ?, ?, ?)
                 """,
                 handoffId,
                 coachSessionId,
                 practiceSessionId,
-                handoffJson().toString(),
                 createdAt);
         return handoffId;
     }
@@ -267,12 +263,6 @@ public final class CoachStorageFixtures {
                 FROM coach_sessions
                 WHERE id = ?
                 """, String.class, sessionId);
-    }
-
-    public static JsonNode handoffJson() {
-        return JsonNodeFactory.instance.objectNode()
-                .put("handoff_type", "analysis")
-                .put("coach_summary", "상대를 붙잡는 목적을 찾았다");
     }
 
     public static JsonNode responsePayload(List<CoachTurnSnapshot> turns) {

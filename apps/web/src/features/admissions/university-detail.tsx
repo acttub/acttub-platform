@@ -23,6 +23,7 @@ import { ADMISSIONS_GUIDE_LINKS } from "@/features/keyword-pages/guide-links";
 import { answeredAdmissions } from "./answered";
 import {
   noticeStage,
+  practiceCalloutTitle,
   resultHistory,
   splitByYear,
   tipsByYear,
@@ -30,7 +31,11 @@ import {
   type AdmissionResultRow,
   type YearSection,
 } from "./by-year";
+import { PracticeCallout, StickyPracticeButton } from "./practice-callout";
 import { StatusLine } from "./status-line";
+
+const PRACTICE_CALLOUT_ID = "practice-callout";
+const PRACTICE_ACTION = "앱에서 실기 연습하기";
 
 export function UniversityDetailPage({
   universityId,
@@ -56,7 +61,7 @@ export function UniversityDetailPage({
   const university = payload.universities[0] ?? null;
 
   return (
-    <SiteLayout>
+    <SiteLayout stickyBottomSpace={university !== null}>
       <main className="h-full">
         <div className="mx-auto w-full max-w-[760px] px-5 py-10">
           <Link
@@ -91,6 +96,20 @@ export function UniversityDetailPage({
 
               <Digest
                 lines={universityDigest(payload.notices, university.tips, latestYear)}
+              />
+
+              <PracticeCallout
+                id={PRACTICE_CALLOUT_ID}
+                eyebrow={`${university.name} 실기 대비`}
+                title={practiceCalloutTitle(payload.notices, latestYear)}
+                body="연습할 대본을 넣고 상대역 목소리와 맞춰 보세요. 연기 영상은 AI 코치가 장면별로 봐 줘요."
+                action={PRACTICE_ACTION}
+                surface="admissions_detail"
+              />
+              <StickyPracticeButton
+                anchorId={PRACTICE_CALLOUT_ID}
+                action={PRACTICE_ACTION}
+                surface="admissions_detail"
               />
 
               {payload.notices.length === 0 ? (

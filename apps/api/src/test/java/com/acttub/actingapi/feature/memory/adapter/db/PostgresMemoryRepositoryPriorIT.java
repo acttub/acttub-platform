@@ -3,11 +3,9 @@ package com.acttub.actingapi.feature.memory.adapter.db;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acttub.actingapi.platform.observability.FailureKind;
-import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -374,35 +372,6 @@ class PostgresMemoryRepositoryPriorIT {
         assertThat(repository.priorContext(userId, fresh).earlierConversation()).isNull();
     }
 
-    @Test
-    void actorWritesKeepTheDisplayOrderAndCanBeDeleted() {
-        UUID userId = insertUser("memory-order@example.com");
-
-        repository.writeAsActor(userId, ActorMemoryField.SPEECH_ACTUAL, "실제 화법");
-        repository.writeAsActor(userId, ActorMemoryField.GENDER, "성별");
-        repository.writeAsActor(userId, ActorMemoryField.GOAL, "배우의 목표");
-        repository.writeAsActor(userId, ActorMemoryField.BLOCKAGE, "막힘");
-        repository.writeAsActor(userId, ActorMemoryField.AGE, "나이");
-        repository.writeAsActor(userId, ActorMemoryField.SPEECH_SELF, "스스로 본 화법");
-
-        assertThat(repository.list(userId).stream().map(entry -> entry.field()).toList())
-                .isEqualTo(List.of(
-                        "gender", "age", "goal", "blockage", "speech_self", "speech_actual"));
-        assertThat(repository.list(userId))
-                .filteredOn(entry -> entry.field().equals("goal"))
-                .singleElement()
-                .satisfies(entry -> {
-                    assertThat(entry.value()).isEqualTo("배우의 목표");
-                    assertThat(entry.writtenByActor()).isTrue();
-                    assertThat(entry.sourcePracticeSessionId()).isNull();
-                });
-
-        repository.delete(userId, ActorMemoryField.GOAL);
-        assertThat(repository.list(userId)).noneMatch(entry -> entry.field().equals("goal"));
-        repository.delete(userId, null);
-        assertThat(repository.list(userId)).isEmpty();
-    }
-
     private void setCreatedAt(UUID practiceId, OffsetDateTime at) {
         jdbc.update("UPDATE practice_sessions SET created_at=? WHERE id=?", at, practiceId);
     }
@@ -421,8 +390,8 @@ class PostgresMemoryRepositoryPriorIT {
         UUID handoffId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coaching_handoffs (
-                    id,coach_session_id,practice_session_id,branch_kind,handoff_json
-                ) VALUES (?, ?, ?, 'analysis', '{}'::jsonb)
+                    id,coach_session_id,practice_session_id
+                ) VALUES (?, ?, ?)
                 """, handoffId, coachId, practiceId);
         jdbc.update("""
                 INSERT INTO practice_reports (
@@ -486,8 +455,8 @@ class PostgresMemoryRepositoryPriorIT {
         UUID coachId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coach_sessions (
-                    id,practice_session_id,status,conversation_summary,created_at,updated_at
-                ) VALUES (?, ?, ?, '', ?, ?)
+                    id,practice_session_id,status,created_at,updated_at
+                ) VALUES (?, ?, ?, ?, ?)
                 """, coachId, practiceId, status, createdAt, createdAt);
         return coachId;
     }

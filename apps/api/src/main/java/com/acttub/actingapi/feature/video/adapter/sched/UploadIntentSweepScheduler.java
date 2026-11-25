@@ -15,8 +15,8 @@ import org.springframework.stereotype.Component;
  * <p>예약을 {@code FOR UPDATE SKIP LOCKED} 로 잡고 {@code pending} 인 것만 닫으므로 여러 프로세스가 함께 돌아도 한 예약은
  * 한 번만 닫힌다.
  *
- * <p>스위치는 포스터 워커와 같이 둘이고 둘 다 켜져야 돈다. {@code ANALYSIS_WORKER_ENABLED} 는 옛 정리를 끄는 스위치이기도
- * 하다 — 격리 복원 때 함께 끄는 스위치는 DEPLOY-HOME §7 2단계에 있다. {@code UPLOAD_INTENT_SWEEP_ENABLED} 는 이 일만 끈다.
+ * <p>스위치는 포스터 워커와 같이 둘이고 둘 다 켜져야 돈다. {@code ANALYSIS_WORKER_ENABLED} 는 뒤에서 도는 일을 함께 끄는
+ * 스위치다 — 격리 복원 때 함께 끄는 스위치는 DEPLOY-HOME §7 2단계에 있다. {@code UPLOAD_INTENT_SWEEP_ENABLED} 는 이 일만 끈다.
  * 테스트는 후자를 전역으로 끄고 {@link VideoService#sweepExpiredIntents} 를 직접 부른다.
  */
 @Component
