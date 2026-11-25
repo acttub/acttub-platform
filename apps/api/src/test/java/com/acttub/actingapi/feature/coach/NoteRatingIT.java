@@ -21,10 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -41,7 +38,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import(NoteRatingIT.Fixture.class)
+@Import(MutableClock.Fixture.class)
 class NoteRatingIT {
 
     @Autowired
@@ -275,14 +272,5 @@ class NoteRatingIT {
                 .getResponse();
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
         return response;
-    }
-
-    @TestConfiguration
-    static class Fixture {
-        @Bean
-        @Primary
-        MutableClock mutableClock() {
-            return new MutableClock(Instant.parse("2026-09-24T00:00:00Z"));
-        }
     }
 }
