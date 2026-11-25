@@ -5410,7 +5410,7 @@ export interface components {
          * ConsentType
          * @enum {string}
          */
-        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice" | "script_split" | "marketing_email" | "marketing_push";
+        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "data_sharing" | "cloud_voice" | "script_split" | "marketing_email" | "marketing_push";
         /** SignedInResponse */
         SignedInResponse: {
             /**

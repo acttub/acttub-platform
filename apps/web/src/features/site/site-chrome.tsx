@@ -178,9 +178,18 @@ export function SiteFooter({ showBadges = true }: { showBadges?: boolean }) {
 }
 
 /** 상단 메뉴 + 본문 + 바닥을 세로로 쌓는 껍데기. 입시·오디션처럼 앱 탭 없이 공개 사이트 메뉴를 쓰는 화면이 쓴다. */
-export function SiteLayout({ children }: { children: React.ReactNode }) {
+export function SiteLayout({
+  children,
+  stickyBottomSpace = false,
+}: {
+  children: React.ReactNode;
+  /** 모바일에서 화면 아래 고정 버튼(높이 72px + 안전 영역)이 푸터를 가리지 않게 맨 아래 여백을 둔다. */
+  stickyBottomSpace?: boolean;
+}) {
   return (
-    <div className="flex min-h-dvh flex-col bg-[#f8fbff]">
+    <div
+      className={`flex min-h-dvh flex-col bg-[#f8fbff] ${stickyBottomSpace ? "pb-[calc(72px+env(safe-area-inset-bottom))] sm:pb-0" : ""}`}
+    >
       <SiteHeader current="home" />
       <div className="min-w-0 flex-1">{children}</div>
       <SiteFooter showBadges={false} />
