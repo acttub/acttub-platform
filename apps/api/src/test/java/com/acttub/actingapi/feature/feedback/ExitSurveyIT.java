@@ -44,7 +44,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import(ExitSurveyIT.Fixture.class)
+@Import({MutableClock.Fixture.class, ExitSurveyIT.Fixture.class})
 class ExitSurveyIT {
 
     @Autowired
@@ -105,13 +105,15 @@ class ExitSurveyIT {
     @DisplayName("practice.feedback: 그냥 나가기는 body 없는 행으로 남고, 한 계정에 한 번만 묻는다 — 두 기기가 "
             + "동시에 자동 노출 조건이어도 선점한 하나만 시트를 띄운다")
     void practiceFeedback_asksOncePerAccount() throws Exception {
-        assertThat(json(get("/v2/me/practice-feedback/status"), 200).path("asked").booleanValue(false)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT exit_survey_asked_at FROM users WHERE id=?", Object.class, member))
+                .isNull();
 
         JsonNode first = json(post("/v2/me/practice-feedback/claim"), 200);
         JsonNode second = json(post("/v2/me/practice-feedback/claim"), 200);
         assertThat(first.path("asked_now").booleanValue(false)).isTrue();
         assertThat(second.path("asked_now").booleanValue(false)).isFalse();
-        assertThat(json(get("/v2/me/practice-feedback/status"), 200).path("asked").booleanValue(false)).isTrue();
+        assertThat(first.path("asked").booleanValue(false)).isTrue();
+        assertThat(second.path("asked").booleanValue(false)).isTrue();
         assertThat(jdbc.queryForObject("SELECT exit_survey_asked_at FROM users WHERE id=?", Object.class, member))
                 .isNotNull();
 
@@ -297,12 +299,6 @@ class ExitSurveyIT {
         @Primary
         RecordingSheet recordingSheet() {
             return new RecordingSheet();
-        }
-
-        @Bean
-        @Primary
-        MutableClock mutableClock() {
-            return new MutableClock(Instant.parse("2026-09-21T00:00:00Z"));
         }
     }
 

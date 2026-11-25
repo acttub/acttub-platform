@@ -17,10 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -32,7 +29,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "DEVELOPMENT_AUTH_PROVIDER=1",
         "GOOGLE_OAUTH_CLIENT_ID="})
 @AutoConfigureMockMvc
-@Import(AuthErrorContractIT.FailureReporterFixture.class)
+@Import(RecordingFailureReporter.Fixture.class)
 class AuthErrorContractIT {
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -199,14 +196,5 @@ class AuthErrorContractIT {
         MvcResult result = mvc.perform(request).andReturn();
         assertThat(result.getResponse().getStatus()).isEqualTo(status);
         return JSON.readTree(result.getResponse().getContentAsString());
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class FailureReporterFixture {
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
-        }
     }
 }

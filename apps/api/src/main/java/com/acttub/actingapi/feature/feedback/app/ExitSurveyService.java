@@ -66,11 +66,6 @@ public class ExitSurveyService {
         return accepted;
     }
 
-    /** 이미 물어봤는지만 본다 — 화면을 띄우기 전의 조회이고 표식을 건드리지 않는다. */
-    public boolean asked(UUID userId) {
-        return store.asked(userId);
-    }
-
     /**
      * 자동 노출 직전의 선점. <b>참을 받은 기기만 시트를 띄운다.</b>
      *

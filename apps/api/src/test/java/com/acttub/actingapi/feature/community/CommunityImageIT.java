@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -14,14 +13,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.community.app.CommunityImageService;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,10 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -45,7 +40,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, CommunityImageIT.StorageFixture.class})
+@Import({MutableClock.Fixture.class, FakeObjectStorage.Fixture.class, RecordingFailureReporter.Fixture.class})
 class CommunityImageIT {
 
     @Autowired MockMvc mvc;
@@ -53,7 +48,7 @@ class CommunityImageIT {
     @Autowired ObjectMapper mapper;
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
-    @Autowired FakeStorage storage;
+    @Autowired FakeObjectStorage storage;
     @Autowired CommunityImageService images;
 
     UUID me;
@@ -62,7 +57,7 @@ class CommunityImageIT {
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
-        storage.objects.clear();
+        storage.clear();
         clock.set(Instant.now().truncatedTo(ChronoUnit.SECONDS));
         me = member("나");
         other = member("다른 배우");
@@ -264,50 +259,5 @@ class CommunityImageIT {
         List<String> values = new ArrayList<>();
         array.forEach(node -> values.add(node.path("id").stringValue(null)));
         return values;
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class StorageFixture {
-        @Bean
-        @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-    }
-
-    /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. */
-    static final class FakeStorage implements ObjectStorage {
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, "image/jpeg", "etag");
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void upload(String objectKey, String mimeType, Path source) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            objects.remove(objectKey);
-        }
     }
 }

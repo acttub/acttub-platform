@@ -90,14 +90,6 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
         });
     }
 
-    @Override
-    public boolean asked(UUID userId) {
-        return !NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id FROM users WHERE id=:userId AND exit_survey_asked_at IS NOT NULL
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
-    }
-
     /** 한 문장으로 선점한다 — 이긴 쪽만 1행을 갱신하고 진 쪽은 0행이다. */
     @Override
     public boolean claimAsk(UUID userId, Instant now) {

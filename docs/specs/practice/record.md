@@ -15,6 +15,7 @@
 |---|---|---|---|
 | `POST /v2/videos/intents` | `X-Request-Id`(있으면 본문 request_id와 같아야 한다), 필수 `request_id`·`content_type`(video/mp4·video/quicktime)·`byte_size`·`duration_ms` (`VideoIntentRequest`) | `VideoIntent` 201(올릴 주소·만료 시각), 같은 요청 id는 같은 자리 | `video_too_large` 422, `video_too_long` 422, `video_quota` 422, `request_fingerprint_mismatch` 422, 그 밖의 형식 422(배열), `consent_required` 403 |
 | `POST /v2/videos/intents/{intent_id}/complete` | intent_id, 선택 본문 `{"face_mosaic": true}`(`VideoIntentCompleteRequest`, 없으면 예전과 같다. true 면 첫 질문용 미리 올리기를 시작하지 않는다 — [practice.start](start.md#규칙제약) 얼굴 가리기) | `Video` 201(새로 만듦)·200(재전송) | `upload_expired` 422, `video_not_ready` 422(아직 안 올라옴·크기 불일치), `video_quota` 422, `upload_intent_not_found` 404, `consent_required` 403 |
+| `UploadIntentSweepScheduler.run` (`UPLOAD_INTENT_SWEEP_INTERVAL_MS`, 기본 60초) | 시한이 지난 `pending` 예약(한 번에 200개씩, 없을 때까지) | 예약 `expired`, 미확정 객체 삭제를 장부(`object_delete`)에 올림 | 객체 삭제 실패는 장부가 다시 시도한다. 그 밖의 실패는 보고하고 다음 주기에 다시 돈다 |
 | `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 시한이 지난 `pending` 예약 | 예약 `expired`, 미확정 객체 삭제 | 객체 삭제 실패는 보고만 한다(열린 질문) |
 
 ## 상태
@@ -97,6 +98,7 @@ videos — 보관함 영상 행.
 - 원본 영상의 서버 보관. 서버에는 720px로 줄인 업로드본만 둔다.
 
 ## 열린 질문
-- 시한 지난 예약의 정리 경로가 규칙과 다르다. `VideoService.sweepExpiredIntents`(expired로 닫고 객체 삭제를 장부에 올림)는 부르는 곳이
-  없다. 지금은 옛 분석 워커의 정리(`AnalysisWorkerScheduler.sweep` → `PostgresAnalysisStore.sweepExpiredUploads`)가 시한 지난 pending
-  예약을 모두 expired로 닫고 객체를 장부 없이 바로 지운다. 삭제가 실패하면 다시 지우지 않고, 옛 워커가 사라지면 정리하는 곳이 없다.
+- 시한 지난 예약을 닫는 길이 둘이다(SOMA-1140). 새 주기 작업(`UploadIntentSweepScheduler.run` → `VideoService.sweepExpiredIntents`)은
+  expired로 닫고 객체 삭제를 장부에 올린다. 옛 분석 워커의 정리(`AnalysisWorkerScheduler.sweep` → `PostgresAnalysisStore.sweepExpiredUploads`)는
+  객체를 장부 없이 바로 지우고, 삭제가 실패하면 다시 지우지 않는다. 옛 큐 워커를 지울 때까지 둘이 함께 돌며 한 예약은 한쪽만 닫는다
+  (새 쪽은 `FOR UPDATE SKIP LOCKED`, 옛 쪽은 `pending`인 행만 바꾼다). 옛 워커를 지우면 이 질문은 닫힌다.

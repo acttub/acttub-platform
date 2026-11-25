@@ -55,9 +55,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACTTUB_THREE_LAYERS_ENABLED=true",
-    // 겹쳐 온 이어하기 둘이 저마다 커넥션을 쥔 채 묶음 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"})
+    "ACTTUB_THREE_LAYERS_ENABLED=true"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, PracticeLifecycleIT.Fixture.class})
 class PracticeLifecycleIT {

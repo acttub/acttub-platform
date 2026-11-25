@@ -920,7 +920,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
   구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로는 지웠다. 다만 옛 큐 워커(§5-7)는 옛 분석을 `summaries`에
-  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. `/v2/legacy-me/memory`는 `actor_memory_entries`에 쓴다.
+  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. 옛 기억 갱신 워커는 `actor_memory_entries`에 쓴다.
   전환의 순서와 옛 테이블을 지우는 때는
   specs/practice 「0.1.0 스키마 전환」이 정본이다.
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
@@ -937,6 +937,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     서비스가 한다.
   - 시한이 지난 마무리는 예약을 `expired` 로 닫으며 **미확정 객체의 삭제를 같은 트랜잭션에서 장부**(`object_delete`)에
     올린다.
+  - 마무리 없이 시한이 지난 예약은 `video/adapter/sched/UploadIntentSweepScheduler` 가 60초마다(`UPLOAD_INTENT_SWEEP_INTERVAL_MS`)
+    200개씩 `FOR UPDATE SKIP LOCKED` 로 잡아 같은 방식으로 닫는다. 옛 분석 워커의 정리(`PostgresAnalysisStore.sweepExpiredUploads`)가
+    같은 일을 겸하므로 옛 큐 워커를 지울 때까지 함께 돈다. 스위치는 포스터와 같이 `ANALYSIS_WORKER_ENABLED` 와
+    `UPLOAD_INTENT_SWEEP_ENABLED`(테스트는 후자를 전역으로 끈다)다.
   - 목록의 커서는 저장 시각과 id 다.
   - 삭제는 참조 확인과 삭제를 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다). 지운 영상과 포스터
     객체는 장부로 간다. 파일만 파기해도 `poster_key` 는 `object_key` 처럼 행에 남지만 객체는 없다.
@@ -1414,8 +1418,8 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-6. 직접 영상 코칭의 코드 자리
 
-> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」: 연습 루프와 옛 대화의 분류·지침 경로)
 
-- 직접 영상: dev 임시 세션 API는 `DirectVideoController`(조건부 등록, 공개 OpenAPI에서 `@Hidden`), 임시 세션은
-  `DirectVideoSessions` → `DirectVideoRouting`, 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 열리는 조건과
+- 직접 영상: 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 연습 루프 전에 시작한 옛 대화의 후속 답만
+  `DirectVideoCoach` → `DirectVideoRouting`이 지침을 고른다. 열리는 조건과
   경로 선택은 practice.coach 「규칙·제약」의 경로 표와 「Gemini 직접 영상 코칭」에 있다.

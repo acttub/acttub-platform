@@ -191,7 +191,8 @@ class SubscriptionServiceTest {
         gateway.nextFailures.push(FakeGateway.rejected());
         worker.runOnce();
         assertThat(mails).hasSize(1);
-        service.retry(user);
+        clock.advance(BillingRules.RETRY_DELAY);
+        worker.runOnce();
         assertThat(mails).hasSize(2);
         assertThat(mails.get(1).first()).isFalse();
         assertThat(mails.get(1).periodStart()).isEqualTo(sub.periodEnd());
@@ -399,22 +400,6 @@ class SubscriptionServiceTest {
         // 시도마다 다른 주문 ID — 실패한 주문을 다시 쓰지 않는다.
         assertThat(repository.payments.values().stream().filter(p -> "renewal".equals(p.kind())).map(p -> p.orderId()).distinct())
                 .hasSize(4);
-    }
-
-    @Test
-    @DisplayName("past_due 에서 「다시 시도」가 성공하면 active 로 돌아가고, 두 번 눌러도 두 번 결제되지 않는다")
-    void manualRetry() {
-        Subscription sub = subscribe();
-        clock.set(sub.periodEnd());
-        gateway.nextFailures.push(FakeGateway.rejected());
-        worker.runOnce();
-        assertThat(service.view(user).status()).isEqualTo("past_due");
-
-        SubscriptionService.View retried = service.retry(user);
-        assertThat(retried.status()).isEqualTo("active");
-        assertThat(retried.pro()).isTrue();
-        assertThatThrownBy(() -> service.retry(user)).hasMessageContaining("not_past_due");
-        assertThat(gateway.approvedOrders).hasSize(2);
     }
 
     @Test
