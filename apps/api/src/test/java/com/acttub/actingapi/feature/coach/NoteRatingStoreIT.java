@@ -174,12 +174,13 @@ class NoteRatingStoreIT {
     void eachPortMethodSendsTheseStatements() {
         UUID request = UUID.randomUUID();
 
+        // 넣거나 덮어쓴 뒤 같은 트랜잭션에서 다시 읽는다(RETURNING 을 나눴다 — 문장이 하나 는다).
         assertThat(tools.sent(() -> ratings.save(member, practice, request, "helpful", "좋았어요", now))).as("새 평가")
-                .isEqualTo(new Sent(1, List.of(USER_LOCK, FIND_NOTE, RATING, "with note_ratings,written")));
+                .isEqualTo(new Sent(1, List.of(USER_LOCK, FIND_NOTE, RATING, "insert note_ratings", RATING)));
         assertThat(tools.sent(() -> ratings.save(member, practice, UUID.randomUUID(), "not_helpful", null, now))).as("덮어쓰기")
-                .isEqualTo(new Sent(1, List.of(USER_LOCK, FIND_NOTE, RATING, "with note_ratings,written")));
+                .isEqualTo(new Sent(1, List.of(USER_LOCK, FIND_NOTE, RATING, "insert note_ratings", RATING)));
         assertThat(tools.sent(() -> ratings.save(member, practice, request, "helpful", "좋았어요", now))).as("다른 요청 뒤의 옛 요청 id")
-                .isEqualTo(new Sent(1, List.of(USER_LOCK, FIND_NOTE, RATING, "with note_ratings,written")));
+                .isEqualTo(new Sent(1, List.of(USER_LOCK, FIND_NOTE, RATING, "insert note_ratings", RATING)));
         assertThat(tools.sent(() -> ratings.save(member, practice, request, "helpful", "좋았어요", now))).as("재전송")
                 .isEqualTo(new Sent(1, List.of(USER_LOCK, FIND_NOTE, RATING)));
         assertThat(tools.sent(() -> ratings.save(member, tools.practice(member), UUID.randomUUID(), "helpful", null, now)))
