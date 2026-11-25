@@ -40,9 +40,6 @@ public interface ExitSurveyStore {
     record Accepted(UUID id, boolean created) {
     }
 
-    /** 이 계정에 이미 물어봤는가 (users.exit_survey_asked_at). */
-    boolean asked(UUID userId);
-
     /**
      * 노출 표식을 <b>원자적으로 선점</b>한다 — 두 기기가 동시에 자동 노출 조건이어도 하나만 참을 받는다.
      *

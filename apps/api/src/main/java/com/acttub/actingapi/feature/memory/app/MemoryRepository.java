@@ -18,9 +18,6 @@ public interface MemoryRepository {
     /** 채워진 칸만 돌아온다 — 빈 칸은 행이 없으므로 여섯 개보다 적을 수 있다. */
     List<MemoryEntry> list(UUID userId);
 
-    /** 배우가 직접 쓰거나 고친다. 항상 이긴다. */
-    MemoryEntry writeAsActor(UUID userId, ActorMemoryField field, String value);
-
     /**
      * 에이전트가 갱신한다.
      *
@@ -29,9 +26,6 @@ public interface MemoryRepository {
      */
     MemoryEntry writeAsAgent(
             UUID userId, ActorMemoryField field, String value, UUID sourcePracticeSessionId);
-
-    /** {@code field} 가 {@code null} 이면 그 배우의 기억을 통째로 지운다. */
-    void delete(UUID userId, ActorMemoryField field);
 
     /** 갱신 잡이 읽을 재료. 연습이 지워졌으면 {@code null}. */
     MemoryUpdateMaterial material(UUID practiceSessionId);
