@@ -55,7 +55,6 @@ class PostgresProfileRepository
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
             AccountErasureStep.MEDIA_OBJECTS,
             AccountErasureStep.READING,
-            AccountErasureStep.VIDEO_FILES,
             AccountErasureStep.AI_JOBS,
             AccountErasureStep.ACTOR_JOURNALS,
             AccountErasureStep.PRACTICE_FEEDBACK,
@@ -825,10 +824,6 @@ class PostgresProfileRepository
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
             case READING -> eraseReading(userId, account.retainMedia(), now);
-            case VIDEO_FILES -> {
-                lockAndPurgeVideos(userId, account.retainMedia(), now);
-                yield List.of();
-            }
             case AI_JOBS -> {
                 cancelAiJobs(userId, now);
                 yield List.of();
@@ -877,7 +872,7 @@ class PostgresProfileRepository
                 yield List.of();
             }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE,
-                    COMMUNITY_IMAGES ->
+                    COMMUNITY_IMAGES, VIDEO_FILES ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -1005,30 +1000,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /**
-     * 0.1.0 영상의 파기 (specs/practice 「연습 자료의 이관·삭제·탈퇴」). <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 —
-     * 회차·참여작의 기록이 깨지지 않고, 재생이 막히며, 총량에서 빠진다. 객체는 {@link #videoKeys} 가 장부로 보냈다. 보관
-     * 동의자의 영상은 3년 뒤({@link #purgeRetained}) 같은 자리에서 찍힌다. {@code practices}·{@code analyses}·{@code coach_*}·
-     * {@code video_transcripts} 는 사람과 끊어 남긴다 — 지우지 않는다.
-     *
-     * <p>먼저 이 사람의 영상 행을 잡는다 — 회차를 만드는 쪽이 같은 행을 잡으므로 겹쳐도 순서가 정해진다.
-     */
-    private void lockAndPurgeVideos(UUID userId, boolean retainMedia, Instant now) {
-        list(entityManager.createNativeQuery(
-                "SELECT id FROM videos WHERE user_id=:userId FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
-        if (!retainMedia) {
-            entityManager.createNativeQuery("""
-                    UPDATE videos
-                    SET purged_at=:now,updated_at=:now
-                    WHERE user_id=:userId AND purged_at IS NULL
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-        }
     }
 
     /**
