@@ -149,4 +149,9 @@ interface EntryReportJpaRepository extends Repository<EntryReportEntity, UUID> {
                or (r.targetType = COMMENT and r.targetId in (select c.id from EntryCommentEntity c where c.entryId = :entryId))
             """)
     int purgeCopiesOfEntry(UUID entryId);
+
+    /** 처리한 지 보관 기간이 지난 신고를 지운다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from EntryReportEntity r where r.status = REVIEWED and r.reviewedAt < :before")
+    int deleteReviewedBefore(Instant before);
 }

@@ -71,4 +71,9 @@ interface EntryAiReportJpaRepository extends Repository<EntryAiReportEntity, UUI
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update EntryAiReportEntity r set r.result = null, r.purgedAt = :now where r.entryId = :entryId")
     int purge(UUID entryId, Instant now);
+
+    /** 파기한 지 보관 기간이 지난 리포트의 이력을 지운다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from EntryAiReportEntity r where r.purgedAt < :before")
+    int deletePurgedBefore(Instant before);
 }

@@ -120,4 +120,16 @@ interface ChallengeJpaRepository extends Repository<ChallengeEntity, UUID> {
             from ChallengeEntity c where c.id = :id
             """)
     Optional<Window> findWindow(UUID id);
+
+    // ---- 참여작 목록 ----
+
+    record Listed(UUID id, ChallengeRankingState rankingState) { }
+
+    /** 지금 보이는(지우지 않았고 visible 이며 시작한) 챌린지의 순위 상태. */
+    @Query("""
+            select new com.acttub.actingapi.feature.challenge.adapter.db.ChallengeJpaRepository$Listed(c.id, c.rankingState)
+            from ChallengeEntity c
+            where c.id = :id and c.deletedAt is null and c.moderation = VISIBLE and c.startsAt <= :now
+            """)
+    Optional<Listed> findListed(UUID id, Instant now);
 }

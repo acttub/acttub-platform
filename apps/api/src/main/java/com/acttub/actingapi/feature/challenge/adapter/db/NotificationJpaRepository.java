@@ -92,4 +92,9 @@ interface NotificationJpaRepository extends Repository<NotificationEntity, UUID>
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from NotificationEntity n where n.entryId = :entryId")
     int deleteOfEntry(UUID entryId);
+
+    /** 보관 기간(90일)이 지난 알림을 지운다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from NotificationEntity n where n.expiresAt <= :now")
+    int deleteExpired(Instant now);
 }

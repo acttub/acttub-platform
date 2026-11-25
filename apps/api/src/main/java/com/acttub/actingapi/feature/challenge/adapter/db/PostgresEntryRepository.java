@@ -44,6 +44,9 @@ class PostgresEntryRepository implements EntryRepository {
     private final EntrySaveJpaRepository saves;
     private final EntryCommentJpaRepository comments;
     private final EntryReportJpaRepository reports;
+    private final NotificationPushJpaRepository pushes;
+    private final EntryViewEventJpaRepository viewEvents;
+    private final EntryRankingSnapshotJpaRepository snapshots;
     private final ChallengeSettlement settlement;
     private final EntryCards cards;
     private final EntryLocks locks;
@@ -57,11 +60,13 @@ class PostgresEntryRepository implements EntryRepository {
     PostgresEntryRepository(EntityManager em, ChallengeEntryJpaRepository entries, ChallengeJpaRepository challenges,
                             NotificationJpaRepository notifications, EntryAiReportJpaRepository aiReports, EntryLikeJpaRepository likes,
                             EntrySaveJpaRepository saves, EntryCommentJpaRepository comments, EntryReportJpaRepository reports,
-                            ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
+                            NotificationPushJpaRepository pushes, EntryViewEventJpaRepository viewEvents,
+                            EntryRankingSnapshotJpaRepository snapshots, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
                             PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup,
                             UnseenEntryBoost unseen) {
         this.em = em; this.entries = entries; this.challenges = challenges; this.notifications = notifications;
         this.aiReports = aiReports; this.likes = likes; this.saves = saves; this.comments = comments; this.reports = reports;
+        this.pushes = pushes; this.viewEvents = viewEvents; this.snapshots = snapshots;
         this.settlement = settlement; this.cards = cards; this.locks = locks; this.failures = failures;
         this.cleanup = cleanup; this.unseen = unseen;
         this.transaction = new TransactionTemplate(transactions);
@@ -339,14 +344,8 @@ class PostgresEntryRepository implements EntryRepository {
                 Tuple.class).setParameter("id", entryId).setParameter("viewer", viewer));
         if (rows.isEmpty()) throw new ApiException(404, "entry_not_found");
         if (viewer.equals(rows.getFirst().get("user_id", UUID.class))) return false;
-        int inserted = em.createNativeQuery("""
-                INSERT INTO entry_view_events(event_id,entry_id,user_id,created_at) VALUES (:event,:entry,:viewer,:now)
-                ON CONFLICT (event_id) DO NOTHING
-                """).setParameter("event", eventId).setParameter("entry", entryId).setParameter("viewer", viewer)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-        if (inserted == 0) return false;
-        em.createNativeQuery("UPDATE challenge_entries SET view_count=view_count+1 WHERE id=:id")
-                .setParameter("id", entryId).executeUpdate();
+        if (viewEvents.insertUnlessSeen(eventId, entryId, viewer, now) == 0) return false;
+        entries.countView(entryId);
         return true;
     }
 
@@ -355,12 +354,8 @@ class PostgresEntryRepository implements EntryRepository {
         // 마감이 지났는데 아직 집계 전이면 읽기 전에 집계한다 — 그 사이 변경이 없었으므로 값은 마감 시점 그대로다.
         transaction.executeWithoutResult(tx -> settlement.aggregateIfDue(challengeId, now));
         return transaction.execute(tx -> {
-            var challenge = NativeTuples.list(em.createNativeQuery("""
-                    SELECT ranking_state,ends_at FROM challenges
-                    WHERE id=:id AND deleted_at IS NULL AND moderation='visible' AND starts_at<=:now
-                    """, Tuple.class).setParameter("id", challengeId).setParameter("now", now.atOffset(ZoneOffset.UTC)));
-            if (challenge.isEmpty()) throw new ApiException(404, "challenge_not_found");
-            String state = challenge.getFirst().get("ranking_state", String.class);
+            var challenge = challenges.findListed(challengeId, now).orElseThrow(() -> new ApiException(404, "challenge_not_found"));
+            String state = challenge.rankingState() == null ? null : challenge.rankingState().dbValue();
             return "latest".equals(sort) ? latest(viewer, challengeId, cursor, fromEntry, state)
                     : byLikes(viewer, challengeId, cursor, fromEntry, state == null ? "live" : state, state, now);
         });
@@ -372,10 +367,8 @@ class PostgresEntryRepository implements EntryRepository {
                 "SELECT e.id " + ChallengeVisibility.ENTRY_FROM + " WHERE e.id=:id AND " + ChallengeVisibility.PUBLIC_ENTRY
                         + " AND " + ChallengeVisibility.UNBLOCKED, Tuple.class)
                 .setParameter("id", entryId).setParameter("viewer", viewer));
-        var own = NativeTuples.list(em.createNativeQuery(
-                "SELECT id FROM challenge_entries WHERE id=:id AND user_id=:viewer AND status<>'deleted'", Tuple.class)
-                .setParameter("id", entryId).setParameter("viewer", viewer));
-        if (visible.isEmpty() && own.isEmpty()) throw new ApiException(404, "entry_not_found");
+        boolean own = entries.findLiveOwnedBy(entryId, viewer).isPresent();
+        if (visible.isEmpty() && !own) throw new ApiException(404, "entry_not_found");
         return cards.cards(viewer, List.of(entryId), Map.of(), null, true).getFirst();
     }
 
@@ -439,20 +432,14 @@ class PostgresEntryRepository implements EntryRepository {
             }
         }
         transaction.executeWithoutResult(tx -> {
-            em.createNativeQuery("DELETE FROM entry_view_events WHERE created_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.VIEW_EVENT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
-            em.createNativeQuery("DELETE FROM entry_ranking_snapshots WHERE created_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.RANKING_HOLD).atOffset(ZoneOffset.UTC)).executeUpdate();
+            viewEvents.deleteOlderThan(now.minus(ChallengeRules.VIEW_EVENT_RETENTION));
+            snapshots.deleteOlderThan(now.minus(ChallengeRules.RANKING_HOLD));
             // 알림은 90일, 묶음 선점은 구간이 지나면 쓸모가 없다. 파기된 AI 리포트의 이력도 90일이다.
-            em.createNativeQuery("DELETE FROM notifications WHERE expires_at<=:now")
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-            em.createNativeQuery("DELETE FROM notification_pushes WHERE created_at<:before")
-                    .setParameter("before", now.minus(NOTIFICATION_PUSH_CLAIM_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
-            em.createNativeQuery("DELETE FROM entry_ai_reports WHERE purged_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
+            notifications.deleteExpired(now);
+            pushes.deleteOlderThan(now.minus(NOTIFICATION_PUSH_CLAIM_RETENTION));
+            aiReports.deletePurgedBefore(now.minus(ChallengeRules.REPORT_RETENTION));
             // 처리 완료된 신고는 90일 보관한다(challenge.report).
-            em.createNativeQuery("DELETE FROM entry_reports WHERE status='reviewed' AND reviewed_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
+            reports.deleteReviewedBefore(now.minus(ChallengeRules.REPORT_RETENTION));
         });
         return settled;
     }
@@ -509,19 +496,14 @@ class PostgresEntryRepository implements EntryRepository {
             String[] parts = decode(cursor, "S", 2);
             try { snapshot = UUID.fromString(parts[1]); offset = Integer.parseInt(parts[2]); }
             catch (RuntimeException invalid) { throw invalidCursor(cursor); }
-            var held = NativeTuples.list(em.createNativeQuery("""
-                    SELECT basis,created_at,array_to_string(entry_ids,',') AS entry_ids,array_to_string(ranks,',') AS ranks
-                    FROM entry_ranking_snapshots
-                    WHERE id=:id AND challenge_id=:challenge AND viewer_id=:viewer
-                    """, Tuple.class).setParameter("id", snapshot).setParameter("challenge", challengeId).setParameter("viewer", viewer));
+            var held = snapshots.findByIdAndChallengeIdAndViewerId(snapshot, challengeId, viewer);
             if (held.isEmpty() || offset < 0) throw invalidCursor(cursor);
-            Tuple row = held.getFirst();
-            if (!basis.equals(row.get("basis", String.class))
-                    || !now.isBefore(row.get("created_at", Instant.class).plus(ChallengeRules.RANKING_HOLD))) {
+            if (!basis.equals(held.get().getBasis())
+                    || !now.isBefore(held.get().getCreatedAt().plus(ChallengeRules.RANKING_HOLD))) {
                 throw new ApiException(410, "cursor_expired");
             }
-            order = split(row.get("entry_ids", String.class)).stream().map(UUID::fromString).toList();
-            ranks = split(row.get("ranks", String.class)).stream().map(Integer::valueOf).toList();
+            order = List.of(held.get().getEntryIds());
+            ranks = List.of(held.get().getRanks());
         } else {
             var ranked = ranked(challengeId, basis);
             order = ranked.order();
@@ -534,13 +516,7 @@ class PostgresEntryRepository implements EntryRepository {
                 ranks = boosted.ranks();
             }
             snapshot = UUID.randomUUID();
-            em.createNativeQuery("""
-                    INSERT INTO entry_ranking_snapshots(id,challenge_id,viewer_id,basis,entry_ids,ranks,created_at)
-                    VALUES (:id,:challenge,:viewer,:basis,CAST(:entries AS uuid[]),CAST(:ranks AS integer[]),:now)
-                    """).setParameter("id", snapshot).setParameter("challenge", challengeId).setParameter("viewer", viewer)
-                    .setParameter("basis", basis).setParameter("entries", "{" + String.join(",", order.stream().map(UUID::toString).toList()) + "}")
-                    .setParameter("ranks", "{" + String.join(",", ranks.stream().map(String::valueOf).toList()) + "}").setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
+            snapshots.insert(snapshot, challengeId, viewer, basis, order.toArray(UUID[]::new), ranks.toArray(Integer[]::new), now);
             offset = 0;
             if (fromEntry != null) {
                 offset = order.indexOf(fromEntry);
@@ -647,9 +623,5 @@ class PostgresEntryRepository implements EntryRepository {
         UUID parent = entries.findLiveChallengeOf(entryId, owner).orElseThrow(() -> new ApiException(404, "entry_not_found"));
         settlement.settle(parent, now);
         return entries.lockOwned(entryId, owner).orElseThrow(() -> new ApiException(404, "entry_not_found"));
-    }
-
-    private static List<String> split(String joined) {
-        return joined == null || joined.isEmpty() ? List.of() : List.of(joined.split(","));
     }
 }

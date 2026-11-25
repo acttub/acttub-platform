@@ -303,4 +303,10 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
             where e.id = :id and e.mosaicStatus = 'pending' and e.mosaicAttempts = :attempts
             """)
     int skipMosaic(UUID id, int attempts, Instant now);
+
+    // ---- 조회수 ----
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ChallengeEntryEntity e set e.viewCount = e.viewCount + 1 where e.id = :id")
+    int countView(UUID id);
 }
