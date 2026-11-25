@@ -46,4 +46,9 @@ interface GuestTransferCodeJpaRepository extends Repository<GuestTransferCodeEnt
     int markUsed(UUID codeId, Instant now);
 
     boolean existsByUserIdAndUsedAtIsNotNull(UUID userId);
+
+    /** 쓰인 코드는 쓰인 시각, 쓰이지 않은 코드는 시한을 기준으로 지운다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from GuestTransferCodeEntity c where coalesce(c.usedAt, c.expiresAt) < :before")
+    int deleteStale(Instant before);
 }

@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.StaleRefreshTokens;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,8 @@ public class AccountHousekeeping {
 
     private final ProfileRepository profiles;
     private final ProfileService accounts;
+    private final StaleRefreshTokens refreshTokens;
+    private final StaleTransferCodes transferCodes;
     private final AccountCleanup cleanup;
     private final FailureReporter failureReporter;
     private final Clock clock;
@@ -45,11 +48,15 @@ public class AccountHousekeeping {
     public AccountHousekeeping(
             ProfileRepository profiles,
             ProfileService accounts,
+            StaleRefreshTokens refreshTokens,
+            StaleTransferCodes transferCodes,
             AccountCleanup cleanup,
             FailureReporter failureReporter,
             Clock clock) {
         this.profiles = profiles;
         this.accounts = accounts;
+        this.refreshTokens = refreshTokens;
+        this.transferCodes = transferCodes;
         this.cleanup = cleanup;
         this.failureReporter = failureReporter;
         this.clock = clock;
@@ -57,7 +64,7 @@ public class AccountHousekeeping {
 
     public void runDaily() {
         Instant now = clock.instant();
-        step("refreshTokens", () -> profiles.deleteStaleRefreshTokens(now.minus(TOKEN_RETENTION)));
+        step("refreshTokens", () -> refreshTokens.deleteStale(now.minus(TOKEN_RETENTION)));
         step("idleGuests", () -> {
             for (UUID guest : profiles.idleGuests(now.minus(GUEST_IDLE))) {
                 step("idleGuest", () -> accounts.withdraw(guest));
@@ -69,7 +76,7 @@ public class AccountHousekeeping {
         // 지운 연습의 보관 영상은 지운 날부터 3년, 보관 동의를 거절로 바꾸면 다음 정리에서 파기한다(SOMA-985).
         step("deletedPractices", () -> cleanup.attempt(profiles.purgeDeletedPracticeMedia(threeYearsAgo, now)));
         step("cleanup", cleanup::runDue);
-        step("transferCodes", () -> profiles.deleteStaleTransferCodes(now.minus(TRANSFER_CODE_RETENTION)));
+        step("transferCodes", () -> transferCodes.deleteStale(now.minus(TRANSFER_CODE_RETENTION)));
         Instant fourteenMonthsAgo = now.atZone(ProfileService.SEOUL).minusMonths(14).toInstant();
         step("webAttributions", () -> profiles.deleteExpiredWebAttributions(fourteenMonthsAgo));
     }

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import com.acttub.actingapi.feature.profile.app.StaleTransferCodes;
 import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
 import com.acttub.actingapi.platform.security.TransferredGuests;
 import org.springframework.stereotype.Repository;
@@ -12,7 +13,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
-class PostgresTransferCodeRepository implements TransferCodeRepository, TransferredGuests {
+class PostgresTransferCodeRepository implements TransferCodeRepository, TransferredGuests, StaleTransferCodes {
     private final GuestTransferCodeJpaRepository codes;
     private final TransactionTemplate transaction;
 
@@ -72,5 +73,10 @@ class PostgresTransferCodeRepository implements TransferCodeRepository, Transfer
     @Override
     public <T> T inTransaction(Supplier<T> work) {
         return transaction.execute(status -> work.get());
+    }
+
+    @Override
+    public int deleteStale(Instant before) {
+        return transaction.execute(status -> codes.deleteStale(before));
     }
 }

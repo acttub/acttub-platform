@@ -20,15 +20,19 @@ import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
 import com.acttub.actingapi.feature.auth.app.PendingSettlement;
+import com.acttub.actingapi.feature.auth.app.RetentionPurge;
 import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
+import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
+import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
+import com.acttub.actingapi.feature.video.app.VideoRetention;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
 import com.acttub.actingapi.platform.schema.ActingGoal;
@@ -44,7 +48,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository
-        implements ProfileRepository, SignupAttributionOwnership, AccountErasure, PendingSettlement {
+        implements ProfileRepository, SignupAttributionOwnership, DiscoveryAnswerOwnership, AccountErasure, PendingSettlement {
 
     /**
      * 계정을 닫을 때 이 저장소가 맡는 자리. 모두 아직 주인에게 옮기지 않은 남의 표의 자리다. 주인 기능이
@@ -69,6 +73,15 @@ class PostgresProfileRepository
     /** 앞서 지운 연습의 영상(보관 동의로 남긴 것)과 무료 횟수 표시를 탈퇴·매일 정리에서 함께 치운다(SOMA-985). */
     private final PostgresPracticeGroupErasure deletedPractices;
 
+    /** 알림을 모두 끌 때 푸시 토큰을 지우는 주인. */
+    private final PushTokenRevocation pushTokens;
+
+    /** 탈퇴 3년 뒤, 보관 동의로 남겨 두었던 영상을 파기한 것으로 적는 주인. */
+    private final VideoRetention retainedVideos;
+
+    /** 탈퇴 3년 뒤의 파기에서 계정 행과 신원 해시를 고치는 주인. */
+    private final RetentionPurge retentionPurge;
+
     /**
      * 계정을 닫는 순서. 이 저장소가 그 순서의 자리를 맡고 있어({@link #STEPS}) 생성자로 바로 받으면 서로를 기다린다. 쓸 때 꺼낸다.
      */
@@ -80,12 +93,18 @@ class PostgresProfileRepository
             PostgresObjectCleanupLedger cleanups,
             ChallengeWithdrawal challenges,
             PostgresPracticeGroupErasure deletedPractices,
+            PushTokenRevocation pushTokens,
+            VideoRetention retainedVideos,
+            RetentionPurge retentionPurge,
             ObjectProvider<AccountErasureSequence> closing) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanups = cleanups;
         this.challenges = challenges;
         this.deletedPractices = deletedPractices;
+        this.pushTokens = pushTokens;
+        this.retainedVideos = retainedVideos;
+        this.retentionPurge = retentionPurge;
         this.closing = closing;
     }
 
@@ -255,29 +274,14 @@ class PostgresProfileRepository
     }
 
     /**
-     * ⚠ 탈퇴와 같은 이유로 남의 테이블을 함께 친다 — 해시 행을 지우는 것과 영상 삭제를 장부에 올리는 것이 한
-     * 트랜잭션이어야 "해시는 지워졌는데 영상은 남은" 계정이 생기지 않는다. 해시 보관 기간이 곧 영상 보관
-     * 기간이다(ADR-029).
-     *
-     * <p>고르는 기준은 <b>신원이 아니다.</b> 제공자의 연결 끊기 알림은 신원을 행째 지우므로, 마지막 신원이
-     * 끊긴 뒤 탈퇴한 회원에게는 해시 행이 없다 — 해시 행의 유무로 고르면 그 사람의 보관 영상은 영영 남는다.
-     * 탈퇴 시각과 {@code users.retention_purged_at}(V12) 으로 고르고, 같은 트랜잭션에서 그 시각을 적는다.
+     * 탈퇴 3년 뒤의 파기. 해시 행을 지우는 것과 영상·녹음 삭제를 장부에 올리는 것이 한 트랜잭션이어야 "해시는 지워졌는데 영상은
+     * 남은" 계정이 생기지 않는다. 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). 여기서 트랜잭션을 열고, 계정과 영상의 표는
+     * 주인({@link RetentionPurge}, {@link VideoRetention})이 고친다. 객체 키 읽기와 리딩 녹음은 아직 여기 남아 있다.
      */
     @Override
     public List<UUID> purgeRetained(Instant deactivatedBefore, Instant now) {
         return transaction.execute(status -> {
-            List<UUID> expired = list(entityManager.createNativeQuery("""
-                    SELECT users.id
-                    FROM users
-                    WHERE users.status='deactivated'
-                      AND users.deactivated_at<:cutoff
-                      AND users.retention_purged_at IS NULL
-                    ORDER BY users.deactivated_at,users.id
-                    FOR UPDATE OF users
-                    """, Tuple.class)
-                    .setParameter("cutoff", deactivatedBefore.atOffset(ZoneOffset.UTC))).stream()
-                    .map(row -> row.get("id", UUID.class))
-                    .toList();
+            List<UUID> expired = retentionPurge.lockExpired(deactivatedBefore);
             List<UUID> cleanups = new ArrayList<>();
             for (UUID userId : expired) {
                 List<String> videos = videoKeys(userId);
@@ -285,34 +289,13 @@ class PostgresProfileRepository
                     cleanups.add(this.cleanups.schedule(userId, videos, now, now));
                 }
                 // 보관 동의로 남겨 두었던 영상도 이제 파일이 없다 — 행과 최소 메타만 남긴다.
-                entityManager.createNativeQuery("""
-                        UPDATE videos
-                        SET purged_at=:now,updated_at=:now
-                        WHERE user_id=:userId AND purged_at IS NULL
-                        """)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("userId", userId)
-                        .executeUpdate();
+                retainedVideos.purgeFilesOf(userId, now);
                 // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(specs/reading).
                 List<String> recordings = deleteRecordings(userId);
                 if (!recordings.isEmpty()) {
                     cleanups.add(this.cleanups.schedule(userId, recordings, now));
                 }
-                entityManager.createNativeQuery("""
-                        DELETE FROM user_identities
-                        WHERE user_id=:userId
-                          AND uid_hash IS NOT NULL
-                        """)
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                entityManager.createNativeQuery("""
-                        UPDATE users
-                        SET retention_purged_at=:now
-                        WHERE id=:userId
-                        """)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("userId", userId)
-                        .executeUpdate();
+                retentionPurge.complete(userId, now);
             }
             return List.copyOf(cleanups);
         });
@@ -321,31 +304,6 @@ class PostgresProfileRepository
     @Override
     public List<UUID> purgeDeletedPracticeMedia(Instant deletedBefore, Instant now) {
         return deletedPractices.purgeExpired(deletedBefore, now);
-    }
-
-    /**
-     * 한 문장으로 지운다. 회전된 옛 토큰은 새 토큰을 {@code replaced_by_id} 로 가리키는데, 새 토큰이 지울
-     * 때가 됐으면 그보다 먼저 폐기된 옛 토큰도 지울 때가 됐다 — FK 는 문장 끝에서 본다.
-     */
-    @Override
-    public int deleteStaleRefreshTokens(Instant before) {
-        return transaction.execute(status -> entityManager.createNativeQuery("""
-                DELETE FROM refresh_tokens
-                WHERE expires_at<:before
-                   OR revoked_at<:before
-                """)
-                .setParameter("before", before.atOffset(ZoneOffset.UTC))
-                .executeUpdate());
-    }
-
-    @Override
-    public int deleteStaleTransferCodes(Instant before) {
-        return transaction.execute(status -> entityManager.createNativeQuery("""
-                DELETE FROM guest_transfer_codes
-                WHERE COALESCE(used_at,expires_at)<:before
-                """)
-                .setParameter("before", before.atOffset(ZoneOffset.UTC))
-                .executeUpdate());
     }
 
     @Override
@@ -467,26 +425,19 @@ class PostgresProfileRepository
         entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
-        // 닫힌 게스트의 접속일(V41)은 회원에게 옮기지 않는다 — 게스트로 들어온 날은 그 계정의 날이 아니다.
-        entityManager.createNativeQuery("DELETE FROM user_active_days WHERE user_id=:guestId")
-                .setParameter("guestId", guestId)
-                .executeUpdate();
-        // 연습 알림 보낸 기록(V47)도 게스트 쪽에서 지운다 — 회원에게 옮기지 않는다.
-        entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:guestId")
-                .setParameter("guestId", guestId)
-                .executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM push_opens WHERE user_id=:guestId")
-                .setParameter("guestId", guestId)
-                .executeUpdate();
+    }
+
+    /** 가입 직후 답한 유입 경로도 회원에게 옮기지 않는다. */
+    @Override
+    public void discardTransferredGuestAnswer(UUID guestId) {
         entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
     }
 
     /**
-     * ⚠ {@code push_tokens} 의 주인은 {@code push} 다. 그래도 여기서 지우는 것은 "셋 다 꺼짐"과 "토큰
-     * 없음"이 한 트랜잭션이어야 하기 때문이다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 탈퇴의 교차
-     * 도메인 정리와 같은 형태로 명시적 native DML 로 남긴다.
+     * "셋 다 꺼짐"과 "토큰 없음"이 한 트랜잭션이어야 한다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 토큰은 주인({@code push})이
+     * 이 트랜잭션 안에서 지운다.
      */
     @Override
     public NotificationSettings updateNotificationSettings(
@@ -517,9 +468,7 @@ class PostgresProfileRepository
             }
             NotificationSettings settings = settings(rows.getFirst());
             if (settings.pushesTurnedOff()) {
-                entityManager.createNativeQuery("DELETE FROM push_tokens WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
+                pushTokens.revokeAllOf(userId);
             }
             return settings;
         });

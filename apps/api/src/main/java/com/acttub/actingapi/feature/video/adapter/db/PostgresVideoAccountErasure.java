@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
+import com.acttub.actingapi.feature.video.app.VideoRetention;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Repository;
@@ -26,9 +27,11 @@ import org.springframework.stereotype.Repository;
 class PostgresVideoAccountErasure implements AccountErasure {
 
     private final EntityManager entityManager;
+    private final VideoRetention retention;
 
-    PostgresVideoAccountErasure(EntityManager entityManager) {
+    PostgresVideoAccountErasure(EntityManager entityManager, VideoRetention retention) {
         this.entityManager = entityManager;
+        this.retention = retention;
     }
 
     @Override
@@ -44,14 +47,7 @@ class PostgresVideoAccountErasure implements AccountErasure {
                 .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .getResultList();
         if (!account.retainMedia()) {
-            entityManager.createQuery("""
-                            update VideoEntity v
-                            set v.purgedAt = :now, v.updatedAt = :now
-                            where v.userId = :userId and v.purgedAt is null
-                            """)
-                    .setParameter("now", account.now())
-                    .setParameter("userId", account.userId())
-                    .executeUpdate();
+            retention.purgeFilesOf(account.userId(), account.now());
         }
         return List.of();
     }

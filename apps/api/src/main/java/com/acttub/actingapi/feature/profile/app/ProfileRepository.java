@@ -106,15 +106,6 @@ public interface ProfileRepository {
      */
     List<UUID> purgeDeletedPracticeMedia(Instant deletedBefore, Instant now);
 
-    /** 만료되거나 폐기된 지 오래된 리프레시 토큰 행을 지운다. 그 전까지는 재사용 탐지와 문제 추적에 쓴다. */
-    int deleteStaleRefreshTokens(Instant before);
-
-    /**
-     * 쓰였거나 시한이 지난 지 오래된 이관 코드 행을 지운다. ⚠ 쓰인 코드는 "이 게스트는 옮겨졌다"는 표식이라
-     * 그 게스트의 리프레시 토큰이 살 수 있는 동안(30일)에는 지우면 안 된다.
-     */
-    int deleteStaleTransferCodes(Instant before);
-
     /** 개인정보 처리방침의 웹 이용 분석 기록 보관 상한(14개월)을 지난 web_utm 행을 지운다. */
     int deleteExpiredWebAttributions(Instant before);
 
