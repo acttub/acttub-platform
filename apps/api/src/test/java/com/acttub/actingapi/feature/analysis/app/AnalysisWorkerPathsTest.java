@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.net.http.HttpTimeoutException;
@@ -73,12 +74,10 @@ class AnalysisWorkerPathsTest {
         assertThat(completed).containsExactly(session);
     }
 
-    @Test void expiredUploadsAreDeletedFromStorage() {
-        when(store.sweepExpiredUploads(NOW)).thenReturn(List.of("users/u/uploads/a.mp4", "users/u/uploads/b.mp4"));
+    @Test void sweepOnlyClosesExhaustedOperationsAndLeavesUploadsToTheLibrary() {
         when(store.sweepMaxAttempts(NOW)).thenReturn(3);
-        assertThat(worker((path, context) -> null).sweep(NOW)).isEqualTo(new AnalysisWorker.SweepResult(2, 3));
-        verify(storage).delete("users/u/uploads/a.mp4");
-        verify(storage).delete("users/u/uploads/b.mp4");
+        assertThat(worker((path, context) -> null).sweep(NOW)).isEqualTo(3);
+        verifyNoInteractions(storage);
         assertThat(reporter.reports()).isEmpty();
     }
 

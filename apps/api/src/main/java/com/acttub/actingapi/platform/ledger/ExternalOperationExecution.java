@@ -5,7 +5,12 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** A synchronous execution scope: no UUID becomes a metric label and no completed scope is retained. */
+/**
+ * A synchronous execution scope: no UUID becomes a metric label and no completed scope is retained.
+ *
+ * <p>이 범위로 실행 시도·외부 호출을 세던 옛 큐 지표는 SOMA-1140 에서 지웠다. 지금은 {@link #unobserved()} 만 있어 아무것도
+ * 기록하지 않는다. 코치·리포트·분석의 {@code externalCall}·{@code observeCall} 호출과 이 클래스는 후속에서 걷어 낸다.
+ */
 public final class ExternalOperationExecution implements AutoCloseable {
     private static final ThreadLocal<ExternalOperationExecution> CURRENT = new ThreadLocal<>();
     private final UUID operationId;
@@ -16,7 +21,7 @@ public final class ExternalOperationExecution implements AutoCloseable {
     private Long startedAt;
     private boolean attempted;
 
-    public ExternalOperationExecution(UUID operationId, BooleanSupplier start, Consumer<String> onCall, Supplier<Long> nanoTime) {
+    private ExternalOperationExecution(UUID operationId, BooleanSupplier start, Consumer<String> onCall, Supplier<Long> nanoTime) {
         this.operationId = operationId;
         this.start = start;
         this.onCall = onCall;
@@ -50,15 +55,6 @@ public final class ExternalOperationExecution implements AutoCloseable {
         if (startedAt != null) {
             onCall.accept(dependency);
         }
-    }
-
-    public static Long elapsedNanos(UUID operationId) {
-        ExternalOperationExecution current = CURRENT.get();
-        if (current == null || current.startedAt == null || !operationId.equals(current.operationId)) {
-            return null;
-        }
-        Long now = current.nanoTime.get();
-        return now == null ? null : Math.max(0, now - current.startedAt);
     }
 
     @Override

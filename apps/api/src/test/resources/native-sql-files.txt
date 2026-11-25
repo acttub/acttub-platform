@@ -8,7 +8,6 @@ feature/admin/adapter/db/PostgresAdminMetricsRepository.java 15
 feature/ads/adapter/db/PostgresAdFrequency.java 6
 feature/ads/adapter/db/PostgresAdRepository.java 10
 feature/ads/adapter/db/PostgresAdSlotSwitches.java 2
-feature/analysis/adapter/db/PostgresAnalysisStore.java 7
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java 9
 feature/auth/adapter/db/PostgresAuthRepository.java 13
 feature/auth/adapter/db/RefreshTokenJpaRepository.java 1
@@ -40,9 +39,8 @@ feature/community/adapter/db/PostgresCommunityImageRepository.java 6
 feature/community/adapter/db/PostgresCommunityRepository.java 20
 feature/consent/adapter/db/PostgresConsentRepository.java 4
 feature/feedback/adapter/db/PostgresExitSurveyStore.java 9
-feature/memory/adapter/db/ActorMemoryEntryJpaRepository.java 1
 feature/memory/adapter/db/PostgresActorMemoryStore.java 23
-feature/memory/adapter/db/PostgresMemoryRepository.java 12
+feature/memory/adapter/db/PostgresMemoryRepository.java 8
 feature/portfolio/adapter/db/PostgresPortfolioRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(lockOrCreate). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/poster/adapter/db/PostgresPosterRepository.java 6
 feature/practice/adapter/db/PostgresLegacyPracticeReader.java 1
@@ -75,8 +73,6 @@ feature/video/adapter/db/PostgresVideoOwnership.java 2
 feature/video/adapter/db/PostgresVideoRepository.java 26
 platform/migration/PostgresPracticeDataMigration.java 4
 platform/observability/DatabaseHealthIndicator.java 1
-platform/operation/ExternalOperationClaimer.java 8
-platform/operation/ExternalOperationMemoryQueue.java 3
-platform/operation/ExternalOperationMetrics.java 2
+platform/operation/ExternalOperationMetrics.java 1
 platform/operation/ExternalOperationOwnership.java 1
 platform/operation/PostgresAiJobLedger.java 6

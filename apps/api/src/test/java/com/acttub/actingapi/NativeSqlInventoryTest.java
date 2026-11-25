@@ -32,7 +32,7 @@ class NativeSqlInventoryTest {
     private static final Path INVENTORY = Path.of("src/test/resources/native-sql-files.txt");
 
     /** 까닭 없이 남은 자리의 합. 영역을 옮겨 줄었으면 이 수도 같이 내린다. 늘리지 않는다. */
-    private static final int PENDING_CEILING = 788;
+    private static final int PENDING_CEILING = 764;
 
     private static final Pattern NATIVE = Pattern.compile("createNativeQuery\\(|nativeQuery\\s*=\\s*true");
 

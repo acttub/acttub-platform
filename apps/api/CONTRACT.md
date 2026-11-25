@@ -254,19 +254,13 @@ JDBC URL·username·password 로 변환한다 — `platform/config/DatabaseUrl` 
 | timeout / parse 오류 / unsupported media | **즉시 `FAILED`** |
 | S3·ETag·기타 미분류 오류 | **`PENDING` 재큐** → 3회 소비 후 sweep 이 `FAILED` |
 
-최대 시도 횟수는 3 이다. 구현은 `platform/operation/ExternalOperationClaimer` 와
-`feature/analysis/app/AnalysisWorker`, 실 DB 검증은 `ExternalOperationIT` 다.
+최대 시도 횟수는 3 이다. 이 계약은 `ai_jobs` 장부도 같다 — 구현은 `platform/operation/PostgresAiJobLedger` 와
+`feature/analysis/app/AnalysisWorker`, 실 DB 검증은 `AiJobLedgerIT` 다. 이 계약을 처음 지키던 옛 `external_operations`
+선점(`ExternalOperationClaimer`)과 그 검증(`ExternalOperationIT`)은 옛 큐 워커와 함께 지웠다(SOMA-1140).
 
-모니터링 메타데이터는 이 상태 전이 계약을 바꾸지 않는 nullable 확장이다. 마지막 실패 분류는
-`expected`·`external`·`unexpected`만 저장하며, 기존 행처럼 분류를 알 수 없으면 NULL을 유지한다.
-실패·재큐와 같은 트랜잭션에서 기록하고 재시도 소진까지 보존한다. 미분류를 새로운 도메인 실패
-종류나 Expected Rejection으로 바꾸지 않는다. 이전 앱으로 복구할 때 추가 컬럼을 삭제하지 않는다.
-
-실행 횟수와 종료 사건의 관측은 성공한 상태 전이의 커밋을 기준으로 한다. Lease 상실·중복 완료·
-롤백은 종료 횟수를 늘리지 않고, 도입 전에 끝난 실패를 재시작이나 집계 조회로 소급 통지하지 않는다.
-실패한 External Operation이 나중에 재개되면 새로운 종료 사건이 생길 수 있으므로 고유 접수 건수와
-종료 사건 수를 같은 값으로 취급하지 않는다. 실행·대기 시각을 확인할 수 없는 행에서는 영상 길이나
-기존 `updated_at` 차이로 처리 시간을 만들어내지 않는다.
+옛 표의 모니터링 메타데이터 컬럼(`waiting_since`·`execution_started_at`·`monitoring_*`·실패 분류)은 그대로 둔다. 지금은
+아무도 쓰지 않고, 상태 표본 게이지(`ExternalOperationMetrics`)만 읽는다. 실행 횟수·종료 사건 카운터는 옛 큐 워커와 함께
+지웠다. 이전 앱으로 복구할 때 추가 컬럼을 삭제하지 않는다.
 
 ### 5-8. 네이티브 SQL 작성 규칙 (실측)
 
@@ -307,7 +301,7 @@ ORDER BY CASE latest.type WHEN 'terms' THEN 1 WHEN 'privacy' THEN 2 WHEN 'ai_ana
 컬럼이 enum 이던 시절에는 **선언 순서**가 정렬 순서였고, 그 순서에 뜻이 실려 있었다.
 text 가 되면서 사전순으로 갈리므로, 순서가 화면에 보이는 두 곳은 `CASE` 로 옛 순서를
 고정했다 — 동의 문서 목록(`PostgresConsentRepository#listLatestDocuments`)과 배우 기억
-항목(`PostgresMemoryRepository#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
+항목(`PostgresActorMemoryStore#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
 
 ⚠ `DISTINCT ON` 이 붙은 질의는 `ORDER BY` 선행 표현식이 자기와 같기를 요구한다. 안쪽에
 `CASE` 를 넣으면 `SELECT DISTINCT ON expressions must match initial ORDER BY expressions` 로
@@ -699,7 +693,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   - **순서는 올린 영상 → 연습 → 작업 장부 → 기억 → 리딩이다.** 앞의 셋은 새 연습을 만드는 쪽과 같은 방향이라(올린
     영상 행을 먼저 잡는다) 겹쳐 만들어진 연습과 작업을 놓치지 않는다. 기억을 작업 장부 **뒤**에 보는 것은 기억
     갱신 워커 때문이다 — 워커는 완료 트랜잭션에서 작업 행을 잡고 **그 행의 지금 주인**에게 기억을 쓴다
-    (`MemoryUpdateQueue#complete` 가 주인을 넘긴다. 모델을 기다리기 전에 읽어 둔 자료의 주인을 믿지 않는다).
+    (모델을 기다리기 전에 읽어 둔 자료의 주인을 믿지 않는다).
     이관이 작업 행을 잡은 뒤에 기억을 보면 저장 중이던 갱신이 끝난 뒤의 기억을 보고, 그 뒤의 갱신은 회원에게
     간다. 기억을 먼저 보면 닫힌 게스트에게 기억이 다시 생긴다.
   - 리딩은 맨 뒤다(`reading/app/ReadingOwnership`, §6-14). 옮기기 전에 **게스트의 `users` 행을 `FOR UPDATE` 로
@@ -997,8 +991,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   컬럼 셋(`request_id`·`request_fingerprint`·`video_id`), `users` 에 `exit_survey_asked_at`·`memory_epoch`. **옛
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
-  구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로는 지웠다. 다만 옛 큐 워커(§5-7)는 옛 분석을 `summaries`에
-  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. 옛 기억 갱신 워커는 `actor_memory_entries`에 쓴다.
+  구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로와 옛 큐 워커·옛 기억 화면(SOMA-1140)은 지웠다. 탈퇴는 옛 표의
+  상태를 고친다.
   전환의 순서와 옛 테이블을 지우는 때는
   specs/practice 「0.1.0 스키마 전환」이 정본이다.
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
@@ -1016,8 +1010,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 시한이 지난 마무리는 예약을 `expired` 로 닫으며 **미확정 객체의 삭제를 같은 트랜잭션에서 장부**(`object_delete`)에
     올린다.
   - 마무리 없이 시한이 지난 예약은 `video/adapter/sched/UploadIntentSweepScheduler` 가 60초마다(`UPLOAD_INTENT_SWEEP_INTERVAL_MS`)
-    200개씩 `FOR UPDATE SKIP LOCKED` 로 잡아 같은 방식으로 닫는다. 옛 분석 워커의 정리(`PostgresAnalysisStore.sweepExpiredUploads`)가
-    같은 일을 겸하므로 옛 큐 워커를 지울 때까지 함께 돈다. 스위치는 포스터와 같이 `ANALYSIS_WORKER_ENABLED` 와
+    200개씩 `FOR UPDATE SKIP LOCKED` 로 잡아 같은 방식으로 닫는다. 같은 일을 겸하던 옛 분석 워커의 정리는 SOMA-1140 에서
+    지웠다. 스위치는 포스터와 같이 `ANALYSIS_WORKER_ENABLED` 와
     `UPLOAD_INTENT_SWEEP_ENABLED`(테스트는 후자를 전역으로 끈다)다.
   - 목록의 커서는 저장 시각과 id 다.
   - 삭제는 참조 확인과 삭제를 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다). 지운 영상과 포스터
@@ -1416,11 +1410,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
    update 가 새로 생긴다. 벌크 UPDATE 로 분리한다.
 3. **상관 서브쿼리에서 앵커 테이블을 명시한다.** 명시하지 않으면 같은 테이블이 FROM 에 두 번
    들어가 Postgres 가 거부한다. 실제로 한 번 사고가 났던 자리다.
-4. **옛 `external_operations` 선점(`ExternalOperationClaimer`)에는 `SKIP LOCKED` 가 없다.** 경합 시 블로킹 대기 →
-   조건 재평가 실패 → 폴링 재시도 구조다. 정확하지만 처리량이 낮다. 바꾸려면 두 방식을 **구분하는 테스트**를 먼저
-   세운다 — 기존 테스트는 구분하지 못한다. 뒤에 생긴 큐는 `FOR UPDATE SKIP LOCKED` 로 집는다
-   (`PostgresAiJobLedger`, `PostgresAccountCleanupRepository`, `PostgresVideoRepository` 의 만료 예약 정리·포스터,
-   `PostgresNotificationRepository`).
+4. **큐는 `FOR UPDATE SKIP LOCKED` 로 집는다**(`PostgresAiJobLedger`, `PostgresAccountCleanupRepository`,
+   `PostgresVideoRepository` 의 만료 예약 정리·포스터, `PostgresNotificationRepository`). `SKIP LOCKED` 없이 블로킹 대기 뒤
+   조건을 다시 보던 옛 `external_operations` 선점은 SOMA-1140 에서 지웠다.
 
 ### 7-1. 코칭 응답과 종료 (2026-09-10)
 

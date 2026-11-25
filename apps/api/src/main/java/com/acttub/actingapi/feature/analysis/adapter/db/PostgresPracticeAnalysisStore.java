@@ -213,12 +213,6 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
         jobs.release(jobId, leaseToken, classification, now);
     }
 
-    /** 만료된 미확정 업로드는 보관함(PA1)의 일이다 — 이 워커는 치우지 않는다. */
-    @Override
-    public List<String> sweepExpiredUploads(Instant now) {
-        return List.of();
-    }
-
     /**
      * 시도를 소진한 작업을 닫고, 그 회차도 함께 닫는다(분석이 없으면 배우에게 보여 줄 것이 없다). 마지막 시도의 워커가 죽어
      * lease 가 지난 running 작업도 여기서 닫는다.

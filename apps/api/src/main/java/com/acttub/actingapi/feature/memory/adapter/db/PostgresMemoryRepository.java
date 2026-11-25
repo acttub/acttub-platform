@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.memory.adapter.db;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -14,143 +13,47 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.coach.app.CoachMemory;
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
-import com.acttub.actingapi.feature.memory.app.MemoryEntry;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
-import com.acttub.actingapi.feature.memory.app.MemoryRepository;
-import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
-import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
-import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
-import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.PythonText;
-import com.acttub.actingapi.platform.schema.ActorMemoryAuthor;
-import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
- * 배우 기억 6칸의 저장 계층 (`db/store.py:PostgresStore.list_actor_memory` 외).
+ * 코치가 대화를 시작할 때 읽는 지난 연습의 맥락(지난 대화 발췌, 장면 이력, 해 보기로 한 것). 기억 칸은
+ * {@link ActorMemoryStore} 에서 읽는다.
  *
- * <p><b>배우가 손댄 칸은 에이전트가 덮지 않는다.</b> 배우가 이 표에 쓰던 옛 경로는 내렸지만 그때 쓴 행이
- * 남아 있다. 조건은 {@code ON CONFLICT ... WHERE} 안에 둬서 한 문장으로 끝낸다 — 건너뛰면
- * {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
+ * <p>옛 기억 표({@code actor_memory_entries})를 읽고 쓰던 메서드는 그 표에 쓰던 옛 기억 갱신 워커·화면 경로와 함께
+ * 지웠다(SOMA-1140).
  */
 @Repository
-public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
+public class PostgresMemoryRepository implements CoachMemory {
     /** 차수 날짜는 배우가 보는 시간대로 적는다 — 자정 직전 연습이 "다른 날" 이 되면 어색하다. */
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
-    private final ActorMemoryEntryJpaRepository entries;
     private final EntityManager entityManager;
-    private final Clock clock;
     private final ObjectMapper mapper;
-    private final TransactionTemplate transaction;
     private final FailureReporter failureReporter;
     private final ActorMemoryStore actorMemories;
 
     public PostgresMemoryRepository(
-            ActorMemoryEntryJpaRepository entries,
             EntityManager entityManager,
-            Clock clock,
             ObjectMapper mapper,
-            PlatformTransactionManager transactionManager,
             FailureReporter failureReporter,
             ActorMemoryStore actorMemories) {
-        this.entries = entries;
         this.entityManager = entityManager;
-        this.clock = clock;
         this.mapper = mapper;
-        this.transaction = new TransactionTemplate(transactionManager);
         this.failureReporter = failureReporter;
         this.actorMemories = actorMemories;
     }
-
-    /**
-     * 빈 칸은 행이 없는 것이므로 6개보다 적게 돌아올 수 있다.
-     *
-     * <p><b>정렬은 화면이 읽는 칸 순서다</b> — 성별·나이·목표·막힘·자기 화술·실제 화술.
-     * 컬럼이 {@code actor_memory_field_t} 이던 시절에는 enum 정의 순서가 이 일을 대신했지만,
-     * text 가 된 지금은 그냥 두면 사전순({@code age, blockage, gender, …})으로 갈린다.
-     * 그래서 {@code CASE} 로 옛 순서를 못박는다 (SOMA-462).
-     */
-    @Override
-    public List<MemoryEntry> list(UUID userId) {
-        return entries.findOrderedByUserId(userId).stream()
-                .map(PostgresMemoryRepository::entry)
-                .toList();
-    }
-
-    /**
-     * 에이전트가 갱신한다. 배우가 손댄 칸은 건드리지 않고 {@code null} 을 돌려준다 —
-     * 부르는 쪽이 "덮어썼다" 고 착각하지 않게 하려는 것이다.
-     *
-     * <p>성별·나이는 DB 제약이 막으므로 여기서 미리 걸러 불필요한 예외를 만들지 않는다.
-     */
-    @Override
-    public MemoryEntry writeAsAgent(
-            UUID userId, ActorMemoryField field, String value, UUID sourcePracticeSessionId) {
-        if (!AgentMemoryWrites.allows(field.dbValue())) {
-            return null;
-        }
-        OffsetDateTime stamp = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
-        return transaction.execute(status -> {
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH upserted AS (
-                        INSERT INTO actor_memory_entries (
-                            id,user_id,field,value,written_by,
-                            source_practice_session_id,created_at,updated_at
-                        )
-                        VALUES (
-                            :id,:userId,:field,:value,:author,
-                            :sourcePracticeSessionId,:stamp,:stamp
-                        )
-                        ON CONFLICT ON CONSTRAINT uq_actor_memory_user_field DO UPDATE
-                        SET value=EXCLUDED.value,
-                            written_by=EXCLUDED.written_by,
-                            source_practice_session_id=EXCLUDED.source_practice_session_id,
-                            updated_at=EXCLUDED.updated_at
-                        WHERE actor_memory_entries.written_by <> 'actor'
-                        RETURNING field,value,written_by,source_practice_session_id
-                    )
-                    SELECT field,value,written_by,source_practice_session_id FROM upserted
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("userId", userId)
-                    .setParameter("field", field.dbValue())
-                    .setParameter("value", value)
-                    .setParameter("author", ActorMemoryAuthor.AGENT.dbValue())
-                    .setParameter("sourcePracticeSessionId", sourcePracticeSessionId)
-                    .setParameter("stamp", stamp));
-            return rows.isEmpty() ? null : entry(rows.getFirst());
-        });
-    }
-
-    private static MemoryEntry entry(ActorMemoryEntryEntity entity) {
-        return new MemoryEntry(
-                entity.getField().dbValue(),
-                entity.getValue(),
-                entity.getWrittenBy() == ActorMemoryAuthor.ACTOR,
-                entity.getSourcePracticeSessionId());
-    }
-
-    private static MemoryEntry entry(Tuple row) {
-        return new MemoryEntry(
-                row.get("field", String.class),
-                row.get("value", String.class),
-                "actor".equals(row.get("written_by", String.class)),
-                row.get("source_practice_session_id", UUID.class));
-    }
-
 
     // --- 코치가 대화를 시작할 때 알고 있어야 하는 지난 것들 -----------------------
 
@@ -553,85 +456,6 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 takes.add(stripped);
             }
         }
-    }
-
-    /**
-     * 기억 갱신 잡이 읽을 재료 (`store.py:get_memory_update_material`).
-     *
-     * <p><b>배우가 한 말만 담는다</b> — 코치가 한 말까지 넣으면 코치가 제안한 표현이
-     * 배우 본인의 말로 굳어 기억에 남는다.
-     */
-    @Override
-    public MemoryUpdateMaterial material(UUID practiceSessionId) {
-        List<MemoryUpdateMaterial> sessions = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT ps.user_id,ps.goal,ps.blockage_kind,ps.sub_branch,ps.blockage_detail,
-                    s.raw::text AS raw_json, s.observations_json::text AS observations_json,
-                    s.uncertainties_json::text AS uncertainties_json
-                FROM practice_sessions ps
-                LEFT JOIN summaries s ON s.session_id=ps.id
-                WHERE ps.id=:practiceSessionId AND ps.hidden_at IS NULL
-                """, Tuple.class)
-                .setParameter("practiceSessionId", practiceSessionId)).stream()
-                .map(row -> new MemoryUpdateMaterial(
-                        row.get("user_id", UUID.class),
-                        practiceSessionId,
-                        row.get("goal", String.class),
-                        row.get("blockage_kind", String.class),
-                        row.get("sub_branch", String.class),
-                        row.get("blockage_detail", String.class),
-                        List.of(),
-                        List.of(),
-                        quotations(row)))
-                .toList();
-        if (sessions.isEmpty()) {
-            return null;
-        }
-        List<String> transcripts = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT text AS text
-                FROM transcripts
-                WHERE session_id=:practiceSessionId
-                ORDER BY ord
-                """, Tuple.class)
-                .setParameter("practiceSessionId", practiceSessionId)).stream()
-                .map(row -> row.get("text", String.class))
-                .toList();
-        List<String> actorMessages = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT turn.text
-                FROM coach_turns turn
-                JOIN coach_sessions coach ON coach.id=turn.session_id
-                WHERE coach.practice_session_id=:practiceSessionId AND turn.role='actor'
-                ORDER BY turn.turn_index
-                """, Tuple.class)
-                .setParameter("practiceSessionId", practiceSessionId)).stream()
-                .map(row -> row.get("text", String.class))
-                .toList();
-        MemoryUpdateMaterial session = sessions.getFirst();
-        return new MemoryUpdateMaterial(
-                session.userId(), practiceSessionId, session.goal(), session.blockageKind(),
-                session.subBranch(), session.blockageDetail(), transcripts, actorMessages, session.quotations());
-    }
-
-    private List<String> quotations(Tuple row) {
-        try {
-            JsonNode pack = StoredObservationPack.read(
-                    observationJson(row.get("raw_json", String.class)),
-                    observationJson(row.get("observations_json", String.class)),
-                    observationJson(row.get("uncertainties_json", String.class)));
-            List<String> quotes = new ArrayList<>();
-            for (JsonNode observation : pack.path("observations")) {
-                JsonNode quote = observation.path("quote");
-                if (quote.isString() && !quote.stringValue(null).isBlank()) {
-                    quotes.add(quote.stringValue(null));
-                }
-            }
-            return List.copyOf(quotes);
-        } catch (JacksonException exception) {
-            throw new IllegalStateException("stored observation JSON could not be parsed", exception);
-        }
-    }
-
-    private JsonNode observationJson(String value) throws JacksonException {
-        return value == null ? null : mapper.readTree(value);
     }
 
     /** 셋 다 비어 있을 수 있다 — 첫 연습이 그렇다. */

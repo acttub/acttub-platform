@@ -247,9 +247,9 @@ class PracticeAnalysisIT {
                 .containsEntry("status", "pending").containsEntry("attempt_count", AiJobLedger.MAX_ATTEMPTS);
         assertThat(worker.runOnce(clock.instant())).as("시도를 소진하면 집히지 않는다").isFalse();
 
-        AnalysisWorker.SweepResult swept = worker.sweep(clock.instant());
+        int swept = worker.sweep(clock.instant());
 
-        assertThat(swept.exhaustedOperations()).isEqualTo(1);
+        assertThat(swept).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("failed");
         assertThat(jdbc.queryForObject(
                 "SELECT stage || '/' || close_reason FROM practices WHERE id=?", String.class, practice))
@@ -288,9 +288,9 @@ class PracticeAnalysisIT {
         }
 
         assertThat(worker.runOnce(clock.instant())).as("시도를 다 쓴 작업은 집지 않는다").isFalse();
-        AnalysisWorker.SweepResult swept = worker.sweep(clock.instant());
+        int swept = worker.sweep(clock.instant());
 
-        assertThat(swept.exhaustedOperations()).isEqualTo(1);
+        assertThat(swept).isEqualTo(1);
         assertThat(jdbc.queryForMap("SELECT status,failure_reason,attempt_count,lease_token FROM ai_jobs"))
                 .containsEntry("status", "failed").containsEntry("failure_reason", "max_attempts")
                 .containsEntry("attempt_count", AiJobLedger.MAX_ATTEMPTS).containsEntry("lease_token", null);

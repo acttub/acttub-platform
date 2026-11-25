@@ -100,17 +100,15 @@ API 요청량은 HTTP 재요청·폴링·멱등 응답 재사용도 포함한다
 
 ## operations
 
-`kind` 값과 dependency 값은 `ExternalOperationMetrics`가 정한다. coach confirm은 report 원장 종류를 사용한다.
-새 고유 접수(`accepted`)·실행 시도(`attempts`)·실제 외부 호출(`external_calls`)·재큐(`requeues`)·종료 사건(`terminal`)을 구분한다. 실행 시도는 선점 뒤 첫 외부 호출에 들어간 횟수다. 실제 외부 호출은 기존 Port 호출 경계이며 SDK 내부 네트워크 재시도 수는 아니다. 같은 실행 안의 모델 재생성은 외부 호출만 늘리고 고유 접수나 실행 시도는 늘리지 않는다. 세는 기준의 뜻은 [CONTRACT §5-7](../../apps/api/CONTRACT.md#5-7-external_operations-lease-상태-전이--고정-계약)이다.
-멱등 응답 재사용은 새 고유 접수를 늘리지 않는다. HTTP 요청 수에서 고유 접수 수를 빼 재사용 횟수로 계산하지 않는다.
+`kind` 값은 `ExternalOperationMetrics`가 정한다. coach confirm은 report 원장 종류를 사용한다.
+이 화면의 External Operation 지표는 모두 `external_operations` 표를 주기적으로 집계한 gauge다. 현재 상태별 행 수(`current`), 시간 없는 행 수(`unmeasured`), 최장 시간, 집계 성공·시각이 있다.
 
-분석 최초 대기·재시도 대기·실제 실행·최초 접수부터 경과를 구분한다. 시간 없는 이전 행은 `unmeasured`에 표시한다. 이 값이 있으면 시간 gauge의 0을 정상 완료로 읽지 않는다. 영상 길이를 실행시간으로 쓰지 않는다.
+최초 대기·재시도 대기의 최장 시간, running 행의 나이, 최초 접수 후 미완료 경과를 구분한다. 시간 없는 이전 행은 `unmeasured`에 표시한다. 이 값이 있으면 시간 gauge의 0을 정상 완료로 읽지 않는다.
 원장 상태의 내부 집계 간격(`EXTERNAL_OPERATION_SNAPSHOT_MS`)과 Prometheus 수집 간격([수집 구성](../../deploy/monitoring/README.md#구성))이 따로 있다. 규칙 기준은 내부 갱신·수집·규칙 평가·통지 대기가 쌓이는 시간을 고려한 값이며, 실제 Cloud/Slack의 전송 지연은 아래 인수 검증에서 측정한다.
-분석 대기 p95는 `kind="analyze"`만 집계해 빠른 코치·리포트의 선점 대기가 분석의 대기 시간을 희석하지 않는다. 필수 External Operation 지표 규칙은 종류별 접수·시도·재큐·종료, 의존성별 호출, 대기/실행 상태와 미측정 상태, 최장 시간, histogram의 `+Inf` 버킷, 집계 성공/시각의 조합을 확인한다.
+필수 External Operation 지표 규칙(`operation-metric`)은 종류별 대기/실행 상태와 미측정 상태, 최장 시간, 집계 성공/시각의 조합을 확인한다.
 최장 대기는 `dashboards/operations.json`의 임계값부터 화면에서 주의 표시하고, `analysis-wait`(최장 대기)·`analysis-age`(최초 접수 후 미완료)가 Slack 조건이다. 코치는 `acttub_http_active_seconds_max`가 `http-inflight` 기준을 넘는 **진행 중 서버 HTTP 요청**을 본다. 브라우저가 요청을 취소해도 서버 처리는 계속될 수 있고, 프로세스가 끝난 뒤 남은 running 행은 원장 상태·Lease 지표로 본다. count/sum/max는 현재 진행 중 값이므로 `rate()`를 적용하지 않는다. inflight 경로 label은 `route`, 완료 HTTP 경로 label은 `uri`다.
 
-최종 실패는 새 `external|unexpected` 종료 사건으로 경고한다(`terminal`). `expected`는 장애에서 제외하고 `unclassified`는 별도 관측 정보 누락 경고다. **해제는 새 실패 발생 조건이 해소된 뜻이며 해당 External Operation의 성공이 아니다.** 카운터는 관측된 재시작을 `increase()`로 처리하지만 첫 scrape 이전이나 프로세스가 꺼진 수집 공백의 사건을 복구하지 못한다. 과거 원장 행을 새 종료 사건으로 소급 통지하지 않는다.
-종료 사건은 커밋 후 카운터이므로 DB 상태 집계의 성공·시각과 독립적으로 평가한다. API 수집과 해당 종류/분류 카운터가 모두 존재하고 신선해야 평가하며, DB 집계가 멈췄다는 이유로 새 실패 통지를 지연시키지 않는다.
+접수·시도·외부 호출·재큐·종료 사건 카운터와 시간 histogram, 최종 실패 경고 두 개(`terminal`·`unclassified`)는 옛 큐 워커와 함께 지웠다(SOMA-1140). 새 원장 `ai_jobs`에는 아직 이를 대신할 경고가 없다.
 원장 상태/Lease와 Sentry·Langfuse의 같은 환경·기간을 대조하며 재시도·Lease 상태를 모니터링 화면에서 변경하지 않는다. 설정 가능한 조사 링크에는 토큰·사용자 ID·세션·프롬프트·원문을 넣지 않는다.
 
 ## infrastructure
