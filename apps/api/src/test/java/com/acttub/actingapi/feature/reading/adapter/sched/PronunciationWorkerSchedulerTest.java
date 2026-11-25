@@ -9,10 +9,17 @@ import static org.mockito.Mockito.when;
 
 import com.acttub.actingapi.feature.reading.app.PronunciationWorker;
 import com.acttub.actingapi.support.RecordingFailureReporter;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class PronunciationWorkerSchedulerTest {
     final PronunciationWorker worker = mock(PronunciationWorker.class);
@@ -65,5 +72,34 @@ class PronunciationWorkerSchedulerTest {
         }
         verify(worker, timeout(2_000).atLeast(2)).runOnce();
         assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    void 거절_보고_문맥과_비우기_로그_이름과_스레드_이름이_그대로다() throws Exception {
+        PronunciationWorkerScheduler stopped = new PronunciationWorkerScheduler(worker, failures);
+        stopped.shutdown();
+        stopped.poll();
+        assertThat(failures.contexts()).containsExactly("PronunciationWorkerScheduler.poll");
+
+        Logger log = (Logger) LoggerFactory.getLogger(ScheduledTaskLog.class);
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        log.addAppender(events);
+        try {
+            when(worker.runOnce()).thenReturn(true, false);
+            scheduler.drain();
+            assertThat(events.list).singleElement().satisfies(event -> assertThat(event.getKeyValuePairs())
+                    .anySatisfy(pair -> assertThat(pair.key + "=" + pair.value).isEqualTo("task=PronunciationWorkerScheduler.drain")));
+        } finally {
+            log.detachAppender(events);
+        }
+
+        BlockingQueue<String> threads = new LinkedBlockingQueue<>();
+        when(worker.runOnce()).thenAnswer(call -> {
+            threads.add(Thread.currentThread().getName());
+            return false;
+        });
+        scheduler.poll();
+        assertThat(threads.poll(5, TimeUnit.SECONDS)).isEqualTo("pron-report-worker");
     }
 }
