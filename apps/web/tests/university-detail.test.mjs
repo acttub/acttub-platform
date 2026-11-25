@@ -211,6 +211,19 @@ test("대학 머리와 한눈에 보기는 응답 전에도 프리렌더 본문�
   // 오늘을 모르니 진행 상태나 D-day 를 말하지 않는다.
   assert.equal(screen.queryByText(/D-\d/), null);
   assert.equal(screen.queryByText("접수 마감"), null);
+
+  // 한눈에 보기 아래 실기 연습 안내 칸. 제목은 올해 요강의 실기 종목(자유연기)으로 고른다.
+  const callout = section("자유연기 연습, 앱에서 바로 해 볼 수 있어요");
+  assert.equal(within(callout).getByText("서울예술대 실기 대비").textContent, "서울예술대 실기 대비");
+  assert.equal(
+    within(callout).getByRole("link", { name: "앱에서 실기 연습하기" }).getAttribute("data-app-download"),
+    "admissions_detail",
+  );
+  // 모바일 고정 버튼은 안내 칸이 화면 위로 지나가기 전에는 숨어 있다.
+  const actions = screen.getAllByRole("link", { name: "앱에서 실기 연습하기", hidden: true });
+  assert.equal(actions.length, 2);
+  assert.equal(actions[1].getAttribute("data-app-download"), "admissions_detail");
+  assert.equal(actions[1].closest("[aria-hidden]").getAttribute("aria-hidden"), "true");
 });
 
 test("답이 오면 올해 전형에 D-day 를, 날짜만 아는 전형에 진행 상태를 붙이고 옮긴 요강엔 붙이지 않는다", async () => {
@@ -219,7 +232,8 @@ test("답이 오면 올해 전형에 D-day 를, 날짜만 아는 전형에 진�
 
   await waitFor(() => assert.equal(screen.getByText("접수 시작 D-4").textContent, "접수 시작 D-4"));
   assert.deepEqual(
-    screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent).slice(1, 4),
+    // 0은 한눈에 보기, 1은 실기 연습 안내 칸이다.
+    screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent).slice(2, 5),
     ["2027학년도 모집요강", "2026학년도 모집요강", "학년도 미확인 공고"],
   );
   const standInSection = section("2026학년도 모집요강");

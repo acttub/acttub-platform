@@ -242,6 +242,27 @@ export function universityDigest(
   return lines;
 }
 
+/**
+ * 상세 화면 앱 안내 칸의 제목. 올해(최신 학년도) 요강의 실기 종목만 본다 — 지난 학년도
+ * 요강을 옮겨 둔 전형의 종목으로 "지정연기"라고 말하면 올해는 틀릴 수 있다.
+ */
+export function practiceCalloutTitle(
+  notices: AdmissionNotice[],
+  latest: number | null,
+): string {
+  const current = splitByYear(notices, latest).find(
+    ({ year, standIn }) => year !== null && !standIn,
+  );
+  const categories = new Set(
+    (current?.notices ?? []).flatMap(({ practical_items }) =>
+      practical_items.map(({ category }) => category),
+    ),
+  );
+  if (categories.has("assigned_acting")) return "지정연기 연습, 앱에서 바로 해 볼 수 있어요";
+  if (categories.has("free_acting")) return "자유연기 연습, 앱에서 바로 해 볼 수 있어요";
+  return "실기 연습, 앱에서 바로 해 볼 수 있어요";
+}
+
 function unique(values: string[]): string[] {
   return values.filter((value, index, all) => all.indexOf(value) === index);
 }
