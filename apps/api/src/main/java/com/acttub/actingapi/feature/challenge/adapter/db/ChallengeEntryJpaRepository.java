@@ -288,6 +288,14 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
     @Query("update ChallengeEntryEntity e set e.mosaicStatus = 'ready', e.mosaicKey = :key, e.updatedAt = :now where e.id = :id")
     int attachMosaic(UUID id, String key, Instant now);
 
+    /** 공유 프레임 키를 목록 끝에 적는다. 이미 적은 키면 고치지 않는다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ChallengeEntryEntity e set e.shareFrameKeys = array_append(e.shareFrameKeys, :key)
+            where e.id = :id and array_position(e.shareFrameKeys, :key) = 0
+            """)
+    int appendShareFrameKey(UUID id, String key);
+
     /** 집은 그 시도일 때만 실패로 닫는다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

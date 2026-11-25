@@ -242,10 +242,7 @@ class PostgresEntryRepository implements EntryRepository {
                 // 지웠거나 모자이크를 바꿨거나 영상·계정이 사라졌다 — 늦게 만든 것을 남기지 않는다.
                 return List.of(cleanup.scheduleObjectDelete(source.userId(), List.of(key), now, now));
             }
-            em.createNativeQuery("""
-                    UPDATE challenge_entries SET share_frame_keys=array_append(share_frame_keys,CAST(:key AS text))
-                    WHERE id=:id AND NOT (CAST(:key AS text)=ANY(share_frame_keys))
-                    """).setParameter("key", key).setParameter("id", source.entryId()).executeUpdate();
+            entries.appendShareFrameKey(source.entryId(), key);
             return List.of();
         });
     }
