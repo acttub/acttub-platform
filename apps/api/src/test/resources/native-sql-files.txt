@@ -15,6 +15,7 @@ feature/billing/adapter/db/PostgresBillingAdminReader.java 3
 feature/billing/adapter/db/PostgresBillingRepository.java 31
 feature/challenge/adapter/db/ChallengeSettlement.java 9
 feature/challenge/adapter/db/EntryCards.java 2 남김: 참여작 카드 한 문장이 다른 기능의 표(video 의 videos, profile 의 user_profiles)를 조인한다. 그 기능에 이 값을 내주는 Port 가 없고, 목록·상세마다 도는 조회라 표마다 나누면 문장이 는다(§5-1)
+feature/challenge/adapter/db/EntryCards.java 1 남김: 공유 프레임 재료(SOMA-1156)는 text[] 를 array_to_string 으로 읽고 (starts_at,id) 행 비교로 회차를 센다
 feature/challenge/adapter/db/EntryLocks.java 6
 feature/challenge/adapter/db/NotificationEvents.java 1 남김: 수신자에게 푸시를 보낼 수 있는지 다른 기능의 표(profile 의 user_profiles, push 의 push_tokens)에서 읽는다. 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/PostgresAiReportRepository.java 16
@@ -22,6 +23,7 @@ feature/challenge/adapter/db/PostgresChallengeBrowse.java 5 남김: 챌린지 �
 feature/challenge/adapter/db/PostgresEntryModerationRepository.java 11
 feature/challenge/adapter/db/PostgresEntryReportRepository.java 23
 feature/challenge/adapter/db/PostgresEntryRepository.java 59
+feature/challenge/adapter/db/PostgresEntryRepository.java 4 남김: 공유 프레임 키(SOMA-1156)는 text[] 연산(array_append·ANY·unnest)이고 모자이크본 붙이기와 같은 사람→참여작→영상 잠금(FOR UPDATE OF e FOR SHARE OF v)을 쓴다
 feature/challenge/adapter/db/PostgresNotificationRepository.java 16
 feature/challenge/adapter/db/PostgresReactionRepository.java 20
 feature/challenge/adapter/db/UnseenEntryBoost.java 1 남김: 공개 조건(ChallengeVisibility.ENTRY_FROM)이 다른 기능의 표(auth 의 users, video 의 videos, profile 의 user_profiles)를 조인한다. 그 기능에 이 조건을 내주는 Port 가 없고, 참여작 목록마다 도는 한 문장이다(§5-1)

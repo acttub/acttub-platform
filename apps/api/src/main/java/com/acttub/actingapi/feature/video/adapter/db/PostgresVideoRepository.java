@@ -352,10 +352,13 @@ class PostgresVideoRepository implements VideoRepository {
                     .executeUpdate();
             // 이 영상으로 낸 챌린지 참여작의 얼굴 모자이크본도 영상에서 나온 것이라 함께 지운다. 참여작 행은 잠그지 않는다
             // (참여작 수정은 참여작 → 영상 순서로 잡는다). 파일이 파기된 참여작은 재생 주소가 없으므로 남은 키는 쓰이지 않고,
-            // 이 뒤에 붙으려는 모자이크본은 영상 행을 잡아 파기를 보고 스스로 지운다.
+            // 이 뒤에 붙으려는 모자이크본은 영상 행을 잡아 파기를 보고 스스로 지운다. 공유 프레임 영상·미리보기(SOMA-1156)도
+            // 같다 — 목록은 비우지 않는다(파기된 참여작에는 프레임을 내주지 않는다).
             List<String> keys = new java.util.ArrayList<>(objectKeys(locked));
             keys.addAll(NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT mosaic_key FROM challenge_entries WHERE video_id=:videoId AND mosaic_key IS NOT NULL
+                    UNION
+                    SELECT unnest(share_frame_keys) FROM challenge_entries WHERE video_id=:videoId
                     """, Tuple.class)
                     .setParameter("videoId", videoId)).stream()
                     .map(row -> row.get("mosaic_key", String.class))

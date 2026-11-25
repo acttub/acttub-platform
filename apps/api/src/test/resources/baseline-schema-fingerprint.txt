@@ -237,6 +237,7 @@ COLUMN challenge_entries.mosaic_status ord=20 type=text len=- null=YES default=-
 COLUMN challenge_entries.published_at ord=7 type=timestamptz len=- null=YES default=-
 COLUMN challenge_entries.request_fingerprint ord=15 type=bpchar len=64 null=NO default=-
 COLUMN challenge_entries.request_id ord=14 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.share_frame_keys ord=29 type=_text len=- null=NO default='{}'::text[]
 COLUMN challenge_entries.status ord=9 type=text len=- null=NO default='visible'::text
 COLUMN challenge_entries.updated_at ord=17 type=timestamptz len=- null=NO default=now()
 COLUMN challenge_entries.user_id ord=3 type=uuid len=- null=NO default=-
@@ -1180,6 +1181,7 @@ CONSTRAINT challenge_entries challenge_entries_mosaic_attempts_not_null NOT NULL
 CONSTRAINT challenge_entries challenge_entries_pkey PRIMARY KEY (id)
 CONSTRAINT challenge_entries challenge_entries_request_fingerprint_not_null NOT NULL request_fingerprint
 CONSTRAINT challenge_entries challenge_entries_request_id_not_null NOT NULL request_id
+CONSTRAINT challenge_entries challenge_entries_share_frame_keys_not_null NOT NULL share_frame_keys
 CONSTRAINT challenge_entries challenge_entries_status_not_null NOT NULL status
 CONSTRAINT challenge_entries challenge_entries_updated_at_not_null NOT NULL updated_at
 CONSTRAINT challenge_entries challenge_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)

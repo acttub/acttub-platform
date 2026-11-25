@@ -1,27 +1,37 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { InlineErrorLine } from '@/components/ui/inline-error';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { SkeletonBlock } from '@/components/ui/skeleton';
 import { Toast } from '@/components/ui/toast';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
+  canPickFrame,
   canSaveVideo,
+  DEFAULT_SHARE_FRAME,
+  frameLabel,
   hasShareOptions,
+  isMosaicNotReady,
   kakaoFeed,
+  prepareShareFile,
   prepareVideoFile,
+  SHARE_FRAMES,
   shareFailureKind,
   shareFailureMessage,
   shareMessage,
   shareTargets,
   storyRoute,
   threadsIntentUrl,
+  type FrameDeps,
   type ShareContext,
+  type ShareFrame,
   type ShareTarget,
 } from '@/lib/challenge/share';
 import {
@@ -44,6 +54,10 @@ import { translate as t } from '@/lib/i18n';
  * 페이지다(SOMA-821, 하단 시트 금지). 머리줄 「공유하기」+닫기, 미리보기 줄(제목 대사 · 지은이 · 링크), 공유 대상 원 5개(인스타·카카오톡·스레드·링크 복사·더 보기), 「영상으로 저장」.
  * 어떤 대상이 열리는지는 `lib/challenge/share.ts` 의 규칙을 따른다(영상은 내 것만, 링크는 공개된 것만).
  * 영상은 재생 주소에서 받는 동안 「영상을 준비하고 있어요…」를 보이고, 실패하면 안내 문구를 페이지 안에 둔다.
+ *
+ * 공유 프레임(SOMA-1156): 영상이 나가는 길이 열린 내 참여작이면 미리보기 줄 대신 서버가 그린 프레임 미리보기와 「프레임」 줄
+ * (흰색·파랑·검정·없음, 기본 흰색)을 둔다. 인스타·영상 저장은 고른 프레임을 씌운 서버 영상을 기다려(「프레임 넣는 중…」)
+ * 받는다. 프레임을 넣지 못하면 다시 시도할 수 있는 안내를 두고, 원본 영상으로 대신 보내지 않는다.
  */
 export type ShareSheetEntry = ShareContext & { id: string; authorName: string };
 
@@ -103,31 +117,79 @@ export function EntryShareSheet({
   line: string;
   onClose: () => void;
 }) {
-  const [busy, setBusy] = useState<'prepare' | 'save' | null>(null);
-  const [notice, setNotice] = useState<{ text: string; kind: 'toast' | 'error' } | null>(null);
+  const [busy, setBusy] = useState<'prepare' | 'save' | 'frame' | null>(null);
+  const [notice, setNotice] = useState<{ text: string; kind: 'toast' | 'error'; retry?: () => void } | null>(null);
+  const [frame, setFrame] = useState<ShareFrame>(DEFAULT_SHARE_FRAME);
+  const [previews, setPreviews] = useState<Partial<Record<ShareFrame, string | false>>>({});
   const insets = useSafeAreaInsets();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 페이지를 닫으면 기다리던 프레임 영상을 더 묻지 않고, 늦게 온 결과를 안내하지 않는다.
+  const open = useRef(visible);
+  open.current = visible;
+  const pickable = entry != null && canPickFrame(entry);
+  const entryId = entry?.id;
 
   useEffect(() => {
     if (!visible) {
       setBusy(null);
       setNotice(null);
+      setFrame(DEFAULT_SHARE_FRAME);
+      setPreviews({});
     }
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [visible]);
 
+  // 네 가지 미리보기를 한 번에 받는다 — 서버가 결과 영상과 같은 틀로 그린 그림이다. 못 받으면 빈 칸으로 둔다.
+  // 얼굴 가림이 아직 준비되지 않았으면(mosaic_not_ready) 빈 칸과 함께 그 안내를 미리 둔다.
+  useEffect(() => {
+    if (!visible || !pickable || !entryId) return;
+    let alive = true;
+    for (const option of SHARE_FRAMES) {
+      api.getShareFramePreview(entryId, option).then(
+        (preview) => alive && setPreviews((prev) => ({ ...prev, [option]: preview.image_url })),
+        (e: unknown) => {
+          if (!alive) return;
+          setPreviews((prev) => ({ ...prev, [option]: false }));
+          if (isMosaicNotReady(e)) setNotice({ text: shareFailureMessage('mosaic_not_ready'), kind: 'error' });
+        },
+      );
+    }
+    return () => {
+      alive = false;
+    };
+  }, [visible, pickable, entryId]);
+
   if (!entry) return null;
   const targets = shareTargets(entry);
   const savable = canSaveVideo(entry);
+  const chosen: ShareFrame = pickable ? frame : 'none';
+  const frameDeps: FrameDeps = {
+    ...videoDeps,
+    requestFrame: (id, option) => api.requestShareFrame(id, option),
+    wait: (ms) =>
+      new Promise((resolve, reject) =>
+        setTimeout(() => (open.current ? resolve() : reject(new Error('closed'))), ms),
+      ),
+    now: () => Date.now(),
+  };
 
   const toast = (text: string) => {
     setNotice({ text, kind: 'toast' });
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setNotice(null), 2200);
   };
-  const fail = (e: unknown) => setNotice({ text: shareFailureMessage(shareFailureKind(e)), kind: 'error' });
+  const fail = (e: unknown, retry?: () => void) => {
+    if (!open.current) return;
+    const kind = shareFailureKind(e);
+    setNotice({ text: shareFailureMessage(kind), kind: 'error', retry: kind === 'frame_failed' ? retry : undefined });
+  };
+  /** 인스타·영상 저장에 쓸 파일. 프레임을 골랐으면 서버 프레임 영상을 기다린다. */
+  const prepareFile = (kind: 'prepare' | 'save') => {
+    setBusy(chosen === 'none' ? kind : 'frame');
+    return prepareShareFile(entry, chosen, frameDeps);
+  };
 
   const postStory = async () => {
     const route = storyRoute({ installed: await isInstagramInstalled(), storeUrl: instagramStoreUrl() });
@@ -140,16 +202,16 @@ export function EntryShareSheet({
       void openSystemShare(shareMessage(entry, entry.authorName, line)).catch(() => {});
       return;
     }
-    setBusy('prepare');
     let uri: string;
     try {
-      uri = await prepareVideoFile(entry, videoDeps);
+      uri = await prepareFile('prepare');
     } catch (e) {
       setBusy(null);
-      fail(e);
+      fail(e, () => void onTarget('instagram'));
       return;
     }
     setBusy(null);
+    if (!open.current) return;
     // 받은 파일은 여기서 지우지 않는다. 안드로이드는 인스타를 열자마자 돌아오고 인스타가 그 뒤에 파일을 읽어서,
     // 바로 지우면 스토리에 영상이 올라가지 않는다. 다음 공유 때 videoDeps.download 가 정리한다.
     try {
@@ -195,7 +257,7 @@ export function EntryShareSheet({
   };
 
   const onTarget = async (target: ShareTarget) => {
-    logEvent('challenge_share_target', { id: entry.id, target });
+    logEvent('challenge_share_target', target === 'instagram' ? { id: entry.id, target, frame: chosen } : { id: entry.id, target });
     setNotice(null);
     try {
       if (target === 'instagram') await postStory();
@@ -213,16 +275,16 @@ export function EntryShareSheet({
 
   const onSave = async () => {
     if (busy) return;
-    logEvent('challenge_share_save', { id: entry.id });
+    logEvent('challenge_share_save', { id: entry.id, frame: chosen });
     setNotice(null);
-    setBusy('save');
     let uri: string | null = null;
     try {
-      uri = await prepareVideoFile(entry, videoDeps);
+      uri = await prepareFile('save');
+      setBusy('save');
       await saveVideoToLibrary(uri);
       toast(t('entryShare.saved'));
     } catch (e) {
-      fail(e);
+      fail(e, () => void onSave());
     } finally {
       if (uri) videoDeps.remove?.(uri);
       setBusy(null);
@@ -237,19 +299,59 @@ export function EntryShareSheet({
           left={<NavIconButton icon="x" label={t('entryShare.close')} phLabel="challenge_share_close" onPress={onClose} />}
         />
         <ScrollView contentContainerStyle={styles.body}>
-        <View style={styles.preview}>
-          <View style={styles.thumb}>
-            <Feather name="play" size={18} color={palette.textMeta} />
+        {pickable ? (
+          <>
+            <View style={styles.framePreview}>
+              <FrameImage
+                url={previews[frame]}
+                label={t('entryShare.framePreview', { frame: frameLabel(frame) })}
+                width={FRAME_PREVIEW_WIDTH}
+              />
+            </View>
+            <View style={styles.frameHead}>
+              <Text style={styles.frameTitle}>{t('entryShare.frameTitle')}</Text>
+              <Text style={styles.frameHint}>{t('entryShare.frameHint')}</Text>
+            </View>
+            <View style={styles.frameRow} accessibilityRole="radiogroup">
+              {SHARE_FRAMES.map((option) => {
+                const selected = option === frame;
+                return (
+                  <Pressable
+                    key={option}
+                    style={styles.frameOption}
+                    onPress={() => {
+                      setFrame(option);
+                      setNotice(null);
+                    }}
+                    disabled={busy !== null}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={frameLabel(option)}
+                    ph-label={`challenge_share_frame_${option}`}>
+                    <View style={[styles.frameThumb, selected && styles.frameThumbSelected]}>
+                      <FrameImage url={previews[option]} width={FRAME_THUMB_WIDTH} />
+                    </View>
+                    <Text style={[styles.frameLabel, selected && styles.frameLabelSelected]}>{frameLabel(option)}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        ) : (
+          <View style={styles.preview}>
+            <View style={styles.thumb}>
+              <Feather name="play" size={18} color={palette.textMeta} />
+            </View>
+            <View style={styles.previewText}>
+              <Text style={styles.previewLine} numberOfLines={1}>
+                “{line}”
+              </Text>
+              <Text style={styles.previewSub} numberOfLines={1}>
+                {t('entryShare.previewSub', { name: entry.authorName })}
+              </Text>
+            </View>
           </View>
-          <View style={styles.previewText}>
-            <Text style={styles.previewLine} numberOfLines={1}>
-              “{line}”
-            </Text>
-            <Text style={styles.previewSub} numberOfLines={1}>
-              {t('entryShare.previewSub', { name: entry.authorName })}
-            </Text>
-          </View>
-        </View>
+        )}
         <View style={styles.targets}>
           {targets.map((target) => {
             const look = TARGET_ICON[target];
@@ -283,12 +385,18 @@ export function EntryShareSheet({
         ) : null}
         {busy ? (
           <View style={styles.status} accessibilityLiveRegion="polite">
-            <Text style={styles.statusText}>{busy === 'save' ? t('entryShare.saving') : t('entryShare.preparing')}</Text>
+            <Text style={styles.statusText}>
+              {busy === 'frame' ? t('entryShare.framing') : busy === 'save' ? t('entryShare.saving') : t('entryShare.preparing')}
+            </Text>
           </View>
         ) : null}
         {notice?.kind === 'error' ? (
           <View style={styles.error}>
-            <InlineErrorLine message={notice.text} />
+            {notice.retry ? (
+              <InlineError message={notice.text} onRetry={notice.retry} />
+            ) : (
+              <InlineErrorLine message={notice.text} />
+            )}
           </View>
         ) : null}
         </ScrollView>
@@ -300,8 +408,46 @@ export function EntryShareSheet({
   );
 }
 
+/** 프레임 미리보기의 폭. 높이는 9:16 이다. */
+const FRAME_PREVIEW_WIDTH = 200;
+const FRAME_THUMB_WIDTH = 60;
+
+/** 서버가 그린 프레임 미리보기 한 장. 받는 동안은 뼈대, 못 받았으면 빈 칸이다. */
+function FrameImage({ url, label, width }: { url: string | false | undefined; label?: string; width: number }) {
+  const height = Math.round((width * 16) / 9);
+  if (url === undefined) return <SkeletonBlock width={width} height={height} radius={0} />;
+  if (url === false) return <View style={[styles.frameEmpty, { width, height }]} />;
+  return (
+    <Image
+      source={{ uri: url }}
+      style={{ width, height }}
+      contentFit="cover"
+      accessible={label != null}
+      accessibilityLabel={label}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: palette.bg },
+  framePreview: {
+    alignSelf: 'center',
+    marginTop: space[3],
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+  },
+  frameHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space[5] },
+  frameTitle: { ...type.body1Bold, color: palette.text },
+  frameHint: { ...type.caption, color: palette.textMeta },
+  frameRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space[3] },
+  frameOption: { alignItems: 'center', gap: space[2] },
+  frameThumb: { borderWidth: 1, borderColor: palette.border, borderRadius: radius.sm, overflow: 'hidden', padding: 1 },
+  frameThumbSelected: { borderWidth: 2, borderColor: palette.blue, padding: 0 },
+  frameEmpty: { backgroundColor: palette.bgSoft },
+  frameLabel: { ...type.caption, color: palette.textSub },
+  frameLabelSelected: { ...type.captionBold, color: palette.blueDeep },
   body: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8] },
   preview: { flexDirection: 'row', alignItems: 'center', gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.md, padding: space[3], marginTop: space[3] },
   thumb: { width: 44, height: 56, borderRadius: radius.sm, backgroundColor: palette.border, alignItems: 'center', justifyContent: 'center' },

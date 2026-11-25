@@ -413,12 +413,25 @@ const ko = {
     none: '지금은 공유할 수 없는 참여작이에요.',
     noInstagram: '인스타그램이 없어요. 설치하면 스토리에 바로 올릴 수 있어요.',
     installInstagram: '설치하러 가기',
+    // 공유 프레임(SOMA-1156): 인스타 스토리·영상 저장에 씌우는 틀.
+    frameTitle: '프레임',
+    frameHint: '인스타·영상 저장에 들어가요',
+    framePreview: '{{frame}} 프레임 미리보기',
+    framing: '프레임 넣는 중…',
+    frames: {
+      white: '흰색',
+      blue: '파랑',
+      black: '검정',
+      none: '없음',
+    },
     fail: {
       no_video: '영상을 아직 불러오지 못했어요. 잠시 뒤에 다시 해 주세요.',
       too_large: '영상이 너무 커서 스토리에 올릴 수 없어요. 링크로 공유해 주세요.',
       download_failed: '영상을 받지 못했어요. 연결을 확인하고 다시 해 주세요.',
       permission_denied: '사진첩 저장 권한이 없어요. 설정에서 허용해 주세요.',
       save_failed: '영상을 저장하지 못했어요. 다시 해 주세요.',
+      frame_failed: '프레임을 넣지 못했어요. 다시 해 주세요.',
+      mosaic_not_ready: '얼굴 가림을 준비하고 있어요. 잠시 후 다시 해 주세요.',
     },
   },
   challengeUpload: {

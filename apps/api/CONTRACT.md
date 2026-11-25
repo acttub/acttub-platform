@@ -1199,6 +1199,14 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   반응(`EntryLocks`)과 목록 조회가 부른다. 매시 일은 `CHALLENGE_SETTLEMENT_ENABLED`). likes 정렬의 첫 조회는
   전체 순서와 순위를 `entry_ranking_snapshots`에 굳히고 커서는 그 위치다.
 - 조회 사건은 `entry_view_events`에 조회수 증가와 한 트랜잭션으로 남긴다.
+- 공유 프레임(SOMA-1156, `EntryShareFrameService`): 영상 합성은 `entryShareFrameExecutor`(스레드 하나, 줄 8)가 하고 ffmpeg 는
+  `FfmpegLock` 차례다. 만드는 중·실패는 프로세스 메모리에만 있어 재시작하면 다음 요청이 다시 만든다(인스턴스끼리 공유하지 않는다).
+  만든 키는 `challenge_entries.share_frame_keys`(V96, text[])에 붙인다 — 붙이기는 모자이크본처럼 사람 → 참여작 → 영상을 잠그고,
+  그 사이 지웠거나 원본 고르기(모자이크)가 바뀌었거나 파기·탈퇴했으면 붙이지 않고 장부로 보낸다. 정리는 참여작 삭제·모자이크 변경
+  (`PostgresEntryRepository`), 파일 파기(`PostgresVideoRepository.purgeFile`), 탈퇴(`PostgresProfileRepository.videoKeys`)가 모자이크본과
+  같은 자리에서 한다. 미리보기 한 장면은 요청 안에서 저장소 주소의 앞부분만 읽고 락을 잡지 않는다. 얼굴 가림을 켰는데 모자이크본이
+  아직 없으면 `EntryShareFrameService`가 읽은 값으로 422 `mosaic_not_ready`를 내고 원본에 씌우지 않는다(「없음」 미리보기는 예외). 읽은 뒤
+  모자이크가 바뀌면 붙이기의 원본 고르기 검사가 장부로 보낸다.
 - 공유 조회(`GET /v2/public/entries/{id}`)의 IP별 한도는 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴 값으로 센다(§6-13).
 
 ### 6-18. 챌린지 반응·차단·신고 (0.1.0)

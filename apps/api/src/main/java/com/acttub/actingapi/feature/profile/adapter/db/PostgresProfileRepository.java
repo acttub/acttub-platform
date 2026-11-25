@@ -970,6 +970,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
      * <p>보관함 영상의 <b>포스터</b>(V23, 첫 장면 JPEG)도 함께다 — 얼굴이 담긴 한 장이다. 포스터 워커는 같은
      * 챌린지 참여작의 얼굴 모자이크본도 영상에서 나온 객체라 함께 모은다(모자이크 워커도 {@code users} 행을 먼저 잡는다).
      * {@code users} 행을 잡고 붙이므로 여기서 모은 뒤에 붙는 포스터는 없다(늦게 만든 것은 워커가 장부로 보낸다).
+     * 참여작의 공유 프레임 영상·미리보기(SOMA-1156)도 같은 방식으로 모으고 붙인다.
      */
     private List<String> videoKeys(UUID userId) {
         return list(entityManager.createNativeQuery("""
@@ -988,6 +989,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                 SELECT mosaic_key
                 FROM challenge_entries
                 WHERE user_id=:userId AND mosaic_key IS NOT NULL
+                UNION
+                SELECT unnest(share_frame_keys)
+                FROM challenge_entries
+                WHERE user_id=:userId
                 """, Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))

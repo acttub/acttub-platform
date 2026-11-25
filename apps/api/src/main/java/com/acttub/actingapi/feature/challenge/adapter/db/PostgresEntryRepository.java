@@ -197,6 +197,7 @@ class PostgresEntryRepository implements EntryRepository {
         em.createNativeQuery("UPDATE entry_comments SET body=NULL,deleted_at=coalesce(deleted_at,:now) WHERE entry_id=:id")
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
         dropMosaic(owner, entryId, now);
+        dropShareFrames(owner, entryId, now);
         em.createNativeQuery("""
                 UPDATE challenge_entries SET status='deleted',caption=NULL,video_id=NULL,deleted_at=:now,updated_at=:now
                 WHERE id=:id
@@ -205,20 +206,80 @@ class PostgresEntryRepository implements EntryRepository {
 
     /**
      * 얼굴 모자이크를 켜고 끈다(잠근 본인 참여작). 켜면 새로 만든다 — 이미 만드는 중이거나 준비됐으면 그대로이고, 실패한
-     * 것은 시도 횟수를 비워 다시 만든다. 끄면 만든 사본을 정리 장부에 올린다.
+     * 것은 시도 횟수를 비워 다시 만든다. 끄면 만든 사본을 정리 장부에 올린다. 상태가 바뀌면 만들어 둔 공유 프레임도 정리한다.
      */
     private void mosaic(UUID owner, UUID entryId, boolean on, Instant now) {
         if (on) {
-            em.createNativeQuery("""
+            int changed = em.createNativeQuery("""
                     UPDATE challenge_entries SET face_mosaic=true,mosaic_status='pending',mosaic_attempts=0,updated_at=:now
                     WHERE id=:id AND (NOT face_mosaic OR mosaic_status='failed')
                     """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+            if (changed > 0) dropShareFrames(owner, entryId, now);
             return;
         }
         dropMosaic(owner, entryId, now);
-        em.createNativeQuery("""
+        int changed = em.createNativeQuery("""
                 UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,updated_at=:now WHERE id=:id AND face_mosaic
                 """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        if (changed > 0) dropShareFrames(owner, entryId, now);
+    }
+
+    /**
+     * 만들어 둔 공유 프레임 영상·미리보기(SOMA-1156)를 정리 장부에 올리고 목록을 비운다. 아직 만드는 중인 것은 붙일 때 원본
+     * 고르기가 바뀐 것을 보고 스스로 장부로 간다. @return 장부 id, 지울 것이 없으면 {@code null}
+     */
+    private UUID dropShareFrames(UUID owner, UUID entryId, Instant now) {
+        List<String> keys = NativeTuples.list(em.createNativeQuery("""
+                WITH old AS (
+                    SELECT id,share_frame_keys AS frame_keys FROM challenge_entries WHERE id=:id AND cardinality(share_frame_keys)>0
+                ), cleared AS (
+                    UPDATE challenge_entries e SET share_frame_keys=CAST('{}' AS text[]) FROM old WHERE e.id=old.id
+                    RETURNING old.frame_keys
+                )
+                SELECT unnest(frame_keys) AS object_key FROM cleared
+                """, Tuple.class).setParameter("id", entryId)).stream().map(row -> row.get("object_key", String.class)).toList();
+        return keys.isEmpty() ? null : cleanup.scheduleObjectDelete(owner, keys, now, now);
+    }
+
+    @Override @Transactional(readOnly = true)
+    public ShareFrameSource shareFrameSource(UUID owner, UUID entryId) { return cards.shareFrameSource(owner, entryId); }
+
+    @Override
+    public List<UUID> attachShareFrame(ShareFrameSource source, String key, Instant now) {
+        return transaction.execute(tx -> {
+            // 모자이크본 붙이기와 같은 순서(사람 → 참여작 → 영상)로 잡는다 — 탈퇴·파기·삭제가 키를 모으기 전에 적었거나,
+            // 적지 않고 장부로 보내거나 둘 중 하나다.
+            var owner = NativeTuples.list(em.createNativeQuery(
+                    "SELECT status FROM users WHERE id=:user FOR UPDATE", Tuple.class).setParameter("user", source.userId()));
+            var entry = NativeTuples.list(em.createNativeQuery("""
+                    SELECT e.status,e.face_mosaic,e.mosaic_status,e.mosaic_key,v.object_key,v.purged_at
+                    FROM challenge_entries e JOIN videos v ON v.id=e.video_id
+                    WHERE e.id=:id AND e.user_id=:user
+                    FOR UPDATE OF e FOR SHARE OF v
+                    """, Tuple.class).setParameter("id", source.entryId()).setParameter("user", source.userId()));
+            boolean attachable = !owner.isEmpty() && "active".equals(owner.getFirst().get("status", String.class))
+                    && !entry.isEmpty() && !"deleted".equals(entry.getFirst().get("status", String.class))
+                    && source.objectKey().equals(entry.getFirst().get("object_key", String.class))
+                    && entry.getFirst().get("purged_at", Instant.class) == null
+                    && source.sourceKey().equals(currentShareSource(entry.getFirst()));
+            if (!attachable) {
+                // 지웠거나 모자이크를 바꿨거나 영상·계정이 사라졌다 — 늦게 만든 것을 남기지 않는다.
+                return List.of(cleanup.scheduleObjectDelete(source.userId(), List.of(key), now, now));
+            }
+            em.createNativeQuery("""
+                    UPDATE challenge_entries SET share_frame_keys=array_append(share_frame_keys,CAST(:key AS text))
+                    WHERE id=:id AND NOT (CAST(:key AS text)=ANY(share_frame_keys))
+                    """).setParameter("key", key).setParameter("id", source.entryId()).executeUpdate();
+            return List.of();
+        });
+    }
+
+    /** 지금 공유 프레임을 씌울 영상 — 본인 재생과 같다(모자이크본이 준비됐으면 그것, 아니면 원본). */
+    private static String currentShareSource(Tuple row) {
+        String mosaic = row.get("mosaic_key", String.class);
+        boolean ready = Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class))
+                && "ready".equals(row.get("mosaic_status", String.class)) && mosaic != null;
+        return ready ? mosaic : row.get("object_key", String.class);
     }
 
     /**
@@ -296,7 +357,9 @@ class PostgresEntryRepository implements EntryRepository {
                     UPDATE challenge_entries SET mosaic_status='ready',mosaic_key=:key,updated_at=:now WHERE id=:id
                     """).setParameter("key", mosaicKey).setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", job.entryId()).executeUpdate();
-            return List.of();
+            // 이제 공유 프레임은 모자이크본에 씌운다 — 원본에 씌워 둔 것을 정리한다.
+            UUID frames = dropShareFrames(job.userId(), job.entryId(), now);
+            return frames == null ? List.of() : List.of(frames);
         });
     }
 
