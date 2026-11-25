@@ -281,6 +281,22 @@ class NotificationStoreIT {
         assertThat(db.count("notification_pushes")).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("forgetTokens: 준 토큰의 행만 지운다 — 주인을 따지지 않고, 없는 토큰과 빈 목록은 조용히 지나간다")
+    void forgetTokensRemovesOnlyTheGivenTokens() {
+        UUID other = db.member("다른 사람");
+        db.device(other, "ExponentPushToken[other]");
+        db.device(me, "ExponentPushToken[second]");
+
+        notifications.forgetTokens(List.of("ExponentPushToken[me]", "ExponentPushToken[other]", "ExponentPushToken[missing]"));
+
+        assertThat(db.jdbc.queryForList("SELECT token FROM push_tokens", String.class)).containsExactly("ExponentPushToken[second]");
+        assertThat(db.statementsOf(() -> notifications.forgetTokens(List.of()))).isEmpty();
+        assertThat(db.statementsOf(() -> notifications.forgetTokens(List.of("ExponentPushToken[second]"))))
+                .containsExactly("delete push_tokens");
+        assertThat(db.count("push_tokens")).isZero();
+    }
+
     // ---- 알림함의 댓글 앞부분 ----
 
     @Test
