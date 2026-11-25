@@ -71,6 +71,9 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresPortfolioAccountErasure")
     AccountErasure portfolioErasure;
 
+    @MockitoSpyBean(name = "postgresTransferAccountErasure")
+    AccountErasure transferErasure;
+
     private AccountLifecycleSeed seed;
 
     @BeforeEach
@@ -82,7 +85,7 @@ class AccountErasureRollbackIT {
     }
 
     @ParameterizedTest(name = "{0} 자리에서 실패")
-    @EnumSource(value = AccountErasureStep.class, names = {"IDENTITIES", "EMAIL", "PORTFOLIO", "SESSIONS"})
+    @EnumSource(value = AccountErasureStep.class, names = {"IDENTITIES", "EMAIL", "PORTFOLIO", "TRANSFER_CODES", "SESSIONS"})
     @DisplayName("구현 하나가 예외를 던지면 탈퇴 전체가 되돌아간다: 계정은 활성 그대로이고 어느 표도 달라지지 않는다")
     void aFailingOwnerRollsTheWholeWithdrawalBack(AccountErasureStep failing) throws Exception {
         UUID self = seed.full("본인", Identity.MEMBER, "declined");
@@ -108,6 +111,7 @@ class AccountErasureRollbackIT {
         return switch (step) {
             case IDENTITIES, EMAIL, SESSIONS -> authErasure;
             case PORTFOLIO -> portfolioErasure;
+            case TRANSFER_CODES -> transferErasure;
             default -> throw new IllegalArgumentException("no spied owner for " + step);
         };
     }

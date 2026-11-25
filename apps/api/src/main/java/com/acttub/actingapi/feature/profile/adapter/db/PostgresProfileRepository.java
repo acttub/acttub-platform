@@ -67,7 +67,6 @@ class PostgresProfileRepository
             AccountErasureStep.DISCOVERY_ANSWER,
             AccountErasureStep.BILLING_CUSTOMER,
             AccountErasureStep.PROFILE,
-            AccountErasureStep.TRANSFER_CODES,
             AccountErasureStep.PUSH,
             AccountErasureStep.LEGACY_OPERATIONS);
 
@@ -886,15 +885,6 @@ class PostgresProfileRepository
                 blurProfile(userId, account.today());
                 yield List.of();
             }
-            case TRANSFER_CODES -> {
-                // 살아 있는 이관 코드만 지운다. 쓰인 코드는 "이 게스트는 옮겨졌다"는 표식이라 남긴다
-                // (그 게스트의 토큰으로 온 요청에 guest_transferred 를 답한다).
-                entityManager.createNativeQuery(
-                        "DELETE FROM guest_transfer_codes WHERE user_id=:userId AND used_at IS NULL")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
             case PUSH -> {
                 erasePush(userId);
                 yield List.of();
@@ -903,7 +893,7 @@ class PostgresProfileRepository
                 cancelOperations(userId, now);
                 yield List.of();
             }
-            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO ->
+            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
