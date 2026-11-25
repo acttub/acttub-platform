@@ -71,6 +71,11 @@ export type ApiRequestDependencies = {
    */
   getLanguage?: () => string;
   waitForCredentialReady: () => Promise<void>;
+  /**
+   * 동의 판정이 '동의 필요'인 동안 동의 게이트에 막힐 인증 요청을 붙잡는다(lib/consent-gate.ts). 기다릴 약속을
+   * 주면 그동안 보내지 않고, null 이면 바로 보낸다. 없으면 붙잡지 않는다.
+   */
+  waitForConsentGate?: (method: string, path: string) => Promise<void> | null;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
   getAuthSessionEpoch: () => number;
@@ -365,6 +370,21 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     }
   }
 
+  /** 동의 게이트가 닫혀 있으면 열릴 때까지 기다린다. 기다렸으면 true — 그사이 세션이 바뀌었는지 호출한 쪽이 본다. */
+  /**
+   * 동의 게이트가 닫혀 있어 붙잡을 때만 Promise 를 돌려준다. 열려 있으면 null 이라 호출부가 await 없이
+   * 그대로 지나간다 — 이미 동의한 사용자의 요청 순서·타이밍이 전과 똑같다(SOMA-1155).
+   */
+  function waitForConsentGate(
+    method: string,
+    path: string,
+    signal: AbortSignal | undefined,
+  ): Promise<void> | null {
+    const pending = dependencies.waitForConsentGate?.(method.toUpperCase(), path);
+    if (!pending) return null;
+    return waitForShared(pending, signal).then(() => throwIfCancelled(signal));
+  }
+
   function supersededRefreshResult(expectedEpoch: number): RefreshResult {
     return dependencies.getAuthSessionEpoch() === expectedEpoch
       ? { kind: 'refreshed' }
@@ -566,7 +586,15 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     const authSessionEpoch = auth
       ? originalAuthSessionEpoch ?? dependencies.getAuthSessionEpoch()
       : null;
-    if (authSessionEpoch !== null) assertSameAuthSession(authSessionEpoch);
+    if (authSessionEpoch !== null) {
+      assertSameAuthSession(authSessionEpoch);
+      // 기다리는 사이 로그아웃·계정 전환이 있었으면 보내지 않고 세션 변경으로 끝낸다.
+      const consentWait = waitForConsentGate(init.method ?? 'GET', path, options.signal);
+      if (consentWait) {
+        await consentWait;
+        assertSameAuthSession(authSessionEpoch);
+      }
+    }
     const failedAccess = auth ? dependencies.getAccessToken() : null;
     const { response, payload } = await fetchParsed(path, init, options);
     throwIfCancelled(options.signal);
@@ -606,6 +634,13 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     }
     const authSessionEpoch =
       options.auth === false ? undefined : dependencies.getAuthSessionEpoch();
+    // 마감 시각을 재기 전에 기다린다. 동의를 기다린 시간이 재시도 마감을 깎지 않게 한다.
+    const consentWait =
+      authSessionEpoch === undefined ? null : waitForConsentGate('POST', path, options.signal);
+    if (consentWait) {
+      await consentWait;
+      assertSameAuthSession(authSessionEpoch!);
+    }
     const requestId = options.requestId ?? newRequestId();
     const serializedBody =
       body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body);
@@ -786,6 +821,15 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     body: unknown,
     options: PostIdempotentStreamOptions = {},
   ): Promise<T> {
+    // 마감 시각을 재기 전에 동의를 기다린다(postIdempotent 와 같은 이유). 열리면 아래에서 세션을 다시 확인한다.
+    if (options.auth !== false) {
+      const epochBeforeGate = dependencies.getAuthSessionEpoch();
+      const consentWait = waitForConsentGate('POST', streamPath, options.signal);
+      if (consentWait) {
+        await consentWait;
+        assertSameAuthSession(epochBeforeGate);
+      }
+    }
     const requestId = options.requestId ?? newRequestId();
     const deadline = clock.now() + (options.deadlineMs ?? 120_000);
     const fallback = () => {

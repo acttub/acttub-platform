@@ -598,6 +598,20 @@ describe('서버 응답이 보내는 알림', () => {
     seen('consent:decision_required');
   });
 
+  test('동의 필요로 안 뒤에 한꺼번에 돌아온 403 들은 판정을 다시 읽지 않는다', async () => {
+    apiMock.consentEntry.mockResolvedValue({ entry_status: 'decision_required', documents: [], pending: [] });
+    await act(async () => { for (const fn of listeners.consent) fn([]); });
+    await flush();
+    seen('consent:decision_required');
+    apiMock.consentEntry.mockClear();
+    await act(async () => {
+      for (let index = 0; index < 17; index += 1) for (const fn of listeners.consent) fn([]);
+    });
+    await flush();
+    expect(apiMock.consentEntry).not.toHaveBeenCalled();
+    seen('consent:decision_required');
+  });
+
   test('프로필이 필요하다는 403이면 프로필을 다시 읽는다', async () => {
     apiMock.me.mockResolvedValue({ id: 'm3', account_type: 'member', profile_complete: false, profile: null });
     await act(async () => { for (const fn of listeners.profile) fn(); });

@@ -13,14 +13,33 @@ export type ConsentEntryReader = {
  */
 export function createConsentEntrySession(reader: ConsentEntryReader) {
   let cachedEntry: Promise<ConsentEntryResponse> | null = null;
+  /** cachedEntry 가 끝나 얻은 판정. 읽는 중이면 null. */
+  let settledStatus: ConsentEntryResponse['entry_status'] | null = null;
 
   function loadAndCache(): Promise<ConsentEntryResponse> {
-    const response = reader.readEntry().catch((error: unknown) => {
-      if (cachedEntry === response) cachedEntry = null;
-      throw error;
-    });
+    settledStatus = null;
+    const response = reader.readEntry().then(
+      (entry) => {
+        if (cachedEntry === response) settledStatus = entry.entry_status;
+        return entry;
+      },
+      (error: unknown) => {
+        if (cachedEntry === response) cachedEntry = null;
+        throw error;
+      },
+    );
     cachedEntry = response;
     return response;
+  }
+
+  /**
+   * 보호 API 가 403 consent_required 로 막혔을 때 판정을 다시 읽어야 하나. 읽는 중이거나 이미 '동의 필요'로
+   * 알고 있으면 다시 읽지 않는다 — 한꺼번에 막힌 요청 수만큼 판정을 다시 읽던 것(SOMA-1155)을 막는다. allowed 로
+   * 알고 있는데 막혔으면 그사이 새 판이 나온 것이라 다시 읽는다. 판정이 없으면(첫 읽기 실패) 읽는다.
+   */
+  function shouldRecheckOnRejection(): boolean {
+    if (!cachedEntry) return true;
+    return settledStatus === 'allowed';
   }
 
   function readOnce(): Promise<ConsentEntryResponse> {
@@ -33,9 +52,10 @@ export function createConsentEntrySession(reader: ConsentEntryReader) {
 
   function clear(): void {
     cachedEntry = null;
+    settledStatus = null;
   }
 
-  return { readOnce, refresh, clear };
+  return { readOnce, refresh, clear, shouldRecheckOnRejection };
 }
 
 /** 설정의 동의 목록 한 줄(account.consent). 문서마다 제목·판·시행일·내 결정·결정 시각. */
