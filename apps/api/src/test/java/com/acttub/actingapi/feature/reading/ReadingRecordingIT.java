@@ -22,9 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CountDownLatch;
@@ -32,16 +30,14 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
 import com.acttub.actingapi.integration.media.Ffmpeg;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import tools.jackson.databind.JsonNode;
@@ -77,11 +73,9 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * <p>여기서 보지 못하는 것: 마이크·일시정지·상대역 재생 중의 녹음 여부(기기), 재생 URL 의 실제 만료(저장소), 보관 동의자
  * 탈퇴·3년 파기·객체 삭제 7일 연속 실패 알림(RA5).
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "spring.datasource.hikari.maximum-pool-size=12"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, ReadingRecordingIT.Fixture.class})
+@Import({MutableClock.Fixture.class, FakeObjectStorage.Fixture.class, ReadingRecordingIT.Fixture.class})
 class ReadingRecordingIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final long TRANSFER_GATE = 546_004L;
@@ -107,7 +101,7 @@ class ReadingRecordingIT {
     MutableClock clock;
 
     @Autowired
-    FakeStorage storage;
+    FakeObjectStorage storage;
 
     @Autowired
     FakeFfmpeg ffmpeg;
@@ -136,8 +130,7 @@ class ReadingRecordingIT {
                     VALUES (?,?,'v1',?,?,?,?)
                     """, id, type, type + " 제목", type + " 본문", !"retention".equals(type), PUBLISHED);
         }
-        storage.objects.clear();
-        storage.failing.clear();
+        storage.clear();
         ffmpeg.failing.set(false);
         clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         address = "10.50.0." + ADDRESSES.incrementAndGet();
@@ -929,12 +922,6 @@ class ReadingRecordingIT {
     static class Fixture {
         @Bean
         @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-
-        @Bean
-        @Primary
         FakeFfmpeg fakeFfmpeg() {
             return new FakeFfmpeg();
         }
@@ -960,60 +947,6 @@ class ReadingRecordingIT {
                 throw new IOException("ffmpeg exited with status 1");
             }
             Files.write(Path.of(command.getLast()), output.get());
-        }
-    }
-
-    /** 메모리의 오브젝트 스토리지. 무엇이 어떤 형식으로 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
-    static final class FakeStorage implements ObjectStorage {
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-        final Map<String, String> contentTypes = new ConcurrentHashMap<>();
-        final Set<String> failing = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, contentTypes.getOrDefault(objectKey, "audio/mp4"), "etag");
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
-        }
-
-        /** 올리기 직전에 부른다. 겹친 올리기의 순서를 맞출 때만 쓴다. */
-        volatile Consumer<String> beforeUpload;
-
-        @Override
-        public void upload(String objectKey, String mimeType, Path source) {
-            Consumer<String> hook = beforeUpload;
-            if (hook != null) {
-                hook.accept(objectKey);
-            }
-            try {
-                objects.put(objectKey, Files.size(source));
-                contentTypes.put(objectKey, mimeType);
-            } catch (IOException failure) {
-                throw new java.io.UncheckedIOException(failure);
-            }
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            if (failing.contains(objectKey)) {
-                throw new IllegalStateException("storage refused the delete");
-            }
-            objects.remove(objectKey);
-            contentTypes.remove(objectKey);
         }
     }
 }

@@ -72,12 +72,9 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 콜론·대괄호 형식 대본을 완벽하게 나누는 답과 띄어쓰기 복원 답을 기본으로 내며, 테스트가 답을 비틀거나(빠진 줄·틀린 이름·대본
  * 아님) 실패하게 한다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    // 한도 경쟁 테스트가 요청 여럿을 동시에 보낸다 — 저마다 커넥션을 쥔 채 users 행 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, ReadingImportIT.Model.class})
+@Import({MutableClock.Fixture.class, RecordingFailureReporter.Fixture.class, ReadingImportIT.Model.class})
 class ReadingImportIT {
     private static final Instant NOW = Instant.parse("2026-10-06T03:00:00Z");
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -141,10 +138,6 @@ class ReadingImportIT {
                     return new GeneratedText(answer.apply(call), new TokenUsage(10, 20, 30), options == null ? "" : options.model());
                 }
             };
-        }
-
-        @Bean @Primary RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
         }
 
         /** 띄어쓰기 복원 호출이 돌려주는 줄. 목록에 없는 줄은 그대로 돌려준다. */
