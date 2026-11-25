@@ -47,8 +47,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 포트폴리오 저장소가 지금 내는 결과·잠금·경합·문장을 실제 PostgreSQL 에서 고정한다. 저장소를 네이티브 SQL 에서 JPA 로
- * 옮길 때 같은 테스트가 그대로 통과해야 한다(apps/api/CONTRACT.md §5-9).
+ * 포트폴리오 저장소가 내는 결과·잠금·경합·문장을 실제 PostgreSQL 에서 고정한다. 저장소를 네이티브 SQL 에서 JPA 로 옮길 때
+ * 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과했다(apps/api/CONTRACT.md §5-9). 문장 테스트만 달라졌다 —
+ * {@code RETURNING} 을 나눈 네 곳(경력 고치기·공유는 다시 읽기, 사진 지우기·시한 지난 올리기 치우기는 잠가 읽고 id 로 지우기)이다.
  *
  * <p>HTTP 쪽 값 검증·사유 코드·공개 조회·탈퇴 뒤 쓰기·정리 장부의 재시도는 {@link AccountPortfolioIT} 와
  * {@code AccountWritesAndPhotoCleanupIT}·{@code AccountWithdrawIT} 가 본다. 여기서는 그 테스트가 밟지 않는 같은 순서의 정렬,
@@ -802,7 +803,7 @@ class PortfolioRepositoryIT {
     // ---- 문장 ----
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류")
+    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류. RETURNING 을 나눈 경력 고치기·공유는 다시 읽기가, 사진 지우기·시한 지난 올리기 치우기는 잠가 읽기 뒤 id 로 지우기가 된다")
     void eachPortMethodSendsTheseStatements() {
         UUID owner = member();
         String usersLock = "select users for update";
@@ -820,9 +821,11 @@ class PortfolioRepositoryIT {
         assertThat(statementsOf(() -> portfolios.addCredit(owner, "넘침", "역할", 2024, "play", 1)))
                 .containsExactly(usersLock, create, portfolioLock, "count portfolio_credits");
         assertThat(statementsOf(() -> portfolios.updateCredit(owner, credit, "고침", null, null, null)))
-                .containsExactly("update portfolio_credits returning");
+                .as("RETURNING 대신 같은 트랜잭션에서 다시 읽는다")
+                .containsExactly("update portfolio_credits", "select portfolio_credits");
         assertThat(statementsOf(() -> portfolios.updateCredit(owner, UUID.randomUUID(), "없음", null, null, null)))
-                .containsExactly("update portfolio_credits returning");
+                .as("고친 행이 없으면 다시 읽지 않는다")
+                .containsExactly("update portfolio_credits");
         assertThat(statementsOf(() -> portfolios.orderCredits(owner, List.of(credit))))
                 .containsExactly(usersLock, create, portfolioLock, "select portfolio_credits", "update portfolio_credits");
         assertThat(statementsOf(() -> portfolios.find(owner)))
@@ -831,15 +834,16 @@ class PortfolioRepositoryIT {
         photo(owner, id(1), null, now.minusSeconds(60), null);
         assertThat(statementsOf(() -> portfolios.beginPhoto(owner, pending(id(2), now.plusSeconds(600)), 10, now)))
                 .as("시한 지난 올리기를 치울 때")
-                .containsExactly(usersLock, create, portfolioLock, "delete portfolio_photos returning",
-                        "insert account_cleanup_operations", "count portfolio_photos", "insert portfolio_photos");
+                .containsExactly(usersLock, create, portfolioLock, "select portfolio_photos for update",
+                        "delete portfolio_photos", "insert account_cleanup_operations", "count portfolio_photos",
+                        "insert portfolio_photos");
         assertThat(statementsOf(() -> portfolios.beginPhoto(owner, pending(id(3), now.plusSeconds(600)), 10, now)))
                 .as("치울 것이 없을 때")
-                .containsExactly(usersLock, create, portfolioLock, "delete portfolio_photos returning",
+                .containsExactly(usersLock, create, portfolioLock, "select portfolio_photos for update",
                         "count portfolio_photos", "insert portfolio_photos");
         assertThat(statementsOf(() -> portfolios.beginPhoto(owner, pending(id(4), now.plusSeconds(600)), 2, now)))
                 .as("상한일 때")
-                .containsExactly(usersLock, create, portfolioLock, "delete portfolio_photos returning", "count portfolio_photos");
+                .containsExactly(usersLock, create, portfolioLock, "select portfolio_photos for update", "count portfolio_photos");
         assertThat(statementsOf(() -> portfolios.photo(owner, id(2)))).containsExactly("select portfolio_photos");
         assertThat(statementsOf(() -> {
             portfolios.completePhoto(owner, id(2), now);
@@ -848,12 +852,13 @@ class PortfolioRepositoryIT {
         assertThat(statementsOf(() -> portfolios.orderPhotos(owner, List.of(id(2)))))
                 .containsExactly(usersLock, create, portfolioLock, "select portfolio_photos", "update portfolio_photos");
         assertThat(statementsOf(() -> portfolios.deletePhoto(owner, id(3), now)))
-                .containsExactly("delete portfolio_photos returning", "insert account_cleanup_operations");
+                .containsExactly("select portfolio_photos for update", "delete portfolio_photos",
+                        "insert account_cleanup_operations");
         assertThat(statementsOf(() -> portfolios.deletePhoto(owner, id(3), now)))
-                .containsExactly("delete portfolio_photos returning");
+                .containsExactly("select portfolio_photos for update");
         assertThat(statementsOf(() -> portfolios.deleteCredit(owner, credit))).containsExactly("delete portfolio_credits");
         assertThat(statementsOf(() -> portfolios.share(owner, true, "slug-trace")))
-                .containsExactly(usersLock, create, portfolioLock, "update portfolios returning");
+                .containsExactly(usersLock, create, portfolioLock, "update portfolios", "select portfolios");
         assertThat(statementsOf(() -> portfolios.sharedOwner("slug-trace"))).containsExactly("select portfolios");
     }
 
