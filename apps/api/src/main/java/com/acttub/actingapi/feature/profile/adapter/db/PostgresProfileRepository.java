@@ -19,7 +19,6 @@ import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
-import com.acttub.actingapi.feature.auth.app.MediaRetention;
 import com.acttub.actingapi.feature.auth.app.PendingSettlement;
 import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
@@ -47,7 +46,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository
-        implements ProfileRepository, SignupAttributionOwnership, AccountErasure, PendingSettlement, MediaRetention {
+        implements ProfileRepository, SignupAttributionOwnership, AccountErasure, PendingSettlement {
 
     /**
      * 계정을 닫을 때 이 저장소가 맡는 자리. {@code profile} 의 표를 고치는 자리({@code SIGNUP_ATTRIBUTION}·
@@ -1183,30 +1182,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /**
-     * 보관 문서의 <b>현재 판</b>에 대한 마지막 결정이 동의인가. 현재 판에 답하지 않았으면(새 판이
-     * 나온 뒤 결정 전에 탈퇴) 거절로 본다 — 동의 없이 얼굴을 남기지 않는 쪽이 안전하다.
-     */
-    @Override
-    public boolean granted(UUID userId) {
-        return !list(entityManager.createNativeQuery("""
-                SELECT 1 AS granted
-                FROM (SELECT id
-                      FROM consent_documents
-                      WHERE type='retention'
-                      ORDER BY published_at DESC,id DESC
-                      LIMIT 1) current_document
-                JOIN LATERAL (SELECT action
-                              FROM user_consents
-                              WHERE user_consents.user_id=:userId
-                                AND user_consents.document_id=current_document.id
-                              ORDER BY occurred_at DESC,id DESC
-                              LIMIT 1) last_decision ON true
-                WHERE last_decision.action='granted'
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
     }
 
     /** 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 이미 뭉갠 프로필은 연령대를 그대로 둔다. */
