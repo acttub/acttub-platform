@@ -74,7 +74,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/consent` | `consent_documents`, `user_consents` |
 | `feature/transfer` | `guest_transfer_codes` |
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
-| `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends`, `evening_reminder_sends` |
+| `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends` |
 | `feature/video` | `videos`, `video_transcripts`, `upload_intents` |
 | `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `handoff_confirmations`, `practice_reports` |
 | `feature/analysis` | `analyses`, `summaries`, `transcripts`, `anomalies` |
