@@ -628,7 +628,12 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 > 제품 규칙의 정본: [account.withdraw](../../docs/specs/account/withdraw.md)(응답, 파기·가명처리·남기는 것, 보관 동의, 제공자 해제, 신원 해시의 쓰임), [common.md](../../docs/specs/common.md) 「탈퇴·삭제」
 
-- **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서 파기와 상태 전환을 한다. 무엇을 지우고 남기는지는
+- **한 트랜잭션**(`PostgresProfileRepository#withdraw` 가 연다)에서 파기와 상태 전환을 한다. 순서는
+  `feature/auth/app` 의 `AccountErasureSequence#close` 와 `AccountErasureStep` 에만 있고, 테이블은 주인 기능이
+  `AccountErasure` 를 구현해 고친다(ADR-040). 구현은 트랜잭션을 열지 않는다. `auth` 의 테이블은 `PostgresAccountDeactivation`·
+  `PostgresAuthAccountErasure` 가 고치고, 아직 주인에게 옮기지 않은 자리는 `PostgresProfileRepository` 가 맡는다. 요청이 내는
+  문장의 순서와 테이블마다의 결과는 `AccountLifecycleFreezeIT` 의 기준 파일이 고정하고, 구현 하나가 실패하면 전부 되돌아가는
+  것은 `AccountErasureRollbackIT` 가 본다. 무엇을 지우고 남기는지는
   [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)와 영역 표(연습·리딩·챌린지)가 정본이다. 구현만의 것:
   `users.nickname=NULL`(I-3 예외), 진행 중 `external_operations`·`ai_jobs` 의 lease 떼기(분석 중이던 연습도 `failed`,
   0.1.0 작업은 결과 본문도 비운다), 0.1.0 영상의 `purged_at`, `practice_feedback` 의 시트 재전송 예약(`sheet_seq`),
@@ -639,7 +644,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `AccountSecretsTest` 가 고정한다.
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
-  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `PostgresProfileRepository#retentionGranted` 가 판정한다.
+  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `MediaRetention#granted`(지금 구현은 `PostgresProfileRepository`)가 판정한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 회차 평가
   (`reading_session_ratings`)도 회차와 함께 행째 지운다 — 노트 평가처럼 한 줄만 비우고 남기지 않는다. 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
