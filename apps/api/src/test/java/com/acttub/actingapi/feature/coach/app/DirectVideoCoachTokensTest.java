@@ -69,7 +69,7 @@ class DirectVideoCoachTokensTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), telemetry, CoachPersonas.NONE, null, 0, CoachVideoCache.NONE, CoachLayerOne.NONE);
+        return TestDirectVideoCoach.of(model, videos, storage, new RecordingFailureReporter(), telemetry).build();
     }
 
     @Test void aTurnSumsItsReplyAndShortenCallsAndTheRouteKeepsItsOwn() {
@@ -100,7 +100,7 @@ class DirectVideoCoachTokensTest {
         // 이 대화는 비교 모델 쪽이다. 줄이기는 기본 모델이 맡는다.
         var session = DirectVideoCoachBranchTest.looped("버릇: 말끝", List.of(""), "a", "첫 질문");
         ((tools.jackson.databind.node.ObjectNode) session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY)).put("coach_model", "b");
-        new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), telemetry, CoachPersonas.NONE, alternate, 100, CoachVideoCache.NONE, CoachLayerOne.NONE)
+        TestDirectVideoCoach.of(model, videos, storage, new RecordingFailureReporter(), telemetry).compared(alternate, 100).build()
                 .turn(session, "붙잡고 싶었어", UUID.randomUUID());
         LlmCall coachTurn = recorded(LlmStep.COACH_TURN);
         assertThat(coachTurn.model()).isEqualTo("gemini-3.8-flash");
