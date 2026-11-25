@@ -53,6 +53,9 @@ class LegacyStorageCompatibilityIT {
         if (removeRetiredStorage) {
             // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다. 여기서 지우는 구조는
             // 코드가 읽고 쓰지 않으며, 다음 릴리스의 DROP 마이그레이션이 운영에서도 지운다(apps/api/CONTRACT.md §5-1).
+            jdbc.execute("DROP TABLE handoff_confirmations");
+            jdbc.execute("ALTER TABLE coaching_handoffs DROP COLUMN branch_kind, DROP COLUMN handoff_json");
+            jdbc.execute("ALTER TABLE coach_sessions DROP COLUMN conversation_summary");
             jdbc.execute("DROP TABLE reports");
             jdbc.execute("""
                     ALTER TABLE summaries DROP COLUMN observation, DROP COLUMN summary,
@@ -61,6 +64,7 @@ class LegacyStorageCompatibilityIT {
             jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
             jdbc.execute("ALTER TABLE ads DROP COLUMN academy_registration_no, DROP COLUMN course_name, DROP COLUMN tuition");
+            jdbc.execute("DROP TABLE evening_reminder_sends");
             // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
 
@@ -138,9 +142,10 @@ class LegacyStorageCompatibilityIT {
                 """, practice);
         jdbc.update("INSERT INTO transcripts(session_id,ord,text) VALUES (?,0,'과거 전체 대사')", practice);
         jdbc.update("""
-                INSERT INTO coach_sessions(id,practice_session_id,status,conversation_summary,close_reason)
-                VALUES (?,?,'closed','과거 대화 요약','user_ended')
+                INSERT INTO coach_sessions(id,practice_session_id,status,close_reason)
+                VALUES (?,?,'closed','user_ended')
                 """, coach, practice);
+        // 갈래·원문 칸은 지울 칸이지만 NOT NULL 이라, 칸이 있는 동안 옛 행을 심으려면 값을 넣어야 한다.
         jdbc.update("""
                 INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,handoff_json)
                 VALUES (?,?,?,'analysis','{}'::jsonb)
@@ -160,7 +165,7 @@ class LegacyStorageCompatibilityIT {
         return Map.of(
                 "summary", jdbc.queryForMap("SELECT model,was_compressed FROM summaries WHERE session_id=?", practice),
                 "coach", jdbc.queryForMap("""
-                        SELECT conversation_summary,close_reason FROM coach_sessions WHERE practice_session_id=?
+                        SELECT close_reason FROM coach_sessions WHERE practice_session_id=?
                         """, practice),
                 "community", jdbc.queryForObject(
                         "SELECT to_jsonb(post)::text FROM community_posts post WHERE author_id=?",
