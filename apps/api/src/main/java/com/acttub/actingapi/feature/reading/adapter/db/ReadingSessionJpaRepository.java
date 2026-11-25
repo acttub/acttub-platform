@@ -13,6 +13,25 @@ import org.springframework.data.repository.Repository;
 /** {@code reading_sessions} 를 읽고 쓰는 문장(apps/api/CONTRACT.md §5-9). 잠그는 조회는 방언 덕에 {@code for update} 로 나간다(§5-2). */
 interface ReadingSessionJpaRepository extends Repository<ReadingSessionEntity, UUID> {
 
+    /** 회차의 대본과 구간, 내 배역. */
+    interface Range {
+        UUID getScriptId();
+
+        UUID getStartLineId();
+
+        UUID getEndLineId();
+
+        UUID[] getMyCharacterIds();
+    }
+
+    @Query("""
+            select rs.scriptId as scriptId, rs.startLineId as startLineId, rs.endLineId as endLineId,
+                   rs.myCharacterIds as myCharacterIds
+            from ReadingSessionEntity rs
+            where rs.id = :sessionId and rs.userId = :userId
+            """)
+    Optional<Range> range(UUID sessionId, UUID userId);
+
     @Query("select rs.scriptId from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
     Optional<UUID> scriptOf(UUID sessionId, UUID userId);
 
