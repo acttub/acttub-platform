@@ -710,7 +710,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
   붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `MediaRetention#granted`(구현은 `feature/consent` 의 `PostgresMediaRetention`)가 판정한다.
-- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 회차 평가
+- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresReadingAccountErasure`, §6-14). 회차 평가
   (`reading_session_ratings`)도 회차와 함께 행째 지운다 — 노트 평가처럼 한 줄만 비우고 남기지 않는다. 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
   없으면 행(음성과 **전사**)을 지우고 객체 키를 장부(`reading_recording_delete`)에 올린다. 지우기 전에 그
@@ -930,7 +930,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     PostgresSessionRatingStore`). 대본 삭제가 대본 행을, 회차 삭제가 회차 행을 잡고 평가를 회차보다 먼저 지우므로 겹쳐도
     지워진 회차에 평가가 남지 않는다(FK 에 `ON DELETE` 가 없어 남으면 회차 삭제가 깨진다).
   - **삭제**: 회차 삭제(`PostgresSessionRepository#delete`)·대본 삭제(`PostgresScriptRepository#delete`)·탈퇴
-    (`PostgresProfileRepository#eraseReading`)가 회차보다 먼저 행째 지운다. 노트 평가와 달리 사람과 끊어 남기지 않는다 — 매달린
+    (`PostgresReadingAccountErasure`)가 회차보다 먼저 행째 지운다. 노트 평가와 달리 사람과 끊어 남기지 않는다 — 매달린
     회차가 남지 않기 때문이다. **이관**은 `PostgresReadingOwnership` 이 다른 리딩 표와 함께 주인만 바꾼다.
   - 회차 조회·시작 응답의 `my_rating` 은 `SessionController` 가 평가를 한 번 더 읽어 싣는다. 실 DB 검증은 `ReadingSessionRatingIT` 다.
 
@@ -978,7 +978,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 **생애 — 이관·삭제·탈퇴·파기 (SOMA-546 RA5)**
 
 - 코드의 자리: 이관은 `reading/app/ReadingOwnership.reassign`(§6-9), 대본 삭제는 `PostgresScriptRepository#delete`,
-  탈퇴·미이관 게스트 30일 파기는 `PostgresProfileRepository#eraseReading` 하나(§6-8), 3년 파기는 영상과 같은
+  탈퇴·미이관 게스트 30일 파기는 `PostgresReadingAccountErasure` 하나(§6-8), 3년 파기는 영상과 같은
   `purgeRetained`(`users.retention_purged_at`)다.
 - **쓰기가 잠그는 행**: 대본 등록·수정은 `users` 행, 회차 시작·암기 갱신은 대본 행, 진행 저장·녹음 저장은 회차 행,
   탈퇴는 `users` 와 그 사람의 대본·회차 행을 잡는다. 이관·탈퇴·삭제가 리딩 행을 잠근 뒤 진행하므로 둘이 겹쳐도
@@ -1029,7 +1029,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `privacyCoversReading` 을 쓴다. 예시 대본과 같은 글은 모델을 부르지 않으므로 동의를 보지 않고 바로 저장한다(게스트도).
   `ConsentDocument.askedAtEntry` 가 `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어
   (`ConsentService`, 403 `member_only`) 개인정보 v9 이상에 동의하지 않은 게스트의 나누기는 403 `script_split_consent_required` 다.
-- 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
+- 탈퇴는 `PostgresReadingAccountErasure` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
   `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751)·`SCRIPT_CAST`(SOMA-937)·`SCRIPT_REVIEW`·`SCRIPT_SAME_SPEAKER`(SOMA-1019) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
@@ -1048,7 +1048,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   재전송·같은 글 판정이 글 길과 같다. `allow_duplicate` 이고 연결한 요청(`script_imports.upload_id`·`script_id` 가 같은 행의
   `request_id`)의 재전송이 아니면 422 `script_upload_used` 다. `script_imports.upload_id`(V34)를 함께 적고, 대본을
   만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
-- 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
+- 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresReadingAccountErasure`)가 행을 지우며 객체 키를 같은
   트랜잭션에서 장부 종류 `object_delete` 로 올리고 `next_attempt_at` 은 지운 행의 `expires_at` 최댓값이다(`reading/app/ScriptFileCleanup`,
   영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `kept_until` 이 빈 행은 `created_at`
   하루 전 것을, 찬 행은 `kept_until` 이 지났거나 판과 상관없이 가장 최근 `script_split` 결정이 granted 가 아닌 것

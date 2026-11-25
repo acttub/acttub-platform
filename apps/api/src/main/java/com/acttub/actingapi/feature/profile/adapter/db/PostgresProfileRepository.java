@@ -32,6 +32,7 @@ import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
+import com.acttub.actingapi.feature.reading.app.RetainedRecordings;
 import com.acttub.actingapi.feature.video.app.VideoRetention;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
@@ -56,12 +57,10 @@ class PostgresProfileRepository
      */
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
             AccountErasureStep.MEDIA_OBJECTS,
-            AccountErasureStep.READING,
             AccountErasureStep.ACTOR_JOURNALS,
             AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES,
-            AccountErasureStep.CHALLENGE,
-            AccountErasureStep.READING_VOICE_USAGE);
+            AccountErasureStep.CHALLENGE);
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -82,6 +81,9 @@ class PostgresProfileRepository
     /** 탈퇴 3년 뒤의 파기에서 계정 행과 신원 해시를 고치는 주인. */
     private final RetentionPurge retentionPurge;
 
+    /** 탈퇴 3년 뒤, 보관 동의로 남겨 두었던 리딩 녹음을 지우는 주인. */
+    private final RetainedRecordings retainedRecordings;
+
     /**
      * 계정을 닫는 순서. 이 저장소가 그 순서의 자리를 맡고 있어({@link #STEPS}) 생성자로 바로 받으면 서로를 기다린다. 쓸 때 꺼낸다.
      */
@@ -96,6 +98,7 @@ class PostgresProfileRepository
             PushTokenRevocation pushTokens,
             VideoRetention retainedVideos,
             RetentionPurge retentionPurge,
+            RetainedRecordings retainedRecordings,
             ObjectProvider<AccountErasureSequence> closing) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -105,6 +108,7 @@ class PostgresProfileRepository
         this.pushTokens = pushTokens;
         this.retainedVideos = retainedVideos;
         this.retentionPurge = retentionPurge;
+        this.retainedRecordings = retainedRecordings;
         this.closing = closing;
     }
 
@@ -276,7 +280,7 @@ class PostgresProfileRepository
     /**
      * 탈퇴 3년 뒤의 파기. 해시 행을 지우는 것과 영상·녹음 삭제를 장부에 올리는 것이 한 트랜잭션이어야 "해시는 지워졌는데 영상은
      * 남은" 계정이 생기지 않는다. 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). 여기서 트랜잭션을 열고, 계정과 영상의 표는
-     * 주인({@link RetentionPurge}, {@link VideoRetention})이 고친다. 객체 키 읽기와 리딩 녹음은 아직 여기 남아 있다.
+     * 주인({@link RetentionPurge}, {@link VideoRetention}, {@link RetainedRecordings})이 고친다. 객체 키 읽기는 아직 여기 남아 있다.
      */
     @Override
     public List<UUID> purgeRetained(Instant deactivatedBefore, Instant now) {
@@ -291,10 +295,7 @@ class PostgresProfileRepository
                 // 보관 동의로 남겨 두었던 영상도 이제 파일이 없다 — 행과 최소 메타만 남긴다.
                 retainedVideos.purgeFilesOf(userId, now);
                 // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(specs/reading).
-                List<String> recordings = deleteRecordings(userId);
-                if (!recordings.isEmpty()) {
-                    cleanups.add(this.cleanups.schedule(userId, recordings, now));
-                }
+                cleanups.addAll(retainedRecordings.purgeOf(userId, now));
                 retentionPurge.complete(userId, now);
             }
             return List.copyOf(cleanups);
@@ -757,7 +758,6 @@ class PostgresProfileRepository
         Instant now = account.now();
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
-            case READING -> eraseReading(userId, account.retainMedia(), now);
             case ACTOR_JOURNALS -> {
                 // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
                 entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
@@ -777,15 +777,10 @@ class PostgresProfileRepository
                 eraseChallenge(userId, now);
                 yield List.of();
             }
-            case READING_VOICE_USAGE -> {
-                entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
                     PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
-                    LEGACY_OPERATIONS, LEGACY_PRACTICES ->
+                    LEGACY_OPERATIONS, LEGACY_PRACTICES, READING,
+                    READING_VOICE_USAGE ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -858,7 +853,7 @@ class PostgresProfileRepository
 
     /**
      * 이 사람이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다 — 얼굴과 목소리는 가명처리가 안
-     * 된다. 리딩 녹음은 {@link #eraseReading} 이 따로 다룬다(행째 지우거나 보관).
+     * 된다. 리딩 녹음은 리딩의 자리({@code READING})가 따로 다룬다(행째 지우거나 보관).
      *
      * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 0.1.0 보관함의 {@code videos} 다
      * (specs/practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
@@ -909,105 +904,6 @@ class PostgresProfileRepository
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
-    }
-
-    /**
-     * 리딩 자료의 파기 (specs/reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·회차 평가·암기 상태는
-     * <b>행째</b> 지운다 — 연습 기록과 달리 사람과 끊어 남기지 않는다. 녹음은 보관 동의자 것만 남긴다: 회차·줄
-     * 연결을 비우고 {@code user_id} 를 유지해 3년 파기({@link #purgeRetained})가 지운다. 동의가 없으면 행(음성과
-     * 전사)을 지우고 객체 키를 같은 트랜잭션에서 장부({@code reading_recording_delete})에 올린다.
-     *
-     * <p>먼저 이 사람의 대본·회차 행을 잡는다 — 리딩의 쓰기(회차 시작·암기 갱신은 대본 행, 진행 저장·녹음 저장은
-     * 회차 행)가 같은 행을 잡으므로 겹쳐도 순서가 정해진다: 쓰기가 먼저면 그 행까지 여기서 지우고, 파기가 먼저면
-     * 쓰기는 없는 행을 보고 404 다. 다시 온 탈퇴는 지울 것이 없어 아무것도 하지 않는다.
-     *
-     * @return 장부에 올린 객체 삭제(없으면 빈 목록)
-     */
-    private List<UUID> eraseReading(UUID userId, boolean retainRecordings, Instant now) {
-        for (String table : List.of("scripts", "reading_sessions")) {
-            list(entityManager.createNativeQuery("SELECT id FROM " + table + " WHERE user_id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId));
-        }
-        List<UUID> cleanups = new ArrayList<>();
-        // 대본 원본 파일은 보관 동의와 무관하게 대본과 함께 지운다(reading.script 「원본 파일」). 기기가 서명한 주소로 올린
-        // 객체라 주소 시한 뒤에 지운다 — 먼저 지우면 그 뒤에 다시 올린 객체가 장부 밖에 남는다.
-        List<Tuple> sources = list(entityManager.createNativeQuery("""
-                WITH removed AS (DELETE FROM script_uploads WHERE user_id=:userId RETURNING object_key,expires_at)
-                SELECT object_key,expires_at FROM removed
-                """, Tuple.class)
-                .setParameter("userId", userId));
-        if (!sources.isEmpty()) {
-            cleanups.add(this.cleanups.schedule(userId, sources.stream().map(row -> row.get("object_key", String.class)).toList(),
-                    now, sources.stream().map(row -> row.get("expires_at", Instant.class)).max(Instant::compareTo).orElseThrow()));
-        }
-        if (retainRecordings) {
-            entityManager.createNativeQuery("""
-                    UPDATE reading_recordings
-                    SET reading_session_id=NULL,line_id=NULL,updated_at=:now
-                    WHERE user_id=:userId
-                      AND (reading_session_id IS NOT NULL OR line_id IS NOT NULL)
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-        } else {
-            List<String> objectKeys = deleteRecordings(userId);
-            if (!objectKeys.isEmpty()) {
-                cleanups.add(this.cleanups.schedule(userId, objectKeys, now));
-            }
-        }
-        entityManager.createNativeQuery("DELETE FROM line_memorization WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        // 회차 평가(V40)는 회차와 함께 행째 지운다 — 노트 평가와 달리 사람과 끊어 남기지 않는다(회차가 남지 않으므로).
-        // 평가의 쓰기는 같은 users 행을 먼저 잡으므로 늦게 온 평가가 남지 않는다.
-        entityManager.createNativeQuery("""
-                DELETE FROM reading_session_ratings
-                WHERE user_id=:userId
-                   OR session_id IN (SELECT id FROM reading_sessions WHERE user_id=:userId)
-                """)
-                .setParameter("userId", userId)
-                .executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM reading_sessions WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        for (String table : List.of("script_lines", "script_characters")) {
-            entityManager.createNativeQuery("""
-                    DELETE FROM %s AS child
-                    USING scripts
-                    WHERE scripts.id=child.script_id
-                      AND scripts.user_id=:userId
-                    """.formatted(table))
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-        }
-        entityManager.createNativeQuery("DELETE FROM scripts WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        // 나누기 요청은 원문을 들고 있다. 작업 행은 위 ai_jobs 취소가 닫는다.
-        entityManager.createNativeQuery("DELETE FROM script_imports WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        // 찍을 대사 같이 만들기(V56)의 생성 기록은 감정·상황·원하는 방향 글을 들고 있다.
-        entityManager.createNativeQuery("DELETE FROM script_cocreations WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        return cleanups;
-    }
-
-    /** 이 사람의 녹음 행을 전부 지우고 객체 키를 돌려준다. 부르는 쪽이 같은 트랜잭션에서 장부에 올린다. */
-    private List<String> deleteRecordings(UUID userId) {
-        return list(entityManager.createNativeQuery("""
-                WITH removed AS (
-                    DELETE FROM reading_recordings
-                    WHERE user_id=:userId
-                    RETURNING object_key
-                )
-                SELECT object_key FROM removed
-                """, Tuple.class)
-                .setParameter("userId", userId)).stream()
-                .map(row -> row.get("object_key", String.class))
-                .toList();
     }
 
     private static Account account(Tuple row) {
