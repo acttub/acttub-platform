@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.profile.lifecycle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
@@ -47,7 +48,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 계정 수명 일의 지금 동작을 고정한다: 탈퇴, 만 14세 미만 계정 닫기, 탈퇴 3년 뒤 파기, 게스트 이전, 연습 삭제.
+ * 계정 수명 일의 지금 동작을 고정한다: 탈퇴, 만 14세 미만 계정 닫기, 탈퇴 3년 뒤 파기, 게스트 이전, 연습 삭제, 알림 끄기.
  *
  * <p>탈퇴는 되돌릴 수 없는 삭제다. 이 일들을 고치는 변경은 이 테스트를 <b>고치지 않고</b> 통과해야 한다. 고쳐야 통과한다면
  * 동작이 달라진 것이다.
@@ -348,6 +349,31 @@ class AccountLifecycleFreezeIT {
 
         assertFrozen("practice-delete-retained", observe(() -> expect(
                 204, delete("/v2/practices/" + seed.id("본인/연습/묶음/1회차") + "/group"), self)));
+    }
+
+    // ---- 알림 끄기 ----
+
+    @Test
+    @DisplayName("알림 끄기(셋 다): 토글을 끄고 그 회원의 푸시 토큰을 같은 트랜잭션에서 전부 지운다")
+    void notificationsAllOff() throws Exception {
+        UUID self = member("본인", "declined");
+        bystander();
+
+        assertFrozen("notifications-all-off", observe(() -> expect(200, patch("/v2/me/notification-settings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(
+                        Map.of("analysis_done", false, "challenge", false, "evening_reminder", false))), self)));
+    }
+
+    @Test
+    @DisplayName("알림 끄기(하나만): 켜진 토글이 남아 있으면 푸시 토큰은 그대로다")
+    void notificationsOneOff() throws Exception {
+        UUID self = member("본인", "declined");
+        bystander();
+
+        assertFrozen("notifications-one-off", observe(() -> expect(200, patch("/v2/me/notification-settings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("challenge", false))), self)));
     }
 
     // ---- 도구 ----

@@ -1,0 +1,234 @@
+== 표 ==
+account_cleanup_operations: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+actor_journals: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+actor_memories: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+actor_memory_entries: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+ad_events: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+ad_serves: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+ai_jobs: 10행 → 10행
+  user_id=본인: 5 → 5
+  user_id=남: 5 → 5
+analyses: 2행 → 2행
+anomalies: 2행 → 2행
+billing_checkouts: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+billing_payments: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+billing_pro_grants: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+billing_subscriptions: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+challenge_entries: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+challenges: 3행 → 3행
+  host_user_id=본인: 1 → 1
+  host_user_id=남: 1 → 1
+coach_conversations: 2행 → 2행
+coach_messages: 2행 → 2행
+coach_notes: 2행 → 2행
+coach_sessions: 2행 → 2행
+coach_turns: 2행 → 2행
+coaching_handoffs: 2행 → 2행
+community_anonymous_aliases: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+community_blocks: 2행 → 2행
+  blocked_id=본인: 1 → 1
+  blocked_id=남: 1 → 1
+  blocker_id=본인: 1 → 1
+  blocker_id=남: 1 → 1
+community_comments: 2행 → 2행
+  author_id=본인: 1 → 1
+  author_id=남: 1 → 1
+community_post_images: 4행 → 4행
+  uploader_id=본인: 2 → 2
+  uploader_id=남: 2 → 2
+community_post_likes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+community_posts: 2행 → 2행
+  author_id=본인: 1 → 1
+  author_id=남: 1 → 1
+community_reports: 2행 → 2행
+  reporter_id=본인: 1 → 1
+  reporter_id=남: 1 → 1
+deleted_practice_videos: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+entry_ai_reports: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+entry_comments: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+entry_likes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+entry_ranking_snapshots: 2행 → 2행
+  viewer_id=본인: 1 → 1
+  viewer_id=남: 1 → 1
+entry_reports: 2행 → 2행
+  reporter_id=본인: 1 → 1
+  reporter_id=남: 1 → 1
+entry_saves: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+entry_view_events: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+external_operations: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+guest_transfer_codes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+line_memorization: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+note_ratings: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+notification_pushes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+notifications: 4행 → 4행
+  actor_user_id=본인: 1 → 1
+  actor_user_id=남: 1 → 1
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+portfolio_credits: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+portfolio_photos: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+portfolios: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+practice_deletion_marks: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+practice_feedback: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+practice_reminder_sends: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+practice_reports: 2행 → 2행
+practice_sessions: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+practices: 6행 → 6행
+  user_id=본인: 3 → 3
+  user_id=남: 3 → 3
+push_opens: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+push_tokens: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+reading_pronunciation_reports: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+reading_recording_retranscripts: 2행 → 2행
+reading_recordings: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+reading_session_ratings: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+reading_sessions: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+reading_voice_usage: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+refresh_tokens: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+script_characters: 2행 → 2행
+script_cocreations: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+script_imports: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+script_lines: 4행 → 4행
+script_uploads: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+scripts: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+summaries: 2행 → 2행
+support_inquiries: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+transcripts: 2행 → 2행
+upload_intents: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+user_active_days: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+user_airbridge_device_lookups: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+user_blocks: 2행 → 2행
+  blocked_id=본인: 1 → 1
+  blocked_id=남: 1 → 1
+  blocker_id=본인: 1 → 1
+  blocker_id=남: 1 → 1
+user_consents: 8행 → 8행
+  user_id=본인: 4 → 4
+  user_id=남: 4 → 4
+user_discovery_answers: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+user_identities: 8행 → 8행
+  user_id=본인: 4 → 4
+  user_id=남: 4 → 4
+user_profile_directions: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+user_profiles: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인>
+      notify_challenge: true → false
+      updated_at: <now-PT1440H> → <DB 시각>
+user_signup_attributions: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+users: 3행 → 3행
+video_transcripts: 4행 → 4행
+videos: 8행 → 8행
+  user_id=지운 연습 보관 계정: 2 → 2
+  user_id=본인: 3 → 3
+  user_id=남: 3 → 3
+== 문장 ==
+  select user_identities, users
+  select consent_documents
+  select user_consents
+  select user_identities, user_profile_directions, users, user_profiles
+BEGIN
+  select users for update
+  update user_profiles returning
+COMMIT
