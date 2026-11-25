@@ -55,7 +55,6 @@ class PostgresProfileRepository
             AccountErasureStep.READING,
             AccountErasureStep.AI_JOBS,
             AccountErasureStep.ACTOR_JOURNALS,
-            AccountErasureStep.PRACTICE_FEEDBACK,
             AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES,
             AccountErasureStep.CHALLENGE,
@@ -824,10 +823,6 @@ class PostgresProfileRepository
                         .executeUpdate();
                 yield List.of();
             }
-            case PRACTICE_FEEDBACK -> {
-                blankFeedbackContacts(userId, now);
-                yield List.of();
-            }
             case NOTE_RATINGS -> {
                 blankNoteRatingComments(userId, now);
                 yield List.of();
@@ -855,7 +850,7 @@ class PostgresProfileRepository
                 yield List.of();
             }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
-                    PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER ->
+                    PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -977,20 +972,6 @@ class PostgresProfileRepository
                     lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
                 WHERE user_id=:userId
                   AND status IN ('pending','running')
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
-    }
-
-    /** 의견의 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은 사람과 끊어 남는다(practice.feedback). */
-    private void blankFeedbackContacts(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_feedback
-                SET contact_email=NULL,contact_phone=NULL,
-                    sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
-                WHERE user_id=:userId
-                  AND (contact_email IS NOT NULL OR contact_phone IS NOT NULL)
                 """)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
