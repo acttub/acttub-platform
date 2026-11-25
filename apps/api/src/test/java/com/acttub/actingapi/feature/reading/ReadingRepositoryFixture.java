@@ -18,6 +18,7 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 리딩 저장소의 지금 동작을 실제 PostgreSQL 에서 고정하는 테스트들의 바탕(apps/api/CONTRACT.md §5-9). 저장소마다 포트
@@ -58,6 +60,9 @@ abstract class ReadingRepositoryFixture {
 
     @Autowired
     PlatformTransactionManager transactionManager;
+
+    @Autowired
+    AccountSecrets secrets;
 
     final Instant now = Instant.parse("2026-11-25T03:00:00Z");
 
@@ -291,6 +296,13 @@ abstract class ReadingRepositoryFixture {
 
     Instant instant(String sql, Object... args) {
         return jdbc.queryForObject(sql, OffsetDateTime.class, args).toInstant();
+    }
+
+    /** 정리 장부의 그 줄이 지우기로 한 객체 키. */
+    List<String> scheduledKeys(UUID operation) {
+        String payload = jdbc.queryForObject(
+                "SELECT payload_encrypted FROM account_cleanup_operations WHERE id=?", String.class, operation);
+        return List.of(JsonMapper.builder().build().readValue(secrets.decrypt(payload), String[].class));
     }
 
     UUID ownerOf(String table, UUID id) {
