@@ -5454,29 +5454,6 @@
         } ]
       }
     },
-    "/v2/me/practice-feedback/status" : {
-      "get" : {
-        "tags" : [ "v2-me" ],
-        "summary" : "Get Practice Feedback Status",
-        "description" : "이 계정에 이미 물어봤는지. 표식을 건드리지 않는다.",
-        "operationId" : "get_practice_feedback_status_v2_me_practice_feedback_status_get",
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeFeedbackStatus"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
     "/v2/me/notifications" : {
       "get" : {
         "tags" : [ "v2-challenges" ],

@@ -2334,26 +2334,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/me/practice-feedback/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Practice Feedback Status
-         * @description 이 계정에 이미 물어봤는지. 표식을 건드리지 않는다.
-         */
-        get: operations["get_practice_feedback_status_v2_me_practice_feedback_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v2/me/notifications": {
         parameters: {
             query?: never;
@@ -11251,26 +11231,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SavedChallengeEntries"];
-                };
-            };
-        };
-    };
-    get_practice_feedback_status_v2_me_practice_feedback_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PracticeFeedbackStatus"];
                 };
             };
         };
