@@ -78,6 +78,7 @@ class TraceIdFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/v2/scripts/42");
         request.addHeader(TraceIdFilter.HEADER, NGINX_ID);
         request.addHeader("Authorization", "Bearer token");
+        request.addHeader("X-Acttub-Client", "app/1.1.2");
         List<String> seen = new ArrayList<>();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -101,7 +102,28 @@ class TraceIdFilterTest {
         assertThat(LenientJson.asText(line.get("route"))).isEqualTo("/v2/scripts/{script_id}");
         assertThat(LenientJson.asInt(line.get("status"))).isEqualTo(204);
         assertThat(line.has("took_ms")).isTrue();
+        assertThat(LenientJson.asText(line.get("client"))).isEqualTo("app/1.1.2");
         assertThat(lines.get(0)).doesNotContain("actor@example.com").doesNotContain("/v2/scripts/42");
+    }
+
+    @Test
+    void logsTheClientVersionOnlyInAnAllowedShape() throws Exception {
+        MockHttpServletRequest missing = new MockHttpServletRequest("GET", "/v2/me");
+        MockHttpServletRequest forged = new MockHttpServletRequest("GET", "/v2/me");
+        forged.addHeader("X-Acttub-Client", "app/1.0.0\",\"user_id\":\"forged");
+        MockHttpServletRequest web = new MockHttpServletRequest("GET", "/v2/me");
+        web.addHeader("X-Acttub-Client", "web/0.1.0");
+
+        for (MockHttpServletRequest request : List.of(missing, forged, web)) {
+            new TraceIdFilter().doFilter(request, new MockHttpServletResponse(),
+                    (req, res) -> ((MockHttpServletResponse) res).setStatus(426));
+        }
+
+        assertThat(lines).hasSize(3);
+        ObjectMapper mapper = new ObjectMapper();
+        assertThat(lines.stream().map(text -> LenientJson.asText(mapper.readTree(text).get("client"))).toList())
+                .containsExactly("none", "other", "web/0.1.0");
+        assertThat(String.join("", lines)).doesNotContain("forged");
     }
 
     @Test

@@ -53,7 +53,7 @@ class LegacyStorageCompatibilityIT {
         if (removeRetiredStorage) {
             // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다. 여기서 지우는 구조는
             // 코드가 읽고 쓰지 않으며, 다음 릴리스의 DROP 마이그레이션이 운영에서도 지운다(apps/api/CONTRACT.md §5-1).
-            // 지금은 그런 구조가 없다 — V95 가 앞서 지운 것들이다(SOMA-1142).
+            jdbc.execute("ALTER TABLE videos DROP COLUMN width, DROP COLUMN height");
             // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
 

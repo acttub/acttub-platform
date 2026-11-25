@@ -79,6 +79,7 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
+- `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 매핑을 내렸다. 지운다(아래 문단).
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 이 값을 읽는다. `PostgresBillingRepository`는 프로필 이름이
   없을 때 대신 읽는다. `PostgresJournalRepository`는 배역 이름이 배우의 닉네임과 같으면 배역을 비우려고 읽는다.
@@ -88,7 +89,11 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
-이 목록의 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
+`videos`의 크기 두 칸은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
+쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
+마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
+
+목록의 나머지 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
 실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
 fingerprint는 바꾸지 않으며 `LegacyStorageCompatibilityIT`가 현재 스키마의 과거 값 보존과
 구형 구조를 제거한 격리 테스트 DB의 기동·현재 기능을 검증한다. `transcripts`, 소비 중인
@@ -468,7 +473,13 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 > 제품 규칙의 정본: [common.md](../../docs/specs/common.md) 「게이트와 보호 기능」·「클라이언트 판과 강제 업데이트」(판정 순서, 게이트 밖 경로 표, 426 문장, `account_deactivated` 의 예외), [account.consent](../../docs/specs/account/consent.md)·[account.profile](../../docs/specs/account/profile.md)(동의·프로필 게이트가 세는 것)
 
 - **426** 은 `platform/security/ClientVersionFilter` 가 토큰 검증보다 먼저 낸다. 헤더를 보지 않는 경로는
-  `ClientVersionFilter#shouldNotFilter` 한 곳에 있다.
+  `ClientVersionFilter#shouldNotFilter` 한 곳에 있다. 경로 템플릿을 붙이는 `RoutePatternFilter` 는 이 필터보다 앞이라
+  426 요청도 지표 `uri`·로그 `route` 에 부른 경로가 남는다.
+- **버전 헤더를 로그·지표에 싣는 값**은 `platform/observability/ClientLabel` 이 줄인다 — `app`·`web` 에 숫자 마디 버전이
+  붙은 꼴만 그대로, 그 밖은 `other`, 없으면 `none`. 받은 글자를 그대로 싣지 않는다. 요청 로그의 `client` 칸은 이 값이다.
+  이 꼴만으로는 값 종류가 묶이지 않으므로(수조 가지, 헤더는 로그인 없이 누구나 보낸다) `acttub.http.requests.by.client`
+  지표는 `HttpRequestMetrics` 가 프로세스마다 처음 본 값을 `CLIENT_LIMIT` 가지까지만 제 이름으로 세고, 그 뒤의 새 값은
+  `other` 로 센다(§6-4 의 범위가 정해진 label).
 - **회원 게이트**는 `platform/security/ConsentGateInterceptor` 의 경로 목록(`OUTSIDE_THE_GATE`·`GUEST_ONLY`·
   `CONSENT_ONLY`)과 `AccessGate` 다. common.md 의 표와 이 목록은 같이 바꾼다. 회원과 웹 게스트(§6-9)는 같은
   `AccessGate#gatedUser` 가 주체를 보고 가른다.
