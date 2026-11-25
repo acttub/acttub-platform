@@ -70,7 +70,7 @@ abstract class ReadingRepositoryFixture {
     // ---- 문장 ----
 
     private static final Pattern CTE = Pattern.compile("^with \\w+ as \\( ?(insert into|update|delete from) (\\w+)\\b.*");
-    private static final Pattern COUNT = Pattern.compile("^select count\\(.*?\\) from (\\w+)\\b.*");
+    private static final Pattern COUNT = Pattern.compile("^select count… from (\\w+)\\b.*");
     private static final Pattern LOCKED = Pattern.compile(".* for update of (\\w+)( skip locked)?$");
     private static final Pattern SELECT = Pattern.compile("^select .*? from (\\w+)\\b.*");
     private static final Pattern INSERT = Pattern.compile("^insert into (\\w+)\\b.*");
@@ -91,7 +91,13 @@ abstract class ReadingRepositoryFixture {
         // 괄호 안(서브쿼리·열 목록)은 비우고 본다 — select 절의 서브쿼리가 고르는 표를 바깥 문장의 표로 잘못 읽지 않게.
         for (String flattened = null; !text.equals(flattened);) {
             flattened = text;
-            text = text.replaceAll("\\([^()]*\\)", "()");
+            text = text.replaceAll("\\([^()]*\\)", "…");
+        }
+        if (text.contains("pg_advisory_xact_lock")) {
+            return "advisory lock";
+        }
+        if (text.startsWith("select") && !text.contains(" from ")) {
+            return "select (표 없음)";
         }
         if (text.startsWith("select") && (matcher = LOCKED.matcher(text)).matches()) {
             return "select " + tableOfAlias(text, matcher.group(1)) + " for update"
