@@ -114,6 +114,12 @@ COLUMN anomalies.start_ts ord=4 type=text len=- null=NO default=-
 COLUMN anomalies.summary_id ord=2 type=uuid len=- null=NO default=-
 COLUMN anomalies.what ord=7 type=text len=- null=NO default=-
 COLUMN anomalies.why_odd ord=8 type=text len=- null=NO default=-
+COLUMN app_min_versions.minimum ord=2 type=text len=- null=YES default=-
+COLUMN app_min_versions.platform ord=1 type=text len=- null=NO default=-
+COLUMN app_min_versions.raised_at ord=5 type=timestamptz len=- null=YES default=-
+COLUMN app_min_versions.store_live_since ord=4 type=timestamptz len=- null=YES default=-
+COLUMN app_min_versions.store_version ord=3 type=text len=- null=YES default=-
+COLUMN app_min_versions.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN app_posters.active ord=4 type=bool len=- null=NO default=false
 COLUMN app_posters.audience ord=12 type=text len=- null=NO default='all'::text
 COLUMN app_posters.audio ord=18 type=text len=- null=YES default=-
@@ -1093,6 +1099,9 @@ CONSTRAINT anomalies anomalies_what_not_null NOT NULL what
 CONSTRAINT anomalies anomalies_why_odd_not_null NOT NULL why_odd
 CONSTRAINT anomalies ck_anomalies_intent_impact CHECK ((intent_impact = ANY (ARRAY['반전'::text, '약화'::text, '국소'::text])))
 CONSTRAINT anomalies ck_anomalies_severity CHECK ((severity = ANY (ARRAY['high'::text, 'mid'::text, 'low'::text])))
+CONSTRAINT app_min_versions app_min_versions_pkey PRIMARY KEY (platform)
+CONSTRAINT app_min_versions app_min_versions_platform_not_null NOT NULL platform
+CONSTRAINT app_min_versions app_min_versions_updated_at_not_null NOT NULL updated_at
 CONSTRAINT app_posters app_posters_active_not_null NOT NULL active
 CONSTRAINT app_posters app_posters_audience_not_null NOT NULL audience
 CONSTRAINT app_posters app_posters_created_at_not_null NOT NULL created_at
@@ -2260,6 +2269,7 @@ INDEX CREATE UNIQUE INDEX ads_pkey ON public.ads USING btree (id)
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
 INDEX CREATE UNIQUE INDEX analyses_pkey ON public.analyses USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
+INDEX CREATE UNIQUE INDEX app_min_versions_pkey ON public.app_min_versions USING btree (platform)
 INDEX CREATE UNIQUE INDEX app_posters_pkey ON public.app_posters USING btree (id)
 INDEX CREATE UNIQUE INDEX audition_postings_pkey ON public.audition_postings USING btree (id)
 INDEX CREATE UNIQUE INDEX billing_checkouts_pkey ON public.billing_checkouts USING btree (id)
@@ -2440,6 +2450,7 @@ TABLE ads
 TABLE ai_jobs
 TABLE analyses
 TABLE anomalies
+TABLE app_min_versions
 TABLE app_posters
 TABLE audition_postings
 TABLE billing_checkouts

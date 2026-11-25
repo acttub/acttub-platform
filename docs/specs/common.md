@@ -71,6 +71,18 @@
 - `/v2` 밖(상태 확인·관리 포트), 제공자가 부르는 연결 끊기 콜백, 운영 토큰으로 여는 `/v2/admin/**`는 이 헤더를
   보지 않는다.
 - 새 앱은 426을 받으면 업데이트 안내 화면을 보여 준다. 뒤에 최소 판을 올려 같은 방식으로 안내할 수 있다.
+- 최소 판은 플랫폼(iOS·안드로이드, User-Agent 로 가른다)마다 두 값이 있고, 둘 중 높은 쪽보다 낮은 앱이 426을 받는다.
+  사람이 정하는 `MIN_APP_VERSION_IOS`·`MIN_APP_VERSION_ANDROID`(SOMA-1049)와 서버가 스토어를 보고 올린 값(`app_min_versions`,
+  SOMA-1150)이다.
+- 자동으로 올리기는 `MIN_VERSION_AUTO_RAISE=true` 일 때만 돈다. 30분마다 iOS 는 한국 App Store 공개 조회에 보이는 판,
+  안드로이드는 Play 운영 트랙에서 단계적 출시를 마친(`completed`) 출시의 판(출시 이름에서 읽는다, 키는
+  `PLAY_SERVICE_ACCOUNT_JSON`)을 본다. 그 판을 처음 본 뒤 `MIN_VERSION_SETTLE_HOURS`(기본 6시간)가 지나면 그 플랫폼의 최소 판을
+  스토어 판의 x.y.0 으로 올린다.
+  - 마이너 이상이 바뀔 때만 오른다(1.1.x → 1.2.0). 패치(1.2.0 → 1.2.1)는 강제하지 않는다. 플랫폼마다 따로 움직인다.
+  - 내리지 않고, 스토어 판을 모르면(키 없음·응답 이상) 바꾸지 않는다. 올리면 Slack #문의-신고에 알린다.
+  - 처음 켜면 지금 스토어 판의 x.y.0 까지 올라간다(예: App Store 1.1.2 → iOS 1.1.0 미만이 업데이트 화면).
+  - 끄기: `MIN_VERSION_AUTO_RAISE` 를 지우고 다시 배포하면 환경변수 값만 쓴다. 급하면 DB 에서
+    `UPDATE app_min_versions SET minimum=NULL, updated_at=now() WHERE platform='ios'` — 1분 안에 반영된다.
 
 ### 탈퇴·삭제
 

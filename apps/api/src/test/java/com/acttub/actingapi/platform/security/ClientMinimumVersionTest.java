@@ -72,4 +72,36 @@ class ClientMinimumVersionTest {
         assertThat(call(filter, "app/0.1.0", ANDROID_UA).getStatus()).isEqualTo(200);
         assertThat(call(new ClientVersionFilter(" ", "not-a-version"), "app/0.1.0", ANDROID_UA).getStatus()).isEqualTo(200);
     }
+
+    /** 스토어를 보고 서버가 올린 최소 판(SOMA-1150). */
+    private static RaisedMinimums raised(String ios, String android) {
+        return new RaisedMinimums() {
+            @Override
+            public String ios() {
+                return ios;
+            }
+
+            @Override
+            public String android() {
+                return android;
+            }
+        };
+    }
+
+    @Test
+    void 서버가_올린_최소_판도_그_플랫폼만_막는다() throws Exception {
+        ClientVersionFilter filter = new ClientVersionFilter("", "", raised("1.2.0", ""));
+        assertThat(call(filter, "app/1.1.9", IOS_UA).getStatus()).isEqualTo(426);
+        assertThat(call(filter, "app/1.2.0", IOS_UA).getStatus()).isEqualTo(200);
+        assertThat(call(filter, "app/1.1.9", ANDROID_UA).getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void 환경변수와_서버가_올린_값_중_높은_쪽으로_막는다() throws Exception {
+        ClientVersionFilter envHigher = new ClientVersionFilter("", "1.3.0", raised("", "1.2.0"));
+        assertThat(call(envHigher, "app/1.2.5", ANDROID_UA).getStatus()).isEqualTo(426);
+        ClientVersionFilter raisedHigher = new ClientVersionFilter("", "1.1.0", raised("", "1.2.0"));
+        assertThat(call(raisedHigher, "app/1.1.5", ANDROID_UA).getStatus()).isEqualTo(426);
+        assertThat(call(raisedHigher, "app/1.2.0", ANDROID_UA).getStatus()).isEqualTo(200);
+    }
 }

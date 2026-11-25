@@ -7,6 +7,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
@@ -40,6 +41,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * {@code Acttub/61 CFNetwork/… Darwin/…}, 안드로이드는 {@code okhttp/…} — 11/5 운영 refresh_tokens 로 확인).
  * 값이 비었거나, 플랫폼·판을 모르면 막지 않는다. <b>스토어에 그 판이 공개된 뒤에만 켠다</b> — 먼저 켜면 받을 판이 없는
  * 사용자가 업데이트 화면에 갇힌다.
+ *
+ * <p><b>스토어를 보고 서버가 올린 최소 판</b>(SOMA-1150) — {@code MIN_VERSION_AUTO_RAISE=true} 면 {@link RaisedMinimums}
+ * ({@code feature/appversion})가 스토어에 마이너 이상 새 판이 나간 플랫폼의 최소 판을 올린다. 환경변수 값과 그 값 중
+ * <b>높은 쪽</b>으로 막는다. 꺼져 있으면 환경변수 값만 쓴다.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -54,18 +59,30 @@ public class ClientVersionFilter extends OncePerRequestFilter {
 
     private final String minimumIos;
     private final String minimumAndroid;
+    private final RaisedMinimums raised;
 
     /** 최소 판 없이 — 헤더 없는 요청만 막는다. */
     public ClientVersionFilter() {
         this("", "");
     }
 
+    /** 환경변수의 최소 판만 — 스토어를 보고 올린 값은 쓰지 않는다. */
+    public ClientVersionFilter(String minimumIos, String minimumAndroid) {
+        this(minimumIos, minimumAndroid, RaisedMinimums.NONE);
+    }
+
     @Autowired
     public ClientVersionFilter(
             @Value("${MIN_APP_VERSION_IOS:}") String minimumIos,
-            @Value("${MIN_APP_VERSION_ANDROID:}") String minimumAndroid) {
+            @Value("${MIN_APP_VERSION_ANDROID:}") String minimumAndroid,
+            ObjectProvider<RaisedMinimums> raised) {
+        this(minimumIos, minimumAndroid, raised.getIfAvailable(() -> RaisedMinimums.NONE));
+    }
+
+    public ClientVersionFilter(String minimumIos, String minimumAndroid, RaisedMinimums raised) {
         this.minimumIos = minimumIos == null ? "" : minimumIos.strip();
         this.minimumAndroid = minimumAndroid == null ? "" : minimumAndroid.strip();
+        this.raised = raised;
     }
 
     @Override
@@ -102,14 +119,24 @@ public class ClientVersionFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /** 이 플랫폼의 최소 판보다 낮은 앱인가. 플랫폼·판·최소 판 중 하나라도 모르면 false. */
+    /**
+     * 이 플랫폼의 최소 판(환경변수·스토어를 보고 올린 값 중 높은 쪽)보다 낮은 앱인가. 플랫폼·판·최소 판 중 하나라도 모르면
+     * false.
+     */
     private boolean outdated(String client, String userAgent) {
         if (!client.startsWith("app/") || userAgent == null) return false;
-        String minimum = userAgent.contains("CFNetwork") && userAgent.contains("Darwin") ? minimumIos
-                : userAgent.startsWith("okhttp/") ? minimumAndroid
-                : "";
-        BigInteger[] actual = version(client.substring(4));
-        BigInteger[] required = version(minimum);
+        boolean ios = userAgent.contains("CFNetwork") && userAgent.contains("Darwin");
+        boolean android = !ios && userAgent.startsWith("okhttp/");
+        if (!ios && !android) return false;
+        String actual = client.substring(4);
+        return below(actual, ios ? minimumIos : minimumAndroid)
+                || below(actual, ios ? raised.ios() : raised.android());
+    }
+
+    /** {@code client} 판이 {@code minimum} 보다 낮은가. 둘 중 하나라도 판이 아니면 false. */
+    private static boolean below(String client, String minimum) {
+        BigInteger[] actual = version(client);
+        BigInteger[] required = version(minimum == null ? "" : minimum.strip());
         if (actual == null || required == null) return false;
         for (int i = 0; i < Math.max(actual.length, required.length); i++) {
             BigInteger a = i < actual.length ? actual[i] : BigInteger.ZERO;

@@ -90,6 +90,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/audition` | `audition_postings` |
 | `feature/blog` | `blog_posts` |
 | `feature/support` | `support_inquiries` |
+| `feature/appversion` | `app_min_versions` |
 | `platform/operation` | `ai_jobs`, `external_operations` |
 | `platform/migration` | `practice_migration_entries` |
 

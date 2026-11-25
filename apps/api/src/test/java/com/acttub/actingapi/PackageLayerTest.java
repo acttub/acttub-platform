@@ -114,7 +114,9 @@ class PackageLayerTest {
             // 앱 광고 칸(SOMA-876). 칸 목록·고르는 순서·A/B 배정이 domain 에 산다. 표는 native SQL 로만 읽고 쓴다.
             Map.entry("ads", Set.of("domain", "app", "adapter")),
             // 앱 설정(SOMA-939). 운영 값 묶음과 칸 검사만 있어 저장소·규칙 층이 없다 — 파일을 읽어 내려준다.
-            Map.entry("appconfig", Set.of("app", "adapter")));
+            Map.entry("appconfig", Set.of("app", "adapter")),
+            // 스토어를 보고 최소 앱 판을 올린다(SOMA-1150). 판 비교·올리기 규칙이 domain 에 살고 표는 native SQL 로만 쓴다.
+            Map.entry("appversion", Set.of("domain", "app", "adapter")));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. docs/ARCHITECTURE.md의 <b>Domain Model</b>은 "프레임워크를
