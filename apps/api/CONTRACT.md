@@ -328,7 +328,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 기능 영역(`feature/<이름>`) 하나씩 옮긴다. 옮기는 PR 은 그 영역의 저장소만 고치고 스키마·FK·마이그레이션·API 응답은 바꾸지 않는다.
 첫 사례는 `feature/transfer` 다(`PostgresTransferCodeRepository`·`GuestTransferCodeJpaRepository`). 매핑을 새로 만든 사례는
-`feature/support`(UUID PK, `RETURNING` 나누기)와 `feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)이다. native 를
+`feature/support`(UUID PK, `RETURNING` 나누기)·`feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)·`feature/blog`
+(`INSERT … ON CONFLICT DO NOTHING RETURNING` 나누기)·`feature/poster`(`text[]` 칸)이다. native 를
 남긴 첫 사례는 `feature/portfolio`(다른 기능의 `users` 행 잠금)이고, `DELETE … RETURNING` 을 잠가 읽기와 id 로 지우기로 나눈
 첫 사례이기도 하다.
 
@@ -342,35 +343,46 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 3. 경합. 같은 행을 다투는 두 요청, 유일성이 걸린 동시 INSERT 처럼 승자를 DB 가 정하는 자리.
 4. 포트 메서드마다 나가는 문장의 수와 종류. `StatementInspector` 로 잡는다. 조건부 갱신이 읽고 쓰는 두 문장으로 풀리면
    여기서 드러난다. 문장이 많으면 "종류 표 [잠금]" 으로 줄여 견주면 별칭·열 목록 차이에 흔들리지 않는다
-   (`PortfolioRepositoryIT`). 포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운
+   (`PortfolioRepositoryIT`). UPDATE 의 잠금 세기는 PostgreSQL 이 고친 칸으로 정한다. 부분·표현식이 아닌 유니크 인덱스의 칸
+   값을 바꾸면 `FOR UPDATE`, 그 밖에는 `FOR NO KEY UPDATE` 다(`BlogRepositoryIT`·`PosterRepositoryIT`).
+   포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운
    행 수를 부르기 앞뒤로 읽어 차이를 본다. 그 뷰에는 그 연결이 아직 내보내지 않은 앞 트랜잭션의 수도 섞여 있다
    (`AuditionRepositoryIT`).
 
 **매핑을 새로 만들 때**: 엔티티를 `feature/<이름>/schema` 에 두고, `ActingApiApplication` 의 `@EntityScan` 목록과
 `PackageLayerTest` 의 층 목록에 더하고, `EntityMappingIT` 의 대기 목록에서 빼고 엔티티 수를 올린 뒤 옮긴다. 앱이 만드는 UUID
 PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOnSave` 에 더한다. DB 가 매기는 identity PK 는
-`@GeneratedValue(strategy = IDENTITY)` 이고 HQL insert 가 id 를 빼고 낸다.
+`@GeneratedValue(strategy = IDENTITY)` 이고 HQL insert 가 id 를 빼고 낸다. `text[]` 칸은 `String[]` 에
+`@JdbcTypeCode(SqlTypes.ARRAY)`·`columnDefinition = "text[]"` 로 매핑하고 원소 순서를 지킨다(`AppPosterEntity`).
 
 **모양마다 옮기는 법**
 
 - 매개변수: 시각은 `Instant` 를 그대로 넘긴다. §5-8 ② 의 `OffsetDateTime` 변환은 native 에만 필요하다. 나노초는 native 와
   같게 마이크로초로 반올림된다. native 의 `CAST(:x AS text) IS NULL OR x = CAST(:x AS text)` 는 JPQL `:x is null or c.x = :x`
-  로 쓰면 null 도 그대로 된다. `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다. native 의
+  로 쓰면 null 도 그대로 된다. `CASE WHEN :flag THEN …` 의 boolean 매개변수는 HQL 이 술어로 받지 않아 `case when :flag = true then …`
+  으로 쓴다(`revision + case …` 같은 열 증감은 한 문장 그대로다). `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다. native 의
   `now()` 는 HQL `instant` 로 쓴다. `current_timestamp` 로 나가 같은 트랜잭션 시작 시각이 된다(`PortfolioRepositoryIT`).
 - 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
   나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) 조인한 표를 모두
   잠근다(inner join). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
   Port 가 없어 native 로 두면 목록에 `남김:` 줄을 쓰고, `table-owner-exceptions.txt` 의 그 줄은 남는다
   (`PostgresPortfolioRepository#lockOrCreate` 의 `users` 행 잠금).
-- 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 엔티티를 읽고 고쳐 저장하거나
+- 배열: native 의 `:x = ANY(칸)` 은 HQL 에 없다(`any(…)` 는 `bool_or` 집계로 풀린다). `array_contains(칸, :x)` 는 매개변수를
+  `varchar` 배열로 감싸 `text[] @> varchar[]` 연산자가 없다고 실패한다. `array_position(칸, :x) > 0` 이 같은 행을 고른다. 칸에
+  NULL 원소가 없을 때만 같다(`PostgresPosterRepository#live`).
+- 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 같은 표의 다른 행을 보는
+  `NOT EXISTS` 상관 서브쿼리도 HQL UPDATE 안에 그대로 나간다. 엔티티를 읽고 고쳐 저장하거나
   Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
   `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
 - `ON CONFLICT`: HQL `insert … values … on conflict [대상] do nothing | do update set … = excluded.…` 는 원본과 같은 꼴로
-  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. 엔티티에서
+  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분·표현식 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. 엔티티에서
   `insertable = false` 인 칸도 HQL insert 로 값을 넣는다. `insert … select … on conflict do update` 는 Hibernate 가 풀지 못한다.
 - `RETURNING`·데이터를 바꾸는 CTE: HQL 에 없다. UPDATE 는 JPQL UPDATE 뒤 같은 트랜잭션에서 다시 읽는다(고친 행은 이
   트랜잭션이 잡고 있다). 영향 행 수가 0 이면 다시 읽지 않는다. 문장이 하나 는다(`PostgresSupportInquiryStore#setStatus`,
-  두 운영자 경합은 `SupportInquiryStoreIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
+  두 운영자 경합은 `SupportInquiryStoreIT`). `INSERT … ON CONFLICT DO NOTHING RETURNING`(데이터를 바꾸는 CTE 로 감싼 꼴 포함)도
+  같다. 앱이 정한 id 로 HQL insert 를 하고 영향 행 수가 1 이면 같은 트랜잭션에서 그 id 로 다시 읽는다(`PostgresBlogRepository`).
+  같은 키를 함께 넣는 경합(뒤의 것이 앞의 커밋을 기다렸다가 0행)과, 함께 같은 값으로 고치는 경합(`NOT EXISTS` 는 둘 다 지나고 뒤의
+  것이 유니크 위반)은 전후 같다(`BlogRepositoryIT`·`PosterRepositoryIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
   없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다. 잠가 읽기는 읽은 행을 다른 트랜잭션의 지우기·고치기에서 지킬 뿐이라,
   조건에 맞는 행이 새로 들어올 수 있으면 그것을 따로 막아야 한다. `PostgresPortfolioRepository#beginPhoto` 는 앞서 잡은 부모
   행(`portfolios`)의 `FOR UPDATE` 가 자식 INSERT 의 FK 잠금을 막아서 이 꼴로 옮겼다(`PortfolioRepositoryIT` 가 기다리는 INSERT 로
