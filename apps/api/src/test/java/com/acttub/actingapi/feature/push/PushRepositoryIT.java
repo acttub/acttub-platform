@@ -49,8 +49,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 푸시 저장소 셋(연습 알림·토큰·푸시 열기)이 내는 결과·잠금·경합·문장 수를 실제 PostgreSQL 에서 고정한다. 자기 표만 쓰는 문장
  * (보낼 자리 선점, 종류별 횟수, 최근 문구, 후보의 토큰 읽기)을 네이티브 SQL 에서 JPA 로 옮길 때 네이티브 구현에서 먼저 통과시킨
- * 이 테스트가 그대로 통과해야 한다(apps/api/CONTRACT.md §5-9). 다른 기능의 표를 읽는 문장은 네이티브로 남겨 문장 테스트에서만
- * 본다.
+ * 이 테스트가 그대로 통과했다(apps/api/CONTRACT.md §5-9). 문장 테스트만 달라졌다 — 선점의 {@code RETURNING} 이 빠지고 영향 행
+ * 수로 판정한다(문장 수는 같다). 다른 기능의 표를 읽는 문장은 네이티브로 남겨 문장 테스트에서만 본다.
  *
  * <p>후보 고르기·이어 하기·숙제·연속 일수·올려 둔 영상·안 읽은 대본의 결과는 {@link PracticeReminderRepositoryIT}, 토큰 등록·
  * 소유자 교체·토글과의 경합은 {@link PushTokenLifecycleIT}·{@link AccountNotificationIT}, 푸시 열기 기록은 {@link PushOpenIT}
@@ -333,9 +333,9 @@ class PushRepositoryIT {
         assertThat(statementsOf(() -> reminders.sentCountsByKind(user, TODAY))).containsExactly("select practice_reminder_sends");
         assertThat(statementsOf(() -> reminders.recentTemplates(user, TODAY))).containsExactly("select practice_reminder_sends");
         assertThat(statementsOf(() -> reminders.claim(user, TODAY, copy(ReminderKind.GENERAL, "general.a", null))))
-                .containsExactly("insert practice_reminder_sends on conflict returning");
+                .as("RETURNING 대신 영향 행 수로 선점했는지 안다").containsExactly("insert practice_reminder_sends on conflict");
         assertThat(statementsOf(() -> reminders.claim(user, TODAY, copy(ReminderKind.GENERAL, "general.a", null))))
-                .as("겹쳐도 한 문장이다").containsExactly("insert practice_reminder_sends on conflict returning");
+                .as("겹쳐도 한 문장이다").containsExactly("insert practice_reminder_sends on conflict");
 
         UUID practice = practice(user, "숙제 연습");
         note(conversation(practice));
