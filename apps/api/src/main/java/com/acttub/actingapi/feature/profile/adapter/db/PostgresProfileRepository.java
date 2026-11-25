@@ -53,14 +53,12 @@ class PostgresProfileRepository
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
             AccountErasureStep.MEDIA_OBJECTS,
             AccountErasureStep.READING,
-            AccountErasureStep.AI_JOBS,
             AccountErasureStep.ACTOR_JOURNALS,
             AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES,
             AccountErasureStep.CHALLENGE,
             AccountErasureStep.READING_VOICE_USAGE,
-            AccountErasureStep.LEGACY_PRACTICES,
-            AccountErasureStep.LEGACY_OPERATIONS);
+            AccountErasureStep.LEGACY_PRACTICES);
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -812,10 +810,6 @@ class PostgresProfileRepository
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
             case READING -> eraseReading(userId, account.retainMedia(), now);
-            case AI_JOBS -> {
-                cancelAiJobs(userId, now);
-                yield List.of();
-            }
             case ACTOR_JOURNALS -> {
                 // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
                 entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
@@ -845,12 +839,9 @@ class PostgresProfileRepository
                 failAnalyzingLegacyPractices(userId, now);
                 yield List.of();
             }
-            case LEGACY_OPERATIONS -> {
-                cancelLegacyOperations(userId, now);
-                yield List.of();
-            }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
-                    PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK ->
+                    PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
+                    LEGACY_OPERATIONS ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -959,23 +950,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /**
-     * 진행 중인 AI 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가 맞지 않아 통째로 롤백되므로 결과가 저장되지
-     * 않는다. 이력은 남기되 결과 본문은 비운다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
-     */
-    private void cancelAiJobs(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE ai_jobs
-                SET status='failed',failure_reason='account_deactivated',
-                    lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
-                WHERE user_id=:userId
-                  AND status IN ('pending','running')
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     /**
@@ -1099,24 +1073,6 @@ class PostgresProfileRepository
                 SET status='failed',updated_at=:now
                 WHERE user_id=:userId
                   AND status='analyzing'
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
-    }
-
-    /**
-     * 옛 연습 흐름의 진행 중인 비동기 작업(분석·코치·노트·기억 갱신)을 실패로 닫는다. lease 를 떼므로 돌고 있던 워커의 완료는
-     * 받아들여지지 않는다(CONTRACT.md §5-7).
-     */
-    private void cancelLegacyOperations(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE external_operations
-                SET status='failed',error_code='account_deactivated',
-                    lease_token=NULL,lease_expires_at=NULL,monitoring_lease_token=NULL,
-                    updated_at=:now
-                WHERE user_id=:userId
-                  AND status IN ('pending','running')
                 """)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
