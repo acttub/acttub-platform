@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
+import com.acttub.actingapi.platform.schema.ReadingSessionStatus;
+import com.acttub.actingapi.platform.schema.ScriptSource;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.Lock;
@@ -25,6 +27,153 @@ interface ScriptJpaRepository extends Repository<ScriptEntity, UUID> {
 
     @Query("select count(*) from ScriptEntity s where s.userId = :userId")
     long countOf(UUID userId);
+
+    /** 같은 요청 id 로 이미 등록한 대본. */
+    interface Registered {
+        UUID getId();
+
+        String getRequestFingerprint();
+    }
+
+    @Query("""
+            select s.id as id, s.requestFingerprint as requestFingerprint
+            from ScriptEntity s where s.userId = :userId and s.requestId = :requestId
+            """)
+    Optional<Registered> byRequest(UUID userId, UUID requestId);
+
+    /** 대본 상세의 칸과 집계. 집계는 칸을 두지 않고 조회할 때 센다. */
+    interface Overview {
+        String getTitle();
+
+        ScriptSource getSource();
+
+        Instant getCreatedAt();
+
+        Instant getUpdatedAt();
+
+        long getRecordingCount();
+
+        /** 진행 중인 회차 가운데 가장 나중에 시작한 것. */
+        UUID getOpenSessionId();
+
+        /** 가장 나중에 시작한 회차. 회차가 없으면 마지막 회차의 칸은 모두 {@code null} 이다. */
+        UUID getLastSessionId();
+
+        ReadingSessionStatus getLastStatus();
+
+        Instant getLastStartedAt();
+
+        Instant getLastEndedAt();
+
+        /** 마지막 회차의 내 배역 id 를 배역 순서로 {@code sep} 을 끼워 이은 것. */
+        String getMyCharacterIds();
+
+        String getMyCharacterNames();
+    }
+
+    @Query("""
+            select s.title as title, s.source as source, s.createdAt as createdAt, s.updatedAt as updatedAt,
+                   (select count(*) from ReadingRecordingEntity r
+                    join ReadingSessionEntity rs on rs.id = r.readingSessionId
+                    where rs.scriptId = s.id) as recordingCount,
+                   (select rs.id from ReadingSessionEntity rs
+                    where rs.scriptId = s.id
+                      and rs.status = com.acttub.actingapi.platform.schema.ReadingSessionStatus.IN_PROGRESS
+                    order by rs.startedAt desc, rs.id desc
+                    limit 1) as openSessionId,
+                   ls.id as lastSessionId, ls.status as lastStatus, ls.startedAt as lastStartedAt, ls.endedAt as lastEndedAt,
+                   (select listagg(cast(c.id as String), :sep) within group (order by c.sortOrder)
+                    from ScriptCharacterEntity c where array_contains(ls.myCharacterIds, c.id)) as myCharacterIds,
+                   (select listagg(c.name, :sep) within group (order by c.sortOrder)
+                    from ScriptCharacterEntity c where array_contains(ls.myCharacterIds, c.id)) as myCharacterNames
+            from ScriptEntity s
+            left join lateral (
+                select rs.id as id, rs.status as status, rs.startedAt as startedAt, rs.endedAt as endedAt,
+                       rs.myCharacterIds as myCharacterIds
+                from ReadingSessionEntity rs
+                where rs.scriptId = s.id
+                order by rs.startedAt desc, rs.id desc
+                limit 1
+            ) ls
+            where s.id = :scriptId and s.userId = :userId
+            """)
+    Optional<Overview> overview(UUID scriptId, UUID userId, String sep);
+
+    /** 대본 목록의 카드 한 장. */
+    interface Card {
+        UUID getId();
+
+        String getTitle();
+
+        Instant getCreatedAt();
+
+        Instant getUpdatedAt();
+
+        long getDialogueCount();
+
+        long getRecordingCount();
+
+        Instant getLastPracticedAt();
+
+        Boolean getHasOpenSession();
+
+        ReadingSessionStatus getLastStatus();
+
+        String getMyCharacterNames();
+    }
+
+    /**
+     * 그 사람의 대본, 고친 시각이 최근인 것부터. {@code pattern} 이 있으면 제목이나 배역 이름이 그 무늬에 맞는 것만 고른다
+     * (대소문자 없이, {@code \} 로 이스케이프한 글자는 글자 그대로).
+     */
+    @Query("""
+            select s.id as id, s.title as title, s.createdAt as createdAt, s.updatedAt as updatedAt,
+                   (select count(*) from ScriptLineEntity l
+                    where l.scriptId = s.id
+                      and l.kind = com.acttub.actingapi.platform.schema.ScriptLineKind.DIALOGUE) as dialogueCount,
+                   (select count(*) from ReadingRecordingEntity r
+                    join ReadingSessionEntity rs on rs.id = r.readingSessionId
+                    where rs.scriptId = s.id) as recordingCount,
+                   (select max(rs.updatedAt) from ReadingSessionEntity rs where rs.scriptId = s.id) as lastPracticedAt,
+                   exists (select 1 from ReadingSessionEntity rs
+                           where rs.scriptId = s.id
+                             and rs.status = com.acttub.actingapi.platform.schema.ReadingSessionStatus.IN_PROGRESS) as hasOpenSession,
+                   ls.status as lastStatus,
+                   (select listagg(c.name, :sep) within group (order by c.sortOrder)
+                    from ScriptCharacterEntity c where array_contains(ls.myCharacterIds, c.id)) as myCharacterNames
+            from ScriptEntity s
+            left join lateral (
+                select rs.status as status, rs.myCharacterIds as myCharacterIds
+                from ReadingSessionEntity rs
+                where rs.scriptId = s.id
+                order by rs.startedAt desc, rs.id desc
+                limit 1
+            ) ls
+            where s.userId = :userId
+              and (:pattern is null
+                   or s.title ilike :pattern escape '\\'
+                   or exists (select 1 from ScriptCharacterEntity c
+                              where c.scriptId = s.id and c.name ilike :pattern escape '\\'))
+            order by s.updatedAt desc, s.id desc
+            """)
+    List<Card> cards(UUID userId, String pattern, String sep);
+
+    /** 그 사람의 대본 수와 진행 중인 회차가 있는 대본 수. */
+    interface Totals {
+        long getTotal();
+
+        long getInProgress();
+    }
+
+    @Query("""
+            select count(*) as total,
+                   count(*) filter (where exists (select 1 from ReadingSessionEntity rs
+                                                  where rs.scriptId = s.id
+                                                    and rs.status = com.acttub.actingapi.platform.schema.ReadingSessionStatus.IN_PROGRESS)) as inProgress
+            from ScriptEntity s
+            where s.userId = :userId
+            """)
+    Totals totals(UUID userId);
 
     /** 다시 쓸 대본과 그 제목의 출처. */
     interface Reusable {

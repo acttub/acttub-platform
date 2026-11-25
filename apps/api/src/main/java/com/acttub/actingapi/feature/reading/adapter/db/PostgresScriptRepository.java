@@ -12,7 +12,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
@@ -29,8 +28,6 @@ import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptText;
 import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
 import com.acttub.actingapi.feature.reading.domain.VoiceAssignment;
-import com.acttub.actingapi.platform.schema.CharacterAgeBand;
-import com.acttub.actingapi.platform.schema.CharacterGender;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
@@ -50,23 +47,33 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 쓰지 않는다 — 게이트를 지난 뒤에 끝난 탈퇴·이관 뒤로 옛 계정에 대본이 생기지 않는다. 같은 회원의 등록이
  * 겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
  *
- * <p>집계(대사 수·녹음 수·마지막 회차·상태 칩)는 컬럼을 두지 않고 조회할 때 센다. 배열 컬럼과 이름 목록은
- * 구분자로 이어 붙여 읽는다 — Hibernate 의 네이티브 결과가 Postgres 배열을 어떻게 돌려주는지에 기대지 않는다.
+ * <p>집계(대사 수·녹음 수·마지막 회차·상태 칩)는 컬럼을 두지 않고 조회할 때 센다. 읽기(상세·목록·배역·줄)의 문장은
+ * Spring Data 저장소에 있다. 대본 목록·상세는 요청이 많은 경로라 요청 하나가 보내는 문장의 수를 {@code ScriptRepositoryIT}
+ * 가 지킨다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 class PostgresScriptRepository implements ScriptRepository {
 
     private final EntityManager entityManager;
+    private final ScriptJpaRepository scriptRows;
+    private final ScriptCharacterJpaRepository characterRows;
+    private final ScriptLineJpaRepository lineRows;
     private final TransactionTemplate transaction;
     private final ReadingRecordingCleanup cleanup;
     private final ScriptFileCleanup sources;
 
     PostgresScriptRepository(
             EntityManager entityManager,
+            ScriptJpaRepository scriptRows,
+            ScriptCharacterJpaRepository characterRows,
+            ScriptLineJpaRepository lineRows,
             PlatformTransactionManager transactionManager,
             ReadingRecordingCleanup cleanup,
             ScriptFileCleanup sources) {
         this.entityManager = entityManager;
+        this.scriptRows = scriptRows;
+        this.characterRows = characterRows;
+        this.lineRows = lineRows;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanup = cleanup;
         this.sources = sources;
@@ -77,26 +84,14 @@ class PostgresScriptRepository implements ScriptRepository {
         return transaction.execute(status -> {
             lockActive(userId);
             // 재전송은 개수 검사보다 먼저다 — 마지막 허용 대본의 재시도가 실패하지 않는다.
-            List<Tuple> existing = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT id,request_fingerprint
-                    FROM scripts
-                    WHERE user_id=:userId
-                      AND request_id=:requestId
-                    """, Tuple.class)
-                    .setParameter("userId", userId)
-                    .setParameter("requestId", requestId));
-            if (!existing.isEmpty()) {
-                Tuple row = existing.getFirst();
-                boolean same = fingerprint.equals(row.get("request_fingerprint", String.class));
+            var existing = scriptRows.byRequest(userId, requestId);
+            if (existing.isPresent()) {
+                boolean same = fingerprint.equals(existing.get().getRequestFingerprint());
                 return same
-                        ? new Creation(row.get("id", UUID.class), false, Outcome.REPLAYED)
+                        ? new Creation(existing.get().getId(), false, Outcome.REPLAYED)
                         : new Creation(null, false, Outcome.FINGERPRINT_MISMATCH);
             }
-            Number count = (Number) entityManager.createNativeQuery(
-                    "SELECT count(*) FROM scripts WHERE user_id=:userId")
-                    .setParameter("userId", userId)
-                    .getSingleResult();
-            if (count.intValue() >= limit) {
+            if (scriptRows.countOf(userId) >= limit) {
                 return new Creation(null, false, Outcome.OVER_LIMIT);
             }
             UUID scriptId = UUID.randomUUID();
@@ -132,119 +127,47 @@ class PostgresScriptRepository implements ScriptRepository {
 
     @Override
     public ScriptView find(UUID userId, UUID scriptId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT s.id,s.title,s.source,s.created_at,s.updated_at,
-                       (SELECT count(*) FROM reading_recordings r
-                        JOIN reading_sessions rs ON rs.id=r.reading_session_id
-                        WHERE rs.script_id=s.id) AS recording_count,
-                       (SELECT rs.id FROM reading_sessions rs
-                        WHERE rs.script_id=s.id AND rs.status='in_progress'
-                        ORDER BY rs.started_at DESC,rs.id DESC
-                        LIMIT 1) AS open_session_id,
-                       ls.id AS last_session_id,ls.status AS last_status,ls.started_at AS last_started_at,
-                       ls.ended_at AS last_ended_at,
-                       (SELECT string_agg(CAST(c.id AS text),:sep ORDER BY c.sort_order) FROM script_characters c
-                        WHERE c.id=ANY(ls.my_character_ids)) AS my_character_ids,
-                       (SELECT string_agg(c.name,:sep ORDER BY c.sort_order) FROM script_characters c
-                        WHERE c.id=ANY(ls.my_character_ids)) AS my_character_names
-                FROM scripts s
-                LEFT JOIN LATERAL (
-                    SELECT rs.id,rs.status,rs.started_at,rs.ended_at,rs.my_character_ids
-                    FROM reading_sessions rs
-                    WHERE rs.script_id=s.id
-                    ORDER BY rs.started_at DESC,rs.id DESC
-                    LIMIT 1
-                ) ls ON true
-                WHERE s.id=:scriptId
-                  AND s.user_id=:userId
-                """, Tuple.class)
-                .setParameter("sep", SEPARATOR)
-                .setParameter("scriptId", scriptId)
-                .setParameter("userId", userId));
-        if (rows.isEmpty()) {
+        ScriptJpaRepository.Overview row = scriptRows.overview(scriptId, userId, SEPARATOR).orElse(null);
+        if (row == null) {
             return null;
         }
-        Tuple row = rows.getFirst();
         List<LineView> lines = lines(scriptId);
         return new ScriptView(
                 scriptId,
-                row.get("title", String.class),
-                ScriptSource.valueOf(row.get("source", String.class).toUpperCase(Locale.ROOT)).dbValue(),
+                row.getTitle(),
+                row.getSource().dbValue(),
                 characters(scriptId),
                 lines,
                 ReadingLayout.of(lines.stream()
                         .map(line -> new ReadingLayout.Line(line.id(), line.kind(), line.text()))
                         .toList()).scenes(),
-                row.get("recording_count", Number.class).intValue(),
-                row.get("open_session_id", UUID.class),
+                (int) row.getRecordingCount(),
+                row.getOpenSessionId(),
                 lastSession(row),
-                row.get("created_at", Instant.class),
-                row.get("updated_at", Instant.class));
+                row.getCreatedAt(),
+                row.getUpdatedAt());
     }
 
     @Override
     public ScriptListView list(UUID userId, String query) {
         String pattern = query.isEmpty() ? null : "%" + escapeLike(query) + "%";
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT s.id,s.title,s.created_at,s.updated_at,
-                       (SELECT count(*) FROM script_lines l WHERE l.script_id=s.id AND l.kind='dialogue') AS dialogue_count,
-                       (SELECT count(*) FROM reading_recordings r
-                        JOIN reading_sessions rs ON rs.id=r.reading_session_id
-                        WHERE rs.script_id=s.id) AS recording_count,
-                       (SELECT max(rs.updated_at) FROM reading_sessions rs WHERE rs.script_id=s.id) AS last_practiced_at,
-                       EXISTS (SELECT 1 FROM reading_sessions rs
-                               WHERE rs.script_id=s.id AND rs.status='in_progress') AS open,
-                       ls.status AS last_status,
-                       (SELECT string_agg(c.name,:sep ORDER BY c.sort_order) FROM script_characters c
-                        WHERE c.id=ANY(ls.my_character_ids)) AS my_character_names
-                FROM scripts s
-                LEFT JOIN LATERAL (
-                    SELECT rs.status,rs.my_character_ids
-                    FROM reading_sessions rs
-                    WHERE rs.script_id=s.id
-                    ORDER BY rs.started_at DESC,rs.id DESC
-                    LIMIT 1
-                ) ls ON true
-                WHERE s.user_id=:userId
-                  AND (CAST(:pattern AS text) IS NULL
-                       OR s.title ILIKE CAST(:pattern AS text) ESCAPE '\\'
-                       OR EXISTS (SELECT 1 FROM script_characters c
-                                  WHERE c.script_id=s.id AND c.name ILIKE CAST(:pattern AS text) ESCAPE '\\'))
-                ORDER BY s.updated_at DESC,s.id DESC
-                """, Tuple.class)
-                .setParameter("sep", SEPARATOR)
-                .setParameter("userId", userId)
-                .setParameter("pattern", pattern));
         List<ScriptCardView> cards = new ArrayList<>();
-        for (Tuple row : rows) {
-            boolean open = Boolean.TRUE.equals(row.get("open", Boolean.class));
-            String lastStatus = row.get("last_status", String.class);
-            Instant lastPracticedAt = row.get("last_practiced_at", Instant.class);
-            Instant createdAt = row.get("created_at", Instant.class);
+        for (ScriptJpaRepository.Card row : scriptRows.cards(userId, pattern, SEPARATOR)) {
+            Instant lastPracticedAt = row.getLastPracticedAt();
             cards.add(new ScriptCardView(
-                    row.get("id", UUID.class),
-                    row.get("title", String.class),
-                    split(row.get("my_character_names", String.class)),
-                    row.get("dialogue_count", Number.class).intValue(),
-                    row.get("recording_count", Number.class).intValue(),
+                    row.getId(),
+                    row.getTitle(),
+                    split(row.getMyCharacterNames()),
+                    (int) row.getDialogueCount(),
+                    (int) row.getRecordingCount(),
                     lastPracticedAt,
-                    lastPracticedAt == null ? createdAt : lastPracticedAt,
-                    chip(open, lastStatus),
-                    createdAt,
-                    row.get("updated_at", Instant.class)));
+                    lastPracticedAt == null ? row.getCreatedAt() : lastPracticedAt,
+                    chip(Boolean.TRUE.equals(row.getHasOpenSession()), row.getLastStatus()),
+                    row.getCreatedAt(),
+                    row.getUpdatedAt()));
         }
-        Tuple totals = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT count(*) AS total,
-                       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM reading_sessions rs
-                                                      WHERE rs.script_id=s.id AND rs.status='in_progress')) AS in_progress
-                FROM scripts s
-                WHERE s.user_id=:userId
-                """, Tuple.class)
-                .setParameter("userId", userId)).getFirst();
-        return new ScriptListView(
-                cards,
-                totals.get("total", Number.class).intValue(),
-                totals.get("in_progress", Number.class).intValue());
+        ScriptJpaRepository.Totals totals = scriptRows.totals(userId);
+        return new ScriptListView(cards, (int) totals.getTotal(), (int) totals.getInProgress());
     }
 
     @Override
@@ -674,34 +597,23 @@ class PostgresScriptRepository implements ScriptRepository {
     }
 
     private List<CharacterView> characters(UUID scriptId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT c.id,c.name,c.sort_order,c.voice_preset,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,c.unnamed,
-                       (SELECT count(*) FROM script_lines l JOIN script_characters lc ON lc.id=l.character_id
-                        WHERE lc.id=c.id OR c.id=ANY(lc.member_ids)) AS dialogue_count
-                FROM script_characters c
-                WHERE c.script_id=:scriptId
-                ORDER BY c.sort_order
-                """, Tuple.class)
-                .setParameter("scriptId", scriptId));
-        List<String> voices = VoiceAssignment.assign(rows.stream().map(row -> new VoiceAssignment.Cast(
-                row.get("voice_preset", String.class),
-                CharacterGender.of(row.get("gender", String.class)),
-                CharacterAgeBand.of(row.get("age_band", String.class)))).toList());
+        List<ScriptCharacterJpaRepository.Profile> rows = characterRows.profiles(scriptId);
+        List<String> voices = VoiceAssignment.assign(rows.stream()
+                .map(row -> new VoiceAssignment.Cast(row.getVoicePreset(), row.getGender(), row.getAgeBand())).toList());
         List<CharacterView> characters = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
-            Tuple row = rows.get(i);
+            ScriptCharacterJpaRepository.Profile row = rows.get(i);
             characters.add(new CharacterView(
-                    row.get("id", UUID.class),
-                    row.get("name", String.class),
-                    row.get("sort_order", Integer.class),
-                    row.get("voice_preset", String.class),
+                    row.getId(),
+                    row.getName(),
+                    row.getSortOrder(),
+                    row.getVoicePreset(),
                     voices.get(i),
-                    row.get("gender", String.class),
-                    row.get("age_band", String.class),
-                    row.get("dialogue_count", Number.class).intValue(),
-                    row.get("member_ids", String.class) == null ? List.of()
-                            : Stream.of(row.get("member_ids", String.class).split(",")).map(UUID::fromString).toList(),
-                    row.get("unnamed", Boolean.class)));
+                    row.getGender() == null ? null : row.getGender().dbValue(),
+                    row.getAgeBand() == null ? null : row.getAgeBand().dbValue(),
+                    (int) row.getDialogueCount(),
+                    row.getMemberIds() == null ? List.of() : List.of(row.getMemberIds()),
+                    Boolean.TRUE.equals(row.getUnnamed())));
         }
         return characters;
     }
@@ -710,48 +622,40 @@ class PostgresScriptRepository implements ScriptRepository {
     private List<LineView> lines(UUID scriptId) {
         List<LineView> lines = new ArrayList<>();
         int dialogueNo = 0;
-        for (Tuple row : NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,ordinal,kind,character_id,text,lang,speech
-                FROM script_lines
-                WHERE script_id=:scriptId
-                ORDER BY ordinal
-                """, Tuple.class)
-                .setParameter("scriptId", scriptId))) {
-            String kind = ScriptLineKind.valueOf(row.get("kind", String.class).toUpperCase(Locale.ROOT)).dbValue();
-            boolean dialogue = ScriptLineKind.DIALOGUE.dbValue().equals(kind);
+        for (ScriptLineJpaRepository.Content row : lineRows.content(scriptId)) {
+            boolean dialogue = row.getKind() == ScriptLineKind.DIALOGUE;
             lines.add(new LineView(
-                    row.get("id", UUID.class),
-                    row.get("ordinal", Integer.class),
-                    kind,
-                    row.get("character_id", UUID.class),
-                    row.get("text", String.class),
+                    row.getId(),
+                    row.getOrdinal(),
+                    row.getKind().dbValue(),
+                    row.getCharacterId(),
+                    row.getText(),
                     dialogue ? ++dialogueNo : null,
-                    row.get("lang", String.class),
-                    row.get("speech", String.class)));
+                    row.getLang(),
+                    row.getSpeech()));
         }
         return lines;
     }
 
-    private static LastSessionView lastSession(Tuple row) {
-        UUID id = row.get("last_session_id", UUID.class);
-        if (id == null) {
+    private static LastSessionView lastSession(ScriptJpaRepository.Overview row) {
+        if (row.getLastSessionId() == null) {
             return null;
         }
         return new LastSessionView(
-                id,
-                ReadingSessionStatus.valueOf(row.get("last_status", String.class).toUpperCase(Locale.ROOT)).dbValue(),
-                split(row.get("my_character_ids", String.class)).stream().map(UUID::fromString).toList(),
-                split(row.get("my_character_names", String.class)),
-                row.get("last_started_at", Instant.class),
-                row.get("last_ended_at", Instant.class));
+                row.getLastSessionId(),
+                row.getLastStatus().dbValue(),
+                split(row.getMyCharacterIds()).stream().map(UUID::fromString).toList(),
+                split(row.getMyCharacterNames()),
+                row.getLastStartedAt(),
+                row.getLastEndedAt());
     }
 
     /** 진행 중 회차가 하나라도 있으면 연습 중, 없고 마지막 회차가 완료면 연습 완료, 회차가 없으면 배역 선택. */
-    private static String chip(boolean open, String lastStatus) {
+    private static String chip(boolean open, ReadingSessionStatus lastStatus) {
         if (open) {
             return "reading";
         }
-        if (ReadingSessionStatus.COMPLETED.dbValue().equals(lastStatus)) {
+        if (lastStatus == ReadingSessionStatus.COMPLETED) {
             return "completed";
         }
         return "no_cast";
