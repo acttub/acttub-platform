@@ -8,7 +8,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
-import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,9 +22,8 @@ class MemoryWorkerSchedulerTest {
             .withBean(RecordingFailureReporter.class, RecordingFailureReporter::new);
 
     /**
-     * 분석 워커와 스위치를 공유한다 — 같은 {@code external_operations} 큐를 소비하므로
-     * "이 프로세스가 큐 owner인가"가 하나의 질문이다. 스위치를 나누면 한쪽만 켠 프로세스가
-     * 생겨 두 소비자가 같은 잡을 나눠 집는다.
+     * 분석 워커와 스위치를 공유한다 — "이 프로세스가 뒤에서 도는 일의 주인인가"가 하나의 질문이다. 스위치를 나누면
+     * 한쪽만 켠 프로세스가 생겨 두 소비자가 같은 잡을 나눠 집는다.
      */
     @Test
     @DisplayName("꺼진 스위치는 기억 갱신 풀을 만들지 않는다")
@@ -51,7 +49,7 @@ class MemoryWorkerSchedulerTest {
 
     @Test
     void cycleFailureIsReported() {
-        MemoryUpdateWorker worker = mock(MemoryUpdateWorker.class);
+        ActorMemoryUpdateWorker worker = mock(ActorMemoryUpdateWorker.class);
         RuntimeException failure = new IllegalStateException("cycle failed");
         when(worker.runOnce()).thenThrow(failure);
         RecordingFailureReporter reporter = new RecordingFailureReporter();
@@ -72,7 +70,7 @@ class MemoryWorkerSchedulerTest {
 
     @Test
     void rejectedDrainTaskIsNotReported() {
-        MemoryUpdateWorker worker = mock(MemoryUpdateWorker.class);
+        ActorMemoryUpdateWorker worker = mock(ActorMemoryUpdateWorker.class);
         RecordingFailureReporter reporter = new RecordingFailureReporter();
         ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
         when(executor.getActiveCount()).thenReturn(0);
@@ -86,14 +84,11 @@ class MemoryWorkerSchedulerTest {
 
     @SuppressWarnings("unchecked")
     private static MemoryWorkerScheduler scheduler(
-            MemoryUpdateWorker worker,
+            ActorMemoryUpdateWorker worker,
             ThreadPoolTaskExecutor executor,
             RecordingFailureReporter reporter) {
-        ObjectProvider<MemoryUpdateWorker> provider = mock(ObjectProvider.class);
+        ObjectProvider<ActorMemoryUpdateWorker> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(worker);
-        // 0.1.0 워커는 여기서 보지 않는다 — 이 시험은 폴·거절·보고의 형태만 본다.
-        ObjectProvider<ActorMemoryUpdateWorker> actorProvider = mock(ObjectProvider.class);
-        when(actorProvider.getIfAvailable()).thenReturn(null);
-        return new MemoryWorkerScheduler(provider, actorProvider, executor, reporter);
+        return new MemoryWorkerScheduler(provider, executor, reporter);
     }
 }

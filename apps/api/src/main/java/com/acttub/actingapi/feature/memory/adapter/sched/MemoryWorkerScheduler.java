@@ -4,7 +4,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
-import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.ScheduledTaskLog;
@@ -26,10 +25,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * {@code memory_worker.py:MemoryUpdateWorker.sweep}도 빈 메서드이고, 분석이 쓰던 작업
  * 풀을 그대로 쓰기 위한 자리일 뿐이다.
  *
- * <p>스위치를 분석 워커와 공유한다. 둘은 같은 {@code external_operations} 큐를 소비하므로
- * "이 프로세스가 큐 owner인가"가 하나의 질문이다. 스위치를 나누면 한쪽만 켠 프로세스가
- * 생겨 두 소비자가 같은 잡을 나눠 집는다 — 워커를 늘렸을 때 스위치가 따라가지 못해
- * 비결정적으로 깨진 전례가 이미 있다.
+ * <p>스위치를 분석 워커와 공유한다. "이 프로세스가 뒤에서 도는 일의 주인인가"가 하나의 질문이다. 스위치를
+ * 나누면 한쪽만 켠 프로세스가 생겨 두 소비자가 같은 잡을 나눠 집는다 — 워커를 늘렸을 때 스위치가 따라가지 못해
+ * 비결정적으로 깨진 전례가 이미 있다. 옛 {@code external_operations} 큐를 비우던 워커는 SOMA-1140 에서 지웠다.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(
@@ -40,18 +38,15 @@ class MemoryWorkerScheduler {
     private static final Logger LOGGER =
             Logger.getLogger(MemoryWorkerScheduler.class.getName());
 
-    private final MemoryUpdateWorker worker;
-    /** 0.1.0 회차의 갱신은 {@code ai_jobs} 를 집는다 — 옛 원장과 큐가 달라 워커도 따로다(practice.memory). */
+    /** 0.1.0 회차의 갱신은 {@code ai_jobs} 를 집는다(practice.memory). */
     private final ActorMemoryUpdateWorker actorWorker;
     private final ThreadPoolTaskExecutor executor;
     private final FailureReporter failureReporter;
 
     MemoryWorkerScheduler(
-            ObjectProvider<MemoryUpdateWorker> worker,
             ObjectProvider<ActorMemoryUpdateWorker> actorWorker,
             @Qualifier("memoryWorkerExecutor") ThreadPoolTaskExecutor executor,
             FailureReporter failureReporter) {
-        this.worker = worker.getIfAvailable();
         this.actorWorker = actorWorker.getIfAvailable();
         this.executor = executor;
         this.failureReporter = failureReporter;
@@ -83,7 +78,7 @@ class MemoryWorkerScheduler {
             fixedDelayString = "#{@memoryWorkerPollIntervalMillis}",
             initialDelayString = "0")
     void poll() {
-        if ((worker == null && actorWorker == null) || executor.getActiveCount() > 0) {
+        if (actorWorker == null || executor.getActiveCount() > 0) {
             return;
         }
         try {
@@ -97,17 +92,11 @@ class MemoryWorkerScheduler {
         long started = System.nanoTime();
         int processed = 0;
         try {
-            while (worker != null && worker.runOnce()) {
+            // 말이 끊긴 열린 회차를 10분에 한 번 본다(SOMA-603).
+            actorWorker.sweepIdle();
+            actorWorker.closeAbandoned();
+            while (actorWorker.runOnce()) {
                 // 일감이 있는 동안은 대기하지 않는다.
-                processed++;
-            }
-            if (actorWorker != null) {
-                // 말이 끊긴 열린 회차를 10분에 한 번 본다(SOMA-603).
-                actorWorker.sweepIdle();
-                actorWorker.closeAbandoned();
-            }
-            while (actorWorker != null && actorWorker.runOnce()) {
-                // 0.1.0 큐도 같은 풀에서 비운다.
                 processed++;
             }
         } catch (Exception exception) {

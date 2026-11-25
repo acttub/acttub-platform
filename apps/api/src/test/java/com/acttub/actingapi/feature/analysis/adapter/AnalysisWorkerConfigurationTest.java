@@ -6,7 +6,6 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisContext;
@@ -23,10 +22,6 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class AnalysisWorkerConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(AnalysisWorkerConfiguration.class)
-            // 옛 원장 쪽이 기본이다 — 0.1.0 저장소가 같은 포트의 하위 타입이라 표시가 없으면 주입이 갈리지 않는다
-            // (운영 코드에서는 `PostgresAnalysisStore` 의 @Primary 가 같은 일을 한다).
-            .withBean("analysisStore", AnalysisStore.class, EmptyStore::new,
-                    definition -> definition.setPrimary(true))
             .withBean(com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore.class, EmptyPracticeStore::new)
             .withBean(AnalysisProcessor.class, () -> (path, context) -> null)
             .withBean(Clock.class, Clock::systemUTC)
@@ -49,9 +44,9 @@ class AnalysisWorkerConfigurationTest {
         runner.withBean(ObjectStorage.class, EmptyStorage::new)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    // 원장마다 워커 하나다 — 옛 external_operations 와 0.1.0 ai_jobs.
+                    // 0.1.0 ai_jobs 워커 하나다. 옛 external_operations 워커는 SOMA-1140 에서 지웠다.
                     assertThat(context.getBeanProvider(AnalysisWorker.class).orderedStream().toList())
-                            .hasSize(2);
+                            .hasSize(1);
                 });
     }
 
@@ -74,7 +69,6 @@ class AnalysisWorkerConfigurationTest {
             return false;
         }
         @Override public void release(UUID operation, UUID token, String classification, Instant now) { }
-        @Override public List<String> sweepExpiredUploads(Instant now) { return List.of(); }
         @Override public int sweepMaxAttempts(Instant now) { return 0; }
     }
 

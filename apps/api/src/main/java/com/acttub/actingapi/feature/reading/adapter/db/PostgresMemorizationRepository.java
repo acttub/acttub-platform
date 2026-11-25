@@ -1,15 +1,15 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.MemorizationRepository;
-import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.feature.reading.schema.LineMemorizationEntity;
 import com.acttub.actingapi.platform.schema.MemorizationStatus;
+import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.ScriptLineKind;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -20,17 +20,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 암기 표시는 <b>(user_id, line_id) 유일</b>이라 {@code ON CONFLICT DO UPDATE} 한 문장으로 두거나 바꾼다 — 조회 후 쓰기는
  * 두 기기의 상반된 갱신에서 승자 판정을 깨뜨린다(apps/api/CONTRACT.md §5-2). 같은 상태면 {@code updated_at} 을 그대로 둔다.
+ * 쓴 값은 같은 트랜잭션에서 다시 읽는다(§5-9).
  *
  * <p>갱신은 그 줄의 <b>대본 행을 {@code FOR UPDATE} 로 잡고</b> 주인이 맞는지 본다. 이관은 대본 행을 고친 뒤 암기 표시를
- * 옮기므로, 잠금을 기다린 뒤 다시 본 대본이 남의 것이면 404 이고 옛 계정에 아무것도 남지 않는다.
+ * 옮기므로, 잠금을 기다린 뒤 다시 본 대본이 남의 것이면 404 이고 옛 계정에 아무것도 남지 않는다. 이 조회는 줄을 조인해
+ * 종류를 읽으면서 대본 행만 잠근다({@code FOR UPDATE OF s}). HQL 은 select 절에 나온 표(줄)를 잠그므로 native SQL 로
+ * 둔다(§5-9).
  */
 @Repository
 class PostgresMemorizationRepository implements MemorizationRepository {
     private final EntityManager entityManager;
+    private final ScriptJpaRepository scripts;
+    private final LineMemorizationJpaRepository memorization;
     private final TransactionTemplate transaction;
 
-    PostgresMemorizationRepository(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    PostgresMemorizationRepository(
+            EntityManager entityManager,
+            ScriptJpaRepository scripts,
+            LineMemorizationJpaRepository memorization,
+            PlatformTransactionManager transactionManager) {
         this.entityManager = entityManager;
+        this.scripts = scripts;
+        this.memorization = memorization;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -55,55 +66,22 @@ class PostgresMemorizationRepository implements MemorizationRepository {
             if (!ScriptLineKind.DIALOGUE.dbValue().equals(lines.getFirst().get("kind", String.class))) {
                 return new Change(Outcome.INVALID_LINE, null);
             }
-            Tuple row = NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH changed AS (
-                        INSERT INTO line_memorization(id,user_id,line_id,status,created_at,updated_at)
-                        VALUES (:id,:userId,:lineId,:status,:now,:now)
-                        ON CONFLICT (user_id,line_id) DO UPDATE
-                        SET status=EXCLUDED.status,
-                            updated_at=CASE WHEN line_memorization.status=EXCLUDED.status
-                                            THEN line_memorization.updated_at ELSE EXCLUDED.updated_at END
-                        RETURNING line_id,status,updated_at
-                    )
-                    SELECT line_id,status,updated_at FROM changed
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("userId", userId)
-                    .setParameter("lineId", lineId)
-                    .setParameter("status", MemorizationStatus.valueOf(status.toUpperCase(Locale.ROOT)).dbValue())
-                    .setParameter("now", stamp.atOffset(ZoneOffset.UTC))).getFirst();
-            MemorizationView view = view(row);
+            memorization.upsert(UUID.randomUUID(), userId, lineId,
+                    MemorizationStatus.valueOf(status.toUpperCase(Locale.ROOT)), stamp);
+            MemorizationView view = view(memorization.find(userId, lineId).orElseThrow());
             return new Change(view.updatedAt().equals(stamp) ? Outcome.SAVED : Outcome.UNCHANGED, view);
         });
     }
 
     @Override
     public List<MemorizationView> list(UUID userId, UUID scriptId) {
-        boolean owned = !NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM scripts WHERE id=:scriptId AND user_id=:userId", Tuple.class)
-                .setParameter("scriptId", scriptId)
-                .setParameter("userId", userId)).isEmpty();
-        if (!owned) {
+        if (scripts.owned(scriptId, userId).isEmpty()) {
             return null;
         }
-        return NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT m.line_id,m.status,m.updated_at
-                FROM line_memorization m
-                JOIN script_lines l ON l.id=m.line_id
-                WHERE l.script_id=:scriptId
-                  AND m.user_id=:userId
-                ORDER BY l.ordinal
-                """, Tuple.class)
-                .setParameter("scriptId", scriptId)
-                .setParameter("userId", userId)).stream()
-                .map(PostgresMemorizationRepository::view)
-                .toList();
+        return memorization.ofScript(userId, scriptId).stream().map(PostgresMemorizationRepository::view).toList();
     }
 
-    private static MemorizationView view(Tuple row) {
-        return new MemorizationView(
-                row.get("line_id", UUID.class),
-                MemorizationStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)).dbValue(),
-                row.get("updated_at", Instant.class));
+    private static MemorizationView view(LineMemorizationEntity row) {
+        return new MemorizationView(row.getLineId(), row.getStatus().dbValue(), row.getUpdatedAt());
     }
 }

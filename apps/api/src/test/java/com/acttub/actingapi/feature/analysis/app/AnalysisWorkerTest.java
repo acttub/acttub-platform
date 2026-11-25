@@ -206,29 +206,6 @@ class AnalysisWorkerTest {
     }
 
     @Test
-    void expiredUploadDeletionFailureIsReportedWithoutStoppingTheSweep() {
-        FakeStore store = new FakeStore(context());
-        store.expiredUploads = List.of("expired.mp4");
-        FakeStorage storage = new FakeStorage();
-        RuntimeException deleteFailure = new RuntimeException(new ConnectException("s3 down"));
-        storage.deleteFailure = deleteFailure;
-        RecordingFailureReporter reporter = new RecordingFailureReporter();
-        AnalysisWorker worker = worker(
-                store,
-                storage,
-                (path, context) -> null,
-                null,
-                reporter);
-
-        assertThat(worker.sweep(NOW)).isEqualTo(new AnalysisWorker.SweepResult(1, 0));
-        assertThat(reporter.reports()).singleElement().satisfies(report -> {
-            assertThat(report.failure()).isSameAs(deleteFailure);
-            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
-            assertThat(report.context()).isEqualTo("AnalysisWorker.expiredUploadDeletion");
-        });
-    }
-
-    @Test
     void missingContextAndNonVideoAreUnsupportedWhileEmptyQueueIsNotProcessed() {
         FakeStore missing = new FakeStore(null);
         RecordingFailureReporter missingReporter = new RecordingFailureReporter();
@@ -414,7 +391,6 @@ class AnalysisWorkerTest {
         private AnalysisResult result;
         private RuntimeException failFailure;
         private RuntimeException releaseFailure;
-        private List<String> expiredUploads = List.of();
 
         private FakeStore(AnalysisContext context) {
             this.context = context;
@@ -450,7 +426,6 @@ class AnalysisWorkerTest {
             if (releaseFailure != null) throw releaseFailure;
         }
 
-        @Override public List<String> sweepExpiredUploads(Instant now) { return expiredUploads; }
         @Override public int sweepMaxAttempts(Instant now) { return 0; }
     }
 

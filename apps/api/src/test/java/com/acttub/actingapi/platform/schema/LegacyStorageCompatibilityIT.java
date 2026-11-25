@@ -3,8 +3,6 @@ package com.acttub.actingapi.platform.schema;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.net.http.HttpClient;
@@ -14,11 +12,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.ActingApiApplication;
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
-import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
-import com.acttub.actingapi.integration.observation.ObservationItem;
-import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.DefaultClientHeader;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -53,9 +47,7 @@ class LegacyStorageCompatibilityIT {
         if (removeRetiredStorage) {
             // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다. 여기서 지우는 구조는
             // 코드가 읽고 쓰지 않으며, 다음 릴리스의 DROP 마이그레이션이 운영에서도 지운다(apps/api/CONTRACT.md §5-1).
-            jdbc.execute("DROP TABLE handoff_confirmations");
-            jdbc.execute("ALTER TABLE coaching_handoffs DROP COLUMN branch_kind, DROP COLUMN handoff_json");
-            jdbc.execute("ALTER TABLE coach_sessions DROP COLUMN conversation_summary");
+            // 지금은 지울 은퇴 구조가 없다(V96~V99 가 모두 지웠다). 다음 은퇴 대상은 여기에 더한다(CONTRACT §5-1).
             // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
 
@@ -84,25 +76,10 @@ class LegacyStorageCompatibilityIT {
             assertThat(LenientJson.asText(get(port, "/v2/practices/" + historical + "/note", bearer).path("title")))
                     .isEqualTo("현재 연습 노트");
 
-            // 분석 저장 Port는 실제 JPA INSERT·Lease 완료를 사용한다. 외부 모델 호출은 없다.
-            AnalysisStore store = context.getBean(AnalysisStore.class);
-            UUID lease = UUID.randomUUID();
-            UUID operation = store.claimNext(lease, Duration.ofMinutes(1), Instant.now());
-            assertThat(operation).isNotNull();
-            ObservationPack pack = new ObservationPack("새 장면", List.of(
-                    new ObservationItem(0, 500, "새 관찰", "기다려", "호흡", 0.8)), List.of("새 불확실"));
-            assertThat(store.complete(operation, lease, new AnalysisResult(pack, true, 900),
-                    "fixture-model", Instant.now())).isNotNull();
-            assertThat(LenientJson.asText(get(port, "/v2/practices/" + session + "/status", bearer)
-                    .path("stage"))).as("분석이 끝나면 대화로 넘어간다").isEqualTo("conversing");
+            // 옛 표에 분석을 쓰던 옛 큐 워커는 SOMA-1140 에서 지웠다. 옛 분석은 읽기만 한다.
             PracticeSessionRepository practices = context.getBean(PracticeSessionRepository.class);
-            assertThat(practices.detail(user, UUID.fromString(session)).summary().observations())
-                    .singleElement().satisfies(item -> assertThat(item.label()).isEqualTo("새 관찰"));
             assertThat(practices.detail(user, historical).summary().observations())
                     .singleElement().satisfies(item -> assertThat(item.label()).isEqualTo("과거 관찰"));
-            assertThat(jdbc.queryForMap("SELECT model,was_compressed FROM summaries WHERE session_id=?",
-                    UUID.fromString(session)))
-                    .containsEntry("model", "fixture-model").containsEntry("was_compressed", true);
             if (!removeRetiredStorage) {
                 assertThat(historicalValues(jdbc, user, historical)).isEqualTo(before);
             }
@@ -136,10 +113,9 @@ class LegacyStorageCompatibilityIT {
                 INSERT INTO coach_sessions(id,practice_session_id,status,close_reason)
                 VALUES (?,?,'closed','user_ended')
                 """, coach, practice);
-        // 갈래·원문 칸은 지울 칸이지만 NOT NULL 이라, 칸이 있는 동안 옛 행을 심으려면 값을 넣어야 한다.
         jdbc.update("""
-                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,handoff_json)
-                VALUES (?,?,?,'analysis','{}'::jsonb)
+                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id)
+                VALUES (?,?,?)
                 """, handoff, coach, practice);
         jdbc.update("""
                 INSERT INTO practice_reports(practice_session_id,report_type,report_json,source_handoff_id)

@@ -8,15 +8,18 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import tools.jackson.databind.node.JsonNodeFactory;
+import com.acttub.actingapi.feature.analysis.schema.AnalysisEntity;
 import com.acttub.actingapi.feature.analysis.schema.AnomalyEntity;
 import com.acttub.actingapi.feature.analysis.schema.SummaryEntity;
 import com.acttub.actingapi.feature.analysis.schema.TranscriptEntity;
 import com.acttub.actingapi.feature.auth.schema.UserEntity;
 import com.acttub.actingapi.feature.auth.schema.UserIdentityEntity;
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
+import com.acttub.actingapi.feature.blog.schema.BlogPostEntity;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
+import com.acttub.actingapi.feature.poster.schema.AppPosterEntity;
 import com.acttub.actingapi.feature.portfolio.schema.PortfolioCreditEntity;
 import com.acttub.actingapi.feature.portfolio.schema.PortfolioEntity;
 import com.acttub.actingapi.feature.portfolio.schema.PortfolioPhotoEntity;
@@ -27,6 +30,7 @@ import com.acttub.actingapi.feature.profile.schema.AccountCleanupOperationEntity
 import com.acttub.actingapi.feature.reading.schema.LineMemorizationEntity;
 import com.acttub.actingapi.feature.reading.schema.ReadingRecordingEntity;
 import com.acttub.actingapi.feature.reading.schema.ReadingSessionEntity;
+import com.acttub.actingapi.feature.reading.schema.ReadingSessionRatingEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.video.schema.VideoEntity;
@@ -84,13 +88,13 @@ class EntityMappingIT {
     EntityManager entityManager;
 
     /**
-     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 옛 연습 흐름의 여섯과
-     * 예약 장부({@code upload_intents})다. 옛 연습 여섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
+     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 옛 연습 흐름의 다섯과
+     * 예약 장부({@code upload_intents})다. 옛 연습 다섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
      * native SQL 로만 읽고 쓴다.
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
             "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
-            "handoff_confirmations", "practice_reports", "upload_intents");
+            "practice_reports", "upload_intents");
 
     /**
      * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 0.1.0, V14). 스키마는 넓히기로 한 번에 들어가고
@@ -99,10 +103,8 @@ class EntityMappingIT {
      * <p>{@code videos} 는 여기 없다 — 보관함(PA1)이 이미 매핑을 갖는다.
      */
     private static final Set<String> AWAITING_MAPPING = Set.of(
-            "video_transcripts", "practices", "analyses", "coach_conversations", "coach_messages",
+            "video_transcripts", "practices", "coach_conversations", "coach_messages",
             "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
-            // 블로그 글(V80)은 블로그 저장소의 native SQL(공개 읽기·운영 쓰기)만 쓴다.
-            "blog_posts",
             // 연습 삭제(V85, SOMA-985)의 무료 횟수 표시·지운 영상 장부는 연습 삭제의 native SQL 만 쓴다.
             "practice_deletion_marks", "deleted_practice_videos",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
@@ -121,14 +123,10 @@ class EntityMappingIT {
             "user_airbridge_device_lookups",
             // 가입 직후 유입 경로 자기 응답(V38)도 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_discovery_answers",
-            // 앱 공지 포스터(V29)는 포스터 저장소의 native SQL(만들기·고치기·고르기)만 쓴다.
-            "app_posters",
             // 대본 나누기 요청(V33)은 리딩 저장소의 native SQL(접수·진행·완료)만 쓴다.
             "script_imports",
             // 대본 원본 파일(V34)도 리딩 저장소의 native SQL(올릴 자리·읽기·연결·정리)만 쓴다.
             "script_uploads",
-            // 리딩 회차 평가(V40)는 리딩 저장소의 native SQL(upsert·잠금·이관·삭제)만 읽고 쓴다.
-            "reading_session_ratings",
             // 리딩 녹음 코치(V48, 실험)는 리딩 저장소의 native SQL(재료 읽기·넣기·답 남기기)만 쓴다.
             // 찍을 대사 같이 만들기(V56)는 리딩 저장소의 native SQL(접수·버전·잇기)만 쓴다.
             "script_cocreations",
@@ -148,13 +146,13 @@ class EntityMappingIT {
             "community_post_images");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 48개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 52개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개다.
-        assertThat(entities).hasSize(48);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개다.
+        assertThat(entities).hasSize(52);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -164,8 +162,8 @@ class EntityMappingIT {
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(tools.jackson.databind.JsonNode.class))
                 .count();
-        // 리딩 회차의 line_results(V13)·line_said(V32)와 챌린지 AI 리포트의 result(V20)가 여기 든다.
-        assertThat(jsonNodes).isEqualTo(7);
+        // 리딩 회차의 line_results(V13)·line_said(V32), 챌린지 AI 리포트의 result(V20), 분석 기록의 record(V14)가 여기 든다.
+        assertThat(jsonNodes).isEqualTo(8);
     }
 
     @Test
@@ -362,12 +360,25 @@ class EntityMappingIT {
                 java.time.Instant.now().plusSeconds(600)));
         save(SupportInquiryEntity.class,new SupportInquiryEntity(UUID.randomUUID(),"bug","a@example.test","문의 본문입니다",
                 userId,null,"open",java.time.Instant.now()));
+        save(BlogPostEntity.class,new BlogPostEntity(UUID.randomUUID(),"save-"+userId,"제목","요약","news","본문",null,"none",
+                "draft",null,java.time.Instant.now(),java.time.Instant.now()));
+        save(AppPosterEntity.class,new AppPosterEntity(UUID.randomUUID(),"save-"+userId,new String[]{"ios"},"제목",
+                java.time.Instant.now()));
         save(AccountCleanupOperationEntity.class,new AccountCleanupOperationEntity(UUID.randomUUID(),userId,
                 AccountCleanupKind.KAKAO_UNLINK,"d1:payload",java.time.Instant.now(),java.time.Instant.now().plusSeconds(600)));
         entityManager.persist(new AnomalyEntity(summaryId,IntentImpact.REVERSAL,Severity.HIGH));
         entityManager.flush();
         // 보관함(V14): 영상은 users 만 참조한다.
-        save(VideoEntity.class,new VideoEntity(UUID.randomUUID(),userId,"videos/"+userId+".mp4","video/mp4",1,1));
+        UUID videoId=UUID.randomUUID(), newPracticeId=UUID.randomUUID();
+        save(VideoEntity.class,new VideoEntity(videoId,userId,"videos/"+userId+".mp4","video/mp4",1,1));
+        entityManager.flush();
+        // 분석 기록(V14)은 0.1.0 회차(practices)를 가리킨다.
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,blockage_kind,sub_branch)
+                VALUES (?,?,?,?,1,'analyzing','legacy','그 외','그 외')
+                """,newPracticeId,userId,videoId,newPracticeId);
+        save(AnalysisEntity.class,new AnalysisEntity(UUID.randomUUID(),newPracticeId,"legacy","ready","model",object,
+                java.time.Instant.now(),java.time.Instant.now()));
         entityManager.flush();
         // 리딩(V13): 대본 → 배역 → 줄 → 회차 → 녹음·암기 상태 순으로 FK 를 따른다.
         UUID scriptId=UUID.randomUUID(), characterId=UUID.randomUUID(), lineId=UUID.randomUUID(), readingId=UUID.randomUUID();
@@ -383,11 +394,13 @@ class EntityMappingIT {
         save(ReadingRecordingEntity.class,new ReadingRecordingEntity(UUID.randomUUID(),userId,readingId,lineId,UUID.randomUUID(),1,
                 "reading/"+userId+".m4a","audio/mp4",1,1,null,TranscriptSource.NONE,null));
         save(LineMemorizationEntity.class,new LineMemorizationEntity(UUID.randomUUID(),userId,lineId,MemorizationStatus.MEMORIZED));
+        save(ReadingSessionRatingEntity.class,new ReadingSessionRatingEntity(UUID.randomUUID(),readingId,userId,"good",null,
+                UUID.randomUUID(),java.time.Instant.now(),java.time.Instant.now()));
         entityManager.flush();
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(25);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(29);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }

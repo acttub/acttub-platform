@@ -29,10 +29,6 @@ feature/ads/adapter/db/PostgresAdRepository.java coach_conversations
 feature/ads/adapter/db/PostgresAdRepository.java coach_notes
 feature/ads/adapter/db/PostgresAdRepository.java practices
 feature/ads/adapter/db/PostgresAdRepository.java reading_sessions
-feature/analysis/adapter/db/PostgresAnalysisStore.java coach_sessions
-feature/analysis/adapter/db/PostgresAnalysisStore.java external_operations
-feature/analysis/adapter/db/PostgresAnalysisStore.java practice_sessions
-feature/analysis/adapter/db/PostgresAnalysisStore.java upload_intents
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java ai_jobs
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java practices
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java upload_intents
@@ -115,8 +111,6 @@ feature/memory/adapter/db/PostgresMemoryRepository.java coach_turns
 feature/memory/adapter/db/PostgresMemoryRepository.java practice_reports
 feature/memory/adapter/db/PostgresMemoryRepository.java practice_sessions
 feature/memory/adapter/db/PostgresMemoryRepository.java practices
-feature/memory/adapter/db/PostgresMemoryRepository.java summaries
-feature/memory/adapter/db/PostgresMemoryRepository.java transcripts
 feature/portfolio/adapter/db/PostgresPortfolioRepository.java users
 feature/practice/adapter/db/PostgresLegacyPracticeReader.java external_operations
 feature/practice/adapter/db/PostgresLegacyPracticeReader.java summaries
@@ -262,7 +256,6 @@ platform/migration/PostgresPracticeDataMigration.java transcripts
 platform/migration/PostgresPracticeDataMigration.java upload_intents
 platform/migration/PostgresPracticeDataMigration.java video_transcripts
 platform/migration/PostgresPracticeDataMigration.java videos
-platform/operation/ExternalOperationClaimer.java practice_sessions
 platform/schema/ExternalOperationEntity.java external_operations
 resources/admin/ops-core.sql ai_jobs
 resources/admin/ops-core.sql analyses

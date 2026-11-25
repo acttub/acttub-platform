@@ -11,8 +11,8 @@ import jakarta.persistence.Table;
 /**
  * {@code push_tokens}의 런타임·스키마 검증 매핑.
  *
- * <p>ID는 앱이 아니라 DB default가 만든다. 신규 행은 Spring Data {@code save()}가 아니라
- * native upsert의 {@code RETURNING}으로 ID를 받은 뒤 이 엔티티로 조회한다.
+ * <p>ID는 앱이 아니라 DB default가 만든다. 신규 행은 Spring Data {@code save()}가 아니라 native upsert로 넣는다
+ * (토글·활성 확인과 한 문장이라 native 로 남았다). 해제와 연습 알림 후보의 단말 읽기가 이 매핑을 쓴다.
  */
 @Entity
 @Table(name = "push_tokens")

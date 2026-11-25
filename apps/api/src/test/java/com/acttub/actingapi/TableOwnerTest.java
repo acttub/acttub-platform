@@ -49,7 +49,7 @@ class TableOwnerTest {
      *
      * <p>늘려야 할 것 같으면 먼저 주인의 {@code app} 층에 Port 를 두거나 주인을 다시 정한다.
      */
-    private static final int EXCEPTION_CEILING = 307;
+    private static final int EXCEPTION_CEILING = 300;
 
     private static final Pattern OWNER_ROW = Pattern.compile("^\\| `((?:feature|platform)/[a-z]+)` \\| (.+) \\|$");
 
@@ -147,8 +147,7 @@ class TableOwnerTest {
         Map<String, Set<String>> references = references();
         assertThat(references).as("표를 하나도 못 찾았다 — 읽는 법이 코드와 어긋났다").isNotEmpty();
         // 표 이름을 변수로 붙이는 SQL("UPDATE " + table)
-        assertThat(references.get("feature/reading/adapter/db/PostgresReadingOwnership.java"))
-                .contains("reading_session_ratings");
+        assertThat(references.get("feature/video/adapter/db/PostgresVideoOwnership.java")).contains("videos");
         // FROM a, b
         assertThat(references.get("feature/memory/adapter/db/PostgresActorMemoryStore.java")).contains("users");
         // JPQL 의 엔티티 이름과 Schema Entity 의 @Table

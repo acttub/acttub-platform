@@ -341,9 +341,8 @@ class PracticeDataMigrationIT {
     private UUID handoff(UUID practiceSessionId, UUID coachSessionId) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,
-                                              handoff_json,state_revision)
-                VALUES (?,?,?,'expression','{}'::jsonb,3)
+                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,state_revision)
+                VALUES (?,?,?,3)
                 """, id, coachSessionId, practiceSessionId);
         return id;
     }

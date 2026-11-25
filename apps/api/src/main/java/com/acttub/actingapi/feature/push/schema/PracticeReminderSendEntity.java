@@ -9,7 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
-/** 개인화 연습 알림을 보낸 기록(V47). 읽고 쓰기는 네이티브 SQL이 하고, 이 엔티티는 스키마 검증용 매핑이다. */
+/** 개인화 연습 알림을 보낸 기록(V47). 선점(HQL insert … on conflict do nothing)과 종류별 횟수·최근 문구 조회가 이 매핑으로 읽고 쓴다. */
 @Entity @Table(name = "practice_reminder_sends") @IdClass(PracticeReminderSendId.class)
 public class PracticeReminderSendEntity {
     @Id @Column(name = "user_id", nullable = false) private UUID userId;
