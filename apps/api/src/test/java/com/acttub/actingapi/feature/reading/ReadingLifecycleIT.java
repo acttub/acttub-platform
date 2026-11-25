@@ -8,10 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
@@ -24,9 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,10 +31,9 @@ import java.util.function.IntSupplier;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.feature.profile.app.AccountHousekeeping;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
@@ -54,10 +48,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -74,12 +65,9 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * <p>오브젝트 스토리지는 메모리의 가짜이고, 매일 도는 일은 스케줄러를 끄고 {@link AccountHousekeeping#runDaily} 를 직접 부른다.
  * 여기서 보지 못하는 것: 보관 동의 철회(운영자가 DB 에서 직접 처리하는 절차, 운영 문서), 기기 자료 삭제(앱·웹).
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    // 탈퇴 중의 쓰기는 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, ReadingLifecycleIT.Fixture.class})
+@Import({MutableClock.Fixture.class, FakeObjectStorage.Fixture.class, RecordingFailureReporter.Fixture.class})
 class ReadingLifecycleIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -115,7 +103,7 @@ class ReadingLifecycleIT {
     AccountHousekeeping housekeeping;
 
     @Autowired
-    FakeStorage storage;
+    FakeObjectStorage storage;
 
     @Autowired
     RecordingFailureReporter failures;
@@ -136,8 +124,7 @@ class ReadingLifecycleIT {
                     VALUES (?,?,'v1',?,?,?,?)
                     """, id, type, type + " 제목", type + " 본문", !"retention".equals(type), PUBLISHED);
         }
-        storage.objects.clear();
-        storage.failing.clear();
+        storage.clear();
         failures.clear();
         clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         address = "10.54.0." + ADDRESSES.incrementAndGet();
@@ -600,64 +587,5 @@ class ReadingLifecycleIT {
 
     private static OffsetDateTime at(Instant instant) {
         return instant.atOffset(ZoneOffset.UTC);
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class Fixture {
-        @Bean
-        @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
-        }
-    }
-
-    /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
-    static final class FakeStorage implements ObjectStorage {
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-        final Set<String> failing = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, "audio/mp4", "etag");
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void upload(String objectKey, String mimeType, Path source) {
-            try {
-                objects.put(objectKey, Files.size(source));
-            } catch (IOException failure) {
-                throw new java.io.UncheckedIOException(failure);
-            }
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            if (failing.contains(objectKey)) {
-                throw new IllegalStateException("storage refused the delete");
-            }
-            objects.remove(objectKey);
-        }
     }
 }
