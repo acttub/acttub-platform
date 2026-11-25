@@ -650,8 +650,9 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 - **한 트랜잭션**(`PostgresProfileRepository#withdraw` 가 연다)에서 파기와 상태 전환을 한다. 순서는
   `feature/auth/app` 의 `AccountErasureSequence#close` 와 `AccountErasureStep` 에만 있고, 테이블은 주인 기능이
-  `AccountErasure` 를 구현해 고친다(ADR-040). 구현은 트랜잭션을 열지 않는다. `auth` 의 테이블은 `PostgresAccountDeactivation`·
-  `PostgresAuthAccountErasure` 가 고치고, 아직 주인에게 옮기지 않은 자리는 `PostgresProfileRepository` 가 맡는다. 요청이 내는
+  `AccountErasure` 를 구현해 고친다(ADR-040). 구현은 트랜잭션을 열지 않는다. 구현은 주인 기능의 `adapter/db` 에 있고
+  (`Postgres…AccountErasure`, 계정 행은 `PostgresAccountDeactivation`), 아직 주인에게 옮기지 않은 자리는
+  `PostgresProfileRepository` 가 맡는다. 요청이 내는
   문장의 순서와 테이블마다의 결과는 `AccountLifecycleFreezeIT` 의 기준 파일이 고정하고, 구현 하나가 실패하면 전부 되돌아가는
   것은 `AccountErasureRollbackIT` 가 본다. 무엇을 지우고 남기는지는
   [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)와 영역 표(연습·리딩·챌린지)가 정본이다. 구현만의 것:
