@@ -61,6 +61,10 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
     @Query("select e.challengeId from ChallengeEntryEntity e where e.id = :id")
     Optional<UUID> findChallengeId(UUID id);
 
+    /** 그 회원의 지우지 않은 참여작 수(비공개 포함). */
+    @Query("select count(*) from ChallengeEntryEntity e where e.userId = :userId and e.status <> DELETED")
+    long countLiveOwnedBy(UUID userId);
+
     @Query("""
             select new com.acttub.actingapi.feature.challenge.adapter.db.ChallengeEntryJpaRepository$Content(e.contentVersion, e.caption)
             from ChallengeEntryEntity e where e.id = :id
@@ -116,4 +120,24 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ChallengeEntryEntity e set e.faceVisible = :face where e.id = :id and e.faceVisible is null")
     int fillFace(UUID id, boolean face);
+
+    // ---- 신고 ----
+
+    /** AI 검사 상태. 검사 전이면 값이 없다. */
+    @Query("select e.moderationStatus from ChallengeEntryEntity e where e.id = :id")
+    Optional<String> findModerationStatus(UUID id);
+
+    /**
+     * 운영이 신고를 풀었다 — 신고 숨김을 풀고, 사람이 본 것이니 AI 판정(숨김·확인 필요·실패)을 통과로 바꾼다. 작성자의 비공개와
+     * 지운 참여작은 그대로다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ChallengeEntryEntity e
+            set e.status = case when e.status = HIDDEN_BY_REPORT then :visible else e.status end,
+                e.moderationStatus = case when e.moderationStatus in ('flagged', 'review', 'failed') then 'passed'
+                                          else e.moderationStatus end
+            where e.id = :id and e.status <> DELETED
+            """)
+    int releaseFromReports(UUID id, ChallengeEntryStatus visible);
 }
