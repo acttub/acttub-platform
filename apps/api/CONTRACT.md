@@ -129,6 +129,9 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 - `@Modifying` 은 rowcount 만 반환하므로 **RETURNING 계열을 대체할 수 없다.**
 - `save()` 는 upsert가 아니며, 조회 후 쓰기는 **동시성 winner 판정을 깨뜨린다.**
 - `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 의미가 다르므로 기존 문장과 판정을 그대로 옮긴다.
+- JPA 로 거는 쓰기 잠금(`PESSIMISTIC_WRITE`)은 네이티브 SQL 처럼 `FOR UPDATE` 로 나간다. Hibernate 7.4 의 PostgreSQL 방언은
+  `FOR NO KEY UPDATE` 를 내서 FK 로 그 행을 가리키는 자식 행 INSERT 를 막지 않으므로, `platform/persistence/ForUpdatePostgreSQLDialect`
+  가 바꾼다(`application.yml` 의 `hibernate.dialect`). `PessimisticWriteLockIT` 가 실제로 나가는 문장과 막는 범위를 지킨다.
 - 반환 행은 data-modifying CTE(`WITH changed AS (… RETURNING …) SELECT …`)와
   `EntityManager.createNativeQuery(sql, Tuple.class)`의 **별칭 기반 `Tuple`**로 매핑한다.
   0행·1행·복합 행, DB 생성 UUID, transaction rollback, 행 잠금은
