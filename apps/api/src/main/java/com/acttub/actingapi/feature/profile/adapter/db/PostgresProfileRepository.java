@@ -29,14 +29,12 @@ import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
-import com.acttub.actingapi.integration.revenuecat.RevenueCatCustomerClient;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
 import com.acttub.actingapi.platform.schema.ActingGoal;
 import com.acttub.actingapi.platform.schema.PgEnum;
 import com.acttub.actingapi.platform.schema.ProfileGender;
 import com.acttub.actingapi.platform.schema.UserStatus;
-import com.acttub.actingapi.platform.security.AccountSecrets;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,27 +53,18 @@ class PostgresProfileRepository
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
             AccountErasureStep.MEDIA_OBJECTS,
             AccountErasureStep.READING,
-            AccountErasureStep.AI_JOBS,
             AccountErasureStep.ACTOR_JOURNALS,
-            AccountErasureStep.PRACTICE_FEEDBACK,
             AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES,
             AccountErasureStep.CHALLENGE,
-            AccountErasureStep.READING_VOICE_USAGE,
-            AccountErasureStep.BILLING,
-            AccountErasureStep.BILLING_CUSTOMER,
-            AccountErasureStep.LEGACY_OPERATIONS);
+            AccountErasureStep.READING_VOICE_USAGE);
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
-    private final AccountSecrets secrets;
     private final PostgresObjectCleanupLedger cleanups;
 
     /** 탈퇴 전 챌린지 마감 집계 — 이 저장소가 남의 표를 함께 치는 다른 정리와 같은 트랜잭션에서 돈다. */
     private final ChallengeWithdrawal challenges;
-
-    /** 탈퇴 때 RevenueCat 고객 삭제를 장부에 올릴지 정한다(켜져 있을 때만). 바깥 호출은 장부의 실행기가 한다. */
-    private final RevenueCatCustomerClient revenueCat;
 
     /** 앞서 지운 연습의 영상(보관 동의로 남긴 것)과 무료 횟수 표시를 탈퇴·매일 정리에서 함께 치운다(SOMA-985). */
     private final PostgresPracticeGroupErasure deletedPractices;
@@ -88,18 +77,14 @@ class PostgresProfileRepository
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            AccountSecrets secrets,
             PostgresObjectCleanupLedger cleanups,
             ChallengeWithdrawal challenges,
-            RevenueCatCustomerClient revenueCat,
             PostgresPracticeGroupErasure deletedPractices,
             ObjectProvider<AccountErasureSequence> closing) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
-        this.secrets = secrets;
         this.cleanups = cleanups;
         this.challenges = challenges;
-        this.revenueCat = revenueCat;
         this.deletedPractices = deletedPractices;
         this.closing = closing;
     }
@@ -824,19 +809,11 @@ class PostgresProfileRepository
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
             case READING -> eraseReading(userId, account.retainMedia(), now);
-            case AI_JOBS -> {
-                cancelAiJobs(userId, now);
-                yield List.of();
-            }
             case ACTOR_JOURNALS -> {
                 // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
                 entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
                         .setParameter("userId", userId)
                         .executeUpdate();
-                yield List.of();
-            }
-            case PRACTICE_FEEDBACK -> {
-                blankFeedbackContacts(userId, now);
                 yield List.of();
             }
             case NOTE_RATINGS -> {
@@ -857,22 +834,9 @@ class PostgresProfileRepository
                         .executeUpdate();
                 yield List.of();
             }
-            case BILLING -> {
-                endBilling(userId);
-                yield List.of();
-            }
-            // RevenueCat 고객 정보(SOMA-818, V65)도 지운다 — 앱이 RevenueCat SDK 에 우리 user id 로 붙으므로 app_user_id 가 곧
-            // user id 다. 꺼진 서버(BILLING_REVENUECAT_ENABLED=false·비밀 키 없음)는 올리지 않는다. 바깥 호출은 커밋 뒤 장부가 한다 —
-            // 실패해도 탈퇴는 되돌리지 않고, 5분부터 다시 시도하다 7일 뒤 포기하며 알린다. 이미 없는 고객(404)은 성공이다.
-            case BILLING_CUSTOMER -> revenueCat.enabled()
-                    ? List.of(cleanups.enqueue(userId, "revenuecat_delete", secrets.encrypt(userId.toString()), now, now))
-                    : List.of();
-            case LEGACY_OPERATIONS -> {
-                cancelOperations(userId, now);
-                yield List.of();
-            }
-            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE,
-                    COMMUNITY_IMAGES, VIDEO_FILES ->
+            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
+                    PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
+                    LEGACY_OPERATIONS, LEGACY_PRACTICES ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -893,25 +857,6 @@ class PostgresProfileRepository
         return objectKeys.isEmpty()
                 ? List.of()
                 : List.of(cleanups.schedule(account.userId(), objectKeys, account.now(), account.now()));
-    }
-
-    /**
-     * 앱 Pro 구독(SOMA-818, V64)은 더 결제하지 않게 끝내고 빌링키를 지운다. 결제 기록(billing_payments)은 거래 기록이라 남긴다 —
-     * 카드 번호는 토스가 가린 값뿐이다.
-     */
-    private void endBilling(UUID userId) {
-        entityManager.createNativeQuery("""
-                UPDATE billing_subscriptions SET status='expired', billing_key=NULL, next_retry_at=NULL, updated_at=now()
-                WHERE user_id=:userId
-                """)
-                .setParameter("userId", userId)
-                .executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM billing_pro_grants WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
-        entityManager.createNativeQuery("UPDATE billing_checkouts SET status='failed' WHERE user_id=:userId AND status='open'")
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     /**
@@ -1000,37 +945,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /**
-     * 진행 중인 AI 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가 맞지 않아 통째로 롤백되므로 결과가 저장되지
-     * 않는다. 이력은 남기되 결과 본문은 비운다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
-     */
-    private void cancelAiJobs(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE ai_jobs
-                SET status='failed',failure_reason='account_deactivated',
-                    lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
-                WHERE user_id=:userId
-                  AND status IN ('pending','running')
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
-    }
-
-    /** 의견의 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은 사람과 끊어 남는다(practice.feedback). */
-    private void blankFeedbackContacts(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_feedback
-                SET contact_email=NULL,contact_phone=NULL,
-                    sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
-                WHERE user_id=:userId
-                  AND (contact_email IS NOT NULL OR contact_phone IS NOT NULL)
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     /**
@@ -1145,33 +1059,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /**
-     * 진행 중인 비동기 작업(분석·코치·노트·기억 갱신)을 실패로 닫는다. 분석 중이던 연습도 함께 닫는다.
-     * lease 를 떼므로 돌고 있던 워커의 완료는 받아들여지지 않는다(CONTRACT.md §5-7).
-     */
-    private void cancelOperations(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_sessions
-                SET status='failed',updated_at=:now
-                WHERE user_id=:userId
-                  AND status='analyzing'
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
-        entityManager.createNativeQuery("""
-                UPDATE external_operations
-                SET status='failed',error_code='account_deactivated',
-                    lease_token=NULL,lease_expires_at=NULL,monitoring_lease_token=NULL,
-                    updated_at=:now
-                WHERE user_id=:userId
-                  AND status IN ('pending','running')
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     private static Account account(Tuple row) {

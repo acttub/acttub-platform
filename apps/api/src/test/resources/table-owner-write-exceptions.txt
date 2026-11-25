@@ -29,9 +29,6 @@ feature/profile/adapter/db/PostgresProfileRepository.java actor_journals
 feature/profile/adapter/db/PostgresProfileRepository.java actor_memories
 feature/profile/adapter/db/PostgresProfileRepository.java actor_memory_entries
 feature/profile/adapter/db/PostgresProfileRepository.java ai_jobs
-feature/profile/adapter/db/PostgresProfileRepository.java billing_checkouts
-feature/profile/adapter/db/PostgresProfileRepository.java billing_pro_grants
-feature/profile/adapter/db/PostgresProfileRepository.java billing_subscriptions
 feature/profile/adapter/db/PostgresProfileRepository.java challenge_entries
 feature/profile/adapter/db/PostgresProfileRepository.java challenges
 feature/profile/adapter/db/PostgresProfileRepository.java community_anonymous_aliases
