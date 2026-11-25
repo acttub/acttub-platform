@@ -58,7 +58,6 @@ class PostgresProfileRepository
             AccountErasureStep.PRACTICE,
             AccountErasureStep.DELETED_PRACTICES,
             AccountErasureStep.CHALLENGE,
-            AccountErasureStep.COMMUNITY_IMAGES,
             AccountErasureStep.READING_VOICE_USAGE,
             AccountErasureStep.BILLING,
             AccountErasureStep.BILLING_CUSTOMER,
@@ -834,13 +833,6 @@ class PostgresProfileRepository
                 eraseChallenge(userId, now);
                 yield List.of();
             }
-            case COMMUNITY_IMAGES -> {
-                // 게시판 글 사진은 객체를 MEDIA_OBJECTS 에서 장부에 올렸다. 행도 지워 글에서 사진이 빠지게 한다(글·댓글 행은 남는다).
-                entityManager.createNativeQuery("DELETE FROM community_post_images WHERE uploader_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
             case READING_VOICE_USAGE -> {
                 entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
                         .setParameter("userId", userId)
@@ -861,7 +853,8 @@ class PostgresProfileRepository
                 cancelOperations(userId, now);
                 yield List.of();
             }
-            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE ->
+            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE,
+                    COMMUNITY_IMAGES ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
