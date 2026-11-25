@@ -131,8 +131,6 @@ class EntityMappingIT {
             "script_imports",
             // 대본 원본 파일(V34)도 리딩 저장소의 native SQL(올릴 자리·읽기·연결·정리)만 쓴다.
             "script_uploads",
-            // 오디션 공고(V36)는 오디션 저장소의 native SQL(upsert·열림 후보·삭제)만 쓴다.
-            "audition_postings",
             // 리딩 회차 평가(V40)는 리딩 저장소의 native SQL(upsert·잠금·이관·삭제)만 읽고 쓴다.
             "reading_session_ratings",
             // 리딩 녹음 코치(V48, 실험)는 리딩 저장소의 native SQL(재료 읽기·넣기·답 남기기)만 쓴다.
@@ -154,13 +152,13 @@ class EntityMappingIT {
             "community_post_images");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 47개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 48개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의를 매핑해 47개다.
-        assertThat(entities).hasSize(47);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개다.
+        assertThat(entities).hasSize(48);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())

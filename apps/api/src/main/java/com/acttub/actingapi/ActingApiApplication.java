@@ -35,6 +35,7 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
     "com.acttub.actingapi.feature.portfolio.schema",
     "com.acttub.actingapi.feature.transfer.schema",
     "com.acttub.actingapi.feature.support.schema",
+    "com.acttub.actingapi.feature.audition.schema",
     "com.acttub.actingapi.feature.reading.schema",
     "com.acttub.actingapi.feature.challenge.schema"
 })
