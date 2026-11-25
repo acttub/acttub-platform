@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
         "AUDITION_SOURCES=shinsee,emk,sejong,otr", "AUDITION_COLLECT_CRON=-",
         "AUDITION_COLLECT_STARTUP_DELAY_MS=3600000"})
 @AutoConfigureMockMvc
-@Import(AuditionEndpointIT.Fixture.class)
+@Import({MutableClock.Fixture.class, AuditionEndpointIT.Fixture.class})
 class AuditionEndpointIT {
 
     /** 2026-10-08 09:00 KST. */
@@ -203,12 +203,6 @@ class AuditionEndpointIT {
         @Primary
         FakeSources fakeAuditionSources() {
             return new FakeSources();
-        }
-
-        @Bean
-        @Primary
-        MutableClock mutableClock() {
-            return new MutableClock(NOW);
         }
     }
 

@@ -14,10 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.config.ScheduledTask;
 import org.springframework.scheduling.config.ScheduledTaskHolder;
 import org.springframework.scheduling.config.TaskExecutionOutcome;
@@ -53,7 +50,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     "SCRIPT_UPLOAD_SWEEP_CRON=* * * * * *",
     "COMMUNITY_IMAGE_SWEEP_CRON=* * * * * *"
 })
-@Import(BackgroundSchedulesIT.Fixture.class)
+@Import(RecordingFailureReporter.Fixture.class)
 class BackgroundSchedulesIT {
     /** 공통 설정이 끄는 속성마다 그 속성이 세우는 예약 작업(클래스.메서드). */
     private static final List<String> EXPECTED = List.of(
@@ -103,14 +100,5 @@ class BackgroundSchedulesIT {
             }
         });
         return outcomes;
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class Fixture {
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
-        }
     }
 }
