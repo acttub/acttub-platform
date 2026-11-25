@@ -44,7 +44,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import(ExitSurveyIT.Fixture.class)
+@Import({MutableClock.Fixture.class, ExitSurveyIT.Fixture.class})
 class ExitSurveyIT {
 
     @Autowired
@@ -297,12 +297,6 @@ class ExitSurveyIT {
         @Primary
         RecordingSheet recordingSheet() {
             return new RecordingSheet();
-        }
-
-        @Bean
-        @Primary
-        MutableClock mutableClock() {
-            return new MutableClock(Instant.parse("2026-09-21T00:00:00Z"));
         }
     }
 

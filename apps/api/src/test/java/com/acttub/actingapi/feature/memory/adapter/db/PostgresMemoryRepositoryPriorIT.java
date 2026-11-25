@@ -12,10 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -26,7 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 넣은 시험만 있어서 아무도 못 잡았다. 그래서 이 시험은 실제 스키마 위에서 돈다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
-@Import(PostgresMemoryRepositoryPriorIT.FailureReporterFixture.class)
+@Import(RecordingFailureReporter.Fixture.class)
 class PostgresMemoryRepositoryPriorIT {
 
     @Autowired
@@ -533,14 +530,5 @@ class PostgresMemoryRepositoryPriorIT {
                 INSERT INTO coach_turns (session_id,turn_index,role,text,created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """, coachId, index, role, text, NOW);
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class FailureReporterFixture {
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
-        }
     }
 }
