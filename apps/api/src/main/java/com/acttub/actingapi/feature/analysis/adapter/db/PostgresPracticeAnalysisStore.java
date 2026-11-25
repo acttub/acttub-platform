@@ -15,6 +15,7 @@ import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -34,18 +35,24 @@ import tools.jackson.databind.json.JsonMapper;
  * DO NOTHING}) — 워커 재시도가 기록의 내용이나 판을 바꾸지 않는다.
  *
  * <p><b>받아쓰기는 영상 단위다.</b> 영상당 묶음 하나이고 같은 영상의 다음 회차는 새로 만들지 않는다.
+ *
+ * <p>자기 표({@code analyses})를 쓰는 기록 넣기만 HQL 이다. 나머지는 다른 기능의 표({@code ai_jobs}·{@code practices}·
+ * {@code videos}·{@code video_transcripts}·{@code upload_intents}·{@code users})를 읽고 쓰거나 잠가 native SQL 로 둔다 — 그
+ * 기능들에 이 일을 내주는 Port 가 없고, 다른 feature 의 Schema Entity 를 import 하지 않는다(apps/api/CONTRACT.md §5-1·§5-9).
  */
 @Repository
 class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
     private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final EntityManager entityManager;
+    private final AnalysisJpaRepository analyses;
     private final TransactionTemplate transaction;
     private final AiJobLedger jobs;
 
-    PostgresPracticeAnalysisStore(
-            EntityManager entityManager, PlatformTransactionManager transactionManager, AiJobLedger jobs) {
+    PostgresPracticeAnalysisStore(EntityManager entityManager, AnalysisJpaRepository analyses,
+            PlatformTransactionManager transactionManager, AiJobLedger jobs) {
         this.entityManager = entityManager;
+        this.analyses = analyses;
         this.transaction = new TransactionTemplate(transactionManager);
         this.jobs = jobs;
     }
@@ -139,19 +146,9 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
             UUID analysisId = UUID.randomUUID();
             // 못 본 구간이 있으면 partial 이다 — 채우지 않는다.
             boolean partial = result.observationPack() != null && !result.observationPack().uncertainties().isEmpty();
-            entityManager.createNativeQuery("""
-                    INSERT INTO analyses(id,practice_id,format,status,model,record,created_at,completed_at)
-                    VALUES (:id,:practiceId,:format,:status,:model,CAST(:record AS jsonb),:now,:now)
-                    ON CONFLICT (practice_id) DO NOTHING
-                    """)
-                    .setParameter("id", analysisId)
-                    .setParameter("practiceId", practiceId)
-                    .setParameter("format", "legacy")
-                    .setParameter("status", partial ? "partial" : "ready")
-                    .setParameter("model", model)
-                    .setParameter("record", json(record))
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
+            // 관찰 묶음이 없으면 SQL NULL 이 아니라 JSON null 이다(record 는 NOT NULL).
+            analyses.insertUnlessRecorded(analysisId, practiceId, "legacy", partial ? "partial" : "ready", model,
+                    record == null ? JsonNodeFactory.instance.nullNode() : record, now);
             storeTranscript(videoId, result, now);
             // 분석 결과가 저장되면 대화로 넘어간다. 이미 닫힌 회차(취소·이관)는 되살리지 않는다.
             entityManager.createNativeQuery("""

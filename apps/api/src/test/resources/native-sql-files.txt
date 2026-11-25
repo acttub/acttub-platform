@@ -8,7 +8,7 @@ feature/admin/adapter/db/PostgresAdminMetricsRepository.java 15
 feature/ads/adapter/db/PostgresAdFrequency.java 6
 feature/ads/adapter/db/PostgresAdRepository.java 10
 feature/ads/adapter/db/PostgresAdSlotSwitches.java 2
-feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java 9
+feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java 8 남김: 분석 입력 읽기·완료의 회차 잠금과 작업 잠금·회차 전이·영상 길이·받아쓰기 넣기·시도 소진 정리는 다른 기능의 표(platform/operation 의 ai_jobs, practice 의 practices, video 의 videos·video_transcripts·upload_intents, auth 의 users)를 읽고 쓰거나 잠근다. 그 기능들에 이 일을 내주는 Port 가 없고(AiJobLedger 는 작업 행 잠금·회차 id 목록을 내주지 않는다), 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/auth/adapter/db/PostgresAuthRepository.java 13
 feature/auth/adapter/db/RefreshTokenJpaRepository.java 1
 feature/billing/adapter/db/PostgresBillingAdminReader.java 3
