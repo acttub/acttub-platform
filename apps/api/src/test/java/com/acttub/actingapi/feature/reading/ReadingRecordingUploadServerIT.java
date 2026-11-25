@@ -9,19 +9,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
@@ -54,7 +50,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
             "spring.servlet.multipart.max-file-size=1MB",
             "spring.servlet.multipart.max-request-size=2MB"
         })
-@Import(ReadingRecordingUploadServerIT.Fixture.class)
+@Import({FakeObjectStorage.Fixture.class, ReadingRecordingUploadServerIT.Fixture.class})
 class ReadingRecordingUploadServerIT {
 
     @LocalServerPort
@@ -70,7 +66,7 @@ class ReadingRecordingUploadServerIT {
     ObjectMapper mapper;
 
     @Autowired
-    FakeStorage storage;
+    FakeObjectStorage storage;
 
     @Autowired
     MeterRegistry meters;
@@ -86,7 +82,7 @@ class ReadingRecordingUploadServerIT {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         jdbc.update("INSERT INTO consent_documents(id,type,version,title,body,required,published_at) VALUES (?,'terms','v1','약관','본문',true,now())",
                 UUID.randomUUID());
-        storage.objects.clear();
+        storage.clear();
         member = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", member);
         jdbc.update("INSERT INTO user_identities(id,user_id,provider,provider_uid) VALUES (?,?,'google',?)",
@@ -218,12 +214,6 @@ class ReadingRecordingUploadServerIT {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class Fixture {
-        @Bean
-        @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-
         /** ffmpeg 없이 — 이 테스트는 m4a 만 올린다. 혹시 변환이 불리면 실패로 드러난다. */
         @Bean
         @Primary
@@ -231,45 +221,6 @@ class ReadingRecordingUploadServerIT {
             return new AudioTranscoder((command, timeout) -> {
                 throw new IOException("ffmpeg must not be called for audio/mp4");
             });
-        }
-    }
-
-    static final class FakeStorage implements ObjectStorage {
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, "audio/mp4", "etag");
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void upload(String objectKey, String mimeType, Path source) {
-            try {
-                objects.put(objectKey, Files.size(source));
-            } catch (IOException failure) {
-                throw new java.io.UncheckedIOException(failure);
-            }
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            objects.remove(objectKey);
         }
     }
 }

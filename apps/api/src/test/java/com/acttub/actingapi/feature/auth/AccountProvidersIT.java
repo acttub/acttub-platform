@@ -16,9 +16,6 @@ import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.integration.oidc.ProviderUnavailable;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import com.acttub.actingapi.support.StubProviders;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -43,7 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({StubProviders.class, AccountProvidersIT.ReportFixture.class})
+@Import({StubProviders.class, RecordingFailureReporter.Fixture.class})
 class AccountProvidersIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -394,14 +391,5 @@ class AccountProvidersIT {
 
     private int count(String table) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class ReportFixture {
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
-        }
     }
 }
