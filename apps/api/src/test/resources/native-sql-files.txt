@@ -27,7 +27,7 @@ feature/challenge/adapter/db/PostgresEntryReportRepository.java 23
 feature/challenge/adapter/db/PostgresEntryRepository.java 59
 feature/challenge/adapter/db/PostgresEntryRepository.java 4 남김: 공유 프레임 키(SOMA-1156)는 text[] 연산(array_append·ANY·unnest)이고 모자이크본 붙이기와 같은 사람→참여작→영상 잠금(FOR UPDATE OF e FOR SHARE OF v)을 쓴다
 feature/challenge/adapter/db/PostgresNotificationRepository.java 6 남김: 다른 기능의 표(auth 의 users, profile 의 user_profiles, push 의 push_tokens, video 의 videos)를 건드린다 — 알림함 묶음 조회((array_agg(… ORDER BY …))[1] 도 쓴다), 발송할 사건 잡기, 발송 직전 토큰 읽기 둘, 하루 조회 요약(DISTINCT ON), 행동자 이름. 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
-feature/challenge/adapter/db/PostgresReactionRepository.java 20
+feature/challenge/adapter/db/PostgresReactionRepository.java 6 남김: 다른 기능의 표(auth 의 users, profile 의 user_profiles, video 의 videos)를 건드린다 — 저장 목록과 그 수(공개 조건 ENTRY_FROM), 댓글 목록과 댓글 한 건(작성자 상태·이름·사진), 차단할 상대의 활성 확인, 차단 목록(이름). 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/UnseenEntryBoost.java 1 남김: 공개 조건(ChallengeVisibility.ENTRY_FROM)이 다른 기능의 표(auth 의 users, video 의 videos, profile 의 user_profiles)를 조인한다. 그 기능에 이 조건을 내주는 Port 가 없고, 참여작 목록마다 도는 한 문장이다(§5-1)
 feature/coach/adapter/db/PostgresCoachPersonas.java 1
 feature/coach/adapter/db/PostgresCoachProMemory.java 1

@@ -28,4 +28,9 @@ interface EntryReportJpaRepository extends Repository<EntryReportEntity, UUID> {
     int insert(UUID id, EntryReportTarget targetType, UUID targetId, UUID reporterId, String source, EntryReportReason reason,
             String note, EntryReportStatus status, int targetVersion, String targetText, UUID requestId,
             String requestFingerprint, Instant createdAt);
+
+    /** 지운 댓글의 신고에 남은 본문 사본을 비운다. 신고 행은 남는다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update EntryReportEntity r set r.targetText = null where r.targetType = COMMENT and r.targetId = :commentId")
+    int purgeCommentCopies(UUID commentId);
 }

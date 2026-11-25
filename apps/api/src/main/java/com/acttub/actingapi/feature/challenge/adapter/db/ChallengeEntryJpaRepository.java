@@ -61,6 +61,10 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
     @Query("select e.challengeId from ChallengeEntryEntity e where e.id = :id")
     Optional<UUID> findChallengeId(UUID id);
 
+    /** 그 회원의 지우지 않은 참여작 수(비공개 포함). */
+    @Query("select count(*) from ChallengeEntryEntity e where e.userId = :userId and e.status <> DELETED")
+    long countLiveOwnedBy(UUID userId);
+
     @Query("""
             select new com.acttub.actingapi.feature.challenge.adapter.db.ChallengeEntryJpaRepository$Content(e.contentVersion, e.caption)
             from ChallengeEntryEntity e where e.id = :id
