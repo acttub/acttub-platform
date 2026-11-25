@@ -141,8 +141,8 @@ HQL 한 문장이 같은 SQL 을 내면 HQL 로 쓰고, 내지 못하면 custom 
 ### 5-3. 엔티티 매핑 함정
 
 1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어낸 이유는
-   [ADR-023](../../docs/ADR.md)이다. 예외로 Schema Entity 없이 native SQL 만 쓰는 결제(V64)·광고(V66) 표는 CHECK 없이
-   앱 코드(`BillingRules`·`AdRules`)와 저장소 SQL 이 값을 지킨다.
+   [ADR-023](../../docs/ADR.md)이다. 예외로 결제(V64)·광고(V66) 표는 CHECK 없이 앱 코드(`BillingRules`·`AdRules`)와 저장소
+   문장이 값을 지킨다. 결제 표는 Schema Entity 가 값을 문자열로 매핑하고, 광고 표는 native SQL 만 쓴다.
 
    **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
    Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
@@ -1449,9 +1449,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - 행동 계약은 [billing.subscription](../../docs/specs/billing/subscription.md)이 정본이고 `SubscriptionServiceTest`(상태 전이·멱등·해지
   후 기간 유지·재시도)가 지킨다. 플래그(`BILLING_APP_ENABLED`, 기본 false) 뒤의 기능이라 OpenAPI 에 싣지 않는다(`@Hidden`).
-- 표 넷(V64)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
-  조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다. `billing_payments.order_id` UNIQUE 가
-  멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
+- 표 넷(V64)은 Schema Entity 로 매핑하고 대부분 JPQL·HQL 로 읽고 쓴다(CHECK 없음 — 값은 `BillingRules` 와 저장소 문장이
+  지킨다). 상태 쓰기는 모두 조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다
+  (`BillingRepositoryIT`). `billing_payments.order_id` UNIQUE 가 멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
+  갱신·확인할 행을 `SKIP LOCKED` 로 집는 점유 둘과 스토어 구독 upsert 는 native SQL 이다(§5-9 목록).
 - 토스 호출은 트랜잭션 밖이다(§5-4). 빌링키는 `AccountSecrets` 암호문이고 로그·예외·응답에 싣지 않는다.
 - 무료 한도는 `practice.app.CoachingPlan`·`reading.app.ScriptPlan` Port 를 결제 adapter(`BillingPlanLimits`)가 구현한다. 오류
   `429 free_daily_coaching_limit`·`403 free_script_limit` 은 한도 플래그가 꺼져 있으면 나가지 않는다.
