@@ -151,6 +151,7 @@ class ScriptCocreateRepositoryIT extends ReadingRepositoryFixture {
 
         assertThatThrownBy(() -> cocreations.appendVersion(id, "[\"첫\",\"둘\"]", 2, now))
                 .isInstanceOfSatisfying(ApiException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(409);
                     assertThat(failure.getMessage()).isEqualTo("sample_script_version_conflict");
                 });
         cocreations.claim(owner, id, 1, 3, now, now.minusSeconds(120));

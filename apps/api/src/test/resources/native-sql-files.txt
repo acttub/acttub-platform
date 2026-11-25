@@ -62,7 +62,7 @@ feature/reading/adapter/db/PostgresReadingOwnership.java 1 남김: 다른 기능
 feature/reading/adapter/db/PostgresReadingVoiceMaterials.java 3 남김: 줄마다 마지막 녹음을 고르는 DISTINCT ON 은 HQL 에 없다(material). 코칭 회차를 찾는 두 조회(practiceOf·readingSessionOf)는 다른 기능(practice)의 practices 를 읽는데 practice 에 이 조회를 내주는 Port 가 없다
 feature/reading/adapter/db/PostgresRecordingRepository.java 11
 feature/reading/adapter/db/PostgresRetranscribeRepository.java 12
-feature/reading/adapter/db/PostgresScriptCocreateRepository.java 7
+feature/reading/adapter/db/PostgresScriptCocreateRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 잠금(withSaveLock). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresScriptImportRepository.java 21
 feature/reading/adapter/db/PostgresScriptRepository.java 45
 feature/reading/adapter/db/PostgresScriptUploadRepository.java 2 남김: 실패 남기기(recordFailure)는 UPDATE 한 문장 안에서 다른 기능(consent)의 동의 결정을 읽어 보관 시한을 정한다. 미연결 정리(sweepUnlinked)는 SKIP LOCKED 로 고른 행을 DELETE … RETURNING 하는 CTE 이고 동의와 ai_jobs(platform/operation)를 함께 읽는다

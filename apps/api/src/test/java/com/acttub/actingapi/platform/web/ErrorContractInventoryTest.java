@@ -543,6 +543,9 @@ class ErrorContractInventoryTest {
             covered("feature.reading.app.ReadingExampleService|404|reading_example_audio_not_found", 1,
                     "feature.reading.ReadingExampleIT"),
             // 찍을 대사 같이 만들기(reading.cocreate, SOMA-721). 모델 실패와 검사 불통과는 같은 502 다.
+            // 수정 표시 없이 온 버전 더하기 — 저장소의 조건부 UPDATE 가 0행일 때다.
+            covered("feature.reading.adapter.db.PostgresScriptCocreateRepository|409|sample_script_version_conflict", 1,
+                    "feature.reading.ScriptCocreateRepositoryIT"),
             covered("feature.reading.app.ScriptCocreateService|404|sample_script_not_found", 2,
                     "feature.reading.app.ScriptCocreateServiceTest"),
             covered("feature.reading.app.ScriptCocreateService|409|sample_script_busy", 3,
