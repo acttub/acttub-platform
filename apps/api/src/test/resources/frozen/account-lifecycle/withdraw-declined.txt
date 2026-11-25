@@ -1,0 +1,462 @@
+== 표 ==
+account_cleanup_operations: 2행 → 10행
+  user_id=본인: 1 → 9
+  user_id=남: 1 → 1
+  + attempt_count=0, created_at=<now>, expires_at=<now+PT169H>, id=<새 id>, kind='object_delete', next_attempt_at=<now+PT1H>, payload_encrypted=<암호문: ["users/본인/scripts/source.pdf"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='apple_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: apple-grant:본인>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='kakao_unlink', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: kakao-본인>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='naver_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: naver-refresh:본인>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/community/1.jpg","users/본인/community/pending.jpg","users/본인/mosaic/1.mp4","users/본인/portfolio/1.jpg","users/본인/portfolio/pending.jpg","users/본인/profile/pending.jpg","users/본인/profile/photo.jpg","users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4","users/본인/videos/1.jpg","users/본인/videos/1.mp4","users/본인/videos/3.jpg","users/본인/videos/3.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/videos/deleted.jpg","users/본인/videos/deleted.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='reading_recording_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/readings/1.m4a"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='revenuecat_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: <본인>>, updated_at=<now>, user_id=<본인>
+actor_journals: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/배우 일지>
+actor_memories: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+actor_memory_entries: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+ad_events: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+ad_serves: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+ai_jobs: 10행 → 10행
+  user_id=본인: 5 → 5
+  user_id=남: 5 → 5
+  ~ <본인/작업/기억 갱신>
+      failure_reason: NULL → 'account_deactivated'
+      status: 'pending' → 'failed'
+      updated_at: <DB 시각> → <now>
+  ~ <본인/작업/대본 나누기>
+      failure_reason: NULL → 'account_deactivated'
+      status: 'pending' → 'failed'
+      updated_at: <DB 시각> → <now>
+  ~ <본인/작업/분석>
+      failure_reason: NULL → 'account_deactivated'
+      lease_expires_at: <now+PT5M> → NULL
+      lease_token: <본인/작업/분석/lease> → NULL
+      status: 'running' → 'failed'
+      updated_at: <DB 시각> → <now>
+analyses: 2행 → 2행
+anomalies: 2행 → 2행
+billing_checkouts: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+  ~ <본인/결제창/open>
+      status: 'open' → 'failed'
+billing_payments: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+billing_pro_grants: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/Pro 지급>
+billing_subscriptions: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인/구독>
+      billing_key: 'billing-key-본인' → NULL
+      next_retry_at: <now+PT24H> → NULL
+      status: 'active' → 'expired'
+      updated_at: <DB 시각> → <DB 시각>
+challenge_entries: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인/참여작>
+      updated_at: <DB 시각> → <now>
+      visibility: 'public' → 'private'
+challenges: 3행 → 3행
+  host_user_id=본인: 1 → 0
+  host_user_id=남: 1 → 1
+  ~ <본인/연 챌린지>
+      host_user_id: <본인> → NULL
+coach_conversations: 2행 → 2행
+coach_messages: 2행 → 2행
+coach_notes: 2행 → 2행
+coach_sessions: 2행 → 2행
+coach_turns: 2행 → 2행
+coaching_handoffs: 2행 → 2행
+community_anonymous_aliases: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+community_blocks: 2행 → 2행
+  blocked_id=본인: 1 → 1
+  blocked_id=남: 1 → 1
+  blocker_id=본인: 1 → 1
+  blocker_id=남: 1 → 1
+community_comments: 2행 → 2행
+  author_id=본인: 1 → 1
+  author_id=남: 1 → 1
+community_post_images: 4행 → 2행
+  uploader_id=본인: 2 → 0
+  uploader_id=남: 2 → 2
+  - <본인/게시글 사진/붙음>
+  - <본인/게시글 사진/안 붙음>
+community_post_likes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+community_posts: 2행 → 2행
+  author_id=본인: 1 → 1
+  author_id=남: 1 → 1
+community_reports: 2행 → 2행
+  reporter_id=본인: 1 → 1
+  reporter_id=남: 1 → 1
+deleted_practice_videos: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/지운 연습의 영상>
+entry_ai_reports: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인/참여작 리포트>
+      purged_at: NULL → <now>
+      result: '{"report": "본문"}' → NULL
+entry_comments: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+entry_likes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+entry_ranking_snapshots: 2행 → 2행
+  viewer_id=본인: 1 → 1
+  viewer_id=남: 1 → 1
+entry_reports: 2행 → 2행
+  reporter_id=본인: 1 → 1
+  reporter_id=남: 1 → 1
+entry_saves: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인→남/참여작 저장>
+entry_view_events: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+external_operations: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+  ~ <본인/옛 작업/도는 중>
+      error_code: NULL → 'account_deactivated'
+      lease_expires_at: <now+PT5M> → NULL
+      lease_token: <본인/옛 작업/도는 중/lease> → NULL
+      monitoring_lease_token: <본인/옛 작업/도는 중/감시 lease> → NULL
+      status: 'running' → 'failed'
+      updated_at: <DB 시각> → <now>
+guest_transfer_codes: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/이전 코드/살아 있음>
+line_memorization: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/암기 상태>
+note_ratings: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인/노트 평가>
+      comment: '도움이 됐어요' → NULL
+      updated_at: <DB 시각> → <now>
+notification_pushes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+notifications: 4행 → 2행
+  actor_user_id=본인: 1 → 1
+  actor_user_id=남: 1 → 0
+  user_id=본인: 2 → 0
+  user_id=남: 2 → 2
+  - <남→본인/좋아요 알림>
+  - <본인/받은 알림>
+portfolio_credits: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/포트폴리오 경력>
+portfolio_photos: 4행 → 2행
+  user_id=본인: 2 → 0
+  user_id=남: 2 → 2
+  - <본인/포트폴리오 사진/올리는 중>
+  - <본인/포트폴리오 사진/올림>
+portfolios: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>
+practice_deletion_marks: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/지운 연습 표시>
+practice_feedback: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인/의견>
+      contact_email: '본인@example.test' → NULL
+      contact_phone: '010-0000-0000' → NULL
+      sheet_seq: 1 → 2
+      updated_at: <DB 시각> → <now>
+practice_reminder_sends: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>, 2026-11-19, 'practice'
+practice_reports: 2행 → 2행
+practice_sessions: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인/옛 연습>
+      status: 'analyzing' → 'failed'
+      updated_at: <DB 시각> → <now>
+practices: 6행 → 6행
+  user_id=본인: 3 → 3
+  user_id=남: 3 → 3
+  ~ <본인/연습/리딩에서 온 연습>
+      reading_session_id: <본인/리딩 회차> → NULL
+push_opens: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/푸시 연 기록>
+push_tokens: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/푸시 토큰>
+reading_pronunciation_reports: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/리딩 발음 리포트>
+reading_recording_retranscripts: 2행 → 1행
+  - <본인/리딩 녹음>
+reading_recordings: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/리딩 녹음>
+reading_session_ratings: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/리딩 회차/평가>
+reading_sessions: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/리딩 회차>
+reading_voice_usage: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>, 2026-11-19
+refresh_tokens: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+  ~ <본인/리프레시 토큰/살아 있음>
+      revoked_at: NULL → <now>
+script_characters: 2행 → 1행
+  - <본인/대본/배역>
+script_cocreations: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/대사 같이 만들기>
+script_imports: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/대본 나누기 요청>
+script_lines: 4행 → 2행
+  - <본인/대본/줄/대사>
+  - <본인/대본/줄/지문>
+script_uploads: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/대본 원본 파일>
+scripts: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인/대본>
+summaries: 2행 → 2행
+support_inquiries: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+transcripts: 2행 → 2행
+upload_intents: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+user_active_days: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>, 2026-11-19
+user_airbridge_device_lookups: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>
+user_blocks: 2행 → 0행
+  blocked_id=본인: 1 → 0
+  blocked_id=남: 1 → 0
+  blocker_id=본인: 1 → 0
+  blocker_id=남: 1 → 0
+  - <남→본인/챌린지 차단>
+  - <본인→남/챌린지 차단>
+user_consents: 8행 → 8행
+  user_id=본인: 4 → 4
+  user_id=남: 4 → 4
+user_discovery_answers: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>
+user_identities: 8행 → 8행
+  user_id=본인: 4 → 4
+  user_id=남: 4 → 4
+  ~ <본인/신원/apple>
+      apple_token_encrypted: <암호문: apple-grant:본인> → NULL
+      provider_uid: 'apple-본인' → NULL
+      uid_hash: NULL → '<해시 apple:apple-본인>'
+  ~ <본인/신원/google>
+      provider_uid: 'google-본인' → NULL
+      uid_hash: NULL → '<해시 google:google-본인>'
+  ~ <본인/신원/kakao>
+      provider_uid: 'kakao-본인' → NULL
+      uid_hash: NULL → '<해시 kakao:kakao-본인>'
+  ~ <본인/신원/naver>
+      naver_token_encrypted: <암호문: naver-refresh:본인> → NULL
+      provider_uid: 'naver-본인' → NULL
+      uid_hash: NULL → '<해시 naver:naver-본인>'
+user_profile_directions: 4행 → 4행
+  user_id=본인: 2 → 2
+  user_id=남: 2 → 2
+user_profiles: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+  ~ <본인>
+      age_band: NULL → 25
+      bio: '입시 준비 중입니다' → NULL
+      birth_date: 1999-03-02 → NULL
+      name: '본인 배우' → NULL
+      notify_analysis_done: true → false
+      notify_challenge: true → false
+      notify_evening_reminder: true → false
+      photo_key: 'users/본인/profile/photo.jpg' → NULL
+      photo_upload_expires_at: <now+PT1H> → NULL
+      photo_upload_key: 'users/본인/profile/pending.jpg' → NULL
+      photo_upload_mime_type: 'image/jpeg' → NULL
+      photo_upload_size_bytes: 10 → NULL
+      updated_at: <now-PT1440H> → <DB 시각>
+user_signup_attributions: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>
+users: 3행 → 3행
+  ~ <본인>
+      deactivated_at: NULL → <now>
+      email: '본인@example.test' → NULL
+      nickname: '옛닉네임' → NULL
+      status: 'active' → 'deactivated'
+      updated_at: <now-PT1440H> → <now>
+video_transcripts: 4행 → 3행
+  - <본인/지운 연습의 영상/받아쓰기>
+videos: 8행 → 8행
+  user_id=지운 연습 보관 계정: 2 → 2
+  user_id=본인: 3 → 3
+  user_id=남: 3 → 3
+  ~ <본인/영상/1>
+      purged_at: NULL → <now>
+      updated_at: <DB 시각> → <now>
+  ~ <본인/영상/3>
+      purged_at: NULL → <now>
+      updated_at: <DB 시각> → <now>
+  ~ <본인/지운 연습의 영상>
+      purged_at: NULL → <now>
+      updated_at: <DB 시각> → <now>
+== 문장 ==
+  select user_identities, users
+BEGIN
+  select users for update
+  select challenges, challenge_entries
+  update users
+  select consent_documents, user_consents
+  select user_profiles, portfolio_photos, community_post_images
+  select upload_intents, videos, challenge_entries
+  insert account_cleanup_operations
+  select scripts for update
+  select reading_sessions for update
+  delete script_uploads returning
+  insert account_cleanup_operations
+  delete reading_recordings returning
+  insert account_cleanup_operations
+  delete line_memorization
+  delete reading_session_ratings (읽기 reading_sessions)
+  delete reading_sessions
+  delete script_lines (읽기 scripts)
+  delete script_characters (읽기 scripts)
+  delete scripts
+  delete script_imports
+  delete script_cocreations
+  select videos for update
+  update videos
+  update ai_jobs
+  delete actor_journals
+  update practice_feedback
+  update note_ratings
+  delete practice_deletion_marks
+  select deleted_practice_videos, videos for update
+  delete video_transcripts
+  update videos
+  insert account_cleanup_operations
+  delete deleted_practice_videos
+  update challenges
+  delete user_blocks
+  delete entry_saves
+  delete notifications
+  update challenge_entries
+  update entry_ai_reports
+  delete community_post_images
+  delete reading_voice_usage
+  delete user_signup_attributions
+  delete user_airbridge_device_lookups
+  update billing_subscriptions
+  delete billing_pro_grants
+  update billing_checkouts
+  delete user_discovery_answers
+  select user_identities for update
+  update user_identities
+  insert account_cleanup_operations
+  update user_identities
+  insert account_cleanup_operations
+  update user_identities
+  insert account_cleanup_operations
+  update user_identities
+  insert account_cleanup_operations
+  update users
+  select user_profiles for update
+  update user_profiles
+  delete portfolios
+  delete guest_transfer_codes
+  update refresh_tokens
+  delete user_active_days
+  delete practice_reminder_sends
+  delete push_opens
+  delete push_tokens
+  update practice_sessions
+  update external_operations
+  select users
+COMMIT
+BEGIN
+  update account_cleanup_operations returning for update skip locked
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+COMMIT
