@@ -57,8 +57,7 @@ class PostgresProfileRepository
             AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES,
             AccountErasureStep.CHALLENGE,
-            AccountErasureStep.READING_VOICE_USAGE,
-            AccountErasureStep.LEGACY_PRACTICES);
+            AccountErasureStep.READING_VOICE_USAGE);
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -835,13 +834,9 @@ class PostgresProfileRepository
                         .executeUpdate();
                 yield List.of();
             }
-            case LEGACY_PRACTICES -> {
-                failAnalyzingLegacyPractices(userId, now);
-                yield List.of();
-            }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
                     PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
-                    LEGACY_OPERATIONS ->
+                    LEGACY_OPERATIONS, LEGACY_PRACTICES ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -1064,19 +1059,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /** 옛 연습 흐름의 분석 중이던 연습을 실패로 닫는다. */
-    private void failAnalyzingLegacyPractices(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_sessions
-                SET status='failed',updated_at=:now
-                WHERE user_id=:userId
-                  AND status='analyzing'
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     private static Account account(Tuple row) {
