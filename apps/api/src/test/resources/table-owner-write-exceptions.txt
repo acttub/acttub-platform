@@ -46,7 +46,6 @@ feature/profile/adapter/db/PostgresProfileRepository.java entry_reports
 feature/profile/adapter/db/PostgresProfileRepository.java entry_saves
 feature/profile/adapter/db/PostgresProfileRepository.java entry_view_events
 feature/profile/adapter/db/PostgresProfileRepository.java external_operations
-feature/profile/adapter/db/PostgresProfileRepository.java guest_transfer_codes
 feature/profile/adapter/db/PostgresProfileRepository.java line_memorization
 feature/profile/adapter/db/PostgresProfileRepository.java note_ratings
 feature/profile/adapter/db/PostgresProfileRepository.java notification_pushes

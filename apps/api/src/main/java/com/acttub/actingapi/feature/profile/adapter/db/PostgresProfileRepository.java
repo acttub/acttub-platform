@@ -346,16 +346,6 @@ class PostgresProfileRepository
     }
 
     @Override
-    public int deleteStaleTransferCodes(Instant before) {
-        return transaction.execute(status -> entityManager.createNativeQuery("""
-                DELETE FROM guest_transfer_codes
-                WHERE COALESCE(used_at,expires_at)<:before
-                """)
-                .setParameter("before", before.atOffset(ZoneOffset.UTC))
-                .executeUpdate());
-    }
-
-    @Override
     public int deleteExpiredWebAttributions(Instant before) {
         return transaction.execute(status -> entityManager.createNativeQuery("""
                 DELETE FROM user_signup_attributions

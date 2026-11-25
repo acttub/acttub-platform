@@ -20,10 +20,11 @@ import org.junit.jupiter.api.Test;
 class AccountHousekeepingTest {
     private final ProfileRepository profiles = mock(ProfileRepository.class);
     private final ProfileService accounts = mock(ProfileService.class);
+    private final StaleTransferCodes transferCodes = mock(StaleTransferCodes.class);
     private final AccountCleanup cleanup = mock(AccountCleanup.class);
     private final RecordingFailureReporter failures = new RecordingFailureReporter();
     private final AccountHousekeeping housekeeping = new AccountHousekeeping(
-            profiles, accounts, cleanup, failures, Clock.fixed(Instant.parse("2026-10-02T19:30:00Z"), ZoneOffset.UTC));
+            profiles, accounts, transferCodes, cleanup, failures, Clock.fixed(Instant.parse("2026-10-02T19:30:00Z"), ZoneOffset.UTC));
 
     @Test
     @DisplayName("account.withdraw: 매일 도는 일은 한 가지가 실패해도 나머지가 돌고, 실패는 보고된다")
@@ -39,7 +40,7 @@ class AccountHousekeepingTest {
 
         verify(accounts).withdraw(fine);
         verify(cleanup).runDue();
-        verify(profiles).deleteStaleTransferCodes(any());
+        verify(transferCodes).deleteStale(any());
         verify(profiles).deleteExpiredWebAttributions(any());
         assertThat(failures.contexts())
                 .containsExactly("AccountHousekeeping.refreshTokens", "AccountHousekeeping.idleGuest");
