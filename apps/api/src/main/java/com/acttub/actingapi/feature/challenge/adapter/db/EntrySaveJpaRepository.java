@@ -22,4 +22,8 @@ interface EntrySaveJpaRepository extends Repository<EntrySaveEntity, UUID> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from EntrySaveEntity s where s.entryId = :entryId and s.userId = :userId")
     int remove(UUID entryId, UUID userId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from EntrySaveEntity s where s.entryId = :entryId")
+    int removeAllOf(UUID entryId);
 }

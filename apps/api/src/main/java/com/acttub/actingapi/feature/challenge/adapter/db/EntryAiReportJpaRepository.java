@@ -66,4 +66,9 @@ interface EntryAiReportJpaRepository extends Repository<EntryAiReportEntity, UUI
             where r.entryId = :entryId and r.jobId = :jobId and r.status = PENDING
             """)
     int closeFailed(UUID entryId, UUID jobId, int attempts);
+
+    /** 참여작을 지웠다 — 본문·비교 자료를 파기하고 행은 이력으로 남긴다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update EntryAiReportEntity r set r.result = null, r.purgedAt = :now where r.entryId = :entryId")
+    int purge(UUID entryId, Instant now);
 }

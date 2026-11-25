@@ -87,4 +87,9 @@ interface NotificationJpaRepository extends Repository<NotificationEntity, UUID>
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update NotificationEntity n set n.pushStatus = :status, n.pushAttemptedAt = :attemptedAt where n.id in :ids")
     int markPush(Collection<UUID> ids, NotificationPushStatus status, Instant attemptedAt);
+
+    /** 지운 참여작에 관한 알림을 지운다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from NotificationEntity n where n.entryId = :entryId")
+    int deleteOfEntry(UUID entryId);
 }
