@@ -29,6 +29,10 @@ export const STORE_LINK_SURFACES = [
   "trial_bar",
   /** 웹 체험이 끝난 화면의 「앱에서 이어서 하기」·QR. */
   "trial_done",
+  /** 입시 목록(/admissions)의 실기 연습 안내 칸 「앱에서 연습하기」. */
+  "admissions_list",
+  /** 학교 상세(/admissions/<id>)의 안내 칸과 모바일 고정 버튼 「앱에서 실기 연습하기」. */
+  "admissions_detail",
 ] as const;
 export type StoreLinkSurface = (typeof STORE_LINK_SURFACES)[number];
 

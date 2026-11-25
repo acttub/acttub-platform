@@ -19,8 +19,8 @@ import tools.jackson.core.JacksonException;
 
 /**
  * manifest 의 {@code reconsentFrom} 을 요청마다 읽는다(고지 문서와 같은 이유: 파일이 작고 DB 에 둘 열이 없다).
- * {@code consent.reconsent-schedule.disabled=true}(테스트 전용)이면 일정이 없는 것으로 본다. 통합 테스트가 판 이름 v2 를
- * 임의의 새 판으로 쓰기 때문에 실제 manifest 의 terms:v2 일정과 겹친다.
+ * {@code consent.reconsent-schedule.disabled=true}(테스트 전용)이면 일정이 없는 것으로 본다. 통합 테스트가 판 이름(v2 등)을
+ * 임의의 새 판으로 쓰기 때문에 실제 manifest 의 terms 일정과 겹칠 수 있다.
  */
 @Component
 class DeployedReconsentSchedule implements ReconsentSchedule {
