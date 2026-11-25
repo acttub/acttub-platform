@@ -332,7 +332,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 (`INSERT … ON CONFLICT DO NOTHING RETURNING` 나누기)·`feature/poster`(`text[]` 칸)이다. native 를
 남긴 첫 사례는 `feature/portfolio`(다른 기능의 `users` 행 잠금)이고, `DELETE … RETURNING` 을 잠가 읽기와 id 로 지우기로 나눈
 첫 사례이기도 하다. `feature/community` 는 다른 기능의 표를 조인하는 조회(글·댓글 목록과 하나 읽기)를 native 로 남기고 자기 표만
-쓰는 문장을 옮긴 사례다(`CommunityRepositoryIT`).
+쓰는 문장을 옮긴 사례다(`CommunityRepositoryIT`). `feature/memory` 는 문장 대부분이 다른 기능의 표를 함께 봐서 자기 표 둘만
+쓰는 문장(칸 읽기·지우기·이관)만 옮겼다(`ActorMemoryRepositoryIT`).
 
 **옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
 통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
@@ -380,6 +381,11 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
 - 배열: native 의 `:x = ANY(칸)` 은 HQL 에 없다(`any(…)` 는 `bool_or` 집계로 풀린다). `array_contains(칸, :x)` 는 매개변수를
   `varchar` 배열로 감싸 `text[] @> varchar[]` 연산자가 없다고 실패한다. `array_position(칸, :x) > 0` 이 같은 행을 고른다. 칸에
   NULL 원소가 없을 때만 같다(`PostgresPosterRepository#live`).
+- `UNION ALL`: HQL 에 있다. 정렬이 합친 전체에 걸려야 하면 하위 조회로 감싼다 — 감싸지 않은 `… union all … order by` 는
+  정렬을 마지막 갈래의 괄호 안에 넣어 낸다. 갈래 안의 `cast(null as UUID)` 는 Hibernate 7.4 가 해석하지 못하므로
+  (`NoSuchElementException`) 맨 `null` 을 쓴다(SQL 에서 앞 갈래의 형을 따른다). converter 로 매핑한 칸을 문자열 칸과 견줄 때는
+  `cast(칸 as String)` 이 `cast(… as varchar)` 로 나간다(`ActorMemoryJpaRepository#scopedRows`). 빈 목록을 받은 `in :목록` 은
+  `1=0` 으로 나가 0행이고 문장은 그대로 나간다. FROM 없는 `select (하위 조회) + (하위 조회)` 도 된다.
 - 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 같은 표의 다른 행을 보는
   `NOT EXISTS` 상관 서브쿼리도 HQL UPDATE 안에 그대로 나간다. 엔티티를 읽고 고쳐 저장하거나
   Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
