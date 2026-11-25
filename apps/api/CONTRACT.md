@@ -81,6 +81,8 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   읽고 쓰는 코드가 없다. 지운다(아래 문단).
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
+- `evening_reminder_sends`(옛 저녁 8시 고정 알림의 보내기 장부, V25): 코드와 매핑을 지웠다. 알림 집계를 따로 남긴 뒤
+  표를 지운다. DROP 마이그레이션은 매핑을 내린 코드가 운영에 나간 다음 릴리스에 넣는다.
 - `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 매핑을 내렸다. 지운다(아래 문단).
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
@@ -153,7 +155,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
 2. **앱이 만드는 PK 는 UUID 다**(`AppGeneratedUuidEntity`). 그 밖의 PK 모양: `push_tokens.id`는 DB default가 생성하고,
    회원당 하나인 `user_profiles`·`portfolios` 는 PK 가 `user_id` 로 **FK 겸 PK** 다. 날짜가 붙는 장부(`user_active_days`·
-   `evening_reminder_sends`·`practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
+   `practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
    `anomalies` 는 BIGSERIAL(5번)이다. 엔티티 없이 native SQL 만 쓰는 `audition_postings` 도 bigint identity 다(§6-26).
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
@@ -663,7 +665,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 선다.
   토큰 등록 때 `X-Acttub-Client` 의 앱 버전을 `push_tokens.app_version` 에 남기고(`ClientAppVersion`), 버전을 모르거나
   `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25 `evening_reminder_sends`)의
-  코드는 지웠고 표와 검증용 매핑(`EveningReminderSendEntity`)만 남았다. 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  코드와 검증용 매핑은 지웠고 표만 남았다(§5-1). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
   보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
   탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 
