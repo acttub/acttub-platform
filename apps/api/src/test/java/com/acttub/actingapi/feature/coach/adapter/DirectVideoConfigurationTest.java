@@ -1,11 +1,10 @@
-package com.acttub.actingapi.feature.coach.adapter.web;
+package com.acttub.actingapi.feature.coach.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.time.Clock;
-import com.acttub.actingapi.feature.coach.adapter.DirectVideoConfiguration;
-import com.acttub.actingapi.feature.coach.app.DirectVideoSessions;
+import java.util.List;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.google.genai.Client;
@@ -16,7 +15,7 @@ class DirectVideoConfigurationTest {
     // 직접 영상 코치는 객체 저장소가 설정된 곳에서 선다(저장소 빈과 같은 조건). 저장소 자체는 아래 가짜다.
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withPropertyValues("S3_BUCKET=test-bucket", "AWS_REGION=ap-northeast-2")
-            .withUserConfiguration(DirectVideoConfiguration.class, DirectVideoController.class)
+            .withUserConfiguration(DirectVideoConfiguration.class)
             .withBean(Client.class, () -> mock(Client.class))
             .withBean(Clock.class, Clock::systemUTC)
             .withBean(FailureReporter.class, () -> mock(FailureReporter.class))
@@ -28,20 +27,14 @@ class DirectVideoConfigurationTest {
             .withBean(com.acttub.actingapi.platform.observability.LlmTelemetry.class,
                     () -> mock(com.acttub.actingapi.platform.observability.LlmTelemetry.class));
 
-    @Test void enabledOnlyOnDev() {
-        runner.withPropertyValues("SITE_URL=https://dev.acttub.com").run(context -> {
-            assertThat(context).hasSingleBean(DirectVideoSessions.class).hasSingleBean(DirectVideoController.class)
-                    .hasSingleBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class)
-                    .hasSingleBean(com.acttub.actingapi.integration.observation.DirectVideoModel.class);
-        });
-    }
-
-    @Test void productionEnablesDurableCoachButNotDisposableApi() {
-        runner.withPropertyValues("SITE_URL=https://acttub.com").run(context -> {
-            assertThat(context).doesNotHaveBean(DirectVideoSessions.class).doesNotHaveBean(DirectVideoController.class)
-                    .hasSingleBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class)
-                    .hasSingleBean(com.acttub.actingapi.integration.observation.DirectVideoModel.class);
-        });
+    @Test void devAndProductionBuildTheSameDurableCoach() {
+        for (String site : List.of("https://dev.acttub.com", "https://acttub.com")) {
+            runner.withPropertyValues("SITE_URL=" + site).run(context -> {
+                assertThat(context).hasSingleBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class)
+                        .hasSingleBean(com.acttub.actingapi.integration.observation.DirectVideoModel.class)
+                        .doesNotHaveBean(jakarta.servlet.MultipartConfigElement.class);
+            });
+        }
     }
 
     @Test void coachLatencyPartsAreOnByDefaultAndTheHedgeCanBeTurnedOff() {
