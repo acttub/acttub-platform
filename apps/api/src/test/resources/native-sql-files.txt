@@ -13,7 +13,6 @@ feature/auth/adapter/db/PostgresAuthRepository.java 13
 feature/auth/adapter/db/RefreshTokenJpaRepository.java 1
 feature/billing/adapter/db/PostgresBillingAdminReader.java 3
 feature/billing/adapter/db/PostgresBillingRepository.java 31
-feature/blog/adapter/db/PostgresBlogRepository.java 6
 feature/challenge/adapter/db/ChallengeSettlement.java 9
 feature/challenge/adapter/db/EntryCards.java 2
 feature/challenge/adapter/db/EntryLocks.java 6

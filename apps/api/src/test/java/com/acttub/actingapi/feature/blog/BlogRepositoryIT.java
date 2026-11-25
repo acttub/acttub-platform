@@ -54,7 +54,9 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * 블로그 저장소의 여섯 문장이 내는 결과·잠금·경합·문장 수를 실제 PostgreSQL 에서 고정한다. 저장소를 네이티브 SQL 에서 JPA 로
- * 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과해야 한다(apps/api/CONTRACT.md §5-9).
+ * 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과했다(apps/api/CONTRACT.md §5-9). 문장 테스트만 달라졌다 —
+ * 넣기({@code INSERT … ON CONFLICT DO NOTHING RETURNING})와 고치기({@code UPDATE … NOT EXISTS … RETURNING})를 한 문장으로 쓴 뒤
+ * 다시 읽기로 나눠 쓴 행이 있을 때 하나 늘었다. 결과·잠금·경합 테스트는 고치지 않았다.
  *
  * <p>HTTP 쪽 값 검증·토큰·처음 게시 시각·응답 모양은 {@link BlogEndpointIT} 가 본다. 여기서는 그 테스트가 밟지 않는 모든 칸과
  * 기본값, 시각의 정밀도, 같은 시각의 정렬, 개수 제한, 없는 id, 잠금 세기, 같은 slug 를 두 요청이 함께 넣거나 바꿀 때 누가 이기고
@@ -385,21 +387,23 @@ class BlogRepositoryIT {
     // ---- 문장 ----
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류")
+    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류. 넣기·고치기는 한 문장으로 쓰고, 쓴 행이 있으면 같은 트랜잭션에서 id 로 다시 읽는다")
     void eachPortMethodSendsTheseStatements() {
         assertThat(statementsOf(() -> posts.insert(draft("counted", "published"), now, now)))
-                .containsExactly("insert blog_posts on conflict returning");
+                .as("RETURNING 대신 같은 트랜잭션에서 id 로 다시 읽는다")
+                .containsExactly("insert blog_posts on conflict", "select blog_posts");
         assertThat(statementsOf(() -> posts.insert(draft("counted", "draft"), null, now)))
-                .as("같은 slug 가 있으면")
-                .containsExactly("insert blog_posts on conflict returning");
+                .as("같은 slug 가 있으면 0행이라 다시 읽지 않는다")
+                .containsExactly("insert blog_posts on conflict");
         UUID id = jdbc.queryForObject("SELECT id FROM blog_posts", UUID.class);
         row(id(9), "other", "news", "draft", null, now);
 
         assertThat(statementsOf(() -> posts.update(id, draft("counted", "published"), now, now)))
-                .containsExactly("update blog_posts not exists returning");
+                .as("조건부 갱신은 한 문장 그대로이고 RETURNING 대신 다시 읽는다")
+                .containsExactly("update blog_posts not exists", "select blog_posts");
         assertThat(statementsOf(() -> posts.update(id, draft("other", "published"), now, now)))
-                .as("다른 글이 그 slug 를 쓰면")
-                .containsExactly("update blog_posts not exists returning");
+                .as("다른 글이 그 slug 를 쓰면 0행이라 다시 읽지 않는다")
+                .containsExactly("update blog_posts not exists");
         assertThat(statementsOf(() -> posts.published(null, 20))).containsExactly("select blog_posts");
         assertThat(statementsOf(() -> posts.published("news", 20))).containsExactly("select blog_posts");
         assertThat(statementsOf(() -> posts.findPublished("counted"))).containsExactly("select blog_posts");
