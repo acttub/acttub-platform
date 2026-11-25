@@ -20,13 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 한 연습의 복수 대화, 이어하기 체인 셋. 여기서 보는 것은 "무엇이 옮겨졌고 무엇이 왜 남았는가" 와
  * "두 번 돌려도 같은가" 다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "EXIT_SURVEY_SYNC_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PracticeDataMigrationIT {
 
     @Autowired
@@ -142,6 +136,26 @@ class PracticeDataMigrationIT {
                 "SELECT role,text FROM coach_messages ORDER BY turn_index"))
                 .extracting(row -> row.get("role") + ":" + row.get("text"))
                 .containsExactly("ai:무엇이 달라졌나요", "actor:숨이 막혔어요");
+    }
+
+    @Test
+    @DisplayName("practice.coach: 옛 대화의 종료 사유는 새 어휘로 옮긴다 — gap_stated·interrupted 는 exhausted, actor_finished 는 user_ended")
+    void practiceMigration_mapsOldCloseReasonsToTheNewVocabulary() {
+        UUID gap = conversation(session(intent("videos/gap.mp4"), null, "analyzed"), "closed", "gap_stated",
+                "2026-09-01 00:00:00+00");
+        UUID interrupted = conversation(session(intent("videos/cut.mp4"), null, "analyzed"), "closed", "interrupted",
+                "2026-09-01 00:00:00+00");
+        UUID finished = conversation(session(intent("videos/done.mp4"), null, "analyzed"), "closed", "actor_finished",
+                "2026-09-01 00:00:00+00");
+
+        migration.run(50);
+
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM coach_conversations WHERE id=?", String.class, gap))
+                .isEqualTo("exhausted");
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM coach_conversations WHERE id=?", String.class, interrupted))
+                .isEqualTo("exhausted");
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM coach_conversations WHERE id=?", String.class, finished))
+                .isEqualTo("user_ended");
     }
 
     @Test

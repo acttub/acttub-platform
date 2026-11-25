@@ -64,11 +64,6 @@ public class TossBillingGateway implements PgReviewGateway {
         return new TossBillingGateway(secretKey, client(BASE_URL, ISSUE_TIMEOUT), client(BASE_URL, APPROVE_TIMEOUT), true);
     }
 
-    /** 테스트가 가짜 서버가 묶인 클라이언트를 끼운다(테스트 키만). */
-    public TossBillingGateway(Supplier<String> secretKey, RestClient issueHttp, RestClient approveHttp) {
-        this(secretKey, issueHttp, approveHttp, false);
-    }
-
     /** 테스트가 가짜 서버가 묶인 클라이언트를 끼운다. */
     public TossBillingGateway(Supplier<String> secretKey, RestClient issueHttp, RestClient approveHttp, boolean liveAllowed) {
         this.secretKey = secretKey;

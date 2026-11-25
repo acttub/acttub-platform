@@ -1,11 +1,11 @@
 # Airbridge 모바일 설치·실행 계측
 
-Airbridge Expo/React Native SDK를 통해 운영 앱의 설치·실행 이벤트를 수집한다.
+Airbridge Expo/React Native SDK를 통해 운영 앱의 설치·실행 이벤트를 수집한다. 앱은 SDK가 알려 주는 설치 귀속 결과를
+이 기기에서 새로 가입한 계정에만 서버로 한 번 보내고(`lib/signup-attribution.ts`, SOMA-588), 귀속 콜백이 오지 않은 가입은
+기기 ID를 한 번 넘겨 서버가 Airbridge에서 다시 가져오게 한다(`lib/airbridge-device.ts`, SOMA-643).
 기존 Firebase·Meta SDK와 ATT 요청 흐름은 유지한다. 별도의 JS 초기화 호출은 없으며,
-Expo 플러그인이 생성하는 Android/iOS 네이티브 초기화를 사용한다.
-
-이 변경은 SDK 설정만 추가한다. 신규 네이티브 빌드와 기기 검증 전에는
-운영 계측이 연결됐다고 판단하지 않는다. OTA 업데이트만으로 적용할 수 없다.
+Expo 플러그인이 생성하는 Android/iOS 네이티브 초기화를 사용한다. SDK 설정을 바꾸면 OTA 업데이트만으로 적용할 수 없고
+새 네이티브 빌드가 필요하다.
 
 ## 환경과 토큰
 
@@ -30,32 +30,7 @@ S2S Token이나 계정 API Token을 이 변수에 넣어서는 안 된다.
 SDK는 비활성 상태이므로 운영 데이터로 보내지 않는다. 운영 토큰이 없으면
 앱 실행 중이 아니라 설정 평가 단계에서 중단한다.
 
-## 이번 변경 범위
-
-- 설치·실행 이벤트의 SDK 자동 수집
-- 운영 환경의 Meta Install Referrer 공개 App ID 설정
-- 기존 Meta·Firebase 플러그인 및 기존 ATT 요청 유지
-- Airbridge의 ATT 대기 기본값은 덮어쓰지 않음
-
-회원가입·로그인·구매·연습 이벤트, 사용자 ID 전달, Universal/App Links,
-광고 계정 권한 연결, iOS SKAN 인증은 이 변경에 포함하지 않는다.
-
-## 검증
-
-의존성 설치 없이 CI와 같은 명령으로 설정 회귀 테스트를 포함해 실행할 수 있다.
-
-```sh
-node --test tests/airbridge-config.test.mjs
-node --test tests/*.test.mjs
-```
-
-머지 후 실제 연결을 완료하려면 다음 검증이 별도로 필요하다.
-
-1. EAS production 변수 세트에 App SDK Token을 Sensitive로 등록한다.
-2. 개발 네이티브 빌드에서 앱 기동과 기존 로그인·ATT 흐름이 유지되는지 확인한다.
-3. 승인된 운영 내부 배포 빌드에서 Android·iOS 각각 Airbridge 테스트 콘솔의
-   설치·실행 이벤트 수신을 확인한다. 테스트 데이터가 운영 리포트에 남을 수 있음에 유의한다.
-4. 검증 후 별도 승인된 스토어 배포 절차를 따른다.
+## 참고
 
 - SDK 공식 가이드: https://help.airbridge.io/en/developers/expo-sdk-v4
 - EAS 환경변수: https://docs.expo.dev/eas/environment-variables/

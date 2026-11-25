@@ -51,10 +51,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "SITE_URL=https://acttub.test/"
-})
+    "SITE_URL=https://acttub.test/"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, AccountPortfolioIT.StorageFixture.class})
 class AccountPortfolioIT {

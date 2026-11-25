@@ -488,7 +488,24 @@ test('자동 넘김 회차도 화면을 끄거나 다른 앱으로 가면 멈춘
   expect(screen.getByText('이어서')).toBeOnTheScreen();
 });
 
-test('일시정지를 두 번 빠르게 눌러도 같은 자리에 생긴 「그만하기」가 바로 눌리지 않는다(11/1 폰 확인)', async () => {
+test('일시정지하면 일시정지를 누른 쪽(왼쪽)에 「이어서」, 오른쪽에 「그만하기」가 온다(SOMA-1119)', async () => {
+  await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
+  expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
+
+  const before = screen.getAllByRole('button');
+  const pauseAt = before.indexOf(screen.getByRole('button', { name: '일시정지' }));
+  const nextAt = before.indexOf(screen.getByRole('button', { name: '다음' }));
+  expect(pauseAt).toBeLessThan(nextAt);
+
+  await fireEvent.press(screen.getByText('일시정지'));
+  const after = screen.getAllByRole('button');
+  const resumeAt = after.indexOf(screen.getByRole('button', { name: '이어서' }));
+  const stopAt = after.indexOf(screen.getByRole('button', { name: '그만하기' }));
+  expect(resumeAt).toBeGreaterThanOrEqual(0);
+  expect(resumeAt).toBeLessThan(stopAt);
+});
+
+test('일시정지를 두 번 빠르게 눌러도 「그만하기」가 바로 눌리지 않는다(11/1 폰 확인)', async () => {
   await startPlay({ advance: 'timed', record: false }, undefined, { begin: false });
   expect(await screen.findByText('속으로 말해 보세요')).toBeOnTheScreen();
 
@@ -991,10 +1008,62 @@ test('저장한 소리를 못 틀면 기기 목소리로 읽고, 지운 저장�
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', { engine: 'supertonic', kind: 'unknown' });
+  expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', expect.objectContaining({ engine: 'supertonic', kind: 'unknown', reason: 'other', message: 'player crashed' }));
   expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(tts.discardSpeechFile).toHaveBeenCalledWith('file:///speech.wav');
   expect(queue.forget).toHaveBeenCalledWith('file:///speech.wav');
+});
+
+// SOMA-1062 — 원인을 가르려고 실패 기록에 경우·앱 상태·직전 마이크 실패를 싣는다.
+test('저장한 소리를 못 틀면 어느 경우인지·화면 밖이었는지·직전 마이크 실패를 함께 남긴다', async () => {
+  mockMic.start.mockResolvedValue(false);
+  jest.mocked(tts.play).mockRejectedValueOnce(new VoicePrepareError('playback', '재생 실패: not_started'));
+  const state = AppState as unknown as { currentState: unknown };
+  const original = state.currentState;
+  state.currentState = 'background';
+  try {
+    await startPlay();
+    expect(await screen.findByText('말이 들리지 않아요. 다음을 눌러 넘길 수 있어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('다음'));
+    await waitFor(() => expect(logEvent).toHaveBeenCalledWith('reading_line_voice_failed', expect.objectContaining({
+      engine: 'supertonic',
+      kind: 'playback',
+      reason: 'not_started',
+      message: '재생 실패: not_started',
+      app_state: 'background',
+      mic_failed_ms_ago: expect.any(Number),
+    })));
+  } finally {
+    state.currentState = original;
+  }
+});
+
+// SOMA-1062 — 멈춤의 tts.stop() 이 재생을 끝난 것으로 돌려주자 줄이 다음으로 넘어가 화면 밖에서 다음 재생을 시작했다.
+test('상대 줄을 읽다 배경으로 가며 멈추면 넘기지도 다른 목소리로 바꾸지도 않고, 이어서 그 줄을 같은 소리로 다시 읽는다', async () => {
+  let endPlay: () => void = () => undefined;
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>((resolve) => (endPlay = resolve)));
+  // 실제 엔진처럼 멈춤은 읽던 재생을 끝난 것으로 돌려준다.
+  jest.mocked(tts.stop).mockImplementation(() => endPlay());
+  const server = await startPlay(PARTNER_FIRST);
+  await waitFor(() => expect(tts.play).toHaveBeenCalledTimes(1));
+  expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
+
+  await act(async () => appStateListeners.forEach((l) => l('background')));
+  await afterControlsSwap();
+  expect(screen.getByText('이어서')).toBeOnTheScreen();
+  expect(mockMic.start).not.toHaveBeenCalled();
+  expect(speakWithDevice).not.toHaveBeenCalled();
+  expect(tts.speak).not.toHaveBeenCalled();
+  expect(logEvent).not.toHaveBeenCalledWith('reading_line_voice_failed', expect.anything());
+  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ current_line_id: 'l5' }));
+
+  jest.mocked(tts.stop).mockImplementation(() => undefined);
+  jest.mocked(tts.play).mockResolvedValue(undefined);
+  await fireEvent.press(screen.getByText('이어서'));
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.play).toHaveBeenCalledTimes(2);
+  expect(tts.play).toHaveBeenLastCalledWith('file:///speech.wav');
+  expect(speakWithDevice).not.toHaveBeenCalled();
 });
 
 // 11/5 문의 「인원이 많은 대본에서 상대 배역 대사 하나가 씹힌다」 — 목소리 실패를 기록만 하고 넘기던 길을 막는다.
@@ -2469,6 +2538,51 @@ test('「...」뿐인 내 줄은 마이크를 켜지 않고 잠깐 보여 준 �
   const taken = queue.take.mock.calls.map(([item]) => (item as { text: string }).text);
   expect(taken).toEqual(['대답 좀 해.']);
   expect(tts.play).toHaveBeenCalledTimes(1);
+  expect(speakWithDevice).not.toHaveBeenCalled();
+});
+
+// SOMA-951 — 「?」「!」만 있는 줄은 기호를 소리 내 읽지 않는다.
+const MARK_BUNDLE_LINES = [
+  ['scene', '1장 카페'],
+  ['dialogue', '민재', '오늘 왔구나.'],
+  ['dialogue', '서연', '?!'],
+  ['dialogue', '서연', '정말이야?'],
+  ['dialogue', '민재', '괜찮아.'],
+] as Parameters<typeof scriptDetail>[0];
+
+test('SOMA-951: 묶인 상대 대사에 기호만 있는 줄이 섞이면 그 줄은 소리를 만들지도 읽지도 않고 나머지 줄만 읽는다', async () => {
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l5' }, scriptDetail(MARK_BUNDLE_LINES));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(screen.getByText('?!')).toBeOnTheScreen();
+  const taken = queue.take.mock.calls.map(([item]) => (item as { text: string }).text);
+  expect(taken).toEqual(['정말이야?']);
+  for (const [items] of queue.prime.mock.calls) {
+    expect((items as { text: string }[]).map((i) => i.text)).not.toContain('?!');
+  }
+  expect(tts.speak).not.toHaveBeenCalledWith('?!', expect.anything(), expect.anything());
+});
+
+test('SOMA-951: 기기 목소리도 묶인 대사의 기호만 있는 줄은 읽지 않는다', async () => {
+  await AsyncStorage.setItem('acttub.reading.appVoiceUnsupported', 'noticed');
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l5' }, scriptDetail(MARK_BUNDLE_LINES));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(jest.mocked(speakWithDevice).mock.calls.map(([text]) => text)).toEqual(['정말이야?']);
+});
+
+test('SOMA-951: 기기 목소리에서 「!」뿐인 상대 줄은 목소리 없이 잠깐 쉬었다가 내 차례로 넘어간다', async () => {
+  await AsyncStorage.setItem('acttub.reading.appVoiceUnsupported', 'noticed');
+  const detail = scriptDetail([
+    ['scene', '1장 카페'],
+    ['dialogue', '민재', '오늘 왔구나.'],
+    ['dialogue', '서연', '!'],
+    ['dialogue', '민재', '괜찮아.'],
+  ]);
+  await startPlay({ start_line_id: 'l3', end_line_id: 'l4' }, detail);
+
+  expect(await screen.findByText(ME, {}, { timeout: 3000 })).toBeOnTheScreen();
+  expect(screen.getByText('!')).toBeOnTheScreen();
   expect(speakWithDevice).not.toHaveBeenCalled();
 });
 

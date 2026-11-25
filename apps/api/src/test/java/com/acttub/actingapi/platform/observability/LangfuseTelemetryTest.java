@@ -68,7 +68,7 @@ class LangfuseTelemetryTest {
     void geminiCoachTokensUseThePricedUsageKeys() throws Exception {
         LlmCall coach = new LlmCall(LlmStep.COACH_TURN, PRACTICE, USER, "gemini-3-flash-preview", "입력", "답",
                 LlmTokens.of(190, 30, 220), STARTED, Duration.ofSeconds(2), null, Map.of());
-        JsonNode span = telemetry(enabledEnvironment()).tracePayload(coach)
+        JsonNode span = telemetry(enabledEnvironment()).tracePayload(coach, null)
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
         Map<String, String> attributes = attributes(span);
         assertThat(attributes).containsEntry("langfuse.observation.model.name", "gemini-3-flash-preview");
@@ -81,7 +81,7 @@ class LangfuseTelemetryTest {
     void geminiCachedTokensGoToTheirOwnUsageKey() throws Exception {
         LlmCall coach = new LlmCall(LlmStep.COACH_TURN, PRACTICE, USER, "gemini-3-flash-preview", "입력", "답",
                 LlmTokens.of(9000, 30, 9030, 7000), STARTED, Duration.ofSeconds(2), null, Map.of());
-        JsonNode span = telemetry(enabledEnvironment()).tracePayload(coach)
+        JsonNode span = telemetry(enabledEnvironment()).tracePayload(coach, null)
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
         assertThat(MAPPER.readTree(attributes(span).get("langfuse.observation.usage_details")))
                 .isEqualTo(MAPPER.readTree("{\"input\":9000,\"output\":30,\"total\":9030,\"input_cached\":7000}"));
@@ -94,7 +94,7 @@ class LangfuseTelemetryTest {
                 "LANGFUSE_HOST", "http://langfuse-web:3000",
                 "LANGFUSE_PUBLIC_KEY", "pk",
                 "LANGFUSE_SECRET_KEY", "sk"))
-                .tracePayload(call(LlmStep.COACH_TURN, null));
+                .tracePayload(call(LlmStep.COACH_TURN, null), null);
 
         JsonNode span = payload.path("resourceSpans").path(0)
                 .path("scopeSpans").path(0).path("spans").path(0);
@@ -128,7 +128,7 @@ class LangfuseTelemetryTest {
     @DisplayName("실패한 호출은 ERROR 상태로 남는다")
     void failedCallCarriesErrorStatus() {
         JsonNode span = telemetry(enabledEnvironment())
-                .tracePayload(call(LlmStep.OBSERVATION, "타임아웃"))
+                .tracePayload(call(LlmStep.OBSERVATION, "타임아웃"), null)
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
 
         assertThat(LenientJson.asInt(span.path("status").path("code"))).isEqualTo(2);
@@ -143,9 +143,9 @@ class LangfuseTelemetryTest {
                 LlmStep.SCRIPT_REVIEW, PRACTICE, null, "typesafe/jev-1.14-20261014",
                 "질문", "", LlmTokens.of(373, 31, 404), STARTED, Duration.ofMillis(10), null, Map.of());
 
-        Map<String, String> priced = attributes(telemetry(enabledEnvironment()).tracePayload(call.withCost(0.000015666))
+        Map<String, String> priced = attributes(telemetry(enabledEnvironment()).tracePayload(call.withCost(0.000015666), null)
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
-        Map<String, String> unpriced = attributes(telemetry(enabledEnvironment()).tracePayload(call)
+        Map<String, String> unpriced = attributes(telemetry(enabledEnvironment()).tracePayload(call, null)
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
 
         assertThat(LenientJson.asDouble(MAPPER.readTree(priced.get("langfuse.observation.cost_details")).path("total"))).isEqualTo(0.000015666);
@@ -161,7 +161,7 @@ class LangfuseTelemetryTest {
                 "입력", "출력", LlmTokens.unknown(), STARTED, Duration.ofMillis(10), null, Map.of());
 
         Map<String, String> attributes = attributes(telemetry(enabledEnvironment())
-                .tracePayload(call)
+                .tracePayload(call, null)
                 .path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0));
 
         assertThat(attributes).doesNotContainKey("langfuse.observation.usage_details");
@@ -341,7 +341,7 @@ class LangfuseTelemetryTest {
     @DisplayName("실행 환경을 정하면 기록 전체에 그 이름이 붙는다")
     void tracingEnvironmentIsAttachedToTheResource() {
         JsonNode resource = resource(telemetry(environmentWith("production"))
-                .tracePayload(call(LlmStep.COACH_TURN, null)));
+                .tracePayload(call(LlmStep.COACH_TURN, null), null));
 
         assertThat(attributes(resource))
                 .containsEntry("service.name", "acttub-api")
@@ -352,7 +352,7 @@ class LangfuseTelemetryTest {
     @DisplayName("실행 환경을 안 정하면 환경 속성을 만들지 않는다")
     void missingTracingEnvironmentLeavesTheResourceAlone() {
         JsonNode resource = resource(telemetry(enabledEnvironment())
-                .tracePayload(call(LlmStep.COACH_TURN, null)));
+                .tracePayload(call(LlmStep.COACH_TURN, null), null));
 
         assertThat(attributes(resource)).containsOnlyKeys("service.name");
     }
@@ -373,7 +373,7 @@ class LangfuseTelemetryTest {
 
         for (String value : invalid) {
             JsonNode payload = telemetry(environmentWith(value))
-                    .tracePayload(call(LlmStep.COACH_TURN, null));
+                    .tracePayload(call(LlmStep.COACH_TURN, null), null);
 
             assertThat(attributes(resource(payload))).as(value).containsOnlyKeys("service.name");
             assertThat(LenientJson.asText(payload.path("resourceSpans").path(0).path("scopeSpans").path(0)

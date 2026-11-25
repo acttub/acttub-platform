@@ -155,6 +155,34 @@ public interface ConversationRepository {
             boolean fallback,
             long sourceRevision,
             JsonNode legacyReport) {
+
+        /** 기존 갈래(legacy) 노트. 종류와 응답 모양을 현행 그대로 두고 원문 보고서를 보존한다. */
+        static NewNote legacy(String kind, String title, long sourceRevision, JsonNode report) {
+            return new NewNote("legacy", kind, title, emptyArray(), null, emptyArray(), emptyArray(), emptyArray(), false,
+                    sourceRevision, report);
+        }
+
+        /** 3층 노트(v2). 배우 말·정정·태그는 비고, 폴백이 아니며, 원문 보고서가 없다. 다른 칸은 {@code with…}로 채운다. */
+        static NewNote threeLayers(String kind, String title, JsonNode summaryQuotes, String nextTake, long sourceRevision) {
+            return new NewNote("v2", kind, title, summaryQuotes, nextTake, emptyArray(), emptyArray(), emptyArray(), false,
+                    sourceRevision, null);
+        }
+
+        /** 배우가 아니라고 한 것(정정·반박). */
+        NewNote withCorrections(JsonNode value) {
+            return new NewNote(format, kind, title, summaryQuotes, nextTake, actorWords, value, tags, fallback, sourceRevision,
+                    legacyReport);
+        }
+
+        /** 노트를 만든 보고서 원문과, 확인된 것만 담은 폴백인지. */
+        NewNote withReport(JsonNode report, boolean isFallback) {
+            return new NewNote(format, kind, title, summaryQuotes, nextTake, actorWords, corrections, tags, isFallback,
+                    sourceRevision, report);
+        }
+
+        private static JsonNode emptyArray() {
+            return tools.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
+        }
     }
 
     /** 노트 하나. 없으면 {@code null}. */

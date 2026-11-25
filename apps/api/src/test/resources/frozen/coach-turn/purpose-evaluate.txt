@@ -1,0 +1,816 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] inspect · main
+  파일: 임시 파일 «original video bytes»
+  ← InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+[2] upload/3 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+[3] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  ← true
+[4] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/evaluate/first.txt⟫
+  ← «<설계>⏎영상: 연기⏎관찰 근거: 화면·음성⏎대사 확인: 확인됨⏎대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"⏎장면: 이별 직후 | 헬레네 | 연인⏎버릇: "취소해"에서 화내는 사람처럼 들려요⏎</설계>⏎<코치>⏎"가르쳐 줘"까지는 붙잡는 게 보였어요.⏎끝에서 화내는 쪽으로 가요.⏎</코치>⏎<카드>⏎잘 된 곳: 0:03 "가르쳐 줘"에서 붙잡는 마음이 보여요⏎아쉬운 곳: 0:12 "취소해"에서 화내는 쪽으로 들려요⏎다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요⏎</카드>»
+[5] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.evaluate
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/evaluate/first.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:evaluate
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=840
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |[]
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |"가르쳐 줘"까지는 붙잡는 게 보였어요.
+  |끝에서 화내는 쪽으로 가요.
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "영상: 연기\n관찰 근거: 화면·음성\n대사 확인: 확인됨\n대사 시간: 0:03 \"가르쳐 줘\" / 0:12 \"취소해\"\n장면: 이별 직후 | 헬레네 | 연인\n버릇: \"취소해\"에서 화내는 사람처럼 들려요",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "evaluate",
+  |    "step" : 0,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 0,
+  |    "scene" : {
+  |      "situation" : "이별 직후",
+  |      "character" : "헬레네",
+  |      "partner" : "연인"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "card" : {
+  |      "good" : {
+  |        "at" : 3,
+  |        "text" : "\"가르쳐 줘\"에서 붙잡는 마음이 보여요"
+  |      },
+  |      "issue" : {
+  |        "at" : 12,
+  |        "text" : "\"취소해\"에서 화내는 쪽으로 들려요"
+  |      },
+  |      "next" : {
+  |        "at" : null,
+  |        "text" : "\"취소해\"에서 붙잡듯 말해 봐도 좋아요"
+  |      }
+  |    },
+  |    "choices" : [ {
+  |      "label" : "코치와 같이 고치기",
+  |      "at" : null
+  |    }, {
+  |      "label" : "다른 것도 봐 주세요",
+  |      "at" : null
+  |    } ]
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=evaluate, step=card, choices=[Choice[label=코치와 같이 고치기, at=null], Choice[label=다른 것도 봐 주세요, at=null]], scene=Scene[situation=이별 직후, character=헬레네, partner=연인], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=Card[good=CardItem[at=3, text="가르쳐 줘"에서 붙잡는 마음이 보여요], issue=CardItem[at=12, text="취소해"에서 화내는 쪽으로 들려요], next=CardItem[at=null, text="취소해"에서 붙잡듯 말해 봐도 좋아요]], characterCard=null]
+화면의 예시 답: []
+
+## 차례 2
+배우 말: 다른 것도 봐 주세요
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 이별 직후 | 헬레네 | 연인
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |</설계>
+      |<코치>
+      |"가르쳐 줘"까지는 붙잡는 게 보였어요.
+      |끝에서 화내는 쪽으로 가요.
+      |</코치>
+    [user]
+      |다른 것도 봐 주세요
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 평가 받기
+    |이번 응답이 하는 단계: 결과 카드
+    |⟪direct-video/purpose/evaluate/another.txt⟫
+    |
+    |⟪direct-video/purpose/evaluate/path.txt⟫
+    |
+    |재료
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 이별 직후 | 헬레네 | 연인
+    |- 지금 결과 카드: {"good":{"at":3,"text":"\"가르쳐 줘\"에서 붙잡는 마음이 보여요"},"issue":{"at":12,"text":"\"취소해\"에서 화내는 쪽으로 들려요"},"next":{"at":null,"text":"\"취소해\"에서 붙잡듯 말해 봐도 좋아요"}}
+    |- 직전에 내준 버튼: [{"label":"코치와 같이 고치기","at":null},{"label":"다른 것도 봐 주세요","at":null}]
+    |- 배우가 방금 한 말: 다른 것도 봐 주세요 (버튼을 눌렀다)
+  ← «"가지 마"에서도 붙잡는 게 보였어요.⏎<카드>⏎잘 된 곳: 0:03 "가르쳐 줘"에서 붙잡는 마음이 보여요⏎아쉬운 곳: 0:08 "가지 마"에서 끝이 흐려져요⏎다음 테이크: "가지 마"를 또렷하게 끝내 봐도 좋아요⏎</카드>»
+[4] delete · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:evaluate:another
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=1680
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |"가지 마"에서도 붙잡는 게 보였어요.
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: evaluate\n배우의 말: 버튼\n단계: card\n할 일: another\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "evaluate",
+  |    "step" : 0,
+  |    "stays" : 1,
+  |    "cells" : 0,
+  |    "questions" : 1,
+  |    "scene" : {
+  |      "situation" : "이별 직후",
+  |      "character" : "헬레네",
+  |      "partner" : "연인"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "card" : {
+  |      "good" : {
+  |        "at" : 3,
+  |        "text" : "\"가르쳐 줘\"에서 붙잡는 마음이 보여요"
+  |      },
+  |      "issue" : {
+  |        "at" : 8,
+  |        "text" : "\"가지 마\"에서 끝이 흐려져요"
+  |      },
+  |      "next" : {
+  |        "at" : null,
+  |        "text" : "\"가지 마\"를 또렷하게 끝내 봐도 좋아요"
+  |      }
+  |    },
+  |    "choices" : [ {
+  |      "label" : "코치와 같이 고치기",
+  |      "at" : null
+  |    } ],
+  |    "another" : 1
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=evaluate, step=card, choices=[Choice[label=코치와 같이 고치기, at=null]], scene=Scene[situation=이별 직후, character=헬레네, partner=연인], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=Card[good=CardItem[at=3, text="가르쳐 줘"에서 붙잡는 마음이 보여요], issue=CardItem[at=8, text="가지 마"에서 끝이 흐려져요], next=CardItem[at=null, text="가지 마"를 또렷하게 끝내 봐도 좋아요]], characterCard=null]
+화면의 예시 답: []
+
+## 차례 3
+배우 말: 코치와 같이 고치기
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 이별 직후 | 헬레네 | 연인
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |</설계>
+      |<코치>
+      |"가르쳐 줘"까지는 붙잡는 게 보였어요.
+      |끝에서 화내는 쪽으로 가요.
+      |</코치>
+    [user]
+      |다른 것도 봐 주세요
+    [model]
+      |"가지 마"에서도 붙잡는 게 보였어요.
+    [user]
+      |코치와 같이 고치기
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 평가 받기
+    |이번 응답이 하는 단계: 방법 고르기
+    |⟪direct-video/purpose/common/method.txt⟫
+    |
+    |⟪direct-video/purpose/evaluate/path.txt⟫
+    |
+    |재료
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 이별 직후 | 헬레네 | 연인
+    |- 지금 결과 카드: {"good":{"at":3,"text":"\"가르쳐 줘\"에서 붙잡는 마음이 보여요"},"issue":{"at":8,"text":"\"가지 마\"에서 끝이 흐려져요"},"next":{"at":null,"text":"\"가지 마\"를 또렷하게 끝내 봐도 좋아요"}}
+    |- 직전에 내준 버튼: [{"label":"코치와 같이 고치기","at":null}]
+    |- 배우가 방금 한 말: 코치와 같이 고치기 (버튼을 눌렀다)
+  ← «어떻게 고쳐 볼지 골라 봐요.⏎<보기>⏎- 0:12 상대를 붙잡듯 말하기⏎- 끝을 짧게 끊기⏎</보기>»
+[4] delete · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:evaluate:method
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=2520
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 3
+코치 말:
+  |어떻게 고쳐 볼지 골라 봐요.
+저장 상태:
+  |{
+  |  "revision" : 3,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: evaluate\n배우의 말: 버튼\n단계: card\n할 일: another\n다음 테이크: 없음", "목적: evaluate\n배우의 말: 버튼\n단계: method\n할 일: method\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "evaluate",
+  |    "step" : 1,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "scene" : {
+  |      "situation" : "이별 직후",
+  |      "character" : "헬레네",
+  |      "partner" : "연인"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "card" : {
+  |      "good" : {
+  |        "at" : 3,
+  |        "text" : "\"가르쳐 줘\"에서 붙잡는 마음이 보여요"
+  |      },
+  |      "issue" : {
+  |        "at" : 8,
+  |        "text" : "\"가지 마\"에서 끝이 흐려져요"
+  |      },
+  |      "next" : {
+  |        "at" : null,
+  |        "text" : "\"가지 마\"를 또렷하게 끝내 봐도 좋아요"
+  |      }
+  |    },
+  |    "choices" : [ {
+  |      "label" : "상대를 붙잡듯 말하기",
+  |      "at" : null
+  |    }, {
+  |      "label" : "끝을 짧게 끊기",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ],
+  |    "another" : 1
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=evaluate, step=method, choices=[Choice[label=상대를 붙잡듯 말하기, at=null], Choice[label=끝을 짧게 끊기, at=null], Choice[label=잘 모르겠어요, at=null]], scene=Scene[situation=이별 직후, character=헬레네, partner=연인], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=Card[good=CardItem[at=3, text="가르쳐 줘"에서 붙잡는 마음이 보여요], issue=CardItem[at=8, text="가지 마"에서 끝이 흐려져요], next=CardItem[at=null, text="가지 마"를 또렷하게 끝내 봐도 좋아요]], characterCard=null]
+화면의 예시 답: []
+
+## 차례 4
+배우 말: 0:12 상대를 붙잡듯 말하기
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 화면·음성
+      |대사 확인: 확인됨
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |장면: 이별 직후 | 헬레네 | 연인
+      |버릇: "취소해"에서 화내는 사람처럼 들려요
+      |</설계>
+      |<코치>
+      |"가르쳐 줘"까지는 붙잡는 게 보였어요.
+      |끝에서 화내는 쪽으로 가요.
+      |</코치>
+    [user]
+      |다른 것도 봐 주세요
+    [model]
+      |"가지 마"에서도 붙잡는 게 보였어요.
+    [user]
+      |코치와 같이 고치기
+    [model]
+      |어떻게 고쳐 볼지 골라 봐요.
+    [user]
+      |0:12 상대를 붙잡듯 말하기
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 평가 받기
+    |이번 응답이 하는 단계: 정리
+    |⟪direct-video/purpose/evaluate/wrap.txt⟫
+    |
+    |⟪direct-video/purpose/evaluate/path.txt⟫
+    |
+    |재료
+    |- 배우가 「방법 고르기」 질문에 한 답: 0:12 상대를 붙잡듯 말하기
+    |- 장면(AI가 본 것, 배우가 고쳤으면 고친 것): 이별 직후 | 헬레네 | 연인
+    |- 지금 결과 카드: {"good":{"at":3,"text":"\"가르쳐 줘\"에서 붙잡는 마음이 보여요"},"issue":{"at":8,"text":"\"가지 마\"에서 끝이 흐려져요"},"next":{"at":null,"text":"\"가지 마\"를 또렷하게 끝내 봐도 좋아요"}}
+    |- 직전에 내준 버튼: [{"label":"상대를 붙잡듯 말하기","at":null},{"label":"끝을 짧게 끊기","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방금 한 말: 0:12 상대를 붙잡듯 말하기 (버튼을 눌렀다)
+  ← «<다음 테이크>"취소해"에서 상대를 붙잡듯 말해 봐도 좋아요</다음 테이크>⏎"취소해"에서 상대를 붙잡듯 말해 봐도 좋아요. 그러면 화보다 매달림이 보여요. 어때요?⏎<카드>⏎잘 된 곳: 0:03 "가르쳐 줘"에서 붙잡는 마음이 보여요⏎아쉬운 곳: 0:12 "취소해"에서 화내는 쪽으로 들려요⏎다음 테이크: "취소해"에서 붙잡듯 말해 봐도 좋아요⏎</카드>»
+[4] delete · main
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:evaluate:wrap
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=3360
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: interrupted · 판: 4
+코치 말:
+  |"취소해"에서 상대를 붙잡듯 말해 봐도 좋아요.
+  |그러면 화보다 매달림이 보여요.
+저장 상태:
+  |{
+  |  "revision" : 4,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: evaluate\n배우의 말: 버튼\n단계: card\n할 일: another\n다음 테이크: 없음", "목적: evaluate\n배우의 말: 버튼\n단계: method\n할 일: method\n다음 테이크: 없음", "목적: evaluate\n배우의 말: 버튼\n단계: wrap\n할 일: 정리하기\n다음 테이크: \"취소해\"에서 상대를 붙잡듯 말해 봐도 좋아요" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "evaluate",
+  |    "step" : 2,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 2,
+  |    "scene" : {
+  |      "situation" : "이별 직후",
+  |      "character" : "헬레네",
+  |      "partner" : "연인"
+  |    },
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "card" : {
+  |      "good" : {
+  |        "at" : 3,
+  |        "text" : "\"가르쳐 줘\"에서 붙잡는 마음이 보여요"
+  |      },
+  |      "issue" : {
+  |        "at" : 12,
+  |        "text" : "\"취소해\"에서 화내는 쪽으로 들려요"
+  |      },
+  |      "next" : {
+  |        "at" : null,
+  |        "text" : "\"취소해\"에서 상대를 붙잡듯 말해 봐도 좋아요"
+  |      }
+  |    },
+  |    "choices" : [ ],
+  |    "another" : 1,
+  |    "answers" : {
+  |      "method" : "0:12 상대를 붙잡듯 말하기"
+  |    }
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 4,
+  |  "end_reason" : "interrupted",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "\"가르쳐 줘\"까지는 붙잡는 게 보였어요.\n끝에서 화내는 쪽으로 가요."
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "다른 것도 봐 주세요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "\"가지 마\"에서도 붙잡는 게 보였어요."
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "role" : "actor",
+  |    "text" : "코치와 같이 고치기"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "role" : "ai",
+  |    "text" : "어떻게 고쳐 볼지 골라 봐요."
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:5",
+  |    "role" : "actor",
+  |    "text" : "0:12 상대를 붙잡듯 말하기"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:6",
+  |    "role" : "ai",
+  |    "text" : "\"취소해\"에서 상대를 붙잡듯 말해 봐도 좋아요.\n그러면 화보다 매달림이 보여요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가르쳐 줘\"까지는 붙잡는 게 보였어요.\n끝에서 화내는 쪽으로 가요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "다른 것도 봐 주세요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가지 마\"에서도 붙잡는 게 보였어요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "kind" : "actor_message",
+  |    "text" : "코치와 같이 고치기",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "kind" : "coach_message",
+  |    "text" : "어떻게 고쳐 볼지 골라 봐요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:5",
+  |    "kind" : "actor_message",
+  |    "text" : "0:12 상대를 붙잡듯 말하기",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:6",
+  |    "kind" : "coach_message",
+  |    "text" : "\"취소해\"에서 상대를 붙잡듯 말해 봐도 좋아요.\n그러면 화보다 매달림이 보여요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: PurposeView[purpose=evaluate, step=wrap, choices=[], scene=Scene[situation=이별 직후, character=헬레네, partner=연인], lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=Card[good=CardItem[at=3, text="가르쳐 줘"에서 붙잡는 마음이 보여요], issue=CardItem[at=12, text="취소해"에서 화내는 쪽으로 들려요], next=CardItem[at=null, text="취소해"에서 상대를 붙잡듯 말해 봐도 좋아요]], characterCard=null]
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title="취소해"에서 화내는 사람처럼 들려요, summaryQuotes=[{"quote":"\"취소해\"에서 화내는 사람처럼 들려요","kind":"observation","source_ref":"turn:00000000-0000-4000-8000-000000000001:0"},{"quote":"0:12 상대를 붙잡듯 말하기","kind":"actor","source_ref":"turn:00000000-0000-4000-8000-000000000001:5"}], nextTake="취소해"에서 상대를 붙잡듯 말해 봐도 좋아요, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=4, legacyReport=null]

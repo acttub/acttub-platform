@@ -14,6 +14,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.coach.adapter.db.CoachStorageFixtures;
 import com.acttub.actingapi.feature.coach.app.CoachVideoSource;
+import com.acttub.actingapi.feature.coach.app.TestDirectVideoCoach;
 import com.acttub.actingapi.feature.coach.app.DirectVideoCoach;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
@@ -41,7 +42,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 새 저장소·HTTP·프로필을 실제로 연결하고 외부 영상/모델 경계만 대체한다. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(DirectVideoPracticeIT.Fixture.class)
 class DirectVideoPracticeIT {
@@ -237,7 +238,7 @@ class DirectVideoPracticeIT {
         @Bean @Primary RecordingLlmTelemetry recordingTelemetry() { return new RecordingLlmTelemetry(); }
         @Bean DirectVideoCoach directVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
                 FailureReporter failures, RecordingLlmTelemetry telemetry) {
-            return new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
+            return TestDirectVideoCoach.of(model, videos, storage, failures, telemetry).build();
         }
     }
 }

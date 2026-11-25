@@ -52,20 +52,6 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
-    public int coachingSessionsSince(UUID userId, Instant since) {
-        return transaction.execute(tx -> ((Number) entityManager.createNativeQuery(
-                // 지운 연습(SOMA-985)도 쓴 횟수에 든다.
-                """
-                SELECT (SELECT count(*) FROM practices WHERE user_id=:userId AND created_at>=CAST(:since AS timestamptz))
-                     + (SELECT count(*) FROM practice_deletion_marks
-                        WHERE user_id=:userId AND practice_created_at>=CAST(:since AS timestamptz))
-                """)
-                .setParameter("userId", userId)
-                .setParameter("since", at(since))
-                .getSingleResult()).intValue());
-    }
-
-    @Override
     public Optional<String> displayName(UUID userId) {
         return transaction.execute(tx -> {
             var rows = entityManager.createNativeQuery("""
@@ -158,14 +144,6 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
-    public int scriptCount(UUID userId) {
-        return transaction.execute(tx -> ((Number) entityManager.createNativeQuery(
-                "SELECT count(*) FROM scripts WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .getSingleResult()).intValue());
-    }
-
-    @Override
     public void openCheckout(Checkout checkout) {
         transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
                 INSERT INTO billing_checkouts(id,user_id,state_hash,purpose,customer_key,order_id,status,expires_at,plan)
@@ -219,24 +197,29 @@ class PostgresBillingRepository implements BillingRepository {
     @Override
     public UUID saveCard(UUID userId, String customerKey, String sealedBillingKey, String cardCompany,
             String cardNumber, Instant now) {
-        return transaction.execute(tx -> NativeTuples.list(entityManager.createNativeQuery("""
-                INSERT INTO billing_subscriptions(id,user_id,status,provider,customer_key,billing_key,card_company,card_number,amount,
-                                                  created_at,updated_at)
-                VALUES (:id,:userId,'expired','toss',:customerKey,:billingKey,:company,:number,:amount,
-                        CAST(:now AS timestamptz),CAST(:now AS timestamptz))
-                ON CONFLICT (user_id) DO UPDATE SET provider='toss', store_product_id=NULL, store_transaction_id=NULL,
-                    billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
-                    card_number=EXCLUDED.card_number, customer_key=EXCLUDED.customer_key, updated_at=EXCLUDED.updated_at
-                RETURNING id
-                """, Tuple.class)
-                .setParameter("id", UUID.randomUUID())
-                .setParameter("userId", userId)
-                .setParameter("customerKey", customerKey)
-                .setParameter("billingKey", sealedBillingKey)
-                .setParameter("company", cardCompany)
-                .setParameter("number", cardNumber)
-                .setParameter("amount", (int) BillingRules.AMOUNT)
-                .setParameter("now", at(now))).get(0).get("id", UUID.class));
+        return transaction.execute(tx -> {
+            if (!lockActiveUser(userId)) {
+                return null;
+            }
+            return NativeTuples.list(entityManager.createNativeQuery("""
+                    INSERT INTO billing_subscriptions(id,user_id,status,provider,customer_key,billing_key,card_company,card_number,amount,
+                                                      created_at,updated_at)
+                    VALUES (:id,:userId,'expired','toss',:customerKey,:billingKey,:company,:number,:amount,
+                            CAST(:now AS timestamptz),CAST(:now AS timestamptz))
+                    ON CONFLICT (user_id) DO UPDATE SET provider='toss', store_product_id=NULL, store_transaction_id=NULL,
+                        billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
+                        card_number=EXCLUDED.card_number, customer_key=EXCLUDED.customer_key, updated_at=EXCLUDED.updated_at
+                    RETURNING id
+                    """, Tuple.class)
+                    .setParameter("id", UUID.randomUUID())
+                    .setParameter("userId", userId)
+                    .setParameter("customerKey", customerKey)
+                    .setParameter("billingKey", sealedBillingKey)
+                    .setParameter("company", cardCompany)
+                    .setParameter("number", cardNumber)
+                    .setParameter("amount", (int) BillingRules.AMOUNT)
+                    .setParameter("now", at(now))).get(0).get("id", UUID.class);
+        });
     }
 
     @Override
@@ -253,13 +236,30 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
-    public void activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now) {
-        update("""
-                UPDATE billing_subscriptions SET status='active', current_period_start=CAST(:start AS timestamptz),
-                    current_period_end=CAST(:end AS timestamptz), canceled_at=NULL, retry_count=0, next_retry_at=NULL,
-                    updated_at=CAST(:now AS timestamptz)
-                WHERE id=:id
-                """, subscriptionId, periodStart, periodEnd, now);
+    public boolean activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now) {
+        return transaction.execute(tx -> {
+            UUID userId = (UUID) entityManager.createNativeQuery("SELECT user_id FROM billing_subscriptions WHERE id=:id")
+                    .setParameter("id", subscriptionId)
+                    .getSingleResult();
+            if (!lockActiveUser(userId)) {
+                return false;
+            }
+            update("""
+                    UPDATE billing_subscriptions SET status='active', current_period_start=CAST(:start AS timestamptz),
+                        current_period_end=CAST(:end AS timestamptz), canceled_at=NULL, retry_count=0, next_retry_at=NULL,
+                        updated_at=CAST(:now AS timestamptz)
+                    WHERE id=:id
+                    """, subscriptionId, periodStart, periodEnd, now);
+            return true;
+        });
+    }
+
+    /** 탈퇴와 같은 users 행을 잡고 아직 활성인지 본다 — 탈퇴가 먼저 끝났으면 쓰지 않는다(CONTRACT 32, common 「탈퇴와 겹친 쓰기」). */
+    private boolean lockActiveUser(UUID userId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
+                        "SELECT status FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
+                .setParameter("userId", userId));
+        return !rows.isEmpty() && "active".equals(rows.getFirst().get("status", String.class));
     }
 
     @Override
@@ -306,6 +306,17 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
+    public void dropUnpaidKey(UUID subscriptionId, Instant now) {
+        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
+                UPDATE billing_subscriptions SET billing_key=NULL, updated_at=CAST(:now AS timestamptz)
+                WHERE id=:id AND status='expired' AND billing_key IS NOT NULL
+                """)
+                .setParameter("now", at(now))
+                .setParameter("id", subscriptionId)
+                .executeUpdate());
+    }
+
+    @Override
     public boolean cancel(UUID subscriptionId, Instant now) {
         Integer updated = transaction.execute(tx -> entityManager.createNativeQuery("""
                 UPDATE billing_subscriptions SET status='canceled', canceled_at=CAST(:now AS timestamptz),
@@ -330,7 +341,7 @@ class PostgresBillingRepository implements BillingRepository {
                       AND (s.lease_until IS NULL OR s.lease_until < CAST(:now AS timestamptz))
                       -- 결과를 모르는 결제가 있으면 그 결제를 먼저 확인한다(같은 키로 다시 묻는 쪽이 맡는다).
                       AND NOT EXISTS (SELECT 1 FROM billing_payments p
-                                      WHERE p.subscription_id=s.id AND p.status IN ('pending','unknown'))
+                                      WHERE p.subscription_id=s.id AND p.status NOT IN ('done','failed'))
                     ORDER BY s.current_period_end
                     LIMIT 1
                     FOR UPDATE OF s SKIP LOCKED)
@@ -380,7 +391,7 @@ class PostgresBillingRepository implements BillingRepository {
     @Override
     public boolean hasUnresolvedPayment(UUID userId) {
         return transaction.execute(tx -> ((Number) entityManager.createNativeQuery(
-                "SELECT count(*) FROM billing_payments WHERE user_id=:userId AND status IN ('pending','unknown')")
+                "SELECT count(*) FROM billing_payments WHERE user_id=:userId AND status NOT IN ('done','failed')")
                 .setParameter("userId", userId)
                 .getSingleResult()).intValue() > 0);
     }
@@ -417,7 +428,7 @@ class PostgresBillingRepository implements BillingRepository {
                 UPDATE billing_payments SET check_count=check_count+1, updated_at=CAST(:now AS timestamptz)
                 WHERE id = (
                     SELECT id FROM billing_payments
-                    WHERE status IN ('unknown','pending') AND updated_at < CAST(:quiet AS timestamptz)
+                    WHERE status NOT IN ('done','failed') AND updated_at < CAST(:quiet AS timestamptz)
                       AND check_count < :maxChecks
                     ORDER BY updated_at
                     LIMIT 1

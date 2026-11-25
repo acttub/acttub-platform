@@ -43,10 +43,6 @@ public class ScriptService {
     private final Clock clock;
     private final ScriptPlan plan;
 
-    public ScriptService(ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock) {
-        this(scripts, cleanup, canonical, clock, ScriptPlan.UNLIMITED);
-    }
-
     public ScriptService(ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock,
             ScriptPlan plan) {
         this.plan = plan;

@@ -210,10 +210,6 @@ public final class PronunciationRules {
     /** 줄을 쓰는 근거. {@code TRANSCRIPT}: 받아쓰기가 대본과 닮음. {@code AUDIO}: 받아쓰기는 다르지만 들은 소리가 대본과 같음. */
     enum Use { NO, TRANSCRIPT, AUDIO }
 
-    static boolean usable(LineInput line) {
-        return use(line) != Use.NO;
-    }
-
     static Use use(LineInput line) {
         String heard = line.transcript() == null ? "" : clean(line.transcript());
         if (heard.isEmpty()) {
@@ -334,12 +330,6 @@ public final class PronunciationRules {
 
     /** 들린 대로 읽은 말과 짚은 소리가 든 음절(소리 나는 대로), 그 음절의 받침 뺀 소리, 소리 자리. */
     record Heard(String word, String syllable, String open, PronunciationAdvice.Slot slot) {
-    }
-
-    /** {@link #heard} 의 들린 말만. */
-    static String heardWord(Word word, Phone target) {
-        Heard heard = heard(word, target);
-        return heard == null ? null : heard.word();
     }
 
     /**

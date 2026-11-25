@@ -2,7 +2,7 @@
 
 세 앱의 폴더 배치와 api 층 규칙의 정본이고, 데이터가 지나는 길을 한 번에 보는 지도다. 앱 안의 규칙은 각 앱의
 CLAUDE.md, 기능 행동은 [스펙](specs/README.md), API·DB 구현은 [CONTRACT](../apps/api/CONTRACT.md)가 정본이라
-여기서는 링크만 건다. 개수와 경로는 2026-09-29 트리 기준이다.
+여기서는 링크만 건다. 폴더 안의 실제 목록은 트리가 정본이다.
 
 ## 디렉토리 구조
 
@@ -11,17 +11,18 @@ apps/
 ├── web/                  Next.js 화면 (pnpm 워크스페이스)
 │   └── src/
 │       ├── app/          라우트
-│       ├── features/     화면 단위 기능 14개 (workspace·practice·reading·library …)
+│       ├── features/     화면 단위 기능 (workspace·practice·reading·library …)
 │       └── lib/          공용 계층 — api/v2(백엔드 클라이언트)·react(useResource)·auth·analytics …
 ├── api/                  Spring Boot 백엔드, dev·운영 공용 (Gradle)
 │   └── src/main/java/com/acttub/actingapi/
-│       ├── feature/      비즈니스 도메인 18개 — 도메인마다 필요한 층만(아래 「api 층 규칙」)
-│       ├── platform/     배관 10개 — security·persistence·ledger·migration·observability …
-│       └── integration/  외부 연동 5개 — llm(OpenAI)·observation(Gemini)·storage(S3)·media(ffmpeg)·oidc
-└── mobile/               Expo 앱 (npm/EAS, 워크스페이스 밖)
-    ├── app/              expo-router 라우트
-    ├── components/
-    └── lib/              api·auth·기능별 상태 모듈
+│       ├── feature/      비즈니스 도메인 — 도메인마다 필요한 층만(아래 「api 층 규칙」)
+│       ├── platform/     배관 — security·persistence·ledger·migration·observability …
+│       └── integration/  외부 연동 — llm(OpenAI)·observation(Gemini)·storage(Cloudflare R2, S3 API)·media(ffmpeg)·oidc …
+├── mobile/               Expo 앱 (npm/EAS, 워크스페이스 밖)
+│   ├── app/              expo-router 라우트
+│   ├── components/
+│   └── lib/              api·auth·기능별 상태 모듈
+└── pron/                 리딩 발음 채점 실험 서비스 (파이썬, compose `pron` 프로필의 dev에서만 뜸)
 packages/                 두 번째 사용처가 생길 때만 채운다
 deploy/                   홈서버 배포 스크립트·모니터링 설정
 docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기능 스펙), deploy/, agents/
@@ -52,6 +53,8 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
 - `platform`(배관)과 `integration`(외부 연동)은 어느 도메인이든 쓸 수 있고, 배관이 도메인의 Port를 구현하기도 한다.
 - Port 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeSessionRepository`). `Impl` 접미사는
   쓰지 않는다. Port 시그니처에 제공자 패키지의 타입이 보이면 아직 안 끊긴 것이다.
+- Port 하나는 한 쪽만 구현한다. Port 안의 질문들이 서로 다른 도메인의 데이터를 물으면 답하는 쪽의 소유를 따라 Port를 나눈다
+  (예: 사용자 조회와 동의 여부를 가른 `PendingConsentGate`).
 - `apps/api`는 Gradle 모듈 하나다. 패키지 사이 순환은 모듈 경계가 아니라 `PackageCycleTest`가 막고, 공유 타입을 위한
   커널 패키지를 따로 만들지 않고 각자 제 역할의 패키지에 둔다.
 
@@ -81,8 +84,8 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
   │                   │
   │                   ├──▶ Gemini   영상 관찰·받아쓰기·직접 영상 코칭 (integration/observation)
   │                   ├──▶ OpenAI   2층 분류·대화, 3층 노트 문장 (integration/llm)
-  │                   └──▶ S3       영상·사진·녹음 객체 (integration/storage)
-  └── 업로드 예약으로 받은 URL로 S3에 직접 올림
+  │                   └──▶ R2       영상·사진·녹음 객체, S3 API (integration/storage)
+  └── 업로드 예약으로 받은 URL로 R2에 직접 올림
 ```
 
 - 비동기 AI 작업(`ai_jobs`)의 상태와 lease → [공통 규칙 「공통 상태」](specs/common.md#공통-상태).
@@ -108,7 +111,7 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
 | Domain Model | 비즈니스 규칙과 그 규칙이 다루는 값을 담은 객체. 프레임워크(스프링·JPA·Jackson)를 모르므로 스프링 컨텍스트나 DB 없이 세울 수 있다. 저장 형태(Schema Entity·SQL 행)나 전송 형태(요청·응답 DTO)와 별개이고, 그 사이의 변환은 어댑터가 한다. | 엔티티, 도메인 객체(수식 없이), VO |
 | Port | 한 도메인이 바깥에 요구하는 것을 **쓰는 쪽**이 선언한 인터페이스. 쓰는 쪽이 배관일 수도 있다 — 요청 게이트가 사용자 조회를 요구하면 배관이 Port를 선언하고 도메인이 구현한다. 이름 규칙은 「api 층 규칙」. | 인터페이스(수식 없이), 추상화, DAO |
 | Schema Entity | 테이블 모양을 그대로 나타내는 JPA 영속 객체. 런타임 읽기·쓰기와 스키마 검증에 함께 쓴다. 코드가 JPA로 읽고 쓰지 않는 테이블은 스키마 검증만을 위해 매핑하지 않는다. 은퇴 목록과 관계 매핑 규칙은 [CONTRACT](../apps/api/CONTRACT.md) §5-1. | 도메인 모델, 엔티티(수식 없이) |
-| External Operation | 외부 호출(LLM·S3·영상 분석)을 수반해 한 트랜잭션 안에서 끝낼 수 없는 처리. 저장은 종류에 따라 AI Job 또는 정리 장부(`account_cleanup_operations`)다. | 작업, 잡, 태스크, job |
+| External Operation | 외부 호출(LLM·파일 저장소·영상 분석)을 수반해 한 트랜잭션 안에서 끝낼 수 없는 처리. 저장은 종류에 따라 AI Job 또는 정리 장부(`account_cleanup_operations`)다. | 작업, 잡, 태스크, job |
 | AI Job | 뒤에서 도는 AI 요청 하나. `ai_jobs` 큐의 한 행이고 종류는 `AiJobKind`다. 코치 대화는 동기 요청이라 여기 속하지 않는다. 한국어로는 "AI 작업"이다. | 잡, 태스크, 백그라운드 작업(수식 없이) |
 | Lease | 워커가 작업을 점유했다는 표식. 만료·회수·완료 거절 규칙은 원장마다 다르다 → [공통 규칙 「공통 상태」](specs/common.md#공통-상태)(`ai_jobs`), [CONTRACT](../apps/api/CONTRACT.md) §5-7(`external_operations`). | 락, 점유권, lock |
 | Admissions | 대학 입시 공고 카탈로그. 인증의 admission control과 무관하다. | admission(단수형), 입장, 입장 제어 |

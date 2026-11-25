@@ -34,8 +34,6 @@ import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
-import tools.jackson.databind.node.JsonNodeFactory;
-import tools.jackson.databind.node.ObjectNode;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,13 +55,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>바깥은 전부 스텁이다 — 오브젝트 스토리지는 메모리의 가짜이고 분석기는 시험이 정해 준 결과·예외를 낸다.
  * 작업 상태를 읽고 취소하는 API 쪽은 PA2 의 {@code PracticeLifecycleIT} 가 본다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    // 스케줄러가 큐를 가로채면 시험이 워커를 직접 돌리지 못한다.
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, PracticeAnalysisIT.Fixture.class})
 class PracticeAnalysisIT {
@@ -115,19 +107,18 @@ class PracticeAnalysisIT {
     }
 
     @Test
-    @DisplayName("practice.analyze: 신형 회차의 분석이 끝남 — analyses 1행(id = record_id, format video_record_v1, status ready)이고 "
+    @DisplayName("practice.analyze: 신형 회차의 분석이 끝남 — analyses 1행(format legacy, status ready)이고 "
             + "회차가 conversing 으로 가며 작업은 succeeded 다. 받아쓰기 묶음이 영상당 하나 생긴다")
     void practiceAnalyze_aFinishedJobStoresTheRecordAndOpensTheConversation() {
-        UUID recordId = UUID.randomUUID();
         UUID practice = practice(member, video, "three_layers_v1");
         job(member, practice);
-        analyzer.result = context -> new AnalysisResult(pack(List.of()), false, 12_345, videoRecord(recordId));
+        analyzer.result = context -> new AnalysisResult(pack(List.of()), false, 12_345);
 
         assertThat(worker.runOnce(clock.instant())).isTrue();
 
         Map<String, Object> analysis = jdbc.queryForMap("SELECT id,practice_id,format,status,model FROM analyses");
-        assertThat(analysis).containsEntry("id", recordId).containsEntry("practice_id", practice)
-                .containsEntry("format", "video_record_v1").containsEntry("status", "ready")
+        assertThat(analysis).containsEntry("practice_id", practice)
+                .containsEntry("format", "legacy").containsEntry("status", "ready")
                 .containsEntry("model", "test-model");
         assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice))
                 .isEqualTo("conversing");
@@ -402,7 +393,7 @@ class PracticeAnalysisIT {
                 throw new IllegalStateException(failure);
             }
         };
-        analyzer.result = context -> new AnalysisResult(pack(List.of()), false, 9_000, videoRecord(UUID.randomUUID()));
+        analyzer.result = context -> new AnalysisResult(pack(List.of()), false, 9_000);
 
         assertThat(notifying.runOnce(clock.instant())).isTrue();
 
@@ -472,13 +463,6 @@ class PracticeAnalysisIT {
                         new SpeechFacts.Word("끝이야", .6, 1.2))),
                 List.of(new ObservationItem(0, 1200, "호흡이 얕다", "지금 놓치면 끝이야", "호흡", 0.8)),
                 uncertainties);
-    }
-
-    private static tools.jackson.databind.JsonNode videoRecord(UUID recordId) {
-        ObjectNode record = JsonNodeFactory.instance.objectNode();
-        record.put("record_id", recordId.toString());
-        record.put("version", "acttub.video_record.v1");
-        return record;
     }
 
     private static OffsetDateTime at(Instant instant) {

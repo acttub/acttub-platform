@@ -181,7 +181,7 @@ class DialogueNoteTest {
                     .isEqualTo("acttub.coach_handoff.v2");
             return new com.acttub.actingapi.integration.llm.GeneratedText(output().toString(), null, "test");
         }, StructuredJson.MAPPER, new com.acttub.actingapi.support.RecordingLlmTelemetry());
-        JsonNode note = engine.generateReport("coaching", null, handoff(), false, "handoff", null, null);
+        JsonNode note = engine.generateReport("coaching", null, handoff(), false, "handoff", null, null, null, null);
         assertThat(LenientJson.asText(note.path("practice").path("selection"))).isEqualTo("proposed");
     }
 }

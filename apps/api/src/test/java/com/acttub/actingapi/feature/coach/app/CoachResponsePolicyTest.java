@@ -59,7 +59,7 @@ class CoachResponsePolicyTest {
             inputs.add(input);
             return generated("{\"message\":\"예를 들어 약속을 확인하는 말일 수 있어요. 아직 확정된 해석은 아니에요.\"}");
         };
-        CoachResult result = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry())
+        CoachResult result = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry(), java.util.Optional.empty())
                 .reply(session, "모르겠어요", UUID.randomUUID());
         assertThat(inputs).singleElement().asString().contains("여러 번 모르겠다고 했다", "선택지나 실행·자기정리 요청을 반복하지 않는다");
         assertThat(result.session().turns().get(result.session().turns().size() - 2).text())
@@ -75,7 +75,7 @@ class CoachResponsePolicyTest {
             inputs.add(input);
             return generated(inputs.size() == 1 ? "상대에게 뭘 바라는 걸까?" : "예를 들어, 약속을 확인하는 말일 수 있어요.");
         };
-        CoachResult result = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry()).reply(
+        CoachResult result = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry(), java.util.Optional.empty()).reply(
                 session("분석", List.of(actor("의미"), ai("상대에게 뭘 바라는 걸까?"))),
                 "예시로 설명해 주세요.", UUID.randomUUID());
         assertThat(inputs).hasSize(2);
@@ -111,7 +111,7 @@ class CoachResponsePolicyTest {
                     ? "{\"message\":\"**말끝**의 길이만 살펴봐요.\"}"
                     : "{\"message\":\"말끝의 길이만 살펴봐요.\"}");
         };
-        CoachReply reply = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry()).reply(
+        CoachReply reply = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry(), java.util.Optional.empty()).reply(
                 session("표현", List.of(actor("말끝이 길어요"), ai("마지막 모음을 볼게요."))),
                 "예시로 설명해 주세요.", UUID.randomUUID()).reply();
         assertThat(inputs).hasSize(2);
@@ -128,7 +128,7 @@ class CoachResponsePolicyTest {
                     ? "{\"message\":\"마지막 두 어절이 빨라져요. JSON need.\"}"
                     : "{\"message\":\"마지막 두 어절이 빨라져요.\"}");
         };
-        CoachReply reply = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry()).reply(
+        CoachReply reply = new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry(), java.util.Optional.empty()).reply(
                 session("표현", List.of(actor("속도가 궁금해요"), ai("어느 부분이 궁금해요?"))),
                 "영상을 기준으로 말해 주세요.", UUID.randomUUID()).reply();
         assertThat(inputs).hasSize(2);
@@ -152,7 +152,7 @@ class CoachResponsePolicyTest {
         CoachEngine engine = new CoachEngine((system, input) -> generated("""
                 {"message":"여기까지 정리할게요.","status":"complete","handoff":{
                   "actor_words":["예시로 설명해 주세요.","제가 되물을게요","그만","마지막 단어가 길게 나와요"]}}
-                """), new RecordingFailureReporter(), new RecordingLlmTelemetry());
+                """), new RecordingFailureReporter(), new RecordingLlmTelemetry(), java.util.Optional.empty());
         CoachReply reply = engine.reply(session("표현", List.of(actor("말끝"), ai("설명"))), "그만", UUID.randomUUID()).reply();
         assertThat(reply.handoff().path("actor_words")).hasSize(1);
         assertThat(LenientJson.asText(reply.handoff().path("actor_words").get(0))).isEqualTo("마지막 단어가 길게 나와요");
@@ -171,8 +171,7 @@ class CoachResponsePolicyTest {
             ReportEngine reportEngine = new ReportEngine((system, input) -> {
                 throw new AssertionError("Failed coaching must not become an invented report");
             }, MAPPER, new RecordingLlmTelemetry());
-            assertThat(LenientJson.asText(reportEngine.generateReport(branch.equals("표현") ? "expression" : "analysis",
-                    session.observationPack(), fallback.handoff(), true, "handoff-id", null, null)
+            assertThat(LenientJson.asText(reportEngine.generateReport(branch.equals("표현") ? "expression" : "analysis", session.observationPack(), fallback.handoff(), true, "handoff-id", null, null, null, null)
                     .path("report_type"))).isEqualTo("blocked");
         }
     }

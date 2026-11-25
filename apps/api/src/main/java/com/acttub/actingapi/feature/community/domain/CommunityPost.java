@@ -44,11 +44,6 @@ public record CommunityPost(
                 likeCount, commentCount, viewCount, likedByMe, mine, createdAt, updatedAt, status, value);
     }
 
-    /** 본인 글이 신고·운영으로 가려진 상태. 남에게는 이 글이 아예 보이지 않는다. */
-    public boolean hidden() {
-        return "hidden".equals(status);
-    }
-
     /**
      * 화면에 적을 작성자 이름. 익명 글은 "익명", 아니면 프로필의 공개 이름이다(탈퇴했으면 SQL 이
      * "탈퇴한 사용자"로 바꿔 싣는다).

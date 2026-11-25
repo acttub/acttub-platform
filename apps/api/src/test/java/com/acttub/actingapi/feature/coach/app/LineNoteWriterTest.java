@@ -37,7 +37,7 @@ class LineNoteWriterTest {
     String modelAnswer = "{\"line_notes\":[]}";
 
     LineNoteWriter writer(CoachPro pro, LineNoteModel model) {
-        return new LineNoteWriter(true, pro, model, conversations, failures, queued::add);
+        return new LineNoteWriter(true, pro, model, conversations, failures, queued::add, null, LineNoteWriter.loadTemplate());
     }
 
     LineNoteModel model() {
@@ -127,8 +127,7 @@ class LineNoteWriterTest {
     }
 
     @Test void aRejectedExecutorOrAlreadyFilledNoteDoesNotThrowOrRun() {
-        LineNoteWriter rejecting = new LineNoteWriter(true, id -> true, model(), conversations, failures,
-                task -> { throw new java.util.concurrent.RejectedExecutionException("full"); });
+        LineNoteWriter rejecting = new LineNoteWriter(true, id -> true, model(), conversations, failures, task -> { throw new java.util.concurrent.RejectedExecutionException("full"); }, null, LineNoteWriter.loadTemplate());
         rejecting.schedule(session(), conversation, note());
         assertThat(failures.reports()).hasSize(1);
         ArrayNode filled = StructuredJson.MAPPER.createArrayNode();

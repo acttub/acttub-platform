@@ -75,6 +75,15 @@ final class DirectVideoPracticeLoop {
         return rest.isEmpty() ? message.strip() : rest;
     }
 
+    /** 맨 앞의 인정 말이 앞선 코치 말에서 이미 쓴 것이면 뗀다({@link #withoutAgreement}). 처음 쓰는 인정 말이면 그대로 둔다. */
+    static String withoutRepeatedAgreement(String message, List<String> earlier) {
+        Matcher lead = AGREEMENT.matcher(message);
+        if (!lead.lookingAt()) return message;
+        String said = lead.group().replaceAll("[\\s,.!]", "");
+        boolean repeated = earlier.stream().anyMatch(text -> text != null && text.replaceAll("[\\s,.!]", "").contains(said));
+        return repeated ? withoutAgreement(message) : message;
+    }
+
     static Parsed parse(String raw) {
         String text = raw == null ? "" : closedNextTake(raw.strip());
         String design = first(DESIGN, text);
@@ -502,8 +511,8 @@ final class DirectVideoPracticeLoop {
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
     static boolean applies(CoachSessionSnapshot session) {
-        return session.turns().isEmpty() || session.coachingState() != null
-                && session.coachingState().path(STATE_KEY).isObject();
+        JsonNode state = session.coachingState();
+        return session.turns().isEmpty() || state != null && state.path(STATE_KEY).isObject();
     }
 
     /**
@@ -586,24 +595,10 @@ final class DirectVideoPracticeLoop {
         if (LenientJson.asText(loop.path("persona"), "").isEmpty()) loop.put("persona", persona);
     }
 
-    /** 이 대화의 코치 흐름(SOMA-636 A/B). "a"는 지금 흐름, "b"는 세 단계 흐름. 없으면 빈 문자열(배포 전 대화). */
-    static String storedFlow(JsonNode state) {
-        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("flow"), "");
-    }
-
+    /** 이 대화의 코치 흐름(SOMA-636 A/B, A로 끝남). 관리자 지표의 {@code coach_flow} 칸이 읽는다. 이미 있으면 그대로 둔다. */
     static void rememberFlow(ObjectNode state, String flow) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
         if (LenientJson.asText(loop.path("flow"), "").isEmpty()) loop.put("flow", flow);
-    }
-
-    /** 이 대화의 첫 말 쪽(첫 코칭 첫 말 A/B). "a"는 질문 한 줄, "b"는 본 것과 다음 테이크를 먼저. 없으면 빈 문자열(배포 전 대화). */
-    static String storedOpening(JsonNode state) {
-        return state == null ? "" : LenientJson.asText(state.path(STATE_KEY).path("opening"), "");
-    }
-
-    static void rememberOpening(ObjectNode state, String opening) {
-        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
-        if (LenientJson.asText(loop.path("opening"), "").isEmpty()) loop.put("opening", opening);
     }
 
     /** 이 대화의 "이미 그렇게 했다" 처리 쪽(SOMA-855). "on"은 실험, "off"는 대조. 없으면 빈 문자열(배포 전 대화). */
@@ -651,10 +646,10 @@ final class DirectVideoPracticeLoop {
      */
     static boolean finished(Parsed parsed) {
         String doing = statusField(parsed.status(), "할 일");
-        if (!doing.isEmpty()) return doing.startsWith("마무리2") || doing.startsWith("끝");
+        if (!doing.isEmpty()) return doing.startsWith(PracticeLoopRouter.OLD_CLOSE) || doing.startsWith(PracticeLoopRouter.END);
         for (String part : parsed.status().split("·")) {
             String action = part.strip();
-            if (action.startsWith("마무리2") || action.startsWith("끝")) return true;
+            if (action.startsWith(PracticeLoopRouter.OLD_CLOSE) || action.startsWith(PracticeLoopRouter.END)) return true;
         }
         return false;
     }
@@ -683,7 +678,7 @@ final class DirectVideoPracticeLoop {
         String design = LenientJson.asText(loop.path("design"), "");
         String habit = habit(design);
         // 설계의 "다음 테이크: 없음"(영상 없이 말로 첫 응답 등)은 다음 테이크가 아니다 — 그대로 쓰면 노트에 "없음"이 제안으로 남았다(10/26 운영 4건).
-        String next = noneAsBlank(first(DESIGN_NEXT, design));
+        String next = noneAsBlank(designNextTake(design));
         // 정리에서 정한 다음 테이크. 설계에 버릇·다음 테이크 줄이 없는 목적별 코칭(막힌 곳·고민 상담)도 이것으로 노트를 채운다 —
         // 예전에는 여기서 null 을 돌려 생성기로 넘어가 정리한 제안이 있어도 빈 노트(record_only)가 됐다(10/25·26 운영).
         String closingNext = closingNextTake(loop.path("statuses"));
@@ -692,24 +687,23 @@ final class DirectVideoPracticeLoop {
         Round round = round(loop, session.turns());
         var quotes = mapper.createArrayNode();
         if (round.selfLine() != null) quotes.addObject().put("quote", round.selfLine()).put("kind", "actor")
-                .put("source_ref", StructuredCoachEngine.turnId(session, round.selfIndex()));
+                .put("source_ref", CoachTurns.turnId(session, round.selfIndex()));
         // 배우가 자기 한 줄을 남기지 않았으면 코치가 영상에서 본 버릇을 요약 첫 줄로 둔다. 마지막 답 하나만 남으면 엉뚱하다.
         if (round.selfLine() == null && !habit.isBlank()) quotes.addObject().put("quote", shorten(habit, 80)).put("kind", "observation")
-                .put("source_ref", StructuredCoachEngine.turnId(session, 0));
+                .put("source_ref", CoachTurns.turnId(session, 0));
         if (round.reason() != null) quotes.addObject().put("quote", round.reason()).put("kind", "actor")
-                .put("source_ref", StructuredCoachEngine.turnId(session, round.reasonIndex()));
+                .put("source_ref", CoachTurns.turnId(session, round.reasonIndex()));
         // 목적별 코칭은 상태 줄이 위 분류를 거의 남기지 않는다 — 배우가 채운 인물 카드·단계 답으로 요약을 채운다(SOMA-1051).
         PurposeLoop.addNoteQuotes(session, quotes, 2);
         String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
         // 마무리2의 상태 칸에 다시 정한 다음 테이크가 있으면 그것을 쓴다 — 배우가 그 버릇을 지키겠다고 했으면 설계의 "반대쪽"과 다르다.
         if (!closingNext.isBlank()) next = closingNext;
         String nextTake = next.isBlank() ? null : next;
-        var empty = mapper.createArrayNode();
         // 배우가 아니라고 한 것(정정·반박)은 노트의 corrections 에 남는다(세션.md, SOMA-602).
         var corrections = mapper.createArrayNode();
         round.corrections().forEach(corrections::add);
-        return new ConversationRepository.NewNote("v2", nextTake == null ? "observation" : "action", title, quotes,
-                nextTake, empty, corrections, empty, false, sourceRevision, null);
+        return ConversationRepository.NewNote.threeLayers(nextTake == null ? "observation" : "action", title, quotes, nextTake,
+                sourceRevision).withCorrections(corrections);
     }
 
     /**
@@ -750,23 +744,24 @@ final class DirectVideoPracticeLoop {
             // 이 답을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
             String status = LenientJson.asText(statuses.path(coachIndex), "");
             String kind = statusField(status, "배우의 말");
-            if (kind.startsWith("자기 한 줄")) {
+            if (kind.startsWith(PracticeLoopRouter.Kind.SELF_LINE.label)) {
                 selfLine = text;
                 selfIndex = i;
-            } else if (kind.startsWith("정정") || kind.startsWith("반박")) {
+            } else if (kind.startsWith(PracticeLoopRouter.Kind.CORRECTION.label) || kind.startsWith(PracticeLoopRouter.Kind.PUSHBACK.label)) {
                 String topic = statusField(status, "피할 것");
                 if (topic.isEmpty() || topic.startsWith("없음")) topic = habit;
                 if (seen.add(text.replaceAll("[\\s!?.~…ㅠㅜ]+", ""))) {
                     corrections.add((topic.isBlank() ? "" : shorten(topic, 30) + ": ") + "\"" + shorten(text, 80) + "\"");
                 }
-            } else if (lastAction.startsWith("마무리1") && askedLine == null && !request(kind, text)) {
+            } else if (lastAction.startsWith(PracticeLoopRouter.OLD_ASK_LINE) && askedLine == null && !request(kind, text)) {
                 // 한 줄을 청한 자리에서 배우가 평가·방법을 청하거나 반박했으면 그 말은 한 줄이 아니다(SOMA-601).
                 askedLine = text;
                 askedIndex = i;
-            } else if (kind.startsWith("선택 설명")) {
+            } else if (kind.startsWith(PracticeLoopRouter.Kind.CHOICE.label)) {
                 choice = text;
                 choiceIndex = i;
-            } else if (lastAction.startsWith("파고들기") && !lastAction.startsWith("파고들기(") && !kind.startsWith("짧은 답")) {
+            } else if (lastAction.startsWith(PracticeLoopRouter.OLD_PROBE) && !lastAction.startsWith(PracticeLoopRouter.OLD_PROBE + "(")
+                    && !kind.startsWith(PracticeLoopRouter.Kind.SHORT.label)) {
                 // 고르기만 하면 되는 쉬운 질문(파고들기(쉬운))의 답은 이유가 아니다 — "무서워할 쪽이요"가 요약에 올라갔다.
                 // 버릇이 언제·왜 나오는지에 대한 배우의 마지막 답.
                 probe = text;
@@ -799,8 +794,9 @@ final class DirectVideoPracticeLoop {
             "평가|장점|단점|방법|예시|설명해|어떻게 해야|부족한|짚어 ?주|(?i:how (?:do|should) i|feedback|example)");
 
     private static boolean request(String kind, String text) {
-        if (kind.startsWith("평가 요청") || kind.startsWith("방법 요청") || kind.startsWith("반박")
-                || kind.startsWith("정정") || kind.startsWith("그만")) return true;
+        if (kind.startsWith(PracticeLoopRouter.Kind.EVALUATION.label) || kind.startsWith(PracticeLoopRouter.Kind.METHOD.label)
+                || kind.startsWith(PracticeLoopRouter.Kind.PUSHBACK.label) || kind.startsWith(PracticeLoopRouter.Kind.CORRECTION.label)
+                || kind.startsWith(PracticeLoopRouter.Kind.STOP.label)) return true;
         return kind.isEmpty() && REQUEST_WORDS.matcher(text).find();
     }
 
@@ -831,7 +827,7 @@ final class DirectVideoPracticeLoop {
 
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
     static String action(String status) {
-        if (status.isBlank()) return "비추기";
+        if (status.isBlank()) return PracticeLoopRouter.SHOW;
         String doing = statusField(status, "할 일");
         if (!doing.isEmpty()) return doing;
         for (String part : status.split("·")) {

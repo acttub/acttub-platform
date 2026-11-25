@@ -50,18 +50,9 @@ export default function UiPreviewScreen() {
         router.push('/coach');
       },
     },
-    {
-      key: 'report',
-      label: '분석 결과',
-      hint: '구분선 섹션 · 다음 테이크 · 영상 보기',
-      go: () => {
-        seedPractice({ withReport: true });
-        router.push('/report?preview=1');
-      },
-    },
   ];
 
-  // `actingapp://ui-preview?go=report` 처럼 곧장 한 화면으로 뛴다. 손으로 눌러
+  // `actingapp://ui-preview?go=coach` 처럼 곧장 한 화면으로 뛴다. 손으로 눌러
   // 들어가는 것과 같은 경로를 타므로 가짜 데이터도 똑같이 심긴다.
   // eslint-disable-next-line react-hooks/rules-of-hooks -- 위 __DEV__ 분기는 빌드마다 고정이다
   useEffect(() => {

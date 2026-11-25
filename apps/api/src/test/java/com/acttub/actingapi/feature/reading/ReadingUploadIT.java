@@ -59,14 +59,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * reading.script 「원본 파일」을 HTTP·실제 Postgres·정리 장부로 본다. 스토리지는 메모리, 모델은 콜론 형식을 나누는 가짜다.
  * 글자 뽑기 자체의 형식별 결과는 {@code DocumentTextTest} 가 본다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "CHALLENGE_SETTLEMENT_ENABLED=false",
-    "SCRIPT_UPLOAD_SWEEP_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingUploadIT.Fakes.class})
 class ReadingUploadIT {

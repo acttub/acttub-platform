@@ -24,7 +24,7 @@ class LaunchWeekProTest {
 
     SubscriptionService service() {
         return new SubscriptionService(new BillingSettings(true, false, true, "https://dev.acttub.com",
-                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, new FakeGateway(), null, clock);
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, new FakeGateway(), null, clock, BillingMailer.NONE, RefundNotifier.NONE);
     }
 
     @Test

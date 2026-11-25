@@ -39,7 +39,7 @@ class GeminiTranscriberTest {
         var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway, reporter, new RecordingLlmTelemetry());
         Path audio = Files.writeString(temporary.resolve("take.wav"), "wav");
 
-        var result = transcriber.transcribe(audio);
+        var result = transcriber.transcribe(audio, null, null);
 
         assertThat(gateway.model).isEqualTo("gemini-3.5-transcribe");
         assertThat(new ObjectMapper().readTree(gateway.config.toJson())).isEqualTo(
@@ -66,7 +66,7 @@ class GeminiTranscriberTest {
         gateway.storedMime = "audio/x-wav";
         var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway,
                 new RecordingFailureReporter(), new RecordingLlmTelemetry());
-        transcriber.transcribe(Files.writeString(temporary.resolve("normalized.wav"), "wav"));
+        transcriber.transcribe(Files.writeString(temporary.resolve("normalized.wav"), "wav"), null, null);
         assertThat(gateway.contents.parts().orElseThrow().getFirst()
                 .fileData().orElseThrow().mimeType()).contains("audio/x-wav");
     }
@@ -105,7 +105,7 @@ class GeminiTranscriberTest {
             var gateway = new StubGateway();
             gateway.response = GenerateContentResponse.fromJson(response);
             var transcriber = new GeminiTranscriber(new AudioExtractor(), gateway, new RecordingFailureReporter(), new RecordingLlmTelemetry());
-            assertThatThrownBy(() -> transcriber.transcribe(Path.of("take.wav"))).satisfies(exception -> {
+            assertThatThrownBy(() -> transcriber.transcribe(Path.of("take.wav"), null, null)).satisfies(exception -> {
                 assertThat(FailureClassifier.classify(exception)).isEqualTo(FailureKind.EXTERNAL);
                 assertThat(exception.getCause()).isNotNull();
                 // 말이 없는 답(후보·받아쓰기 칸 없음)만 NoSpeechInResponse 다. 글만 있고 단어 시각이 없는 답은 진짜 실패다.
@@ -130,7 +130,7 @@ class GeminiTranscriberTest {
         gateway.failure = failure;
         var transcriber = new GeminiTranscriber(extractor, gateway, new RecordingFailureReporter(), new RecordingLlmTelemetry());
 
-        assertThatThrownBy(() -> transcriber.analyze(video, null)).hasCause(failure);
+        assertThatThrownBy(() -> transcriber.analyze(video, null, null)).hasCause(failure);
 
         assertThat(audio).doesNotExist();
         assertThat(gateway.deleted).containsExactly("files/audio");
@@ -148,7 +148,7 @@ class GeminiTranscriberTest {
         var reporter = new RecordingFailureReporter();
         var transcriber = new GeminiTranscriber(extractor, gateway, reporter, new RecordingLlmTelemetry());
 
-        assertThat(transcriber.analyze(video, null).transcript()).isEqualTo("가지 마");
+        assertThat(transcriber.analyze(video, null, null).transcript()).isEqualTo("가지 마");
 
         assertThat(audio).doesNotExist();
         assertThat(reporter.reports()).singleElement().satisfies(report -> {
@@ -194,7 +194,7 @@ class GeminiTranscriberTest {
         var transcriber = new GeminiTranscriber(
                 new AudioExtractor(), new StubGateway(), new RecordingFailureReporter(), telemetry);
 
-        assertThat(transcriber.transcribe(Path.of("take.wav")).transcript()).isEqualTo("가지 마");
+        assertThat(transcriber.transcribe(Path.of("take.wav"), null, null).transcript()).isEqualTo("가지 마");
         assertThat(telemetry.calls()).isEmpty();
     }
 

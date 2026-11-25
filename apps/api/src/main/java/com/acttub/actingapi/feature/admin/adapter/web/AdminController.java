@@ -178,7 +178,7 @@ class AdminController {
 
     @Schema(name = "AdminReportResolution", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record Resolution(@NotNull @Schema(allowableValues = {"restored", "kept_hidden", "dismissed"}) String resolution,
+    record Resolution(@NotNull @Schema(allowableValues = {"kept_hidden", "dismissed"}) String resolution,
             @NotNull @Schema(description = "처리한 운영자") String reviewer,
             @Schema(nullable = true) String note) { }
 
@@ -228,10 +228,30 @@ class AdminController {
                 supportInquiries.list(filter, limit).stream().map(SupportInquiryRow::of).toList()));
     }
 
+    @Schema(name = "AdminSupportInquiryStatus", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record SupportInquiryStatus(@NotNull @Schema(allowableValues = {"open", "closed"}) String status) { }
+
+    @PatchMapping("/support/inquiries/{id}")
+    @Operation(summary = "Set Support Inquiry Status", operationId = "set_support_inquiry_status_v2_admin_support_inquiries__id__patch",
+            tags = "admin",
+            description = "운영자가 답한 문의를 closed 로 닫는다. 잘못 닫았으면 open 으로 되돌린다. 같은 값이면 그대로다. 없는 문의는 404 "
+                    + "support_inquiry_not_found.")
+    SupportInquiryRow setSupportInquiryStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody SupportInquiryStatus body,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        if (!SupportInquiryRules.STATUSES.contains(body.status())) {
+            throw ApiValidationException.valueError(List.of("body", "status"), "Value error, status must be 'open' or 'closed'",
+                    body.status());
+        }
+        return SupportInquiryRow.of(supportInquiries.setStatus(id, body.status()));
+    }
+
     @PatchMapping("/reports/{id}")
     @Operation(summary = "Resolve Challenge Report", operationId = "resolve_report_v2_admin_reports__id__patch", tags = "admin",
             description = """
-                    restored·dismissed 는 그 대상에 처리 전 신고가 남지 않았을 때만 운영 숨김을 푼다(작성자의 비공개·삭제와
+                    dismissed 는 그 대상에 처리 전 신고가 남지 않았을 때만 운영 숨김을 푼다(작성자의 비공개·삭제와
                     챌린지 종료는 그대로). kept_hidden 은 숨김(챌린지는 검토)을 유지한다. 이미 처리한 신고는 422
                     report_already_reviewed.""")
     AdminReport resolveReport(

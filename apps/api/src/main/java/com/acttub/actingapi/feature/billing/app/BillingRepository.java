@@ -17,11 +17,6 @@ public interface BillingRepository {
 
     Optional<Subscription> findById(UUID subscriptionId);
 
-    /** 오늘(한국 시간 {@code since} 이후) 만든 코칭 회차 수와 보관 중인 리딩 대본 수 — 무료 한도 판정용. */
-    int coachingSessionsSince(UUID userId, Instant since);
-
-    int scriptCount(UUID userId);
-
     /** 회원(게스트 포함) 가입 시각 — users.created_at. 없는 사용자면 비어 있다. 기존 회원 무료 한도 유예 판정용. */
     Optional<Instant> signedUpAt(UUID userId);
 
@@ -57,7 +52,7 @@ public interface BillingRepository {
     /**
      * 새 빌링키(암호문)와 카드를 저장한다. 구독 줄이 없으면 expired 로 만든다(첫 결제가 끝나야 active).
      *
-     * @return 구독 id
+     * @return 구독 id. 탈퇴가 먼저 끝났으면 저장하지 않고 {@code null}
      */
     UUID saveCard(UUID userId, String customerKey, String sealedBillingKey, String cardCompany, String cardNumber,
             Instant now);
@@ -67,8 +62,8 @@ public interface BillingRepository {
      */
     void choosePlan(UUID subscriptionId, BillingRules.Plan plan, Instant now);
 
-    /** 첫 결제 성공 — active 와 새 기간. */
-    void activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now);
+    /** 첫 결제 성공 — active 와 새 기간. 탈퇴가 먼저 끝났으면 바꾸지 않고 거짓이다. */
+    boolean activate(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now);
 
     /** 자동결제 성공 — 다음 기간. canceled 는 canceled 로 남고, past_due 는 active 로 돌아간다. */
     void advance(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now);
@@ -78,6 +73,12 @@ public interface BillingRepository {
 
     /** Pro 끝 — 빌링키를 지운다. */
     void expire(UUID subscriptionId, Instant now);
+
+    /**
+     * 첫 결제가 거절된 카드 등록 줄의 빌링키를 지운다. 아직 expired 인 줄만 — 그 사이 다른 창으로 구독했으면 그 키는 쓰이므로
+     * 그대로 둔다.
+     */
+    void dropUnpaidKey(UUID subscriptionId, Instant now);
 
     /** active 만 canceled 로. 바뀌었으면 true. */
     boolean cancel(UUID subscriptionId, Instant now);
@@ -97,7 +98,10 @@ public interface BillingRepository {
 
     Optional<Payment> findPayment(String orderId);
 
-    /** 결과를 아직 모르는(pending·unknown) 결제가 있는가 — 있으면 새 구독 결제를 열지 않는다. */
+    /**
+     * 결과를 아직 모르는 결제가 있는가 — 있으면 새 구독 결제를 열지 않는다. 결제 기록의 상태는 unknown·done·failed 이고, 끝난 값(done·failed)이
+     * 아니면 모두 결과를 모르는 것으로 읽는다. 승인 전 기록을 pending 으로 넣던 옛 서버가 배포 중에 멈춰 남긴 행도 그래서 다시 묻는다.
+     */
     boolean hasUnresolvedPayment(UUID userId);
 
     /** 이 구독의 이 기간에 대한 가장 마지막 시도. */

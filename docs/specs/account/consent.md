@@ -11,14 +11,6 @@
 본다. 웹에서는 누구나 동의 문서의 현재 판을 읽을 수 있다. 문서의 새 판을 내면 기존 회원은 게이트에서
 다시 결정한다. (account.login)
 
-## 의도
-선택 동의는 언제든 철회할 수 있어야 한다. 탈퇴 후 영상 보관 동의도 회원인 동안은 여기서 바꾼다.
-동의 문서는 가입 전에도 읽을 수 있어야 하고, 앱 스토어 심사도 공개 주소를 요구한다.
-
-## 목적
-배우가 무엇에 동의했는지 한 화면에서 보고, 마음이 바뀌면 그 자리에서 바꾸며, 바뀐 결정이 바로
-적용된다.
-
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
@@ -26,7 +18,7 @@
 | `GET /v2/consents/notices` | 없음. 공개 조회라 토큰을 보지 않는다 | `ConsentNoticesResponse` 200(개인정보 처리방침 같은 고지) | — |
 | `GET /v2/consents/pending` | 헤더 `Authorization` | `ConsentDocumentsResponse` 200(미결정 문서, 게스트는 필수만) | 401, `account_deactivated` 403, 주체 한도 429 |
 | `GET /v2/consents/entry` | 헤더 `Authorization` | `ConsentEntryResponse` 200(문서마다 현재 판 결정, 게스트는 필수만) | 401, `account_deactivated` 403, 주체 한도 429 |
-| `POST /v2/consents` | 헤더 `Authorization`, `ConsentRequest`: `document_id`, `action`(granted·declined) | `ConsentEventResponse` 201, 같은 결정이면 200 | 401, `account_deactivated` 403, `consent_document_not_found` 404, `consent_document_outdated` 409(`ConsentDocumentOutdatedError`), `required_consent_cannot_be_declined` 422, 허용 밖 `action`(revoked 포함) 422 배열, 주체 한도 429. 게스트의 오류는 account.guest |
+| `POST /v2/consents` | 헤더 `Authorization`, `ConsentRequest`: `document_id`, `action`(granted·declined) | `ConsentEventResponse` 201, 같은 결정이면 200 | 401, `account_deactivated` 403, `consent_document_not_found` 404, `consent_document_outdated` 409(`ConsentDocumentOutdatedError`), `required_consent_cannot_be_declined` 422, 허용 밖 `action` 422 배열, 주체 한도 429. 게스트의 오류는 account.guest |
 | `ConsentDocumentPublisher` (서버 시작 때) | 배포에 든 동의 문서 파일 | 판이 DB보다 새로우면 새 판 행, 같은 판이면 본문 덮어쓰기 | 실패는 보고한다 |
 
 ## 상태
@@ -34,10 +26,9 @@
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| 미결정 | 현재 판에 행이 없음(새 판 발행), 0.1.0 이전의 필수 문서 거절·철회 기록 | account.consent |
+| 미결정 | 현재 판에 행이 없음(새 판 발행), 0.1.0 이전의 필수 문서 거절 기록 | account.consent |
 | granted | 가입 제출의 동의, 설정·게이트의 동의, 게스트의 동의 시트 | account.login, account.consent, account.guest |
-| declined | 가입 제출·설정의 선택 문서 거절 | account.login, account.consent |
-| revoked | 탈퇴 뒤 운영자가 처리한 보관 동의 철회 | account.withdraw |
+| declined | 가입 제출·설정의 선택 문서 거절. 탈퇴 뒤 운영자가 처리한 보관 동의 철회 | account.login, account.consent, account.withdraw |
 
 회원의 진입 판정(`ConsentEntry.Status`)은 저장하지 않고 요청마다 계산한다. 진입에서 묻는 문서(「데이터」)의 현재 판을
 모두 결정했으면 ALLOWED, 하나라도 미결정이면 DECISION_REQUIRED다.
@@ -45,13 +36,15 @@
 불변 조건: user_consents는 추가만 하고 고치지 않으며 탈퇴해도 남는다. 끝 상태는 없다. 새 판이 나오면 그
 문서는 다시 미결정이 된다.
 
-- 결정 값은 granted, declined, revoked 셋이다. 가입 때와 설정에서 고른 동의는 granted, 거절은
-  declined이고, 탈퇴 뒤 운영자가 처리한 철회만 revoked다.
+- 결정 값은 granted, declined 둘이다. 가입 때와 설정에서 고른 동의는 granted, 거절은 declined다. 탈퇴 뒤 운영자가 보관
+  동의 철회를 처리할 때도 마지막으로 결정한 그 문서에 declined 한 줄을 덧붙인다. 탈퇴한 계정은 API로 결정을 기록하지 못하므로 탈퇴 시각
+  (`users.deactivated_at`) 뒤의 declined는 운영자가 처리한 철회다. 진입 판정에서 결정으로 치는 것은 granted와 선택 문서의
+  declined뿐이다(`ConsentDocument.decidedBy`).
 - type마다 현재 판이 하나다. 새 판은 version을 올려 발행하고 옛 판 행은 남긴다. 결정은 판 단위로
   기록한다. 현재 결정은 그 판에 대한 마지막 행이다.
 - 새 판이 나오면 옛 판의 결정은 옛 판에만 유효하고 새 판은 미결정이 된다. 필수·선택 모두 같아서
   선택 문서의 새 판도 게이트에 나온다. 거절해도 결정이므로 통과한다.
-- 0.1.0 이전에 필수 문서를 거절하거나 철회한 기록이 있는 회원은 미결정과 같게 다룬다. 게이트는
+- 0.1.0 이전에 필수 문서를 거절한 기록이 있는 회원은 미결정과 같게 다룬다. 게이트는
   consent_required로 답하고 홈(또는 쓰던 화면) 위에 재동의 팝업이 뜬다. 거절·철회를 따로 가르던 사유(consent_blocked)와 그 요청
   헤더(X-Acttub-Consent-Entry), `entry_status`의 blocked 값은 없앤다. 필수 문서를 거절할 길이 없어 새로 생기지 않기 때문이다.
 
@@ -69,23 +62,18 @@
 
 필수 셋의 type은 현재 코드와 같다. privacy 문서는 수집 항목·목적·보유 기간을 적은 개인정보 수집·이용
 동의다. 개인정보 처리방침은 동의를 받는 문서가 아니라 고지라서 결정 대상에 넣지 않고 공개 페이지에
-함께 싣는다. 현재 코드와 디자인은 privacy 문서의 제목이 "개인정보처리방침"이라 고쳐 새 판을 낸다.
-광고성 정보 수신 문서는 0.1.0에는 없었다. 광고성 발송이 없는데 동의만 받으면 2년마다 수신 의사를
-확인할 의무만 생기기 때문이다. 가입자에게 업데이트 소식 메일(SOMA-640)과 챌린지 소개 같은 홍보성 푸시를
-보내기로 해서 더했다(SOMA-642). 회사가 보내는 뉴스레터는 내용과 상관없이 광고성 정보이고, KISA 안내서는 전송
-매체마다 따로 동의받도록 안내하므로 이메일과 앱 푸시를 두 문서로 나눈다. 둘 다 진입에서 묻는 선택 문서라
-발행한 날 기존 회원에게는 재동의 팝업으로 한 번 나오고, 비워 두면 거절로 기록돼 다시 묻지 않는다.
-제목에 「광고성 정보 수신 동의」를 그대로 쓴다 — '혜택 알림' 같은 표현은 명시적 동의로 보지 않는다(KISA).
+함께 싣는다.
+광고성 정보 수신 동의는 전송 매체마다 문서가 따로 있어 이메일과 앱 푸시 둘이다. 다만 앱 가입 동의 화면은 두 문서를 한 줄로 묶어
+한 번에 동의·해제한다(`consent.rowMarketing`). 매체마다 따로 고르는 곳은 재동의 팝업과 설정의 동의 내역 화면뿐이다.
+둘 다 진입에서 묻는 선택 문서라 발행한 날 기존 회원에게는 재동의 팝업으로 한 번 나오고, 비워 두면 거절로 기록돼 다시 묻지 않는다.
+제목에 「광고성 정보 수신 동의」를 그대로 쓴다. 이 문서를 둔 경위는 팀 위키 `decisions/account-background`에 있다.
 동의하거나 거절하면 처리 결과(보내는 곳·내용·날짜)를 화면으로 알린다(정보통신망법 제50조 제7항). 앱은 OS 알림창이 아니라
 디자인 S5.13 팝업(보낸 곳·처리일·매체별 결과 표와 확인 하나)을 쓰고, 가입·재동의는 그 화면이 내려가므로 다음 화면 위에 띄운다(SOMA-790). 발송 쪽
 규칙(제목 앞 「(광고)」, 수신 거부 방법, 밤 9시~아침 8시 금지, 2년마다 수신 의사 확인)은 보내는 기능이 지킨다.
-디자인의 동의 화면(A0.1)에는 필수 셋만 있어 선택 문서 줄을 더해야 한다.
-가입 동의 화면(A0.1)은 제목 「Acttub를 쓰려면 동의가 필요해요」 아래에 파란 안내 줄 하나로 지금 누를 곳을 알린다. 만 14세 확인과
-필수 문서를 다 고르기 전에는 「「전체 동의」 한 번이면 준비 끝이에요!」, 다 고르면 「준비 끝! 이제 「동의하고 계속하기」만 누르면
-돼요」다. 고른 것을 다시 비워 계속할 수 없게 되면 첫 문구로 돌아간다(SOMA-790, pen 파이프라인 반영버전).
+가입 동의 화면(A0.1)의 안내 문구는 pen이 정본이다.
 cloud_voice와 script_split은 가입·게이트에서 묻지 않는다. 개인정보 수집·이용 동의 v9부터 두 처리가 그 동의에 들어 있어(SOMA-726)
 서버는 v9 이상 동의자를 두 기능의 동의자로 본다. cloud_voice는 v9 이전 동의자에게 그 기능을 쓸 때 묻고([reading.cloud-voice](../reading/cloud-voice.md)),
-script_split은 앱·웹 어디서도 따로 묻지 않는다 — 필수 판이 v9 이상(지금 v11)이라 묻는 팝업이 뜰 일이 없다(10-27, [reading.script](../reading/script.md#규칙제약)
+script_split은 앱·웹 어디서도 따로 묻지 않는다 — 지금 필수인 개인정보 수집·이용 동의가 v9 이상이라 묻는 팝업이 뜰 일이 없다(10-27, [reading.script](../reading/script.md#규칙제약)
 「나누기 작업」). 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 쓰지도 않을 기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`).
 
 ## 규칙·제약
@@ -162,4 +150,4 @@ script_split은 앱·웹 어디서도 따로 묻지 않는다 — 필수 판이 
 
 ## 범위 밖
 - 동의 문서 관리 화면. 발행은 배포에 든 파일로 한다.
-- 배우가 보내는 철회. revoked는 탈퇴 뒤 운영자만 기록한다.
+- 배우가 보내는 철회. 보관 동의 철회는 탈퇴 뒤 운영자만 기록한다(declined).

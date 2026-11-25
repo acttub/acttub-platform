@@ -51,8 +51,7 @@ class GeminiObservationAnalyzerTest {
         ObservationAnalyzer analyzer = new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(),
                 new RecordingLlmTelemetry());
 
-        ObservationPack result = analyzer.analyze(
-                Path.of("/tmp/take.video"), "video/quicktime", ACTOR, PRACTICE);
+        ObservationPack result = analyzer.analyze(Path.of("/tmp/take.video"), "video/quicktime", ACTOR, PRACTICE, null);
 
         assertThat(result.observations()).isEmpty();
         assertThat(result.uncertainties()).isEmpty();
@@ -108,8 +107,7 @@ class GeminiObservationAnalyzerTest {
                 }
                 """);
 
-        ObservationPack result = analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
+        ObservationPack result = analyzer(gateway).analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE, null);
 
         assertThat(result.observations())
                 .extracting(ObservationItem::what)
@@ -128,8 +126,7 @@ class GeminiObservationAnalyzerTest {
                  "uncertainties":[]}
                 """);
 
-        ObservationPack result = analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
+        ObservationPack result = analyzer(gateway).analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE, null);
 
         assertThat(result.observations()).extracting(ObservationItem::what)
                 .containsExactly("두 번째");
@@ -143,8 +140,7 @@ class GeminiObservationAnalyzerTest {
         gateway.responses.add("second-invalid");
         gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
 
-        assertThatThrownBy(() -> analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE))
+        assertThatThrownBy(() -> analyzer(gateway).analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE, null))
                 .isInstanceOf(SummaryParseError.class)
                 .hasMessageStartingWith("failed to parse after retry: ");
 
@@ -160,8 +156,7 @@ class GeminiObservationAnalyzerTest {
         RecordingFailureReporter reporter = new RecordingFailureReporter();
 
         ObservationPack result = new GeminiObservationAnalyzer(
-                gateway, mapper, MODEL, reporter, new RecordingLlmTelemetry()).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
+                gateway, mapper, MODEL, reporter, new RecordingLlmTelemetry()).analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE, null);
 
         assertThat(result).isEqualTo(new ObservationPack("", List.of(), List.of()));
         assertThat(gateway.deletedNames).containsExactly("files/take");
@@ -208,8 +203,7 @@ class GeminiObservationAnalyzerTest {
                 duration -> { },
                 new RecordingFailureReporter(), new RecordingLlmTelemetry());
 
-        analyzer.analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
+        analyzer.analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE, null);
 
         assertThat(gateway.getCalls).isEqualTo(1);
         assertThat(gateway.contents.parts().orElseThrow().getFirst()
@@ -256,7 +250,7 @@ class GeminiObservationAnalyzerTest {
 
         var result = new GeminiObservationAnalyzer(
                 gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
-                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, null);
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, null, null);
 
         assertThat(result.observations()).isEmpty();
         assertThat(gateway.generateCalls).isEqualTo(1);
@@ -272,7 +266,7 @@ class GeminiObservationAnalyzerTest {
 
         assertThatThrownBy(() -> new GeminiObservationAnalyzer(
                 gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
-                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, PRACTICE))
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, PRACTICE, null))
                 .isSameAs(gateway.generateFailure);
 
         assertThat(telemetry.calls()).singleElement().satisfies(call -> {

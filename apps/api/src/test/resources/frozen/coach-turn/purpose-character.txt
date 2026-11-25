@@ -1,0 +1,824 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] inspect · main
+  파일: 임시 파일 «original video bytes»
+  ← InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+[2] upload/3 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+[3] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  ← true
+[4] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/character/first.txt⟫
+  ← «<설계>⏎영상: 연기⏎대사 확인: 확인됨⏎대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"⏎대본 단서: "가르쳐 줘"⏎테이크 속 인물: 화를 참는 사람⏎다른 가능성: 매달리는 사람⏎</설계>⏎<코치>⏎이 인물은 어떤 사람으로 봤어요?⏎</코치>⏎<보기>⏎화를 참는 사람이요⏎매달리는 사람이요⏎</보기>⏎<장면>⏎헤어지자는 말을 들은 밤 | 헬레네 | 연인⏎</장면>»
+[5] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.character
+    |⟪direct-video/purpose/first-common.txt⟫
+    |
+    |⟪direct-video/purpose/character/first.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:character
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=840
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |[]
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |이 인물은 어떤 사람으로 봤어요?
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "영상: 연기\n대사 확인: 확인됨\n대사 시간: 0:03 \"가르쳐 줘\" / 0:12 \"취소해\"\n대본 단서: \"가르쳐 줘\"\n테이크 속 인물: 화를 참는 사람\n다른 가능성: 매달리는 사람",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "character",
+  |    "step" : 0,
+  |    "stays" : 0,
+  |    "cells" : 0,
+  |    "questions" : 1,
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ {
+  |      "label" : "화를 참는 사람이요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "매달리는 사람이요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ]
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=character, step=view, choices=[Choice[label=화를 참는 사람이요, at=null], Choice[label=매달리는 사람이요, at=null], Choice[label=잘 모르겠어요, at=null]], scene=null, lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=null]
+화면의 예시 답: []
+
+## 차례 2
+배우 말: 화를 참는 사람이요
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |대사 확인: 확인됨
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |대본 단서: "가르쳐 줘"
+      |테이크 속 인물: 화를 참는 사람
+      |다른 가능성: 매달리는 사람
+      |</설계>
+      |<코치>
+      |이 인물은 어떤 사람으로 봤어요?
+      |</코치>
+    [user]
+      |화를 참는 사람이요
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 인물 이해하기
+    |이번 응답이 하는 단계: 인물 카드 채우기
+    |⟪direct-video/purpose/character/cell.txt⟫
+    |
+    |⟪direct-video/purpose/character/path.txt⟫
+    |
+    |재료
+    |- 배우가 「어떤 사람으로 봤는지」 질문에 한 답: 화를 참는 사람이요
+    |- 직전에 내준 버튼: [{"label":"화를 참는 사람이요","at":null},{"label":"매달리는 사람이요","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방금 한 말: 화를 참는 사람이요 (버튼을 눌렀다)
+  ← «화를 참는 사람이군요. 이 사람은 그 전에 무슨 일이 있었을까요?⏎<보기>⏎헤어지자는 말을 들었어요⏎</보기>⏎<인물 카드>⏎누구: 화를 참는 사람 (내 말)⏎</인물 카드>»
+[4] delete · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:character:cell
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=1680
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |화를 참는 사람이군요. 이 사람은 그 전에 무슨 일이 있었을까요?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: character\n배우의 말: 버튼\n단계: cell\n할 일: cell\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "character",
+  |    "step" : 1,
+  |    "stays" : 0,
+  |    "cells" : 1,
+  |    "questions" : 2,
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ {
+  |      "label" : "헤어지자는 말을 들었어요",
+  |      "at" : null
+  |    }, {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ],
+  |    "answers" : {
+  |      "view" : "화를 참는 사람이요"
+  |    },
+  |    "character_card" : {
+  |      "cells" : [ {
+  |        "key" : "who",
+  |        "label" : "누구",
+  |        "value" : "화를 참는 사람",
+  |        "source" : "내 말"
+  |      } ]
+  |    }
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=character, step=cell, choices=[Choice[label=헤어지자는 말을 들었어요, at=null], Choice[label=잘 모르겠어요, at=null]], scene=null, lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=CharacterCard[cells=[Cell[key=who, label=누구, value=화를 참는 사람, source=내 말]]]]
+화면의 예시 답: []
+
+## 차례 3
+배우 말: 헤어지자는 말을 들었어요
+
+### 모델 호출
+[1] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+[2] ready · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  ← true
+[3] reply · main
+  생각 최소: true
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |대사 확인: 확인됨
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |대본 단서: "가르쳐 줘"
+      |테이크 속 인물: 화를 참는 사람
+      |다른 가능성: 매달리는 사람
+      |</설계>
+      |<코치>
+      |이 인물은 어떤 사람으로 봤어요?
+      |</코치>
+    [user]
+      |화를 참는 사람이요
+    [model]
+      |화를 참는 사람이군요. 이 사람은 그 전에 무슨 일이 있었을까요?
+    [user]
+      |헤어지자는 말을 들었어요
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 인물 이해하기
+    |이번 응답이 하는 단계: 인물 카드 채우기
+    |⟪direct-video/purpose/character/cell.txt⟫
+    |
+    |⟪direct-video/purpose/character/path.txt⟫
+    |
+    |재료
+    |- 배우가 「어떤 사람으로 봤는지」 질문에 한 답: 화를 참는 사람이요
+    |- 배우가 「인물 카드 채우기」 질문에 한 답: 헤어지자는 말을 들었어요
+    |- 지금 인물 카드: {"cells":[{"key":"who","label":"누구","value":"화를 참는 사람","source":"내 말"}]}
+    |- 직전에 내준 버튼: [{"label":"헤어지자는 말을 들었어요","at":null},{"label":"잘 모르겠어요","at":null}]
+    |- 배우가 방금 한 말: 헤어지자는 말을 들었어요 (버튼을 눌렀다)
+  ← «그래서 끝까지 참는군요. 이 사람이 바라는 건 뭘까요?⏎<인물 카드>⏎누구: 화를 참는 사람 (내 말)⏎직전 상황: 헤어지자는 말을 들었다 (내 말)⏎</인물 카드>»
+[4] delete · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:character:cell
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=2520
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 3 지시문⟫
+    |⟪호출 3 기록⟫
+  출력:
+    |⟪호출 3 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 3
+코치 말:
+  |그래서 끝까지 참는군요. 이 사람이 바라는 건 뭘까요?
+저장 상태:
+  |{
+  |  "revision" : 3,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: character\n배우의 말: 버튼\n단계: cell\n할 일: cell\n다음 테이크: 없음", "목적: character\n배우의 말: 버튼\n단계: cell\n할 일: cell\n다음 테이크: 없음" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "character",
+  |    "step" : 1,
+  |    "stays" : 0,
+  |    "cells" : 2,
+  |    "questions" : 3,
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ {
+  |      "label" : "잘 모르겠어요",
+  |      "at" : null
+  |    } ],
+  |    "answers" : {
+  |      "view" : "화를 참는 사람이요",
+  |      "cell" : "헤어지자는 말을 들었어요"
+  |    },
+  |    "character_card" : {
+  |      "cells" : [ {
+  |        "key" : "who",
+  |        "label" : "누구",
+  |        "value" : "화를 참는 사람",
+  |        "source" : "내 말"
+  |      }, {
+  |        "key" : "before",
+  |        "label" : "직전 상황",
+  |        "value" : "헤어지자는 말을 들었다",
+  |        "source" : "내 말"
+  |      } ]
+  |    }
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: PurposeView[purpose=character, step=cell, choices=[Choice[label=잘 모르겠어요, at=null]], scene=null, lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=CharacterCard[cells=[Cell[key=who, label=누구, value=화를 참는 사람, source=내 말], Cell[key=before, label=직전 상황, value=헤어지자는 말을 들었다, source=내 말]]]]
+화면의 예시 답: []
+
+## 차례 4
+배우 말: 붙잡히고 싶었던 것 같아요
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |이 인물은 어떤 사람으로 봤어요?
+    [user]
+      |화를 참는 사람이요
+    [model]
+      |화를 참는 사람이군요. 이 사람은 그 전에 무슨 일이 있었을까요?
+    [user]
+      |헤어지자는 말을 들었어요
+    [model]
+      |그래서 끝까지 참는군요. 이 사람이 바라는 건 뭘까요?
+    [user]
+      |붙잡히고 싶었던 것 같아요
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["answered"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |대사 확인: 확인됨
+      |대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"
+      |대본 단서: "가르쳐 줘"
+      |테이크 속 인물: 화를 참는 사람
+      |다른 가능성: 매달리는 사람
+      |</설계>
+      |<코치>
+      |이 인물은 어떤 사람으로 봤어요?
+      |</코치>
+    [user]
+      |화를 참는 사람이요
+    [model]
+      |화를 참는 사람이군요. 이 사람은 그 전에 무슨 일이 있었을까요?
+    [user]
+      |헤어지자는 말을 들었어요
+    [model]
+      |그래서 끝까지 참는군요. 이 사람이 바라는 건 뭘까요?
+    [user]
+      |붙잡히고 싶었던 것 같아요
+  지시문:
+    |⟪direct-video/purpose/turn.txt⟫
+    |
+    |[이번 응답]
+    |목적: 인물 이해하기
+    |이번 응답이 하는 단계: 정리
+    |⟪direct-video/purpose/character/wrap.txt⟫
+    |
+    |⟪direct-video/purpose/character/path.txt⟫
+    |
+    |재료
+    |- 배우가 「어떤 사람으로 봤는지」 질문에 한 답: 화를 참는 사람이요
+    |- 배우가 「인물 카드 채우기」 질문에 한 답: 붙잡히고 싶었던 것 같아요
+    |- 지금 인물 카드: {"cells":[{"key":"who","label":"누구","value":"화를 참는 사람","source":"내 말"},{"key":"before","label":"직전 상황","value":"헤어지자는 말을 들었다","source":"내 말"}]}
+    |- 직전에 내준 버튼: [{"label":"잘 모르겠어요","at":null}]
+    |⟪direct-video/purpose/direct.txt⟫
+    |⟪direct-video/purpose/character/wrap-card.txt⟫
+    |- 배우가 방금 한 말: 붙잡히고 싶었던 것 같아요
+  ← «"가르쳐 줘"는 매달리는 말로도 들려요. 화를 참으면서도 붙잡고 싶은 사람이라 더 입체적이에요.⏎<인물 카드>⏎누구: 화를 참는 사람 (내 말)⏎직전 상황: 헤어지자는 말을 들었다 (내 말)⏎바라는 것: 붙잡히기 (같이 찾음)⏎관계: 연인 (영상)⏎막는 것: 자존심 (영상)⏎</인물 카드>⏎<다음 테이크>"가르쳐 줘"를 매달리듯 말해 봐도 좋아요</다음 테이크>»
+[5] delete · main
+  영상: files/main-4 gemini://main-4 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.purpose.turn
+    |⟪direct-video/purpose/turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=purpose:character:wrap
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=3360
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: interrupted · 판: 4
+코치 말:
+  |"가르쳐 줘"는 매달리는 말로도 들려요.
+  |화를 참으면서도 붙잡고 싶은 사람이라 더 입체적이에요.
+저장 상태:
+  |{
+  |  "revision" : 4,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "practice_loop" : {
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "목적: character\n배우의 말: 버튼\n단계: cell\n할 일: cell\n다음 테이크: 없음", "목적: character\n배우의 말: 버튼\n단계: cell\n할 일: cell\n다음 테이크: 없음", "목적: character\n배우의 말: 답\n단계: wrap\n할 일: 정리하기\n다음 테이크: \"가르쳐 줘\"를 매달리듯 말해 봐도 좋아요" ]
+  |  },
+  |  "purpose_loop" : {
+  |    "purpose" : "character",
+  |    "step" : 2,
+  |    "stays" : 0,
+  |    "cells" : 2,
+  |    "questions" : 3,
+  |    "lines" : [ {
+  |      "at" : 3,
+  |      "text" : "가르쳐 줘"
+  |    }, {
+  |      "at" : 12,
+  |      "text" : "취소해"
+  |    } ],
+  |    "choices" : [ ],
+  |    "answers" : {
+  |      "view" : "화를 참는 사람이요",
+  |      "cell" : "붙잡히고 싶었던 것 같아요"
+  |    },
+  |    "character_card" : {
+  |      "cells" : [ {
+  |        "key" : "who",
+  |        "label" : "누구",
+  |        "value" : "화를 참는 사람",
+  |        "source" : "내 말"
+  |      }, {
+  |        "key" : "before",
+  |        "label" : "직전 상황",
+  |        "value" : "헤어지자는 말을 들었다",
+  |        "source" : "내 말"
+  |      }, {
+  |        "key" : "relation",
+  |        "label" : "관계",
+  |        "value" : "연인",
+  |        "source" : "영상"
+  |      }, {
+  |        "key" : "want",
+  |        "label" : "바라는 것",
+  |        "value" : "붙잡히기",
+  |        "source" : "같이 찾음"
+  |      }, {
+  |        "key" : "obstacle",
+  |        "label" : "막는 것",
+  |        "value" : "자존심",
+  |        "source" : "영상"
+  |      } ]
+  |    }
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 4,
+  |  "end_reason" : "interrupted",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "이 인물은 어떤 사람으로 봤어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "화를 참는 사람이요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "화를 참는 사람이군요. 이 사람은 그 전에 무슨 일이 있었을까요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "role" : "actor",
+  |    "text" : "헤어지자는 말을 들었어요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "role" : "ai",
+  |    "text" : "그래서 끝까지 참는군요. 이 사람이 바라는 건 뭘까요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:5",
+  |    "role" : "actor",
+  |    "text" : "붙잡히고 싶었던 것 같아요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:6",
+  |    "role" : "ai",
+  |    "text" : "\"가르쳐 줘\"는 매달리는 말로도 들려요.\n화를 참으면서도 붙잡고 싶은 사람이라 더 입체적이에요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "이 인물은 어떤 사람으로 봤어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "화를 참는 사람이요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "화를 참는 사람이군요. 이 사람은 그 전에 무슨 일이 있었을까요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "kind" : "actor_message",
+  |    "text" : "헤어지자는 말을 들었어요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "kind" : "coach_message",
+  |    "text" : "그래서 끝까지 참는군요. 이 사람이 바라는 건 뭘까요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:5",
+  |    "kind" : "actor_message",
+  |    "text" : "붙잡히고 싶었던 것 같아요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:6",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가르쳐 줘\"는 매달리는 말로도 들려요.\n화를 참으면서도 붙잡고 싶은 사람이라 더 입체적이에요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: PurposeView[purpose=character, step=wrap, choices=[], scene=null, lines=[Line[at=3, text=가르쳐 줘], Line[at=12, text=취소해]], card=null, characterCard=CharacterCard[cells=[Cell[key=who, label=누구, value=화를 참는 사람, source=내 말], Cell[key=before, label=직전 상황, value=헤어지자는 말을 들었다, source=내 말], Cell[key=relation, label=관계, value=연인, source=영상], Cell[key=want, label=바라는 것, value=붙잡히기, source=같이 찾음], Cell[key=obstacle, label=막는 것, value=자존심, source=영상]]]]
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title=null, summaryQuotes=[{"quote":"바라는 것: 붙잡히기","kind":"actor","source_ref":"turn:00000000-0000-4000-8000-000000000001:6"},{"quote":"누구: 화를 참는 사람","kind":"actor","source_ref":"turn:00000000-0000-4000-8000-000000000001:1"}], nextTake="가르쳐 줘"를 매달리듯 말해 봐도 좋아요, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=4, legacyReport=null]

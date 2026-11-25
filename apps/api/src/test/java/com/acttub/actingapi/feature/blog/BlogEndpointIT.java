@@ -35,8 +35,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.blog — 로그인 없이 읽는 공개 경로와 운영 토큰으로 여는 관리 경로. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret",
-        "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=admin-secret"})
 @AutoConfigureMockMvc
 @Import(BlogEndpointIT.StorageFixture.class)
 // 이 클래스만 쓰는 컨텍스트(전용 DB)라 끝나면 닫는다. 캐시에 남으면 테스트 JVM(1g) 힙이 모자랐다.

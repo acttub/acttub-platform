@@ -53,7 +53,7 @@ class ProfileServiceRefusalTest {
 
     @Test void writesRefusedAfterAnotherDeviceWithdrewAreReportedAsDeactivated() {
         deactivated();
-        rejects(() -> service.saveProfile(user, adult), 403, "account_deactivated");
+        rejects(() -> service.saveProfile(user, adult, null), 403, "account_deactivated");
         rejects(() -> service.updateNotificationSettings(user, true, null, null), 403, "account_deactivated");
         rejects(() -> service.recordSignupAttribution(user,
                 new SignupAttribution("google", "ios", null, null, null, null, null, null, null, null), "sdk"), 403, "account_deactivated");
@@ -103,7 +103,7 @@ class ProfileServiceRefusalTest {
     @Test void anUnderageSignupWhoseAccountIsAlreadyGoneStillGetsTheClosedAnswer() {
         when(profiles.find(user)).thenReturn(new Account(user, null, "active", "member", null));
         Profile child = new Profile("어린이", "선택 안 함", LocalDate.of(2020, 1, 1), List.of("매체(TV·영화)"), "1년 미만", "취미", null, null);
-        rejects(() -> service.saveProfile(user, child), 422, "under_14_account_closed");
+        rejects(() -> service.saveProfile(user, child, null), 422, "under_14_account_closed");
         verify(cleanup, never()).attempt(any());
         verify(profiles, never()).saveProfile(any(), any(), any());
         assertThat(new Profile(null, "남", null, List.of(), null, null, null, null).complete()).isFalse();

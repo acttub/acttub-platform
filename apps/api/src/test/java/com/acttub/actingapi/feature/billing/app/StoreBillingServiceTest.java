@@ -43,8 +43,8 @@ class StoreBillingServiceTest {
         public String open(String sealed) {
             return sealed;
         }
-    }, clock);
-    final StoreBillingService service = new StoreBillingService(settings, repository, subscriptions, revenueCat, clock);
+    }, clock, BillingMailer.NONE, RefundNotifier.NONE);
+    final StoreBillingService service = new StoreBillingService(settings, repository, subscriptions, revenueCat, clock, false);
 
     /** 사람별 RevenueCat entitlement. 없으면 비어 있다. */
     static class FakeRevenueCat implements RevenueCatGateway {
@@ -155,14 +155,13 @@ class StoreBillingServiceTest {
     void syncErrors() {
         assertThatThrownBy(() -> service.sync(user, true)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.status()).isEqualTo(403));
-        StoreBillingService closed = new StoreBillingService(new BillingSettings(false, false, false, "", "", "", ""), repository,
-                subscriptions, revenueCat, clock);
+        StoreBillingService closed = new StoreBillingService(new BillingSettings(false, false, false, "", "", "", ""), repository, subscriptions, revenueCat, clock, false);
         assertThatThrownBy(() -> closed.sync(user, false)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.status()).isEqualTo(404));
         revenueCat.failure = new StoreException(StoreException.Kind.UPSTREAM, "x");
         assertThatThrownBy(() -> service.sync(user, false)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.status()).isEqualTo(502));
-        StoreBillingService off = new StoreBillingService(settings, repository, subscriptions, StoreGateways.revenueCatDisabled(), clock);
+        StoreBillingService off = new StoreBillingService(settings, repository, subscriptions, StoreGateways.revenueCatDisabled(), clock, false);
         assertThatThrownBy(() -> off.sync(user, false)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.status()).isEqualTo(503));
         assertThat(repository.subscriptions).isEmpty();
@@ -377,10 +376,9 @@ class StoreBillingServiceTest {
         assertThat(service.handleRevenueCatEvent(anonymous)).isEqualTo(NotificationResult.IGNORED);
         assertThat(revenueCat.calls).isZero();
 
-        StoreBillingService closed = new StoreBillingService(new BillingSettings(false, false, false, "", "", "", ""), repository,
-                subscriptions, revenueCat, clock);
+        StoreBillingService closed = new StoreBillingService(new BillingSettings(false, false, false, "", "", "", ""), repository, subscriptions, revenueCat, clock, false);
         assertThat(closed.handleRevenueCatEvent(event("RENEWAL", user))).isEqualTo(NotificationResult.IGNORED);
-        StoreBillingService off = new StoreBillingService(settings, repository, subscriptions, StoreGateways.revenueCatDisabled(), clock);
+        StoreBillingService off = new StoreBillingService(settings, repository, subscriptions, StoreGateways.revenueCatDisabled(), clock, false);
         assertThat(off.handleRevenueCatEvent(event("RENEWAL", user))).isEqualTo(NotificationResult.IGNORED);
 
         assertThatThrownBy(() -> service.handleRevenueCatEvent(JSON.readTree("{\"nope\":1}")))

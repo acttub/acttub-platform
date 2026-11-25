@@ -74,16 +74,6 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                 new AudioSignalEvidence()::hasSignal);
     }
 
-    /** Test-only: existing upload tests do not inspect video frames. */
-    GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe) {
-        this(client, model, audioProbe, new VideoFrameEvidence()::entirelyBlack, path -> true);
-    }
-
-    /** Test-only: both track/frame probes are injected; audio signal is assumed valid. */
-    GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe, Predicate<Path> blackFrameProbe) {
-        this(client, model, audioProbe, blackFrameProbe, path -> true);
-    }
-
     GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe,
             Predicate<Path> blackFrameProbe, Predicate<Path> audioSignalProbe) {
         this(client, model, audioProbe, blackFrameProbe, audioSignalProbe, Hedge.NONE, null);
@@ -412,12 +402,6 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
      * 생각 단계. gemini-3 계열은 LOW 이고, 가벼운 호출(줄이기)은 MINIMAL 을 받는 모델이면 MINIMAL 이다(SOMA-780).
      * 10/21 서버 실측: 줄이기 LOW 6.0초(생각 1,051토큰) → MINIMAL 1.3초, 줄인 길이는 같았다. 3.8 Flash 는 MINIMAL 을
      * 받지 않아 LOW 로 둔다.
-     */
-    ThinkingConfig thinking(boolean light) {
-        return thinking(light, null);
-    }
-
-    /**
      * {@code trace} 가 최소 생각을 요청한 턴(연습 루프 답장, SOMA-780)도 {@code light} 와 같이 MINIMAL 을 받는 모델이면 MINIMAL 이다.
      * 받지 않는 모델은 LOW 그대로다. 적용한 단계는 {@code trace} 에 남긴다.
      */

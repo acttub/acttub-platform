@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code analyses.status} 의 값 — 관찰 기록이 어디까지 찼는가 (practice.analyze).
  *
@@ -25,12 +23,5 @@ public enum AnalysisStatus implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<AnalysisStatus> {
-        public JpaConverter() {
-            super(AnalysisStatus.class);
-        }
     }
 }

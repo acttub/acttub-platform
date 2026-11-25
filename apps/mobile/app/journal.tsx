@@ -195,7 +195,7 @@ export default function JournalScreen() {
       leave();
       return;
     }
-    // AI 코칭을 마칠 때 — 두 번에 한 번(7일 간격·최대 3번) 앱 평가를 묻고 닫힌 뒤 나간다 (SOMA-494, 노트 화면과 같다).
+    // AI 코칭을 마칠 때 — 두 번에 한 번(7일 간격·최대 3번) 앱 평가를 묻고 닫힌 뒤 나간다 (SOMA-494).
     void rating.after({ kind: 'coach', practiceId }, leave);
   };
 

@@ -20,8 +20,6 @@ class InMemoryBillingRepository implements BillingRepository {
     final Map<String, Payment> payments = new LinkedHashMap<>();
     final Map<UUID, Instant> leases = new LinkedHashMap<>();
     final Map<UUID, java.util.List<Instant[]>> grants = new LinkedHashMap<>();
-    int sessionsToday;
-    int scripts;
 
     @Override
     public Optional<Subscription> find(UUID userId) {
@@ -31,11 +29,6 @@ class InMemoryBillingRepository implements BillingRepository {
     @Override
     public Optional<Subscription> findById(UUID subscriptionId) {
         return Optional.ofNullable(subscriptions.get(subscriptionId));
-    }
-
-    @Override
-    public int coachingSessionsSince(UUID userId, Instant since) {
-        return sessionsToday;
     }
 
     /** 테스트용 스토어(apple·google) 구독 한 줄. */
@@ -84,11 +77,6 @@ class InMemoryBillingRepository implements BillingRepository {
     public Optional<Instant> signedUpAt(UUID userId) {
         signupReads++;
         return Optional.ofNullable(signups.get(userId));
-    }
-
-    @Override
-    public int scriptCount(UUID userId) {
-        return scripts;
     }
 
     @Override
@@ -147,10 +135,11 @@ class InMemoryBillingRepository implements BillingRepository {
     }
 
     @Override
-    public void activate(UUID id, Instant periodStart, Instant periodEnd, Instant now) {
+    public boolean activate(UUID id, Instant periodStart, Instant periodEnd, Instant now) {
         Subscription s = subscriptions.get(id);
         put(new Subscription(id, s.userId(), Status.ACTIVE, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
                 s.cardNumber(), s.amount(), periodStart, periodEnd, null, 0, null, s.provider(), s.plan()));
+        return true;
     }
 
     @Override
@@ -182,6 +171,16 @@ class InMemoryBillingRepository implements BillingRepository {
     }
 
     @Override
+    public void dropUnpaidKey(UUID id, Instant now) {
+        Subscription s = subscriptions.get(id);
+        if (s == null || s.status() != Status.EXPIRED) {
+            return;
+        }
+        put(new Subscription(id, s.userId(), s.status(), s.customerKey(), null, s.cardCompany(), s.cardNumber(),
+                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), s.nextRetryAt(), s.provider(), s.plan()));
+    }
+
+    @Override
     public boolean cancel(UUID id, Instant now) {
         Subscription s = subscriptions.get(id);
         if (s.status() != Status.ACTIVE) {
@@ -200,7 +199,7 @@ class InMemoryBillingRepository implements BillingRepository {
                         || (s.status() == Status.PAST_DUE && s.nextRetryAt() != null && !s.nextRetryAt().isAfter(now))))
                 .filter(s -> leases.get(s.id()) == null || leases.get(s.id()).isBefore(now))
                 .filter(s -> payments.values().stream().noneMatch(p -> p.subscriptionId().equals(s.id())
-                        && ("pending".equals(p.status()) || "unknown".equals(p.status()))))
+                        && unresolved(p)))
                 .findFirst()
                 .map(s -> {
                     leases.put(s.id(), now.plus(lease));
@@ -230,7 +229,12 @@ class InMemoryBillingRepository implements BillingRepository {
     @Override
     public boolean hasUnresolvedPayment(UUID userId) {
         return payments.values().stream()
-                .anyMatch(p -> p.userId().equals(userId) && ("pending".equals(p.status()) || "unknown".equals(p.status())));
+                .anyMatch(p -> p.userId().equals(userId) && unresolved(p));
+    }
+
+    /** 저장소 SQL 의 {@code status NOT IN ('done','failed')} 와 같다. */
+    private static boolean unresolved(Payment payment) {
+        return !"done".equals(payment.status()) && !"failed".equals(payment.status());
     }
 
     @Override
@@ -253,7 +257,7 @@ class InMemoryBillingRepository implements BillingRepository {
     @Override
     public Optional<Payment> claimUnknownPayment(Instant now, Duration quietFor, int maxChecks) {
         List<Payment> unknown = new ArrayList<>(payments.values().stream()
-                .filter(p -> "unknown".equals(p.status())).toList());
+                .filter(InMemoryBillingRepository::unresolved).toList());
         return unknown.isEmpty() ? Optional.empty() : Optional.of(unknown.get(0));
     }
 

@@ -59,9 +59,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "spring.datasource.hikari.maximum-pool-size=10"
-})
+    "spring.datasource.hikari.maximum-pool-size=10"})
 @AutoConfigureMockMvc
 @Import({StubProviders.class, MutableClock.Fixture.class, AccountWithdrawIT.Fixture.class})
 class AccountWritesAndPhotoCleanupIT {
@@ -188,7 +186,7 @@ class AccountWritesAndPhotoCleanupIT {
         Profile again = new Profile("다시 찬 이름", "female", LocalDate.of(2001, 3, 14), List.of("media"),
                 "exam_prep", "audition", null, "다시 찬 소개");
 
-        assertThat(profiles.saveProfile(member, again)).as("저장소는 닫힌 계정에 쓰지 않는다").isNull();
+        assertThat(profiles.saveProfile(member, again, null)).as("저장소는 닫힌 계정에 쓰지 않는다").isNull();
         assertThat(profiles.updateNotificationSettings(member, true, null, null)).isNull();
         assertDeactivated(() -> profileService.updateNotificationSettings(member, true, null, null));
         assertDeactivated(() -> profileService.beginPhotoUpload(member, "image/jpeg", BigInteger.valueOf(1_000)));

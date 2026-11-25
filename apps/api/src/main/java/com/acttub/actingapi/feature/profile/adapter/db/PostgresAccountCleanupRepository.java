@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -40,7 +41,7 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
         if (ids.isEmpty()) {
             return List.of();
         }
-        return transaction.execute(status -> list(entityManager.createNativeQuery("""
+        return transaction.execute(status -> claimed(entityManager.createNativeQuery("""
                 WITH claimed AS (
                     UPDATE account_cleanup_operations
                     SET attempt_count=attempt_count+1,next_attempt_at=:leasedUntil,updated_at=:now
@@ -58,14 +59,12 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                 .setParameter("ids", ids)
                 .setParameter("objectKinds", OBJECT_DELETE_KINDS)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("leasedUntil", now.plus(lease).atOffset(ZoneOffset.UTC))).stream()
-                .map(PostgresAccountCleanupRepository::operation)
-                .toList());
+                .setParameter("leasedUntil", now.plus(lease).atOffset(ZoneOffset.UTC))));
     }
 
     @Override
     public List<CleanupOperation> claimDue(Instant now, int limit, Duration lease) {
-        return transaction.execute(status -> list(entityManager.createNativeQuery("""
+        return transaction.execute(status -> claimed(entityManager.createNativeQuery("""
                 WITH claimed AS (
                     UPDATE account_cleanup_operations
                     SET attempt_count=attempt_count+1,next_attempt_at=:leasedUntil,updated_at=:now
@@ -83,31 +82,35 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                 .setParameter("objectKinds", OBJECT_DELETE_KINDS)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("leasedUntil", now.plus(lease).atOffset(ZoneOffset.UTC))
-                .setParameter("limit", limit)).stream()
-                .map(PostgresAccountCleanupRepository::operation)
-                .toList());
+                .setParameter("limit", limit)));
     }
 
     @Override
     public void succeeded(UUID id) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery(
-                "DELETE FROM account_cleanup_operations WHERE id=:id")
-                .setParameter("id", id)
-                .executeUpdate());
+        transaction.executeWithoutResult(status -> commitWithoutFlushForObjectDeletes(kinds(entityManager.createNativeQuery("""
+                WITH removed AS (
+                    DELETE FROM account_cleanup_operations WHERE id=:id RETURNING kind
+                )
+                SELECT kind FROM removed
+                """, Tuple.class)
+                .setParameter("id", id))));
     }
 
     @Override
     public void failed(UUID id, String error, Instant nextAttemptAt, Instant now) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                UPDATE account_cleanup_operations
-                SET last_error=:error,next_attempt_at=:nextAttemptAt,updated_at=:now
-                WHERE id=:id
-                """)
+        transaction.executeWithoutResult(status -> commitWithoutFlushForObjectDeletes(kinds(entityManager.createNativeQuery("""
+                WITH recorded AS (
+                    UPDATE account_cleanup_operations
+                    SET last_error=:error,next_attempt_at=:nextAttemptAt,updated_at=:now
+                    WHERE id=:id
+                    RETURNING kind
+                )
+                SELECT kind FROM recorded
+                """, Tuple.class)
                 .setParameter("error", error)
                 .setParameter("nextAttemptAt", nextAttemptAt.atOffset(ZoneOffset.UTC))
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("id", id)
-                .executeUpdate());
+                .setParameter("id", id))));
     }
 
     @Override
@@ -154,6 +157,34 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                         row.get("attempt_count", Integer.class),
                         row.get("last_error", String.class)))
                 .toList());
+    }
+
+    private List<CleanupOperation> claimed(Query claim) {
+        List<CleanupOperation> operations = list(claim).stream()
+                .map(PostgresAccountCleanupRepository::operation)
+                .toList();
+        commitWithoutFlushForObjectDeletes(operations.stream().map(CleanupOperation::kind).toList());
+        return operations;
+    }
+
+    /**
+     * 녹음 덮어쓰기 한 번이 디스크 확정을 기다리는 COMMIT 을 세 번 하던 것을 한 번으로 줄인다(SOMA-1108).
+     *
+     * <p>서버가 갑자기 꺼지면 마지막 약 0.6초의 장부 변경을 잃고, 정리 작업이 같은 객체를 한 번 더 지운다. 집은 워커가 죽었을
+     * 때와 같은 길이고 저장소의 삭제는 다시 해도 결과가 같다. 장부에 행을 넣는 트랜잭션은 그대로 기다리므로 지울 키는 잃지
+     * 않는다. 제공자 해제·RevenueCat 삭제는 탈퇴 때만 생겨 아낄 COMMIT 이 적고 카카오 연결 끊기는 두 번째 호출이 성공하는지
+     * 모르므로, 하나라도 섞이면 그대로 기다린다.
+     *
+     * <p>{@code synchronous_commit} 은 COMMIT 때 읽혀서 쓰기 뒤에 걸어도 된다.
+     */
+    private void commitWithoutFlushForObjectDeletes(List<String> kinds) {
+        if (!kinds.isEmpty() && OBJECT_DELETE_KINDS.containsAll(kinds)) {
+            entityManager.createNativeQuery("SET LOCAL synchronous_commit = off").executeUpdate();
+        }
+    }
+
+    private static List<String> kinds(Query written) {
+        return list(written).stream().map(row -> row.get("kind", String.class)).toList();
     }
 
     private static CleanupOperation operation(Tuple row) {

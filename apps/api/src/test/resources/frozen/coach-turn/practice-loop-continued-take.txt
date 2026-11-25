@@ -1,0 +1,423 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+[2] inspect · main
+  파일: 임시 파일 «original video bytes»
+  ← InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+[3] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  ← true
+[4] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |## 배우에 대해 지금까지 알고 있는 것
+    |지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 않는다.
+    |이번 영상의 주제에 직접 도움이 될 때만 참고한다. 지난 목표 확인이나 과제 실행 확인을 의무 질문으로 만들지 않는다. 지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.
+    |
+    |### 이 장면에서 지금까지
+    |- 1차: 말끝 — 제안: 끝을 늦춘다
+    |
+    |### 같은 연습에서 지난번에 나눈 이야기
+    |배우: 끝을 늦춰 볼게
+    |코치: 좋아요
+    |
+    |## 배우가 적은 것
+    |이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
+    |- 상황: 헤어지자는 말을 들은 밤
+    |- 막힌 곳 설명: 첫 대사는 놀리면서 시작하고 싶었어
+    |
+    |⟪practiceLoop(ko) sha256:a48ac9ea54c2b210⟫
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+    |
+    |⟪direct-video/practice-loop-continue.txt⟫
+    |
+    |### 지난 회차 요약
+    |- 1차: 말끝 — 제안: 끝을 늦춘다
+    |
+    |### 지난 회차 마지막 대화
+    |배우: 끝을 늦춰 볼게
+    |코치: 좋아요
+  ← «<설계>⏎영상: 연기⏎인물: 혼자 선 척 붙잡히길 바란다⏎버릇: 말끝을 길게 끈다⏎첫 질문 모양: 이어서⏎</설계>⏎<코치>⏎지난번엔 끝을 늦춰 보기로 했죠. 이번엔 어땠어요?⏎</코치>»
+[5] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |## 배우에 대해 지금까지 알고 있는 것
+    |지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 않는다.
+    |이번 영상의 주제에 직접 도움이 될 때만 참고한다. 지난 목표 확인이나 과제 실행 확인을 의무 질문으로 만들지 않는다. 지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.
+    |
+    |### 이 장면에서 지금까지
+    |- 1차: 말끝 — 제안: 끝을 늦춘다
+    |
+    |### 같은 연습에서 지난번에 나눈 이야기
+    |배우: 끝을 늦춰 볼게
+    |코치: 좋아요
+    |
+    |## 배우가 적은 것
+    |이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
+    |- 상황: 헤어지자는 말을 들은 밤
+    |- 막힌 곳 설명: 첫 대사는 놀리면서 시작하고 싶었어
+    |
+    |⟪practiceLoop(ko) sha256:a48ac9ea54c2b210⟫
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «<설계>⏎영상: 연기⏎관찰 근거: 영상과 음성⏎대사 확인: 확인됨⏎확인된 대사: "가지 마", "됐어"⏎말 거는 대상: 떠나는 연인⏎인물: 혼자 선 척 붙잡히길 바란다⏎근본 문제: 2 목적성이 안 보인다⏎버릇: 말끝을 길게 끈다⏎왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다⏎버릇이 가리는 것: 붙잡고 싶은 마음⏎다른 쪽 살아 있는 곳: "됐어"에서 눈을 피한다⏎확인할 대사: 가지 마⏎이번 목표: 붙잡는 말이 상대에게 가게 한다⏎다음 테이크: 반대로: "가지 마"를 짧게 끊어 본다⏎첫 질문 모양: 2⏎</설계>⏎<코치>⏎이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?⏎</코치>⏎<보기>⏎붙잡고 싶었어요⏎떠나게 두고 싶었어요⏎</보기>»
+[6] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |이 영상에서 사람이 실제로 소리 내어 말한 대사를 들린 그대로 받아 적는다.
+    |처음부터 끝까지 또렷하게 알아들은 말을 한 줄에 한 문장씩, 들린 순서대로 모두 쓴다. 최대 서른 줄이다.
+    |뜻을 풀거나, 고치거나, 이어질 말을 짐작해 채우지 않는다. 화면의 글자는 적지 않는다.
+    |말소리가 없거나 알아듣지 못했으면 "없음" 한 줄만 쓴다.
+    |그 밖에는 한 글자도 쓰지 않는다.
+    |
+  ← «1. 가지 마, 제발 여기 있어 줘»
+[7] upload/3 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=3600, output=180, total=3780, cachedInput=1200] · 비용: null
+  프롬프트: coach.practice-loop
+    |⟪direct-video/practice-loop.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=2520
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 5 지시문⟫
+    |
+    |⟪direct-video/practice-loop-continue.txt⟫
+    |
+    |### 지난 회차 요약
+    |- 1차: 말끝 — 제안: 끝을 늦춘다
+    |
+    |### 지난 회차 마지막 대화
+    |배우: 끝을 늦춰 볼게
+    |코치: 좋아요
+    |[]
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |지난번엔 끝을 늦춰 보기로 했죠. 이번엔 어땠어요?
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "heard_lines" : [ "가지 마, 제발 여기 있어 줘" ],
+  |    "design" : "영상: 연기\n인물: 혼자 선 척 붙잡히길 바란다\n버릇: 말끝을 길게 끈다\n첫 질문 모양: 이어서",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: []
+
+## 차례 2
+배우 말: 다시 집중됐어요
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |지난번엔 끝을 늦춰 보기로 했죠. 이번엔 어땠어요?
+    [user]
+      |다시 집중됐어요
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["answered"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |인물: 혼자 선 척 붙잡히길 바란다
+      |버릇: 말끝을 길게 끈다
+      |첫 질문 모양: 이어서
+      |</설계>
+      |<코치>
+      |지난번엔 끝을 늦춰 보기로 했죠. 이번엔 어땠어요?
+      |</코치>
+    [user]
+      |다시 집중됐어요
+  지시문:
+    |## 배우에 대해 지금까지 알고 있는 것
+    |지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 않는다.
+    |이번 영상의 주제에 직접 도움이 될 때만 참고한다. 지난 목표 확인이나 과제 실행 확인을 의무 질문으로 만들지 않는다. 지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.
+    |
+    |### 이 장면에서 지금까지
+    |- 1차: 말끝 — 제안: 끝을 늦춘다
+    |
+    |### 같은 연습에서 지난번에 나눈 이야기
+    |배우: 끝을 늦춰 볼게
+    |코치: 좋아요
+    |
+    |## 배우가 적은 것
+    |이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
+    |- 상황: 헤어지자는 말을 들은 밤
+    |- 막힌 곳 설명: 첫 대사는 놀리면서 시작하고 싶었어
+    |
+    |⟪direct-video/practice-loop-turn.txt⟫
+    |
+    |[이번 응답]
+    |지금 단계: 2/4 보여 주기와 어긋남 — 근본 문제를 배우의 첫 답에 비춰 처음 보여 주고, 배우가 어긋남을 스스로 보게 한다
+    |⟪direct-video/tasks/ko/gap.txt⟫
+    |
+    |재료
+    |- 이 배우의 문제: 말끝을 길게 끈다
+    |- 인물: 혼자 선 척 붙잡히길 바란다
+    |- 배우가 말한 첫 답: 다시 집중됐어요
+    |- 배우가 방금 한 말: 다시 집중됐어요
+    |- 배우가 이번 연습을 올리며 적은 것: 첫 대사는 놀리면서 시작하고 싶었어
+    |- 배우가 적은 것에 이 장면에서 하려던 것(놀리기, 버티기 같은 선택)이 있으면 그건 배우의 선택이다. 그 선택을 다른 해석으로 바꿔 문제 삼지 않고, 제안·정리는 그 선택을 살리는 쪽으로 한다
+    |- 지난 회차 제안(배우가 이번 테이크에서 해 보려던 것): 끝을 늦춘다
+    |- 배우가 지난 시도로 달라진 점(예: "다시 집중됐어", "더 설렜어")을 말했으면 맨 앞에 그 변화를 배우 낱말 그대로 짧게 받아 준다(예: 기다리니까 다시 집중됐군요.). 그 한마디를 붙이면 80자 안쪽까지 써도 된다. 지난 시도 자체나 지난 제안대로 한 모습을 "~만 보여요"로 문제 삼지 않는다. 문제는 지난 시도를 하고도 남은 것으로 보여 준다
+    |- 이번에 권하는 행동은 지난 회차 제안과 같은 행동(같은 동사, 같은 말)이면 안 된다. 지난 시도는 이미 해 봤다. 지난 시도 위에 이번 대화에서 배우가 새로 말한 바람·감정·느낌 낱말을 그대로 넣어 한 걸음 나아간 행동으로 준다(다른 영상 예: 지난 제안 "떠보기" + 배우가 새로 말한 "사실 무서워" → 무서운 걸 들키지 않으려고 웃으며 떠봐도 좋아요)
+    |- 코치가 앞에서 이미 한 질문(같은 뜻으로 다시 묻지 않는다. 같은 걸 알아야 하면 다른 쪽에서 묻거나 질문 없이 끝낸다): 이번엔 어땠어요?
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «끝을 늦추니 붙잡는 게 보였어요. 다음엔 뭘 해 볼래요?»
+[5] delete · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.turn
+    |⟪direct-video/practice-loop-turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop:어긋남 보기
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=3360
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |끝을 늦추니 붙잡는 게 보였어요. 다음엔 뭘 해 볼래요?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "heard_lines" : [ "가지 마, 제발 여기 있어 줘" ],
+  |    "design" : "영상: 연기\n인물: 혼자 선 척 붙잡히길 바란다\n버릇: 말끝을 길게 끈다\n첫 질문 모양: 이어서",
+  |    "statuses" : [ "", "배우의 말: 답\n지금까지: 같은 버릇 질문 1번 · 짚어주기 0번 · 방법 주기 0번 · 응답 2번째\n이번 목표: 없음\n피할 것: 없음\n할 일: 어긋남 보기\n다음 테이크: 없음\n단계: 3\n첫 답: 다시 집중됐어요\n분류: model" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: []

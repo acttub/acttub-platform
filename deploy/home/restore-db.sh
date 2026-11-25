@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 홈서버 DB 복원 스크립트(SOMA-489). pg_dump -Fc 파일을 이 프로젝트의 db 컨테이너에 복원한다 —
-# dev·prod 모두 S3 백업과 보관한 PostgreSQL 덤프를 같은 절차로 복원한다.
+# dev·prod 모두 R2 백업과 보관한 PostgreSQL 덤프를 같은 절차로 복원한다.
 # deploy.sh 처럼 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다. 스택이 한 번은 deploy.sh 로 떠 있어야 한다
 # (release.env 가 있어야 compose 가 파일을 읽는다). 새 볼륨이면 먼저 deploy.sh — Flyway 가 거기 만든 빈 스키마는
 # 여기서 통째로 바뀐다.

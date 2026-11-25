@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +22,10 @@ import com.acttub.actingapi.integration.media.AudioTranscoder;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,8 +50,6 @@ import com.acttub.actingapi.platform.json.LenientJson;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "JWT_SECRET=test-secret",
-            "ACCOUNT_CLEANUP_ENABLED=false",
-            "ACCOUNT_HOUSEKEEPING_ENABLED=false",
             // 컨테이너 상한을 낮춰 413 도 같은 서버에서 본다(운영 값은 application.yml).
             "spring.servlet.multipart.max-file-size=1MB",
             "spring.servlet.multipart.max-request-size=2MB"
@@ -68,6 +71,9 @@ class ReadingRecordingUploadServerIT {
 
     @Autowired
     FakeStorage storage;
+
+    @Autowired
+    MeterRegistry meters;
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private UUID member;
@@ -130,6 +136,59 @@ class ReadingRecordingUploadServerIT {
         JsonNode errors = mapper.readTree(malformed.body()).path("detail");
         assertThat(errors.isArray()).isTrue();
         assertThat(errors.toString()).as("JSON 본문은 여전히 캐시돼 input 으로 되돌아온다").contains("\"input\":123");
+    }
+
+    @Test
+    @DisplayName("reading.recording 지표: 실제 컨테이너로 올린 m4a 한 번이 단계마다 한 건씩 남고, 변환은 건너뛴 쪽이다. 시계열은 정해진 것뿐이고 라벨에 id 가 없으며 단계 합은 요청 전체 시간 안이다")
+    void uploadStagesAreTimedWithFixedLabels() throws Exception {
+        List<Timer> series = List.copyOf(meters.find("acttub.reading.recording.upload").timers());
+        Map<String, Long> before = counts(series);
+        double stagesBefore = seconds(series);
+        double requestBefore = seconds(requestTimers());
+        UUID requestId = UUID.randomUUID();
+
+        HttpResponse<String> uploaded = http.send(multipart(requestId, java.util.Arrays.copyOf("m4a-bytes".getBytes(StandardCharsets.UTF_8), 2048)),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(uploaded.statusCode()).as(uploaded.body()).isEqualTo(201);
+
+        assertThat(series).hasSize(17);
+        assertThat(series).allSatisfy(timer -> assertThat(timer.getId().getTags().stream().map(Tag::getKey).toList())
+                .containsExactlyInAnyOrder("stage", "conversion", "environment", "service"));
+        assertThat(meters.find("acttub.reading.recording.upload").timers()).hasSize(17);
+        Map<String, Long> after = counts(series);
+        Map<String, Long> recorded = new java.util.TreeMap<>();
+        after.forEach((key, count) -> {
+            if (count > before.get(key)) recorded.put(key, count - before.get(key));
+        });
+        assertThat(recorded).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "receive:skipped", 1L, "gate:skipped", 1L, "temp_file:skipped", 1L, "precheck:skipped", 1L,
+                "storage:skipped", 1L, "store:skipped", 1L));
+        // 요청 전체 타이머는 응답을 다 쓴 뒤 필터가 닫을 때 남는다 — 응답을 받은 직후엔 아직 없을 수 있다.
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (seconds(requestTimers()) == requestBefore && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        double stages = seconds(series) - stagesBefore;
+        assertThat(stages).isPositive().isLessThanOrEqualTo(seconds(requestTimers()) - requestBefore);
+        String scrape = ((PrometheusMeterRegistry) meters).scrape();
+        assertThat(scrape.lines().filter(row -> row.startsWith("acttub_reading_recording_upload_seconds_count{")))
+                .hasSize(17)
+                .noneMatch(row -> row.contains(member.toString()) || row.contains(session.toString())
+                        || row.contains(line.toString()) || row.contains(requestId.toString()));
+    }
+
+    private static Map<String, Long> counts(List<Timer> series) {
+        Map<String, Long> counts = new java.util.HashMap<>();
+        series.forEach(timer -> counts.put(timer.getId().getTag("stage") + ":" + timer.getId().getTag("conversion"), timer.count()));
+        return counts;
+    }
+
+    private static double seconds(java.util.Collection<Timer> timers) {
+        return timers.stream().mapToDouble(timer -> timer.totalTime(java.util.concurrent.TimeUnit.SECONDS)).sum();
+    }
+
+    private java.util.Collection<Timer> requestTimers() {
+        return meters.find("http.server.requests").tag("uri", "/v2/reading/sessions/{session_id}/recordings").timers();
     }
 
     private HttpRequest multipart(UUID requestId, byte[] audio) throws IOException {

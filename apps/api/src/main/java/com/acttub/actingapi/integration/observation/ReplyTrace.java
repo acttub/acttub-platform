@@ -49,7 +49,7 @@ public final class ReplyTrace {
         }
     }
 
-    /** 지금 스레드가 최소 생각을 요청한 {@link #run} 안인지. 테스트와 로그용이다. */
+    /** 지금 스레드가 최소 생각을 요청한 {@link #run} 안인지. 모델을 가짜로 둔 테스트가 이 턴의 요청을 본다. */
     public static boolean minimalRequested() {
         ReplyTrace current = CURRENT.get();
         return current != null && current.minimal;

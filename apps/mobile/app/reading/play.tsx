@@ -96,7 +96,7 @@ import {
 import type { SttPolicy } from '@/lib/reading/stt-policy';
 import { activeVariant, missingModelBytes, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/reading/tts/download-progress';
-import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
+import { playbackFailureFields, voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
 import { aheadWindow } from '@/lib/reading/tts/ahead-window';
@@ -340,6 +340,8 @@ export default function ReadingPlay() {
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
   const attempts = useRef<Record<string, number>>({});
   const turnStartedAt = useRef(0);
+  /** 마지막으로 마이크를 못 연 때 — 상대 줄 재생 실패 기록에 싣는다(SOMA-1062). */
+  const micFailedAt = useRef<number | null>(null);
   /** 180초에 이르러 이미 녹음을 멈추고 올린 줄 — 줄이 끝날 때 다시 올리지 않는다. */
   const recordingClosed = useRef(false);
   /** 내 차례의 전사·녹음을 거두는 중 — 침묵 넘김·[다음]·180초가 겹쳐도 한 번만 거둔다. 새 차례가 열리면 풀린다. */
@@ -636,7 +638,10 @@ export default function ReadingPlay() {
       for (let i = runRef.current?.index ?? config.startIndex; i <= config.endIndex; i++) {
         const l = config.lines[i];
         if (l?.type !== 'dialogue' || config.myRoles.includes(l.role)) continue;
-        for (const part of speechParts(l)) cloudLines.add(`${presetFor(l.role)}\u0000${speakableText(part.text)}`);
+        for (const part of speechParts(l)) {
+          // 기호만 있는 조각은 소리를 만들지 않으니 세지 않는다(SOMA-951).
+          if (!isWordless(speakableText(part.text))) cloudLines.add(`${presetFor(l.role)}\u0000${speakableText(part.text)}`);
+        }
       }
     }
     if (shouldUseCloudVoice({ enabled: cloudEnabled, status: cloudStatus, lines: cloudLines.size })) {
@@ -890,16 +895,24 @@ export default function ReadingPlay() {
     const parts = (current.lines.slice(span.start, span.end + 1) as DialogueLine[])
       .flatMap((l) => speechParts(l))
       .map((part) => ({ ...part, text: speakableText(part.text) }));
+    // 「?」「!」「?!」처럼 기호만 있는 조각은 읽지 않는다 — 기기·고품질 목소리 모두 기호를 이상한 소리로 읽었다(SOMA-951).
+    const voiced = parts.filter((part) => !isWordless(part.text));
     const preset = presetFor(line.role);
     let cancelled = false;
+    // 멈춤(일시정지·배경)이 끊은 재생은 끝난 것으로 돌아온다 — 정리(cleanup)보다 먼저 와도 남은 조각·대체 목소리·넘김을 하지
+    // 않는다. 이어서가 그 줄을 처음부터 같은 목소리로 다시 읽는다(SOMA-1062).
+    const stale = () => {
+      const now = runRef.current;
+      return cancelled || !mounted.current || !now || now.status !== 'partner' || now.index !== from;
+    };
     const finish = () => {
-      if (cancelled || !mounted.current) return;
+      if (stale()) return;
       if (holdRef.current) deferredRef.current = { kind: 'advance', from };
       else goNext(from);
     };
     // 「...」처럼 소리 낼 글자가 없는 상대 줄은 목소리 없이 잠깐 쉬었다 넘긴다(SOMA-962). 글로 보기는 그대로 버튼을 기다리고,
     // 예시 대본은 줄마다 녹음된 소리가 있어 그대로 튼다.
-    if (engine !== 'text_only' && engine !== 'example' && parts.every((part) => isWordless(part.text))) {
+    if (engine !== 'text_only' && engine !== 'example' && voiced.length === 0) {
       const pause = setTimeout(finish, beatMs(parts.map((part) => part.text)));
       return () => {
         cancelled = true;
@@ -913,12 +926,20 @@ export default function ReadingPlay() {
         await tts.play(uri);
         return;
       } catch (e) {
-        logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
+        // 원인을 가르려고 어느 경우인지·문구·앱이 화면 밖이었는지·직전 마이크 실패를 싣는다(SOMA-1062).
+        const micFailed = micFailedAt.current;
+        logEvent('reading_line_voice_failed', {
+          engine,
+          kind: voiceErrorKind(e),
+          ...playbackFailureFields(e),
+          app_state: String(AppState.currentState),
+          ...(micFailed !== null ? { mic_failed_ms_ago: Date.now() - micFailed } : {}),
+        });
         tts.discardSpeechFile(uri);
         // 지운 파일을 큐가 기억하면 같은 대사가 다시 나올 때 또 꺼내 틀다 실패한다(11/5 문의).
         speechQueue.current?.forget(uri);
       }
-      if (cancelled || !mounted.current) return;
+      if (stale()) return;
       await readInstead();
     };
     // 소리 낼 길이 없으면 그 줄을 글로 보이고 버튼을 기다린다 — 소리 없이 넘기면 대사가 씹힌 것처럼 들린다(11/5 문의).
@@ -963,13 +984,14 @@ export default function ReadingPlay() {
             const id = current.lineIds[i];
             const usable = !!example && example.audio.lines.has(id) && example.text.get(id) === exampleLineSignature(l);
             const uri = usable ? await exampleLineUri(example!.audio, id).catch(() => null) : null;
-            if (cancelled || !mounted.current) return;
+            if (stale()) return;
             if (uri) {
               setLineEngine('example');
               await playSaved(uri, () =>
                 readWithDeviceVoice(async () => {
                   for (const part of speechParts(l)) {
-                    if (cancelled || !mounted.current) return;
+                    if (stale()) return;
+                    if (isWordless(speakableText(part.text))) continue;
                     await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
                   }
                 }),
@@ -983,16 +1005,17 @@ export default function ReadingPlay() {
             }
             setLineEngine('device_voice');
             for (const part of speechParts(l)) {
-              if (cancelled || !mounted.current) return;
+              if (stale()) return;
+              if (isWordless(speakableText(part.text))) continue;
               await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
             }
           }
           finish();
           return;
         }
-        for (; at < parts.length; at++) {
-          const { text, lang } = parts[at];
-          if (cancelled || !mounted.current) return;
+        for (; at < voiced.length; at++) {
+          const { text, lang } = voiced[at];
+          if (stale()) return;
           if (engine === 'device_voice') {
             setLineEngine('device_voice');
             await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
@@ -1003,7 +1026,7 @@ export default function ReadingPlay() {
           const queue = primeSpeech(from);
           let ready = (await queue?.take({ text, preset, lang })) ?? null;
           if (!ready && engine === 'cloud' && !cancelled && mounted.current) ready = (await queue?.make?.({ text, preset, lang })) ?? null;
-          if (cancelled || !mounted.current) return;
+          if (stale()) return;
           if (ready) {
             setLineEngine(engine);
             await playSaved(ready, async () => {
@@ -1018,7 +1041,7 @@ export default function ReadingPlay() {
             // 서버 음성을 못 받은 줄 — 앱 목소리가 준비돼 있으면 그것으로(SOMA-937), 아니면 기기 기본 목소리로 읽고 회차에서
             // 처음일 때 알린다. 기기 음성도 없으면 글로 보기.
             if (await readWithAppVoice(text, lang, 'missing')) continue;
-            if (cancelled || !mounted.current) return;
+            if (stale()) return;
             if (!deviceVoiceRef.current) {
               setLineEngine('text_only');
               return;
@@ -1036,15 +1059,15 @@ export default function ReadingPlay() {
         // 기록만 남기고 넘기면 그 대사가 씹혔다(11/5 문의 「인원이 많은 대본에서 한 줄이 씹힘」).
         const to = deviceVoiceRef.current ? 'device_voice' : 'text_only';
         logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e), to });
-        if (cancelled || !mounted.current) return;
+        if (stale()) return;
         if (to === 'text_only') {
           showAsText();
           return;
         }
         setLineEngine('device_voice');
         try {
-          for (const { text, lang } of parts.slice(at)) {
-            if (cancelled || !mounted.current) return;
+          for (const { text, lang } of voiced.slice(at)) {
+            if (stale()) return;
             await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
           }
         } catch {
@@ -1236,6 +1259,7 @@ export default function ReadingPlay() {
       if (cancelled) return;
       setListening(opened);
       if (!opened) {
+        micFailedAt.current = Date.now();
         setTurnNote('silence'); // 마이크를 못 열었다 — 버튼으로 넘긴다
         return;
       }
@@ -1384,6 +1408,7 @@ export default function ReadingPlay() {
         opened = ok;
       }
       if (!opened) opened = await mic.start(() => undefined);
+      if (!opened) micFailedAt.current = Date.now();
       if (cancelled) return;
       setListening(opened);
       if (opened && session.record) limitTimer = setTimeout(() => void rotate(), RECORDING_MAX_MS);
@@ -2404,6 +2429,8 @@ export default function ReadingPlay() {
         </Pressable>
         {paused ? (
           <>
+            {/* 일시정지를 누른 자리에는 「이어서」가 온다 — 「그만하기」가 그 자리에 오면 잘못 눌러 끝내기 쉬웠다(SOMA-1119). */}
+            <Button key="resume" style={styles.ctrl} onPress={doResume} label={t('reading.resume')} icon={<Feather name="play" size={16} color={palette.onAccent} />} />
             <Button
               key="stop"
               variant="secondary"
@@ -2413,7 +2440,6 @@ export default function ReadingPlay() {
               icon={<Feather name="square" size={16} color={palette.textSub} />}
               phLabel="reading_play_stop"
             />
-            <Button key="resume" style={styles.ctrl} onPress={doResume} label={t('reading.resume')} icon={<Feather name="play" size={16} color={palette.onAccent} />} />
           </>
         ) : (
           <>

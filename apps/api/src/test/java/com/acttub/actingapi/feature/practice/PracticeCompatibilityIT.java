@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.practice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.util.UUID;
 
@@ -30,13 +31,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 읽어 <b>같은 응답 모양</b>을 내는지, 그리고 그 과정에서 <b>옛 테이블을 건드리지 않는지</b>가 여기서 보는
  * 전부다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "EXIT_SURVEY_SYNC_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class PracticeCompatibilityIT {
 
@@ -116,6 +111,27 @@ class PracticeCompatibilityIT {
         assertThat(note.path("conversation_id").stringValue(null)).isEqualTo(conversation.toString());
         assertThat(note.path("report").path("next_step").stringValue(null)).isEqualTo("호흡을 한 박자 늦춘다");
         assertThat(note.path("summary_quotes")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("practice.coach: 옮기지 않은 옛 연습의 열린 대화는 이어 말할 수 없다 — 회차는 closed, 대화도 closed 로 보여 "
+            + "화면이 답을 받지 않게 한다. 옛 표의 값은 그대로다")
+    void practiceCoach_anUnmigratedOpenConversationIsShownClosed() throws Exception {
+        UUID practice = session(intent("videos/open.mp4"), null, "analyzed");
+        UUID open = conversation(practice, "open", "2026-09-10 00:00:00+00");
+        turn(open, 0, "ai", "무엇이 달라졌나요");
+
+        // 새 쓰기 경로는 새 표만 본다 — 옛 열린 대화에 답하면 404 다.
+        json(post("/v2/coach/reply").content("{\"conversation_id\":\"" + open + "\",\"request_id\":\"" + UUID.randomUUID()
+                + "\",\"text\":\"숨이 막혔어요\"}"), 404);
+
+        JsonNode detail = json(get("/v2/practices/{id}", practice), 200);
+        assertThat(detail.path("stage").stringValue(null)).isEqualTo("closed");
+        assertThat(detail.path("conversation_status").stringValue(null)).isEqualTo("closed");
+        assertThat(json(get("/v2/practices/{id}/status", practice), 200).path("stage").stringValue(null)).isEqualTo("closed");
+        assertThat(json(get("/v2/coach/conversations/{id}", open), 200).path("status").stringValue(null)).isEqualTo("closed");
+        assertThat(jdbc.queryForObject("SELECT status::text FROM coach_sessions WHERE id=?", String.class, open))
+                .as("옛 표는 고치지 않는다").isEqualTo("open");
     }
 
     @Test

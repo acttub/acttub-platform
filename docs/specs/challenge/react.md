@@ -10,13 +10,6 @@
 노출 가능한 다른 사람의 참여작에 좋아요를 누르고, 참고할 영상을 저장해 모아 보고, 댓글을 남긴다. 좋아요는 랭킹의 기준이다. 공유는 참여작
 링크를 보낸다.
 
-## 의도
-좋아요·저장은 (entry_id, user_id) 유일인 연결 표라 요청 id 없이 켜고 끄기가 멱등이다(ERD). 댓글은 작성자가 탈퇴해도 남긴다(account.withdraw,
-community 보관 결정).
-
-## 목적
-배우가 다른 배우의 연기에 반응을 남기고, 참고할 영상을 모아 둔다.
-
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
@@ -33,7 +26,7 @@ entry_comments.status와 삭제 표시(deleted_at). entry_likes·entry_saves는 
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| visible | 작성. hidden에서 신고 판정 restored·dismissed이고 남은 received 신고 없음 | challenge.react, challenge.report |
+| visible | 작성. hidden에서 신고 판정 dismissed이고 남은 received 신고 없음 | challenge.react, challenge.report |
 | hidden | visible 댓글의 유효한 첫 신고 | challenge.report |
 | 삭제(deleted_at, body NULL) | 본인 삭제. 부모 참여작 삭제 | challenge.react, challenge.entry |
 

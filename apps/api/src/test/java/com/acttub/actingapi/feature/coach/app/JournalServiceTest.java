@@ -141,7 +141,7 @@ class JournalServiceTest {
             throw new AssertionError("must not call");
         }).create(userId, practiceId, ANSWERS).view();
 
-        assertThat(view.draftStatus()).isEqualTo("skipped");
+        assertThat(view.draftStatus()).isEqualTo("ready");
     }
 
     @Test
@@ -154,7 +154,6 @@ class JournalServiceTest {
         assertThat(view.answers().unknown()).isEqualTo(new ActorJournal.Unknown(true, null));
         assertThat(view.answers().next()).isNull();
         assertThat(view.answers().review()).isNull();
-        assertThat(view.answers().nextAction()).isNull();
     }
 
     @Test
@@ -178,7 +177,7 @@ class JournalServiceTest {
                 new ActorJournal.Draft(List.of(new ActorJournal.PracticeItem("  ", "discussed"), new ActorJournal.PracticeItem("고친 연습", null)),
                         List.of(), List.of(new ActorJournal.FeedbackItem("고친 피드백", null, 31)))));
 
-        assertThat(edited.answers().nextAction()).isEqualTo("준호를 보며 말하기");
+        assertThat(edited.answers().next().text()).isEqualTo("준호를 보며 말하기");
         assertThat(edited.answers().review()).isEqualTo("고친 후기");
         assertThat(edited.draft().practice()).containsExactly(new ActorJournal.PracticeItem("고친 연습", "discussed"));
         assertThat(edited.draft().feedback()).containsExactly(new ActorJournal.FeedbackItem("고친 피드백", "coach", 31));

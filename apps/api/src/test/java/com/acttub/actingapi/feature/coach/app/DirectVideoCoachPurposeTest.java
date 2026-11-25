@@ -73,14 +73,13 @@ class DirectVideoCoachPurposeTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
+        return TestDirectVideoCoach.of(model, videos, storage, failures, telemetry).build();
     }
 
     static CoachSessionSnapshot fresh(String purpose) {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(),
-                PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "")
-                .withSessionPurpose(purpose);
+                PriorContext.EMPTY, "legacy", 0, null, null, purpose).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
     /** 첫 답을 한 번 돌린 세션에 배우 말과 코치 말을 이어 붙인다. */
@@ -105,7 +104,7 @@ class DirectVideoCoachPurposeTest {
                 .containsExactly("감정이 안 따라와요", "대사가 입에 안 붙어요", "뭘 원하는지 모르겠어요", "잘 모르겠어요");
         assertThat(view.lines()).extracting(PurposeView.Line::at).containsExactly(3, 12);
         assertThat(view.scene().situation()).isEqualTo("헤어지자는 말을 들은 밤");
-        assertThat(DirectVideoPracticeLoop.storedFlow(result.session().coachingState())).as("흐름 A/B에 넣지 않는다").isEmpty();
+        assertThat(result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).has("flow")).as("흐름 값을 남기지 않는다").isFalse();
         assertThat(DirectVideoPracticeLoop.storedCoachModel(result.session().coachingState())).as("모델 A/B에 넣지 않는다").isEmpty();
     }
 

@@ -406,6 +406,7 @@ class PostgresPracticeDataMigration implements PracticeDataMigration {
                             WHEN 'actor_finished' THEN 'user_ended'
                             WHEN 'turn_budget' THEN 'limit'
                             WHEN 'interrupted' THEN 'exhausted'
+                            WHEN 'gap_stated' THEN 'exhausted'
                             ELSE cs.close_reason::text END,
                        COALESCE(cs.coaching_state_json,'{}'::jsonb),
                        LEAST(cs.state_revision, 2147483647)::integer,

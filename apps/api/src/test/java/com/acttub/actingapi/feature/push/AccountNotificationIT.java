@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -17,6 +18,7 @@ import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RateLimitWindow;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,10 +42,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
     // 겹쳐 보낸 요청 둘이 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=10"
-})
+    "spring.datasource.hikari.maximum-pool-size=10"})
 @AutoConfigureMockMvc
 class AccountNotificationIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
@@ -270,6 +270,7 @@ class AccountNotificationIT {
     @DisplayName("account.notification: 토큰 삭제는 한 IP 에서 분당 60회까지다")
     void accountNotification_deletionIsLimitedPerIp() throws Exception {
         String address = "10.8.0." + ADDRESSES.incrementAndGet();
+        RateLimitWindow.awaitRoom(Duration.ofSeconds(10));
         for (int request = 0; request < 60; request++) {
             assertThat(deleteFrom(address, "ExponentPushToken[x]").getStatus()).isEqualTo(204);
         }

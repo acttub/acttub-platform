@@ -1,12 +1,17 @@
 package com.acttub.actingapi.feature.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -20,12 +25,15 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
 import com.acttub.actingapi.feature.billing.app.BillingMailer;
+import com.acttub.actingapi.feature.billing.app.BillingRules;
 import com.acttub.actingapi.feature.billing.app.PgReviewGateway;
+import com.acttub.actingapi.feature.billing.app.RefundNotifier;
 import com.acttub.actingapi.feature.billing.app.RenewalWorker;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,8 +55,6 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
         "JWT_SECRET=test-secret",
-        "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false",
         "BILLING_WEB_ENABLED=true",
         "BILLING_WEB_RETURN_URL=https://acttub.com/pricing/result",
         "BILLING_FREE_LIMITS_ENABLED=true",
@@ -82,6 +88,9 @@ class BillingEndpointIT {
 
     @MockitoBean
     BillingMailer mailer;
+
+    @MockitoBean
+    RefundNotifier refunds;
 
     private String bearer;
 
@@ -151,6 +160,100 @@ class BillingEndpointIT {
     }
 
     @Test
+    @DisplayName("토스 성공 콜백이 빌링키 발급을 기다리는 사이에 다른 기기에서 탈퇴 — 카드를 저장하지 않고 결제하지 않으며 구독이 살아나지 않는다. "
+            + "콜백은 failed 로 돌려보내고 다음 달 자동결제도 돌지 않는다")
+    void withdrawalWhileTheCallbackWaitsForTheKeyStopsTheCharge() throws Exception {
+        String state = openCheckout("subscribe");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        doAnswer(call -> {
+            int withdrawn = mvc.perform(delete("/v2/me").header("Authorization", bearer)).andReturn().getResponse().getStatus();
+            assertThat(withdrawn).as("다른 기기의 탈퇴").isEqualTo(200);
+            return new PgReviewGateway.IssuedKey("bk_plain_secret", "신한", "43301234****123*");
+        }).when(gateway).issue(anyString(), anyString());
+
+        String result = callback(state, customerKey);
+        clock.set(Instant.parse("2026-11-23T01:00:01Z"));
+        boolean renewed = worker.runOnce();
+
+        SoftAssertions.assertSoftly(soft -> {
+            soft.assertThat(result).as("콜백 결과").isEqualTo("https://acttub.com/pricing/result?status=failed");
+            soft.assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM billing_subscriptions WHERE billing_key IS NOT NULL", Integer.class))
+                    .as("탈퇴한 계정의 빌링키").isZero();
+            soft.assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM billing_subscriptions WHERE status<>'expired'", Integer.class))
+                    .as("탈퇴한 계정의 살아 있는 구독").isZero();
+            soft.assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments", Integer.class))
+                    .as("탈퇴한 계정의 결제").isZero();
+            soft.assertThat(renewed).as("다음 달 자동결제").isFalse();
+        });
+        verify(refunds, never()).refundNeeded(any());
+    }
+
+    @Test
+    @DisplayName("첫 결제 승인을 기다리는 사이에 다른 기기에서 탈퇴 — 승인된 결제는 기록에 남지만 구독은 active 가 되지 않고 "
+            + "콜백은 failed 다. 그 주문 ID 와 금액을 환불 대상으로 알린다")
+    void withdrawalWhileTheFirstChargeIsApprovedLeavesNoSubscription() throws Exception {
+        String state = openCheckout("subscribe");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        doAnswer(call -> {
+            int withdrawn = mvc.perform(delete("/v2/me").header("Authorization", bearer)).andReturn().getResponse().getStatus();
+            assertThat(withdrawn).as("다른 기기의 탈퇴").isEqualTo(200);
+            return new PgReviewGateway.Approval("DONE", call.getArgument(2), call.getArgument(3), "2026-10-23T10:00:00+09:00");
+        }).when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+
+        String result = callback(state, customerKey);
+
+        SoftAssertions.assertSoftly(soft -> {
+            soft.assertThat(result).as("콜백 결과").isEqualTo("https://acttub.com/pricing/result?status=failed");
+            soft.assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM billing_subscriptions WHERE status<>'expired' OR billing_key IS NOT NULL", Integer.class))
+                    .as("탈퇴한 계정의 살아 있는 구독").isZero();
+            soft.assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments WHERE status='done'", Integer.class))
+                    .as("이미 승인된 첫 결제").isEqualTo(1);
+        });
+        String orderId = jdbc.queryForObject("SELECT order_id FROM billing_payments WHERE status='done'", String.class);
+        verify(refunds).refundNeeded(new RefundNotifier.Refund(orderId, 3900));
+    }
+
+    @Test
+    @DisplayName("첫 결제가 거절되면 등록한 카드의 빌링키를 지운다 — 구독은 expired(응답은 none) 그대로다")
+    void aRejectedFirstPaymentDropsTheBillingKey() throws Exception {
+        String state = openCheckout("subscribe");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=failed");
+
+        assertThat(jdbc.queryForMap("SELECT status, billing_key IS NULL AS no_key FROM billing_subscriptions"))
+                .containsEntry("status", "expired").containsEntry("no_key", true);
+        assertThat(me().path("status").stringValue(null)).isEqualTo("none");
+    }
+
+    @Test
+    @DisplayName("결과를 모르던 첫 결제가 나중에 거절로 확인되면 빌링키를 지운다 — 결과를 모르는 동안은 남긴다")
+    void anUnknownFirstPaymentConfirmedAsRejectedDropsTheKey() throws Exception {
+        String state = openCheckout("subscribe");
+        String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=unknown");
+        assertThat(jdbc.queryForObject("SELECT billing_key IS NOT NULL FROM billing_subscriptions", Boolean.class))
+                .as("결과를 모르는 동안은 같은 키로 다시 물어야 해서 남긴다").isTrue();
+
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+        // 기록 시각은 DB 의 now() 일 수 있다. 다시 묻는 차례(10분 뒤)를 지금 기준으로 넘긴다.
+        clock.set(Instant.now().plus(Duration.ofMinutes(15)));
+        assertThat(worker.runOnce()).isTrue();
+
+        assertThat(jdbc.queryForObject("SELECT status FROM billing_payments", String.class)).isEqualTo("failed");
+        assertThat(jdbc.queryForMap("SELECT status, billing_key IS NULL AS no_key FROM billing_subscriptions"))
+                .containsEntry("status", "expired").containsEntry("no_key", true);
+    }
+
+    @Test
     @DisplayName("자동결제 — 성공하면 다음 기간, 거절되면 past_due 와 재시도, 「다시 시도」로 active, 결과 모르면 같은 주문으로 다시 묻는다")
     void renewals() throws Exception {
         subscribe();
@@ -187,6 +290,56 @@ class BillingEndpointIT {
                 .isEqualTo(Instant.parse("2027-02-23T01:00:00Z"));
         assertThat(jdbc.queryForObject("SELECT count(DISTINCT order_id) FROM billing_payments", Integer.class))
                 .isEqualTo(jdbc.queryForObject("SELECT count(*) FROM billing_payments", Integer.class));
+    }
+
+    @Test
+    @DisplayName("결제 기록은 승인 전에 unknown 으로 들어간다 — 승인이 예상 밖 예외로 끊겨도 결과 모름으로 남아 같은 키로 다시 묻는다")
+    void aPaymentInterruptedBeforeTheAnswerStaysUnknownAndIsRechecked() throws Exception {
+        subscribe();
+        clock.set(Instant.parse("2026-11-23T01:00:01Z"));
+        doThrow(new IllegalStateException("서버가 승인 응답을 받기 전에 멈춘 것과 같다"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), any(), anyString());
+        assertThatThrownBy(worker::runOnce).isInstanceOf(IllegalStateException.class);
+
+        assertThat(jdbc.queryForList("SELECT status FROM billing_payments WHERE kind='renewal'", String.class))
+                .containsExactly("unknown");
+        assertThat(worker.runOnce()).as("결과를 모르는 동안 새로 결제하지 않는다").isFalse();
+
+        approveAll();
+        // 승인 전 기록의 시각은 DB 의 now() 다. 다시 묻는 차례(10분 뒤)를 그 시각 기준으로 넘긴다.
+        clock.set(Instant.now().plus(Duration.ofMinutes(15)));
+        assertThat(worker.runOnce()).isTrue();
+        assertThat(jdbc.queryForList("SELECT status FROM billing_payments WHERE kind='renewal'", String.class))
+                .containsExactly("done");
+        assertThat(jdbc.queryForObject("SELECT current_period_end FROM billing_subscriptions", OffsetDateTime.class).toInstant())
+                .isEqualTo(Instant.parse("2026-12-23T01:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("옛 서버가 남긴 pending 결제도 결과 모름으로 읽는다 — 새로 결제하지 않고 같은 키로 다시 물은 뒤 풀린다")
+    void aPendingPaymentLeftByTheOldServerIsStillUnresolved() throws Exception {
+        subscribe();
+        UUID subscription = jdbc.queryForObject("SELECT id FROM billing_subscriptions", UUID.class);
+        Instant start = Instant.parse("2026-11-23T01:00:00Z");
+        jdbc.update("""
+                INSERT INTO billing_payments(id,subscription_id,user_id,order_id,kind,amount,status,period_start,period_end,attempt,
+                    created_at,updated_at)
+                VALUES (?,?,?,?,'renewal',3900,'pending',?,?,1,?,?)
+                """, UUID.randomUUID(), subscription, USER,
+                BillingRules.renewalOrderId(subscription, start, 1),
+                OffsetDateTime.ofInstant(start, ZoneOffset.UTC),
+                OffsetDateTime.parse("2026-12-23T01:00:00Z"),
+                OffsetDateTime.parse("2026-11-23T00:59:00Z"), OffsetDateTime.parse("2026-11-23T00:59:00Z"));
+        clock.set(Instant.parse("2026-11-23T01:00:01Z"));
+
+        assertThat(worker.runOnce()).as("pending 이 있는 구독은 새로 결제하지 않는다").isFalse();
+
+        clock.advance(Duration.ofMinutes(15));
+        assertThat(worker.runOnce()).isTrue();
+        assertThat(jdbc.queryForList("SELECT status FROM billing_payments WHERE kind='renewal'", String.class))
+                .containsExactly("done");
+        verify(gateway).approve(anyString(), anyString(), eq(BillingRules.renewalOrderId(subscription, start, 1)),
+                anyLong(), anyString(), any(), anyString());
     }
 
     @Test

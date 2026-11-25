@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
@@ -83,8 +84,7 @@ class ScriptSplitLongLineTest {
                     return numbered[0] + "\td\t" + numbered[1] + "\t" + numbered[1];
                 })
                 .collect(Collectors.joining("\n", "대본\t예\n", "\n" + SplitResponse.CAST_HEADER + "\n" + String.join("\n", longLines))), null, "test");
-        ScriptSplitWorker worker = new ScriptSplitWorker(ledger, imports, echoing, new RecordingLlmTelemetry(), failures,
-                new MutableClock(Instant.parse("2026-11-03T00:00:00Z")));
+        ScriptSplitWorker worker = new ScriptSplitWorker(ledger, imports, echoing, new RecordingLlmTelemetry(), failures, new MutableClock(Instant.parse("2026-11-03T00:00:00Z")), null, null, null, null, ScriptSplitMode.LLM);
         when(ledger.claimNext(eq(ScriptSplitWorker.KIND), any(), eq(ScriptSplitWorker.LEASE), any(), eq(true)))
                 .thenReturn(new AiJobLedger.Claimed(job, user, importId, 1, null));
         when(imports.material(job, importId))

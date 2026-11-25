@@ -83,7 +83,8 @@ public class JournalService {
             return new Created(view(journals.find(userId, practiceId)), false);
         }
         if (loaded.conversationId() == null || !ActorJournal.hasConversation(loaded.session())) {
-            journals.complete(id, "skipped", null, null, clock.instant());
+            // 대화가 없으면 모델을 부르지 않고 자동 칸 없이 ready 로 닫는다(배우 답만 남는다).
+            journals.complete(id, "ready", null, null, clock.instant());
         } else {
             generateInto(id, userId, practiceId, loaded.session(), clean);
         }

@@ -28,7 +28,7 @@ class CoachEngineHandoffTest {
     CoachReply closeWith(String handoff) {
         String reply = "{\"message\":\"오늘 이야기한 말끝을 다음 테이크에서 짧게 해 봐요.\",\"status\":\"complete\",\"handoff\":" + handoff + "}";
         var engine = new CoachEngine((instructions, input) -> new GeneratedText(reply, null, "test"),
-                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+                new RecordingFailureReporter(), new RecordingLlmTelemetry(), java.util.Optional.empty());
         return engine.reply(lastTurn(), "붙잡고 싶었어", UUID.randomUUID()).reply();
     }
 

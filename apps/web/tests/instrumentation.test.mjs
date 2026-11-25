@@ -70,7 +70,7 @@ test("브라우저 진입점은 DSN 이 있으면 주소를 씻는 옵션으로 
   assert.deepEqual(sentryCalls.at(-1), ["captureRouterTransitionStart", ["/practice", "push"]]);
 });
 
-test("서버 진입점은 Node 런타임에서만 같은 옵션으로 Sentry 를 켠다", async () => {
+test("서버 진입점은 Node 런타임에서만 같은 옵션에 요청 세션 집계를 끄고 Sentry 를 켠다", async () => {
   const { register } = await import("../src/instrumentation.ts");
 
   process.env.NEXT_RUNTIME = "edge";
@@ -79,9 +79,12 @@ test("서버 진입점은 Node 런타임에서만 같은 옵션으로 Sentry 를
 
   process.env.NEXT_RUNTIME = "nodejs";
   await register();
+  const serverIntegrations = [
+    { name: "Http", options: { trackIncomingRequestsAsSessions: false, disableIncomingRequestSpans: true } },
+  ];
   assert.deepEqual(
     sentryCalls.map(([name, options]) => [name, describeInit(options)]),
-    [["init", expectedInit]],
+    [["init", { ...expectedInit, values: { ...expectedInit.values, integrations: serverIntegrations } }]],
   );
 });
 

@@ -24,7 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 이어야 한다(CONTRACT §5-7) — 두 원장이 공존하는 동안 분석의 재시도 횟수와 최종 사유가 달라지면 안 된다.
  * 옛 원장 쪽 같은 계약은 {@code platform/operation/ExternalOperationIT} 가 지킨다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class AiJobLedgerIT {
     private static final Duration LEASE = Duration.ofMinutes(10);
 

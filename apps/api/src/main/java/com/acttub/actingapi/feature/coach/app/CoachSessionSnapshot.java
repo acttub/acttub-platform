@@ -48,13 +48,6 @@ public record CoachSessionSnapshot(
                 stateRevision, coachingState, actorProfile, null);
     }
 
-    /** 목적을 붙인 판. */
-    public CoachSessionSnapshot withSessionPurpose(String purpose) {
-        return new CoachSessionSnapshot(sessionId, practiceSessionId, userId, observationPack, situation,
-                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail, status, closeReason, turns,
-                prior, experienceVersion, stateRevision, coachingState, actorProfile, purpose);
-    }
-
     /**
      * 모델에 넘길 지난 것. 완성된 프로필이 있으면 기억의 성별·나이를 뺀다 — 문자열 프롬프트와 구조화
      * 입력이 같은 것을 본다.
@@ -93,12 +86,5 @@ public record CoachSessionSnapshot(
                 sessionId, practiceSessionId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
                 status, closeReason, newTurns, prior, experienceVersion, stateRevision, coachingState, actorProfile, sessionPurpose);
-    }
-
-    public CoachSessionSnapshot withStatus(String newStatus) {
-        return new CoachSessionSnapshot(
-                sessionId, practiceSessionId, userId, observationPack, situation,
-                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
-                newStatus, closeReason, turns, prior, experienceVersion, stateRevision, coachingState, actorProfile, sessionPurpose);
     }
 }

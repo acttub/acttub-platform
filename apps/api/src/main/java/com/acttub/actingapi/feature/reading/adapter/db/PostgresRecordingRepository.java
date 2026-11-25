@@ -21,7 +21,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 녹음의 최종 저장은 <b>회차 행을 {@code FOR UPDATE} 로 잡고 주인이 맞는지 다시 본다</b>(회차와 같은 규칙). 같은 줄의
  * 올리기가 겹치면 여기서 줄을 서므로 시도 번호 판정과 총량 계산이 정확하다. 반영하지 못한 객체(거절·재전송·대체된 앞의
- * 것)의 키는 같은 트랜잭션에서 정리 장부에 남긴다 — 커밋 뒤 저장소가 실패해도 키를 잃지 않는다.
+ * 것)의 키는 같은 트랜잭션에서 정리 장부에 남긴다 — 커밋 뒤 저장소가 실패해도 키를 잃지 않는다. 단, 저장된 행이 가리키는
+ * 키는 남기지 않는다({@code unstored}).
  */
 @Repository
 class PostgresRecordingRepository implements RecordingRepository {
@@ -67,21 +68,19 @@ class PostgresRecordingRepository implements RecordingRepository {
         return transaction.execute(status -> {
             // 회차 행을 잡는다 — 이관·삭제 뒤에는 남의 것이라 404 이고, 올린 객체는 장부가 지운다.
             if (!owned(sessionId, userId, true)) {
-                return rejected(StoreOutcome.NOT_FOUND, userId, recording.objectKey(), now);
+                return rejected(StoreOutcome.NOT_FOUND, userId, sessionId, recording.objectKey(), now);
             }
             String line = myDialogueLine(sessionId, recording.lineId());
             if (line == null) {
-                return rejected(StoreOutcome.INVALID_LINE, userId, recording.objectKey(), now);
+                return rejected(StoreOutcome.INVALID_LINE, userId, sessionId, recording.objectKey(), now);
             }
             RecordingView replayed = byRequest(userId, recording.requestId());
             if (replayed != null) {
-                return new Stored(StoreOutcome.REPLAYED, replayed,
-                        List.of(cleanup.schedule(userId, List.of(recording.objectKey()), now)));
+                return new Stored(StoreOutcome.REPLAYED, replayed, unstored(userId, sessionId, recording.objectKey(), now));
             }
             RecordingView current = byLine(sessionId, recording.lineId(), true);
             if (current != null && current.attemptNo() >= recording.attemptNo()) {
-                return new Stored(StoreOutcome.IGNORED, current,
-                        List.of(cleanup.schedule(userId, List.of(recording.objectKey()), now)));
+                return new Stored(StoreOutcome.IGNORED, current, unstored(userId, sessionId, recording.objectKey(), now));
             }
             long stored = ((Number) entityManager.createNativeQuery(
                     "SELECT COALESCE(SUM(byte_size),0) FROM reading_recordings WHERE user_id=:userId")
@@ -89,7 +88,7 @@ class PostgresRecordingRepository implements RecordingRepository {
                     .getSingleResult()).longValue();
             long replacedBytes = current == null ? 0 : current.byteSize();
             if (stored - replacedBytes + recording.byteSize() > quotaBytes) {
-                return rejected(StoreOutcome.QUOTA, userId, recording.objectKey(), now);
+                return rejected(StoreOutcome.QUOTA, userId, sessionId, recording.objectKey(), now);
             }
             Boolean matched = RecordingRules.matched(recording.transcript(), line);
             if (current == null) {
@@ -161,8 +160,25 @@ class PostgresRecordingRepository implements RecordingRepository {
         });
     }
 
-    private Stored rejected(StoreOutcome outcome, UUID userId, String objectKey, Instant now) {
-        return new Stored(outcome, null, List.of(cleanup.schedule(userId, List.of(objectKey), now)));
+    private Stored rejected(StoreOutcome outcome, UUID userId, UUID sessionId, String objectKey, Instant now) {
+        return new Stored(outcome, null, unstored(userId, sessionId, objectKey, now));
+    }
+
+    /**
+     * 올렸지만 반영하지 못한 객체를 장부에 올린다. 객체 키에 요청 id 가 들어 있어({@link RecordingRules#objectKey}) 같은 요청 id 의
+     * 올리기가 겹치면 키가 같다. 그러면 뒤의 요청이 재전송·거절로 끝나도 그 키를 먼저 저장된 행이 가리킬 수 있다 — 겹친 사이에
+     * 이관으로 주인이 바뀌었거나(404), 줄이 바뀌었거나(422), 보관 동의자가 탈퇴했어도(404) 행은 남는다. 그 행이 가리키는 키는
+     * 지우지 않는다. 그런 행은 이 회차에 있거나 탈퇴 보관으로 회차 연결이 비었다.
+     */
+    private List<UUID> unstored(UUID userId, UUID sessionId, String objectKey, Instant now) {
+        boolean stored = !NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT 1 FROM reading_recordings
+                WHERE (reading_session_id=:sessionId OR reading_session_id IS NULL) AND object_key=:objectKey
+                LIMIT 1
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("objectKey", objectKey)).isEmpty();
+        return stored ? List.of() : List.of(cleanup.schedule(userId, List.of(objectKey), now));
     }
 
     /** 내 회차인가. 보관 행(회차 연결이 빈 녹음)은 회차가 없으므로 여기서 걸린다. */

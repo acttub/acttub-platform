@@ -8,14 +8,7 @@
 
 ## 기능
 회원이 챌린지의 대사로 촬영한 영상(또는 보관함 영상)에 캡션을 붙여 공개로 올리거나 비공개로 저장한다. 공개 참여작은 피드·랭킹에 오르고,
-비공개는 나만 본다. 어느 쪽이든 AI 리포트를 요청할 수 있다.
-
-## 의도
-영상은 videos를 재사용해 보관함의 영상을 그대로 챌린지로 보낸다(ERD). "저장만 하기 · 비공개"는 비공개 행이다. 한 챌린지에 여러 번 참여할
-수 있어 배우가 다시 찍어 올린다. 챌린지 영상은 60초 이내(현행 촬영 상한)로 짧게 둔다.
-
-## 목적
-배우가 부담 없이 올리고, 비공개로도 리포트를 받는다.
+비공개는 나만 본다. AI 리포트는 지금 앱에서 요청할 곳이 없다([challenge.ai-report](ai-report.md)).
 
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
@@ -33,8 +26,8 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 |---|---|---|
 | visibility public | 공개로 생성. private에서 공개 전환(진행 중 visible 챌린지, status visible, 영상 파일 있음, 활성 계정) | challenge.entry |
 | visibility private | 비공개로 생성. public에서 비공개 전환(언제든). 탈퇴(다시 공개할 수 없음) | challenge.entry, account.withdraw |
-| status visible | 생성. hidden_by_report에서 신고 판정 restored·dismissed이고 남은 received 신고 없음 | challenge.entry, challenge.report |
-| status hidden_by_report | visible 참여작의 유효한 첫 신고 | challenge.report |
+| status visible | 생성. hidden_by_report에서 신고 판정 dismissed이고 남은 received 신고 없음 | challenge.entry, challenge.report |
+| status hidden_by_report | visible 참여작의 유효한 첫 신고(AI 검사를 통과한 참여작은 서로 다른 신고자 2명), AI 검사의 숨김 판정, 운영 판정 kept_hidden | challenge.report |
 | status deleted | 작성자 삭제 | challenge.entry |
 
 - 공개 전환 조건(표)을 채우지 못하면 종료 뒤 422 challenge_closed, 신고 숨김 중 422 entry_hidden, 파일 파기 뒤 422 video_not_ready다.
@@ -70,11 +63,10 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
   pending·failed인 참여작은 공개여도 피드·랭킹·상세·공유 링크·표본·종료 랭킹 어디에도 나오지 않는다(fail-closed). 본인 재생과 AI 리포트는
   원본이다. 모자이크본은 원본 옆 `videos/{사용자}/{요청}.mosaic-{참여작}.mp4`이고, 참여작 삭제·모자이크 끄기·영상 파일 파기·탈퇴 때
   정리 장부로 간다. PATCH face_mosaic true는 켜거나(failed면 다시 만든다), false는 끄고 사본을 지운다(공개 참여작이면 원본이 보인다).
-  나중에 공개로 바꾸는 경로(P03 메뉴·AI 리포트 화면)는 공개하면서 모자이크를 켤지 묻는다. 만드는 중·실패는 P03 줄에 알린다.
+  나중에 공개로 바꾸는 경로(P03 메뉴)는 공개하면서 모자이크를 켤지 묻는다. 만드는 중·실패는 P03 줄에 알린다.
 - P03 줄은 영상 첫 장면(`poster_url`)을 미리보기로 보여 준다. 원본에서 뜬 사진이라 본인 목록(`GET /v2/me/challenge-entries`)에만
   싣고, 아직 없거나 파일이 파기된 영상은 null 이라 대체 아이콘을 둔다.
-- 완료 화면(A18.3): 공개면 "공개로 올렸어요", 비공개면 "비공개로 저장했어요"와 그 아래 안내 한 줄, 옅은 파랑 알약
-  "「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요". 버튼은 "AI 리포트 보기"(주)와 "홈으로 가기"(pen 10-11 「비공개로 저장했어요」).
+- 완료 화면(A18.3)의 문구와 버튼은 pen과 앱 문구(`apps/mobile/locales/ko.ts`의 `challengeDone`)가 정본이다. AI 리포트로 가는 버튼은 없다.
 
 ## 예외
 - 같은 영상 같은 챌린지: 422 duplicate_entry.
@@ -87,7 +79,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 ## 검증 방법
 - 보관함 영상(45초)으로 공개 참여: challenge_entries 1행(visibility public, status visible, published_at 지금), 랭킹·피드에 보인다. 올리기 화면에
   표본 활용 안내 한 줄이 있다. 정확히 60초: 200.
-- 비공개 저장: published_at NULL, 목록에 없고 P03에 "비공개 저장", 완료 문구 "비공개로 저장했어요". 공개 완료 문구: "무대에 올렸어요".
+- 비공개 저장: published_at NULL, 목록에 없고 P03에 "비공개 저장".
 - 공개 범위를 바꾸지 않고 올리기: 나만 보기(private)로 올라간다.
 - 같은 요청 id·같은 지문 두 번: 행 하나. 다른 지문: 422. 같은 영상 같은 챌린지: 422 duplicate_entry. 다른 영상: 두 번째 행.
 - 하루 4번째: 429 daily_entry_limit. 종료 챌린지: 422 challenge_closed. review 챌린지: 404. 60.5초: 422 video_too_long. 60.4초: 200. 본인 미확정 영상: 422

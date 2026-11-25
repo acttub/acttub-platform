@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 /** 스트리밍 글 거르기의 경계: 여는 태그 없이 닫힌 메모, 열리다 만 태그, 메모 이름으로 끝나는 줄, 이미 보낸 글이 숨은 칸이었던 경우. */
 class VisibleCoachTextEdgeTest {
     final List<String> out = new ArrayList<>();
-    final VisibleCoachText text = new VisibleCoachText(false, out::add);
+    final VisibleCoachText text = new VisibleCoachText(false, null, out::add);
 
     @Test void emptyPiecesSendNothing() {
         text.accept(null);

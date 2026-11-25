@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code practices.stage} 의 값 — 연습 회차의 진행 (practice.start).
  *
@@ -27,12 +25,5 @@ public enum PracticeStage implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<PracticeStage> {
-        public JpaConverter() {
-            super(PracticeStage.class);
-        }
     }
 }

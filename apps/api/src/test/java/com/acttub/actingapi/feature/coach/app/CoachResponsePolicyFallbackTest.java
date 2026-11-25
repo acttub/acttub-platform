@@ -78,8 +78,5 @@ class CoachResponsePolicyFallbackTest {
 
     @Test void questionMarksCountOnlyOutsideQuotesInBothWidths() {
         assertThat(OpeningQuestion.questionCount("“어디 가？”라고 했죠. 왜 그랬어요？")).isEqualTo(1);
-        assertThat(OpeningQuestion.videoSource(null)).isFalse();
-        assertThat(OpeningQuestion.videoSource(StructuredJson.parse("{\"kind\":\"video_observation\",\"text\":\" \"}"))).isFalse();
-        assertThat(OpeningQuestion.videoSource(StructuredJson.parse("{\"kind\":\"actor_message\",\"text\":\"말\"}"))).isFalse();
     }
 }

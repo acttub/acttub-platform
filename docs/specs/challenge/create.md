@@ -4,20 +4,12 @@
 
 - 도입: 0.1.0
 - 결정 기록: ADR-005(개정 2026-09-21), ADR-032
-- 화면: A16.2(새 대사 등록, 스토리형 3단계), A16(대사 목록의 "직접 등록하기"), A16.1(검색 결과 없음의 등록 진입), A17(주최자 관리 메뉴, 미설계)
+- 화면: A16.2(새 대사 등록, 스토리형 3단계), A16(대사 목록의 "직접 등록하기"), A16.1(검색 결과 없음의 등록 진입), A17(주최자 ⋯ 메뉴: 공유·챌린지 지우기)
 - 테이블: challenges
 
 ## 기능
 회원이 연기하고 싶은 대사 한 줄과 작품·인물·장면 메모, 기간을 적어 챌린지를 만든다. 기획팀이 띄우는 챌린지도 같은 행이며 주최자가
 없고, 날짜마다 하나를 "오늘의 챌린지"로 선정해 피드 머리에 둔다. 기간이 끝나면 영상은 남고 랭킹만 굳는다.
-
-## 의도
-ERD는 챌린지를 "대사 한 줄 + 기간"으로, 사용자 개설과 기획팀 개설을 한 테이블에 두기로 했다. 기간 선택지를 DB가 아니라 API 검증에
-두어 기획이 바꿀 수 있게 한다. 오늘의 챌린지는 선정일과 참여 기간이 다른 것이라 갈라 둔다. 사용자 개설은 즉시 공개하되 신고(대상에
-챌린지 포함)·차단·하루 개설 한도·중복 방지로 남용을 막는다.
-
-## 목적
-배우가 찾는 대사가 없으면 스스로 챌린지를 열어 다른 배우를 부른다.
 
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
@@ -34,14 +26,14 @@ challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값�
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| visible | 개설(회원·기획팀)의 시작값. review에서 신고 판정 restored·dismissed이고 그 챌린지에 남은 received 신고 없음. 운영 moderation 변경 | challenge.create, challenge.report |
+| visible | 개설(회원·기획팀)의 시작값. review에서 신고 판정 dismissed이고 그 챌린지에 남은 received 신고 없음. 운영 moderation 변경 | challenge.create, challenge.report |
 | review | 처리 전 신고의 서로 다른 신고자 수가 임계값에 닿음([challenge.report](report.md#규칙제약)). 운영 moderation 변경 | challenge.report, challenge.create(운영) |
 | hidden | 운영 moderation 변경(`PATCH /v2/admin/challenges/{id}/moderation`)만 | challenge.create(운영) |
 | 삭제(deleted_at) | 주최자 삭제. visible이고 참여 이력(삭제된 참여작 포함)이 0 | challenge.create |
 
 - 기간 상태: ends_at 이전은 진행 중, 지나면 종료다. 종료되면 새 참여를 막고 기존 정상 공개 참여작은 남으며 랭킹이 굳는다
   (challenge.browse). 같은 대사를 다시 띄우려면 새 행이고 이전 참여작·좋아요·랭킹은 이전 챌린지에 남는다.
-- 운영 상태: visible ↔ review(신고 누적으로 운영 검토, 목록·피드에서 제외, 참여작은 유지)·hidden(운영 숨김, 하위 참여작 노출 중단).
+- 운영 상태: visible ↔ review(신고 누적으로 운영 검토, 목록·피드에서 제외, 참여작 행은 그대로이고 노출은 hidden처럼 막힌다)·hidden(운영 숨김, 하위 참여작 노출 중단).
   review·hidden에서 visible로 되돌릴 때 기간이 지났으면 종료 상태의 visible이다. hidden은 되돌릴 수 있다(운영 판단).
 - 불변 조건: ends_at > starts_at(`ck_challenges_period`). team은 host_user_id NULL(`ck_challenges_team`), featured_on은 team만
   (`ck_challenges_featured_team`)이고 날짜당 하나(`uq_challenges_featured`). 삭제된 행의 moderation은 바꾸지 않는다(404).
@@ -92,7 +84,7 @@ challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값�
   featured_on을 넣어 개설: 422(team만). 같은 날 두 번째 team 선정: 422(날짜당 하나).
 - 오늘 선정이 없고 어제 선정이 진행 중: 어제 것이 보인다. 어제 것도 종료: 참여작이 가장 많은 visible·진행 중 챌린지. 내일 날짜 선정: 오늘은 보이지
   않는다.
-- 운영이 review로 바꿈: 목록·피드에서 빠지고 참여작은 남는다. 기간이 지난 뒤 visible로 되돌림: 종료 상태로 보인다.
+- 운영이 review로 바꿈: 목록·피드에서 빠지고 챌린지 상세·참여작 목록은 404다. 참여작 행은 남는다. 기간이 지난 뒤 visible로 되돌림: 종료 상태로 보인다.
 - 주최자 탈퇴: host_user_id NULL, origin member, 화면에 "주최자 탈퇴", 행·참여작 그대로.
 - 게스트 토큰으로 개설: 403 member_only. 한국어가 아닌 앱 회원은 개설할 수 있다.
 

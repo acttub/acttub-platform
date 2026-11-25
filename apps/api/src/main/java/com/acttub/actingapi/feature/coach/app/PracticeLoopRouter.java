@@ -21,18 +21,68 @@ import com.acttub.actingapi.platform.json.LenientJson;
 final class PracticeLoopRouter {
     private PracticeLoopRouter() {}
 
+    // ---- 할 일 이름 ----
+    // 연습 루프 할 일의 이름은 여기서만 정한다. 이 글자는 상태 칸 「할 일:」에 그대로 저장되어 다음 턴·노트·기억이 다시 읽고,
+    // 할 일마다의 지시문 파일을 고르는 이름표이며(DirectVideoPrompts.TASK_FILES), 관측 기록 route 칸(practice_loop:<이름>)에 실린다.
+    // 글자를 바꾸면 저장된 대화와 지표가 어긋난다.
+
+    /** 단계별 질문. 질의응답으로 좁혀 가서 고칠 방법을 배우 입에서 먼저 나오게 한다. */
+    static final String WANT = "원하는 것 묻기";
+    static final String GAP = "어긋남 보기";
+    static final String FIND = "스스로 찾기";
+    /** 짧은 답이 왔을 때, 다음 단계의 답을 코치가 하나 짐작해 이유와 함께 내밀고 맞는지 묻는다(SOMA-795 공통 수정 전에는 둘 중 고르기). */
+    static final String EASY = "쉽게 묻기";
+    /** 배우가 단계 질문을 다르게 알아들었을 때. 같은 단계를 다른 말로 다시 묻는다. */
+    static final String REASK = "다시 묻기";
+    /** 같은 단계에 머문 짧은 답에 코치가 답을 하나 제안한다. */
+    static final String PROPOSE = "답 제안하기";
+    /** 배우의 판단 요청·반박에 영상에서 본 것으로 판단을 준다. */
+    static final String POINT_OUT = "짚어주기";
+    /** 반박을 받고 그 버릇 주제를 내려놓은 뒤 소리가 아닌 쪽의 장점을 짚는다. */
+    static final String POINT_OUT_OTHER = "짚어주기(다른 쪽)";
+    /** 배우가 물은 것에 답한다. */
+    static final String ANSWER = "답하기";
+    /** 정정을 받고 그 주제를 접은 뒤 배우가 그 장면에서 하려던 것을 묻는다. */
+    static final String LET_GO = "내려놓기";
+    /** SOMA-855 실험 쪽: 배우가 이미 그렇게 했다고 하면, 의도를 다시 묻지 않고 그 대사에서 실제로 한 것을 한 번 묻는다. */
+    static final String ASK_DONE = "한 일 묻기";
+    /** 대화를 마칠 때 배우의 말을 다음 테이크 행동 하나로 이어 주는 마지막 응답. 그다음 배우 말에서 닫는다. */
+    static final String WRAP_UP = "정리하기";
+    /**
+     * SOMA-855 실험 쪽: 한 일을 들은 다음의 정리. 이미 했다고 한 제안은 빼고 다른 행동 하나를 준다.
+     * 이름이 "정리하기"로 시작해 정리와 같은 규칙(숨은 다음 테이크 줄, 질문 없음, 다음 말에서 닫기)을 따른다.
+     */
+    static final String WRAP_DONE = WRAP_UP + "(다르게)";
+    /**
+     * 코치 AI를 부르지 않고 대화를 닫는 할 일. 마무리 말 없이 닫고 앱은 바로 노트로 넘어간다. 예전의 마무리1(한 줄 청하기)·
+     * 마무리2(정리 인사)·끝은 모두 이것이다 — 대화가 끝나면 앱이 바로 노트(3층)로 넘어가 마지막 코치 말이 거의 보이지 않는다.
+     */
+    static final String END = "끝";
+    /** 첫 응답(버릇을 비춘다). 첫 응답의 상태 칸은 비어 있어 이 이름으로 읽는다. */
+    static final String SHOW = "비추기";
+
+    // 예전 대화(모델이 상태 칸을 직접 쓰던 때)의 상태 칸에만 남은 할 일. 라우터는 내지 않고 저장된 칸을 다시 읽을 때만 쓴다.
+    // 「파고들기(쉬운)」처럼 뒤에 괄호가 붙은 이름도 있어 대개 앞부분으로 견준다.
+    static final String OLD_PROBE = "파고들기";
+    static final String OLD_CONNECT = "이어보기";
+    static final String OLD_GIVE_METHOD = "방법 주기";
+    /** 마무리1·마무리2를 함께 가리키는 앞부분. */
+    static final String OLD_CLOSING = "마무리";
+    /** 배우에게 자기에 대한 한 줄을 청한 응답. */
+    static final String OLD_ASK_LINE = "마무리1";
+    /** 정리 인사를 하고 대화를 닫은 응답. */
+    static final String OLD_CLOSE = "마무리2";
+
     /** 배우의 말 종류. {@code label}은 상태 칸과 노트가 읽는 한국어 이름이다. */
     enum Kind {
-        STOP("stop", "그만"), SELF_LINE("self_line", "자기 한 줄"), CORRECTION("correction", "정정"),
-        PUSHBACK("pushback", "반박"), METHOD("method", "방법 요청"), EVALUATION("evaluation", "평가 요청"),
-        MISSED("missed", "질문 오해"), CHOICE("choice", "선택 설명"), INSIGHT("insight", "스스로 알아챔"), SHORT("short", "짧은 답"),
-        QUESTION("question", "질문·설명"), ANSWER("answer", "답");
+        STOP("그만"), SELF_LINE("자기 한 줄"), CORRECTION("정정"),
+        PUSHBACK("반박"), METHOD("방법 요청"), EVALUATION("평가 요청"),
+        MISSED("질문 오해"), CHOICE("선택 설명"), INSIGHT("스스로 알아챔"), SHORT("짧은 답"),
+        QUESTION("질문·설명"), ANSWER("답");
 
-        final String id;
         final String label;
 
-        Kind(String id, String label) {
-            this.id = id;
+        Kind(String label) {
             this.label = label;
         }
 
@@ -194,11 +244,11 @@ final class PracticeLoopRouter {
     /** 지금까지 코치가 한 일의 횟수. */
     record Tally(int habitQuestions, int pointOuts, int methods) {
         Tally after(String doing) {
-            if (doing.startsWith("비추기") || doing.startsWith("파고들기") || doing.startsWith("이어보기")) {
+            if (doing.startsWith(SHOW) || doing.startsWith(OLD_PROBE) || doing.startsWith(OLD_CONNECT)) {
                 return new Tally(habitQuestions + 1, pointOuts, methods);
             }
-            if (doing.startsWith("짚어주기")) return new Tally(habitQuestions, pointOuts + 1, methods);
-            if (doing.startsWith("방법 주기")) return new Tally(habitQuestions, pointOuts, methods + 1);
+            if (doing.startsWith(POINT_OUT)) return new Tally(habitQuestions, pointOuts + 1, methods);
+            if (doing.startsWith(OLD_GIVE_METHOD)) return new Tally(habitQuestions, pointOuts, methods + 1);
             return this;
         }
     }
@@ -215,12 +265,39 @@ final class PracticeLoopRouter {
      * @param keep 배우가 그 버릇을 지키고 싶다고 했는지
      * @param closeNext 예전 판의 "다음에 닫기" 표시. 있으면 이번 말에서 정리한다
      * @param stage 지금까지 물은 단계(1 보여 주기 · 2 원하는 것 · 3 어긋남 · 4 스스로 찾기)
+     * @param last 이 대화의 응답 상한. 보통 {@link #LAST_REPLY}이고 무료 상한(SOMA-1131)이 걸리면 그보다 작다
+     * @param wrapped 이 대화에서 코치가 한 번이라도 정리(정리하기 계열)를 했는지. 무료 상한 마지막 응답이 정리를 되풀이하지 않게 본다
      */
     record Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
-            boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage) {
+            boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage, int last, boolean wrapped) {
+        /** 정리 이력이 따로 없으면 직전 할 일과 다음에 닫기 표시로 짐작한다(정리 뒤에만 다음에 닫기가 붙는다). */
+        Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
+                boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage, int last) {
+            this(reply, lastDoing, lastKind, tally, avoid, habitDropped, choiceExplained, keep, closeNext, stage, last,
+                    closeNext || (lastDoing != null && lastDoing.startsWith(WRAP_UP)));
+        }
+
+        Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
+                boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext, int stage) {
+            this(reply, lastDoing, lastKind, tally, avoid, habitDropped, choiceExplained, keep, closeNext, stage, LAST_REPLY);
+        }
+
         Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
                 boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext) {
             this(reply, lastDoing, lastKind, tally, avoid, habitDropped, choiceExplained, keep, closeNext, 1);
+        }
+
+        /**
+         * 무료 상한이 기본 상한보다 먼저 걸린 대화인가. 그 상한을 채우는 응답은 코치 AI 없이 닫지 않고, 받아 주고 다음 연습 때 볼
+         * 한 가지로 정리하며 닫는다(서버가 그 응답에서 대화를 닫는다).
+         */
+        boolean freeCapped() {
+            return last < LAST_REPLY;
+        }
+
+        /** 이번 응답이 무료 상한을 채우는 마지막 응답인가(서버가 이 응답에서 닫는다). */
+        boolean freeLast() {
+            return freeCapped() && reply >= last;
         }
     }
 
@@ -228,15 +305,21 @@ final class PracticeLoopRouter {
     static final String RESUMED_AT = "resumed_at";
 
     static Before before(JsonNode loop, int coachTurns) {
+        return before(loop, coachTurns, LAST_REPLY);
+    }
+
+    /** @param last 이 대화의 응답 상한({@link CoachFreeReplies#within}으로 무료 상한을 씌운 값) */
+    static Before before(JsonNode loop, int coachTurns, int last) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         Tally tally = new Tally(0, 0, 0);
-        String lastDoing = "비추기";
+        String lastDoing = SHOW;
         Kind lastKind = null;
         var avoid = new LinkedHashSet<String>();
         boolean dropped = false;
         boolean choice = false;
         boolean keep = false;
         boolean closeNext = false;
+        boolean wrapped = false;
         // 첫 응답이 버릇을 보여 주고(1) 원하는 것을 묻는다(2). 그래서 첫 답은 2단계 질문의 답이다.
         int stage = coachTurns >= 1 ? 2 : 1;
         for (int i = 0; i < coachTurns; i++) {
@@ -244,10 +327,11 @@ final class PracticeLoopRouter {
             String doing = DirectVideoPracticeLoop.action(status);
             tally = tally.after(doing);
             lastDoing = doing;
+            if (doing.startsWith(WRAP_UP)) wrapped = true;
             // 대화 이어하기(SOMA-782): 닫힌 대화를 다시 연 직후 첫 배우 말은 "정리한 다음 말"처럼 다룬다 — 이어 묻는 말에는 답하고,
             // 짧은 맞장구면 다시 닫는다. 그러지 않으면 마지막 할 일이 끝·마무리라 첫 말에 곧바로 닫힌다.
             if (i == coachTurns - 1 && loop != null && LenientJson.asInt(loop.path(RESUMED_AT), -1) == coachTurns
-                    && (doing.startsWith("끝") || doing.startsWith("마무리"))) {
+                    && (doing.startsWith(END) || doing.startsWith(OLD_CLOSING))) {
                 lastDoing = WRAP_UP;
             }
             Kind kind = Kind.ofLabel(DirectVideoPracticeLoop.statusField(status, "배우의 말"));
@@ -259,7 +343,7 @@ final class PracticeLoopRouter {
             String stageText = DirectVideoPracticeLoop.statusField(status, "단계");
             if (!stageText.isEmpty()) {
                 try { stage = Math.max(stage, Integer.parseInt(stageText.replaceAll("\\D.*", ""))); } catch (NumberFormatException ignored) { }
-            } else if (doing.startsWith("파고들기") || doing.startsWith("이어보기")) {
+            } else if (doing.startsWith(OLD_PROBE) || doing.startsWith(OLD_CONNECT)) {
                 stage = Math.min(4, stage + 1); // 단계 칸이 없던 예전 대화는 질문 횟수로 짐작한다
             }
             String avoided = DirectVideoPracticeLoop.statusField(status, "피할 것");
@@ -267,58 +351,18 @@ final class PracticeLoopRouter {
                 for (String part : avoided.split("\\s*[,·/]\\s*")) if (!part.isBlank()) avoid.add(part.strip());
             }
         }
-        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep, closeNext, stage);
+        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep, closeNext, stage, last,
+                wrapped || closeNext || lastDoing.startsWith(WRAP_UP));
     }
 
     /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
     static final int LAST_REPLY = ConversationService.THREE_LAYERS_REPLY_LIMIT;
 
-    /** 코치 AI를 부르지 않고 대화를 닫는 할 일. 마무리 말 없이 닫고 앱은 바로 노트로 넘어간다. */
-    static final String END = "끝";
-
-    /**
-     * 할 일 표. 위에서부터 먼저 맞는 줄 하나.
-     *
-     * <p>예전의 마무리1(한 줄 청하기)·마무리2(정리 인사)·끝은 모두 {@link #END}다. 대화가 끝나면 앱이 바로 노트(3층)로
-     * 넘어가 마지막 코치 말이 거의 보이지 않으므로, 마무리 말을 쓰지 않고 코치 AI 없이 닫는다.
-     */
-    /** 대화를 마칠 때 배우의 말을 다음 테이크 행동 하나로 이어 주는 마지막 응답. 그다음 배우 말에서 닫는다. */
-    static final String WRAP_UP = "정리하기";
-
-    /** 단계별 질문. 질의응답으로 좁혀 가서 고칠 방법을 배우 입에서 먼저 나오게 한다. */
-    static final String WANT = "원하는 것 묻기";
-    static final String GAP = "어긋남 보기";
-    static final String FIND = "스스로 찾기";
-    /** 짧은 답이 왔을 때, 다음 단계의 답을 코치가 하나 짐작해 이유와 함께 내밀고 맞는지 묻는다(SOMA-795 공통 수정 전에는 둘 중 고르기). */
-    static final String EASY = "쉽게 묻기";
-
-    /**
-     * 할 일 표. 대화는 다섯 단계로 간다: 1 보여 주기(첫 응답) → 2 원하는 것 묻기 → 3 어긋남 보기 → 4 스스로 찾기 → 정리하기.
-     * 배우가 보통으로 답하면 다음 단계로 간다. 물음·정정·반박에는 먼저 답하고 단계는 그대로 둔다.
-     * 정리한 다음 배우 말이 맞장구면 닫고, 그 밖이면 한 번 받아 준 뒤 닫는다. 받아 준 다음에도 배우가 또 물으면 답하고,
-     * 묻지 않은 말에서 닫는다. 그만과 상한(24번째)은 바로 닫는다.
-     */
-    static String route(Kind kind, Before b) {
-        return route(kind, b, 0);
-    }
-
-    /** 단계를 넘기지 않고 머문 할 일. 같은 단계에서 몇 번째 묻는지 셀 때 쓴다. */
-    static final String PROPOSE = "답 제안하기";
-    static final String LET_GO = "내려놓기";
-    static final String POINT_OUT_OTHER = "짚어주기(다른 쪽)";
-    /** SOMA-855 실험 쪽: 배우가 이미 그렇게 했다고 하면, 의도를 다시 묻지 않고 그 대사에서 실제로 한 것을 한 번 묻는다. */
-    static final String ASK_DONE = "한 일 묻기";
-    /**
-     * SOMA-855 실험 쪽: 한 일을 들은 다음의 정리. 이미 했다고 한 제안은 빼고 다른 행동 하나를 준다.
-     * 이름이 "정리하기"로 시작해 정리와 같은 규칙(숨은 다음 테이크 줄, 질문 없음, 다음 말에서 닫기)을 따른다.
-     */
-    static final String WRAP_DONE = WRAP_UP + "(다르게)";
-
     /** 단계 질문에 답한 말(정리 뒤 다시 정리할 재료가 되는 말). */
     private static boolean answeredStep(Kind kind) {
         return kind == Kind.ANSWER || kind == Kind.CHOICE || kind == Kind.INSIGHT || kind == Kind.SELF_LINE;
     }
-    static final java.util.Set<String> STAYS = java.util.Set.of("다시 묻기", EASY, PROPOSE, "답하기", "짚어주기", "짚어주기(다른 쪽)", "내려놓기", ASK_DONE);
+    static final java.util.Set<String> STAYS = java.util.Set.of(REASK, EASY, PROPOSE, ANSWER, POINT_OUT, POINT_OUT_OTHER, LET_GO, ASK_DONE);
 
     /** 지금 단계에서 연달아 머문 코치 응답 수. 단계를 넘긴 응답(첫 응답, 보여 주기, 스스로 찾기, 정리)에서 0으로 돌아간다. */
     static int stayed(JsonNode loop, int coachTurns) {
@@ -331,25 +375,8 @@ final class PracticeLoopRouter {
         return stayed;
     }
 
-    /**
-     * @param stayed 이 단계에서 이미 머문 횟수. 같은 단계에서 같은 방식으로 다시 묻지 않게, 횟수에 따라 묻는 법을 바꾼다:
-     *               엇나감은 바꿔 묻기 → 쉽게 묻기(코치 짐작 하나) → 코치가 답을 제안, 모름·짧은 답은 쉽게 묻기 → 코치가 답을 제안.
-     */
-    static String route(Kind kind, Before b, int stayed) {
-        return route(new Classified(kind, false, "code"), b, stayed);
-    }
-
-    /**
-     * 흐름(SOMA-636 A/B)을 따르는 할 일. B는 "스스로 찾기"를 건너뛴다 — 코치가 본 것을 말한 다음(어긋남 보기 자리)
-     * 배우가 받으면 바로 정리에서 코치가 행동 하나를 제안한다. 물음·정정·반박·제안 같은 나머지 표는 A와 같다.
-     */
-    static String route(Classified c, Before b, int stayed, String flow) {
-        String doing = route(c, b, stayed);
-        return CoachFlows.B.equals(flow) && FIND.equals(doing) ? WRAP_UP : doing;
-    }
-
     /** 묻는 할 일 — 맞춤 코칭의 질문 수 상한이 세는 것. 물음·정정에 답하는 말(답하기·내려놓기)은 세지도 막지도 않는다. */
-    static final java.util.Set<String> ASKING = java.util.Set.of(WANT, GAP, FIND, EASY, "다시 묻기", PROPOSE, POINT_OUT_OTHER);
+    static final java.util.Set<String> ASKING = java.util.Set.of(WANT, GAP, FIND, EASY, REASK, PROPOSE, POINT_OUT_OTHER);
 
     /**
      * 맞춤 코칭의 정리 전 질문 수 상한(SOMA-795). 상한만큼 물었으면 더 묻는 할 일 대신 정리로 넘긴다. 배우가 묻거나 고쳐 말한
@@ -357,8 +384,8 @@ final class PracticeLoopRouter {
      *
      * @param asked 지금까지 코치가 물은 수(첫 질문 포함, {@link #questionsAsked})
      */
-    static String route(Classified c, Before b, int stayed, String flow, Integer maxQuestions, int asked) {
-        String doing = route(c, b, stayed, flow);
+    static String route(Classified c, Before b, int stayed, Integer maxQuestions, int asked) {
+        String doing = route(c, b, stayed);
         if (maxQuestions == null || asked < maxQuestions || !ASKING.contains(doing)) return doing;
         return WRAP_UP;
     }
@@ -370,22 +397,17 @@ final class PracticeLoopRouter {
      *
      * @param doing 대조 쪽 표가 정한 할 일
      * @param doneAsked 이 대화에서 한 일 묻기를 이미 했는지({@link #askedDone})
-     */
-    static String routeAlready(Classified c, Before b, String doing, boolean doneAsked) {
-        return routeAlready(c, b, doing, doneAsked, false);
-    }
-
-    /**
      * @param lastWasDone 바로 앞 코치 말이 이미 했다는 말에 답한 것인지(앞 상태 칸에 {@link #DONE_FIELD}가 있음). 정리 뒤 그 말에도
      *                    또 이미 했다고 하면 더 답하지 않고 닫는다 — 같은 제안을 피하려다 말만 바꾼 답이 이어진다(10/25 재생).
      */
     static String routeAlready(Classified c, Before b, String doing, boolean doneAsked, boolean lastWasDone) {
-        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY) return END;
+        if (c.kind() == Kind.STOP) return END;
+        if (b.reply() >= b.last()) return b.freeCapped() ? doing : END;
         if (b.lastDoing().startsWith(ASK_DONE)) return WRAP_DONE;
         if (!c.already()) return doing;
-        if (!doneAsked) return b.reply() >= LAST_REPLY - 1 ? WRAP_DONE : ASK_DONE;
+        if (!doneAsked) return b.reply() >= b.last() - 1 ? WRAP_DONE : ASK_DONE;
         if (lastWasDone && b.closeNext()) return END;
-        return LET_GO.equals(doing) || ASK_DONE.equals(doing) ? "답하기" : doing;
+        return LET_GO.equals(doing) || ASK_DONE.equals(doing) ? ANSWER : doing;
     }
 
     /** 바로 앞 상태 칸에 이미 한 것이 남았는지. */
@@ -459,9 +481,28 @@ final class PracticeLoopRouter {
         return asked;
     }
 
+    /**
+     * 할 일 표. 대화는 다섯 단계로 간다: 1 보여 주기(첫 응답) → 2 원하는 것 묻기 → 3 어긋남 보기 → 4 스스로 찾기 → 정리하기.
+     * 배우가 보통으로 답하면 다음 단계로 간다. 물음·정정·반박에는 먼저 답하고 단계는 그대로 둔다.
+     * 정리한 다음 배우 말이 맞장구면 닫고, 그 밖이면 한 번 받아 준 뒤 닫는다. 받아 준 다음에도 배우가 또 물으면 답하고,
+     * 묻지 않은 말에서 닫는다. 그만과 상한(24번째)은 바로 닫는다.
+     *
+     * <p>{@code stayed} 는 이 단계에서 이미 머문 횟수다. 같은 단계에서 같은 방식으로 다시 묻지 않게, 횟수에 따라 묻는 법을
+     * 바꾼다: 엇나감은 바꿔 묻기 → 쉽게 묻기(코치 짐작 하나) → 코치가 답을 제안, 모름·짧은 답은 쉽게 묻기 → 코치가 답을 제안.
+     */
     static String route(Classified c, Before b, int stayed) {
         Kind kind = c.kind();
-        if (kind == Kind.STOP || b.reply() >= LAST_REPLY) return END;
+        if (kind == Kind.STOP) return END;
+        // 상한을 채우는 응답. 무료 상한(SOMA-1131)이면 코치 AI가 받아 주고 다음 연습 때 볼 한 가지로 정리하며 닫는다.
+        // 이미 정리했으면 정리를 되풀이하지 않고 정리 뒤 마지막 한마디로 받아 준다(closesNext가 마지막 말 지시를 붙인다).
+        // 2026-11-24 dev: 정리 → 답하기 → 상한에서 정리가 또 돌아 「맞아요, 그거예요.」와 같은 제안이 되풀이됐다.
+        // 마지막 말이라 배우 해석을 되묻는 내려놓기 대신 답하기다.
+        if (b.reply() >= b.last()) {
+            if (!b.freeCapped()) return END;
+            if (!b.wrapped()) return WRAP_UP;
+            String answer = answerTo(c, b);
+            return LET_GO.equals(answer) ? ANSWER : answer;
+        }
         // 정리 뒤 한 번 받아 준 다음 말: 또 물었으면(물음·방법·판단 요청·반박·정정) 답하고, 그 밖이면 닫는다.
         // 2026-10-11 17:56 운영: 받아 준 뒤 배우가 "?반응을 어케봐?"라고 물었는데 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
         // 정리 뒤 배우가 아니라고 해서 배우 해석을 물었으면(내려놓기), 배우가 말한 해석으로 한 번 더 정리한다.
@@ -470,8 +511,8 @@ final class PracticeLoopRouter {
         if (b.closeNext()) return asksAgain(c) ? answerTo(c, b) : END;
         // 정리한 다음 말: 맞장구·짧은 말이면 닫는다. 그 밖(다른 해석, 덧붙인 생각, 물음, 반박)은 한 번 받아 주고 그다음 말에서 닫는다(closesNext).
         if (b.lastDoing().startsWith(WRAP_UP)) return endsAfterWrap(c) ? END : answerTo(c, b);
-        if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
-        if (b.reply() >= LAST_REPLY - 1) return WRAP_UP;
+        if (b.lastDoing().startsWith(OLD_CLOSING) || b.lastDoing().startsWith(END)) return END;
+        if (b.reply() >= b.last() - 1) return WRAP_UP;
         // 코치가 답을 제안했으면, 배우가 받든(네) 다르게 답하든 다음 단계로 간다. 물음·정정은 먼저 받는다.
         if (b.lastDoing().startsWith(PROPOSE) && kind != Kind.CORRECTION && kind != Kind.PUSHBACK && kind != Kind.METHOD
                 && kind != Kind.QUESTION && kind != Kind.EVALUATION) return next(b.stage());
@@ -480,13 +521,12 @@ final class PracticeLoopRouter {
         if (stayed >= 2 && (kind == Kind.MISSED || kind == Kind.SHORT)) return PROPOSE;
         // 평가 요청에는 버릇을 내려놓은 뒤에도 판단을 준다(내려놓은 주제는 피할 것으로 빠진다).
         // 2026-10-20 21:34 운영: 정정 뒤 "연기력이랑 목소리는 어때"에 다른 쪽 강점 질문("어디서 더 써 볼래요?")으로 답했다.
-        String pointOut = "짚어주기";
         // 정리로 넘어가는 문턱: 스스로 찾기(4단계)에 답했어도 상대에게 할 행동 하나를 정하지 않았으면(고민 중, 헷갈림, 전제 반박,
         // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 쉽게 묻기 → 코치가 제안 순서로 머문다.
         if (kind == Kind.ANSWER && b.stage() >= 4 && !c.decided()) {
             return switch (c.respond()) {
-                case "evaluation" -> pointOut;
-                case "question" -> "답하기";
+                case "evaluation" -> POINT_OUT;
+                case "question" -> ANSWER;
                 case "method" -> WRAP_UP;
                 // 행동 대신 바람을 말했으면(위로받고 싶어) 그 바람이 답의 재료다. 다시 묻지 않고 정리에서 그 바람을 얻을 행동 하나를 제안한다.
                 // 바람도 행동도 아닌 답이면 한 번만 바꿔 묻고, 그다음에는 보기 둘·"어때요?" 제안을 거치지 않고 정리에서 코치가 행동을 준다.
@@ -496,12 +536,12 @@ final class PracticeLoopRouter {
             };
         }
         return switch (kind) {
-            case CORRECTION -> "내려놓기";
+            case CORRECTION -> LET_GO;
             // 반박이 이어지면 같은 방식(받고 강점 묻기)을 되풀이하지 않고 질문 없이 판단을 준다.
             // 2026-10-17 20:56 운영: "다른질문" → "너 내 대답 듣고잇니" → "너는 너 할말만 햇음"까지 반박 네 번에 같은 할 일이 네 번 나갔다.
-            case PUSHBACK -> b.lastKind() == Kind.PUSHBACK || b.lastDoing().startsWith(POINT_OUT_OTHER) ? "짚어주기" : POINT_OUT_OTHER;
-            case EVALUATION -> pointOut;
-            case QUESTION -> "답하기";
+            case PUSHBACK -> b.lastKind() == Kind.PUSHBACK || b.lastDoing().startsWith(POINT_OUT_OTHER) ? POINT_OUT : POINT_OUT_OTHER;
+            case EVALUATION -> POINT_OUT;
+            case QUESTION -> ANSWER;
             // 질문이 잘못 전해졌다. 단계를 넘기지 않고 같은 것을 바꿔 묻는다. 두 번째면 보기 둘로 고르게 한다.
             case MISSED -> stayed >= 1 ? EASY : REASK;
             // 배우가 방법을 물었으면 질문으로 끌지 않고 정리에서 행동 하나를 준다.
@@ -543,18 +583,6 @@ final class PracticeLoopRouter {
     }
 
     /** 단계 이름과 이번 목표. [이번 응답]의 "지금 단계"에 실린다. */
-    /** 배우가 단계 질문을 다르게 알아들었을 때. 같은 단계를 다른 말로 다시 묻는다. */
-    static final String REASK = "다시 묻기";
-
-    /** 흐름을 따르는 단계 줄. B는 어긋남 보기 자리에서 코치가 본 것을 먼저 말하고, 스스로 찾기 없이 정리로 간다. */
-    static String stageLine(String doing, Before b, String flow) {
-        String line = stageLine(doing, b);
-        if (!CoachFlows.B.equals(flow)) return line;
-        if (line.startsWith("2/4 ")) return "2/4 코치가 본 것 — 근본 문제를 대사 두 곳과 이유로 코치가 먼저 말한다. 해결책은 아직 말하지 않는다";
-        if (line.startsWith("4/4 ")) return "4/4 정리 — 배우가 말한 바람을 얻을 행동 하나를 코치가 제안해 확정한다";
-        return line;
-    }
-
     static String stageLine(String doing, Before b) {
         int target = switch (doing) {
             case WANT -> 2;
@@ -630,14 +658,11 @@ final class PracticeLoopRouter {
         return false;
     }
 
-    /** 예전 판의 "답한 뒤 다음에 닫기". 이제는 단계로 정리에 가므로 쓰지 않는다. */
     /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. 그 말에서 또 물었으면 또 답하고 그다음에 닫는다. */
-    static boolean closesNext(Kind kind, Before b) {
-        return closesNext(new Classified(kind, false, "code"), b);
-    }
-
     static boolean closesNext(Classified c, Before b) {
-        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY) return false;
+        if (c.kind() == Kind.STOP) return false;
+        // 무료 상한 마지막 응답(SOMA-1131)이 이미 정리한 대화면 정리 뒤 마지막 말과 같다 — 같은 지시(질문 없음, 앞선 제안 되풀이 없음)를 붙인다.
+        if (b.reply() >= b.last()) return b.freeLast() && b.wrapped();
         if (b.closeNext()) return asksAgain(c);
         return b.lastDoing().startsWith(WRAP_UP) && !endsAfterWrap(c);
     }
@@ -657,11 +682,11 @@ final class PracticeLoopRouter {
 
     private static String answerTo(Classified c, Before b) {
         Kind kind = c.kind();
-        if (kind == Kind.EVALUATION) return "짚어주기";
+        if (kind == Kind.EVALUATION) return POINT_OUT;
         // 정리를 아니라고만 하고 자기 해석(바람)을 말하지 않았으면 코치가 새 해석을 짐작하지 않고 배우가 하려던 것을 묻는다
         // (다음 말에서 그 해석으로 다시 정리한다). 해석을 말했으면 예전처럼 그 해석을 따라 마지막 말을 한다.
         if (kind == Kind.CORRECTION && !c.want()) return LET_GO;
-        return "답하기";
+        return ANSWER;
     }
 
     // 앱(0.1.4, #616)과 웹에서 "예시로 설명"·"나중에 연습" 고정 버튼을 없앴다(2026-10-14). 예전 앱에서 같은 문구가 와도
@@ -679,13 +704,6 @@ final class PracticeLoopRouter {
      * 할 일 이름·배우의 말 종류·횟수는 싣지 않는다 — 모델이 이름을 보고 틀에 맞춰 쓰지 않게, 그 상황의 설명만 준다.
      *
      * @param task 할 일 파일에서 고른 한 칸({@code "- 이름: …"}과 그 아래 들여 쓴 줄)
-     */
-    static String instruction(java.util.Locale language, String doing, List<String> avoid, String observed,
-            String dialogue, String task) {
-        return instruction(language, doing, avoid, observed, dialogue, task, null, List.of());
-    }
-
-    /**
      * @param stage 지금 단계 줄({@link #stageLine}). 없으면 싣지 않는다
      * @param materials 이번 응답의 재료 줄(처음 짚은 버릇, 버릇이 가리는 것, 배우가 단계마다 한 말, 방금 한 말)
      */
@@ -715,16 +733,6 @@ final class PracticeLoopRouter {
      * 이번 응답의 상태 칸. 모델이 쓰던 것과 같은 칸 이름이다 — 노트·기억이 그대로 읽는다.
      * {@code 분류:} 줄은 이 분류를 누가 했는지(code/model/fallback) 남긴다.
      */
-    static String status(String observed, String dialogue, Classified classified, Before b, String doing,
-            String goal, List<String> avoid, String nextTake) {
-        return status(observed, dialogue, classified, b, doing, goal, avoid, nextTake, false);
-    }
-
-    static String status(String observed, String dialogue, Classified classified, Before b, String doing,
-            String goal, List<String> avoid, String nextTake, boolean closeNext) {
-        return status(observed, dialogue, classified, b, doing, goal, avoid, nextTake, closeNext, null);
-    }
-
     static String status(String observed, String dialogue, Classified classified, Before b, String doing,
             String goal, List<String> avoid, String nextTake, boolean closeNext, String actorText) {
         Tally after = b.tally().after(doing);

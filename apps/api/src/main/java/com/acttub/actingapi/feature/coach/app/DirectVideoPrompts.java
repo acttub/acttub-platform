@@ -32,6 +32,9 @@ final class DirectVideoPrompts {
     /** 분류·과제 조립 없이 대화 전체를 끄는 연습 루프 프롬프트. */
     static String practiceLoop() { return resource("practice-loop"); }
 
+    /** 영어판 연습 루프. 숨은 칸 이름·할 일 이름은 한국어판과 같다(서버가 읽는다). */
+    static String practiceLoopEnglish() { return resource("practice-loop.en"); }
+
     /** {@code <설계>}에서 버릇 후보가 되는 네 칸. 모델은 맨 위 칸을 고르는 쪽으로 쏠리므로 연습마다 순서를 섞는다. */
     private static final List<String> HABIT_LINES = List.of("감정의 변화", "상대와 주고받기", "원하는 것과 행동", "몸·시선·표정");
 
@@ -41,16 +44,8 @@ final class DirectVideoPrompts {
      * <p>순서를 고정하면 모델이 맨 위 칸을 버릇으로 고르는 쪽으로 쏠린다(실험: 맨 위 칸 73%).
      * 같은 연습은 매 턴 기록을 다시 보내므로 연습 id로 순서를 고정한다.
      * 칸을 다 찾지 못하면(프롬프트가 바뀐 경우) 섞지 않고 그대로 돌려준다.
-     */
-    static String practiceLoop(UUID practiceId) {
-        return practiceLoop(practiceId, null);
-    }
-
-    /** 영어판 연습 루프. 숨은 칸 이름·할 일 이름은 한국어판과 같다(서버가 읽는다). */
-    static String practiceLoopEnglish() { return resource("practice-loop.en"); }
-
-    /**
-     * 답할 말에 맞는 연습 루프 프롬프트. 말은 분류(코드)가 정하고 프롬프트는 그 말로 쓰인 것을 고른다.
+     *
+     * <p>답할 말에 맞는 연습 루프 프롬프트. 말은 분류(코드)가 정하고 프롬프트는 그 말로 쓰인 것을 고른다.
      * 한국어(null 포함)는 한국어판 그대로, 그 밖의 말은 영어판을 쓴다. 영어가 아닌 말(일본어 등)은
      * 영어판 끝에 그 말로 답하라는 {@link com.acttub.actingapi.platform.web.OutputLanguage} 지시를 붙인다.
      */
@@ -126,13 +121,12 @@ final class DirectVideoPrompts {
         return evidence && korean ? resource("evidence/practice-loop-turn") : practiceLoopTurn(language);
     }
 
-    /** 실험 쪽(SOMA-955) 한국어 대화의 답하기·어긋남 보기·짚어주기·정리하기는 {@code evidence/tasks/ko}를 쓴다. B 흐름의 tell 은 그대로다. */
-    static String practiceLoopTask(String doing, java.util.Locale language, String flow, boolean evidence) {
+    /** 실험 쪽(SOMA-955) 한국어 대화의 답하기·어긋남 보기·짚어주기·정리하기는 {@code evidence/tasks/ko}를 쓴다. */
+    static String practiceLoopTask(String doing, java.util.Locale language, boolean evidence) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
         String id = TASK_FILES.get(doing);
-        boolean tell = CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(doing);
-        if (evidence && korean && !tell && id != null && EVIDENCE_TASKS.contains(id)) return resource("evidence/tasks/ko/" + id);
-        return practiceLoopTask(doing, language, flow);
+        if (evidence && korean && id != null && EVIDENCE_TASKS.contains(id)) return resource("evidence/tasks/ko/" + id);
+        return practiceLoopTask(doing, language);
     }
 
     /** 답할 말에 맞는 둘째 응답부터의 공통 지시. 말을 고르는 규칙은 {@link #practiceLoop(UUID, java.util.Locale)}와 같다. */
@@ -154,10 +148,10 @@ final class DirectVideoPrompts {
             java.util.Map.entry(PracticeLoopRouter.REASK, "reask"),
             java.util.Map.entry(PracticeLoopRouter.PROPOSE, "propose"),
             java.util.Map.entry(PracticeLoopRouter.WRAP_UP, "wrap-up"),
-            java.util.Map.entry("짚어주기", "point-out"),
-            java.util.Map.entry("짚어주기(다른 쪽)", "point-out-other"),
-            java.util.Map.entry("내려놓기", "let-go"),
-            java.util.Map.entry("답하기", "answer"),
+            java.util.Map.entry(PracticeLoopRouter.POINT_OUT, "point-out"),
+            java.util.Map.entry(PracticeLoopRouter.POINT_OUT_OTHER, "point-out-other"),
+            java.util.Map.entry(PracticeLoopRouter.LET_GO, "let-go"),
+            java.util.Map.entry(PracticeLoopRouter.ANSWER, "answer"),
             java.util.Map.entry(PracticeLoopRouter.ASK_DONE, "ask-done"),
             java.util.Map.entry(PracticeLoopRouter.WRAP_DONE, "wrap-done"));
 
@@ -181,24 +175,6 @@ final class DirectVideoPrompts {
             }
         }
         return "";
-    }
-
-    /**
-     * 흐름(SOMA-636 A/B)을 따르는 할 일 파일. B의 어긋남 보기는 질문으로 떠보지 않고 코치가 본 것을 말하는 {@code tell}이다.
-     * 그 밖의 할 일은 A와 같은 파일이다.
-     */
-    static String practiceLoopTask(String doing, java.util.Locale language, String flow) {
-        if (CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(doing)) {
-            boolean korean = language == null || "ko".equals(language.getLanguage());
-            return resource("tasks/" + (korean ? "ko" : "en") + "/tell");
-        }
-        return practiceLoopTask(doing, language);
-    }
-
-    /** 첫 코칭 첫 말 B의 첫 응답 지시. 한국어 B 대화의 첫 응답 시스템 프롬프트 맨 끝에 붙는다. */
-    static String openingBlock(String opening, java.util.Locale language) {
-        boolean korean = language == null || "ko".equals(language.getLanguage());
-        return CoachOpenings.B.equals(opening) && korean ? "\n\n" + resource("openings/b") : "";
     }
 
     /** 이 장면에서 배우가 아니라고 한 진단이 이만큼 쌓이면 첫 응답에서 그 진단을 피하라고 맨 끝에 붙인다. */
@@ -229,18 +205,6 @@ final class DirectVideoPrompts {
         return "\n\n" + resource("openings/rejected").replace("{{count}}", String.valueOf(count)).replace("{{list}}", list.toString().strip());
     }
 
-    /** 첫 코칭 첫 말 B 대화의 둘째 응답부터의 지시. 연습 루프 턴 조립 맨 끝에 붙는다. */
-    static String openingTurnBlock(String opening, java.util.Locale language) {
-        boolean korean = language == null || "ko".equals(language.getLanguage());
-        return CoachOpenings.B.equals(opening) && korean ? "\n\n" + resource("openings/b-turn") : "";
-    }
-
-    /** B 흐름에서 [이번 응답] 끝에 붙는 흐름 안내. 공통 지시의 네 단계 순서 대신 세 단계를 따르게 한다. 한국어 대화에만 붙는다. */
-    static String flowBlock(String flow, java.util.Locale language) {
-        boolean korean = language == null || "ko".equals(language.getLanguage());
-        return CoachFlows.B.equals(flow) && korean ? "\n\n" + resource("flows/b") : "";
-    }
-
     static String practiceLoopTask(String doing, java.util.Locale language) {
         String id = TASK_FILES.get(doing);
         if (id == null) throw new IllegalStateException("practice loop task is missing: " + doing);
@@ -260,12 +224,6 @@ final class DirectVideoPrompts {
      * 프롬프트 id 로 덧붙일 글(SOMA-622). 기본("a")·빈 값·모르는 id 면 빈 문자열.
      * 자문위원 id 는 {@code personas/advisors/<id>.txt}(한국어 대화), {@code <id>.en.txt}(그 밖의 말, 있을 때만)를 쓴다.
      * 예전 대화에 저장된 "b1" 은 한국어 대화에서만 그대로 붙는다. 맨 앞의 길이 줄({@code [길이] 90})은 떼고 준다.
-     */
-    static String persona(String id, java.util.Locale language) {
-        return persona(id, language, null);
-    }
-
-    /**
      * 자문위원 id 면 그 파일을, {@link #ACTOR_PROFILE} 이면 기억 갱신이 쓴 맞춤 코칭({@code profile})을 같은 자리에 붙인다
      * (SOMA-795). 맞춤 코칭은 한국어로 쓰므로 한국어 대화에만 붙는다.
      */
@@ -273,12 +231,10 @@ final class DirectVideoPrompts {
         return personaFile(id, language, profile).map(DirectVideoPrompts::withoutLengthLine).orElse("");
     }
 
-    /** 이 프롬프트를 받은 대화에서 코치 말을 줄이기 시작하는 길이. 길이 줄이 없으면 공용 상한이다. */
-    static int personaReplyLimit(String id, java.util.Locale language) {
-        return personaReplyLimit(id, language, null);
-    }
-
-    /** 맞춤 코칭의 길이 줄은 모델이 정한 값이라 {@link #PROFILE_MIN_REPLY}~{@link #PROFILE_MAX_REPLY} 안으로 묶는다. */
+    /**
+     * 이 프롬프트를 받은 대화에서 코치 말을 줄이기 시작하는 길이. 길이 줄이 없으면 공용 상한이다. 맞춤 코칭의 길이 줄은 모델이 정한
+     * 값이라 {@link #PROFILE_MIN_REPLY}~{@link #PROFILE_MAX_REPLY} 안으로 묶는다.
+     */
     static int personaReplyLimit(String id, java.util.Locale language, String profile) {
         java.util.Optional<Integer> length = personaFile(id, language, profile).flatMap(DirectVideoPrompts::lengthLine);
         if (ACTOR_PROFILE.equals(id)) {
@@ -289,10 +245,6 @@ final class DirectVideoPrompts {
     }
 
     /** 프롬프트를 받은 대화에서 줄이기가 말투와 길이를 공용 코치 쪽으로 되돌리지 않게 하는 줄. */
-    static String personaShortenNote(String id, java.util.Locale language) {
-        return personaShortenNote(id, language, null);
-    }
-
     static String personaShortenNote(String id, java.util.Locale language, String profile) {
         if (persona(id, language, profile).isEmpty()) return "";
         if ("b1".equals(id)) {

@@ -10,6 +10,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository.NewRecording;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository.Precheck;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository.Stored;
+import com.acttub.actingapi.feature.reading.app.RecordingUploadMetrics.Stage;
 import com.acttub.actingapi.feature.reading.app.SessionViews.RecordingView;
 import com.acttub.actingapi.feature.reading.domain.RecordingRules;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
@@ -39,20 +40,12 @@ public class RecordingService {
     private final Clock clock;
     private final RetranscribeRepository retranscribe;
     private final RetranscribeSettings retranscribeSettings;
-
-    public RecordingService(
-            RecordingRepository recordings,
-            RecordingStorage storage,
-            AudioTranscoder transcoder,
-            RecordingPlayback playback,
-            ReadingRecordingCleanup cleanup,
-            Clock clock) {
-        this(recordings, storage, transcoder, playback, cleanup, clock, null, null);
-    }
+    private final RecordingUploadMetrics metrics;
 
     /**
      * @param retranscribe 기기 음성 인식이 빈 결과를 낸 녹음을 서버가 뒤에서 다시 받아쓰는 큐. {@code null} 이거나 꺼져
      *        있으면 줄 세우지 않는다
+     * @param metrics 올리기 한 요청의 단계별 시간
      */
     public RecordingService(
             RecordingRepository recordings,
@@ -62,7 +55,8 @@ public class RecordingService {
             ReadingRecordingCleanup cleanup,
             Clock clock,
             RetranscribeRepository retranscribe,
-            RetranscribeSettings retranscribeSettings) {
+            RetranscribeSettings retranscribeSettings,
+            RecordingUploadMetrics metrics) {
         this.recordings = recordings;
         this.storage = storage;
         this.transcoder = transcoder;
@@ -71,6 +65,7 @@ public class RecordingService {
         this.clock = clock;
         this.retranscribe = retranscribe;
         this.retranscribeSettings = retranscribeSettings;
+        this.metrics = metrics;
     }
 
     /**
@@ -82,7 +77,9 @@ public class RecordingService {
         if (upload.fileSize() > RecordingRules.FILE_MAX_BYTES || upload.durationMs() > RecordingRules.DURATION_MAX_MS) {
             throw tooLong();
         }
-        Precheck precheck = recordings.precheck(userId, sessionId, upload.lineId(), upload.requestId(), upload.attemptNo());
+        boolean transcodes = RecordingUploadMetrics.transcodes(upload.contentType());
+        Precheck precheck = metrics.time(Stage.PRECHECK, transcodes, () ->
+                recordings.precheck(userId, sessionId, upload.lineId(), upload.requestId(), upload.attemptNo()));
         switch (precheck.outcome()) {
             case NOT_FOUND -> throw sessionNotFound();
             case INVALID_LINE -> throw invalidLine();
@@ -95,13 +92,15 @@ public class RecordingService {
         String objectKey = RecordingRules.objectKey(userId, sessionId, upload.lineId(), upload.requestId());
         Path stored = null;
         try {
-            stored = RecordingRules.alreadyM4a(upload.contentType()) ? upload.file() : transcode(upload.file());
+            stored = transcodes ? metrics.time(Stage.TRANSCODE, true, () -> transcode(upload.file())) : upload.file();
             long byteSize = Files.size(stored);
             if (byteSize < RecordingRules.STORED_MIN_BYTES) {
                 throw new ApiException(422, "recording_empty");
             }
-            storage.upload(objectKey, RecordingRules.STORED_CONTENT_TYPE, stored);
-            Stored result = recordings.store(userId, sessionId, new NewRecording(
+            Path uploading = stored;
+            metrics.time(Stage.STORAGE, transcodes, () ->
+                    storage.upload(objectKey, RecordingRules.STORED_CONTENT_TYPE, uploading));
+            Stored result = metrics.time(Stage.STORE, transcodes, () -> recordings.store(userId, sessionId, new NewRecording(
                     upload.requestId(),
                     upload.lineId(),
                     upload.attemptNo(),
@@ -110,16 +109,20 @@ public class RecordingService {
                     byteSize,
                     upload.durationMs(),
                     upload.transcript(),
-                    upload.transcriptSource()), RecordingRules.quotaBytes(guest), clock.instant());
+                    upload.transcriptSource()), RecordingRules.quotaBytes(guest), clock.instant()));
             // 거절·대체·재전송으로 남은 객체는 장부에 있다 — 커밋 뒤에 바로 한 번 시도한다.
-            cleanup.attempt(result.cleanupOperationIds());
+            if (result.cleanupOperationIds().isEmpty()) {
+                cleanup.attempt(result.cleanupOperationIds());
+            } else {
+                metrics.time(Stage.CLEANUP, transcodes, () -> cleanup.attempt(result.cleanupOperationIds()));
+            }
             return switch (result.outcome()) {
                 case NOT_FOUND -> throw sessionNotFound();
                 case INVALID_LINE -> throw invalidLine();
                 case QUOTA -> throw new ApiException(422, "recording_quota");
                 case REPLAYED, IGNORED -> new Uploaded(playback.decorate(result.recording()), false);
                 case CREATED, REPLACED -> {
-                    enqueueRetranscribe(result.recording());
+                    enqueueRetranscribe(result.recording(), transcodes);
                     yield new Uploaded(playback.decorate(result.recording()), true);
                 }
             };
@@ -140,7 +143,7 @@ public class RecordingService {
      * 기기가 음성 인식을 켰는데(stt) 받아쓴 글이 없으면 서버가 뒤에서 다시 받아쓰게 줄 세운다. 응답은 기다리지 않는다 —
      * 줄 세우기가 실패해도 녹음 저장은 그대로 성공이다. 인식을 쓰지 않은 녹음(none)은 전사가 NULL 이어야 해서 건드리지 않는다.
      */
-    private void enqueueRetranscribe(RecordingView recording) {
+    private void enqueueRetranscribe(RecordingView recording, boolean transcodes) {
         if (retranscribe == null || retranscribeSettings == null || !retranscribeSettings.enabled() || recording == null) {
             return;
         }
@@ -149,7 +152,8 @@ public class RecordingService {
             return;
         }
         try {
-            retranscribe.enqueue(recording.id(), recording.objectKey(), clock.instant());
+            metrics.time(Stage.RETRANSCRIBE, transcodes, () ->
+                    retranscribe.enqueue(recording.id(), recording.objectKey(), clock.instant()));
         } catch (RuntimeException failure) {
             LOGGER.warning("reading retranscribe enqueue failed: recording=" + recording.id() + " cause="
                     + failure.getClass().getSimpleName());

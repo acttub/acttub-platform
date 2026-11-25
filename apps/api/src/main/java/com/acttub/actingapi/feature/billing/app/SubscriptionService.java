@@ -46,6 +46,7 @@ public class SubscriptionService {
     private final BillingKeyCipher cipher;
     private final Clock clock;
     private final BillingMailer mailer;
+    private final RefundNotifier refunds;
     private final SecureRandom random = new SecureRandom();
     private static final long TERMS_RECHECK_MILLIS = 60_000L;
     private volatile Instant termsPublishedAt;
@@ -54,13 +55,9 @@ public class SubscriptionService {
     private final java.util.concurrent.ConcurrentHashMap<UUID, Instant> signupTimes = new java.util.concurrent.ConcurrentHashMap<>();
 
     public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
-            BillingKeyCipher cipher, Clock clock) {
-        this(settings, repository, gateway, cipher, clock, BillingMailer.NONE);
-    }
-
-    public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
-            BillingKeyCipher cipher, Clock clock, BillingMailer mailer) {
+            BillingKeyCipher cipher, Clock clock, BillingMailer mailer, RefundNotifier refunds) {
         this.mailer = mailer;
+        this.refunds = refunds;
         this.settings = settings;
         this.repository = repository;
         this.gateway = gateway;
@@ -194,22 +191,13 @@ public class SubscriptionService {
     // ── 카드 등록 창 ────────────────────────────────────────────────
 
     /**
-     * 일회용 카드 등록 창을 연다. state 원문은 돌려주는 주소에만 있고 DB 에는 해시만 남는다.
+     * 일회용 카드 등록 창을 연다. state 원문은 돌려주는 주소에만 있고 DB 에는 해시만 남는다. 요금제(monthly·yearly, 생략하면
+     * monthly)는 새 구독(subscribe)의 첫 결제에만 쓰고 카드 바꾸기에는 쓰지 않는다.
      *
      * @throws ApiException 403 {@code billing_member_required}(게스트), 409 {@code already_subscribed}(Pro 이용 중이거나
      *     자동결제 실패 중에 새 구독), 409 {@code no_subscription}(구독 없이 카드 바꾸기), 409
-     *     {@code payment_pending}(앞선 결제의 결과를 아직 모름), 422 {@code invalid_purpose}
-     */
-    public StartedCheckout startCheckout(UUID userId, boolean guest, String purposeValue) {
-        return startCheckout(userId, guest, purposeValue, null);
-    }
-
-    /**
-     * 요금제(monthly·yearly, 생략하면 monthly)를 골라 카드 등록 창을 연다. 요금제는 새 구독(subscribe)의 첫 결제에만 쓰고 카드 바꾸기에는
-     * 쓰지 않는다.
-     *
-     * @throws ApiException 위 오류에 더해 422 {@code invalid_plan}(모르는 요금제), 422 {@code plan_unavailable}(웹 연 구독 스위치
-     *     {@code BILLING_WEB_YEARLY_ENABLED} 가 꺼져 있는데 yearly)
+     *     {@code payment_pending}(앞선 결제의 결과를 아직 모름), 422 {@code invalid_purpose}, 422 {@code invalid_plan}(모르는
+     *     요금제), 422 {@code plan_unavailable}(웹 연 구독 스위치 {@code BILLING_WEB_YEARLY_ENABLED} 가 꺼져 있는데 yearly)
      */
     public StartedCheckout startCheckout(UUID userId, boolean guest, String purposeValue, String planValue) {
         requireWeb();
@@ -331,6 +319,10 @@ public class SubscriptionService {
         }
         UUID subscriptionId = repository.saveCard(checkout.userId(), checkout.customerKey(),
                 cipher.seal(issued.billingKey()), issued.cardCompany(), issued.cardNumber(), now);
+        if (subscriptionId == null) {
+            // 키를 받는 사이에 탈퇴가 끝났다. 카드를 남기지 않고 결제하지 않는다.
+            return Result.FAILED;
+        }
         Subscription sub = repository.findById(subscriptionId).orElseThrow();
         if (checkout.purpose() == Purpose.CHANGE_CARD) {
             // 카드만 바꾼다. 자동결제가 실패해 있던 구독이면 새 카드로 바로 한 번 더 시도한다.
@@ -350,10 +342,20 @@ public class SubscriptionService {
         Charge charge = charge(sub, checkout.orderId(), "first", now, end, 1);
         return switch (charge) {
             case DONE -> {
-                repository.activate(sub.id(), now, end, clock.instant());
-                yield Result.DONE;
+                if (repository.activate(sub.id(), now, end, clock.instant())) {
+                    yield Result.DONE;
+                }
+                // 승인을 기다리는 사이에 탈퇴가 끝났다. 돈은 이미 나갔다 — 사람이 토스 관리자에서 환불하도록 알린다.
+                LOG.error("billing first payment approved after withdrawal order={}", checkout.orderId());
+                refunds.refundNeeded(new RefundNotifier.Refund(checkout.orderId(), sub.amount()));
+                yield Result.FAILED;
             }
-            case FAILED -> Result.FAILED;
+            case FAILED -> {
+                // 쓰지 못한 카드의 키를 남기지 않는다. 다음 구독은 새 창에서 새 키를 받는다.
+                repository.dropUnpaidKey(sub.id(), clock.instant());
+                yield Result.FAILED;
+            }
+            // 결과를 모르면 같은 키로 다시 물어야 하므로 남긴다(RenewalWorker).
             case UNKNOWN -> Result.UNKNOWN;
         };
     }
@@ -409,7 +411,8 @@ public class SubscriptionService {
             repository.advance(sub.id(), start, end, now);
             return Charge.DONE;
         }
-        if (last.isPresent() && ("unknown".equals(last.get().status()) || "pending".equals(last.get().status()))) {
+        if (last.isPresent() && !"failed".equals(last.get().status())) {
+            // done 이 아니고 failed 도 아니면 결과를 모른다.
             return Charge.UNKNOWN;
         }
         int attempt = last.map(payment -> payment.attempt() + 1).orElse(1);
@@ -435,13 +438,13 @@ public class SubscriptionService {
     }
 
     /**
-     * 주문 하나를 승인한다. 주문 ID 의 기록을 먼저 남기고(이미 있으면 그 기록의 결과를 따른다) 그 주문 ID 를 멱등 키로
-     * 승인한다.
+     * 주문 하나를 승인한다. 주문 ID 의 기록을 결과 모름(unknown)으로 먼저 남기고(이미 있으면 그 기록의 결과를 따른다) 그 주문 ID 를
+     * 멱등 키로 승인한다. 승인을 기다리다 서버가 멈춰도 기록은 unknown 으로 남아 {@link RenewalWorker} 가 같은 키로 다시 묻는다.
      */
     Charge charge(Subscription sub, String orderId, String kind, Instant start, Instant end, int attempt) {
         Instant now = clock.instant();
         boolean inserted = repository.insertPayment(new Payment(UUID.randomUUID(), sub.id(), sub.userId(), orderId, kind,
-                sub.amount(), "pending", start, end, attempt));
+                sub.amount(), "unknown", start, end, attempt));
         if (!inserted) {
             Payment existing = repository.findPayment(orderId).orElseThrow();
             if ("done".equals(existing.status())) {
@@ -450,7 +453,7 @@ public class SubscriptionService {
             if ("failed".equals(existing.status())) {
                 return Charge.FAILED;
             }
-            // pending·unknown: 같은 키로 다시 묻는다 — 토스가 같은 결제로 본다.
+            // 결과 모름: 같은 키로 다시 묻는다 — 토스가 같은 결제로 본다.
         }
         return ask(sub, orderId, now);
     }

@@ -127,7 +127,7 @@ final class ConsentDtos {
             @JsonProperty("age_confirmed") Boolean ageConfirmed) {
     }
 
-    /** 철회({@code revoked})는 입력이 아니다 — 탈퇴 뒤 운영자만 DB 에 기록한다. */
+    /** 결정 값({@code ConsentAction})과 같은 둘이다. 탈퇴 뒤 보관 동의 철회는 운영자가 DB 에 declined 로 적는다. */
     @Schema(name = "ConsentDecision")
     enum ConsentActionInput {
         granted,

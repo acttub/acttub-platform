@@ -1,0 +1,138 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] inspect · main
+  파일: 임시 파일 «masked video bytes»
+  ← InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+[2] upload/3 · main
+  파일: 임시 파일 «masked video bytes»
+  형식: video/mp4
+  검사: InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+[3] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  ← true
+[4] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |[서버 확인 영상 정보] 배우가 얼굴 가리기를 켜서 이 영상의 얼굴은 모자이크로 가려져 있다. 표정·눈빛·얼굴 근육은 판단하지 말고 말하지 않는다.
+    |
+    |⟪practiceLoop(ko) sha256:a48ac9ea54c2b210⟫
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «<설계>⏎영상: 연기⏎관찰 근거: 영상과 음성⏎대사 확인: 확인됨⏎확인된 대사: "가지 마", "됐어"⏎말 거는 대상: 떠나는 연인⏎인물: 혼자 선 척 붙잡히길 바란다⏎근본 문제: 2 목적성이 안 보인다⏎버릇: 말끝을 길게 끈다⏎왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다⏎버릇이 가리는 것: 붙잡고 싶은 마음⏎다른 쪽 살아 있는 곳: "됐어"에서 눈을 피한다⏎확인할 대사: 가지 마⏎이번 목표: 붙잡는 말이 상대에게 가게 한다⏎다음 테이크: 반대로: "가지 마"를 짧게 끊어 본다⏎첫 질문 모양: 2⏎</설계>⏎<코치>⏎이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?⏎</코치>⏎<보기>⏎붙잡고 싶었어요⏎떠나게 두고 싶었어요⏎</보기>»
+[5] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop
+    |⟪direct-video/practice-loop.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=840
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |[]
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "영상: 연기\n관찰 근거: 영상과 음성\n대사 확인: 확인됨\n확인된 대사: \"가지 마\", \"됐어\"\n말 거는 대상: 떠나는 연인\n인물: 혼자 선 척 붙잡히길 바란다\n근본 문제: 2 목적성이 안 보인다\n버릇: 말끝을 길게 끈다\n왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다\n버릇이 가리는 것: 붙잡고 싶은 마음\n다른 쪽 살아 있는 곳: \"됐어\"에서 눈을 피한다\n확인할 대사: 가지 마\n이번 목표: 붙잡는 말이 상대에게 가게 한다\n다음 테이크: 반대로: \"가지 마\"를 짧게 끊어 본다\n첫 질문 모양: 2",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "answer_examples" : [ "붙잡고 싶었어요", "떠나게 두고 싶었어요" ]
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: [붙잡고 싶었어요, 떠나게 두고 싶었어요]

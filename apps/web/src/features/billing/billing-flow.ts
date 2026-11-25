@@ -210,10 +210,8 @@ export function subscriptionViewOf(me: MeLike, yearly: boolean = WEB_YEARLY_ENAB
           title: "결제가 안 됐어요",
           badge: "웹에서 결제",
           summary: null,
-          lines: [
-            "카드 한도나 유효기간을 확인해 주세요. 정해진 날짜에 다시 결제를 시도해요.",
-            until ? `${until}까지는 Pro를 그대로 써요.` : null,
-          ].filter((l): l is string => !!l),
+          // 서버는 past_due 를 Pro 로 보지 않는다(billing.subscription 「상태」). period_end 는 이미 지난 날짜다.
+          lines: ["카드 한도나 유효기간을 확인해 주세요. 정해진 날짜에 다시 결제를 시도해요.", "결제가 될 때까지 Pro를 쓸 수 없어요."],
           cancelable: true,
           showPricing: false,
         };
@@ -231,8 +229,16 @@ export function subscriptionViewOf(me: MeLike, yearly: boolean = WEB_YEARLY_ENAB
   return { title: "무료로 쓰고 있어요", badge: null, summary: null, lines: [offer], cancelable: false, showPricing: true };
 }
 
-/** 해지 결과 문장. */
+/** 해지를 누르기 전 확인 문장. past_due 를 해지하면 바로 expired 다(billing.subscription). */
+export function cancelConfirmMessage(me: MeLike): string {
+  return me.status === "past_due"
+    ? "결제가 안 된 구독이라 해지하면 바로 끝나요."
+    : "해지하면 다음 자동결제가 되지 않아요. 이미 결제한 기간이 끝날 때까지는 Pro를 그대로 써요.";
+}
+
+/** 해지 결과 문장. 해지한 뒤의 서버 상태로 고른다 — past_due 를 해지했으면 expired 다. */
 export function cancelDoneMessage(me: MeLike): string {
+  if (me.status === "expired") return "해지했어요. 구독이 끝났어요.";
   const until = koreanDate(me.period_end);
   return until ? `해지했어요. ${until}까지 Pro를 쓸 수 있어요.` : "해지했어요. 다음 자동결제는 되지 않아요.";
 }

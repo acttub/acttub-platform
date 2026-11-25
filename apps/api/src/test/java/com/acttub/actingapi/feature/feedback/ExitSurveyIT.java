@@ -42,13 +42,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * <p>시트는 스텁이다. 스텁이 흉내 내는 것은 계약 둘뿐이다: 설문 id 로 한 줄, 그리고 <b>순번이 작은 전송은
  * 무시</b>한다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "EXIT_SURVEY_SYNC_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import(ExitSurveyIT.Fixture.class)
 class ExitSurveyIT {

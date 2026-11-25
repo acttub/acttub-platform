@@ -27,9 +27,7 @@ class ReportEngineTest {
             assertThat(old.has("speech")).isFalse();
             var generator = new RecordingGenerator(branch.equals("analysis") ? analysisReport() : expressionReport());
             var engine = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry());
-            JsonNode report = engine.generateReport(branch, old,
-                    branch.equals("analysis") ? handoff() : expressionHandoff(true, "실험", "변화"),
-                    true, "handoff", null, null);
+            JsonNode report = engine.generateReport(branch, old, branch.equals("analysis") ? handoff() : expressionHandoff(true, "실험", "변화"), true, "handoff", null, null, null, null);
             assertThat(LenientJson.asText(report.path("report_type"))).isEqualTo(branch);
             assertThat(generator.inputs).hasSize(1);
             JsonNode normalized = MAPPER.readTree(generator.inputs.getFirst()).path("video_summary");
@@ -56,10 +54,8 @@ class ReportEngineTest {
         RecordingGenerator generator = new RecordingGenerator();
         ReportEngine engine = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry());
 
-        JsonNode unconfirmed = engine.generateReport(
-                "analysis", pack(), handoff(), false, "handoff", null, null);
-        JsonNode missing = engine.generateReport(
-                "analysis", pack(), null, true, "handoff", null, null);
+        JsonNode unconfirmed = engine.generateReport("analysis", pack(), handoff(), false, "handoff", null, null, null, null);
+        JsonNode missing = engine.generateReport("analysis", pack(), null, true, "handoff", null, null, null, null);
 
         assertThat(unconfirmed).isEqualTo(MAPPER.readTree("""
                 {"report_type":"blocked","reason":"confirmed_analysis_handoff_required"}
@@ -75,8 +71,7 @@ class ReportEngineTest {
                 expressionHandoff(true, "   ", "변화"),
                 expressionHandoff(true, "실험", "   "))) {
             RecordingGenerator generator = new RecordingGenerator();
-            JsonNode report = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry()).generateReport(
-                    "expression", pack(), invalid, true, "expression-id", null, null);
+            JsonNode report = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry()).generateReport("expression", pack(), invalid, true, "expression-id", null, null, null, null);
 
             assertThat(report).isEqualTo(MAPPER.readTree("""
                     {"report_type":"blocked","reason":"confirmed_expression_handoff_required"}
@@ -98,14 +93,7 @@ class ReportEngineTest {
     @Test
     void expressionCallsLlmOnlyWhenAllThreeReadinessConditionsPasses() throws Exception {
         RecordingGenerator generator = new RecordingGenerator(expressionReport());
-        JsonNode report = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry()).generateReport(
-                "expression",
-                pack(),
-                expressionHandoff(true, "실험", "변화"),
-                true,
-                "expression-id",
-                MAPPER.readTree("{\"line_meaning\":\"의미\"}"),
-                "analysis-id");
+        JsonNode report = new ReportEngine(generator, MAPPER, new RecordingLlmTelemetry()).generateReport("expression", pack(), expressionHandoff(true, "실험", "변화"), true, "expression-id", MAPPER.readTree("{\"line_meaning\":\"의미\"}"), "analysis-id", null, null);
 
         assertThat(generator.inputs).hasSize(1);
         assertThat(LenientJson.asText(report.at("/source_handoff_ids/analysis"))).isEqualTo("analysis-id");
@@ -215,8 +203,8 @@ class ReportEngineTest {
     void reportWithoutPracticeDoesNotRecordOrScore() throws Exception {
         var telemetry = new RecordingLlmTelemetry();
         var engine = new ReportEngine(new RecordingGenerator(analysisReport()), MAPPER, telemetry);
-        engine.generateReport("analysis", pack(), handoff(), true, "handoff", null, null);
-        engine.generateReport("analysis", pack(), null, true, "handoff", null, null);
+        engine.generateReport("analysis", pack(), handoff(), true, "handoff", null, null, null, null);
+        engine.generateReport("analysis", pack(), null, true, "handoff", null, null, null, null);
         assertThat(telemetry.calls()).isEmpty();
         assertThat(telemetry.scores()).isEmpty();
     }

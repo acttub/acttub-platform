@@ -43,8 +43,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 좋아요·저장·댓글·차단·신고와 운영 처리 (challenge.react, challenge.block, challenge.report). 실제 HTTP 와 Postgres 로
  * 노출 조건·멱등·한도·숨김·해제를 본다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "CHALLENGE_SETTLEMENT_ENABLED=false", "ADMIN_OPS_TOKEN=reaction-test-ops"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=reaction-test-ops"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ChallengeReactionIT.Media.class})
 class ChallengeReactionIT {
@@ -350,7 +349,7 @@ class ChallengeReactionIT {
                 .isEqualTo("challenge_not_found");
         assertThat(detail(post("/v2/reports").content(report("comment", UUID.randomUUID().toString(), "spam", null)), 404))
                 .isEqualTo("comment_not_found");
-        assertThat(detail(patch("/v2/admin/reports/{id}", UUID.randomUUID()).content(resolution("restored")), 404, OPS))
+        assertThat(detail(patch("/v2/admin/reports/{id}", UUID.randomUUID()).content(resolution("dismissed")), 404, OPS))
                 .isEqualTo("report_not_found");
     }
 
@@ -433,7 +432,8 @@ class ChallengeReactionIT {
                 INSERT INTO entry_reports(id,target_type,target_id,reporter_id,reason,target_version,request_id,request_fingerprint)
                 VALUES (?,'entry',?,?,'spam',1,?,?)
                 """, UUID.randomUUID(), entry, member("동시 신고자"), UUID.randomUUID(), "0".repeat(64));
-        JsonNode stillOpen = resolve(first, "restored", 200);
+        assertThat(resolve(first, "restored", 422).path("detail").isArray()).as("restored 는 dismissed 에 합쳤다").isTrue();
+        JsonNode stillOpen = resolve(first, "dismissed", 200);
         assertThat(LenientJson.asText(stillOpen.path("status"))).isEqualTo("reviewed");
         assertThat(LenientJson.asText(stillOpen.path("reviewed_by"))).isEqualTo("운영");
         assertThat(stillOpen.path("reviewed_at").isNull()).isFalse();
@@ -513,7 +513,7 @@ class ChallengeReactionIT {
         JsonNode queue = response(get("/v2/admin/reports"), 200, OPS);
         assertThat(LenientJson.asText(queue.at("/reports/0/id"))).isEqualTo(ai.get("id").toString());
         assertThat(LenientJson.asText(queue.at("/reports/0/target_state"))).isEqualTo("hidden_by_report");
-        resolve(ai.get("id").toString(), "restored", 200);
+        resolve(ai.get("id").toString(), "dismissed", 200);
         assertThat(jdbc.queryForMap("SELECT status,moderation_status FROM challenge_entries WHERE id=?", entry))
                 .containsEntry("status", "visible").containsEntry("moderation_status", "passed");
         // 사람이 보고 푼 영상은 한 사람의 신고로 내려가지 않는다.

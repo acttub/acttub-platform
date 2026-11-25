@@ -100,33 +100,21 @@ public class ScriptSplitWorker {
     private final Double sameSpeaker;
     private final ScriptSplitListener listener;
     private final ScriptSplitMode mode;
+    /** 다시 묻기 전에 쉬는 방법. 시험에서만 바꾼다({@link #pausingWith}). */
+    private Pause pause = Thread::sleep;
 
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
-        this(ledger, imports, generator, telemetry, failures, clock, null, null);
+    /** 다시 묻기 전에 쉬기. {@link Thread#sleep(Duration)} 과 같다. */
+    @FunctionalInterface
+    public interface Pause {
+        void sleep(Duration duration) throws InterruptedException;
     }
 
-    /** @param decider 줄 두 번째 의견(SOMA-663 J1). {@code null} 이면 그 단계를 건너뛴다 */
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review) {
-        this(ledger, imports, generator, telemetry, failures, clock, decider, review, null);
-    }
-
-    /** @param sameSpeaker 「같은 사람인가」로 화자를 합치는 확신 하한(SOMA-663 H4). {@code null} 이거나 decider 가 없으면 건너뛴다 */
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
-            Double sameSpeaker) {
-        this(ledger, imports, generator, telemetry, failures, clock, decider, review, sameSpeaker, null);
-    }
-
-    /** @param listener 대본을 저장한 뒤 알릴 곳(SOMA-960). {@code null} 이면 알리지 않는다 */
-    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
-            Double sameSpeaker, ScriptSplitListener listener) {
-        this(ledger, imports, generator, telemetry, failures, clock, decider, review, sameSpeaker, listener, ScriptSplitMode.LLM);
-    }
-
-    /** @param mode 나누기 방식(SOMA-1090). {@link ScriptSplitMode#HYBRID} 면 규칙이 확신하는 대본은 모델 첫 판·줄 검토를 건너뛴다 */
+    /**
+     * @param decider 줄 두 번째 의견(SOMA-663 J1). {@code null} 이면 그 단계를 건너뛴다
+     * @param sameSpeaker 「같은 사람인가」로 화자를 합치는 확신 하한(SOMA-663 H4). {@code null} 이거나 decider 가 없으면 건너뛴다
+     * @param listener 대본을 저장한 뒤 알릴 곳(SOMA-960). {@code null} 이면 알리지 않는다
+     * @param mode 나누기 방식(SOMA-1090). {@link ScriptSplitMode#HYBRID} 면 규칙이 확신하는 대본은 모델 첫 판·줄 검토를 건너뛴다
+     */
     public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
             Double sameSpeaker, ScriptSplitListener listener, ScriptSplitMode mode) {
@@ -141,6 +129,12 @@ public class ScriptSplitWorker {
         this.telemetry = telemetry;
         this.failures = failures;
         this.clock = clock;
+    }
+
+    /** 시험용 — 다시 묻기 전에 실제로 자지 않게 한다. {@code CloudVoiceService} 와 같은 방식이다. */
+    public ScriptSplitWorker pausingWith(Pause pause) {
+        this.pause = pause;
+        return this;
     }
 
     public boolean runOnce() {
@@ -277,7 +271,8 @@ public class ScriptSplitWorker {
                 List<NumberedLine> lines = NumberedLine.of(material.rawText());
                 // 화면 폭에서 잘린 줄을 먼저 잇는다(2026-11-21 희곡 재생: 끊긴 줄 첫 글자가 배역이 됐다). 붙여넣기·한글·워드 원문도 PDF 를
                 // 복사해 끊긴 글이 많아 파일 종류와 상관없이 쓴다 — 끊김이 보이지 않는 원문은 unwrap 이 그대로 둔다
-                lines = RuleSplit.unwrap(lines);
+                // 낱말 사이를 탭으로 띄운 원문은 먼저 띄어쓰기로 고른다 — 화면에 보이는 대사 글에도 탭이 남지 않게
+                lines = RuleSplit.unwrap(RuleSplit.untab(lines));
                 // 한 줄에 여러 사람 대사를 이어 쓴 원문은 사람마다 줄을 나눈다(배역은 먼저 한 번 나눠 본 이름)
                 lines = RuleSplit.splitTurns(lines, new java.util.HashSet<>(RuleSplit.full(lines, rulesJudge(material)).roster()));
                 imports.percent(importId, ScriptSplitProgress.SPACED);
@@ -825,7 +820,7 @@ public class ScriptSplitWorker {
             RuntimeException last = null;
             for (int attempt = 0; attempt <= ScriptSplitRules.CALL_RETRIES; attempt++) {
                 if (attempt > 0) {
-                    pause(Duration.ofSeconds(1L << (attempt - 1)));
+                    sleepBeforeRetry(Duration.ofSeconds(1L << (attempt - 1)));
                 }
                 Instant startedAt = clock.instant();
                 try {
@@ -877,9 +872,9 @@ public class ScriptSplitWorker {
         return true;
     }
 
-    private static void pause(Duration duration) {
+    private void sleepBeforeRetry(Duration duration) {
         try {
-            Thread.sleep(duration);
+            pause.sleep(duration);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("script split retry was interrupted", interrupted);

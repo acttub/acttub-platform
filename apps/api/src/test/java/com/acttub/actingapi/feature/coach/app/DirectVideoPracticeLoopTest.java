@@ -103,12 +103,11 @@ class DirectVideoPracticeLoopTest {
         DirectVideoPracticeLoop.markInputIssue(state, "silent");
         DirectVideoPracticeLoop.markNotActing(state, "뉴스");
         assertThat(DirectVideoPracticeLoop.storedPersona(state)).isEqualTo("b1");
-        assertThat(DirectVideoPracticeLoop.storedFlow(state)).isEqualTo("b");
+        assertThat(LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("flow"))).isEqualTo("b");
         assertThat(DirectVideoPracticeLoop.storedCoachModel(state)).isEqualTo("b");
         assertThat(DirectVideoPracticeLoop.wasCut(state)).isTrue();
         assertThat(LenientJson.asText(state.path(DirectVideoPracticeLoop.STATE_KEY).path("input_issue"))).isEqualTo("silent");
         assertThat(DirectVideoPracticeLoop.storedPersona(null)).isEmpty();
-        assertThat(DirectVideoPracticeLoop.storedFlow(null)).isEmpty();
         assertThat(DirectVideoPracticeLoop.storedCoachModel(null)).isEmpty();
         ObjectNode issueOnly = StructuredJson.MAPPER.createObjectNode();
         DirectVideoPracticeLoop.markInputIssue(issueOnly, "silent");
@@ -121,7 +120,7 @@ class DirectVideoPracticeLoopTest {
         ObjectNode flowOnly = StructuredJson.MAPPER.createObjectNode();
         DirectVideoPracticeLoop.rememberFlow(flowOnly, "a");
         assertThat(DirectVideoPracticeLoop.storedCoachModel(modelOnly)).isEqualTo("a");
-        assertThat(DirectVideoPracticeLoop.storedFlow(flowOnly)).isEqualTo("a");
+        assertThat(LenientJson.asText(flowOnly.path(DirectVideoPracticeLoop.STATE_KEY).path("flow"))).isEqualTo("a");
     }
 
     @Test void onlySessionsStartedAsALoopContinueAsOne() {
@@ -184,7 +183,7 @@ class DirectVideoPracticeLoopTest {
         assertThat(note.sourceRevision()).isEqualTo(9);
         assertThat(note.corrections().toString()).isEqualTo("[\"대사가 점점 빨라진다: \\\"그건 아니야 빠른 건 의도야\\\"\"]");
         assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("quote"))).isEqualTo("나는 급한 사람이다");
-        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(session, 5));
+        assertThat(LenientJson.asText(note.summaryQuotes().get(0).path("source_ref"))).isEqualTo(CoachTurns.turnId(session, 5));
         assertThat(LenientJson.asText(note.summaryQuotes().get(1).path("quote"))).isEqualTo("인물이 급해서 그래");
         DirectVideoPracticeLoop.Round round = DirectVideoPracticeLoop.round(state.path(DirectVideoPracticeLoop.STATE_KEY), session.turns());
         assertThat(round.goal()).isEqualTo("끝 늦추기");
@@ -340,9 +339,9 @@ class DirectVideoPracticeLoopTest {
         assertThat(LenientJson.asText(quotes.get(0).path("quote"))).isEqualTo("바라는 것: 상대를 안심시키기");
         assertThat(LenientJson.asText(quotes.get(0).path("kind"))).isEqualTo("actor");
         assertThat(LenientJson.asText(quotes.get(0).path("source_ref"))).as("값이 든 배우 턴이 없으면 마지막 코치 턴")
-                .isEqualTo(StructuredCoachEngine.turnId(session, 4));
+                .isEqualTo(CoachTurns.turnId(session, 4));
         assertThat(LenientJson.asText(quotes.get(1).path("quote"))).isEqualTo("누구: 속을 감추는 사람");
-        assertThat(LenientJson.asText(quotes.get(1).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(session, 1));
+        assertThat(LenientJson.asText(quotes.get(1).path("source_ref"))).isEqualTo(CoachTurns.turnId(session, 1));
     }
 
     @Test void otherPurposeNotesQuoteTheActorsStepAnswers() {
@@ -362,7 +361,7 @@ class DirectVideoPracticeLoopTest {
         assertThat(quotes).hasSize(1);
         assertThat(LenientJson.asText(quotes.get(0).path("quote"))).isEqualTo("끝에서 힘이 빠져요");
         assertThat(LenientJson.asText(quotes.get(0).path("kind"))).isEqualTo("actor");
-        assertThat(LenientJson.asText(quotes.get(0).path("source_ref"))).isEqualTo(StructuredCoachEngine.turnId(session, 1));
+        assertThat(LenientJson.asText(quotes.get(0).path("source_ref"))).isEqualTo(CoachTurns.turnId(session, 1));
     }
 
     @Test void purposeNotesWithoutCardOrAnswersKeepAnEmptySummary() {

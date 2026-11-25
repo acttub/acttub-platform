@@ -28,7 +28,6 @@ class GeminiConfiguration {
     static final String DEFAULT_MODEL = "gemini-2.5-flash";
 
     /** 키 변수: 코칭(직접 영상 A/B·관찰·영상 기록·음성 전사)은 COACH, 리딩 음성은 TTS, 챌린지 비교는 CHALLENGE. */
-    static final String COACH_KEY = "GEMINI_COACH_API_KEY";
     static final String TTS_KEY = "GEMINI_TTS_API_KEY";
     static final String CHALLENGE_KEY = "GEMINI_CHALLENGE_API_KEY";
     static final String LEGACY_KEY = "GEMINI_API_KEY";
@@ -111,15 +110,6 @@ class GeminiConfiguration {
     SpeechAnalyzer speechAnalyzer(
             GeminiGateway gateway, FailureReporter failureReporter, LlmTelemetry telemetry) {
         return new GeminiTranscriber(new AudioExtractor(), gateway, failureReporter, telemetry);
-    }
-
-    @Bean
-    VideoRecordAnalyzer videoRecordAnalyzer(
-            GeminiGateway gateway, GeminiSettings settings,
-            FailureReporter failureReporter, LlmTelemetry telemetry) {
-        return new GeminiVideoRecordAnalyzer(gateway,
-                new com.acttub.actingapi.integration.media.VideoRecordChunks(),
-                settings.model(), failureReporter, telemetry);
     }
 
     @Bean

@@ -40,11 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * DB 와 가짜 저장소로 본다(스케줄러는 꺼 둔다). 경계는 하루 앞뒤로 둘씩 세운다 — 지난 것은 없어지고 아직
  * 안 지난 것은 남는다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({StubProviders.class, MutableClock.Fixture.class, AccountHousekeepingIT.StorageFixture.class})
 class AccountHousekeepingIT {

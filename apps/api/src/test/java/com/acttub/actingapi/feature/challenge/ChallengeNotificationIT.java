@@ -42,9 +42,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 챌린지 알림함·푸시와 탈퇴 연결 (challenge.notification, account.withdraw). 실제 HTTP·Postgres 로 사건을 만들고, 발송은
  * 시각을 고정한 채 워커를 직접 부른다. 푸시 전달만 대체해 보낸 것을 기록한다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "CHALLENGE_SETTLEMENT_ENABLED=false", "CHALLENGE_NOTIFICATION_PUSH_ENABLED=false",
-        "CHALLENGE_VIEW_DIGEST_ENABLED=false", "ADMIN_OPS_EXCLUDE_EMAILS= Team@Acttub.com ,ops@acttub.com"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_EXCLUDE_EMAILS= Team@Acttub.com ,ops@acttub.com"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ChallengeNotificationIT.Fakes.class})
 class ChallengeNotificationIT {

@@ -455,20 +455,9 @@ class CommunityEndpointIT {
     }
 
     @Test
-    void commentMutationsAdvanceUpdatedAtWithoutChangingCreatedAt() throws Exception {
+    void commentDeletionAdvancesUpdatedAtWithoutChangingCreatedAt() throws Exception {
         UUID postId = insertPost(VIEWER, false, at(1));
-        UUID updatedComment = insertComment(postId, VIEWER, false, at(2));
         UUID deletedComment = insertComment(postId, VIEWER, false, at(3));
-
-        var updateResponse = mvc.perform(patch(
-                        "/v2/community/comments/{comment_id}", updatedComment)
-                        .header("Authorization", bearer(VIEWER))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"body\":\"바뀐 댓글\"}"))
-                .andReturn().getResponse();
-        assertThat(updateResponse.getStatus()).isEqualTo(200);
-        assertThat(OffsetDateTime.parse(json(updateResponse.getContentAsString())
-                .path("updated_at").stringValue(null))).isAfter(at(2));
 
         var deleteResponse = mvc.perform(delete(
                         "/v2/community/comments/{comment_id}", deletedComment)
@@ -476,7 +465,6 @@ class CommunityEndpointIT {
                 .andReturn().getResponse();
         assertThat(deleteResponse.getStatus()).isEqualTo(204);
 
-        assertStoredTimes(updatedComment, "community_comments", at(2), "visible");
         assertStoredTimes(deletedComment, "community_comments", at(3), "deleted");
     }
 
@@ -675,16 +663,6 @@ class CommunityEndpointIT {
         assertThat(values(json(mvc.perform(get("/v2/community/posts").header("Authorization", bearer(OTHER)))
                 .andReturn().getResponse().getContentAsString()).path("posts"), "id"))
                 .containsExactly(othersPost.toString());
-
-        JsonNode blocks = json(mvc.perform(get("/v2/community/blocks").header("Authorization", bearer(OTHER)))
-                .andReturn().getResponse().getContentAsString()).path("blocks");
-        assertThat(values(blocks, "user_id")).containsExactly(VIEWER.toString());
-        assertThat(values(blocks, "nickname")).containsExactly("viewer");
-
-        assertThat(mvc.perform(delete("/v2/community/blocks/{blocked_id}", VIEWER)
-                        .header("Authorization", bearer(OTHER)))
-                .andReturn().getResponse().getStatus()).isEqualTo(204);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_blocks", Long.class)).isZero();
     }
 
     private void report(UUID reporter, UUID postId, String reason) throws Exception {

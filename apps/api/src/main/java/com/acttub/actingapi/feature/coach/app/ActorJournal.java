@@ -68,12 +68,6 @@ public final class ActorJournal {
         public static Answers empty() {
             return new Answers(null, null, null, null);
         }
-
-        /** 「다음에 해 볼 것」으로 보일 글. 「아직 안 정했어요」만 골랐거나 건너뛰었으면 null. */
-        public String nextAction() {
-            if (next == null || next.text() == null || next.text().isBlank()) return null;
-            return next.text().strip();
-        }
     }
 
     /** @param basis actor_report·observed·discussed */
@@ -102,7 +96,7 @@ public final class ActorJournal {
     }
 
     /**
-     * @param draftStatus pending(만드는 중)·ready·failed(만들지 못해 배우 답만)·skipped(대화가 없어 만들지 않음)
+     * @param draftStatus pending(만드는 중)·ready(대화가 없어 만들지 않은 것 포함)·failed(만들지 못해 배우 답만)
      * @param title 장면 제목·{@code purpose} 코칭 목적·{@code roleName} 배역 이름 — 화면 머리 줄. 모르면 null
      */
     public record View(

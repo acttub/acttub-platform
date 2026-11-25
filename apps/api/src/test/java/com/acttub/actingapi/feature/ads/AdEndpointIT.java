@@ -26,8 +26,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** app.ads 를 HTTP 와 실제 Postgres 로 본다 — 첫 연습 판정, 고르는 순서, 노출 하루 한 번·클릭 기록, 404·422. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "ADS_PRACTICE_SLOT_PERCENT=0"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADS_PRACTICE_SLOT_PERCENT=0"})
 @AutoConfigureMockMvc
 class AdEndpointIT {
 

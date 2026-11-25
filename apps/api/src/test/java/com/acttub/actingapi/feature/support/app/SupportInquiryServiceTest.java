@@ -34,6 +34,11 @@ class SupportInquiryServiceTest {
                 public List<Inquiry> list(String status, int limit) {
                     return List.of();
                 }
+
+                @Override
+                public java.util.Optional<Inquiry> setStatus(UUID id, String status) {
+                    return java.util.Optional.empty();
+                }
             },
             Clock.fixed(now, ZoneOffset.UTC));
 

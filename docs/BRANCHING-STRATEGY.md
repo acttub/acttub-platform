@@ -76,11 +76,10 @@ flowchart LR
 5. Merge commit으로 합칩니다. 이 시점에 운영 자동 배포가 시작됩니다.
 6. 성공한 운영 커밋에 `prod-YYYY.MM.DD.N` 형식의 annotated tag를 붙입니다.
 
-일반 릴리스에는 `main` → `dev` 역병합이 필요하지 않습니다. 릴리스 PR이
-`dev`의 이력을 그대로 포함하며, `main`에서 별도 변경을 만들지 않기 때문입니다.
+7. 운영 배포를 확인한 뒤 `main` → `dev` 역병합 PR을 열어 Merge commit으로 합칩니다. 릴리스 PR의 Merge commit이
+   `main`에만 있으므로 그것을 `dev`에 돌려놓습니다. 코드 변경은 없습니다.
 
-`main`에서 revert를 했다면 이 문장은 더 이상 성립하지 않습니다. 아래
-[운영 롤백](#운영-롤백)을 따릅니다.
+`main`에서 revert를 했다면 아래 [운영 롤백](#운영-롤백)을 따릅니다.
 
 ## 안정화가 필요한 릴리스
 
@@ -173,6 +172,8 @@ flowchart LR
 - 작업 및 hotfix 브랜치 이름과 PR 제목에는 `SOMA-123` 형식의 이슈 키를 넣습니다.
   PR 제목은 `SOMA-123 <한국어 요약>`입니다.
 - 여러 이슈를 묶는 릴리스 브랜치는 Jira 단일 키 규칙의 예외입니다.
+- Squash merge 커밋의 제목은 PR 제목을 그대로 씁니다(`SOMA-123 <한국어 요약> (#번호)`). 루트 `CLAUDE.md` 「커밋」의
+  형식과 "이슈 키를 넣지 않는다"는 브랜치 안의 커밋에 적용합니다.
 - 릴리스 PR 제목은 `release: YYYY-MM-DD <요약>`으로 쓰고, 본문은 릴리스 템플릿
   [`.github/PULL_REQUEST_TEMPLATE/release.md`](../.github/PULL_REQUEST_TEMPLATE/release.md)의
   항목을 모두 채웁니다.
@@ -196,7 +197,5 @@ flowchart LR
 
 ## 보호 규칙
 
-- `main`, `dev`의 push 금지와 CI 조건은 [원칙](#원칙), 브랜치 삭제 시점은
-  [브랜치 역할과 수명](#브랜치-역할과-수명)을 따릅니다.
 - `main` 대상 PR: 운영 영향과 롤백 계획을 리뷰한 뒤 merge
 - 운영 태그: 이동하거나 재사용하지 않음

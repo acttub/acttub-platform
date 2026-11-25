@@ -16,6 +16,7 @@ import {
   pause,
   progressPayload,
   recordSaid,
+  resume,
   resumeRun,
   shownText,
   stopRun,
@@ -73,6 +74,17 @@ test('reading.session: 침묵 완료와 버튼이 동시에 와도 한 줄만 �
   const b = advance(a, r.index);
   assert.equal(a.index, 2);
   assert.equal(b.index, 2, '이미 지난 줄에 대한 두 번째 넘김은 무시');
+});
+
+// SOMA-1062 — 배경으로 가며 멈춘 뒤 끊긴 재생이 끝난 것으로 돌아와 다음 줄로 넘어가고 화면 밖에서 재생을 시작했다.
+test('reading.session: 멈춘 동안 온 넘김은 받지 않고, 이어서는 그 줄로 돌아간다', () => {
+  const partner = advance(run()); // l2 태오(상대)
+  const paused = pause(partner);
+  assert.equal(advance(paused, paused.index), paused, '멈춘 줄에서 온 넘김');
+  assert.equal(advance(paused), paused, '줄을 정하지 않은 넘김');
+  const resumed = resume(paused);
+  assert.equal(resumed.index, partner.index);
+  assert.equal(resumed.status, 'partner');
 });
 
 test('reading.session: 흐른 시간은 일시정지를 빼고 잰다', () => {

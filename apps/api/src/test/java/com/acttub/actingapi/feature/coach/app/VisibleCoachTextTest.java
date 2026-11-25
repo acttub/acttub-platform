@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class VisibleCoachTextTest {
     private static List<String> feed(boolean opening, String raw, int size) {
         var out = new ArrayList<String>();
-        var visible = new VisibleCoachText(opening, out::add);
+        var visible = new VisibleCoachText(opening, null, out::add);
         for (int i = 0; i < raw.length(); i += size) visible.accept(raw.substring(i, Math.min(raw.length(), i + size)));
         return out;
     }
@@ -59,7 +59,7 @@ class VisibleCoachTextTest {
 
     private static String streamed(String raw, int size) {
         var out = new ArrayList<String>();
-        var visible = new VisibleCoachText(false, out::add);
+        var visible = new VisibleCoachText(false, null, out::add);
         try {
             for (int i = 0; i < raw.length(); i += size) visible.accept(raw.substring(i, Math.min(raw.length(), i + size)));
         } catch (VisibleCoachText.Broken broken) {

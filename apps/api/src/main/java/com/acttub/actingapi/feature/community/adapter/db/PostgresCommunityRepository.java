@@ -23,7 +23,6 @@ import com.acttub.actingapi.feature.community.app.InvalidImage;
 import com.acttub.actingapi.feature.community.app.NotAuthor;
 import com.acttub.actingapi.feature.community.app.Page;
 import com.acttub.actingapi.feature.community.app.ReportingOwnContent;
-import com.acttub.actingapi.feature.community.domain.BlockedUser;
 import com.acttub.actingapi.feature.community.domain.CommunityCategory;
 import com.acttub.actingapi.feature.community.domain.CommunityComment;
 import com.acttub.actingapi.feature.community.domain.CommunityPost;
@@ -96,7 +95,6 @@ class PostgresCommunityRepository implements CommunityRepository {
     private final CommunityCommentJpaRepository comments;
     private final CommunityAnonymousAliasJpaRepository anonymousAliases;
     private final CommunityPostLikeJpaRepository likes;
-    private final CommunityBlockJpaRepository blocks;
     private final CommunityReportJpaRepository reports;
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -110,7 +108,6 @@ class PostgresCommunityRepository implements CommunityRepository {
             CommunityCommentJpaRepository comments,
             CommunityAnonymousAliasJpaRepository anonymousAliases,
             CommunityPostLikeJpaRepository likes,
-            CommunityBlockJpaRepository blocks,
             CommunityReportJpaRepository reports,
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
@@ -122,7 +119,6 @@ class PostgresCommunityRepository implements CommunityRepository {
         this.comments = comments;
         this.anonymousAliases = anonymousAliases;
         this.likes = likes;
-        this.blocks = blocks;
         this.reports = reports;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -519,23 +515,6 @@ class PostgresCommunityRepository implements CommunityRepository {
     }
 
     @Override
-    public CommunityComment updateComment(UUID commentId, UUID authorId, String body) {
-        return required(transaction.execute(status -> {
-            CommunityComment existing = loadComment(commentId, authorId);
-            if (existing == null || !existing.isVisible()) {
-                throw new CommunityContentNotFound();
-            }
-            if (!existing.authorId().equals(authorId)) {
-                throw new NotAuthor();
-            }
-            comments.updateBody(commentId, body);
-            CommunityComment updated = loadComment(commentId, authorId);
-            CommunityPost parent = parentPostOf(updated);
-            return updated.named(parent, aliasMap(updated.postId()).get(updated.authorId()));
-        }));
-    }
-
-    @Override
     public void deleteComment(UUID commentId, UUID authorId) {
         transaction.executeWithoutResult(status -> {
             List<CommunityComment> rows = list(entityManager.createNativeQuery("""
@@ -634,30 +613,6 @@ class PostgresCommunityRepository implements CommunityRepository {
     }
 
     @Override
-    public List<BlockedUser> listBlocks(UUID blockerId) {
-        return list(entityManager.createNativeQuery("""
-                SELECT blocked.id AS id,
-                       CASE WHEN blocked.status = 'deactivated'
-                            THEN '탈퇴한 사용자'
-                            ELSE coalesce(blocked_profile.name, '배우') END AS nickname
-                FROM (SELECT blocked_id, max(created_at) AS created_at
-                      FROM (SELECT blocked_id, created_at FROM user_blocks WHERE blocker_id = :blockerId
-                            UNION ALL
-                            SELECT blocked_id, created_at FROM community_blocks WHERE blocker_id = :blockerId)
-                           AS every_block
-                      GROUP BY blocked_id) AS block_pair
-                JOIN users blocked ON blocked.id = block_pair.blocked_id
-                LEFT JOIN user_profiles blocked_profile ON blocked_profile.user_id = blocked.id
-                ORDER BY block_pair.created_at DESC, blocked.id
-                """, Tuple.class)
-                .setParameter("blockerId", blockerId)).stream()
-                .map(row -> new BlockedUser(
-                        row.get("id", UUID.class),
-                        row.get("nickname", String.class)))
-                .toList();
-    }
-
-    @Override
     public void blockUser(UUID blockerId, UUID blockedId) {
         transaction.executeWithoutResult(status -> {
             if (!userExists(blockedId)) {
@@ -675,18 +630,6 @@ class PostgresCommunityRepository implements CommunityRepository {
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("blockerId", blockerId)
                     .setParameter("blockedId", blockedId));
-        });
-    }
-
-    @Override
-    public void unblockUser(UUID blockerId, UUID blockedId) {
-        transaction.executeWithoutResult(status -> {
-            entityManager.createNativeQuery(
-                            "DELETE FROM user_blocks WHERE blocker_id = :blockerId AND blocked_id = :blockedId")
-                    .setParameter("blockerId", blockerId)
-                    .setParameter("blockedId", blockedId)
-                    .executeUpdate();
-            blocks.deleteByPair(blockerId, blockedId);
         });
     }
 
@@ -730,26 +673,6 @@ class PostgresCommunityRepository implements CommunityRepository {
             throw new CommunityContentNotFound();
         }
         return withImages(rows).getFirst();
-    }
-
-    /** 댓글이 달린 글. 지워졌든 차단됐든 가리지 않고 읽으며, 없으면 FK 불변식 오류다. */
-    private CommunityPost parentPostOf(CommunityComment comment) {
-        List<CommunityPost> rows = list(entityManager.createNativeQuery("""
-                SELECT %s,
-                       FALSE AS liked_by_me
-                FROM community_posts p
-                JOIN community_categories category ON category.id = p.category_id
-                JOIN users author ON author.id = p.author_id
-                LEFT JOIN user_profiles author_profile ON author_profile.user_id = p.author_id
-                WHERE p.id = :postId
-                """.formatted(POST_COLUMNS), Tuple.class)
-                .setParameter("postId", comment.postId())).stream()
-                .map(row -> post(row, null))
-                .toList();
-        if (rows.isEmpty()) {
-            throw new IllegalStateException("community post is missing");
-        }
-        return rows.getFirst();
     }
 
     private OwnedPost ownedPost(UUID postId, boolean visibleOnly, boolean lock) {

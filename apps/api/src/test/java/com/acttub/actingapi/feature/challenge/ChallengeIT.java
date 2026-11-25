@@ -28,8 +28,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /** 챌린지 공개 HTTP 계약. 실제 Postgres를 쓰고 모델·스토리지 호출 없이 개설·노출을 검증한다. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false",
-        "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false", "ADMIN_OPS_TOKEN=challenge-test-ops"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=challenge-test-ops"})
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class ChallengeIT {

@@ -25,9 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "AUTH_ENABLED_PROVIDERS=google,apple"
-})
+    "AUTH_ENABLED_PROVIDERS=google,apple"})
 @AutoConfigureMockMvc
 @Import(StubProviders.class)
 class AccountDisabledProvidersIT {

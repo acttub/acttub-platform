@@ -1,0 +1,970 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] inspect · main
+  파일: 임시 파일 «original video bytes»
+  ← InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+[2] upload/3 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+[3] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  ← true
+[4] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |⟪practiceLoop(ko) sha256:a48ac9ea54c2b210⟫
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «<설계>⏎영상: 연기⏎관찰 근거: 영상과 음성⏎대사 확인: 확인됨⏎확인된 대사: "가지 마", "됐어"⏎말 거는 대상: 떠나는 연인⏎인물: 혼자 선 척 붙잡히길 바란다⏎근본 문제: 2 목적성이 안 보인다⏎버릇: 말끝을 길게 끈다⏎왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다⏎버릇이 가리는 것: 붙잡고 싶은 마음⏎다른 쪽 살아 있는 곳: "됐어"에서 눈을 피한다⏎확인할 대사: 가지 마⏎이번 목표: 붙잡는 말이 상대에게 가게 한다⏎다음 테이크: 반대로: "가지 마"를 짧게 끊어 본다⏎첫 질문 모양: 2⏎</설계>⏎<코치>⏎이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?⏎</코치>⏎<보기>⏎붙잡고 싶었어요⏎떠나게 두고 싶었어요⏎</보기>»
+[5] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop
+    |⟪direct-video/practice-loop.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=840
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |[]
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "영상: 연기\n관찰 근거: 영상과 음성\n대사 확인: 확인됨\n확인된 대사: \"가지 마\", \"됐어\"\n말 거는 대상: 떠나는 연인\n인물: 혼자 선 척 붙잡히길 바란다\n근본 문제: 2 목적성이 안 보인다\n버릇: 말끝을 길게 끈다\n왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다\n버릇이 가리는 것: 붙잡고 싶은 마음\n다른 쪽 살아 있는 곳: \"됐어\"에서 눈을 피한다\n확인할 대사: 가지 마\n이번 목표: 붙잡는 말이 상대에게 가게 한다\n다음 테이크: 반대로: \"가지 마\"를 짧게 끊어 본다\n첫 질문 모양: 2",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  },
+  |  "answer_examples" : [ "붙잡고 싶었어요", "떠나게 두고 싶었어요" ]
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: [붙잡고 싶었어요, 떠나게 두고 싶었어요]
+
+## 차례 2
+배우 말: 붙잡고 싶었어요
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+    [user]
+      |붙잡고 싶었어요
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["answered"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 영상과 음성
+      |대사 확인: 확인됨
+      |확인된 대사: "가지 마", "됐어"
+      |말 거는 대상: 떠나는 연인
+      |인물: 혼자 선 척 붙잡히길 바란다
+      |근본 문제: 2 목적성이 안 보인다
+      |버릇: 말끝을 길게 끈다
+      |왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다
+      |버릇이 가리는 것: 붙잡고 싶은 마음
+      |다른 쪽 살아 있는 곳: "됐어"에서 눈을 피한다
+      |확인할 대사: 가지 마
+      |이번 목표: 붙잡는 말이 상대에게 가게 한다
+      |다음 테이크: 반대로: "가지 마"를 짧게 끊어 본다
+      |첫 질문 모양: 2
+      |</설계>
+      |<코치>
+      |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+      |</코치>
+    [user]
+      |붙잡고 싶었어요
+  지시문:
+    |⟪direct-video/practice-loop-turn.txt⟫
+    |
+    |[이번 응답]
+    |지금 단계: 2/4 보여 주기와 어긋남 — 근본 문제를 배우의 첫 답에 비춰 처음 보여 주고, 배우가 어긋남을 스스로 보게 한다
+    |⟪direct-video/tasks/ko/gap.txt⟫
+    |⟪direct-video/roots/ko/purpose.txt⟫
+    |
+    |재료
+    |- 정리에서 확인할 대사: 가지 마
+    |- 이 배우의 문제: 말끝을 길게 끈다
+    |- 왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다
+    |- 버릇이 가리는 것: 붙잡고 싶은 마음
+    |- 다른 쪽 살아 있는 곳: "됐어"에서 눈을 피한다
+    |- 인물: 혼자 선 척 붙잡히길 바란다
+    |- 말 거는 대상: 떠나는 연인
+    |- 배우가 말한 첫 답: 붙잡고 싶었어요
+    |- 배우가 방금 한 말: 붙잡고 싶었어요
+    |- 코치가 앞에서 이미 한 질문(같은 뜻으로 다시 묻지 않는다. 같은 걸 알아야 하면 다른 쪽에서 묻거나 질문 없이 끝낸다): 이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+    |관찰 근거: 영상과 음성
+    |대사 확인: 확인됨
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «"가지 마"에서 끝이 길어요. 붙잡는 말로 들렸을까요?»
+[5] delete · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.turn
+    |⟪direct-video/practice-loop-turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop:어긋남 보기
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=1680
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |"가지 마"에서 끝이 길어요. 붙잡는 말로 들렸을까요?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "관찰 근거: 영상과 음성\n대사 확인: 확인됨\n배우의 말: 답\n지금까지: 같은 버릇 질문 1번 · 짚어주기 0번 · 방법 주기 0번 · 응답 2번째\n이번 목표: 붙잡는 말이 상대에게 가게 한다\n피할 것: 없음\n할 일: 어긋남 보기\n다음 테이크: 없음\n단계: 3\n첫 답: 붙잡고 싶었어요\n분류: model" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: []
+
+## 차례 3
+배우 말: 그만할게요
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+    [user]
+      |붙잡고 싶었어요
+    [model]
+      |"가지 마"에서 끝이 길어요. 붙잡는 말로 들렸을까요?
+    [user]
+      |그만할게요
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["stop"]}»
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: actor_finished · 판: 3
+코치 말:
+  |오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+저장 상태:
+  |{
+  |  "revision" : 3,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "⟪받은 상태와 같음⟫", "관찰 근거: 영상과 음성\n대사 확인: 확인됨\n배우의 말: 그만\n지금까지: 같은 버릇 질문 1번 · 짚어주기 0번 · 방법 주기 0번 · 응답 3번째\n이번 목표: 붙잡는 말이 상대에게 가게 한다\n피할 것: 없음\n할 일: 끝\n다음 테이크: 없음\n단계: 3\n분류: model" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 3,
+  |  "end_reason" : "actor_finished",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "붙잡고 싶었어요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "\"가지 마\"에서 끝이 길어요. 붙잡는 말로 들렸을까요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "role" : "actor",
+  |    "text" : "그만할게요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "role" : "ai",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "붙잡고 싶었어요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가지 마\"에서 끝이 길어요. 붙잡는 말로 들렸을까요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "kind" : "actor_message",
+  |    "text" : "그만할게요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "kind" : "coach_message",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: null
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title=말끝을 길게 끈다, summaryQuotes=[{"quote":"말끝을 길게 끈다","kind":"observation","source_ref":"turn:00000000-0000-4000-8000-000000000001:0"}], nextTake=반대로: "가지 마"를 짧게 끊어 본다, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=3, legacyReport=null]
+
+## 차례 4
+배우 말: 근데 표정은 어땠어요?
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+    [user]
+      |붙잡고 싶었어요
+    [model]
+      |"가지 마"에서 끝이 길어요. 붙잡는 말로 들렸을까요?
+    [user]
+      |그만할게요
+    [model]
+      |오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+    [user]
+      |근데 표정은 어땠어요?
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["not_yet","evaluation"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |관찰 근거: 영상과 음성
+      |대사 확인: 확인됨
+      |확인된 대사: "가지 마", "됐어"
+      |말 거는 대상: 떠나는 연인
+      |인물: 혼자 선 척 붙잡히길 바란다
+      |근본 문제: 2 목적성이 안 보인다
+      |버릇: 말끝을 길게 끈다
+      |왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다
+      |버릇이 가리는 것: 붙잡고 싶은 마음
+      |다른 쪽 살아 있는 곳: "됐어"에서 눈을 피한다
+      |확인할 대사: 가지 마
+      |이번 목표: 붙잡는 말이 상대에게 가게 한다
+      |다음 테이크: 반대로: "가지 마"를 짧게 끊어 본다
+      |첫 질문 모양: 2
+      |</설계>
+      |<코치>
+      |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+      |</코치>
+    [user]
+      |붙잡고 싶었어요
+    [model]
+      |"가지 마"에서 끝이 길어요. 붙잡는 말로 들렸을까요?
+    [user]
+      |그만할게요
+    [model]
+      |오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+    [user]
+      |근데 표정은 어땠어요?
+  지시문:
+    |⟪direct-video/practice-loop-turn.txt⟫
+    |
+    |[이번 응답]
+    |지금 단계: 이번이 오늘 대화의 마지막 말이다. 물은 것에 한두 문장으로 답만 하고 질문하지 않는다. 아래 모양 칸의 "질문"은 이번에는 쓰지 않는다. 배우가 정리와 다른 인물 해석이나 다른 행동을 냈으면("저는 ~한 인물이라고 봤어요", "~하는 게 맞다고 생각했어요"): 이번에는 배우의 해석을 따른다. 앞서 코치가 한 제안이나 근본 문제로 돌아가지 않는다. 맨 첫 줄에 숨은 줄 <다음 테이크>…</다음 테이크>를 쓰고, 안에는 배우의 해석대로 다음 테이크에서 해 볼 행동 하나를 "~해 봐도 좋아요"로 끝나는 한 문장으로 쓴다(노트에 남는다. "그 해석이면" 같은 앞말 없이 행동만). 그다음 줄부터 그 행동을 "~해 봐도 좋아요"로 말하고, 그게 장면에서 통하는지 다음 테이크에서 확인해 보자고 한다. "~하세요", "~보여 주세요", "~해 봐요"처럼 시키지 않는다. 예) 그 해석이면 소리 지르며 따져 봐도 좋아요. 다음 테이크에서 통하는지 확인해 봐요. 배우가 묻기만 했으면 답만 하고 숨은 줄은 쓰지 않는다.
+    |역할: 너는 배우가 물은 것에 솔직하게 답해 주는 선배다.
+    |이번 목표: 배우가 물은 것(어색한지, 괜찮은지, 뭐가 부족한지, 피드백)에 판단을 분명히 준다.
+    |왜 중요한가: 물었는데 비켜 가면 배우는 말꼬리를 잡힌다고 느끼고 떠난다. 판단을 들어야 다음 질문에도 마음을 연다.
+    |도움이 되는 말:
+    |- 물은 것이 무엇인지 먼저 가린다.
+    |- 한 가지 판단만 묻는 짧은 물음("어색한가요?", "괜찮았어요?"): 아래 짧은 틀을 쓴다.
+    |- 피드백·평가를 달라는 말("피드백 해 주세요", "어땠는지 자세히 알려 주세요", "어색했던 대사를 알려 주세요", "아니 피드백을 해달라고"): 아래 피드백 틀을 쓴다. 질문으로 되돌리지 않는다.
+    |- 연기 전체나 결과를 판정해 달라는 말("나 발연기야?", "잘하는 편이야 못하는 편이야?", "제일 단점이 뭐야?", "망한 것 같아?", "이대로 오디션에 내도 돼?"): 첫 문장에 배우가 물은 말을 그대로 받아 판정을 먼저 분명히 말한다(발연기냐 → 발연기인지 아닌지, 망했냐 → 망했는지 아닌지, 내도 되냐 → 내도 되는지, 잘하는 편이냐 → 어느 쪽인지). 그다음 그렇게 본 근거와 고칠 곳을 피드백 틀로 이어 간다. 판정을 피하거나 "영상만으로는 다 알 수 없어요"로 대신하지 않는다.
+    |- 앞에서 이미 판단이나 피드백을 준 뒤에 더, 다른 걸 묻는 말("다른 문제는?", "가능한 많은 부분", "말과 관련된 것도", "고개 말고는?", "그냥 이 연기에 대해서만 말해 줘"): 아래 더 묻는 틀을 쓴다.
+    |- 판단은 첫 문장에 먼저 말한다. "괜찮아요", "조금 어색해요", "아쉬운 건 ~예요".
+    |- 처음 주는 판단의 이유는 손·표정 같은 겉모습이 아니라 [이번 응답]의 근본 문제에 비춰 붙이고, 어느 대사에서 그랬는지 짚는다.
+    |- 대화에서 코치가 이미 말한 문제(근본 문제, 버릇, 고칠 곳)는 다시 고칠 곳으로 쓰지 않는다. 다시 물으면 앞에서 말하지 않은 다른 쪽(몸·시선·표정, 감정의 변화, 상대와 주고받기, 대사 사이를 잇는 흐름) 가운데 영상에서 실제로 보인 것으로 답한다. 더 분명하게 보이는 것이 없으면 "더 크게 보이는 건 없어요"라고 솔직하게 말하고 앞서 말한 하나를 어느 대사부터 해 보면 되는지만 덧붙인다.
+    |- 영상으로 알 수 없는 것(발성, 발음, 목소리 크기, 무대에서 어떻게 보일지)을 물었으면 그렇다고 짧게 말하고, 영상에서 보인 것으로 판단한다.
+    |- 배우가 앞에서 코치의 해석을 바로잡았으면 그 해석 위에서 판단한다. 코치가 처음 본 해석으로 돌아가지 않는다.
+    |- 피드백 틀의 "다음엔"은 배우가 피드백을 달라고 했을 때만 쓴다. 짧은 판단 물음에는 행동을 제안하지 않는다.
+    |피할 말:
+    |- 시키는 말("~하세요", "~보세요", "~마세요"), 칭찬·감상, "확인하며"·"살피며"·"흔들리는지"
+    |- "~하기보다", "~라기보다"로 비켜 가기
+    |- 피드백을 달라는데 질문만 하거나 한 구절로 끝내기
+    |- 셋 넘게 늘어놓기(더 묻는 틀에서는 셋까지 된다), 칭찬과 감상("좋았어요", "잘했어요" 대신 무엇이 또렷했는지 본 그대로)
+    |- 앞에서 이미 한 판단이나 피드백을 같은 말로 되풀이하기. 다시 물으면 다른 대사나 더 구체적인 방법으로 답한다
+    |- 지금 단계와 상관없는 질문("그때 기분이 어땠어요?")
+    |모양: 물은 것에 따라 아래 두 틀 중 하나를 그대로 채운다.
+    |짧은 틀: 두 문장 합쳐 60자 안쪽.
+    |[괜찮아요 / 조금 어색해요 / 아쉬워요 중 하나], [짧은 이유 한 구절]. [그럴 때 / 그렇게 하면] [지금 단계 질문, 짧게]?
+    |더 묻는 틀: 두세 가지, 160자 안쪽. 질문 없이 끝낸다. 각 가지는 "[대사]"에서 [보인 것]이고 그래서 [어떻게 보이는지]를 한 문장으로 말한다. 앞에서 말한 문제와 같은 말은 넣지 않는다.
+    |피드백 틀: 세 문장, 110자 안쪽. 질문 없이 끝낸다. "괜찮은 곳:", "아쉬운 곳:" 같은 칸 이름은 쓰지 않고 문장으로만 말한다.
+    |"[대사]"에서 [실제로 살아 있던 것]은 또렷해요. 아쉬운 건 "[대사]"에서 [근본 문제가 드러난 모습]이에요. 다음엔 [상대에게 하는 일 하나]해 봐도 좋아요.
+    |좋은 예(다른 영상, 짧은 물음): 조금 어색해요, 소리가 억울함을 대신해요. 그럴 때 아빠가 알아줄까요?
+    |좋은 예(다른 영상, 피드백 요청): "잡아줘"에서 매달리는 건 또렷해요. 아쉬운 건 "이젠 안 해"부터 언니를 안 보고 혼자 터뜨리는 거예요. 다음엔 언니가 알아주는지 보면서 밀어내 봐도 좋아요.
+    |나쁜 예: 어색하다기보다 동작이 커서 눈에 띄어요. (비켜 감)
+    |나쁜 예: 아쉬워요, 상대한테 닿지 않아요. 상대를 어떻게 만들고 싶었어요? (피드백을 달라는데 한 구절과 질문으로 끝냄)
+    |⟪direct-video/roots/ko/purpose.txt⟫
+    |
+    |재료
+    |- 정리에서 확인할 대사: 가지 마
+    |- 이 배우의 문제: 말끝을 길게 끈다
+    |- 왜 이 배우의 문제인가: 붙잡는 말이 부탁처럼 들린다
+    |- 버릇이 가리는 것: 붙잡고 싶은 마음
+    |- 다른 쪽 살아 있는 곳: "됐어"에서 눈을 피한다
+    |- 인물: 혼자 선 척 붙잡히길 바란다
+    |- 말 거는 대상: 떠나는 연인
+    |- 배우가 말한 첫 답: 붙잡고 싶었어요
+    |- 배우가 방금 한 말: 근데 표정은 어땠어요?
+    |- 코치가 앞에서 이미 한 질문(같은 뜻으로 다시 묻지 않는다. 같은 걸 알아야 하면 다른 쪽에서 묻거나 질문 없이 끝낸다): 이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요? / 붙잡는 말로 들렸을까요?
+    |- 이 단계에서 이번이 2번째 응답이다. 앞의 코치 말은 배우에게 통하지 않았다. 같은 말, 같은 모양으로 다시 묻지 않는다
+    |- 앞에서 한 판단·대사·제안 문장을 그대로 되풀이하지 않는다. 배우가 이번에 새로 물은 것(괜찮았는지, 실력이 어느 정도인지, 합격할 수 있는지 등)에만 맞춰 답한다. 영상으로 알 수 없는 것은 그렇다고 짧게 말한다
+    |- 이 단계에서 이미 한 코치 말: 오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+    |관찰 근거: 영상과 음성
+    |대사 확인: 확인됨
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «"됐어"에서 눈을 피하는 게 좋았어요.»
+[5] delete · main
+  영상: files/main-3 gemini://main-3 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.turn
+    |⟪direct-video/practice-loop-turn.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop:짚어주기
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=2520
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 4
+코치 말:
+  |"됐어"에서 눈을 피하는 게 좋았어요.
+저장 상태:
+  |{
+  |  "revision" : 4,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "⟪받은 상태와 같음⟫", "⟪받은 상태와 같음⟫", "관찰 근거: 영상과 음성\n대사 확인: 확인됨\n배우의 말: 평가 요청\n지금까지: 같은 버릇 질문 1번 · 짚어주기 1번 · 방법 주기 0번 · 응답 4번째\n이번 목표: 붙잡는 말이 상대에게 가게 한다\n피할 것: 없음\n할 일: 짚어주기\n다음 테이크: 없음\n다음에 닫기: 예\n단계: 3\n분류: model" ],
+  |    "resumed_at" : 3
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: []
+
+## 차례 5
+배우 말: 네 알겠어요
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?
+    [user]
+      |붙잡고 싶었어요
+    [model]
+      |"가지 마"에서 끝이 길어요. 붙잡는 말로 들렸을까요?
+    [user]
+      |그만할게요
+    [model]
+      |오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+    [user]
+      |근데 표정은 어땠어요?
+    [model]
+      |"됐어"에서 눈을 피하는 게 좋았어요.
+    [user]
+      |네 알겠어요
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["answered","ack"]}»
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: interrupted · 판: 5
+코치 말:
+  |오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+저장 상태:
+  |{
+  |  "revision" : 5,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "⟪받은 상태와 같음⟫", "⟪받은 상태와 같음⟫", "⟪받은 상태와 같음⟫", "관찰 근거: 영상과 음성\n대사 확인: 확인됨\n배우의 말: 답\n지금까지: 같은 버릇 질문 1번 · 짚어주기 1번 · 방법 주기 0번 · 응답 5번째\n이번 목표: 붙잡는 말이 상대에게 가게 한다\n피할 것: 없음\n할 일: 끝\n다음 테이크: 없음\n단계: 3\n알아챈 것: 네 알겠어요\n분류: model" ],
+  |    "resumed_at" : 3
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 5,
+  |  "end_reason" : "interrupted",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "붙잡고 싶었어요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "\"가지 마\"에서 끝이 길어요. 붙잡는 말로 들렸을까요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "role" : "actor",
+  |    "text" : "그만할게요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "role" : "ai",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:5",
+  |    "role" : "actor",
+  |    "text" : "근데 표정은 어땠어요?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:6",
+  |    "role" : "ai",
+  |    "text" : "\"됐어\"에서 눈을 피하는 게 좋았어요."
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:7",
+  |    "role" : "actor",
+  |    "text" : "네 알겠어요"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:8",
+  |    "role" : "ai",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "이 장면에서 인물은 상대한테서 결국 뭘 얻어 내고 싶었어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "붙잡고 싶었어요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "\"가지 마\"에서 끝이 길어요. 붙잡는 말로 들렸을까요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "kind" : "actor_message",
+  |    "text" : "그만할게요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "kind" : "coach_message",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:5",
+  |    "kind" : "actor_message",
+  |    "text" : "근데 표정은 어땠어요?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:6",
+  |    "kind" : "coach_message",
+  |    "text" : "\"됐어\"에서 눈을 피하는 게 좋았어요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:7",
+  |    "kind" : "actor_message",
+  |    "text" : "네 알겠어요",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:8",
+  |    "kind" : "coach_message",
+  |    "text" : "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: null
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=action, title=말끝을 길게 끈다, summaryQuotes=[{"quote":"말끝을 길게 끈다","kind":"observation","source_ref":"turn:00000000-0000-4000-8000-000000000001:0"}], nextTake=반대로: "가지 마"를 짧게 끊어 본다, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=5, legacyReport=null]

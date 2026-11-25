@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code practice_sessions.status} 의 값 — 분석이 어디까지 갔는지다.
  *
@@ -23,12 +21,5 @@ public enum PracticeStatus implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<PracticeStatus> {
-        public JpaConverter() {
-            super(PracticeStatus.class);
-        }
     }
 }

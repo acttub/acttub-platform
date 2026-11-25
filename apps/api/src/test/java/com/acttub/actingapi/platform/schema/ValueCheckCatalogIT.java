@@ -2,12 +2,17 @@ package com.acttub.actingapi.platform.schema;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,6 +38,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>대조는 양방향이다 — 표에 적힌 제약이 DB 에 있고 값이 같은지, 그리고 DB 의 값 CHECK 중
  * 표에도 {@link #WITHOUT_JAVA_ENUM} 에도 없는 것이 생기지 않았는지. 뒤쪽이 없으면 새 CHECK 를
  * 표에 안 적어도 조용히 통과한다.
+ *
+ * <p>세 번째 그물은 기능 스펙이다. 상태의 정본은 {@code docs/specs} 의 「상태」 표이고(루트 CLAUDE.md 「조건부 정본」),
+ * 값을 지우거나 더할 때 스펙만 남겨 두면 문서가 코드와 다른 말을 한다. {@link #BY_SPEC} 의 표마다 스펙 상태 표에 적힌 값이
+ * CHECK 의 값과 같은지 본다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 class ValueCheckCatalogIT {
@@ -133,7 +142,8 @@ class ValueCheckCatalogIT {
             "ck_practices_session_purpose",
             // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
             "ck_entry_ranking_snapshots_basis",
-            // 배우 일지(SOMA-720)의 자동 칸 생성 상태(pending·ready·failed·skipped)는 저장소 SQL 과 JournalService 만 쓴다(JPA 매핑이 없다).
+            // 배우 일지(SOMA-720)의 자동 칸 생성 상태(pending·ready·failed)는 저장소 SQL 과 JournalService 만 쓴다(JPA 매핑이 없다).
+            // CHECK 에 남은 skipped 는 옛 서버가 쓰던 값이라 다음 배포에서 뺀다(SOMA-1130).
             "ck_actor_journals_draft_status",
             // 참여작 얼굴 모자이크 상태(pending·ready·failed, SOMA-809)는 저장소 SQL 만 읽고 쓴다(값 enum 이 따로 없다).
             "ck_challenge_entries_mosaic_status",
@@ -178,6 +188,50 @@ class ValueCheckCatalogIT {
             "ck_blog_posts_app_cta",
             "ck_blog_posts_status");
 
+    /**
+     * 스펙의 상태 표 하나. {@code file} 은 {@code docs/specs} 아래 경로, {@code table} 은 그 파일 「## 상태」 절 안에서 몇 번째
+     * 표인지(0부터), {@code cell} 은 표의 첫 칸에서 값을 집는 정규식이다. 첫 무리가 값 하나이거나 {@code ·} 로 이은 값들이다.
+     *
+     * <p>첫 칸이 이 정규식에 맞지 않는 줄은 저장하지 않는 상태(「미결정」, 「행 없음」, {@code NULL(집계 전)}, 「삭제(deleted_at)」 같은
+     * 시각 칸 상태)라 대조하지 않는다.
+     */
+    private record SpecTable(String file, int table, String cell) {
+        /** 첫 칸이 값으로 시작하는 표. {@code closed (close_reason …)}, {@code active(게스트)} 는 앞의 값만 집는다. */
+        static SpecTable leading(String file, int table) {
+            return new SpecTable(file, table, "^([a-z_]+(?:·[a-z_]+)*)");
+        }
+    }
+
+    /** 제약 이름 → 그 값 목록을 적은 스펙 상태 표. */
+    private static final Map<String, SpecTable> BY_SPEC = new LinkedHashMap<>();
+
+    static {
+        BY_SPEC.put("ck_users_status", SpecTable.leading("account/login.md", 0));
+        BY_SPEC.put("ck_user_consents_action", SpecTable.leading("account/consent.md", 0));
+        BY_SPEC.put("ck_reading_sessions_status", SpecTable.leading("reading/session.md", 0));
+        BY_SPEC.put("ck_line_memorization_status", SpecTable.leading("reading/memorization.md", 0));
+        BY_SPEC.put("ck_support_inquiries_status", SpecTable.leading("app/support-inquiry.md", 0));
+        BY_SPEC.put("ck_challenges_moderation", SpecTable.leading("challenge/create.md", 0));
+        BY_SPEC.put("ck_challenges_ranking_state", SpecTable.leading("challenge/browse.md", 0));
+        BY_SPEC.put("ck_challenge_entries_visibility", new SpecTable("challenge/entry.md", 0, "^visibility ([a-z_]+)"));
+        BY_SPEC.put("ck_challenge_entries_status", new SpecTable("challenge/entry.md", 0, "^status ([a-z_]+)"));
+        BY_SPEC.put("ck_entry_comments_status", SpecTable.leading("challenge/react.md", 0));
+        BY_SPEC.put("ck_entry_reports_status", SpecTable.leading("challenge/report.md", 0));
+        BY_SPEC.put("ck_entry_reports_resolution",
+                new SpecTable("challenge/report.md", 0, "resolution ([a-z_]+(?:·[a-z_]+)*)"));
+        BY_SPEC.put("ck_entry_ai_reports_status", SpecTable.leading("challenge/ai-report.md", 0));
+        BY_SPEC.put("ck_notifications_push_status", new SpecTable("challenge/notification.md", 0, "^push ([a-z_]+)"));
+        BY_SPEC.put("ck_upload_intents_status", SpecTable.leading("practice/record.md", 0));
+        BY_SPEC.put("ck_analyses_status", SpecTable.leading("practice/analyze.md", 0));
+        BY_SPEC.put("ck_video_transcripts_status", SpecTable.leading("practice/analyze.md", 1));
+        BY_SPEC.put("ck_practices_stage", SpecTable.leading("practice/start.md", 0));
+        BY_SPEC.put("ck_practices_close_reason", new SpecTable("practice/start.md", 0, "close_reason ([a-z_]+)"));
+        BY_SPEC.put("ck_coach_conversations_status", SpecTable.leading("practice/coach.md", 0));
+    }
+
+    /** Gradle 은 {@code apps/api} 에서 테스트를 돌린다. */
+    private static final Path SPECS = Path.of("../../docs/specs");
+
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");
 
@@ -207,6 +261,61 @@ class ValueCheckCatalogIT {
         assertThat(valueChecks().keySet())
                 .as("값 CHECK 를 더했으면 BY_CONSTRAINT 나 WITHOUT_JAVA_ENUM 에도 적으세요")
                 .isSubsetOf(union(BY_CONSTRAINT.keySet(), WITHOUT_JAVA_ENUM));
+    }
+
+    @Test
+    @DisplayName("스펙 상태 표에 적힌 값이 CHECK 의 값과 같다 — 값을 지우거나 더하면 스펙도 같이 고친다")
+    void specStateTablesListExactlyTheValuesOfTheirCheck() throws IOException {
+        Map<String, Set<String>> actual = valueChecks();
+        for (Map.Entry<String, SpecTable> entry : BY_SPEC.entrySet()) {
+            String constraint = entry.getKey();
+            SpecTable table = entry.getValue();
+            assertThat(actual).as("%s 가 DB 에 없다", constraint).containsKey(constraint);
+            assertThat(specValues(table))
+                    .as("%s ↔ docs/specs/%s 「상태」 표 %d — 스펙과 CHECK 가 다른 값을 말한다", constraint, table.file(), table.table())
+                    .isEqualTo(actual.get(constraint));
+        }
+    }
+
+    /** 스펙 파일의 「## 상태」 절에서 {@code table} 번째 표의 첫 칸들을 읽어 값을 모은다. */
+    private static Set<String> specValues(SpecTable table) throws IOException {
+        List<List<String>> tables = new ArrayList<>();
+        boolean inState = false;
+        List<String> current = null;
+        for (String line : Files.readAllLines(SPECS.resolve(table.file()))) {
+            if (line.startsWith("## ")) {
+                inState = line.equals("## 상태");
+                current = null;
+                continue;
+            }
+            if (!inState) {
+                continue;
+            }
+            if (!line.startsWith("|")) {
+                current = null;
+                continue;
+            }
+            if (current == null) {
+                current = new ArrayList<>();
+                tables.add(current);
+            }
+            current.add(line);
+        }
+        assertThat(tables).as("docs/specs/%s 의 「상태」 절 표 수", table.file()).hasSizeGreaterThan(table.table());
+        Pattern cell = Pattern.compile(table.cell());
+        Set<String> values = new TreeSet<>();
+        List<String> rows = tables.get(table.table());
+        // 첫 줄은 머리, 둘째 줄은 |---| 구분선이다.
+        for (String row : rows.subList(2, rows.size())) {
+            String first = row.split("\\|", -1)[1].strip();
+            Matcher matcher = cell.matcher(first);
+            if (matcher.find()) {
+                values.addAll(Arrays.asList(matcher.group(1).split("·")));
+            }
+        }
+        assertThat(values).as("docs/specs/%s 표 %d 에서 값을 하나도 못 집었다 — 정규식이 표와 어긋났다", table.file(), table.table())
+                .isNotEmpty();
+        return values;
     }
 
     /** {@code = ANY (ARRAY[…])} 형태의 CHECK 만. 길이·공백 검사 같은 다른 CHECK 는 대상이 아니다. */

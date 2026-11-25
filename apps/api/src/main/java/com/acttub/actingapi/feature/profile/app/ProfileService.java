@@ -101,12 +101,9 @@ public class ProfileService implements ProfileGate {
      * <p>만 14세 미만이면 저장하지 않는다. 어느 자리에서 왔는지는 경로가 아니라 <b>저장 전에
      * 프로필이 완성돼 있었는가</b>로 가른다 — 완성돼 있었으면 설정에서 고치던 것이라 거절만 하고
      * ({@code under_14}), 아니면 가입 중이라 계정을 닫는다({@code under_14_account_closed}).
+     *
+     * <p>{@code signupClient} 는 가입을 끝낸 클라이언트 판이다. 프로필이 이미 완성돼 있었으면(설정의 수정) 남기지 않는다.
      */
-    public AccountView saveProfile(UUID userId, Profile submitted) {
-        return saveProfile(userId, submitted, null);
-    }
-
-    /** {@code signupClient} 는 가입을 끝낸 클라이언트 판이다. 프로필이 이미 완성돼 있었으면(설정의 수정) 남기지 않는다. */
     public AccountView saveProfile(UUID userId, Profile submitted, String signupClient) {
         InputCharset.require(submitted.name(), submitted.bio(), submitted.goal());
         Account before = require(profiles.find(userId));

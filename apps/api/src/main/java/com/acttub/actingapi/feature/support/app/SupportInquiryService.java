@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.support.app.SupportInquiryStore.Inquiry;
 import com.acttub.actingapi.feature.support.app.SupportInquiryStore.NewInquiry;
 import com.acttub.actingapi.platform.text.InputCharset;
+import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -75,5 +76,10 @@ public class SupportInquiryService {
 
     public List<Inquiry> list(String status, int limit) {
         return store.list(status, limit);
+    }
+
+    /** 운영자가 답한 문의를 닫거나 잘못 닫은 것을 다시 연다. 값 검사는 부르는 쪽이 한다. */
+    public Inquiry setStatus(UUID id, String status) {
+        return store.setStatus(id, status).orElseThrow(() -> new ApiException(404, "support_inquiry_not_found"));
     }
 }

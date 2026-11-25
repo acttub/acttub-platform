@@ -17,7 +17,6 @@ public record LineResult(UUID lineId, String outcome, int misses, String said) {
 
     public static final String PASSED = "passed";
     public static final String UNMATCHED = "unmatched";
-    public static final String SKIPPED = "skipped";
 
     /**
      * 기기가 보낸 것을 저장된 결과 위에 얹는다 — 같은 줄은 나중 것이 이기고, 보내지 않은 줄은 그대로 남는다. 순서는

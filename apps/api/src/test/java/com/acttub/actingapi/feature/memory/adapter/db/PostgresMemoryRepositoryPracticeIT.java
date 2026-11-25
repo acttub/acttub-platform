@@ -15,12 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 0.1.0 이어하기의 장면 이력 — 같은 묶음 앞 회차의 노트를 차수별 한 줄로 싣는다 (practice.resume). 노트가 없는 회차,
  * 제목 없는 노트, 제목만 있는 옛 카드는 줄을 만들지 않는다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ANALYSIS_WORKER_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PostgresMemoryRepositoryPracticeIT {
 
     @Autowired

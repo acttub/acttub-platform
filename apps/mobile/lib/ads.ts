@@ -33,7 +33,6 @@ export const AD_SLOTS = {
   profile_top: { size: 'BANNER', phase: 'browse' },
   settings_top: { size: 'BANNER', phase: 'browse' },
   analyzing_top: { size: 'BANNER', phase: 'browse' },
-  report_top: { size: 'BANNER', phase: 'browse' },
   notifications_top: { size: 'BANNER', phase: 'browse' },
   line_search_top: { size: 'BANNER', phase: 'browse' },
   analyzing_wait: { size: 'MEDIUM_RECTANGLE', phase: 'practice' },
@@ -167,12 +166,12 @@ export const TEST_INTERSTITIAL_UNIT = {
 } as const;
 
 /**
- * 운영 AdMob 전면 광고 단위. AdMob 콘솔에서 만들기 전에는 비워 둔다 — 비어 있으면 운영 빌드는 전면 광고를 띄우지 않는다.
+ * 운영 AdMob 전면 광고 단위(콘솔 이름 「전면 광고」). 비우면 운영 빌드는 전면 광고를 띄우지 않는다.
  * AdMob 앱 설정은 「높은 참여도 광고」 끔(건너뛰기 5초), 계정 설정은 「전면 광고의 건너뛸 수 없는 동영상」 끔으로 둔다.
  */
 export const PRODUCTION_INTERSTITIAL_UNITS: { android: string; ios: string } = {
-  android: '',
-  ios: '',
+  android: 'ca-app-pub-9577213564323927/8017035783',
+  ios: 'ca-app-pub-9577213564323927/1451627437',
 };
 
 /** 전면 광고 단위. 운영 API 를 보는 빌드만 실제 단위(없으면 null — 띄우지 않는다), 나머지는 Google 테스트 단위다. */

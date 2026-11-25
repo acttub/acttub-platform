@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.schema;
 
-import jakarta.persistence.Converter;
-
 /**
  * {@code reading_session_ratings.rating} 의 값 — 리딩 회차에 남긴 "좋았어요·아쉬웠어요" (reading.session, V40).
  *
@@ -22,12 +20,5 @@ public enum ReadingSessionRatingValue implements PgEnum {
     @Override
     public String dbValue() {
         return dbValue;
-    }
-
-    @Converter(autoApply = false)
-    public static class JpaConverter extends PgEnumConverter<ReadingSessionRatingValue> {
-        public JpaConverter() {
-            super(ReadingSessionRatingValue.class);
-        }
     }
 }

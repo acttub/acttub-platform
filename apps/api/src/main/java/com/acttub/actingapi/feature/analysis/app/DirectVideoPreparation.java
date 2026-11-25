@@ -14,10 +14,6 @@ public final class DirectVideoPreparation implements AnalysisProcessor {
     private final AnalysisProcessor legacy;
     private final DirectVideoWarmup warmup;
 
-    public DirectVideoPreparation(DurationResolver duration, AnalysisProcessor legacy) {
-        this(duration, legacy, DirectVideoWarmup.NONE);
-    }
-
     public DirectVideoPreparation(DurationResolver duration, AnalysisProcessor legacy, DirectVideoWarmup warmup) {
         this.duration = duration;
         this.legacy = legacy;

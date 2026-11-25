@@ -103,6 +103,19 @@ class ScriptSplitRulesModeTest {
         assertThat(run.saved().characterNames()).containsExactly("햄릿");
     }
 
+    @org.junit.jupiter.api.Test
+    void rulesModeTurnsWordTabsIntoSpaces() {
+        StringBuilder raw = new StringBuilder();
+        for (int k = 0; k < 4; k++) {
+            raw.append("유현\t \t 오늘은\t어디\t가?\n미유키\t \t 그냥\t집에\t있을래.\n꾸밈없는\t얼굴로\t미유키가\t웃는다.\n");
+        }
+        ScriptSplitFakes.Run run = ScriptSplitFakes.run(raw.toString(), ScriptSplitMode.RULES, "play.pdf");
+
+        assertThat(run.saved().characterNames()).containsExactly("유현", "미유키");
+        assertThat(run.saved().lines()).noneMatch(line -> line.text().contains("\t"));
+        assertThat(run.keys(true)).contains(ScriptSplitFakes.key("dialogue", "유현", "오늘은 어디 가?"));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("fixtures")
     void rulesModeSplitsWithoutAskingTheModelExceptForCastTraits(String name) throws IOException {

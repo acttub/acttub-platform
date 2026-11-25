@@ -56,7 +56,7 @@ class DirectVideoCoachFaceMosaicTest {
     }
 
     DirectVideoCoach coach() {
-        return new DirectVideoCoach(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry(), true);
+        return TestDirectVideoCoach.of(model, videos, storage, new RecordingFailureReporter(), new RecordingLlmTelemetry()).build();
     }
 
     FaceMosaic masking() {

@@ -25,6 +25,7 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
+import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.integration.observation.SpeechFacts;
@@ -52,6 +53,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * account.withdraw 의 "검증 방법"을 HTTP 와 실제 Postgres 로 본다.
@@ -64,7 +67,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>여기서 보지 못하는 것: 제공자의 "연결된 서비스" 목록에서 실제로 사라지는지(사람이 확인), 챌린지
  * 댓글·참여작(그 테이블이 아직 없다), 탈퇴 3년 뒤의 파기(매일 도는 일), 폰의 앱 저장소(앱 갈래).
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({StubProviders.class, MutableClock.Fixture.class, AccountWithdrawIT.Fixture.class})
 class AccountWithdrawIT {
@@ -91,6 +94,12 @@ class AccountWithdrawIT {
 
     @Autowired
     AccountCleanup cleanup;
+
+    @Autowired
+    AccountCleanupRepository operations;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     @Autowired
     AnalysisStore analysis;
@@ -360,6 +369,44 @@ class AccountWithdrawIT {
         assertThat(cleanup.runDue()).isEqualTo(1);
         assertThat(naver.revokedTokens).containsExactly("naver-refresh:n-1|actor@naver.com");
         assertThat(count("account_cleanup_operations")).isZero();
+    }
+
+    @Test
+    @DisplayName("SOMA-1108: 객체 삭제만 다루는 장부 집기·끝내기·실패 기록은 WAL 확정을 기다리지 않는다. 제공자 해제가 섞이면 기다리고, 커밋 뒤 같은 연결에는 남지 않는다")
+    void cleanupLedger_skipsWalFlushOnlyForObjectDeletes() {
+        UUID user = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
+        UUID recording = dueOperation(user, "reading_recording_delete");
+        UUID photo = dueOperation(user, "object_delete");
+        UUID video = dueOperation(user, "object_delete");
+        UUID unlink = dueOperation(user, "kakao_unlink");
+        UUID revenueCat = dueOperation(user, "revenuecat_delete");
+        Instant now = clock.instant();
+        Duration lease = Duration.ofMinutes(10);
+
+        CommitSetting objectClaim = commitSettingIn(() ->
+                assertThat(operations.claim(List.of(recording, photo), now, lease)).hasSize(2));
+        assertThat(objectClaim.synchronousCommit()).as("객체 삭제만 집기").isEqualTo("off");
+        assertThat(commitSetting()).as("SET LOCAL 이라 커밋 뒤 같은 연결에는 남지 않는다")
+                .isEqualTo(new CommitSetting("on", objectClaim.backendPid()));
+        assertThat(commitSettingIn(() -> operations.succeeded(recording)).synchronousCommit())
+                .as("객체 삭제 끝내기").isEqualTo("off");
+        assertThat(commitSettingIn(() -> operations.failed(photo, "S3Exception", now.plus(Duration.ofMinutes(5)), now))
+                .synchronousCommit()).as("객체 삭제 실패 기록").isEqualTo("off");
+
+        assertThat(commitSettingIn(() ->
+                assertThat(operations.claim(List.of(video, unlink, revenueCat), now, lease)).hasSize(3)).synchronousCommit())
+                .as("제공자 해제가 섞인 집기").isEqualTo("on");
+        assertThat(commitSettingIn(() -> operations.succeeded(unlink)).synchronousCommit())
+                .as("제공자 해제 끝내기").isEqualTo("on");
+        assertThat(commitSettingIn(() -> operations.failed(revenueCat, "Unavailable", now.plus(Duration.ofHours(1)), now))
+                .synchronousCommit()).as("RevenueCat 삭제 실패 기록").isEqualTo("on");
+
+        Instant later = now.plus(Duration.ofMinutes(6));
+        assertThat(commitSettingIn(() ->
+                assertThat(operations.claimDue(later, 20, lease)).extracting(AccountCleanupRepository.CleanupOperation::id)
+                        .containsExactly(photo)).synchronousCommit())
+                .as("때가 된 객체 삭제만 다시 집기").isEqualTo("off");
     }
 
     @Test
@@ -706,6 +753,31 @@ class AccountWithdrawIT {
 
     private int count(String table) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+    }
+
+    private UUID dueOperation(UUID user, String kind) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO account_cleanup_operations(id,user_id,kind,payload_encrypted,next_attempt_at,expires_at)
+                VALUES (?,?,?,'unread',?,?)
+                """, id, user, kind, clock.instant().atOffset(ZoneOffset.UTC),
+                clock.instant().plus(AccountCleanupRepository.RETRY_WINDOW).atOffset(ZoneOffset.UTC));
+        return id;
+    }
+
+    private CommitSetting commitSettingIn(Runnable ledgerCall) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            ledgerCall.run();
+            return commitSetting();
+        });
+    }
+
+    private CommitSetting commitSetting() {
+        return jdbc.queryForObject("SELECT current_setting('synchronous_commit'), CAST(pg_backend_pid() AS text)",
+                (rs, n) -> new CommitSetting(rs.getString(1), rs.getString(2)));
+    }
+
+    private record CommitSetting(String synchronousCommit, String backendPid) {
     }
 
     @TestConfiguration(proxyBeanMethods = false)

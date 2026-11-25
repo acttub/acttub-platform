@@ -7,7 +7,7 @@ import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { ReadingNoScript } from '@/components/reading/no-script';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { useAppDialog } from '@/components/app-dialog';
@@ -27,7 +27,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
- * 대본 상세(R4.1~R4.8, reading.session). 제목·대사 수·「대본 보기」·연습 기록(최근순, 줄마다 회차·구간·배역·상태)·[연습하기].
+ * 대본 상세(R4.1~R4.8, reading.session). 제목·대사 수·「대본 보기」·[목소리]·연습 기록(최근순, 줄마다 회차·구간·배역·상태)·[연습하기].
  * 회차 줄을 누르면 회차 상세, 왼쪽으로 밀면 [삭제]. 머리 ⋯ 는 제목 수정·목소리 바꾸기·대본 삭제.
  */
 export default function ReadingDetail() {
@@ -139,6 +139,16 @@ export default function ReadingDetail() {
             <Text style={styles.viewScriptText}>{t('reading.viewScript')}</Text>
             <Feather name="chevron-right" size={14} color={palette.blueDeep} />
           </Pressable>
+          {/* 배역별 목소리 입구를 ⋯ 밖에도 둔다 — ⋯ 하나뿐이라 목소리 정하기가 없어진 것처럼 보였다(SOMA-860). */}
+          <Button
+            size="sm"
+            label={t('reading.voicesButton')}
+            accessibilityLabel={t('reading.changeVoices')}
+            icon={<Feather name="volume-2" size={14} color={palette.blueDeep} />}
+            phLabel="reading_detail_voices"
+            style={styles.voices}
+            onPress={() => router.push('/reading/roles')}
+          />
         </View>
 
         <Text style={styles.sectionTitle}>{t('reading.sessionsTitle')}</Text>
@@ -230,6 +240,7 @@ const styles = StyleSheet.create({
   meta: { ...type.caption, color: palette.textMeta },
   viewScript: { flexDirection: 'row', alignItems: 'center', gap: space[1], alignSelf: 'flex-start', paddingTop: space[1] },
   viewScriptText: { ...type.body2Bold, color: palette.blueDeep },
+  voices: { alignSelf: 'flex-start', marginTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text, paddingBottom: space[2] },
   row: {
     minHeight: 56,

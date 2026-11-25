@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
  * 한도(계정 분당 {@value AccessGate#PER_USER_PER_MINUTE}, IP 분당 60)를 넘긴 요청이 429 {@code rate limit exceeded} 로 거절되는지, <b>세 자리 전부</b>에서
@@ -31,13 +33,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 앞의 것이 소진시킨 카운터에 뒤의 것이 걸려, 검사가 자기 경로를 밟았는지 알 수 없다. 그래서
  * 케이스마다 사용자를 새로 만든다.
  *
- * <p>⚠ <b>IP 키는 새로 만들 수도 지울 수도 없다.</b> {@code auth-ip:127.0.0.1} 하나를 로그인·갱신이
- * 함께 쓰고, 카운터는 process-local 이라 {@code TRUNCATE} 로도 지워지지 않는다. <b>비우는 수단이
- * 아예 없다</b> — 한때 {@code FixedWindowRateLimiter.reset()} 이 있었지만 하네스 제어 표면이라
- * `SOMA-403` 4단계에 함께 사라졌다. 지금은 이 클래스에서 그 키를 쓰는 것이 갱신 하나뿐이라
- * 성립한다 — <b>여기에 로그인이나 갱신 케이스를 더하면 이미 깎인 창에 걸려
- * {@code isGreaterThan(60)} 이 깨진다.</b> 그때는 케이스를 클래스로 갈라 컨텍스트를 나눠야 한다 —
- * 로그인의 IP 한도는 그래서 {@code LoginRateLimitIT} 에 따로 있다.
+ * <p>⚠ <b>IP 카운터는 지울 수 없다.</b> 카운터는 process-local 이라 {@code TRUNCATE} 로도 지워지지 않고,
+ * 비우는 수단이 아예 없다 — 한때 {@code FixedWindowRateLimiter.reset()} 이 있었지만 하네스 제어 표면이라
+ * `SOMA-403` 4단계에 함께 사라졌다. 컨텍스트를 같이 쓰는 다른 클래스도 127.0.0.1 로 로그인·갱신·가입을 보내므로,
+ * IP 로 세는 케이스는 <b>케이스마다 처음 쓰는 방문자 주소</b>로 보낸다({@link #fromFreshAddress}).
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
@@ -45,6 +44,9 @@ class RateLimitContractIT {
 
     /** 인증 라우터의 IP별 한도. */
     private static final int PER_IP = 60;
+
+    /** IP 케이스마다 새 방문자 주소를 준다. 다른 테스트 클래스와 겹치지 않는 대역이다. */
+    private static final AtomicInteger ADDRESSES = new AtomicInteger();
 
     /**
      * 고정 윈도우는 분 경계에서 카운터를 되돌리므로, 경계를 한 번 넘더라도 <b>반드시</b> 한도를
@@ -95,18 +97,26 @@ class RateLimitContractIT {
     /** 갱신은 인증 이전에 IP 로 센다 — 토큰이 틀려도 카운터는 오른다. */
     @Test
     void theAuthRouterCountsPerIpBeforeItLooksAtTheToken() throws Exception {
+        RequestPostProcessor address = fromFreshAddress();
         assertRejectedAfterTheLimit(PER_IP, () -> post("/v2/auth/refresh")
+                .with(address)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refresh_token\":\"없는 토큰\"}"));
     }
 
     /**
-     * account.login: 가입 제출은 주체가 없는 요청이라 IP 로 센다 — 로그인·갱신과 <b>다른 키</b>라서
-     * 위의 갱신 케이스가 깎아 놓은 창에 걸리지 않는다. 가입 토큰이 틀려도 카운터는 오른다.
+     * account.login: 가입 제출은 주체가 없는 요청이라 IP 로 센다 — 로그인·갱신과 <b>다른 키</b>다. 갱신 케이스와 같은
+     * 주소로 갱신을 한도까지 보낸 뒤에도 가입은 처음부터 센다. 가입 토큰이 틀려도 카운터는 오른다.
      */
     @Test
     void signupCountsPerIpOnItsOwnBucket() throws Exception {
+        RequestPostProcessor address = fromFreshAddress();
+        assertRejectedAfterTheLimit(PER_IP, () -> post("/v2/auth/refresh")
+                .with(address)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refresh_token\":\"없는 토큰\"}"));
         assertRejectedAfterTheLimit(PER_IP, () -> post("/v2/auth/signup")
+                .with(address)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"signup_token\":\"없는 토큰\",\"decisions\":[]}"));
     }
@@ -128,6 +138,14 @@ class RateLimitContractIT {
         }
         throw new AssertionError(
                 enough + " 회를 보내도 429 가 나오지 않았다");
+    }
+
+    private static RequestPostProcessor fromFreshAddress() {
+        String address = "10.71.0." + ADDRESSES.incrementAndGet();
+        return request -> {
+            request.setRemoteAddr(address);
+            return request;
+        };
     }
 
     private UUID insertUser() {

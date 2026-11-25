@@ -26,8 +26,9 @@ import java.util.regex.Pattern;
  * 프레임(1초)이다 — 찾기 사이에 얼굴이 움직여도, 한동안 놓쳐도 직전 상자가 남는다. 타원은 이마부터
  * 턱 바로 아래까지이고 목은 남긴다({@link #blurFaces}).
  *
- * <p><b>얼굴을 한 번도 찾지 못하면 {@link NoFaceFound} 다</b> — 부르는 쪽은 모자이크본 없이 실패로 닫는다(가리지 못한
- * 사본을 공개용으로 내지 않는다). 각 단계는 {@link FfmpegLock} 을 따로 잡는다 — 다른 영상 일이 그 사이에 끼어든다.
+ * <p><b>얼굴을 한 번도 찾지 못하면 {@link NoFaceFound} 다</b> — 가리지 못한 사본은 만들지 않는다. 그다음은 부르는 쪽이
+ * 정한다. 연습 분석과 코치는 원본으로 이어 가고(practice.start), 챌린지 참여작은 얼굴 가리기를 끄고 원본으로 둔다
+ * (challenge.entry). 각 단계는 {@link FfmpegLock} 을 따로 잡는다 — 다른 영상 일이 그 사이에 끼어든다.
  */
 public final class FaceMosaicRenderer implements FaceMosaic {
     static final int FPS = 30;

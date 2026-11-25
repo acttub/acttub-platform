@@ -683,11 +683,12 @@ class PostgresConversationRepository implements ConversationRepository {
      * 경로로 열린다 — 최근 하나로 자르지 않는다(practice.coach).
      *
      * <p>종료 사유는 옛 어휘를 그대로 낸다. 전환 명령은 새 어휘로 옮기지만, 여기서 읽는 것은 아직 옛 표에
-     * 있는 행이고 그 행의 값을 고쳐 보이지 않는다.
+     * 있는 행이고 그 행의 값을 고쳐 보이지 않는다. 다만 상태는 늘 closed 로 낸다 — 답·이어 하기는 새 표만 보므로
+     * 옛 표의 열린 대화에는 이어 말할 수 없다(practice README 「호환 읽기」).
      */
     private ConversationView legacyConversation(UUID userId, UUID conversationId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT cs.id,cs.practice_session_id,cs.status::text AS status,
+                SELECT cs.id,cs.practice_session_id,
                        cs.close_reason::text AS close_reason,cs.state_revision,cs.created_at,ps.experience_version
                 FROM coach_sessions cs
                 JOIN practice_sessions ps ON ps.id=cs.practice_session_id
@@ -715,7 +716,7 @@ class PostgresConversationRepository implements ConversationRepository {
         return new ConversationView(
                 row.get("id", UUID.class),
                 row.get("practice_session_id", UUID.class),
-                row.get("status", String.class),
+                "closed",
                 row.get("close_reason", String.class),
                 row.get("experience_version", String.class),
                 ((Number) row.get("state_revision")).longValue(),

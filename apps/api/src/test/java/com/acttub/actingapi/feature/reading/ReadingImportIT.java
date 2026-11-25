@@ -29,6 +29,7 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.DeciderTally;
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitProgress;
@@ -73,13 +74,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
-    "ANALYSIS_WORKER_ENABLED=false",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "CHALLENGE_SETTLEMENT_ENABLED=false",
     // 한도 경쟁 테스트가 요청 여럿을 동시에 보낸다 — 저마다 커넥션을 쥔 채 users 행 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=12"
-})
+    "spring.datasource.hikari.maximum-pool-size=12"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingImportIT.Model.class})
 class ReadingImportIT {
@@ -217,8 +213,12 @@ class ReadingImportIT {
     private UUID member;
     private String bearer;
 
+    /** 나누기 호출을 다시 묻기 전의 쉼. 실제로 자지 않고 길이만 적는다(재시도 테스트가 1·2초를 쉬지 않게). */
+    private final List<Duration> pauses = new CopyOnWriteArrayList<>();
+
     @BeforeEach
     void setUp() {
+        worker.pausingWith(pauses::add);
         clock.set(NOW);
         Model.CALLS.clear();
         Model.answer = Model::oracle;
@@ -831,7 +831,7 @@ class ReadingImportIT {
         LineReview.Settings r = ScriptSplitRules.REVIEW;
         LineReview.Settings oneAtATime = new LineReview.Settings(r.mode(), r.kindThreshold(), r.dropThreshold(), r.speakerThreshold(),
                 r.edgeThreshold(), r.speechThreshold(), r.blockThreshold(), 1);
-        ScriptSplitWorker reviewing = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, oneAtATime);
+        ScriptSplitWorker reviewing = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, oneAtATime, null, null, ScriptSplitMode.LLM);
         String text = "니나: 저는 갈매기예요.\n트레플레프: 아니, 당신은 배우예요.\n니나: 아니에요.\n트레플레프: 그래요.\n니나: 가요.";
         String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").stringValue(null);
         assertThat(LenientJson.intValue(json(get("/v2/reading/imports/{id}", id), 200).path("progress").path("percent"))).isZero();
@@ -871,7 +871,7 @@ class ReadingImportIT {
                 throw new AssertionError("같은 사람 판단은 꺼져 있다");
             }
         };
-        ScriptSplitWorker gated = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, null);
+        ScriptSplitWorker gated = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, null, null, null, ScriptSplitMode.LLM);
         String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").stringValue(null);
         assertThat(gated.runOnce(clock.instant())).isTrue();
         JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
@@ -891,6 +891,7 @@ class ReadingImportIT {
         assertThat(failed.path("status").stringValue(null)).isEqualTo("failed");
         assertThat(failed.path("failure").stringValue(null)).isEqualTo("failed");
         assertThat(Model.CALLS).hasSize(3);
+        assertThat(pauses).as("다시 묻기 전에 1초, 2초 쉰다").containsExactly(Duration.ofSeconds(1), Duration.ofSeconds(2));
         assertThat(failures.reports()).singleElement().satisfies(report -> {
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context()).startsWith("ScriptSplitWorker.run");
@@ -975,6 +976,7 @@ class ReadingImportIT {
         String scriptId = split(SPACED);
 
         assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(true, true, true, false);
+        assertThat(pauses).containsExactly(Duration.ofSeconds(1), Duration.ofSeconds(2));
         assertThat(failures.reports()).singleElement().satisfies(report -> {
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context()).startsWith("ScriptSplitWorker.spacing");

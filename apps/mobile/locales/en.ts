@@ -957,7 +957,6 @@ const en: DeepStringShape<typeof ko> = {
     goal: 'Goal',
     rights:
       'I have the right to film and upload this video, have consent from anyone appearing in it, and it does not infringe any copyright or portrait rights in scripts, music, or footage.',
-    submitRetake: 'Continue with this',
     submitNew: 'Get questions',
     submitUploading: 'Uploading…',
     waitTitle: 'Uploading your video',
@@ -1000,7 +999,6 @@ const en: DeepStringShape<typeof ko> = {
     readyBubble: 'We’ll ask about this video',
   },
   blockage: {
-    sceneFold: 'View video & scene',
     detailTitle: 'Add a little detail',
   },
   analyzing: {
@@ -1130,12 +1128,9 @@ const en: DeepStringShape<typeof ko> = {
     loadFailTitle: "Couldn't load your practice note",
     loadFailBody: 'Please try again in a moment.',
     noneTitle: 'No summary yet',
-    noneBody: 'Open it again in a little while.',
     noneDetailBody: "It'll show up here once coaching ends.",
     finish: 'Finish practice',
     // Actor journal and wrap-up (SOMA-748)
-    saveFinish: 'Save and finish',
-    recordForCoach: 'Record a video for coaching',
     doneTitle: 'Nice work!\nTry just this one thing in your next take',
     doneTitleNoNext: 'Nice work!\nYou finished today’s coaching',
     doneNextLabel: 'Try next',
@@ -1195,7 +1190,6 @@ const en: DeepStringShape<typeof ko> = {
     rateThanks: 'Thank you! We’ll fold it into the next session.',
     noPracticeTitle: 'No practice in progress',
     noPracticeBody: 'Start a new practice from Home.',
-    making: 'Turning the conversation into your card…',
   },
   consent: {
     adSuffix: '(ad)',
@@ -1556,15 +1550,9 @@ const en: DeepStringShape<typeof ko> = {
     upload: 'Upload video',
     analyzing: 'Analyzing',
     coach: 'Reflect with coach',
-    report: 'Today’s summary',
   },
   practiceChrome: {
     noVideo: 'No video available to rewatch.',
-    rowSituation: 'Situation',
-    rowCharacter: 'Character',
-    rowGoal: 'Goal',
-    rowBlockage: 'Stuck point',
-    rowTitle: 'Practice title',
   },
   errors: {
     requestChanged: 'The request changed. Please send it again.',
@@ -1750,6 +1738,7 @@ const en: DeepStringShape<typeof ko> = {
     lineEditRename: "Rename '{{name}}'",
     lineEditText: 'Text',
     lineEditFailed: "Couldn't save. Please try again in a moment.",
+    lineMenuReadFrom: 'Read from here',
     lineMenuEdit: 'Edit',
     lineMenuSplit: 'Split',
     lineMenuInsert: 'Add below',
@@ -1950,6 +1939,7 @@ const en: DeepStringShape<typeof ko> = {
     viewScript: 'View script',
     practice: 'Practice',
     changeVoices: 'Change voices',
+    voicesButton: 'Voices',
     sessionRecordings: '{{count}} recordings',
     sessionInProgressAt: 'In progress · {{done}}/{{total}}',
     sessionTitle: 'Session',

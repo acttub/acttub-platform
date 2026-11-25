@@ -40,11 +40,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 찍을 대사 같이 만들기(SOMA-721) — 만들기·다시 보내기·고치기·되돌리기·확정을 HTTP 와 실제 Postgres 로 본다. 확정한 대본이
  * 기존 「내 대본」(reading.script)으로 읽히는지도 본다. 모델은 가짜다(1분 독백 하나를 낸다).
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    "ACCOUNT_CLEANUP_ENABLED=false",
-    "ACCOUNT_HOUSEKEEPING_ENABLED=false"
-})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ScriptCocreateIT.FakeModel.class})
 class ScriptCocreateIT {

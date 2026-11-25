@@ -1,0 +1,492 @@
+
+## 차례 1
+배우 말: (없음, 첫 응답)
+
+### 모델 호출
+[1] inspect · main
+  파일: 임시 파일 «original video bytes»
+  ← InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+[2] upload/3 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: InputInspection[hasAudioTrack=true, fullBlack=false, hasAudioSignal=true]
+  이름표: null
+  ← files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+[3] ready · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  ← true
+[4] reply · main
+  생각 최소: false
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+  기록:
+    (비었음)
+  지시문:
+    |## 배우가 적은 것
+    |이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
+    |- 상황: In a garden with my crush
+    |
+    |⟪practiceLoop(en) sha256:360a28767cfe8531⟫
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «<설계>⏎영상: 연기⏎대사 확인: 확인됨⏎인물: wants to be held⏎버릇: lets the line trail off⏎확인할 대사: don't go⏎근본 문제: 2⏎</설계>⏎<코치>⏎What did she want from him in this scene?⏎</코치>»
+[5] delete · main
+  영상: files/main-1 gemini://main-1 video/mp4 소리 트랙 true
+
+### 관측 기록
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.en
+    |⟪direct-video/practice-loop.en.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=840
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |[]
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 1
+코치 말:
+  |What did she want from him in this scene?
+저장 상태:
+  |{
+  |  "revision" : 1,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "영상: 연기\n대사 확인: 확인됨\n인물: wants to be held\n버릇: lets the line trail off\n확인할 대사: don't go\n근본 문제: 2",
+  |    "statuses" : [ "" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: []
+
+## 차례 2
+배우 말: I wanted her to stay with me
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |What did she want from him in this scene?
+    [user]
+      |I wanted her to stay with me
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["answered"]}»
+[2] upload/2 · main
+  파일: 임시 파일 «original video bytes»
+  형식: video/mp4
+  검사: null
+  이름표: null
+  ← files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+[3] ready · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  ← true
+[4] reply · main
+  생각 최소: true
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+  기록:
+    [model]
+      |<설계>
+      |영상: 연기
+      |대사 확인: 확인됨
+      |인물: wants to be held
+      |버릇: lets the line trail off
+      |확인할 대사: don't go
+      |근본 문제: 2
+      |</설계>
+      |<코치>
+      |What did she want from him in this scene?
+      |</코치>
+    [user]
+      |I wanted her to stay with me
+  지시문:
+    |## 배우가 적은 것
+    |이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
+    |- 상황: In a garden with my crush
+    |
+    |⟪direct-video/practice-loop-turn.en.txt⟫
+    |
+    |[This reply]
+    |Current step: 2/4 보여 주기와 어긋남 — 근본 문제를 배우의 첫 답에 비춰 처음 보여 주고, 배우가 어긋남을 스스로 보게 한다
+    |⟪direct-video/tasks/en/gap.txt⟫
+    |⟪direct-video/roots/en/purpose.txt⟫
+    |
+    |Material
+    |- 정리에서 확인할 대사: don't go
+    |- 이 배우의 문제: lets the line trail off
+    |- 인물: wants to be held
+    |- 배우가 말한 첫 답: I wanted her to stay with me
+    |- 배우가 방금 한 말: I wanted her to stay with me
+    |- 코치가 앞에서 이미 한 질문(같은 뜻으로 다시 묻지 않는다. 같은 걸 알아야 하면 다른 쪽에서 묻거나 질문 없이 끝낸다): What did she want from him in this scene?
+    |대사 확인: 확인됨
+    |
+    |[예시 답 칸]
+    |배우에게 질문으로 끝나는 말을 했으면, 응답 맨 끝(다른 칸을 다 쓴 뒤)에 숨은 칸 <보기>를 하나 더 쓴다. 이 칸은 위의 "그 밖에는 쓰지 않는다"는 형식 규칙의 예외다.
+    |- 안에는 배우가 방금 그 질문에 바로 골라 보낼 수 있는 예시 답을 1~2개, 한 줄에 하나씩 쓴다.
+    |- 배우가 할 말투로, 배우에게 하는 말과 같은 언어로, 20자 안쪽 한 문장으로 쓴다. 한국어면 "~요"로 끝나는 존댓말로 쓴다.
+    |- 두 개를 쓰면 서로 다른 방향의 답으로 쓴다. 질문이 두 쪽 중 고르게 했으면 그 두 쪽을 배우 말로 쓴다.
+    |- 정답을 정해 주는 말이 아니라 배우가 할 법한 답이다. 코치 말에 없던 새 지적이나 방법을 넣지 않는다.
+    |- 따옴표, 영상 시간, "잘 모르겠어요", "직접 쓰기"는 쓰지 않는다(앱이 따로 둔다).
+    |- 질문하지 않은 말(정리, 마무리, 연기 영상이 아니라는 말)에는 <보기>를 쓰지 않는다.
+    |- 반드시 </보기>로 닫는다.
+    |예:
+    |<보기>
+    |헤어지자고 한 남자친구한테요
+    |저를 오해한 엄마한테요
+    |</보기>
+    |
+  ← «You let "don't go" trail off. Did it sound like holding on?»
+[5] delete · main
+  영상: files/main-2 gemini://main-2 video/mp4 소리 트랙 null
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+- COACH_TURN · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.turn.en
+    |⟪direct-video/practice-loop-turn.en.txt⟫
+  metadata:
+    already_arm=off
+    broken_retry=false
+    candidates_tokens=-1
+    classify_ms=(시간)
+    coach_model_arm=a
+    empty_retry=false
+    layer1_arm=off
+    layer1_used=false
+    layer1_wait=false
+    light_retry=false
+    model_fallback=false
+    polish_calls=0
+    reply_ms=(시간)
+    route=practice_loop:어긋남 보기
+    route_fallback=false
+    shorten_calls=0
+    shorten_ms=(시간)
+    stream=false
+    thoughts_tokens=-1
+    timestamp_retry=false
+    timestamp_stripped=false
+    transport=gemini_direct_video
+    video_budget_omitted=false
+    video_budget_tokens=1680
+    video_ms=(시간)
+    video_omitted=false
+    video_reused=false
+    warm_wait_ms=(시간)
+  입력:
+    |⟪호출 4 지시문⟫
+    |⟪호출 4 기록⟫
+  출력:
+    |⟪호출 4 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+- INFO coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} thoughts_tokens={} candidates_tokens={}
+
+### 결과
+응답 상태: continue
+대화 상태: open · 닫힌 사유:  · 판: 2
+코치 말:
+  |You let "don't go" trail off. Did it sound like holding on?
+저장 상태:
+  |{
+  |  "revision" : 2,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "대사 확인: 확인됨\n배우의 말: 답\n지금까지: 같은 버릇 질문 1번 · 짚어주기 0번 · 방법 주기 0번 · 응답 2번째\n이번 목표: 없음\n피할 것: 없음\n할 일: 어긋남 보기\n다음 테이크: 없음\n단계: 3\n첫 답: I wanted her to stay with me\n분류: model" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |(없음)
+화면의 목적 칸: null
+화면의 예시 답: []
+
+## 차례 3
+배우 말: Okay that is enough practice for me today
+
+### 모델 호출
+[1] classify · main
+  생각 최소: false
+  기록:
+    [model]
+      |What did she want from him in this scene?
+    [user]
+      |I wanted her to stay with me
+    [model]
+      |You let "don't go" trail off. Did it sound like holding on?
+    [user]
+      |Okay that is enough practice for me today
+  지시문:
+    |⟪direct-video/practice-loop-classify.txt⟫
+  분류 목록: [answered, missed, not_yet, why, correction, pushback, method, evaluation, question, stop, decided, ack, want, line_fix, already]
+  ← «{"signals":["stop"]}»
+
+### 관측 기록
+- COACH_ROUTE · gemini-3-flash-preview · 실패 없음
+  회차·배우: 00000000-0000-4000-8000-000000000002 · 00000000-0000-4000-8000-000000000003
+  토큰: LlmTokens[input=1200, output=60, total=1260, cachedInput=400] · 비용: null
+  프롬프트: coach.practice-loop.classify
+    |⟪direct-video/practice-loop-classify.txt⟫
+  metadata:
+    route=practice_loop_classify
+    transport=gemini_text_routing
+  입력:
+    |⟪호출 1 지시문⟫
+    |⟪호출 1 기록⟫
+  출력:
+    |⟪호출 1 답⟫
+
+### 실패 보고
+(없음)
+
+### 로그
+
+### 결과
+응답 상태: complete
+대화 상태: closed · 닫힌 사유: actor_finished · 판: 3
+코치 말:
+  |That's it for today. Upload a new take and we'll pick up from here.
+저장 상태:
+  |{
+  |  "revision" : 3,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "active_proposal_id" : null,
+  |  "proposals" : [ ],
+  |  "attempts" : [ ],
+  |  "response_style" : "normal",
+  |  "source_catalog" : [ ],
+  |  "layer1" : {
+  |    "arm" : "off"
+  |  },
+  |  "practice_loop" : {
+  |    "coach_model" : "a",
+  |    "flow" : "a",
+  |    "already_ab" : "off",
+  |    "evidence_ab" : "off",
+  |    "design" : "⟪받은 상태와 같음⟫",
+  |    "statuses" : [ "", "⟪받은 상태와 같음⟫", "대사 확인: 확인됨\n배우의 말: 그만\n지금까지: 같은 버릇 질문 1번 · 짚어주기 0번 · 방법 주기 0번 · 응답 3번째\n이번 목표: 없음\n피할 것: 없음\n할 일: 끝\n다음 테이크: 없음\n단계: 3\n분류: model" ]
+  |  },
+  |  "pro_memory" : {
+  |    "pro" : false,
+  |    "block" : ""
+  |  }
+  |}
+handoff:
+  |{
+  |  "schema_version" : "acttub.coach_handoff.v2",
+  |  "session_id" : "00000000-0000-4000-8000-000000000001",
+  |  "state_revision" : 3,
+  |  "end_reason" : "actor_finished",
+  |  "record_ref" : null,
+  |  "context" : {
+  |    "direction" : null,
+  |    "scene_context" : {
+  |      "situation" : null,
+  |      "character_goal" : null,
+  |      "partner_action" : null
+  |    },
+  |    "focus" : null,
+  |    "reading" : null,
+  |    "open_points" : [ ]
+  |  },
+  |  "conversation" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "role" : "ai",
+  |    "text" : "What did she want from him in this scene?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "role" : "actor",
+  |    "text" : "I wanted her to stay with me"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "role" : "ai",
+  |    "text" : "You let \"don't go\" trail off. Did it sound like holding on?"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "role" : "actor",
+  |    "text" : "Okay that is enough practice for me today"
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "role" : "ai",
+  |    "text" : "That's it for today. Upload a new take and we'll pick up from here."
+  |  } ],
+  |  "source_catalog" : [ {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:0",
+  |    "kind" : "coach_message",
+  |    "text" : "What did she want from him in this scene?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:1",
+  |    "kind" : "actor_message",
+  |    "text" : "I wanted her to stay with me",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:2",
+  |    "kind" : "coach_message",
+  |    "text" : "You let \"don't go\" trail off. Did it sound like holding on?",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:3",
+  |    "kind" : "actor_message",
+  |    "text" : "Okay that is enough practice for me today",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  }, {
+  |    "id" : "turn:00000000-0000-4000-8000-000000000001:4",
+  |    "kind" : "coach_message",
+  |    "text" : "That's it for today. Upload a new take and we'll pick up from here.",
+  |    "record_id" : null,
+  |    "record_version" : null,
+  |    "start_ms" : null,
+  |    "end_ms" : null
+  |  } ]
+  |}
+화면의 목적 칸: null
+화면의 예시 답: []
+연습 루프 노트:
+  |NewNote[format=v2, kind=observation, title=lets the line trail off, summaryQuotes=[{"quote":"lets the line trail off","kind":"observation","source_ref":"turn:00000000-0000-4000-8000-000000000001:0"}], nextTake=null, actorWords=[], corrections=[], tags=[], fallback=false, sourceRevision=3, legacyReport=null]

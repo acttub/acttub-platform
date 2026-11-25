@@ -39,7 +39,7 @@ class CloudVoiceServiceTest {
     void statusReflectsConsentAndUsage() {
         repository.consent = "granted";
         repository.daily = 12;
-        var status = service(settings()).status(USER);
+        var status = service(settings()).status(USER, null, null);
         assertThat(status.available()).isTrue();
         assertThat(status.consent()).isEqualTo("granted");
         assertThat(status.dailyUsed()).isEqualTo(12);
@@ -55,7 +55,7 @@ class CloudVoiceServiceTest {
         repository.consent = "granted";
         repository.daily = 300;
         repository.cached = true;
-        var result = service(settings()).synthesize(USER, " hello ", "F1");
+        var result = service(settings()).synthesize(USER, " hello ", "F1", null);
         assertThat(result.cached()).isTrue();
         assertThat(calls).hasValue(0);
         assertThat(repository.increments).isZero();
@@ -71,7 +71,7 @@ class CloudVoiceServiceTest {
     @Test
     void cacheMissSynthesizesOnceStoresWavAndIncrementsUsage() {
         repository.consent = "granted";
-        var result = service(settings()).synthesize(USER, " hello ", "F1");
+        var result = service(settings()).synthesize(USER, " hello ", "F1", null);
         assertThat(result.cached()).isFalse();
         assertThat(calls).hasValue(1);
         assertThat(repository.increments).isEqualTo(1);
@@ -84,7 +84,7 @@ class CloudVoiceServiceTest {
         repository.consent = "granted";
         String sentence = "가".repeat(79) + ". ";
         String text = sentence.repeat(5).trim();
-        var result = service(settings()).synthesize(USER, text, "F1");
+        var result = service(settings()).synthesize(USER, text, "F1", null);
         assertThat(result.cached()).isFalse();
         assertThat(asked).hasSize(3).allSatisfy(part -> assertThat(part).hasSizeBetween(1, CloudVoiceService.CHUNK_CHARS).endsWith("."));
         assertThat(String.join(" ", asked)).isEqualTo(text);
@@ -108,7 +108,7 @@ class CloudVoiceServiceTest {
         repository.consent = "granted";
         var target = service(settings());
         for (String text : List.of("  ", "가".repeat(CloudVoiceService.MAX_CHARS + 1))) {
-            assertThatThrownBy(() -> target.synthesize(USER, text, "F1"))
+            assertThatThrownBy(() -> target.synthesize(USER, text, "F1", null))
                     .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getMessage()).isEqualTo("invalid_voice_request"));
         }
         assertThat(calls).hasValue(0);
@@ -127,39 +127,34 @@ class CloudVoiceServiceTest {
     void afterFreePeriodOnlyProCanUseAndStatusHidesFreeDate() {
         repository.consent = "granted";
         CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
-        CloudVoiceService free = new CloudVoiceService(repository, storage, synthesizer, ended,
-                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
-        assertThat(free.status(USER).available()).isFalse();
-        assertThat(free.status(USER).freeUntil()).isNull();
+        CloudVoiceService free = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false, UpcomingVoiceLines.NONE, null);
+        assertThat(free.status(USER, null, null).available()).isFalse();
+        assertThat(free.status(USER, null, null).freeUntil()).isNull();
         assertDetail(free, 503, "cloud_voice_unavailable");
 
-        CloudVoiceService pro = new CloudVoiceService(repository, storage, synthesizer, ended,
-                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
-        assertThat(pro.status(USER).available()).isTrue();
-        assertThat(pro.status(USER).freeUntil()).isNull();
-        assertThat(pro.synthesize(USER, "안녕하세요.", "F1")).isNotNull();
+        CloudVoiceService pro = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true, UpcomingVoiceLines.NONE, null);
+        assertThat(pro.status(USER, null, null).available()).isTrue();
+        assertThat(pro.status(USER, null, null).freeUntil()).isNull();
+        assertThat(pro.synthesize(USER, "안녕하세요.", "F1", null)).isNotNull();
     }
 
     @Test
     void duringFreePeriodEveryoneCanUseAndStatusShowsFreeDate() {
-        CloudVoiceService target = new CloudVoiceService(repository, storage, synthesizer, settings(),
-                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
-        assertThat(target.status(USER).available()).isTrue();
-        assertThat(target.status(USER).freeUntil()).isEqualTo(OffsetDateTime.parse("2026-11-30T23:59:59+09:00"));
+        CloudVoiceService target = new CloudVoiceService(repository, storage, synthesizer, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false, UpcomingVoiceLines.NONE, null);
+        assertThat(target.status(USER, null, null).available()).isTrue();
+        assertThat(target.status(USER, null, null).freeUntil()).isEqualTo(OffsetDateTime.parse("2026-11-30T23:59:59+09:00"));
     }
 
     @Test
     void proIsNotBlockedByServiceWideMonthlyCap() {
         repository.monthly = 75_000;
         CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
-        CloudVoiceService pro = new CloudVoiceService(repository, storage, synthesizer, ended,
-                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
-        assertThat(pro.status(USER).available()).isTrue();
+        CloudVoiceService pro = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true, UpcomingVoiceLines.NONE, null);
+        assertThat(pro.status(USER, null, null).available()).isTrue();
     }
 
     private CloudVoiceService pro() {
-        return new CloudVoiceService(repository, storage, synthesizer, settings(),
-                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), id -> true);
+        return new CloudVoiceService(repository, storage, synthesizer, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), id -> true, UpcomingVoiceLines.NONE, null);
     }
 
     @Test
@@ -168,11 +163,11 @@ class CloudVoiceServiceTest {
         repository.daily = 300;
         repository.monthly = 90_000;
         repository.accountMonthly = 1_234;
-        var status = pro().status(USER);
+        var status = pro().status(USER, null, null);
         assertThat(status.available()).isTrue();
         assertThat(status.dailyLimit()).isEqualTo(10_000);
         assertThat(status.dailyUsed()).isEqualTo(1_234);
-        assertThat(pro().synthesize(USER, "새 대사", "F1").cached()).isFalse();
+        assertThat(pro().synthesize(USER, "새 대사", "F1", null).cached()).isFalse();
         assertThat(repository.accountMonthly).isEqualTo(1_235);
     }
 
@@ -180,7 +175,7 @@ class CloudVoiceServiceTest {
     void proAllowsTenThousandthLineButRejectsTheNextOne() {
         repository.consent = "granted";
         repository.accountMonthly = 9_999;
-        assertThat(pro().synthesize(USER, "마지막 한 줄", "F1").cached()).isFalse();
+        assertThat(pro().synthesize(USER, "마지막 한 줄", "F1", null).cached()).isFalse();
         assertThat(repository.accountMonthly).isEqualTo(10_000);
         assertDetail(pro(), 429, "cloud_voice_monthly_limit");
         assertThat(calls).hasValue(1);
@@ -191,7 +186,7 @@ class CloudVoiceServiceTest {
         repository.consent = "granted";
         repository.accountMonthly = 10_000;
         repository.cached = true;
-        assertThat(pro().synthesize(USER, "이미 만든 줄", "F1").cached()).isTrue();
+        assertThat(pro().synthesize(USER, "이미 만든 줄", "F1", null).cached()).isTrue();
         assertThat(calls).hasValue(0);
         assertThat(repository.increments).isZero();
     }
@@ -206,15 +201,14 @@ class CloudVoiceServiceTest {
 
     @Test
     void proMonthStartsAtKoreanMidnightOnTheFirst() {
-        var target = new CloudVoiceService(repository, storage, synthesizer, settings(),
-                Clock.fixed(Instant.parse("2026-10-31T15:00:00Z"), ZoneId.of("UTC")), id -> true);
-        target.status(USER);
+        var target = new CloudVoiceService(repository, storage, synthesizer, settings(), Clock.fixed(Instant.parse("2026-10-31T15:00:00Z"), ZoneId.of("UTC")), id -> true, UpcomingVoiceLines.NONE, null);
+        target.status(USER, null, null);
         assertThat(repository.queriedMonth).isEqualTo(java.time.YearMonth.of(2026, 11));
     }
 
     private CloudVoiceService endedFree() {
         CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
-        return new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
+        return new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false, UpcomingVoiceLines.NONE, null);
     }
 
     @Test
@@ -340,8 +334,8 @@ class CloudVoiceServiceTest {
         assertThatThrownBy(() -> service.synthesize(USER, "하나", "M1", again))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getMessage()).isEqualTo("cloud_voice_consent_required"));
         repository.consent = "granted";
-        assertThat(service.status(USER).available()).isFalse();
-        assertThatThrownBy(() -> service.synthesize(USER, "하나", "M1"))
+        assertThat(service.status(USER, null, null).available()).isFalse();
+        assertThatThrownBy(() -> service.synthesize(USER, "하나", "M1", null))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(503));
     }
 
@@ -356,7 +350,7 @@ class CloudVoiceServiceTest {
     @Test
     void oldAppRequestsWithoutScriptInfoBehaveAsBefore() {
         repository.firstSessions.add(UUID.randomUUID());
-        var status = endedFree().status(USER);
+        var status = endedFree().status(USER, null, null);
         assertThat(status.available()).isFalse();
         assertThat(status.reason()).isNull();
         assertDetail(endedFree(), 503, "cloud_voice_unavailable");
@@ -380,10 +374,10 @@ class CloudVoiceServiceTest {
     @Test
     void reasonIsProOrFreePeriod() {
         CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000, 10_000);
-        var pro = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
-        assertThat(pro.status(USER).reason()).isEqualTo("pro");
-        assertThat(pro.status(USER).proOnly()).isFalse();
-        assertThat(service(settings()).status(USER).reason()).isEqualTo("free_period");
+        var pro = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true, UpcomingVoiceLines.NONE, null);
+        assertThat(pro.status(USER, null, null).reason()).isEqualTo("pro");
+        assertThat(pro.status(USER, null, null).proOnly()).isFalse();
+        assertThat(service(settings()).status(USER, null, null).reason()).isEqualTo("free_period");
     }
 
     @Test
@@ -437,7 +431,7 @@ class CloudVoiceServiceTest {
         repository.consent = "granted";
         List<String> looked = new CopyOnWriteArrayList<>();
         var service = withUpcoming((u, s, text, preset, count) -> { looked.add(text); return List.of(); }, Runnable::run);
-        service.synthesize(USER, "하나", "F1");
+        service.synthesize(USER, "하나", "F1", null);
         assertThat(looked).isEmpty();
     }
 
@@ -455,7 +449,7 @@ class CloudVoiceServiceTest {
         // 새 회차·회차 없는 요청은 한도를 지킨다.
         assertThatThrownBy(() -> service.synthesize(USER, "넷", "M1", UUID.randomUUID()))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(429));
-        assertThatThrownBy(() -> service.synthesize(USER, "넷", "M1"))
+        assertThatThrownBy(() -> service.synthesize(USER, "넷", "M1", null))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(429));
     }
 
@@ -469,7 +463,7 @@ class CloudVoiceServiceTest {
             public Clock withZone(ZoneId zone) { return this; }
             public Instant instant() { return now.get(); }
         };
-        var service = new CloudVoiceService(repository, storage, synthesizer, settings(), moving);
+        var service = new CloudVoiceService(repository, storage, synthesizer, settings(), moving, VoicePlan.NONE, UpcomingVoiceLines.NONE, null);
         service.synthesize(USER, "하나", "F1", session);
         now.set(NOW.plus(java.time.Duration.ofDays(1)));
         repository.daily = 300;
@@ -511,11 +505,11 @@ class CloudVoiceServiceTest {
             try { release.await(5, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
             return new byte[] {1, 2, 3, 4};
         };
-        var service = new CloudVoiceService(repository, storage, slow, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+        var service = new CloudVoiceService(repository, storage, slow, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), VoicePlan.NONE, UpcomingVoiceLines.NONE, null);
         try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
-            var a = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            var a = pool.submit(() -> service.synthesize(USER, "하나", "F1", null));
             assertThat(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
-            var b = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            var b = pool.submit(() -> service.synthesize(USER, "하나", "F1", null));
             Thread.sleep(100);
             release.countDown();
             assertThat(a.get().audioUrl()).isEqualTo(b.get().audioUrl());
@@ -536,11 +530,11 @@ class CloudVoiceServiceTest {
             try { release.await(5, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
             throw new IllegalStateException("gemini down");
         };
-        var service = new CloudVoiceService(repository, storage, failing, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+        var service = new CloudVoiceService(repository, storage, failing, settings(), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), VoicePlan.NONE, UpcomingVoiceLines.NONE, null);
         try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
-            var a = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            var a = pool.submit(() -> service.synthesize(USER, "하나", "F1", null));
             assertThat(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
-            var b = pool.submit(() -> service.synthesize(USER, "하나", "F1"));
+            var b = pool.submit(() -> service.synthesize(USER, "하나", "F1", null));
             Thread.sleep(100);
             release.countDown();
             for (var f : List.of(a, b)) {
@@ -604,8 +598,7 @@ class CloudVoiceServiceTest {
     }
 
     private CloudVoiceService service(CloudVoiceSettings settings) {
-        return new CloudVoiceService(repository, storage, synthesizer, settings,
-                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+        return new CloudVoiceService(repository, storage, synthesizer, settings, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), VoicePlan.NONE, UpcomingVoiceLines.NONE, null);
     }
 
     // ── SOMA-1000: 지금 읽는 줄보다 너무 앞선 줄은 읽는 사람이 다가올 때까지 만들지 않는다 ──
@@ -667,7 +660,7 @@ class CloudVoiceServiceTest {
     void savedLineIsGivenRightAwayEvenFarAhead() {
         repository.consent = "granted";
         var maker = withUpcoming(UpcomingVoiceLines.NONE, Runnable::run);
-        maker.synthesize(USER, "하나", "F1");
+        maker.synthesize(USER, "하나", "F1", null);
         List<Long> slept = new CopyOnWriteArrayList<>();
         var service = withUpcoming(aheadSequence(List.of(), 30), Runnable::run).pausingWith(slept::add);
         var result = service.synthesize(USER, "하나", "F1", UUID.randomUUID());
@@ -694,7 +687,7 @@ class CloudVoiceServiceTest {
         }, Runnable::run).pausingWith(slept::add);
         failing.synthesize(USER, "둘", "F1", UUID.randomUUID());
         var noSession = withUpcoming(aheadSequence(List.of(), 30), Runnable::run).pausingWith(slept::add);
-        noSession.synthesize(USER, "셋", "F1");
+        noSession.synthesize(USER, "셋", "F1", null);
         assertThat(slept).isEmpty();
         assertThat(asked).containsExactly("하나", "둘", "셋");
     }
@@ -711,7 +704,7 @@ class CloudVoiceServiceTest {
     }
 
     private void assertDetail(CloudVoiceService target, int status, String detail) {
-        assertThatThrownBy(() -> target.synthesize(USER, "hello", "F1"))
+        assertThatThrownBy(() -> target.synthesize(USER, "hello", "F1", null))
                 .isInstanceOfSatisfying(ApiException.class, error -> {
                     assertThat(error.status()).isEqualTo(status);
                     assertThat(error.getMessage()).isEqualTo(detail);

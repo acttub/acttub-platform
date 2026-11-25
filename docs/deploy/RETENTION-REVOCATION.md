@@ -6,7 +6,7 @@
 
 끝났다고 말할 수 있는 조건은 넷이다: **본인 확인을 했고, 그 계정의 영상·포스터·녹음 객체가 저장소에 없고,
 보관함 영상 행에 파기 표시(`purged_at`)가 찍혔고 녹음 행(전사 포함)이 없고, 동의 기록의 마지막 줄이
-`revoked` 다.** 파기하는 범위는 서버가 탈퇴 3년 뒤에 스스로 하는 파기(`PostgresProfileRepository#purgeRetained`)와
+탈퇴 뒤에 적은 `declined` 다.** 파기하는 범위는 서버가 탈퇴 3년 뒤에 스스로 하는 파기(`PostgresProfileRepository#purgeRetained`)와
 같다.
 
 - 대상은 **탈퇴한 지 3년이 안 된 회원 계정**뿐이다. 3년이 지나면 매일 도는 일이 해시 행과 영상·녹음을 이미
@@ -122,22 +122,17 @@ LIMIT 1;
 
 4단계가 녹음 행을 지우면 녹음 키를 다시 읽을 수 없다. **키마다 삭제하고 404 를 확인한 뒤에** 4단계로 간다.
 
-객체는 앱 버킷(`.env` 의 `S3_BUCKET`, 리전 `AWS_REGION`)에 있다. 녹음 키는 `reading/` 로 시작한다. 키마다:
+객체는 Cloudflare R2의 파일 버킷(`.env` 의 `S3_BUCKET`)에 있다. 녹음 키는 `reading/` 로 시작한다. `backup` 컨테이너에
+aws CLI와 그 환경의 R2 토큰(파일 버킷·백업 버킷 객체 읽기·쓰기)과 주소(`S3_ENDPOINT`)가 있으므로 거기서 돌린다. 키마다:
 
 ```sh
-aws s3api delete-object --bucket "$S3_BUCKET" --key '<object_key>'
-aws s3api head-object --bucket "$S3_BUCKET" --key '<object_key>'   # 404 여야 한다
+B=$(grep '^S3_BUCKET=' .env | cut -d= -f2)
+s3() { dc exec -T backup sh -c 'aws s3api "$@" --endpoint-url "$S3_ENDPOINT"' _ "$@"; }
+s3 delete-object --bucket "$B" --key '<object_key>'
+s3 head-object --bucket "$B" --key '<object_key>'   # 404 여야 한다
 ```
 
-버킷에 **버전 관리**가 켜져 있으면 위 명령은 삭제 표시만 남긴다. 먼저 확인하고, 켜져 있으면 그 키의 모든
-버전을 지운다.
-
-```sh
-aws s3api get-bucket-versioning --bucket "$S3_BUCKET"
-aws s3api list-object-versions --bucket "$S3_BUCKET" --prefix '<object_key>' \
-  --query '{Objects: [Versions,DeleteMarkers][].{Key:Key,VersionId:VersionId}}'
-# 위 목록의 VersionId 마다: aws s3api delete-object --bucket … --key … --version-id …
-```
+R2에는 버전 관리가 없어 지운 객체는 그 자리에서 없어진다(삭제 표시나 옛 버전이 남지 않는다).
 
 정리 장부(`account_cleanup_operations`)에 손으로 행을 넣지 않는다 — payload 가 서버 키로 암호화한 값이라 SQL 로
 만들 수 없다. 이미 올라가 있는 이 계정의 `object_delete` 행은 그대로 둔다(같은 키를 다시 지우는 것은 실패가
@@ -146,7 +141,8 @@ aws s3api list-object-versions --bucket "$S3_BUCKET" --prefix '<object_key>' \
 ## 4. 파기 표시와 철회를 기록한다
 
 보관함 영상 행은 지우지 않고 파기 표시를 찍는다(회차·참여작 기록이 깨지지 않고 재생이 막힌다). 녹음 행은 음성과
-전사째 지운다. 동의 기록은 고쳐 쓰지 않고 **덧붙인다** — 마지막으로 결정했던 그 문서 판에 `revoked` 한 줄을 더한다.
+전사째 지운다. 동의 기록은 고쳐 쓰지 않고 **덧붙인다** — 마지막으로 결정했던 그 문서에 `declined` 한 줄을 더한다. 결정 값은
+`granted`·`declined` 둘뿐이다(CHECK). 탈퇴한 계정은 API 로 결정을 남기지 못하므로 탈퇴 시각 뒤의 `declined` 가 곧 이 철회다.
 
 ```sql
 BEGIN;
@@ -154,7 +150,7 @@ UPDATE videos SET purged_at = now(), updated_at = now()
 WHERE user_id = :'old_user_id' AND purged_at IS NULL;
 DELETE FROM reading_recordings WHERE user_id = :'old_user_id';
 INSERT INTO user_consents (id, user_id, document_id, action, occurred_at)
-VALUES (gen_random_uuid(), :'old_user_id', :'document_id', 'revoked', now());   -- document_id 는 3단계에서 읽은 값
+VALUES (gen_random_uuid(), :'old_user_id', :'document_id', 'declined', now());   -- document_id 는 3단계에서 읽은 값
 -- 확인한 뒤에 COMMIT. 한 행이 더해졌는지 본다.
 SELECT action, occurred_at FROM user_consents
 WHERE user_id = :'old_user_id' AND document_id = :'document_id'
@@ -171,7 +167,7 @@ COMMIT;
 ## 5. 확인한다
 
 ```sql
--- 파기 표시가 없는 영상과 녹음 행이 0 이고, 마지막 결정이 revoked 다.
+-- 파기 표시가 없는 영상과 녹음 행이 0 이고, 마지막 결정이 declined 다.
 SELECT
   (SELECT count(*) FROM videos WHERE user_id = :'old_user_id' AND purged_at IS NULL) AS videos_left,
   (SELECT count(*) FROM reading_recordings WHERE user_id = :'old_user_id') AS recordings_left,

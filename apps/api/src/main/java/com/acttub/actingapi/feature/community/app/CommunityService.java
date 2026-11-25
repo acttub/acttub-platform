@@ -3,7 +3,6 @@ package com.acttub.actingapi.feature.community.app;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.community.domain.BlockedUser;
 import com.acttub.actingapi.feature.community.domain.CommunityCategory;
 import com.acttub.actingapi.feature.community.domain.CommunityComment;
 import com.acttub.actingapi.feature.community.domain.CommunityPost;
@@ -149,17 +148,6 @@ public class CommunityService {
         }
     }
 
-    public CommunityComment updateComment(UUID commentId, UUID authorId, String body) {
-        rejectContactInfo(null, body);
-        try {
-            return community.updateComment(commentId, authorId, body);
-        } catch (CommunityContentNotFound exception) {
-            throw commentNotFound(exception);
-        } catch (NotAuthor exception) {
-            throw notAuthor(exception);
-        }
-    }
-
     public void deleteComment(UUID commentId, UUID authorId) {
         try {
             community.deleteComment(commentId, authorId);
@@ -185,10 +173,6 @@ public class CommunityService {
         reportNotifier.filed(new CommunityReportNotifier.Notice(targetType, targetId, reason, detail));
     }
 
-    public List<BlockedUser> listBlocks(UUID blockerId) {
-        return community.listBlocks(blockerId);
-    }
-
     /**
      * 차단한다.
      *
@@ -204,10 +188,6 @@ public class CommunityService {
         } catch (CommunityContentNotFound exception) {
             throw new ApiException(404, "user_not_found", exception);
         }
-    }
-
-    public void unblockUser(UUID blockerId, UUID blockedId) {
-        community.unblockUser(blockerId, blockedId);
     }
 
     private CommunityPost getPost(UUID postId, UUID viewerId) {

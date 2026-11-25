@@ -32,15 +32,12 @@ test('practice.start: 진행 중 회차가 있으면(409) 그 회차로 돌려�
   assert.match(upload, /pathname: '\/coach', params: \{ practiceId: open \}/);
 });
 
-test('practice.resume: 장면 미리 채움은 방금 끝낸 노트에서만 한다', () => {
-  assert.match(read('app/report.tsx'), /setContinueOrigin\(\{\s*kind: 'note'/);
+test('practice.resume: 지난 노트는 장면을 채우지 않고 묶음에서 잇는다', () => {
   // A12 지난 노트는 장면을 채우지 않고, 같은 영상으로 잇는 출처('history')는 없다(SOMA-672).
   assert.match(read('app/report-detail.tsx'), /kind: 'group'/);
   for (const file of ['app/report-detail.tsx', 'app/practice-group.tsx', 'lib/practice/resume.ts']) {
     assert.equal(/kind: 'history'/.test(read(file)), false, file);
   }
-  assert.equal(/kind: 'note'/.test(read('app/report-detail.tsx')), false);
-  assert.equal(/kind: 'note'/.test(read('app/(tabs)/history.tsx')), false);
 });
 
 // 분석 대기는 따로 된 화면이 아니라 코치 화면 안의 「영상 보는 중」이다(SOMA-778). 조회·푸시·취소·복귀는 components/coach-waiting.tsx 가 한다.
@@ -75,11 +72,8 @@ test('practice.analyze: 옛 분석 화면 주소(/analyzing)는 액티 화면으
   assert.equal(/watchAnalysis|api\./.test(analyzing), false);
 });
 
-test('practice.note: 방금 끝난 노트와 지난 노트 둘 다 평가를 받고 서버에 저장한다(시트로 보내지 않는다)', () => {
-  for (const screen of ['app/report.tsx', 'app/report-detail.tsx']) {
-    const source = read(screen);
-    assert.match(source, /<ReportRating\s+practiceId=\{[^}]+\}\s+initial=\{note\.my_rating\}/, screen);
-  }
+test('practice.note: 지난 노트는 평가를 받고 서버에 저장한다(시트로 보내지 않는다)', () => {
+  assert.match(read('app/report-detail.tsx'), /<ReportRating\s+practiceId=\{[^}]+\}\s+initial=\{note\.my_rating\}/);
   const rating = read('components/report-rating.tsx');
   assert.match(rating, /noteRatings\.send/);
   assert.equal(/submitOneLiner|oneLinerPayload|report_inline/.test(rating), false);

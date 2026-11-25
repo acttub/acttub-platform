@@ -60,7 +60,7 @@ class PracticeRollbackCompatibilityTest {
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
-            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42)·대사 줄의 NULL 허용 말·소리 낼 글(V45)·배역의 NULL 허용 묶음(V50)·배역의 기본값 있는 이름 없음 표시(V51) 말고는 V13 의 모양 그대로다")
+            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42)·대사 줄의 NULL 허용 말·소리 낼 글(V45)·배역의 NULL 허용 묶음(V50)·배역의 기본값 있는 이름 없음 표시(V51)·동의 결정 값에서 revoked 를 뺀 V93 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
         List<String> after = fingerprintAt(null);
@@ -107,8 +107,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V92 —연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)·웹 블로그 글(V80, SOMA-834)·대본 나누기 진행률(V83, SOMA-960)·회차를 만든 사람의 말(V84, SOMA-946)·연습 삭제(V85, SOMA-985)·배우 게시판 분류와 신고 사유(V86, SOMA-873)·게시판 글 사진(V87, SOMA-873)·게시판 분류 자유·질문·홍보(V88, SOMA-1012)·챌린지 얼굴 보임(V90, SOMA-1066)·얼굴 없는 모자이크 다시 처리(V91, SOMA-1066)가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 79;
+    /** V14~V94 —연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)·웹 블로그 글(V80, SOMA-834)·대본 나누기 진행률(V83, SOMA-960)·회차를 만든 사람의 말(V84, SOMA-946)·연습 삭제(V85, SOMA-985)·배우 게시판 분류와 신고 사유(V86, SOMA-873)·게시판 글 사진(V87, SOMA-873)·게시판 분류 자유·질문·홍보(V88, SOMA-1012)·챌린지 얼굴 보임(V90, SOMA-1066)·얼굴 없는 모자이크 다시 처리(V91, SOMA-1066)·쓰지 않는 동의·신고 판정 값 빼기(V93, SOMA-1130)·코치 대화 종료 사유 gap_stated 빼기(V94, SOMA-1130)가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 81;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -180,6 +180,13 @@ class PracticeRollbackCompatibilityTest {
             expected.add("CONSTRAINT community_reports ck_community_reports_reason CHECK ((reason = ANY "
                     + "(ARRAY['spam'::text, 'abuse'::text, 'sexual'::text, 'privacy'::text, 'other'::text, "
                     + "'copyright'::text, 'inappropriate'::text, 'duplicate'::text])))");
+        }
+        // V93 이 동의 결정 값에서 revoked 를 뺐다(SOMA-1130). 좁히기지만 옛 서버도 이 값을 쓰지 않는다(입력은 granted·declined).
+        String consentActionsBefore = "CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY "
+                + "(ARRAY['granted'::text, 'declined'::text, 'revoked'::text])))";
+        if (expected.remove(consentActionsBefore)) {
+            expected.add("CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY "
+                    + "(ARRAY['granted'::text, 'declined'::text])))");
         }
         expected.remove("CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK "
                 + "((cardinality(my_character_ids) >= 1))");

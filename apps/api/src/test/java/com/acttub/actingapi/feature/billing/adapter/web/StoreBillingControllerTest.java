@@ -61,7 +61,6 @@ class StoreBillingControllerTest {
     @Test
     void emptyWebhookSecretRejectsEverything() {
         RevenueCatWebhookAuth none = new RevenueCatWebhookAuth("  ");
-        assertThat(none.configured()).isFalse();
         assertThat(none.accepts("")).isFalse();
         assertThat(none.accepts("Bearer anything")).isFalse();
         StoreBillingController closed = new StoreBillingController(service, gate, limiter, none);

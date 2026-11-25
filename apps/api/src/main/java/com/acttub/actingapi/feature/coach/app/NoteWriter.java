@@ -111,43 +111,20 @@ public class NoteWriter {
     private NewNote note(JsonNode report, CoachSessionSnapshot session, boolean threeLayers, long sourceRevision, boolean fallback) {
         if (!threeLayers || !PracticeNote.isNote(report)) {
             // 기존 갈래: 종류와 응답 모양을 현행 그대로 두고 원문을 보존한다.
-            return new NewNote(
-                    "legacy",
-                    ConversationService.branchOf(session),
-                    text(report.path("title")),
-                    empty(),
-                    null,
-                    empty(),
-                    empty(),
-                    empty(),
-                    false,
-                    sourceRevision,
-                    report);
+            return NewNote.legacy(ConversationService.branchOf(session), text(report.path("title")), sourceRevision, report);
         }
         String mode = LenientJson.asText(report.path("mode"), "record_only");
         JsonNode focus = report.path("focus");
         JsonNode instruction = report.path("practice").path("instruction");
-        return new NewNote(
-                "v2",
-                mode,
-                // 제목은 초점 문구 원문이다. 초점 없이 끝난 record_only 는 NULL.
-                "record_only".equals(mode) || focus.isMissingNode() || focus.isNull()
-                        ? null
-                        : text(focus.path("label")),
-                summaryQuotes(report),
-                instruction.isMissingNode() || instruction.isNull() ? null : text(instruction.path("text")),
-                empty(),
-                empty(),
-                empty(),
-                fallback,
-                sourceRevision,
-                report);
+        // 제목은 초점 문구 원문이다. 초점 없이 끝난 record_only 는 NULL.
+        String title = "record_only".equals(mode) || focus.isMissingNode() || focus.isNull() ? null : text(focus.path("label"));
+        String nextTake = instruction.isMissingNode() || instruction.isNull() ? null : text(instruction.path("text"));
+        return NewNote.threeLayers(mode, title, summaryQuotes(report), nextTake, sourceRevision).withReport(report, fallback);
     }
 
     /** 확인된 것만 담은 폴백 — 제안을 만들지 않는다(신형의 {@code system_failure}). */
     private NewNote fallbackNote(long sourceRevision) {
-        return new NewNote("v2", "record_only", null, empty(), null, empty(), empty(), empty(),
-                true, sourceRevision, null);
+        return NewNote.threeLayers("record_only", null, empty(), null, sourceRevision).withReport(null, true);
     }
 
     /**

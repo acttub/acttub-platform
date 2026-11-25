@@ -10,7 +10,7 @@ version = "0.1.0"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -23,7 +23,7 @@ repositories {
  * (.github/workflows/deploy.yml) 그 네이티브만 남긴 jar 를 만들어 쓴다 — 리눅스 .so 는 glibc·libstdc++ 밖에 기대지
  * 않아 이미지에 따로 깔 것이 없다. 로컬 맥에서 실제 얼굴 찾기를 돌려 볼 때만 -PopencvAllPlatforms 로 다 남긴다.
  */
-val opencvBundle: Configuration by configurations.creating { isTransitive = false }
+val opencvBundle = configurations.create("opencvBundle") { isTransitive = false }
 val opencvLinuxJar = tasks.register<Jar>("opencvLinuxJar") {
     val allPlatforms = findProperty("opencvAllPlatforms") != null
     // 남길 플랫폼이 바뀌면 다시 만든다(제외 목록만으로는 최신 판정이 바뀌지 않았다).
@@ -91,7 +91,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-postgresql")
     // 패키지 순환을 CI 에서 빨간불로 잡는다 (ADR-016). 단일 모듈이라 컴파일러가
     // 방향을 강제하지 못하므로 이 검사가 유일한 관문이다.
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -111,6 +111,8 @@ tasks.withType<Test>().configureEach {
     // fork 마다 JVM 이 따로라 PostgresContainerSupport 의 컨테이너도 fork 마다 따로 뜬다.
     maxParallelForks = 2
     systemProperty("file.encoding", "UTF-8")
+    // ValueCheckCatalogIT 가 기능 스펙의 「상태」 표를 읽는다. 스펙만 고쳐도 테스트가 다시 돌게 입력으로 둔다.
+    inputs.files(fileTree("../../docs/specs")).withPropertyName("featureSpecs").withPathSensitivity(PathSensitivity.RELATIVE)
 
     // 로컬 .env 를 테스트가 읽지 못하게 막는다(DotenvEnvironmentPostProcessor). 이 가드가
     // 없으면 실 API 키가 흘러들어, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 된다.
@@ -150,6 +152,9 @@ tasks.named<JacocoReport>("jacocoTestReport") {
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     archiveFileName = "acting-api.jar"
+    // 얼굴 찾기(OpenCV)가 System.load 로 네이티브를 올린다. Java 24 부터 이것이 경고를 내고, 앞으로 막는다고 예고돼 있다(JEP 472).
+    // `java -jar` 로 띄울 때 JVM 이 이 줄을 읽어 클래스패스 코드의 네이티브 접근을 허용한다(Dockerfile 의 ENTRYPOINT).
+    manifest { attributes("Enable-Native-Access" to "ALL-UNNAMED") }
 }
 
 // 동의 문서와 심사 공고는 `src/main/resources/` 에 있어 기본 규칙대로 jar 에 실린다.
@@ -160,7 +165,7 @@ tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
 //
 // 파일 이름을 어디에도 적지 않는다. 방침 버전이 오르면(privacy_v2 → v3, SOMA-326) manifest 는
 // 새 파일을 가리키는데 목록은 그대로라 **부팅이 FileNotFoundException 으로 죽는다** — 실제로
-// 그렇게 깨졌다. 과거 버전 문서도 함께 실린다 — 발행은 manifest 가 가리키는 판만 하지만, 그 판에 동의한 기록이 있어 파일을 지우지 않는다.
+// 그렇게 깨졌다. 발행은 manifest 가 가리키는 판만 한다. 옛 판 파일을 지우는 조건은 consent-docs/README.md 에 있다.
 tasks.named<org.gradle.language.jvm.tasks.ProcessResources>("processResources") {
     // 발행 절차 문서는 문서일 뿐이라 싣지 않는다. 파일들 옆에 두는 이유는 절차와 대상이
     // 갈리면 방침을 올릴 때 절차를 안 보게 되기 때문이다.

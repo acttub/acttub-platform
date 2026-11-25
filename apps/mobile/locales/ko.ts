@@ -952,7 +952,6 @@ const ko = {
     goal: '목표',
     rights:
       '본인이 촬영·업로드할 권리가 있고, 영상에 나오는 다른 사람의 촬영·처리 동의를 받았으며, 대본·음원·영상의 저작권과 초상권을 침해하지 않습니다.',
-    submitRetake: '이대로 이어가기',
     submitNew: '질문 받기',
     submitUploading: '올리는 중…',
     waitTitle: '영상을 올리고 있어요',
@@ -995,7 +994,6 @@ const ko = {
     readyBubble: '이 영상으로 질문을 받을게요',
   },
   blockage: {
-    sceneFold: '영상·장면 보기',
     detailTitle: '상세히 적어 주세요',
   },
   analyzing: {
@@ -1125,12 +1123,9 @@ const ko = {
     loadFailTitle: '연습 노트를 불러오지 못했어요',
     loadFailBody: '잠시 후 다시 시도해 주세요.',
     noneTitle: '아직 정리가 없어요',
-    noneBody: '잠시 뒤 다시 열어 주세요.',
     noneDetailBody: '코칭이 끝나면 여기에 정리돼요',
     finish: '연습 마치기',
     // 배우 일지·코칭 마무리(SOMA-748)
-    saveFinish: '저장하고 마치기',
-    recordForCoach: '영상 찍어 코칭받기',
     doneTitle: '수고했어요!\n다음 테이크에서 이거 하나만 해 봐요',
     doneTitleNoNext: '수고했어요!\n오늘 코칭을 마쳤어요',
     doneNextLabel: '다음에 해 볼 것',
@@ -1191,7 +1186,6 @@ const ko = {
     rateThanks: '고마워요! 다음 코칭에 반영할게요.',
     noPracticeTitle: '진행 중인 연습이 없어요',
     noPracticeBody: '홈에서 새 연습을 시작해 주세요.',
-    making: '대화를 정리해서 카드를 만들고 있어요…',
   },
   consent: {
     adSuffix: '(광고)',
@@ -1551,15 +1545,9 @@ const ko = {
     upload: '영상 올리기',
     analyzing: '분석 중',
     coach: '액티와 되짚기',
-    report: '오늘 정리',
   },
   practiceChrome: {
     noVideo: '다시 볼 수 있는 영상이 없어요.',
-    rowSituation: '상황',
-    rowCharacter: '인물',
-    rowGoal: '목표',
-    rowBlockage: '막힌 곳',
-    rowTitle: '연습 제목',
   },
   errors: {
     requestChanged: '요청 내용이 바뀌었어요. 다시 보내 주세요.',
@@ -1745,6 +1733,7 @@ const ko = {
     lineEditRename: "'{{name}}' 이름 고치기",
     lineEditText: '글',
     lineEditFailed: '저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+    lineMenuReadFrom: '여기서부터 읽기',
     lineMenuEdit: '고치기',
     lineMenuSplit: '나누기',
     lineMenuInsert: '아래에 추가',
@@ -1946,6 +1935,7 @@ const ko = {
     viewScript: '대본 보기',
     practice: '연습하기',
     changeVoices: '목소리 바꾸기',
+    voicesButton: '목소리',
     sessionRecordings: '녹음 {{count}}개',
     sessionInProgressAt: '진행 중 · {{done}}/{{total}}',
     sessionTitle: '회차',

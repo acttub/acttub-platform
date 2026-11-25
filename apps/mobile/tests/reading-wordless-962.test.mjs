@@ -22,3 +22,12 @@ test('괄호가 닫히지 않은 줄은 쉬는 줄이 아니다 — 지문이 �
   // 닫힌 괄호 안만 지문이다.
   assert.equal(isWordless('(고개를 돌린다) (한숨)'), true);
 });
+
+test('SOMA-951: 물음표·느낌표·말줄임표만 있는 반응 줄도 소리 낼 글자가 없는 쉬는 줄이다', () => {
+  for (const text of ['?', '!', '?!', '!?', '？', '！', '?!...', '? !', '…?', '(놀라며) ?!']) {
+    assert.equal(isWordless(text), true, text);
+  }
+  for (const text of ['뭐?', '응!', 'What?!']) {
+    assert.equal(isWordless(text), false, text);
+  }
+});

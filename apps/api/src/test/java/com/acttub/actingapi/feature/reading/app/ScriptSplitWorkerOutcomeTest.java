@@ -10,11 +10,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitMode;
 import com.acttub.actingapi.platform.schema.ScriptImportFailure;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.OpenAiStatusException;
@@ -34,7 +37,7 @@ class ScriptSplitWorkerOutcomeTest {
     final MutableClock clock = new MutableClock(Instant.parse("2026-10-20T00:00:00Z"));
     final List<String> answers = new ArrayList<>();
     final TextGenerator generator = (instructions, input) -> new GeneratedText(answers.isEmpty() ? "" : answers.removeFirst(), null, "test");
-    final ScriptSplitWorker worker = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock);
+    final ScriptSplitWorker worker = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null, null, ScriptSplitMode.LLM);
     final UUID job = UUID.randomUUID();
     final UUID importId = UUID.randomUUID();
     final UUID user = UUID.randomUUID();
@@ -50,7 +53,7 @@ class ScriptSplitWorkerOutcomeTest {
 
     @Test void everyRecordedPromptIsTheSameFixedTemplateWhateverTheScriptSays() {
         var telemetry = new RecordingLlmTelemetry();
-        var recording = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock);
+        var recording = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, null, null, null, null, ScriptSplitMode.LLM);
         List<java.util.Set<com.acttub.actingapi.platform.observability.LlmPrompt>> runs = new ArrayList<>();
         for (String cast : List.of("김비밀", "박비밀")) {
             telemetry.clear();
@@ -116,7 +119,7 @@ class ScriptSplitWorkerOutcomeTest {
     @Test void aRejectedModelCallFailsTheRequestAndALostLeaseThenIsReportedToo() {
         claimed(SHORT);
         TextGenerator refusing = (instructions, input) -> { throw new OpenAiStatusException(400, "bad request"); };
-        var strict = new ScriptSplitWorker(ledger, imports, refusing, new RecordingLlmTelemetry(), failures, clock);
+        var strict = new ScriptSplitWorker(ledger, imports, refusing, new RecordingLlmTelemetry(), failures, clock, null, null, null, null, ScriptSplitMode.LLM);
         doThrow(new LeaseOwnershipException("lost")).when(imports).fail(eq(job), any(), eq(importId), eq(ScriptImportFailure.FAILED), eq(true), any());
         assertThat(strict.runOnce()).isTrue();
         assertThat(failures.contexts()).hasSize(2);
@@ -128,7 +131,7 @@ class ScriptSplitWorkerOutcomeTest {
         List<String> heard = new ArrayList<>();
         UUID script = UUID.randomUUID();
         ScriptSplitListener listener = (userId, scriptId) -> heard.add(userId + "|" + scriptId);
-        var announcing = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null, listener);
+        var announcing = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null, listener, ScriptSplitMode.LLM);
         claimed(SHORT);
         answers.add(SHORT_ANSWER);
         when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SAVED);
@@ -143,8 +146,7 @@ class ScriptSplitWorkerOutcomeTest {
         assertThat(heard).hasSize(1);
 
         // 알림이 실패해도 나누기는 성공이고 실패를 닫지 않는다 — 보고만 한다.
-        var broken = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null,
-                (userId, scriptId) -> { throw new IllegalStateException("push is down"); });
+        var broken = new ScriptSplitWorker(ledger, imports, generator, new RecordingLlmTelemetry(), failures, clock, null, null, null, (userId, scriptId) -> { throw new IllegalStateException("push is down"); }, ScriptSplitMode.LLM);
         answers.add(SHORT_ANSWER);
         when(imports.complete(eq(job), any(), eq(importId), any(), any())).thenReturn(ScriptImportRepository.Completion.SAVED);
         assertThat(broken.runOnce()).isTrue();
@@ -159,7 +161,7 @@ class ScriptSplitWorkerOutcomeTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("OpenAI 호출이 중단됐습니다.", new InterruptedException());
         };
-        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock);
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock, null, null, null, null, ScriptSplitMode.LLM);
         assertThat(stopping.runOnce()).isTrue();
         assertThat(Thread.interrupted()).as("인터럽트 표시는 되살린다").isTrue();
         verify(ledger).release(eq(job), any(), eq("shutdown"), any());
@@ -175,7 +177,7 @@ class ScriptSplitWorkerOutcomeTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("cut off", new InterruptedException());
         };
-        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock);
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock, null, null, null, null, ScriptSplitMode.LLM);
         stopping.runOnce();
         assertThat(Thread.interrupted()).isTrue();
         verify(ledger, never()).release(any(), any(), any(), any());
@@ -188,8 +190,12 @@ class ScriptSplitWorkerOutcomeTest {
             throw new IllegalStateException("read cut", new java.io.InterruptedIOException());
         };
         doThrow(new LeaseOwnershipException("lost")).when(ledger).release(eq(job), any(), eq("shutdown"), any());
-        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock);
+        List<Duration> pauses = new CopyOnWriteArrayList<>();
+        var stopping = new ScriptSplitWorker(ledger, imports, cutOff, new RecordingLlmTelemetry(), failures, clock, null, null, null, null, ScriptSplitMode.LLM)
+                .pausingWith(pauses::add);
         assertThat(stopping.runOnce()).isTrue();
+        assertThat(pauses).as("끊긴 것이 원인에만 보이면 다시 묻는다 — 그 전에 1초, 2초 쉰다")
+                .containsExactly(Duration.ofSeconds(1), Duration.ofSeconds(2));
         assertThat(Thread.currentThread().isInterrupted()).isFalse();
         assertThat(failures.contexts()).singleElement().asString().startsWith("ScriptSplitWorker.release");
         verify(imports, never()).fail(any(), any(), any(), any(), anyBoolean(), any());

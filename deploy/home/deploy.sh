@@ -42,7 +42,6 @@ BACKUP_IMAGE="${4:-${BACKUP_IMAGE:-}}"
 PULL_POLICY="${DEPLOY_PULL_POLICY:-always}"
 WAIT_SECONDS="${DEPLOY_WAIT_SECONDS:-180}"
 THREE_LAYERS_ENABLED="${DEPLOY_THREE_LAYERS_ENABLED:-}"
-DIRECT_VIDEO_ENABLED="${DEPLOY_DIRECT_VIDEO_ENABLED:-}"
 GUEST_DAILY_LIMIT_ENABLED="${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-}"
 PRACTICE_REMINDER_ENABLED="${DEPLOY_PRACTICE_REMINDER_ENABLED:-}"
 # CPU 가 모자랄 때의 몫(compose 의 *_CPU_SHARES). dev 는 낮춰 운영 코칭이 먼저 쓰게 한다. 비우면 compose 기본(1024).
@@ -65,7 +64,6 @@ done
 case "$PULL_POLICY" in always|missing) ;; *) fail "DEPLOY_PULL_POLICY 는 always 또는 missing: '$PULL_POLICY'" ;; esac
 case "$GUEST_DAILY_LIMIT_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED 는 true 또는 false" ;; esac
 case "$THREE_LAYERS_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_THREE_LAYERS_ENABLED 는 true 또는 false" ;; esac
-case "$DIRECT_VIDEO_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_DIRECT_VIDEO_ENABLED 는 true 또는 false" ;; esac
 case "$PRACTICE_REMINDER_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_PRACTICE_REMINDER_ENABLED 는 true 또는 false" ;; esac
 [ -z "$CPU_SHARES" ] || [[ "$CPU_SHARES" =~ ^[1-9][0-9]{0,5}$ ]] || fail "DEPLOY_CPU_SHARES 는 양의 정수: '$CPU_SHARES'"
 [[ "$WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail "DEPLOY_WAIT_SECONDS 는 양의 초 단위 정수: '$WAIT_SECONDS'"
@@ -191,7 +189,6 @@ EOF
 [ -z "$BACKUP_IMAGE" ] || printf 'BACKUP_IMAGE=%s\n' "$BACKUP_IMAGE" >> "$RELEASE_FILE"
 # 명시한 환경만 새 연습 경로를 전환한다. .env 는 유지하고 릴리스 설정에 기록한다.
 [ -z "$THREE_LAYERS_ENABLED" ] || printf 'ACTTUB_THREE_LAYERS_ENABLED=%s\n' "$THREE_LAYERS_ENABLED" >> "$RELEASE_FILE"
-[ -z "$DIRECT_VIDEO_ENABLED" ] || printf 'ACTTUB_DIRECT_VIDEO_ENABLED=%s\n' "$DIRECT_VIDEO_ENABLED" >> "$RELEASE_FILE"
 [ -z "$GUEST_DAILY_LIMIT_ENABLED" ] || printf 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=%s\n' "$GUEST_DAILY_LIMIT_ENABLED" >> "$RELEASE_FILE"
 [ -z "$PRACTICE_REMINDER_ENABLED" ] || printf 'ACTTUB_PRACTICE_REMINDER_ENABLED=%s\n' "$PRACTICE_REMINDER_ENABLED" >> "$RELEASE_FILE"
 [ -z "$CPU_SHARES" ] || printf 'API_CPU_SHARES=%s\nWEB_CPU_SHARES=%s\nPRON_CPU_SHARES=%s\n' "$CPU_SHARES" "$CPU_SHARES" "$CPU_SHARES" >> "$RELEASE_FILE"
@@ -370,14 +367,6 @@ if [ -n "$PRACTICE_REMINDER_ENABLED" ]; then
   [ "$actual_practice_reminder" = "$PRACTICE_REMINDER_ENABLED" ] \
     || fail "연습 알림 설정이 반영되지 않았다 (기대 $PRACTICE_REMINDER_ENABLED)"
   step "연습 알림 확인: $actual_practice_reminder"
-fi
-
-if [ -n "$DIRECT_VIDEO_ENABLED" ]; then
-  actual_direct_video="$(compose exec -T api printenv ACTTUB_DIRECT_VIDEO_ENABLED)" \
-    || fail "Gemini 직접 코칭의 컨테이너 설정을 읽지 못했다"
-  [ "$actual_direct_video" = "$DIRECT_VIDEO_ENABLED" ] \
-    || fail "Gemini 직접 코칭 설정이 반영되지 않았다"
-  step "Gemini 직접 코칭 확인: $actual_direct_video"
 fi
 
 # ── 11. 옛 릴리스 이미지 정리 ──────────────────────────────────────────────────

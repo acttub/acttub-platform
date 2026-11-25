@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.coach.app.CoachFlows;
 import com.acttub.actingapi.feature.coach.app.CoachPersonas;
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
@@ -14,13 +13,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** 코치 흐름·성격 배정을 실제 사용자 행으로: 자문위원이 아닌 배우는 성격이 없고 흐름은 계정마다 고정된 쪽이다. */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false",
-        "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false"})
+/** 코치 성격 배정을 실제 사용자 행으로: 자문위원이 아닌 배우는 성격이 없다. */
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 class PostgresCoachAssignmentsIT {
 
     @Autowired JdbcTemplate jdbc;
-    @Autowired CoachFlows flows;
     @Autowired CoachPersonas personas;
 
     UUID user(String email) {
@@ -34,18 +31,8 @@ class PostgresCoachAssignmentsIT {
                 "open", "", List.of(), PriorContext.EMPTY, "three_layers_v1", 0, null, null);
     }
 
-    @Test void anOrdinaryActorKeepsTheAccountFlowOnEveryPractice() {
-        UUID actor = user("actor-" + UUID.randomUUID() + "@example.com");
-        String first = flows.assign(session(actor));
-        assertThat(first).isEqualTo(PostgresCoachFlows.byAccount(actor));
-        assertThat(flows.assign(session(actor))).isEqualTo(first);
-        assertThat(flows.assign(session(null))).isEqualTo(CoachFlows.A);
-    }
-
     @Test void anAccountWithoutEmailIsAnOrdinaryActor() {
-        UUID noEmail = user(null);
-        assertThat(flows.assign(session(noEmail))).isEqualTo(PostgresCoachFlows.byAccount(noEmail));
-        assertThat(personas.assign(session(noEmail))).isEmpty();
+        assertThat(personas.assign(session(user(null)))).isEmpty();
     }
 
     @Test void onlyAdvisorAccountsGetAPersona() {

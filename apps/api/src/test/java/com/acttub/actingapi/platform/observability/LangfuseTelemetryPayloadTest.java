@@ -37,7 +37,7 @@ class LangfuseTelemetryPayloadTest {
         LlmCall call = new LlmCall(LlmStep.MEMORY_EXTRACTION, PRACTICE, null, " ", "입력", "",
                 new LlmTokens(12, null, null), Instant.EPOCH, Duration.ofMillis(5), null, Map.of());
 
-        Map<String, String> attributes = attributes(telemetry().tracePayload(call));
+        Map<String, String> attributes = attributes(telemetry().tracePayload(call, null));
 
         assertThat(attributes).doesNotContainKeys("langfuse.user.id", "langfuse.observation.model.name",
                 "gen_ai.request.model", "langfuse.observation.output");

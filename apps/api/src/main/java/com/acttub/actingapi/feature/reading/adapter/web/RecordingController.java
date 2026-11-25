@@ -10,7 +10,10 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RecordingResponse;
 import com.acttub.actingapi.feature.reading.app.RecordingService;
+import com.acttub.actingapi.feature.reading.app.RecordingUploadMetrics;
+import com.acttub.actingapi.feature.reading.app.RecordingUploadMetrics.Stage;
 import com.acttub.actingapi.feature.reading.app.SessionViews.RecordingView;
+import com.acttub.actingapi.platform.observability.MultipartReceiveTiming;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.web.ApiValidationException;
@@ -45,10 +48,12 @@ import org.springframework.web.multipart.MultipartFile;
 class RecordingController {
     private final RecordingService recordings;
     private final AccessGate auth;
+    private final RecordingUploadMetrics metrics;
 
-    RecordingController(RecordingService recordings, AccessGate auth) {
+    RecordingController(RecordingService recordings, AccessGate auth, RecordingUploadMetrics metrics) {
         this.recordings = recordings;
         this.auth = auth;
+        this.metrics = metrics;
     }
 
     @Operation(
@@ -96,6 +101,7 @@ class RecordingController {
             @Parameter(hidden = true) @RequestPart(value = "audio", required = false) MultipartFile audio,
             HttpServletRequest request) throws IOException {
         AuthenticatedUser user = auth.gatedUser(request);
+        long gated = System.nanoTime();
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("request_id", requestId);
         fields.put("line_id", lineId);
@@ -120,11 +126,18 @@ class RecordingController {
             throw ApiValidationException.missing(List.of("body", "audio"), fields);
         }
         RequestIdHeader.requireMatching(requestIdHeader, parsedRequestId);
+        boolean transcodes = RecordingUploadMetrics.transcodes(audio.getContentType());
+        MultipartReceiveTiming.received(request).ifPresent(received -> {
+            metrics.record(Stage.RECEIVE, transcodes, received.nanos());
+            metrics.record(Stage.GATE, transcodes, gated - received.finishedNanos());
+        });
 
         // 파일은 임시 자리에 받아 두고 서비스가 변환·올린 뒤 여기서 지운다.
+        long spooling = System.nanoTime();
         Path temporary = Files.createTempFile("acttub-recording-", ".upload");
         try {
             audio.transferTo(temporary);
+            metrics.recordSince(Stage.TEMP_FILE, transcodes, spooling);
             RecordingService.Uploaded uploaded = recordings.upload(user.id(), user.guest(), sessionId,
                     new RecordingService.Upload(
                             parsedRequestId, parsedLineId, parsedAttemptNo, audio.getContentType(), temporary,

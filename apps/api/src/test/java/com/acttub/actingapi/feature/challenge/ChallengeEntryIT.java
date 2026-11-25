@@ -39,8 +39,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 참여·랭킹·피드·조회수·종료 랭킹·P03 (challenge.entry, challenge.browse). 실제 HTTP 와 Postgres 를 쓰고 객체 저장소의
  * 길이 측정만 대체한다 — 기기가 적은 길이와 실제 길이를 따로 줄 수 있게.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "CHALLENGE_SETTLEMENT_ENABLED=false", "ADMIN_OPS_TOKEN=entry-test-ops"})
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ADMIN_OPS_TOKEN=entry-test-ops"})
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ChallengeEntryIT.Media.class})
 class ChallengeEntryIT {
@@ -687,7 +686,7 @@ class ChallengeEntryIT {
         JsonNode pending = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(LenientJson.asText(pending.path("ranking_state"))).isEqualTo("pending");
         assertThat(pending.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
-        response(patch("/v2/admin/reports/{id}", report).content("{\"resolution\":\"restored\",\"reviewer\":\"운영\"}"), 200,
+        response(patch("/v2/admin/reports/{id}", report).content("{\"resolution\":\"dismissed\",\"reviewer\":\"운영\"}"), 200,
                 "Bearer entry-test-ops");
         JsonNode settled = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(ids(settled)).containsExactly(hidden.toString(), shown.toString());

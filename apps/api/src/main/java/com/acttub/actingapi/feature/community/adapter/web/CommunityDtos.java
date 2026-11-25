@@ -188,18 +188,6 @@ final class CommunityDtos {
             @Schema(nullable = true, maxLength = 500) String detail) {
     }
 
-    @Schema(name = "BlockPayload", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record BlockPayload(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID userId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String nickname) {
-    }
-
-    @Schema(name = "BlockListResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    record BlockListResponse(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<BlockPayload> blocks) {
-    }
-
     @Schema(name = "BlockRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record BlockRequest(@NotNull UUID userId) {

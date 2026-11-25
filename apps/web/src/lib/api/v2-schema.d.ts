@@ -1307,6 +1307,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/community/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Report */
+        post: operations["create_report_v2_community_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Posts */
+        get: operations["list_posts_v2_community_posts_get"];
+        put?: never;
+        /** Create Post */
+        post: operations["create_post_v2_community_posts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/posts/{post_id}/likes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Like Post */
+        post: operations["like_post_v2_community_posts__post_id__likes_post"];
+        /** Unlike Post */
+        delete: operations["unlike_post_v2_community_posts__post_id__likes_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/posts/{post_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Comments */
+        get: operations["list_comments_v2_community_posts__post_id__comments_get"];
+        put?: never;
+        /** Create Comment */
+        post: operations["create_comment_v2_community_posts__post_id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Begin Community Image Upload
+         * @description 글에 붙일 사진 한 장을 올릴 자리. 받은 upload_url 로 upload_headers 를 실어 PUT 한 뒤 글 쓰기·고치기의 image_ids 에 넣는다. JPEG·PNG·WebP·HEIC 만(아니면 415 unsupported_media_type), 10MB 까지(넘으면 413 upload_too_large). 글에 붙지 않은 올리기가 20장이면 429 too_many_pending_images. 붙지 않은 채 24시간이 지나면 지워진다.
+         */
+        post: operations["begin_community_image_v2_community_images_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/images/{image_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Community Image Upload
+         * @description 올라온 것을 확인한다(포트폴리오 사진과 같은 단계). 건너뛰어도 글에 붙일 때 서버가 확인한다. 다시 불러도 같다. 없는 사진 404 community_image_not_found, 시한 지남 409 upload_intent_expired, 아직 안 올라옴 409 upload_not_found, 크기 다름 409 upload_size_mismatch.
+         */
+        post: operations["complete_community_image_v2_community_images__image_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/community/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Block User */
+        post: operations["block_user_v2_community_blocks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/coach/start": {
         parameters: {
             query?: never;
@@ -1366,7 +1494,8 @@ export interface paths {
          * @description 정리까지 마친(닫힌) 대화를 같은 대화로 다시 연다(「더 얘기하기」). 새 회차·새 대화를 만들지 않아 새 코칭으로
          *     세지 않는다. 이미 열려 있으면 그대로 돌려준다. revision 이 다르면 409 conversation_conflict, 코치 응답
          *     상한에 가까우면 409 conversation_limit_reached, 이어 갈 수 없는 대화(옛 갈래·연기가 아니어서 끊김)면
-         *     409 conversation_not_resumable. 이어 간 대화가 다시 닫히면 노트는 새 내용으로 고쳐진다.
+         *     409 conversation_not_resumable, 같은 묶음에 닫히지 않은 다른 회차가 있으면 409 practice_in_progress.
+         *     이어 간 대화가 다시 닫히면 노트는 새 내용으로 고쳐진다.
          */
         post: operations["continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post"];
         delete?: never;
@@ -1796,6 +1925,25 @@ export interface paths {
          *     다시 공개해도 published_at 은 처음 값이다. face_mosaic 로 얼굴 모자이크를 켜고 끈다.
          */
         patch: operations["update_entry_v2_entries__id__patch"];
+        trace?: never;
+    };
+    "/v2/community/posts/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Post */
+        get: operations["get_post_v2_community_posts__post_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Post */
+        delete: operations["delete_post_v2_community_posts__post_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Post */
+        patch: operations["update_post_v2_community_posts__post_id__patch"];
         trace?: never;
     };
     "/v2/videos": {
@@ -2429,6 +2577,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/community/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Categories */
+        get: operations["list_categories_v2_community_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/coach/conversations/{conversation_id}": {
         parameters: {
             query?: never;
@@ -2750,6 +2915,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/community/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Comment */
+        delete: operations["delete_comment_v2_community_comments__comment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/comments/{id}": {
         parameters: {
             query?: never;
@@ -2947,7 +3129,7 @@ export interface components {
          * JournalDraftStatus
          * @enum {string}
          */
-        JournalDraftStatus: "pending" | "ready" | "failed" | "skipped";
+        JournalDraftStatus: "pending" | "ready" | "failed";
         /** JournalFeedbackLine */
         JournalFeedbackLine: {
             /** Text */
@@ -4589,7 +4771,7 @@ export interface components {
          * ConsentAction
          * @enum {string}
          */
-        ConsentAction: "granted" | "declined" | "revoked";
+        ConsentAction: "granted" | "declined";
         /** ConsentEventResponse */
         ConsentEventResponse: {
             /**
@@ -4616,6 +4798,233 @@ export interface components {
              * @enum {string}
              */
             detail: "consent_document_outdated";
+        };
+        /** ReportRequest */
+        ReportRequest: {
+            /**
+             * Target Type
+             * @enum {string}
+             */
+            target_type: "post" | "comment";
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "copyright" | "inappropriate" | "spam" | "duplicate" | "other" | "abuse" | "sexual" | "privacy";
+            /** Detail */
+            detail?: string | null;
+        };
+        /** PostWriteRequest */
+        PostWriteRequest: {
+            /** Category Slug */
+            category_slug: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /**
+             * Anonymous
+             * @default false
+             */
+            anonymous: boolean;
+            /**
+             * Image Ids
+             * @description 붙일 사진 id(POST /v2/community/images 로 받은 것). 순서 = 보여 줄 순서, 0~5장. 6장 이상은 400 too_many_images, 남의 것·없는 것·다른 글에 붙은 것·올라오지 않은 것은 400 invalid_image
+             */
+            image_ids?: string[];
+        };
+        /**
+         * AuthorPayload
+         * @description 익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.
+         *
+         *     익명 글에 실제 user id 를 실어 보내면 화면에 "익명" 이라 적혀 있어도 클라이언트가
+         *     같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다.
+         */
+        AuthorPayload: {
+            /** Id */
+            id: string | null;
+            /** Nickname */
+            nickname: string | null;
+            /** Alias */
+            alias: string | null;
+        };
+        /** CommunityPostImage */
+        CommunityPostImage: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Url */
+            url: string | null;
+        };
+        /** PostPayload */
+        PostPayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Anonymous */
+            anonymous: boolean;
+            /** Category Slug */
+            category_slug: string;
+            /** Category Name */
+            category_name: string;
+            author: components["schemas"]["AuthorPayload"];
+            /** Author Name */
+            author_name: string | null;
+            /**
+             * Status
+             * @description hidden 은 신고·운영으로 가려진 내 글이다. 남에게는 아예 오지 않는다
+             * @enum {string}
+             */
+            status: "visible" | "hidden";
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Like Count */
+            like_count: number;
+            /** Comment Count */
+            comment_count: number;
+            /** View Count */
+            view_count: number;
+            /** Liked By Me */
+            liked_by_me: boolean;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Is Mine
+             * @description mine 과 같다
+             */
+            is_mine: boolean;
+            /**
+             * Images
+             * @description 붙은 사진(보여 줄 순서, 0~5장). 목록의 각 글에도 전부 온다
+             */
+            images: components["schemas"]["CommunityPostImage"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** LikeResponse */
+        LikeResponse: {
+            /** Like Count */
+            like_count: number;
+            /** Liked By Me */
+            liked_by_me: boolean;
+        };
+        /** CommentWriteRequest */
+        CommentWriteRequest: {
+            /** Body */
+            body: string;
+            /**
+             * Anonymous
+             * @default false
+             */
+            anonymous: boolean;
+        };
+        /** CommentPayload */
+        CommentPayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Post Id
+             * Format: uuid
+             */
+            post_id: string;
+            /** Anonymous */
+            anonymous: boolean;
+            author: components["schemas"]["AuthorPayload"];
+            /** Author Name */
+            author_name: string | null;
+            /**
+             * Status
+             * @description hidden 은 신고·운영으로 가려진 내 댓글이다. 남에게는 오지 않는다
+             * @enum {string}
+             */
+            status: "visible" | "hidden";
+            /** Body */
+            body: string;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Is Mine
+             * @description mine 과 같다
+             */
+            is_mine: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CommunityImageUploadRequest */
+        CommunityImageUploadRequest: {
+            /**
+             * Mime Type
+             * @enum {string}
+             */
+            mime_type: "image/jpeg" | "image/png" | "image/webp" | "image/heic";
+            /**
+             * Size Bytes
+             * @description 바이트. 10MB(10485760)까지
+             */
+            size_bytes: number;
+        };
+        /** CommunityImageUploadResponse */
+        CommunityImageUploadResponse: {
+            /**
+             * Image Id
+             * Format: uuid
+             */
+            image_id: string;
+            /**
+             * Upload Url
+             * @description 이 주소로 PUT 한다(30분)
+             */
+            upload_url: string;
+            /**
+             * Upload Headers
+             * @description PUT 에 그대로 실을 헤더. 지금은 Content-Type 하나다
+             */
+            upload_headers: {
+                [key: string]: string;
+            };
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** BlockRequest */
+        BlockRequest: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /** CoachStartRequest */
         CoachStartRequest: {
@@ -5366,6 +5775,18 @@ export interface components {
             /** Face Mosaic */
             face_mosaic?: boolean | null;
         };
+        /** PostUpdateRequest */
+        PostUpdateRequest: {
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /**
+             * Image Ids
+             * @description 보내면 글의 사진을 이 목록(순서 = 보여 줄 순서, 0~5장)으로 바꾼다. 빠진 사진은 떼고 지운다. 칸을 빼면 사진은 그대로다
+             */
+            image_ids?: string[];
+        };
         /** VideoList */
         VideoList: {
             /** Videos */
@@ -5997,6 +6418,34 @@ export interface components {
          * @enum {string}
          */
         ConsentEntryStatus: "allowed" | "decision_required";
+        /** PostListResponse */
+        PostListResponse: {
+            /** Posts */
+            posts: components["schemas"]["PostPayload"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** CommentListResponse */
+        CommentListResponse: {
+            /** Comments */
+            comments: components["schemas"]["CommentPayload"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** CategoryListResponse */
+        CategoryListResponse: {
+            /** Categories */
+            categories: components["schemas"]["CategoryPayload"][];
+        };
+        /** CategoryPayload */
+        CategoryPayload: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+        };
         /** ChallengeList */
         ChallengeList: {
             featured: components["schemas"]["Challenge"] | null;
@@ -9140,6 +9589,311 @@ export interface operations {
             };
         };
     };
+    create_report_v2_community_reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_posts_v2_community_posts_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+                cursor?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_post_v2_community_posts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    like_post_v2_community_posts__post_id__likes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LikeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlike_post_v2_community_posts__post_id__likes_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LikeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_comments_v2_community_posts__post_id__comments_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_comment_v2_community_posts__post_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommentWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    begin_community_image_v2_community_images_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommunityImageUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityImageUploadResponse"];
+                };
+            };
+        };
+    };
+    complete_community_image_v2_community_images__image_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityPostImage"];
+                };
+            };
+        };
+    };
+    block_user_v2_community_blocks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_coach_conversation_v2_coach_start_post: {
         parameters: {
             query?: never;
@@ -10075,6 +10829,101 @@ export interface operations {
             };
         };
     };
+    get_post_v2_community_posts__post_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_post_v2_community_posts__post_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_post_v2_community_posts__post_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_videos_v2_videos_get: {
         parameters: {
             query?: {
@@ -10806,6 +11655,26 @@ export interface operations {
             };
         };
     };
+    list_categories_v2_community_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryListResponse"];
+                };
+            };
+        };
+    };
     get_coach_conversation_v2_coach_conversations__conversation_id__get: {
         parameters: {
             query?: never;
@@ -11221,6 +12090,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    delete_comment_v2_community_comments__comment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

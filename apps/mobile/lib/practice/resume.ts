@@ -9,12 +9,9 @@ import type { PracticeGroup } from './types.ts';
  * - 「다음 테이크 찍기」: 열린 테이크가 없을 때만. 같은 묶음에 새 회차를 만들고, 영상은 언제나 새로 고르거나
  *   찍는다 — 지난 영상을 몰래 다시 쓰지 않는다(옛 영상이 필요하면 보관함에서 고른다).
  *
- * 앱에서 방금 끝낸 노트(A13)에서 이어갈 때만 이전 장면을 미리 채워 두고, 지난 기록(A1.2·A12)이나
- * 닫힌 코치 대화에서 이어갈 때는 장면을 비운다.
+ * 묶음에서 이어갈 때(지난 기록 A1.2·A12, 닫힌 코치 대화)는 장면을 비운다.
  */
 export type ContinueOrigin =
-  /** A13 연습 마치기 → 다음 테이크 찍기. 장면을 미리 채운다. */
-  | { kind: 'note'; rootId: string; practiceId: string; scene: SceneDraft }
   /** A1.2 연습 기록 상세·A12 지난 노트·닫힌 코치 대화의 「다음 테이크 찍기」. 장면은 비운다. */
   | { kind: 'group'; rootId: string; practiceId: string }
   /** 리딩 마무리 「이 장면, 찍어서 코치에게 보여 주기」. 새 연습에 대본의 장면을 채운다(SOMA-772). */
@@ -24,16 +21,12 @@ export type StartPlan = {
   /** 이어하기면 그 묶음, 새 연습이면 null. */
   continueFrom: { rootId: string; practiceId: string } | null;
   scene: SceneDraft;
-  /** 장면을 미리 채웠는지 — 화면 제목·버튼 문구가 이걸 본다. */
-  prefilled: boolean;
 };
 
 export function planFor(origin: ContinueOrigin | null): StartPlan {
-  if (!origin) return { continueFrom: null, scene: emptySceneDraft, prefilled: false };
-  if (origin.kind === 'reading') return { continueFrom: null, scene: { ...emptySceneDraft, ...origin.scene }, prefilled: false };
-  const continueFrom = { rootId: origin.rootId, practiceId: origin.practiceId };
-  if (origin.kind === 'note') return { continueFrom, scene: origin.scene, prefilled: true };
-  return { continueFrom, scene: emptySceneDraft, prefilled: false };
+  if (!origin) return { continueFrom: null, scene: emptySceneDraft };
+  if (origin.kind === 'reading') return { continueFrom: null, scene: { ...emptySceneDraft, ...origin.scene } };
+  return { continueFrom: { rootId: origin.rootId, practiceId: origin.practiceId }, scene: emptySceneDraft };
 }
 
 /** 시작 버튼을 누를 수 있는 상태인지 — 새 연습이든 다음 테이크든 확정된 영상이 있어야 한다. */

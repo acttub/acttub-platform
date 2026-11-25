@@ -231,14 +231,14 @@ public record ActorCoaching(
             out = out.replace(COMMON_FIND,
                     "- 배우가 막힐 것 같아도 둘 중 고르게 묻지 않는다. 대사 하나로 데려가는 쉬운 열린 질문으로 묻는다.");
         }
-        if (Boolean.TRUE.equals(answerDirectly) && "답하기".equals(doing)) {
+        if (Boolean.TRUE.equals(answerDirectly) && PracticeLoopRouter.ANSWER.equals(doing)) {
             out = afterHelpHeader(out, "- 이 배우에게는 이유·방법을 물으면 첫 문장에서 바로 답한다. 끝 질문은 붙이지 않는다.");
         }
         if (Boolean.TRUE.equals(reasonsFirst) && (PracticeLoopRouter.GAP.equals(doing) || PracticeLoopRouter.PROPOSE.equals(doing)
-                || PracticeLoopRouter.WRAP_UP.equals(doing) || "답하기".equals(doing))) {
+                || PracticeLoopRouter.WRAP_UP.equals(doing) || PracticeLoopRouter.ANSWER.equals(doing))) {
             out = afterHelpHeader(out, "- 이 배우에게는 관찰이나 제안에 이유 한 문장을 꼭 붙인다.");
         }
-        if (!skip.isEmpty() && (PracticeLoopRouter.GAP.equals(doing) || "짚어주기".equals(doing)
+        if (!skip.isEmpty() && (PracticeLoopRouter.GAP.equals(doing) || PracticeLoopRouter.POINT_OUT.equals(doing)
                 || PracticeLoopRouter.POINT_OUT_OTHER.equals(doing))) {
             out = afterAvoidHeader(out, "- 이 배우에게 짚지 않는 것: " + String.join(", ", skip));
         }
