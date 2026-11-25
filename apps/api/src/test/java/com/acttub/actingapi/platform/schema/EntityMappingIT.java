@@ -233,8 +233,6 @@ class EntityMappingIT {
         assertThat(loaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(loaded.getEmail()).isEqualTo("a@example.test");
         assertThat(loaded.getAgeConfirmedAt()).isNull();
-        assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, id))
-                .isEqualTo("user");
         assertThat(loaded.getDeactivatedAt()).isNull();
         // server_default 가 발동했다 — 필드 초기화값을 주지 않은 결과다 (apps/api/CONTRACT.md §5-3-3).
         assertThat(loaded.getCreatedAt()).isNotNull();

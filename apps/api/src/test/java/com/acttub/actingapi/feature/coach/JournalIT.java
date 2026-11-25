@@ -44,7 +44,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import(JournalIT.Fixture.class)
+@Import({MutableClock.Fixture.class, JournalIT.Fixture.class})
 class JournalIT {
 
     /** 모델 답. null 이면 실패한다. */
@@ -62,6 +62,8 @@ class JournalIT {
     ProfileService accounts;
     @Autowired
     PracticeReminderRepository reminders;
+    @Autowired
+    MutableClock clock;
 
     private UUID member;
     private String bearer;
@@ -76,6 +78,7 @@ class JournalIT {
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
+        clock.set(Instant.parse("2026-10-23T00:00:00Z"));
         MODEL.set("""
                 {"schema_version":"acttub.actor_journal_draft.v4",
                  "practice":[{"text":"상대 눈을 보며 낮게 말해 봤어요","basis":"actor_report","source_refs":["m0"]}],
@@ -247,12 +250,6 @@ class JournalIT {
 
     @TestConfiguration
     static class Fixture {
-        @Bean
-        @Primary
-        MutableClock mutableClock() {
-            return new MutableClock(Instant.parse("2026-10-23T00:00:00Z"));
-        }
-
         /** 모델만 정해 둔 답으로 바꾼다. 저장소·대화 읽기는 실제 것이다. */
         @Bean
         @Primary
