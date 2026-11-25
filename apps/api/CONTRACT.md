@@ -80,8 +80,6 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   `handoff_confirmations` 는 읽는 코드가 없다.
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
-- `evening_reminder_sends`(옛 저녁 8시 고정 알림의 보내기 장부, V25): 코드와 매핑을 지웠다. 알림 집계를 따로 남긴 뒤
-  표를 지운다. DROP 마이그레이션은 매핑을 내린 코드가 운영에 나간 다음 릴리스에 넣는다.
 - `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 매핑을 내렸다. 지운다(아래 문단).
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
