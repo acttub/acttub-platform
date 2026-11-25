@@ -31,6 +31,7 @@ import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
+import com.acttub.actingapi.feature.video.app.VideoRetention;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
 import com.acttub.actingapi.platform.schema.ActingGoal;
@@ -74,6 +75,9 @@ class PostgresProfileRepository
     /** 알림을 모두 끌 때 푸시 토큰을 지우는 주인. */
     private final PushTokenRevocation pushTokens;
 
+    /** 탈퇴 3년 뒤, 보관 동의로 남겨 두었던 영상을 파기한 것으로 적는 주인. */
+    private final VideoRetention retainedVideos;
+
     /**
      * 계정을 닫는 순서. 이 저장소가 그 순서의 자리를 맡고 있어({@link #STEPS}) 생성자로 바로 받으면 서로를 기다린다. 쓸 때 꺼낸다.
      */
@@ -86,6 +90,7 @@ class PostgresProfileRepository
             ChallengeWithdrawal challenges,
             PostgresPracticeGroupErasure deletedPractices,
             PushTokenRevocation pushTokens,
+            VideoRetention retainedVideos,
             ObjectProvider<AccountErasureSequence> closing) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -93,6 +98,7 @@ class PostgresProfileRepository
         this.challenges = challenges;
         this.deletedPractices = deletedPractices;
         this.pushTokens = pushTokens;
+        this.retainedVideos = retainedVideos;
         this.closing = closing;
     }
 
@@ -292,14 +298,7 @@ class PostgresProfileRepository
                     cleanups.add(this.cleanups.schedule(userId, videos, now, now));
                 }
                 // 보관 동의로 남겨 두었던 영상도 이제 파일이 없다 — 행과 최소 메타만 남긴다.
-                entityManager.createNativeQuery("""
-                        UPDATE videos
-                        SET purged_at=:now,updated_at=:now
-                        WHERE user_id=:userId AND purged_at IS NULL
-                        """)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("userId", userId)
-                        .executeUpdate();
+                retainedVideos.purgeFilesOf(userId, now);
                 // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(specs/reading).
                 List<String> recordings = deleteRecordings(userId);
                 if (!recordings.isEmpty()) {
