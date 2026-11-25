@@ -77,7 +77,8 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
 - 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
   `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
   `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
-  `handoff_confirmations` 는 읽는 코드가 없다.
+  다만 `handoff_confirmations` 표와 `coaching_handoffs.branch_kind`·`handoff_json`, `coach_sessions.conversation_summary`는
+  읽고 쓰는 코드가 없다. 지운다(아래 문단).
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
 - `evening_reminder_sends`(옛 저녁 8시 고정 알림의 보내기 장부, V25): 코드와 매핑을 지웠다. 알림 집계를 따로 남긴 뒤
@@ -95,7 +96,7 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
-구형 `reports`, `summaries`의 다섯 칸, `users.role`, 그리고 매핑 없이 남은 `practice_sessions.subtext`와
+구형 `reports`, `summaries`의 다섯 칸, `users.role`, `handoff_confirmations`와 `coaching_handoffs`·`coach_sessions`의 옛 칸(위 목록), 그리고 매핑 없이 남은 `practice_sessions.subtext`와
 `ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`), `videos`의 크기 두 칸은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
 쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
 마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
@@ -165,8 +166,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 3. **`server_default` vs 앱 측 default 이원화.** JPA 에는 "앱 측 default" 개념이 없다. 필드
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
    활성 매핑의 `summaries.observations_json`/`.uncertainties_json`은 DB 기본값이 있고
-   null 로 두면 NOT NULL 위반이다. 매핑을 내린 `coach_sessions.conversation_summary`(`''`)의 DB 기본값도
-   그대로 보존한다.
+   null 로 두면 NOT NULL 위반이다.
 4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`,
    `external_operations.response_payload`(NULL 허용).
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
@@ -1080,8 +1080,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     `v2`다. 관찰 기록도 신형 기록만 `video_record_v1`이고 구형은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만
     새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
     시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
-  - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`·`handoff_confirmations`는 새 표가 없어 옛 표에
-    남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
+  - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`는 새 표가 없어 옛 표에
+    남는다(`handoff_confirmations`는 옮기지 않고 지운다, §5-1). 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
     새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
 - **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
