@@ -5,7 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,12 +16,9 @@ interface RefreshTokenJpaRepository extends JpaRepository<RefreshTokenEntity, UU
 
     Optional<RefreshTokenEntity> findByTokenHash(String tokenHash);
 
-    @Query(value = """
-            SELECT *
-            FROM refresh_tokens
-            WHERE token_hash = :tokenHash
-            FOR UPDATE
-            """, nativeQuery = true)
+    /** 판정과 교체가 이 잠금 안에서 난다. 방언 덕에 {@code FOR UPDATE} 로 나간다(apps/api/CONTRACT.md §5-2). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select token from RefreshTokenEntity token where token.tokenHash = :tokenHash")
     Optional<RefreshTokenEntity> findByTokenHashForUpdate(
             @Param("tokenHash") String tokenHash);
 

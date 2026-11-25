@@ -1,7 +1,5 @@
 package com.acttub.actingapi.feature.auth.adapter.db;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -23,7 +21,6 @@ import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.security.AuthenticatedUsers;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -35,6 +32,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>동의 여부는 여기 없다. 동의 문서와 그 이력을 소유한 쪽은 {@code consent} 이고, 게이트가
  * 묻는 것({@code PendingConsentGate})도 로그인 응답에 실리는 목록({@code auth/app/
  * PendingConsentDocuments})도 그쪽이 답한다 (SOMA-397 12단계).
+ *
+ * <p>자기 표({@code users}·{@code user_identities}·{@code refresh_tokens}·{@code user_active_days})는 Spring Data·JPQL·HQL 로 읽고
+ * 쓴다. 인증 확인·토큰 갱신처럼 요청마다 도는 길의 문장 수는 native 때와 같다({@code AuthStoreIT}). native SQL 로 남은 것은 가입의
+ * 동의 기록 넣기 하나다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 public class PostgresAuthRepository implements AuthRepository, AuthenticatedUsers, GuestAccounts {
@@ -63,26 +64,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
      */
     @Override
     public AuthenticatedUser find(UUID id) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT users.id,users.email,users.status,
-                       (EXISTS (SELECT 1 FROM user_identities
-                                WHERE user_identities.user_id=users.id)
-                        AND NOT EXISTS (SELECT 1 FROM user_identities
-                                        WHERE user_identities.user_id=users.id
-                                          AND user_identities.provider<>'guest')) AS guest
-                FROM users
-                WHERE users.id=:id
-                """, Tuple.class)
-                .setParameter("id", id));
-        if (rows.isEmpty()) {
-            return null;
-        }
-        Tuple row = rows.getFirst();
-        return new AuthenticatedUser(
-                row.get("id", UUID.class),
-                row.get("email", String.class),
-                UserStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)),
-                row.get("guest", Boolean.class));
+        return users.findAuthenticated(id, IdentityProvider.GUEST).orElse(null);
     }
 
     @Override
@@ -109,26 +91,9 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
      */
     @Override
     public void closeTransferredGuest(UUID guestId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE users
-                SET status='deactivated',deactivated_at=:now,updated_at=:now
-                WHERE id=:guestId
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("guestId", guestId)
-                .executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM user_identities WHERE user_id=:guestId")
-                .setParameter("guestId", guestId)
-                .executeUpdate();
-        entityManager.createNativeQuery("""
-                UPDATE refresh_tokens
-                SET revoked_at=:now
-                WHERE user_id=:guestId
-                  AND revoked_at IS NULL
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("guestId", guestId)
-                .executeUpdate();
+        users.close(guestId, UserStatus.DEACTIVATED, now);
+        identities.removeAllOf(guestId);
+        refreshTokens.revokeAllActiveByUserId(guestId, now);
     }
 
     @Override
@@ -185,71 +150,28 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
 
     @Override
     public List<String> providersOf(UUID userId) {
-        return list(entityManager.createNativeQuery("""
-                SELECT provider
-                FROM user_identities
-                WHERE user_id=:userId
-                  AND provider_uid IS NOT NULL
-                GROUP BY provider
-                ORDER BY max(last_used_at) DESC, provider
-                """, Tuple.class)
-                .setParameter("userId", userId)).stream()
-                .map(row -> provider(row.get("provider", String.class)).dbValue())
-                .toList();
+        return identities.providersOf(userId).stream().map(IdentityProvider::dbValue).toList();
     }
 
     @Override
     public void markIdentityUsed(String provider, String uid, Instant now) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                UPDATE user_identities
-                SET last_used_at=:now
-                WHERE provider=:provider
-                  AND provider_uid=:providerUid
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("provider", provider(provider).dbValue())
-                .setParameter("providerUid", uid)
-                .executeUpdate());
+        transaction.executeWithoutResult(status -> identities.markUsed(provider(provider), uid, now));
     }
 
     @Override
     public void updateEmailIfFree(UUID userId, String email) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                UPDATE users
-                SET email=:email,updated_at=now()
-                WHERE id=:userId
-                  AND NOT EXISTS (SELECT 1 FROM users taken WHERE lower(taken.email)=lower(:email))
-                """)
-                .setParameter("email", email)
-                .setParameter("userId", userId)
-                .executeUpdate());
+        transaction.executeWithoutResult(status -> users.updateEmailIfFree(userId, email));
     }
 
     @Override
     public void linkIdentity(UUID user, String provider, String uid, String providerTokenEncrypted) {
         IdentityProvider identityProvider = provider(provider);
         transaction.executeWithoutResult(status -> {
-            // 토큰 칸은 제공자마다 따로다. 없는 값은 NULL 이라 타입을 추론하지 못해 CAST 한다.
-            List<Tuple> inserted = list(entityManager.createNativeQuery("""
-                    WITH linked AS (
-                        INSERT INTO user_identities(
-                            id,user_id,provider,provider_uid,apple_token_encrypted,naver_token_encrypted)
-                        VALUES (:id,:userId,:provider,:providerUid,
-                                CAST(:appleToken AS text),CAST(:naverToken AS text))
-                        ON CONFLICT(provider,provider_uid) DO NOTHING
-                        RETURNING user_id
-                    )
-                    SELECT user_id FROM linked
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("userId", user)
-                    .setParameter("provider", identityProvider.dbValue())
-                    .setParameter("providerUid", uid)
-                    .setParameter("appleToken",
-                            identityProvider == IdentityProvider.APPLE ? providerTokenEncrypted : null)
-                    .setParameter("naverToken",
-                            identityProvider == IdentityProvider.NAVER ? providerTokenEncrypted : null));
-            if (!inserted.isEmpty()) {
+            // 토큰 칸은 제공자마다 따로다. 이미 있는 신원이면 0 이고, 그 주인을 읽어 판정한다.
+            int inserted = identities.link(UUID.randomUUID(), user, identityProvider, uid,
+                    identityProvider == IdentityProvider.APPLE ? providerTokenEncrypted : null,
+                    identityProvider == IdentityProvider.NAVER ? providerTokenEncrypted : null);
+            if (inserted == 1) {
                 return;
             }
             UUID owner = identities.findByProviderAndProviderUid(identityProvider, uid)
@@ -264,52 +186,31 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
 
     @Override
     public boolean lacksProviderToken(String provider, String uid) {
-        String column = tokenColumn(provider(provider));
-        if (column == null) {
-            return false;
-        }
-        return !list(entityManager.createNativeQuery(
-                "SELECT 1 AS missing FROM user_identities"
-                        + " WHERE provider=:provider AND provider_uid=:providerUid AND " + column + " IS NULL",
-                Tuple.class)
-                .setParameter("provider", provider(provider).dbValue())
-                .setParameter("providerUid", uid)).isEmpty();
+        IdentityProvider identityProvider = provider(provider);
+        return switch (identityProvider) {
+            case APPLE -> identities.existsByProviderAndProviderUidAndAppleTokenEncryptedIsNull(identityProvider, uid);
+            case NAVER -> identities.existsByProviderAndProviderUidAndNaverTokenEncryptedIsNull(identityProvider, uid);
+            default -> false;
+        };
     }
 
+    /** 토큰 암호문을 두는 칸은 제공자마다 따로다. 토큰이 없는 제공자는 아무것도 하지 않는다. */
     @Override
     public void storeProviderToken(String provider, String uid, String providerTokenEncrypted) {
-        String column = tokenColumn(provider(provider));
-        if (column == null) {
-            return;
+        IdentityProvider identityProvider = provider(provider);
+        switch (identityProvider) {
+            case APPLE -> transaction.executeWithoutResult(status ->
+                    identities.storeAppleToken(identityProvider, uid, providerTokenEncrypted));
+            case NAVER -> transaction.executeWithoutResult(status ->
+                    identities.storeNaverToken(identityProvider, uid, providerTokenEncrypted));
+            default -> {
+            }
         }
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery(
-                "UPDATE user_identities SET " + column + "=:token"
-                        + " WHERE provider=:provider AND provider_uid=:providerUid")
-                .setParameter("token", providerTokenEncrypted)
-                .setParameter("provider", provider(provider).dbValue())
-                .setParameter("providerUid", uid)
-                .executeUpdate());
     }
 
     @Override
     public void removeIdentity(String provider, String uid) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                DELETE FROM user_identities
-                WHERE provider=:provider
-                  AND provider_uid=:providerUid
-                """)
-                .setParameter("provider", provider(provider).dbValue())
-                .setParameter("providerUid", uid)
-                .executeUpdate());
-    }
-
-    /** 토큰 암호문을 두는 컬럼. 이름은 코드의 상수라 SQL 에 이어 붙여도 된다. 토큰이 없는 제공자는 {@code null}. */
-    private static String tokenColumn(IdentityProvider provider) {
-        return switch (provider) {
-            case APPLE -> "apple_token_encrypted";
-            case NAVER -> "naver_token_encrypted";
-            default -> null;
-        };
+        transaction.executeWithoutResult(status -> identities.remove(provider(provider), uid));
     }
 
     @Override
@@ -391,17 +292,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
      * 여기서 {@code users} 를 잠그면 둘이 서로를 기다릴 수 있다.
      */
     private void recordActiveDay(UUID user, Instant at) {
-        entityManager.createNativeQuery("""
-                INSERT INTO user_active_days(user_id,day)
-                SELECT id,:day
-                FROM users
-                WHERE id=:userId
-                  AND deactivated_at IS NULL
-                ON CONFLICT DO NOTHING
-                """)
-                .setParameter("userId", user)
-                .setParameter("day", LocalDate.ofInstant(at, KST))
-                .executeUpdate();
+        users.recordActiveDay(user, LocalDate.ofInstant(at, KST));
     }
 
     @Override
@@ -415,6 +306,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
         return new AuthenticatedUser(
                 entity.getId(), entity.getEmail(), entity.getStatus());
     }
+
 
     private static AuthenticatedUser authenticated(
             UserJpaRepository.AuthenticatedUserProjection projection) {

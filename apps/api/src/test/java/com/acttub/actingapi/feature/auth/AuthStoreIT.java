@@ -46,8 +46,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 인증 저장소({@code PostgresAuthRepository}·{@code RefreshTokenJpaRepository})가 내는 결과·경합·문장 수를 실제 PostgreSQL 에서
  * 고정한다. 자기 표({@code users}·{@code user_identities}·{@code refresh_tokens}·{@code user_active_days})만 쓰는 문장을 네이티브
- * SQL 에서 JPA 로 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과해야 한다(apps/api/CONTRACT.md §5-9). 인증 확인은
- * 모든 보호 요청이 지나므로 <b>보호 요청 하나가 보내는 문장 전체</b>를 함께 고정한다.
+ * SQL 에서 JPA 로 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과했다(apps/api/CONTRACT.md §5-9). 인증 확인은
+ * 모든 보호 요청이 지나므로 <b>보호 요청 하나가 보내는 문장 전체</b>를 함께 고정한다 — 옮긴 뒤에도 그 목록은 고치지 않았다.
+ * 포트 메서드의 문장 표만 세 곳 달라졌다: 신원 잇기의 {@code RETURNING} 이 빠지고(문장 수 같음), 토큰 행 잠금이
+ * {@code for update of rte1_0} 로 나간다(세기 같음).
  *
  * <p>로그인·가입·게스트·이관·로그아웃·제공자 연결 끊기는 {@code Account*IT}·{@code ProviderDisconnectCallbackIT}, 신원 잇기의
  * 멱등·토큰 회전의 판정과 잠금 대기·접속일은 {@link AuthRepositoryIT}·{@link RefreshRotationIT} 가 본다. 여기서는 그 테스트가 밟지
@@ -318,7 +320,7 @@ class AuthStoreIT {
             return null;
         });
 
-        assertThat(sent).as("요청 하나의 문장 — 인증 확인(select users)이 게이트와 컨트롤러에서 한 번씩 나간다").containsExactly(
+        assertThat(sent).as("요청 하나의 문장 — 첫 select users 가 인증 확인이고, 넷째 select users 는 프로필 게이트의 users·user_profiles 조회다").containsExactly(
                 "select users",
                 "with select",
                 "select user_consents",
@@ -345,11 +347,11 @@ class AuthStoreIT {
         soft.assertThat(statementsOf(() -> {
             accounts.linkIdentity(user, "naver", "n-s", "k1:n");
             return null;
-        })).as("새로 잇기").containsExactly("insert user_identities on conflict returning");
+        })).as("새로 잇기 — RETURNING 대신 영향 행 수로 판정한다").containsExactly("insert user_identities on conflict");
         soft.assertThat(statementsOf(() -> {
             accounts.linkIdentity(user, "naver", "n-s", "k1:n");
             return null;
-        })).as("이미 이은 신원").containsExactly("insert user_identities on conflict returning", "select user_identities");
+        })).as("이미 이은 신원").containsExactly("insert user_identities on conflict", "select user_identities");
         soft.assertThat(statementsOf(() -> accounts.lacksProviderToken("apple", "a-s"))).containsExactly("select user_identities");
         soft.assertThat(statementsOf(() -> accounts.lacksProviderToken("kakao", "k-s"))).as("토큰 칸이 없는 제공자").isEmpty();
         soft.assertThat(statementsOf(() -> {
@@ -369,7 +371,7 @@ class AuthStoreIT {
                 now.plusSeconds(1))))
                 .as("토큰 갱신")
                 .as("옛 토큰의 교체 표시는 접속일 넣기 앞에서 내보낸다")
-                .containsExactly("select refresh_tokens for update", "insert refresh_tokens", "update refresh_tokens",
+                .containsExactly("select refresh_tokens for update of rte1_0", "insert refresh_tokens", "update refresh_tokens",
                         "insert user_active_days on conflict");
         soft.assertThat(statementsOf(() -> accounts.revoke("e".repeat(64), now))).containsExactly("update refresh_tokens");
         UUID guest = user(null, "active");
