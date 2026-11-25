@@ -1,0 +1,409 @@
+== 표 ==
+account_cleanup_operations: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+actor_journals: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+actor_memories: 6행 → 4행
+  user_id=게스트: 2 → 0
+  user_id=회원: 2 → 2
+  user_id=남: 2 → 2
+  - <회원/기억/목표>
+  - <회원/기억/장면>
+  ~ <게스트/기억/목표>
+      user_id: <게스트> → <회원>
+  ~ <게스트/기억/장면>
+      user_id: <게스트> → <회원>
+actor_memory_entries: 3행 → 2행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  - <회원/옛 기억>
+  ~ <게스트/옛 기억>
+      user_id: <게스트> → <회원>
+ad_events: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+ad_serves: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+ai_jobs: 15행 → 15행
+  user_id=게스트: 5 → 0
+  user_id=회원: 5 → 10
+  user_id=남: 5 → 5
+  ~ <게스트/작업/기억 갱신>
+      user_id: <게스트> → <회원>
+  ~ <게스트/작업/끝난 분석>
+      user_id: <게스트> → <회원>
+  ~ <게스트/작업/대본 나누기>
+      user_id: <게스트> → <회원>
+  ~ <게스트/작업/분석>
+      user_id: <게스트> → <회원>
+  ~ <게스트/작업/참여작 리포트>
+      user_id: <게스트> → <회원>
+analyses: 3행 → 3행
+anomalies: 3행 → 3행
+billing_checkouts: 6행 → 6행
+  user_id=게스트: 2 → 2
+  user_id=회원: 2 → 2
+  user_id=남: 2 → 2
+billing_payments: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+billing_pro_grants: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+billing_subscriptions: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+challenge_entries: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+challenges: 4행 → 4행
+  host_user_id=게스트: 1 → 1
+  host_user_id=회원: 1 → 1
+  host_user_id=남: 1 → 1
+coach_conversations: 3행 → 3행
+coach_messages: 3행 → 3행
+coach_notes: 3행 → 3행
+coach_sessions: 3행 → 3행
+coach_turns: 3행 → 3행
+coaching_handoffs: 3행 → 3행
+community_anonymous_aliases: 4행 → 4행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 2 → 2
+community_blocks: 4행 → 4행
+  blocked_id=게스트: 1 → 1
+  blocked_id=회원: 1 → 1
+  blocked_id=남: 2 → 2
+  blocker_id=게스트: 1 → 1
+  blocker_id=회원: 1 → 1
+  blocker_id=남: 2 → 2
+community_comments: 4행 → 4행
+  author_id=게스트: 1 → 1
+  author_id=회원: 1 → 1
+  author_id=남: 2 → 2
+community_post_images: 6행 → 6행
+  uploader_id=게스트: 2 → 2
+  uploader_id=회원: 2 → 2
+  uploader_id=남: 2 → 2
+community_post_likes: 4행 → 4행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 2 → 2
+community_posts: 3행 → 3행
+  author_id=게스트: 1 → 1
+  author_id=회원: 1 → 1
+  author_id=남: 1 → 1
+community_reports: 4행 → 4행
+  reporter_id=게스트: 1 → 1
+  reporter_id=회원: 1 → 1
+  reporter_id=남: 2 → 2
+deleted_practice_videos: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+entry_ai_reports: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+entry_comments: 4행 → 4행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 2 → 2
+entry_likes: 4행 → 4행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 2 → 2
+entry_ranking_snapshots: 3행 → 3행
+  viewer_id=게스트: 1 → 1
+  viewer_id=회원: 1 → 1
+  viewer_id=남: 1 → 1
+entry_reports: 4행 → 4행
+  reporter_id=게스트: 1 → 1
+  reporter_id=회원: 1 → 1
+  reporter_id=남: 2 → 2
+entry_saves: 4행 → 4행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 2 → 2
+entry_view_events: 4행 → 4행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 2 → 2
+external_operations: 6행 → 6행
+  user_id=게스트: 2 → 0
+  user_id=회원: 2 → 4
+  user_id=남: 2 → 2
+  ~ <게스트/옛 작업/끝남>
+      user_id: <게스트> → <회원>
+  ~ <게스트/옛 작업/도는 중>
+      user_id: <게스트> → <회원>
+guest_transfer_codes: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  ~ <새 id>
+      used_at: NULL → <now>
+line_memorization: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/암기 상태>
+      user_id: <게스트> → <회원>
+note_ratings: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/노트 평가>
+      user_id: <게스트> → <회원>
+notification_pushes: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+notifications: 7행 → 7행
+  actor_user_id=게스트: 1 → 1
+  actor_user_id=회원: 1 → 1
+  actor_user_id=남: 2 → 2
+  user_id=게스트: 2 → 2
+  user_id=회원: 2 → 2
+  user_id=남: 3 → 3
+portfolio_credits: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+portfolio_photos: 6행 → 6행
+  user_id=게스트: 2 → 2
+  user_id=회원: 2 → 2
+  user_id=남: 2 → 2
+portfolios: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+practice_deletion_marks: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+practice_feedback: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/의견>
+      updated_at: <DB 시각> → <DB 시각>
+      user_id: <게스트> → <회원>
+practice_reminder_sends: 3행 → 2행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  - <게스트>, 2026-11-19, 'practice'
+practice_reports: 3행 → 3행
+practice_sessions: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/옛 연습>
+      user_id: <게스트> → <회원>
+practices: 9행 → 9행
+  user_id=게스트: 3 → 0
+  user_id=회원: 3 → 6
+  user_id=남: 3 → 3
+  ~ <게스트/연습/리딩에서 온 연습>
+      user_id: <게스트> → <회원>
+  ~ <게스트/연습/묶음/1회차>
+      user_id: <게스트> → <회원>
+  ~ <게스트/연습/묶음/2회차>
+      user_id: <게스트> → <회원>
+push_opens: 3행 → 2행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  - <게스트/푸시 연 기록>
+push_tokens: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+reading_pronunciation_reports: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+reading_recording_retranscripts: 3행 → 3행
+reading_recordings: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/리딩 녹음>
+      user_id: <게스트> → <회원>
+reading_session_ratings: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/리딩 회차/평가>
+      user_id: <게스트> → <회원>
+reading_sessions: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/리딩 회차>
+      user_id: <게스트> → <회원>
+reading_voice_usage: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+refresh_tokens: 6행 → 6행
+  user_id=게스트: 2 → 2
+  user_id=회원: 2 → 2
+  user_id=남: 2 → 2
+  ~ <게스트/리프레시 토큰/살아 있음>
+      revoked_at: NULL → <now>
+script_characters: 3행 → 3행
+script_cocreations: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+script_imports: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+script_lines: 6행 → 6행
+script_uploads: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+scripts: 3행 → 3행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 2
+  user_id=남: 1 → 1
+  ~ <게스트/대본>
+      user_id: <게스트> → <회원>
+summaries: 3행 → 3행
+support_inquiries: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+transcripts: 3행 → 3행
+upload_intents: 6행 → 6행
+  user_id=게스트: 2 → 0
+  user_id=회원: 2 → 4
+  user_id=남: 2 → 2
+  ~ <게스트/옛 올리기/미확정>
+      user_id: <게스트> → <회원>
+  ~ <게스트/옛 올리기/확정>
+      user_id: <게스트> → <회원>
+user_active_days: 3행 → 2행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  - <게스트>, 2026-11-19
+user_airbridge_device_lookups: 3행 → 2행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  - <게스트>
+user_blocks: 4행 → 4행
+  blocked_id=게스트: 1 → 1
+  blocked_id=회원: 1 → 1
+  blocked_id=남: 2 → 2
+  blocker_id=게스트: 1 → 1
+  blocker_id=회원: 1 → 1
+  blocker_id=남: 2 → 2
+user_consents: 12행 → 12행
+  user_id=게스트: 4 → 4
+  user_id=회원: 4 → 4
+  user_id=남: 4 → 4
+user_discovery_answers: 3행 → 2행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  - <게스트>
+user_identities: 9행 → 8행
+  user_id=게스트: 1 → 0
+  user_id=회원: 4 → 4
+  user_id=남: 4 → 4
+  - <게스트/신원/guest>
+user_profile_directions: 6행 → 6행
+  user_id=게스트: 2 → 2
+  user_id=회원: 2 → 2
+  user_id=남: 2 → 2
+user_profiles: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+user_signup_attributions: 3행 → 2행
+  user_id=게스트: 1 → 0
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+  - <게스트>
+users: 4행 → 4행
+  ~ <게스트>
+      deactivated_at: NULL → <now>
+      status: 'active' → 'deactivated'
+      updated_at: <now-PT1440H> → <now>
+  ~ <회원>
+      memory_epoch: 0 → 1
+      updated_at: <now-PT1440H> → <DB 시각>
+video_transcripts: 6행 → 6행
+videos: 12행 → 12행
+  user_id=지운 연습 보관 계정: 3 → 3
+  user_id=게스트: 3 → 0
+  user_id=회원: 3 → 6
+  user_id=남: 3 → 3
+  ~ <게스트/영상/1>
+      user_id: <게스트> → <회원>
+  ~ <게스트/영상/2>
+      user_id: <게스트> → <회원>
+  ~ <게스트/영상/3>
+      user_id: <게스트> → <회원>
+== 문장 ==
+  select user_identities, users
+  select consent_documents
+  select user_consents
+  select user_identities, user_profile_directions, users, user_profiles
+BEGIN
+  select guest_transfer_codes for update
+  select user_identities, users
+  update upload_intents
+  update upload_intents
+  update videos
+  update practice_sessions
+  update practices
+  update external_operations
+  update ai_jobs
+  select actor_memories, actor_memory_entries
+  select actor_memories, actor_memory_entries
+  update users
+  delete actor_memories
+  delete actor_memory_entries
+  update actor_memories
+  update actor_memory_entries
+  select users for update
+  update scripts
+  update reading_sessions
+  update scripts
+  update reading_sessions
+  update reading_recordings
+  update line_memorization
+  update reading_session_ratings
+  update practice_feedback
+  update users
+  update note_ratings
+  delete user_signup_attributions
+  delete user_airbridge_device_lookups
+  delete user_active_days
+  delete practice_reminder_sends
+  delete push_opens
+  delete user_discovery_answers
+  update users
+  delete user_identities
+  update refresh_tokens
+  update guest_transfer_codes
+COMMIT
