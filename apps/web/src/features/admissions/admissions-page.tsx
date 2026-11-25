@@ -30,6 +30,7 @@ import {
   yearResultRows,
   type YearResultRow,
 } from "./by-year";
+import { PracticeCallout } from "./practice-callout";
 import { StatusLine } from "./status-line";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -192,6 +193,14 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
               </div>
             </section>
           )}
+
+          <PracticeCallout
+            eyebrow="정시 실기 준비"
+            title="지정연기·자유연기, 앱에서 혼자 연습해요"
+            body="대본을 넣으면 상대역 목소리와 리딩하고, 연기 영상을 올리면 AI 코치가 봐 줘요. 무료로 시작해요."
+            action="앱에서 연습하기"
+            surface="admissions_list"
+          />
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <input

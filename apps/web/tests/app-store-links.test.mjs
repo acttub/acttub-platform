@@ -254,6 +254,8 @@ test("모든 다운로드 surface가 /go 정적 경로 목록의 단일 정본�
     "entry_share",
     "trial_bar",
     "trial_done",
+    "admissions_list",
+    "admissions_detail",
   ]);
 });
 
