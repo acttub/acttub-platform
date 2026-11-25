@@ -1200,6 +1200,7 @@ const ko = {
     rowTerms: '만 14세 이상 · 이용약관',
     rowPrivacy: '개인정보 처리 · AI 분석',
     rowRetention: '탈퇴 후 영상·녹음 보관',
+    rowDataSharing: '영상 데이터 제3자 제공',
     rowMarketing: '혜택·이벤트 소식 받기',
     requiredTag: '[필수]',
     optionalTag: '[선택]',
