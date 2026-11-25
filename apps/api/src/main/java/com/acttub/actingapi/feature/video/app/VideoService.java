@@ -189,7 +189,7 @@ public class VideoService {
         };
     }
 
-    /** 시한이 지난 미확정 예약을 치운다. 매일 도는 일이 부른다. */
+    /** 시한이 지난 미확정 예약을 한 번에 정해진 수만큼 치운다. 주기 작업({@code UploadIntentSweepScheduler})이 부른다. */
     public int sweepExpiredIntents() {
         List<UUID> scheduled = videos.sweepExpiredIntents(clock.instant());
         cleanup.attemptObjectDelete(scheduled);
