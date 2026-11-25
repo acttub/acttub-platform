@@ -187,6 +187,7 @@
       "./plugins/with-ort-16kb.js",
       "./plugins/with-ort-newarch.js",
       "./plugins/with-ort-register.js",
+      "./plugins/with-ort-nuget-pod.js",
       "./plugins/with-embed-extensions-first.js",
       "@bacons/apple-targets"
     ],
