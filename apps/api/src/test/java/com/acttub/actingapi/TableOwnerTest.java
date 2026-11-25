@@ -22,8 +22,23 @@ import org.junit.jupiter.api.Test;
  * 테이블마다 주인이 하나이고, 주인이 아닌 기능의 SQL·JPQL·Schema Entity 에는 그 테이블이 나오지 않는다
  * (docs/ARCHITECTURE.md 「테이블 주인」).
  *
- * <p>표는 문서에만 있고 이 테스트가 그 문서를 읽는다. 지금 어긋난 곳은 허용 목록에 적혀 있고, 목록은 줄을 빼기만 한다
- * ({@link #EXCEPTION_CEILING}).
+ * <p>표는 문서에만 있고 이 테스트가 그 문서를 읽는다. 지금 어긋난 곳은 두 목록에 나뉘어 있다(ADR-040).
+ *
+ * <ul>
+ *   <li>쓰기 예외 목록({@code table-owner-write-exceptions.txt}): 주인이 아닌 기능이 그 테이블에 <b>쓰는</b> 곳. 0 이 될 때까지
+ *       줄기만 한다({@link #WRITE_EXCEPTION_CEILING}).</li>
+ *   <li>읽기 전용 목록({@code table-owner-read-only.txt}): 주인이 아닌 기능이 그 테이블을 <b>읽기만</b> 하는 곳. 줄을 더하지
+ *       않는다. 0 으로 줄일 대상은 아니다.</li>
+ * </ul>
+ *
+ * <p>줄은 (파일, 테이블) 하나다. 그 파일에 그 테이블을 쓰는 문장이 하나라도 있으면 쓰기 예외 목록의 줄이다 — 같은 파일이 그
+ * 테이블을 읽기도 해도 그렇다. 쓰는 문장을 주인에게 옮기고 읽는 문장만 남으면 그 줄을 읽기 전용 목록으로 옮긴다. 읽기 전용
+ * 목록에 새로 생길 수 있는 줄은 이렇게 내려온 줄뿐이라, 두 목록을 합친 줄 수는 늘지 않는다({@link #EXCEPTION_CEILING}).
+ *
+ * <p>쓰는 문장: 그 테이블이 {@code INSERT INTO}·{@code UPDATE}·{@code DELETE FROM} 의 대상인 SQL·JPQL. 잠금만 잡는 조회
+ * ({@code SELECT … FOR UPDATE})와 {@code INSERT … SELECT}·{@code UPDATE … FROM}·{@code DELETE … USING} 이 읽는 쪽 테이블은
+ * 읽기다. 표 이름을 변수로 붙이는 SQL 은 어느 문장에 붙는지 글자로 알 수 없어 엄한 쪽으로 센다 — 통째로 표 이름인 리터럴은, 그
+ * 파일에 변수로 붙이는 쓰기 문장({@code "DELETE FROM " + table})이 있거나 그 파일이 Schema Entity 면 쓰기다.
  *
  * <p>찾는 법: {@code src/main/java} 의 문자열 리터럴(텍스트 블록 포함)과 {@code src/main/resources} 의 SQL 파일에서
  * SQL 이 표를 고르는 자리({@code FROM}·{@code JOIN}·{@code UPDATE}·{@code INTO}·{@code USING}·{@code TABLE} 뒤, 쉼표로 잇는
@@ -38,24 +53,37 @@ class TableOwnerTest {
 
     private static final Path FINGERPRINT = Path.of("src/test/resources/baseline-schema-fingerprint.txt");
 
-    private static final Path EXCEPTIONS = Path.of("src/test/resources/table-owner-exceptions.txt");
+    private static final Path WRITE_EXCEPTIONS = Path.of("src/test/resources/table-owner-write-exceptions.txt");
+
+    private static final Path READ_ONLY = Path.of("src/test/resources/table-owner-read-only.txt");
 
     private static final Path JAVA_ROOT = Path.of("src/main/java/com/acttub/actingapi");
 
     private static final Path RESOURCES = Path.of("src/main/resources");
 
     /**
-     * 허용 목록의 줄 수. 줄을 더하면 실패한다. 어긋난 곳을 고쳐 줄을 뺐으면 이 수도 같이 내린다.
+     * 두 목록을 합친 줄 수. 줄을 더하면 실패한다. 어긋난 곳을 고쳐 줄을 뺐으면 이 수도 같이 내린다. 쓰기 예외 목록의 줄을 읽기
+     * 전용 목록으로 옮길 때는 그대로다.
      *
      * <p>늘려야 할 것 같으면 먼저 주인의 {@code app} 층에 Port 를 두거나 주인을 다시 정한다.
      */
     private static final int EXCEPTION_CEILING = 298;
 
+    /** 쓰기 예외 목록의 줄 수. 0 이 될 때까지 줄기만 한다. 줄을 빼거나 읽기 전용 목록으로 옮겼으면 이 수도 같이 내린다. */
+    private static final int WRITE_EXCEPTION_CEILING = 87;
+
     private static final Pattern OWNER_ROW = Pattern.compile("^\\| `((?:feature|platform)/[a-z]+)` \\| (.+) \\|$");
 
     private static final Pattern BACKTICKED = Pattern.compile("`([a-z_0-9]+)`");
 
-    private static final Pattern SQL_KEYWORD = Pattern.compile("(?i)(?<![:\\w.])(?:from|join|update|into|using|table)\\s+");
+    private static final Pattern SQL_KEYWORD = Pattern.compile("(?i)(?<![:\\w.])(from|join|update|into|using|table)\\s+");
+
+    /** 키워드 바로 앞의 낱말. {@code (DELETE FROM} 의 괄호 같은 기호는 건너뛴다. */
+    private static final Pattern PREVIOUS_WORD = Pattern.compile("(\\w+)\\W*$");
+
+    /** 표 이름을 변수로 붙이는 쓰기 문장: 리터럴이 쓰기 키워드에서 끝나거나({@code "DELETE FROM " + table}) 자리표시({@code %s})가 온다. */
+    private static final Pattern DYNAMIC_WRITE = Pattern.compile(
+            "(?i)(?:\\binsert\\s+into|\\bdelete\\s+from|(?<!for\\s)(?<!key\\s)(?<!do\\s)\\bupdate)\\s+(?:%s|\\z)");
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
@@ -76,32 +104,66 @@ class TableOwnerTest {
     }
 
     @Test
-    void onlyTheOwnerTouchesItsTable() throws IOException {
-        Set<String> violations = violations();
-        Set<String> allowed = exceptions();
+    void onlyTheOwnerWritesItsTable() throws IOException {
+        Set<String> writes = violations().writes();
+        Set<String> allowed = lines(WRITE_EXCEPTIONS);
 
-        Set<String> added = new TreeSet<>(violations);
+        Set<String> added = new TreeSet<>(writes);
         added.removeAll(allowed);
         assertThat(added)
-                .as("주인이 아닌 기능이 테이블을 건드린다(줄 모양: <파일> <테이블>). 주인의 app 층을 보세요. "
-                        + "주인은 docs/ARCHITECTURE.md 「테이블 주인」에 있다")
+                .as("주인이 아닌 기능이 테이블에 쓴다(줄 모양: <파일> <테이블>). 남의 테이블에 쓰는 문장은 더하지 않는다(ADR-040). "
+                        + "주인의 app 층에 Port 를 두고 주인이 쓰게 한다. 주인은 docs/ARCHITECTURE.md 「테이블 주인」에 있다")
                 .isEmpty();
 
         Set<String> fixed = new TreeSet<>(allowed);
-        fixed.removeAll(violations);
+        fixed.removeAll(writes);
         assertThat(fixed)
-                .as("더는 어긋나지 않는 줄이다. table-owner-exceptions.txt 에서 빼고 EXCEPTION_CEILING 도 내린다")
+                .as("더는 쓰지 않는 줄이다. table-owner-write-exceptions.txt 에서 빼고 WRITE_EXCEPTION_CEILING 을 내린다. "
+                        + "그 파일이 그 테이블을 아직 읽으면 table-owner-read-only.txt 로 옮기고, 아니면 EXCEPTION_CEILING 도 내린다")
                 .isEmpty();
     }
 
     @Test
-    void exceptionListOnlyShrinks() throws IOException {
-        int lines = exceptions().size();
-        assertThat(lines)
-                .as("허용 목록에 줄을 더하지 않는다. 주인의 app 층에 Port 를 두거나 주인을 다시 정한다")
+    void readsOfAnotherOwnersTableStayOnTheReadOnlyList() throws IOException {
+        Violations violations = violations();
+        Set<String> reads = new TreeSet<>(violations.all());
+        reads.removeAll(violations.writes());
+        Set<String> allowed = lines(READ_ONLY);
+
+        Set<String> added = new TreeSet<>(reads);
+        added.removeAll(allowed);
+        assertThat(added)
+                .as("주인이 아닌 기능이 테이블을 읽는다(줄 모양: <파일> <테이블>). 읽기 전용 목록에 줄을 더하지 않는다 — 주인의 "
+                        + "app 층을 보세요. 쓰기 예외 목록에서 쓰는 문장만 빠진 줄이면 table-owner-read-only.txt 로 옮긴다")
+                .isEmpty();
+
+        Set<String> fixed = new TreeSet<>(allowed);
+        fixed.removeAll(reads);
+        assertThat(fixed)
+                .as("더는 읽기만 하는 줄이 아니다. 고쳤으면 table-owner-read-only.txt 에서 빼고 EXCEPTION_CEILING 을 내린다. "
+                        + "쓰는 문장이 생긴 줄이면 그 쓰기를 주인에게 옮긴다")
+                .isEmpty();
+    }
+
+    @Test
+    void exceptionListsOnlyShrink() throws IOException {
+        Set<String> writes = lines(WRITE_EXCEPTIONS);
+        Set<String> reads = lines(READ_ONLY);
+        assertThat(writes).as("한 줄은 두 목록 가운데 한 곳에만 있다").doesNotContainAnyElementsOf(reads);
+
+        assertThat(writes.size())
+                .as("쓰기 예외 목록에 줄을 더하지 않는다. 주인의 app 층에 Port 를 두고 주인이 쓰게 한다")
+                .isLessThanOrEqualTo(WRITE_EXCEPTION_CEILING);
+        assertThat(writes.size())
+                .as("쓰기 예외 목록에서 줄을 뺐으면 WRITE_EXCEPTION_CEILING 도 %d 로 내린다", writes.size())
+                .isEqualTo(WRITE_EXCEPTION_CEILING);
+
+        int total = writes.size() + reads.size();
+        assertThat(total)
+                .as("두 목록에 줄을 더하지 않는다. 읽기 전용 목록에는 쓰기 예외 목록에서 내려온 줄만 생긴다")
                 .isLessThanOrEqualTo(EXCEPTION_CEILING);
-        assertThat(lines)
-                .as("허용 목록에서 줄을 뺐으면 EXCEPTION_CEILING 도 %d 로 내린다", lines)
+        assertThat(total)
+                .as("목록에서 줄을 뺐으면 EXCEPTION_CEILING 도 %d 로 내린다", total)
                 .isEqualTo(EXCEPTION_CEILING);
     }
 
@@ -127,6 +189,38 @@ class TableOwnerTest {
     }
 
     @Test
+    void tellsTheTableAStatementWritesFromTheOnesItReads() {
+        Set<String> tables = Set.of("users", "videos", "scripts", "user_profiles");
+        Map<String, String> entities = Map.of("UserEntity", "users");
+
+        assertThat(writtenIn("UPDATE videos SET user_id=:to WHERE user_id=:from", tables, entities)).containsExactly("videos");
+        assertThat(writtenIn("DELETE FROM videos USING scripts WHERE videos.id=scripts.id", tables, entities))
+                .as("USING 은 읽는 쪽이다").containsExactly("videos");
+        assertThat(writtenIn("INSERT INTO user_profiles(user_id) SELECT id FROM users", tables, entities))
+                .as("INSERT … SELECT 의 FROM 은 읽는 쪽이다").containsExactly("user_profiles");
+        assertThat(writtenIn("UPDATE videos SET favorite=false FROM users WHERE users.id=videos.user_id", tables, entities))
+                .as("UPDATE … FROM 은 읽는 쪽이다").containsExactly("videos");
+        assertThat(writtenIn("WITH removed AS (DELETE FROM scripts WHERE user_id=:id RETURNING id) SELECT id FROM removed",
+                tables, entities)).as("괄호 안의 DELETE").containsExactly("scripts");
+        assertThat(writtenIn("update UserEntity u set u.email = null where u.id = :id", tables, entities)).containsExactly("users");
+        assertThat(writtenIn("delete from UserEntity u where u.id = :id", tables, entities)).containsExactly("users");
+
+        assertThat(writtenIn("SELECT id FROM users WHERE id=:id FOR UPDATE", tables, entities)).as("잠금은 읽기다").isEmpty();
+        assertThat(writtenIn("SELECT id FROM videos FOR NO KEY UPDATE OF videos", tables, entities)).isEmpty();
+        assertThat(writtenIn("SELECT v.id FROM videos v JOIN users u ON u.id=v.user_id", tables, entities)).isEmpty();
+        assertThat(writtenIn(
+                "INSERT INTO scripts(id) VALUES (:id) ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title", tables, entities))
+                .as("DO UPDATE 뒤는 표가 아니다").containsExactly("scripts");
+
+        assertThat(DYNAMIC_WRITE.matcher("DELETE FROM ").find()).isTrue();
+        assertThat(DYNAMIC_WRITE.matcher("UPDATE ").find()).isTrue();
+        assertThat(DYNAMIC_WRITE.matcher("DELETE FROM %s AS child USING scripts").find()).isTrue();
+        assertThat(DYNAMIC_WRITE.matcher("SELECT id FROM ").find()).isFalse();
+        assertThat(DYNAMIC_WRITE.matcher("SELECT id FROM users FOR UPDATE\n        ").find())
+                .as("잠금 절로 끝나는 텍스트 블록").isFalse();
+    }
+
+    @Test
     void readsJavaStringLiteralsWithoutComments() {
         String code = """
                 // "FROM comment_line"
@@ -144,22 +238,37 @@ class TableOwnerTest {
 
     @Test
     void scansDynamicSqlJpqlAnnotationsAndResourceSql() throws IOException {
-        Map<String, Set<String>> references = references();
+        Map<String, Touched> references = references();
         assertThat(references).as("표를 하나도 못 찾았다 — 읽는 법이 코드와 어긋났다").isNotEmpty();
-        // 표 이름을 변수로 붙이는 SQL("UPDATE " + table)
-        assertThat(references.get("platform/operation/ExternalOperationOwnership.java")).contains("external_operations", "ai_jobs");
+        // 표 이름을 변수로 붙이는 SQL("UPDATE " + table). 쓰는 문장이라 쓰기로 센다.
+        assertThat(references.get("platform/operation/ExternalOperationOwnership.java").all())
+                .contains("external_operations", "ai_jobs");
+        assertThat(references.get("platform/operation/ExternalOperationOwnership.java").written())
+                .contains("external_operations", "ai_jobs");
         // FROM a, b
-        assertThat(references.get("feature/memory/adapter/db/PostgresActorMemoryStore.java")).contains("users");
-        // JPQL 의 엔티티 이름과 Schema Entity 의 @Table
-        assertThat(references.get("feature/auth/adapter/db/UserJpaRepository.java"))
+        assertThat(references.get("feature/memory/adapter/db/PostgresActorMemoryStore.java").all()).contains("users");
+        // JPQL 의 엔티티 이름과 Schema Entity 의 @Table. Schema Entity 는 쓰는 길을 열므로 쓰기로 센다.
+        assertThat(references.get("feature/auth/adapter/db/UserJpaRepository.java").all())
                 .contains("users", "user_identities");
-        assertThat(references.get("feature/auth/schema/UserEntity.java")).containsExactly("users");
+        assertThat(references.get("feature/auth/schema/UserEntity.java").all()).containsExactly("users");
+        assertThat(references.get("feature/auth/schema/UserEntity.java").written()).containsExactly("users");
+        // JPQL 로 쓰는 문장과 읽기만 하는 파일
+        assertThat(references.get("feature/auth/adapter/db/PostgresAccountDeactivation.java").written()).containsExactly("users");
+        assertThat(references.get("resources/admin/ops-core.sql").written()).as("운영 지표는 읽기만 한다").isEmpty();
         // resources 의 SQL 파일
-        assertThat(references.get("resources/admin/ops-core.sql")).contains("users", "summaries");
+        assertThat(references.get("resources/admin/ops-core.sql").all()).contains("users", "summaries");
+    }
+
+    /** 한 파일이 건드리는 테이블({@code all})과 그 가운데 쓰는 테이블({@code written}). */
+    private record Touched(Set<String> all, Set<String> written) {
+    }
+
+    /** 주인이 아닌 곳의 참조({@code all})와 그 가운데 쓰는 것({@code writes}). 줄 모양은 목록과 같은 {@code <파일> <테이블>} 이다. */
+    private record Violations(Set<String> all, Set<String> writes) {
     }
 
     /** 파일 → 그 파일이 건드리는 테이블. 파일은 {@code src/main/java/com/acttub/actingapi} 또는 {@code src/main} 아래 경로다. */
-    private static Map<String, Set<String>> references() throws IOException {
+    private static Map<String, Touched> references() throws IOException {
         Set<String> tables = tables();
         Map<Path, String> code = new TreeMap<>();
         try (Stream<Path> files = Files.walk(JAVA_ROOT)) {
@@ -175,18 +284,27 @@ class TableOwnerTest {
             }
         });
 
-        Map<String, Set<String>> references = new TreeMap<>();
+        Map<String, Touched> references = new TreeMap<>();
         code.forEach((file, text) -> {
             Set<String> found = new TreeSet<>();
+            Set<String> written = new TreeSet<>();
             boolean touchesDatabase = TOUCHES_DATABASE.matcher(text).find();
-            for (String literal : literals(text)) {
+            List<String> literals = literals(text);
+            // 통째로 표 이름인 리터럴이 어느 문장에 붙는지는 알 수 없다. 쓰는 길이 이 파일에 있으면 쓰기로 센다.
+            boolean namesMayBeWritten = text.contains("@Entity")
+                    || literals.stream().anyMatch(literal -> DYNAMIC_WRITE.matcher(literal).find());
+            for (String literal : literals) {
                 found.addAll(tablesIn(literal, tables, entities));
+                written.addAll(writtenIn(literal, tables, entities));
                 if (touchesDatabase && tables.contains(literal)) {
                     found.add(literal);
+                    if (namesMayBeWritten) {
+                        written.add(literal);
+                    }
                 }
             }
             if (!found.isEmpty()) {
-                references.put(JAVA_ROOT.relativize(file).toString(), found);
+                references.put(JAVA_ROOT.relativize(file).toString(), new Touched(found, written));
             }
         });
         try (Stream<Path> files = Files.walk(RESOURCES)) {
@@ -195,28 +313,31 @@ class TableOwnerTest {
                 String sql = Files.readString(file, StandardCharsets.UTF_8).replaceAll("--[^\\n]*", " ");
                 Set<String> found = tablesIn(sql, tables, entities);
                 if (!found.isEmpty()) {
-                    references.put("resources/" + RESOURCES.relativize(file), found);
+                    references.put("resources/" + RESOURCES.relativize(file), new Touched(found, writtenIn(sql, tables, entities)));
                 }
             }
         }
         return references;
     }
 
-    /** 주인이 아닌 곳의 참조. 줄 모양은 허용 목록과 같은 {@code <파일> <테이블>} 이다. */
-    private static Set<String> violations() throws IOException {
+    private static Violations violations() throws IOException {
         Map<String, String> owners = owners();
-        Set<String> violations = new TreeSet<>();
-        references().forEach((file, tables) -> {
+        Set<String> all = new TreeSet<>();
+        Set<String> writes = new TreeSet<>();
+        references().forEach((file, touched) -> {
             String module = moduleOf(file);
-            for (String table : tables) {
+            for (String table : touched.all()) {
                 // 주인이 없는 테이블은 everyTableHasExactlyOneOwner 가 알린다.
                 String owner = owners.get(table);
                 if (owner != null && !owner.equals(module)) {
-                    violations.add(file + " " + table);
+                    all.add(file + " " + table);
+                    if (touched.written().contains(table)) {
+                        writes.add(file + " " + table);
+                    }
                 }
             }
         });
-        return violations;
+        return new Violations(all, writes);
     }
 
     /** {@code feature/admin/adapter/db/X.java} → {@code feature/admin}, {@code resources/admin/ops-core.sql} → {@code feature/admin}. */
@@ -229,20 +350,39 @@ class TableOwnerTest {
 
     /** SQL 이 표를 고르는 자리에 나오는 테이블. 엔티티 이름(JPQL)은 그 엔티티의 테이블로 바꾼다. */
     private static Set<String> tablesIn(String sql, Set<String> tables, Map<String, String> entities) {
-        Set<String> found = new TreeSet<>();
+        return usesIn(sql, tables, entities).keySet();
+    }
+
+    /** 그 가운데 문장이 쓰는 테이블: {@code INSERT INTO}·{@code UPDATE}·{@code DELETE FROM} 의 대상. */
+    private static Set<String> writtenIn(String sql, Set<String> tables, Map<String, String> entities) {
+        Set<String> written = new TreeSet<>();
+        usesIn(sql, tables, entities).forEach((table, write) -> {
+            if (write) {
+                written.add(table);
+            }
+        });
+        return written;
+    }
+
+    /** 테이블 → 그 테이블에 쓰는 자리가 하나라도 있는가. */
+    private static Map<String, Boolean> usesIn(String sql, Set<String> tables, Map<String, String> entities) {
+        Map<String, Boolean> found = new TreeMap<>();
         Matcher keyword = SQL_KEYWORD.matcher(sql);
         while (keyword.find()) {
+            boolean write = writes(keyword.group(1), sql.substring(0, keyword.start()));
+            // 쓰기 키워드의 대상은 바로 뒤의 한 테이블이다. 쉼표로 잇는 나머지(FROM a, b)는 읽는 쪽이다.
+            boolean target = true;
             int at = keyword.end();
             while (true) {
                 Matcher name = IDENTIFIER.matcher(sql).region(at, sql.length());
                 if (!name.lookingAt()) {
                     break;
                 }
-                if (tables.contains(name.group())) {
-                    found.add(name.group());
-                } else if (entities.containsKey(name.group())) {
-                    found.add(entities.get(name.group()));
+                String table = tables.contains(name.group()) ? name.group() : entities.get(name.group());
+                if (table != null) {
+                    found.merge(table, write && target, Boolean::logicalOr);
                 }
+                target = false;
                 // 별칭(AS 포함)을 건너뛰고 쉼표가 오면 다음 테이블을 읽는다: FROM a x, b AS y
                 at = skipSpaces(sql, name.end());
                 for (int aliasWords = 0; aliasWords < 2; aliasWords++) {
@@ -262,6 +402,18 @@ class TableOwnerTest {
             }
         }
         return found;
+    }
+
+    /** 이 키워드 뒤의 테이블이 쓰는 대상인가. {@code FOR UPDATE}·{@code FOR NO KEY UPDATE}·{@code DO UPDATE} 는 아니다. */
+    private static boolean writes(String keyword, String before) {
+        Matcher previous = PREVIOUS_WORD.matcher(before);
+        String word = previous.find() ? previous.group(1).toLowerCase(java.util.Locale.ROOT) : "";
+        return switch (keyword.toLowerCase(java.util.Locale.ROOT)) {
+            case "into" -> true;
+            case "update" -> !Set.of("for", "key", "do").contains(word);
+            case "from" -> word.equals("delete");
+            default -> false;
+        };
     }
 
     private static int skipSpaces(String text, int at) {
@@ -339,14 +491,14 @@ class TableOwnerTest {
         return tables;
     }
 
-    /** 허용 목록. 빈 줄과 {@code #} 로 시작하는 줄은 건너뛴다. */
-    private static Set<String> exceptions() throws IOException {
-        List<String> lines = Files.readAllLines(EXCEPTIONS, StandardCharsets.UTF_8).stream()
+    /** 목록 파일의 줄. 빈 줄과 {@code #} 로 시작하는 줄은 건너뛴다. */
+    private static Set<String> lines(Path list) throws IOException {
+        List<String> lines = Files.readAllLines(list, StandardCharsets.UTF_8).stream()
                 .map(String::strip)
                 .filter(line -> !line.isEmpty() && !line.startsWith("#"))
                 .toList();
         Set<String> unique = new TreeSet<>(lines);
-        assertThat(unique).as("허용 목록에 같은 줄이 두 번 있다").hasSize(lines.size());
+        assertThat(unique).as("%s 에 같은 줄이 두 번 있다", list.getFileName()).hasSize(lines.size());
         return unique;
     }
 }
