@@ -23,6 +23,7 @@ const LABEL: Record<string, string> = {
   privacy: "개인정보 처리 · AI 분석",
   retention: "탈퇴 후 영상·녹음 보관",
   post_withdrawal_retention: "탈퇴 후 영상·녹음 보관",
+  data_sharing: "영상 데이터 제3자 제공",
 };
 const MARKETING_LABEL = "혜택·이벤트 소식 받기";
 const AGE_LABEL = "만 14세 이상이에요";

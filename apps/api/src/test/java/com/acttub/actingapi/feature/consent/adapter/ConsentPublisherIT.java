@@ -83,8 +83,8 @@ class ConsentPublisherIT {
                         + "FROM consent_documents ORDER BY type,locale"))
                 .hasSize(manifestEntryCount())
                 .allSatisfy(row -> {
-                    // 필수 셋. 나머지(탈퇴 후 보관·고품질 목소리·대본 나누기·광고성 정보 수신 둘)는 선택이다.
-                    assertThat(row.get("required")).isEqualTo(!java.util.Set.of("retention", "cloud_voice", "script_split", "marketing_email", "marketing_push").contains(row.get("type")));
+                    // 필수 셋. 나머지(보관·영상 데이터 제3자 제공·고품질 목소리·대본 나누기·광고성 정보 수신 둘)는 선택이다.
+                    assertThat(row.get("required")).isEqualTo(!java.util.Set.of("retention", "data_sharing", "cloud_voice", "script_split", "marketing_email", "marketing_push").contains(row.get("type")));
                     assertThat(((Number) row.get("body_length")).intValue()).isPositive();
                 });
         assertThat(jdbc.queryForObject(

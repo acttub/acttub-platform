@@ -11716,7 +11716,7 @@
       },
       "ConsentType" : {
         "type" : "string",
-        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice", "script_split", "marketing_email", "marketing_push" ],
+        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "data_sharing", "cloud_voice", "script_split", "marketing_email", "marketing_push" ],
         "title" : "ConsentType"
       },
       "SignedInResponse" : {
