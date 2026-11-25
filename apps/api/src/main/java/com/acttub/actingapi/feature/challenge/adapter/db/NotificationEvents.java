@@ -1,12 +1,14 @@
 package com.acttub.actingapi.feature.challenge.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.domain.NotificationRules;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.NotificationKind;
+import com.acttub.actingapi.platform.schema.NotificationPushStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,36 +18,26 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class NotificationEvents {
+    private static final NotificationKind.JpaConverter KINDS = new NotificationKind.JpaConverter();
     private final EntityManager em;
-    NotificationEvents(EntityManager em) { this.em = em; }
+    private final NotificationJpaRepository notifications;
+    NotificationEvents(EntityManager em, NotificationJpaRepository notifications) {
+        this.em = em; this.notifications = notifications;
+    }
 
     void record(UUID recipient, String kind, UUID actor, UUID challengeId, UUID entryId, UUID commentId, String eventKey,
                 Instant now) {
         if (recipient.equals(actor)) return;
         String group = NotificationRules.groupKey(recipient, kind, entryId == null ? challengeId : entryId, now);
-        boolean first = NativeTuples.list(em.createNativeQuery(
-                "SELECT 1 AS seen FROM notifications WHERE user_id=:user AND group_key=:group LIMIT 1", Tuple.class)
-                .setParameter("user", recipient).setParameter("group", group)).isEmpty();
+        boolean first = notifications.anyInGroup(recipient, group, Limit.of(1)).isEmpty();
+        // 프로필과 푸시 토큰은 다른 기능의 표라 네이티브로 둔다(CONTRACT §5-1).
         boolean deliverable = !NativeTuples.list(em.createNativeQuery("""
                 SELECT 1 AS deliverable FROM user_profiles p
                 WHERE p.user_id=:user AND p.notify_challenge AND EXISTS(SELECT 1 FROM push_tokens t WHERE t.user_id=p.user_id)
                 """, Tuple.class).setParameter("user", recipient)).isEmpty();
-        em.createNativeQuery("""
-                INSERT INTO notifications(id,user_id,kind,actor_user_id,challenge_id,entry_id,comment_id,event_key,group_key,
-                    created_at,expires_at,push_after,push_status)
-                VALUES (:id,:user,:kind,CAST(NULLIF(:actor,'') AS uuid),:challenge,CAST(NULLIF(:entry,'') AS uuid),
-                    CAST(NULLIF(:comment,'') AS uuid),:event,:group,:now,:expires,
-                    CASE WHEN :deliverable THEN CAST(:after AS timestamptz) END,
-                    CASE WHEN :deliverable THEN 'pending' ELSE 'skipped' END)
-                ON CONFLICT (user_id,event_key) DO NOTHING
-                """).setParameter("id", UUID.randomUUID()).setParameter("user", recipient).setParameter("kind", kind)
-                .setParameter("actor", text(actor)).setParameter("challenge", challengeId).setParameter("entry", text(entryId))
-                .setParameter("comment", text(commentId)).setParameter("event", eventKey).setParameter("group", group)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("expires", now.plus(NotificationRules.RETENTION).atOffset(ZoneOffset.UTC))
-                .setParameter("deliverable", deliverable)
-                .setParameter("after", NotificationRules.pushAfter(now, first).atOffset(ZoneOffset.UTC)).executeUpdate();
+        notifications.insertUnlessRecorded(UUID.randomUUID(), recipient, KINDS.convertToEntityAttribute(kind), actor, challengeId,
+                entryId, commentId, eventKey, group, now, now.plus(NotificationRules.RETENTION),
+                deliverable ? NotificationRules.pushAfter(now, first) : null,
+                deliverable ? NotificationPushStatus.PENDING : NotificationPushStatus.SKIPPED);
     }
-
-    private static String text(UUID id) { return id == null ? "" : id.toString(); }
 }
