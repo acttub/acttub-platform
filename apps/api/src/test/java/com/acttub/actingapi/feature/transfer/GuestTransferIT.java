@@ -459,6 +459,10 @@ class GuestTransferIT {
                         .andReturn().getResponse(),
                 mvc.perform(delete("/v2/me").header("Authorization", "Bearer " + guest.accessToken()))
                         .andReturn().getResponse());
+        // 게스트 토큰의 iat 는 실제 시계로 적히고(JwtService) 갱신의 확인은 이 시계로 한다. setUp 이 초 단위로 끊어 둔
+        // 시각에 머물면, 그 사이 실제 시계가 초 경계를 넘었을 때 토큰이 "아직 유효하지 않다"가 되어 사유 없이
+        // invalid_refresh_token 이 온다(CI 에서 그렇게 실패했다). 갱신 직전에 시계를 지금으로 맞춘다.
+        clock.set(Instant.now());
         var refresh = mvc.perform(post("/v2/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"refresh_token\":\"" + guest.refreshToken() + "\"}"))
