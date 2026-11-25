@@ -54,4 +54,44 @@ interface EntryCommentJpaRepository extends Repository<EntryCommentEntity, UUID>
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update EntryCommentEntity c set c.body = null, c.deletedAt = :now where c.id = :id")
     int purge(UUID id, Instant now);
+
+    // ---- 신고 ----
+
+    record Parent(UUID entryId, UUID userId) { }
+
+    record Reported(UUID userId, String body) { }
+
+    @Query("""
+            select new com.acttub.actingapi.feature.challenge.adapter.db.EntryCommentJpaRepository$Parent(c.entryId, c.userId)
+            from EntryCommentEntity c where c.id = :id
+            """)
+    Optional<Parent> findParent(UUID id);
+
+    /**
+     * 보는 사람에게 보이는 댓글 행을 잡는다 — 보이는 상태이고 지우지 않았으며 작성자와 어느 쪽으로도 차단이 없다. 부모 참여작이
+     * 보이는지는 부르는 쪽이 따로 본다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select new com.acttub.actingapi.feature.challenge.adapter.db.EntryCommentJpaRepository$Reported(c.userId, c.body)
+            from EntryCommentEntity c
+            where c.id = :id and c.status = VISIBLE and c.deletedAt is null and not exists (
+                select 1 from UserBlockEntity b
+                where (b.blockerId = :viewer and b.blockedId = c.userId) or (b.blockedId = :viewer and b.blockerId = c.userId))
+            """)
+    Optional<Reported> lockVisibleTo(UUID id, UUID viewer);
+
+    /** 댓글 행을 쓰기로 잡기만 한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c.id from EntryCommentEntity c where c.id = :id")
+    Optional<UUID> lockRow(UUID id);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update EntryCommentEntity c set c.status = HIDDEN where c.id = :id")
+    int hide(UUID id);
+
+    /** 운영이 신고를 풀었다 — 숨긴 댓글만 다시 보인다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update EntryCommentEntity c set c.status = VISIBLE where c.id = :id and c.status = HIDDEN")
+    int unhide(UUID id);
 }

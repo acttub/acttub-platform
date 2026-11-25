@@ -73,4 +73,31 @@ interface ChallengeJpaRepository extends Repository<ChallengeEntity, UUID> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ChallengeEntity c set c.rankingState = FINAL, c.finalizedAt = :now where c.id = :id")
     int markFinal(UUID id, Instant now);
+
+    // ---- 신고 ----
+
+    record Reportable(UUID hostUserId, String line) { }
+
+    /** 지금 보이는(지우지 않았고 visible 이며 시작한) 챌린지 행을 잡는다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select new com.acttub.actingapi.feature.challenge.adapter.db.ChallengeJpaRepository$Reportable(c.hostUserId, c.line)
+            from ChallengeEntity c
+            where c.id = :id and c.deletedAt is null and c.moderation = VISIBLE and c.startsAt <= :now
+            """)
+    Optional<Reportable> lockReportable(UUID id, Instant now);
+
+    /** 챌린지 행을 쓰기로 잡기만 한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c.id from ChallengeEntity c where c.id = :id")
+    Optional<UUID> lockRow(UUID id);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ChallengeEntity c set c.moderation = REVIEW where c.id = :id")
+    int sendToReview(UUID id);
+
+    /** 운영이 신고를 풀었다 — 검토로 올라간 챌린지만 다시 보인다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ChallengeEntity c set c.moderation = VISIBLE where c.id = :id and c.moderation = REVIEW")
+    int releaseFromReview(UUID id);
 }
