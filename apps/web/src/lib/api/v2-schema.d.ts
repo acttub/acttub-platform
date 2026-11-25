@@ -1212,6 +1212,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/entries/{id}/share-frames": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Challenge Entry Share Frame
+         * @description 본인 참여작 영상에 공유 프레임(1080×1920)을 씌운다. 만들어 둔 것이 있으면 ready(200)와 받을 주소, 만드는
+         *     중이면 rendering(202)이라 같은 요청을 다시 보낸다. 실패는 failed(200)로 한 번 알리고 다음 요청이 다시 만든다.
+         *     영상은 본인 재생과 같다(모자이크본이 준비됐으면 모자이크본). 남의·삭제된 참여작 404 entry_not_found, 파일
+         *     파기 422 video_not_ready, 얼굴 가림을 켰는데 모자이크본이 아직 없음 422 mosaic_not_ready(원본에 씌우지 않는다),
+         *     저장소 없음 503 storage_not_configured.
+         */
+        post: operations["request_share_frame_v2_entries__id__share_frames_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/entries/{id}/comments": {
         parameters: {
             query?: never;
@@ -2426,6 +2450,28 @@ export interface paths {
         };
         /** List Blocked Users */
         get: operations["list_blocks_v2_me_blocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/share-frames/{frame}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Challenge Entry Share Frame Preview
+         * @description 공유 프레임 미리보기 JPEG(폭 540)의 주소. 영상 한 장면에 서버 영상과 같은 틀을 씌운다. frame 은 white·blue·black
+         *     이고 none 은 틀 없이 장면만이다. 오류는 프레임 요청과 같다. 단 none 은 mosaic_not_ready 없이 본인 재생과 같은
+         *     장면을 보인다.
+         */
+        get: operations["get_share_frame_preview_v2_entries__id__share_frames__frame__preview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4551,6 +4597,26 @@ export interface components {
              */
             event_id: string;
         };
+        /** ChallengeEntryShareFrameRequest */
+        ChallengeEntryShareFrameRequest: {
+            /**
+             * Frame
+             * @enum {string}
+             */
+            frame: "white" | "blue" | "black";
+        };
+        /** ChallengeEntryShareFrameVideo */
+        ChallengeEntryShareFrameVideo: {
+            /**
+             * Status
+             * @description rendering 이면 만드는 중이라 같은 요청을 다시 보낸다. failed 는 한 번만 알리고, 그다음 요청이 다시
+             *     만든다.
+             * @enum {string}
+             */
+            status: "rendering" | "ready" | "failed";
+            /** Video Url */
+            video_url: string | null;
+        };
         /** EntryCommentCreateRequest */
         EntryCommentCreateRequest: {
             /**
@@ -6254,6 +6320,14 @@ export interface components {
         BlockedUsers: {
             /** Users */
             users: components["schemas"]["BlockedUser"][];
+        };
+        /** ChallengeEntryShareFramePreview */
+        ChallengeEntryShareFramePreview: {
+            /**
+             * Image Url
+             * @description 10분 동안 받을 수 있는 JPEG 주소(폭 540)
+             */
+            image_url: string;
         };
         /** EntryCommentPage */
         EntryCommentPage: {
@@ -9263,6 +9337,41 @@ export interface operations {
             };
         };
     };
+    request_share_frame_v2_entries__id__share_frames_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeEntryShareFrameRequest"];
+            };
+        };
+        responses: {
+            /** @description Ready or failed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeEntryShareFrameVideo"];
+                };
+            };
+            /** @description Rendering */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeEntryShareFrameVideo"];
+                };
+            };
+        };
+    };
     list_comments_v2_entries__id__comments_get: {
         parameters: {
             query?: {
@@ -11354,6 +11463,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BlockedUsers"];
+                };
+            };
+        };
+    };
+    get_share_frame_preview_v2_entries__id__share_frames__frame__preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                frame: "white" | "blue" | "black" | "none";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeEntryShareFramePreview"];
                 };
             };
         };
