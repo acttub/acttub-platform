@@ -74,11 +74,9 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
-- 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
-  `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
+- 옛 연습 흐름의 다섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
+  `practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
   `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
-  다만 `handoff_confirmations` 표와 `coaching_handoffs.branch_kind`·`handoff_json`, `coach_sessions.conversation_summary`는
-  읽고 쓰는 코드가 없다. 지운다(아래 문단).
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
@@ -90,9 +88,14 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
-`handoff_confirmations`와 `coaching_handoffs`·`coach_sessions`의 옛 칸(위 목록)은 값을 보관하지 않고 지운다. 코드는
-이것들을 읽고 쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
-마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
+구형 `reports`, `summaries`의 다섯 칸, `users.role`, `practice_sessions.subtext`, `ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`),
+`videos`의 크기 두 칸, `evening_reminder_sends`, `handoff_confirmations`, `coaching_handoffs.branch_kind`·`handoff_json`,
+`coach_sessions.conversation_summary`는 코드가 읽고 쓰지 않게 된 릴리스 다음에 V96~V99가 지웠다. 지우기 전 운영 값은 R2
+`acttub-db-backups` 버킷의 `archive/2026-11-25-dropped-tables/`에 CSV로 남겼다(`users.role`은 값별 행 수만, 값이 없던
+`videos`의 크기 두 칸과 `coach_sessions.conversation_summary`는 빼고). 조회 방법은 그 폴더의 `README.md`에 있고, 이 폴더는
+30일 자동 삭제 규칙 밖이다. 다음 은퇴 대상도 같은 순서를 따른다: 코드를 걷어내고 `LegacyStorageCompatibilityIT`가 그 구조를 지운
+격리 테스트 DB에서 기동과 현재 기능을 검증한 뒤, 그 상태가 운영에 나간 다음 릴리스에 DROP 마이그레이션을 넣는다
+([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
 
 목록의 나머지 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
 실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
@@ -1129,7 +1132,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
     시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
   - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`는 새 표가 없어 옛 표에
-    남는다(`handoff_confirmations`는 옮기지 않고 지운다, §5-1). 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
+    남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
     새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
 - **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`

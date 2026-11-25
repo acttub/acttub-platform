@@ -294,12 +294,11 @@ COLUMN coach_notes.summary_quotes ord=6 type=jsonb len=- null=NO default='[]'::j
 COLUMN coach_notes.tags ord=10 type=jsonb len=- null=NO default='[]'::jsonb
 COLUMN coach_notes.title ord=5 type=text len=- null=YES default=-
 COLUMN coach_sessions.close_reason ord=4 type=text len=- null=YES default=-
-COLUMN coach_sessions.coaching_state_json ord=9 type=jsonb len=- null=YES default=-
-COLUMN coach_sessions.conversation_summary ord=8 type=text len=- null=NO default=''::text
+COLUMN coach_sessions.coaching_state_json ord=8 type=jsonb len=- null=YES default=-
 COLUMN coach_sessions.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN coach_sessions.id ord=1 type=uuid len=- null=NO default=-
 COLUMN coach_sessions.practice_session_id ord=7 type=uuid len=- null=NO default=-
-COLUMN coach_sessions.state_revision ord=10 type=int8 len=- null=NO default=0
+COLUMN coach_sessions.state_revision ord=9 type=int8 len=- null=NO default=0
 COLUMN coach_sessions.status ord=3 type=text len=- null=NO default='open'::text
 COLUMN coach_sessions.summary_id ord=2 type=uuid len=- null=YES default=-
 COLUMN coach_sessions.updated_at ord=6 type=timestamptz len=- null=NO default=now()
@@ -309,13 +308,11 @@ COLUMN coach_turns.role ord=4 type=text len=- null=NO default=-
 COLUMN coach_turns.session_id ord=2 type=uuid len=- null=NO default=-
 COLUMN coach_turns.text ord=5 type=text len=- null=NO default=-
 COLUMN coach_turns.turn_index ord=3 type=int4 len=- null=NO default=-
-COLUMN coaching_handoffs.branch_kind ord=4 type=text len=- null=NO default=-
 COLUMN coaching_handoffs.coach_session_id ord=2 type=uuid len=- null=NO default=-
-COLUMN coaching_handoffs.created_at ord=6 type=timestamptz len=- null=NO default=now()
-COLUMN coaching_handoffs.handoff_json ord=5 type=jsonb len=- null=NO default=-
+COLUMN coaching_handoffs.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN coaching_handoffs.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN coaching_handoffs.practice_session_id ord=3 type=uuid len=- null=NO default=-
-COLUMN coaching_handoffs.state_revision ord=7 type=int8 len=- null=YES default=-
+COLUMN coaching_handoffs.state_revision ord=5 type=int8 len=- null=YES default=-
 COLUMN community_anonymous_aliases.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN community_anonymous_aliases.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN community_anonymous_aliases.ordinal ord=4 type=int4 len=- null=NO default=-
@@ -467,11 +464,6 @@ COLUMN guest_transfer_codes.expires_at ord=5 type=timestamptz len=- null=NO defa
 COLUMN guest_transfer_codes.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN guest_transfer_codes.used_at ord=6 type=timestamptz len=- null=YES default=-
 COLUMN guest_transfer_codes.user_id ord=2 type=uuid len=- null=NO default=-
-COLUMN handoff_confirmations.coaching_handoff_id ord=1 type=uuid len=- null=NO default=-
-COLUMN handoff_confirmations.confirmed ord=2 type=bool len=- null=NO default=false
-COLUMN handoff_confirmations.created_at ord=4 type=timestamptz len=- null=NO default=now()
-COLUMN handoff_confirmations.rebuttal_text ord=3 type=text len=- null=YES default=-
-COLUMN handoff_confirmations.updated_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN line_memorization.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN line_memorization.id ord=1 type=uuid len=- null=NO default=-
 COLUMN line_memorization.line_id ord=3 type=uuid len=- null=NO default=-
@@ -1286,7 +1278,6 @@ CONSTRAINT coach_sessions ck_coach_sessions_close_reason CHECK ((close_reason = 
 CONSTRAINT coach_sessions ck_coach_sessions_coaching_state_object CHECK (((coaching_state_json IS NULL) OR (jsonb_typeof(coaching_state_json) = 'object'::text)))
 CONSTRAINT coach_sessions ck_coach_sessions_state_revision CHECK ((state_revision >= 0))
 CONSTRAINT coach_sessions ck_coach_sessions_status CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
-CONSTRAINT coach_sessions coach_sessions_conversation_summary_not_null NOT NULL conversation_summary
 CONSTRAINT coach_sessions coach_sessions_created_at_not_null NOT NULL created_at
 CONSTRAINT coach_sessions coach_sessions_id_not_null NOT NULL id
 CONSTRAINT coach_sessions coach_sessions_pkey PRIMARY KEY (id)
@@ -1306,13 +1297,10 @@ CONSTRAINT coach_turns coach_turns_session_id_not_null NOT NULL session_id
 CONSTRAINT coach_turns coach_turns_text_not_null NOT NULL text
 CONSTRAINT coach_turns coach_turns_turn_index_not_null NOT NULL turn_index
 CONSTRAINT coach_turns uq_coach_turns_session_index UNIQUE (session_id, turn_index)
-CONSTRAINT coaching_handoffs ck_coaching_handoffs_branch_kind CHECK ((branch_kind = ANY (ARRAY['analysis'::text, 'expression'::text, 'coaching'::text])))
 CONSTRAINT coaching_handoffs ck_coaching_handoffs_state_revision CHECK (((state_revision IS NULL) OR (state_revision >= 0)))
-CONSTRAINT coaching_handoffs coaching_handoffs_branch_kind_not_null NOT NULL branch_kind
 CONSTRAINT coaching_handoffs coaching_handoffs_coach_session_id_fkey FOREIGN KEY (coach_session_id) REFERENCES coach_sessions(id) ON DELETE CASCADE
 CONSTRAINT coaching_handoffs coaching_handoffs_coach_session_id_not_null NOT NULL coach_session_id
 CONSTRAINT coaching_handoffs coaching_handoffs_created_at_not_null NOT NULL created_at
-CONSTRAINT coaching_handoffs coaching_handoffs_handoff_json_not_null NOT NULL handoff_json
 CONSTRAINT coaching_handoffs coaching_handoffs_id_not_null NOT NULL id
 CONSTRAINT coaching_handoffs coaching_handoffs_pkey PRIMARY KEY (id)
 CONSTRAINT coaching_handoffs coaching_handoffs_practice_session_id_fkey FOREIGN KEY (practice_session_id) REFERENCES practice_sessions(id) ON DELETE CASCADE
@@ -1537,12 +1525,6 @@ CONSTRAINT guest_transfer_codes guest_transfer_codes_id_not_null NOT NULL id
 CONSTRAINT guest_transfer_codes guest_transfer_codes_pkey PRIMARY KEY (id)
 CONSTRAINT guest_transfer_codes guest_transfer_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT guest_transfer_codes guest_transfer_codes_user_id_not_null NOT NULL user_id
-CONSTRAINT handoff_confirmations handoff_confirmations_coaching_handoff_id_fkey FOREIGN KEY (coaching_handoff_id) REFERENCES coaching_handoffs(id) ON DELETE CASCADE
-CONSTRAINT handoff_confirmations handoff_confirmations_coaching_handoff_id_not_null NOT NULL coaching_handoff_id
-CONSTRAINT handoff_confirmations handoff_confirmations_confirmed_not_null NOT NULL confirmed
-CONSTRAINT handoff_confirmations handoff_confirmations_created_at_not_null NOT NULL created_at
-CONSTRAINT handoff_confirmations handoff_confirmations_pkey PRIMARY KEY (coaching_handoff_id)
-CONSTRAINT handoff_confirmations handoff_confirmations_updated_at_not_null NOT NULL updated_at
 CONSTRAINT line_memorization ck_line_memorization_status CHECK ((status = ANY (ARRAY['memorized'::text, 'not_yet'::text])))
 CONSTRAINT line_memorization line_memorization_created_at_not_null NOT NULL created_at
 CONSTRAINT line_memorization line_memorization_id_not_null NOT NULL id
@@ -2250,7 +2232,6 @@ INDEX CREATE UNIQUE INDEX entry_saves_pkey ON public.entry_saves USING btree (id
 INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
-INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
 INDEX CREATE UNIQUE INDEX line_memorization_pkey ON public.line_memorization USING btree (id)
 INDEX CREATE UNIQUE INDEX note_ratings_pkey ON public.note_ratings USING btree (id)
 INDEX CREATE UNIQUE INDEX notification_pushes_pkey ON public.notification_pushes USING btree (id)
@@ -2425,7 +2406,6 @@ TABLE entry_saves
 TABLE entry_view_events
 TABLE external_operations
 TABLE guest_transfer_codes
-TABLE handoff_confirmations
 TABLE line_memorization
 TABLE note_ratings
 TABLE notification_pushes

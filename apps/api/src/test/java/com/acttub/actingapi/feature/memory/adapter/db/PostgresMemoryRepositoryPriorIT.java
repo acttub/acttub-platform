@@ -454,8 +454,8 @@ class PostgresMemoryRepositoryPriorIT {
         UUID handoffId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coaching_handoffs (
-                    id,coach_session_id,practice_session_id,branch_kind,handoff_json
-                ) VALUES (?, ?, ?, 'analysis', '{}'::jsonb)
+                    id,coach_session_id,practice_session_id
+                ) VALUES (?, ?, ?)
                 """, handoffId, coachId, practiceId);
         jdbc.update("""
                 INSERT INTO practice_reports (

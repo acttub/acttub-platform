@@ -84,13 +84,13 @@ class EntityMappingIT {
     EntityManager entityManager;
 
     /**
-     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 옛 연습 흐름의 여섯과
-     * 예약 장부({@code upload_intents})다. 옛 연습 여섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
+     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 옛 연습 흐름의 다섯과
+     * 예약 장부({@code upload_intents})다. 옛 연습 다섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
      * native SQL 로만 읽고 쓴다.
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
             "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
-            "handoff_confirmations", "practice_reports", "upload_intents");
+            "practice_reports", "upload_intents");
 
     /**
      * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 0.1.0, V14). 스키마는 넓히기로 한 번에 들어가고
