@@ -1,12 +1,8 @@
 package com.acttub.actingapi.feature.community.adapter.db;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
-import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -26,75 +22,34 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Repository
 class AnonymousAliasAllocator {
 
-    private final EntityManager entityManager;
+    private final CommunityPostJpaRepository posts;
+    private final CommunityAnonymousAliasJpaRepository aliases;
 
-    AnonymousAliasAllocator(EntityManager entityManager) {
-        this.entityManager = entityManager;
+    AnonymousAliasAllocator(CommunityPostJpaRepository posts, CommunityAnonymousAliasJpaRepository aliases) {
+        this.posts = posts;
+        this.aliases = aliases;
     }
 
     /**
      * 기존 번호를 반환하거나, 해당 글에서 아직 쓰지 않은 다음 번호를 할당한다.
      *
+     * <p>넣기는 {@code ON CONFLICT … DO UPDATE} 한 문장이고, 받은 번호는 같은 트랜잭션에서 다시 읽는다(HQL 에
+     * {@code RETURNING} 이 없다). 넣었든 이미 있었든 그 행은 이 트랜잭션이 잡고 있다.
+     *
      * @throws IllegalStateException 트랜잭션 밖에서 호출했거나 부모 글이 없을 때
      */
     int ensureAlias(UUID postId, UUID userId) {
         requireTransaction();
-        lockPost(postId);
-
-        List<Tuple> existing = list(entityManager.createNativeQuery("""
-                SELECT ordinal AS ordinal
-                FROM community_anonymous_aliases
-                WHERE post_id = :postId
-                  AND user_id = :userId
-                """, Tuple.class)
-                .setParameter("postId", postId)
-                .setParameter("userId", userId));
-        if (!existing.isEmpty()) {
-            return existing.getFirst().get("ordinal", Integer.class);
-        }
-
-        List<Tuple> nextRows = list(entityManager.createNativeQuery("""
-                SELECT COALESCE(MAX(ordinal), 0) + 1 AS next_ordinal
-                FROM community_anonymous_aliases
-                WHERE post_id = :postId
-                """, Tuple.class)
-                .setParameter("postId", postId));
-        Integer nextOrdinal = nextRows.getFirst().get("next_ordinal", Integer.class);
-        if (nextOrdinal == null) {
-            throw new IllegalStateException("could not calculate an anonymous alias");
-        }
-
-        List<Tuple> inserted = list(entityManager.createNativeQuery("""
-                WITH inserted AS (
-                    INSERT INTO community_anonymous_aliases (id,post_id,user_id,ordinal)
-                    VALUES (:id,:postId,:userId,:ordinal)
-                    ON CONFLICT ON CONSTRAINT uq_community_alias_post_user
-                    DO UPDATE SET user_id=EXCLUDED.user_id
-                    RETURNING ordinal
-                )
-                SELECT ordinal AS ordinal FROM inserted
-                """, Tuple.class)
-                .setParameter("id", UUID.randomUUID())
-                .setParameter("postId", postId)
-                .setParameter("userId", userId)
-                .setParameter("ordinal", nextOrdinal));
-        if (inserted.size() != 1) {
-            throw new IllegalStateException("anonymous alias insert returned no row");
-        }
-        return inserted.getFirst().get("ordinal", Integer.class);
-    }
-
-    private void lockPost(UUID postId) {
-        List<Tuple> posts = list(entityManager.createNativeQuery("""
-                SELECT id AS id
-                FROM community_posts
-                WHERE id = :postId
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("postId", postId));
-        if (posts.isEmpty()) {
+        if (posts.lock(postId).isEmpty()) {
             throw new IllegalStateException("community post is missing");
         }
+        Optional<Integer> existing = aliases.ordinalOf(postId, userId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        aliases.insertOrKeep(UUID.randomUUID(), postId, userId, aliases.nextOrdinal(postId));
+        return aliases.ordinalOf(postId, userId)
+                .orElseThrow(() -> new IllegalStateException("anonymous alias insert returned no row"));
     }
 
     private void requireTransaction() {

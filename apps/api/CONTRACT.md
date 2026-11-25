@@ -331,7 +331,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `feature/support`(UUID PK, `RETURNING` 나누기)·`feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)·`feature/blog`
 (`INSERT … ON CONFLICT DO NOTHING RETURNING` 나누기)·`feature/poster`(`text[]` 칸)이다. native 를
 남긴 첫 사례는 `feature/portfolio`(다른 기능의 `users` 행 잠금)이고, `DELETE … RETURNING` 을 잠가 읽기와 id 로 지우기로 나눈
-첫 사례이기도 하다.
+첫 사례이기도 하다. `feature/community` 는 다른 기능의 표를 조인하는 조회(글·댓글 목록과 하나 읽기)를 native 로 남기고 자기 표만
+쓰는 문장을 옮긴 사례다(`CommunityRepositoryIT`).
 
 **옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
 통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
@@ -371,7 +372,9 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   표를 잠근다(inner join. 대본과 줄을 조인해 줄의 칸만 고르면 `for update of <줄 별칭>` 이다). 그래서 한 표를 잠그면서
   조인한 다른 표의 칸을 읽는 문장(`… JOIN … FOR UPDATE OF s`)은 HQL 로 같게 나오지 않는다. 그 칸을 select 절 서브쿼리로
   읽으면 잠금 절 생성이 `AssertionError` 다(Hibernate 7.4.15). where 절 서브쿼리는 된다. 이런 문장은 native 로 둔다
-  (`PostgresMemorizationRepository#set`). 다른 기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
+  (`PostgresMemorizationRepository#set`). FK 로 늘 맞는 조인이 잠그는 조회에 붙어 있고 그 칸을 쓰지 않으면 조인을 빼고 자기
+  표만 잠근다(`PostgresCommunityRepository#deleteComment` 는 작성자 이름을 읽던 `users`·`user_profiles` 조인을 뺐다). 다른
+  기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
   Port 가 없어 native 로 두면 목록에 `남김:` 줄을 쓰고, `table-owner-exceptions.txt` 의 그 줄은 남는다
   (`PostgresPortfolioRepository#lockOrCreate` 의 `users` 행 잠금).
 - 배열: native 의 `:x = ANY(칸)` 은 HQL 에 없다(`any(…)` 는 `bool_or` 집계로 풀린다). `array_contains(칸, :x)` 는 매개변수를
@@ -382,7 +385,7 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
   `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
 - `ON CONFLICT`: HQL `insert … values … on conflict [대상] do nothing | do update set … = excluded.…` 는 원본과 같은 꼴로
-  나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분·표현식 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. `do update set`
+  나간다. `on conflict on constraint <이름>` 도 그대로 나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분·표현식 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. `do update set`
   의 오른쪽에 엔티티 칸 이름을 그대로 쓰면 이미 있는 행의 값이다(`case when status = excluded.status then updatedAt else
   excluded.updatedAt end`, `LineMemorizationJpaRepository#upsert`). 엔티티에서
   `insertable = false` 인 칸도 HQL insert 로 값을 넣는다. `insert … select … on conflict do update` 는 Hibernate 가 풀지 못한다.
@@ -395,7 +398,9 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다. 잠가 읽기는 읽은 행을 다른 트랜잭션의 지우기·고치기에서 지킬 뿐이라,
   조건에 맞는 행이 새로 들어올 수 있으면 그것을 따로 막아야 한다. `PostgresPortfolioRepository#beginPhoto` 는 앞서 잡은 부모
   행(`portfolios`)의 `FOR UPDATE` 가 자식 INSERT 의 FK 잠금을 막아서 이 꼴로 옮겼다(`PortfolioRepositoryIT` 가 기다리는 INSERT 로
-  보인다). 읽은 행이 없으면 지우지 않고, 있으면 문장이 하나 는다.
+  보인다). 주기 작업의 치우기처럼 읽은 뒤에 조건에 든 행을 다음 차례가 다시 고르는 곳은 따로 막지 않는다
+  (`PostgresCommunityImageRepository#sweepUnattached`). 읽은 행이 없으면 지우지 않고, 있으면 문장이 하나 는다. 남길 id 목록을
+  `not in :목록` 으로 거를 때 목록이 비면 거르지 않는 조회를 따로 부른다(`PostgresCommunityRepository#replaceImages`).
 - JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다. 값 하나를 통째로
   넣는 것(`CAST(:x AS jsonb)`)은 JSON 칸에 `JsonNode` 매개변수를 넘기는 HQL 로 같다. Java `null` 은 SQL NULL 이 되므로 JSON
   null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`).
