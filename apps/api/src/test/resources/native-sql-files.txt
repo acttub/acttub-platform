@@ -14,10 +14,11 @@ feature/auth/adapter/db/PostgresAuthRepository.java 13
 feature/auth/adapter/db/RefreshTokenJpaRepository.java 1
 feature/billing/adapter/db/PostgresBillingAdminReader.java 3
 feature/billing/adapter/db/PostgresBillingRepository.java 31
-feature/challenge/adapter/db/ChallengeSettlement.java 9
+feature/challenge/adapter/db/ChallengeSettlement.java 2 남김: 마감 집계의 참가 자격과 종료 알림 대상이 다른 기능의 표(auth 의 users, video 의 videos)를 읽는다. 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
+feature/challenge/adapter/db/ChallengeSettlement.java 1 남김: 순위 매기기는 UPDATE … FROM (창 함수 rank())인데 HQL 에 UPDATE … FROM 이 없다. 상관 서브쿼리로 쓰면 행마다 창 함수를 다시 계산하는 다른 문장이 된다
 feature/challenge/adapter/db/EntryCards.java 2 남김: 참여작 카드 한 문장이 다른 기능의 표(video 의 videos, profile 의 user_profiles)를 조인한다. 그 기능에 이 값을 내주는 Port 가 없고, 목록·상세마다 도는 조회라 표마다 나누면 문장이 는다(§5-1)
 feature/challenge/adapter/db/EntryCards.java 1 남김: 공유 프레임 재료(SOMA-1156)는 text[] 를 array_to_string 으로 읽고 (starts_at,id) 행 비교로 회차를 센다
-feature/challenge/adapter/db/EntryLocks.java 6
+feature/challenge/adapter/db/EntryLocks.java 3 남김: 다른 기능(auth)의 users 행을 FOR UPDATE·FOR SHARE 로 잡는 활성 확인 둘과, 다른 기능의 표(users·videos·user_profiles)를 조인하는 공개 조건 확인. auth 에 이 잠금을 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/NotificationEvents.java 1 남김: 수신자에게 푸시를 보낼 수 있는지 다른 기능의 표(profile 의 user_profiles, push 의 push_tokens)에서 읽는다. 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/PostgresAiReportRepository.java 16
 feature/challenge/adapter/db/PostgresChallengeBrowse.java 5 남김: 챌린지 카드와 참여자 조회가 다른 기능의 표(auth 의 users, profile 의 user_profiles, video 의 videos)를 조인한다. 그 기능에 이 값을 내주는 Port 가 없고, 목록·상세마다 도는 조회라 나누면 문장이 는다(§5-1)

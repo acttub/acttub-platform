@@ -18,8 +18,11 @@ class EntryLocks {
     record Target(UUID author, UUID challengeId, int contentVersion, String caption) { }
 
     private final EntityManager em;
+    private final ChallengeEntryJpaRepository entries;
     private final ChallengeSettlement settlement;
-    EntryLocks(EntityManager em, ChallengeSettlement settlement) { this.em = em; this.settlement = settlement; }
+    EntryLocks(EntityManager em, ChallengeEntryJpaRepository entries, ChallengeSettlement settlement) {
+        this.em = em; this.entries = entries; this.settlement = settlement;
+    }
 
     /** 쓰는 사람 하나를 쓰기로 잠근다(챌린지 만들기·참여작 쓰기). 활성이 아니면 403. */
     void active(UUID owner) {
@@ -57,18 +60,12 @@ class EntryLocks {
      * @param ownAllowed 본인 참여작이면 공개 조건 없이 통과(댓글 목록·쓰기)
      */
     Target entry(UUID viewer, UUID entryId, Instant now, boolean exclusive, boolean ownAllowed) {
-        var found = NativeTuples.list(em.createNativeQuery(
-                "SELECT user_id,challenge_id FROM challenge_entries WHERE id=:id AND status<>'deleted'", Tuple.class)
-                .setParameter("id", entryId));
-        if (found.isEmpty()) throw new ApiException(404, "entry_not_found");
-        UUID author = found.getFirst().get("user_id", UUID.class);
-        UUID challenge = found.getFirst().get("challenge_id", UUID.class);
-        people(viewer, author, false);
-        settlement.aggregateIfDue(challenge, now);
-        var locked = NativeTuples.list(em.createNativeQuery("SELECT content_version,caption FROM challenge_entries WHERE id=:id "
-                + (exclusive ? "FOR UPDATE" : "FOR SHARE"), Tuple.class).setParameter("id", entryId)).getFirst();
+        var found = entries.findLive(entryId).orElseThrow(() -> new ApiException(404, "entry_not_found"));
+        people(viewer, found.userId(), false);
+        settlement.aggregateIfDue(found.challengeId(), now);
+        var locked = (exclusive ? entries.lockForWrite(entryId) : entries.lockForRead(entryId)).orElseThrow();
         if (!visible(viewer, entryId, ownAllowed)) throw new ApiException(404, "entry_not_found");
-        return new Target(author, challenge, ((Number) locked.get("content_version")).intValue(), locked.get("caption", String.class));
+        return new Target(found.userId(), found.challengeId(), locked.contentVersion(), locked.caption());
     }
 
     /** 개인 노출 조건(또는 본인의 삭제되지 않은 참여작). */
@@ -76,8 +73,6 @@ class EntryLocks {
         return !NativeTuples.list(em.createNativeQuery("SELECT e.id " + ChallengeVisibility.ENTRY_FROM + " WHERE e.id=:id AND "
                 + ChallengeVisibility.PUBLIC_ENTRY + " AND " + ChallengeVisibility.UNBLOCKED, Tuple.class)
                 .setParameter("id", entryId).setParameter("viewer", viewer)).isEmpty()
-                || ownAllowed && !NativeTuples.list(em.createNativeQuery(
-                        "SELECT id FROM challenge_entries WHERE id=:id AND user_id=:viewer AND status<>'deleted'", Tuple.class)
-                        .setParameter("id", entryId).setParameter("viewer", viewer)).isEmpty();
+                || ownAllowed && entries.findLiveOwnedBy(entryId, viewer).isPresent();
     }
 }
