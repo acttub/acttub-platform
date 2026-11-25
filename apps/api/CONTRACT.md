@@ -333,7 +333,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 남긴 첫 사례는 `feature/portfolio`(다른 기능의 `users` 행 잠금)이고, `DELETE … RETURNING` 을 잠가 읽기와 id 로 지우기로 나눈
 첫 사례이기도 하다. `feature/community` 는 다른 기능의 표를 조인하는 조회(글·댓글 목록과 하나 읽기)를 native 로 남기고 자기 표만
 쓰는 문장을 옮긴 사례다(`CommunityRepositoryIT`). `feature/memory` 는 문장 대부분이 다른 기능의 표를 함께 봐서 자기 표 둘만
-쓰는 문장(칸 읽기·지우기·이관)만 옮겼다(`ActorMemoryRepositoryIT`).
+쓰는 문장(칸 읽기·지우기·이관)만 옮겼다(`ActorMemoryRepositoryIT`). `feature/practice` 는 `practices` 한 표만 쓰는 문장을 옮기고
+회차를 화면에 싣는 조회와 작업·영상·사용자를 쓰는 문장을 남겼다(`PracticeRepositoryIT`).
 
 **옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
 통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
@@ -386,6 +387,10 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   (`NoSuchElementException`) 맨 `null` 을 쓴다(SQL 에서 앞 갈래의 형을 따른다). converter 로 매핑한 칸을 문자열 칸과 견줄 때는
   `cast(칸 as String)` 이 `cast(… as varchar)` 로 나간다(`ActorMemoryJpaRepository#scopedRows`). 빈 목록을 받은 `in :목록` 은
   `1=0` 으로 나가 0행이고 문장은 그대로 나간다. FROM 없는 `select (하위 조회) + (하위 조회)` 도 된다.
+- 넣는 값의 하위 조회·null 매개변수: HQL `insert … values (…, coalesce(:x, (select … from 같은엔티티 r where r.id = :root)), …)` 는
+  그대로 나간다(`PracticeJpaRepository#insert`). native 의 `CAST(:x AS uuid)`·`CAST(:x AS text)` 는 HQL 이 칸 형을 알아 필요 없다.
+  `CASE WHEN CAST(:b AS boolean) IS NULL … WHEN CAST(:b AS boolean) …` 는 `case when :b is null … when :b = true …` 로 쓰고
+  매개변수가 두 번 묶인다. `bpchar` 칸은 `@JdbcTypeCode(SqlTypes.CHAR)` 와 `columnDefinition = "char(n)"` 을 함께 준다.
 - 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 같은 표의 다른 행을 보는
   `NOT EXISTS` 상관 서브쿼리도 HQL UPDATE 안에 그대로 나간다. 엔티티를 읽고 고쳐 저장하거나
   Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
