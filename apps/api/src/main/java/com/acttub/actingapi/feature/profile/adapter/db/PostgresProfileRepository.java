@@ -55,7 +55,11 @@ class PostgresProfileRepository
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
             AccountErasureStep.MEDIA_OBJECTS,
             AccountErasureStep.READING,
-            AccountErasureStep.PRACTICE,
+            AccountErasureStep.VIDEO_FILES,
+            AccountErasureStep.AI_JOBS,
+            AccountErasureStep.ACTOR_JOURNALS,
+            AccountErasureStep.PRACTICE_FEEDBACK,
+            AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES,
             AccountErasureStep.CHALLENGE,
             AccountErasureStep.READING_VOICE_USAGE,
@@ -821,8 +825,27 @@ class PostgresProfileRepository
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
             case READING -> eraseReading(userId, account.retainMedia(), now);
-            case PRACTICE -> {
-                erasePractice(userId, account.retainMedia(), now);
+            case VIDEO_FILES -> {
+                lockAndPurgeVideos(userId, account.retainMedia(), now);
+                yield List.of();
+            }
+            case AI_JOBS -> {
+                cancelAiJobs(userId, now);
+                yield List.of();
+            }
+            case ACTOR_JOURNALS -> {
+                // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
+                entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+                yield List.of();
+            }
+            case PRACTICE_FEEDBACK -> {
+                blankFeedbackContacts(userId, now);
+                yield List.of();
+            }
+            case NOTE_RATINGS -> {
+                blankNoteRatingComments(userId, now);
                 yield List.of();
             }
             case DELETED_PRACTICES -> {
@@ -985,26 +1008,14 @@ class PostgresProfileRepository
     }
 
     /**
-     * 0.1.0 연습 자료의 파기 (specs/practice 「연습 자료의 이관·삭제·탈퇴」).
-     *
-     * <ul>
-     *   <li>{@code videos}: <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 — 회차·참여작의 기록이
-     *       깨지지 않고, 재생이 막히며, 총량에서 빠진다. 객체는 {@link #videoKeys} 가 장부로 보냈다.
-     *       보관 동의자의 영상은 3년 뒤({@link #purgeRetained}) 같은 자리에서 찍힌다.</li>
-     *   <li>{@code ai_jobs}: 진행 중인 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가
-     *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다. 이력은 남기되 결과 본문은 비운다.</li>
-     *   <li>{@code practice_feedback}: 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은
-     *       사람과 끊어 남는다(practice.feedback).</li>
-     *   <li>{@code note_ratings}: 한 줄(자유 입력)을 비우고 평가 값은 사람과 끊어 남긴다(practice.note). 평가를 쓰는
-     *       쪽이 같은 {@code users} 행을 잡으므로 늦게 온 평가가 한 줄을 되살리지 못한다.</li>
-     * </ul>
-     *
-     * <p>{@code practices}·{@code analyses}·{@code coach_*}·{@code video_transcripts} 는 사람과 끊어
-     * 남긴다 — 지우지 않는다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
+     * 0.1.0 영상의 파기 (specs/practice 「연습 자료의 이관·삭제·탈퇴」). <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 —
+     * 회차·참여작의 기록이 깨지지 않고, 재생이 막히며, 총량에서 빠진다. 객체는 {@link #videoKeys} 가 장부로 보냈다. 보관
+     * 동의자의 영상은 3년 뒤({@link #purgeRetained}) 같은 자리에서 찍힌다. {@code practices}·{@code analyses}·{@code coach_*}·
+     * {@code video_transcripts} 는 사람과 끊어 남긴다 — 지우지 않는다.
      *
      * <p>먼저 이 사람의 영상 행을 잡는다 — 회차를 만드는 쪽이 같은 행을 잡으므로 겹쳐도 순서가 정해진다.
      */
-    private void erasePractice(UUID userId, boolean retainMedia, Instant now) {
+    private void lockAndPurgeVideos(UUID userId, boolean retainMedia, Instant now) {
         list(entityManager.createNativeQuery(
                 "SELECT id FROM videos WHERE user_id=:userId FOR UPDATE", Tuple.class)
                 .setParameter("userId", userId));
@@ -1018,6 +1029,13 @@ class PostgresProfileRepository
                     .setParameter("userId", userId)
                     .executeUpdate();
         }
+    }
+
+    /**
+     * 진행 중인 AI 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가 맞지 않아 통째로 롤백되므로 결과가 저장되지
+     * 않는다. 이력은 남기되 결과 본문은 비운다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
+     */
+    private void cancelAiJobs(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE ai_jobs
                 SET status='failed',failure_reason='account_deactivated',
@@ -1028,10 +1046,10 @@ class PostgresProfileRepository
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
-        // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
-        entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
+    }
+
+    /** 의견의 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은 사람과 끊어 남는다(practice.feedback). */
+    private void blankFeedbackContacts(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE practice_feedback
                 SET contact_email=NULL,contact_phone=NULL,
@@ -1042,6 +1060,13 @@ class PostgresProfileRepository
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
+    }
+
+    /**
+     * 노트 평가의 한 줄(자유 입력)을 비우고 평가 값은 사람과 끊어 남긴다(practice.note). 평가를 쓰는 쪽이 같은 {@code users} 행을
+     * 잡으므로 늦게 온 평가가 한 줄을 되살리지 못한다.
+     */
+    private void blankNoteRatingComments(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE note_ratings
                 SET comment=NULL,updated_at=:now
