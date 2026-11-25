@@ -52,8 +52,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 게시판 저장소(글·댓글·좋아요·신고·차단과 사진 올리기 장부)가 내는 결과·잠금·경합·문장을 실제 PostgreSQL 에서 고정한다.
- * 저장소를 네이티브 SQL 에서 JPA 로 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과해야 한다
- * (apps/api/CONTRACT.md §5-9).
+ * 저장소를 네이티브 SQL 에서 JPA 로 옮길 때 네이티브 구현에서 먼저 통과시킨 이 테스트가 그대로 통과했다
+ * (apps/api/CONTRACT.md §5-9). 문장 테스트만 달라졌다 — {@code RETURNING} 을 나눈 곳(좋아요 다시 세기·익명 번호 넣기는 다시
+ * 읽기, 사진 행 지우기는 잠가 읽기 뒤 id 로 지우기)이다.
  *
  * <p>HTTP 쪽 오류 코드·차단 가시성·커서 모양·익명 표시 이름과 좋아요·댓글 수의 경합은 {@link CommunityEndpointIT}·
  * {@link CommunityErrorContractIT}·{@link CommunityImageIT}, 익명 번호의 경합은 {@code AnonymousAliasAllocatorIT} 가 본다.
@@ -847,13 +848,13 @@ class CommunityRepositoryIT {
         assertThat(statementsOf(() -> community.updatePost(post, author, "고침", "본문", null)))
                 .containsExactly(posts, "update community_posts", posts, imageRead);
         assertThat(statementsOf(() -> community.updatePost(post, author, "고침", "본문", List.of(id(182), id(181)))))
-                .as("뺀 사진이 없을 때")
-                .containsExactly(postLock, "update community_posts", imageLock, "delete community_post_images returning",
+                .as("뺀 사진이 없을 때 — 뺄 행을 잠가 읽고 없으면 지우지 않는다")
+                .containsExactly(postLock, "update community_posts", imageLock, imageLock,
                         "update community_post_images", "update community_post_images", "update community_post_images",
                         posts, imageRead);
         assertThat(statementsOf(() -> community.updatePost(post, author, "고침", "본문", List.of(id(181)))))
-                .as("뺀 사진이 있을 때")
-                .containsExactly(postLock, "update community_posts", imageLock, "delete community_post_images returning",
+                .as("뺀 사진이 있을 때 — 잠가 읽은 행을 id 로 지운다")
+                .containsExactly(postLock, "update community_posts", imageLock, imageLock, "delete community_post_images",
                         "update community_post_images", "update community_post_images",
                         "insert account_cleanup_operations", posts, imageRead);
         assertThat(statementsOf(() -> {
@@ -861,9 +862,10 @@ class CommunityRepositoryIT {
             return null;
         })).containsExactly("update community_posts");
         assertThat(statementsOf(() -> community.likePost(post, other)))
-                .containsExactly(postLock, "insert community_post_likes returning", "update community_posts returning");
+                .as("RETURNING 대신 같은 트랜잭션에서 다시 읽는다")
+                .containsExactly(postLock, "insert community_post_likes on conflict", "update community_posts", posts);
         assertThat(statementsOf(() -> community.unlikePost(post, other)))
-                .containsExactly(postLock, "delete community_post_likes", "update community_posts returning");
+                .containsExactly(postLock, "delete community_post_likes", "update community_posts", posts);
         CommunityComment[] comment = new CommunityComment[1];
         assertThat(statementsOf(() -> comment[0] = community.createComment(post, other, "댓글", false)))
                 .containsExactly(posts, imageRead, "insert community_comments", "update community_posts",
@@ -871,8 +873,8 @@ class CommunityRepositoryIT {
         assertThat(statementsOf(() -> community.createComment(post, other, "익명", true)))
                 .as("익명 번호를 처음 받을 때")
                 .containsExactly(posts, imageRead, postLock, "select community_anonymous_aliases",
-                        "select community_anonymous_aliases", "insert community_anonymous_aliases returning",
-                        "insert community_comments", "update community_posts", "select community_comments",
+                        "select community_anonymous_aliases", "insert community_anonymous_aliases on conflict",
+                        "select community_anonymous_aliases", "insert community_comments", "update community_posts", "select community_comments",
                         "select community_anonymous_aliases");
         assertThat(statementsOf(() -> community.createComment(post, other, "익명", true)))
                 .as("받은 번호가 있을 때")
@@ -899,7 +901,7 @@ class CommunityRepositoryIT {
             return null;
         })).containsExactly("select users", "insert user_blocks returning");
         assertThat(statementsOf(() -> community.deletePost(post, author)))
-                .containsExactly(postLock, "update community_posts", "delete community_post_images returning",
+                .containsExactly(postLock, "update community_posts", imageLock, "delete community_post_images",
                         "insert account_cleanup_operations");
 
         assertThat(statementsOf(() -> images.begin(pending(id(183), author, now.plusSeconds(600)), 20, now)))
@@ -912,9 +914,9 @@ class CommunityRepositoryIT {
             return null;
         })).containsExactly("update community_post_images");
         assertThat(statementsOf(() -> images.sweepUnattached(now.plusSeconds(1), now)))
-                .containsExactly("delete community_post_images returning", "insert account_cleanup_operations");
+                .containsExactly(imageLock, "delete community_post_images", "insert account_cleanup_operations");
         assertThat(statementsOf(() -> images.sweepUnattached(now.plusSeconds(1), now))).as("치울 것이 없을 때")
-                .containsExactly("delete community_post_images returning");
+                .containsExactly(imageLock);
     }
 
     // ---- 도움 ----

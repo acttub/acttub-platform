@@ -34,9 +34,8 @@ feature/coach/adapter/db/PostgresCoachVideoSource.java 1
 feature/coach/adapter/db/PostgresConversationRepository.java 34
 feature/coach/adapter/db/PostgresJournalRepository.java 2
 feature/coach/adapter/db/PostgresNoteRatingStore.java 6
-feature/community/adapter/db/AnonymousAliasAllocator.java 4
-feature/community/adapter/db/PostgresCommunityImageRepository.java 6
-feature/community/adapter/db/PostgresCommunityRepository.java 20
+feature/community/adapter/db/PostgresCommunityImageRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 올리기 상한 확인(begin). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
+feature/community/adapter/db/PostgresCommunityRepository.java 4 남김: 다른 기능의 표를 쓰는 문장. 글·댓글 조회(목록·하나·방금 쓴 댓글)는 작성자 이름과 탈퇴 여부(auth 의 users, profile 의 user_profiles)와 차단(challenge 의 user_blocks)을 한 문장에서 조인하고 이를 내주는 Port 가 없다(Port 로 나누면 목록 읽기의 문장이 는다). 차단하기의 대상 확인(users)과 넣기(user_blocks)는 challenge 의 차단 Port 가 활성 계정만 받고 users 행을 잠가 뜻이 달라진다
 feature/consent/adapter/db/PostgresConsentRepository.java 4
 feature/feedback/adapter/db/PostgresExitSurveyStore.java 9
 feature/memory/adapter/db/PostgresActorMemoryStore.java 23

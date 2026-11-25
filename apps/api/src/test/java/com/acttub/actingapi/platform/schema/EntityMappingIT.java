@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.auth.schema.UserEntity;
 import com.acttub.actingapi.feature.auth.schema.UserIdentityEntity;
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
 import com.acttub.actingapi.feature.blog.schema.BlogPostEntity;
+import com.acttub.actingapi.feature.community.schema.CommunityPostImageEntity;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
@@ -137,18 +138,16 @@ class EntityMappingIT {
             // 화면별 광고 칸 스위치(V76, SOMA-876)는 광고 칸 스위치 저장소의 native SELECT 만 쓴다.
             "ad_slot_switches",
             // 푸시 탭 기록(V72, SOMA-926)은 푸시 탭 저장소의 native INSERT 와 탈퇴 파기만 쓴다.
-            "push_opens",
-            // 게시판 글 사진(V87, SOMA-873)은 게시판 저장소의 native SQL 과 탈퇴 파기만 쓴다.
-            "community_post_images");
+            "push_opens");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 52개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 56개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개다.
-        assertThat(entities).hasSize(55);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개다.
+        assertThat(entities).hasSize(56);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -360,6 +359,8 @@ class EntityMappingIT {
                 "draft",null,java.time.Instant.now(),java.time.Instant.now()));
         save(AppPosterEntity.class,new AppPosterEntity(UUID.randomUUID(),"save-"+userId,new String[]{"ios"},"제목",
                 java.time.Instant.now()));
+        save(CommunityPostImageEntity.class,new CommunityPostImageEntity(UUID.randomUUID(),userId,"community/"+userId+".jpg",
+                "image/jpeg",1,java.time.Instant.now(),java.time.Instant.now().plusSeconds(60)));
         save(AccountCleanupOperationEntity.class,new AccountCleanupOperationEntity(UUID.randomUUID(),userId,
                 AccountCleanupKind.KAKAO_UNLINK,"d1:payload",java.time.Instant.now(),java.time.Instant.now().plusSeconds(600)));
         entityManager.persist(new AnomalyEntity(summaryId,IntentImpact.REVERSAL,Severity.HIGH));
@@ -401,7 +402,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(31);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(32);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
