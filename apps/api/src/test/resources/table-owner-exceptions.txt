@@ -157,7 +157,6 @@ feature/profile/adapter/db/PostgresProfileRepository.java community_post_images
 feature/profile/adapter/db/PostgresProfileRepository.java community_post_likes
 feature/profile/adapter/db/PostgresProfileRepository.java community_posts
 feature/profile/adapter/db/PostgresProfileRepository.java community_reports
-feature/profile/adapter/db/PostgresProfileRepository.java consent_documents
 feature/profile/adapter/db/PostgresProfileRepository.java entry_ai_reports
 feature/profile/adapter/db/PostgresProfileRepository.java entry_comments
 feature/profile/adapter/db/PostgresProfileRepository.java entry_likes

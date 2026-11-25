@@ -19,8 +19,16 @@ public enum AccountErasureStep {
     MEDIA_OBJECTS,
     /** 대본·회차·녹음·암기 상태. */
     READING,
-    /** 영상 파일 파기, 진행 중인 AI 작업 닫기, 배우 일지, 의견의 연락처, 노트 평가의 한 줄. */
-    PRACTICE,
+    /** 영상 행을 잠그고, 영상을 남기지 않을 때 파일을 파기한 것으로 적는다. */
+    VIDEO_FILES,
+    /** 진행 중인 AI 작업을 닫는다. */
+    AI_JOBS,
+    /** 배우 일지. */
+    ACTOR_JOURNALS,
+    /** 의견의 연락처. */
+    PRACTICE_FEEDBACK,
+    /** 노트 평가의 한 줄. */
+    NOTE_RATINGS,
     /** 앞서 지운 연습의 무료 횟수 표시와 보관하던 영상. */
     DELETED_PRACTICES,
     /** 주최한 챌린지, 참여작, 차단, 저장, 알림, AI 리포트. */

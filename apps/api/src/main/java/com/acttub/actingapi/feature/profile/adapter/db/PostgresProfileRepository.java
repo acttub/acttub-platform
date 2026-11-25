@@ -19,7 +19,6 @@ import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
-import com.acttub.actingapi.feature.auth.app.MediaRetention;
 import com.acttub.actingapi.feature.auth.app.PendingSettlement;
 import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
@@ -47,26 +46,24 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository
-        implements ProfileRepository, SignupAttributionOwnership, AccountErasure, PendingSettlement, MediaRetention {
+        implements ProfileRepository, SignupAttributionOwnership, AccountErasure, PendingSettlement {
 
     /**
-     * 계정을 닫을 때 이 저장소가 맡는 자리. {@code profile} 의 표를 고치는 자리({@code SIGNUP_ATTRIBUTION}·
-     * {@code DISCOVERY_ANSWER}·{@code PROFILE})와, 아직 주인에게 옮기지 않은 남의 표의 자리다. 뒤의 것은 주인 기능이
+     * 계정을 닫을 때 이 저장소가 맡는 자리. 모두 아직 주인에게 옮기지 않은 남의 표의 자리다. 주인 기능이
      * {@link AccountErasure} 를 구현하면 여기서 빠진다.
      */
     private static final Set<AccountErasureStep> STEPS = EnumSet.of(
             AccountErasureStep.MEDIA_OBJECTS,
             AccountErasureStep.READING,
-            AccountErasureStep.PRACTICE,
+            AccountErasureStep.AI_JOBS,
+            AccountErasureStep.ACTOR_JOURNALS,
+            AccountErasureStep.PRACTICE_FEEDBACK,
+            AccountErasureStep.NOTE_RATINGS,
             AccountErasureStep.DELETED_PRACTICES,
             AccountErasureStep.CHALLENGE,
-            AccountErasureStep.COMMUNITY_IMAGES,
             AccountErasureStep.READING_VOICE_USAGE,
-            AccountErasureStep.SIGNUP_ATTRIBUTION,
             AccountErasureStep.BILLING,
-            AccountErasureStep.DISCOVERY_ANSWER,
             AccountErasureStep.BILLING_CUSTOMER,
-            AccountErasureStep.PROFILE,
             AccountErasureStep.LEGACY_OPERATIONS);
 
     private final EntityManager entityManager;
@@ -827,8 +824,23 @@ class PostgresProfileRepository
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
             case READING -> eraseReading(userId, account.retainMedia(), now);
-            case PRACTICE -> {
-                erasePractice(userId, account.retainMedia(), now);
+            case AI_JOBS -> {
+                cancelAiJobs(userId, now);
+                yield List.of();
+            }
+            case ACTOR_JOURNALS -> {
+                // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
+                entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+                yield List.of();
+            }
+            case PRACTICE_FEEDBACK -> {
+                blankFeedbackContacts(userId, now);
+                yield List.of();
+            }
+            case NOTE_RATINGS -> {
+                blankNoteRatingComments(userId, now);
                 yield List.of();
             }
             case DELETED_PRACTICES -> {
@@ -839,26 +851,8 @@ class PostgresProfileRepository
                 eraseChallenge(userId, now);
                 yield List.of();
             }
-            case COMMUNITY_IMAGES -> {
-                // 게시판 글 사진은 객체를 MEDIA_OBJECTS 에서 장부에 올렸다. 행도 지워 글에서 사진이 빠지게 한다(글·댓글 행은 남는다).
-                entityManager.createNativeQuery("DELETE FROM community_post_images WHERE uploader_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
             case READING_VOICE_USAGE -> {
                 entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
-            case SIGNUP_ATTRIBUTION -> {
-                // 가입 유입 기록(SOMA-588)은 사람과 끊어 남기지 않고 행째 지운다 — 통계는 탈퇴 전 값으로 충분하다.
-                entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                // 재조회용 기기 ID(SOMA-643, V43)도 지운다 — 24시간 안에 남아 있을 수 있다.
-                entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:userId")
                         .setParameter("userId", userId)
                         .executeUpdate();
                 yield List.of();
@@ -867,28 +861,18 @@ class PostgresProfileRepository
                 endBilling(userId);
                 yield List.of();
             }
-            case DISCOVERY_ANSWER -> {
-                // 가입 직후 답한 유입 경로(SOMA-649)도 행째 지운다 — 기타의 직접 입력이 남지 않게.
-                entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
             // RevenueCat 고객 정보(SOMA-818, V65)도 지운다 — 앱이 RevenueCat SDK 에 우리 user id 로 붙으므로 app_user_id 가 곧
             // user id 다. 꺼진 서버(BILLING_REVENUECAT_ENABLED=false·비밀 키 없음)는 올리지 않는다. 바깥 호출은 커밋 뒤 장부가 한다 —
             // 실패해도 탈퇴는 되돌리지 않고, 5분부터 다시 시도하다 7일 뒤 포기하며 알린다. 이미 없는 고객(404)은 성공이다.
             case BILLING_CUSTOMER -> revenueCat.enabled()
                     ? List.of(cleanups.enqueue(userId, "revenuecat_delete", secrets.encrypt(userId.toString()), now, now))
                     : List.of();
-            case PROFILE -> {
-                blurProfile(userId, account.today());
-                yield List.of();
-            }
             case LEGACY_OPERATIONS -> {
                 cancelOperations(userId, now);
                 yield List.of();
             }
-            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH ->
+            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE,
+                    COMMUNITY_IMAGES, VIDEO_FILES ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }
@@ -1019,39 +1003,10 @@ class PostgresProfileRepository
     }
 
     /**
-     * 0.1.0 연습 자료의 파기 (specs/practice 「연습 자료의 이관·삭제·탈퇴」).
-     *
-     * <ul>
-     *   <li>{@code videos}: <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 — 회차·참여작의 기록이
-     *       깨지지 않고, 재생이 막히며, 총량에서 빠진다. 객체는 {@link #videoKeys} 가 장부로 보냈다.
-     *       보관 동의자의 영상은 3년 뒤({@link #purgeRetained}) 같은 자리에서 찍힌다.</li>
-     *   <li>{@code ai_jobs}: 진행 중인 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가
-     *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다. 이력은 남기되 결과 본문은 비운다.</li>
-     *   <li>{@code practice_feedback}: 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은
-     *       사람과 끊어 남는다(practice.feedback).</li>
-     *   <li>{@code note_ratings}: 한 줄(자유 입력)을 비우고 평가 값은 사람과 끊어 남긴다(practice.note). 평가를 쓰는
-     *       쪽이 같은 {@code users} 행을 잡으므로 늦게 온 평가가 한 줄을 되살리지 못한다.</li>
-     * </ul>
-     *
-     * <p>{@code practices}·{@code analyses}·{@code coach_*}·{@code video_transcripts} 는 사람과 끊어
-     * 남긴다 — 지우지 않는다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
-     *
-     * <p>먼저 이 사람의 영상 행을 잡는다 — 회차를 만드는 쪽이 같은 행을 잡으므로 겹쳐도 순서가 정해진다.
+     * 진행 중인 AI 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가 맞지 않아 통째로 롤백되므로 결과가 저장되지
+     * 않는다. 이력은 남기되 결과 본문은 비운다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
      */
-    private void erasePractice(UUID userId, boolean retainMedia, Instant now) {
-        list(entityManager.createNativeQuery(
-                "SELECT id FROM videos WHERE user_id=:userId FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
-        if (!retainMedia) {
-            entityManager.createNativeQuery("""
-                    UPDATE videos
-                    SET purged_at=:now,updated_at=:now
-                    WHERE user_id=:userId AND purged_at IS NULL
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-        }
+    private void cancelAiJobs(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE ai_jobs
                 SET status='failed',failure_reason='account_deactivated',
@@ -1062,10 +1017,10 @@ class PostgresProfileRepository
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
-        // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
-        entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
-                .setParameter("userId", userId)
-                .executeUpdate();
+    }
+
+    /** 의견의 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은 사람과 끊어 남는다(practice.feedback). */
+    private void blankFeedbackContacts(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE practice_feedback
                 SET contact_email=NULL,contact_phone=NULL,
@@ -1076,6 +1031,13 @@ class PostgresProfileRepository
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
+    }
+
+    /**
+     * 노트 평가의 한 줄(자유 입력)을 비우고 평가 값은 사람과 끊어 남긴다(practice.note). 평가를 쓰는 쪽이 같은 {@code users} 행을
+     * 잡으므로 늦게 온 평가가 한 줄을 되살리지 못한다.
+     */
+    private void blankNoteRatingComments(UUID userId, Instant now) {
         entityManager.createNativeQuery("""
                 UPDATE note_ratings
                 SET comment=NULL,updated_at=:now
@@ -1183,58 +1145,6 @@ class PostgresProfileRepository
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
-    }
-
-    /**
-     * 보관 문서의 <b>현재 판</b>에 대한 마지막 결정이 동의인가. 현재 판에 답하지 않았으면(새 판이
-     * 나온 뒤 결정 전에 탈퇴) 거절로 본다 — 동의 없이 얼굴을 남기지 않는 쪽이 안전하다.
-     */
-    @Override
-    public boolean granted(UUID userId) {
-        return !list(entityManager.createNativeQuery("""
-                SELECT 1 AS granted
-                FROM (SELECT id
-                      FROM consent_documents
-                      WHERE type='retention'
-                      ORDER BY published_at DESC,id DESC
-                      LIMIT 1) current_document
-                JOIN LATERAL (SELECT action
-                              FROM user_consents
-                              WHERE user_consents.user_id=:userId
-                                AND user_consents.document_id=current_document.id
-                              ORDER BY occurred_at DESC,id DESC
-                              LIMIT 1) last_decision ON true
-                WHERE last_decision.action='granted'
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
-    }
-
-    /** 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 이미 뭉갠 프로필은 연령대를 그대로 둔다. */
-    private void blurProfile(UUID userId, LocalDate today) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT birth_date
-                FROM user_profiles
-                WHERE user_id=:userId
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("userId", userId));
-        if (rows.isEmpty()) {
-            return;
-        }
-        Date birthDate = rows.getFirst().get("birth_date", Date.class);
-        entityManager.createNativeQuery("""
-                UPDATE user_profiles
-                SET name=NULL,photo_key=NULL,bio=NULL,birth_date=NULL,
-                    age_band=COALESCE(CAST(:ageBand AS integer),age_band),
-                    photo_upload_key=NULL,photo_upload_mime_type=NULL,
-                    photo_upload_size_bytes=NULL,photo_upload_expires_at=NULL,
-                    notify_analysis_done=false,notify_challenge=false,notify_evening_reminder=false,
-                    updated_at=now()
-                WHERE user_id=:userId
-                """)
-                .setParameter("ageBand", birthDate == null ? null : AgeBand.of(birthDate.toLocalDate(), today))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     /**

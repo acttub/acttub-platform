@@ -676,7 +676,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `AccountSecretsTest` 가 고정한다.
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
-  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `MediaRetention#granted`(지금 구현은 `PostgresProfileRepository`)가 판정한다.
+  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `MediaRetention#granted`(구현은 `feature/consent` 의 `PostgresMediaRetention`)가 판정한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 회차 평가
   (`reading_session_ratings`)도 회차와 함께 행째 지운다 — 노트 평가처럼 한 줄만 비우고 남기지 않는다. 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
@@ -1147,7 +1147,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     덮어쓰이므로 지문 칸을 따로 두지 않고 저장된 값과 견준다.
   - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8). 구현은 `coach/app/NoteRatingService`·
     `coach/adapter/db/PostgresNoteRatingStore`, 실 DB 검증은 `NoteRatingIT` 다.
-  - **이관**은 `NoteRatingOwnership`(설문 다음), **탈퇴**는 `PostgresProfileRepository#erasePractice` 다.
+  - **이관**은 `NoteRatingOwnership`(설문 다음), **탈퇴**는 `PostgresProfileRepository#blankNoteRatingComments`(자리 `NOTE_RATINGS`)다.
 - **배우 기억**(`actor_memories`) — 갱신 예약은 `coach/app/ConversationClosedListener` → `memory` 이고 요청 id 를
   회차에서 만든다. 워커는 분석과 같은 추출기·같은 재시도 규칙이며 저장은 한 트랜잭션에서 지금의 주인에게 하고 계정
   상태와 세대(`ai_jobs.memory_epoch`)를 다시 본다.

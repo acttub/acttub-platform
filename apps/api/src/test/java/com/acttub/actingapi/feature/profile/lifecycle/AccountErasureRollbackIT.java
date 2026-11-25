@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AccountErasure;
@@ -77,6 +78,15 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresPushAccountErasure")
     AccountErasure pushErasure;
 
+    @MockitoSpyBean(name = "postgresProfileAccountErasure")
+    AccountErasure profileErasure;
+
+    @MockitoSpyBean(name = "postgresCommunityAccountErasure")
+    AccountErasure communityErasure;
+
+    @MockitoSpyBean(name = "postgresVideoAccountErasure")
+    AccountErasure videoErasure;
+
     private AccountLifecycleSeed seed;
 
     @BeforeEach
@@ -88,7 +98,9 @@ class AccountErasureRollbackIT {
     }
 
     @ParameterizedTest(name = "{0} 자리에서 실패")
-    @EnumSource(value = AccountErasureStep.class, names = {"IDENTITIES", "EMAIL", "PORTFOLIO", "TRANSFER_CODES", "SESSIONS", "PUSH"})
+    @EnumSource(value = AccountErasureStep.class, names = {
+        "VIDEO_FILES", "COMMUNITY_IMAGES", "SIGNUP_ATTRIBUTION", "DISCOVERY_ANSWER", "IDENTITIES", "EMAIL", "PROFILE", "PORTFOLIO", "TRANSFER_CODES", "SESSIONS", "PUSH"
+    })
     @DisplayName("구현 하나가 예외를 던지면 탈퇴 전체가 되돌아간다: 계정은 활성 그대로이고 어느 표도 달라지지 않는다")
     void aFailingOwnerRollsTheWholeWithdrawalBack(AccountErasureStep failing) throws Exception {
         UUID self = seed.full("본인", Identity.MEMBER, "declined");
@@ -116,6 +128,9 @@ class AccountErasureRollbackIT {
             case PORTFOLIO -> portfolioErasure;
             case TRANSFER_CODES -> transferErasure;
             case PUSH -> pushErasure;
+            case SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER, PROFILE -> profileErasure;
+            case COMMUNITY_IMAGES -> communityErasure;
+            case VIDEO_FILES -> videoErasure;
             default -> throw new IllegalArgumentException("no spied owner for " + step);
         };
     }
@@ -128,5 +143,15 @@ class AccountErasureRollbackIT {
 
         assertThat(sequence.hasRecords(light)).isFalse();
         assertThat(sequence.hasRecords(full)).isTrue();
+        // 주인마다의 답. 게시판 자료와 정리 장부의 일은 계정 행을 지우지 못하게 하고, 나머지 주인의 표는 계정과 함께 지워진다.
+        assertThat(communityErasure.hasRecords(light)).isFalse();
+        assertThat(communityErasure.hasRecords(full)).isTrue();
+        assertThat(profileErasure.hasRecords(light)).isFalse();
+        assertThat(profileErasure.hasRecords(full)).isTrue();
+        assertThat(videoErasure.hasRecords(light)).isFalse();
+        assertThat(videoErasure.hasRecords(full)).isTrue();
+        for (AccountErasure accountOnly : List.of(authErasure, portfolioErasure, transferErasure, pushErasure)) {
+            assertThat(accountOnly.hasRecords(full)).isFalse();
+        }
     }
 }

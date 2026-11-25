@@ -49,7 +49,8 @@ feature/profile/adapter/db/PostgresAccountCleanupRepository.java 7
 feature/profile/adapter/db/PostgresAirbridgeLookupStore.java 4
 feature/profile/adapter/db/PostgresObjectCleanupLedger.java 1
 feature/profile/adapter/db/PostgresPracticeGroupErasure.java 22
-feature/profile/adapter/db/PostgresProfileRepository.java 67
+feature/profile/adapter/db/PostgresProfileAccountErasure.java 3
+feature/profile/adapter/db/PostgresProfileRepository.java 58
 feature/profile/adapter/db/RetentionDecisions.java 1
 feature/push/adapter/db/PostgresPracticeReminderRepository.java 9 남김: 후보·연속 일수·이어 하기·숙제·잠금 화면에서 지울 말·올려 둔 영상·안 읽은 대본은 다른 기능의 표(users·user_profiles·practices·coach_conversations·coach_messages·coach_notes·actor_journals·reading_sessions·reading_recordings·line_memorization·scripts·script_characters·script_lines·videos·challenge_entries)를 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/push/adapter/db/PostgresPushAccountErasure.java 1 남김: 탈퇴가 push_opens 의 행을 지우는 한 문장. push_opens 는 Schema Entity 가 없다(넣는 문장이 native 로 남아 매핑하지 않았다)
@@ -68,6 +69,7 @@ feature/reading/adapter/db/PostgresScriptRepository.java 45
 feature/reading/adapter/db/PostgresScriptUploadRepository.java 2 남김: 실패 남기기(recordFailure)는 UPDATE 한 문장 안에서 다른 기능(consent)의 동의 결정을 읽어 보관 시한을 정한다. 미연결 정리(sweepUnlinked)는 SKIP LOCKED 로 고른 행을 DELETE … RETURNING 하는 CTE 이고 동의와 ai_jobs(platform/operation)를 함께 읽는다
 feature/reading/adapter/db/PostgresSessionRatingStore.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(save). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresSessionRepository.java 17
+feature/video/adapter/db/PostgresVideoAccountErasure.java 1 남김: 이 계정을 가리키는 올리기 예약이 있는지 읽는 한 문장. 은퇴한 예약 장부(upload_intents)는 Schema Entity 가 없다(CONTRACT §5-1)
 feature/video/adapter/db/PostgresVideoOwnership.java 2 남김: 은퇴한 예약 장부(upload_intents, CONTRACT §5-1 에서 매핑을 내렸다)의 같은 요청 id 비우기와 주인 바꾸기. 은퇴 결정을 되돌려 매핑을 다시 만들지 않는다
 feature/video/adapter/db/PostgresVideoRepository.java 16 남김: 은퇴한 예약 장부(upload_intents)를 읽고 쓰는 예약·확정·시한 지남 치우기·삭제의 아홉 자리, 다른 기능(auth)의 users 행 FOR UPDATE 둘(확정의 총량 줄 서기, 포스터 붙이기), 목록·상세·삭제의 참조 확인·파기의 모자이크본 키가 읽는 practices·challenge_entries 넷, 포스터 고르기(users 를 조인해 SKIP LOCKED 로 잡고 고치는 데이터를 바꾸는 CTE). 그 기능들에 이 일을 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 platform/migration/PostgresPracticeDataMigration.java 4
