@@ -34,6 +34,7 @@ import {
   type PostIdempotentOptions,
   type PostIdempotentStreamOptions,
 } from '@/lib/api-request';
+import { consentGate } from '@/lib/consent-gate';
 import { newRequestId } from '@/lib/request-id';
 import type { SignupDecision } from '@/lib/consent-entry-submission';
 import type { TransferRequestBody } from '@/lib/guest-transfer';
@@ -160,6 +161,7 @@ const requestClient = createApiRequestClient({
   streamFetchImpl: (url, init) => expoStreamFetch(url, init as never) as unknown as Promise<Response>,
   getLanguage: currentLanguage,
   waitForCredentialReady,
+  waitForConsentGate: consentGate.waitFor,
   getAccessToken,
   getRefreshToken,
   getAuthSessionEpoch,

@@ -91,9 +91,9 @@ class ExternalOperationMonitoringMigrationTest {
     }
 
     private static String originalRow(JdbcTemplate jdbc, String table) {
-        // 뒤 마이그레이션이 더한 칸과, V99 가 지운 옛 칸(SOMA-1142)은 견주지 않는다.
+        // 뒤 마이그레이션이 더한 칸과, V96·V99 가 지운 옛 칸(SOMA-1142)은 견주지 않는다.
         return jdbc.queryForObject("SELECT (to_jsonb(stored) - ARRAY['last_failure_classification', 'waiting_since', "
-                + "'execution_started_at', 'monitoring_updated_at', 'monitoring_lease_token', "
+                + "'execution_started_at', 'monitoring_updated_at', 'monitoring_lease_token', 'subtext', "
                 + "'branch_kind', 'handoff_json', 'conversation_summary'])::text FROM "
                 + table + " stored", String.class);
     }

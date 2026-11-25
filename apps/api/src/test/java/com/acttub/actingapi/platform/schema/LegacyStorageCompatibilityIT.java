@@ -53,16 +53,7 @@ class LegacyStorageCompatibilityIT {
         if (removeRetiredStorage) {
             // 배포 마이그레이션이 아니다. 이 테스트만의 DB에서 코드 의존이 끊겼음을 반증한다. 여기서 지우는 구조는
             // 코드가 읽고 쓰지 않으며, 다음 릴리스의 DROP 마이그레이션이 운영에서도 지운다(apps/api/CONTRACT.md §5-1).
-            jdbc.execute("DROP TABLE reports");
-            jdbc.execute("""
-                    ALTER TABLE summaries DROP COLUMN observation, DROP COLUMN summary,
-                        DROP COLUMN intent_alignment, DROP COLUMN key_moment, DROP COLUMN key_dimension
-                    """);
-            jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
-            jdbc.execute("ALTER TABLE users DROP COLUMN role");
-            jdbc.execute("ALTER TABLE ads DROP COLUMN academy_registration_no, DROP COLUMN course_name, DROP COLUMN tuition");
-            jdbc.execute("DROP TABLE evening_reminder_sends");
-            jdbc.execute("ALTER TABLE videos DROP COLUMN width, DROP COLUMN height");
+            // 지금은 지울 은퇴 구조가 없다(V96~V99 가 모두 지웠다). 다음 은퇴 대상은 여기에 더한다(CONTRACT §5-1).
             // 게시판 표 일곱은 은퇴 저장소가 아니다 — SOMA-873 이 코드를 되살려 지우면 부팅이 막힌다.
         }
 

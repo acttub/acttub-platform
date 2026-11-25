@@ -49,7 +49,7 @@ class PracticeRollbackCompatibilityTest {
             "practice_migration_entries", "challenges", "challenge_entries", "entry_likes", "user_blocks",
             "entry_view_events", "entry_ranking_snapshots", "entry_saves", "entry_comments", "entry_reports",
             "entry_ai_reports", "notifications", "notification_pushes", "note_ratings",
-            "reading_voice_cache", "reading_voice_usage", "evening_reminder_sends", "user_signup_attributions",
+            "reading_voice_cache", "reading_voice_usage", "user_signup_attributions",
             "app_posters", "script_imports", "script_uploads", "audition_postings", "user_discovery_answers",
             "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups",
             "practice_reminder_sends", "reading_pronunciation_reports",
@@ -59,7 +59,7 @@ class PracticeRollbackCompatibilityTest {
             "practice_deletion_marks", "deleted_practice_videos", "community_post_images");
 
     @Test
-    @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 은퇴한 옛 구조를 지운 V99, 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
+    @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 은퇴한 옛 구조를 지운 V96·V99, 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
             + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42)·대사 줄의 NULL 허용 말·소리 낼 글(V45)·배역의 NULL 허용 묶음(V50)·배역의 기본값 있는 이름 없음 표시(V51)·동의 결정 값에서 revoked 를 뺀 V93 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
@@ -110,8 +110,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V99 —연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)·웹 블로그 글(V80, SOMA-834)·대본 나누기 진행률(V83, SOMA-960)·회차를 만든 사람의 말(V84, SOMA-946)·연습 삭제(V85, SOMA-985)·배우 게시판 분류와 신고 사유(V86, SOMA-873)·게시판 글 사진(V87, SOMA-873)·게시판 분류 자유·질문·홍보(V88, SOMA-1012)·챌린지 얼굴 보임(V90, SOMA-1066)·얼굴 없는 모자이크 다시 처리(V91, SOMA-1066)·쓰지 않는 동의·신고 판정 값 빼기(V93, SOMA-1130)·코치 대화 종료 사유 gap_stated 빼기(V94, SOMA-1130)·영상 데이터 제3자 제공 동의(V95, SOMA-1149)·옛 코칭 연결 지우기(V99, SOMA-1142)가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 83;
+    /** V14~V99 —연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)·웹 블로그 글(V80, SOMA-834)·대본 나누기 진행률(V83, SOMA-960)·회차를 만든 사람의 말(V84, SOMA-946)·연습 삭제(V85, SOMA-985)·배우 게시판 분류와 신고 사유(V86, SOMA-873)·게시판 글 사진(V87, SOMA-873)·게시판 분류 자유·질문·홍보(V88, SOMA-1012)·챌린지 얼굴 보임(V90, SOMA-1066)·얼굴 없는 모자이크 다시 처리(V91, SOMA-1066)·쓰지 않는 동의·신고 판정 값 빼기(V93, SOMA-1130)·코치 대화 종료 사유 gap_stated 빼기(V94, SOMA-1130)·영상 데이터 제3자 제공 동의(V95, SOMA-1149)·은퇴한 옛 구조 지우기(V96, SOMA-1142)·영상 크기 칸 지우기(V97, SOMA-1142)·저녁 알림 장부 지우기(V98, SOMA-1142)·옛 코칭 연결 지우기(V99, SOMA-1142)가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 86;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -129,12 +129,14 @@ class PracticeRollbackCompatibilityTest {
     }
 
     /**
-     * 은퇴해 지운 옛 표와 칸(SOMA-1142). 코드가 읽고 쓰지 않게 된 뒤 V99 가 지웠다. V31 처럼 이 앞의 이미지로는
+     * 은퇴해 지운 옛 표와 칸(SOMA-1142). 코드가 읽고 쓰지 않게 된 뒤 V96·V99 가 지웠다. V31 처럼 이 앞의 이미지로는
      * 되돌리지 않는다 — 그 이미지의 서버는 이 표·칸을 매핑하던 때의 것이다.
      */
-    private static final List<String> DROPPED_LEGACY_TABLES = List.of("handoff_confirmations");
+    private static final List<String> DROPPED_LEGACY_TABLES = List.of("reports", "handoff_confirmations");
 
     private static final List<String> DROPPED_LEGACY_COLUMNS = List.of(
+            "summaries.observation", "summaries.summary", "summaries.intent_alignment", "summaries.key_moment",
+            "summaries.key_dimension", "practice_sessions.subtext", "users.role",
             "coaching_handoffs.branch_kind", "coaching_handoffs.handoff_json", "coach_sessions.conversation_summary");
 
     /** 지문의 {@code ord} 는 나열 순서라 앞 칸을 지우면 뒤 칸 번호가 당겨진다. validate 는 칸 순서를 보지 않는다. */
@@ -205,7 +207,7 @@ class PracticeRollbackCompatibilityTest {
             expected.add("CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY "
                     + "(ARRAY['granted'::text, 'declined'::text])))");
         }
-        // V99 가 은퇴한 옛 구조를 지웠다(DROPPED_LEGACY_TABLES·DROPPED_LEGACY_COLUMNS). 칸에 걸린 NOT NULL·CHECK 도 함께 사라졌다.
+        // V96·V99 가 은퇴한 옛 구조를 지웠다(DROPPED_LEGACY_TABLES·DROPPED_LEGACY_COLUMNS). 칸에 걸린 NOT NULL·CHECK 도 함께 사라졌다.
         expected.removeIf(line -> DROPPED_LEGACY_TABLES.stream().anyMatch(table -> mentions(line, table))
                 || DROPPED_LEGACY_COLUMNS.stream().anyMatch(column -> dropsWith(line, column)));
         expected.remove("CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK "

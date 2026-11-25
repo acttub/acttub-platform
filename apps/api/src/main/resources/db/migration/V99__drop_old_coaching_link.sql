@@ -1,8 +1,9 @@
 -- 옛 코칭 연결의 표와 칸을 지운다 (SOMA-1142).
 --
 -- 지우는 것: handoff_confirmations(넘김의 확인·반박, 운영 70행 모두 confirmed, 반박 글 0), coaching_handoffs.branch_kind·
--- handoff_json(넘김의 갈래·원문), coach_sessions.conversation_summary(채우는 코드가 없어 운영 238행 모두 빈 값). 값은
--- 보관하지 않는다(2026-11-25 결정). 직전 운영 API 는 이것들을 읽거나 쓰지 않는다 — 호환 읽기와 이관 명령이 읽는
+-- handoff_json(넘김의 갈래·원문), coach_sessions.conversation_summary(채우는 코드가 없어 운영 238행 모두 빈 값). 머지 전에
+-- 확인 표 전체와 넘김의 두 칸을 R2 acttub-db-backups 버킷의 archive/2026-11-25-dropped-tables/ 에 남겼다(빈 칸은 빼고).
+-- 직전 운영 API 는 이것들을 읽거나 쓰지 않는다 — 호환 읽기와 이관 명령이 읽는
 -- coaching_handoffs 의 칸은 id·coach_session_id·state_revision 뿐이다(apps/api/CONTRACT.md §5-1).
 --
 -- 순서와 잠금: 표를 다시 쓰지 않고 카탈로그만 고친다(운영 행 수로 채운 PostgreSQL 18 에서 문장마다 2ms 안쪽). 확인 표를 먼저
