@@ -21,8 +21,10 @@ import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
 import com.acttub.actingapi.feature.auth.app.PendingSettlement;
 import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
+import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
+import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
@@ -44,7 +46,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository
-        implements ProfileRepository, SignupAttributionOwnership, AccountErasure, PendingSettlement {
+        implements ProfileRepository, SignupAttributionOwnership, DiscoveryAnswerOwnership, AccountErasure, PendingSettlement {
 
     /**
      * 계정을 닫을 때 이 저장소가 맡는 자리. 모두 아직 주인에게 옮기지 않은 남의 표의 자리다. 주인 기능이
@@ -69,6 +71,9 @@ class PostgresProfileRepository
     /** 앞서 지운 연습의 영상(보관 동의로 남긴 것)과 무료 횟수 표시를 탈퇴·매일 정리에서 함께 치운다(SOMA-985). */
     private final PostgresPracticeGroupErasure deletedPractices;
 
+    /** 알림을 모두 끌 때 푸시 토큰을 지우는 주인. */
+    private final PushTokenRevocation pushTokens;
+
     /**
      * 계정을 닫는 순서. 이 저장소가 그 순서의 자리를 맡고 있어({@link #STEPS}) 생성자로 바로 받으면 서로를 기다린다. 쓸 때 꺼낸다.
      */
@@ -80,12 +85,14 @@ class PostgresProfileRepository
             PostgresObjectCleanupLedger cleanups,
             ChallengeWithdrawal challenges,
             PostgresPracticeGroupErasure deletedPractices,
+            PushTokenRevocation pushTokens,
             ObjectProvider<AccountErasureSequence> closing) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanups = cleanups;
         this.challenges = challenges;
         this.deletedPractices = deletedPractices;
+        this.pushTokens = pushTokens;
         this.closing = closing;
     }
 
@@ -471,22 +478,19 @@ class PostgresProfileRepository
         entityManager.createNativeQuery("DELETE FROM user_active_days WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
-        // 연습 알림 보낸 기록(V47)도 게스트 쪽에서 지운다 — 회원에게 옮기지 않는다.
-        entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:guestId")
-                .setParameter("guestId", guestId)
-                .executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM push_opens WHERE user_id=:guestId")
-                .setParameter("guestId", guestId)
-                .executeUpdate();
+    }
+
+    /** 가입 직후 답한 유입 경로도 회원에게 옮기지 않는다. */
+    @Override
+    public void discardTransferredGuestAnswer(UUID guestId) {
         entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
     }
 
     /**
-     * ⚠ {@code push_tokens} 의 주인은 {@code push} 다. 그래도 여기서 지우는 것은 "셋 다 꺼짐"과 "토큰
-     * 없음"이 한 트랜잭션이어야 하기 때문이다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 탈퇴의 교차
-     * 도메인 정리와 같은 형태로 명시적 native DML 로 남긴다.
+     * "셋 다 꺼짐"과 "토큰 없음"이 한 트랜잭션이어야 한다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 토큰은 주인({@code push})이
+     * 이 트랜잭션 안에서 지운다.
      */
     @Override
     public NotificationSettings updateNotificationSettings(
@@ -517,9 +521,7 @@ class PostgresProfileRepository
             }
             NotificationSettings settings = settings(rows.getFirst());
             if (settings.pushesTurnedOff()) {
-                entityManager.createNativeQuery("DELETE FROM push_tokens WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
+                pushTokens.revokeAllOf(userId);
             }
             return settings;
         });

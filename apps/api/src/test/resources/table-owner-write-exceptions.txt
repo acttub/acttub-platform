@@ -52,10 +52,8 @@ feature/profile/adapter/db/PostgresProfileRepository.java note_ratings
 feature/profile/adapter/db/PostgresProfileRepository.java notification_pushes
 feature/profile/adapter/db/PostgresProfileRepository.java notifications
 feature/profile/adapter/db/PostgresProfileRepository.java practice_feedback
-feature/profile/adapter/db/PostgresProfileRepository.java practice_reminder_sends
 feature/profile/adapter/db/PostgresProfileRepository.java practice_sessions
 feature/profile/adapter/db/PostgresProfileRepository.java practices
-feature/profile/adapter/db/PostgresProfileRepository.java push_opens
 feature/profile/adapter/db/PostgresProfileRepository.java push_tokens
 feature/profile/adapter/db/PostgresProfileRepository.java reading_recordings
 feature/profile/adapter/db/PostgresProfileRepository.java reading_session_ratings

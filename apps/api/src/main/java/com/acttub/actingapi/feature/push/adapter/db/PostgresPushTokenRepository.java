@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
+import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
 import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.platform.web.OutputLanguage;
 import jakarta.persistence.EntityManager;
@@ -15,7 +16,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
-class PostgresPushTokenRepository implements PushTokenRepository {
+class PostgresPushTokenRepository implements PushTokenRepository, PushTokenRevocation {
     private final PushTokenJpaRepository tokens;
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -92,6 +93,13 @@ class PostgresPushTokenRepository implements PushTokenRepository {
     @Override
     public void unregister(String token) {
         transaction.executeWithoutResult(status -> tokens.deleteByToken(token));
+    }
+
+    @Override
+    public void revokeAllOf(UUID userId) {
+        entityManager.createQuery("delete from PushTokenEntity t where t.userId = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
     }
 
     /**

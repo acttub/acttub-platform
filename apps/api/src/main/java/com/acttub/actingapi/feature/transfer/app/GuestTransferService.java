@@ -17,7 +17,9 @@ import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
+import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
+import com.acttub.actingapi.feature.push.app.PushRecords;
 import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
@@ -54,6 +56,8 @@ public class GuestTransferService {
     private final ExitSurveyOwnership surveys;
     private final NoteRatingOwnership ratings;
     private final SignupAttributionOwnership attributions;
+    private final PushRecords pushRecords;
+    private final DiscoveryAnswerOwnership discoveryAnswers;
     private final Clock clock;
     private final byte[] hashKey;
     private final SecureRandom random = new SecureRandom();
@@ -69,6 +73,8 @@ public class GuestTransferService {
             ExitSurveyOwnership surveys,
             NoteRatingOwnership ratings,
             SignupAttributionOwnership attributions,
+            PushRecords pushRecords,
+            DiscoveryAnswerOwnership discoveryAnswers,
             Clock clock,
             String secret) {
         if (secret == null || secret.isEmpty()) {
@@ -84,6 +90,8 @@ public class GuestTransferService {
         this.surveys = surveys;
         this.ratings = ratings;
         this.attributions = attributions;
+        this.pushRecords = pushRecords;
+        this.discoveryAnswers = discoveryAnswers;
         this.clock = clock;
         this.hashKey = hmac(secret.getBytes(StandardCharsets.UTF_8), HASH_PURPOSE);
     }
@@ -141,6 +149,9 @@ public class GuestTransferService {
             ratings.reassign(guestId, memberId);
             // 이 회원이 게스트 뒤에 새로 가입했는지 증명할 신호가 없다. 과거 회원의 가입 출처로 추정 이관하지 않는다.
             attributions.discardTransferredGuest(guestId);
+            // 푸시 기록과 유입 경로 답도 게스트 쪽에서 지운다. 회원에게 옮기지 않는다.
+            pushRecords.discardTransferredGuest(guestId);
+            discoveryAnswers.discardTransferredGuestAnswer(guestId);
             guests.closeTransferredGuest(guestId, now);
             codes.markUsed(live.id(), now);
             return Outcome.TRANSFERRED;
