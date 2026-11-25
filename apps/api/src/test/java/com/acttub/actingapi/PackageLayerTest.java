@@ -59,9 +59,10 @@ class PackageLayerTest {
      * {@link #everyRuleActuallyHasSomethingToCheck}가 양쪽을 다 본다.
      */
     private static final Map<String, Set<String>> FEATURE_LAYERS = Map.ofEntries(
-            // 옛 연습 흐름의 Schema Entity 를 걷어낸 뒤(SOMA-589) 연습·코치는 옛 표를 native SQL 로만 읽는다.
-            // 리포트는 저장소도 함께 내려 app 의 노트 조립·공개 투영과 domain 규칙만 남았다.
-            Map.entry("practice", Set.of("domain", "app", "adapter")),
+            // 옛 연습 흐름의 Schema Entity 를 걷어낸 뒤(SOMA-589) 연습·코치는 옛 표를 native SQL 로만 읽는다. 0.1.0 회차
+            // (practices)는 JPA 로 옮기며 매핑을 새로 세웠다(SOMA-1159). 리포트는 저장소도 함께 내려 app 의 노트 조립·공개
+            // 투영과 domain 규칙만 남았다.
+            Map.entry("practice", FOUR_LAYERS),
             Map.entry("report", Set.of("domain", "app")),
             Map.entry("coach", Set.of("domain", "app", "adapter")),
             // 분석의 Domain Model 은 받아쓴 대사를 문장으로 자르던 `TranscriptSegments` 하나였고,

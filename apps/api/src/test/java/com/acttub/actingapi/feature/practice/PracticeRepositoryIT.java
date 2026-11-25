@@ -436,10 +436,10 @@ class PracticeRepositoryIT {
 
     /**
      * 문장을 "<종류> <표,…>[ for update]" 로 줄인다. 표는 FROM·JOIN·INTO·UPDATE 뒤에 나오는 이름을 모두 모아 정렬한다 — 두 구현의
-     * 별칭·열 목록이 달라도 같은 이름이 된다.
+     * 별칭·열 목록·잠금 절의 {@code of <별칭>} 이 달라도 같은 이름이 된다.
      */
     static String label(String sql) {
-        String text = sql.strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        String text = sql.strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT).replaceAll(" for update of \\w+", " for update");
         String kind = text.split("[ (]", 2)[0];
         TreeSet<String> tables = new TreeSet<>();
         Matcher matcher = TABLE.matcher(text);

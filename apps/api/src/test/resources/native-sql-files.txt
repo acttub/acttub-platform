@@ -42,9 +42,9 @@ feature/feedback/adapter/db/PostgresExitSurveyStore.java 9
 feature/memory/adapter/db/PostgresActorMemoryStore.java 17 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 화면 목록·재료·예약 판정·장면 찾기·맞춤 코칭 재료는 연습(practices)·코치 대화와 노트(coach_*·note_ratings)·분석(analyses)·받아쓰기(video_transcripts)를 읽고, 배우 쓰기·덧붙이기·완료는 auth 의 users 행을 거르거나 잠그며, 세대 올리기는 users 를, 예약은 platform 의 ai_jobs 를 쓴다. 이를 내주는 Port 가 없고, DISTINCT ON·JSON 연산·LATERAL·INSERT … SELECT … ON CONFLICT DO UPDATE … RETURNING 이 든다
 feature/memory/adapter/db/PostgresMemoryRepository.java 8 남김: 다른 기능의 표만 읽는다(practices·coach_conversations·coach_messages·coach_notes, 매핑을 내린 옛 practice_sessions·coach_sessions·coach_turns·practice_reports). 이를 내주는 Port 가 없고 JSON 연산·LATERAL 이 든다
 feature/portfolio/adapter/db/PostgresPortfolioRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(lockOrCreate). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
-feature/practice/adapter/db/PostgresLegacyPracticeReader.java 1
-feature/practice/adapter/db/PostgresPracticeRepository.java 30
-feature/practice/adapter/db/PostgresPracticeSessionRepository.java 2
+feature/practice/adapter/db/PostgresLegacyPracticeReader.java 1 남김: 매핑을 내린 옛 연습 흐름 표(practice_sessions·coach_sessions·coach_turns·practice_reports, §5-1)와 다른 기능의 표(summaries·upload_intents·videos·external_operations)를 재귀 CTE·JSON 연산으로 읽는다
+feature/practice/adapter/db/PostgresPracticeRepository.java 14 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 회차를 화면에 싣는 조회(하나·묶음·목록)는 영상(videos)·분석(analyses)·대화와 노트(coach_*)·작업(ai_jobs)을 LATERAL 로 조인하고, 연습한 날은 옛 practice_sessions·practice_reports 와 reading_sessions·challenge_entries 를 합친다. 시작은 videos·users 행을 잠그고 한도를 셀 때 practice_deletion_marks·ai_jobs·external_operations 를 읽으며 분석 작업(ai_jobs)을 넣고 닫는다. 이를 내주는 Port 가 없다(AiJobLedger 에는 회차의 작업 넣기·닫기가 없다)
+feature/practice/adapter/db/PostgresPracticeSessionRepository.java 2 남김: 매핑을 내린 옛 practice_sessions(§5-1)를 읽고 옮긴다. 읽기는 summaries·upload_intents·external_operations 를 함께 보고 JSON 을 꺼낸다
 feature/profile/adapter/db/PostgresAccountCleanupRepository.java 7
 feature/profile/adapter/db/PostgresAirbridgeLookupStore.java 4
 feature/profile/adapter/db/PostgresObjectCleanupLedger.java 1
