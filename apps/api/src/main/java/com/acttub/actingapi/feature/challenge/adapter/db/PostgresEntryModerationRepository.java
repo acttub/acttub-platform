@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.challenge.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Video;
@@ -9,9 +8,14 @@ import com.acttub.actingapi.feature.challenge.app.EntryModerationRepository;
 import com.acttub.actingapi.feature.challenge.app.EntryModerationVerdict;
 import com.acttub.actingapi.feature.challenge.app.EntryModerationVerdict.Decision;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.ChallengeEntryStatus;
+import com.acttub.actingapi.platform.schema.EntryReportReason;
+import com.acttub.actingapi.platform.schema.EntryReportStatus;
+import com.acttub.actingapi.platform.schema.EntryReportTarget;
 import com.acttub.actingapi.platform.web.Hashing;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -22,24 +26,23 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class PostgresEntryModerationRepository implements EntryModerationRepository {
+    private static final EntryReportReason.JpaConverter REASONS = new EntryReportReason.JpaConverter();
     private final EntityManager em;
+    private final ChallengeEntryJpaRepository entries;
+    private final EntryReportJpaRepository reports;
     private final ChallengeSettlement settlement;
     private final TransactionTemplate transaction;
 
-    PostgresEntryModerationRepository(EntityManager em, ChallengeSettlement settlement, PlatformTransactionManager transactions) {
-        this.em = em; this.settlement = settlement;
+    PostgresEntryModerationRepository(EntityManager em, ChallengeEntryJpaRepository entries, EntryReportJpaRepository reports,
+                                      ChallengeSettlement settlement, PlatformTransactionManager transactions) {
+        this.em = em; this.entries = entries; this.reports = reports; this.settlement = settlement;
         this.transaction = new TransactionTemplate(transactions);
     }
 
     @Override
     public Job claim(int maxAttempts, Instant now) {
         return transaction.execute(tx -> {
-            var stale = NativeTuples.list(em.createNativeQuery("""
-                    SELECT id,challenge_id FROM challenge_entries
-                    WHERE moderation_status='pending' AND moderation_attempts>=:max AND status<>'deleted'
-                    ORDER BY created_at,id LIMIT 20 FOR UPDATE SKIP LOCKED
-                    """, Tuple.class).setParameter("max", maxAttempts));
-            for (Tuple row : stale) closeFailed(row.get("id", UUID.class), now);
+            for (UUID stale : entries.lockExhaustedModeration(maxAttempts, Limit.of(20))) closeFailed(stale, now);
             var rows = NativeTuples.list(em.createNativeQuery("""
                     WITH next AS (
                         SELECT e.id FROM challenge_entries e
@@ -74,27 +77,18 @@ class PostgresEntryModerationRepository implements EntryModerationRepository {
     @Override
     public void judged(Job job, EntryModerationVerdict verdict, String model, Instant now) {
         transaction.executeWithoutResult(tx -> {
-            Tuple entry = lockCurrent(job, now);
+            ChallengeEntryJpaRepository.ModerationState entry = lockCurrent(job, now);
             if (entry == null) return;
             String status = switch (verdict.decision()) {
                 case PASS -> "passed";
                 case HIDE -> "flagged";
                 case REVIEW -> "review";
             };
-            // 얼굴 여부는 Boolean 의 세 값뿐이라 글자로 넣는다 — null 바인딩은 타입을 알 수 없어서다.
-            String face = verdict.face() == null ? "face_visible" : verdict.face().toString(); // 모델이 답하지 않으면 이미 아는 값을 지우지 않는다
-            em.createNativeQuery("""
-                    UPDATE challenge_entries SET moderation_status=:status,moderation_model=:model,moderated_at=:now,face_visible=%s
-                    WHERE id=:id
-                    """.formatted(face)).setParameter("status", status).setParameter("model", model)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", job.entryId()).executeUpdate();
+            // 모델이 얼굴 여부를 답하지 않으면(null) 이미 아는 값을 지우지 않는다.
+            entries.judge(job.entryId(), status, model, now, verdict.face());
             if (verdict.decision() == Decision.PASS) return;
-            if (verdict.decision() == Decision.HIDE) {
-                em.createNativeQuery("""
-                        UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'
-                        """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", job.entryId()).executeUpdate();
-            }
-            report(job.entryId(), verdict.reportReason(), verdict.reportNote(), entry, now);
+            if (verdict.decision() == Decision.HIDE) entries.hideByReport(job.entryId(), now);
+            report(job.entryId(), verdict.reportReason(), verdict.reportNote(), entry.contentVersion(), entry.caption(), now);
         });
     }
 
@@ -133,52 +127,35 @@ class PostgresEntryModerationRepository implements EntryModerationRepository {
 
     @Override
     public void faceSeen(UUID entryId, boolean face) {
-        transaction.executeWithoutResult(tx -> em.createNativeQuery(
-                        "UPDATE challenge_entries SET face_visible=:face WHERE id=:id AND face_visible IS NULL")
-                .setParameter("face", face).setParameter("id", entryId).executeUpdate());
+        transaction.executeWithoutResult(tx -> entries.fillFace(entryId, face));
     }
 
     /** 집은 그대로(검사 차례·같은 시도·같은 내용)인 참여작을 잠근다. 아니면 {@code null}. */
-    private Tuple lockCurrent(Job job, Instant now) {
-        var parent = NativeTuples.list(em.createNativeQuery("SELECT challenge_id FROM challenge_entries WHERE id=:id", Tuple.class)
-                .setParameter("id", job.entryId()));
+    private ChallengeEntryJpaRepository.ModerationState lockCurrent(Job job, Instant now) {
+        var parent = entries.findChallengeId(job.entryId());
         if (parent.isEmpty()) return null;
         // 신고와 같은 순서로 잠근다 — 마감 집계가 먼저다.
-        settlement.aggregateIfDue(parent.getFirst().get("challenge_id", UUID.class), now);
-        var rows = NativeTuples.list(em.createNativeQuery("""
-                SELECT moderation_status,moderation_attempts,content_version,caption,status FROM challenge_entries
-                WHERE id=:id FOR UPDATE
-                """, Tuple.class).setParameter("id", job.entryId()));
-        if (rows.isEmpty()) return null;
-        Tuple row = rows.getFirst();
-        if (!"pending".equals(row.get("moderation_status", String.class))
-                || ((Number) row.get("moderation_attempts")).intValue() != job.attempts()
-                || ((Number) row.get("content_version")).intValue() != job.contentVersion()
-                || "deleted".equals(row.get("status", String.class))) return null;
+        settlement.aggregateIfDue(parent.get(), now);
+        var locked = entries.lockModeration(job.entryId());
+        if (locked.isEmpty()) return null;
+        var row = locked.get();
+        if (!"pending".equals(row.moderationStatus()) || row.moderationAttempts() != job.attempts()
+                || row.contentVersion() != job.contentVersion() || row.status() == ChallengeEntryStatus.DELETED) return null;
         return row;
     }
 
     /** 잠근 참여작을 실패로 닫고 운영 확인으로 올린다. 영상은 보이게 둔다. */
     private void closeFailed(UUID entryId, Instant now) {
-        em.createNativeQuery("UPDATE challenge_entries SET moderation_status='failed',moderated_at=:now WHERE id=:id")
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
-        var row = NativeTuples.list(em.createNativeQuery("SELECT content_version,caption FROM challenge_entries WHERE id=:id",
-                Tuple.class).setParameter("id", entryId)).getFirst();
-        report(entryId, "other", EntryModerationVerdict.failureNote(), row, now);
+        entries.failModeration(entryId, now);
+        var row = entries.findContent(entryId).orElseThrow();
+        report(entryId, "other", EntryModerationVerdict.failureNote(), row.contentVersion(), row.caption(), now);
     }
 
-    private void report(UUID entryId, String reason, String note, Tuple entry, Instant now) {
-        int version = ((Number) entry.get("content_version")).intValue();
+    private void report(UUID entryId, String reason, String note, int version, String caption, Instant now) {
         UUID requestId = UUID.randomUUID();
-        em.createNativeQuery("""
-                INSERT INTO entry_reports(id,target_type,target_id,reporter_id,source,reason,note,status,target_version,target_text,
-                    request_id,request_fingerprint,created_at)
-                VALUES (:id,'entry',:target,NULL,'ai',:reason,:note,'received',:version,:text,:request,:fingerprint,:now)
-                """).setParameter("id", UUID.randomUUID()).setParameter("target", entryId).setParameter("reason", reason)
-                .setParameter("note", note).setParameter("version", version).setParameter("text", entry.get("caption", String.class))
-                .setParameter("request", requestId)
-                .setParameter("fingerprint", Hashing.sha256Hex(String.join("|", List.of("ai_moderation", entryId.toString(),
-                        String.valueOf(version), requestId.toString())).getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+        reports.insert(UUID.randomUUID(), EntryReportTarget.ENTRY, entryId, null, "ai", REASONS.convertToEntityAttribute(reason), note,
+                EntryReportStatus.RECEIVED, version, caption, requestId,
+                Hashing.sha256Hex(String.join("|", List.of("ai_moderation", entryId.toString(), String.valueOf(version),
+                        requestId.toString())).getBytes(java.nio.charset.StandardCharsets.UTF_8)), now);
     }
 }

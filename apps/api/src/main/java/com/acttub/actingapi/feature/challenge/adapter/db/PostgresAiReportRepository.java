@@ -12,6 +12,7 @@ import com.acttub.actingapi.feature.challenge.domain.ChallengeReportRules;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.EntryAiReportStatus;
 import com.acttub.actingapi.platform.web.ApiException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -32,13 +33,16 @@ import tools.jackson.databind.json.JsonMapper;
 class PostgresAiReportRepository implements AiReportRepository {
     private static final String KIND = com.acttub.actingapi.platform.schema.AiJobKind.CHALLENGE_REPORT.dbValue();
     private final EntityManager em;
+    private final ChallengeEntryJpaRepository entries;
+    private final EntryAiReportJpaRepository reports;
     private final EntryLocks locks;
     private final AiJobLedger ledger;
     private final NotificationEvents events;
     private final ObjectMapper json = JsonMapper.builderWithJackson2Defaults().build();
 
-    PostgresAiReportRepository(EntityManager em, EntryLocks locks, AiJobLedger ledger, NotificationEvents events) {
-        this.em = em; this.locks = locks; this.ledger = ledger; this.events = events;
+    PostgresAiReportRepository(EntityManager em, ChallengeEntryJpaRepository entries, EntryAiReportJpaRepository reports,
+                               EntryLocks locks, AiJobLedger ledger, NotificationEvents events) {
+        this.em = em; this.entries = entries; this.reports = reports; this.locks = locks; this.ledger = ledger; this.events = events;
     }
 
     @Override @Transactional
@@ -63,10 +67,9 @@ class PostgresAiReportRepository implements AiReportRepository {
         if (entry.getFirst().get("video_id") == null || entry.getFirst().get("purged_at") != null) {
             throw new ApiException(422, "video_not_ready");
         }
-        var existing = NativeTuples.list(em.createNativeQuery("SELECT status FROM entry_ai_reports WHERE entry_id=:id FOR UPDATE",
-                Tuple.class).setParameter("id", entryId));
+        var existing = reports.lockStatus(entryId);
         // 결과가 있거나 만드는 중이면 그것이다 — 참여작당 실행 중인 생성은 하나다.
-        if (!existing.isEmpty() && !"failed".equals(existing.getFirst().get("status", String.class))) {
+        if (existing.isPresent() && existing.get() != EntryAiReportStatus.FAILED) {
             return new Requested(find(owner, entryId), false);
         }
         Instant midnight = ChallengeRules.koreanMidnight(now);
@@ -81,34 +84,20 @@ class PostgresAiReportRepository implements AiReportRepository {
                 """).setParameter("id", job).setParameter("owner", owner).setParameter("entry", entryId)
                 .setParameter("request", requestId).setParameter("fingerprint", fingerprint)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-        em.createNativeQuery("""
-                INSERT INTO entry_ai_reports(id,entry_id,user_id,job_id,status,format_version,attempt_count,requested_at)
-                VALUES (:id,:entry,:owner,:job,'pending',:format,0,:now)
-                ON CONFLICT (entry_id) DO UPDATE SET job_id=:job,status='pending',attempt_count=0,result=NULL,model=NULL,
-                    format_version=:format,requested_at=:now,completed_at=NULL
-                """).setParameter("id", UUID.randomUUID()).setParameter("entry", entryId).setParameter("owner", owner)
-                .setParameter("job", job).setParameter("format", ChallengeReportRules.FORMAT_VERSION)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+        reports.start(UUID.randomUUID(), entryId, owner, job, EntryAiReportStatus.PENDING, ChallengeReportRules.FORMAT_VERSION, now);
         return new Requested(find(owner, entryId), true);
     }
 
     @Override @Transactional(readOnly = true)
     public Report find(UUID owner, UUID entryId) {
-        var rows = NativeTuples.list(em.createNativeQuery("""
-                SELECT r.status,r.attempt_count,CAST(r.result AS text) AS result,r.requested_at,r.completed_at
-                FROM entry_ai_reports r JOIN challenge_entries e ON e.id=r.entry_id
-                WHERE r.entry_id=:id AND e.user_id=:owner AND e.status<>'deleted'
-                """, Tuple.class).setParameter("id", entryId).setParameter("owner", owner));
-        if (rows.isEmpty()) throw new ApiException(404, "ai_report_not_found");
-        Tuple row = rows.getFirst();
+        var row = reports.findOwned(entryId, owner).orElseThrow(() -> new ApiException(404, "ai_report_not_found"));
         var observations = new ArrayList<Evidence>();
         var comparisons = new ArrayList<String>();
         var limits = new ArrayList<String>();
         String suggestion = null;
         int sampleCount = 0;
-        String stored = row.get("result", String.class);
-        if (stored != null) {
-            JsonNode result = read(stored);
+        JsonNode result = row.result();
+        if (result != null) {
             result.path("observations").forEach(item -> observations.add(new Evidence(LenientJson.asInt(item.path("start_ms")),
                     LenientJson.asInt(item.path("end_ms")), LenientJson.asText(item.path("text")))));
             Set<UUID> eligible = eligible(owner, ids(result.path("samples")));
@@ -119,9 +108,8 @@ class PostgresAiReportRepository implements AiReportRepository {
             result.path("limits").forEach(item -> limits.add(LenientJson.asText(item)));
             suggestion = result.path("suggestion").isString() ? LenientJson.asText(result.path("suggestion")) : null;
         }
-        return new Report(entryId, row.get("status", String.class), List.copyOf(observations), List.copyOf(comparisons),
-                List.copyOf(limits), suggestion, sampleCount, ((Number) row.get("attempt_count")).intValue(),
-                row.get("requested_at", Instant.class), row.get("completed_at", Instant.class));
+        return new Report(entryId, row.status().dbValue(), List.copyOf(observations), List.copyOf(comparisons),
+                List.copyOf(limits), suggestion, sampleCount, row.attemptCount(), row.requestedAt(), row.completedAt());
     }
 
     @Override @Transactional(readOnly = true)
@@ -156,8 +144,7 @@ class PostgresAiReportRepository implements AiReportRepository {
     @Override @Transactional
     public boolean complete(UUID jobId, UUID leaseToken, UUID entryId, Result result, String model, Instant now) {
         // 참여작 행을 먼저 잡는다 — 삭제도 참여작 → 리포트 순서로 잡으므로, 겹치면 한쪽이 끝난 뒤 다른 쪽이 상태를 본다.
-        NativeTuples.list(em.createNativeQuery("SELECT id FROM challenge_entries WHERE id=:entry FOR UPDATE", Tuple.class)
-                .setParameter("entry", entryId));
+        entries.lockRow(entryId);
         var locked = NativeTuples.list(em.createNativeQuery("""
                 SELECT r.user_id,e.challenge_id FROM entry_ai_reports r JOIN challenge_entries e ON e.id=r.entry_id JOIN users u ON u.id=r.user_id
                 WHERE r.entry_id=:entry AND r.job_id=:job AND r.status='pending' AND r.purged_at IS NULL
@@ -187,11 +174,7 @@ class PostgresAiReportRepository implements AiReportRepository {
         result.samples().stream().filter(eligible::contains).forEach(id -> samples.add(id.toString()));
         int attempts = ((Number) em.createNativeQuery("SELECT attempt_count FROM ai_jobs WHERE id=:job")
                 .setParameter("job", jobId).getSingleResult()).intValue();
-        em.createNativeQuery("""
-                UPDATE entry_ai_reports SET status='ready',result=CAST(:result AS jsonb),model=:model,attempt_count=:attempts,
-                    completed_at=:now WHERE entry_id=:entry
-                """).setParameter("result", body.toString()).setParameter("model", model).setParameter("attempts", attempts)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("entry", entryId).executeUpdate();
+        reports.complete(entryId, body, model, attempts, now);
         if (!ledger.succeed(jobId, leaseToken, now)) throw new IllegalStateException("challenge report job was closed: " + jobId);
         events.record(locked.getFirst().get("user_id", UUID.class), "entry_ai_report_ready", null,
                 locked.getFirst().get("challenge_id", UUID.class), entryId, null, "ai_report:" + jobId, now);
@@ -200,11 +183,8 @@ class PostgresAiReportRepository implements AiReportRepository {
 
     @Override @Transactional
     public void attemptFailed(UUID jobId, UUID leaseToken, UUID entryId, int attempts, boolean terminal, String reason, Instant now) {
-        em.createNativeQuery("""
-                UPDATE entry_ai_reports SET attempt_count=:attempts,status=CASE WHEN :terminal THEN 'failed' ELSE status END
-                WHERE entry_id=:entry AND job_id=:job AND status='pending'
-                """).setParameter("attempts", attempts).setParameter("terminal", terminal).setParameter("entry", entryId)
-                .setParameter("job", jobId).executeUpdate();
+        if (terminal) reports.closeFailed(entryId, jobId, attempts);
+        else reports.countAttempt(entryId, jobId, attempts);
         if (terminal) ledger.fail(jobId, leaseToken, reason, now);
         else ledger.release(jobId, leaseToken, reason, now);
     }
@@ -238,10 +218,5 @@ class PostgresAiReportRepository implements AiReportRepository {
         var ids = new ArrayList<UUID>();
         array.forEach(item -> ids.add(UUID.fromString(LenientJson.asText(item))));
         return ids;
-    }
-
-    private JsonNode read(String stored) {
-        try { return json.readTree(stored); }
-        catch (Exception broken) { throw new IllegalStateException("stored challenge report is not JSON", broken); }
     }
 }
