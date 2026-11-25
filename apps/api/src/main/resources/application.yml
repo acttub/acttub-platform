@@ -26,6 +26,9 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
+        # JPA 로 거는 쓰기 잠금을 네이티브 SQL 과 같은 FOR UPDATE 로 낸다. Hibernate 7.4 의 PostgreSQL 방언은 FOR NO KEY
+        # UPDATE 를 내고, 그것을 바꾸는 설정 값은 없다(apps/api/CONTRACT.md §5-2). DB 버전은 지정하지 않았을 때처럼 연결에서 읽는다.
+        dialect: com.acttub.actingapi.platform.persistence.ForUpdatePostgreSQLDialect
         jdbc:
           time_zone: UTC
         # Hibernate 7 은 네이티브 쿼리의 date·timestamp 열을 java.time 으로 돌려준다. 저장소 코드가
