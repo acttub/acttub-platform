@@ -360,7 +360,7 @@ public class SubscriptionService {
         };
     }
 
-    // ── 해지·다시 시도 ──────────────────────────────────────────────
+    // ── 해지 ──────────────────────────────────────────────
 
     /** 자동결제만 해지한다 — 이번 결제기간이 끝날 때까지 Pro 다. 이미 해지했으면 그대로 돌려준다. */
     public View cancel(UUID userId) {
@@ -377,20 +377,6 @@ public class SubscriptionService {
             case CANCELED -> { }
             case EXPIRED -> throw new ApiException(409, "no_subscription");
         }
-        return view(userId);
-    }
-
-    /** 「결제하지 못했어요 → 다시 시도」. past_due 일 때만 지금 한 번 더 결제한다. 같은 시도는 두 번 결제되지 않는다. */
-    public View retry(UUID userId) {
-        requireWeb();
-        Subscription sub = repository.find(userId).orElseThrow(() -> new ApiException(409, "no_subscription"));
-        if (!sub.toss()) {
-            throw new ApiException(409, "managed_by_store");
-        }
-        if (sub.status() != Status.PAST_DUE) {
-            throw new ApiException(409, "not_past_due");
-        }
-        renew(sub, clock.instant());
         return view(userId);
     }
 
