@@ -225,6 +225,8 @@ ADR-021 앱 부채의 갚음과 당시 남은 것은 팀 위키 `research/2026-0
 
 ### ADR-024: DB 접근 기술을 JPA로 일원화하고 객체 관계는 증명된 단방향만 둔다
 > **매핑 범위 개정 (2026-10-01)**: 아무 코드도 JPA로 읽고 쓰지 않는 테이블의 Schema Entity와 enum을 `ddl-auto: validate` 스키마 검증만을 위해 두지 않는다. 그런 매핑은 지우고 테이블은 [CONTRACT §5-1](../apps/api/CONTRACT.md#5-1-운영-db-접근은-jpa-로-일원화한다)의 은퇴 목록에 올리며, 그 테이블은 `ddl-auto` 검증을 잃는다.
+>
+> **native 범위 개정 (2026-11-25)**: PostgreSQL 의미가 필요한 연산도 HQL 한 문장이 같은 SQL 을 내면 HQL 로 쓴다. native SQL 은 HQL 로 같은 문장을 낼 수 없거나 옮기면 잠금·문장 수·경합 결과가 달라지는 것만 남긴다. 프로그램은 하나로 두고 FK 는 유지한다. 옮기는 법과 남은 자리의 목록은 [CONTRACT §5-9](../apps/api/CONTRACT.md#5-9-native-sql-을-jpa-로-옮기는-법)다.
 
 **결정**(2026-09-29 정리): 운영 DB 접근은 Spring Data JPA와 `EntityManager`로 일원화하고 직접 JDBC 쿼리를 걷어낸다. PostgreSQL 의미를 보존해야 하는 연산만 native SQL로 남기고, Schema Entity의 객체 관계는 증명된 단방향만 둔다. 규칙은 [CONTRACT §5-1](../apps/api/CONTRACT.md#5-1-운영-db-접근은-jpa-로-일원화한다)·§5-2·§5-4다.
 **이유**: 목적은 ORM 객체 그래프를 넓히는 것이 아니라, 직접 JDBC와 반복되는 행 매핑을 걷어내 영속 기술을 하나로 모으는 것이다. 이 선을 지키면 도메인 규칙과 HTTP·DB 계약은 바꾸지 않으면서 영속 Adapter 안의 매핑·쿼리 기술만 교체할 수 있다. 예외적 native SQL은 `save()`나 JPQL로 풀었을 때 깨지는 원자성·잠금·정렬 의미를 보존하기 위해 남긴다.

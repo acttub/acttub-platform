@@ -54,28 +54,25 @@ COLUMN ad_settings.window_minutes ord=2 type=int4 len=- null=NO default=10
 COLUMN ad_slot_switches.enabled ord=2 type=bool len=- null=NO default=true
 COLUMN ad_slot_switches.slot_key ord=1 type=text len=- null=NO default=-
 COLUMN ad_slot_switches.updated_at ord=3 type=timestamptz len=- null=NO default=now()
-COLUMN ads.academy_registration_no ord=8 type=text len=- null=YES default=-
 COLUMN ads.advertiser_name ord=7 type=text len=- null=YES default=-
-COLUMN ads.app_path ord=17 type=text len=- null=YES default=-
+COLUMN ads.app_path ord=14 type=text len=- null=YES default=-
 COLUMN ads.audience ord=5 type=text len=- null=NO default='all'::text
-COLUMN ads.body ord=12 type=text len=- null=YES default=-
-COLUMN ads.course_name ord=9 type=text len=- null=YES default=-
-COLUMN ads.created_at ord=20 type=timestamptz len=- null=NO default=now()
-COLUMN ads.ends_at ord=19 type=timestamptz len=- null=YES default=-
-COLUMN ads.headline ord=11 type=text len=- null=YES default=-
+COLUMN ads.body ord=9 type=text len=- null=YES default=-
+COLUMN ads.created_at ord=17 type=timestamptz len=- null=NO default=now()
+COLUMN ads.ends_at ord=16 type=timestamptz len=- null=YES default=-
+COLUMN ads.headline ord=8 type=text len=- null=YES default=-
 COLUMN ads.id ord=1 type=uuid len=- null=NO default=-
-COLUMN ads.image_banner ord=14 type=text len=- null=YES default=-
-COLUMN ads.image_large_banner ord=13 type=text len=- null=YES default=-
-COLUMN ads.image_medium_rectangle ord=15 type=text len=- null=YES default=-
+COLUMN ads.image_banner ord=11 type=text len=- null=YES default=-
+COLUMN ads.image_large_banner ord=10 type=text len=- null=YES default=-
+COLUMN ads.image_medium_rectangle ord=12 type=text len=- null=YES default=-
 COLUMN ads.kind ord=2 type=text len=- null=NO default=-
-COLUMN ads.link_url ord=16 type=text len=- null=YES default=-
+COLUMN ads.link_url ord=13 type=text len=- null=YES default=-
 COLUMN ads.priority ord=6 type=int4 len=- null=NO default=0
-COLUMN ads.share_percent ord=22 type=int4 len=- null=NO default=50
+COLUMN ads.share_percent ord=19 type=int4 len=- null=NO default=50
 COLUMN ads.slots ord=4 type=_text len=- null=NO default='{}'::text[]
-COLUMN ads.starts_at ord=18 type=timestamptz len=- null=YES default=-
+COLUMN ads.starts_at ord=15 type=timestamptz len=- null=YES default=-
 COLUMN ads.status ord=3 type=text len=- null=NO default='active'::text
-COLUMN ads.tuition ord=10 type=text len=- null=YES default=-
-COLUMN ads.updated_at ord=21 type=timestamptz len=- null=NO default=now()
+COLUMN ads.updated_at ord=18 type=timestamptz len=- null=NO default=now()
 COLUMN ai_jobs.attempt_count ord=8 type=int4 len=- null=NO default=0
 COLUMN ai_jobs.created_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN ai_jobs.failure_reason ord=11 type=text len=- null=YES default=-
@@ -577,20 +574,19 @@ COLUMN practice_reports.practice_session_id ord=2 type=uuid len=- null=NO defaul
 COLUMN practice_reports.report_json ord=4 type=jsonb len=- null=NO default=-
 COLUMN practice_reports.report_type ord=3 type=text len=- null=NO default=-
 COLUMN practice_reports.source_handoff_id ord=5 type=uuid len=- null=NO default=-
-COLUMN practice_sessions.blockage_detail ord=13 type=text len=- null=YES default=-
-COLUMN practice_sessions.blockage_kind ord=11 type=text len=- null=NO default=-
+COLUMN practice_sessions.blockage_detail ord=12 type=text len=- null=YES default=-
+COLUMN practice_sessions.blockage_kind ord=10 type=text len=- null=NO default=-
 COLUMN practice_sessions.character_context ord=6 type=text len=- null=NO default=-
-COLUMN practice_sessions.continued_from ord=15 type=uuid len=- null=YES default=-
-COLUMN practice_sessions.created_at ord=9 type=timestamptz len=- null=NO default=now()
-COLUMN practice_sessions.experience_version ord=16 type=text len=- null=NO default='legacy'::text
-COLUMN practice_sessions.goal ord=14 type=text len=- null=NO default=-
-COLUMN practice_sessions.hidden_at ord=8 type=timestamptz len=- null=YES default=-
+COLUMN practice_sessions.continued_from ord=14 type=uuid len=- null=YES default=-
+COLUMN practice_sessions.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN practice_sessions.experience_version ord=15 type=text len=- null=NO default='legacy'::text
+COLUMN practice_sessions.goal ord=13 type=text len=- null=NO default=-
+COLUMN practice_sessions.hidden_at ord=7 type=timestamptz len=- null=YES default=-
 COLUMN practice_sessions.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN practice_sessions.situation ord=5 type=text len=- null=NO default=-
 COLUMN practice_sessions.status ord=4 type=text len=- null=NO default=-
-COLUMN practice_sessions.sub_branch ord=12 type=text len=- null=NO default=-
-COLUMN practice_sessions.subtext ord=7 type=text len=- null=YES default=-
-COLUMN practice_sessions.updated_at ord=10 type=timestamptz len=- null=NO default=now()
+COLUMN practice_sessions.sub_branch ord=11 type=text len=- null=NO default=-
+COLUMN practice_sessions.updated_at ord=9 type=timestamptz len=- null=NO default=now()
 COLUMN practice_sessions.upload_intent_id ord=3 type=uuid len=- null=NO default=-
 COLUMN practice_sessions.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN practices.blockage_detail ord=16 type=text len=- null=YES default=-
@@ -729,16 +725,6 @@ COLUMN refresh_tokens.replaced_by_id ord=3 type=uuid len=- null=YES default=-
 COLUMN refresh_tokens.revoked_at ord=8 type=timestamptz len=- null=YES default=-
 COLUMN refresh_tokens.token_hash ord=4 type=bpchar len=64 null=NO default=-
 COLUMN refresh_tokens.user_id ord=2 type=uuid len=- null=NO default=-
-COLUMN reports.biggest_problem ord=4 type=jsonb len=- null=NO default=-
-COLUMN reports.comparison ord=9 type=text len=- null=NO default=''::text
-COLUMN reports.created_at ord=10 type=timestamptz len=- null=NO default=now()
-COLUMN reports.encouragement ord=7 type=text len=- null=NO default=-
-COLUMN reports.evidence ord=5 type=text len=- null=NO default=-
-COLUMN reports.headline ord=3 type=text len=- null=NO default=-
-COLUMN reports.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
-COLUMN reports.next_step ord=8 type=text len=- null=NO default=-
-COLUMN reports.self_discovery ord=6 type=text len=- null=NO default=-
-COLUMN reports.session_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_characters.age_band ord=9 type=text len=- null=YES default=-
 COLUMN script_characters.created_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN script_characters.gender ord=8 type=text len=- null=YES default=-
@@ -811,19 +797,14 @@ COLUMN scripts.source ord=5 type=text len=- null=NO default=-
 COLUMN scripts.title ord=3 type=text len=- null=NO default=-
 COLUMN scripts.updated_at ord=9 type=timestamptz len=- null=NO default=now()
 COLUMN scripts.user_id ord=2 type=uuid len=- null=NO default=-
-COLUMN summaries.created_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN summaries.created_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN summaries.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
-COLUMN summaries.intent_alignment ord=5 type=text len=- null=YES default=-
-COLUMN summaries.key_dimension ord=7 type=text len=- null=YES default=-
-COLUMN summaries.key_moment ord=6 type=text len=- null=YES default=-
-COLUMN summaries.model ord=8 type=text len=- null=NO default=-
-COLUMN summaries.observation ord=3 type=jsonb len=- null=YES default=-
-COLUMN summaries.observations_json ord=12 type=jsonb len=- null=NO default='[]'::jsonb
-COLUMN summaries.raw ord=10 type=jsonb len=- null=NO default=-
+COLUMN summaries.model ord=3 type=text len=- null=NO default=-
+COLUMN summaries.observations_json ord=7 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN summaries.raw ord=5 type=jsonb len=- null=NO default=-
 COLUMN summaries.session_id ord=2 type=uuid len=- null=NO default=-
-COLUMN summaries.summary ord=4 type=text len=- null=YES default=-
-COLUMN summaries.uncertainties_json ord=13 type=jsonb len=- null=NO default='[]'::jsonb
-COLUMN summaries.was_compressed ord=9 type=bool len=- null=NO default=false
+COLUMN summaries.uncertainties_json ord=8 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN summaries.was_compressed ord=4 type=bool len=- null=NO default=false
 COLUMN support_inquiries.body ord=4 type=text len=- null=NO default=-
 COLUMN support_inquiries.category ord=2 type=text len=- null=NO default=-
 COLUMN support_inquiries.client ord=6 type=text len=- null=YES default=-
@@ -918,16 +899,15 @@ COLUMN user_signup_attributions.source ord=2 type=text len=- null=NO default=-
 COLUMN user_signup_attributions.sub_publisher ord=10 type=text len=- null=YES default=-
 COLUMN user_signup_attributions.term ord=9 type=text len=- null=YES default=-
 COLUMN user_signup_attributions.user_id ord=1 type=uuid len=- null=NO default=-
-COLUMN users.age_confirmed_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN users.age_confirmed_at ord=8 type=timestamptz len=- null=YES default=-
 COLUMN users.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN users.deactivated_at ord=7 type=timestamptz len=- null=YES default=-
 COLUMN users.email ord=2 type=text len=- null=YES default=-
-COLUMN users.exit_survey_asked_at ord=11 type=timestamptz len=- null=YES default=-
+COLUMN users.exit_survey_asked_at ord=10 type=timestamptz len=- null=YES default=-
 COLUMN users.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
-COLUMN users.memory_epoch ord=12 type=int4 len=- null=NO default=0
+COLUMN users.memory_epoch ord=11 type=int4 len=- null=NO default=0
 COLUMN users.nickname ord=6 type=text len=- null=YES default=-
-COLUMN users.retention_purged_at ord=10 type=timestamptz len=- null=YES default=-
-COLUMN users.role ord=8 type=text len=- null=NO default='user'::text
+COLUMN users.retention_purged_at ord=9 type=timestamptz len=- null=YES default=-
 COLUMN users.status ord=3 type=text len=- null=NO default='active'::text
 COLUMN users.updated_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN video_transcripts.completed_at ord=8 type=timestamptz len=- null=YES default=-
@@ -1884,19 +1864,6 @@ CONSTRAINT refresh_tokens refresh_tokens_token_hash_key UNIQUE (token_hash)
 CONSTRAINT refresh_tokens refresh_tokens_token_hash_not_null NOT NULL token_hash
 CONSTRAINT refresh_tokens refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT refresh_tokens refresh_tokens_user_id_not_null NOT NULL user_id
-CONSTRAINT reports reports_biggest_problem_not_null NOT NULL biggest_problem
-CONSTRAINT reports reports_comparison_not_null NOT NULL comparison
-CONSTRAINT reports reports_created_at_not_null NOT NULL created_at
-CONSTRAINT reports reports_encouragement_not_null NOT NULL encouragement
-CONSTRAINT reports reports_evidence_not_null NOT NULL evidence
-CONSTRAINT reports reports_headline_not_null NOT NULL headline
-CONSTRAINT reports reports_id_not_null NOT NULL id
-CONSTRAINT reports reports_next_step_not_null NOT NULL next_step
-CONSTRAINT reports reports_pkey PRIMARY KEY (id)
-CONSTRAINT reports reports_self_discovery_not_null NOT NULL self_discovery
-CONSTRAINT reports reports_session_id_fkey FOREIGN KEY (session_id) REFERENCES coach_sessions(id)
-CONSTRAINT reports reports_session_id_key UNIQUE (session_id)
-CONSTRAINT reports reports_session_id_not_null NOT NULL session_id
 CONSTRAINT script_characters ck_script_characters_age_band CHECK ((age_band = ANY (ARRAY['child'::text, 'young'::text, 'adult'::text, 'senior'::text])))
 CONSTRAINT script_characters ck_script_characters_gender CHECK ((gender = ANY (ARRAY['m'::text, 'f'::text])))
 CONSTRAINT script_characters ck_script_characters_member_ids CHECK (((member_ids IS NULL) OR (cardinality(member_ids) >= 2)))
@@ -2106,14 +2073,12 @@ CONSTRAINT user_signup_attributions user_signup_attributions_recorded_via_not_nu
 CONSTRAINT user_signup_attributions user_signup_attributions_source_not_null NOT NULL source
 CONSTRAINT user_signup_attributions user_signup_attributions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT user_signup_attributions user_signup_attributions_user_id_not_null NOT NULL user_id
-CONSTRAINT users ck_users_role CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text])))
 CONSTRAINT users ck_users_status CHECK ((status = ANY (ARRAY['active'::text, 'deactivated'::text])))
 CONSTRAINT users users_created_at_not_null NOT NULL created_at
 CONSTRAINT users users_email_key UNIQUE (email)
 CONSTRAINT users users_id_not_null NOT NULL id
 CONSTRAINT users users_memory_epoch_not_null NOT NULL memory_epoch
 CONSTRAINT users users_pkey PRIMARY KEY (id)
-CONSTRAINT users users_role_not_null NOT NULL role
 CONSTRAINT users users_status_not_null NOT NULL status
 CONSTRAINT users users_updated_at_not_null NOT NULL updated_at
 CONSTRAINT video_transcripts ck_video_transcripts_status CHECK ((status = ANY (ARRAY['reserved'::text, 'ready'::text, 'failed'::text])))
@@ -2197,7 +2162,6 @@ INDEX CREATE INDEX idx_reading_sessions_script_started ON public.reading_session
 INDEX CREATE INDEX idx_reading_sessions_user ON public.reading_sessions USING btree (user_id)
 INDEX CREATE INDEX idx_reading_voice_usage_day ON public.reading_voice_usage USING btree (day)
 INDEX CREATE INDEX idx_refresh_tokens_user_expires ON public.refresh_tokens USING btree (user_id, expires_at)
-INDEX CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)
 INDEX CREATE INDEX idx_script_imports_user_raw_hash ON public.script_imports USING btree (user_id, raw_hash)
 INDEX CREATE INDEX idx_script_lines_character ON public.script_lines USING btree (character_id)
 INDEX CREATE INDEX idx_script_uploads_script ON public.script_uploads USING btree (script_id)
@@ -2325,8 +2289,6 @@ INDEX CREATE UNIQUE INDEX reading_voice_cache_pkey ON public.reading_voice_cache
 INDEX CREATE UNIQUE INDEX reading_voice_usage_pkey ON public.reading_voice_usage USING btree (user_id, day)
 INDEX CREATE UNIQUE INDEX refresh_tokens_pkey ON public.refresh_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX refresh_tokens_token_hash_key ON public.refresh_tokens USING btree (token_hash)
-INDEX CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
-INDEX CREATE UNIQUE INDEX reports_session_id_key ON public.reports USING btree (session_id)
 INDEX CREATE UNIQUE INDEX script_characters_pkey ON public.script_characters USING btree (id)
 INDEX CREATE UNIQUE INDEX script_cocreations_pkey ON public.script_cocreations USING btree (id)
 INDEX CREATE UNIQUE INDEX script_imports_pkey ON public.script_imports USING btree (id)
@@ -2499,7 +2461,6 @@ TABLE reading_sessions
 TABLE reading_voice_cache
 TABLE reading_voice_usage
 TABLE refresh_tokens
-TABLE reports
 TABLE script_characters
 TABLE script_cocreations
 TABLE script_imports

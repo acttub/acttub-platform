@@ -97,7 +97,7 @@ class PackageLayerTest {
             // 새 표는 native SQL 로 읽고 쓴다(V14 의 다른 연습 표들과 같다, EntityMappingIT 의 대기 목록).
             Map.entry("feedback", Set.of("app", "adapter")),
             // 웹 문의하기(SOMA-834). 값 규칙은 app 의 상수 묶음이고 새 표는 native SQL 로 읽고 쓴다(Schema Entity 없음).
-            Map.entry("support", Set.of("app", "adapter")),
+            Map.entry("support", Set.of("app", "adapter", "schema")),
             // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
             // domain 에 넣을 것을 지어내야 하는 형태다(ADR-017, admissions 와 같은 판별).
             Map.entry("push", Set.of("app", "adapter", "schema")),
@@ -108,7 +108,7 @@ class PackageLayerTest {
             Map.entry("blog", Set.of("domain", "app", "adapter")),
             // 오디션 공고 모아보기(SOMA-564). 열림·마감 표시·연락처 모양·정렬 규칙이 domain 에 산다. 쓰기가 전부
             // ON CONFLICT upsert 와 조건 삭제라 Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
-            Map.entry("audition", Set.of("domain", "app", "adapter")),
+            Map.entry("audition", Set.of("domain", "app", "adapter", "schema")),
             // PG 심사 전용 테스트 결제(SOMA-620). 메모리 세션과 토스 호출뿐이라 DB·Schema Entity·Domain Model 이 없다.
             Map.entry("billing", Set.of("app", "adapter")),
             // 앱 광고 칸(SOMA-876). 칸 목록·고르는 순서·A/B 배정이 domain 에 산다. 표는 native SQL 로만 읽고 쓴다.
