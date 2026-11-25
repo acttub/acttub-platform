@@ -139,7 +139,8 @@ public interface VideoRepository {
     }
 
     /**
-     * 시한이 지난 미확정 예약을 치우고 그 객체의 삭제를 장부에 올린다 (practice.record). 매일 도는 일이 부른다.
+     * 시한이 지난 미확정 예약을 치우고 그 객체의 삭제를 장부에 올린다 (practice.record). 한 번에 200개까지이고, 주기 작업이
+     * 없을 때까지 이어서 부른다.
      *
      * @return 장부에 올린 것들
      */
