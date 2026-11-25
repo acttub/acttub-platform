@@ -39,6 +39,22 @@ interface ReadingSessionJpaRepository extends Repository<ReadingSessionEntity, U
     @Query("select rs.scriptId from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
     Optional<UUID> scriptOf(UUID sessionId, UUID userId);
 
+    /** 이 회차가 그 사람이 가장 먼저 시작한 회차인가(같은 시각이면 id 가 작은 것). 내 회차가 아니거나 없으면 false. */
+    @Query("""
+            select exists (select 1 from ReadingSessionEntity s
+                           where s.id = :sessionId and s.userId = :userId
+                             and not exists (select 1 from ReadingSessionEntity e
+                                             where e.userId = s.userId and (e.startedAt, e.id) < (s.startedAt, s.id)))
+            """)
+    boolean isFirstOf(UUID userId, UUID sessionId);
+
+    /** 내 대본이고 내 회차가 아직 하나도 없는가. */
+    @Query("""
+            select exists (select 1 from ScriptEntity s where s.id = :scriptId and s.userId = :userId)
+               and not exists (select 1 from ReadingSessionEntity r where r.userId = :userId)
+            """)
+    boolean noneYetFor(UUID userId, UUID scriptId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select rs.id from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
     Optional<UUID> lockOwned(UUID sessionId, UUID userId);

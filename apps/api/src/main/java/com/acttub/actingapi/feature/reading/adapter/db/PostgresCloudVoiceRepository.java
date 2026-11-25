@@ -15,13 +15,24 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 고품질 목소리의 Postgres 구현. 읽기와 권고 잠금은 Spring Data 저장소에 있다. 동의는 consent 의 표를 읽고, 저장 기록과 줄 수
+ * 차감은 두 표를 한 문장(CTE)으로 고쳐 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
+ */
 @Repository
 class PostgresCloudVoiceRepository implements CloudVoiceRepository {
     private final EntityManager entityManager;
+    private final ReadingVoiceUsageJpaRepository usage;
+    private final ReadingVoiceCacheJpaRepository cache;
+    private final ReadingSessionJpaRepository sessions;
     private final TransactionTemplate transaction;
 
-    PostgresCloudVoiceRepository(EntityManager entityManager, PlatformTransactionManager manager) {
+    PostgresCloudVoiceRepository(EntityManager entityManager, ReadingVoiceUsageJpaRepository usage,
+            ReadingVoiceCacheJpaRepository cache, ReadingSessionJpaRepository sessions, PlatformTransactionManager manager) {
         this.entityManager = entityManager;
+        this.usage = usage;
+        this.cache = cache;
+        this.sessions = sessions;
         this.transaction = new TransactionTemplate(manager);
     }
 
@@ -47,57 +58,39 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
 
     @Override
     public int dailyUsage(UUID userId, LocalDate day) {
-        return ((Number) entityManager.createNativeQuery("SELECT COALESCE(SUM(lines),0) FROM reading_voice_usage WHERE user_id=:userId AND day=:day")
-                .setParameter("userId", userId).setParameter("day", day).getSingleResult()).intValue();
+        return (int) usage.linesOn(userId, day);
     }
 
     @Override
     public int monthlyUsage(YearMonth month) {
-        return ((Number) entityManager.createNativeQuery("SELECT COALESCE(SUM(lines),0) FROM reading_voice_usage WHERE day>=:start AND day<:end")
-                .setParameter("start", month.atDay(1)).setParameter("end", month.plusMonths(1).atDay(1)).getSingleResult()).intValue();
+        return (int) usage.linesBetween(month.atDay(1), month.plusMonths(1).atDay(1));
     }
 
     @Override
     public int monthlyUsage(UUID userId, YearMonth month) {
-        return ((Number) entityManager.createNativeQuery("SELECT COALESCE(SUM(lines),0) FROM reading_voice_usage WHERE user_id=:userId AND day>=:start AND day<:end")
-                .setParameter("userId", userId).setParameter("start", month.atDay(1))
-                .setParameter("end", month.plusMonths(1).atDay(1)).getSingleResult()).intValue();
+        return (int) usage.linesBetween(userId, month.atDay(1), month.plusMonths(1).atDay(1));
     }
 
     @Override
     public boolean firstReadingSession(UUID userId, UUID sessionId) {
-        return Boolean.TRUE.equals(entityManager.createNativeQuery("""
-                SELECT EXISTS (
-                    SELECT 1 FROM reading_sessions s
-                    WHERE s.id=:sessionId AND s.user_id=:userId
-                      AND NOT EXISTS (SELECT 1 FROM reading_sessions e
-                          WHERE e.user_id=s.user_id
-                            AND (e.started_at, e.id) < (s.started_at, s.id)))
-                """).setParameter("userId", userId).setParameter("sessionId", sessionId).getSingleResult());
+        return sessions.isFirstOf(userId, sessionId);
     }
 
     @Override
     public boolean firstReadingScript(UUID userId, UUID scriptId) {
-        return Boolean.TRUE.equals(entityManager.createNativeQuery("""
-                SELECT EXISTS (SELECT 1 FROM scripts WHERE id=:scriptId AND user_id=:userId)
-                   AND NOT EXISTS (SELECT 1 FROM reading_sessions WHERE user_id=:userId)
-                """).setParameter("userId", userId).setParameter("scriptId", scriptId).getSingleResult());
+        return sessions.noneYetFor(userId, scriptId);
     }
 
     @Override
     public CacheEntry findCache(String hash) {
-        var rows = list(entityManager.createNativeQuery("SELECT hash FROM reading_voice_cache WHERE hash=:hash", Tuple.class)
-                .setParameter("hash", hash));
-        return rows.isEmpty() ? null : new CacheEntry(hash, "reading-voice/" + hash + ".wav");
+        return cache.find(hash).isPresent() ? new CacheEntry(hash, "reading-voice/" + hash + ".wav") : null;
     }
 
     @Override
     public boolean allCached(java.util.Collection<String> hashes) {
         var distinct = java.util.Set.copyOf(hashes);
         if (distinct.isEmpty()) return false;
-        Number found = (Number) entityManager.createNativeQuery("SELECT COUNT(*) FROM reading_voice_cache WHERE hash IN (:hashes)")
-                .setParameter("hashes", distinct).getSingleResult();
-        return found.intValue() == distinct.size();
+        return cache.countIn(distinct) == distinct.size();
     }
 
     @Override
@@ -105,8 +98,7 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
             String voice, int byteSize, Instant now, int cap) {
         return Boolean.TRUE.equals(transaction.execute(status -> {
             // 외부 합성·업로드는 이 트랜잭션 전에 끝났다. 같은 계정의 최종 차감만 직렬화한다.
-            entityManager.createNativeQuery("SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(:key, 0))")
-                    .setParameter("key", "reading_voice_monthly:" + userId).getSingleResult();
+            cache.lockUntilCommit("reading_voice_monthly:" + userId);
             if (findCache(entry.hash()) != null) return true;
             if (monthlyUsage(userId, YearMonth.from(day)) >= cap) return false;
             recordSuccess(userId, day, entry, model, voice, byteSize, now);

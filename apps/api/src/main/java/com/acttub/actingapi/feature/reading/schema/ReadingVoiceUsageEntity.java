@@ -14,7 +14,7 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "reading_voice_usage")
 @IdClass(ReadingVoiceUsageEntity.Key.class)
-class ReadingVoiceUsageEntity {
+public class ReadingVoiceUsageEntity {
     @Id @Column(name = "user_id") UUID userId;
     @Id @Column(name = "day") LocalDate day;
     @Column(name = "lines") int lines;
