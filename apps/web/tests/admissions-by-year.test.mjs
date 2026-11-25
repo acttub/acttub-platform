@@ -11,6 +11,7 @@ const {
   universityDigest,
   yearResultRows,
   competitionRatio,
+  practiceCalloutTitle,
 } = await import("../src/features/admissions/by-year.ts");
 
 const notice = (fields) => ({
@@ -190,4 +191,32 @@ test("한눈에 보기는 모르는 조각을 빼고, 공고가 없으면 빈 �
   assert.deepEqual(universityDigest([notice({ admission_year: 2027, track: "정시" })], [], 2027), [
     "2027학년도에는 정시 1개 전형으로 뽑아요.",
   ]);
+});
+
+test("상세 앱 안내 제목은 올해 요강의 실기 종목으로 고른다: 지정연기 > 자유연기 > 일반", () => {
+  const items = (...categories) => categories.map((category) => ({ category }));
+  const current = (...categories) =>
+    notice({ admission_year: 2027, practical_items: items(...categories) });
+
+  assert.equal(
+    practiceCalloutTitle([current("free_acting"), current("assigned_acting")], 2027),
+    "지정연기 연습, 앱에서 바로 해 볼 수 있어요",
+  );
+  assert.equal(
+    practiceCalloutTitle([current("free_acting", "improv")], 2027),
+    "자유연기 연습, 앱에서 바로 해 볼 수 있어요",
+  );
+  assert.equal(
+    practiceCalloutTitle([current("improv", "interview")], 2027),
+    "실기 연습, 앱에서 바로 해 볼 수 있어요",
+  );
+  assert.equal(practiceCalloutTitle([], 2027), "실기 연습, 앱에서 바로 해 볼 수 있어요");
+  // 지난 학년도 요강을 옮겨 둔 전형의 종목으로는 올해 종목을 말하지 않는다.
+  assert.equal(
+    practiceCalloutTitle(
+      [notice({ admission_year: 2026, practical_items: items("assigned_acting") })],
+      2027,
+    ),
+    "실기 연습, 앱에서 바로 해 볼 수 있어요",
+  );
 });

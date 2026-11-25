@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -16,9 +15,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
@@ -29,11 +26,10 @@ import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
 import com.acttub.actingapi.integration.observation.SpeechFacts;
-import com.acttub.actingapi.integration.storage.ObjectStorage;
-import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.StubProviders;
@@ -45,10 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -59,7 +52,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * account.withdraw 의 "검증 방법"을 HTTP 와 실제 Postgres 로 본다.
  *
- * <p>바깥은 전부 스텁이다 — 제공자 해제({@link StubProviders}), 오브젝트 스토리지({@link FakeStorage}),
+ * <p>바깥은 전부 스텁이다 — 제공자 해제({@link StubProviders}), 오브젝트 스토리지({@link FakeObjectStorage}),
  * 실패 보고({@link RecordingFailureReporter}), 시계({@link MutableClock}). "영상 객체가 없다"·"연결
  * 끊기 호출이 실패해도"는 스텁의 상태로 확인한다. 다시 시도하는 일은 스케줄러를 끄고
  * {@link AccountCleanup#runDue} 를 직접 부른다.
@@ -69,7 +62,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import({StubProviders.class, MutableClock.Fixture.class, AccountWithdrawIT.Fixture.class})
+@Import({StubProviders.class, MutableClock.Fixture.class, FakeObjectStorage.Fixture.class, RecordingFailureReporter.Fixture.class})
 class AccountWithdrawIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -105,7 +98,7 @@ class AccountWithdrawIT {
     AnalysisStore analysis;
 
     @Autowired
-    FakeStorage storage;
+    FakeObjectStorage storage;
 
     @Autowired
     RecordingFailureReporter failures;
@@ -136,7 +129,7 @@ class AccountWithdrawIT {
         }
         address = "10.4.0." + ADDRESSES.incrementAndGet();
         clock.set(Instant.now().truncatedTo(ChronoUnit.SECONDS));
-        storage.objects.clear();
+        storage.clear();
         failures.clear();
         apple.reset();
         kakao.reset();
@@ -778,70 +771,5 @@ class AccountWithdrawIT {
     }
 
     private record CommitSetting(String synchronousCommit, String backendPid) {
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class Fixture {
-        @Bean
-        @Primary
-        FakeStorage fakeStorage() {
-            return new FakeStorage();
-        }
-
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
-        }
-    }
-
-    /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
-    static final class FakeStorage implements ObjectStorage {
-        @Override
-        public void upload(String objectKey, String mimeType, java.nio.file.Path source) {
-            try {
-                objects.put(objectKey, java.nio.file.Files.size(source));
-            } catch (java.io.IOException failure) {
-                throw new java.io.UncheckedIOException(failure);
-            }
-        }
-
-        final Map<String, Long> objects = new ConcurrentHashMap<>();
-        final Set<String> failing = ConcurrentHashMap.newKeySet();
-
-        void put(String... objectKeys) {
-            for (String objectKey : objectKeys) {
-                objects.put(objectKey, 100L);
-            }
-        }
-
-        @Override
-        public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
-            return "https://storage.test/put/" + objectKey;
-        }
-
-        @Override
-        public String presignPlayback(String objectKey, int expiresInSeconds) {
-            return "https://storage.test/get/" + objectKey;
-        }
-
-        @Override
-        public StoredObjectMetadata head(String objectKey) {
-            Long size = objects.get(objectKey);
-            return size == null ? null : new StoredObjectMetadata(size, "video/mp4", "etag");
-        }
-
-        @Override
-        public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void delete(String objectKey) {
-            if (failing.contains(objectKey)) {
-                throw new IllegalStateException("storage refused the delete");
-            }
-            objects.remove(objectKey);
-        }
     }
 }

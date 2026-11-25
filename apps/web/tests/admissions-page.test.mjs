@@ -129,6 +129,14 @@ test("답이 오기 전에는 프리렌더 본문만 그리고, 오늘을 몰라
   assert.equal(screen.queryByText("다가오는 마감"), null);
   assert.equal(screen.getByText("대학 2곳").textContent, "대학 2곳");
   assert.deepEqual(cards(), ["/admissions/seoul-arts", "/admissions/gyeonggi-col"]);
+
+  // 실기 연습 안내 칸은 응답 전 프리렌더 본문에도 있고, 다른 다운로드 버튼과 같은 표식을 단다.
+  const callout = screen
+    .getByRole("heading", { name: "지정연기·자유연기, 앱에서 혼자 연습해요" })
+    .closest("section");
+  const action = within(callout).getByRole("link", { name: "앱에서 연습하기" });
+  assert.equal(action.getAttribute("data-app-download"), "admissions_list");
+  assert.equal(action.getAttribute("href"), "/app");
 });
 
 test("답이 오면 다가오는 접수를 D-day 로 띄우고, 카드에 학과·요약·옮겨 온 요강을 적는다", async () => {

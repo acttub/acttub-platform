@@ -17,7 +17,6 @@
 | `PUT /v2/me/memory/{field}` | field(goal·blockage·wants·habits·avoid·speech_self·speech_actual, tone 은 422), 필수 `value` 1~1,000자 (`UpdateActorMemoryRequest`) | `ActorMemoryItem` 200(written_by actor) | 1,001자·없는 field 422(배열), `account_deactivated` 403 |
 | `DELETE /v2/me/memory/{field}` | field | 204, 이미 없어도 204 | 없는 field 422(배열) |
 | `DELETE /v2/me/memory` | — | 204 | — |
-| `GET·DELETE /v2/legacy-me/memory`, `PUT·DELETE /v2/legacy-me/memory/{field}` | 옛 표(actor_memory_entries)의 옛 경로 (`UpdateMemoryRequest`) | `MemoryResponse`·`MemoryItem` 200, 204 | 422(배열) |
 | `ActorMemoryUpdateScheduling.onConversationClosed` | 닫힌 회차 | avoid(그 장면의 행)에 정정 덧붙임, 끝난 대화마다 ai_jobs memory_update `pending`(SOMA-795), 예약 시점의 memory_epoch | — |
 | `ActorMemoryUpdateWorker.sweepIdle` (10분마다) | 배우가 두 번 이상 답하고 30분~24시간 말이 없는 열린 회차, 작업이 아직 없는 것 | 위와 같다 | — |
 | `MemoryWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending`, 또는 lease가 지난 `running` memory_update 작업 | actor_memories 갱신(written_by agent, 배우가 쓴 칸은 건너뜀) | 세대 불일치 `failed`/memory_epoch_stale, 탈퇴 `failed`/account_deactivated, 3회 소진은 분석 워커 정리가, 시도를 다 쓴 채 lease가 지난 running은 기억 워커가 `failed`/max_attempts로 닫는다 |

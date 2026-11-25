@@ -105,7 +105,9 @@ class PostgresBillingRepository implements BillingRepository {
     public Optional<Instant> termsV2PublishedAt() {
         return transaction.execute(tx -> {
             var rows = entityManager.createNativeQuery(
-                    "SELECT published_at FROM consent_documents WHERE type='terms' AND version='v2' AND locale='ko'")
+                    // 유료 조항이 처음 실린 약관(v2)의 발행 시각. 운영 DB에는 v2 행이 있다. manifest 가 v3 이후를 가리키는 빈 DB
+                    // (테스트·새 환경)에는 v2 행이 없으므로, v1 이 아닌 판 가운데 가장 먼저 발행된 것을 쓴다.
+                    "SELECT min(published_at) FROM consent_documents WHERE type='terms' AND version <> 'v1' AND locale='ko'")
                     .getResultList();
             if (rows.isEmpty() || rows.get(0) == null) {
                 return Optional.<Instant>empty();

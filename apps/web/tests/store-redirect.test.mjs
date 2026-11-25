@@ -44,14 +44,14 @@ test("안드로이드 배지는 지금 주소의 UTM 을 Google Play 설치 리�
   );
 });
 
-test("정적 생성 주소는 두 기기 × 열 자리, 출처 칸이 붙으면 × 스무 출처다", () => {
+test("정적 생성 주소는 두 기기 × 열두 자리, 출처 칸이 붙으면 × 스무 출처다", () => {
   const plain = goPage.generateStaticParams();
   const withSource = goSourcePage.generateStaticParams();
 
-  assert.equal(plain.length, 20);
+  assert.equal(plain.length, 24);
   assert.deepEqual(plain[0], { os: "ios", surface: "landing_header" });
-  assert.deepEqual(plain.at(-1), { os: "android", surface: "trial_done" });
-  assert.equal(withSource.length, 400);
+  assert.deepEqual(plain.at(-1), { os: "android", surface: "admissions_detail" });
+  assert.equal(withSource.length, 480);
   assert.deepEqual(withSource[1], { os: "ios", surface: "landing_header", source: "naver_ad" });
   assert.equal(goPage.dynamicParams, false);
   assert.equal(goSourcePage.dynamicParams, false);

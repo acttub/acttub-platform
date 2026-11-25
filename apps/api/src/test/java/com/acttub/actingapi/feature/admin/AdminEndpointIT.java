@@ -2277,8 +2277,8 @@ class AdminEndpointIT {
         UUID coachId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coach_sessions (
-                    id,practice_session_id,status,conversation_summary,created_at,updated_at
-                ) VALUES (?, ?, 'open', '', ?, ?)
+                    id,practice_session_id,status,created_at,updated_at
+                ) VALUES (?, ?, 'open', ?, ?)
                 """, coachId, practiceId, createdAt, createdAt);
         return coachId;
     }

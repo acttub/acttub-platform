@@ -40,10 +40,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 알림의 발송은 challenge.notification 의 일이고 여기서는 토글과 토큰만 본다. "등록되지 않은 기기"와
  * 발송 실패는 {@code PushServiceTest}·{@code ExpoPushSenderTest} 가 본다.
  */
-@SpringBootTest(properties = {
-    "JWT_SECRET=test-secret",
-    // 겹쳐 보낸 요청 둘이 저마다 커넥션을 쥔 채 잠금을 기다린다.
-    "spring.datasource.hikari.maximum-pool-size=10"})
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class AccountNotificationIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();

@@ -51,7 +51,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
-@Import(CoachConversationIT.Fixture.class)
+@Import({RecordingFailureReporter.Fixture.class, CoachConversationIT.Fixture.class})
 class CoachConversationIT {
     private static final String CONTINUE = "{\"message\":\"무엇이 달라졌나요\",\"status\":\"continue\",\"handoff\":null}";
     private static final String CLOSING =
@@ -714,12 +714,6 @@ class CoachConversationIT {
         @Primary
         StubGenerator stubGenerator() {
             return new StubGenerator();
-        }
-
-        @Bean
-        @Primary
-        RecordingFailureReporter recordingFailureReporter() {
-            return new RecordingFailureReporter();
         }
     }
 
