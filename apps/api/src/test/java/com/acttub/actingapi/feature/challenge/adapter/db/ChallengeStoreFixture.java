@@ -206,6 +206,16 @@ public class ChallengeStoreFixture {
         return sent;
     }
 
+    /** {@code call} 의 결과를 돌려주고, 그동안 이 스레드에서 보낸 문장(줄인 꼴)을 {@code check} 에 넘긴다. */
+    <T> T statementsAndResult(Supplier<T> call, java.util.function.Consumer<List<String>> check) {
+        Recorder.STATEMENTS.get().clear();
+        T result = call.get();
+        List<String> sent = Recorder.STATEMENTS.get().stream().map(ChallengeStoreFixture::label).toList();
+        Recorder.STATEMENTS.get().clear();
+        check.accept(sent);
+        return result;
+    }
+
     /** {@code call} 이 이 스레드에서 보낸 문장(글자 그대로, 공백만 하나로). */
     List<String> rawStatementsOf(Runnable call) {
         Recorder.STATEMENTS.get().clear();

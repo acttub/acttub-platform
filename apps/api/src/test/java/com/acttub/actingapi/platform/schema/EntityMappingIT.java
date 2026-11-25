@@ -122,8 +122,6 @@ class EntityMappingIT {
             "practice_deletion_marks", "deleted_practice_videos",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
-            // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.
-            "entry_view_events", "entry_ranking_snapshots",
             // 노트 평가(V22)는 코치 저장소의 native SQL(upsert·잠금)만 읽고 쓴다.
             "note_ratings",
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
@@ -148,8 +146,8 @@ class EntityMappingIT {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개, 리딩의 같이 만들기·발음 보고서·다시 받아쓰기를 매핑해 60개, 배우 기억을 매핑해 61개, 연습 회차를 매핑해 62개, 결제 표 넷을 매핑해 66개, 코치 대화와 턴을 매핑해 68개다.
-        assertThat(entities).hasSize(68);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개, 리딩의 같이 만들기·발음 보고서·다시 받아쓰기를 매핑해 60개, 배우 기억을 매핑해 61개, 연습 회차를 매핑해 62개, 결제 표 넷을 매핑해 66개, 코치 대화와 턴을 매핑해 68개, 조회수 사건·좋아요순의 굳힌 순서를 매핑해 70개다.
+        assertThat(entities).hasSize(70);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())

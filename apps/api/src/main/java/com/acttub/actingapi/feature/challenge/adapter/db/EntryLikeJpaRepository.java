@@ -25,4 +25,8 @@ interface EntryLikeJpaRepository extends Repository<EntryLikeEntity, UUID> {
 
     @Query("select count(*) from EntryLikeEntity l where l.entryId = :entryId")
     long countOf(UUID entryId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from EntryLikeEntity l where l.entryId = :entryId")
+    int removeAllOf(UUID entryId);
 }

@@ -18,6 +18,9 @@ import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.ChallengeEntryStatus;
+import com.acttub.actingapi.platform.schema.ChallengeEntryVisibility;
+import com.acttub.actingapi.platform.schema.ChallengeModeration;
 import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -33,6 +36,17 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Repository
 class PostgresEntryRepository implements EntryRepository {
     private final EntityManager em;
+    private final ChallengeEntryJpaRepository entries;
+    private final ChallengeJpaRepository challenges;
+    private final NotificationJpaRepository notifications;
+    private final EntryAiReportJpaRepository aiReports;
+    private final EntryLikeJpaRepository likes;
+    private final EntrySaveJpaRepository saves;
+    private final EntryCommentJpaRepository comments;
+    private final EntryReportJpaRepository reports;
+    private final NotificationPushJpaRepository pushes;
+    private final EntryViewEventJpaRepository viewEvents;
+    private final EntryRankingSnapshotJpaRepository snapshots;
     private final ChallengeSettlement settlement;
     private final EntryCards cards;
     private final EntryLocks locks;
@@ -43,10 +57,17 @@ class PostgresEntryRepository implements EntryRepository {
     /** 묶음 푸시 선점은 그 10분 구간(밤이면 다음 09시)이 지나면 쓸모가 없다 — 이틀이면 넉넉하다. */
     private static final java.time.Duration NOTIFICATION_PUSH_CLAIM_RETENTION = java.time.Duration.ofDays(2);
 
-    PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
+    PostgresEntryRepository(EntityManager em, ChallengeEntryJpaRepository entries, ChallengeJpaRepository challenges,
+                            NotificationJpaRepository notifications, EntryAiReportJpaRepository aiReports, EntryLikeJpaRepository likes,
+                            EntrySaveJpaRepository saves, EntryCommentJpaRepository comments, EntryReportJpaRepository reports,
+                            NotificationPushJpaRepository pushes, EntryViewEventJpaRepository viewEvents,
+                            EntryRankingSnapshotJpaRepository snapshots, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
                             PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup,
                             UnseenEntryBoost unseen) {
-        this.em = em; this.settlement = settlement; this.cards = cards; this.locks = locks; this.failures = failures;
+        this.em = em; this.entries = entries; this.challenges = challenges; this.notifications = notifications;
+        this.aiReports = aiReports; this.likes = likes; this.saves = saves; this.comments = comments; this.reports = reports;
+        this.pushes = pushes; this.viewEvents = viewEvents; this.snapshots = snapshots;
+        this.settlement = settlement; this.cards = cards; this.locks = locks; this.failures = failures;
         this.cleanup = cleanup; this.unseen = unseen;
         this.transaction = new TransactionTemplate(transactions);
     }
@@ -71,12 +92,8 @@ class PostgresEntryRepository implements EntryRepository {
 
     @Override @Transactional(readOnly = true)
     public Replay replay(UUID owner, UUID requestId) {
-        var rows = NativeTuples.list(em.createNativeQuery(
-                "SELECT id,request_fingerprint FROM challenge_entries WHERE user_id=:owner AND request_id=:request", Tuple.class)
-                .setParameter("owner", owner).setParameter("request", requestId));
-        if (rows.isEmpty()) return null;
-        return new Replay(rows.getFirst().get("request_fingerprint", String.class).strip(),
-                cards.mine(owner, rows.getFirst().get("id", UUID.class)));
+        return entries.findReplay(owner, requestId)
+                .map(row -> new Replay(row.requestFingerprint().strip(), cards.mine(owner, row.id()))).orElse(null);
     }
 
     @Override @Transactional
@@ -88,120 +105,86 @@ class PostgresEntryRepository implements EntryRepository {
             if (!fingerprint.equals(replayed.fingerprint())) throw new ApiException(422, "request_fingerprint_mismatch");
             return new Creation(replayed.entry(), false);
         }
-        Tuple challenge = lockChallenge(challengeId);
-        if (challenge == null || challenge.get("deleted_at") != null
-                || !"visible".equals(challenge.get("moderation", String.class))
-                || challenge.get("starts_at", Instant.class).isAfter(now)) throw new ApiException(404, "challenge_not_found");
-        if (!now.isBefore(challenge.get("ends_at", Instant.class))) throw new ApiException(422, "challenge_closed");
+        var challenge = challenges.lockWindow(challengeId).orElse(null);
+        if (challenge == null || challenge.deletedAt() != null || challenge.moderation() != ChallengeModeration.VISIBLE
+                || challenge.startsAt().isAfter(now)) throw new ApiException(404, "challenge_not_found");
+        if (!now.isBefore(challenge.endsAt())) throw new ApiException(422, "challenge_closed");
         // 영상 행을 잡는다 — 파기·보관함 삭제와 여기서 줄을 선다.
         var video = NativeTuples.list(em.createNativeQuery(
                 "SELECT purged_at FROM videos WHERE id=:id AND user_id=:owner FOR UPDATE", Tuple.class)
                 .setParameter("id", entry.videoId()).setParameter("owner", owner));
         if (video.isEmpty()) throw new ApiException(404, "video_not_found");
         if (video.getFirst().get("purged_at", Instant.class) != null) throw new ApiException(422, "video_not_ready");
-        long duplicates = ((Number) em.createNativeQuery("""
-                SELECT count(*) FROM challenge_entries WHERE challenge_id=:challenge AND video_id=:video AND status<>'deleted'
-                """).setParameter("challenge", challengeId).setParameter("video", entry.videoId()).getSingleResult()).longValue();
-        if (duplicates > 0) throw new ApiException(422, "duplicate_entry");
-        Instant midnight = ChallengeRules.koreanMidnight(now);
-        long today = ((Number) em.createNativeQuery(
-                "SELECT count(*) FROM challenge_entries WHERE user_id=:owner AND created_at>=:since")
-                .setParameter("owner", owner).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
-        if (today >= ChallengeRules.DAILY_ENTRIES) throw new ApiException(429, "daily_entry_limit");
+        if (entries.countLiveWithVideo(challengeId, entry.videoId()) > 0) throw new ApiException(422, "duplicate_entry");
+        if (entries.countCreatedSince(owner, ChallengeRules.koreanMidnight(now)) >= ChallengeRules.DAILY_ENTRIES) {
+            throw new ApiException(429, "daily_entry_limit");
+        }
         UUID id = UUID.randomUUID();
         boolean open = "public".equals(entry.visibility());
-        em.createNativeQuery("""
-                INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,caption,visibility,published_at,status,
-                    request_id,request_fingerprint,created_at,updated_at,face_mosaic,mosaic_status,moderation_status)
-                VALUES (:id,:challenge,:owner,:video,:caption,:visibility,CASE WHEN :open THEN CAST(:now AS timestamptz) END,'visible',:request,:fingerprint,:now,:now,
-                    :mosaic,CASE WHEN :mosaic THEN 'pending' END,CASE WHEN :open THEN 'pending' END)
-                """).setParameter("id", id).setParameter("mosaic", entry.faceMosaic()).setParameter("challenge", challengeId).setParameter("owner", owner)
-                .setParameter("video", entry.videoId()).setParameter("caption", entry.caption())
-                .setParameter("visibility", entry.visibility())
-                .setParameter("open", open)
-                .setParameter("request", requestId).setParameter("fingerprint", fingerprint)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+        // 공개면 공개 시각과 AI 검사 차례를, 모자이크를 켰으면 만드는 중을 적는다.
+        entries.insert(id, challengeId, owner, entry.videoId(), entry.caption(),
+                open ? ChallengeEntryVisibility.PUBLIC : ChallengeEntryVisibility.PRIVATE, open ? now : null,
+                ChallengeEntryStatus.VISIBLE, requestId, fingerprint, now, entry.faceMosaic(), entry.faceMosaic() ? "pending" : null,
+                open ? "pending" : null);
         return new Creation(cards.mine(owner, id), true);
     }
 
     @Override @Transactional
     public MyEntry update(UUID owner, UUID entryId, String caption, String visibility, Boolean faceMosaic, Instant now) {
         locks.active(owner);
-        Tuple entry = lockOwnEntry(owner, entryId, now);
+        var entry = lockOwnEntry(owner, entryId, now);
         // 모자이크를 먼저 바꾼다 — 같은 요청의 공개 전환이 바뀐 모자이크 상태로 공개 조건을 탄다.
         if (faceMosaic != null) mosaic(owner, entryId, faceMosaic, now);
         boolean captionChanged = false;
         if (caption != null) {
             String next = caption.isEmpty() ? null : caption;
-            if (!java.util.Objects.equals(next, entry.get("caption", String.class))) {
+            if (!java.util.Objects.equals(next, entry.caption())) {
                 captionChanged = true;
-                em.createNativeQuery("""
-                        UPDATE challenge_entries SET caption=:caption,content_version=content_version+1,updated_at=:now WHERE id=:id
-                        """).setParameter("caption", next).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("id", entryId).executeUpdate();
+                entries.changeCaption(entryId, next, now);
             }
         }
-        if ("public".equals(visibility) && !"public".equals(entry.get("visibility", String.class))) {
-            Tuple challenge = challengeRow(entry.get("challenge_id", UUID.class));
-            if (challenge.get("deleted_at") != null || !"visible".equals(challenge.get("moderation", String.class))
-                    || !now.isBefore(challenge.get("ends_at", Instant.class))) throw new ApiException(422, "challenge_closed");
-            if ("hidden_by_report".equals(entry.get("status", String.class))) throw new ApiException(422, "entry_hidden");
+        if ("public".equals(visibility) && entry.visibility() != ChallengeEntryVisibility.PUBLIC) {
+            var challenge = challenges.findWindow(entry.challengeId()).orElseThrow();
+            if (challenge.deletedAt() != null || challenge.moderation() != ChallengeModeration.VISIBLE
+                    || !now.isBefore(challenge.endsAt())) throw new ApiException(422, "challenge_closed");
+            if (entry.status() == ChallengeEntryStatus.HIDDEN_BY_REPORT) throw new ApiException(422, "entry_hidden");
             var video = NativeTuples.list(em.createNativeQuery(
                     "SELECT purged_at FROM videos WHERE id=:id FOR UPDATE", Tuple.class)
-                    .setParameter("id", entry.get("video_id", UUID.class)));
+                    .setParameter("id", entry.videoId()));
             if (video.isEmpty() || video.getFirst().get("purged_at", Instant.class) != null) {
                 throw new ApiException(422, "video_not_ready");
             }
-            em.createNativeQuery("""
-                    UPDATE challenge_entries SET visibility='public',published_at=coalesce(published_at,:now),updated_at=:now
-                    WHERE id=:id
-                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+            entries.publish(entryId, now);
         } else if ("private".equals(visibility)) {
-            em.createNativeQuery("UPDATE challenge_entries SET visibility='private',updated_at=:now WHERE id=:id")
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+            entries.unpublish(entryId, now);
         }
         // 공개 참여작 AI 검사(SOMA-907): 처음 공개되거나 공개 중 캡션이 바뀌면 다시 검사 차례로 둔다. 영상은 바뀌지 않으므로
         // 한 번 본 참여작을 비공개→공개로 다시 여는 것만으로는 검사하지 않는다.
-        em.createNativeQuery("""
-                UPDATE challenge_entries SET moderation_status='pending',moderation_attempts=0
-                WHERE id=:id AND visibility='public' AND status='visible' AND (moderation_status IS NULL OR :changed)
-                """).setParameter("id", entryId).setParameter("changed", captionChanged).executeUpdate();
+        entries.queueModeration(entryId, captionChanged);
         return cards.mine(owner, entryId);
     }
 
     @Override @Transactional
     public void delete(UUID owner, UUID entryId, Instant now) {
         locks.active(owner);
-        var found = NativeTuples.list(em.createNativeQuery(
-                "SELECT challenge_id,status FROM challenge_entries WHERE id=:id AND user_id=:owner", Tuple.class)
-                .setParameter("id", entryId).setParameter("owner", owner));
-        if (found.isEmpty()) throw new ApiException(404, "entry_not_found");
-        if ("deleted".equals(found.getFirst().get("status", String.class))) return;
+        var found = entries.findOwned(entryId, owner).orElseThrow(() -> new ApiException(404, "entry_not_found"));
+        if (found.status() == ChallengeEntryStatus.DELETED) return;
         lockOwnEntry(owner, entryId, now);
         // 반응은 그 참여작의 것만 지운다. 댓글은 본문을 파기하고 표시만 남기며 신고 행은 남기되 사본 본문을 비운다.
         // AI 리포트는 본문·비교 자료를 파기하고 진행 중인 생성을 취소한다. 그 참여작에 관한 알림은 지운다.
-        em.createNativeQuery("DELETE FROM notifications WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
-        em.createNativeQuery("UPDATE entry_ai_reports SET result=NULL,purged_at=:now WHERE entry_id=:id")
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        notifications.deleteOfEntry(entryId);
+        aiReports.purge(entryId, now);
         em.createNativeQuery("""
                 UPDATE ai_jobs SET status='failed',failure_reason='cancelled',lease_token=NULL,lease_expires_at=NULL,updated_at=:now
                 WHERE kind='challenge_report' AND target_id=:id AND status IN ('pending','running')
                 """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
-        em.createNativeQuery("DELETE FROM entry_likes WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
-        em.createNativeQuery("DELETE FROM entry_saves WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
-        em.createNativeQuery("""
-                UPDATE entry_reports SET target_text=NULL
-                WHERE (target_type='entry' AND target_id=:id)
-                   OR (target_type='comment' AND target_id IN (SELECT id FROM entry_comments WHERE entry_id=:id))
-                """).setParameter("id", entryId).executeUpdate();
-        em.createNativeQuery("UPDATE entry_comments SET body=NULL,deleted_at=coalesce(deleted_at,:now) WHERE entry_id=:id")
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        likes.removeAllOf(entryId);
+        saves.removeAllOf(entryId);
+        reports.purgeCopiesOfEntry(entryId);
+        comments.purgeAllOf(entryId, now);
         dropMosaic(owner, entryId, now);
         dropShareFrames(owner, entryId, now);
-        em.createNativeQuery("""
-                UPDATE challenge_entries SET status='deleted',caption=NULL,video_id=NULL,deleted_at=:now,updated_at=:now
-                WHERE id=:id
-                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        entries.markDeleted(entryId, now);
     }
 
     /**
@@ -210,18 +193,11 @@ class PostgresEntryRepository implements EntryRepository {
      */
     private void mosaic(UUID owner, UUID entryId, boolean on, Instant now) {
         if (on) {
-            int changed = em.createNativeQuery("""
-                    UPDATE challenge_entries SET face_mosaic=true,mosaic_status='pending',mosaic_attempts=0,updated_at=:now
-                    WHERE id=:id AND (NOT face_mosaic OR mosaic_status='failed')
-                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
-            if (changed > 0) dropShareFrames(owner, entryId, now);
+            if (entries.requestMosaic(entryId, now) > 0) dropShareFrames(owner, entryId, now);
             return;
         }
         dropMosaic(owner, entryId, now);
-        int changed = em.createNativeQuery("""
-                UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,updated_at=:now WHERE id=:id AND face_mosaic
-                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
-        if (changed > 0) dropShareFrames(owner, entryId, now);
+        if (entries.turnMosaicOff(entryId, now) > 0) dropShareFrames(owner, entryId, now);
     }
 
     /**
@@ -266,10 +242,7 @@ class PostgresEntryRepository implements EntryRepository {
                 // 지웠거나 모자이크를 바꿨거나 영상·계정이 사라졌다 — 늦게 만든 것을 남기지 않는다.
                 return List.of(cleanup.scheduleObjectDelete(source.userId(), List.of(key), now, now));
             }
-            em.createNativeQuery("""
-                    UPDATE challenge_entries SET share_frame_keys=array_append(share_frame_keys,CAST(:key AS text))
-                    WHERE id=:id AND NOT (CAST(:key AS text)=ANY(share_frame_keys))
-                    """).setParameter("key", key).setParameter("id", source.entryId()).executeUpdate();
+            entries.appendShareFrameKey(source.entryId(), key);
             return List.of();
         });
     }
@@ -287,25 +260,17 @@ class PostgresEntryRepository implements EntryRepository {
      * 중인 워커는 붙일 때 이것을 보고 자기 사본을 지운다.
      */
     private void dropMosaic(UUID owner, UUID entryId, Instant now) {
-        var rows = NativeTuples.list(em.createNativeQuery(
-                "SELECT mosaic_key FROM challenge_entries WHERE id=:id AND mosaic_key IS NOT NULL", Tuple.class)
-                .setParameter("id", entryId));
-        if (rows.isEmpty()) return;
-        cleanup.scheduleObjectDelete(owner, List.of(rows.getFirst().get("mosaic_key", String.class)), now, now);
-        em.createNativeQuery("""
-                UPDATE challenge_entries SET mosaic_key=NULL,mosaic_status=CASE WHEN face_mosaic THEN 'failed' END,updated_at=:now
-                WHERE id=:id
-                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        var key = entries.findMosaicKey(entryId);
+        if (key.isEmpty()) return;
+        cleanup.scheduleObjectDelete(owner, List.of(key.get()), now, now);
+        entries.dropMosaic(entryId, now);
     }
 
     @Override
     public MosaicJob claimMosaic(int maxAttempts, Instant now) {
         return transaction.execute(tx -> {
             // 상한에 닿은 채 남은 것(시도 도중 프로세스가 죽었다)은 실패로 닫는다 — 영원히 만드는 중으로 남지 않는다.
-            em.createNativeQuery("""
-                    UPDATE challenge_entries SET mosaic_status='failed',updated_at=:now
-                    WHERE mosaic_status='pending' AND mosaic_attempts>=:max
-                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("max", maxAttempts).executeUpdate();
+            entries.failExhaustedMosaics(maxAttempts, now);
             var rows = NativeTuples.list(em.createNativeQuery("""
                     WITH next AS (
                         SELECT e.id FROM challenge_entries e
@@ -337,26 +302,21 @@ class PostgresEntryRepository implements EntryRepository {
             // 탈퇴·파기와 같은 순서로 사람 행을 먼저 잡는다 — 탈퇴가 키를 모으기 전에 붙였거나, 붙이지 않거나 둘 중 하나다.
             var owner = NativeTuples.list(em.createNativeQuery(
                     "SELECT status FROM users WHERE id=:user FOR UPDATE", Tuple.class).setParameter("user", job.userId()));
-            var entry = NativeTuples.list(em.createNativeQuery("""
-                    SELECT mosaic_status,status,video_id FROM challenge_entries WHERE id=:id AND user_id=:user FOR UPDATE
-                    """, Tuple.class).setParameter("id", job.entryId()).setParameter("user", job.userId()));
-            UUID videoId = entry.isEmpty() ? null : entry.getFirst().get("video_id", UUID.class);
+            var entry = entries.lockMosaic(job.entryId(), job.userId());
+            UUID videoId = entry.map(ChallengeEntryJpaRepository.MosaicState::videoId).orElse(null);
             // 영상 행도 잡는다 — 파일 파기가 모자이크 키를 모으는 것과 줄을 선다.
             var video = videoId == null ? List.<Tuple>of() : NativeTuples.list(em.createNativeQuery(
                     "SELECT object_key,purged_at FROM videos WHERE id=:id FOR SHARE", Tuple.class).setParameter("id", videoId));
             boolean attachable = !owner.isEmpty() && "active".equals(owner.getFirst().get("status", String.class))
-                    && !entry.isEmpty() && "pending".equals(entry.getFirst().get("mosaic_status", String.class))
-                    && !"deleted".equals(entry.getFirst().get("status", String.class))
+                    && entry.isPresent() && "pending".equals(entry.get().mosaicStatus())
+                    && entry.get().status() != ChallengeEntryStatus.DELETED
                     && !video.isEmpty() && job.objectKey().equals(video.getFirst().get("object_key", String.class))
                     && video.getFirst().get("purged_at", Instant.class) == null;
             if (!attachable) {
                 // 지웠거나 껐거나 영상·계정이 사라졌다 — 늦게 만든 사본을 남기지 않는다.
                 return List.of(cleanup.scheduleObjectDelete(job.userId(), List.of(mosaicKey), now, now));
             }
-            em.createNativeQuery("""
-                    UPDATE challenge_entries SET mosaic_status='ready',mosaic_key=:key,updated_at=:now WHERE id=:id
-                    """).setParameter("key", mosaicKey).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("id", job.entryId()).executeUpdate();
+            entries.attachMosaic(job.entryId(), mosaicKey, now);
             // 이제 공유 프레임은 모자이크본에 씌운다 — 원본에 씌워 둔 것을 정리한다.
             UUID frames = dropShareFrames(job.userId(), job.entryId(), now);
             return frames == null ? List.of() : List.of(frames);
@@ -365,20 +325,12 @@ class PostgresEntryRepository implements EntryRepository {
 
     @Override
     public void failMosaic(MosaicJob job, Instant now) {
-        transaction.executeWithoutResult(tx -> em.createNativeQuery("""
-                UPDATE challenge_entries SET mosaic_status='failed',updated_at=:now
-                WHERE id=:id AND mosaic_status='pending' AND mosaic_attempts=:attempts
-                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", job.entryId())
-                .setParameter("attempts", job.attempts()).executeUpdate());
+        transaction.executeWithoutResult(tx -> entries.failMosaic(job.entryId(), job.attempts(), now));
     }
 
     @Override
     public void skipMosaic(MosaicJob job, Instant now) {
-        transaction.executeWithoutResult(tx -> em.createNativeQuery("""
-                UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,mosaic_key=NULL,updated_at=:now
-                WHERE id=:id AND mosaic_status='pending' AND mosaic_attempts=:attempts
-                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", job.entryId())
-                .setParameter("attempts", job.attempts()).executeUpdate());
+        transaction.executeWithoutResult(tx -> entries.skipMosaic(job.entryId(), job.attempts(), now));
     }
 
     @Override @Transactional
@@ -389,14 +341,8 @@ class PostgresEntryRepository implements EntryRepository {
                 Tuple.class).setParameter("id", entryId).setParameter("viewer", viewer));
         if (rows.isEmpty()) throw new ApiException(404, "entry_not_found");
         if (viewer.equals(rows.getFirst().get("user_id", UUID.class))) return false;
-        int inserted = em.createNativeQuery("""
-                INSERT INTO entry_view_events(event_id,entry_id,user_id,created_at) VALUES (:event,:entry,:viewer,:now)
-                ON CONFLICT (event_id) DO NOTHING
-                """).setParameter("event", eventId).setParameter("entry", entryId).setParameter("viewer", viewer)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-        if (inserted == 0) return false;
-        em.createNativeQuery("UPDATE challenge_entries SET view_count=view_count+1 WHERE id=:id")
-                .setParameter("id", entryId).executeUpdate();
+        if (viewEvents.insertUnlessSeen(eventId, entryId, viewer, now) == 0) return false;
+        entries.countView(entryId);
         return true;
     }
 
@@ -405,12 +351,8 @@ class PostgresEntryRepository implements EntryRepository {
         // 마감이 지났는데 아직 집계 전이면 읽기 전에 집계한다 — 그 사이 변경이 없었으므로 값은 마감 시점 그대로다.
         transaction.executeWithoutResult(tx -> settlement.aggregateIfDue(challengeId, now));
         return transaction.execute(tx -> {
-            var challenge = NativeTuples.list(em.createNativeQuery("""
-                    SELECT ranking_state,ends_at FROM challenges
-                    WHERE id=:id AND deleted_at IS NULL AND moderation='visible' AND starts_at<=:now
-                    """, Tuple.class).setParameter("id", challengeId).setParameter("now", now.atOffset(ZoneOffset.UTC)));
-            if (challenge.isEmpty()) throw new ApiException(404, "challenge_not_found");
-            String state = challenge.getFirst().get("ranking_state", String.class);
+            var challenge = challenges.findListed(challengeId, now).orElseThrow(() -> new ApiException(404, "challenge_not_found"));
+            String state = challenge.rankingState() == null ? null : challenge.rankingState().dbValue();
             return "latest".equals(sort) ? latest(viewer, challengeId, cursor, fromEntry, state)
                     : byLikes(viewer, challengeId, cursor, fromEntry, state == null ? "live" : state, state, now);
         });
@@ -422,10 +364,8 @@ class PostgresEntryRepository implements EntryRepository {
                 "SELECT e.id " + ChallengeVisibility.ENTRY_FROM + " WHERE e.id=:id AND " + ChallengeVisibility.PUBLIC_ENTRY
                         + " AND " + ChallengeVisibility.UNBLOCKED, Tuple.class)
                 .setParameter("id", entryId).setParameter("viewer", viewer));
-        var own = NativeTuples.list(em.createNativeQuery(
-                "SELECT id FROM challenge_entries WHERE id=:id AND user_id=:viewer AND status<>'deleted'", Tuple.class)
-                .setParameter("id", entryId).setParameter("viewer", viewer));
-        if (visible.isEmpty() && own.isEmpty()) throw new ApiException(404, "entry_not_found");
+        boolean own = entries.findLiveOwnedBy(entryId, viewer).isPresent();
+        if (visible.isEmpty() && !own) throw new ApiException(404, "entry_not_found");
         return cards.cards(viewer, List.of(entryId), Map.of(), null, true).getFirst();
     }
 
@@ -489,20 +429,14 @@ class PostgresEntryRepository implements EntryRepository {
             }
         }
         transaction.executeWithoutResult(tx -> {
-            em.createNativeQuery("DELETE FROM entry_view_events WHERE created_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.VIEW_EVENT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
-            em.createNativeQuery("DELETE FROM entry_ranking_snapshots WHERE created_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.RANKING_HOLD).atOffset(ZoneOffset.UTC)).executeUpdate();
+            viewEvents.deleteOlderThan(now.minus(ChallengeRules.VIEW_EVENT_RETENTION));
+            snapshots.deleteOlderThan(now.minus(ChallengeRules.RANKING_HOLD));
             // 알림은 90일, 묶음 선점은 구간이 지나면 쓸모가 없다. 파기된 AI 리포트의 이력도 90일이다.
-            em.createNativeQuery("DELETE FROM notifications WHERE expires_at<=:now")
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-            em.createNativeQuery("DELETE FROM notification_pushes WHERE created_at<:before")
-                    .setParameter("before", now.minus(NOTIFICATION_PUSH_CLAIM_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
-            em.createNativeQuery("DELETE FROM entry_ai_reports WHERE purged_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
+            notifications.deleteExpired(now);
+            pushes.deleteOlderThan(now.minus(NOTIFICATION_PUSH_CLAIM_RETENTION));
+            aiReports.deletePurgedBefore(now.minus(ChallengeRules.REPORT_RETENTION));
             // 처리 완료된 신고는 90일 보관한다(challenge.report).
-            em.createNativeQuery("DELETE FROM entry_reports WHERE status='reviewed' AND reviewed_at<:before")
-                    .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
+            reports.deleteReviewedBefore(now.minus(ChallengeRules.REPORT_RETENTION));
         });
         return settled;
     }
@@ -559,19 +493,14 @@ class PostgresEntryRepository implements EntryRepository {
             String[] parts = decode(cursor, "S", 2);
             try { snapshot = UUID.fromString(parts[1]); offset = Integer.parseInt(parts[2]); }
             catch (RuntimeException invalid) { throw invalidCursor(cursor); }
-            var held = NativeTuples.list(em.createNativeQuery("""
-                    SELECT basis,created_at,array_to_string(entry_ids,',') AS entry_ids,array_to_string(ranks,',') AS ranks
-                    FROM entry_ranking_snapshots
-                    WHERE id=:id AND challenge_id=:challenge AND viewer_id=:viewer
-                    """, Tuple.class).setParameter("id", snapshot).setParameter("challenge", challengeId).setParameter("viewer", viewer));
+            var held = snapshots.findByIdAndChallengeIdAndViewerId(snapshot, challengeId, viewer);
             if (held.isEmpty() || offset < 0) throw invalidCursor(cursor);
-            Tuple row = held.getFirst();
-            if (!basis.equals(row.get("basis", String.class))
-                    || !now.isBefore(row.get("created_at", Instant.class).plus(ChallengeRules.RANKING_HOLD))) {
+            if (!basis.equals(held.get().getBasis())
+                    || !now.isBefore(held.get().getCreatedAt().plus(ChallengeRules.RANKING_HOLD))) {
                 throw new ApiException(410, "cursor_expired");
             }
-            order = split(row.get("entry_ids", String.class)).stream().map(UUID::fromString).toList();
-            ranks = split(row.get("ranks", String.class)).stream().map(Integer::valueOf).toList();
+            order = List.of(held.get().getEntryIds());
+            ranks = List.of(held.get().getRanks());
         } else {
             var ranked = ranked(challengeId, basis);
             order = ranked.order();
@@ -584,13 +513,7 @@ class PostgresEntryRepository implements EntryRepository {
                 ranks = boosted.ranks();
             }
             snapshot = UUID.randomUUID();
-            em.createNativeQuery("""
-                    INSERT INTO entry_ranking_snapshots(id,challenge_id,viewer_id,basis,entry_ids,ranks,created_at)
-                    VALUES (:id,:challenge,:viewer,:basis,CAST(:entries AS uuid[]),CAST(:ranks AS integer[]),:now)
-                    """).setParameter("id", snapshot).setParameter("challenge", challengeId).setParameter("viewer", viewer)
-                    .setParameter("basis", basis).setParameter("entries", "{" + String.join(",", order.stream().map(UUID::toString).toList()) + "}")
-                    .setParameter("ranks", "{" + String.join(",", ranks.stream().map(String::valueOf).toList()) + "}").setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
+            snapshots.insert(snapshot, challengeId, viewer, basis, order.toArray(UUID[]::new), ranks.toArray(Integer[]::new), now);
             offset = 0;
             if (fromEntry != null) {
                 offset = order.indexOf(fromEntry);
@@ -689,37 +612,13 @@ class PostgresEntryRepository implements EntryRepository {
 
     // ── 잠금 ─────────────────────────────────────────────────────────────────
 
-    private Tuple lockChallenge(UUID id) {
-        var rows = NativeTuples.list(em.createNativeQuery(
-                "SELECT id,moderation,deleted_at,starts_at,ends_at FROM challenges WHERE id=:id FOR UPDATE", Tuple.class)
-                .setParameter("id", id));
-        return rows.isEmpty() ? null : rows.getFirst();
-    }
-
-    private Tuple challengeRow(UUID id) {
-        return NativeTuples.list(em.createNativeQuery(
-                "SELECT moderation,deleted_at,ends_at FROM challenges WHERE id=:id", Tuple.class).setParameter("id", id)).getFirst();
-    }
-
     /**
      * 본인의 삭제되지 않은 참여작을 챌린지 → 참여작 순서로 잠근다. 마감이 지난 챌린지면 쓰기 전에 마감 집계를 한다
      * (마감 뒤 첫 변경). 없거나 남의 것이면 404.
      */
-    private Tuple lockOwnEntry(UUID owner, UUID entryId, Instant now) {
-        var parent = NativeTuples.list(em.createNativeQuery(
-                "SELECT challenge_id FROM challenge_entries WHERE id=:id AND user_id=:owner AND status<>'deleted'", Tuple.class)
-                .setParameter("id", entryId).setParameter("owner", owner));
-        if (parent.isEmpty()) throw new ApiException(404, "entry_not_found");
-        settlement.settle(parent.getFirst().get("challenge_id", UUID.class), now);
-        var rows = NativeTuples.list(em.createNativeQuery("""
-                SELECT challenge_id,video_id,caption,visibility,status FROM challenge_entries
-                WHERE id=:id AND user_id=:owner AND status<>'deleted' FOR UPDATE
-                """, Tuple.class).setParameter("id", entryId).setParameter("owner", owner));
-        if (rows.isEmpty()) throw new ApiException(404, "entry_not_found");
-        return rows.getFirst();
-    }
-
-    private static List<String> split(String joined) {
-        return joined == null || joined.isEmpty() ? List.of() : List.of(joined.split(","));
+    private ChallengeEntryJpaRepository.Own lockOwnEntry(UUID owner, UUID entryId, Instant now) {
+        UUID parent = entries.findLiveChallengeOf(entryId, owner).orElseThrow(() -> new ApiException(404, "entry_not_found"));
+        settlement.settle(parent, now);
+        return entries.lockOwned(entryId, owner).orElseThrow(() -> new ApiException(404, "entry_not_found"));
     }
 }

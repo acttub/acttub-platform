@@ -25,4 +25,8 @@ interface NotificationPushJpaRepository extends Repository<NotificationPushEntit
             on conflict (groupKey, stage) do nothing
             """)
     int claim(UUID id, String groupKey, NotificationPushStage stage, UUID userId, Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from NotificationPushEntity p where p.createdAt < :before")
+    int deleteOlderThan(Instant before);
 }

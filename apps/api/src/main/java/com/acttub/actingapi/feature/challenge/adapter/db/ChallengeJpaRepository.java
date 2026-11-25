@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.challenge.schema.ChallengeEntity;
+import com.acttub.actingapi.platform.schema.ChallengeModeration;
 import com.acttub.actingapi.platform.schema.ChallengeRankingState;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Limit;
@@ -100,4 +101,35 @@ interface ChallengeJpaRepository extends Repository<ChallengeEntity, UUID> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ChallengeEntity c set c.moderation = VISIBLE where c.id = :id and c.moderation = REVIEW")
     int releaseFromReview(UUID id);
+
+    // ---- 참여작 올리기·고치기 ----
+
+    /** 참여작을 받을 수 있는지 정하는 값. */
+    record Window(ChallengeModeration moderation, Instant deletedAt, Instant startsAt, Instant endsAt) { }
+
+    /** 챌린지 행을 잡고 참여 조건을 읽는다 — 올리기가 정산·운영자 조치·지우기와 여기서 줄을 선다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select new com.acttub.actingapi.feature.challenge.adapter.db.ChallengeJpaRepository$Window(c.moderation, c.deletedAt, c.startsAt, c.endsAt)
+            from ChallengeEntity c where c.id = :id
+            """)
+    Optional<Window> lockWindow(UUID id);
+
+    @Query("""
+            select new com.acttub.actingapi.feature.challenge.adapter.db.ChallengeJpaRepository$Window(c.moderation, c.deletedAt, c.startsAt, c.endsAt)
+            from ChallengeEntity c where c.id = :id
+            """)
+    Optional<Window> findWindow(UUID id);
+
+    // ---- 참여작 목록 ----
+
+    record Listed(UUID id, ChallengeRankingState rankingState) { }
+
+    /** 지금 보이는(지우지 않았고 visible 이며 시작한) 챌린지의 순위 상태. */
+    @Query("""
+            select new com.acttub.actingapi.feature.challenge.adapter.db.ChallengeJpaRepository$Listed(c.id, c.rankingState)
+            from ChallengeEntity c
+            where c.id = :id and c.deletedAt is null and c.moderation = VISIBLE and c.startsAt <= :now
+            """)
+    Optional<Listed> findListed(UUID id, Instant now);
 }

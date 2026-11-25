@@ -140,4 +140,18 @@ interface EntryReportJpaRepository extends Repository<EntryReportEntity, UUID> {
 
     @Query(ADMIN + " where r.status = :status and (r.createdAt, r.id) > (:at, :after) order by r.createdAt, r.id")
     List<AdminRow> adminPageAfter(EntryReportStatus status, Instant at, UUID after, Limit limit);
+
+    /** 지운 참여작과 그 댓글의 신고에 남은 본문 사본을 비운다. 신고 행은 남는다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update EntryReportEntity r set r.targetText = null
+            where (r.targetType = ENTRY and r.targetId = :entryId)
+               or (r.targetType = COMMENT and r.targetId in (select c.id from EntryCommentEntity c where c.entryId = :entryId))
+            """)
+    int purgeCopiesOfEntry(UUID entryId);
+
+    /** 처리한 지 보관 기간이 지난 신고를 지운다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from EntryReportEntity r where r.status = REVIEWED and r.reviewedAt < :before")
+    int deleteReviewedBefore(Instant before);
 }

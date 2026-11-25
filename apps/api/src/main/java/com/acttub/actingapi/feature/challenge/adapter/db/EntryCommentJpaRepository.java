@@ -94,4 +94,9 @@ interface EntryCommentJpaRepository extends Repository<EntryCommentEntity, UUID>
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update EntryCommentEntity c set c.status = VISIBLE where c.id = :id and c.status = HIDDEN")
     int unhide(UUID id);
+
+    /** 지운 참여작의 댓글 본문을 모두 파기한다. 이미 지운 댓글의 시각은 그대로 둔다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update EntryCommentEntity c set c.body = null, c.deletedAt = coalesce(c.deletedAt, :now) where c.entryId = :entryId")
+    int purgeAllOf(UUID entryId, Instant now);
 }
