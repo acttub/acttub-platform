@@ -401,9 +401,16 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   보인다). 주기 작업의 치우기처럼 읽은 뒤에 조건에 든 행을 다음 차례가 다시 고르는 곳은 따로 막지 않는다
   (`PostgresCommunityImageRepository#sweepUnattached`). 읽은 행이 없으면 지우지 않고, 있으면 문장이 하나 는다. 남길 id 목록을
   `not in :목록` 으로 거를 때 목록이 비면 거르지 않는 조회를 따로 부른다(`PostgresCommunityRepository#replaceImages`).
+- 작업을 집는 문장(`UPDATE … WHERE id = (SELECT … ORDER BY … LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING …`): 잠가 읽기와 임대
+  적기 두 문장으로 나눈다. 잠가 읽기는 `@Lock(PESSIMISTIC_WRITE)` 에 `@QueryHints(@QueryHint(name =
+  "jakarta.persistence.lock.timeout", value = "-2"))` 와 `Limit.of(1)` 을 주면 `… fetch first ? rows only for update of <별칭>
+  skip locked` 로 나간다. 잠근 행은 트랜잭션이 끝날 때까지 다른 워커가 건너뛰므로 읽은 값(시도 수)에서 계산한 값이 방금 쓴
+  값이다. 집을 것이 있을 때 문장이 하나 늘고 없을 때는 같다(`PostgresPronunciationReportRepository#claimNext`, 선점과 두 워커
+  경합은 `PronunciationReportRepositoryIT`).
 - JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다. 값 하나를 통째로
   넣는 것(`CAST(:x AS jsonb)`)은 JSON 칸에 `JsonNode` 매개변수를 넘기는 HQL 로 같다. Java `null` 은 SQL NULL 이 되므로 JSON
-  null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`).
+  null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`). 칸을 `String` 으로
+  매핑했으면 글 매개변수를 그대로 넘긴다(`ReadingPronunciationReportJpaRepository#complete`).
 
 **native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
 테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다. §5-1 에서 매핑을 내린 표(옛 연습

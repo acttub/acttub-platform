@@ -29,6 +29,10 @@ import tools.jackson.databind.ObjectMapper;
  * 리딩 발음 보고서 장부이자 채점 작업 큐가 내는 결과·선점·경합·문장을 고정한다. 보고서를 청하고 채점하는 흐름은
  * {@link ReadingPronunciationIT} 가 본다. 여기서는 그 테스트가 밟지 않는 집는 순서, 다른 워커가 잡은 행 건너뛰기, 두 워커가 함께
  * 집을 때, 임대가 끝난 행을 다시 집거나 닫는 경계, 임대를 잃은 뒤의 완료·실패, 시각의 정밀도, 나가는 문장을 본다.
+ *
+ * <p>저장소를 네이티브 SQL 에서 JPA 로 옮길 때 문장 테스트 한 곳만 달라졌다 — 집는 문장
+ * ({@code UPDATE … WHERE id=(SELECT … FOR UPDATE SKIP LOCKED) RETURNING})을 잠가 읽기와 임대 적기로 나눠 집을 것이 있을 때
+ * 문장이 하나 늘었다. 결과·선점·경합 테스트는 고치지 않았다.
  */
 class PronunciationReportRepositoryIT extends ReadingRepositoryFixture {
 
@@ -234,7 +238,7 @@ class PronunciationReportRepositoryIT extends ReadingRepositoryFixture {
     }
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장: 청하기는 회차 읽기·넣기·보고서 읽기, 집기는 시한 지난 것 닫기와 집는 문장이다. 완료·실패·줄 읽기는 한 문장이다")
+    @DisplayName("포트 메서드마다 나가는 문장: 청하기는 회차 읽기·넣기·보고서 읽기, 집기는 시한 지난 것 닫기·SKIP LOCKED 로 잠가 읽기·임대 적기다. 집을 것이 없으면 임대를 적지 않는다. 완료·실패·줄 읽기는 한 문장이다")
     void eachPortMethodSendsTheseStatements() {
         UUID done = completed(true);
         String update = "update reading_pronunciation_reports";
@@ -246,9 +250,10 @@ class PronunciationReportRepositoryIT extends ReadingRepositoryFixture {
                 .containsExactly("select reading_sessions");
         UUID token = UUID.randomUUID();
         List<String> claim = statementsOf(() -> reports.claimNext(token, LEASE, 3, now));
-        assertThat(claim).containsExactly(update, update);
+        String lockNext = "select reading_pronunciation_reports for update skip locked";
+        assertThat(claim).as("잠가 읽은 행에 임대를 적는다").containsExactly(update, lockNext, update);
         assertThat(statementsOf(() -> reports.claimNext(UUID.randomUUID(), LEASE, 3, now))).as("집을 것이 없을 때")
-                .containsExactly(update, update);
+                .containsExactly(update, lockNext);
         UUID report = jdbc.queryForObject("SELECT id FROM reading_pronunciation_reports", UUID.class);
         assertThat(statementsOf(() -> reports.fail(report, UUID.randomUUID(), "x", true, now))).containsExactly(update);
         assertThat(statementsOf(() -> reports.complete(report, token, "done", "m", PronunciationRules.build(List.of()), now)))

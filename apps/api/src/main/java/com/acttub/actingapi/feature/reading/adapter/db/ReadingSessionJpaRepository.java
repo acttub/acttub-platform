@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.schema.ReadingSessionEntity;
+import com.acttub.actingapi.platform.schema.ReadingSessionStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -31,6 +32,9 @@ interface ReadingSessionJpaRepository extends Repository<ReadingSessionEntity, U
             where rs.id = :sessionId and rs.userId = :userId
             """)
     Optional<Range> range(UUID sessionId, UUID userId);
+
+    @Query("select rs.status from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
+    Optional<ReadingSessionStatus> statusOf(UUID sessionId, UUID userId);
 
     @Query("select rs.scriptId from ReadingSessionEntity rs where rs.id = :sessionId and rs.userId = :userId")
     Optional<UUID> scriptOf(UUID sessionId, UUID userId);
