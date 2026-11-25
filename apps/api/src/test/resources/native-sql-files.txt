@@ -50,9 +50,9 @@ feature/profile/adapter/db/PostgresObjectCleanupLedger.java 1
 feature/profile/adapter/db/PostgresPracticeGroupErasure.java 22
 feature/profile/adapter/db/PostgresProfileRepository.java 80
 feature/profile/adapter/db/RetentionDecisions.java 1
-feature/push/adapter/db/PostgresPracticeReminderRepository.java 13
-feature/push/adapter/db/PostgresPushOpenRepository.java 1
-feature/push/adapter/db/PostgresPushTokenRepository.java 4
+feature/push/adapter/db/PostgresPracticeReminderRepository.java 9 남김: 후보·연속 일수·이어 하기·숙제·잠금 화면에서 지울 말·올려 둔 영상·안 읽은 대본은 다른 기능의 표(users·user_profiles·practices·coach_conversations·coach_messages·coach_notes·actor_journals·reading_sessions·reading_recordings·line_memorization·scripts·script_characters·script_lines·videos·challenge_entries)를 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
+feature/push/adapter/db/PostgresPushOpenRepository.java 1 남김: 다른 기능(auth)의 users 에서 활성 회원만 골라 넣는 한 문장(INSERT … SELECT). auth 에 활성 여부를 내주는 Port 가 없고, 나눠 읽으면 문장이 하나 늘고 확인과 넣기가 다른 스냅숏이 된다
+feature/push/adapter/db/PostgresPushTokenRepository.java 4 남김: 토큰 등록(요청이 많은 경로)은 auth 의 users 행 FOR UPDATE 와, profile 의 토글로 거르는 INSERT … SELECT … ON CONFLICT DO UPDATE 한 문장이다. HQL 은 insert … select … do update 를 풀지 못하고(SOMA-1112 P10) 토글을 따로 읽으면 문장이 는다. 분석 완료·대본 나누기 대상은 profile 의 user_profiles 와 practice 의 practices·practice_sessions 를 함께 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없다
 feature/reading/adapter/db/PostgresCloudVoiceRepository.java 11
 feature/reading/adapter/db/PostgresMemorizationRepository.java 4
 feature/reading/adapter/db/PostgresPronunciationReportRepository.java 8

@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.push.adapter.db;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
@@ -17,4 +19,7 @@ interface PushTokenJpaRepository extends JpaRepository<PushTokenEntity, UUID> {
             WHERE token.token = :token
             """)
     int deleteByToken(@Param("token") String token);
+
+    /** 연습 알림 후보들의 단말. 회원마다 맡긴 순서다. */
+    List<PushTokenEntity> findByUserIdInOrderByUserIdAscCreatedAtAsc(Collection<UUID> userIds);
 }
