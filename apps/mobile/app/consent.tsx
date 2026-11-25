@@ -51,6 +51,7 @@ const LINE_LABEL_KEYS: Record<string, string> = {
   privacy: 'consent.rowPrivacy',
   post_withdrawal_retention: 'consent.rowRetention',
   retention: 'consent.rowRetention',
+  data_sharing: 'consent.rowDataSharing',
 };
 
 /**

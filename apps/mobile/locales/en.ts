@@ -1204,6 +1204,7 @@ const en: DeepStringShape<typeof ko> = {
     rowTerms: 'Age 14+ · Terms of Service',
     rowPrivacy: 'Personal data · AI analysis',
     rowRetention: 'Keep videos and recordings after leaving',
+    rowDataSharing: 'Share videos with third parties',
     rowMarketing: 'Get benefit and event news',
     requiredTag: '[Required]',
     optionalTag: '[Optional]',
