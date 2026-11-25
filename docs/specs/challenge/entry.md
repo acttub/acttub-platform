@@ -16,6 +16,8 @@
 | `POST /v2/challenges/{id}/entries` | `ChallengeEntryCreateRequest`(request_id·video_id·visibility 필수, caption·face_mosaic 선택) | `MyChallengeEntry` 201, 같은 요청 재전송 200 | `member_only`·`account_deactivated` 403, `challenge_not_found` 404, `video_not_found` 404, `challenge_closed` 422, `video_not_ready` 422, `video_too_long` 422, `duplicate_entry` 422, `request_fingerprint_mismatch` 422, 캡션 길이 422, `daily_entry_limit` 429 |
 | `PATCH /v2/entries/{id}` | `ChallengeEntryPatchRequest`(caption·visibility·face_mosaic 선택) | `MyChallengeEntry` 200 | `member_only`·`account_deactivated` 403, `entry_not_found` 404, `challenge_closed` 422, `entry_hidden` 422, `video_not_ready` 422, 캡션·visibility 값 422 |
 | `DELETE /v2/entries/{id}` | id | 204(이미 삭제한 것도 204) | `member_only`·`account_deactivated` 403, `entry_not_found` 404 |
+| `POST /v2/entries/{id}/share-frames` | `ChallengeEntryShareFrameRequest`(frame 필수: white·blue·black) | `ChallengeEntryShareFrameVideo` — 만든 것이 있으면 200 ready(video_url), 만드는 중이면 202 rendering, 실패 뒤 첫 요청은 200 failed | `member_only` 403, `entry_not_found` 404(남의 것·삭제·없음), `video_not_ready` 422(파일 파기), `mosaic_not_ready` 422(얼굴 가림을 켰는데 모자이크본이 아직 없음), frame 값 422, `storage_not_configured` 503 |
+| `GET /v2/entries/{id}/share-frames/{frame}/preview` | frame: white·blue·black·none | `ChallengeEntryShareFramePreview`(image_url) 200 | 프레임 요청과 같다(none은 `mosaic_not_ready` 없음) |
 
 참여작 조회(`GET /v2/entries/{id}`, `GET /v2/me/challenge-entries`)는 [challenge.browse](browse.md#입력출력)다.
 
@@ -66,6 +68,20 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
   나중에 공개로 바꾸는 경로(P03 메뉴)는 공개하면서 모자이크를 켤지 묻는다. 만드는 중·실패는 P03 줄에 알린다.
 - P03 줄은 영상 첫 장면(`poster_url`)을 미리보기로 보여 준다. 원본에서 뜬 사진이라 본인 목록(`GET /v2/me/challenge-entries`)에만
   싣고, 아직 없거나 파일이 파기된 영상은 null 이라 대체 아이콘을 둔다.
+- **공유 프레임**(SOMA-1156): 본인 참여작의 공유 페이지에서 인스타 스토리와 「영상으로 저장」에 씌울 프레임을 흰색·파랑·검정·없음 중에
+  고른다(기본 흰색, 없음은 지금처럼 영상 그대로). 서버가 1080×1920(H.264·AAC, 원본 소리·길이 그대로) 프레임 영상을 만든다 — 머리줄
+  (ACTTUB WEEKLY LINE·이번 주 대사 챌린지·#N), 가운데 창에 영상(꽉 채워 가운데 자름), 클래퍼(SCENE N · TAKE 1)·REC, 창 아래 대사(세 줄까지,
+  넘치면 말줄임), 워드마크와 「acttub.com에서 같이 연기해요」, 이름·참여한 날(한국 날짜) 도장. N은 기획팀 챌린지를 시작 순서로 센 회차다.
+  회원이 연 챌린지는 제목이 「대사 챌린지」이고 #N 배지가 없으며 클래퍼에는 TAKE 1만 적는다. 영상은 모자이크본이 준비됐으면 모자이크본, 얼굴
+  가림을 켜지 않았으면 원본이다. 얼굴 가림을 켰는데 모자이크본이 아직 없으면(만드는 중·실패) 원본에 씌우지 않고 프레임 요청과 미리보기가
+  422 mosaic_not_ready이며, 앱은 「얼굴 가림을 준비하고 있어요. 잠시 후 다시 해 주세요.」를 보인다. 「없음」은 이때도 지금처럼 영상
+  그대로다. 글꼴은 앱과 같은 Pretendard 서브셋(한글은 KS X 1001 2,350자 ∪ 흔한 받침 조합 5,749자, 한자·이모지 없음)이고, 저장소에 대신 쓸
+  전체 글꼴이 없어 서브셋에 없는 글자는 대사·이름에서 빼고 그린다(네모로 찍지 않는다). 만드는 일은 요청 스레드 밖의 실행기
+  하나가 하고, 앱은 같은 요청을 다시 보내 기다린다(「프레임 넣는 중…」). 실패는 한 번 failed로 알리고 앱은 안내와 다시 하기를 보인다 — 원본
+  영상으로 몰래 대신 보내지 않는다. 만든 영상·미리보기(영상 한 장면에 같은 틀, 폭 540 JPEG)는 원본 옆
+  `videos/{사용자}/{요청}.frame-{참여작}-{프레임}-{원본|모자이크}-v{판}.mp4|jpg`에 두고 참여작(`share_frame_keys`)에 적어 다음부터 바로
+  내준다. 참여작 삭제·얼굴 모자이크 상태 변경(켜기·끄기·모자이크본 붙음)·영상 파일 파기·탈퇴 때 정리 장부로 간다. 카카오톡·스레드·링크
+  복사·더 보기는 지금처럼 링크만 나간다.
 - 완료 화면(A18.3)의 문구와 버튼은 pen과 앱 문구(`apps/mobile/locales/ko.ts`의 `challengeDone`)가 정본이다. AI 리포트로 가는 버튼은 없다.
 
 ## 예외
@@ -96,6 +112,12 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
   playback_url은 모자이크본, 본인은 원본이다. 얼굴이 없는 영상: face_mosaic false·mosaic_status null이 되고, 다른 사람의
   피드·상세·공유 조회에 원본으로 보인다. 그사이 본인이 끄거나 다시 켠 참여작: 늦게 온 얼굴 없음 결과는 아무것도 바꾸지 않는다. 다시 켜면
   pending부터 다시. 끄면 원본이 공개된다. 만드는 사이 삭제된 참여작: 늦게 만든 사본은 붙지 않고 정리 장부로 간다(`ChallengeEntryIT` faceMosaic_*).
+
+- 공유 프레임: 본인 참여작에 white 요청 → 202 rendering, 만든 뒤 200 ready와 video_url, 다시 요청해도 다시 만들지 않는다. 남의 것·삭제한
+  것 404 entry_not_found, 파일 파기 422 video_not_ready, frame red 422. 실패하면 한 번 failed, 다음 요청은 다시 rendering. 모자이크본이
+  준비된 참여작은 모자이크본에 씌운다. 모자이크를 켜고 아직 준비되지 않은 참여작은 프레임 요청·미리보기가 422 mosaic_not_ready이고
+  「없음」 미리보기는 200이다. 모자이크를 켜거나 참여작을 지우면 만든 프레임이 정리 장부로 가고 목록이 빈다. 지운 뒤 늦게 끝난 것은
+  붙지 않는다(`EntryShareFrameIT`).
 
 ## 범위 밖
 - 참여작 삭제 되돌리기.

@@ -10,7 +10,9 @@ import com.acttub.actingapi.feature.challenge.app.EntryMedia;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.EntryCard;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.MyEntry;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.Parent;
+import com.acttub.actingapi.feature.challenge.app.EntryRepository.ShareFrameSource;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Component;
@@ -84,6 +86,36 @@ class EntryCards {
                         row.get("character", String.class), row.get("ends_at", Instant.class)),
                 row.get("created_at", Instant.class), row.get("face_mosaic", Boolean.class),
                 row.get("mosaic_status", String.class), poster(row));
+    }
+
+    /**
+     * 공유 프레임의 재료(SOMA-1156). 원본은 본인 재생({@link #playback})과 같은 규칙으로 고른다. 회차 번호는 기획팀 챌린지를
+     * 시작 순서로 센 값이고, 회원이 연 챌린지는 null 이다.
+     */
+    ShareFrameSource shareFrameSource(UUID owner, UUID entryId) {
+        var rows = NativeTuples.list(em.createNativeQuery("""
+                SELECT e.id,e.user_id,e.face_mosaic,e.mosaic_status,e.mosaic_key,e.created_at,
+                       array_to_string(e.share_frame_keys,',') AS frame_keys,v.object_key,v.purged_at,c.line,c.origin,
+                       coalesce(ep.name,'배우') AS author_name,
+                       (SELECT count(*) FROM challenges o
+                        WHERE o.origin=c.origin AND (o.starts_at,o.id)<=(c.starts_at,c.id)) AS challenge_number
+                FROM challenge_entries e
+                JOIN challenges c ON c.id=e.challenge_id
+                LEFT JOIN videos v ON v.id=e.video_id
+                LEFT JOIN user_profiles ep ON ep.user_id=e.user_id
+                WHERE e.id=:id AND e.user_id=:owner AND e.status<>'deleted'
+                """, Tuple.class).setParameter("id", entryId).setParameter("owner", owner));
+        if (rows.isEmpty()) throw new ApiException(404, "entry_not_found");
+        Tuple row = rows.getFirst();
+        String objectKey = row.get("object_key", String.class);
+        if (objectKey == null || row.get("purged_at", Instant.class) != null) throw new ApiException(422, "video_not_ready");
+        boolean faceMosaic = Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class));
+        String mosaic = faceMosaic ? readyMosaic(row) : null;
+        String keys = row.get("frame_keys", String.class);
+        Integer number = "team".equals(row.get("origin", String.class)) ? (int) number(row, "challenge_number") : null;
+        return new ShareFrameSource(entryId, owner, objectKey, mosaic != null ? mosaic : objectKey, faceMosaic, mosaic != null,
+                row.get("line", String.class), number, row.get("author_name", String.class),
+                row.get("created_at", Instant.class), keys == null || keys.isEmpty() ? List.of() : List.of(keys.split(",")));
     }
 
     /** 영상 첫 장면 JPEG(원본에서 뜬다 — 본인 목록에만 싣는다). 아직 없거나 파기된 영상은 null 이다. */

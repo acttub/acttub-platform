@@ -68,6 +68,9 @@ jest.mock('@/lib/api', () => ({
     listComments: jest.fn(),
     createComment: jest.fn(),
     deleteComment: jest.fn(),
+    // 공유 시트가 열리면 프레임 미리보기를 받는다. 이 화면 테스트는 미리보기를 보지 않으므로 응답 없이 둔다.
+    getShareFramePreview: jest.fn(() => new Promise(() => {})),
+    requestShareFrame: jest.fn(),
   },
 }));
 

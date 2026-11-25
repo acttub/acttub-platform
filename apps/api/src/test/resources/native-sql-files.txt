@@ -17,6 +17,7 @@ feature/billing/adapter/db/PostgresBillingRepository.java 31
 feature/blog/adapter/db/PostgresBlogRepository.java 6
 feature/challenge/adapter/db/ChallengeSettlement.java 9
 feature/challenge/adapter/db/EntryCards.java 2
+feature/challenge/adapter/db/EntryCards.java 1 남김: 공유 프레임 재료(SOMA-1156)는 text[] 를 array_to_string 으로 읽고 (starts_at,id) 행 비교로 회차를 센다
 feature/challenge/adapter/db/EntryLocks.java 6
 feature/challenge/adapter/db/NotificationEvents.java 3
 feature/challenge/adapter/db/PostgresAiReportRepository.java 16
@@ -26,6 +27,7 @@ feature/challenge/adapter/db/PostgresChallengeWithdrawal.java 1
 feature/challenge/adapter/db/PostgresEntryModerationRepository.java 11
 feature/challenge/adapter/db/PostgresEntryReportRepository.java 23
 feature/challenge/adapter/db/PostgresEntryRepository.java 59
+feature/challenge/adapter/db/PostgresEntryRepository.java 4 남김: 공유 프레임 키(SOMA-1156)는 text[] 연산(array_append·ANY·unnest)이고 모자이크본 붙이기와 같은 사람→참여작→영상 잠금(FOR UPDATE OF e FOR SHARE OF v)을 쓴다
 feature/challenge/adapter/db/PostgresNotificationRepository.java 16
 feature/challenge/adapter/db/PostgresReactionRepository.java 20
 feature/challenge/adapter/db/UnseenEntryBoost.java 1
