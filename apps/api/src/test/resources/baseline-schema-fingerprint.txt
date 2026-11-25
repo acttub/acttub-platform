@@ -920,18 +920,16 @@ COLUMN video_transcripts.updated_at ord=7 type=timestamptz len=- null=NO default
 COLUMN video_transcripts.video_id ord=2 type=uuid len=- null=NO default=-
 COLUMN videos.byte_size ord=5 type=int8 len=- null=NO default=-
 COLUMN videos.content_type ord=4 type=text len=- null=NO default=-
-COLUMN videos.created_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN videos.created_at ord=9 type=timestamptz len=- null=NO default=now()
 COLUMN videos.duration_ms ord=6 type=int4 len=- null=NO default=-
-COLUMN videos.favorite ord=9 type=bool len=- null=NO default=false
-COLUMN videos.height ord=8 type=int4 len=- null=YES default=-
+COLUMN videos.favorite ord=7 type=bool len=- null=NO default=false
 COLUMN videos.id ord=1 type=uuid len=- null=NO default=-
 COLUMN videos.object_key ord=3 type=text len=- null=NO default=-
-COLUMN videos.poster_attempts ord=14 type=int2 len=- null=NO default=0
-COLUMN videos.poster_key ord=13 type=text len=- null=YES default=-
-COLUMN videos.purged_at ord=10 type=timestamptz len=- null=YES default=-
-COLUMN videos.updated_at ord=12 type=timestamptz len=- null=NO default=now()
+COLUMN videos.poster_attempts ord=12 type=int2 len=- null=NO default=0
+COLUMN videos.poster_key ord=11 type=text len=- null=YES default=-
+COLUMN videos.purged_at ord=8 type=timestamptz len=- null=YES default=-
+COLUMN videos.updated_at ord=10 type=timestamptz len=- null=NO default=now()
 COLUMN videos.user_id ord=2 type=uuid len=- null=NO default=-
-COLUMN videos.width ord=7 type=int4 len=- null=YES default=-
 CONSTRAINT account_cleanup_operations account_cleanup_operations_attempt_count_not_null NOT NULL attempt_count
 CONSTRAINT account_cleanup_operations account_cleanup_operations_created_at_not_null NOT NULL created_at
 CONSTRAINT account_cleanup_operations account_cleanup_operations_expires_at_not_null NOT NULL expires_at

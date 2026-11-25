@@ -195,9 +195,7 @@ class EntityMappingIT {
                 .collect(java.util.stream.Collectors.toSet())).isEqualTo(activeTables);
         var retiredColumns = java.util.Map.of(
                 // nickname: 이름은 `user_profiles.name` 이 정본이다. 결제·일지·운영 화면이 아직 읽고 탈퇴가 비운다(§5-1).
-                "users", Set.of("nickname"),
-                // 크기 두 칸(V14)은 쓰는 코드가 없어 매핑을 내렸다. 다음 릴리스의 DROP 마이그레이션이 지운다(CONTRACT §5-1).
-                "videos", Set.of("width", "height"));
+                "users", Set.of("nickname"));
         for (Class<?> entity : entities) {
             String table = entity.getAnnotation(Table.class).name();
             Set<String> databaseColumns = new java.util.HashSet<>(jdbc.queryForList("""
