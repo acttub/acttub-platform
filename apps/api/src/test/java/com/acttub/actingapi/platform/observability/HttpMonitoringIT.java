@@ -168,7 +168,7 @@ class HttpMonitoringIT {
     @Test
     void requestsAreCountedByANormalizedClientVersionIncludingThoseSentToUpdate() throws Exception {
         String before = scrape();
-        // 판 헤더가 없으면 426(업데이트)이다. 막힌 요청도 경로 템플릿과 함께 센다.
+        // 버전 헤더가 없으면 426(업데이트)이다. 막힌 요청도 경로 템플릿과 함께 센다.
         assertThat(getAs("/v2/consents/documents", null).statusCode()).isEqualTo(426);
         assertThat(getAs("/v2/consents/documents", "app/1.2.3").statusCode()).isEqualTo(200);
         assertThat(getAs("/v2/consents/documents", "app/1.2.3").statusCode()).isEqualTo(200);
@@ -282,7 +282,7 @@ class HttpMonitoringIT {
         return CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
-    /** 판 헤더를 직접 정한다. {@code null} 이면 싣지 않는다. */
+    /** 버전 헤더를 직접 정한다. {@code null} 이면 싣지 않는다. */
     private HttpResponse<String> getAs(String path, String client) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET();
         if (client != null) request.header(DefaultClientHeader.NAME, client);

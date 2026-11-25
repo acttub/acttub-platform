@@ -479,9 +479,11 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **426** 은 `platform/security/ClientVersionFilter` 가 토큰 검증보다 먼저 낸다. 헤더를 보지 않는 경로는
   `ClientVersionFilter#shouldNotFilter` 한 곳에 있다. 경로 템플릿을 붙이는 `RoutePatternFilter` 는 이 필터보다 앞이라
   426 요청도 지표 `uri`·로그 `route` 에 부른 경로가 남는다.
-- **판 헤더를 로그·지표에 싣는 값**은 `platform/observability/ClientLabel` 이 줄인다 — `app`·`web` 에 숫자 마디 판이 붙은
-  꼴만 그대로, 그 밖은 `other`, 없으면 `none`. 요청 로그의 `client` 칸과 `acttub.http.requests.by.client` 지표가 같은
-  값을 쓴다. 받은 글자를 그대로 싣지 않는다(§6-4 의 범위가 정해진 label).
+- **버전 헤더를 로그·지표에 싣는 값**은 `platform/observability/ClientLabel` 이 줄인다 — `app`·`web` 에 숫자 마디 버전이
+  붙은 꼴만 그대로, 그 밖은 `other`, 없으면 `none`. 받은 글자를 그대로 싣지 않는다. 요청 로그의 `client` 칸은 이 값이다.
+  이 꼴만으로는 값 종류가 묶이지 않으므로(수조 가지, 헤더는 로그인 없이 누구나 보낸다) `acttub.http.requests.by.client`
+  지표는 `HttpRequestMetrics` 가 프로세스마다 처음 본 값을 `CLIENT_LIMIT` 가지까지만 제 이름으로 세고, 그 뒤의 새 값은
+  `other` 로 센다(§6-4 의 범위가 정해진 label).
 - **회원 게이트**는 `platform/security/ConsentGateInterceptor` 의 경로 목록(`OUTSIDE_THE_GATE`·`GUEST_ONLY`·
   `CONSENT_ONLY`)과 `AccessGate` 다. common.md 의 표와 이 목록은 같이 바꾼다. 회원과 웹 게스트(§6-9)는 같은
   `AccessGate#gatedUser` 가 주체를 보고 가른다.

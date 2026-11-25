@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-/** 클라이언트 판 헤더를 로그·지표 값으로 줄이는 규칙. 정해진 꼴만 그대로이고 나머지는 두 값으로 모인다. */
+/** 클라이언트 버전 헤더를 로그·지표 값으로 줄이는 규칙. 정해진 꼴만 그대로이고 나머지는 두 값으로 모인다. */
 class ClientLabelTest {
 
     @Test

@@ -23,7 +23,7 @@ import org.springframework.web.util.ServletRequestPathUtils;
  * 토큰이 틀려 {@code AccessTokenFilter} 가 401 로 끝낸 요청도 {@code http_server_requests} 의 {@code uri} 와 요청
  * 로그의 {@code route} 에 경로 템플릿이 붙었다. Spring Framework 7.1 에서 그 장치가 없어져 이런 요청이
  * {@code uri="UNKNOWN"}·{@code route} 없음으로 바뀌었다. 대시보드가 {@code uri} 로 요청을 가르므로 보안 필터보다 앞에서
- * 핸들러를 찾아 예전과 같게 둔다. 클라이언트 판 필터({@code ClientVersionFilter}, 426)보다도 앞이다 — 업데이트로 보낸 요청이
+ * 핸들러를 찾아 예전과 같게 둔다. 클라이언트 버전 필터({@code ClientVersionFilter}, 426)보다도 앞이다 — 업데이트로 보낸 요청이
  * 어느 경로를 불렀는지도 보여야 한다(SOMA-1140). 핸들러를 고르지 못한 요청(404·405)에는 아무것도 붙지
  * 않는다 — 예전에도 {@code NOT_FOUND}·{@code UNKNOWN} 이었다. 실제 디스패치는 같은 값을 다시 정한다.
  */
