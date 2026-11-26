@@ -21,11 +21,15 @@ import org.springframework.data.repository.Repository;
  */
 interface ReadingPronunciationReportJpaRepository extends Repository<ReadingPronunciationReportEntity, UUID> {
 
-    /** 상태와 결과(jsonb 를 글로). */
+    /** 상태와 결과(jsonb 를 글로), 채점 진행. */
     interface State {
         String getStatus();
 
         String getResult();
+
+        Integer getProgressDone();
+
+        Integer getProgressTotal();
     }
 
     /** 집을 행. */
@@ -37,7 +41,10 @@ interface ReadingPronunciationReportJpaRepository extends Repository<ReadingPron
         int getAttemptCount();
     }
 
-    @Query("select r.status as status, r.result as result from ReadingPronunciationReportEntity r where r.readingSessionId = :sessionId")
+    @Query("""
+            select r.status as status, r.result as result, r.progressDone as progressDone, r.progressTotal as progressTotal
+            from ReadingPronunciationReportEntity r where r.readingSessionId = :sessionId
+            """)
     Optional<State> state(UUID sessionId);
 
     /** 보고서 주인과 처음 요청한 시각(SOMA-1169). */
@@ -82,15 +89,24 @@ interface ReadingPronunciationReportJpaRepository extends Repository<ReadingPron
             """)
     List<Claimable> lockNext(Instant now, int maxAttempts, Limit limit);
 
-    /** {@link #lockNext} 로 잠근 행에 임대를 적고 시도 수를 하나 올린다. */
+    /** {@link #lockNext} 로 잠근 행에 임대를 적고 시도 수를 하나 올린다. 앞 시도의 진행은 비운다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             update ReadingPronunciationReportEntity r
             set r.status = 'running', r.leaseToken = :token, r.leaseUntil = :until, r.attemptCount = r.attemptCount + 1,
-                r.updatedAt = :now
+                r.progressDone = null, r.progressTotal = null, r.updatedAt = :now
             where r.id = :id
             """)
     int lease(UUID id, UUID token, Instant until, Instant now);
+
+    /** 임대를 쥔 running 행에 채점 진행을 적는다. 상태 전이가 아니라 {@code updated_at} 은 두고 간다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ReadingPronunciationReportEntity r
+            set r.progressDone = :done, r.progressTotal = :total
+            where r.id = :id and r.leaseToken = :token and r.status = 'running'
+            """)
+    int progress(UUID id, UUID token, int done, int total);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

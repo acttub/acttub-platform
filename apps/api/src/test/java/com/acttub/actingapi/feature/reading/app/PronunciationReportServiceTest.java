@@ -63,6 +63,11 @@ class PronunciationReportServiceTest {
             public Optional<ReportOwner> owner(UUID reportId) {
                 return Optional.empty();
             }
+
+            @Override
+            public boolean progress(UUID reportId, UUID leaseToken, int done, int total) {
+                return true;
+            }
         };
     }
 
@@ -96,6 +101,17 @@ class PronunciationReportServiceTest {
 
         assertThat(state.status()).isEqualTo("running");
         assertThat(pauses).hasSize(10);
+    }
+
+    @Test
+    void 붙잡았다가_답할_때는_마지막으로_읽은_진행을_준다() {
+        int[] reads = {0};
+        var service = new PronunciationReportService(repo(() -> new PronunciationReportRepository.ReportState("running", null,
+                        new PronunciationReportRepository.Progress(++reads[0], 40))),
+                new PronunciationSettings(true, Set.of(ALLOWED), "http://pron:8000", Duration.ofMinutes(10), 3), PRO::equals,
+                clock, Duration.ofSeconds(3), clock::advance);
+
+        assertThat(service.find(ALLOWED, SESSION).progress()).isEqualTo(new PronunciationReportRepository.Progress(4, 40));
     }
 
     @Test

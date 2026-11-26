@@ -640,6 +640,8 @@ COLUMN reading_pronunciation_reports.id ord=1 type=uuid len=- null=NO default=ge
 COLUMN reading_pronunciation_reports.lease_token ord=6 type=uuid len=- null=YES default=-
 COLUMN reading_pronunciation_reports.lease_until ord=7 type=timestamptz len=- null=YES default=-
 COLUMN reading_pronunciation_reports.model_version ord=8 type=text len=- null=YES default=-
+COLUMN reading_pronunciation_reports.progress_done ord=13 type=int4 len=- null=YES default=-
+COLUMN reading_pronunciation_reports.progress_total ord=14 type=int4 len=- null=YES default=-
 COLUMN reading_pronunciation_reports.reading_session_id ord=2 type=uuid len=- null=NO default=-
 COLUMN reading_pronunciation_reports.result ord=9 type=jsonb len=- null=YES default=-
 COLUMN reading_pronunciation_reports.status ord=4 type=text len=- null=NO default=-

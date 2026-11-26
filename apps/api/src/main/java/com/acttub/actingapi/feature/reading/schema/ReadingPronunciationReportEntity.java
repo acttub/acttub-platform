@@ -49,6 +49,14 @@ public class ReadingPronunciationReportEntity extends AppGeneratedUuidEntity {
     @Column(name = "failure")
     private String failure;
 
+    /** 채점 서비스에 보낼 줄 가운데 끝낸 줄 수(V101, SOMA-1171). 집을 때 비운다. */
+    @Column(name = "progress_done")
+    private Integer progressDone;
+
+    /** 채점 서비스에 보낼 줄 수(V101). */
+    @Column(name = "progress_total")
+    private Integer progressTotal;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
