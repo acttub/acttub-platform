@@ -80,6 +80,18 @@ class PronunciationWorkerTest {
         public Optional<ReportOwner> owner(UUID reportId) {
             return Optional.ofNullable(owner);
         }
+
+        final List<String> progress = new ArrayList<>();
+        RuntimeException progressFailure;
+
+        @Override
+        public boolean progress(UUID reportId, UUID leaseToken, int done, int total) {
+            if (progressFailure != null) {
+                throw progressFailure;
+            }
+            progress.add(done + "/" + total);
+            return leaseHeld;
+        }
     }
 
     final FakeReports reports = new FakeReports();
@@ -252,6 +264,32 @@ class PronunciationWorkerTest {
         assertThat(reasons()).containsExactly("3 SCORING_FAILED");
         assertThat(reports.completedReport.summary().linesUsed()).isEqualTo(2);
         assertThat(tempFiles).allSatisfy(path -> assertThat(Files.exists(path)).isFalse());
+    }
+
+    @Test
+    void 보낼_줄_수와_끝낸_줄_수를_줄마다_적는다() {
+        scorerFailure = new IllegalStateException("pronunciation scorer failed");
+        failOnlyText = "머리";
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"), line(2, "코", null), line(3, "머리", "머리"),
+                line(4, "그냥", "그냥", 106_830), line(5, "허리", "허리"));
+
+        assertThat(worker(3).runOnce()).isTrue();
+
+        assertThat(reports.progress).as("받아쓴 글이 없거나 너무 긴 줄은 세지 않고, 실패한 줄도 끝낸 줄이다")
+                .containsExactly("0/3", "1/3", "2/3", "3/3");
+    }
+
+    @Test
+    void 진행을_적지_못해도_보고서는_만든다() {
+        reports.progressFailure = new IllegalStateException("db down");
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"));
+
+        assertThat(worker(3).runOnce()).isTrue();
+
+        assertThat(reports.completedStatus).isEqualTo("done");
+        assertThat(reports.failure).isNull();
     }
 
     private List<String> reasons() {

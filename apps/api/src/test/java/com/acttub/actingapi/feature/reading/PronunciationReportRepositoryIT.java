@@ -259,6 +259,7 @@ class PronunciationReportRepositoryIT extends ReadingRepositoryFixture {
         assertThat(statementsOf(() -> reports.complete(report, token, "done", "m", PronunciationRules.build(List.of()), now)))
                 .containsExactly(update);
         assertThat(statementsOf(() -> reports.lines(done))).containsExactly("select reading_recordings");
+        assertThat(statementsOf(() -> reports.progress(report, token, 1, 2))).containsExactly(update);
     }
 
     @Test

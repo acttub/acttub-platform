@@ -36,6 +36,9 @@ import com.acttub.actingapi.feature.reading.domain.PronunciationRules.SkipReason
  * <p>처음 요청부터 {@code notifyAfter}(기본 1분) 넘게 걸려 {@code done} 으로 닫은 보고서는 주인에게 알린다(SOMA-1169) — 긴 리딩은
  * 채점이 몇 분 걸려 배우가 그동안 화면을 떠난다. 금방 끝난 것은 화면에서 이미 봤으니 알리지 않는다.
  *
+ * <p>채점 서비스에 보낼 줄 수와 그중 끝낸 줄 수를 줄마다 장부에 적는다(SOMA-1171) — 조회가 running 일 때 앱이 진행 막대를
+ * 그린다. 적기가 실패해도 채점은 이어 간다.
+ *
  * <p>보고서를 닫을 때 줄마다 쓴 시간을 단계별로 모아 로그 한 줄({@code pronunciation report timing:})과 지표로 남긴다
  * ({@link PronunciationMetrics}). 줄 수는 {@code lines}(회차의 녹음 줄)·{@code sent}(채점 서비스에 보냄)·{@code failed}(그중 실패)·
  * {@code too_long}(채점 서비스가 너무 길다고 거절)이다.
@@ -89,6 +92,8 @@ public class PronunciationWorker {
             int rejectedLong = 0;
             Exception lastFailure = null;
             List<LineSource> lines = reports.lines(claimed.sessionId());
+            int total = (int) lines.stream().filter(PronunciationWorker::sendable).count();
+            progress(claimed, token, 0, total);
             for (LineSource line : lines) {
                 if (line.transcript() == null || line.transcript().isBlank()) {
                     inputs.add(new LineInput(line.lineNo(), line.text(), null, null, SkipReason.NO_TRANSCRIPT));
@@ -113,6 +118,7 @@ public class PronunciationWorker {
                             + " cause=" + failure);
                     inputs.add(new LineInput(line.lineNo(), line.text(), line.transcript(), null, SkipReason.SCORING_FAILED));
                 }
+                progress(claimed, token, sent, total);
             }
             if (scoredLines == 0 && lastFailure != null) {
                 if (lastFailure instanceof IOException io) {
@@ -168,6 +174,20 @@ public class PronunciationWorker {
                     .ifPresent(o -> listener.onPronunciationReportReady(o.userId(), claimed.sessionId()));
         } catch (RuntimeException failure) {
             LOGGER.warning("pronunciation report notice failed: report=" + claimed.reportId() + " cause=" + failure);
+        }
+    }
+
+    /** 채점 서비스에 보낼 줄: 받아쓴 글이 있고 너무 길지 않다. */
+    private static boolean sendable(LineSource line) {
+        return line.transcript() != null && !line.transcript().isBlank() && !tooLong(line);
+    }
+
+    /** 진행을 적는다. 실패는 로그만 남긴다 — 진행 표시가 늦을 뿐 보고서는 만들 수 있다. */
+    private void progress(Claimed claimed, UUID token, int done, int total) {
+        try {
+            reports.progress(claimed.reportId(), token, done, total);
+        } catch (RuntimeException failure) {
+            LOGGER.warning("pronunciation progress not saved: report=" + claimed.reportId() + " cause=" + failure);
         }
     }
 

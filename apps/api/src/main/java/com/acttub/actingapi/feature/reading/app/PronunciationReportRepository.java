@@ -33,8 +33,26 @@ public interface PronunciationReportRepository {
     /** 보고서 주인과 처음 요청한 시각(SOMA-1169 — 오래 걸린 보고서를 알릴지 정한다). 없으면 비어 있다. */
     Optional<ReportOwner> owner(UUID reportId);
 
-    /** @param resultJson 보고서 JSON. done 이 아니면 {@code null} */
-    record ReportState(String status, String resultJson) {
+    /** 임대를 쥔 워커가 채점 진행을 적는다(SOMA-1171). 임대를 잃었으면 {@code false} */
+    boolean progress(UUID reportId, UUID leaseToken, int done, int total);
+
+    /**
+     * @param resultJson 보고서 JSON. done 이 아니면 {@code null}
+     * @param progress running 이고 일꾼이 진행을 적었을 때만 있다. 그 밖은 {@code null}
+     */
+    record ReportState(String status, String resultJson, Progress progress) {
+        public ReportState(String status, String resultJson) {
+            this(status, resultJson, null);
+        }
+    }
+
+    /**
+     * 채점 진행. 받아쓴 글이 없거나 너무 긴 줄은 보내지 않으므로 세지 않는다.
+     *
+     * @param done 채점 서비스에 보낸 줄 가운데 끝낸(채점했거나 실패해 빠진) 줄 수
+     * @param total 채점 서비스에 보낼 줄 수
+     */
+    record Progress(int done, int total) {
     }
 
     record Claimed(UUID reportId, UUID sessionId, int attempt) {

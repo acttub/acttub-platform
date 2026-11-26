@@ -19,8 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 리딩 발음 보고서(SOMA-606, 실험). 허용 사용자에게만 열리고 계약이 정해지지 않아 OpenAPI 에 싣지 않는다({@link Hidden}).
  *
- * <p>{@code {status, report}} — status 는 not_ready(회차가 끝나지 않음)·queued·running·done·skipped(쓸 줄 없음)·failed.
- * report 는 done·skipped 일 때 {@code summary·misheard·habit·skipped_lines}.
+ * <p>{@code {status, report, progress}} — status 는 not_ready(회차가 끝나지 않음)·queued·running·done·skipped(쓸 줄 없음)·failed.
+ * report 는 done·skipped 일 때 보고서. progress 는 running 이고 일꾼이 진행을 적었을 때 {@code {done, total}}(채점 서비스에 보낼
+ * 줄 가운데 끝낸 줄 수, SOMA-1171), 그 밖은 null.
  */
 @Hidden
 @RestController
@@ -43,6 +44,7 @@ class PronunciationController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", state.status());
         body.put("report", state.resultJson() == null ? null : mapper.readTree(state.resultJson()));
+        body.put("progress", state.progress());
         return body;
     }
 }

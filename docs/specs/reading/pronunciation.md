@@ -13,7 +13,7 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/reading/sessions/{session_id}/pronunciation` | 헤더 `Authorization`(게이트 통과) | `{status, report}` 200. `status` 는 아래 「상태」의 값이고, `report` 는 done·skipped 일 때만 `{summary, misheard, habit, skippedLines, lines, skippedReasons}`, 그 밖은 null | 스위치가 꺼졌거나 Pro·허용 사용자가 아님 404 `pronunciation_not_available`, 남의 회차·없는 회차 404 `session_not_found` |
+| `GET /v2/reading/sessions/{session_id}/pronunciation` | 헤더 `Authorization`(게이트 통과) | `{status, report, progress}` 200. `status` 는 아래 「상태」의 값이고, `report` 는 done·skipped 일 때만 `{summary, misheard, habit, skippedLines, lines, skippedReasons}`, 그 밖은 null. `progress` 는 아래 「채점 진행」 | 스위치가 꺼졌거나 Pro·허용 사용자가 아님 404 `pronunciation_not_available`, 남의 회차·없는 회차 404 `session_not_found` |
 | `PronunciationWorkerScheduler`(`PRON_REPORT_POLL_MS`, 기본 5초) | queued 보고서, 임대가 지난 running 보고서 | 채점 뒤 done·skipped 저장, 실패면 다시 queued 또는 failed. 오래 걸린 done 은 주인에게 푸시(아래) | 시도 3번 소진이면 failed |
 
 ## 상태
@@ -42,6 +42,10 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 - 녹음은 배우의 목소리라 임시 파일을 주인만 읽고 쓰게 만들고 끝나면 지운다.
 - 줄 수를 줄이지 않는다 — 녹음한 줄을 전부 채점한다. 채점은 한 번에 한 보고서·한 줄씩이라(채점 서비스 하나, 운영 한 줄 약 6초) 긴
   회차는 몇 분 걸린다(11/25 운영, 88줄 넘는 회차 528초).
+- **채점 진행**(SOMA-1171): running 이고 일꾼이 진행을 적었으면 `progress` 가 `{done, total}` 이다. `total` 은 채점 서비스에 보낼
+  줄 수(받아쓴 글이 있고 1분 이하), `done` 은 그중 끝낸 줄 수(채점했거나 실패해 빠짐)다. 일꾼은 줄마다 적고 다시 집을 때 비운다.
+  queued·끝 상태·not_ready 이거나 아직 적지 않았으면 null 이다. 붙잡기 동안에도 1초마다 다시 읽으므로 답에는 그때의 진행이 간다.
+  진행을 적지 못해도 채점은 이어 간다.
 - **조회 답 붙잡기**(SOMA-1169): 상태가 queued·running 이면 서버가 1초마다 다시 보며 `PRON_REPORT_HOLD_MS`(기본 10000, 0이면
   끔)까지 기다렸다가 답한다. 다 되면 1초 안에 답이 간다. 앱(1.1.x)은 4초 간격으로 45번 묻고 한 번 묻기 시한이 15초라, 이것만으로
   앱이 약 3분 대신 약 10분까지 기다리게 된다.
@@ -62,6 +66,8 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
   남고, 채점 서비스가 너무 길다고 거절한 줄은 `TOO_LONG` 이며 다시 줄 세우지 않는다(`PronunciationWorkerTest`, `PronunciationRulesTest`).
 - 세 번 실패: `failed`. 시도를 다 쓴 채 임대가 지남: `failed`, `failure='lease_expired'`.
 - 스위치가 꺼졌거나 Pro·허용 사용자가 아님: 404 `pronunciation_not_available`.
+- 채점 진행: running 에서 적은 `{done, total}` 이 나가고, 기다리거나 끝났거나 다시 집었으면 null 이다(`ReadingPronunciationIT`,
+  `PronunciationWorkerTest`).
 - 붙잡기: 만드는 중이면 다 될 때까지(또는 정한 시간까지) 기다려 답한다. 끝 상태·not_ready 는 바로 답한다(`PronunciationReportServiceTest`).
 - 완료 알림: 오래 걸린 done 만, 새 앱 판 단말에만 간다(`PronunciationWorkerTest`, `PushServiceTest`, `PushRepositoryIT`).
 
