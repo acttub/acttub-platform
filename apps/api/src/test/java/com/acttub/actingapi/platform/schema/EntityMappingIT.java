@@ -106,7 +106,7 @@ class EntityMappingIT {
 
     /**
      * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 옛 연습 흐름의 다섯과
-     * 예약 장부({@code upload_intents})다. 옛 연습 다섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
+     * 예약 장부({@code upload_intents})다. 옛 연습 다섯은 게스트 이관·탈퇴·호환 읽기가, 예약 장부는 보관함 저장소가
      * native SQL 로만 읽고 쓴다.
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
@@ -123,7 +123,7 @@ class EntityMappingIT {
             "practice_feedback", "ai_jobs",
             // 연습 삭제(V85, SOMA-985)의 무료 횟수 표시·지운 영상 장부는 연습 삭제의 native SQL 만 쓴다.
             "practice_deletion_marks", "deleted_practice_videos",
-            // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
+            // 전환 대응표(V15)는 관리자 지표만 읽는다(쓰는 코드는 없다) — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_signup_attributions",

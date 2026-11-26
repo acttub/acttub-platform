@@ -108,6 +108,9 @@ class GuestTransferIT {
         UUID operation = operation(guest.id(), session, "report", "succeeded");
         UUID member = member();
         UUID own = practice(member);
+        // 옛 연습은 새 표로 옮겨져 있다 — 목록은 새 표만 읽고, 이관은 두 표의 주인을 함께 바꾼다.
+        com.acttub.actingapi.support.MovedLegacyPractice.move(jdbc, session);
+        com.acttub.actingapi.support.MovedLegacyPractice.move(jdbc, own);
         jdbc.update("""
                 INSERT INTO user_signup_attributions
                     (user_id,source,platform,channel,medium,recorded_at)
@@ -140,7 +143,7 @@ class GuestTransferIT {
                 .header("Authorization", "Bearer " + jwt.issueAccessToken(member).value()))
                 .andReturn().getResponse().getContentAsString());
         assertThat(practiceIds(list))
-                .as("옮긴 연습은 회원의 목록에 섞여 보인다 — 아직 옮기지 않은 옛 자료는 호환 읽기가 보여 준다")
+                .as("옮긴 연습은 회원의 목록에 섞여 보인다")
                 .containsExactlyInAnyOrder(session.toString(), own.toString());
 
         assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, guest.id()))
@@ -570,6 +573,8 @@ class GuestTransferIT {
                 lease, running);
         Guest second = guest();
         UUID finished = practice(second.id());
+        com.acttub.actingapi.support.MovedLegacyPractice.move(jdbc, analyzing);
+        com.acttub.actingapi.support.MovedLegacyPractice.move(jdbc, finished);
 
         assertThat(transfer(member, issueCode(first).path("code").stringValue(null), null).getStatus()).isEqualTo(200);
         assertThat(transfer(member, issueCode(second).path("code").stringValue(null), null).getStatus()).isEqualTo(200);

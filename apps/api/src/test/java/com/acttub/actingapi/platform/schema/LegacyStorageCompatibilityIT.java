@@ -12,9 +12,9 @@ import java.util.UUID;
 
 import com.acttub.actingapi.ActingApiApplication;
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.DefaultClientHeader;
+import com.acttub.actingapi.support.MovedLegacyPractice;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -66,20 +66,12 @@ class LegacyStorageCompatibilityIT {
             AccountFixtures.completeProfile(jdbc, user);
             String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
             assertThat(LenientJson.asText(get(port, "/health", bearer).path("status"))).isEqualTo("ok");
-            // 옛 쓰기 경로(`POST /v2/practice-sessions`)는 내렸다(§6-15). 옛 자료는 그대로 심고 <b>호환 읽기
-            // 경로</b>로 읽는다 — 이 시험의 주제가 "현재 흐름이 옛 자료를 그대로 보여 주는가" 이기 때문이다.
-            String session = seedPending(jdbc, user, upload).toString();
-            assertThat(LenientJson.asText(get(port, "/v2/practices/" + session + "/status", bearer)
-                    .path("stage"))).isEqualTo("analyzing");
-            assertThat(practiceIds(get(port, "/v2/practices", bearer)))
-                    .containsExactlyInAnyOrder(session, historical.toString());
+            // 옛 쓰기 경로(`POST /v2/practice-sessions`)는 내렸고 옛 연습은 새 표로 옮겼다(§6-15). 이 시험의 주제는
+            // "현재 흐름이 옛 표에 남은 자료를 그대로 보여 주는가" 다 — 옮긴 회차의 옛 노트는 아직 옛 표에서 읽는다.
+            assertThat(practiceIds(get(port, "/v2/practices", bearer))).containsExactly(historical.toString());
             assertThat(LenientJson.asText(get(port, "/v2/practices/" + historical + "/note", bearer).path("title")))
                     .isEqualTo("현재 연습 노트");
 
-            // 옛 표에 분석을 쓰던 옛 큐 워커는 SOMA-1140 에서 지웠다. 옛 분석은 읽기만 한다.
-            PracticeSessionRepository practices = context.getBean(PracticeSessionRepository.class);
-            assertThat(practices.detail(user, historical).summary().observations())
-                    .singleElement().satisfies(item -> assertThat(item.label()).isEqualTo("과거 관찰"));
             if (!removeRetiredStorage) {
                 assertThat(historicalValues(jdbc, user, historical)).isEqualTo(before);
             }
@@ -125,6 +117,7 @@ class LegacyStorageCompatibilityIT {
                 INSERT INTO community_posts(category_id,author_id,title,body)
                 SELECT id,?,'보존할 글','보존할 본문' FROM community_categories ORDER BY sort_order LIMIT 1
                 """, user);
+        MovedLegacyPractice.move(jdbc, practice);
         return practice;
     }
 
@@ -145,23 +138,7 @@ class LegacyStorageCompatibilityIT {
                 .header("Authorization", bearer).GET().build(), 200);
     }
 
-    /** 분석을 기다리는 옛 세션 하나. 옛 쓰기 경로가 내려간 뒤에도 옛 자료는 이렇게 존재한다. */
-    private UUID seedPending(JdbcTemplate jdbc, UUID user, UUID upload) {
-        UUID session = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO practice_sessions(id,user_id,upload_intent_id,status,situation,
-                                              character_context,blockage_kind,sub_branch,goal)
-                VALUES (?,?,?,'analyzing','상황','인물','분석','대사 분석','목표')
-                """, session, user, upload);
-        jdbc.update("""
-                INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,
-                                                request_fingerprint)
-                VALUES (gen_random_uuid(),?,?,gen_random_uuid(),'analyze','pending',?)
-                """, session, user, "a".repeat(64));
-        return session;
-    }
-
-    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 호환 읽기가 같은 모양으로 낸다(specs/practice ②). */
+    /** 묶음 목록을 회차 id 로 편다. */
     private static List<String> practiceIds(JsonNode groups) {
         List<String> ids = new java.util.ArrayList<>();
         groups.path("groups").forEach(group ->

@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.practice.app.LegacyPracticeReader;
+import com.acttub.actingapi.feature.practice.app.PreviousConversations;
 import com.acttub.actingapi.feature.practice.app.PracticePosters;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeService;
@@ -31,7 +31,7 @@ class GuestAnalysisQuotaTest {
         var runner = new ApplicationContextRunner()
                 .withUserConfiguration(PracticeConfiguration.class)
                 .withBean(PracticeRepository.class, () -> practices)
-                .withBean(LegacyPracticeReader.class, () -> mock(LegacyPracticeReader.class))
+                .withBean(PreviousConversations.class, () -> mock(PreviousConversations.class))
                 .withBean(PracticePosters.class, () -> mock(PracticePosters.class))
                 .withBean(Clock.class, () -> Clock.fixed(Instant.parse("2026-09-21T04:00:00Z"), ZoneOffset.UTC));
         if (!enabled.equals("default")) {

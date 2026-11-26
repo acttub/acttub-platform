@@ -339,14 +339,15 @@ class PostgresConversationRepository implements ConversationRepository {
                 .setParameter("practiceId", practiceId)
                 .setParameter("userId", userId));
         if (owned.isEmpty()) {
-            return legacyNote(userId, practiceId);
+            return null;
         }
         NoteView note = view(notes.ofPractice(practiceId).orElse(null));
         return note == null ? legacyNote(userId, practiceId) : note;
     }
 
     /**
-     * 아직 옮기지 않은 옛 노트를 <b>새 봉투에 담아</b> 낸다 (specs/practice ②).
+     * 새 표에 노트가 없는 회차의 옛 노트를 <b>새 봉투에 담아</b> 낸다 (specs/practice 「0.1.0 스키마 전환」). 옛 자료를
+     * 옮길 때 노트는 새 표로 간 대화(가장 최근 하나)의 것만 따라갔고, 그보다 앞선 대화의 노트는 옛 표에 남았다.
      *
      * <p>기존 갈래는 {@code legacy} 형식에 옛 종류(analysis·expression)를 그대로 두고, 신형 노트만 {@code v2}
      * 다 — 이름만 바꾸지 않는다. 원문은 {@code report} 로 그대로 나가 옛 공개 필드를 읽던 화면이 그대로 쓴다.
@@ -480,11 +481,11 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     /**
-     * 아직 옮기지 않은 옛 대화 (specs/practice ②). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
+     * 옛 표에 남은 대화 (specs/practice 「0.1.0 스키마 전환」). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
      * 경로로 열린다 — 최근 하나로 자르지 않는다(practice.coach).
      *
-     * <p>종료 사유는 옛 어휘를 그대로 낸다. 전환 명령은 새 어휘로 옮기지만, 여기서 읽는 것은 아직 옛 표에
-     * 있는 행이고 그 행의 값을 고쳐 보이지 않는다. 다만 상태는 늘 closed 로 낸다 — 답·이어 하기는 새 표만 보므로
+     * <p>종료 사유는 옛 어휘를 그대로 낸다. 새 표로 옮긴 대화는 새 어휘를 쓰지만, 여기서 읽는 것은 옛 표에
+     * 남은 행이고 그 행의 값을 고쳐 보이지 않는다. 다만 상태는 늘 closed 로 낸다 — 답·이어 하기는 새 표만 보므로
      * 옛 표의 열린 대화에는 이어 말할 수 없다(practice README 「호환 읽기」).
      */
     private ConversationView legacyConversation(UUID userId, UUID conversationId) {

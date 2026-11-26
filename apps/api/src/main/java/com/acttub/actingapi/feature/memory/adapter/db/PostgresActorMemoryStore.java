@@ -106,7 +106,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
      * 출처 연습이 <b>숨겨졌으면 링크만 없다</b> — 값과 작성자는 그대로다(practice.memory 규칙). 묶음 속성은
      * 첫 회차 행에 있으므로 {@code root_id} 를 따라가 본다.
      *
-     * <p><b>새 표에 없는 칸은 옛 표를 읽는다(호환 읽기).</b> 0.1.0 데이터 전환이 돌기 전까지 그 전의 기억은 옛 표에만
+     * <p><b>새 표에 없는 칸은 옛 표를 읽는다(호환 읽기).</b> 0.1.0 전의 기억 가운데 새 표로 옮기지 않은 칸은 옛 표에만
      * 있다 — 새 표만 보면 화면도 코치도 그 기억을 잃는다. 옛 회차는 새 {@code practices} 에 없으므로 출처 링크는 없다.
      */
     @Override
