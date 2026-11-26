@@ -424,7 +424,7 @@ class TableOwnerTest {
     }
 
     /** 주석을 건너뛰고 문자열 리터럴(텍스트 블록 포함)의 내용을 차례로 모은다. 이스케이프는 풀지 않는다. */
-    private static List<String> literals(String code) {
+    static List<String> literals(String code) {
         List<String> literals = new ArrayList<>();
         int at = 0;
         while (at < code.length()) {

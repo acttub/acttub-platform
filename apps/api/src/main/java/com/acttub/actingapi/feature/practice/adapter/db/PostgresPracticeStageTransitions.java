@@ -9,7 +9,7 @@ import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 
 /**
- * 트랜잭션을 열지 않는다 — 분석 결과나 대화의 턴을 저장하는 트랜잭션에 참여한다.
+ * 회차의 단계를 바꾸는 문장은 이 파일에만 둔다({@code StateTransitionTest}). 트랜잭션을 열지 않는다 — 부르는 쪽의 것에 참여한다.
  *
  * <p>회차 id 를 받는 전이만 JPQL 이다. 나머지 셋은 어느 회차인지를 같은 문장에서 다른 기능의 테이블(작업 장부의
  * {@code ai_jobs}, 코치의 {@code coach_conversations})로 고른다 — 먼저 읽어 오면 요청마다 문장이 하나 는다(코치의 답 경로는
@@ -56,6 +56,28 @@ class PostgresPracticeStageTransitions implements PracticeStageTransitions {
                 """)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("conversationId", conversationId)
+                .executeUpdate();
+    }
+
+    @Override
+    public void cancelled(UUID practiceId, Instant now) {
+        entityManager.createQuery("""
+                        update PracticeEntity p set p.stage = 'closed', p.closeReason = 'cancelled', p.updatedAt = :now
+                        where p.id = :practiceId
+                        """)
+                .setParameter("now", now)
+                .setParameter("practiceId", practiceId)
+                .executeUpdate();
+    }
+
+    @Override
+    public void retried(UUID practiceId, Instant now) {
+        entityManager.createQuery("""
+                        update PracticeEntity p set p.stage = 'analyzing', p.closeReason = null, p.updatedAt = :now
+                        where p.id = :practiceId
+                        """)
+                .setParameter("now", now)
+                .setParameter("practiceId", practiceId)
                 .executeUpdate();
     }
 

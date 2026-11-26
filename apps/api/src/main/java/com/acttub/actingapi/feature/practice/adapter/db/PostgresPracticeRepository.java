@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
+import com.acttub.actingapi.feature.practice.app.PracticeStageTransitions;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.JobView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
@@ -84,10 +85,13 @@ class PostgresPracticeRepository implements PracticeRepository {
     private final ObjectMapper mapper;
     private final PracticeSessionRepository legacySessions;
     private final AiJobLedger jobs;
+    private final PracticeStageTransitions stages;
 
     PostgresPracticeRepository(PracticeJpaRepository practices, EntityManager entityManager,
                                PlatformTransactionManager transactionManager, ObjectMapper mapper,
-                               PracticeSessionRepository legacySessions, AiJobLedger jobs) {
+                               PracticeSessionRepository legacySessions, AiJobLedger jobs,
+                               PracticeStageTransitions stages) {
+        this.stages = stages;
         this.practices = practices;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -263,7 +267,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (overQuota(userId, quota)) {
                 return new Started(StartOutcome.QUOTA, null);
             }
-            practices.reopenForAnalysis(practiceId, now);
+            stages.retried(practiceId, now);
             jobs.enqueue(userId, ANALYZE, practiceId, requestId, fingerprint, now);
             return new Started(StartOutcome.CREATED, find(userId, practiceId));
         });
@@ -389,7 +393,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (closed == 0) {
                 return new Cancelled(CancelOutcome.ALREADY_DONE, null);
             }
-            practices.closeCancelled(practiceId, now);
+            stages.cancelled(practiceId, now);
             return new Cancelled(CancelOutcome.CANCELLED, status(userId, practiceId));
         });
     }
