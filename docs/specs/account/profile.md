@@ -49,9 +49,9 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   (가입 게이트와 설정 모두). 만 나이는 서버와 같이 한국 시간의 날짜로 센다. 아래 서버의 under_14·
   under_14_account_closed 422는 이 막음을 지나온 경우의 안전망으로 남는다.
 - 만 14세 미만 생년월일이 가입 게이트에서 오면 422를 돌려주고 그 계정을 즉시 파기한다. users를 참조하는 기록(연습·업로드·
-  작업 장부·배우 기억·정리 장부·대본·리딩 회차·녹음·커뮤니티·챌린지·차단·알림·평가·이탈 설문. 목록은
-  `PostgresProfileRepository.HISTORY`가 정본이고, users를 ON DELETE 없이 무는 외래 키는 모두 들어 있어야 한다 —
-  `UnderageClosureReferencesIT`가 DB와 맞춰 본다)이 없으면 users·user_identities·user_consents·refresh_tokens·push_tokens 행까지 지운다. 탈퇴와 달리 행을
+  작업 장부·배우 기억·정리 장부·대본·리딩 회차·녹음·커뮤니티·챌린지·차단·알림·평가·이탈 설문. 기능마다 자기 테이블에
+  기록이 있는지 답한다(`AccountErasure#hasRecords`). users를 ON DELETE 없이 무는 외래 키의 칸마다 답하는 기능이 있는지는
+  `AccountLifecycleFreezeIT`가 DB와 맞춰 본다)이 없으면 users·user_identities·user_consents·refresh_tokens·push_tokens 행까지 지운다. 탈퇴와 달리 행을
   남기지 않는다. 앱은 안내 문구를 보여 주고 로그인 화면으로 돌아간다. 법정대리인 동의가 필요한
   나이라 0.1.0은 받지 않는다. 설정에서 고친 생년월일이 만 14세 미만이면 422로 거절만 하고 계정은
   그대로다. 파기한 뒤 같은 사람이 다른 생년월일로 다시 가입하는 것은 막을 근거가 남지 않으며

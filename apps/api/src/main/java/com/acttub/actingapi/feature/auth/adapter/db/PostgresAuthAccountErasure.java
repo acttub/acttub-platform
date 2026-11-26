@@ -62,6 +62,17 @@ class PostgresAuthAccountErasure implements AccountErasure {
         return false;
     }
 
+    /** 리프레시 토큰과 신원은 외래 키가 따라 지워 주지 않는다. 접속일은 따라 지워진다. */
+    @Override
+    public void eraseWithAccountRow(UUID userId) {
+        entityManager.createQuery("delete from RefreshTokenEntity t where t.userId = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        entityManager.createQuery("delete from UserIdentityEntity i where i.userId = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
     /**
      * 신원마다 해시만 남기고 제공자 ID 와 토큰을 비운다. 그 전에 서버가 해제해야 하는 제공자의 값을 장부로 옮긴다 — 애플은
      * 토큰으로 폐기하고, 카카오는 회원번호로 끊고, 네이버는 refresh token 을 폐기한다. 구글은 앱이 탈퇴 요청 직전에 SDK 로 끊는다.
