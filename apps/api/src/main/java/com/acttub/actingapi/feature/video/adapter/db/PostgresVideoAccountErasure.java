@@ -17,9 +17,8 @@ import org.springframework.stereotype.Repository;
  * 계정을 닫을 때 보관함 영상을 파기한 것으로 적는다 (account.withdraw, specs/practice 「연습 자료의 이관·삭제·탈퇴」).
  *
  * <p><b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 — 회차·참여작의 기록이 깨지지 않고, 재생이 막히며, 총량에서 빠진다.
- * 받아쓰기({@code video_transcripts})는 사람과 끊어 남긴다. 영상 객체의 키는 이 자리보다 앞선
- * {@link AccountErasureStep#MEDIA_OBJECTS} 자리가 읽어 장부에 올린다. 보관 동의자의 영상은 여기서 찍지 않고 탈퇴 3년 뒤의
- * 파기가 찍는다.
+ * 받아쓰기({@code video_transcripts})는 사람과 끊어 남긴다. 영상 객체의 삭제는 파기 시각을 찍기 전에 키를 읽어 정리 장부에
+ * 올린다({@link VideoRetention}). 보관 동의자의 영상은 여기서 찍지 않고 탈퇴 3년 뒤의 파기가 찍는다.
  *
  * <p>트랜잭션을 열지 않는다 — 계정을 닫는 트랜잭션에 참여한다.
  */
@@ -46,10 +45,7 @@ class PostgresVideoAccountErasure implements AccountErasure {
                 .setParameter("userId", account.userId())
                 .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .getResultList();
-        if (!account.retainMedia()) {
-            retention.purgeFilesOf(account.userId(), account.now());
-        }
-        return List.of();
+        return account.retainMedia() ? List.of() : retention.purgeFilesOf(account.userId(), account.now());
     }
 
     /** 영상과 올리기 예약의 행은 계정 행을 가리킨 채 남는다(외래 키에 ON DELETE 가 없다). */

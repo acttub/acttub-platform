@@ -16,15 +16,6 @@ feature/feedback/adapter/db/PostgresExitSurveyStore.java users
 feature/memory/adapter/db/PostgresActorMemoryStore.java ai_jobs
 feature/memory/adapter/db/PostgresActorMemoryStore.java users
 feature/practice/adapter/db/PostgresPracticeRepository.java ai_jobs
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java actor_journals
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java actor_memories
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java ai_jobs
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java note_ratings
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java practice_feedback
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java practices
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java users
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java video_transcripts
-feature/profile/adapter/db/PostgresPracticeGroupErasure.java videos
 feature/profile/adapter/db/PostgresProfileRepository.java actor_memories
 feature/profile/adapter/db/PostgresProfileRepository.java actor_memory_entries
 feature/profile/adapter/db/PostgresProfileRepository.java ai_jobs

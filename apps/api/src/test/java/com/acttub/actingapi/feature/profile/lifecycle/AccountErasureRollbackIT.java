@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.profile.lifecycle;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -15,7 +16,10 @@ import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.practice.app.PracticeGroupErasurePart;
+import com.acttub.actingapi.feature.practice.app.PracticeGroupErasureStep;
 import com.acttub.actingapi.feature.profile.lifecycle.AccountLifecycleSeed.Identity;
+import com.acttub.actingapi.feature.video.app.PracticeGroupVideos;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.FakeObjectStorage;
 import com.acttub.actingapi.support.MutableClock;
@@ -39,6 +43,9 @@ import org.springframework.test.web.servlet.MockMvc;
  * 계정 상태까지 전부 되돌아간다 (ADR-040, apps/api/CONTRACT.md §6-8).
  *
  * <p>구현이 자기 트랜잭션으로 따로 커밋하면 여기서 드러난다. 실패 앞뒤의 DB 전체를 견준다({@link DatabaseChanges}).
+ *
+ * <p>연습 삭제도 같다. 묶음에 딸린 기록을 정리하는 구현({@link PracticeGroupErasurePart})이나 영상을 넘기는 구현 하나가 실패하면
+ * 묶음 전체가 그대로 남는다. 앱 전체를 띄우는 설정을 하나 더 만들지 않으려고 이 클래스에 함께 둔다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
@@ -108,6 +115,21 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresCoachAccountErasure")
     AccountErasure coachErasure;
 
+    @MockitoSpyBean(name = "postgresOperationPracticeGroupPart")
+    PracticeGroupErasurePart operationPart;
+
+    @MockitoSpyBean(name = "postgresCoachPracticeGroupPart")
+    PracticeGroupErasurePart coachPart;
+
+    @MockitoSpyBean(name = "postgresFeedbackPracticeGroupPart")
+    PracticeGroupErasurePart feedbackPart;
+
+    @MockitoSpyBean(name = "postgresMemoryPracticeGroupPart")
+    PracticeGroupErasurePart memoryPart;
+
+    @MockitoSpyBean
+    PracticeGroupVideos groupVideos;
+
     private AccountLifecycleSeed seed;
 
     @BeforeEach
@@ -120,10 +142,10 @@ class AccountErasureRollbackIT {
 
     @ParameterizedTest(name = "{0} 자리에서 실패")
     @EnumSource(value = AccountErasureStep.class, names = {
-        "READING", "VIDEO_FILES", "AI_JOBS", "ACTOR_JOURNALS", "PRACTICE_FEEDBACK", "NOTE_RATINGS", "CHALLENGE",
-        "COMMUNITY_IMAGES", "READING_VOICE_USAGE", "SIGNUP_ATTRIBUTION", "BILLING", "DISCOVERY_ANSWER", "IDENTITIES",
-        "BILLING_CUSTOMER", "EMAIL", "PROFILE", "PORTFOLIO", "TRANSFER_CODES", "SESSIONS", "PUSH", "LEGACY_PRACTICES",
-        "LEGACY_OPERATIONS"
+        "READING", "VIDEO_FILES", "AI_JOBS", "ACTOR_JOURNALS", "PRACTICE_FEEDBACK", "NOTE_RATINGS",
+        "DELETED_PRACTICES", "CHALLENGE", "COMMUNITY_IMAGES", "READING_VOICE_USAGE", "SIGNUP_ATTRIBUTION", "BILLING",
+        "DISCOVERY_ANSWER", "IDENTITIES", "BILLING_CUSTOMER", "EMAIL", "PROFILE", "PORTFOLIO", "TRANSFER_CODES",
+        "SESSIONS", "PUSH", "LEGACY_PRACTICES", "LEGACY_OPERATIONS"
     })
     @DisplayName("구현 하나가 예외를 던지면 탈퇴 전체가 되돌아간다: 계정은 활성 그대로이고 어느 표도 달라지지 않는다")
     void aFailingOwnerRollsTheWholeWithdrawalBack(AccountErasureStep failing) throws Exception {
@@ -158,11 +180,58 @@ class AccountErasureRollbackIT {
             case BILLING, BILLING_CUSTOMER -> billingErasure;
             case PRACTICE_FEEDBACK -> feedbackErasure;
             case AI_JOBS, LEGACY_OPERATIONS -> operationErasure;
-            case LEGACY_PRACTICES -> practiceErasure;
+            case DELETED_PRACTICES, LEGACY_PRACTICES -> practiceErasure;
             case READING, READING_VOICE_USAGE -> readingErasure;
             case CHALLENGE -> challengeErasure;
             case ACTOR_JOURNALS, NOTE_RATINGS -> coachErasure;
             default -> throw new IllegalArgumentException("no spied owner for " + step);
+        };
+    }
+
+    @ParameterizedTest(name = "{0} 자리에서 실패")
+    @EnumSource(PracticeGroupErasureStep.class)
+    @DisplayName("연습 삭제에서 구현 하나가 예외를 던지면 전체가 되돌아간다: 묶음은 배우의 것 그대로이고 어느 표도 달라지지 않는다")
+    void aFailingPartRollsTheWholePracticeDeletionBack(PracticeGroupErasureStep failing) throws Exception {
+        UUID self = seed.full("본인", Identity.MEMBER, "declined");
+        PracticeGroupErasurePart part = partOf(failing);
+        doThrow(new IllegalStateException("erasure failed")).when(part).erase(eq(failing), any());
+        DatabaseChanges changes = new DatabaseChanges(jdbc);
+        DatabaseChanges.Snapshot before = changes.read();
+
+        assertThat(deletePracticeGroup(self)).isEqualTo(500);
+
+        verify(part).erase(eq(failing), any());
+        assertThat(changes.read()).as("보관 계정, 무료 횟수 표시, 앞선 자리들이 고친 것도 남지 않는다").isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("연습 삭제에서 영상을 넘기다 실패해도 전체가 되돌아간다: 딸린 기록을 정리한 구현들이 고친 것도 남지 않는다")
+    void aFailingVideoHandOverRollsTheWholePracticeDeletionBack() throws Exception {
+        UUID self = seed.full("본인", Identity.MEMBER, "declined");
+        doThrow(new IllegalStateException("hand over failed")).when(groupVideos).handOver(any(), any(), any());
+        DatabaseChanges changes = new DatabaseChanges(jdbc);
+        DatabaseChanges.Snapshot before = changes.read();
+
+        assertThat(deletePracticeGroup(self)).isEqualTo(500);
+
+        verify(memoryPart).erase(eq(PracticeGroupErasureStep.ACTOR_MEMORIES), any());
+        verify(groupVideos, atLeastOnce()).purgeFile(any(), any());
+        verify(groupVideos).handOver(any(), any(), any());
+        assertThat(changes.read()).isEqualTo(before);
+    }
+
+    private int deletePracticeGroup(UUID self) throws Exception {
+        return mvc.perform(delete("/v2/practices/" + seed.id("본인/연습/묶음/1회차") + "/group")
+                        .header("Authorization", "Bearer " + jwt.issueAccessToken(self).value()))
+                .andReturn().getResponse().getStatus();
+    }
+
+    private PracticeGroupErasurePart partOf(PracticeGroupErasureStep step) {
+        return switch (step) {
+            case AI_JOBS -> operationPart;
+            case ACTOR_JOURNALS, NOTE_RATINGS -> coachPart;
+            case PRACTICE_FEEDBACK -> feedbackPart;
+            case ACTOR_MEMORIES -> memoryPart;
         };
     }
 

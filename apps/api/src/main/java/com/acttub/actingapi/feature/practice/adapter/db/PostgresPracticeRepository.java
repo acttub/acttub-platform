@@ -40,7 +40,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>회차와 작업은 한 트랜잭션이다 — 도중에 실패하면 둘 다 없다.
  *
  * <p>{@code practices} 한 표만 쓰는 문장은 {@link PracticeJpaRepository} 의 JPQL·HQL 이다. 회차를 화면에 싣는 조회와 다른 기능의
- * 표(videos·analyses·coach_*·ai_jobs·users·external_operations·practice_deletion_marks·reading_sessions·challenge_entries,
+ * 표(videos·analyses·coach_*·ai_jobs·users·external_operations·reading_sessions·challenge_entries,
  * 옛 practice_sessions·practice_reports)를 함께 보거나 쓰는 문장은 native 로 남았다(apps/api/CONTRACT.md §5-9,
  * {@code native-sql-files.txt} 의 남김 줄).
  */

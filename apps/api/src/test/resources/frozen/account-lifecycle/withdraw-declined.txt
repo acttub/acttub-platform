@@ -1,12 +1,16 @@
 == 표 ==
-account_cleanup_operations: 2행 → 10행
-  user_id=본인: 1 → 9
+account_cleanup_operations: 2행 → 14행
+  user_id=본인: 1 → 13
   user_id=남: 1 → 1
   + attempt_count=0, created_at=<now>, expires_at=<now+PT169H>, id=<새 id>, kind='object_delete', next_attempt_at=<now+PT1H>, payload_encrypted=<암호문: ["users/본인/scripts/source.pdf"]>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='apple_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: apple-grant:본인>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='kakao_unlink', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: kakao-본인>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='naver_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: naver-refresh:본인>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/community/1.jpg","users/본인/community/pending.jpg","users/본인/mosaic/1.mp4","users/본인/portfolio/1.jpg","users/본인/portfolio/pending.jpg","users/본인/profile/pending.jpg","users/본인/profile/photo.jpg","users/본인/share-frames/1.jpg","users/본인/share-frames/1.mp4","users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4","users/본인/videos/1.jpg","users/본인/videos/1.mp4","users/본인/videos/3.jpg","users/본인/videos/3.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/community/1.jpg","users/본인/community/pending.jpg"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/mosaic/1.mp4","users/본인/share-frames/1.jpg","users/본인/share-frames/1.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/portfolio/1.jpg","users/본인/portfolio/pending.jpg"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/profile/pending.jpg","users/본인/profile/photo.jpg"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4","users/본인/videos/1.jpg","users/본인/videos/1.mp4","users/본인/videos/3.jpg","users/본인/videos/3.mp4"]>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/videos/deleted.jpg","users/본인/videos/deleted.mp4"]>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='reading_recording_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/readings/1.m4a"]>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='revenuecat_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: <본인>>, updated_at=<now>, user_id=<본인>
@@ -367,9 +371,6 @@ BEGIN
   select challenges, challenge_entries
   update users
   select consent_documents, user_consents
-  select user_profiles, portfolio_photos, community_post_images
-  select upload_intents, videos, challenge_entries
-  insert account_cleanup_operations
   select scripts for update
   select reading_sessions for update
   delete script_uploads returning
@@ -385,6 +386,8 @@ BEGIN
   delete script_imports
   delete script_cocreations
   select videos for update
+  select upload_intents, videos
+  insert account_cleanup_operations
   update videos
   update ai_jobs
   delete actor_journals
@@ -396,12 +399,16 @@ BEGIN
   update videos
   insert account_cleanup_operations
   delete deleted_practice_videos
+  select challenge_entries
+  insert account_cleanup_operations
   update challenges
   delete user_blocks
   delete entry_saves
   delete notifications
   update challenge_entries
   update entry_ai_reports
+  select community_post_images
+  insert account_cleanup_operations
   delete community_post_images
   delete reading_voice_usage
   delete user_signup_attributions
@@ -421,7 +428,10 @@ BEGIN
   insert account_cleanup_operations
   update users
   select user_profiles for update
+  insert account_cleanup_operations
   update user_profiles
+  select portfolio_photos
+  insert account_cleanup_operations
   delete portfolios
   delete guest_transfer_codes
   update refresh_tokens
@@ -435,6 +445,22 @@ BEGIN
 COMMIT
 BEGIN
   update account_cleanup_operations returning for update skip locked
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
 COMMIT
 BEGIN
   update account_cleanup_operations returning

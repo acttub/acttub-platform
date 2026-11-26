@@ -3,8 +3,10 @@ package com.acttub.actingapi.feature.profile.adapter.db;
 import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
@@ -23,9 +25,11 @@ import org.springframework.stereotype.Repository;
 class PostgresProfileAccountErasure implements AccountErasure {
 
     private final EntityManager entityManager;
+    private final PostgresObjectCleanupLedger cleanups;
 
-    PostgresProfileAccountErasure(EntityManager entityManager) {
+    PostgresProfileAccountErasure(EntityManager entityManager, PostgresObjectCleanupLedger cleanups) {
         this.entityManager = entityManager;
+        this.cleanups = cleanups;
     }
 
     @Override
@@ -38,7 +42,9 @@ class PostgresProfileAccountErasure implements AccountErasure {
         switch (step) {
             case SIGNUP_ATTRIBUTION -> eraseSignupAttribution(account.userId());
             case DISCOVERY_ANSWER -> eraseDiscoveryAnswer(account.userId());
-            case PROFILE -> blurProfile(account.userId(), account.today());
+            case PROFILE -> {
+                return blurProfile(account);
+            }
             default -> throw new IllegalArgumentException("not a profile step: " + step);
         }
         return List.of();
@@ -75,17 +81,33 @@ class PostgresProfileAccountErasure implements AccountErasure {
                 .executeUpdate();
     }
 
-    /** 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 알림 토글은 끈다. 이미 뭉갠 프로필은 연령대를 그대로 둔다. */
-    private void blurProfile(UUID userId, LocalDate today) {
-        List<LocalDate> birthDates = entityManager.createQuery(
-                        "select p.birthDate from UserProfileEntity p where p.userId = :userId", LocalDate.class)
+    /**
+     * 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 알림 토글은 끈다. 이미 뭉갠 프로필은 연령대를 그대로 둔다.
+     *
+     * <p>프로필 사진(대기 중인 올리기 포함)의 객체 삭제는 키를 비우기 전에 읽어 정리 장부에 올린다. 사진은 보관 동의와 무관하게
+     * 지운다.
+     *
+     * @return 장부에 올린 객체 삭제의 id(사진이 없으면 빈 목록)
+     */
+    private List<UUID> blurProfile(ClosingAccount account) {
+        UUID userId = account.userId();
+        List<Object[]> profiles = entityManager.createQuery(
+                        "select p.birthDate, p.photoKey, p.photoUploadKey from UserProfileEntity p where p.userId = :userId",
+                        Object[].class)
                 .setParameter("userId", userId)
                 .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .getResultList();
-        if (birthDates.isEmpty()) {
-            return;
+        if (profiles.isEmpty()) {
+            return List.of();
         }
-        LocalDate birthDate = birthDates.getFirst();
+        LocalDate birthDate = (LocalDate) profiles.getFirst()[0];
+        List<String> photoKeys = Stream.of(profiles.getFirst()[1], profiles.getFirst()[2])
+                .filter(Objects::nonNull)
+                .map(String.class::cast)
+                .toList();
+        List<UUID> scheduled = photoKeys.isEmpty()
+                ? List.of()
+                : List.of(cleanups.schedule(userId, photoKeys, account.now(), account.now()));
         entityManager.createQuery("""
                         update UserProfileEntity p
                         set p.name = null, p.photoKey = null, p.bio = null, p.birthDate = null,
@@ -96,8 +118,9 @@ class PostgresProfileAccountErasure implements AccountErasure {
                             p.updatedAt = instant
                         where p.userId = :userId
                         """)
-                .setParameter("ageBand", birthDate == null ? null : AgeBand.of(birthDate, today))
+                .setParameter("ageBand", birthDate == null ? null : AgeBand.of(birthDate, account.today()))
                 .setParameter("userId", userId)
                 .executeUpdate();
+        return scheduled;
     }
 }

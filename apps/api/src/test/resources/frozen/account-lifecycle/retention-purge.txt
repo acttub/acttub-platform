@@ -1,9 +1,10 @@
 == 표 ==
-account_cleanup_operations: 0행 → 4행
-  user_id=본인: 0 → 3
+account_cleanup_operations: 0행 → 5행
+  user_id=본인: 0 → 4
   user_id=남: 0 → 1
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/남/videos/deleted.jpg","users/남/videos/deleted.mp4"]>, updated_at=<now>, user_id=<남>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/mosaic/1.mp4","users/본인/share-frames/1.jpg","users/본인/share-frames/1.mp4","users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4","users/본인/videos/1.jpg","users/본인/videos/1.mp4","users/본인/videos/3.jpg","users/본인/videos/3.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/mosaic/1.mp4","users/본인/share-frames/1.jpg","users/본인/share-frames/1.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4","users/본인/videos/1.jpg","users/본인/videos/1.mp4","users/본인/videos/3.jpg","users/본인/videos/3.mp4"]>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/videos/deleted.jpg","users/본인/videos/deleted.mp4"]>, updated_at=<now>, user_id=<본인>
   + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='reading_recording_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/readings/1.m4a"]>, updated_at=<now>, user_id=<본인>
 actor_journals: 1행 → 1행
@@ -228,9 +229,11 @@ COMMIT
   select users, user_identities, refresh_tokens, upload_intents, practice_sessions, scripts, reading_sessions, reading_recordings, line_memorization
 BEGIN
   select users for update
-  select upload_intents, videos, challenge_entries
+  select upload_intents, videos
   insert account_cleanup_operations
   update videos
+  select challenge_entries
+  insert account_cleanup_operations
   delete reading_recordings returning
   insert account_cleanup_operations
   delete user_identities
@@ -238,6 +241,10 @@ BEGIN
 COMMIT
 BEGIN
   update account_cleanup_operations returning for update skip locked
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
   set local synchronous_commit = off
 COMMIT
 BEGIN

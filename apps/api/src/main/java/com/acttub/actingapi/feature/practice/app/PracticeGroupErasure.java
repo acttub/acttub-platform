@@ -16,8 +16,8 @@ import java.util.UUID;
  *   <li>지운 회차의 시각은 남겨 오늘 쓴 무료 코칭 횟수에서 빠지지 않게 한다.</li>
  * </ul>
  *
- * <p>선언은 쓰는 쪽(여기)에 있고 구현은 정리 장부와 보관 동의를 가진 {@code profile} 이 한다 (ADR-017,
- * {@code video/app/VideoObjectCleanup} 과 같은 형태).
+ * <p>구현은 practice 가 순서와 회차를 맡고, 다른 기능의 표는 그 주인이 고친다(ADR-040,
+ * {@link PracticeGroupErasureSequence}).
  */
 public interface PracticeGroupErasure {
 
