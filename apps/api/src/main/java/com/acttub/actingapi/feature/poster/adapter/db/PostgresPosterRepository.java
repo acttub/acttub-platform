@@ -9,6 +9,8 @@ import com.acttub.actingapi.feature.poster.app.PosterRepository;
 import com.acttub.actingapi.feature.poster.domain.Poster;
 import com.acttub.actingapi.feature.poster.domain.PosterDraft;
 import com.acttub.actingapi.feature.poster.schema.AppPosterEntity;
+import com.acttub.actingapi.platform.persistence.UniqueViolation;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -21,6 +23,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 고치기는 겹치는 다른 행이 있으면 갱신하지 않는 조건의 0행으로 "이미 있다" 를 안다. HQL 에 {@code RETURNING} 이 없어 영향 행
  * 수가 1 이면 같은 트랜잭션에서 id 로 다시 읽는다. 쓴 행은 이 트랜잭션이 커밋까지 잡고 있어 읽은 값은 방금 쓴 값이다. 0 이면
  * 다시 읽지 않는다(apps/api/CONTRACT.md §5-9).
+ *
+ * <p>두 포스터를 함께 같은 {@code (slug, locale)} 로 고치면 둘 다 겹치는 행이 없다고 보고 뒤의 것은
+ * {@code uq_app_posters_slug_locale} 에서 막힌다. 그 위반도 "이미 있다" 로 돌려준다.
  */
 @Repository
 class PostgresPosterRepository implements PosterRepository {
@@ -66,11 +71,19 @@ class PostgresPosterRepository implements PosterRepository {
 
     @Override
     public Optional<Poster> update(UUID id, PosterDraft draft, boolean bumpRevision, Instant now) {
-        return transaction.execute(tx -> posters.updateUnlessTaken(id, bumpRevision, draft.slug(), draft.active(),
-                draft.priority(), draft.startsAt(), draft.endsAt(), platforms(draft), draft.locale(),
-                draft.minAppVersion(), draft.frequency(), draft.audience(), draft.dismissible(), draft.badge(),
-                draft.title(), draft.body(), draft.image(), draft.audio(), draft.ctaLabel(), draft.ctaAction(),
-                draft.ctaTarget(), draft.footnote(), draft.imageBg(), now) == 0 ? Optional.<Poster>empty() : find(id));
+        try {
+            return transaction.execute(tx -> posters.updateUnlessTaken(id, bumpRevision, draft.slug(), draft.active(),
+                    draft.priority(), draft.startsAt(), draft.endsAt(), platforms(draft), draft.locale(),
+                    draft.minAppVersion(), draft.frequency(), draft.audience(), draft.dismissible(), draft.badge(),
+                    draft.title(), draft.body(), draft.image(), draft.audio(), draft.ctaLabel(), draft.ctaAction(),
+                    draft.ctaTarget(), draft.footnote(), draft.imageBg(), now) == 0 ? Optional.<Poster>empty()
+                    : find(id));
+        } catch (DataIntegrityViolationException race) {
+            if (UniqueViolation.of(race, "uq_app_posters_slug_locale")) {
+                return Optional.empty();
+            }
+            throw race;
+        }
     }
 
     private static String[] platforms(PosterDraft draft) {

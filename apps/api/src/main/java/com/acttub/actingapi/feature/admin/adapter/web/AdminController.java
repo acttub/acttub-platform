@@ -42,7 +42,6 @@ import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionPa
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.feature.admin.app.AdminService;
-import com.acttub.actingapi.platform.migration.PracticeDataMigration;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -72,11 +71,8 @@ class AdminController {
     private static final int MAX_CHALLENGES = 100;
     private static final int MAX_CHALLENGE_COMMENTS = 200;
     private static final int MAX_READING_SESSIONS = 100;
-    /** 한 묶음이 한 트랜잭션이다 — 너무 크면 그 트랜잭션이 길어진다. */
-    private static final int MAX_BATCH = 1000;
 
     private final AdminService admin;
-    private final PracticeDataMigration migration;
     private final ChallengeService challenges;
     private final ReactionService reactions;
     private final SupportInquiryService supportInquiries;
@@ -84,13 +80,11 @@ class AdminController {
 
     AdminController(
             AdminService admin,
-            PracticeDataMigration migration,
             ChallengeService challenges,
             ReactionService reactions,
             SupportInquiryService supportInquiries,
             @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
         this.admin = admin;
-        this.migration = migration;
         this.challenges = challenges;
         this.reactions = reactions;
         this.supportInquiries = supportInquiries;
@@ -260,37 +254,6 @@ class AdminController {
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
         return reactions.resolve(id, body.resolution(), body.reviewer(), body.note());
-    }
-
-    @Operation(
-            summary = "Practice Migration",
-            description = """
-                    옛 연습 테이블의 자료를 0.1.0 테이블로 옮긴다 (specs/practice 「0.1.0 스키마 전환」 ③).
-
-                    작은 묶음으로 나눠 돌고 남은 것이 없을 때까지 되풀이한다. 몇 번을 돌려도 같은 결과다 —
-                    한 번 고른 원본은 대응표에 적혀 다시 고르지 않는다. 옮기지 않은 자료는 사유와 함께
-                    적히고 옛 테이블에 그대로 남는다.""",
-            operationId = "practice_migration_v2_admin_practice_migration_post",
-            tags = "admin")
-    @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "Successful Response",
-                content = @Content(schema = @Schema(implementation = PracticeDataMigration.Report.class))),
-        @ApiResponse(
-                responseCode = "422",
-                description = "Validation Error",
-                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
-    })
-    @PostMapping("/practice-migration")
-    PracticeDataMigration.Report practiceMigration(
-            @Parameter(schema = @Schema(type = "integer", minimum = "1", maximum = "1000",
-                    exclusiveMinimum = false, exclusiveMaximum = false, defaultValue = "200"))
-            @RequestParam(name = "batch", defaultValue = "200") String rawBatch,
-            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
-        requireToken(authorization);
-        int batch = bounded(rawBatch, "batch", MAX_BATCH);
-        return migration.run(batch);
     }
 
     @Operation(summary = "Sessions", operationId = "sessions_v2_admin_sessions_get", tags = "admin")

@@ -11,7 +11,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
-import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeStageTransitions;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.JobView;
@@ -84,7 +83,6 @@ class PostgresPracticeRepository implements PracticeRepository {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final ObjectMapper mapper;
-    private final PracticeSessionRepository legacySessions;
     private final AiJobLedger jobs;
     private final PracticeStageTransitions stages;
 
@@ -92,7 +90,7 @@ class PostgresPracticeRepository implements PracticeRepository {
 
     PostgresPracticeRepository(PracticeJpaRepository practices, EntityManager entityManager,
                                PlatformTransactionManager transactionManager, ObjectMapper mapper,
-                               PracticeSessionRepository legacySessions, AiJobLedger jobs,
+                               AiJobLedger jobs,
                                PracticeStageTransitions stages,
                                AccountRowLock accountRows) {
         this.accountRows = accountRows;
@@ -101,7 +99,6 @@ class PostgresPracticeRepository implements PracticeRepository {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.mapper = mapper;
-        this.legacySessions = legacySessions;
         this.jobs = jobs;
     }
 
@@ -113,14 +110,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 WHERE p.id=:id AND p.user_id=:userId
                 """, Tuple.class).setParameter("id", practiceId).setParameter("userId", userId));
         if (rows.isEmpty()) {
-            var legacy = legacySessions.detail(userId, practiceId);
-            if (legacy == null) return null;
-            if (legacy.videoRecord() != null) {
-                return new AnalysisView(legacy.videoRecord().recordId(), "video_record_v1",
-                        legacy.videoRecord().status(), null, legacy.videoRecord());
-            }
-            return legacy.summary() == null ? null : new AnalysisView(legacy.summary().summaryId(),
-                    "legacy", "ready", legacy.summary(), null);
+            return null;
         }
         Tuple row = rows.getFirst();
         try {
