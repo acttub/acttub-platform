@@ -31,8 +31,10 @@ feature/ads/adapter/db/PostgresAdRepository.java coach_notes
 feature/ads/adapter/db/PostgresAdRepository.java practices
 feature/ads/adapter/db/PostgresAdRepository.java reading_sessions
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java ai_jobs
+feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java practices
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java upload_intents
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java users
+feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java videos
 feature/billing/adapter/db/PostgresBillingAdminReader.java user_profiles
 feature/billing/adapter/db/PostgresBillingAdminReader.java users
 feature/billing/adapter/db/PostgresBillingRepository.java consent_documents
@@ -74,6 +76,7 @@ feature/coach/adapter/db/PostgresConversationRepository.java coach_turns
 feature/coach/adapter/db/PostgresConversationRepository.java coaching_handoffs
 feature/coach/adapter/db/PostgresConversationRepository.java practice_reports
 feature/coach/adapter/db/PostgresConversationRepository.java practice_sessions
+feature/coach/adapter/db/PostgresConversationRepository.java practices
 feature/coach/adapter/db/PostgresConversationRepository.java users
 feature/coach/adapter/db/PostgresConversationRepository.java videos
 feature/coach/adapter/db/PostgresJournalRepository.java practices
@@ -127,6 +130,8 @@ feature/practice/adapter/db/PostgresPracticeRepository.java videos
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java external_operations
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java summaries
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java upload_intents
+feature/practice/adapter/db/PostgresPracticeStageTransitions.java ai_jobs
+feature/practice/adapter/db/PostgresPracticeStageTransitions.java coach_conversations
 feature/profile/adapter/db/PostgresProfileRepository.java line_memorization
 feature/profile/adapter/db/PostgresProfileRepository.java practice_sessions
 feature/profile/adapter/db/PostgresProfileRepository.java reading_recordings

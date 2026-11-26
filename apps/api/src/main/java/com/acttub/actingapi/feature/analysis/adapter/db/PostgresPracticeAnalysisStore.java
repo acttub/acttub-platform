@@ -4,13 +4,14 @@ import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisContext;
 import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore;
+import com.acttub.actingapi.feature.practice.app.PracticeStageTransitions;
+import com.acttub.actingapi.feature.video.app.AnalyzedVideos;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import tools.jackson.databind.JsonNode;
@@ -36,9 +37,10 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p><b>받아쓰기는 영상 단위다.</b> 영상당 묶음 하나이고 같은 영상의 다음 회차는 새로 만들지 않는다.
  *
- * <p>자기 표({@code analyses})를 쓰는 기록 넣기만 HQL 이다. 나머지는 다른 기능의 표({@code ai_jobs}·{@code practices}·
- * {@code videos}·{@code video_transcripts}·{@code upload_intents}·{@code users})를 읽고 쓰거나 잠가 native SQL 로 둔다 — 그
- * 기능들에 이 일을 내주는 Port 가 없고, 다른 feature 의 Schema Entity 를 import 하지 않는다(apps/api/CONTRACT.md §5-1·§5-9).
+ * <p>자기 표({@code analyses})를 쓰는 기록 넣기만 HQL 이다. 다른 기능의 표에 쓰는 일은 그 주인의 Port 가 한다: 회차의 단계는
+ * {@link PracticeStageTransitions}, 영상 길이와 받아쓰기는 {@link AnalyzedVideos}, 작업은 {@link AiJobLedger}. 다른 기능의 표
+ * ({@code ai_jobs}·{@code practices}·{@code videos}·{@code upload_intents}·{@code users})를 읽거나 잠그는 문장은 native SQL 로
+ * 둔다 — 다른 feature 의 Schema Entity 를 import 하지 않는다(apps/api/CONTRACT.md §5-1·§5-9).
  */
 @Repository
 class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
@@ -48,9 +50,14 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
     private final AnalysisJpaRepository analyses;
     private final TransactionTemplate transaction;
     private final AiJobLedger jobs;
+    private final PracticeStageTransitions stages;
+    private final AnalyzedVideos videos;
 
     PostgresPracticeAnalysisStore(EntityManager entityManager, AnalysisJpaRepository analyses,
-            PlatformTransactionManager transactionManager, AiJobLedger jobs) {
+            PlatformTransactionManager transactionManager, AiJobLedger jobs, PracticeStageTransitions stages,
+            AnalyzedVideos videos) {
+        this.stages = stages;
+        this.videos = videos;
         this.entityManager = entityManager;
         this.analyses = analyses;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -151,25 +158,8 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
                     record == null ? JsonNodeFactory.instance.nullNode() : record, now);
             storeTranscript(videoId, result, now);
             // 분석 결과가 저장되면 대화로 넘어간다. 이미 닫힌 회차(취소·이관)는 되살리지 않는다.
-            entityManager.createNativeQuery("""
-                    UPDATE practices
-                    SET stage='conversing',updated_at=:now
-                    WHERE id=:practiceId
-                      AND stage='analyzing'
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("practiceId", practiceId)
-                    .executeUpdate();
-            entityManager.createNativeQuery("""
-                    UPDATE videos
-                    SET duration_ms=:durationMs,updated_at=:now
-                    WHERE id=:videoId
-                      AND duration_ms=0
-                    """)
-                    .setParameter("durationMs", result.durationMs())
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("videoId", videoId)
-                    .executeUpdate();
+            stages.analysisSaved(practiceId, now);
+            videos.recordDuration(videoId, result.durationMs(), now);
             jobs.succeed(jobId, leaseToken, now);
             return analysisId;
         });
@@ -183,17 +173,7 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
         if (result.observationPack() == null || result.observationPack().speech() == null) {
             return;
         }
-        entityManager.createNativeQuery("""
-                INSERT INTO video_transcripts(id,video_id,status,source,segments,created_at,updated_at,completed_at)
-                VALUES (:id,:videoId,'ready',:source,CAST(:segments AS jsonb),:now,:now,:now)
-                ON CONFLICT (video_id) DO NOTHING
-                """)
-                .setParameter("id", UUID.randomUUID())
-                .setParameter("videoId", videoId)
-                .setParameter("source", "stt")
-                .setParameter("segments", json(JSON.valueToTree(result.observationPack().speech())))
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .executeUpdate();
+        videos.keepTranscript(videoId, JSON.valueToTree(result.observationPack().speech()), now);
     }
 
     @Override
@@ -236,22 +216,6 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
 
     /** 분석이 최종 실패한 회차는 닫힌다. 배우가 명시적으로 다시 시도하면 PA2 의 재시도가 되살린다. */
     private void closePractice(UUID jobId, Instant now) {
-        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
-                UPDATE practices
-                SET stage='closed',close_reason='analysis_failed',updated_at=:now
-                WHERE id=(SELECT target_id FROM ai_jobs WHERE id=:jobId)
-                  AND stage='analyzing'
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("jobId", jobId)
-                .executeUpdate());
-    }
-
-    private static String json(JsonNode value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (Exception failure) {
-            throw new IllegalStateException("failed to write analysis json", failure);
-        }
+        transaction.executeWithoutResult(tx -> stages.analysisFailed(jobId, now));
     }
 }

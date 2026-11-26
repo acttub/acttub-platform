@@ -3,12 +3,6 @@
 # 그 파일에 그 테이블을 쓰는 문장이 하나라도 있으면 여기 줄이다(같은 파일이 읽기도 해도). 줄을 더하지 않는다.
 # 쓰는 문장을 주인에게 옮겼으면 그 줄을 빼고 TableOwnerTest.WRITE_EXCEPTION_CEILING 을 내린다. 그 파일이 그 테이블을 아직 읽으면
 # 그 줄을 table-owner-read-only.txt 로 옮기고, 읽지도 않으면 TableOwnerTest.EXCEPTION_CEILING 도 같이 내린다.
-feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java practices
-feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java video_transcripts
-feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java videos
-feature/auth/adapter/db/PostgresAuthRepository.java user_consents
-feature/coach/adapter/db/PostgresConversationRepository.java practices
-feature/community/adapter/db/PostgresCommunityRepository.java user_blocks
 platform/migration/PostgresPracticeDataMigration.java actor_memories
 platform/migration/PostgresPracticeDataMigration.java ai_jobs
 platform/migration/PostgresPracticeDataMigration.java analyses

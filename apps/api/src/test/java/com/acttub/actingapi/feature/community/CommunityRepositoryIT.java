@@ -899,7 +899,7 @@ class CommunityRepositoryIT {
         assertThat(statementsOf(() -> {
             community.blockUser(author, other);
             return null;
-        })).containsExactly("select users", "insert user_blocks returning");
+        })).containsExactly("select users", "insert user_blocks on conflict");
         assertThat(statementsOf(() -> community.deletePost(post, author)))
                 .containsExactly(postLock, "update community_posts", imageLock, "delete community_post_images",
                         "insert account_cleanup_operations");

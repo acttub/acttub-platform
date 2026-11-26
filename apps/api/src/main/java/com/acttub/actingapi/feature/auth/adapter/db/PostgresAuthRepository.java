@@ -3,7 +3,6 @@ package com.acttub.actingapi.feature.auth.adapter.db;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -12,6 +11,7 @@ import com.acttub.actingapi.feature.auth.app.AcceptedConsent;
 import com.acttub.actingapi.feature.auth.app.AuthRepository;
 import com.acttub.actingapi.feature.auth.app.GuestAccounts;
 import com.acttub.actingapi.feature.auth.app.IdentityAlreadyLinkedError;
+import com.acttub.actingapi.feature.auth.app.SignupConsents;
 import com.acttub.actingapi.feature.auth.domain.RefreshToken;
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
 import com.acttub.actingapi.feature.auth.schema.UserEntity;
@@ -44,13 +44,16 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
     private final RefreshTokenJpaRepository refreshTokens;
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
+    private final SignupConsents signupConsents;
 
     public PostgresAuthRepository(
             UserJpaRepository users,
             UserIdentityJpaRepository identities,
             RefreshTokenJpaRepository refreshTokens,
             EntityManager entityManager,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            SignupConsents signupConsents) {
+        this.signupConsents = signupConsents;
         this.users = users;
         this.identities = identities;
         this.refreshTokens = refreshTokens;
@@ -128,22 +131,8 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
                     provider(provider),
                     uid,
                     providerTokenEncrypted));
-            // ⚠ `user_consents` 의 주인은 `consent` 다. 그래도 여기서 쓰는 것은 계정과 동의가 한
-            // 트랜잭션이어야 하기 때문이다. 다른 feature 의 Schema Entity 를 import 하면 패키지
-            // 경계를 우회하므로 명시적 native DML 로 남긴다(탈퇴의 교차 도메인 정리와 같은 형태).
-            // 무엇을 받아도 되는지는 이미 `consent` 가 확인했다(`PendingConsentDocuments`).
-            for (AcceptedConsent consent : consents) {
-                entityManager.createNativeQuery("""
-                        INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
-                        VALUES (:id,:userId,:documentId,:action,:occurredAt)
-                        """)
-                        .setParameter("id", UUID.randomUUID())
-                        .setParameter("userId", user.getId())
-                        .setParameter("documentId", consent.documentId())
-                        .setParameter("action", consent.action())
-                        .setParameter("occurredAt", now.atOffset(ZoneOffset.UTC))
-                        .executeUpdate();
-            }
+            // 동의 기록은 `consent` 의 테이블이라 그 주인이 넣는다. 계정과 한 트랜잭션이다.
+            signupConsents.record(user.getId(), consents, now);
             return authenticated(user);
         });
     }
