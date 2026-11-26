@@ -24,6 +24,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>완료·실패·놓기는 <b>토큰이 그대로일 때만</b> 통한다. 시한이 지났어도 아직 아무도 재선점하지 않았으면
  * 받아들이고, 토큰이 바뀌었으면 {@link LeaseOwnershipException} 으로 전체를 되돌린다.
+ *
+ * <p><b>작업의 상태를 바꾸는 문장은 이 파일에만 둔다.</b> 허용되는 길은 {@code AiJobStatusTransition} 에 있다
+ * ({@code StateTransitionTest}).
  */
 @Repository
 class PostgresAiJobLedger implements AiJobLedger {
@@ -154,12 +157,74 @@ class PostgresAiJobLedger implements AiJobLedger {
 
     @Override
     public boolean succeed(UUID jobId, UUID leaseToken, Instant now) {
-        return close(jobId, leaseToken, "succeeded", null, now);
+        return close(jobId, leaseToken, """
+                UPDATE ai_jobs
+                SET status='succeeded',failure_reason=:reason,
+                    lease_token=NULL,lease_expires_at=NULL,updated_at=:now
+                WHERE id=:jobId
+                  AND status='running'
+                """, null, now);
     }
 
     @Override
     public boolean fail(UUID jobId, UUID leaseToken, String reason, Instant now) {
-        return close(jobId, leaseToken, "failed", reason, now);
+        return close(jobId, leaseToken, """
+                UPDATE ai_jobs
+                SET status='failed',failure_reason=:reason,
+                    lease_token=NULL,lease_expires_at=NULL,updated_at=:now
+                WHERE id=:jobId
+                  AND status='running'
+                """, reason, now);
+    }
+
+    /**
+     * 탈퇴한 계정의 끝나지 않은 작업을 닫는다(사유 {@code account_deactivated}). lease 를 떼므로 돌던 워커의 완료는 저장되지
+     * 않고, 결과 본문도 비운다. 트랜잭션을 열지 않는다 — 계정을 닫는 트랜잭션에 참여한다.
+     */
+    void failAllOfClosedAccount(UUID userId, Instant now) {
+        entityManager.createNativeQuery("""
+                UPDATE ai_jobs
+                SET status='failed',failure_reason='account_deactivated',
+                    lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
+                WHERE user_id=:userId
+                  AND status IN ('pending','running')
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    /**
+     * 지우는 연습 묶음의 끝나지 않은 작업을 닫고(사유 {@code practice_deleted}), 그 묶음의 작업 행을 보관 계정에 넘긴다.
+     * 작업의 대상은 회차이거나 그 회차의 코치 대화다 — 대화는 한 문장 안에서 코치의 테이블을 읽어 고른다. 트랜잭션을 열지
+     * 않는다 — 연습을 지우는 트랜잭션에 참여한다.
+     */
+    void failAndHandOverOfDeletedPractices(UUID userId, List<UUID> practiceIds, UUID keeper, Instant now) {
+        entityManager.createNativeQuery("""
+                UPDATE ai_jobs
+                SET status='failed',failure_reason='practice_deleted',
+                    lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
+                WHERE user_id=:userId
+                  AND status IN ('pending','running')
+                  AND (target_id IN (:practiceIds)
+                       OR target_id IN (SELECT id FROM coach_conversations WHERE practice_id IN (:practiceIds)))
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .setParameter("practiceIds", practiceIds)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                UPDATE ai_jobs
+                SET user_id=:keeper,updated_at=:now
+                WHERE user_id=:userId
+                  AND (target_id IN (:practiceIds)
+                       OR target_id IN (SELECT id FROM coach_conversations WHERE practice_id IN (:practiceIds)))
+                """)
+                .setParameter("keeper", keeper)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .setParameter("practiceIds", practiceIds)
+                .executeUpdate();
     }
 
     @Override
@@ -210,16 +275,10 @@ class PostgresAiJobLedger implements AiJobLedger {
                 .setParameter("maxAttempts", MAX_ATTEMPTS)).stream().map(row -> row.get("id", UUID.class)).toList());
     }
 
-    private boolean close(UUID jobId, UUID leaseToken, String status, String reason, Instant now) {
+    /** 상태 값은 문장에 글자 그대로 적는다 — 어느 길로 넘어가는지 문장에서 읽히게({@code StateTransitionTest}). */
+    private boolean close(UUID jobId, UUID leaseToken, String statement, String reason, Instant now) {
         requireOwnedLease(jobId, leaseToken);
-        return transaction.execute(tx -> entityManager.createNativeQuery("""
-                UPDATE ai_jobs
-                SET status=:status,failure_reason=:reason,
-                    lease_token=NULL,lease_expires_at=NULL,updated_at=:now
-                WHERE id=:jobId
-                  AND status='running'
-                """)
-                .setParameter("status", status)
+        return transaction.execute(tx -> entityManager.createNativeQuery(statement)
                 .setParameter("reason", reason)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("jobId", jobId)

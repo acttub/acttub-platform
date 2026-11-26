@@ -168,8 +168,8 @@ platform/migration/PostgresPracticeDataMigration.java practice_reports
 platform/migration/PostgresPracticeDataMigration.java practice_sessions
 platform/migration/PostgresPracticeDataMigration.java summaries
 platform/migration/PostgresPracticeDataMigration.java transcripts
+platform/operation/PostgresAiJobLedger.java coach_conversations
 platform/operation/PostgresAiJobLedger.java users
-platform/operation/PostgresOperationPracticeGroupPart.java coach_conversations
 resources/admin/ops-core.sql ai_jobs
 resources/admin/ops-core.sql analyses
 resources/admin/ops-core.sql anomalies

@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AcceptedConsent;
+import com.acttub.actingapi.feature.auth.app.AccountDeactivation;
 import com.acttub.actingapi.feature.auth.app.AuthRepository;
 import com.acttub.actingapi.feature.auth.app.GuestAccounts;
 import com.acttub.actingapi.feature.auth.app.IdentityAlreadyLinkedError;
@@ -45,6 +46,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final SignupConsents signupConsents;
+    private final AccountDeactivation deactivation;
 
     public PostgresAuthRepository(
             UserJpaRepository users,
@@ -52,7 +54,9 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
             RefreshTokenJpaRepository refreshTokens,
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            SignupConsents signupConsents) {
+            SignupConsents signupConsents,
+            AccountDeactivation deactivation) {
+        this.deactivation = deactivation;
         this.signupConsents = signupConsents;
         this.users = users;
         this.identities = identities;
@@ -94,7 +98,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
      */
     @Override
     public void closeTransferredGuest(UUID guestId, Instant now) {
-        users.close(guestId, UserStatus.DEACTIVATED, now);
+        deactivation.deactivate(guestId, now);
         identities.removeAllOf(guestId);
         refreshTokens.revokeAllActiveByUserId(guestId, now);
     }

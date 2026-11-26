@@ -89,7 +89,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 
 상태 칸을 바꾸는 문장은 그 상태의 파일 한 곳에 모으고, 허용되는 길은 주인의 `domain`에 표로 둔다. 다른 기능은 주인의 `app`에
 있는 전이 Port를 부른다. 조건은 SQL에 그대로 둔다([CONTRACT §5-2](../apps/api/CONTRACT.md)). 모은 상태의 목록과 대조하는 규칙은
-`StateTransitionTest`에 있다(첫 상태는 회차의 단계: `PracticeStageTransition`, `PostgresPracticeStageTransitions`).
+`StateTransitionTest`에 있다(회차의 단계, AI 작업의 상태, 계정의 상태).
 
 | 주인 | 테이블 |
 |---|---|
