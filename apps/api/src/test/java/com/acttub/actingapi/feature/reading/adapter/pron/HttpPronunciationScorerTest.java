@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer.Scored;
 import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
@@ -87,6 +88,17 @@ class HttpPronunciationScorerTest {
         assertThat(second.syllable()).isNull();
         assertThat(second.startMs()).isNull();
         assertThat(scored.line().words().get(1).number()).isTrue();
+    }
+
+    @Test
+    void 채점_서비스가_보낸_자기_시간을_읽고_없으면_비운다() throws IOException {
+        assertThat(scorer().score(audio(), "audio/mp4", "다리").serverTime()).isNull();
+
+        body = OK_BODY.replaceFirst("\\{", "{\"timings_ms\":{\"decode\":41,\"model\":903,\"gop\":288,\"total\":1260},");
+        Scored scored = scorer().score(audio(), "audio/mp4", "다리");
+
+        assertThat(scored.serverTime()).isEqualTo(new PronunciationScorer.ServerTime(41, 903, 288, 1_260));
+        assertThat(scored.line().words()).hasSize(2);
     }
 
     @Test

@@ -22,7 +22,7 @@ apps/
 │   ├── app/              expo-router 라우트
 │   ├── components/
 │   └── lib/              api·auth·기능별 상태 모듈
-└── pron/                 리딩 발음 채점 실험 서비스 (파이썬, compose `pron` 프로필의 dev에서만 뜸)
+└── pron/                 리딩 발음 채점 실험 서비스 (파이썬, compose `pron` 프로필로 dev·운영에 뜸)
 packages/                 두 번째 사용처가 생길 때만 채운다
 deploy/                   홈서버 배포 스크립트·모니터링 설정
 docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기능 스펙), deploy/, agents/
