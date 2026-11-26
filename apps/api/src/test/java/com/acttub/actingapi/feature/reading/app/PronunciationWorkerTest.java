@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,6 +27,8 @@ class PronunciationWorkerTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-21T00:00:00Z"), ZoneOffset.UTC);
     private static final UUID REPORT = UUID.randomUUID();
     private static final UUID SESSION = UUID.randomUUID();
+    private static final UUID OWNER = UUID.randomUUID();
+    private static final Duration NOTIFY_AFTER = Duration.ofMinutes(1);
 
     /** 줄과 집을 것을 정해 두고, 닫은 결과를 적어 두는 가짜 장부. */
     static final class FakeReports implements PronunciationReportRepository {
@@ -37,6 +40,7 @@ class PronunciationWorkerTest {
         Report completedReport;
         String failure;
         Boolean retried;
+        ReportOwner owner;
 
         @Override
         public ReportState findOrEnqueue(UUID userId, UUID sessionId, Instant now) {
@@ -69,6 +73,11 @@ class PronunciationWorkerTest {
             this.retried = retry;
             return true;
         }
+
+        @Override
+        public Optional<ReportOwner> owner(UUID reportId) {
+            return Optional.ofNullable(owner);
+        }
     }
 
     final FakeReports reports = new FakeReports();
@@ -77,6 +86,8 @@ class PronunciationWorkerTest {
     final List<Path> tempFiles = new ArrayList<>();
     RuntimeException scorerFailure;
     String failOnlyText;
+    final List<String> notified = new ArrayList<>();
+    PronunciationReportListener listener = (user, session) -> notified.add(user + " " + session);
 
     private PronunciationWorker worker(int maxAttempts) {
         PronunciationAudio audio = (key, destination) -> {
@@ -93,7 +104,8 @@ class PronunciationWorkerTest {
             return new PronunciationScorer.Scored(new ScoredLine(text, List.of(new Word(0, text, false, List.of(phone)))), "pron-test");
         };
         return new PronunciationWorker(reports, scorer, audio,
-                new PronunciationSettings(true, Set.of(), "http://pron.test", Duration.ofMinutes(10), maxAttempts), CLOCK);
+                new PronunciationSettings(true, Set.of(), "http://pron.test", Duration.ofMinutes(10), maxAttempts), CLOCK,
+                listener, NOTIFY_AFTER);
     }
 
     private static PronunciationReportRepository.LineSource line(int no, String text, String transcript) {
@@ -171,7 +183,8 @@ class PronunciationWorkerTest {
             throw new UncheckedIOException(new java.io.IOException("storage down"));
         };
         PronunciationWorker worker = new PronunciationWorker(reports, (p, c, t) -> null, broken,
-                new PronunciationSettings(true, Set.of(), "http://pron.test", Duration.ofMinutes(10), 3), CLOCK);
+                new PronunciationSettings(true, Set.of(), "http://pron.test", Duration.ofMinutes(10), 3), CLOCK,
+                listener, NOTIFY_AFTER);
 
         assertThatThrownBy(worker::runOnce).isInstanceOf(UncheckedIOException.class);
         assertThat(reports.failure).isEqualTo("UncheckedIOException");
@@ -205,5 +218,73 @@ class PronunciationWorkerTest {
         assertThat(reports.completedReport.skippedLines()).containsExactly(3);
         assertThat(reports.completedReport.summary().linesUsed()).isEqualTo(2);
         assertThat(tempFiles).allSatisfy(path -> assertThat(Files.exists(path)).isFalse());
+    }
+
+    /** 처음 요청한 지 {@code seconds} 초 지난 보고서. */
+    private void requestedSecondsAgo(long seconds) {
+        reports.owner = new PronunciationReportRepository.ReportOwner(OWNER, CLOCK.instant().minusSeconds(seconds));
+    }
+
+    @Test
+    void 처음_요청부터_정한_시간이_지나_done_으로_닫으면_주인에게_알린다() {
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"));
+        requestedSecondsAgo(61);
+
+        assertThat(worker(3).runOnce()).isTrue();
+
+        assertThat(reports.completedStatus).isEqualTo("done");
+        assertThat(notified).containsExactly(OWNER + " " + SESSION);
+    }
+
+    @Test
+    void 금방_끝났거나_쓸_줄이_없거나_임대를_잃었으면_알리지_않는다() {
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"));
+        requestedSecondsAgo(59);
+        worker(3).runOnce();
+
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", null));
+        requestedSecondsAgo(600);
+        worker(3).runOnce();
+        assertThat(reports.completedStatus).isEqualTo("skipped");
+
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"));
+        reports.leaseHeld = false;
+        worker(3).runOnce();
+
+        reports.leaseHeld = true;
+        reports.owner = null;
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        worker(3).runOnce();
+
+        assertThat(notified).isEmpty();
+    }
+
+    @Test
+    void 알림이_실패해도_보고서는_닫힌다() {
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"));
+        requestedSecondsAgo(600);
+        listener = (user, session) -> {
+            throw new IllegalStateException("push down");
+        };
+
+        assertThat(worker(3).runOnce()).isTrue();
+        assertThat(reports.completedStatus).isEqualTo("done");
+        assertThat(reports.failure).isNull();
+    }
+
+    @Test
+    void 알림을_받을_곳이_없으면_알리지_않는다() {
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"));
+        requestedSecondsAgo(600);
+        listener = null;
+
+        assertThat(worker(3).runOnce()).isTrue();
+        assertThat(reports.completedStatus).isEqualTo("done");
     }
 }

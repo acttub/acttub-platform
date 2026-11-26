@@ -29,6 +29,11 @@ export function reminderTarget(data: unknown): string | null {
     const scriptId = uuid(d.script_id);
     return scriptId ? openPath('script_ready', scriptId) : '/reading';
   }
+  // 발음 보고서 완료(SOMA-1169) — 긴 리딩은 채점이 몇 분 걸려 화면을 떠난 사람에게 그 회차의 보고서를 연다.
+  if (d.kind === 'pronunciation_report_ready') {
+    const sessionId = uuid(d.session_id);
+    return sessionId ? '/reading/pronunciation?sessionId=' + encodeURIComponent(sessionId) : '/reading';
+  }
   if (d.kind !== 'evening_reminder') return null;
   switch (d.reminder_kind) {
     case 'resume':

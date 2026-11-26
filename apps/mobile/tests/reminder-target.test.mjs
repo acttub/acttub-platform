@@ -20,6 +20,11 @@ test('대본 나누기 완료 알림은 그 대본의 목소리 정하기로 이
  for(const script_id of [null,'/bad',12]) assert.equal(reminderTarget({kind:'script_split_complete',script_id}),'/reading');
  assert.equal(reminderOpenEvent({kind:'script_split_complete',script_id:id2}),null);
 });
+test('발음 보고서 완료 알림은 그 회차의 발음 보고서를 연다(SOMA-1169)',()=>{
+ assert.equal(reminderTarget({kind:'pronunciation_report_ready',session_id:id}),'/reading/pronunciation?sessionId='+id);
+ for(const session_id of [null,'/bad',12]) assert.equal(reminderTarget({kind:'pronunciation_report_ready',session_id}),'/reading');
+ assert.equal(reminderOpenEvent({kind:'pronunciation_report_ready',session_id:id}),null);
+});
 test('연습 알림은 알림이 말한 대상을 연다(SOMA-862)',()=>{
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'homework',practice_id:id}),`/reminder-open?kind=homework&id=${id}`);
  assert.equal(reminderTarget({kind:'evening_reminder',reminder_kind:'pending_video',video_id:id2}),`/reminder-open?kind=pending_video&id=${id2}`);

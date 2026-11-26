@@ -49,7 +49,10 @@ class PronunciationConfigurationTest {
         var scorer = configuration.pronunciationScorer(settings, new ObjectMapper());
         assertThat(scorer).isNotNull();
         assertThat(configuration.pronunciationReportService(reports, settings,
-                new StaticListableBeanFactory().getBeanProvider(com.acttub.actingapi.feature.reading.app.VoicePlan.class), Clock.systemUTC())).isNotNull();
-        assertThat(configuration.pronunciationWorker(reports, scorer, (key, path) -> { }, settings, Clock.systemUTC())).isNotNull();
+                new StaticListableBeanFactory().getBeanProvider(com.acttub.actingapi.feature.reading.app.VoicePlan.class), Clock.systemUTC(),
+                10_000)).isNotNull();
+        assertThat(configuration.pronunciationWorker(reports, scorer, (key, path) -> { }, settings, Clock.systemUTC(),
+                new StaticListableBeanFactory().getBeanProvider(com.acttub.actingapi.feature.reading.app.PronunciationReportListener.class),
+                60)).isNotNull();
     }
 }

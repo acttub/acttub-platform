@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.reading.adapter.db;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository;
@@ -96,5 +97,10 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
         Integer updated = transaction.execute(tx ->
                 reports.fail(reportId, leaseToken, retry ? "queued" : "failed", failure, now));
         return updated != null && updated == 1;
+    }
+
+    @Override
+    public Optional<ReportOwner> owner(UUID reportId) {
+        return reports.owner(reportId).map(row -> new ReportOwner(row.getUserId(), row.getCreatedAt()));
     }
 }

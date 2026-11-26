@@ -5,6 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +26,9 @@ import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Report;
  * <p>줄 하나가 실패해도 보고서 전체를 버리지 않는다. 너무 긴 녹음(대사를 못 하고 기다린 줄 등)은 보내지 않고 빼고,
  * 채점·내려받기에 실패한 줄도 빠진 줄로 적고 나머지로 보고서를 만든다. 보낸 줄이 모두 실패했을 때만(채점 서비스가
  * 죽은 경우 등) 회차를 실패로 적고 다시 줄 세운다.
+ *
+ * <p>처음 요청부터 {@code notifyAfter}(기본 1분) 넘게 걸려 {@code done} 으로 닫은 보고서는 주인에게 알린다(SOMA-1169) — 긴 리딩은
+ * 채점이 몇 분 걸려 배우가 그동안 화면을 떠난다. 금방 끝난 것은 화면에서 이미 봤으니 알리지 않는다.
  */
 public class PronunciationWorker {
     private static final Logger LOGGER = Logger.getLogger(PronunciationWorker.class.getName());
@@ -35,14 +40,19 @@ public class PronunciationWorker {
     private final PronunciationAudio audio;
     private final PronunciationSettings settings;
     private final Clock clock;
+    private final PronunciationReportListener listener;
+    private final Duration notifyAfter;
 
+    /** @param listener 다 된 보고서를 알릴 곳. 없으면 {@code null} */
     public PronunciationWorker(PronunciationReportRepository reports, PronunciationScorer scorer, PronunciationAudio audio,
-            PronunciationSettings settings, Clock clock) {
+            PronunciationSettings settings, Clock clock, PronunciationReportListener listener, Duration notifyAfter) {
         this.reports = reports;
         this.scorer = scorer;
         this.audio = audio;
         this.settings = settings;
         this.clock = clock;
+        this.listener = listener;
+        this.notifyAfter = notifyAfter;
     }
 
     /** @return 하나를 집었으면 {@code true} */
@@ -81,8 +91,11 @@ public class PronunciationWorker {
                 throw (RuntimeException) lastFailure;
             }
             Report report = PronunciationRules.build(inputs);
-            if (!reports.complete(claimed.reportId(), token, report.empty() ? "skipped" : "done", model, report, clock.instant())) {
+            String status = report.empty() ? "skipped" : "done";
+            if (!reports.complete(claimed.reportId(), token, status, model, report, clock.instant())) {
                 LOGGER.warning("pronunciation lease ownership was lost: " + claimed.reportId());
+            } else if ("done".equals(status)) {
+                notifyIfSlow(claimed);
             }
         } catch (RuntimeException | IOException failure) {
             boolean retry = claimed.attempt() < settings.maxAttempts();
@@ -95,6 +108,21 @@ public class PronunciationWorker {
             throw new IllegalStateException(failure);
         }
         return true;
+    }
+
+    /** 처음 요청부터 {@code notifyAfter} 넘게 걸렸으면 주인에게 알린다. 알림 실패는 로그만 남긴다 — 보고서는 이미 닫혔다. */
+    private void notifyIfSlow(Claimed claimed) {
+        if (listener == null) {
+            return;
+        }
+        try {
+            Instant now = clock.instant();
+            reports.owner(claimed.reportId())
+                    .filter(owner -> !owner.requestedAt().plus(notifyAfter).isAfter(now))
+                    .ifPresent(owner -> listener.onPronunciationReportReady(owner.userId(), claimed.sessionId()));
+        } catch (RuntimeException failure) {
+            LOGGER.warning("pronunciation report notice failed: report=" + claimed.reportId() + " cause=" + failure);
+        }
     }
 
     private static boolean tooLong(LineSource line) {
