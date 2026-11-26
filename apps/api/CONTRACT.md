@@ -1155,7 +1155,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     단계표를 타고, 대화 응답 `CoachConversation.purpose` 에 답 버튼·AI가 본 장면·받아 적은 대사·결과 카드·인물 카드를 싣는다
     ([practice.coach 「목적별 코칭」](../../docs/specs/practice/coach.md#목적별-코칭-soma-719)).
   - **회차의 포스터**(`Practice.poster_url`, SOMA-671): 회차 SELECT 가 `videos` 를 LEFT JOIN 해 `purged_at IS NULL` 인 영상의
-    `poster_key` 만 읽는다(옛 표 호환 읽기도 같은 규칙). 서명은 `practice/app/PracticePosters` 포트 →
+    `poster_key` 만 읽는다. 서명은 `practice/app/PracticePosters` 포트 →
     `adapter/storage/ObjectStoragePracticePosters` 이고 보관함과 같은 10분(`PracticeRules.POSTER_URL_TTL_SECONDS`)이다.
     서비스가 응답 직전에 채우므로 목록도 회차마다 쿼리를 더하지 않는다(서명은 바깥 호출이 아니다). 스토리지가 없는 기동은 null.
 - **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 상태와 lease 의 뜻은
@@ -1211,42 +1211,33 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
     받아쓰기는 그 행에 매달려 따라간다.
   - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다(분석의 완료가 같은 자리에서 같은 확인을 한다).
-- **데이터 전환**(`POST /v2/admin/practice-migration`, `platform/migration`) — 옛 표의 자료를 0.1.0 표로 옮기는
-  <b>재실행 가능한 명령</b>이다. Flyway 가 아니라 애플리케이션 명령인 것은 전환이 배포를 멈추면 안 되고 되돌릴
-  수도 없기 때문이다(specs/practice 「0.1.0 스키마 전환」 ③).
-  - **단계는 순서대로 끝까지 돈다**: 영상 → 회차 → 받아쓰기 → 관찰 기록 → 대화 → 메시지 → 노트 → 기억 →
-    작업 장부. 뒤 단계가 앞 단계가 만든 행을 가리키므로 한 단계를 남김없이 끝낸 뒤에 다음으로 간다. 한 묶음
-    (기본 200)이 한 트랜잭션이고 **고르기와 옮기기가 그 안에 함께** 있다.
-  - **멱등은 대응표가 만든다**(`practice_migration_entries`, V15). 한 번 고른 원본은 다시 고르지 않고
-    ({@code (source_table, source_id)} 유일), 옮기기는 언제나 다시 돌 수 있다(`NOT EXISTS`·`ON CONFLICT DO
-    NOTHING`). 몇 번을 돌려도 행 수도 대응표도 그대로다.
-  - **옮기지 않는 것은 사유와 함께 적힌다**: 가지 쳐 차수가 겹치는 묶음(`branching_chain`), 닫히지 않은 회차가
-    둘 이상인 묶음(`multiple_open_practices`), 확정되지 않은 업로드를 가리키는 묶음(`video_missing`), 한 연습의
-    옛 대화 가운데 최신이 아닌 것(`superseded_conversation`), 같은 영상의 두 번째 전사(`transcript_conflict`).
-    **임의로 닫거나 지우지 않는다** — 그 자료는 호환 읽기 경로가 옛 표에서 그대로 보여 준다.
-  - **옛 표에 쓰는 자리는 `upload_intents.video_id` 하나다** — V14 가 예약 장부에 더해 둔 칸이고 옛 서버는 그것을
-    모른다. 그 밖의 옛 표는 읽기만 한다.
-  - **작업 장부는 끝난 `analyze`·`memory_update`만 `ai_jobs`로 옮긴다.** 진행 중인 AI 작업은 고르지 않는다. 옛 워커가
-    끝내야 하고 두 큐에서 같은 작업이 동시에 돌면 안 된다 — 끝나면 다음 실행이 집어 간다. `coach_start`·`coach_reply`·
-    `report` 장부 행은 옮기지 않고 옛 표에 남는다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛 예약에는 세대가 없고,
-    NULL 은 "세대를 견주지 않는다" 는 뜻이다).
-  - **이름을 바꾸지 않는다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 신형 노트만
+- **데이터 전환** — 옛 표의 자료를 0.1.0 표로 옮기는 일은 끝났다. 운영은 2026-11-27 에 옛 연습을 모두 같은 id·같은 주인으로
+  옮겼고 dev 에는 옛 연습이 없었다. 옮기는 명령(`platform/migration`, `POST /v2/admin/practice-migration`)과 새 표에 없는
+  연습을 옛 표에서 읽던 자리는 지웠다(git 이력에 있다).
+  - **대응표는 남는다**(`practice_migration_entries`, V15, 주인 `feature/practice`). 고른 원본 하나에 한 줄이고
+    (`(source_table, source_id)` 유일), 옮긴 것은 `target_id` 를, 옮기지 않은 것은 `skip_reason` 을 적었다. 쓰는 코드는 없고
+    관리자 지표(`admin/ops-core.sql`)가 옮겨진 옛 요약·작업을 두 번 세지 않으려고 읽는다.
+  - **옮기지 않은 원본은 `skip_reason` 과 함께 적혀 있고 옛 표에 그대로 있다.** 임의로 닫거나 지우지 않았다. 사유의 뜻:
+    한 연습의 옛 대화 가운데 최신이 아닌 것(`superseded_conversation`), 새 표에 이미 값이 있던 배우 기억(`memory_exists`),
+    같은 영상의 두 번째 전사(`transcript_conflict`), 한 연습의 두 번째 요약(`analysis_conflict`), 한 대화의 두 번째 노트
+    (`superseded_note`). 최신이 아닌 대화에 딸린 노트는 고르지도 않아 대응표에 줄이 없다.
+  - **작업 장부는 끝난 `analyze`·`memory_update`만 `ai_jobs`로 옮겼다.** `coach_start`·`coach_reply`·`report` 장부 행은 옛
+    표에 남는다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛 예약에는 세대가 없고, NULL 은 "세대를 견주지 않는다" 는 뜻이다).
+  - **이름을 바꾸지 않았다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 신형 노트만
     `v2`다. 관찰 기록도 신형 기록만 `video_record_v1`이고 구형은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만
-    새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
-    시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
-  - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`는 새 표가 없어 옛 표에
-    남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
-    새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
-- **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
-  - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
-    로 간다. 차수는 `continued_from` 체인을 그때그때 펴서 만들고 **전환 명령과 같은 규칙**이라 옮기기 전후의
-    응답이 같다.
-  - `GET /v2/practices/{id}/note` 는 `practice_reports` 를 새 봉투에 담아 낸다. `GET /v2/coach/conversations/{id}`
-    는 `coach_sessions`·`coach_turns` 를 읽는다. `GET /v2/practices/{id}/analysis` 도 새 분석이 없으면 소유권을
-    확인하는 옛 분석 읽기로 이어진다.
-  - 회차 상세의 `previous_conversations` 가 **옮긴 뒤에도 채워지는** 것은 전환이 최신 대화 하나만 옮기고 나머지를 옛
-    표에 남기기 때문이다.
-  - 호환 읽기는 **옛 표를 고치거나 지우지 않는다.**
+    새 어휘로 옮겼다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
+    시작 요청 id 가 없어 **세션 id 를 그대로** 썼고, 옛 턴의 요청 id 는 비어 있다.
+  - **새 표가 없어 옮기지 않은 옛 자료**: `anomalies`·`coaching_handoffs`는 옛 표에 남는다. 배우 기억의 성별·나이는 옮기지
+    않았다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다). 새 표 `practice_feedback`에는 옛 시트 자료가 없다.
+- **옛 표에 남은 자료를 읽는 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
+  - 회차 상세의 `previous_conversations` 는 `practice/adapter/db/PostgresPreviousConversations` 가 `coach_sessions` 에서
+    읽는다. 가장 최근 대화 하나만 새 표로 갔고 나머지가 옛 표에 있기 때문이다. `GET /v2/coach/conversations/{id}` 는 새 표에
+    없는 대화를 `coach_sessions`·`coach_turns` 에서 읽는다.
+  - `GET /v2/practices/{id}/note` 는 새 표에 노트가 없는 회차면 `practice_reports` 를 새 봉투에 담아 낸다.
+  - 배우 기억의 옛 칸은 [practice.memory](../../docs/specs/practice/memory.md)를 따른다.
+  - **새 표에 없는 연습은 읽지 않는다.** 상세·상태·분석·노트는 404 이고 묶음 목록에 없다(`PracticeCompatibilityIT`).
+  - 이 경로들은 **옛 표를 고치거나 지우지 않는다.** 주인 확인은 `practice_sessions.user_id` 로 하므로 게스트 이관은 옛 표의
+    주인도 함께 바꾼다.
 - **되돌리기**(specs/practice 「0.1.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
   없다. 대신 **더하기만 한다**: V14·V15 는 새 표와, 예약 장부의 NULL 허용 컬럼 셋, `users` 의 둘만 더했고 옛 표의
   모양은 한 칸도 바뀌지 않았다(`flyway/PracticeRollbackCompatibilityTest` 가 V13 과 최신의 fingerprint 를 옛 표만

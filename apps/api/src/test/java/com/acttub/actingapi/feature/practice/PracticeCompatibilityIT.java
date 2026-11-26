@@ -7,8 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.platform.migration.PracticeDataMigration;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.MovedLegacyPractice;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,11 +25,11 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
- * specs/practice 「0.1.0 스키마 전환」 ② — <b>호환 읽기 경로</b>를 HTTP 로 본다.
+ * specs/practice 「0.1.0 스키마 전환」 — <b>옛 표에 남은 자료를 읽는 경로</b>를 HTTP 로 본다.
  *
- * <p>넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회 API 가 새 표에 없으면 옛 표를
- * 읽어 <b>같은 응답 모양</b>을 내는지, 그리고 그 과정에서 <b>옛 테이블을 건드리지 않는지</b>가 여기서 보는
- * 전부다.
+ * <p>옛 연습은 모두 새 표로 옮겼다. 옮길 때 대화는 가장 최근 하나만 갔으므로, 그보다 앞선 대화와 그 노트는 옛 표에만
+ * 있다. 새 조회 API 가 그것을 <b>같은 응답 모양</b>으로 내는지, 그 과정에서 <b>옛 테이블을 건드리지 않는지</b>, 그리고
+ * 새 표에 없는 연습은 더 읽지 않는지가 여기서 보는 전부다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
@@ -43,106 +43,70 @@ class PracticeCompatibilityIT {
     ObjectMapper mapper;
     @Autowired
     JwtService jwt;
-    @Autowired
-    PracticeDataMigration migration;
-
     private UUID member;
     private String bearer;
 
     @BeforeEach
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
-        jdbc.execute("TRUNCATE TABLE practice_migration_entries");
         member = member();
         bearer = "Bearer " + jwt.issueAccessToken(member).value();
     }
 
     @Test
-    @DisplayName("practice.library: 아직 옮기지 않은 옛 연습이 새 조회 API 에서 같은 모양으로 온다 — 상세·상태·"
-            + "묶음 목록. 구형 관찰은 상태(요약)만 오고 옛 테이블은 그대로다")
-    void practiceLibrary_readsUnmigratedSessionsThroughTheNewApi() throws Exception {
-        UUID first = session(intent("videos/a.mp4"), null, "analyzed");
-        UUID second = session(intent("videos/b.mp4"), first, "analyzed");
-        summary(second, "[{\"what\":\"호흡이 얕다\"}]", "[\"조명이 어둡다\"]");
+    @DisplayName("practice.library: 새 표에 없는 옛 연습은 읽지 않는다 — 상세·상태·노트는 404 이고 묶음 목록에 없다. "
+            + "옛 테이블은 그대로다")
+    void practiceLibrary_doesNotReadAPracticeThatIsOnlyInTheOldTables() throws Exception {
+        UUID practice = session(intent("videos/a.mp4"), null, "analyzed");
+        summary(practice, "[{\"what\":\"호흡이 얕다\"}]", "[]");
 
-        JsonNode detail = json(get("/v2/practices/{id}", second), 200);
+        json(get("/v2/practices/{id}", practice), 404);
+        json(get("/v2/practices/{id}/status", practice), 404);
+        json(get("/v2/practices/{id}/analysis", practice), 404);
+        json(get("/v2/practices/{id}/note", practice), 404);
+        assertThat(json(get("/v2/practices"), 200).path("groups")).isEmpty();
 
-        assertThat(detail.path("id").stringValue(null)).isEqualTo(second.toString());
-        assertThat(detail.path("root_id").stringValue(null)).as("체인이 묶음과 차수로 펴진다").isEqualTo(first.toString());
-        assertThat(LenientJson.intValue(detail.path("ordinal"))).isEqualTo(2);
-        assertThat(detail.path("stage").stringValue(null)).isEqualTo("conversing");
-        assertThat(detail.path("analysis_status").stringValue(null))
-                .as("구형 관찰은 상태만 낸다 — 못 본 구간이 있으면 partial").isEqualTo("partial");
-        assertThat(detail.path("situation").stringValue(null)).isEqualTo("문 앞에서 돌아선다");
-        assertThat(detail.has("poster_url")).as("옛 회차도 같은 모양이다").isTrue();
-        assertThat(detail.path("poster_url").isNull()).isTrue();
-
-        assertThat(json(get("/v2/practices/{id}/status", second), 200).path("stage").stringValue(null))
-                .isEqualTo("conversing");
-
-        JsonNode groups = json(get("/v2/practices"), 200).path("groups");
-        assertThat(groups).hasSize(1);
-        assertThat(groups.get(0).path("root_id").stringValue(null)).isEqualTo(first.toString());
-        assertThat(groups.get(0).path("practices")).hasSize(2);
-
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class))
-                .as("읽기는 옛 자료를 옮기지 않는다").isZero();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_sessions", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_sessions", Integer.class)).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("practice.note: 아직 옮기지 않은 옛 노트가 새 조회 경로에서 온다 — 기존 갈래는 format legacy 로 "
-            + "종류를 그대로 두고 옛 공개 필드가 원문으로 그대로 실린다")
-    void practiceNote_readsUnmigratedReportsThroughTheNewApi() throws Exception {
+    @DisplayName("practice.note: 새 표에 노트가 없는 회차는 옛 표에 남은 노트가 새 조회 경로에서 온다 — 기존 갈래는 "
+            + "format legacy 로 종류를 그대로 두고 옛 공개 필드가 원문으로 그대로 실린다")
+    void practiceNote_readsTheNoteOfAnOlderConversationLeftInTheOldTables() throws Exception {
         UUID practice = session(intent("videos/note.mp4"), null, "analyzed");
-        UUID conversation = conversation(practice, "closed", "2026-09-10 00:00:00+00");
-        UUID handoff = handoff(practice, conversation);
+        UUID older = conversation(practice, "closed", "2026-09-01 00:00:00+00");
+        conversation(practice, "closed", "2026-09-10 00:00:00+00");
+        UUID handoff = handoff(practice, older);
         jdbc.update("""
                 INSERT INTO practice_reports(id,practice_session_id,report_type,report_json,source_handoff_id)
                 VALUES (?,?,'expression',?::jsonb,?)
                 """, UUID.randomUUID(), practice,
                 "{\"title\":\"옛 노트 제목\",\"next_step\":\"호흡을 한 박자 늦춘다\"}", handoff);
+        MovedLegacyPractice.move(jdbc, practice);
+        MovedLegacyPractice.moveLatestConversation(jdbc, practice);
 
         JsonNode note = json(get("/v2/practices/{id}/note", practice), 200);
 
         assertThat(note.path("format").stringValue(null)).isEqualTo("legacy");
         assertThat(note.path("kind").stringValue(null)).isEqualTo("expression");
         assertThat(note.path("title").stringValue(null)).isEqualTo("옛 노트 제목");
-        assertThat(note.path("conversation_id").stringValue(null)).isEqualTo(conversation.toString());
+        assertThat(note.path("conversation_id").stringValue(null)).isEqualTo(older.toString());
         assertThat(note.path("report").path("next_step").stringValue(null)).isEqualTo("호흡을 한 박자 늦춘다");
         assertThat(note.path("summary_quotes")).isEmpty();
     }
 
     @Test
-    @DisplayName("practice.coach: 옮기지 않은 옛 연습의 열린 대화는 이어 말할 수 없다 — 회차는 closed, 대화도 closed 로 보여 "
-            + "화면이 답을 받지 않게 한다. 옛 표의 값은 그대로다")
-    void practiceCoach_anUnmigratedOpenConversationIsShownClosed() throws Exception {
-        UUID practice = session(intent("videos/open.mp4"), null, "analyzed");
-        UUID open = conversation(practice, "open", "2026-09-10 00:00:00+00");
-        turn(open, 0, "ai", "무엇이 달라졌나요");
-
-        // 새 쓰기 경로는 새 표만 본다 — 옛 열린 대화에 답하면 404 다.
-        json(post("/v2/coach/reply").content("{\"conversation_id\":\"" + open + "\",\"request_id\":\"" + UUID.randomUUID()
-                + "\",\"text\":\"숨이 막혔어요\"}"), 404);
-
-        JsonNode detail = json(get("/v2/practices/{id}", practice), 200);
-        assertThat(detail.path("stage").stringValue(null)).isEqualTo("closed");
-        assertThat(detail.path("conversation_status").stringValue(null)).isEqualTo("closed");
-        assertThat(json(get("/v2/practices/{id}/status", practice), 200).path("stage").stringValue(null)).isEqualTo("closed");
-        assertThat(json(get("/v2/coach/conversations/{id}", open), 200).path("status").stringValue(null)).isEqualTo("closed");
-        assertThat(jdbc.queryForObject("SELECT status::text FROM coach_sessions WHERE id=?", String.class, open))
-                .as("옛 표는 고치지 않는다").isEqualTo("open");
-    }
-
-    @Test
-    @DisplayName("practice.coach: 옛 자료의 복수 대화 회차 조회 — 가장 최근 하나가 대화이고 나머지는 이전 대화 "
-            + "목록으로 온다. 이전 대화도 대화 조회로 열린다")
+    @DisplayName("practice.coach: 옛 자료의 복수 대화 회차 조회 — 새 표로 간 가장 최근 하나가 대화이고 옛 표에 남은 나머지는 "
+            + "이전 대화 목록으로 온다. 이전 대화도 대화 조회로 열린다")
     void practiceCoach_readsTheOlderConversationsOfOneLegacyPractice() throws Exception {
         UUID practice = session(intent("videos/talk.mp4"), null, "analyzed");
         UUID older = conversation(practice, "closed", "2026-09-01 00:00:00+00");
-        UUID latest = conversation(practice, "open", "2026-09-10 00:00:00+00");
+        UUID latest = conversation(practice, "closed", "2026-09-10 00:00:00+00");
         turn(older, 0, "ai", "옛 대화의 첫 말");
         turn(latest, 0, "ai", "무엇이 달라졌나요");
+        MovedLegacyPractice.move(jdbc, practice);
+        MovedLegacyPractice.moveLatestConversation(jdbc, practice);
 
         JsonNode detail = json(get("/v2/practices/{id}", practice), 200);
 
@@ -160,28 +124,26 @@ class PracticeCompatibilityIT {
     }
 
     @Test
-    @DisplayName("specs/practice ②: 옮긴 뒤에도 같은 응답이다 — 옮긴 회차는 새 표에서 오고, 전환이 남겨 둔 옛 대화는 "
-            + "이전 대화 목록으로 그대로 보인다")
-    void practiceLibrary_answersTheSameShapeBeforeAndAfterTheMigration() throws Exception {
-        UUID practice = session(intent("videos/same.mp4"), null, "analyzed");
-        UUID older = conversation(practice, "closed", "2026-09-01 00:00:00+00");
+    @DisplayName("practice.coach: 옛 표에 남은 대화는 열려 있어도 이어 말할 수 없다 — closed 로 보여 화면이 답을 받지 않게 "
+            + "한다. 옛 표의 값은 그대로다")
+    void practiceCoach_anOpenConversationLeftInTheOldTablesIsShownClosed() throws Exception {
+        UUID practice = session(intent("videos/open.mp4"), null, "analyzed");
+        UUID open = conversation(practice, "open", "2026-09-01 00:00:00+00");
         conversation(practice, "closed", "2026-09-10 00:00:00+00");
-        summary(practice, "[]", "[]");
+        turn(open, 0, "ai", "무엇이 달라졌나요");
+        MovedLegacyPractice.move(jdbc, practice);
+        MovedLegacyPractice.moveLatestConversation(jdbc, practice);
 
-        JsonNode before = json(get("/v2/practices/{id}", practice), 200);
+        // 새 쓰기 경로는 새 표만 본다 — 옛 표의 열린 대화에 답하면 404 다.
+        json(post("/v2/coach/reply").content("{\"conversation_id\":\"" + open + "\",\"request_id\":\"" + UUID.randomUUID()
+                + "\",\"text\":\"숨이 막혔어요\"}"), 404);
 
-        migration.run(50);
-        JsonNode after = json(get("/v2/practices/{id}", practice), 200);
-
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class)).isEqualTo(1);
-        for (String field : java.util.List.of(
-                "id", "root_id", "ordinal", "stage", "situation", "goal", "analysis_status",
-                "conversation_id", "blockage_category", "blockage_detail", "experience_version")) {
-            assertThat(after.path(field)).as("옮기기 전후의 %s 가 같다", field).isEqualTo(before.path(field));
-        }
-        assertThat(after.path("previous_conversations")).hasSize(1);
-        assertThat(after.path("previous_conversations").get(0).path("id").stringValue(null))
-                .isEqualTo(older.toString());
+        JsonNode detail = json(get("/v2/practices/{id}", practice), 200);
+        assertThat(detail.path("previous_conversations").get(0).path("id").stringValue(null)).isEqualTo(open.toString());
+        assertThat(detail.path("previous_conversations").get(0).path("status").stringValue(null)).isEqualTo("closed");
+        assertThat(json(get("/v2/coach/conversations/{id}", open), 200).path("status").stringValue(null)).isEqualTo("closed");
+        assertThat(jdbc.queryForObject("SELECT status::text FROM coach_sessions WHERE id=?", String.class, open))
+                .as("옛 표는 고치지 않는다").isEqualTo("open");
     }
 
     // --- 도우미 -------------------------------------------------------------
