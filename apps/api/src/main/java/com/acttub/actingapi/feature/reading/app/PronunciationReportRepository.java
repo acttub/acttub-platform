@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.reading.app;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Report;
@@ -29,11 +30,17 @@ public interface PronunciationReportRepository {
     /** @param retry {@code true} 면 다시 queued, 아니면 failed */
     boolean fail(UUID reportId, UUID leaseToken, String failure, boolean retry, Instant now);
 
+    /** 보고서 주인과 처음 요청한 시각(SOMA-1169 — 오래 걸린 보고서를 알릴지 정한다). 없으면 비어 있다. */
+    Optional<ReportOwner> owner(UUID reportId);
+
     /** @param resultJson 보고서 JSON. done 이 아니면 {@code null} */
     record ReportState(String status, String resultJson) {
     }
 
     record Claimed(UUID reportId, UUID sessionId, int attempt) {
+    }
+
+    record ReportOwner(UUID userId, Instant requestedAt) {
     }
 
     /** @param transcript 앱이 받아쓴 글. 없으면 {@code null} */

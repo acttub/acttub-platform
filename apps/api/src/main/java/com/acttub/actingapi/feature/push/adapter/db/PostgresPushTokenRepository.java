@@ -5,6 +5,7 @@ import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.push.app.AppVersion;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
 import com.acttub.actingapi.feature.push.app.PushTarget;
@@ -123,6 +124,23 @@ class PostgresPushTokenRepository implements PushTokenRepository, PushTokenRevoc
                 ORDER BY push.created_at
                 """, Tuple.class)
                 .setParameter("sessionId", sessionId)).stream()
+                .map(row -> new PushTarget(
+                        row.get("token", String.class),
+                        row.get("locale", String.class)))
+                .toList();
+    }
+
+    @Override
+    public List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion) {
+        return list(entityManager.createNativeQuery("""
+                SELECT push.token, push.locale, push.app_version
+                FROM push_tokens push
+                LEFT JOIN user_profiles profile ON profile.user_id=push.user_id
+                WHERE push.user_id=:userId AND COALESCE(profile.notify_analysis_done,true)
+                ORDER BY push.created_at
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .filter(row -> AppVersion.atLeast(row.get("app_version", String.class), minAppVersion))
                 .map(row -> new PushTarget(
                         row.get("token", String.class),
                         row.get("locale", String.class)))

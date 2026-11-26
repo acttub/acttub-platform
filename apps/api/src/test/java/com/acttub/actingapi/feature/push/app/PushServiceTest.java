@@ -17,7 +17,8 @@ class PushServiceTest {
     private final RecordingRepository tokens = new RecordingRepository();
     private final RecordingSender sender = new RecordingSender();
     private final RecordingFailureReporter failures = new RecordingFailureReporter();
-    private final PushService service = new PushService(tokens, (user, kind, reminderKind, templateId, platform, version) -> { }, sender, failures);
+    private final PushService service = new PushService(tokens, (user, kind, reminderKind, templateId, platform, version) -> { }, sender, failures,
+            "1.1.4");
 
     @Test
     void analysisCompletionSendsToEveryDeviceOfTheSessionOwner() {
@@ -121,6 +122,36 @@ class PushServiceTest {
     }
 
     @Test
+    @DisplayName("다 된 발음 보고서는 그 사람의 새 앱 단말에 회차 id 를 실어 한 번 보낸다(SOMA-1169)")
+    void pronunciationReportReadySendsTheSessionToNewAppDevices() {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        tokens.forUser = List.of(new PushTarget("ko-token", "ko"), new PushTarget("en-token", "en"));
+
+        service.onPronunciationReportReady(userId, sessionId);
+
+        assertThat(tokens.askedUser).isEqualTo(userId);
+        assertThat(tokens.askedMinVersion).isEqualTo("1.1.4");
+        assertThat(sender.sent).extracting(PushMessage::title)
+                .containsExactly("발음 보고서가 나왔어요", "Your pronunciation report is ready");
+        assertThat(sender.sent).allSatisfy(message -> assertThat(message.data())
+                .isEqualTo(Map.of("kind", "pronunciation_report_ready", "session_id", sessionId.toString())));
+        assertThat(sender.sent).allSatisfy(message -> assertThat(message.body()).isNotBlank());
+    }
+
+    @Test
+    @DisplayName("발음 보고서 알림은 받을 단말이 없으면 보내지 않고, 실패는 보고만 한다")
+    void pronunciationReportReadyIsQuietWithoutDevicesAndNeverThrows() {
+        service.onPronunciationReportReady(UUID.randomUUID(), UUID.randomUUID());
+        assertThat(sender.calls).isZero();
+
+        tokens.forUser = List.of(new PushTarget("ko-token", "ko"));
+        sender.failure = new IllegalStateException("expo down");
+        assertThatCode(() -> service.onPronunciationReportReady(UUID.randomUUID(), UUID.randomUUID())).doesNotThrowAnyException();
+        assertThat(failures.contexts()).containsExactly("PushService.onPronunciationReportReady");
+    }
+
+    @Test
     void knownPlatformsAreExactlyIosAndAndroid() {
         // 컨트롤러 검증이 이 집합을 본다 — 넓히면 계약(allowableValues)도 함께 넓혀야 한다.
         assertThat(PushService.PLATFORMS).containsExactlyInAnyOrder("ios", "android");
@@ -130,6 +161,7 @@ class PushServiceTest {
         private List<PushTarget> forSession = List.of();
         private List<PushTarget> forUser = List.of();
         private UUID askedUser;
+        private String askedMinVersion;
         private final List<String> registered = new ArrayList<>();
         private final List<String> removed = new ArrayList<>();
 
@@ -151,6 +183,13 @@ class PushServiceTest {
         @Override
         public List<PushTarget> scriptSplitTargets(UUID userId) {
             askedUser = userId;
+            return forUser;
+        }
+
+        @Override
+        public List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion) {
+            askedUser = userId;
+            askedMinVersion = minAppVersion;
             return forUser;
         }
     }
