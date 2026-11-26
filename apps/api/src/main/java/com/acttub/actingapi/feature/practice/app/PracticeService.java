@@ -35,8 +35,7 @@ public class PracticeService {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final PracticeRepository practices;
-    /** 아직 옮기지 않은 옛 연습을 같은 모양으로 읽는 자리 (specs/practice ②). */
-    private final LegacyPracticeReader legacy;
+    private final PreviousConversations previousConversations;
     private final PracticePosters posters;
     private final boolean threeLayersEnabled;
     private final boolean guestDailyAnalysisLimitEnabled;
@@ -47,7 +46,7 @@ public class PracticeService {
 
     public PracticeService(
             PracticeRepository practices,
-            LegacyPracticeReader legacy,
+            PreviousConversations previousConversations,
             PracticePosters posters,
             boolean threeLayersEnabled,
             boolean guestDailyAnalysisLimitEnabled,
@@ -55,7 +54,7 @@ public class PracticeService {
             Clock clock) {
         this.plan = plan;
         this.practices = practices;
-        this.legacy = legacy;
+        this.previousConversations = previousConversations;
         this.posters = posters;
         this.threeLayersEnabled = threeLayersEnabled;
         this.guestDailyAnalysisLimitEnabled = guestDailyAnalysisLimitEnabled;
@@ -154,35 +153,20 @@ public class PracticeService {
                 userId, practiceId, requestId, fingerprint("analyze_retry|" + practiceId), quota(guest), clock.instant()));
     }
 
-    /**
-     * 회차 하나. <b>새 표를 먼저 보고 없으면 옛 표를 읽는다</b>(specs/practice ②) — 화면은 어느 표에서 왔는지
-     * 알 필요가 없다. 없는 것과 남의 것은 두 표 모두에서 같은 404 다.
-     */
+    /** 회차 하나. 없는 것과 남의 것은 같은 404 다. */
     public PracticeView find(UUID userId, UUID practiceId) {
         PracticeView view = practices.find(userId, practiceId);
         if (view == null) {
-            view = legacy.find(userId, practiceId);
-            if (view == null) {
-                throw notFound();
-            }
-            return poster(view);
+            throw notFound();
         }
-        // 옮긴 회차에도 옛 대화가 남아 있을 수 있다 — 전환은 최신 하나만 새 표로 옮기고 나머지는 옛 표에
-        // 그대로 둔다(practice.coach "옛 자료의 복수 대화").
-        List<PracticeViews.PreviousConversation> previous =
-                legacy.previousConversations(userId, practiceId);
+        // 옛 자료를 옮긴 회차에는 옛 대화가 남아 있을 수 있다 — 최신 하나만 새 표로 옮겼고 나머지는 옛 표에
+        // 그대로 있다(practice.coach "옛 자료의 복수 대화").
+        List<PracticeViews.PreviousConversation> previous = previousConversations.of(userId, practiceId);
         return poster(previous.isEmpty() ? view : view.withPrevious(previous));
     }
 
     public StatusView status(UUID userId, UUID practiceId) {
         StatusView view = practices.status(userId, practiceId);
-        if (view == null) {
-            PracticeView fallback = legacy.find(userId, practiceId);
-            view = fallback == null
-                    ? null
-                    : new StatusView(
-                            fallback.stage(), fallback.closeReason(), fallback.analysisStatus(), fallback.job());
-        }
         if (view == null) {
             throw notFound();
         }
@@ -198,11 +182,8 @@ public class PracticeService {
         return analysis;
     }
 
-    /** 옮긴 묶음과 아직 옮기지 않은 묶음을 함께 낸다 — 배우에게는 한 목록이다. */
     public List<GroupView> groups(UUID userId, String filter) {
-        List<GroupView> groups = new java.util.ArrayList<>(practices.groups(userId, filter, clock.instant()));
-        groups.addAll(legacy.groups(userId, filter));
-        return groups.stream().map(this::posters).toList();
+        return practices.groups(userId, filter, clock.instant()).stream().map(this::posters).toList();
     }
 
     /** 연습한 날(한국 시간). 홈의 연속일·주간 원·누적 연습일이 쓴다 — 기기를 바꿔도 줄지 않게(SOMA-1003). */

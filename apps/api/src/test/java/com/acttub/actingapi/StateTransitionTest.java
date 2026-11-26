@@ -10,12 +10,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import com.acttub.actingapi.feature.auth.domain.UserStatusTransition;
 import com.acttub.actingapi.feature.practice.domain.PracticeStageTransition;
+import com.acttub.actingapi.platform.ledger.AiJobStatusTransition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -42,10 +45,13 @@ class StateTransitionTest {
      * @param table native SQL 의 표 이름
      * @param entity JPQL 의 엔티티 이름
      * @param column 상태 칸(native 와 JPQL 의 이름이 같다)
-     * @param reasonColumns 상태와 함께 적는 사유 칸의 이름들(native, JPQL)
+     * @param reasonColumns 상태와 함께 적는 사유 칸의 이름들(native, JPQL). 사유를 표에 적지 않는 상태는 비운다
+     * @param parameters 값을 글자 그대로 적지 못하는 문장(변환기가 붙은 enum 칸)의 매개변수 이름과 그 값
      * @param home 이 칸을 바꾸는 문장을 모아 둔 파일({@code src/main/java/com/acttub/actingapi} 아래 경로)
      */
-    record StateColumn(String table, String entity, String column, List<String> reasonColumns, String home, List<Allowed> allowed) {
+    record StateColumn(
+            String table, String entity, String column, List<String> reasonColumns, Map<String, String> parameters, String home,
+            List<Allowed> allowed) {
         @Override
         public String toString() {
             return table + "." + column;
@@ -57,13 +63,26 @@ class StateTransitionTest {
     }
 
     static Stream<StateColumn> stateColumns() {
-        return Stream.of(new StateColumn(
-                "practices", "PracticeEntity", "stage", List.of("close_reason", "closeReason"),
-                "feature/practice/adapter/db/PostgresPracticeStageTransitions.java",
-                Arrays.stream(PracticeStageTransition.values())
-                        .map(transition -> new Allowed(
-                                transition.name(), transition.from(), transition.to(), transition.closeReason()))
-                        .toList()));
+        return Stream.of(
+                new StateColumn(
+                        "practices", "PracticeEntity", "stage", List.of("close_reason", "closeReason"), Map.of(),
+                        "feature/practice/adapter/db/PostgresPracticeStageTransitions.java",
+                        Arrays.stream(PracticeStageTransition.values())
+                                .map(transition -> new Allowed(
+                                        transition.name(), transition.from(), transition.to(), transition.closeReason()))
+                                .toList()),
+                new StateColumn(
+                        "ai_jobs", "AiJobEntity", "status", List.of(), Map.of(),
+                        "platform/operation/PostgresAiJobLedger.java",
+                        Arrays.stream(AiJobStatusTransition.values())
+                                .map(transition -> new Allowed(transition.name(), transition.from(), transition.to(), null))
+                                .toList()),
+                new StateColumn(
+                        "users", "UserEntity", "status", List.of(), Map.of("deactivated", "deactivated"),
+                        "feature/auth/adapter/db/PostgresAccountDeactivation.java",
+                        Arrays.stream(UserStatusTransition.values())
+                                .map(transition -> new Allowed(transition.name(), transition.from(), transition.to(), null))
+                                .toList()));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -98,9 +117,9 @@ class StateTransitionTest {
     private static List<Found> updatesOf(StateColumn state) {
         Pattern update = Pattern.compile(
                 "\\bupdate (?:" + state.table() + "|" + state.entity().toLowerCase(Locale.ROOT) + ")\\b(?: \\w+)? set (.+?)(?: where (.+))?$");
-        Pattern target = Pattern.compile("(?:^|[ ,])(?:\\w+\\.)?" + state.column() + " ?= ?'(\\w+)'");
+        Pattern target = Pattern.compile("(?:^|[ ,])(?:\\w+\\.)?" + state.column() + " ?= ?(?:'(\\w+)'|:(\\w+)|(\\S+))");
         Pattern condition = Pattern.compile("(?:^|[ (])(?:\\w+\\.)?" + state.column() + " ?= ?'(\\w+)'");
-        Pattern reason = Pattern.compile("(?:^|[ ,])(?:\\w+\\.)?(?:"
+        Pattern reason = state.reasonColumns().isEmpty() ? null : Pattern.compile("(?:^|[ ,])(?:\\w+\\.)?(?:"
                 + String.join("|", state.reasonColumns()).toLowerCase(Locale.ROOT) + ") ?= ?(?:'(\\w+)'|null)");
         List<Found> found = new ArrayList<>();
         try (Stream<Path> files = Files.walk(JAVA_ROOT)) {
@@ -115,13 +134,18 @@ class StateTransitionTest {
                     if (!to.find()) {
                         continue;
                     }
-                    Matcher why = reason.matcher(statement.group(1));
+                    String value = to.group(1) != null ? to.group(1) : state.parameters().get(to.group(2));
+                    assertThat(value)
+                            .as("%s 에 무엇을 적는지 문장에서 읽히지 않는다. 값을 글자 그대로 적거나 매개변수의 값을 이 테스트에 적는다:%n%s",
+                                    state, sql)
+                            .isNotNull();
+                    Matcher why = reason == null ? null : reason.matcher(statement.group(1));
                     Matcher from = condition.matcher(statement.group(2) == null ? "" : statement.group(2));
                     found.add(new Found(
                             JAVA_ROOT.relativize(file).toString(),
                             from.find() ? from.group(1) : null,
-                            to.group(1),
-                            why.find() ? why.group(1) : null,
+                            value,
+                            why != null && why.find() ? why.group(1) : null,
                             sql));
                 }
             }

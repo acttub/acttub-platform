@@ -3,10 +3,10 @@ package com.acttub.actingapi.feature.practice.adapter;
 import java.time.Clock;
 
 import com.acttub.actingapi.feature.practice.app.CoachingPlan;
-import com.acttub.actingapi.feature.practice.app.LegacyPracticeReader;
 import com.acttub.actingapi.feature.practice.app.PracticePosters;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeService;
+import com.acttub.actingapi.feature.practice.app.PreviousConversations;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -22,7 +22,7 @@ class PracticeConfiguration {
     @Bean
     PracticeService practiceService(
             PracticeRepository practices,
-            LegacyPracticeReader legacy,
+            PreviousConversations previousConversations,
             PracticePosters posters,
             @Value("${ACTTUB_THREE_LAYERS_ENABLED:false}") boolean threeLayersEnabled,
             @Value("${ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:true}") boolean guestDailyAnalysisLimitEnabled,
@@ -32,7 +32,7 @@ class PracticeConfiguration {
             Clock clock) {
         // 무료 코칭 한도(SOMA-818)는 결제 도메인이 구현한다. 그 빈이 없는 조립(좁은 테스트 등)에서는 한도가 없다.
         // 리딩 녹음으로 시작하는 코칭(SOMA-791)은 리딩 도메인이 확인한다. 스위치가 꺼졌으면 그 빈이 없고 시작은 404 다.
-        return new PracticeService(practices, legacy, posters, threeLayersEnabled, guestDailyAnalysisLimitEnabled,
+        return new PracticeService(practices, previousConversations, posters, threeLayersEnabled, guestDailyAnalysisLimitEnabled,
                 plan.getIfAvailable(() -> CoachingPlan.UNLIMITED), clock)
                 .withReadingVoice(readingVoice.getIfAvailable(() -> com.acttub.actingapi.feature.practice.app.ReadingVoice.OFF))
                 .withGroupErasure(groupErasure.getIfAvailable());
