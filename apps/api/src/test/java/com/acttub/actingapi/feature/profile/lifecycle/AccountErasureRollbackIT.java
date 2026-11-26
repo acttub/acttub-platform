@@ -7,8 +7,11 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,6 +37,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -115,6 +119,12 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresCoachAccountErasure")
     AccountErasure coachErasure;
 
+    @MockitoSpyBean(name = "postgresMemoryAccountErasure")
+    AccountErasure memoryErasure;
+
+    @MockitoSpyBean(name = "postgresConsentAccountErasure")
+    AccountErasure consentErasure;
+
     @MockitoSpyBean(name = "postgresOperationPracticeGroupPart")
     PracticeGroupErasurePart operationPart;
 
@@ -188,6 +198,32 @@ class AccountErasureRollbackIT {
         };
     }
 
+    @Test
+    @DisplayName("만 14세 미만 계정을 행째 지우다 구현 하나가 예외를 던지면 전체가 되돌아간다: 앞선 구현이 지운 신원·토큰·동의 기록도 남는다")
+    void aFailingOwnerRollsTheWholeUnderageErasureBack() throws Exception {
+        UUID self = seed.light("본인", Identity.MEMBER, "granted");
+        jdbc.update("UPDATE user_profiles SET goal=NULL WHERE user_id=?", self);
+        // 푸시는 클래스 이름 순으로 auth·consent 뒤다. 여기서 던지면 신원·토큰·동의 기록은 이미 지운 뒤다.
+        doThrow(new IllegalStateException("erasure failed")).when(pushErasure).eraseWithAccountRow(self);
+        DatabaseChanges changes = new DatabaseChanges(jdbc);
+        DatabaseChanges.Snapshot before = changes.read();
+
+        var response = mvc.perform(put("/v2/me/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"김배우","gender":"female","birth_date":"%s","directions":["media"],
+                                 "experience":"before_start","goal":"hobby"}
+                                """.formatted(LocalDate.ofInstant(NOW, ZoneId.of("Asia/Seoul")).minusYears(13)))
+                        .header("Authorization", "Bearer " + jwt.issueAccessToken(self).value()))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(500);
+        verify(authErasure).eraseWithAccountRow(self);
+        verify(consentErasure).eraseWithAccountRow(self);
+        verify(pushErasure).eraseWithAccountRow(self);
+        assertThat(changes.read()).isEqualTo(before);
+    }
+
     @ParameterizedTest(name = "{0} 자리에서 실패")
     @EnumSource(PracticeGroupErasureStep.class)
     @DisplayName("연습 삭제에서 구현 하나가 예외를 던지면 전체가 되돌아간다: 묶음은 배우의 것 그대로이고 어느 표도 달라지지 않는다")
@@ -251,11 +287,13 @@ class AccountErasureRollbackIT {
         assertThat(videoErasure.hasRecords(light)).isFalse();
         assertThat(videoErasure.hasRecords(full)).isTrue();
         for (AccountErasure withHistory : List.of(
-                feedbackErasure, operationErasure, practiceErasure, readingErasure, challengeErasure, coachErasure)) {
+                feedbackErasure, operationErasure, practiceErasure, readingErasure, challengeErasure, coachErasure,
+                memoryErasure)) {
             assertThat(withHistory.hasRecords(light)).isFalse();
             assertThat(withHistory.hasRecords(full)).isTrue();
         }
-        for (AccountErasure accountOnly : List.of(authErasure, portfolioErasure, transferErasure, pushErasure, billingErasure)) {
+        for (AccountErasure accountOnly : List.of(
+                authErasure, portfolioErasure, transferErasure, pushErasure, billingErasure, consentErasure)) {
             assertThat(accountOnly.hasRecords(full)).isFalse();
         }
     }

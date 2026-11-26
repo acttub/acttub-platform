@@ -47,6 +47,13 @@ class PostgresAccountDeactivation implements AccountDeactivation {
     }
 
     @Override
+    public void eraseRow(UUID userId) {
+        entityManager.createQuery("delete from UserEntity u where u.id = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    @Override
     public Instant deactivatedAt(UUID userId) {
         return entityManager.createQuery("select u.deactivatedAt from UserEntity u where u.id = :userId", Instant.class)
                 .setParameter("userId", userId)

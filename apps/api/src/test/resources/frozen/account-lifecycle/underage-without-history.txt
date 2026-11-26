@@ -196,10 +196,47 @@ videos: 5행 → 5행
   select user_consents
   select user_identities, user_profile_directions, users, user_profiles
 BEGIN
-  select practice_sessions, upload_intents, external_operations, actor_memory_entries, account_cleanup_operations, scripts, reading_recordings, community_posts, community_comments, community_post_likes, community_post_images, community_anonymous_aliases, community_reports, community_blocks, challenges, challenge_entries, entry_likes, entry_comments, entry_reports, entry_saves, entry_view_events, user_blocks, notifications, practices, videos, ai_jobs, actor_memories, note_ratings, practice_feedback, reading_sessions, reading_session_ratings, line_memorization, script_imports, script_uploads, entry_ai_reports, entry_ranking_snapshots, notification_pushes, users for update
-  delete user_consents
+  select users for update
+  select challenges
+  select challenge_entries
+  select entry_likes
+  select entry_comments
+  select entry_reports
+  select entry_saves
+  select entry_view_events
+  select user_blocks
+  select notifications
+  select entry_ai_reports
+  select entry_ranking_snapshots
+  select notification_pushes
+  select note_ratings
+  select community_posts
+  select community_comments
+  select community_post_likes
+  select community_post_images
+  select community_anonymous_aliases
+  select community_reports
+  select community_blocks
+  select practice_feedback
+  select actor_memories
+  select actor_memory_entries
+  select practices
+  select practice_sessions
+  select account_cleanup_operations
+  select scripts
+  select reading_sessions
+  select reading_recordings
+  select reading_session_ratings
+  select line_memorization
+  select script_imports
+  select script_uploads
+  select videos
+  select upload_intents
+  select ai_jobs
+  select external_operations
   delete refresh_tokens
   delete user_identities
+  delete user_consents
   delete push_tokens
   delete users
 COMMIT

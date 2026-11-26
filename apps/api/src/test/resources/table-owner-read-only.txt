@@ -122,6 +122,15 @@ feature/practice/adapter/db/PostgresPracticeRepository.java videos
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java external_operations
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java summaries
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java upload_intents
+feature/profile/adapter/db/PostgresProfileRepository.java line_memorization
+feature/profile/adapter/db/PostgresProfileRepository.java practice_sessions
+feature/profile/adapter/db/PostgresProfileRepository.java reading_recordings
+feature/profile/adapter/db/PostgresProfileRepository.java reading_sessions
+feature/profile/adapter/db/PostgresProfileRepository.java refresh_tokens
+feature/profile/adapter/db/PostgresProfileRepository.java scripts
+feature/profile/adapter/db/PostgresProfileRepository.java upload_intents
+feature/profile/adapter/db/PostgresProfileRepository.java user_identities
+feature/profile/adapter/db/PostgresProfileRepository.java users
 feature/push/adapter/db/PostgresPracticeReminderRepository.java actor_journals
 feature/push/adapter/db/PostgresPracticeReminderRepository.java challenge_entries
 feature/push/adapter/db/PostgresPracticeReminderRepository.java coach_conversations

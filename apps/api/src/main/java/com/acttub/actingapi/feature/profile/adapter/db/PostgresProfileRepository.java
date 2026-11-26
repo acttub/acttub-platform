@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.RetentionPurge;
@@ -21,7 +20,6 @@ import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
 import com.acttub.actingapi.feature.profile.domain.Account;
-import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
@@ -577,96 +575,18 @@ class PostgresProfileRepository
         return replaced == null ? List.of() : List.of(cleanups.schedule(userId, List.of(replaced), now, now));
     }
 
-    /** {@code users} 를 무는 칸 하나. */
-    record UserReference(String table, String column) { }
-
     /**
-     * 자료가 있으면 계정 행을 지우지 않고 탈퇴 절차로 닫게 하는 칸들. {@code users} 를 ON DELETE 없이 무는 외래 키는 모두 여기나
-     * {@link #ERASED_WITH_THE_ACCOUNT} 에 있어야 한다 — 빠지면 그 표에 행이 있을 때 {@code DELETE FROM users} 가 외래 키로 실패한다
-     * ({@code UnderageClosureReferencesIT} 가 DB 의 외래 키 목록과 맞춰 본다). {@code actor_memory_entries} 는 외래 키가 지우기를
-     * 막지 않지만 0.1.0 이전 배우 기억이라 남긴다.
-     */
-    static final List<UserReference> HISTORY = List.of(
-            new UserReference("practice_sessions", "user_id"),
-            new UserReference("upload_intents", "user_id"),
-            new UserReference("external_operations", "user_id"),
-            new UserReference("actor_memory_entries", "user_id"),
-            new UserReference("account_cleanup_operations", "user_id"),
-            new UserReference("scripts", "user_id"),
-            new UserReference("reading_recordings", "user_id"),
-            new UserReference("community_posts", "author_id"),
-            new UserReference("community_comments", "author_id"),
-            new UserReference("community_post_likes", "user_id"),
-            new UserReference("community_post_images", "uploader_id"),
-            new UserReference("community_anonymous_aliases", "user_id"),
-            new UserReference("community_reports", "reporter_id"),
-            new UserReference("community_blocks", "blocker_id"),
-            new UserReference("community_blocks", "blocked_id"),
-            new UserReference("challenges", "host_user_id"),
-            new UserReference("challenge_entries", "user_id"),
-            new UserReference("entry_likes", "user_id"),
-            new UserReference("entry_comments", "user_id"),
-            new UserReference("entry_reports", "reporter_id"),
-            new UserReference("entry_saves", "user_id"),
-            new UserReference("entry_view_events", "user_id"),
-            new UserReference("user_blocks", "blocker_id"),
-            new UserReference("user_blocks", "blocked_id"),
-            new UserReference("notifications", "user_id"),
-            new UserReference("notifications", "actor_user_id"),
-            // 0.1.0 의 연습·리딩·챌린지 표(SOMA-1130 에서 채움). 지금은 프로필이 찬 회원만 만들 수 있지만 목록에서 빠지면 위 실패가 난다.
-            new UserReference("practices", "user_id"),
-            new UserReference("videos", "user_id"),
-            new UserReference("ai_jobs", "user_id"),
-            new UserReference("actor_memories", "user_id"),
-            new UserReference("note_ratings", "user_id"),
-            new UserReference("practice_feedback", "user_id"),
-            new UserReference("reading_sessions", "user_id"),
-            new UserReference("reading_session_ratings", "user_id"),
-            new UserReference("line_memorization", "user_id"),
-            new UserReference("script_imports", "user_id"),
-            new UserReference("script_uploads", "user_id"),
-            new UserReference("entry_ai_reports", "user_id"),
-            new UserReference("entry_ranking_snapshots", "viewer_id"),
-            new UserReference("notification_pushes", "user_id"));
-
-    /** {@link #HISTORY} 의 칸 가운데 {@code :userId} 를 가리키는 행이 하나라도 있는가. */
-    private static final String HISTORY_EXISTS = HISTORY.stream()
-            .map(ref -> "EXISTS (SELECT 1 FROM " + ref.table() + " WHERE " + ref.column() + "=:userId)")
-            .collect(Collectors.joining(" OR "));
-
-    /** 자료가 없을 때 계정과 함께 지우는 표(동의·토큰·신원·푸시 토큰). 나머지는 {@code ON DELETE CASCADE} 로 함께 지워진다. */
-    static final List<String> ERASED_WITH_THE_ACCOUNT = List.of("user_consents", "refresh_tokens", "user_identities", "push_tokens");
-
-    /**
-     * 가입 중에 만 14세 미만으로 드러난 계정.
-     *
-     * <p>⚠ <b>남의 테이블을 여기서 함께 치는 것은 탈퇴와 같은 이유다</b> — 파기의 원자성이 트랜잭션
-     * 하나를 요구한다. 자료가 있는지 보는 칸은 {@link #HISTORY} 다. 하나라도 있으면 행을 지울 수 없어
-     * 탈퇴와 같은 절차로 닫는다 — 그때는 보관 동의와 무관하게 영상을 파기한다.
+     * 가입 중에 만 14세 미만으로 드러난 계정. 여기서 트랜잭션을 열고, 자료가 있는지와 무엇을 지우는지는 각 표의 주인이 답한다
+     * ({@link AccountErasureSequence#closeUnderage}).
      */
     @Override
     public Closed closeUnderage(UUID userId, Instant now, LocalDate today) {
         return transaction.execute(status -> {
-            List<Tuple> rows = list(entityManager.createNativeQuery(
-                    "SELECT (" + HISTORY_EXISTS + ") AS has_history FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId));
-            if (rows.isEmpty()) {
+            AccountErasureSequence.ClosedUnderage closed = closing.closeUnderage(userId, now, today);
+            if (closed == null) {
                 return null;
             }
-            if (rows.getFirst().get("has_history", Boolean.class)) {
-                Withdrawn withdrawn = withdraw(userId, true, now, today);
-                return new Closed(Closure.DEACTIVATED, withdrawn.cleanupOperationIds());
-            }
-            for (String owned : ERASED_WITH_THE_ACCOUNT) {
-                entityManager.createNativeQuery("DELETE FROM " + owned + " WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-            }
-            // 프로필·방향·포트폴리오·이관 코드는 `ON DELETE CASCADE` 로 함께 지워진다.
-            entityManager.createNativeQuery("DELETE FROM users WHERE id=:userId")
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-            return new Closed(Closure.ERASED, List.of());
+            return new Closed(closed.erased() ? Closure.ERASED : Closure.DEACTIVATED, closed.cleanupOperationIds());
         });
     }
 
