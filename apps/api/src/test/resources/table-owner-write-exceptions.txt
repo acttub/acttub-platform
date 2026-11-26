@@ -25,7 +25,6 @@ feature/profile/adapter/db/PostgresPracticeGroupErasure.java practices
 feature/profile/adapter/db/PostgresPracticeGroupErasure.java users
 feature/profile/adapter/db/PostgresPracticeGroupErasure.java video_transcripts
 feature/profile/adapter/db/PostgresPracticeGroupErasure.java videos
-feature/profile/adapter/db/PostgresProfileRepository.java actor_journals
 feature/profile/adapter/db/PostgresProfileRepository.java actor_memories
 feature/profile/adapter/db/PostgresProfileRepository.java actor_memory_entries
 feature/profile/adapter/db/PostgresProfileRepository.java ai_jobs
