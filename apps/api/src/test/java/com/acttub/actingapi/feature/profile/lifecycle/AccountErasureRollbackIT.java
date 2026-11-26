@@ -102,6 +102,9 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresReadingAccountErasure")
     AccountErasure readingErasure;
 
+    @MockitoSpyBean(name = "postgresChallengeAccountErasure")
+    AccountErasure challengeErasure;
+
     private AccountLifecycleSeed seed;
 
     @BeforeEach
@@ -114,7 +117,7 @@ class AccountErasureRollbackIT {
 
     @ParameterizedTest(name = "{0} 자리에서 실패")
     @EnumSource(value = AccountErasureStep.class, names = {
-        "READING", "VIDEO_FILES", "AI_JOBS", "PRACTICE_FEEDBACK", "COMMUNITY_IMAGES", "READING_VOICE_USAGE",
+        "READING", "VIDEO_FILES", "AI_JOBS", "PRACTICE_FEEDBACK", "CHALLENGE", "COMMUNITY_IMAGES", "READING_VOICE_USAGE",
         "SIGNUP_ATTRIBUTION", "BILLING", "DISCOVERY_ANSWER", "IDENTITIES", "BILLING_CUSTOMER", "EMAIL", "PROFILE", "PORTFOLIO",
         "TRANSFER_CODES", "SESSIONS", "PUSH", "LEGACY_PRACTICES", "LEGACY_OPERATIONS"
     })
@@ -153,6 +156,7 @@ class AccountErasureRollbackIT {
             case AI_JOBS, LEGACY_OPERATIONS -> operationErasure;
             case LEGACY_PRACTICES -> practiceErasure;
             case READING, READING_VOICE_USAGE -> readingErasure;
+            case CHALLENGE -> challengeErasure;
             default -> throw new IllegalArgumentException("no spied owner for " + step);
         };
     }
@@ -172,7 +176,8 @@ class AccountErasureRollbackIT {
         assertThat(profileErasure.hasRecords(full)).isTrue();
         assertThat(videoErasure.hasRecords(light)).isFalse();
         assertThat(videoErasure.hasRecords(full)).isTrue();
-        for (AccountErasure withHistory : List.of(feedbackErasure, operationErasure, practiceErasure, readingErasure)) {
+        for (AccountErasure withHistory : List.of(
+                feedbackErasure, operationErasure, practiceErasure, readingErasure, challengeErasure)) {
             assertThat(withHistory.hasRecords(light)).isFalse();
             assertThat(withHistory.hasRecords(full)).isTrue();
         }

@@ -702,7 +702,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)와 영역 표(연습·리딩·챌린지)가 정본이다. 구현만의 것:
   `users.nickname=NULL`(I-3 예외), 진행 중 `external_operations`·`ai_jobs` 의 lease 떼기(분석 중이던 연습도 `failed`,
   0.1.0 작업은 결과 본문도 비운다), 0.1.0 영상의 `purged_at`, `practice_feedback` 의 시트 재전송 예약(`sheet_seq`),
-  챌린지 자료 정리(`PostgresProfileRepository#eraseChallenge` — 밀린 마감 집계를 먼저 한다(`ChallengeWithdrawal#settleBeforeWithdrawal`), §6-20).
+  챌린지 자료 정리(`PostgresChallengeAccountErasure` — 밀린 마감 집계를 먼저 한다(`PendingSettlement`, 구현 `PostgresChallengeWithdrawal`), §6-20).
 - **신원 행은 지우지 않는다.** `uid_hash` 만 남긴다(`ck_user_identities_uid_or_hash`). 값은 `platform/security/AccountSecrets#identityHash`
   가 만들고(조회 후보는 `#identityHashCandidates`), 운영 셸로 같은 값을 내는 계산은
   [RETENTION-REVOCATION 2단계](../../docs/deploy/RETENTION-REVOCATION.md#2-옛-계정을-해시로-찾는다--본인-확인)에 있다. 둘이 같음을
@@ -1325,7 +1325,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 발송(`CHALLENGE_NOTIFICATION_PUSH_ENABLED`)은 커밋 뒤 따로 돈다. 때가 된 묶음을 잠그고 `notification_pushes`의
   `(group_key, stage first·summary)`를 한 번만 선점해 첫 푸시와 요약 푸시를 하나씩 보낸다.
 - 탈퇴는 계정을 비활성으로 바꾸기 전에 이 사람의 참여작이 있는 챌린지의 밀린 마감 집계를 먼저 한다
-  (`ChallengeWithdrawal`). 진행 중 리포트 생성은 탈퇴의 `ai_jobs` 정리(`failed`/`account_deactivated`, §6-8)가 닫는다.
+  (`auth/app/PendingSettlement`, 구현 `PostgresChallengeWithdrawal`). 진행 중 리포트 생성은 탈퇴의 `ai_jobs` 정리(`failed`/`account_deactivated`, §6-8)가 닫는다.
 
 ### 6-21. 운영용 챌린지 영상 목록·재생
 

@@ -11,14 +11,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
+import com.acttub.actingapi.feature.auth.app.PendingSettlement;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 탈퇴 전 정산({@code settleBeforeWithdrawal})이 고르는 챌린지와 잠그는 순서를 고정한다. 탈퇴 뒤에도 그 참여작이 종료 순위에
+ * 탈퇴 전 정산({@code settleBeforeDeactivation})이 고르는 챌린지와 잠그는 순서를 고정한다. 탈퇴 뒤에도 그 참여작이 종료 순위에
  * 남는 것은 {@code ChallengeNotificationIT#accountWithdraw_afterTheDeadlineStillCountsTheEntryInTheFinalRanking} 가 본다.
  * 여기서는 고르는 조건의 경계, 챌린지 id 순서로 잠그는 것, 나가는 문장을 본다.
  */
@@ -29,7 +29,7 @@ class ChallengeWithdrawalStoreIT {
     ChallengeStoreFixture db;
 
     @Autowired
-    ChallengeWithdrawal withdrawal;
+    PendingSettlement withdrawal;
 
     private final Instant now = Instant.parse("2026-11-25T03:00:00Z");
     private final Instant opened = now.minus(Duration.ofDays(8));
@@ -66,7 +66,7 @@ class ChallengeWithdrawalStoreIT {
         db.entry(othersOnly, other, opened);
         like(rival, leaving);
 
-        db.inTransaction(() -> withdrawal.settleBeforeWithdrawal(leaving, now));
+        db.inTransaction(() -> withdrawal.settleBeforeDeactivation(leaving, now));
 
         assertThat(state(due)).isEqualTo("final");
         assertThat(state(atDeadline)).as("마감과 같은 시각").isEqualTo("final");
@@ -98,7 +98,7 @@ class ChallengeWithdrawalStoreIT {
         ExecutorService pool = Executors.newSingleThreadExecutor();
         try (Connection probe = db.probe()) {
             ChallengeStoreFixture.lock(probe, "SELECT 1 FROM challenges WHERE id=? FOR UPDATE", smaller);
-            Future<?> blockedOnSmaller = pool.submit(() -> db.inTransaction(() -> withdrawal.settleBeforeWithdrawal(leaving, now)));
+            Future<?> blockedOnSmaller = pool.submit(() -> db.inTransaction(() -> withdrawal.settleBeforeDeactivation(leaving, now)));
             String waiting = db.awaitWaiting("from challenges");
             assertThat(db.locked("challenges", larger)).as("앞의 것에서 기다리는 동안 뒤의 것은 아직 잡지 않았다").isFalse();
             probe.rollback();
@@ -109,7 +109,7 @@ class ChallengeWithdrawalStoreIT {
 
             db.jdbc.update("UPDATE challenges SET ranking_state=NULL,finalized_at=NULL");
             ChallengeStoreFixture.lock(probe, "SELECT 1 FROM challenges WHERE id=? FOR UPDATE", larger);
-            Future<?> blockedOnLarger = pool.submit(() -> db.inTransaction(() -> withdrawal.settleBeforeWithdrawal(leaving, now)));
+            Future<?> blockedOnLarger = pool.submit(() -> db.inTransaction(() -> withdrawal.settleBeforeDeactivation(leaving, now)));
             db.awaitWaiting("from challenges");
             assertThat(db.locked("challenges", smaller)).as("뒤의 것에서 기다릴 때 앞의 것은 이미 잡고 있다").isTrue();
             probe.rollback();
@@ -129,13 +129,13 @@ class ChallengeWithdrawalStoreIT {
         db.entry(due, leaving, opened);
         db.entry(due, leaving, opened.plusSeconds(1));
 
-        assertThat(db.statementsOf(() -> db.inTransaction(() -> withdrawal.settleBeforeWithdrawal(leaving, now))))
+        assertThat(db.statementsOf(() -> db.inTransaction(() -> withdrawal.settleBeforeDeactivation(leaving, now))))
                 .containsExactly("select challenges",
                         "select challenges for update",
                         "update challenge_entries", "update challenges", "select challenge_entries",
                         "select notifications", "select user_profiles", "insert notifications on conflict",
                         "select challenges", "update challenge_entries", "update challenges");
-        assertThat(db.statementsOf(() -> db.inTransaction(() -> withdrawal.settleBeforeWithdrawal(leaving, now))))
+        assertThat(db.statementsOf(() -> db.inTransaction(() -> withdrawal.settleBeforeDeactivation(leaving, now))))
                 .as("이미 확정됐다")
                 .containsExactly("select challenges");
     }
