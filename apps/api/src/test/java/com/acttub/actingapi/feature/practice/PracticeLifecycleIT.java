@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
-import com.acttub.actingapi.feature.profile.app.ProfileRepository;
+import com.acttub.actingapi.feature.practice.app.DeletedPracticePurge;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -79,7 +79,7 @@ class PracticeLifecycleIT {
     MutableClock clock;
 
     @Autowired
-    ProfileRepository profiles;
+    DeletedPracticePurge deletedPractices;
 
     private final Map<String, UUID> documents = new LinkedHashMap<>();
     private UUID member;
@@ -778,10 +778,10 @@ class PracticeLifecycleIT {
         assertThat(count("account_cleanup_operations")).isZero();
 
         Instant now = clock.instant();
-        assertThat(profiles.purgeDeletedPracticeMedia(now.minusSeconds(3600L * 24 * 365 * 3), now))
+        assertThat(deletedPractices.purgeExpired(now.minusSeconds(3600L * 24 * 365 * 3), now))
                 .as("동의가 살아 있고 3년이 안 됐으면 그대로").isEmpty();
         declineRetention(member);
-        assertThat(profiles.purgeDeletedPracticeMedia(now.minusSeconds(3600L * 24 * 365 * 3), now)).hasSize(1);
+        assertThat(deletedPractices.purgeExpired(now.minusSeconds(3600L * 24 * 365 * 3), now)).hasSize(1);
         assertThat(jdbc.queryForObject("SELECT purged_at FROM videos WHERE id=?", OffsetDateTime.class, video)).isNotNull();
         assertThat(count("deleted_practice_videos")).isZero();
     }

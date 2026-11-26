@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.StaleRefreshTokens;
+import com.acttub.actingapi.feature.practice.app.DeletedPracticePurge;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,7 @@ public class AccountHousekeeping {
     private final ProfileService accounts;
     private final StaleRefreshTokens refreshTokens;
     private final StaleTransferCodes transferCodes;
+    private final DeletedPracticePurge deletedPractices;
     private final AccountCleanup cleanup;
     private final FailureReporter failureReporter;
     private final Clock clock;
@@ -50,6 +52,7 @@ public class AccountHousekeeping {
             ProfileService accounts,
             StaleRefreshTokens refreshTokens,
             StaleTransferCodes transferCodes,
+            DeletedPracticePurge deletedPractices,
             AccountCleanup cleanup,
             FailureReporter failureReporter,
             Clock clock) {
@@ -57,6 +60,7 @@ public class AccountHousekeeping {
         this.accounts = accounts;
         this.refreshTokens = refreshTokens;
         this.transferCodes = transferCodes;
+        this.deletedPractices = deletedPractices;
         this.cleanup = cleanup;
         this.failureReporter = failureReporter;
         this.clock = clock;
@@ -74,7 +78,7 @@ public class AccountHousekeeping {
         Instant threeYearsAgo = now.atZone(ProfileService.SEOUL).minusYears(IDENTITY_HASH_YEARS).toInstant();
         step("retention", () -> cleanup.attempt(profiles.purgeRetained(threeYearsAgo, now)));
         // 지운 연습의 보관 영상은 지운 날부터 3년, 보관 동의를 거절로 바꾸면 다음 정리에서 파기한다(SOMA-985).
-        step("deletedPractices", () -> cleanup.attempt(profiles.purgeDeletedPracticeMedia(threeYearsAgo, now)));
+        step("deletedPractices", () -> cleanup.attempt(deletedPractices.purgeExpired(threeYearsAgo, now)));
         step("cleanup", cleanup::runDue);
         step("transferCodes", () -> transferCodes.deleteStale(now.minus(TRANSFER_CODE_RETENTION)));
         Instant fourteenMonthsAgo = now.atZone(ProfileService.SEOUL).minusMonths(14).toInstant();

@@ -30,7 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 final class AccountLifecycleSeed {
 
-    /** 지운 연습을 들고 있는 계정({@code PostgresPracticeGroupErasure.DELETED_PRACTICE_OWNER} 와 같은 값). */
+    /** 지운 연습을 들고 있는 계정({@code PostgresDeletedPracticeAccount.ID} 와 같은 값). */
     static final UUID DELETED_PRACTICE_OWNER = UUID.fromString("00000000-0000-4000-8000-00000000de1e");
 
     /** 로그인 신원의 모양. */
