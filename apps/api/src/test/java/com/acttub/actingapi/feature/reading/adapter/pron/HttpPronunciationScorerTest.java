@@ -119,6 +119,19 @@ class HttpPronunciationScorerTest {
     }
 
     @Test
+    void 너무_길다는_거절은_따로_던지고_다른_422_는_실패로_던진다() throws IOException {
+        status = 422;
+        body = "{\"detail\":\"audio_too_long\"}";
+        Path file = audio();
+        assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리")).isInstanceOf(PronunciationScorer.TooLong.class);
+
+        body = "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"text\"]}]}";
+        assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리"))
+                .isInstanceOf(IllegalStateException.class).isNotInstanceOf(PronunciationScorer.TooLong.class)
+                .hasMessageContaining("422");
+    }
+
+    @Test
     void 연결하지_못하면_던진다() throws IOException {
         int closed;
         try (ServerSocket socket = new ServerSocket(0)) {

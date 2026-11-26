@@ -1,7 +1,7 @@
 """발음 채점 서비스(SOMA-606) — api 만 부르는 내부 서비스다. 호스트 포트를 열지 않는다.
 
 POST /score  multipart(audio: m4a·wav, text: 대본 한 줄, threshold?) → pronscore.score_line 결과 + model_version
-             소리 없는 앞뒤를 잘라 낸 뒤에도 PRON_MAX_SECONDS(기본 30초)보다 길면 422 audio_too_long
+             소리 없는 앞뒤를 잘라 낸 뒤에도 PRON_MAX_SECONDS(기본 60초, api 의 줄 한도와 같다)보다 길면 422 audio_too_long
              timings_ms: 이 요청에 쓴 ms. decode·model·gop 과 받기부터 답 만들기까지 전부(total). api 가 단계별 시간으로 남긴다
 POST /measure multipart(audio, text) → acoustics.measure 결과(크기·빠르기·쉼·끝 높이). 말소리가 없으면 {"measured": false}
 GET  /health 모델을 올렸는지

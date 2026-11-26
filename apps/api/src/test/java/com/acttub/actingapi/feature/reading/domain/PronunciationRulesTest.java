@@ -37,6 +37,24 @@ class PronunciationRulesTest {
                 new LineInput(3, "다리가 아파", "오늘 날씨 좋네요 정말로", scored)));
         assertThat(report.empty()).isTrue();
         assertThat(report.skippedLines()).containsExactly(1, 2, 3);
+        assertThat(report.skippedReasons()).containsExactly(
+                new PronunciationRules.SkippedLine(1, PronunciationRules.SkipReason.NO_TRANSCRIPT),
+                new PronunciationRules.SkippedLine(2, PronunciationRules.SkipReason.NO_TRANSCRIPT),
+                new PronunciationRules.SkippedLine(3, PronunciationRules.SkipReason.OFF_SCRIPT));
+    }
+
+    @Test
+    void 채점하지_않은_줄은_받은_까닭을_그대로_남기고_까닭이_없으면_받아쓴_글로_정한다() {
+        ScoredLine scored = new ScoredLine("다리", List.of(word(0, "다리", ok("ㄷ", false, 0))));
+        Report report = PronunciationRules.build(List.of(
+                new LineInput(1, "다리", "다리", scored),
+                new LineInput(2, "머리", "머리", null, PronunciationRules.SkipReason.TOO_LONG),
+                new LineInput(3, "허리", "허리", null),
+                new LineInput(4, "소리", null, null)));
+        assertThat(report.skippedLines()).containsExactly(2, 3, 4);
+        assertThat(report.skippedReasons()).extracting(PronunciationRules.SkippedLine::reason).containsExactly(
+                PronunciationRules.SkipReason.TOO_LONG, PronunciationRules.SkipReason.SCORING_FAILED,
+                PronunciationRules.SkipReason.NO_TRANSCRIPT);
     }
 
     @Test

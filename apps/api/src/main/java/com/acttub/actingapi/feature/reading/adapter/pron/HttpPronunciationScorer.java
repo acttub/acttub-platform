@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer.ServerTime;
+import com.acttub.actingapi.feature.reading.app.PronunciationScorer.TooLong;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Phone;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.ScoredLine;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
@@ -53,6 +54,9 @@ public class HttpPronunciationScorer implements PronunciationScorer {
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()))
                     .build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() == 422 && response.body().contains("audio_too_long")) {
+                throw new TooLong("pronunciation scorer returned 422 audio_too_long");
+            }
             if (response.statusCode() != 200) {
                 throw new IllegalStateException("pronunciation scorer returned " + response.statusCode());
             }

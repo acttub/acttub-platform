@@ -13,7 +13,7 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/reading/sessions/{session_id}/pronunciation` | 헤더 `Authorization`(게이트 통과) | `{status, report}` 200. `status` 는 아래 「상태」의 값이고, `report` 는 done·skipped 일 때만 `{summary, misheard, habit, skipped_lines}`, 그 밖은 null | 스위치가 꺼졌거나 Pro·허용 사용자가 아님 404 `pronunciation_not_available`, 남의 회차·없는 회차 404 `session_not_found` |
+| `GET /v2/reading/sessions/{session_id}/pronunciation` | 헤더 `Authorization`(게이트 통과) | `{status, report}` 200. `status` 는 아래 「상태」의 값이고, `report` 는 done·skipped 일 때만 `{summary, misheard, habit, skippedLines, lines, skippedReasons}`, 그 밖은 null | 스위치가 꺼졌거나 Pro·허용 사용자가 아님 404 `pronunciation_not_available`, 남의 회차·없는 회차 404 `session_not_found` |
 | `PronunciationWorkerScheduler`(`PRON_REPORT_POLL_MS`, 기본 5초) | queued 보고서, 임대가 지난 running 보고서 | 채점 뒤 done·skipped 저장, 실패면 다시 queued 또는 failed. 오래 걸린 done 은 주인에게 푸시(아래) | 시도 3번 소진이면 failed |
 
 ## 상태
@@ -23,7 +23,7 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 | queued | 끝난 회차를 처음 조회함(행을 만든다). 시도가 남은 실패 | reading.pronunciation |
 | running | 일꾼이 집음(시도 수 +1, 임대 `PRON_REPORT_LEASE_SECONDS` 기본 600초). 임대가 지난 running 을 다시 집음 | reading.pronunciation |
 | done | 채점한 줄이 하나 이상이라 보고서가 비지 않음 | reading.pronunciation |
-| skipped | 쓸 줄이 없음(받아쓴 글이 없거나 1분 넘는 녹음뿐이라 채점한 줄이 0) | reading.pronunciation |
+| skipped | 쓸 줄이 없음(받아쓴 글이 없거나, 너무 길거나, 대본과 다르게 읽은 줄뿐) | reading.pronunciation |
 | failed | 시도 3번(`PRON_REPORT_MAX_ATTEMPTS`)을 다 쓴 실패, 또는 시도를 다 쓴 채 임대가 지남(`failure='lease_expired'`) | reading.pronunciation |
 
 끝 상태: done·skipped·failed. 끝 상태에서 나가는 전이는 없다. 행은 회차마다 하나이고(`reading_session_id` 유일) 첫 조회만 만든다 —
@@ -32,8 +32,13 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 ## 규칙·제약
 - 받는 사람: 스위치 `PRON_REPORT_ENABLED`(기본 false)와 채점 서비스 주소 `PRON_SCORER_URL` 이 모두 있을 때, Pro 회원(결제 판정은
   고품질 목소리와 같다)과 허용 사용자 목록(`PRON_REPORT_ALLOWED_USERS`)의 회원.
-- 채점 대상: 그 회차의 녹음 가운데 받아쓴 글이 있고 1분 이하인 줄. 줄 하나의 채점이 실패하면 그 줄만 빼고 이어 간다. 모든 줄이
-  실패하면 그 시도가 실패다.
+- 채점 대상: 그 회차의 녹음 가운데 받아쓴 글이 있고 원래 길이가 1분 이하인 줄. 채점 서비스도 소리 없는 앞뒤를 잘라 낸 길이가
+  1분(`PRON_MAX_SECONDS`)을 넘으면 거절한다 — 두 한도가 같아 길이를 아는 줄은 거절당하지 않는다. 줄 하나의 채점이 실패하면 그 줄만
+  빼고 이어 간다. 보낸 줄이 모두 실패하면 그 시도가 실패다(채점 서비스가 너무 길다고 거절한 줄은 다시 보내도 같아 실패로 세지 않는다).
+- **빠진 줄의 까닭**(SOMA-1171): 보고서에서 빠진 줄은 `skippedLines`(줄 번호)와 같은 순서로 `skippedReasons`(`{lineNo, reason}`)에
+  까닭을 남긴다. `NO_TRANSCRIPT`(받아쓴 글이 없음), `TOO_LONG`(원래 길이 1분 넘음, 또는 채점 서비스가 너무 길다고 거절),
+  `SCORING_FAILED`(녹음을 받지 못했거나 채점 서비스가 답하지 못함), `OFF_SCRIPT`(받아쓴 글도 들은 소리도 대본과 덜 닮음). 조용히 빠지는
+  줄은 없다. 11/26 이전 보고서에는 `skippedReasons` 가 없다.
 - 녹음은 배우의 목소리라 임시 파일을 주인만 읽고 쓰게 만들고 끝나면 지운다.
 - 줄 수를 줄이지 않는다 — 녹음한 줄을 전부 채점한다. 채점은 한 번에 한 보고서·한 줄씩이라(채점 서비스 하나, 운영 한 줄 약 6초) 긴
   회차는 몇 분 걸린다(11/25 운영, 88줄 넘는 회차 528초).
@@ -53,7 +58,8 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 ## 검증 방법
 - 끝나지 않은 회차 조회: `not_ready`, 행 없음. 끝난 회차 첫 조회: `queued`, 행 하나. 다시 조회: 행이 늘지 않는다(`ReadingPronunciationIT`, 이 기능의
   테스트 이름은 `reading.pronunciation:` 으로 시작한다).
-- 일꾼이 채점: 줄이 있으면 `done` 과 보고서, 쓸 줄이 없으면 `skipped`. 줄 하나의 채점 실패는 그 줄만 빠진다(`PronunciationWorkerTest`).
+- 일꾼이 채점: 줄이 있으면 `done` 과 보고서, 쓸 줄이 없으면 `skipped`. 줄 하나의 채점 실패는 그 줄만 빠진다. 빠진 줄마다 까닭이
+  남고, 채점 서비스가 너무 길다고 거절한 줄은 `TOO_LONG` 이며 다시 줄 세우지 않는다(`PronunciationWorkerTest`, `PronunciationRulesTest`).
 - 세 번 실패: `failed`. 시도를 다 쓴 채 임대가 지남: `failed`, `failure='lease_expired'`.
 - 스위치가 꺼졌거나 Pro·허용 사용자가 아님: 404 `pronunciation_not_available`.
 - 붙잡기: 만드는 중이면 다 될 때까지(또는 정한 시간까지) 기다려 답한다. 끝 상태·not_ready 는 바로 답한다(`PronunciationReportServiceTest`).
