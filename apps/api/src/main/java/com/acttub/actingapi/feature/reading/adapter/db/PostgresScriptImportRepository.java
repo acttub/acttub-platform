@@ -4,10 +4,10 @@ import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
@@ -52,11 +52,15 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     private final boolean reuseEnabled;
     private final int reuseMaxAgeDays;
 
+    private final AccountRowLock accountRows;
+
     PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
             ScriptUploadRepository uploads, AiJobLedger ledger, ScriptImportJpaRepository requests, ScriptJpaRepository scriptRows,
             ScriptUploadJpaRepository uploadRows, ScriptCharacterJpaRepository characterRows, ScriptLineJpaRepository lineRows,
             @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_ENABLED:true}") boolean reuseEnabled,
-            @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS:30}") int reuseMaxAgeDays) {
+            @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS:30}") int reuseMaxAgeDays,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.em = em;
         this.transaction = new TransactionTemplate(manager);
         this.scripts = scripts;
@@ -338,10 +342,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     }
 
     private void lockActive(UUID userId) {
-        List<Tuple> active = list(em.createNativeQuery(
-                "SELECT id FROM users WHERE id=:userId AND status='active' FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
-        if (active.isEmpty()) throw new ScriptRepository.OwnerNotActive();
+        if (!accountRows.lockActive(userId)) throw new ScriptRepository.OwnerNotActive();
     }
 
     private static ScriptImportFailure failureOf(String value) {

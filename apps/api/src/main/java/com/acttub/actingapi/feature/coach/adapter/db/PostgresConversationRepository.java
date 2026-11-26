@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.coach.app.ActorProfile;
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository;
@@ -40,9 +41,13 @@ class PostgresConversationRepository implements ConversationRepository {
     private final TransactionTemplate transaction;
     private final PracticeStageTransitions stages;
 
+    private final AccountRowLock accountRows;
+
     PostgresConversationRepository(EntityManager entityManager, CoachConversationJpaRepository conversations,
             CoachMessageJpaRepository messages, CoachNoteJpaRepository notes,
-            PlatformTransactionManager transactionManager, PracticeStageTransitions stages) {
+            PlatformTransactionManager transactionManager, PracticeStageTransitions stages,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.stages = stages;
         this.entityManager = entityManager;
         this.conversations = conversations;
@@ -310,11 +315,9 @@ class PostgresConversationRepository implements ConversationRepository {
         while (true) {
             UUID owner = currentOwner(conversationId);
             if (owner == null) return false;
-            List<Tuple> users = NativeTuples.list(entityManager.createNativeQuery(
-                            "SELECT status FROM users WHERE id=:id FOR UPDATE", Tuple.class)
-                    .setParameter("id", owner));
+            boolean active = accountRows.lockActive(owner);
             if (!owner.equals(currentOwner(conversationId))) continue;
-            if (users.isEmpty() || !"active".equals(users.getFirst().get("status", String.class))) {
+            if (!active) {
                 throw new OwnerNotActive();
             }
             return true;

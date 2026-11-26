@@ -521,7 +521,7 @@ class BillingRepositoryIT {
         UUID id = billing.saveCard(user, "ck-s", "k1:s", "신한", "1", now);
         soft.assertThat(statementsOf(() -> billing.saveCard(user, "ck-s", "k1:s", "신한", "1", now)))
                 .as("upsert 는 한 문장이고 RETURNING 대신 회원의 한 행을 다시 읽는다")
-                .containsExactly("select users for update", "insert billing_subscriptions on conflict",
+                .containsExactly("select users for update of ue1_0", "insert billing_subscriptions on conflict",
                         "select billing_subscriptions");
         soft.assertThat(statementsOf(() -> billing.find(user))).containsExactly("select billing_subscriptions");
         soft.assertThat(statementsOf(() -> billing.findById(id))).containsExactly("select billing_subscriptions");
@@ -550,7 +550,7 @@ class BillingRepositoryIT {
             return null;
         })).containsExactly("update billing_subscriptions");
         soft.assertThat(statementsOf(() -> billing.activate(id, now, now.plusSeconds(60), now)))
-                .containsExactly("select billing_subscriptions", "select users for update", "update billing_subscriptions");
+                .containsExactly("select billing_subscriptions", "select users for update of ue1_0", "update billing_subscriptions");
         soft.assertThat(statementsOf(() -> {
             billing.advance(id, now.plusSeconds(60), now.plusSeconds(120), now);
             return null;

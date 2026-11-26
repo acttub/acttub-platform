@@ -1,7 +1,5 @@
 package com.acttub.actingapi.feature.portfolio.adapter.db;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -10,6 +8,7 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioPhotoCleanup;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioRepository;
 import com.acttub.actingapi.feature.portfolio.domain.Portfolio;
@@ -17,7 +16,6 @@ import com.acttub.actingapi.feature.portfolio.schema.PortfolioCreditEntity;
 import com.acttub.actingapi.feature.portfolio.schema.PortfolioPhotoEntity;
 import com.acttub.actingapi.platform.schema.PortfolioCreditKind;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -39,13 +37,17 @@ class PostgresPortfolioRepository implements PortfolioRepository {
     private final TransactionTemplate transaction;
     private final PortfolioPhotoCleanup cleanup;
 
+    private final AccountRowLock accountRows;
+
     PostgresPortfolioRepository(
             EntityManager entityManager,
             PortfolioJpaRepository portfolios,
             PortfolioCreditJpaRepository credits,
             PortfolioPhotoJpaRepository photos,
             PlatformTransactionManager transactionManager,
-            PortfolioPhotoCleanup cleanup) {
+            PortfolioPhotoCleanup cleanup,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.portfolios = portfolios;
         this.credits = credits;
@@ -203,19 +205,11 @@ class PostgresPortfolioRepository implements PortfolioRepository {
      *
      * <p>그보다 먼저 <b>탈퇴와 같은 {@code users} 행</b>을 잡고 활성인지 본다. 탈퇴는 포트폴리오를 행째
      * 지우는데, 게이트를 지난 뒤에 탈퇴가 끝난 요청이 여기서 그 행을 다시 만들면 파기한 자료가 되살아난다.
-     * ⚠ {@code users} 의 주인은 {@code auth} 지만 이 확인은 쓰는 트랜잭션 안에 있어야 뜻이 있어 native
-     * SQL 로 잠금만 잡는다(Schema Entity 를 import 하지 않는다). auth 에 이 잠금을 내주는 Port 가 없어
-     * JPA 로 옮기지 않았다(src/test/resources/native-sql-files.txt 의 남김 줄).
+     * {@code users} 는 {@code auth} 의 테이블이라 잠금은 {@code AccountRowLock} 이 잡는다. 이 확인은 쓰는 트랜잭션 안에
+     * 있어야 뜻이 있다.
      */
     private void lockOrCreate(UUID userId) {
-        boolean active = !list(entityManager.createNativeQuery("""
-                SELECT id
-                FROM users
-                WHERE id=:userId
-                  AND status='active'
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
+        boolean active = accountRows.lockActive(userId);
         if (!active) {
             throw new OwnerNotActive();
         }

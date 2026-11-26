@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
@@ -60,13 +61,17 @@ class PostgresEntryRepository implements EntryRepository {
     /** 묶음 푸시 선점은 그 10분 구간(밤이면 다음 09시)이 지나면 쓸모가 없다 — 이틀이면 넉넉하다. */
     private static final java.time.Duration NOTIFICATION_PUSH_CLAIM_RETENTION = java.time.Duration.ofDays(2);
 
+    private final AccountRowLock accountRows;
+
     PostgresEntryRepository(EntityManager em, ChallengeEntryJpaRepository entries, ChallengeJpaRepository challenges,
                             NotificationJpaRepository notifications, EntryAiReportJpaRepository aiReports, EntryLikeJpaRepository likes,
                             EntrySaveJpaRepository saves, EntryCommentJpaRepository comments, EntryReportJpaRepository reports,
                             NotificationPushJpaRepository pushes, EntryViewEventJpaRepository viewEvents,
                             EntryRankingSnapshotJpaRepository snapshots, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
                             PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup,
-                            UnseenEntryBoost unseen, AiJobLedger jobs) {
+                            UnseenEntryBoost unseen, AiJobLedger jobs,
+                            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.em = em; this.entries = entries; this.challenges = challenges; this.notifications = notifications;
         this.aiReports = aiReports; this.likes = likes; this.saves = saves; this.comments = comments; this.reports = reports;
         this.pushes = pushes; this.viewEvents = viewEvents; this.snapshots = snapshots;
@@ -225,15 +230,14 @@ class PostgresEntryRepository implements EntryRepository {
         return transaction.execute(tx -> {
             // 모자이크본 붙이기와 같은 순서(사람 → 참여작 → 영상)로 잡는다 — 탈퇴·파기·삭제가 키를 모으기 전에 적었거나,
             // 적지 않고 장부로 보내거나 둘 중 하나다.
-            var owner = NativeTuples.list(em.createNativeQuery(
-                    "SELECT status FROM users WHERE id=:user FOR UPDATE", Tuple.class).setParameter("user", source.userId()));
+            boolean ownerActive = accountRows.lockActive(source.userId());
             var entry = NativeTuples.list(em.createNativeQuery("""
                     SELECT e.status,e.face_mosaic,e.mosaic_status,e.mosaic_key,v.object_key,v.purged_at
                     FROM challenge_entries e JOIN videos v ON v.id=e.video_id
                     WHERE e.id=:id AND e.user_id=:user
                     FOR UPDATE OF e FOR SHARE OF v
                     """, Tuple.class).setParameter("id", source.entryId()).setParameter("user", source.userId()));
-            boolean attachable = !owner.isEmpty() && "active".equals(owner.getFirst().get("status", String.class))
+            boolean attachable = ownerActive
                     && !entry.isEmpty() && !"deleted".equals(entry.getFirst().get("status", String.class))
                     && source.objectKey().equals(entry.getFirst().get("object_key", String.class))
                     && entry.getFirst().get("purged_at", Instant.class) == null
@@ -300,14 +304,13 @@ class PostgresEntryRepository implements EntryRepository {
     public List<UUID> attachMosaic(MosaicJob job, String mosaicKey, Instant now) {
         return transaction.execute(tx -> {
             // 탈퇴·파기와 같은 순서로 사람 행을 먼저 잡는다 — 탈퇴가 키를 모으기 전에 붙였거나, 붙이지 않거나 둘 중 하나다.
-            var owner = NativeTuples.list(em.createNativeQuery(
-                    "SELECT status FROM users WHERE id=:user FOR UPDATE", Tuple.class).setParameter("user", job.userId()));
+            boolean ownerActive = accountRows.lockActive(job.userId());
             var entry = entries.lockMosaic(job.entryId(), job.userId());
             UUID videoId = entry.map(ChallengeEntryJpaRepository.MosaicState::videoId).orElse(null);
             // 영상 행도 잡는다 — 파일 파기가 모자이크 키를 모으는 것과 줄을 선다.
             var video = videoId == null ? List.<Tuple>of() : NativeTuples.list(em.createNativeQuery(
                     "SELECT object_key,purged_at FROM videos WHERE id=:id FOR SHARE", Tuple.class).setParameter("id", videoId));
-            boolean attachable = !owner.isEmpty() && "active".equals(owner.getFirst().get("status", String.class))
+            boolean attachable = ownerActive
                     && entry.isPresent() && "pending".equals(entry.get().mosaicStatus())
                     && entry.get().status() != ChallengeEntryStatus.DELETED
                     && !video.isEmpty() && job.objectKey().equals(video.getFirst().get("object_key", String.class))

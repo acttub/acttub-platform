@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.reading.app.ReadingExampleRepository;
 import com.acttub.actingapi.feature.reading.domain.ReadingExample;
 import com.acttub.actingapi.feature.reading.domain.ReadingExampleAudio;
@@ -36,8 +37,12 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
     private final TransactionTemplate transaction;
     private final ObjectMapper mapper;
 
+    private final AccountRowLock accountRows;
+
     PostgresReadingExampleRepository(EntityManager entityManager, ReadingExampleJpaRepository examples, ScriptJpaRepository scripts,
-            PlatformTransactionManager transactionManager, ObjectMapper mapper) {
+            PlatformTransactionManager transactionManager, ObjectMapper mapper,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.examples = examples;
         this.scripts = scripts;
@@ -75,8 +80,7 @@ class PostgresReadingExampleRepository implements ReadingExampleRepository {
     public <T> T withOwnerLock(UUID userId, Supplier<T> work) {
         return transaction.execute(status -> {
             // ScriptRepository·탈퇴와 같은 순서로 users 행을 먼저 잡는다. 활성 여부는 대본 저장이 본다.
-            entityManager.createNativeQuery("SELECT id FROM users WHERE id=:userId FOR UPDATE")
-                    .setParameter("userId", userId).getResultList();
+            accountRows.lockRow(userId);
             return work.get();
         });
     }

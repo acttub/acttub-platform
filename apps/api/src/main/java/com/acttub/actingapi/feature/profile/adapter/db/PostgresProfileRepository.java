@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.auth.app.RetentionPurge;
 import com.acttub.actingapi.feature.challenge.app.EntryMediaPurge;
 import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
@@ -64,6 +65,8 @@ class PostgresProfileRepository
     /** 계정을 닫는 순서. 표는 각 주인이 고치고 이 저장소는 트랜잭션만 연다. */
     private final AccountErasureSequence closing;
 
+    private final AccountRowLock accountRows;
+
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
@@ -73,7 +76,9 @@ class PostgresProfileRepository
             RetentionPurge retentionPurge,
             EntryMediaPurge retainedEntryMedia,
             RetainedRecordings retainedRecordings,
-            AccountErasureSequence closing) {
+            AccountErasureSequence closing,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanups = cleanups;
@@ -96,14 +101,7 @@ class PostgresProfileRepository
      * @return 없거나 활성이 아니면 {@code false} — 아무것도 쓰지 않는다
      */
     private boolean lockActive(UUID userId) {
-        return !list(entityManager.createNativeQuery("""
-                SELECT id
-                FROM users
-                WHERE id=:userId
-                  AND status='active'
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
+        return accountRows.lockActive(userId);
     }
 
     /**
