@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
+import com.acttub.actingapi.feature.video.app.PendingUploads;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
@@ -63,6 +64,8 @@ class PostgresEntryRepository implements EntryRepository {
 
     private final AccountRowLock accountRows;
 
+    private final PendingUploads pendingUploads;
+
     PostgresEntryRepository(EntityManager em, ChallengeEntryJpaRepository entries, ChallengeJpaRepository challenges,
                             NotificationJpaRepository notifications, EntryAiReportJpaRepository aiReports, EntryLikeJpaRepository likes,
                             EntrySaveJpaRepository saves, EntryCommentJpaRepository comments, EntryReportJpaRepository reports,
@@ -70,7 +73,9 @@ class PostgresEntryRepository implements EntryRepository {
                             EntryRankingSnapshotJpaRepository snapshots, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
                             PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup,
                             UnseenEntryBoost unseen, AiJobLedger jobs,
-                            AccountRowLock accountRows) {
+                            AccountRowLock accountRows,
+                            PendingUploads pendingUploads) {
+        this.pendingUploads = pendingUploads;
         this.accountRows = accountRows;
         this.em = em; this.entries = entries; this.challenges = challenges; this.notifications = notifications;
         this.aiReports = aiReports; this.likes = likes; this.saves = saves; this.comments = comments; this.reports = reports;
@@ -93,9 +98,7 @@ class PostgresEntryRepository implements EntryRepository {
 
     @Override @Transactional(readOnly = true)
     public boolean pendingUpload(UUID owner, UUID id) {
-        return !NativeTuples.list(em.createNativeQuery(
-                "SELECT 1 AS pending FROM upload_intents WHERE id=:id AND user_id=:owner AND video_id IS NULL", Tuple.class)
-                .setParameter("id", id).setParameter("owner", owner)).isEmpty();
+        return pendingUploads.pending(owner, id);
     }
 
     @Override @Transactional(readOnly = true)

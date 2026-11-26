@@ -52,6 +52,12 @@ public interface AiJobLedger {
     int cancel(String kind, UUID targetId, Instant now);
 
     /**
+     * 그 사람이 {@code since} 뒤로 넣은 그 종류의 요청 수(하루 한도를 셀 때). 옛 원장({@code external_operations})에 넣은 것도
+     * 함께 센다 — 두 원장이 공존하는 동안 배우에게는 한 계정의 하루다.
+     */
+    int countRequestedSince(UUID userId, String kind, Instant since);
+
+    /**
      * 대기 중인 작업 하나를 선점한다. 집을 게 없으면 {@code null}.
      *
      * @param kind {@code AiJobKind} 의 값

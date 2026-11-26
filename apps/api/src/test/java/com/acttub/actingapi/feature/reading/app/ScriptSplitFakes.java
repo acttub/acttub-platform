@@ -141,6 +141,8 @@ final class ScriptSplitFakes {
 
         @Override public int cancel(String kind, UUID targetId, Instant now) { throw new UnsupportedOperationException(); }
 
+        @Override public int countRequestedSince(UUID userId, String kind, Instant since) { throw new UnsupportedOperationException(); }
+
         @Override public boolean succeed(UUID jobId, UUID leaseToken, Instant now) { return true; }
         @Override public boolean fail(UUID jobId, UUID leaseToken, String reason, Instant now) { return true; }
         @Override public void release(UUID jobId, UUID leaseToken, String reason, Instant now) { }
