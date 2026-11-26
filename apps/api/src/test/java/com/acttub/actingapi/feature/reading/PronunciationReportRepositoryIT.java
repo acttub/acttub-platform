@@ -261,6 +261,17 @@ class PronunciationReportRepositoryIT extends ReadingRepositoryFixture {
         assertThat(statementsOf(() -> reports.lines(done))).containsExactly("select reading_recordings");
     }
 
+    @Test
+    @DisplayName("owner: 보고서 주인과 처음 요청한 시각을 한 문장으로 읽는다. 없는 보고서는 비어 있다(SOMA-1169)")
+    void ownerReadsTheRequesterAndRequestedAt() {
+        UUID report = report(now.plusSeconds(30));
+
+        assertThat(reports.owner(report)).contains(new PronunciationReportRepository.ReportOwner(owner,
+                instant("SELECT created_at FROM reading_pronunciation_reports WHERE id='" + report + "'")));
+        assertThat(reports.owner(UUID.randomUUID())).isEmpty();
+        assertThat(statementsOf(() -> reports.owner(report))).containsExactly("select reading_pronunciation_reports");
+    }
+
     /** 대사 한 줄짜리 회차. */
     private UUID completed(boolean completed) {
         UUID line = line(script, jdbc.queryForObject("SELECT count(*)+1 FROM script_lines", Integer.class), "dialogue", nina, "안녕");

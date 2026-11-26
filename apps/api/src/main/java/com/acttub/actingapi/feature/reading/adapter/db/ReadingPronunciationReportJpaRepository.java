@@ -40,6 +40,16 @@ interface ReadingPronunciationReportJpaRepository extends Repository<ReadingPron
     @Query("select r.status as status, r.result as result from ReadingPronunciationReportEntity r where r.readingSessionId = :sessionId")
     Optional<State> state(UUID sessionId);
 
+    /** 보고서 주인과 처음 요청한 시각(SOMA-1169). */
+    interface Owner {
+        UUID getUserId();
+
+        Instant getCreatedAt();
+    }
+
+    @Query("select r.userId as userId, r.createdAt as createdAt from ReadingPronunciationReportEntity r where r.id = :id")
+    Optional<Owner> owner(UUID id);
+
     /** 회차마다 한 행이다. 이미 있으면 0행이다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

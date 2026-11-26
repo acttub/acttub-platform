@@ -312,6 +312,20 @@ class PushRepositoryIT {
                 .as("PostgreSQL 의 uuid 정렬(바이트 순서)은 소문자 16진 문자열 순서와 같다").isSorted();
     }
 
+    @Test
+    @DisplayName("발음 보고서 알림 단말은 그 회원의 토큰 중 앱 판이 기준 이상인 것만, created_at 순서다. 판을 모르면 뺀다(SOMA-1169)")
+    void pronunciationReportTargetsSkipOldAndUnknownVersions() {
+        UUID user = member("pron");
+        token(user, "pron-new", "ko", "1.1.4", "2026-11-26T09:00");
+        token(user, "pron-newer", "en", "1.2.0", "2026-11-26T10:00");
+        token(user, "pron-old", "ko", "1.1.3", "2026-11-25T09:00");
+        token(user, "pron-unknown", "ko", null, "2026-11-24T09:00");
+        token(member("other"), "other-new", "ko", "1.2.0", "2026-11-26T09:00");
+
+        assertThat(tokens.pronunciationReportTargets(user, "1.1.4"))
+                .containsExactly(new PushTarget("pron-new", "ko"), new PushTarget("pron-newer", "en"));
+    }
+
     // ---- 문장 ----
 
     @Test
@@ -366,6 +380,7 @@ class PushRepositoryIT {
         })).containsExactly("delete push_tokens");
         assertThat(statementsOf(() -> tokens.analysisDoneTargets(UUID.randomUUID()))).containsExactly("select push_tokens");
         assertThat(statementsOf(() -> tokens.scriptSplitTargets(user))).containsExactly("select push_tokens");
+        assertThat(statementsOf(() -> tokens.pronunciationReportTargets(user, "1.1.4"))).containsExactly("select push_tokens");
         assertThat(statementsOf(() -> {
             opens.record(user, "evening_reminder", "general", "general.a", "ios", "0.1.2");
             return null;

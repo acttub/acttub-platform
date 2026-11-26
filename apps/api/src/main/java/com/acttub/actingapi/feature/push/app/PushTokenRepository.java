@@ -32,4 +32,10 @@ public interface PushTokenRepository {
      * 분석 완료와 같은 토글을 따른다. 꺼 두었으면 빈 목록이다.
      */
     List<PushTarget> scriptSplitTargets(UUID userId);
+
+    /**
+     * 발음 보고서가 다 된 것을 알릴 단말(SOMA-1169) — 대본 나누기와 같은 토글을 따르고, 앱 판이 {@code minAppVersion} 이상인 단말만이다.
+     * 그보다 옛 앱은 알림을 눌러도 보고서 화면으로 가지 못한다. 판을 모르는 토큰도 뺀다.
+     */
+    List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion);
 }
