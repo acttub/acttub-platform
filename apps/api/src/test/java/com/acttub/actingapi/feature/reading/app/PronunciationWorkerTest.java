@@ -141,6 +141,7 @@ class PronunciationWorkerTest {
         assertThat(reports.completedModel).isEqualTo("pron-test");
         assertThat(reports.completedReport.summary().linesUsed()).isEqualTo(1);
         assertThat(reports.completedReport.skippedLines()).containsExactly(3, 5);
+        assertThat(reasons()).containsExactly("3 NO_TRANSCRIPT", "5 NO_TRANSCRIPT");
     }
 
     @Test
@@ -206,7 +207,34 @@ class PronunciationWorkerTest {
         assertThat(downloaded).containsExactly("rec/4", "rec/6");
         assertThat(reports.completedStatus).isEqualTo("done");
         assertThat(reports.completedReport.skippedLines()).containsExactly(2);
+        assertThat(reasons()).containsExactly("2 TOO_LONG");
         assertThat(reports.completedReport.summary().linesUsed()).isEqualTo(2);
+    }
+
+    @Test
+    void 채점_서비스가_너무_길다고_거절한_줄은_너무_긴_줄로_빼고_실패로_세지_않는다() {
+        scorerFailure = new PronunciationScorer.TooLong("pronunciation scorer returned 422 audio_too_long");
+        failOnlyText = "머리";
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"), line(3, "머리", "머리", null));
+
+        assertThat(worker(3).runOnce()).isTrue();
+
+        assertThat(reports.completedStatus).isEqualTo("done");
+        assertThat(reasons()).containsExactly("3 TOO_LONG");
+    }
+
+    @Test
+    void 보낸_줄이_모두_너무_길다고_거절당하면_다시_줄_세우지_않고_skipped_로_닫는다() {
+        scorerFailure = new PronunciationScorer.TooLong("pronunciation scorer returned 422 audio_too_long");
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리", null));
+
+        assertThat(worker(3).runOnce()).isTrue();
+
+        assertThat(reports.failure).isNull();
+        assertThat(reports.completedStatus).isEqualTo("skipped");
+        assertThat(reasons()).containsExactly("1 TOO_LONG");
     }
 
     @Test
@@ -221,8 +249,13 @@ class PronunciationWorkerTest {
         assertThat(reports.failure).isNull();
         assertThat(reports.completedStatus).isEqualTo("done");
         assertThat(reports.completedReport.skippedLines()).containsExactly(3);
+        assertThat(reasons()).containsExactly("3 SCORING_FAILED");
         assertThat(reports.completedReport.summary().linesUsed()).isEqualTo(2);
         assertThat(tempFiles).allSatisfy(path -> assertThat(Files.exists(path)).isFalse());
+    }
+
+    private List<String> reasons() {
+        return reports.completedReport.skippedReasons().stream().map(s -> s.lineNo() + " " + s.reason()).toList();
     }
 
     private Timer lineTimer(String stage) {

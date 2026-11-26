@@ -32,6 +32,6 @@ def test_조용한_녹음은_그대로_둔다():
 
 
 def test_잘라도_길면_TooLong_문턱을_넘는다():
-    wav = torch.cat([_tone(40, 0.3)])
+    wav = torch.cat([_tone(70, 0.3)])
     cut, _ = pronscore.voiced(wav)
     assert len(cut) / 16000 > pronscore.MAX_SECONDS

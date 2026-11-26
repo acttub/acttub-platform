@@ -20,6 +20,7 @@ import java.util.Set;
  *
  * <p>빼는 것: 받아쓴 글이 없거나 대본과 자모 유사도가 {@link #MIN_LINE_SIMILARITY} 보다 낮은 줄(대사를 바꿔 말했거나
  * 건너뜀 — 발음 문제로 잡으면 안 된다), 감탄사, 숫자가 든 어절(읽는 법이 갈린다), 말끝 '-고요'의 ㅗ→ㅜ(구어 '-구요').
+ * 빠진 줄은 모두 까닭({@link SkipReason})과 함께 남긴다 — 조용히 빠지는 줄이 없다(SOMA-1171).
  * 한 어절에서는 lpr 이 가장 낮은 소리 하나만 센다. 정확도는 검증되지 않았다 — 표시 문구가 단정하지 않게 한다.
  */
 public final class PronunciationRules {
@@ -68,8 +69,31 @@ public final class PronunciationRules {
         }
     }
 
-    /** @param transcript 앱이 받아쓴 글. 없으면 {@code null} */
-    public record LineInput(int lineNo, String scriptText, String transcript, ScoredLine scored) {
+    /**
+     * @param transcript 앱이 받아쓴 글. 없으면 {@code null}
+     * @param skip 채점하지 않은 줄({@code scored} 가 {@code null})의 까닭
+     */
+    public record LineInput(int lineNo, String scriptText, String transcript, ScoredLine scored, SkipReason skip) {
+        /** 채점하지 않은 줄은 받아쓴 글이 없으면 {@link SkipReason#NO_TRANSCRIPT}, 있으면 {@link SkipReason#SCORING_FAILED} 다. */
+        public LineInput(int lineNo, String scriptText, String transcript, ScoredLine scored) {
+            this(lineNo, scriptText, transcript, scored, scored != null ? null
+                    : transcript == null || transcript.isBlank() ? SkipReason.NO_TRANSCRIPT : SkipReason.SCORING_FAILED);
+        }
+    }
+
+    /** 보고서에서 줄이 빠진 까닭. */
+    public enum SkipReason {
+        /** 앱이 받아쓴 글이 없다(말하지 않았거나 받아쓰기가 비었다). */
+        NO_TRANSCRIPT,
+        /** 녹음이 너무 길다 — 원래 녹음이 1분을 넘거나, 채점 서비스가 소리 없는 앞뒤를 잘라 내고도 길다고 거절했다. */
+        TOO_LONG,
+        /** 녹음을 받지 못했거나 채점 서비스가 답하지 못했다. */
+        SCORING_FAILED,
+        /** 대본과 다르게 읽었다 — 받아쓴 글도, 채점 모델이 들은 소리도 대본과 덜 닮았다. */
+        OFF_SCRIPT
+    }
+
+    public record SkippedLine(int lineNo, SkipReason reason) {
     }
 
     public enum Habit {
@@ -116,9 +140,10 @@ public final class PronunciationRules {
 
     /**
      * @param lines 대본대로 읽은 줄 전부(칠할 어절이 없으면 빈 목록) — 앱이 줄별 색 표시를 그린다. 옛 보고서에는 없다.
+     * @param skippedReasons {@code skippedLines} 의 줄마다 빠진 까닭, 같은 순서. 11/26 이전 보고서에는 없다.
      */
     public record Report(Summary summary, List<Misheard> misheard, HabitItem habit, List<Integer> skippedLines,
-            List<MarkedLine> lines) {
+            List<MarkedLine> lines, List<SkippedLine> skippedReasons) {
         /** 쓸 수 있는 줄이 하나도 없으면 보고서를 내지 않는다(skipped). */
         public boolean empty() {
             return summary.linesUsed() == 0;
@@ -129,6 +154,7 @@ public final class PronunciationRules {
         int sounds = 0;
         int clear = 0;
         List<Integer> skipped = new ArrayList<>();
+        List<SkippedLine> reasons = new ArrayList<>();
         List<Misheard> misheard = new ArrayList<>();
         List<Misheard> soundHeard = new ArrayList<>();
         Map<String, List<Example>> habits = new LinkedHashMap<>();
@@ -139,6 +165,8 @@ public final class PronunciationRules {
             Use use = line.scored() == null ? Use.NO : use(line);
             if (use == Use.NO) {
                 skipped.add(line.lineNo());
+                reasons.add(new SkippedLine(line.lineNo(), line.scored() == null ? line.skip()
+                        : clean(line.transcript()).isEmpty() ? SkipReason.NO_TRANSCRIPT : SkipReason.OFF_SCRIPT));
                 continue;
             }
             used += 1;
@@ -204,7 +232,7 @@ public final class PronunciationRules {
                 .orElse(null);
         double ratio = sounds == 0 ? 0 : Math.round(clear * 1000.0 / sounds) / 1000.0;
         return new Report(new Summary(sounds, clear, ratio, used, skipped.size()),
-                mergeHeard(soundHeard, misheard), habit, skipped, marked);
+                mergeHeard(soundHeard, misheard), habit, skipped, marked, reasons);
     }
 
     /** 줄을 쓰는 근거. {@code TRANSCRIPT}: 받아쓰기가 대본과 닮음. {@code AUDIO}: 받아쓰기는 다르지만 들은 소리가 대본과 같음. */

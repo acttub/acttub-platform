@@ -185,7 +185,9 @@ def flagged(p, threshold=THRESHOLD):
 # 줄 녹음은 대사를 못 하고 기다린 소리까지 담길 수 있다(앱이 말이 끝날 때까지 녹음한다). 소리 없는 앞뒤를 잘라 내고,
 # 그래도 길면 채점하지 않는다 — 문장 전체 GOP(PRON_GOP_WINDOW=0)는 녹음 길이 × 음소 수 × 바꿔 볼 소리 수만큼 정렬을 돌려
 # 긴 녹음에서 몇 분씩 걸린다. 구간 GOP 는 줄 길이에 거의 비례한다.
-MAX_SECONDS = float(os.environ.get("PRON_MAX_SECONDS", "30"))
+# 한도는 api(PronunciationWorker.MAX_LINE_MS, 원래 길이 1분)와 같다. api 가 1분 넘는 줄을 보내지 않으므로 이 한도는 길이를
+# 모르는 줄과 메모리를 지키는 안전판이다. 2GiB·CPU 1.5 컨테이너에서 59초 줄이 35초·메모리 최고 1.77GB 였다(SOMA-1171).
+MAX_SECONDS = float(os.environ.get("PRON_MAX_SECONDS", "60"))
 _HOP = 320  # 20ms
 _PAD_SECONDS = 0.3
 
