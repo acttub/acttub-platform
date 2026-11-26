@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
+import com.acttub.actingapi.feature.auth.app.MemoryEpoch;
 import com.acttub.actingapi.feature.memory.app.ActorMemory;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
@@ -82,9 +83,11 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final AiJobLedger jobs;
+    private final MemoryEpoch epochs;
 
     PostgresActorMemoryStore(ActorMemoryJpaRepository memories, EntityManager entityManager,
-            PlatformTransactionManager transactionManager, AiJobLedger jobs) {
+            PlatformTransactionManager transactionManager, AiJobLedger jobs, MemoryEpoch epochs) {
+        this.epochs = epochs;
         this.memories = memories;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -247,12 +250,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
 
     @Override
     public void bumpEpoch(UUID userId) {
-        entityManager.createNativeQuery("""
-                UPDATE users SET memory_epoch=memory_epoch+1,updated_at=now()
-                WHERE id=:userId
-                """)
-                .setParameter("userId", userId)
-                .executeUpdate();
+        epochs.bump(userId);
     }
 
     // --- 갱신 작업 -----------------------------------------------------------

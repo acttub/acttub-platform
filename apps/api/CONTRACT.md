@@ -1188,7 +1188,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **배우 기억**(`actor_memories`) — 갱신 예약은 `coach/app/ConversationClosedListener` → `memory` 이고 요청 id 를
   회차에서 만든다. 워커는 분석과 같은 추출기·같은 재시도 규칙이며 저장은 한 트랜잭션에서 지금의 주인에게 하고 계정
   상태와 세대(`ai_jobs.memory_epoch`)를 다시 본다.
-- **이탈 설문**(`practice_feedback`) — 선점은 `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이다. 시트
+- **이탈 설문**(`practice_feedback`) — 선점은 `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이다(계정 행의 칸이라 `auth` 의 `ExitSurveyAsk` 가 고친다. 나이 확인은 `AgeConfirmation`, 기억 세대는 `MemoryEpoch`. 구현 `PostgresAccountRowMarks`). 시트
   구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** — 성공을
   돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
 - **운영 조회**(`GET /v2/admin/ops-core` 의 `activity_rows`·`signup_rows`·`features.challenges`·`upload_only_rows`,
