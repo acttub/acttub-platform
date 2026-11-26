@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.challenge.app.UserBlocking;
 import com.acttub.actingapi.feature.community.app.CommunityContentNotFound;
 import com.acttub.actingapi.feature.community.app.CommunityImageCleanup;
 import com.acttub.actingapi.feature.community.app.CommunityRepository;
@@ -52,7 +53,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><b>native SQL 은 다른 기능의 표를 쓰는 문장만 남았다</b>(apps/api/CONTRACT.md §5-9, {@code native-sql-files.txt} 의
  * 남김 줄). 글·댓글 조회는 작성자 이름과 탈퇴 여부(auth 의 {@code users}, profile 의 {@code user_profiles})와
- * 차단(challenge 의 {@code user_blocks})을 한 문장에서 조인하고, 차단하기는 {@code users}·{@code user_blocks} 를 쓴다.
+ * 차단(challenge 의 {@code user_blocks})을 한 문장에서 조인한다. 차단하기는 상대가 있는지 {@code users} 를 읽고 차단 넣기는
+ * challenge 의 {@code UserBlocking} 이 한다.
  */
 @Repository
 class PostgresCommunityRepository implements CommunityRepository {
@@ -107,6 +109,7 @@ class PostgresCommunityRepository implements CommunityRepository {
     private final AnonymousAliasAllocator aliases;
     private final CommunityImageCleanup imageCleanup;
     private final Clock clock;
+    private final UserBlocking blocking;
 
     PostgresCommunityRepository(
             CommunityCategoryJpaRepository categories,
@@ -120,7 +123,9 @@ class PostgresCommunityRepository implements CommunityRepository {
             PlatformTransactionManager transactionManager,
             AnonymousAliasAllocator aliases,
             CommunityImageCleanup imageCleanup,
-            Clock clock) {
+            Clock clock,
+            UserBlocking blocking) {
+        this.blocking = blocking;
         this.categories = categories;
         this.posts = posts;
         this.comments = comments;
@@ -540,18 +545,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             if (!userExists(blockedId)) {
                 throw new CommunityContentNotFound();
             }
-            list(entityManager.createNativeQuery("""
-                    WITH inserted AS (
-                        INSERT INTO user_blocks (id,blocker_id,blocked_id)
-                        VALUES (:id,:blockerId,:blockedId)
-                        ON CONFLICT ON CONSTRAINT uq_user_blocks_pair DO NOTHING
-                        RETURNING id
-                    )
-                    SELECT id AS id FROM inserted
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("blockerId", blockerId)
-                    .setParameter("blockedId", blockedId));
+            blocking.block(blockerId, blockedId);
         });
     }
 

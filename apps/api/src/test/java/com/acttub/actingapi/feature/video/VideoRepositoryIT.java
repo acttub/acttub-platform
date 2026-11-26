@@ -422,11 +422,11 @@ class VideoRepositoryIT {
         soft.assertThat(statementsOf(() -> video[0] = videos.complete(owner, intent[0], new VideoStorage.Stored(100, "e"),
                 QUOTA, now).video().id()))
                 .as("확정")
-                .containsExactly("select users for update", "select upload_intents for update", "select videos",
+                .containsExactly("select users for update of ue1_0", "select upload_intents for update", "select videos",
                         "insert videos", "update upload_intents", "select videos");
         soft.assertThat(statementsOf(() -> videos.complete(owner, intent[0], new VideoStorage.Stored(100, "e"), QUOTA, now)))
                 .as("확정된 예약의 재전송")
-                .containsExactly("select users for update", "select upload_intents for update", "select videos");
+                .containsExactly("select users for update of ue1_0", "select upload_intents for update", "select videos");
         UUID late = videos.reserve(owner, intent(100, 1), QUOTA, now).intentId();
         soft.assertThat(statementsOf(() -> videos.expireIntent(owner, late, now)))
                 .containsExactly("select upload_intents for update", "update upload_intents");
@@ -439,7 +439,7 @@ class VideoRepositoryIT {
         soft.assertThat(statementsOf(() -> videos.setFavorite(owner, UUID.randomUUID(), true, now)))
                 .as("없는 영상이면 다시 읽지 않는다").containsExactly("update videos");
         soft.assertThat(statementsOf(() -> videos.attachPoster(new PosterJob(video[0], owner, "k", 1), "posters/p.jpg", now)))
-                .containsExactly("select users for update", "select videos for update of ve1_0", "update videos");
+                .containsExactly("select users for update of ue1_0", "select videos for update of ve1_0", "update videos");
         soft.assertThat(statementsOf(() -> videos.purgeFile(owner, video[0], now)))
                 .containsExactly("select videos for update of ve1_0", "delete video_transcripts", "update videos",
                         "select challenge_entries", "select videos");

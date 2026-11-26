@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
@@ -26,6 +27,7 @@ import com.acttub.actingapi.feature.memory.app.ProfileMaterial;
 import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
+import com.acttub.actingapi.feature.video.app.VideoTranscripts;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
@@ -85,8 +87,12 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     private final AiJobLedger jobs;
     private final MemoryEpoch epochs;
 
+    private final VideoTranscripts videoTranscripts;
+
     PostgresActorMemoryStore(ActorMemoryJpaRepository memories, EntityManager entityManager,
-            PlatformTransactionManager transactionManager, AiJobLedger jobs, MemoryEpoch epochs) {
+            PlatformTransactionManager transactionManager, AiJobLedger jobs, MemoryEpoch epochs,
+            VideoTranscripts videoTranscripts) {
+        this.videoTranscripts = videoTranscripts;
         this.epochs = epochs;
         this.memories = memories;
         this.entityManager = entityManager;
@@ -631,17 +637,12 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
         if (videoId == null) {
             return List.of();
         }
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT CAST(segments AS text) AS segments
-                FROM video_transcripts
-                WHERE video_id=:videoId AND status='ready'
-                """, Tuple.class)
-                .setParameter("videoId", videoId));
-        if (rows.isEmpty()) {
+        Optional<JsonNode> segments = videoTranscripts.readySegments(videoId);
+        if (segments.isEmpty()) {
             return List.of();
         }
         List<String> texts = new ArrayList<>();
-        for (JsonNode segment : json(rows.getFirst().get("segments", String.class))) {
+        for (JsonNode segment : segments.get()) {
             JsonNode text = segment.path("text");
             if (text.isString() && !text.stringValue(null).isBlank()) {
                 texts.add(text.stringValue(null));

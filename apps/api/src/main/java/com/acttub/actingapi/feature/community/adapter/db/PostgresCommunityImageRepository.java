@@ -1,7 +1,5 @@
 package com.acttub.actingapi.feature.community.adapter.db;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,11 +8,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.community.app.CommunityImageCleanup;
 import com.acttub.actingapi.feature.community.app.CommunityImageRepository;
 import com.acttub.actingapi.feature.community.schema.CommunityPostImageEntity;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -31,11 +29,15 @@ class PostgresCommunityImageRepository implements CommunityImageRepository {
     private final TransactionTemplate transaction;
     private final CommunityImageCleanup cleanup;
 
+    private final AccountRowLock accountRows;
+
     PostgresCommunityImageRepository(
             CommunityPostImageJpaRepository images,
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            CommunityImageCleanup cleanup) {
+            CommunityImageCleanup cleanup,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.images = images;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -46,8 +48,7 @@ class PostgresCommunityImageRepository implements CommunityImageRepository {
     @Override
     public boolean begin(PendingImage image, int pendingLimit, Instant now) {
         return Boolean.TRUE.equals(transaction.execute(status -> {
-            list(entityManager.createNativeQuery("SELECT id AS id FROM users WHERE id = :userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", image.uploaderId()));
+            accountRows.lockRow(image.uploaderId());
             if (images.countUnattached(image.uploaderId()) >= pendingLimit) {
                 return false;
             }

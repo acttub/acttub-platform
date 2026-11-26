@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.auth.app.DeletedPracticeAccount;
 import com.acttub.actingapi.feature.auth.app.MediaRetention;
 import com.acttub.actingapi.feature.practice.app.DeletedPracticePurge;
@@ -46,6 +47,8 @@ class PostgresPracticeGroupErasure implements PracticeGroupErasure, DeletedPract
     private final VideoObjectCleanup cleanups;
     private final DeletedPracticeVideoPurge deletedVideos;
 
+    private final AccountRowLock accountRows;
+
     PostgresPracticeGroupErasure(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
@@ -54,7 +57,9 @@ class PostgresPracticeGroupErasure implements PracticeGroupErasure, DeletedPract
             PracticeGroupErasureSequence otherRecords,
             MediaRetention retention,
             VideoObjectCleanup cleanups,
-            DeletedPracticeVideoPurge deletedVideos) {
+            DeletedPracticeVideoPurge deletedVideos,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.keeperAccount = keeperAccount;
@@ -68,9 +73,7 @@ class PostgresPracticeGroupErasure implements PracticeGroupErasure, DeletedPract
     @Override
     public List<UUID> erase(UUID userId, UUID rootId, Instant now) {
         return transaction.execute(tx -> {
-            if (NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT id FROM users WHERE id=:userId AND status='active' FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId)).isEmpty()) {
+            if (!accountRows.lockActive(userId)) {
                 return null;
             }
             // 영상을 먼저 잡는다 — 회차 시작·이어하기와 겹쳐도 순서가 정해진다.

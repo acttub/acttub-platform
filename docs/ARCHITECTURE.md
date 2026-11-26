@@ -87,6 +87,10 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 `PracticeGroupErasureStep`에만 있고, 각 기능이 `PracticeGroupErasurePart`를 구현해 자기 테이블을 고친다. 영상은 video의
 `PracticeGroupVideos`, 보관 계정은 auth의 `DeletedPracticeAccount`가 맡는다. 지키는 테스트는 위와 같다.
 
+상태 칸을 바꾸는 문장은 그 상태의 파일 한 곳에 모으고, 허용되는 길은 주인의 `domain`에 표로 둔다. 다른 기능은 주인의 `app`에
+있는 전이 Port를 부른다. 조건은 SQL에 그대로 둔다([CONTRACT §5-2](../apps/api/CONTRACT.md)). 모은 상태의 목록과 대조하는 규칙은
+`StateTransitionTest`에 있다(첫 상태는 회차의 단계: `PracticeStageTransition`, `PostgresPracticeStageTransitions`).
+
 | 주인 | 테이블 |
 |---|---|
 | `feature/auth` | `users`, `user_identities`, `refresh_tokens`, `user_active_days` |

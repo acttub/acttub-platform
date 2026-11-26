@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.ads.app.AdFrequency;
+import com.acttub.actingapi.feature.auth.app.AccountFacts;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -18,7 +19,10 @@ class PostgresAdFrequency implements AdFrequency {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
 
-    PostgresAdFrequency(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    private final AccountFacts accounts;
+
+    PostgresAdFrequency(EntityManager entityManager, PlatformTransactionManager transactionManager, AccountFacts accounts) {
+        this.accounts = accounts;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
     }
@@ -63,23 +67,7 @@ class PostgresAdFrequency implements AdFrequency {
 
     @Override
     public Optional<Instant> signedUpAt(UUID userId) {
-        var rows = entityManager.createNativeQuery("SELECT created_at FROM users WHERE id=:userId")
-                .setParameter("userId", userId)
-                .getResultList();
-        if (rows.isEmpty() || rows.get(0) == null) {
-            return Optional.empty();
-        }
-        Object value = rows.get(0);
-        if (value instanceof java.time.OffsetDateTime offset) {
-            return Optional.of(offset.toInstant());
-        }
-        if (value instanceof java.sql.Timestamp timestamp) {
-            return Optional.of(timestamp.toInstant());
-        }
-        if (value instanceof Instant instant) {
-            return Optional.of(instant);
-        }
-        throw new IllegalStateException("unexpected timestamp type " + value.getClass());
+        return accounts.signedUpAt(userId);
     }
 
     @Override

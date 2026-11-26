@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.reading.app.ScriptCocreateRepository;
 import com.acttub.actingapi.feature.reading.schema.ScriptCocreationEntity;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -29,8 +30,12 @@ class PostgresScriptCocreateRepository implements ScriptCocreateRepository {
     private final ScriptCocreationJpaRepository rows;
     private final TransactionTemplate transaction;
 
+    private final AccountRowLock accountRows;
+
     PostgresScriptCocreateRepository(EntityManager entityManager, ScriptCocreationJpaRepository rows,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.rows = rows;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -45,8 +50,7 @@ class PostgresScriptCocreateRepository implements ScriptCocreateRepository {
     public <T> T withSaveLock(UUID userId, UUID id, Function<Row, T> save) {
         return transaction.execute(tx -> {
             // ScriptRepository/탈퇴와 같은 순서: 사용자 → 생성 행. create와 link도 이 트랜잭션에 참여한다.
-            entityManager.createNativeQuery("SELECT id FROM users WHERE id=:userId FOR UPDATE")
-                    .setParameter("userId", userId).getResultList();
+            accountRows.lockRow(userId);
             return save.apply(rows.lock(id, userId).map(PostgresScriptCocreateRepository::row).orElse(null));
         });
     }

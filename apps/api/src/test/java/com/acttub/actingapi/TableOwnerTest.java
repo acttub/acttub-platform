@@ -67,10 +67,10 @@ class TableOwnerTest {
      *
      * <p>늘려야 할 것 같으면 먼저 주인의 {@code app} 층에 Port 를 두거나 주인을 다시 정한다.
      */
-    private static final int EXCEPTION_CEILING = 245;
+    private static final int EXCEPTION_CEILING = 223;
 
     /** 쓰기 예외 목록의 줄 수. 0 이 될 때까지 줄기만 한다. 줄을 빼거나 읽기 전용 목록으로 옮겼으면 이 수도 같이 내린다. */
-    private static final int WRITE_EXCEPTION_CEILING = 17;
+    private static final int WRITE_EXCEPTION_CEILING = 11;
 
     private static final Pattern OWNER_ROW = Pattern.compile("^\\| `((?:feature|platform)/[a-z]+)` \\| (.+) \\|$");
 
@@ -424,7 +424,7 @@ class TableOwnerTest {
     }
 
     /** 주석을 건너뛰고 문자열 리터럴(텍스트 블록 포함)의 내용을 차례로 모은다. 이스케이프는 풀지 않는다. */
-    private static List<String> literals(String code) {
+    static List<String> literals(String code) {
         List<String> literals = new ArrayList<>();
         int at = 0;
         while (at < code.length()) {

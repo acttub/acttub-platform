@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
+import com.acttub.actingapi.feature.practice.app.PracticeStageTransitions;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.JobView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
@@ -84,10 +86,17 @@ class PostgresPracticeRepository implements PracticeRepository {
     private final ObjectMapper mapper;
     private final PracticeSessionRepository legacySessions;
     private final AiJobLedger jobs;
+    private final PracticeStageTransitions stages;
+
+    private final AccountRowLock accountRows;
 
     PostgresPracticeRepository(PracticeJpaRepository practices, EntityManager entityManager,
                                PlatformTransactionManager transactionManager, ObjectMapper mapper,
-                               PracticeSessionRepository legacySessions, AiJobLedger jobs) {
+                               PracticeSessionRepository legacySessions, AiJobLedger jobs,
+                               PracticeStageTransitions stages,
+                               AccountRowLock accountRows) {
+        this.accountRows = accountRows;
+        this.stages = stages;
         this.practices = practices;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -173,9 +182,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             }
             // 같은 사람의 겹친 요청을 줄 세운다. 리딩 회차 하나에 이 코칭은 하나다 — 이미 있으면(다른 요청 id 로 다시 눌렀어도)
             // 그 회차를 돌려준다.
-            NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId));
+            accountRows.lockRow(userId);
             UUID existing = existingFromReading(userId, readingSessionId);
             if (existing != null) {
                 return new Started(StartOutcome.REPLAYED, find(userId, existing));
@@ -263,7 +270,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (overQuota(userId, quota)) {
                 return new Started(StartOutcome.QUOTA, null);
             }
-            practices.reopenForAnalysis(practiceId, now);
+            stages.retried(practiceId, now);
             jobs.enqueue(userId, ANALYZE, practiceId, requestId, fingerprint, now);
             return new Started(StartOutcome.CREATED, find(userId, practiceId));
         });
@@ -389,7 +396,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (closed == 0) {
                 return new Cancelled(CancelOutcome.ALREADY_DONE, null);
             }
-            practices.closeCancelled(practiceId, now);
+            stages.cancelled(practiceId, now);
             return new Cancelled(CancelOutcome.CANCELLED, status(userId, practiceId));
         });
     }
@@ -509,9 +516,7 @@ class PostgresPracticeRepository implements PracticeRepository {
         if (quota == null) {
             return false;
         }
-        NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
+        accountRows.lockRow(userId);
         if (quota.kind() == Quota.Kind.SESSIONS) {
             // 무료 코칭 한도(SOMA-818): 오늘 만든 회차 수. 영상 있는·없는 코칭과 이어하기가 모두 든다.
             Number sessions = (Number) entityManager.createNativeQuery(
@@ -528,16 +533,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                     .getSingleResult();
             return sessions.intValue() >= quota.limit();
         }
-        Number requested = (Number) entityManager.createNativeQuery("""
-                SELECT (SELECT count(*) FROM ai_jobs
-                        WHERE user_id=:userId AND kind='analyze' AND created_at>=:since)
-                     + (SELECT count(*) FROM external_operations
-                        WHERE user_id=:userId AND kind='analyze' AND created_at>=:since) AS requested
-                """)
-                .setParameter("userId", userId)
-                .setParameter("since", quota.since().atOffset(ZoneOffset.UTC))
-                .getSingleResult();
-        return requested.intValue() >= quota.limit();
+        return jobs.countRequestedSince(userId, ANALYZE, quota.since()) >= quota.limit();
     }
 
     private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now) {

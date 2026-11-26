@@ -5,88 +5,81 @@
 # 까닭이 없는 줄은 아직 JPA 로 옮기지 않은 자리다. 그 합은 테스트의 PENDING_CEILING 이고 줄기만 한다.
 # 옮기지 않기로 한 자리는 남김: 뒤에 까닭을 적은 줄로 둔다. 한 파일에 두 줄(옮길 것, 남길 것)을 둘 수 있다.
 feature/admin/adapter/db/PostgresAdminMetricsRepository.java 15
-feature/ads/adapter/db/PostgresAdFrequency.java 6
+feature/ads/adapter/db/PostgresAdFrequency.java 5
 feature/ads/adapter/db/PostgresAdRepository.java 10
 feature/ads/adapter/db/PostgresAdSlotSwitches.java 2
-feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java 8 남김: 분석 입력 읽기·완료의 회차 잠금과 작업 잠금·회차 전이·영상 길이·받아쓰기 넣기·시도 소진 정리는 다른 기능의 표(platform/operation 의 ai_jobs, practice 의 practices, video 의 videos·video_transcripts·upload_intents, auth 의 users)를 읽고 쓰거나 잠근다. 그 기능들에 이 일을 내주는 Port 가 없고(AiJobLedger 는 작업 행 잠금·회차 id 목록을 내주지 않는다), 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
+feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java 4 남김: 분석 입력 읽기·완료의 회차 잠금과 작업 잠금·시도 소진 정리는 다른 기능의 표(platform/operation 의 ai_jobs, practice 의 practices, video 의 videos·upload_intents, auth 의 users)를 읽거나 잠근다. 그 기능들에 이 조회·잠금을 내주는 Port 가 없고(AiJobLedger 는 작업 행 잠금·회차 id 목록을 내주지 않는다), 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/auth/adapter/db/PostgresAccountRowMarks.java 1 남김: 게스트 이전에서 설문을 물어본 표식을 넘기는 문장(carryOver)은 UPDATE … FROM 으로 같은 표의 게스트 행을 읽어 회원 행을 고친다. HQL 에 UPDATE … FROM 이 없다
 feature/auth/adapter/db/PostgresAuthAccountErasure.java 1 남김: 탈퇴가 users.email 과 users.nickname 을 한 문장으로 비운다. nickname 은 UserEntity 에 매핑하지 않는 칸이라(이름의 정본은 user_profiles.name, SOMA-528 결정 I-3) HQL 로 쓸 수 없다
-feature/auth/adapter/db/PostgresAuthRepository.java 1 남김: 가입 제출이 계정·신원과 같은 트랜잭션에서 넣는 동의 기록(consent 의 user_consents). consent 에 이 쓰기를 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/billing/adapter/db/PostgresBillingAdminReader.java 3 남김: 운영 화면의 구독자·Pro 부여·회원 수 목록이 다른 기능의 표(auth 의 users, profile 의 user_profiles)를 조인해 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
-feature/billing/adapter/db/PostgresBillingRepository.java 8 남김: 다른 기능의 표를 읽거나 잠그는 다섯 자리(이름·이메일·가입 시각의 users·user_profiles, 약관 발행 시각의 consent_documents, 탈퇴와 줄을 서는 users 행 FOR UPDATE), 갱신할 구독과 확인할 결제를 SKIP LOCKED 로 집으며 고치는 점유 둘(HQL 은 서브쿼리 안에서 잠그지 못해 읽고 쓰는 두 문장이 된다), 활성 계정만 넣는 스토어 구독 upsert(users 를 읽는 insert … select … on conflict do update, HQL 이 풀지 못한다)
+feature/billing/adapter/db/PostgresBillingRepository.java 6 남김: 다른 기능의 표를 읽는 세 자리(이름·이메일·가입 시각의 users·user_profiles), 갱신할 구독과 확인할 결제를 SKIP LOCKED 로 집으며 고치는 점유 둘(HQL 은 서브쿼리 안에서 잠그지 못해 읽고 쓰는 두 문장이 된다), 활성 계정만 넣는 스토어 구독 upsert(users 를 읽는 insert … select … on conflict do update, HQL 이 풀지 못한다)
 feature/challenge/adapter/db/ChallengeSettlement.java 2 남김: 마감 집계의 참가 자격과 종료 알림 대상이 다른 기능의 표(auth 의 users, video 의 videos)를 읽는다. 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/ChallengeSettlement.java 1 남김: 순위 매기기는 UPDATE … FROM (창 함수 rank())인데 HQL 에 UPDATE … FROM 이 없다. 상관 서브쿼리로 쓰면 행마다 창 함수를 다시 계산하는 다른 문장이 된다
 feature/challenge/adapter/db/EntryCards.java 2 남김: 참여작 카드 한 문장이 다른 기능의 표(video 의 videos, profile 의 user_profiles)를 조인한다. 그 기능에 이 값을 내주는 Port 가 없고, 목록·상세마다 도는 조회라 표마다 나누면 문장이 는다(§5-1)
 feature/challenge/adapter/db/EntryCards.java 1 남김: 공유 프레임 재료(SOMA-1156)는 text[] 를 array_to_string 으로 읽고 (starts_at,id) 행 비교로 회차를 센다
-feature/challenge/adapter/db/EntryLocks.java 3 남김: 다른 기능(auth)의 users 행을 FOR UPDATE·FOR SHARE 로 잡는 활성 확인 둘과, 다른 기능의 표(users·videos·user_profiles)를 조인하는 공개 조건 확인. auth 에 이 잠금을 내주는 Port 가 없다(§5-1)
+feature/challenge/adapter/db/EntryLocks.java 2 남김: 행동하는 사람은 FOR UPDATE, 상대는 FOR SHARE 로 다른 기능(auth)의 users 행을 잡는 확인(people. auth 의 AccountRowLock 은 FOR UPDATE 만 내준다)과, 다른 기능의 표(users·videos·user_profiles)를 조인하는 공개 조건 확인(§5-1)
 feature/challenge/adapter/db/NotificationEvents.java 1 남김: 수신자에게 푸시를 보낼 수 있는지 다른 기능의 표(profile 의 user_profiles, push 의 push_tokens)에서 읽는다. 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/PostgresAiReportRepository.java 9 남김: 다른 기능의 표를 읽는다 — 작업 장부 ai_jobs(platform/operation)의 재전송 조회·하루 수·시도 수·닫힌 작업 반영과, users·videos 를 조인하는 참여작 잠금·리포트 잠금·재료·표본(DISTINCT ON)·표본 조건 조회. 그 기능에 이 조회를 내주는 Port 가 없다(AiJobLedger 에는 넣기·선점·닫기만 있다)(§5-1)
 feature/challenge/adapter/db/PostgresChallengeBrowse.java 5 남김: 챌린지 카드와 참여자 조회가 다른 기능의 표(auth 의 users, profile 의 user_profiles, video 의 videos)를 조인한다. 그 기능에 이 값을 내주는 Port 가 없고, 목록·상세마다 도는 조회라 나누면 문장이 는다(§5-1)
 feature/challenge/adapter/db/PostgresEntryModerationRepository.java 2 남김: 검사할 참여작과 얼굴을 볼 참여작을 집는 선점 문장 둘. 건너뛰는 잠금으로 고르는 CTE 와 UPDATE … RETURNING 이 한 문장이고(HQL 에 없다) 다른 기능의 표(auth 의 users, video 의 videos)를 조인한다
-feature/challenge/adapter/db/PostgresEntryRepository.java 3 남김: 공유 프레임 키(SOMA-1156) 비우기는 데이터를 바꾸는 CTE + RETURNING 에 unnest 를 쓰고, 붙이기는 모자이크본 붙이기와 같은 사람→참여작→영상 잠금(auth 의 users, FOR UPDATE OF e FOR SHARE OF v)을 쓴다
+feature/challenge/adapter/db/PostgresEntryRepository.java 2 남김: 공유 프레임 키(SOMA-1156) 비우기는 데이터를 바꾸는 CTE + RETURNING 에 unnest 를 쓰고, 붙이기는 참여작과 영상을 한 문장에서 서로 다른 세기로 잠근다(FOR UPDATE OF e FOR SHARE OF v)
 feature/challenge/adapter/db/PostgresEntryRepository.java 2 남김: 내 참여작의 분류별 수와 고르기. 분류 식(EntryCards.CATEGORY)을 본인 참여작 카드의 네이티브 문장(다른 기능의 표를 조인해 남는다)과 함께 쓴다. HQL 로 옮기면 같은 분류 규칙이 두 언어로 둘이 된다
-feature/challenge/adapter/db/PostgresEntryRepository.java 15 남김: 다른 기능의 표를 건드린다 — 영상(video 의 videos·upload_intents) 읽기와 FOR UPDATE·FOR SHARE 잠금, 사람(auth 의 users) 행 잠금, 공개 조건(ChallengeVisibility.ENTRY_FROM 이 users·videos·user_profiles 를 조인)을 쓰는 목록·상세·조회수 확인, 모자이크 작업을 집는 선점 문장(건너뛰는 잠금 CTE + UPDATE … RETURNING). 그 기능에 이 문장을 내주는 Port 가 없다(§5-1)
+feature/challenge/adapter/db/PostgresEntryRepository.java 13 남김: 다른 기능의 표를 건드린다 — 영상(video 의 videos) 읽기와 FOR UPDATE·FOR SHARE 잠금, 공개 조건(ChallengeVisibility.ENTRY_FROM 이 users·videos·user_profiles 를 조인)을 쓰는 목록·상세·조회수 확인, 모자이크 작업을 집는 선점 문장(건너뛰는 잠금 CTE + UPDATE … RETURNING). 그 기능에 이 문장을 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/PostgresNotificationRepository.java 6 남김: 다른 기능의 표(auth 의 users, profile 의 user_profiles, push 의 push_tokens, video 의 videos)를 건드린다 — 알림함 묶음 조회((array_agg(… ORDER BY …))[1] 도 쓴다), 발송할 사건 잡기, 발송 직전 토큰 읽기 둘, 하루 조회 요약(DISTINCT ON), 행동자 이름. 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/PostgresReactionRepository.java 6 남김: 다른 기능의 표(auth 의 users, profile 의 user_profiles, video 의 videos)를 건드린다 — 저장 목록과 그 수(공개 조건 ENTRY_FROM), 댓글 목록과 댓글 한 건(작성자 상태·이름·사진), 차단할 상대의 활성 확인, 차단 목록(이름). 그 기능에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/challenge/adapter/db/UnseenEntryBoost.java 1 남김: 공개 조건(ChallengeVisibility.ENTRY_FROM)이 다른 기능의 표(auth 의 users, video 의 videos, profile 의 user_profiles)를 조인한다. 그 기능에 이 조건을 내주는 Port 가 없고, 참여작 목록마다 도는 한 문장이다(§5-1)
-feature/coach/adapter/db/PostgresCoachPersonas.java 1 남김: 자문위원인지 가리려고 다른 기능(auth)의 users.email 을 읽는다. auth 에 이 값을 내주는 Port 가 없다(§5-1)
 feature/coach/adapter/db/PostgresCoachProMemory.java 1 남김: Pro 지난 연습 기억은 다른 기능(practice)의 practices 로 주인과 다른 묶음을 가른 뒤 닫힌 대화·노트·평가를 한 문장으로 읽는다. practice 에 이 조회를 내주는 Port 가 없고, 답마다 도는 조회라 나누면 문장이 는다(§5-1)
 feature/coach/adapter/db/PostgresCoachVideoSource.java 1 남김: 코치가 볼 영상은 다른 기능의 표만 읽는다(practice 의 practices, video 의 videos, 매핑을 내린 upload_intents). 그 기능들에 이 조회를 내주는 Port 가 없다(§5-1)
-feature/coach/adapter/db/PostgresConversationRepository.java 10 남김: 다른 기능의 표를 읽고 쓰거나 잠근다. 엔진이 읽는 묶음(load)은 practice 의 practices·video 의 videos·analysis 의 analyses 를 대화 행과 한 문장으로 조인하고, 회차의 말(practiceLanguage)·주인 확인(currentOwner·conversation 의 머리·note 의 주인 확인)·닫기·되돌리기(UPDATE practices 셋)·이어하기의 묶음 첫 행 잠금과 열린 다른 회차 찾기는 practices 를 쓴다. practice 에 이 일을 내주는 Port 가 없고, 시작·답마다 도는 문장이라 나누면 문장이 는다(§5-1)
-feature/coach/adapter/db/PostgresConversationRepository.java 1 남김: 저장 직전에 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡고 활성인지 본다(탈퇴·이관과 같은 잠금). auth 에 이 잠금을 내주는 Port 가 없다(§5-1)
+feature/coach/adapter/db/PostgresConversationRepository.java 7 남김: 다른 기능의 표를 읽거나 잠근다. 엔진이 읽는 묶음(load)은 practice 의 practices·video 의 videos·analysis 의 analyses 를 대화 행과 한 문장으로 조인하고, 회차의 말(practiceLanguage)·주인 확인(currentOwner·conversation 의 머리·note 의 주인 확인)·이어하기의 묶음 첫 행 잠금과 열린 다른 회차 찾기는 practices 를 읽는다. practice 에 이 조회·잠금을 내주는 Port 가 없고, 시작·답마다 도는 문장이라 나누면 문장이 는다(§5-1)
 feature/coach/adapter/db/PostgresConversationRepository.java 3 남김: 옛 대화·옛 노트는 매핑을 내린 옛 연습 흐름 표(coach_sessions·coach_turns·practice_sessions·practice_reports·coaching_handoffs, §5-1)를 읽는다
 feature/coach/adapter/db/PostgresJournalRepository.java 1 남김: 일지를 화면 머리(제목·목적·배역)와 함께 읽는 한 문장이 다른 기능의 표(practice 의 practices, auth 의 users, profile 의 user_profiles)를 조인하고, 대화 상태의 jsonb 안쪽(state->purpose_loop->scene->>character)과 매핑하지 않는 users.nickname 을 읽는다. 그 기능들에 이 값을 내주는 Port 가 없다(§5-1)
-feature/coach/adapter/db/PostgresNoteRatingStore.java 2 남김: 쓰기 전에 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡고 활성인지 보고(탈퇴와 같은 잠금), 회차의 주인을 다른 기능(practice)의 practices 로 확인하며 노트를 찾는다. 그 기능들에 이 일을 내주는 Port 가 없다(§5-1)
-feature/community/adapter/db/PostgresCommunityImageRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 올리기 상한 확인(begin). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
-feature/community/adapter/db/PostgresCommunityRepository.java 4 남김: 다른 기능의 표를 쓰는 문장. 글·댓글 조회(목록·하나·방금 쓴 댓글)는 작성자 이름과 탈퇴 여부(auth 의 users, profile 의 user_profiles)와 차단(challenge 의 user_blocks)을 한 문장에서 조인하고 이를 내주는 Port 가 없다(Port 로 나누면 목록 읽기의 문장이 는다). 차단하기의 대상 확인(users)과 넣기(user_blocks)는 challenge 의 차단 Port 가 활성 계정만 받고 users 행을 잠가 뜻이 달라진다
+feature/coach/adapter/db/PostgresNoteRatingStore.java 1 남김: 회차의 주인을 다른 기능(practice)의 practices 로 확인하며 노트를 찾는다. practice 에 이 조회를 내주는 Port 가 없다(§5-1)
+feature/community/adapter/db/PostgresCommunityRepository.java 3 남김: 다른 기능의 표를 읽는 문장. 글·댓글 조회(목록·하나·방금 쓴 댓글)는 작성자 이름과 탈퇴 여부(auth 의 users, profile 의 user_profiles)와 차단(challenge 의 user_blocks)을 한 문장에서 조인하고 이를 내주는 Port 가 없다(Port 로 나누면 목록 읽기의 문장이 는다). 차단하기의 대상 확인은 users 를 읽는다(탈퇴한 계정도 차단할 수 있어 활성 확인과 뜻이 다르다)
 feature/consent/adapter/db/PostgresConsentRepository.java 2
-feature/feedback/adapter/db/PostgresExitSurveyStore.java 7
+feature/feedback/adapter/db/PostgresExitSurveyStore.java 6
 feature/feedback/adapter/db/PostgresFeedbackAccountErasure.java 2
 feature/feedback/adapter/db/PostgresFeedbackPracticeGroupPart.java 1
-feature/memory/adapter/db/PostgresActorMemoryStore.java 15 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 화면 목록·재료·예약 판정·장면 찾기·맞춤 코칭 재료는 연습(practices)·코치 대화와 노트(coach_*·note_ratings)·분석(analyses)·받아쓰기(video_transcripts)를 읽고, 배우 쓰기·덧붙이기·완료는 auth 의 users 행을 거르거나 잠그며, 밀린 예약 찾기와 재료는 platform 의 ai_jobs 를 읽는다. 이를 내주는 Port 가 없고, DISTINCT ON·JSON 연산·LATERAL·INSERT … SELECT … ON CONFLICT DO UPDATE … RETURNING 이 든다
+feature/memory/adapter/db/PostgresActorMemoryStore.java 14 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 화면 목록·재료·예약 판정·장면 찾기·맞춤 코칭 재료는 연습(practices)·코치 대화와 노트(coach_*·note_ratings)·분석(analyses)을 읽고, 배우 쓰기·덧붙이기·완료는 auth 의 users 행을 거르거나 잠그며, 밀린 예약 찾기와 재료는 platform 의 ai_jobs 를 읽는다. 이를 내주는 Port 가 없고, DISTINCT ON·JSON 연산·LATERAL·INSERT … SELECT … ON CONFLICT DO UPDATE … RETURNING 이 든다
 feature/memory/adapter/db/PostgresMemoryRepository.java 8 남김: 다른 기능의 표만 읽는다(practices·coach_conversations·coach_messages·coach_notes, 매핑을 내린 옛 practice_sessions·coach_sessions·coach_turns·practice_reports). 이를 내주는 Port 가 없고 JSON 연산·LATERAL 이 든다
-feature/portfolio/adapter/db/PostgresPortfolioRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(lockOrCreate). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/practice/adapter/db/DeletedPracticeVideoPurge.java 3
 feature/practice/adapter/db/DeletedPracticeVideoPurge.java 2 남김: 파기할 지운 영상을 고르는 두 조회(purgeExpired·purgeAllOf)는 한 문장에서 다른 기능(video)의 videos 행을 함께 잠그고(FOR UPDATE OF d,v) 객체 키를 읽으며, 매일 정리 쪽은 consent 의 동의 결정도 행마다 본다. 나누면 문장이 늘고 잠금이 한 번에 잡히지 않는다
 feature/practice/adapter/db/PostgresLegacyPracticeReader.java 1 남김: 매핑을 내린 옛 연습 흐름 표(practice_sessions·coach_sessions·coach_turns·practice_reports, §5-1)와 다른 기능의 표(summaries·upload_intents·videos·external_operations)를 재귀 CTE·JSON 연산으로 읽는다
 feature/practice/adapter/db/PostgresPracticeAccountErasure.java 2 남김: 탈퇴가 분석 중이던 옛 연습을 닫는 문장과 이 계정의 옛 연습이 있는지 읽는 문장. practice_sessions 는 매핑을 내린 옛 연습 흐름 표다(§5-1)
 feature/practice/adapter/db/PostgresPracticeGroupErasure.java 2
-feature/practice/adapter/db/PostgresPracticeGroupErasure.java 2 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(erase 의 첫 문장. auth 에 이 잠금을 내주는 Port 가 없다)과, 영상을 다른 묶음·챌린지 참여작이 쓰는지 한 문장으로 읽는 조회(usedOutsideGroup, challenge 의 challenge_entries)
-feature/practice/adapter/db/PostgresPracticeRepository.java 12 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 회차를 화면에 싣는 조회(하나·묶음·목록)는 영상(videos)·분석(analyses)·대화와 노트(coach_*)·작업(ai_jobs)을 LATERAL 로 조인하고, 연습한 날은 옛 practice_sessions·practice_reports 와 reading_sessions·challenge_entries 를 합친다. 시작은 videos·users 행을 잠그고 한도를 셀 때 ai_jobs·external_operations 를 읽는다. 이 조회를 내주는 Port 가 없다(분석 작업을 넣고 닫는 것은 AiJobLedger 가 한다)
+feature/practice/adapter/db/PostgresPracticeGroupErasure.java 1 남김: 영상을 다른 묶음·챌린지 참여작이 쓰는지 한 문장으로 읽는 조회(usedOutsideGroup, challenge 의 challenge_entries)
+feature/practice/adapter/db/PostgresPracticeRepository.java 9 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 회차를 화면에 싣는 조회(하나·묶음·목록)는 영상(videos)·분석(analyses)·대화와 노트(coach_*)·작업(ai_jobs)을 LATERAL 로 조인하고, 연습한 날은 옛 practice_sessions·practice_reports 와 reading_sessions·challenge_entries 를 합친다. 시작은 videos 행을 잠근다. 이 조회·잠금을 내주는 Port 가 없다(분석 작업을 넣고 닫고 하루 요청 수를 세는 것은 AiJobLedger 가 한다)
+feature/practice/adapter/db/PostgresPracticeStageTransitions.java 3 남김: 분석 실패·대화 닫힘·다시 열림의 전이는 어느 회차인지를 같은 문장에서 다른 기능의 표(platform/operation 의 ai_jobs, coach 의 coach_conversations)로 고른다. 먼저 읽어 오면 문장이 하나씩 늘고 코치의 답 경로는 문장 수를 고정해 두었다(ConversationRepositoryIT)
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java 2 남김: 매핑을 내린 옛 practice_sessions(§5-1)를 읽고 옮긴다. 읽기는 summaries·upload_intents·external_operations 를 함께 보고 JSON 을 꺼낸다
 feature/profile/adapter/db/PostgresAccountCleanupRepository.java 7
 feature/profile/adapter/db/PostgresAirbridgeLookupStore.java 4
 feature/profile/adapter/db/PostgresObjectCleanupLedger.java 1
 feature/profile/adapter/db/PostgresProfileAccountErasure.java 3
-feature/profile/adapter/db/PostgresProfileRepository.java 19
-feature/push/adapter/db/PostgresPracticeReminderRepository.java 9 남김: 후보·연속 일수·이어 하기·숙제·잠금 화면에서 지울 말·올려 둔 영상·안 읽은 대본은 다른 기능의 표(users·user_profiles·practices·coach_conversations·coach_messages·coach_notes·actor_journals·reading_sessions·reading_recordings·line_memorization·scripts·script_characters·script_lines·videos·challenge_entries)를 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
+feature/profile/adapter/db/PostgresProfileRepository.java 18
+feature/push/adapter/db/PostgresPracticeReminderRepository.java 6 남김: 후보·연속 일수·이어 하기·숙제·올려 둔 영상·안 읽은 대본은 다른 기능의 표(users·user_profiles·practices·coach_conversations·coach_messages·coach_notes·actor_journals·reading_sessions·reading_recordings·line_memorization·scripts·videos·challenge_entries)를 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/push/adapter/db/PostgresPushAccountErasure.java 1 남김: 탈퇴가 push_opens 의 행을 지우는 한 문장. push_opens 는 Schema Entity 가 없다(넣는 문장이 native 로 남아 매핑하지 않았다)
 feature/push/adapter/db/PostgresPushOpenRepository.java 1 남김: 다른 기능(auth)의 users 에서 활성 회원만 골라 넣는 한 문장(INSERT … SELECT). auth 에 활성 여부를 내주는 Port 가 없고, 나눠 읽으면 문장이 하나 늘고 확인과 넣기가 다른 스냅숏이 된다
 feature/push/adapter/db/PostgresPushRecords.java 1 남김: 게스트 이전이 닫힐 게스트의 push_opens 행을 지우는 한 문장. push_opens 는 Schema Entity 가 없다(넣는 문장이 native 로 남아 매핑하지 않았다)
-feature/push/adapter/db/PostgresPushTokenRepository.java 5 남김: 토큰 등록(요청이 많은 경로)은 auth 의 users 행 FOR UPDATE 와, profile 의 토글로 거르는 INSERT … SELECT … ON CONFLICT DO UPDATE 한 문장이다. HQL 은 insert … select … do update 를 풀지 못하고(SOMA-1112 P10) 토글을 따로 읽으면 문장이 는다. 분석 완료·대본 나누기·발음 보고서(SOMA-1169) 대상은 profile 의 user_profiles 와 practice 의 practices·practice_sessions 를 함께 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없다
+feature/push/adapter/db/PostgresPushTokenRepository.java 4 남김: 토큰 등록(요청이 많은 경로)은 profile 의 토글로 거르는 INSERT … SELECT … ON CONFLICT DO UPDATE 한 문장이다. HQL 은 insert … select … do update 를 풀지 못하고(SOMA-1112 P10) 토글을 따로 읽으면 문장이 는다. 분석 완료·대본 나누기·발음 보고서(SOMA-1169) 대상은 profile 의 user_profiles 와 practice 의 practices·practice_sessions 를 함께 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없다
 feature/reading/adapter/db/PostgresCloudVoiceRepository.java 3 남김: 동의 두 조회(consent)는 다른 기능(consent)의 consent_documents·user_consents 를 읽는데 consent 에 이 판정을 내주는 Port 가 없다. 저장 기록과 줄 수 차감(recordSuccess)은 두 표의 INSERT 를 한 문장으로 묶은 CTE 다
 feature/reading/adapter/db/PostgresMemorizationRepository.java 1 남김: 줄을 조인해 종류를 읽으면서 대본 행만 잠그는 조회(set 의 FOR UPDATE OF s). HQL 은 select 절에 나온 표(줄)를 잠그고(for update of 줄 별칭), 줄을 select 절 서브쿼리로 읽으면 Hibernate 7.4.15 의 잠금 절 생성이 AssertionError 다
 feature/reading/adapter/db/PostgresReadingAccountErasure.java 2 남김: 탈퇴와 3년 파기가 대본 원본 파일·녹음 행을 지우며 객체 키를 같은 문장에서 돌려받는다(DELETE … RETURNING, HQL 에 없다). 잠가 읽고 id 로 지우면 문장이 하나씩 늘어 탈퇴의 문장 수를 고정한 테스트(AccountLifecycleFreezeIT)가 받지 않는다
-feature/reading/adapter/db/PostgresReadingExampleRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 잠금(withOwnerLock). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
-feature/reading/adapter/db/PostgresReadingOwnership.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 이관의 첫 문장(reassign). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresReadingVoiceMaterials.java 3 남김: 줄마다 마지막 녹음을 고르는 DISTINCT ON 은 HQL 에 없다(material). 코칭 회차를 찾는 두 조회(practiceOf·readingSessionOf)는 다른 기능(practice)의 practices 를 읽는데 practice 에 이 조회를 내주는 Port 가 없다
 feature/reading/adapter/db/PostgresRetranscribeRepository.java 2 남김: 집은 뒤의 녹음 읽기(claimNext)와 전사 채우기(fill)는 한 문장 안에서 다른 기능(auth)의 users 로 주인이 활성인지 본다. 읽고 나서 쓰는 두 문장으로 풀면 받아쓰는 사이의 탈퇴를 놓친다
-feature/reading/adapter/db/PostgresScriptCocreateRepository.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 잠금(withSaveLock). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
-feature/reading/adapter/db/PostgresScriptImportRepository.java 6 남김: 다른 기능의 표를 읽고 쓰는 문장이다. 사람 행 잠금(lockActive)과 손님 판정이 든 재료 읽기(material)는 auth 의 users·user_identities, 동의(consent)는 consent 의 표, 진행 중 확인·오늘 작업 수(request)와 상태 읽기(find)는 platform/operation 의 ai_jobs 다. 그 기능들에 이 조회를 내주는 Port 가 없다
-feature/reading/adapter/db/PostgresScriptRepository.java 6 남김: HQL 로 같은 문장을 낼 수 없는 자리다. 사람 행 잠금(lockActive, auth 의 users), 배역 이름을 맞바꿀 때의 SET CONSTRAINTS … DEFERRED(update), 회차 행만 잠그면서 조인한 줄의 순번을 읽는 FOR UPDATE OF rs 와 jsonb 안쪽을 고치는 줄 결과 지우기(deleteLine), 대본을 지울 때 녹음·원본 파일의 DELETE … RETURNING 둘(delete. 대본 행의 잠금이 새 녹음·새 연결을 막지 못해 읽고 지우는 두 문장으로 나눌 수 없다)
+feature/reading/adapter/db/PostgresScriptImportRepository.java 5 남김: 다른 기능의 표를 읽는 문장이다. 손님 판정이 든 재료 읽기(material)는 auth 의 users·user_identities, 동의(consent)는 consent 의 표, 진행 중 확인·오늘 작업 수(request)와 상태 읽기(find)는 platform/operation 의 ai_jobs 다. 그 기능들에 이 조회를 내주는 Port 가 없다
+feature/reading/adapter/db/PostgresScriptRepository.java 5 남김: HQL 로 같은 문장을 낼 수 없는 자리다. 배역 이름을 맞바꿀 때의 SET CONSTRAINTS … DEFERRED(update), 회차 행만 잠그면서 조인한 줄의 순번을 읽는 FOR UPDATE OF rs 와 jsonb 안쪽을 고치는 줄 결과 지우기(deleteLine), 대본을 지울 때 녹음·원본 파일의 DELETE … RETURNING 둘(delete. 대본 행의 잠금이 새 녹음·새 연결을 막지 못해 읽고 지우는 두 문장으로 나눌 수 없다)
 feature/reading/adapter/db/PostgresScriptUploadRepository.java 2 남김: 실패 남기기(recordFailure)는 UPDATE 한 문장 안에서 다른 기능(consent)의 동의 결정을 읽어 보관 시한을 정한다. 미연결 정리(sweepUnlinked)는 SKIP LOCKED 로 고른 행을 DELETE … RETURNING 하는 CTE 이고 동의와 ai_jobs(platform/operation)를 함께 읽는다
-feature/reading/adapter/db/PostgresSessionRatingStore.java 1 남김: 다른 기능(auth)의 users 행을 FOR UPDATE 로 잡는 활성 확인(save). auth 에 이 잠금을 내주는 Port 가 없고, auth 의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/reading/adapter/db/PostgresSessionRepository.java 1 남김: 진행 저장의 SET LOCAL synchronous_commit = off 는 HQL 에 없는 문장이다(SOMA-701 의 디스크 확정 대기 줄이기). set_config 함수로 바꾸면 다른 문장이 된다
 feature/video/adapter/db/PostgresPracticeGroupVideos.java 1 남김: 연습 삭제가 묶음의 영상을 잠그는 조회(lockOf)는 한 문장 안에서 다른 기능(practice)의 practices 로 묶음의 영상을 고른다. 회차를 먼저 읽으면 잠금 순서(영상 → 회차)가 뒤집히고 문장이 는다
 feature/video/adapter/db/PostgresVideoAccountErasure.java 1 남김: 이 계정을 가리키는 올리기 예약이 있는지 읽는 한 문장. 은퇴한 예약 장부(upload_intents)는 Schema Entity 가 없다(CONTRACT §5-1)
+feature/video/adapter/db/PostgresPendingUploads.java 1 남김: 올리기 예약이 아직 확정되지 않았는지 묻는 조회. 은퇴한 예약 장부(upload_intents)는 Schema Entity 가 없다(§5-1)
 feature/video/adapter/db/PostgresVideoOwnership.java 2 남김: 은퇴한 예약 장부(upload_intents, CONTRACT §5-1 에서 매핑을 내렸다)의 같은 요청 id 비우기와 주인 바꾸기. 은퇴 결정을 되돌려 매핑을 다시 만들지 않는다
 feature/video/adapter/db/PostgresVideoRetention.java 1 남김: 파기할 객체 키를 은퇴한 예약 장부(upload_intents, Schema Entity 가 없다)와 videos 에서 한 문장으로 모은다(UNION 으로 겹친 키를 한 번만 낸다)
-feature/video/adapter/db/PostgresVideoRepository.java 16 남김: 은퇴한 예약 장부(upload_intents)를 읽고 쓰는 예약·확정·시한 지남 치우기·삭제의 아홉 자리, 다른 기능(auth)의 users 행 FOR UPDATE 둘(확정의 총량 줄 서기, 포스터 붙이기), 목록·상세·삭제의 참조 확인·파기의 모자이크본 키가 읽는 practices·challenge_entries 넷, 포스터 고르기(users 를 조인해 SKIP LOCKED 로 잡고 고치는 데이터를 바꾸는 CTE). 그 기능들에 이 일을 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
+feature/video/adapter/db/PostgresVideoRepository.java 14 남김: 은퇴한 예약 장부(upload_intents)를 읽고 쓰는 예약·확정·시한 지남 치우기·삭제의 아홉 자리, 목록·상세·삭제의 참조 확인·파기의 모자이크본 키가 읽는 practices·challenge_entries 넷, 포스터 고르기(users 를 조인해 SKIP LOCKED 로 잡고 고치는 데이터를 바꾸는 CTE). 그 기능들에 이 일을 내주는 Port 가 없고, 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 platform/migration/PostgresPracticeDataMigration.java 4
 platform/observability/DatabaseHealthIndicator.java 1
 platform/operation/ExternalOperationMetrics.java 1
 platform/operation/ExternalOperationOwnership.java 1
 platform/operation/PostgresAiJobLedger.java 6
-platform/operation/PostgresAiJobLedger.java 3 남김: 다른 기능이 부르는 넣기·취소(enqueue·enqueueForActiveAccount·cancel). ai_jobs 는 Schema Entity 가 없고(§5-1), 활성 계정에만 넣는 문장은 한 문장에서 auth 의 users 를 읽어 탈퇴한 계정을 거르고 기억 세대를 적는다(INSERT … SELECT … ON CONFLICT DO NOTHING RETURNING)
+platform/operation/PostgresAiJobLedger.java 4 남김: 다른 기능이 부르는 넣기·취소·하루 요청 수(enqueue·enqueueForActiveAccount·cancel·countRequestedSince). ai_jobs 는 Schema Entity 가 없고(§5-1), 활성 계정에만 넣는 문장은 한 문장에서 auth 의 users 를 읽어 탈퇴한 계정을 거르고 기억 세대를 적는다(INSERT … SELECT … ON CONFLICT DO NOTHING RETURNING)
 platform/operation/PostgresOperationAccountErasure.java 2
 platform/operation/PostgresOperationPracticeGroupPart.java 2 남김: 연습 삭제가 묶음의 작업을 닫고 넘기는 두 문장은 한 문장 안에서 다른 기능(coach)의 coach_conversations 를 읽어 대화가 대상인 작업을 고른다. 대화 id 를 먼저 읽으면 문장이 늘어 연습 삭제의 문장 수를 고정한 테스트(AccountLifecycleFreezeIT)가 받지 않는다. ai_jobs 는 Schema Entity 도 없다

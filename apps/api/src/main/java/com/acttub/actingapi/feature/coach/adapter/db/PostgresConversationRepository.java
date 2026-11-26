@@ -1,15 +1,16 @@
 package com.acttub.actingapi.feature.coach.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.coach.app.ActorProfile;
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
+import com.acttub.actingapi.feature.practice.app.PracticeStageTransitions;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -38,10 +39,16 @@ class PostgresConversationRepository implements ConversationRepository {
     private final CoachMessageJpaRepository messages;
     private final CoachNoteJpaRepository notes;
     private final TransactionTemplate transaction;
+    private final PracticeStageTransitions stages;
+
+    private final AccountRowLock accountRows;
 
     PostgresConversationRepository(EntityManager entityManager, CoachConversationJpaRepository conversations,
             CoachMessageJpaRepository messages, CoachNoteJpaRepository notes,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager, PracticeStageTransitions stages,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
+        this.stages = stages;
         this.entityManager = entityManager;
         this.conversations = conversations;
         this.messages = messages;
@@ -161,13 +168,7 @@ class PostgresConversationRepository implements ConversationRepository {
             insertMessage(conversationId, 0, "ai", coachMessage, null, null, now);
             conversations.saveOpening(conversationId, state == null ? "{}" : text(state), closeReason, now);
             if (closeReason != null) {
-                entityManager.createNativeQuery("""
-                        UPDATE practices SET stage='closed',close_reason='conversation_closed',updated_at=:now
-                        WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
-                        """)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("conversationId", conversationId)
-                        .executeUpdate();
+                stages.conversationClosed(conversationId, now);
             }
         });
     }
@@ -222,13 +223,7 @@ class PostgresConversationRepository implements ConversationRepository {
             insertMessage(conversationId, nextIndex + 1, "ai", coachMessage, null, null, now);
             conversations.saveTurn(conversationId, state == null ? "{}" : text(state), status, closeReason, now);
             if ("closed".equals(status)) {
-                entityManager.createNativeQuery("""
-                        UPDATE practices SET stage='closed',close_reason='conversation_closed',updated_at=:now
-                        WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
-                        """)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("conversationId", conversationId)
-                        .executeUpdate();
+                stages.conversationClosed(conversationId, now);
             }
             return new Saved(expectedRevision + 1, status, closeReason, (int) messages.coachReplies(conversationId));
         });
@@ -306,13 +301,7 @@ class PostgresConversationRepository implements ConversationRepository {
                 throw new PracticeInProgress();
             }
             conversations.reopen(conversationId, state == null ? "{}" : text(state), now);
-            entityManager.createNativeQuery("""
-                    UPDATE practices SET stage='conversing',close_reason=NULL,updated_at=:now
-                    WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("conversationId", conversationId)
-                    .executeUpdate();
+            stages.conversationReopened(conversationId, now);
             return new Saved(expectedRevision + 1, "open", null, (int) messages.coachReplies(conversationId));
         });
     }
@@ -326,11 +315,9 @@ class PostgresConversationRepository implements ConversationRepository {
         while (true) {
             UUID owner = currentOwner(conversationId);
             if (owner == null) return false;
-            List<Tuple> users = NativeTuples.list(entityManager.createNativeQuery(
-                            "SELECT status FROM users WHERE id=:id FOR UPDATE", Tuple.class)
-                    .setParameter("id", owner));
+            boolean active = accountRows.lockActive(owner);
             if (!owner.equals(currentOwner(conversationId))) continue;
-            if (users.isEmpty() || !"active".equals(users.getFirst().get("status", String.class))) {
+            if (!active) {
                 throw new OwnerNotActive();
             }
             return true;
