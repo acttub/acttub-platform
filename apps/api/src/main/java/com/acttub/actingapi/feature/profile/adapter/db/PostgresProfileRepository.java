@@ -53,16 +53,11 @@ class PostgresProfileRepository
      * 계정을 닫을 때 이 저장소가 맡는 자리. 모두 아직 주인에게 옮기지 않은 남의 표의 자리다. 주인 기능이
      * {@link AccountErasure} 를 구현하면 여기서 빠진다.
      */
-    private static final Set<AccountErasureStep> STEPS = EnumSet.of(
-            AccountErasureStep.MEDIA_OBJECTS,
-            AccountErasureStep.DELETED_PRACTICES);
+    private static final Set<AccountErasureStep> STEPS = EnumSet.of(AccountErasureStep.MEDIA_OBJECTS);
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final PostgresObjectCleanupLedger cleanups;
-
-    /** 앞서 지운 연습의 영상(보관 동의로 남긴 것)과 무료 횟수 표시를 탈퇴·매일 정리에서 함께 치운다(SOMA-985). */
-    private final PostgresPracticeGroupErasure deletedPractices;
 
     /** 알림을 모두 끌 때 푸시 토큰을 지우는 주인. */
     private final PushTokenRevocation pushTokens;
@@ -85,7 +80,6 @@ class PostgresProfileRepository
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             PostgresObjectCleanupLedger cleanups,
-            PostgresPracticeGroupErasure deletedPractices,
             PushTokenRevocation pushTokens,
             VideoRetention retainedVideos,
             RetentionPurge retentionPurge,
@@ -94,7 +88,6 @@ class PostgresProfileRepository
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanups = cleanups;
-        this.deletedPractices = deletedPractices;
         this.pushTokens = pushTokens;
         this.retainedVideos = retainedVideos;
         this.retentionPurge = retentionPurge;
@@ -290,11 +283,6 @@ class PostgresProfileRepository
             }
             return List.copyOf(cleanups);
         });
-    }
-
-    @Override
-    public List<UUID> purgeDeletedPracticeMedia(Instant deletedBefore, Instant now) {
-        return deletedPractices.purgeExpired(deletedBefore, now);
     }
 
     @Override
@@ -739,14 +727,10 @@ class PostgresProfileRepository
         Instant now = account.now();
         return switch (step) {
             case MEDIA_OBJECTS -> scheduleMediaObjects(account);
-            case DELETED_PRACTICES -> {
-                deletedPractices.forgetMarks(userId);
-                yield account.retainMedia() ? List.of() : deletedPractices.purgeAllOf(userId, now);
-            }
             case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
                     PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
                     LEGACY_OPERATIONS, LEGACY_PRACTICES, READING, READING_VOICE_USAGE, CHALLENGE, ACTOR_JOURNALS,
-                    NOTE_RATINGS ->
+                    NOTE_RATINGS, DELETED_PRACTICES ->
                     throw new IllegalArgumentException("not a step of this repository: " + step);
         };
     }

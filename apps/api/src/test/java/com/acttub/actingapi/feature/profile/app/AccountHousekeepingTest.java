@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.StaleRefreshTokens;
+import com.acttub.actingapi.feature.practice.app.DeletedPracticePurge;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,10 +24,11 @@ class AccountHousekeepingTest {
     private final ProfileService accounts = mock(ProfileService.class);
     private final StaleRefreshTokens refreshTokens = mock(StaleRefreshTokens.class);
     private final StaleTransferCodes transferCodes = mock(StaleTransferCodes.class);
+    private final DeletedPracticePurge deletedPractices = mock(DeletedPracticePurge.class);
     private final AccountCleanup cleanup = mock(AccountCleanup.class);
     private final RecordingFailureReporter failures = new RecordingFailureReporter();
     private final AccountHousekeeping housekeeping = new AccountHousekeeping(
-            profiles, accounts, refreshTokens, transferCodes, cleanup, failures, Clock.fixed(Instant.parse("2026-10-02T19:30:00Z"), ZoneOffset.UTC));
+            profiles, accounts, refreshTokens, transferCodes, deletedPractices, cleanup, failures, Clock.fixed(Instant.parse("2026-10-02T19:30:00Z"), ZoneOffset.UTC));
 
     @Test
     @DisplayName("account.withdraw: 매일 도는 일은 한 가지가 실패해도 나머지가 돌고, 실패는 보고된다")

@@ -82,16 +82,20 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 `AccountLifecycleFreezeIT`가 기준 파일(`apps/api/src/test/resources/frozen/account-lifecycle/`)로 고정한다. 테이블을 새로 만들어
 사람을 가리키게 하면 그 테스트의 심는 자료에도 더한다.
 
+연습 삭제(묶음 하나를 여러 기능의 테이블에서 고치는 일)도 같다. 순서는 `feature/practice/app`의 `PracticeGroupErasureSequence`와
+`PracticeGroupErasureStep`에만 있고, 각 기능이 `PracticeGroupErasurePart`를 구현해 자기 테이블을 고친다. 영상은 video의
+`PracticeGroupVideos`, 보관 계정은 auth의 `DeletedPracticeAccount`가 맡는다. 지키는 테스트는 위와 같다.
+
 | 주인 | 테이블 |
 |---|---|
 | `feature/auth` | `users`, `user_identities`, `refresh_tokens`, `user_active_days` |
-| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups`, `account_cleanup_operations`, `practice_deletion_marks`, `deleted_practice_videos` |
+| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups`, `account_cleanup_operations` |
 | `feature/consent` | `consent_documents`, `user_consents` |
 | `feature/transfer` | `guest_transfer_codes` |
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
 | `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends` |
 | `feature/video` | `videos`, `video_transcripts`, `upload_intents` |
-| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports` |
+| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports`, `practice_deletion_marks`, `deleted_practice_videos` |
 | `feature/analysis` | `analyses`, `summaries`, `transcripts`, `anomalies` |
 | `feature/coach` | `coach_conversations`, `coach_messages`, `coach_notes`, `note_ratings`, `actor_journals` |
 | `feature/memory` | `actor_memories`, `actor_memory_entries` |
