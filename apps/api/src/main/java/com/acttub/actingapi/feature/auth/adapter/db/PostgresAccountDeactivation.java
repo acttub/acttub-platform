@@ -11,7 +11,12 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Repository;
 
-/** 계정 행을 잠그고 닫는다. 트랜잭션을 열지 않는다 — 부르는 쪽(계정을 닫는 일, 회원 자료를 쓰는 일)의 트랜잭션에 참여한다. */
+/**
+ * 계정 행을 잠그고 닫는다. <b>계정의 상태를 바꾸는 문장은 이 파일에만 둔다.</b> 허용되는 길은 {@code UserStatusTransition} 에
+ * 있다({@code StateTransitionTest}).
+ *
+ * <p>트랜잭션을 열지 않는다 — 부르는 쪽(계정을 닫는 일, 회원 자료를 쓰는 일)의 트랜잭션에 참여한다.
+ */
 @Repository
 class PostgresAccountDeactivation implements AccountDeactivation, AccountRowLock {
 

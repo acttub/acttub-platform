@@ -79,7 +79,6 @@ platform/migration/PostgresPracticeDataMigration.java 4
 platform/observability/DatabaseHealthIndicator.java 1
 platform/operation/ExternalOperationMetrics.java 1
 platform/operation/ExternalOperationOwnership.java 1
-platform/operation/PostgresAiJobLedger.java 6
-platform/operation/PostgresAiJobLedger.java 4 남김: 다른 기능이 부르는 넣기·취소·하루 요청 수(enqueue·enqueueForActiveAccount·cancel·countRequestedSince). ai_jobs 는 Schema Entity 가 없고(§5-1), 활성 계정에만 넣는 문장은 한 문장에서 auth 의 users 를 읽어 탈퇴한 계정을 거르고 기억 세대를 적는다(INSERT … SELECT … ON CONFLICT DO NOTHING RETURNING)
-platform/operation/PostgresOperationAccountErasure.java 2
-platform/operation/PostgresOperationPracticeGroupPart.java 2 남김: 연습 삭제가 묶음의 작업을 닫고 넘기는 두 문장은 한 문장 안에서 다른 기능(coach)의 coach_conversations 를 읽어 대화가 대상인 작업을 고른다. 대화 id 를 먼저 읽으면 문장이 늘어 연습 삭제의 문장 수를 고정한 테스트(AccountLifecycleFreezeIT)가 받지 않는다. ai_jobs 는 Schema Entity 도 없다
+platform/operation/PostgresAiJobLedger.java 7
+platform/operation/PostgresAiJobLedger.java 6 남김: 연습 삭제가 묶음의 작업을 닫고 넘기는 두 문장(failAndHandOverOfDeletedPractices)은 한 문장 안에서 다른 기능(coach)의 coach_conversations 를 읽어 대화가 대상인 작업을 고른다(먼저 읽으면 문장이 늘어 AccountLifecycleFreezeIT 가 받지 않는다). 다른 기능이 부르는 넣기·취소·하루 요청 수(enqueue·enqueueForActiveAccount·cancel·countRequestedSince). ai_jobs 는 Schema Entity 가 없고(§5-1), 활성 계정에만 넣는 문장은 한 문장에서 auth 의 users 를 읽어 탈퇴한 계정을 거르고 기억 세대를 적는다(INSERT … SELECT … ON CONFLICT DO NOTHING RETURNING)
+platform/operation/PostgresOperationAccountErasure.java 1

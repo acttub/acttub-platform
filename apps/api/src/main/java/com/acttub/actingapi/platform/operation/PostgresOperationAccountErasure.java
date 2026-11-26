@@ -1,6 +1,5 @@
 package com.acttub.actingapi.platform.operation;
 
-import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -25,8 +24,10 @@ import org.springframework.stereotype.Repository;
 class PostgresOperationAccountErasure implements AccountErasure {
 
     private final EntityManager entityManager;
+    private final PostgresAiJobLedger jobs;
 
-    PostgresOperationAccountErasure(EntityManager entityManager) {
+    PostgresOperationAccountErasure(EntityManager entityManager, PostgresAiJobLedger jobs) {
+        this.jobs = jobs;
         this.entityManager = entityManager;
     }
 
@@ -60,16 +61,7 @@ class PostgresOperationAccountErasure implements AccountErasure {
     }
 
     private void cancelAiJobs(ClosingAccount account) {
-        entityManager.createNativeQuery("""
-                UPDATE ai_jobs
-                SET status='failed',failure_reason='account_deactivated',
-                    lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
-                WHERE user_id=:userId
-                  AND status IN ('pending','running')
-                """)
-                .setParameter("now", account.now().atOffset(ZoneOffset.UTC))
-                .setParameter("userId", account.userId())
-                .executeUpdate();
+        jobs.failAllOfClosedAccount(account.userId(), account.now());
     }
 
     private void cancelLegacyOperations(ClosingAccount account) {
