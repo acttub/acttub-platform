@@ -57,12 +57,8 @@ feature/profile/adapter/db/PostgresProfileRepository.java push_tokens
 feature/profile/adapter/db/PostgresProfileRepository.java reading_recordings
 feature/profile/adapter/db/PostgresProfileRepository.java reading_session_ratings
 feature/profile/adapter/db/PostgresProfileRepository.java reading_sessions
-feature/profile/adapter/db/PostgresProfileRepository.java reading_voice_usage
 feature/profile/adapter/db/PostgresProfileRepository.java refresh_tokens
-feature/profile/adapter/db/PostgresProfileRepository.java script_characters
-feature/profile/adapter/db/PostgresProfileRepository.java script_cocreations
 feature/profile/adapter/db/PostgresProfileRepository.java script_imports
-feature/profile/adapter/db/PostgresProfileRepository.java script_lines
 feature/profile/adapter/db/PostgresProfileRepository.java script_uploads
 feature/profile/adapter/db/PostgresProfileRepository.java scripts
 feature/profile/adapter/db/PostgresProfileRepository.java upload_intents

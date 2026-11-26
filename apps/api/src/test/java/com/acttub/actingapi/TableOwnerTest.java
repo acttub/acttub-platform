@@ -67,10 +67,10 @@ class TableOwnerTest {
      *
      * <p>늘려야 할 것 같으면 먼저 주인의 {@code app} 층에 Port 를 두거나 주인을 다시 정한다.
      */
-    private static final int EXCEPTION_CEILING = 291;
+    private static final int EXCEPTION_CEILING = 287;
 
     /** 쓰기 예외 목록의 줄 수. 0 이 될 때까지 줄기만 한다. 줄을 빼거나 읽기 전용 목록으로 옮겼으면 이 수도 같이 내린다. */
-    private static final int WRITE_EXCEPTION_CEILING = 80;
+    private static final int WRITE_EXCEPTION_CEILING = 76;
 
     private static final Pattern OWNER_ROW = Pattern.compile("^\\| `((?:feature|platform)/[a-z]+)` \\| (.+) \\|$");
 
