@@ -533,16 +533,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                     .getSingleResult();
             return sessions.intValue() >= quota.limit();
         }
-        Number requested = (Number) entityManager.createNativeQuery("""
-                SELECT (SELECT count(*) FROM ai_jobs
-                        WHERE user_id=:userId AND kind='analyze' AND created_at>=:since)
-                     + (SELECT count(*) FROM external_operations
-                        WHERE user_id=:userId AND kind='analyze' AND created_at>=:since) AS requested
-                """)
-                .setParameter("userId", userId)
-                .setParameter("since", quota.since().atOffset(ZoneOffset.UTC))
-                .getSingleResult();
-        return requested.intValue() >= quota.limit();
+        return jobs.countRequestedSince(userId, ANALYZE, quota.since()) >= quota.limit();
     }
 
     private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now) {

@@ -24,7 +24,6 @@ feature/admin/adapter/db/PostgresAdminMetricsRepository.java upload_intents
 feature/admin/adapter/db/PostgresAdminMetricsRepository.java user_profiles
 feature/admin/adapter/db/PostgresAdminMetricsRepository.java users
 feature/admin/adapter/db/PostgresAdminMetricsRepository.java videos
-feature/ads/adapter/db/PostgresAdFrequency.java users
 feature/ads/adapter/db/PostgresAdRepository.java challenge_entries
 feature/ads/adapter/db/PostgresAdRepository.java coach_conversations
 feature/ads/adapter/db/PostgresAdRepository.java coach_notes
@@ -37,7 +36,6 @@ feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java users
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java videos
 feature/billing/adapter/db/PostgresBillingAdminReader.java user_profiles
 feature/billing/adapter/db/PostgresBillingAdminReader.java users
-feature/billing/adapter/db/PostgresBillingRepository.java consent_documents
 feature/billing/adapter/db/PostgresBillingRepository.java user_profiles
 feature/billing/adapter/db/PostgresBillingRepository.java users
 feature/challenge/adapter/db/ChallengeSettlement.java users
@@ -57,7 +55,6 @@ feature/challenge/adapter/db/PostgresChallengeBrowse.java user_profiles
 feature/challenge/adapter/db/PostgresChallengeBrowse.java users
 feature/challenge/adapter/db/PostgresEntryModerationRepository.java users
 feature/challenge/adapter/db/PostgresEntryModerationRepository.java videos
-feature/challenge/adapter/db/PostgresEntryRepository.java upload_intents
 feature/challenge/adapter/db/PostgresEntryRepository.java users
 feature/challenge/adapter/db/PostgresEntryRepository.java videos
 feature/challenge/adapter/db/PostgresNotificationRepository.java push_tokens
@@ -65,7 +62,6 @@ feature/challenge/adapter/db/PostgresNotificationRepository.java user_profiles
 feature/challenge/adapter/db/PostgresNotificationRepository.java users
 feature/challenge/adapter/db/PostgresReactionRepository.java user_profiles
 feature/challenge/adapter/db/PostgresReactionRepository.java users
-feature/coach/adapter/db/PostgresCoachPersonas.java users
 feature/coach/adapter/db/PostgresCoachProMemory.java practices
 feature/coach/adapter/db/PostgresCoachVideoSource.java practices
 feature/coach/adapter/db/PostgresCoachVideoSource.java upload_intents
@@ -85,7 +81,6 @@ feature/coach/adapter/db/PostgresNoteRatingStore.java practices
 feature/community/adapter/db/CommunityVisibilitySpecification.java user_blocks
 feature/community/adapter/db/PostgresCommunityRepository.java user_profiles
 feature/community/adapter/db/PostgresCommunityRepository.java users
-feature/feedback/adapter/db/PostgresExitSurveyStore.java practices
 feature/feedback/adapter/db/PostgresExitSurveyStore.java users
 feature/memory/adapter/db/PostgresActorMemoryStore.java ai_jobs
 feature/memory/adapter/db/PostgresActorMemoryStore.java analyses
@@ -95,7 +90,6 @@ feature/memory/adapter/db/PostgresActorMemoryStore.java coach_notes
 feature/memory/adapter/db/PostgresActorMemoryStore.java note_ratings
 feature/memory/adapter/db/PostgresActorMemoryStore.java practices
 feature/memory/adapter/db/PostgresActorMemoryStore.java users
-feature/memory/adapter/db/PostgresActorMemoryStore.java video_transcripts
 feature/memory/adapter/db/PostgresMemoryRepository.java coach_conversations
 feature/memory/adapter/db/PostgresMemoryRepository.java coach_messages
 feature/memory/adapter/db/PostgresMemoryRepository.java coach_notes
@@ -118,7 +112,6 @@ feature/practice/adapter/db/PostgresPracticeRepository.java challenge_entries
 feature/practice/adapter/db/PostgresPracticeRepository.java coach_conversations
 feature/practice/adapter/db/PostgresPracticeRepository.java coach_messages
 feature/practice/adapter/db/PostgresPracticeRepository.java coach_notes
-feature/practice/adapter/db/PostgresPracticeRepository.java external_operations
 feature/practice/adapter/db/PostgresPracticeRepository.java reading_sessions
 feature/practice/adapter/db/PostgresPracticeRepository.java videos
 feature/practice/adapter/db/PostgresPracticeSessionRepository.java external_operations
@@ -144,8 +137,6 @@ feature/push/adapter/db/PostgresPracticeReminderRepository.java line_memorizatio
 feature/push/adapter/db/PostgresPracticeReminderRepository.java practices
 feature/push/adapter/db/PostgresPracticeReminderRepository.java reading_recordings
 feature/push/adapter/db/PostgresPracticeReminderRepository.java reading_sessions
-feature/push/adapter/db/PostgresPracticeReminderRepository.java script_characters
-feature/push/adapter/db/PostgresPracticeReminderRepository.java script_lines
 feature/push/adapter/db/PostgresPracticeReminderRepository.java scripts
 feature/push/adapter/db/PostgresPracticeReminderRepository.java user_profiles
 feature/push/adapter/db/PostgresPracticeReminderRepository.java users

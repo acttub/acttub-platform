@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.ExitSurveyAsk;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyStore;
+import com.acttub.actingapi.feature.practice.app.PracticeOwners;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -28,8 +29,12 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
     private final TransactionTemplate transaction;
     private final ExitSurveyAsk asks;
 
+    private final PracticeOwners practiceOwners;
+
     PostgresExitSurveyStore(
-            EntityManager entityManager, PlatformTransactionManager transactionManager, ExitSurveyAsk asks) {
+            EntityManager entityManager, PlatformTransactionManager transactionManager, ExitSurveyAsk asks,
+            PracticeOwners practiceOwners) {
+        this.practiceOwners = practiceOwners;
         this.asks = asks;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -40,11 +45,7 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
         if (practiceId == null) {
             return true;
         }
-        return !NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id FROM practices WHERE id=:practiceId AND user_id=:userId
-                """, Tuple.class)
-                .setParameter("practiceId", practiceId)
-                .setParameter("userId", userId)).isEmpty();
+        return practiceOwners.owns(userId, practiceId);
     }
 
     /**

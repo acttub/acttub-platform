@@ -96,6 +96,21 @@ class PostgresAiJobLedger implements AiJobLedger {
     }
 
     @Override
+    public int countRequestedSince(UUID userId, String kind, Instant since) {
+        Number requested = (Number) entityManager.createNativeQuery("""
+                SELECT (SELECT count(*) FROM ai_jobs
+                        WHERE user_id=:userId AND kind=:kind AND created_at>=:since)
+                     + (SELECT count(*) FROM external_operations
+                        WHERE user_id=:userId AND kind=:kind AND created_at>=:since) AS requested
+                """)
+                .setParameter("userId", userId)
+                .setParameter("kind", kind)
+                .setParameter("since", since.atOffset(ZoneOffset.UTC))
+                .getSingleResult();
+        return requested.intValue();
+    }
+
+    @Override
     public Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now, boolean reclaimExpired) {
         return transaction.execute(tx -> {
             List<Tuple> claimed = NativeTuples.list(entityManager.createNativeQuery("""
