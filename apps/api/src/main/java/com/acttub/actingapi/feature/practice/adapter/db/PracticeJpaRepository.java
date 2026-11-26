@@ -91,20 +91,6 @@ interface PracticeJpaRepository extends Repository<PracticeEntity, UUID> {
     @Query("update PracticeEntity p set p.readingSessionId = :readingSessionId where p.id = :id")
     int linkReading(UUID id, UUID readingSessionId);
 
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-            update PracticeEntity p set p.stage = 'analyzing', p.closeReason = null, p.updatedAt = :now
-            where p.id = :id
-            """)
-    int reopenForAnalysis(UUID id, Instant now);
-
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-            update PracticeEntity p set p.stage = 'closed', p.closeReason = 'cancelled', p.updatedAt = :now
-            where p.id = :id
-            """)
-    int closeCancelled(UUID id, Instant now);
-
     /** 보낸 것만 바꾼다. 숨김은 처음 숨긴 시각을 지키고 풀면 지운다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
