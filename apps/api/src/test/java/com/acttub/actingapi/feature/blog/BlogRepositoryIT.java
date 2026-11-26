@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.blog;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -40,7 +39,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -327,8 +325,8 @@ class BlogRepositoryIT {
     }
 
     @Test
-    @DisplayName("두 글을 함께 같은 slug 로 바꾸면 둘 다 NOT EXISTS 를 지나고, 뒤의 것은 유니크 인덱스에서 앞의 커밋을 기다렸다가 유니크 위반으로 500 을 받는다")
-    void twoUpdatesToTheSameSlugTheLaterGets500() throws Exception {
+    @DisplayName("두 글을 함께 같은 slug 로 바꾸면 둘 다 NOT EXISTS 를 지나고, 뒤의 것은 유니크 인덱스에서 앞의 커밋을 기다렸다가 409 slug_taken 을 받는다")
+    void twoUpdatesToTheSameSlugTheLaterGets409() throws Exception {
         row(id(1), "one", "news", "draft", null, now);
         row(id(2), "two", "news", "draft", null, now);
         Race<Optional<BlogPost>> first = holdOpen(() -> posts.update(id(1), draft("taken", "draft"), null, now));
@@ -340,9 +338,9 @@ class BlogRepositoryIT {
 
             assertThat(first.result()).map(post -> post.draft().slug()).contains("taken");
             MockHttpServletResponse response = second.get(20, TimeUnit.SECONDS);
-            assertThat(response.getStatus()).isEqualTo(500);
+            assertThat(response.getStatus()).isEqualTo(409);
             assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null))
-                    .isEqualTo("internal_server_error");
+                    .isEqualTo("slug_taken");
         } finally {
             first.pool.shutdownNow();
         }
@@ -351,7 +349,7 @@ class BlogRepositoryIT {
     }
 
     @Test
-    @DisplayName("두 포트 호출이 함께 같은 slug 로 바꾸면 뒤의 것은 uq_blog_posts_slug 위반을 DataIntegrityViolationException 으로 받는다. 앞의 것이 되돌리면 뒤의 것이 바꾼다")
+    @DisplayName("두 포트 호출이 함께 같은 slug 로 바꾸면 뒤의 것은 uq_blog_posts_slug 위반을 받아 비어 있다. 앞의 것이 되돌리면 뒤의 것이 바꾼다")
     void twoUpdatesToTheSameSlugAtThePort() throws Exception {
         row(id(1), "one", "news", "draft", null, now);
         row(id(2), "two", "news", "draft", null, now);
@@ -362,10 +360,7 @@ class BlogRepositoryIT {
             awaitStatementWaitingOn("blog_posts");
             committed.commit();
 
-            Throwable thrown = catchThrowable(() -> later.get(20, TimeUnit.SECONDS)).getCause();
-            assertThat(thrown).isExactlyInstanceOf(DataIntegrityViolationException.class);
-            assertThat(sqlState(thrown)).isEqualTo("23505");
-            assertThat(thrown).hasMessageContaining("uq_blog_posts_slug");
+            assertThat(later.get(20, TimeUnit.SECONDS)).isEmpty();
         } finally {
             committed.pool.shutdownNow();
         }
@@ -537,15 +532,6 @@ class BlogRepositoryIT {
             statement.setObject(1, id);
             statement.execute();
         }
-    }
-
-    private static String sqlState(Throwable thrown) {
-        for (Throwable cause = thrown; cause != null; cause = cause.getCause()) {
-            if (cause instanceof SQLException sql) {
-                return sql.getSQLState();
-            }
-        }
-        return null;
     }
 
     private static void await(CountDownLatch latch) {

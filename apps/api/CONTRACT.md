@@ -411,7 +411,8 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   두 운영자 경합은 `SupportInquiryStoreIT`). `INSERT … ON CONFLICT DO NOTHING RETURNING`(데이터를 바꾸는 CTE 로 감싼 꼴 포함)도
   같다. 앱이 정한 id 로 HQL insert 를 하고 영향 행 수가 1 이면 같은 트랜잭션에서 그 id 로 다시 읽는다(`PostgresBlogRepository`).
   같은 키를 함께 넣는 경합(뒤의 것이 앞의 커밋을 기다렸다가 0행)과, 함께 같은 값으로 고치는 경합(`NOT EXISTS` 는 둘 다 지나고 뒤의
-  것이 유니크 위반)은 전후 같다(`BlogRepositoryIT`·`PosterRepositoryIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
+  것이 유니크 위반)은 전후 같다(`BlogRepositoryIT`·`PosterRepositoryIT`). 고치는 경합의 유니크 위반은 저장소가 그 제약 이름으로
+  알아보고 0행과 같게 돌려준다(`platform/persistence/UniqueViolation`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
   없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다. 잠가 읽기는 읽은 행을 다른 트랜잭션의 지우기·고치기에서 지킬 뿐이라,
   조건에 맞는 행이 새로 들어올 수 있으면 그것을 따로 막아야 한다. `PostgresPortfolioRepository#beginPhoto` 는 앞서 잡은 부모
   행(`portfolios`)의 `FOR UPDATE` 가 자식 INSERT 의 FK 잠금을 막아서 이 꼴로 옮겼다(`PortfolioRepositoryIT` 가 기다리는 INSERT 로
