@@ -695,8 +695,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **한 트랜잭션**(`PostgresProfileRepository#withdraw` 가 연다)에서 파기와 상태 전환을 한다. 순서는
   `feature/auth/app` 의 `AccountErasureSequence#close` 와 `AccountErasureStep` 에만 있고, 테이블은 주인 기능이
   `AccountErasure` 를 구현해 고친다(ADR-040). 구현은 트랜잭션을 열지 않는다. 구현은 주인 기능의 `adapter/db` 에 있고
-  (`Postgres…AccountErasure`, 계정 행은 `PostgresAccountDeactivation`), 아직 주인에게 옮기지 않은 자리는
-  `PostgresProfileRepository` 가 맡는다. 요청이 내는
+  (`Postgres…AccountErasure`, 계정 행은 `PostgresAccountDeactivation`). 객체 삭제는 주인마다 자기 자리에서 행을 지우거나
+  키를 비우기 전에 키를 읽어 정리 장부에 올린다(주인마다 장부 한 행). 요청이 내는
   문장의 순서와 테이블마다의 결과는 `AccountLifecycleFreezeIT` 의 기준 파일이 고정하고, 구현 하나가 실패하면 전부 되돌아가는
   것은 `AccountErasureRollbackIT` 가 본다. 무엇을 지우고 남기는지는
   [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)와 영역 표(연습·리딩·챌린지)가 정본이다. 구현만의 것:
@@ -707,7 +707,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   가 만들고(조회 후보는 `#identityHashCandidates`), 운영 셸로 같은 값을 내는 계산은
   [RETENTION-REVOCATION 2단계](../../docs/deploy/RETENTION-REVOCATION.md#2-옛-계정을-해시로-찾는다--본인-확인)에 있다. 둘이 같음을
   `AccountSecretsTest` 가 고정한다.
-- **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
+- **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다(`VideoRetention`, 구현
+  `PostgresVideoRetention`. 탈퇴 3년 뒤의 파기도 이것을 부른다) — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
   붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `MediaRetention#granted`(구현은 `feature/consent` 의 `PostgresMediaRetention`)가 판정한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresReadingAccountErasure`, §6-14). 회차 평가
@@ -1074,7 +1075,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   합성과 사용량 증가 없이 성공하고, 새 합성 성공만 일 사용량을 1 올린다(`PostgresCloudVoiceRepository`).
 - 모델 호출에는 대사 원문 하나와 고른 prebuilt voice만 싣는다(`CloudVoiceService`).
 - V24 의 `reading_voice_cache(hash PK, model, voice, byte_size, created_at)` 는 사용자와 연결하지 않는다.
-  `reading_voice_usage(user_id, day, lines, PK(user_id, day))` 는 탈퇴 때 바로 지운다(`PostgresProfileRepository`).
+  `reading_voice_usage(user_id, day, lines, PK(user_id, day))` 는 탈퇴 때 바로 지운다(`PostgresReadingAccountErasure`).
 
 ### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
@@ -1273,7 +1274,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `FfmpegLock` 차례다. 만드는 중·실패는 프로세스 메모리에만 있어 재시작하면 다음 요청이 다시 만든다(인스턴스끼리 공유하지 않는다).
   만든 키는 `challenge_entries.share_frame_keys`(V96, text[])에 붙인다 — 붙이기는 모자이크본처럼 사람 → 참여작 → 영상을 잠그고,
   그 사이 지웠거나 원본 고르기(모자이크)가 바뀌었거나 파기·탈퇴했으면 붙이지 않고 장부로 보낸다. 정리는 참여작 삭제·모자이크 변경
-  (`PostgresEntryRepository`), 파일 파기(`PostgresVideoRepository.purgeFile`), 탈퇴(`PostgresProfileRepository.videoKeys`)가 모자이크본과
+  (`PostgresEntryRepository`), 파일 파기(`PostgresVideoRepository.purgeFile`), 탈퇴와 탈퇴 3년 뒤의 파기(`EntryMediaPurge`, 구현 `PostgresEntryMediaPurge`)가 모자이크본과
   같은 자리에서 한다. 미리보기 한 장면은 요청 안에서 저장소 주소의 앞부분만 읽고 락을 잡지 않는다. 얼굴 가림을 켰는데 모자이크본이
   아직 없으면 `EntryShareFrameService`가 읽은 값으로 422 `mosaic_not_ready`를 내고 원본에 씌우지 않는다(「없음」 미리보기는 예외). 읽은 뒤
   모자이크가 바뀌면 붙이기의 원본 고르기 검사가 장부로 보낸다.
