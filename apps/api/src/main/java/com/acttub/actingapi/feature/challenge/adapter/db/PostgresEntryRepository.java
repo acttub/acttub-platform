@@ -15,9 +15,11 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.AiJobKind;
 import com.acttub.actingapi.platform.schema.ChallengeEntryStatus;
 import com.acttub.actingapi.platform.schema.ChallengeEntryVisibility;
 import com.acttub.actingapi.platform.schema.ChallengeModeration;
@@ -54,6 +56,7 @@ class PostgresEntryRepository implements EntryRepository {
     private final FailureReporter failures;
     private final VideoObjectCleanup cleanup;
     private final UnseenEntryBoost unseen;
+    private final AiJobLedger jobs;
     /** 묶음 푸시 선점은 그 10분 구간(밤이면 다음 09시)이 지나면 쓸모가 없다 — 이틀이면 넉넉하다. */
     private static final java.time.Duration NOTIFICATION_PUSH_CLAIM_RETENTION = java.time.Duration.ofDays(2);
 
@@ -63,12 +66,12 @@ class PostgresEntryRepository implements EntryRepository {
                             NotificationPushJpaRepository pushes, EntryViewEventJpaRepository viewEvents,
                             EntryRankingSnapshotJpaRepository snapshots, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
                             PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup,
-                            UnseenEntryBoost unseen) {
+                            UnseenEntryBoost unseen, AiJobLedger jobs) {
         this.em = em; this.entries = entries; this.challenges = challenges; this.notifications = notifications;
         this.aiReports = aiReports; this.likes = likes; this.saves = saves; this.comments = comments; this.reports = reports;
         this.pushes = pushes; this.viewEvents = viewEvents; this.snapshots = snapshots;
         this.settlement = settlement; this.cards = cards; this.locks = locks; this.failures = failures;
-        this.cleanup = cleanup; this.unseen = unseen;
+        this.cleanup = cleanup; this.unseen = unseen; this.jobs = jobs;
         this.transaction = new TransactionTemplate(transactions);
     }
 
@@ -174,10 +177,7 @@ class PostgresEntryRepository implements EntryRepository {
         // AI 리포트는 본문·비교 자료를 파기하고 진행 중인 생성을 취소한다. 그 참여작에 관한 알림은 지운다.
         notifications.deleteOfEntry(entryId);
         aiReports.purge(entryId, now);
-        em.createNativeQuery("""
-                UPDATE ai_jobs SET status='failed',failure_reason='cancelled',lease_token=NULL,lease_expires_at=NULL,updated_at=:now
-                WHERE kind='challenge_report' AND target_id=:id AND status IN ('pending','running')
-                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        jobs.cancel(AiJobKind.CHALLENGE_REPORT.dbValue(), entryId, now);
         likes.removeAllOf(entryId);
         saves.removeAllOf(entryId);
         reports.purgeCopiesOfEntry(entryId);

@@ -77,13 +77,7 @@ class PostgresAiReportRepository implements AiReportRepository {
                 "SELECT count(*) FROM ai_jobs WHERE user_id=:owner AND kind='challenge_report' AND created_at>=:since")
                 .setParameter("owner", owner).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
         if (today >= ChallengeReportRules.DAILY_REQUESTS) throw new ApiException(429, "daily_report_request_limit");
-        UUID job = UUID.randomUUID();
-        em.createNativeQuery("""
-                INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,status,attempt_count,created_at,updated_at)
-                VALUES (:id,:owner,'challenge_report',:entry,:request,:fingerprint,'pending',0,:now,:now)
-                """).setParameter("id", job).setParameter("owner", owner).setParameter("entry", entryId)
-                .setParameter("request", requestId).setParameter("fingerprint", fingerprint)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+        UUID job = ledger.enqueue(owner, KIND, entryId, requestId, fingerprint, now);
         reports.start(UUID.randomUUID(), entryId, owner, job, EntryAiReportStatus.PENDING, ChallengeReportRules.FORMAT_VERSION, now);
         return new Requested(find(owner, entryId), true);
     }

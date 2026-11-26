@@ -48,6 +48,7 @@ feature/challenge/adapter/db/EntryCards.java videos
 feature/challenge/adapter/db/EntryLocks.java users
 feature/challenge/adapter/db/NotificationEvents.java push_tokens
 feature/challenge/adapter/db/NotificationEvents.java user_profiles
+feature/challenge/adapter/db/PostgresAiReportRepository.java ai_jobs
 feature/challenge/adapter/db/PostgresAiReportRepository.java users
 feature/challenge/adapter/db/PostgresAiReportRepository.java videos
 feature/challenge/adapter/db/PostgresChallengeBrowse.java user_profiles
@@ -85,6 +86,7 @@ feature/community/adapter/db/PostgresCommunityImageRepository.java users
 feature/community/adapter/db/PostgresCommunityRepository.java user_profiles
 feature/community/adapter/db/PostgresCommunityRepository.java users
 feature/feedback/adapter/db/PostgresExitSurveyStore.java practices
+feature/memory/adapter/db/PostgresActorMemoryStore.java ai_jobs
 feature/memory/adapter/db/PostgresActorMemoryStore.java analyses
 feature/memory/adapter/db/PostgresActorMemoryStore.java coach_conversations
 feature/memory/adapter/db/PostgresActorMemoryStore.java coach_messages
@@ -110,6 +112,7 @@ feature/practice/adapter/db/PostgresLegacyPracticeReader.java upload_intents
 feature/practice/adapter/db/PostgresLegacyPracticeReader.java videos
 feature/practice/adapter/db/PostgresPracticeGroupErasure.java challenge_entries
 feature/practice/adapter/db/PostgresPracticeGroupErasure.java users
+feature/practice/adapter/db/PostgresPracticeRepository.java ai_jobs
 feature/practice/adapter/db/PostgresPracticeRepository.java analyses
 feature/practice/adapter/db/PostgresPracticeRepository.java challenge_entries
 feature/practice/adapter/db/PostgresPracticeRepository.java coach_conversations
@@ -158,6 +161,7 @@ feature/reading/adapter/db/PostgresReadingOwnership.java users
 feature/reading/adapter/db/PostgresReadingVoiceMaterials.java practices
 feature/reading/adapter/db/PostgresRetranscribeRepository.java users
 feature/reading/adapter/db/PostgresScriptCocreateRepository.java users
+feature/reading/adapter/db/PostgresScriptImportRepository.java ai_jobs
 feature/reading/adapter/db/PostgresScriptImportRepository.java consent_documents
 feature/reading/adapter/db/PostgresScriptImportRepository.java user_consents
 feature/reading/adapter/db/PostgresScriptImportRepository.java user_identities
@@ -178,6 +182,7 @@ platform/migration/PostgresPracticeDataMigration.java practice_reports
 platform/migration/PostgresPracticeDataMigration.java practice_sessions
 platform/migration/PostgresPracticeDataMigration.java summaries
 platform/migration/PostgresPracticeDataMigration.java transcripts
+platform/operation/PostgresAiJobLedger.java users
 platform/operation/PostgresOperationPracticeGroupPart.java coach_conversations
 resources/admin/ops-core.sql ai_jobs
 resources/admin/ops-core.sql analyses

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * {@code ai_jobs} 장부의 lease 상태 전이 (practice.analyze). <b>{@code external_operations} 와 같은 고정 계약</b>
@@ -33,6 +34,9 @@ class AiJobLedgerIT {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    TransactionTemplate transaction;
 
     private UUID user;
     private Instant now;
@@ -132,6 +136,102 @@ class AiJobLedgerIT {
         assertThat(jdbc.queryForMap("SELECT status,failure_reason FROM ai_jobs WHERE id=?", job))
                 .containsEntry("status", "failed").containsEntry("failure_reason", "storage");
         assertThat(jobs.sweepMaxAttempts(now)).as("두 번 쓸어도 같은 행을 다시 담지 않는다").isZero();
+    }
+
+    @Test
+    @DisplayName("넣기: 부르는 쪽의 트랜잭션에 참여한다 — 대기 작업이 생기고, 그 트랜잭션이 되돌아가면 작업도 없다. 트랜잭션 밖에서는 거절한다")
+    void aiJobs_enqueueJoinsTheCallersTransaction() {
+        UUID target = UUID.randomUUID();
+        UUID request = UUID.randomUUID();
+
+        UUID job = transaction.execute(tx -> jobs.enqueue(user, "analyze", target, request, "f".repeat(64), now));
+
+        assertThat(jdbc.queryForMap(
+                "SELECT user_id,kind,target_id,request_id,status,attempt_count,memory_epoch,created_at FROM ai_jobs WHERE id=?", job))
+                .containsEntry("user_id", user)
+                .containsEntry("kind", "analyze")
+                .containsEntry("target_id", target)
+                .containsEntry("request_id", request)
+                .containsEntry("status", "pending")
+                .containsEntry("attempt_count", 0)
+                .containsEntry("memory_epoch", null)
+                .containsEntry("created_at", java.sql.Timestamp.from(now));
+
+        transaction.executeWithoutResult(tx -> {
+            jobs.enqueue(user, "analyze", UUID.randomUUID(), UUID.randomUUID(), "f".repeat(64), now);
+            tx.setRollbackOnly();
+        });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs", Integer.class)).isEqualTo(1);
+        assertThatThrownBy(() -> jobs.enqueue(user, "analyze", UUID.randomUUID(), UUID.randomUUID(), "f".repeat(64), now))
+                .as("트랜잭션 없이 부르면 작업만 따로 커밋될 수 있어 거절한다")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("활성 계정에만 넣기: 지금 기억 세대를 함께 적는다. 같은 요청 id 가 다시 오면 넣지 않고, 탈퇴한 계정에는 넣지 않는다")
+    void aiJobs_enqueueForActiveAccountStampsTheMemoryEpochAndSkipsDuplicatesAndClosedAccounts() {
+        jdbc.update("UPDATE users SET memory_epoch=7 WHERE id=?", user);
+        UUID target = UUID.randomUUID();
+        UUID request = UUID.randomUUID();
+
+        assertThat(enqueueForActiveAccount(target, request)).isTrue();
+        assertThat(jdbc.queryForMap("SELECT kind,target_id,status,memory_epoch FROM ai_jobs WHERE user_id=?", user))
+                .containsEntry("kind", "memory_update")
+                .containsEntry("target_id", target)
+                .containsEntry("status", "pending")
+                .containsEntry("memory_epoch", 7);
+
+        assertThat(enqueueForActiveAccount(target, request)).as("같은 요청 id").isFalse();
+        jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", user);
+        assertThat(enqueueForActiveAccount(UUID.randomUUID(), UUID.randomUUID())).as("탈퇴한 계정").isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("취소: 그 종류·그 대상의 대기·실행 중 작업만 실패(cancelled)로 닫고 lease 를 뗀다. 끝난 작업, 다른 종류, 다른 대상은 그대로다")
+    void aiJobs_cancelClosesOnlyTheUnfinishedJobsOfThatTarget() {
+        UUID target = UUID.randomUUID();
+        UUID pending = seedFor("analyze", "pending", target);
+        UUID running = seedFor("analyze", "running", target);
+        jdbc.update("UPDATE ai_jobs SET lease_token=?,lease_expires_at=? WHERE id=?", UUID.randomUUID(), at(now.plus(LEASE)), running);
+        UUID done = seedFor("analyze", "succeeded", target);
+        UUID otherKind = seedFor("memory_update", "pending", target);
+        UUID otherTarget = seedFor("analyze", "pending", UUID.randomUUID());
+
+        assertThat(cancelAnalyze(target)).isEqualTo(2);
+
+        for (UUID closed : new UUID[] {pending, running}) {
+            assertThat(jdbc.queryForMap(
+                    "SELECT status,failure_reason,lease_token,lease_expires_at,updated_at FROM ai_jobs WHERE id=?", closed))
+                    .containsEntry("status", "failed")
+                    .containsEntry("failure_reason", "cancelled")
+                    .containsEntry("lease_token", null)
+                    .containsEntry("lease_expires_at", null)
+                    .containsEntry("updated_at", java.sql.Timestamp.from(now));
+        }
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs WHERE id=?", String.class, done)).isEqualTo("succeeded");
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs WHERE id=?", String.class, otherKind)).isEqualTo("pending");
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs WHERE id=?", String.class, otherTarget)).isEqualTo("pending");
+        assertThat(cancelAnalyze(target)).as("다시 부르면 닫을 것이 없다").isZero();
+    }
+
+    private boolean enqueueForActiveAccount(UUID target, UUID request) {
+        return transaction.execute(tx ->
+                jobs.enqueueForActiveAccount(user, "memory_update", target, request, "f".repeat(64), now));
+    }
+
+    private int cancelAnalyze(UUID target) {
+        return transaction.execute(tx -> jobs.cancel("analyze", target, now));
+    }
+
+    private UUID seedFor(String kind, String status, UUID target) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,status,attempt_count)
+                VALUES (?,?,?,?,?,?,?,0)
+                """, id, user, kind, target, UUID.randomUUID(), "f".repeat(64), status);
+        return id;
     }
 
     private UUID seed(String kind, String status, int attemptCount) {
