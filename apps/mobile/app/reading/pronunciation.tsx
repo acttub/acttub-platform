@@ -29,9 +29,12 @@ import { isPlaybackExpired } from '@/lib/reading/session-cards';
 import { fetchSession, getCurrent } from '@/lib/reading/store';
 import type { SessionRecording } from '@/lib/reading/types';
 
-/** 채점이 끝날 때까지 다시 묻는 간격과 최대 횟수(약 3분). */
+/**
+ * 채점이 끝날 때까지 다시 묻는 간격과 기다리는 시간. 긴 리딩은 채점이 9분 가까이 걸린다(11/25 운영) — 서버는 만드는 중이면 답을
+ * 최대 10초 붙잡고(SOMA-1169) 오래 걸린 보고서가 다 되면 알림을 보낸다. 15분을 넘기면 묻기를 멈추고 「다시 확인」을 보인다.
+ */
 const POLL_MS = 4_000;
-const POLL_MAX = 45;
+const POLL_BUDGET_MS = 15 * 60_000;
 /** 어절만 들을 때 앞뒤로 더 트는 여유(10/22 시안 — 150ms). */
 const PAD_MS = 150;
 
@@ -44,6 +47,8 @@ export default function PronunciationReportScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const [state, setState] = useState<PronunciationState | null>(null);
   const [failed, setFailed] = useState(false);
+  /** 기다리는 시간을 다 써서 묻기를 멈췄다 — 실패가 아니라 아직 만드는 중. */
+  const [stalled, setStalled] = useState(false);
   /** 서버가 이 사람에게 아직 보고서를 열지 않았다(404 pronunciation_not_available) — 실패가 아니라 준비 중. */
   const [notReady, setNotReady] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -74,15 +79,16 @@ export default function PronunciationReportScreen() {
   useEffect(() => {
     mounted.current = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let tries = 0;
+    const started = Date.now();
     const poll = async () => {
       if (!sessionId) return;
       try {
         const next = await api.getPronunciationReport(sessionId);
         if (!mounted.current) return;
         setState(next);
-        tries += 1;
-        if (!pronunciationSettled(next.status) && tries < POLL_MAX) timer = setTimeout(() => void poll(), POLL_MS);
+        if (pronunciationSettled(next.status)) return;
+        if (Date.now() - started < POLL_BUDGET_MS) timer = setTimeout(() => void poll(), POLL_MS);
+        else setStalled(true);
       } catch (e) {
         if (!mounted.current) return;
         if ((e as { code?: unknown } | null)?.code === 'pronunciation_not_available') setNotReady(true);
@@ -147,6 +153,7 @@ export default function PronunciationReportScreen() {
   }
   const retry = () => {
     setFailed(false);
+    setStalled(false);
     setState(null);
     setAttempt((n) => n + 1);
   };
@@ -156,6 +163,17 @@ export default function PronunciationReportScreen() {
         title={t('pronReport.failedTitle')}
         body={t('pronReport.failed')}
         primary={sessionId ? { label: t('common.retry'), onPress: retry } : undefined}
+      />
+    );
+  }
+  if (stalled && (!state || !pronunciationSettled(state.status))) {
+    return (
+      <StatusScreen
+        kind="empty"
+        mascot={MASCOT.reading}
+        title={t('pronReport.stalledTitle')}
+        body={t('pronReport.stalled')}
+        primary={{ label: t('pronReport.checkAgain'), onPress: retry }}
       />
     );
   }

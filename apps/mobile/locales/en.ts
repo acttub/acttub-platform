@@ -1598,7 +1598,10 @@ const en: DeepStringShape<typeof ko> = {
   },
   pronReport: {
     waitingTitle: 'Building your report',
-    waiting: 'Listening to your recording. About a minute.',
+    waiting: 'Listening to your recording. Longer readings take a few minutes.\nYou can leave — we’ll notify you when it’s ready.',
+    stalledTitle: 'Still building your report',
+    stalled: 'Longer readings take a while. We’ll notify you when it’s ready.',
+    checkAgain: 'Check again',
     skippedTitle: 'No report to show',
     skipped: 'None of your lines were recorded or read as written, so there is no report.',
     failedTitle: 'Couldn’t build the report',
