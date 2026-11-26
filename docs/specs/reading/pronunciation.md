@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: SOMA-606 (Pro 혜택은 SOMA-818)
+- 도입: SOMA-606 (Pro 혜택은 SOMA-818, 기다려 주기·완료 알림은 SOMA-1169)
 - 화면: 리딩 끝 화면의 발음 보고서(앱 `app/reading/pronunciation.tsx`, 웹 `features/reading/screens/PronunciationReportScreen.tsx`)
 - 테이블: reading_pronunciation_reports
 
@@ -14,7 +14,7 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `GET /v2/reading/sessions/{session_id}/pronunciation` | 헤더 `Authorization`(게이트 통과) | `{status, report}` 200. `status` 는 아래 「상태」의 값이고, `report` 는 done·skipped 일 때만 `{summary, misheard, habit, skipped_lines}`, 그 밖은 null | 스위치가 꺼졌거나 Pro·허용 사용자가 아님 404 `pronunciation_not_available`, 남의 회차·없는 회차 404 `session_not_found` |
-| `PronunciationWorkerScheduler`(`PRON_REPORT_POLL_MS`, 기본 5초) | queued 보고서, 임대가 지난 running 보고서 | 채점 뒤 done·skipped 저장, 실패면 다시 queued 또는 failed | 시도 3번 소진이면 failed |
+| `PronunciationWorkerScheduler`(`PRON_REPORT_POLL_MS`, 기본 5초) | queued 보고서, 임대가 지난 running 보고서 | 채점 뒤 done·skipped 저장, 실패면 다시 queued 또는 failed. 오래 걸린 done 은 주인에게 푸시(아래) | 시도 3번 소진이면 failed |
 
 ## 상태
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
@@ -35,6 +35,15 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 - 채점 대상: 그 회차의 녹음 가운데 받아쓴 글이 있고 1분 이하인 줄. 줄 하나의 채점이 실패하면 그 줄만 빼고 이어 간다. 모든 줄이
   실패하면 그 시도가 실패다.
 - 녹음은 배우의 목소리라 임시 파일을 주인만 읽고 쓰게 만들고 끝나면 지운다.
+- 줄 수를 줄이지 않는다 — 녹음한 줄을 전부 채점한다. 채점은 한 번에 한 보고서·한 줄씩이라(채점 서비스 하나, 운영 한 줄 약 6초) 긴
+  회차는 몇 분 걸린다(11/25 운영, 88줄 넘는 회차 528초).
+- **조회 답 붙잡기**(SOMA-1169): 상태가 queued·running 이면 서버가 1초마다 다시 보며 `PRON_REPORT_HOLD_MS`(기본 10000, 0이면
+  끔)까지 기다렸다가 답한다. 다 되면 1초 안에 답이 간다. 앱(1.1.x)은 4초 간격으로 45번 묻고 한 번 묻기 시한이 15초라, 이것만으로
+  앱이 약 3분 대신 약 10분까지 기다리게 된다.
+- **완료 알림**(SOMA-1169): 처음 조회부터 `PRON_REPORT_NOTIFY_AFTER_SECONDS`(기본 60) 넘게 걸려 done 으로 닫은 보고서는 주인에게
+  「발음 보고서가 나왔어요」 푸시를 한 번 보낸다(`data.kind=pronunciation_report_ready`, `session_id`). 분석 완료 알림 토글
+  (`notify_analysis_done`)을 따르고, 앱 판이 `PRON_PUSH_MIN_APP_VERSION`(기본 1.1.4) 이상인 단말에만 보낸다 — 옛 앱은 알림을
+  눌러도 보고서로 가지 못한다. skipped·금방 끝난 것은 알리지 않는다. 알림 실패는 보고서에 영향을 주지 않는다.
 - 이관·삭제·탈퇴는 [영역 개요](README.md)의 표를 따른다(회차를 따라 지워진다).
 
 ## 예외
@@ -47,6 +56,8 @@ Pro 혜택이다. 서버 스위치를 켠 서버에서만 돈다(실험, OpenAPI
 - 일꾼이 채점: 줄이 있으면 `done` 과 보고서, 쓸 줄이 없으면 `skipped`. 줄 하나의 채점 실패는 그 줄만 빠진다(`PronunciationWorkerTest`).
 - 세 번 실패: `failed`. 시도를 다 쓴 채 임대가 지남: `failed`, `failure='lease_expired'`.
 - 스위치가 꺼졌거나 Pro·허용 사용자가 아님: 404 `pronunciation_not_available`.
+- 붙잡기: 만드는 중이면 다 될 때까지(또는 정한 시간까지) 기다려 답한다. 끝 상태·not_ready 는 바로 답한다(`PronunciationReportServiceTest`).
+- 완료 알림: 오래 걸린 done 만, 새 앱 판 단말에만 간다(`PronunciationWorkerTest`, `PushServiceTest`, `PushRepositoryIT`).
 
 ## 범위 밖
 - 보고서를 다시 만들기(같은 회차 재채점), failed 를 되살리기.

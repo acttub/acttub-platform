@@ -6,9 +6,11 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisCompletionListener;
+import com.acttub.actingapi.feature.reading.app.PronunciationReportListener;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitListener;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,7 +22,7 @@ import org.springframework.stereotype.Service;
  * 하지 않는다.
  */
 @Service
-public class PushService implements AnalysisCompletionListener, ScriptSplitListener {
+public class PushService implements AnalysisCompletionListener, ScriptSplitListener, PronunciationReportListener {
 
     /** 아는 플랫폼만 받는다. 밖의 값은 등록을 조용히 거르지 않고 요청 검증(web)이 막는다. */
     public static final Set<String> PLATFORMS = Set.of("ios", "android");
@@ -29,16 +31,20 @@ public class PushService implements AnalysisCompletionListener, ScriptSplitListe
     private final PushOpenRepository opens;
     private final PushSender sender;
     private final FailureReporter failureReporter;
+    /** 발음 보고서 알림을 눌러 그 보고서로 갈 수 있는 첫 앱 판(SOMA-1169). */
+    private final String pronunciationMinAppVersion;
 
     public PushService(
             PushTokenRepository tokens,
             PushOpenRepository opens,
             PushSender sender,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            @Value("${PRON_PUSH_MIN_APP_VERSION:1.1.4}") String pronunciationMinAppVersion) {
         this.tokens = tokens;
         this.opens = opens;
         this.sender = sender;
         this.failureReporter = failureReporter;
+        this.pronunciationMinAppVersion = pronunciationMinAppVersion == null ? "" : pronunciationMinAppVersion.strip();
     }
 
     /**
@@ -115,6 +121,33 @@ public class PushService implements AnalysisCompletionListener, ScriptSplitListe
             sender.send(messages).forEach(tokens::unregister);
         } catch (RuntimeException failure) {
             failureReporter.report(failure, new FailureContext("PushService.onScriptSplit"));
+        }
+    }
+
+    /**
+     * 오래 걸린 발음 보고서가 다 된 순간 그 사람의 새 앱 단말에 한 번 보낸다(SOMA-1169). 잠금 화면에 보이므로 대사·점수는 싣지 않는다.
+     * 다른 완료 알림과 같이 어떤 실패도 밖으로 내보내지 않는다.
+     */
+    @Override
+    public void onPronunciationReportReady(UUID userId, UUID sessionId) {
+        try {
+            List<PushTarget> targets = tokens.pronunciationReportTargets(userId, pronunciationMinAppVersion);
+            if (targets.isEmpty()) {
+                return;
+            }
+            List<PushMessage> messages = targets.stream()
+                    .map(target -> new PushMessage(
+                            target.token(),
+                            target.korean() ? "발음 보고서가 나왔어요" : "Your pronunciation report is ready",
+                            target.korean()
+                                    ? "방금 한 리딩에서 또렷하게 들린 소리와 다시 볼 어절을 확인해 보세요."
+                                    : "See which sounds came through clearly in your reading.",
+                            // 앱이 이 두 키로 알아보고 그 회차의 발음 보고서를 연다(reminderTarget).
+                            Map.of("kind", "pronunciation_report_ready", "session_id", sessionId.toString())))
+                    .toList();
+            sender.send(messages).forEach(tokens::unregister);
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("PushService.onPronunciationReportReady"));
         }
     }
 }
