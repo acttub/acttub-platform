@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
+import com.acttub.actingapi.feature.auth.app.MemoryEpoch;
 import com.acttub.actingapi.feature.memory.app.ActorMemory;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
@@ -28,6 +29,7 @@ import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
+import com.acttub.actingapi.platform.schema.AiJobKind;
 import com.acttub.actingapi.platform.web.Hashing;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -81,9 +83,11 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final AiJobLedger jobs;
+    private final MemoryEpoch epochs;
 
     PostgresActorMemoryStore(ActorMemoryJpaRepository memories, EntityManager entityManager,
-            PlatformTransactionManager transactionManager, AiJobLedger jobs) {
+            PlatformTransactionManager transactionManager, AiJobLedger jobs, MemoryEpoch epochs) {
+        this.epochs = epochs;
         this.memories = memories;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -246,12 +250,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
 
     @Override
     public void bumpEpoch(UUID userId) {
-        entityManager.createNativeQuery("""
-                UPDATE users SET memory_epoch=memory_epoch+1,updated_at=now()
-                WHERE id=:userId
-                """)
-                .setParameter("userId", userId)
-                .executeUpdate();
+        epochs.bump(userId);
     }
 
     // --- 갱신 작업 -----------------------------------------------------------
@@ -279,25 +278,8 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 return false;
             }
             UUID requestId = uuid5(MEMORY_UPDATE_NAMESPACE, practiceId.toString());
-            return !NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH inserted AS (
-                        INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,
-                                            status,memory_epoch,created_at,updated_at)
-                        SELECT :id,u.id,'memory_update',:practiceId,:requestId,CAST(:fingerprint AS bpchar),
-                               'pending',u.memory_epoch,:now,:now
-                        FROM users u
-                        WHERE u.id=:userId AND u.status='active'
-                        ON CONFLICT (user_id,request_id) DO NOTHING
-                        RETURNING id
-                    )
-                    SELECT id FROM inserted
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("practiceId", practiceId)
-                    .setParameter("requestId", requestId)
-                    .setParameter("fingerprint", Hashing.sha256Hex("memory_update:" + practiceId))
-                    .setParameter("userId", userId)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))).isEmpty();
+            return jobs.enqueueForActiveAccount(
+                    userId, AiJobKind.MEMORY_UPDATE.dbValue(), practiceId, requestId, Hashing.sha256Hex("memory_update:" + practiceId), now);
         }));
     }
 

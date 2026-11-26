@@ -7,16 +7,8 @@ feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java practices
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java video_transcripts
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java videos
 feature/auth/adapter/db/PostgresAuthRepository.java user_consents
-feature/challenge/adapter/db/PostgresAiReportRepository.java ai_jobs
-feature/challenge/adapter/db/PostgresEntryRepository.java ai_jobs
 feature/coach/adapter/db/PostgresConversationRepository.java practices
 feature/community/adapter/db/PostgresCommunityRepository.java user_blocks
-feature/consent/adapter/db/PostgresConsentRepository.java users
-feature/feedback/adapter/db/PostgresExitSurveyStore.java users
-feature/memory/adapter/db/PostgresActorMemoryStore.java ai_jobs
-feature/memory/adapter/db/PostgresActorMemoryStore.java users
-feature/practice/adapter/db/PostgresPracticeRepository.java ai_jobs
-feature/reading/adapter/db/PostgresScriptImportRepository.java ai_jobs
 platform/migration/PostgresPracticeDataMigration.java actor_memories
 platform/migration/PostgresPracticeDataMigration.java ai_jobs
 platform/migration/PostgresPracticeDataMigration.java analyses
