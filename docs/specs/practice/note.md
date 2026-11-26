@@ -67,8 +67,8 @@
 - 앱 노트 화면이 노트를 보일 수 없을 때: 방금 노트(A13)는 진행 중 회차 없음·노트 아직 없음·불러오기 실패를 한 장(StatusScreen)으로
   보이고 아래 바에 「홈으로」 위 · 「다시 시도」 아래다. 지난 노트(A12)는 불러오기 실패(회차 id 없음 포함)면 한 장 + 「다시 시도」,
   노트가 아직 없으면 오류 색이 아닌 빈 상자(InlineEmpty)다.
-- 노트 평가: 남의 노트·없는 회차·노트가 아직 없는 회차는 같은 404 note_not_found. 아직 옮기지 않은 옛 노트(practice_reports)는
-  읽을 수는 있지만 평가는 404 이고 my_rating 은 언제나 null 이며 기기는 그 요청을 버린다(전환 명령이 옮기면 평가를 받는다). 한 줄 101자는 422 comment_too_long.
+- 노트 평가: 남의 노트·없는 회차·노트가 아직 없는 회차는 같은 404 note_not_found. 옛 표에 남은 노트(practice_reports)는
+  읽을 수는 있지만 평가는 404 이고 my_rating 은 언제나 null 이며 기기는 그 요청을 버린다. 한 줄 101자는 422 comment_too_long.
 
 ## 검증 방법
 - 기존 갈래 유효 답 2개 뒤 종료: coach_notes 1행(format legacy, 종류 analysis 또는 expression). 유효 답 1개: 행 없음.
