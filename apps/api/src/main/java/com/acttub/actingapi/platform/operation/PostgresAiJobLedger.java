@@ -16,8 +16,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * {@code ai_jobs} 장부의 Postgres 구현 (V14). lease 상태 전이는 {@link ExternalOperationClaimer} 와 <b>같은
- * 계약</b>이다(CONTRACT §5-7) — 두 원장이 공존하는 동안 분석의 재시도 횟수와 최종 사유가 달라지면 안 된다.
+ * {@code ai_jobs} 장부의 Postgres 구현 (V14). lease 상태 전이는 옛 {@code external_operations} 와 <b>같은
+ * 계약</b>이다(CONTRACT §5-7). 옛 원장을 집던 선점({@code ExternalOperationClaimer})은 SOMA-1140 에서 지웠다.
  *
  * <p>선점은 한 문장이다 — {@code FOR UPDATE SKIP LOCKED} 로 고르고 같은 문장에서 토큰과 시한을 박는다. 그래서
  * 두 워커가 같은 작업을 함께 집지 못하고, 집은 워커가 죽어도 시한이 지나면 다시 집힌다.

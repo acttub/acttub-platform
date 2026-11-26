@@ -18,9 +18,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PostgresVideoOwnership implements VideoOwnership {
     private final EntityManager entityManager;
+    private final VideoJpaRepository videos;
 
-    PostgresVideoOwnership(EntityManager entityManager) {
+    PostgresVideoOwnership(EntityManager entityManager, VideoJpaRepository videos) {
         this.entityManager = entityManager;
+        this.videos = videos;
     }
 
     @Override
@@ -37,11 +39,10 @@ class PostgresVideoOwnership implements VideoOwnership {
                 .setParameter("from", from)
                 .setParameter("to", to)
                 .executeUpdate();
-        for (String table : java.util.List.of("upload_intents", "videos")) {
-            entityManager.createNativeQuery("UPDATE " + table + " SET user_id=:to WHERE user_id=:from")
-                    .setParameter("to", to)
-                    .setParameter("from", from)
-                    .executeUpdate();
-        }
+        entityManager.createNativeQuery("UPDATE upload_intents SET user_id=:to WHERE user_id=:from")
+                .setParameter("to", to)
+                .setParameter("from", from)
+                .executeUpdate();
+        videos.reassign(from, to);
     }
 }

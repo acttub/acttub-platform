@@ -30,6 +30,7 @@ import com.acttub.actingapi.feature.community.domain.PostImage;
 import com.acttub.actingapi.feature.community.schema.CommunityCommentEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityPostEntity;
 import com.acttub.actingapi.feature.community.schema.CommunityReportEntity;
+import com.acttub.actingapi.feature.community.schema.CommunityPostImageEntity;
 import com.acttub.actingapi.platform.schema.ContentStatus;
 import com.acttub.actingapi.platform.schema.ReportReason;
 import com.acttub.actingapi.platform.schema.ReportStatus;
@@ -43,11 +44,15 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Community 포트를 Spring Data JPA와 PostgreSQL native SQL로 구현한다.
+ * Community 포트를 Spring Data JPA로 구현한다.
  *
  * <p><b>트랜잭션 경계가 이 클래스 안에 있다.</b> 없음·소유권 판정과 그에 따른 쓰기가 한 트랜잭션·
  * 한 잠금 안에서 끝나야 하므로, 서비스가 조회와 쓰기를 따로 부르는 형태로 가르지 않았다.
- * `RETURNING`·`ON CONFLICT`·행 잠금·컬럼식 증감은 기존 원자성을 지키기 위해 native SQL로 남긴다.
+ * 수를 바꾸는 갱신은 한 문장이고, {@code RETURNING} 이 있던 자리는 같은 트랜잭션에서 다시 읽는다.
+ *
+ * <p><b>native SQL 은 다른 기능의 표를 쓰는 문장만 남았다</b>(apps/api/CONTRACT.md §5-9, {@code native-sql-files.txt} 의
+ * 남김 줄). 글·댓글 조회는 작성자 이름과 탈퇴 여부(auth 의 {@code users}, profile 의 {@code user_profiles})와
+ * 차단(challenge 의 {@code user_blocks})을 한 문장에서 조인하고, 차단하기는 {@code users}·{@code user_blocks} 를 쓴다.
  */
 @Repository
 class PostgresCommunityRepository implements CommunityRepository {
@@ -96,6 +101,7 @@ class PostgresCommunityRepository implements CommunityRepository {
     private final CommunityAnonymousAliasJpaRepository anonymousAliases;
     private final CommunityPostLikeJpaRepository likes;
     private final CommunityReportJpaRepository reports;
+    private final CommunityPostImageJpaRepository images;
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final AnonymousAliasAllocator aliases;
@@ -109,6 +115,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             CommunityAnonymousAliasJpaRepository anonymousAliases,
             CommunityPostLikeJpaRepository likes,
             CommunityReportJpaRepository reports,
+            CommunityPostImageJpaRepository images,
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             AnonymousAliasAllocator aliases,
@@ -120,6 +127,7 @@ class PostgresCommunityRepository implements CommunityRepository {
         this.anonymousAliases = anonymousAliases;
         this.likes = likes;
         this.reports = reports;
+        this.images = images;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.aliases = aliases;
@@ -249,11 +257,11 @@ class PostgresCommunityRepository implements CommunityRepository {
             UUID postId, UUID authorId, String title, String body, List<UUID> imageIds) {
         return required(transaction.execute(status -> {
             // 사진을 바꾸면 행을 잠근다 — 같은 글을 고치는 두 요청이 서로의 순서를 덮지 않게.
-            OwnedPost owned = ownedPost(postId, true, imageIds != null);
-            if (owned == null) {
-                throw new CommunityContentNotFound();
-            }
-            if (!owned.authorId().equals(authorId)) {
+            UUID owner = (imageIds == null
+                    ? posts.authorWithStatus(postId, ContentStatus.VISIBLE)
+                    : posts.lockAuthorWithStatus(postId, ContentStatus.VISIBLE))
+                    .orElseThrow(CommunityContentNotFound::new);
+            if (!owner.equals(authorId)) {
                 throw new NotAuthor();
             }
             posts.updateContent(postId, title, body);
@@ -265,11 +273,9 @@ class PostgresCommunityRepository implements CommunityRepository {
     @Override
     public List<UUID> deletePost(UUID postId, UUID authorId) {
         return required(transaction.execute(status -> {
-            OwnedPost owned = ownedPost(postId, false, true);
-            if (owned == null) {
-                throw new CommunityContentNotFound();
-            }
-            if (!owned.authorId().equals(authorId)) {
+            UUID owner = posts.lockAuthorWithoutStatus(postId, ContentStatus.DELETED)
+                    .orElseThrow(CommunityContentNotFound::new);
+            if (!owner.equals(authorId)) {
                 throw new NotAuthor();
             }
             posts.updateStatus(postId, ContentStatus.DELETED);
@@ -294,25 +300,16 @@ class PostgresCommunityRepository implements CommunityRepository {
      *
      * <p>순서를 다시 매기기 전에 남길 행을 잠깐 떼어 둔다 — {@code (post_id, sort_order)} 가 유일해서 자리를 맞바꾸는
      * 순서 변경이 한 행씩 고치는 도중에 부딪힌다.
+     *
+     * <p>뺄 행은 잠가 읽고 그 id 로 지운다. 앞서 잡은 글 행의 {@code FOR UPDATE} 가 이 글에 새로 붙는 행(FK 의
+     * {@code FOR KEY SHARE})을 막아, 읽은 뒤에 조건에 드는 행이 없다.
      */
     private List<UUID> replaceImages(UUID postId, UUID authorId, List<UUID> imageIds) {
         lockAttachable(postId, authorId, imageIds);
-        List<String> removedKeys = list(entityManager.createNativeQuery("""
-                WITH removed AS (
-                    DELETE FROM community_post_images
-                    WHERE post_id = :postId AND NOT (id = ANY (CAST(:keep AS uuid[])))
-                    RETURNING object_key
-                )
-                SELECT object_key AS object_key FROM removed
-                """, Tuple.class)
-                .setParameter("postId", postId)
-                .setParameter("keep", imageIds.toArray(UUID[]::new))).stream()
-                .map(row -> row.get("object_key", String.class))
-                .toList();
-        entityManager.createNativeQuery(
-                        "UPDATE community_post_images SET post_id = NULL, sort_order = NULL WHERE post_id = :postId")
-                .setParameter("postId", postId)
-                .executeUpdate();
+        List<String> removedKeys = remove(imageIds.isEmpty()
+                ? images.lockAttachedTo(postId)
+                : images.lockAttachedToExcept(postId, imageIds));
+        images.detachAll(postId);
         order(postId, imageIds);
         if (removedKeys.isEmpty()) {
             return List.of();
@@ -323,15 +320,7 @@ class PostgresCommunityRepository implements CommunityRepository {
 
     /** 지운 글의 사진 행을 지우고 객체 삭제를 장부에 올린다. 글 행은 남는다(삭제 표시). */
     private List<UUID> detachAll(UUID postId, UUID authorId) {
-        List<String> keys = list(entityManager.createNativeQuery("""
-                WITH removed AS (
-                    DELETE FROM community_post_images WHERE post_id = :postId RETURNING object_key
-                )
-                SELECT object_key AS object_key FROM removed
-                """, Tuple.class)
-                .setParameter("postId", postId)).stream()
-                .map(row -> row.get("object_key", String.class))
-                .toList();
+        List<String> keys = remove(images.lockAttachedTo(postId));
         if (keys.isEmpty()) {
             return List.of();
         }
@@ -339,22 +328,24 @@ class PostgresCommunityRepository implements CommunityRepository {
         return List.of(imageCleanup.schedule(authorId, keys, now, now));
     }
 
+    /** 잠가 읽은 사진 행을 그 id 로 지우고 객체 키를 돌려준다. */
+    private List<String> remove(List<CommunityPostImageEntity> locked) {
+        if (locked.isEmpty()) {
+            return List.of();
+        }
+        images.deleteByIds(locked.stream().map(CommunityPostImageEntity::getId).toList());
+        return locked.stream().map(CommunityPostImageEntity::getObjectKey).toList();
+    }
+
     /** 붙일 사진 행을 잠그고 붙일 수 있는지 본다. 이 글에 이미 붙은 것은 된다(고치기에서 남기는 사진). */
     private void lockAttachable(UUID postId, UUID authorId, List<UUID> imageIds) {
         if (imageIds.isEmpty()) {
             return;
         }
-        long attachable = list(entityManager.createNativeQuery("""
-                SELECT id AS id, uploader_id AS uploader_id, post_id AS post_id, uploaded_at AS uploaded_at
-                FROM community_post_images
-                WHERE id = ANY (CAST(:ids AS uuid[]))
-                ORDER BY id
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("ids", imageIds.toArray(UUID[]::new))).stream()
-                .filter(row -> authorId.equals(row.get("uploader_id", UUID.class)))
-                .filter(row -> row.get("uploaded_at") != null)
-                .filter(row -> row.get("post_id") == null || postId.equals(row.get("post_id", UUID.class)))
+        long attachable = images.lockByIds(imageIds).stream()
+                .filter(row -> authorId.equals(row.getUploaderId()))
+                .filter(row -> row.getUploadedAt() != null)
+                .filter(row -> row.getPostId() == null || postId.equals(row.getPostId()))
                 .count();
         if (attachable != imageIds.size()) {
             throw new InvalidImage();
@@ -363,12 +354,7 @@ class PostgresCommunityRepository implements CommunityRepository {
 
     private void order(UUID postId, List<UUID> imageIds) {
         for (int index = 0; index < imageIds.size(); index++) {
-            entityManager.createNativeQuery(
-                            "UPDATE community_post_images SET post_id = :postId, sort_order = :sortOrder WHERE id = :id")
-                    .setParameter("postId", postId)
-                    .setParameter("sortOrder", index)
-                    .setParameter("id", imageIds.get(index))
-                    .executeUpdate();
+            images.attach(imageIds.get(index), postId, index);
         }
     }
 
@@ -378,15 +364,9 @@ class PostgresCommunityRepository implements CommunityRepository {
             return List.of();
         }
         Map<UUID, List<PostImage>> byPost = new HashMap<>();
-        list(entityManager.createNativeQuery("""
-                SELECT id AS id, post_id AS post_id, object_key AS object_key
-                FROM community_post_images
-                WHERE post_id = ANY (CAST(:ids AS uuid[]))
-                ORDER BY post_id, sort_order
-                """, Tuple.class)
-                .setParameter("ids", rows.stream().map(CommunityPost::id).toArray(UUID[]::new)))
-                .forEach(row -> byPost.computeIfAbsent(row.get("post_id", UUID.class), key -> new ArrayList<>())
-                        .add(new PostImage(row.get("id", UUID.class), row.get("object_key", String.class))));
+        images.attachedTo(rows.stream().map(CommunityPost::id).toList())
+                .forEach(row -> byPost.computeIfAbsent(row.getPostId(), key -> new ArrayList<>())
+                        .add(new PostImage(row.getId(), row.getObjectKey())));
         return rows.stream()
                 .map(post -> post.withImages(byPost.getOrDefault(post.id(), List.of())))
                 .toList();
@@ -394,31 +374,14 @@ class PostgresCommunityRepository implements CommunityRepository {
 
     @Override
     public void incrementViewCount(UUID postId) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                UPDATE community_posts
-                SET view_count = view_count + 1
-                WHERE id = :postId
-                """)
-                .setParameter("postId", postId)
-                .executeUpdate());
+        transaction.executeWithoutResult(status -> posts.incrementViewCount(postId));
     }
 
     @Override
     public int likePost(UUID postId, UUID userId) {
         return required(transaction.execute(status -> {
             lockVisiblePost(postId);
-            list(entityManager.createNativeQuery("""
-                    WITH inserted AS (
-                        INSERT INTO community_post_likes (id,post_id,user_id)
-                        VALUES (:id,:postId,:userId)
-                        ON CONFLICT ON CONSTRAINT uq_community_post_likes DO NOTHING
-                        RETURNING id
-                    )
-                    SELECT id AS id FROM inserted
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("postId", postId)
-                    .setParameter("userId", userId));
+            likes.insertOnce(UUID.randomUUID(), postId, userId);
             return resyncLikeCount(postId);
         }));
     }
@@ -502,13 +465,7 @@ class PostgresCommunityRepository implements CommunityRepository {
                     body,
                     anonymous,
                     ContentStatus.VISIBLE));
-            entityManager.createNativeQuery("""
-                    UPDATE community_posts
-                    SET comment_count = comment_count + 1
-                    WHERE id = :postId
-                    """)
-                    .setParameter("postId", postId)
-                    .executeUpdate();
+            posts.incrementCommentCount(postId);
             CommunityComment created = loadComment(id, authorId);
             return created.named(parent, aliasMap(postId).get(created.authorId()));
         }));
@@ -517,32 +474,14 @@ class PostgresCommunityRepository implements CommunityRepository {
     @Override
     public void deleteComment(UUID commentId, UUID authorId) {
         transaction.executeWithoutResult(status -> {
-            List<CommunityComment> rows = list(entityManager.createNativeQuery("""
-                    SELECT %s
-                    FROM community_comments comment
-                    JOIN users author ON author.id = comment.author_id
-                    LEFT JOIN user_profiles author_profile ON author_profile.user_id = comment.author_id
-                    WHERE comment.id = :commentId
-                    FOR UPDATE OF comment
-                    """.formatted(COMMENT_COLUMNS), Tuple.class)
-                    .setParameter("commentId", commentId)).stream()
-                    .map(row -> commentWithStatus(row, null))
-                    .toList();
-            if (rows.isEmpty() || rows.getFirst().isDeleted()) {
-                throw new CommunityContentNotFound();
-            }
-            CommunityComment existing = rows.getFirst();
-            if (!existing.authorId().equals(authorId)) {
+            CommunityCommentJpaRepository.LockedComment existing = comments.lockForDelete(commentId)
+                    .filter(row -> row.getStatus() != ContentStatus.DELETED)
+                    .orElseThrow(CommunityContentNotFound::new);
+            if (!existing.getAuthorId().equals(authorId)) {
                 throw new NotAuthor();
             }
             comments.updateStatus(commentId, ContentStatus.DELETED);
-            entityManager.createNativeQuery("""
-                    UPDATE community_posts
-                    SET comment_count = GREATEST(comment_count - 1, 0)
-                    WHERE id = :postId
-                    """)
-                    .setParameter("postId", existing.postId())
-                    .executeUpdate();
+            posts.decrementCommentCount(existing.getPostId());
         });
     }
 
@@ -555,19 +494,11 @@ class PostgresCommunityRepository implements CommunityRepository {
             String detail) {
         transaction.executeWithoutResult(status -> {
             ReportTargetType target = enumValue(ReportTargetType.class, targetType);
-            String table = target == ReportTargetType.POST
-                    ? "community_posts"
-                    : "community_comments";
-            List<Tuple> authors = list(entityManager.createNativeQuery("""
-                    SELECT author_id AS author_id
-                    FROM %s
-                    WHERE id = :targetId AND status <> 'deleted'
-                    """.formatted(table), Tuple.class)
-                    .setParameter("targetId", targetId));
-            if (authors.isEmpty()) {
-                throw new CommunityContentNotFound();
-            }
-            if (authors.getFirst().get("author_id", UUID.class).equals(reporterId)) {
+            UUID author = (target == ReportTargetType.POST
+                    ? posts.authorWithoutStatus(targetId, ContentStatus.DELETED)
+                    : comments.authorWithoutStatus(targetId, ContentStatus.DELETED))
+                    .orElseThrow(CommunityContentNotFound::new);
+            if (author.equals(reporterId)) {
                 throw new ReportingOwnContent();
             }
             try {
@@ -582,7 +513,7 @@ class PostgresCommunityRepository implements CommunityRepository {
             } catch (DataIntegrityViolationException exception) {
                 throw new DuplicateReport(exception);
             }
-            hideWhenReportedEnough(table, target, targetId);
+            hideWhenReportedEnough(target, targetId);
         });
     }
 
@@ -591,25 +522,16 @@ class PostgresCommunityRepository implements CommunityRepository {
      * (challenge.report). 가린 글·댓글은 작성자 본인에게만 {@code status: hidden} 으로 보이고, 되살리는 것은 운영이
      * 한다. 대상 행을 잠그고 세므로 동시에 들어온 세 번째 신고가 서로를 못 보고 지나가지 않는다.
      */
-    private void hideWhenReportedEnough(String table, ReportTargetType target, UUID targetId) {
-        entityManager.createNativeQuery("SELECT id FROM %s WHERE id = :targetId FOR UPDATE".formatted(table))
-                .setParameter("targetId", targetId)
-                .getResultList();
-        entityManager.createNativeQuery("""
-                UPDATE %s
-                SET status = 'hidden'
-                WHERE id = :targetId
-                  AND status = 'visible'
-                  AND (SELECT count(DISTINCT reporter_id)
-                       FROM community_reports
-                       WHERE target_type = :targetType
-                         AND target_id = :targetId
-                         AND status = 'pending') >= :threshold
-                """.formatted(table))
-                .setParameter("targetId", targetId)
-                .setParameter("targetType", target.dbValue())
-                .setParameter("threshold", AUTO_HIDE_REPORTERS)
-                .executeUpdate();
+    private void hideWhenReportedEnough(ReportTargetType target, UUID targetId) {
+        if (target == ReportTargetType.POST) {
+            posts.lock(targetId);
+            posts.hideWhenReported(targetId, AUTO_HIDE_REPORTERS, ContentStatus.HIDDEN, ContentStatus.VISIBLE,
+                    target, ReportStatus.PENDING);
+        } else {
+            comments.lock(targetId);
+            comments.hideWhenReported(targetId, AUTO_HIDE_REPORTERS, ContentStatus.HIDDEN, ContentStatus.VISIBLE,
+                    target, ReportStatus.PENDING);
+        }
     }
 
     @Override
@@ -675,49 +597,19 @@ class PostgresCommunityRepository implements CommunityRepository {
         return withImages(rows).getFirst();
     }
 
-    private OwnedPost ownedPost(UUID postId, boolean visibleOnly, boolean lock) {
-        String status = visibleOnly
-                ? "AND status = 'visible'"
-                : "AND status <> 'deleted'";
-        String lockClause = lock ? "FOR UPDATE" : "";
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT author_id AS author_id
-                FROM community_posts
-                WHERE id = :postId %s
-                %s
-                """.formatted(status, lockClause), Tuple.class)
-                .setParameter("postId", postId));
-        return rows.isEmpty()
-                ? null
-                : new OwnedPost(rows.getFirst().get("author_id", UUID.class));
-    }
-
     private void lockVisiblePost(UUID postId) {
-        // Serialize mutations before recounting so a waiting request sees the previous commit.
-        if (ownedPost(postId, true, true) == null) {
+        // 다시 세기 전에 쓰기를 줄 세운다. 기다린 요청은 앞의 커밋을 본다.
+        if (posts.lockAuthorWithStatus(postId, ContentStatus.VISIBLE).isEmpty()) {
             throw new CommunityContentNotFound();
         }
     }
 
+    /** 다시 세어 저장하고, 같은 트랜잭션에서 그 값을 읽는다. 고친 행은 이 트랜잭션이 잡고 있다. */
     private int resyncLikeCount(UUID postId) {
-        List<Tuple> counts = list(entityManager.createNativeQuery("""
-                WITH changed AS (
-                    UPDATE community_posts AS like_count_post
-                    SET like_count = (
-                        SELECT COUNT(*)
-                        FROM community_post_likes community_like
-                        WHERE community_like.post_id = like_count_post.id
-                    )
-                    WHERE like_count_post.id = :postId
-                    RETURNING like_count
-                )
-                SELECT like_count AS like_count FROM changed
-                """, Tuple.class)
-                .setParameter("postId", postId));
-        if (counts.isEmpty()) {
+        if (posts.recountLikes(postId) == 0) {
             throw new CommunityContentNotFound();
         }
-        return counts.getFirst().get("like_count", Integer.class);
+        return posts.likeCount(postId).orElseThrow(CommunityContentNotFound::new);
     }
 
     private CommunityComment loadComment(UUID commentId, UUID viewerId) {
@@ -831,8 +723,5 @@ class PostgresCommunityRepository implements CommunityRepository {
 
     private static <T> T required(T value) {
         return Objects.requireNonNull(value, "transaction returned no value");
-    }
-
-    private record OwnedPost(UUID authorId) {
     }
 }

@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.coach.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -26,10 +25,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostgresNoteRatingStore implements NoteRatingStore, NoteRatingOwnership {
 
     private final EntityManager entityManager;
+    private final NoteRatingJpaRepository ratings;
     private final TransactionTemplate transaction;
 
-    PostgresNoteRatingStore(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    PostgresNoteRatingStore(EntityManager entityManager, NoteRatingJpaRepository ratings,
+            PlatformTransactionManager transactionManager) {
         this.entityManager = entityManager;
+        this.ratings = ratings;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -56,62 +58,26 @@ class PostgresNoteRatingStore implements NoteRatingStore, NoteRatingOwnership {
             }
             UUID noteId = notes.getFirst().get("id", UUID.class);
 
-            List<Tuple> existing = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT rating,comment,request_id,updated_at
-                    FROM note_ratings
-                    WHERE note_id=:noteId AND user_id=:userId
-                    """, Tuple.class)
-                    .setParameter("noteId", noteId)
-                    .setParameter("userId", userId));
-            if (!existing.isEmpty() && requestId.equals(existing.getFirst().get("request_id", UUID.class))) {
-                Rating stored = rating(existing.getFirst());
+            NoteRatingJpaRepository.Existing existing = ratings.existing(noteId, userId).orElse(null);
+            if (existing != null && requestId.equals(existing.getRequestId())) {
+                Rating stored = rating(existing);
                 boolean same = stored.rating().equals(rating) && Objects.equals(stored.comment(), comment);
                 return same ? new Saved(Outcome.REPLAYED, stored) : new Saved(Outcome.MISMATCH, null);
             }
 
-            Tuple written = NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH written AS (
-                        INSERT INTO note_ratings(id,practice_id,note_id,user_id,rating,comment,request_id,
-                                                 created_at,updated_at)
-                        VALUES (:id,:practiceId,:noteId,:userId,:rating,CAST(:comment AS text),:requestId,:now,:now)
-                        ON CONFLICT (note_id,user_id) DO UPDATE
-                        SET rating=EXCLUDED.rating,
-                            comment=EXCLUDED.comment,
-                            request_id=EXCLUDED.request_id,
-                            updated_at=EXCLUDED.updated_at
-                        RETURNING rating,comment,updated_at
-                    )
-                    SELECT rating,comment,updated_at FROM written
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("practiceId", practiceId)
-                    .setParameter("noteId", noteId)
-                    .setParameter("userId", userId)
-                    .setParameter("rating", rating)
-                    .setParameter("comment", comment)
-                    .setParameter("requestId", requestId)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))).getFirst();
-            return new Saved(Outcome.SAVED, rating(written));
+            // 넣거나 덮어쓴 줄은 이 트랜잭션이 잡고 있고, 같은 사람의 다른 평가는 위의 사용자 행 잠금에서 기다린다. 다시 읽은 값이 방금 쓴 값이다.
+            ratings.upsert(UUID.randomUUID(), practiceId, noteId, userId, rating, comment, requestId, now);
+            return new Saved(Outcome.SAVED, rating(ratings.mine(noteId, userId).orElseThrow()));
         });
     }
 
     @Override
     public Rating mine(UUID userId, UUID noteId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT rating,comment,updated_at
-                FROM note_ratings
-                WHERE note_id=:noteId AND user_id=:userId
-                """, Tuple.class)
-                .setParameter("noteId", noteId)
-                .setParameter("userId", userId));
-        return rows.isEmpty() ? null : rating(rows.getFirst());
+        return ratings.mine(noteId, userId).map(PostgresNoteRatingStore::rating).orElse(null);
     }
 
-    private static Rating rating(Tuple row) {
-        return new Rating(
-                row.get("rating", String.class),
-                row.get("comment", String.class),
-                row.get("updated_at", Instant.class));
+    private static Rating rating(NoteRatingJpaRepository.Mine row) {
+        return new Rating(row.getRating(), row.getComment(), row.getUpdatedAt());
     }
 
     // --- 이관 ---------------------------------------------------------------
@@ -122,11 +88,6 @@ class PostgresNoteRatingStore implements NoteRatingStore, NoteRatingOwnership {
      */
     @Override
     public void reassign(UUID from, UUID to) {
-        entityManager.createNativeQuery("""
-                UPDATE note_ratings SET user_id=:to WHERE user_id=:from
-                """)
-                .setParameter("to", to)
-                .setParameter("from", from)
-                .executeUpdate();
+        ratings.reassign(from, to);
     }
 }

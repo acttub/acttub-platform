@@ -5,6 +5,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.ProviderDisconnectCleanup;
+import com.acttub.actingapi.feature.billing.app.RevenueCatCustomerCleanup;
 import com.acttub.actingapi.feature.community.app.CommunityImageCleanup;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioPhotoCleanup;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
@@ -30,7 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Repository
 class PostgresObjectCleanupLedger
         implements PortfolioPhotoCleanup, ReadingRecordingCleanup, VideoObjectCleanup, ScriptFileCleanup,
-        CommunityImageCleanup {
+        CommunityImageCleanup, ProviderDisconnectCleanup, RevenueCatCustomerCleanup {
     private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final EntityManager entityManager;
@@ -68,6 +70,18 @@ class PostgresObjectCleanupLedger
     @Override
     public void attempt(List<UUID> operationIds) {
         cleanup.attempt(operationIds);
+    }
+
+    /** 제공자 해제. 바로 시도해도 된다. */
+    @Override
+    public UUID enqueue(UUID userId, String kind, String payloadEncrypted, Instant now) {
+        return enqueue(userId, kind, payloadEncrypted, now, now);
+    }
+
+    /** RevenueCat 고객 삭제. 바로 시도해도 된다. */
+    @Override
+    public UUID enqueueCustomerDeletion(UUID userId, String appUserIdEncrypted, Instant now) {
+        return enqueue(userId, "revenuecat_delete", appUserIdEncrypted, now, now);
     }
 
     /** @param payloadEncrypted 이미 암호문이다. 평문을 넣지 않는다 */

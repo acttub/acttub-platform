@@ -1,3 +1,4 @@
+import { errorCode } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import { entryShareUrl } from './deeplink.ts';
 import type { EntryCard } from './types.ts';
@@ -76,7 +77,14 @@ export function threadsIntentUrl(entry: Pick<EntryCard, 'id'>, authorName: strin
   return `https://www.threads.net/intent/post?text=${encodeURIComponent(shareMessage(entry, authorName, line))}`;
 }
 
-export type ShareFailureKind = 'no_video' | 'too_large' | 'download_failed' | 'permission_denied' | 'save_failed';
+export type ShareFailureKind =
+  | 'no_video'
+  | 'too_large'
+  | 'download_failed'
+  | 'permission_denied'
+  | 'save_failed'
+  | 'frame_failed'
+  | 'mosaic_not_ready';
 
 export class ShareError extends Error {
   readonly kind: ShareFailureKind;
@@ -123,4 +131,78 @@ export async function prepareVideoFile(entry: Pick<EntryCard, 'playback_url'>, d
     throw new ShareError('too_large');
   }
   return file.uri;
+}
+
+/**
+ * 공유 프레임(SOMA-1156). 인스타 스토리와 「영상으로 저장」에 씌울 틀을 고른다. 「없음」이면 지금처럼 영상 그대로다.
+ * 카카오톡·스레드·링크 복사·더 보기는 링크만 나가므로 프레임과 상관없다. 틀은 서버가 영상에 입히고(만드는 동안 앱이
+ * 같은 요청을 다시 보내 기다린다), 미리보기도 서버가 같은 틀로 그린 그림이라 앱 미리보기와 결과가 같다.
+ */
+export type ShareFrame = 'white' | 'blue' | 'black' | 'none';
+
+/** 고르는 줄의 순서. */
+export const SHARE_FRAMES: readonly ShareFrame[] = ['white', 'blue', 'black', 'none'];
+export const DEFAULT_SHARE_FRAME: ShareFrame = 'white';
+/** 프레임 영상이 다 됐는지 다시 묻는 간격과 기다리는 한도. 넘으면 실패로 안내한다. */
+export const FRAME_POLL_MS = 1_500;
+export const FRAME_WAIT_MS = 180_000;
+
+/**
+ * 얼굴 가림을 켰는데 모자이크본이 아직 없다는 서버 응답(422 mosaic_not_ready). 프레임 영상·미리보기 모두 이렇게 오고, 원본에
+ * 씌우지 않으므로 다시 하기 대신 잠시 뒤에 하라고 안내한다.
+ */
+export function isMosaicNotReady(error: unknown): boolean {
+  return errorCode(error) === 'mosaic_not_ready';
+}
+
+/** 서버 응답(ChallengeEntryShareFrameVideo). */
+export type ShareFrameVideo = { status: 'rendering' | 'ready' | 'failed'; video_url: string | null };
+/** 서버 응답(ChallengeEntryShareFramePreview). */
+export type ShareFramePreview = { image_url: string };
+
+/** 프레임 고르기는 영상이 나가는 길(인스타 스토리·영상 저장)이 열릴 때만 보인다. */
+export function canPickFrame(entry: ShareContext): boolean {
+  return canSaveVideo(entry);
+}
+
+export function frameLabel(frame: ShareFrame): string {
+  return translate(`entryShare.frames.${frame}`);
+}
+
+export type FrameDeps = VideoDeps & {
+  /** 프레임 영상을 요청한다(서버가 만들고 있으면 rendering). */
+  requestFrame: (entryId: string, frame: Exclude<ShareFrame, 'none'>) => Promise<ShareFrameVideo>;
+  /** 다시 묻기 전에 기다린다. */
+  wait: (ms: number) => Promise<void>;
+  /** 지금 시각(밀리초). 기다리는 한도를 잰다. */
+  now: () => number;
+};
+
+/**
+ * 공유·저장에 쓸 영상을 로컬 파일로 준비한다. 「없음」이면 재생 주소 그대로(prepareVideoFile), 프레임을 골랐으면 서버의
+ * 프레임 영상이 준비될 때까지 다시 묻고 그것을 받는다. 프레임을 만들지 못하면 frame_failed 다 — 원본 영상으로 몰래
+ * 대신 보내지 않는다.
+ */
+export async function prepareShareFile(
+  entry: Pick<EntryCard, 'id' | 'playback_url'>,
+  frame: ShareFrame,
+  deps: FrameDeps,
+): Promise<string> {
+  if (frame === 'none') return prepareVideoFile(entry, deps);
+  if (!entry.playback_url) throw new ShareError('no_video');
+  const until = deps.now() + FRAME_WAIT_MS;
+  let url: string | null = null;
+  while (url == null) {
+    let video: ShareFrameVideo;
+    try {
+      video = await deps.requestFrame(entry.id, frame);
+    } catch (e) {
+      throw new ShareError(isMosaicNotReady(e) ? 'mosaic_not_ready' : 'frame_failed');
+    }
+    if (video.status === 'ready' && video.video_url) url = video.video_url;
+    else if (video.status === 'failed') throw new ShareError('frame_failed');
+    else if (deps.now() >= until) throw new ShareError('frame_failed');
+    else await deps.wait(FRAME_POLL_MS);
+  }
+  return prepareVideoFile({ playback_url: url }, deps);
 }

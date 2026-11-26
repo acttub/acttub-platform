@@ -62,9 +62,10 @@ NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라, 다
 
 ### 5-1. 운영 DB 접근은 JPA 로 일원화한다
 
-외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부에서
-단순 CRUD·조회는 Spring Data repository·JPQL·projection으로, PostgreSQL 의미가 필요한 연산은
-§5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
+외부 seam은 기존 `app` Port이고, Postgres Adapter가 그 Port를 계속 구현한다. Adapter 내부는
+Spring Data repository·JPQL·HQL·projection으로 구현하고, HQL로 같은 문장을 낼 수 없는 연산만
+`EntityManager` native SQL로 둔다(§5-2). 지금은 native SQL이 대부분이고 기능 영역마다 옮기는 중이다. 옮기는 법과
+native가 남은 자리의 목록은 §5-9에 있다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
 Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 저장소가 아직 native SQL로만 읽고 쓰는 테이블의 매핑(예:
@@ -73,20 +74,11 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
-- 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다. 지운다(아래 문단).
-- 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
-  `handoff_confirmations`·`practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
+- 옛 연습 흐름의 다섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
+  `practice_reports`): 매핑을 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고 쓰는 곳은
   `git grep -l -w practice_sessions src/main/java`처럼 표 이름으로 찾는다) 테이블과 값 CHECK는 그대로 둔다.
-  다만 `handoff_confirmations` 표와 `coaching_handoffs.branch_kind`·`handoff_json`, `coach_sessions.conversation_summary`는
-  읽고 쓰는 코드가 없다. 지운다(아래 문단).
 - `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 여러 저장소가 native SQL로만 읽고 쓰므로(읽고
   쓰는 곳은 `git grep -l -w upload_intents src/main/java`) 테이블과 값 CHECK는 그대로 둔다.
-- `evening_reminder_sends`(옛 저녁 8시 고정 알림의 보내기 장부, V25): 코드와 매핑을 지웠다. 알림 집계를 따로 남긴 뒤
-  표를 지운다. DROP 마이그레이션은 매핑을 내린 코드가 운영에 나간 다음 릴리스에 넣는다.
-- `videos.width`·`height`: 값을 쓰는 코드가 없다(V14부터 비어 있다). 매핑을 내렸다. 지운다(아래 문단).
-- `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
-  현재 분석 저장자와 관찰 소비자는 사용하지 않는다. 지운다(아래 문단).
-- `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다. 지운다(아래 문단).
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않는다. 다만 native SQL 세 곳이 이 값을 읽는다. `PostgresBillingRepository`는 프로필 이름이
   없을 때 대신 읽는다. `PostgresJournalRepository`는 배역 이름이 배우의 닉네임과 같으면 배역을 비우려고 읽는다.
@@ -96,10 +88,14 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블을 매핑한다. 
   릴리스 다음에 `DROP COLUMN` 한다. 읽기나 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
-구형 `reports`, `summaries`의 다섯 칸, `users.role`, `handoff_confirmations`와 `coaching_handoffs`·`coach_sessions`의 옛 칸(위 목록), 그리고 매핑 없이 남은 `practice_sessions.subtext`와
-`ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`), `videos`의 크기 두 칸은 값을 보관하지 않고 지운다. 코드는 이것들을 읽고
-쓰지 않으며, `LegacyStorageCompatibilityIT`가 이것들을 지운 격리 테스트 DB에서 기동과 현재 기능을 검증한다. DROP
-마이그레이션은 이 상태가 운영에 나간 다음 릴리스에 넣는다([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
+구형 `reports`, `summaries`의 다섯 칸, `users.role`, `practice_sessions.subtext`, `ads`의 옛 칸(`academy_registration_no`·`course_name`·`tuition`),
+`videos`의 크기 두 칸, `evening_reminder_sends`, `handoff_confirmations`, `coaching_handoffs.branch_kind`·`handoff_json`,
+`coach_sessions.conversation_summary`는 코드가 읽고 쓰지 않게 된 릴리스 다음에 V96~V99가 지웠다. 지우기 전 운영 값은 R2
+`acttub-db-backups` 버킷의 `archive/2026-11-25-dropped-tables/`에 CSV로 남겼다(`users.role`은 값별 행 수만, 값이 없던
+`videos`의 크기 두 칸과 `coach_sessions.conversation_summary`는 빼고). 조회 방법은 그 폴더의 `README.md`에 있고, 이 폴더는
+30일 자동 삭제 규칙 밖이다. 다음 은퇴 대상도 같은 순서를 따른다: 코드를 걷어내고 `LegacyStorageCompatibilityIT`가 그 구조를 지운
+격리 테스트 DB에서 기동과 현재 기능을 검증한 뒤, 그 상태가 운영에 나간 다음 릴리스에 DROP 마이그레이션을 넣는다
+([DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)).
 
 목록의 나머지 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
 실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
@@ -121,14 +117,18 @@ repository만 Schema Entity를 사용할 수 있고, app·domain과 다른 featu
 허용한다. 그때는 명시적 fetch 계획과 쿼리 수 회귀 검사가 필요하다. 양방향 관계, JPA cascade,
 orphan removal은 금지하고 DB FK와 `ON DELETE CASCADE`를 유지한다.
 
-### 5-2. PostgreSQL 의미가 필요한 연산은 custom native SQL 로 남긴다
+### 5-2. PostgreSQL 의미가 필요한 연산은 한 문장 그대로 지킨다
 
 `UPDATE/INSERT … RETURNING`, `ON CONFLICT`, `DISTINCT ON`, 특정 행 잠금, 컬럼식 증감,
 JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조회 후 쓰기로 풀지 않는다.
+HQL 한 문장이 같은 SQL 을 내면 HQL 로 쓰고, 내지 못하면 custom native SQL 로 둔다(§5-9).
 
 - `@Modifying` 은 rowcount 만 반환하므로 **RETURNING 계열을 대체할 수 없다.**
 - `save()` 는 upsert가 아니며, 조회 후 쓰기는 **동시성 winner 판정을 깨뜨린다.**
 - `ON CONFLICT DO UPDATE` 와 `DO NOTHING` 은 의미가 다르므로 기존 문장과 판정을 그대로 옮긴다.
+- JPA 로 거는 쓰기 잠금(`PESSIMISTIC_WRITE`)은 네이티브 SQL 처럼 `FOR UPDATE` 로 나간다. Hibernate 7.4 의 PostgreSQL 방언은
+  `FOR NO KEY UPDATE` 를 내서 FK 로 그 행을 가리키는 자식 행 INSERT 를 막지 않으므로, `platform/persistence/ForUpdatePostgreSQLDialect`
+  가 바꾼다(`application.yml` 의 `hibernate.dialect`). `PessimisticWriteLockIT` 가 실제로 나가는 문장과 막는 범위를 지킨다.
 - 반환 행은 data-modifying CTE(`WITH changed AS (… RETURNING …) SELECT …`)와
   `EntityManager.createNativeQuery(sql, Tuple.class)`의 **별칭 기반 `Tuple`**로 매핑한다.
   0행·1행·복합 행, DB 생성 UUID, transaction rollback, 행 잠금은
@@ -141,8 +141,8 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 ### 5-3. 엔티티 매핑 함정
 
 1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어낸 이유는
-   [ADR-023](../../docs/ADR.md)이다. 예외로 Schema Entity 없이 native SQL 만 쓰는 결제(V64)·광고(V66) 표는 CHECK 없이
-   앱 코드(`BillingRules`·`AdRules`)와 저장소 SQL 이 값을 지킨다.
+   [ADR-023](../../docs/ADR.md)이다. 예외로 결제(V64)·광고(V66) 표는 CHECK 없이 앱 코드(`BillingRules`·`AdRules`)와 저장소
+   문장이 값을 지킨다. 결제 표는 Schema Entity 가 값을 문자열로 매핑하고, 광고 표는 native SQL 만 쓴다.
 
    **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
    Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
@@ -156,7 +156,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 2. **앱이 만드는 PK 는 UUID 다**(`AppGeneratedUuidEntity`). 그 밖의 PK 모양: `push_tokens.id`는 DB default가 생성하고,
    회원당 하나인 `user_profiles`·`portfolios` 는 PK 가 `user_id` 로 **FK 겸 PK** 다. 날짜가 붙는 장부(`user_active_days`·
    `practice_reminder_sends`·`reading_voice_usage`)는 `@IdClass` 복합 키, `reading_voice_cache` 는 해시,
-   `anomalies` 는 BIGSERIAL(5번)이다. 엔티티 없이 native SQL 만 쓰는 `audition_postings` 도 bigint identity 다(§6-26).
+   `anomalies` 는 BIGSERIAL(5번)이다. `audition_postings` 도 bigint identity 다(§6-26).
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
@@ -167,13 +167,13 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
    활성 매핑의 `summaries.observations_json`/`.uncertainties_json`은 DB 기본값이 있고
    null 로 두면 NOT NULL 위반이다.
-4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`,
+4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`, `analyses.record`,
    `external_operations.response_payload`(NULL 허용).
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
    응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
    SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
-5. **BIGSERIAL PK** — 활성 매핑에서는 `Anomaly.id` 하나다. `IDENTITY` 전략은 JDBC 배치 INSERT 를
-   막는다.
+5. **DB 가 매기는 bigint PK** — 활성 매핑에서는 `Anomaly.id`(BIGSERIAL)와 `AuditionPostingEntity.id`(identity)다.
+   `IDENTITY` 전략은 JDBC 배치 INSERT 를 막는다. 공고는 HQL upsert 로만 넣고 그 문장은 id 를 싣지 않는다.
 6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
    소유해야 하는 결정적 이유다.
    **개수도 목록도 문서에 박지 않는다** — `FlywayBaselineTest` 가 커밋된 fingerprint
@@ -254,19 +254,13 @@ JDBC URL·username·password 로 변환한다 — `platform/config/DatabaseUrl` 
 | timeout / parse 오류 / unsupported media | **즉시 `FAILED`** |
 | S3·ETag·기타 미분류 오류 | **`PENDING` 재큐** → 3회 소비 후 sweep 이 `FAILED` |
 
-최대 시도 횟수는 3 이다. 구현은 `platform/operation/ExternalOperationClaimer` 와
-`feature/analysis/app/AnalysisWorker`, 실 DB 검증은 `ExternalOperationIT` 다.
+최대 시도 횟수는 3 이다. 이 계약은 `ai_jobs` 장부도 같다 — 구현은 `platform/operation/PostgresAiJobLedger` 와
+`feature/analysis/app/AnalysisWorker`, 실 DB 검증은 `AiJobLedgerIT` 다. 이 계약을 처음 지키던 옛 `external_operations`
+선점(`ExternalOperationClaimer`)과 그 검증(`ExternalOperationIT`)은 옛 큐 워커와 함께 지웠다(SOMA-1140).
 
-모니터링 메타데이터는 이 상태 전이 계약을 바꾸지 않는 nullable 확장이다. 마지막 실패 분류는
-`expected`·`external`·`unexpected`만 저장하며, 기존 행처럼 분류를 알 수 없으면 NULL을 유지한다.
-실패·재큐와 같은 트랜잭션에서 기록하고 재시도 소진까지 보존한다. 미분류를 새로운 도메인 실패
-종류나 Expected Rejection으로 바꾸지 않는다. 이전 앱으로 복구할 때 추가 컬럼을 삭제하지 않는다.
-
-실행 횟수와 종료 사건의 관측은 성공한 상태 전이의 커밋을 기준으로 한다. Lease 상실·중복 완료·
-롤백은 종료 횟수를 늘리지 않고, 도입 전에 끝난 실패를 재시작이나 집계 조회로 소급 통지하지 않는다.
-실패한 External Operation이 나중에 재개되면 새로운 종료 사건이 생길 수 있으므로 고유 접수 건수와
-종료 사건 수를 같은 값으로 취급하지 않는다. 실행·대기 시각을 확인할 수 없는 행에서는 영상 길이나
-기존 `updated_at` 차이로 처리 시간을 만들어내지 않는다.
+옛 표의 모니터링 메타데이터 컬럼(`waiting_since`·`execution_started_at`·`monitoring_*`·실패 분류)은 그대로 둔다. 지금은
+아무도 쓰지 않고, 상태 표본 게이지(`ExternalOperationMetrics`)만 읽는다. 실행 횟수·종료 사건 카운터는 옛 큐 워커와 함께
+지웠다. 이전 앱으로 복구할 때 추가 컬럼을 삭제하지 않는다.
 
 ### 5-8. 네이티브 SQL 작성 규칙 (실측)
 
@@ -307,7 +301,7 @@ ORDER BY CASE latest.type WHEN 'terms' THEN 1 WHEN 'privacy' THEN 2 WHEN 'ai_ana
 컬럼이 enum 이던 시절에는 **선언 순서**가 정렬 순서였고, 그 순서에 뜻이 실려 있었다.
 text 가 되면서 사전순으로 갈리므로, 순서가 화면에 보이는 두 곳은 `CASE` 로 옛 순서를
 고정했다 — 동의 문서 목록(`PostgresConsentRepository#listLatestDocuments`)과 배우 기억
-항목(`PostgresMemoryRepository#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
+항목(`PostgresActorMemoryStore#list`). **어긋나도 예외가 나지 않는다** — 순서만 조용히 바뀐다.
 
 ⚠ `DISTINCT ON` 이 붙은 질의는 `ORDER BY` 선행 표현식이 자기와 같기를 요구한다. 안쪽에
 `CASE` 를 넣으면 `SELECT DISTINCT ON expressions must match initial ORDER BY expressions` 로
@@ -329,6 +323,153 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `Object[]`는 쓰지 않는다. native bulk 앞의 pending 변경은 `flush`, 뒤의 managed entity는
 `clear`·재조회한다
 (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:explicitFlushAndClearPreserveNativeMutationOrderingAndVisibility`).
+
+### 5-9. native SQL 을 JPA 로 옮기는 법
+
+기능 영역(`feature/<이름>`) 하나씩 옮긴다. 옮기는 PR 은 그 영역의 저장소만 고치고 스키마·FK·마이그레이션·API 응답은 바꾸지 않는다.
+첫 사례는 `feature/transfer` 다(`PostgresTransferCodeRepository`·`GuestTransferCodeJpaRepository`). 매핑을 새로 만든 사례는
+`feature/support`(UUID PK, `RETURNING` 나누기)·`feature/audition`(identity PK, `ON CONFLICT … DO UPDATE`)·`feature/blog`
+(`INSERT … ON CONFLICT DO NOTHING RETURNING` 나누기)·`feature/poster`(`text[]` 칸)이다. native 를
+남긴 첫 사례는 `feature/portfolio`(다른 기능의 `users` 행 잠금)이고, `DELETE … RETURNING` 을 잠가 읽기와 id 로 지우기로 나눈
+첫 사례이기도 하다. `feature/community` 는 다른 기능의 표를 조인하는 조회(글·댓글 목록과 하나 읽기)를 native 로 남기고 자기 표만
+쓰는 문장을 옮긴 사례다(`CommunityRepositoryIT`). `feature/memory` 는 문장 대부분이 다른 기능의 표를 함께 봐서 자기 표 둘만
+쓰는 문장(칸 읽기·지우기·이관)만 옮겼다(`ActorMemoryRepositoryIT`). `feature/practice` 는 `practices` 한 표만 쓰는 문장을 옮기고
+회차를 화면에 싣는 조회와 작업·영상·사용자를 쓰는 문장을 남겼다(`PracticeRepositoryIT`). `feature/coach` 는 대화·턴·노트·평가·일지의
+자기 표만 쓰는 문장을 옮기고 회차·영상·분석·사용자를 함께 보는 문장과 옛 표를 읽는 문장을 남겼다. 요청이 많은 경로(코치 시작·답·
+대화 읽기)는 요청 하나가 보내는 문장과 새로 여는 트랜잭션의 수까지 고정한 사례다(`ConversationRepositoryIT`).
+
+**옮기기 전에 지금 동작을 테스트로 고정한다.** 고정 테스트는 native 구현에서 먼저 통과시키고, 옮긴 뒤 고치지 않고 그대로
+통과해야 한다. 이미 있는 통합 테스트가 덮는 것은 다시 만들지 않는다. 문장마다 실제 PostgreSQL 에서 다음을 본다
+(예: `TransferCodeRepositoryIT`).
+
+1. 같은 입력에 같은 결과. 경계값(시한과 같은 시각, 없는 id, 0행)과 시각의 정밀도를 넣는다.
+2. 잠금 세기. 바깥 연결이 그 행을 `FOR KEY SHARE` 로 먼저 잡고 잠그는 메서드를 부른다. `FOR UPDATE` 는 그 뒤에서
+   기다리고, 기다리는 문장이 `pg_stat_activity` 에 남는다.
+3. 경합. 같은 행을 다투는 두 요청, 유일성이 걸린 동시 INSERT 처럼 승자를 DB 가 정하는 자리.
+4. 포트 메서드마다 나가는 문장의 수와 종류. `StatementInspector` 로 잡는다. 조건부 갱신이 읽고 쓰는 두 문장으로 풀리면
+   여기서 드러난다. 문장이 많으면 "종류 표 [잠금]" 으로 줄여 견주면 별칭·열 목록 차이에 흔들리지 않는다
+   (`PortfolioRepositoryIT`). UPDATE 의 잠금 세기는 PostgreSQL 이 고친 칸으로 정한다. 부분·표현식이 아닌 유니크 인덱스의 칸
+   값을 바꾸면 `FOR UPDATE`, 그 밖에는 `FOR NO KEY UPDATE` 다(`BlogRepositoryIT`·`PosterRepositoryIT`).
+   포트가 영향 행 수를 내지 않으면 같은 트랜잭션 안에서 `pg_stat_xact_user_tables` 의 넣은·고친·지운
+   행 수를 부르기 앞뒤로 읽어 차이를 본다. 그 뷰에는 그 연결이 아직 내보내지 않은 앞 트랜잭션의 수도 섞여 있다
+   (`AuditionRepositoryIT`). 요청이 많은 경로는 요청 하나(MockMvc)가 보내는 문장과 새로 여는 트랜잭션의 수도 고정한다. 트랜잭션은
+   테스트 설정에 `TransactionExecutionListener` 빈을 두면 Spring Boot 가 트랜잭션 관리자에 붙이므로, `afterBegin` 에서
+   `isNewTransaction()` 인 것을 스레드별로 센다(`CoachStoreFixture`).
+5. 설정(properties·`@Import`)이 다른 `@SpringBootTest` 마다 Spring 컨텍스트가 하나씩 더 떠 테스트 JVM 힙을 차지한다. 한 영역의 고정
+   테스트는 설정을 한 곳에 두어 컨텍스트 하나를 함께 쓴다(`@ChallengeStoreTest`, `@CoachStoreTest`).
+
+**매핑을 새로 만들 때**: 엔티티를 `feature/<이름>/schema` 에 두고, `ActingApiApplication` 의 `@EntityScan` 목록과
+`PackageLayerTest` 의 층 목록에 더하고, `EntityMappingIT` 의 대기 목록에서 빼고 엔티티 수를 올린 뒤 옮긴다. 앱이 만드는 UUID
+PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOnSave` 에 더한다. DB 가 매기는 identity PK 는
+`@GeneratedValue(strategy = IDENTITY)` 이고 HQL insert 가 id 를 빼고 낸다. `text[]` 칸은 `String[]` 에
+`@JdbcTypeCode(SqlTypes.ARRAY)`·`columnDefinition = "text[]"` 로 매핑하고 원소 순서를 지킨다(`AppPosterEntity`).
+
+**모양마다 옮기는 법**
+
+- 매개변수: 시각은 `Instant` 를 그대로 넘긴다. §5-8 ② 의 `OffsetDateTime` 변환은 native 에만 필요하다. 나노초는 native 와
+  같게 마이크로초로 반올림된다. native 의 `CAST(:x AS text) IS NULL OR x = CAST(:x AS text)` 는 JPQL `:x is null or c.x = :x`
+  로 쓰면 null 도 그대로 된다. `CASE WHEN :flag THEN …` 의 boolean 매개변수는 HQL 이 술어로 받지 않아 `case when :flag = true then …`
+  으로 쓴다(`revision + case …` 같은 열 증감은 한 문장 그대로다). `LIMIT :n` 은 Spring Data `Limit` 으로 넘기고 `fetch first ? rows only` 로 나간다. native 의
+  `now()` 는 HQL `instant` 로 쓴다. `current_timestamp` 로 나가 같은 트랜잭션 시작 시각이 된다(`PortfolioRepositoryIT`).
+- 읽기: 칸 몇 개만 읽는 조회는 `select … as 이름` 과 Spring Data 인터페이스 프로젝션으로 받는다(배열 칸도 `UUID[]` 그대로
+  온다, `ReadingSessionJpaRepository.Range`). jsonb 를 글로 읽던 `CAST(칸 AS text)` 는 `@JdbcTypeCode(SqlTypes.JSON)` 을 붙인
+  `String` 칸으로 같은 글이 온다(SQL NULL 은 `null`, JSON null 은 글자 `null`, `ReadingExampleEntity`). 서브쿼리의 `ORDER BY …
+  LIMIT 1` 은 HQL `order by … limit 1` 로 쓰고 `fetch first 1 rows only` 로 나간다.
+- 잠금: `@Lock(LockModeType.PESSIMISTIC_WRITE)` 나 `find(…, PESSIMISTIC_WRITE)`. §5-2 의 방언 덕에 `for update of <별칭>` 으로
+  나간다. 잠그는 조회에는 잠글 표 하나만 둔다. 조인이 있으면 Hibernate 가 잠금 절을 빼거나(left join) select 절에 칸이 나온
+  표를 잠근다(inner join. 대본과 줄을 조인해 줄의 칸만 고르면 `for update of <줄 별칭>` 이다). 그래서 한 표를 잠그면서
+  조인한 다른 표의 칸을 읽는 문장(`… JOIN … FOR UPDATE OF s`)은 HQL 로 같게 나오지 않는다. 그 칸을 select 절 서브쿼리로
+  읽으면 잠금 절 생성이 `AssertionError` 다(Hibernate 7.4.15). where 절 서브쿼리는 된다. 이런 문장은 native 로 둔다
+  (`PostgresMemorizationRepository#set`). FK 로 늘 맞는 조인이 잠그는 조회에 붙어 있고 그 칸을 쓰지 않으면 조인을 빼고 자기
+  표만 잠근다(`PostgresCommunityRepository#deleteComment` 는 작성자 이름을 읽던 `users`·`user_profiles` 조인을 뺐다). 다른
+  기능의 표를 잠그는 문장은 §5-1 의 주인 규칙에 따라 그 기능의 Port 를 부르거나 native 로 둔다.
+  Port 가 없어 native 로 두면 목록에 `남김:` 줄을 쓰고, `table-owner-read-only.txt` 의 그 줄은 남는다
+  (`PostgresPortfolioRepository#lockOrCreate` 의 `users` 행 잠금).
+- 배열: native 의 `:x = ANY(칸)` 은 HQL 에 없다(`any(…)` 는 `bool_or` 집계로 풀린다). `array_contains(칸, :x)` 는 매개변수를
+  `varchar` 배열로 감싸 `text[] @> varchar[]` 연산자가 없다고 실패한다. `array_position(칸, :x) > 0` 이 같은 행을 고른다. 칸에
+  NULL 원소가 없을 때만 같다(`PostgresPosterRepository#live`).
+- `UNION ALL`: HQL 에 있다. 정렬이 합친 전체에 걸려야 하면 하위 조회로 감싼다 — 감싸지 않은 `… union all … order by` 는
+  정렬을 마지막 갈래의 괄호 안에 넣어 낸다. 갈래 안의 `cast(null as UUID)` 는 Hibernate 7.4 가 해석하지 못하므로
+  (`NoSuchElementException`) 맨 `null` 을 쓴다(SQL 에서 앞 갈래의 형을 따른다). converter 로 매핑한 칸을 문자열 칸과 견줄 때는
+  `cast(칸 as String)` 이 `cast(… as varchar)` 로 나간다(`ActorMemoryJpaRepository#scopedRows`). 빈 목록을 받은 `in :목록` 은
+  `1=0` 으로 나가 0행이고 문장은 그대로 나간다. FROM 없는 `select (하위 조회) + (하위 조회)` 도 된다.
+- 넣는 값의 하위 조회·null 매개변수: HQL `insert … values (…, coalesce(:x, (select … from 같은엔티티 r where r.id = :root)), …)` 는
+  그대로 나간다(`PracticeJpaRepository#insert`). native 의 `CAST(:x AS uuid)`·`CAST(:x AS text)` 는 HQL 이 칸 형을 알아 필요 없다.
+  `CASE WHEN CAST(:b AS boolean) IS NULL … WHEN CAST(:b AS boolean) …` 는 `case when :b is null … when :b = true …` 로 쓰고
+  매개변수가 두 번 묶인다. `bpchar` 칸은 `@JdbcTypeCode(SqlTypes.CHAR)` 와 `columnDefinition = "char(n)"` 을 함께 준다.
+- 조건부 UPDATE·DELETE: `@Modifying @Query` JPQL 한 문장으로 옮기고 영향 행 수를 그대로 쓴다. 같은 표의 다른 행을 보는
+  `NOT EXISTS` 상관 서브쿼리도 HQL UPDATE 안에 그대로 나간다. 엔티티를 읽고 고쳐 저장하거나
+  Spring Data `deleteBy…` 로 바꾸지 않는다. 읽고 쓰는 두 문장이 되면 경합에서 뜻이 달라진다. `@Modifying` 에는
+  `flushAutomatically = true, clearAutomatically = true` 를 붙인다(§5-4 ④).
+- `ON CONFLICT`: HQL `insert … values … on conflict [대상] do nothing | do update set … = excluded.…` 는 원본과 같은 꼴로
+  나간다. `on conflict on constraint <이름>` 도 그대로 나간다. 대상 없는 `on conflict do nothing` 도 그대로 나가서 부분·표현식 유니크 인덱스 어느 쪽과 겹쳐도 0행이다. `do update set`
+  의 오른쪽에 엔티티 칸 이름을 그대로 쓰면 이미 있는 행의 값이다(`case when status = excluded.status then updatedAt else
+  excluded.updatedAt end`, `LineMemorizationJpaRepository#upsert`). 엔티티에서
+  `insertable = false` 인 칸도 HQL insert 로 값을 넣는다. `insert … select … on conflict do update` 는 Hibernate 가 풀지 못한다.
+- `RETURNING`·데이터를 바꾸는 CTE: HQL 에 없다. UPDATE 는 JPQL UPDATE 뒤 같은 트랜잭션에서 다시 읽는다(고친 행은 이
+  트랜잭션이 잡고 있다). 영향 행 수가 0 이면 다시 읽지 않는다. 문장이 하나 는다(`PostgresSupportInquiryStore#setStatus`,
+  두 운영자 경합은 `SupportInquiryStoreIT`). `INSERT … ON CONFLICT DO NOTHING RETURNING`(데이터를 바꾸는 CTE 로 감싼 꼴 포함)도
+  같다. 앱이 정한 id 로 HQL insert 를 하고 영향 행 수가 1 이면 같은 트랜잭션에서 그 id 로 다시 읽는다(`PostgresBlogRepository`).
+  같은 키를 함께 넣는 경합(뒤의 것이 앞의 커밋을 기다렸다가 0행)과, 함께 같은 값으로 고치는 경합(`NOT EXISTS` 는 둘 다 지나고 뒤의
+  것이 유니크 위반)은 전후 같다(`BlogRepositoryIT`·`PosterRepositoryIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
+  없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다. 잠가 읽기는 읽은 행을 다른 트랜잭션의 지우기·고치기에서 지킬 뿐이라,
+  조건에 맞는 행이 새로 들어올 수 있으면 그것을 따로 막아야 한다. `PostgresPortfolioRepository#beginPhoto` 는 앞서 잡은 부모
+  행(`portfolios`)의 `FOR UPDATE` 가 자식 INSERT 의 FK 잠금을 막아서 이 꼴로 옮겼다(`PortfolioRepositoryIT` 가 기다리는 INSERT 로
+  보인다). 주기 작업의 치우기처럼 읽은 뒤에 조건에 든 행을 다음 차례가 다시 고르는 곳은 따로 막지 않는다
+  (`PostgresCommunityImageRepository#sweepUnattached`). 읽은 행이 없으면 지우지 않고, 있으면 문장이 하나 는다. 남길 id 목록을
+  `not in :목록` 으로 거를 때 목록이 비면 거르지 않는 조회를 따로 부른다(`PostgresCommunityRepository#replaceImages`).
+- 한 문장으로 두는 집계 조회: `LEFT JOIN LATERAL (… ORDER BY … LIMIT 1)` 은 HQL `left join lateral (… order by … limit 1) 별칭`,
+  `string_agg(x, 구분자 ORDER BY y)` 는 `listagg(x, :sep) within group (order by y)`, `count(*) FILTER (WHERE …)`·`count(DISTINCT x)`·
+  `ILIKE … ESCAPE`·select 절의 `exists (…)` 는 그대로 쓴다. 서브쿼리가 고르는 칸과 조인 유도 표의 칸에는 `as 이름` 을 붙인다
+  (`ScriptJpaRepository#overview`·`#cards`, `ReadingSessionJpaRepository` 의 카드 조회). 요청이 많은 경로의 조회는 이렇게 옮겨
+  문장 수를 그대로 둔다 — 행마다 저장소 메서드를 부르는 꼴로 풀지 않는다.
+- `UPDATE … FROM 다른 표` 는 where 절 서브쿼리로 쓴다(`ScriptUploadJpaRepository#linkToScript`). `DELETE … USING` 은 `in (서브쿼리)`
+  로 쓴다(`LineMemorizationJpaRepository#deleteOfScript`).
+- HQL 에 없어 native 로 두는 문장: `SET LOCAL …`·`SET CONSTRAINTS …`, 조인한 표 가운데 하나만 잠그는 `FOR UPDATE OF 별칭`,
+  `DISTINCT ON`, 두 표를 한 문장으로 고치는 CTE, 새 행이 들어오는 것을 잠금으로 막지 못하는 자리의 `DELETE … RETURNING`
+  (`PostgresScriptRepository#delete`).
+- 작업을 집는 문장(`UPDATE … WHERE id = (SELECT … ORDER BY … LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING …`): 잠가 읽기와 임대
+  적기 두 문장으로 나눈다. 잠가 읽기는 `@Lock(PESSIMISTIC_WRITE)` 에 `@QueryHints(@QueryHint(name =
+  "jakarta.persistence.lock.timeout", value = "-2"))` 와 `Limit.of(1)` 을 주면 `… fetch first ? rows only for update of <별칭>
+  skip locked` 로 나간다. 잠근 행은 트랜잭션이 끝날 때까지 다른 워커가 건너뛰므로 읽은 값(시도 수)에서 계산한 값이 방금 쓴
+  값이다. 집을 것이 있을 때 문장이 하나 늘고 없을 때는 같다(`PostgresPronunciationReportRepository#claimNext`, 선점과 두 워커
+  경합은 `PronunciationReportRepositoryIT`).
+- 배열 칸: 칸에 값이 들었는지 보는 `x = ANY(배열 칸)` 은 HQL 에 없다. `array_contains(배열 칸, x)` 로 쓰면 `배열 칸@>array[x]`
+  로 나가고 고르는 행이 같다(x 가 NULL 이면 둘 다 고르지 않는다). 두 배열이 겹치는지 보는 `&&` 는 `array_overlaps` 로 그대로
+  나간다(`ReadingRecordingJpaRepository#myLineText`). `text[]` 칸에 문자열 매개변수를 견줄 때는 `array_position` 을 쓴다
+  (`AppPosterJpaRepository`).
+  그 칸에 `array_contains` 를 쓰면 `text[] @> varchar[]` 연산자가 없어 실패한다. `array_position` 은 값이 없을 때 NULL 이
+  아니라 0 을 돌려준다(`coalesce(array_position(…),0)`). 그래서 "아직 없으면" 은 `= 0` 으로 쓴다. `array_append(칸, x)` 는
+  `칸||?` 로 나간다(`ChallengeEntryJpaRepository#appendShareFrameKey`, `EntryShareFrameStoreIT`).
+- 권고 잠금 `SELECT 1 FROM pg_advisory_xact_lock(…)`: FROM 절의 함수는 HQL 이 받지 않는다. `select pg_advisory_xact_lock(…)` 로
+  쓰면 같은 잠금이다(`ReadingVoiceCacheJpaRepository#lockUntilCommit`). FROM 없는 `select exists (…) and not exists (…)` 와 행 값
+  비교 `(a, b) < (c, d)` 는 그대로 나간다.
+- JSON 을 만들고 고치는 연산: Hibernate 의 JSON 함수는 tech preview 라 앱 설정에서 꺼져 있다. native 로 둔다. 값 하나를 통째로
+  넣는 것(`CAST(:x AS jsonb)`)은 JSON 칸에 `JsonNode` 매개변수를 넘기는 HQL 로 같다. Java `null` 은 SQL NULL 이 되므로 JSON
+  null 을 넣던 자리는 `JsonNodeFactory.instance.nullNode()` 를 넘긴다(`PostgresPracticeAnalysisStore#complete`, `AnalysisStoreIT`). 칸을 `String` 으로
+  매핑했으면 글 매개변수를 그대로 넘긴다(`ReadingPronunciationReportJpaRepository#complete`). 이때 JSON null 은 글자 `null` 을 넘기면
+  된다(`CoachNoteJpaRepository#insert`, `CoachNoteRepositoryIT` 가 `jsonb_typeof` 로 본다). `on conflict … do update set 칸 = '[]'` 처럼
+  JSON 칸에 글 리터럴을 대입하는 것도 그대로 나간다.
+- 읽기 잠금: `@Lock(PESSIMISTIC_READ)` 는 `for share of <별칭>` 으로 나간다(`ChallengeEntryJpaRepository#lockForRead`). 잠금
+  절은 스칼라 투영(`select new …`)에도 붙고, 건너뛰는 잠금도 같다(`ChallengeEntryJpaRepository#lockExhaustedModeration`,
+  잡힌 행을 건너뛰는 것은 `EntryModerationStoreIT`).
+- 값 목록 칸(변환기가 붙은 enum): 조건에 `e.status <> DELETED` 처럼 상수 이름을 따옴표 없이 쓰면 `status<>'deleted'` 글자로
+  나간다. `case … then <상수>` 처럼 형을 짐작할 수 없는 자리에는 매개변수로 넘긴다.
+- 있는지 확인: Spring Data `existsBy…` 는 `select <id> … fetch first ? rows only` 로 나가 native 의 `SELECT 1 … LIMIT 1` 과
+  고르는 칸이 다르다. 요청이 많은 경로에서는 `@Query("select 1 from …")` 에 `Limit.of(1)` 을 넘겨 같은 꼴로 낸다
+  (`NotificationJpaRepository#anyInGroup`).
+- 같은 트랜잭션에 그 표를 고치는 native SQL 이 남아 있으면 엔티티가 아니라 값(스칼라 투영)으로 읽는다. 영속성 컨텍스트에 둔
+  엔티티는 native 가 고친 뒤 낡은 값을 돌려준다(§5-4 ④, `ChallengeEntryJpaRepository`).
+- `UPDATE … FROM (창 함수 서브쿼리)`: HQL 에 `update … from` 이 없다. 상관 서브쿼리로 쓰면 행마다 창 함수를 다시 계산하는
+  다른 문장이 되므로 native 로 둔다(`ChallengeSettlement#confirm` 의 순위 매기기).
+
+**native 로 남기는 기준**: HQL 로 쓸 수 없거나, HQL 로 쓰면 나가는 SQL 의 모양·잠금 세기·문장 수·경합 결과가 달라지고 고정
+테스트가 그 차이를 받아들이지 못할 때. 남길 때는 옮겨 본 결과(무엇이 달라졌는지)를 PR 에 적는다. §5-1 에서 매핑을 내린 표(옛 연습
+흐름의 다섯 표, `upload_intents`)를 쓰는 문장도 남긴다 — 옮기려고 매핑을 되살리지 않는다(`PostgresVideoRepository` 의 예약 장부).
+
+**native 가 남은 자리의 목록**은 `src/test/resources/native-sql-files.txt` 하나다. `NativeSqlInventoryTest` 가 코드와
+대조한다. 파일마다 자리 수를 적고, 까닭이 없는 줄은 아직 옮기지 않은 자리라 그 합은 줄기만 한다. 옮기지 않기로 한 자리는
+`남김:` 과 까닭을 붙인 줄로 둔다. 영역을 옮기면 그 줄을 빼고 테스트의 상한을 내린다.
 
 ## 6. 계약 보존 체크리스트
 
@@ -551,7 +692,13 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 > 제품 규칙의 정본: [account.withdraw](../../docs/specs/account/withdraw.md)(응답, 파기·가명처리·남기는 것, 보관 동의, 제공자 해제, 신원 해시의 쓰임), [common.md](../../docs/specs/common.md) 「탈퇴·삭제」
 
-- **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서 파기와 상태 전환을 한다. 무엇을 지우고 남기는지는
+- **한 트랜잭션**(`PostgresProfileRepository#withdraw` 가 연다)에서 파기와 상태 전환을 한다. 순서는
+  `feature/auth/app` 의 `AccountErasureSequence#close` 와 `AccountErasureStep` 에만 있고, 테이블은 주인 기능이
+  `AccountErasure` 를 구현해 고친다(ADR-040). 구현은 트랜잭션을 열지 않는다. 구현은 주인 기능의 `adapter/db` 에 있고
+  (`Postgres…AccountErasure`, 계정 행은 `PostgresAccountDeactivation`), 아직 주인에게 옮기지 않은 자리는
+  `PostgresProfileRepository` 가 맡는다. 요청이 내는
+  문장의 순서와 테이블마다의 결과는 `AccountLifecycleFreezeIT` 의 기준 파일이 고정하고, 구현 하나가 실패하면 전부 되돌아가는
+  것은 `AccountErasureRollbackIT` 가 본다. 무엇을 지우고 남기는지는
   [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)와 영역 표(연습·리딩·챌린지)가 정본이다. 구현만의 것:
   `users.nickname=NULL`(I-3 예외), 진행 중 `external_operations`·`ai_jobs` 의 lease 떼기(분석 중이던 연습도 `failed`,
   0.1.0 작업은 결과 본문도 비운다), 0.1.0 영상의 `purged_at`, `practice_feedback` 의 시트 재전송 예약(`sheet_seq`),
@@ -562,8 +709,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `AccountSecretsTest` 가 고정한다.
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
-  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `PostgresProfileRepository#retentionGranted` 가 판정한다.
-- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 회차 평가
+  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `MediaRetention#granted`(구현은 `feature/consent` 의 `PostgresMediaRetention`)가 판정한다.
+- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresReadingAccountErasure`, §6-14). 회차 평가
   (`reading_session_ratings`)도 회차와 함께 행째 지운다 — 노트 평가처럼 한 줄만 비우고 남기지 않는다. 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
   없으면 행(음성과 **전사**)을 지우고 객체 키를 장부(`reading_recording_delete`)에 올린다. 지우기 전에 그
@@ -639,7 +786,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   - **순서는 올린 영상 → 연습 → 작업 장부 → 기억 → 리딩이다.** 앞의 셋은 새 연습을 만드는 쪽과 같은 방향이라(올린
     영상 행을 먼저 잡는다) 겹쳐 만들어진 연습과 작업을 놓치지 않는다. 기억을 작업 장부 **뒤**에 보는 것은 기억
     갱신 워커 때문이다 — 워커는 완료 트랜잭션에서 작업 행을 잡고 **그 행의 지금 주인**에게 기억을 쓴다
-    (`MemoryUpdateQueue#complete` 가 주인을 넘긴다. 모델을 기다리기 전에 읽어 둔 자료의 주인을 믿지 않는다).
+    (모델을 기다리기 전에 읽어 둔 자료의 주인을 믿지 않는다).
     이관이 작업 행을 잡은 뒤에 기억을 보면 저장 중이던 갱신이 끝난 뒤의 기억을 보고, 그 뒤의 갱신은 회원에게
     간다. 기억을 먼저 보면 닫힌 게스트에게 기억이 다시 생긴다.
   - 리딩은 맨 뒤다(`reading/app/ReadingOwnership`, §6-14). 옮기기 전에 **게스트의 `users` 행을 `FOR UPDATE` 로
@@ -664,10 +811,11 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   본문과 토큰은 싣지 않는다). receipt 는 읽지 않는다.
 - **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 선다.
   토큰 등록 때 `X-Acttub-Client` 의 앱 버전을 `push_tokens.app_version` 에 남기고(`ClientAppVersion`), 버전을 모르거나
-  `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25 `evening_reminder_sends`)의
-  코드와 검증용 매핑은 지웠고 표만 남았다(§5-1). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
-  보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
-  탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
+  `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 옛 저녁 8시 고정 알림(V25)은
+  코드와 보내기 장부를 모두 지웠다(V98). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)은 다른 기능의 표를 읽는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  종류별 7일 발송 횟수·최근 문구·후보의 단말은 자기 표만 읽어 Spring Data·HQL 이다. 보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 HQL `insert … on conflict do nothing` 한 문장으로 먼저 선점하고
+  영향 행 수가 1 인 쪽만 보내서 겹쳐 돌아도 한 번만 보낸다(`PushRepositoryIT`). 모델을 부르지 않는다.
+  탈퇴·게스트 파기와 게스트 이전은 이 표의 행을 push 가 지운다(`PostgresPushAccountErasure`·`PostgresPushRecords`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 
 ### 6-11. 포트폴리오
 
@@ -782,7 +930,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     PostgresSessionRatingStore`). 대본 삭제가 대본 행을, 회차 삭제가 회차 행을 잡고 평가를 회차보다 먼저 지우므로 겹쳐도
     지워진 회차에 평가가 남지 않는다(FK 에 `ON DELETE` 가 없어 남으면 회차 삭제가 깨진다).
   - **삭제**: 회차 삭제(`PostgresSessionRepository#delete`)·대본 삭제(`PostgresScriptRepository#delete`)·탈퇴
-    (`PostgresProfileRepository#eraseReading`)가 회차보다 먼저 행째 지운다. 노트 평가와 달리 사람과 끊어 남기지 않는다 — 매달린
+    (`PostgresReadingAccountErasure`)가 회차보다 먼저 행째 지운다. 노트 평가와 달리 사람과 끊어 남기지 않는다 — 매달린
     회차가 남지 않기 때문이다. **이관**은 `PostgresReadingOwnership` 이 다른 리딩 표와 함께 주인만 바꾼다.
   - 회차 조회·시작 응답의 `my_rating` 은 `SessionController` 가 평가를 한 번 더 읽어 싣는다. 실 DB 검증은 `ReadingSessionRatingIT` 다.
 
@@ -830,7 +978,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 **생애 — 이관·삭제·탈퇴·파기 (SOMA-546 RA5)**
 
 - 코드의 자리: 이관은 `reading/app/ReadingOwnership.reassign`(§6-9), 대본 삭제는 `PostgresScriptRepository#delete`,
-  탈퇴·미이관 게스트 30일 파기는 `PostgresProfileRepository#eraseReading` 하나(§6-8), 3년 파기는 영상과 같은
+  탈퇴·미이관 게스트 30일 파기는 `PostgresReadingAccountErasure` 하나(§6-8), 3년 파기는 영상과 같은
   `purgeRetained`(`users.retention_purged_at`)다.
 - **쓰기가 잠그는 행**: 대본 등록·수정은 `users` 행, 회차 시작·암기 갱신은 대본 행, 진행 저장·녹음 저장은 회차 행,
   탈퇴는 `users` 와 그 사람의 대본·회차 행을 잡는다. 이관·탈퇴·삭제가 리딩 행을 잠근 뒤 진행하므로 둘이 겹쳐도
@@ -881,7 +1029,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `privacyCoversReading` 을 쓴다. 예시 대본과 같은 글은 모델을 부르지 않으므로 동의를 보지 않고 바로 저장한다(게스트도).
   `ConsentDocument.askedAtEntry` 가 `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어
   (`ConsentService`, 403 `member_only`) 개인정보 v9 이상에 동의하지 않은 게스트의 나누기는 403 `script_split_consent_required` 다.
-- 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
+- 탈퇴는 `PostgresReadingAccountErasure` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
   `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751)·`SCRIPT_CAST`(SOMA-937)·`SCRIPT_REVIEW`·`SCRIPT_SAME_SPEAKER`(SOMA-1019) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
@@ -900,7 +1048,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   재전송·같은 글 판정이 글 길과 같다. `allow_duplicate` 이고 연결한 요청(`script_imports.upload_id`·`script_id` 가 같은 행의
   `request_id`)의 재전송이 아니면 422 `script_upload_used` 다. `script_imports.upload_id`(V34)를 함께 적고, 대본을
   만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
-- 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
+- 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresReadingAccountErasure`)가 행을 지우며 객체 키를 같은
   트랜잭션에서 장부 종류 `object_delete` 로 올리고 `next_attempt_at` 은 지운 행의 `expires_at` 최댓값이다(`reading/app/ScriptFileCleanup`,
   영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `kept_until` 이 빈 행은 `created_at`
   하루 전 것을, 찬 행은 `kept_until` 이 지났거나 판과 상관없이 가장 최근 `script_split` 결정이 granted 가 아닌 것
@@ -937,8 +1085,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   컬럼 셋(`request_id`·`request_fingerprint`·`video_id`), `users` 에 `exit_survey_asked_at`·`memory_epoch`. **옛
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
-  구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로는 지웠다. 다만 옛 큐 워커(§5-7)는 옛 분석을 `summaries`에
-  쓰고 옛 표의 상태를 고치며, 탈퇴도 옛 표의 상태를 고친다. 옛 기억 갱신 워커는 `actor_memory_entries`에 쓴다.
+  구조가 그대로다. 옛 표에 새 회차를 만드는 Java 경로와 옛 큐 워커·옛 기억 화면(SOMA-1140)은 지웠다. 탈퇴는 옛 표의
+  상태를 고친다.
   전환의 순서와 옛 테이블을 지우는 때는
   specs/practice 「0.1.0 스키마 전환」이 정본이다.
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다. 옛 테이블의 값 목록은 그대로 두고
@@ -956,8 +1104,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 시한이 지난 마무리는 예약을 `expired` 로 닫으며 **미확정 객체의 삭제를 같은 트랜잭션에서 장부**(`object_delete`)에
     올린다.
   - 마무리 없이 시한이 지난 예약은 `video/adapter/sched/UploadIntentSweepScheduler` 가 60초마다(`UPLOAD_INTENT_SWEEP_INTERVAL_MS`)
-    200개씩 `FOR UPDATE SKIP LOCKED` 로 잡아 같은 방식으로 닫는다. 옛 분석 워커의 정리(`PostgresAnalysisStore.sweepExpiredUploads`)가
-    같은 일을 겸하므로 옛 큐 워커를 지울 때까지 함께 돈다. 스위치는 포스터와 같이 `ANALYSIS_WORKER_ENABLED` 와
+    200개씩 `FOR UPDATE SKIP LOCKED` 로 잡아 같은 방식으로 닫는다. 같은 일을 겸하던 옛 분석 워커의 정리는 SOMA-1140 에서
+    지웠다. 스위치는 포스터와 같이 `ANALYSIS_WORKER_ENABLED` 와
     `UPLOAD_INTENT_SWEEP_ENABLED`(테스트는 후자를 전역으로 끈다)다.
   - 목록의 커서는 저장 시각과 id 다.
   - 삭제는 참조 확인과 삭제를 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다). 지운 영상과 포스터
@@ -1032,7 +1180,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     덮어쓰이므로 지문 칸을 따로 두지 않고 저장된 값과 견준다.
   - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8). 구현은 `coach/app/NoteRatingService`·
     `coach/adapter/db/PostgresNoteRatingStore`, 실 DB 검증은 `NoteRatingIT` 다.
-  - **이관**은 `NoteRatingOwnership`(설문 다음), **탈퇴**는 `PostgresProfileRepository#erasePractice` 다.
+  - **이관**은 `NoteRatingOwnership`(설문 다음), **탈퇴**는 `PostgresProfileRepository#blankNoteRatingComments`(자리 `NOTE_RATINGS`)다.
 - **배우 기억**(`actor_memories`) — 갱신 예약은 `coach/app/ConversationClosedListener` → `memory` 이고 요청 id 를
   회차에서 만든다. 워커는 분석과 같은 추출기·같은 재시도 규칙이며 저장은 한 트랜잭션에서 지금의 주인에게 하고 계정
   상태와 세대(`ai_jobs.memory_epoch`)를 다시 본다.
@@ -1081,7 +1229,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
     시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
   - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`는 새 표가 없어 옛 표에
-    남는다(`handoff_confirmations`는 옮기지 않고 지운다, §5-1). 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
+    남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
     새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
 - **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
@@ -1121,6 +1269,14 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   반응(`EntryLocks`)과 목록 조회가 부른다. 매시 일은 `CHALLENGE_SETTLEMENT_ENABLED`). likes 정렬의 첫 조회는
   전체 순서와 순위를 `entry_ranking_snapshots`에 굳히고 커서는 그 위치다.
 - 조회 사건은 `entry_view_events`에 조회수 증가와 한 트랜잭션으로 남긴다.
+- 공유 프레임(SOMA-1156, `EntryShareFrameService`): 영상 합성은 `entryShareFrameExecutor`(스레드 하나, 줄 8)가 하고 ffmpeg 는
+  `FfmpegLock` 차례다. 만드는 중·실패는 프로세스 메모리에만 있어 재시작하면 다음 요청이 다시 만든다(인스턴스끼리 공유하지 않는다).
+  만든 키는 `challenge_entries.share_frame_keys`(V96, text[])에 붙인다 — 붙이기는 모자이크본처럼 사람 → 참여작 → 영상을 잠그고,
+  그 사이 지웠거나 원본 고르기(모자이크)가 바뀌었거나 파기·탈퇴했으면 붙이지 않고 장부로 보낸다. 정리는 참여작 삭제·모자이크 변경
+  (`PostgresEntryRepository`), 파일 파기(`PostgresVideoRepository.purgeFile`), 탈퇴(`PostgresProfileRepository.videoKeys`)가 모자이크본과
+  같은 자리에서 한다. 미리보기 한 장면은 요청 안에서 저장소 주소의 앞부분만 읽고 락을 잡지 않는다. 얼굴 가림을 켰는데 모자이크본이
+  아직 없으면 `EntryShareFrameService`가 읽은 값으로 422 `mosaic_not_ready`를 내고 원본에 씌우지 않는다(「없음」 미리보기는 예외). 읽은 뒤
+  모자이크가 바뀌면 붙이기의 원본 고르기 검사가 장부로 보낸다.
 - 공유 조회(`GET /v2/public/entries/{id}`)의 IP별 한도는 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴 값으로 센다(§6-13).
 
 ### 6-18. 챌린지 반응·차단·신고 (0.1.0)
@@ -1256,9 +1412,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 > 제품 규칙의 정본: [app.audition](../../docs/specs/app/audition.md)(열림·삭제 규칙, 저장 칸, 출처와 켜는 설정), 출처 등급은 ADR-034
 
-- 표는 `audition_postings`(V36)다. Schema Entity 없이 `feature/audition/adapter/db/PostgresAuditionRepository` 의 native
-  SQL 로만 읽고 쓴다 — 쓰기가 전부 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제라서다(§5-1·§5-2,
-  `EntityMappingIT` 의 대기 목록). PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`).
+- 표는 `audition_postings`(V36)이고 `AuditionPostingEntity` 가 매핑한다. `feature/audition/adapter/db/PostgresAuditionRepository`
+  가 HQL 로 읽고 쓴다 — 쓰기는 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제다(§5-2·§5-9).
+  PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`). HQL upsert 는 id 를 싣지 않는다.
   출처·분야 값 목록은 Java enum 없이 `AuditionRules` 의 `SOURCES`·`CATEGORIES` 와 CHECK 가 같은 선을 긋는다
   (`ValueCheckCatalogIT` 의 `WITHOUT_JAVA_ENUM`, 같은 선인지는 `AuditionSchemaMigrationTest`).
 - upsert 는 칸을 새 값으로 덮고 `last_seen_at` 만 그 시각으로 둔다. `first_seen_at` 은 처음 그대로다. `collected_at` 은 따로
@@ -1326,9 +1482,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - 행동 계약은 [billing.subscription](../../docs/specs/billing/subscription.md)이 정본이고 `SubscriptionServiceTest`(상태 전이·멱등·해지
   후 기간 유지·재시도)가 지킨다. 플래그(`BILLING_APP_ENABLED`, 기본 false) 뒤의 기능이라 OpenAPI 에 싣지 않는다(`@Hidden`).
-- 표 넷(V64)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
-  조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다. `billing_payments.order_id` UNIQUE 가
-  멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
+- 표 넷(V64)은 Schema Entity 로 매핑하고 대부분 JPQL·HQL 로 읽고 쓴다(CHECK 없음 — 값은 `BillingRules` 와 저장소 문장이
+  지킨다). 상태 쓰기는 모두 조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다
+  (`BillingRepositoryIT`). `billing_payments.order_id` UNIQUE 가 멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
+  갱신·확인할 행을 `SKIP LOCKED` 로 집는 점유 둘과 스토어 구독 upsert 는 native SQL 이다(§5-9 목록).
 - 토스 호출은 트랜잭션 밖이다(§5-4). 빌링키는 `AccountSecrets` 암호문이고 로그·예외·응답에 싣지 않는다.
 - 무료 한도는 `practice.app.CoachingPlan`·`reading.app.ScriptPlan` Port 를 결제 adapter(`BillingPlanLimits`)가 구현한다. 오류
   `429 free_daily_coaching_limit`·`403 free_script_limit` 은 한도 플래그가 꺼져 있으면 나가지 않는다.
@@ -1356,11 +1513,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
    update 가 새로 생긴다. 벌크 UPDATE 로 분리한다.
 3. **상관 서브쿼리에서 앵커 테이블을 명시한다.** 명시하지 않으면 같은 테이블이 FROM 에 두 번
    들어가 Postgres 가 거부한다. 실제로 한 번 사고가 났던 자리다.
-4. **옛 `external_operations` 선점(`ExternalOperationClaimer`)에는 `SKIP LOCKED` 가 없다.** 경합 시 블로킹 대기 →
-   조건 재평가 실패 → 폴링 재시도 구조다. 정확하지만 처리량이 낮다. 바꾸려면 두 방식을 **구분하는 테스트**를 먼저
-   세운다 — 기존 테스트는 구분하지 못한다. 뒤에 생긴 큐는 `FOR UPDATE SKIP LOCKED` 로 집는다
-   (`PostgresAiJobLedger`, `PostgresAccountCleanupRepository`, `PostgresVideoRepository` 의 만료 예약 정리·포스터,
-   `PostgresNotificationRepository`).
+4. **큐는 `FOR UPDATE SKIP LOCKED` 로 집는다**(`PostgresAiJobLedger`, `PostgresAccountCleanupRepository`,
+   `PostgresVideoRepository` 의 만료 예약 정리·포스터, `PostgresNotificationRepository`). `SKIP LOCKED` 없이 블로킹 대기 뒤
+   조건을 다시 보던 옛 `external_operations` 선점은 SOMA-1140 에서 지웠다.
 
 ### 7-1. 코칭 응답과 종료 (2026-09-10)
 

@@ -2,7 +2,6 @@ package com.acttub.actingapi.feature.analysis.app;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
@@ -22,7 +21,6 @@ public interface AnalysisStore {
             String model,
             Instant now);
 
-    List<String> sweepExpiredUploads(Instant now);
 
     int sweepMaxAttempts(Instant now);
     boolean fail(UUID operationId, UUID leaseToken, String errorCode, String classification, Instant now);

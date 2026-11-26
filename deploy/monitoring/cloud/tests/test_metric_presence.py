@@ -20,25 +20,13 @@ def idle_series():
         series[selector] = "0+0x10"
 
     for kind in KINDS:
-        for event in ("accepted", "attempts", "requeues"):
-            add("acttub_external_operations_" + event + "_total", kind=kind)
-        for dependency in ("storage", "observation", "speech", "model"):
-            add("acttub_external_operations_external_calls_total", kind=kind, dependency=dependency)
-        add("acttub_external_operations_terminal_total", kind=kind, outcome="succeeded", classification="none")
-        for classification in ("expected", "external", "unexpected", "unclassified"):
-            add("acttub_external_operations_terminal_total", kind=kind, outcome="failed", classification=classification)
         for family in ("current", "unmeasured"):
             for state, waiting in (("pending", "initial"), ("pending", "retry"), ("running", "none")):
                 add("acttub_external_operations_" + family, kind=kind, state=state, waiting=waiting)
         for waiting in ("initial", "retry"):
             add("acttub_external_operations_oldest_wait_seconds", kind=kind, waiting=waiting)
-            add("acttub_external_operations_wait_seconds_bucket", kind=kind, waiting=waiting, le="+Inf")
         for family in ("oldest_running_age_seconds", "oldest_unfinished_age_seconds"):
             add("acttub_external_operations_" + family, kind=kind)
-        for outcome in ("succeeded", "failed", "requeued"):
-            add("acttub_external_operations_execution_seconds_bucket", kind=kind, outcome=outcome, le="+Inf")
-        for outcome in ("succeeded", "failed"):
-            add("acttub_external_operations_elapsed_seconds_bucket", kind=kind, outcome=outcome, le="+Inf")
     add("acttub_external_operations_snapshot_success")
     add("acttub_external_operations_snapshot_timestamp_seconds")
     for family in ("process_start_time_seconds", "jvm_memory_used_bytes", "hikaricp_connections"):
@@ -69,19 +57,19 @@ class MetricPresenceTest(unittest.TestCase):
 
     def test_one_missing_operation_kind_is_detected_even_when_other_kinds_remain(self):
         for missing in (
-            'accepted_total{environment="dev",kind="coach_reply"}',
-            'attempts_total{environment="dev",kind="coach_reply"}',
-            'requeues_total{environment="dev",kind="coach_reply"}',
-            'external_calls_total{environment="dev",kind="analyze",dependency="speech"}',
-            'terminal_total{environment="dev",kind="report",outcome="failed",classification="external"}',
-            'terminal_total{environment="dev",kind="report",outcome="succeeded",classification="none"}',
+            'current{environment="dev",kind="coach_reply",state="pending",waiting="initial"}',
+            'current{environment="dev",kind="coach_start",state="running",waiting="none"}',
+            'unmeasured{environment="dev",kind="coach_reply",state="pending",waiting="retry"}',
+            'oldest_wait_seconds{environment="dev",kind="report",waiting="retry"}',
+            'oldest_running_age_seconds{environment="dev",kind="analyze"}',
+            'oldest_unfinished_age_seconds{environment="dev",kind="coach_start"}',
         ):
             with self.subTest(missing=missing):
                 series = idle_series()
                 del series["acttub_external_operations_" + missing]
                 self.evaluate("operation-metric", series, 1)
 
-    def test_initialized_idle_operation_counters_are_present_without_any_execution(self):
+    def test_initialized_idle_operation_gauges_are_present_without_any_execution(self):
         self.evaluate("operation-metric", idle_series(), 0)
 
     def test_missing_state_and_timing_series_cannot_hide_behind_other_kinds(self):
@@ -91,9 +79,6 @@ class MetricPresenceTest(unittest.TestCase):
             'oldest_wait_seconds{environment="dev",kind="analyze",waiting="initial"}',
             'oldest_running_age_seconds{environment="dev",kind="coach_reply"}',
             'oldest_unfinished_age_seconds{environment="dev",kind="analyze"}',
-            'wait_seconds_bucket{environment="dev",kind="analyze",waiting="retry",le="+Inf"}',
-            'execution_seconds_bucket{environment="dev",kind="coach_start",outcome="failed",le="+Inf"}',
-            'elapsed_seconds_bucket{environment="dev",kind="report",outcome="succeeded",le="+Inf"}',
             'snapshot_success{environment="dev"}',
             'snapshot_timestamp_seconds{environment="dev"}',
         ):

@@ -24,22 +24,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.memory.app.MemoryExtractor;
-import com.acttub.actingapi.feature.memory.app.MemoryRepository;
-import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
-import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
-import com.acttub.actingapi.integration.llm.GeneratedText;
-import com.acttub.actingapi.integration.llm.TextGenerator;
-import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RateLimitWindow;
-import com.acttub.actingapi.support.RecordingFailureReporter;
-import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -94,19 +85,12 @@ class GuestTransferIT {
     @Autowired
     TransferCodeRepository codes;
 
-    @Autowired
-    MemoryRepository memories;
-
-    @Autowired
-    MemoryUpdateQueue memoryQueue;
-
     private String address;
 
     @BeforeEach
     void setUp() {
         jdbc.execute("DROP TRIGGER IF EXISTS fail_operation_transfer ON external_operations");
         jdbc.execute("DROP TRIGGER IF EXISTS hold_code_insert ON guest_transfer_codes");
-        jdbc.execute("DROP TRIGGER IF EXISTS hold_memory_insert ON actor_memory_entries");
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         jdbc.update("""
                 INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
@@ -459,6 +443,10 @@ class GuestTransferIT {
                         .andReturn().getResponse(),
                 mvc.perform(delete("/v2/me").header("Authorization", "Bearer " + guest.accessToken()))
                         .andReturn().getResponse());
+        // 게스트 토큰의 iat 는 실제 시계로 적히고(JwtService) 갱신의 확인은 이 시계로 한다. setUp 이 초 단위로 끊어 둔
+        // 시각에 머물면, 그 사이 실제 시계가 초 경계를 넘었을 때 토큰이 "아직 유효하지 않다"가 되어 사유 없이
+        // invalid_refresh_token 이 온다(CI 에서 그렇게 실패했다). 갱신 직전에 시계를 지금으로 맞춘다.
+        clock.set(Instant.now());
         var refresh = mvc.perform(post("/v2/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"refresh_token\":\"" + guest.refreshToken() + "\"}"))
@@ -595,81 +583,6 @@ class GuestTransferIT {
                 .header("Authorization", "Bearer " + jwt.issueAccessToken(member).value()))
                 .andReturn().getResponse().getContentAsString());
         assertThat(practiceIds(list)).containsExactlyInAnyOrder(analyzing.toString(), finished.toString());
-    }
-
-    @Test
-    @DisplayName("account.guest: 기억 갱신이 모델 응답을 기다리는 사이에 옮기면 새 기억은 회원의 것이 된다 — 닫힌 게스트에게 기억이 다시 생기지 않는다")
-    void accountGuest_aMemoryUpdateWaitingOnTheModelLandsOnTheMember() throws Exception {
-        UUID member = member();
-        Guest guest = guest();
-        UUID session = practice(guest.id());
-        UUID update = operation(guest.id(), session, "memory_update", "pending");
-        String code = issueCode(guest).path("code").stringValue(null);
-        // 워커는 자료(주인=게스트)를 읽은 뒤 모델을 부른다. 그 응답을 기다리는 사이에 이관이 끝난다.
-        MemoryUpdateWorker worker = memoryWorker((system, user) -> {
-            try {
-                assertThat(transfer(member, code, null).getStatus()).isEqualTo(200);
-            } catch (Exception failure) {
-                throw new IllegalStateException(failure);
-            }
-            return new GeneratedText("{\"goal\":\"새 목표\"}", new TokenUsage(0, 0, 0));
-        });
-
-        assertThat(worker.runOnce(clock.instant())).isTrue();
-
-        assertThat(jdbc.queryForObject("SELECT status FROM external_operations WHERE id=?", String.class, update))
-                .isEqualTo("succeeded");
-        assertThat(jdbc.queryForList("SELECT value FROM actor_memory_entries WHERE user_id=?", String.class, member))
-                .as("진행 중 작업도 따라간다 — 결과는 그때의 주인(회원)에게 간다").containsExactly("새 목표");
-        assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM actor_memory_entries WHERE user_id=?", Integer.class, guest.id()))
-                .as("닫힌 게스트에게 기억이 생기지 않는다").isZero();
-    }
-
-    @Test
-    @DisplayName("account.guest: 기억 갱신이 저장하는 도중에 옮기기가 시작돼도 그 기억은 회원에게 간다 — 옮기기는 작업 장부를 잡은 뒤에 기억을 본다")
-    void accountGuest_aMemoryUpdateBeingSavedIsCarriedByTheTransfer() throws Exception {
-        UUID member = member();
-        Guest guest = guest();
-        UUID session = practice(guest.id());
-        operation(guest.id(), session, "memory_update", "pending");
-        String code = issueCode(guest).path("code").stringValue(null);
-        jdbc.execute("""
-                CREATE OR REPLACE FUNCTION hold_memory_insert() RETURNS trigger AS $$
-                BEGIN
-                    PERFORM pg_advisory_xact_lock_shared(%d);
-                    RETURN NEW;
-                END
-                $$ LANGUAGE plpgsql
-                """.formatted(ISSUE_GATE));
-        jdbc.execute("""
-                CREATE TRIGGER hold_memory_insert
-                BEFORE INSERT ON actor_memory_entries
-                FOR EACH ROW EXECUTE FUNCTION hold_memory_insert()
-                """);
-        MemoryUpdateWorker worker = memoryWorker((system, user) ->
-                new GeneratedText("{\"goal\":\"새 목표\"}", new TokenUsage(0, 0, 0)));
-        Instant now = clock.instant();
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try (Connection gate = outsideConnection()) {
-            closeIssueGate(gate);
-            // 완료 트랜잭션이 작업 행을 잡은 채 기억을 넣다가 문 앞에서 멈춘다.
-            Future<Boolean> saving = pool.submit(() -> worker.runOnce(now));
-            awaitUntil("the memory write is waiting", 1, this::lockWaiters);
-            Future<Integer> moving = pool.submit(() -> transfer(member, code, null).getStatus());
-            awaitUntil("the transfer is waiting too", 2, this::lockWaiters);
-            openIssueGate(gate);
-
-            assertThat(saving.get()).isTrue();
-            assertThat(moving.get()).isEqualTo(200);
-            assertThat(jdbc.queryForList(
-                    "SELECT value FROM actor_memory_entries WHERE user_id=?", String.class, member))
-                    .containsExactly("새 목표");
-            assertThat(jdbc.queryForObject(
-                    "SELECT count(*) FROM actor_memory_entries WHERE user_id=?", Integer.class, guest.id())).isZero();
-        } finally {
-            pool.shutdownNow();
-        }
     }
 
     // ---- helpers ----
@@ -831,12 +744,6 @@ class GuestTransferIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn().getResponse();
-    }
-
-    private MemoryUpdateWorker memoryWorker(TextGenerator generator) {
-        RecordingFailureReporter reporter = new RecordingFailureReporter();
-        return new MemoryUpdateWorker(memories, memoryQueue, mapper, generator, clock,
-                new MemoryExtractor(reporter), reporter, new RecordingLlmTelemetry());
     }
 
     private Connection outsideConnection() throws Exception {

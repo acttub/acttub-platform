@@ -30,8 +30,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>기억 갱신이 실패해도 연습은 정상이다.</b> 그래서 실패해도 회차 상태를 건드리지 않는다.
  *
- * <p>뽑는 규칙은 옛 워커와 <b>같은 {@link MemoryExtractor}</b> 다 — 근거는 배우 발화·받아쓰기·관찰뿐이고 개인
- * 심리를 판정하지 않는다. 갈리는 것은 어디서 집고(=ai_jobs) 어느 표에 쓰는가(=actor_memories)뿐이다.
+ * <p>뽑는 규칙은 {@link MemoryExtractor} 다 — 근거는 배우 발화·받아쓰기·관찰뿐이고 개인 심리를 판정하지 않는다.
+ * 큐는 {@code ai_jobs}, 저장은 {@code actor_memories} 다.
  */
 public class ActorMemoryUpdateWorker {
     static final Duration DEFAULT_LEASE = Duration.ofMinutes(5);

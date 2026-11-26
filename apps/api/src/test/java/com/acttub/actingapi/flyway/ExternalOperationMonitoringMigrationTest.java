@@ -47,14 +47,19 @@ class ExternalOperationMonitoringMigrationTest {
         UUID coach = UUID.randomUUID();
         var now = CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC);
         fixtures.insertCoachSession(coach, practice.id(), summary, "closed", now, List.of());
-        UUID handoff = fixtures.insertHandoff(coach, practice.id(), now);
+        // V5 에는 넘김의 갈래·원문 칸이 NOT NULL 로 있다(V99 가 지운다). 공용 픽스처는 지금 스키마를 따르므로 직접 심는다.
+        UUID handoff = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO coaching_handoffs(id,coach_session_id,practice_session_id,branch_kind,handoff_json,created_at)
+                VALUES (?,?,?,'coaching','{}'::jsonb,?)
+                """, handoff, coach, practice.id(), now);
         UUID operation = fixtures.insertRunningCoachStartOperation(user, practice.id(), UUID.randomUUID());
         jdbc.update("UPDATE practice_sessions SET experience_version='three_layers_v1' WHERE id=?", practice.id());
         jdbc.update("""
                 UPDATE coach_sessions SET coaching_state_json='{"revision":2}',
                     state_revision=2, close_reason='actor_finished' WHERE id=?
                 """, coach);
-        jdbc.update("UPDATE coaching_handoffs SET branch_kind='coaching', state_revision=2 WHERE id=?", handoff);
+        jdbc.update("UPDATE coaching_handoffs SET state_revision=2 WHERE id=?", handoff);
         jdbc.update("INSERT INTO practice_reports (practice_session_id, source_handoff_id, report_type, report_json) "
                 + "VALUES (?, ?, 'practice_note', '{\"report_type\":\"practice_note\",\"mode\":\"record_only\"}')",
                 practice.id(), handoff);
@@ -86,8 +91,10 @@ class ExternalOperationMonitoringMigrationTest {
     }
 
     private static String originalRow(JdbcTemplate jdbc, String table) {
+        // 뒤 마이그레이션이 더한 칸과, V96·V99 가 지운 옛 칸(SOMA-1142)은 견주지 않는다.
         return jdbc.queryForObject("SELECT (to_jsonb(stored) - ARRAY['last_failure_classification', 'waiting_since', "
-                + "'execution_started_at', 'monitoring_updated_at', 'monitoring_lease_token'])::text FROM "
+                + "'execution_started_at', 'monitoring_updated_at', 'monitoring_lease_token', 'subtext', "
+                + "'branch_kind', 'handoff_json', 'conversation_summary'])::text FROM "
                 + table + " stored", String.class);
     }
 }

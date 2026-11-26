@@ -3,11 +3,9 @@ package com.acttub.actingapi.feature.memory.adapter.db;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acttub.actingapi.platform.observability.FailureKind;
-import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -374,68 +372,6 @@ class PostgresMemoryRepositoryPriorIT {
         assertThat(repository.priorContext(userId, fresh).earlierConversation()).isNull();
     }
 
-    @Test
-    void agentDoesNotOverwriteAFieldTheActorWroteAndListKeepsTheDisplayOrder() {
-        UUID userId = insertUser("memory-actor-rows@example.com");
-        UUID practiceId = insertPractice(userId);
-        // 옛 화면 경로가 배우 이름으로 쓴 행이 남아 있다.
-        for (String[] row : new String[][] {
-                {"speech_actual", "실제 화법"}, {"gender", "성별"}, {"goal", "배우의 목표"},
-                {"blockage", "막힘"}, {"age", "나이"}, {"speech_self", "스스로 본 화법"}}) {
-            jdbc.update("""
-                    INSERT INTO actor_memory_entries (id,user_id,field,value,written_by)
-                    VALUES (?,?,?,?,'actor')
-                    """, UUID.randomUUID(), userId, row[0], row[1]);
-        }
-
-        assertThat(repository.writeAsAgent(
-                userId, ActorMemoryField.GOAL, "뒤늦은 추출", practiceId)).isNull();
-        assertThat(repository.list(userId).stream().map(entry -> entry.field()).toList())
-                .isEqualTo(List.of(
-                        "gender", "age", "goal", "blockage", "speech_self", "speech_actual"));
-        assertThat(repository.list(userId))
-                .filteredOn(entry -> entry.field().equals("goal"))
-                .singleElement()
-                .satisfies(entry -> {
-                    assertThat(entry.value()).isEqualTo("배우의 목표");
-                    assertThat(entry.writtenByActor()).isTrue();
-                    assertThat(entry.sourcePracticeSessionId()).isNull();
-                });
-    }
-
-    @Test
-    void agentCannotWriteActorOnlyOrRetiredLegacyFields() {
-        UUID userId = insertUser("agent-actor-only@example.com");
-        UUID practiceId = insertPractice(userId);
-
-        assertThat(repository.writeAsAgent(userId, ActorMemoryField.GENDER, "추론한 성별", practiceId)).isNull();
-        assertThat(repository.writeAsAgent(userId, ActorMemoryField.SPEECH_ACTUAL, "추론한 화법", practiceId)).isNull();
-        assertThat(repository.writeAsAgent(userId, ActorMemoryField.GOAL, "추출된 목표", practiceId))
-                .isEqualTo(new com.acttub.actingapi.feature.memory.app.MemoryEntry("goal", "추출된 목표", false, practiceId));
-        assertThat(repository.list(userId)).extracting(entry -> entry.field()).containsExactly("goal");
-    }
-
-    @Test
-    void memoryUpdateMaterialKeepsTranscriptOrderAndOnlyActorTurns() {
-        UUID userId = insertUser("memory-material@example.com");
-        UUID practiceId = insertPractice(userId);
-        jdbc.update("""
-                INSERT INTO transcripts (id,session_id,ord,text)
-                VALUES (?, ?, 1, '두 번째 전사'), (?, ?, 0, '첫 번째 전사')
-                """, UUID.randomUUID(), practiceId, UUID.randomUUID(), practiceId);
-        UUID coachId = insertCoach(practiceId, "closed", NOW);
-        insertTurn(coachId, 0, "actor", "첫 배우 말");
-        insertTurn(coachId, 1, "ai", "코치 말");
-        insertTurn(coachId, 2, "actor", "둘째 배우 말");
-
-        var material = repository.material(practiceId);
-
-        assertThat(material.userId()).isEqualTo(userId);
-        assertThat(material.practiceSessionId()).isEqualTo(practiceId);
-        assertThat(material.transcripts()).containsExactly("첫 번째 전사", "두 번째 전사");
-        assertThat(material.actorMessages()).containsExactly("첫 배우 말", "둘째 배우 말");
-    }
-
     private void setCreatedAt(UUID practiceId, OffsetDateTime at) {
         jdbc.update("UPDATE practice_sessions SET created_at=? WHERE id=?", at, practiceId);
     }
@@ -454,8 +390,8 @@ class PostgresMemoryRepositoryPriorIT {
         UUID handoffId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO coaching_handoffs (
-                    id,coach_session_id,practice_session_id,branch_kind,handoff_json
-                ) VALUES (?, ?, ?, 'analysis', '{}'::jsonb)
+                    id,coach_session_id,practice_session_id
+                ) VALUES (?, ?, ?)
                 """, handoffId, coachId, practiceId);
         jdbc.update("""
                 INSERT INTO practice_reports (

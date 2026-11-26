@@ -12,6 +12,7 @@ import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Participan
 import com.acttub.actingapi.feature.challenge.app.ReactionRepository;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.EntryCommentStatus;
 import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -26,12 +27,22 @@ import org.springframework.transaction.annotation.Transactional;
 class PostgresReactionRepository implements ReactionRepository {
     private static final String WITHDRAWN = "탈퇴한 사용자";
     private final EntityManager em;
+    private final EntryLikeJpaRepository likes;
+    private final EntrySaveJpaRepository saves;
+    private final EntryCommentJpaRepository comments;
+    private final EntryReportJpaRepository reports;
+    private final UserBlockJpaRepository blocks;
+    private final ChallengeEntryJpaRepository challengeEntries;
     private final EntryLocks locks;
     private final EntryCards cards;
     private final NotificationEvents events;
 
-    PostgresReactionRepository(EntityManager em, EntryLocks locks, EntryCards cards, NotificationEvents events) {
-        this.em = em; this.locks = locks; this.cards = cards; this.events = events;
+    PostgresReactionRepository(EntityManager em, EntryLikeJpaRepository likes, EntrySaveJpaRepository saves,
+                               EntryCommentJpaRepository comments, EntryReportJpaRepository reports, UserBlockJpaRepository blocks,
+                               ChallengeEntryJpaRepository challengeEntries, EntryLocks locks, EntryCards cards,
+                               NotificationEvents events) {
+        this.em = em; this.likes = likes; this.saves = saves; this.comments = comments; this.reports = reports;
+        this.blocks = blocks; this.challengeEntries = challengeEntries; this.locks = locks; this.cards = cards; this.events = events;
     }
 
     @Override @Transactional
@@ -40,38 +51,22 @@ class PostgresReactionRepository implements ReactionRepository {
         if (viewer.equals(target.author())) throw new ApiException(422, "self_like");
         if (on) {
             UUID like = UUID.randomUUID();
-            int inserted = em.createNativeQuery("""
-                    INSERT INTO entry_likes(id,entry_id,user_id,created_at) VALUES (:id,:entry,:viewer,:now)
-                    ON CONFLICT (entry_id,user_id) DO NOTHING
-                    """).setParameter("id", like).setParameter("entry", entryId).setParameter("viewer", viewer)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
             // 좋아요 행이 원인이다 — 취소 뒤 다시 누르면 새 사건이고, 이미 눌러 둔 재전송은 사건을 만들지 않는다.
-            if (inserted == 1) {
+            if (likes.insertUnlessLiked(like, entryId, viewer, now) == 1) {
                 events.record(target.author(), "entry_liked", viewer, target.challengeId(), entryId, null, "like:" + like, now);
             }
         } else {
-            em.createNativeQuery("DELETE FROM entry_likes WHERE entry_id=:entry AND user_id=:viewer")
-                    .setParameter("entry", entryId).setParameter("viewer", viewer).executeUpdate();
+            likes.remove(entryId, viewer);
         }
-        long count = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_likes WHERE entry_id=:entry")
-                .setParameter("entry", entryId).getSingleResult()).longValue();
-        return new Liked(count, on);
+        return new Liked(likes.countOf(entryId), on);
     }
 
     @Override @Transactional
     public Saved save(UUID viewer, UUID entryId, boolean on, Instant now) {
         var target = locks.entry(viewer, entryId, now, false, false);
         if (viewer.equals(target.author())) throw new ApiException(422, "self_save");
-        if (on) {
-            em.createNativeQuery("""
-                    INSERT INTO entry_saves(id,entry_id,user_id,created_at) VALUES (:id,:entry,:viewer,:now)
-                    ON CONFLICT (entry_id,user_id) DO NOTHING
-                    """).setParameter("id", UUID.randomUUID()).setParameter("entry", entryId).setParameter("viewer", viewer)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-        } else {
-            em.createNativeQuery("DELETE FROM entry_saves WHERE entry_id=:entry AND user_id=:viewer")
-                    .setParameter("entry", entryId).setParameter("viewer", viewer).executeUpdate();
-        }
+        if (on) saves.insertUnlessSaved(UUID.randomUUID(), entryId, viewer, now);
+        else saves.remove(entryId, viewer);
         return new Saved(on);
     }
 
@@ -96,9 +91,7 @@ class PostgresReactionRepository implements ReactionRepository {
         var entries = cards.cards(viewer, page.stream().map(row -> row.get("entry_id", UUID.class)).toList(), Map.of(), null, false);
         String next = more ? encode("V", viewer.toString(), page.getLast().get("created_at", Instant.class).toString(),
                 page.getLast().get("id", UUID.class).toString()) : null;
-        long mine = ((Number) em.createNativeQuery(
-                "SELECT count(*) FROM challenge_entries WHERE user_id=:viewer AND status<>'deleted'")
-                .setParameter("viewer", viewer).getSingleResult()).longValue();
+        long mine = challengeEntries.countLiveOwnedBy(viewer);
         long savedCount = ((Number) em.createNativeQuery("SELECT count(*) " + visible)
                 .setParameter("viewer", viewer).getSingleResult()).longValue();
         return new SavedEntries(entries, mine, savedCount, next);
@@ -134,43 +127,29 @@ class PostgresReactionRepository implements ReactionRepository {
         replayed = replayComment(viewer, requestId, fingerprint);
         if (replayed != null) return replayed;
         Instant midnight = ChallengeRules.koreanMidnight(now);
-        long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_comments WHERE user_id=:viewer AND created_at>=:since")
-                .setParameter("viewer", viewer).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
-        if (today >= ChallengeRules.DAILY_COMMENTS) throw new ApiException(429, "daily_comment_limit");
+        if (comments.countSince(viewer, midnight) >= ChallengeRules.DAILY_COMMENTS) throw new ApiException(429, "daily_comment_limit");
         UUID id = UUID.randomUUID();
-        em.createNativeQuery("""
-                INSERT INTO entry_comments(id,entry_id,user_id,body,status,request_id,request_fingerprint,created_at)
-                VALUES (:id,:entry,:viewer,:body,'visible',:request,:fingerprint,:now)
-                """).setParameter("id", id).setParameter("entry", entryId).setParameter("viewer", viewer).setParameter("body", body)
-                .setParameter("request", requestId).setParameter("fingerprint", fingerprint)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+        comments.insert(id, entryId, viewer, body, EntryCommentStatus.VISIBLE, requestId, fingerprint, now);
         events.record(target.author(), "entry_commented", viewer, target.challengeId(), entryId, id, "comment:" + id, now);
         return new CommentCreation(commentById(id, viewer), true);
     }
 
     private CommentCreation replayComment(UUID viewer, UUID requestId, String fingerprint) {
-        var previous = NativeTuples.list(em.createNativeQuery(
-                "SELECT id,request_fingerprint FROM entry_comments WHERE user_id=:viewer AND request_id=:request", Tuple.class)
-                .setParameter("viewer", viewer).setParameter("request", requestId));
+        var previous = comments.findReplay(viewer, requestId);
         if (previous.isEmpty()) return null;
-        if (!fingerprint.equals(previous.getFirst().get("request_fingerprint", String.class).strip())) {
+        if (!fingerprint.equals(previous.get().requestFingerprint().strip())) {
             throw new ApiException(422, "request_fingerprint_mismatch");
         }
-        return new CommentCreation(commentById(previous.getFirst().get("id", UUID.class), viewer), false);
+        return new CommentCreation(commentById(previous.get().id(), viewer), false);
     }
 
     @Override @Transactional
     public void deleteComment(UUID viewer, UUID commentId, Instant now) {
         locks.people(viewer, viewer, false);
-        var rows = NativeTuples.list(em.createNativeQuery(
-                "SELECT deleted_at FROM entry_comments WHERE id=:id AND user_id=:viewer FOR UPDATE", Tuple.class)
-                .setParameter("id", commentId).setParameter("viewer", viewer));
-        if (rows.isEmpty()) throw new ApiException(404, "comment_not_found");
-        if (rows.getFirst().get("deleted_at") != null) return;
-        em.createNativeQuery("UPDATE entry_comments SET body=NULL,deleted_at=:now WHERE id=:id")
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", commentId).executeUpdate();
-        em.createNativeQuery("UPDATE entry_reports SET target_text=NULL WHERE target_type='comment' AND target_id=:id")
-                .setParameter("id", commentId).executeUpdate();
+        var locked = comments.lockOwned(commentId, viewer).orElseThrow(() -> new ApiException(404, "comment_not_found"));
+        if (locked.deletedAt() != null) return;
+        comments.purge(commentId, now);
+        reports.purgeCommentCopies(commentId);
     }
 
     @Override @Transactional
@@ -181,14 +160,9 @@ class PostgresReactionRepository implements ReactionRepository {
             var active = NativeTuples.list(em.createNativeQuery("SELECT 1 AS found FROM users WHERE id=:id AND status='active'", Tuple.class)
                     .setParameter("id", target));
             if (!exists || active.isEmpty()) throw new ApiException(404, "user_not_found");
-            em.createNativeQuery("""
-                    INSERT INTO user_blocks(id,blocker_id,blocked_id,created_at) VALUES (:id,:viewer,:target,:now)
-                    ON CONFLICT (blocker_id,blocked_id) DO NOTHING
-                    """).setParameter("id", UUID.randomUUID()).setParameter("viewer", viewer).setParameter("target", target)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+            blocks.insertUnlessBlocked(UUID.randomUUID(), viewer, target, now);
         } else {
-            em.createNativeQuery("DELETE FROM user_blocks WHERE blocker_id=:viewer AND blocked_id=:target")
-                    .setParameter("viewer", viewer).setParameter("target", target).executeUpdate();
+            blocks.remove(viewer, target);
         }
         return new Blocked(target, on);
     }

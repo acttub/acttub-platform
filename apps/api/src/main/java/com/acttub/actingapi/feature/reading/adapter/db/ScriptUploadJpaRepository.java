@@ -1,0 +1,74 @@
+package com.acttub.actingapi.feature.reading.adapter.db;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+import com.acttub.actingapi.feature.reading.schema.ScriptUploadEntity;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
+
+/** {@code script_uploads} 를 읽고 쓰는 문장(apps/api/CONTRACT.md §5-9). */
+interface ScriptUploadJpaRepository extends Repository<ScriptUploadEntity, UUID> {
+
+    /** {@link #find} 가 내는 칸. */
+    interface Found {
+        UUID getId();
+
+        String getObjectKey();
+
+        long getByteSize();
+
+        String getRawText();
+
+        UUID getScriptId();
+
+        UUID getLinkedRequestId();
+    }
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            insert into ScriptUploadEntity (id, userId, objectKey, fileName, byteSize, expiresAt, createdAt, updatedAt)
+            values (:id, :userId, :objectKey, :fileName, :byteSize, :expiresAt, :now, :now)
+            """)
+    int insert(UUID id, UUID userId, String objectKey, String fileName, long byteSize, Instant expiresAt, Instant now);
+
+    /**
+     * 연결 때 원본 행의 글은 비우므로 연결된 원본의 글은 그 대본의 원문에서 읽는다 — 대본은 이 글로 만들었다. 연결한 요청은 그
+     * 대본으로 이어진 나누기 요청 가운데 가장 먼저 만든 것이다.
+     */
+    @Query("""
+            select u.id as id, u.objectKey as objectKey, u.byteSize as byteSize, coalesce(u.rawText, s.rawText) as rawText,
+                   u.scriptId as scriptId,
+                   (select i.requestId from ScriptImportEntity i
+                    where i.uploadId = u.id and i.scriptId = u.scriptId
+                    order by i.createdAt limit 1) as linkedRequestId
+            from ScriptUploadEntity u left join ScriptEntity s on s.id = u.scriptId
+            where u.id = :id and u.userId = :userId
+            """)
+    Optional<Found> find(UUID id, UUID userId);
+
+    @Query("select u.fileName from ScriptUploadEntity u where u.id = :id and u.userId = :userId")
+    Optional<String> fileName(UUID id, UUID userId);
+
+    /**
+     * 그 나누기 요청이 원본 파일로 넣은 것이면 그 파일을 대본에 잇고 뽑은 글을 비운다 — 글은 대본에 있고 원본은 대본과 함께
+     * 지워진다. 이미 이어진 파일은 0행이다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ScriptUploadEntity u set u.scriptId = :scriptId, u.rawText = null, u.updatedAt = :now
+            where u.scriptId is null
+              and u.id = (select i.uploadId from ScriptImportEntity i where i.id = :importId)
+            """)
+    int linkToScript(UUID importId, UUID scriptId, Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ScriptUploadEntity u
+            set u.rawText = :rawText, u.failure = null, u.keptUntil = null, u.updatedAt = :now
+            where u.id = :id
+            """)
+    int saveText(UUID id, String rawText, Instant now);
+}

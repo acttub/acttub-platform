@@ -34,6 +34,7 @@ import {
   type PostIdempotentOptions,
   type PostIdempotentStreamOptions,
 } from '@/lib/api-request';
+import { consentGate } from '@/lib/consent-gate';
 import { newRequestId } from '@/lib/request-id';
 import type { SignupDecision } from '@/lib/consent-entry-submission';
 import type { TransferRequestBody } from '@/lib/guest-transfer';
@@ -47,6 +48,7 @@ import type {
 import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
+import type { ShareFrame, ShareFramePreview, ShareFrameVideo } from '@/lib/challenge/share';
 import type {
   BlockedUser,
   ChallengeDetail,
@@ -160,6 +162,7 @@ const requestClient = createApiRequestClient({
   streamFetchImpl: (url, init) => expoStreamFetch(url, init as never) as unknown as Promise<Response>,
   getLanguage: currentLanguage,
   waitForCredentialReady,
+  waitForConsentGate: consentGate.waitFor,
   getAccessToken,
   getRefreshToken,
   getAuthSessionEpoch,
@@ -1514,6 +1517,27 @@ export const api = {
       `/v2/entries/${encodeURIComponent(entryId)}`,
       {},
       { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 내 참여작에 공유 프레임을 씌운 영상(SOMA-1156). 만드는 중이면 rendering(202)이라 같은 요청을 다시 보낸다.
+   * 실패는 failed 로 한 번 오고 다음 요청이 다시 만든다. 남의 것은 404 다.
+   */
+  requestShareFrame(entryId: string, frame: Exclude<ShareFrame, 'none'>): Promise<ShareFrameVideo> {
+    return request<ShareFrameVideo>(
+      `/v2/entries/${encodeURIComponent(entryId)}/share-frames`,
+      jsonInit({ frame }),
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 공유 프레임 미리보기 그림 주소(서버 영상과 같은 틀). none 은 틀 없이 장면만이다. */
+  getShareFramePreview(entryId: string, frame: ShareFrame): Promise<ShareFramePreview> {
+    return request<ShareFramePreview>(
+      `/v2/entries/${encodeURIComponent(entryId)}/share-frames/${encodeURIComponent(frame)}/preview`,
+      {},
+      { timeoutMs: 30_000 },
     );
   },
 

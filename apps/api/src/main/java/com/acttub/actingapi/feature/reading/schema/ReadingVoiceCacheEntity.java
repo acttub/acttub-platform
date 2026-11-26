@@ -8,7 +8,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "reading_voice_cache")
-class ReadingVoiceCacheEntity {
+public class ReadingVoiceCacheEntity {
     @Id @Column(name = "hash") String hash;
     @Column(name = "model") String model;
     @Column(name = "voice") String voice;

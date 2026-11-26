@@ -55,6 +55,16 @@ public interface EntryRepository {
     void skipMosaic(MosaicJob job, Instant now);
     /** 매시 도는 일: 마감이 지난 챌린지의 집계·확정과 기한 지난 조회수 사건·커서 정리. */
     int settle(Instant now);
+    /**
+     * 공유 프레임(SOMA-1156)을 만들 본인 참여작. 남의 것·삭제된 것·없는 것은 404 entry_not_found, 영상 파일이 파기됐으면 422
+     * video_not_ready 다. 원본은 본인 재생과 같은 규칙으로 고른다 — 모자이크본이 준비됐으면 모자이크본, 아니면 원본.
+     */
+    ShareFrameSource shareFrameSource(UUID owner, UUID entryId);
+    /**
+     * 만든 프레임 영상·미리보기 키를 참여작에 적는다. 그 사이 참여작이 지워졌거나, 영상·계정이 사라졌거나, 원본 고르기가
+     * 바뀌었으면(모자이크를 켜고 끔) 적지 않고 올린 객체를 정리 장부에 올린다. @return 장부 id(커밋 뒤에 한 번 시도할 것)
+     */
+    List<UUID> attachShareFrame(ShareFrameSource source, String key, Instant now);
 
     record OwnVideo(UUID id, String objectKey, int declaredDurationMs, boolean purged) { }
     record NewEntry(UUID videoId, String caption, String visibility, boolean faceMosaic) { }
@@ -63,6 +73,16 @@ public interface EntryRepository {
     String ORIGINAL_DESC = "본인 참여작이고 얼굴 모자이크본이 준비됐을 때만 원본 주소. 그때 playback_url 은 모자이크본이다. 그 밖에는 null";
 
     record MosaicJob(UUID entryId, UUID userId, String objectKey, int attempts) { }
+    /**
+     * 공유 프레임의 재료. {@code sourceKey} 는 프레임을 씌울 영상(모자이크본 또는 원본)이고 {@code renderedKeys} 는 이미 만든
+     * 프레임 영상·미리보기의 키다. {@code faceMosaic} 는 얼굴 가림을 켰는지, {@code mosaic} 는 모자이크본이 준비돼 그것에
+     * 씌우는지다. {@code number} 는 기획팀 챌린지의 회차 번호(시작 순서)이고 회원이 연 챌린지는 null 이다.
+     */
+    record ShareFrameSource(UUID entryId, UUID userId, String objectKey, String sourceKey, boolean faceMosaic, boolean mosaic,
+                            String line, Integer number, String authorName, Instant createdAt, List<String> renderedKeys) {
+        /** 얼굴 가림을 켰는데 모자이크본이 아직 없다 — 원본에 프레임을 씌우지 않는다. */
+        public boolean mosaicPending() { return faceMosaic && !mosaic; }
+    }
     record Replay(String fingerprint, MyEntry entry) { }
     record Creation(MyEntry entry, boolean created) { }
     /** 공유 미리보기에 싣는 장면. 작성자는 담지 않는다. */

@@ -67,6 +67,10 @@ public class ChallengeEntryEntity extends AppGeneratedUuidEntity {
     private Boolean faceVisible;
     @Column(name="face_attempts", nullable=false, insertable=false, updatable=false)
     private int faceAttempts;
+    /** 공유 프레임 영상·미리보기의 객체 키(SOMA-1156). 네이티브 쿼리만 쓰므로 엔티티 저장이 덮어쓰지 않게 읽기 전용이다. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name="share_frame_keys", nullable=false, insertable=false, updatable=false, columnDefinition="text[]")
+    private String[] shareFrameKeys;
     protected ChallengeEntryEntity() { }
     public UUID getChallengeId() { return challengeId; }
     public UUID getUserId() { return userId; }

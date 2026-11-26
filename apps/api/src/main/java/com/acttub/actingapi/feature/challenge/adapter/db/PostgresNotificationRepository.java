@@ -11,11 +11,15 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.NotificationRepository;
 import com.acttub.actingapi.feature.challenge.domain.NotificationRules;
 import com.acttub.actingapi.feature.push.app.PushTarget;
+import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.NotificationPushStage;
+import com.acttub.actingapi.platform.schema.NotificationPushStatus;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,12 +57,19 @@ class PostgresNotificationRepository implements NotificationRepository {
                    WHERE e.id=n.entry_id AND e.user_id=n.user_id AND e.status='hidden_by_report')
             """;
     private final EntityManager em;
+    private final NotificationJpaRepository notifications;
+    private final NotificationPushJpaRepository pushes;
+    private final EntryCommentJpaRepository comments;
+    private final PushTokenRepository pushTokens;
 
     /** 팀 계정 메일(소문자, 쉼표로 이음) — ops 와 같은 ADMIN_OPS_EXCLUDE_EMAILS. 조회 요약에서 팀을 뺀다(SOMA-958). */
     private final String teamEmails;
 
-    PostgresNotificationRepository(EntityManager em, @Value("${ADMIN_OPS_EXCLUDE_EMAILS:}") String teamEmails) {
-        this.em = em;
+    PostgresNotificationRepository(EntityManager em, NotificationJpaRepository notifications, NotificationPushJpaRepository pushes,
+                                   EntryCommentJpaRepository comments, PushTokenRepository pushTokens,
+                                   @Value("${ADMIN_OPS_EXCLUDE_EMAILS:}") String teamEmails) {
+        this.em = em; this.notifications = notifications; this.pushes = pushes; this.comments = comments;
+        this.pushTokens = pushTokens;
         this.teamEmails = java.util.Arrays.stream(teamEmails.split(",")).map(String::trim).map(String::toLowerCase)
                 .filter(email -> !email.isEmpty()).collect(java.util.stream.Collectors.joining(","));
     }
@@ -118,42 +129,24 @@ class PostgresNotificationRepository implements NotificationRepository {
 
     @Override @Transactional
     public void read(UUID user, List<String> groupKeys, Instant before, UUID beforeId, Instant now) {
-        if (groupKeys != null && !groupKeys.isEmpty()) {
-            em.createNativeQuery("""
-                    UPDATE notifications SET read_at=:now WHERE user_id=:user AND group_key IN (:groups) AND read_at IS NULL
-                      AND created_at<=:now
-                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("user", user).setParameter("groups", groupKeys)
-                    .executeUpdate();
-        }
+        if (groupKeys != null && !groupKeys.isEmpty()) notifications.readGroups(user, groupKeys, now);
         if (before != null) {
-            var update = em.createNativeQuery("UPDATE notifications SET read_at=:now WHERE user_id=:user AND read_at IS NULL AND "
-                    + (beforeId == null ? "created_at<=:before" : "(created_at,id)<=(:before,:beforeId)"))
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("user", user)
-                    .setParameter("before", before.atOffset(ZoneOffset.UTC));
-            if (beforeId != null) update.setParameter("beforeId", beforeId);
-            update.executeUpdate();
+            if (beforeId == null) notifications.readUpTo(user, before, now);
+            else notifications.readUpToEvent(user, before, beforeId, now);
         }
     }
 
     @Override @Transactional(readOnly = true)
     public long unread(UUID user, Instant now) {
-        return ((Number) em.createNativeQuery("""
-                SELECT count(DISTINCT n.group_key) FROM notifications n
-                WHERE n.user_id=:user AND n.expires_at>:now AND n.read_at IS NULL AND %s
-                """.formatted(VALID)).setParameter("user", user).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .getSingleResult()).longValue();
+        return notifications.countUnreadGroups(user, now);
     }
 
     @Override @Transactional
     public List<Outgoing> dispatch(Instant now, int limit) {
-        var due = NativeTuples.list(em.createNativeQuery("""
-                SELECT DISTINCT user_id,group_key FROM notifications
-                WHERE push_status='pending' AND push_after<=:now LIMIT :limit
-                """, Tuple.class).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("limit", limit));
         var outgoing = new ArrayList<Outgoing>();
-        for (Tuple group : due) {
-            UUID user = group.get("user_id", UUID.class);
-            String key = group.get("group_key", String.class);
+        for (NotificationJpaRepository.Due group : notifications.dueGroups(now, Limit.of(limit))) {
+            UUID user = group.userId();
+            String key = group.groupKey();
             var rows = NativeTuples.list(em.createNativeQuery("""
                     SELECT n.id,n.kind,n.challenge_id,n.entry_id,n.actor_user_id,(%s) AND (%s) AS deliverable FROM notifications n
                     WHERE n.user_id=:user AND n.group_key=:group AND n.push_status='pending' AND n.push_after<=:now
@@ -172,14 +165,8 @@ class PostgresNotificationRepository implements NotificationRepository {
             var ids = rows.stream().map(row -> row.get("id", UUID.class)).toList();
             boolean claimed = false;
             if (!tokens.isEmpty() && !sendable.isEmpty()) {
-                String stage = NativeTuples.list(em.createNativeQuery(
-                        "SELECT 1 AS sent FROM notification_pushes WHERE group_key=:group AND stage='first'", Tuple.class)
-                        .setParameter("group", key)).isEmpty() ? "first" : "summary";
-                claimed = em.createNativeQuery("""
-                        INSERT INTO notification_pushes(id,group_key,stage,user_id,created_at) VALUES (:id,:group,:stage,:user,:now)
-                        ON CONFLICT (group_key,stage) DO NOTHING
-                        """).setParameter("id", UUID.randomUUID()).setParameter("group", key).setParameter("stage", stage)
-                        .setParameter("user", user).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate() == 1;
+                NotificationPushStage stage = pushes.firstSent(key).isEmpty() ? NotificationPushStage.FIRST : NotificationPushStage.SUMMARY;
+                claimed = pushes.claim(UUID.randomUUID(), key, stage, user, now) == 1;
             }
             if (claimed) {
                 Tuple latest = sendable.getLast();
@@ -199,8 +186,8 @@ class PostgresNotificationRepository implements NotificationRepository {
                         NotificationRules.pushBody(kind, target.korean(), actorName, others), java.util.Map.copyOf(data))));
             }
             var sent = claimed ? sendable.stream().map(row -> row.get("id", UUID.class)).toList() : List.<UUID>of();
-            mark(sent, "attempted", now);
-            mark(ids.stream().filter(id -> !sent.contains(id)).toList(), "skipped", now);
+            mark(sent, NotificationPushStatus.ATTEMPTED, now);
+            mark(ids.stream().filter(id -> !sent.contains(id)).toList(), NotificationPushStatus.SKIPPED, null);
         }
         return outgoing;
     }
@@ -242,11 +229,7 @@ class PostgresNotificationRepository implements NotificationRepository {
                     .map(token -> new PushTarget(token.get("token", String.class), token.get("locale", String.class))).toList();
             if (tokens.isEmpty()) continue;
             String key = NotificationRules.viewDigestKey(owner, now);
-            boolean claimed = em.createNativeQuery("""
-                    INSERT INTO notification_pushes(id,group_key,stage,user_id,created_at) VALUES (:id,:group,'first',:user,:now)
-                    ON CONFLICT (group_key,stage) DO NOTHING
-                    """).setParameter("id", UUID.randomUUID()).setParameter("group", key).setParameter("user", owner)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate() == 1;
+            boolean claimed = pushes.claim(UUID.randomUUID(), key, NotificationPushStage.FIRST, owner, now) == 1;
             if (!claimed) continue;
             // type 을 challenge_notification 으로 두지 않는다 — 지금 앱은 그 푸시를 알림함으로 보내는데 알림함 행이 없다.
             var data = java.util.Map.of("type", NotificationRules.VIEW_DIGEST_KIND, "kind", NotificationRules.VIEW_DIGEST_KIND,
@@ -259,17 +242,14 @@ class PostgresNotificationRepository implements NotificationRepository {
 
     @Override @Transactional
     public void forgetTokens(List<String> tokens) {
-        if (tokens.isEmpty()) return;
-        em.createNativeQuery("DELETE FROM push_tokens WHERE token IN (:tokens)").setParameter("tokens", tokens).executeUpdate();
+        // 토큰 행은 푸시 기능의 것이라 그 기능의 Port 로 지운다(CONTRACT §5-1). 토큰마다 한 문장이다.
+        tokens.forEach(pushTokens::unregister);
     }
 
-    private void mark(List<UUID> ids, String status, Instant now) {
+    /** @param attemptedAt 보낸 사건의 시도 시각. 건너뛴 사건은 {@code null} */
+    private void mark(List<UUID> ids, NotificationPushStatus status, Instant attemptedAt) {
         if (ids.isEmpty()) return;
-        em.createNativeQuery("""
-                UPDATE notifications SET push_status=:status,push_attempted_at=CASE WHEN :status='attempted' THEN CAST(:now AS timestamptz) END
-                WHERE id IN (:ids)
-                """).setParameter("status", status).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("ids", ids)
-                .executeUpdate();
+        notifications.markPush(ids, status, attemptedAt);
     }
 
     private String name(UUID actor) {
@@ -281,9 +261,6 @@ class PostgresNotificationRepository implements NotificationRepository {
     }
 
     private String excerpt(UUID comment) {
-        var rows = NativeTuples.list(em.createNativeQuery(
-                "SELECT left(body,40) AS body FROM entry_comments WHERE id=:id AND deleted_at IS NULL AND status='visible'", Tuple.class)
-                .setParameter("id", comment));
-        return rows.isEmpty() ? null : rows.getFirst().get("body", String.class);
+        return comments.visibleExcerpt(comment).orElse(null);
     }
 }

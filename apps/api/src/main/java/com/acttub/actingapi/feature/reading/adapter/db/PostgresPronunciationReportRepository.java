@@ -2,30 +2,38 @@ package com.acttub.actingapi.feature.reading.adapter.db;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Report;
-import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.ReadingSessionStatus;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * 리딩 발음 보고서 장부이자 채점 작업 큐의 Postgres 구현. 문장은 {@link ReadingPronunciationReportJpaRepository} 에 있다.
+ *
+ * <p>집기는 잠가 읽기({@code for update … skip locked})와 임대 적기 두 문장이다. 잠근 행은 이 트랜잭션이 끝날 때까지 다른 워커가
+ * 건너뛰므로 읽은 시도 수에 1 을 더한 값이 방금 적은 값이다(apps/api/CONTRACT.md §5-9).
+ */
 @Repository
 class PostgresPronunciationReportRepository implements PronunciationReportRepository {
-    private final EntityManager entityManager;
+    private final ReadingPronunciationReportJpaRepository reports;
+    private final ReadingSessionJpaRepository sessions;
+    private final ReadingRecordingJpaRepository recordings;
     private final TransactionTemplate transaction;
     private final ObjectMapper mapper;
 
-    PostgresPronunciationReportRepository(EntityManager entityManager, PlatformTransactionManager transactionManager,
-            ObjectMapper mapper) {
-        this.entityManager = entityManager;
+    PostgresPronunciationReportRepository(ReadingPronunciationReportJpaRepository reports, ReadingSessionJpaRepository sessions,
+            ReadingRecordingJpaRepository recordings, PlatformTransactionManager transactionManager, ObjectMapper mapper) {
+        this.reports = reports;
+        this.sessions = sessions;
+        this.recordings = recordings;
         this.transaction = new TransactionTemplate(transactionManager);
         this.mapper = mapper;
     }
@@ -33,83 +41,41 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
     @Override
     public ReportState findOrEnqueue(UUID userId, UUID sessionId, Instant now) {
         return transaction.execute(status -> {
-            List<Tuple> session = NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT status FROM reading_sessions WHERE id=:sessionId AND user_id=:userId", Tuple.class)
-                    .setParameter("sessionId", sessionId)
-                    .setParameter("userId", userId));
-            if (session.isEmpty()) {
+            ReadingSessionStatus session = sessions.statusOf(sessionId, userId).orElse(null);
+            if (session == null) {
                 return null;
             }
-            if (!"completed".equals(session.get(0).get("status", String.class))) {
+            if (session != ReadingSessionStatus.COMPLETED) {
                 return new ReportState("not_ready", null);
             }
-            entityManager.createNativeQuery("""
-                    INSERT INTO reading_pronunciation_reports(reading_session_id,user_id,status,created_at,updated_at)
-                    VALUES (:sessionId,:userId,'queued',CAST(:now AS timestamptz),CAST(:now AS timestamptz))
-                    ON CONFLICT (reading_session_id) DO NOTHING
-                    """)
-                    .setParameter("sessionId", sessionId)
-                    .setParameter("userId", userId)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
-            Tuple row = NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT status, CAST(result AS text) AS result FROM reading_pronunciation_reports WHERE reading_session_id=:sessionId",
-                    Tuple.class).setParameter("sessionId", sessionId)).get(0);
-            return new ReportState(row.get("status", String.class), row.get("result", String.class));
+            reports.enqueue(UUID.randomUUID(), sessionId, userId, now);
+            ReadingPronunciationReportJpaRepository.State row = reports.state(sessionId).orElseThrow();
+            return new ReportState(row.getStatus(), row.getResult());
         });
     }
 
     @Override
     public Claimed claimNext(UUID leaseToken, Duration lease, int maxAttempts, Instant now) {
         return transaction.execute(status -> {
-            entityManager.createNativeQuery("""
-                    UPDATE reading_pronunciation_reports
-                    SET status='failed', failure='lease_expired', lease_token=NULL, lease_until=NULL, updated_at=CAST(:now AS timestamptz)
-                    WHERE status='running' AND lease_until < CAST(:now AS timestamptz) AND attempt_count >= :maxAttempts
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("maxAttempts", maxAttempts)
-                    .executeUpdate();
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    UPDATE reading_pronunciation_reports
-                    SET status='running', lease_token=:token, lease_until=CAST(:until AS timestamptz),
-                        attempt_count=attempt_count+1, updated_at=CAST(:now AS timestamptz)
-                    WHERE id = (
-                        SELECT id FROM reading_pronunciation_reports
-                        WHERE (status='queued' OR (status='running' AND lease_until < CAST(:now AS timestamptz)))
-                          AND attempt_count < :maxAttempts
-                        ORDER BY created_at
-                        LIMIT 1
-                        FOR UPDATE SKIP LOCKED)
-                    RETURNING id, reading_session_id, attempt_count
-                    """, Tuple.class)
-                    .setParameter("token", leaseToken)
-                    .setParameter("until", now.plus(lease).atOffset(ZoneOffset.UTC))
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("maxAttempts", maxAttempts));
-            if (rows.isEmpty()) {
+            reports.closeExhausted(now, maxAttempts);
+            List<ReadingPronunciationReportJpaRepository.Claimable> next = reports.lockNext(now, maxAttempts, Limit.of(1));
+            if (next.isEmpty()) {
                 return null;
             }
-            Tuple row = rows.get(0);
-            return new Claimed(row.get("id", UUID.class), row.get("reading_session_id", UUID.class),
-                    row.get("attempt_count", Integer.class));
+            ReadingPronunciationReportJpaRepository.Claimable row = next.getFirst();
+            UUID reportId = row.getId();
+            UUID sessionId = row.getReadingSessionId();
+            int attempt = row.getAttemptCount() + 1;
+            reports.lease(reportId, leaseToken, now.plus(lease), now);
+            return new Claimed(reportId, sessionId, attempt);
         });
     }
 
     @Override
     public List<LineSource> lines(UUID sessionId) {
-        return transaction.execute(status -> NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT l.ordinal AS line_no,
-                       COALESCE(regexp_replace(l.speech,'⟦[a-z][a-z]⟧',' ','g'),l.text) AS text,
-                       r.transcript, r.object_key, r.content_type, r.duration_ms
-                FROM reading_recordings r
-                JOIN script_lines l ON l.id=r.line_id
-                WHERE r.reading_session_id=:sessionId
-                ORDER BY l.ordinal
-                """, Tuple.class).setParameter("sessionId", sessionId)).stream()
-                .map(row -> new LineSource(row.get("line_no", Integer.class), row.get("text", String.class),
-                        row.get("transcript", String.class), row.get("object_key", String.class),
-                        row.get("content_type", String.class), row.get("duration_ms", Integer.class)))
+        return transaction.execute(status -> recordings.spokenLines(sessionId).stream()
+                .map(row -> new LineSource(row.getLineNo(), row.getText(), row.getTranscript(), row.getObjectKey(),
+                        row.getContentType(), row.getDurationMs()))
                 .toList());
     }
 
@@ -121,35 +87,14 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
         } catch (JacksonException failure) {
             throw new IllegalStateException(failure);
         }
-        Integer updated = transaction.execute(tx -> entityManager.createNativeQuery("""
-                UPDATE reading_pronunciation_reports
-                SET status=:status, model_version=:model, result=CAST(:result AS jsonb), failure=NULL,
-                    lease_token=NULL, lease_until=NULL, updated_at=CAST(:now AS timestamptz)
-                WHERE id=:id AND lease_token=:token AND status='running'
-                """)
-                .setParameter("status", status)
-                .setParameter("model", modelVersion)
-                .setParameter("result", json)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("id", reportId)
-                .setParameter("token", leaseToken)
-                .executeUpdate());
+        Integer updated = transaction.execute(tx -> reports.complete(reportId, leaseToken, status, modelVersion, json, now));
         return updated != null && updated == 1;
     }
 
     @Override
     public boolean fail(UUID reportId, UUID leaseToken, String failure, boolean retry, Instant now) {
-        Integer updated = transaction.execute(tx -> entityManager.createNativeQuery("""
-                UPDATE reading_pronunciation_reports
-                SET status=:status, failure=:failure, lease_token=NULL, lease_until=NULL, updated_at=CAST(:now AS timestamptz)
-                WHERE id=:id AND lease_token=:token AND status='running'
-                """)
-                .setParameter("status", retry ? "queued" : "failed")
-                .setParameter("failure", failure)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("id", reportId)
-                .setParameter("token", leaseToken)
-                .executeUpdate());
+        Integer updated = transaction.execute(tx ->
+                reports.fail(reportId, leaseToken, retry ? "queued" : "failed", failure, now));
         return updated != null && updated == 1;
     }
 }

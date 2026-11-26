@@ -64,8 +64,23 @@ DB 테이블마다 주인이 하나다. 주인은 `feature/<이름>`이거나 `p
 Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규칙대로 주인의 `app` 층을 본다.
 
 `TableOwnerTest`가 아래 표를 읽어 `apps/api/src/main`의 SQL 문자열·JPQL·`@Table`과 대조한다. 테이블을 새로 만들면 이 표에도
-주인을 적는다. 지금 어긋난 곳은 허용 목록 `apps/api/src/test/resources/table-owner-exceptions.txt`에 있다. 이 목록은 줄을
-빼기만 한다. 어긋난 곳을 고쳤으면 그 줄과 테스트의 상한을 함께 줄인다.
+주인을 적는다. 지금 어긋난 곳은 `apps/api/src/test/resources/`의 두 목록에 있고, 줄 하나는 (파일, 테이블) 하나다.
+
+- `table-owner-write-exceptions.txt`: 주인이 아닌 기능이 그 테이블에 **쓰는** 곳. 쓰기는 주인만 한다([ADR-040](ADR.md)). 이 목록은
+  옮기는 중인 것이고 0이 될 때까지 줄기만 한다.
+- `table-owner-read-only.txt`: 주인이 아닌 기능이 그 테이블을 **읽기만** 하는 곳. 줄을 더하지 않는다. 다른 기능의 테이블 한 행을
+  잠그는 조회와 한 기능의 테이블만 읽는 조회는 그 기능의 Port로 옮기며 줄인다. 자기 테이블과 남의 테이블을 한 문장으로 읽어야
+  하는 조회와 운영 지표는 남는다.
+
+한 파일이 그 테이블을 쓰기도 하고 읽기도 하면 쓰기 목록의 줄이다. 쓰는 문장을 주인에게 옮기고 읽는 문장만 남으면 그 줄을 읽기
+전용 목록으로 옮긴다. 읽기 전용 목록에 새로 생기는 줄은 이렇게 내려온 줄뿐이다. 무엇을 쓰기로 세는지(잠금, 변수로 붙이는 표
+이름)와 두 목록의 상한은 `TableOwnerTest`에 있다. 어긋난 곳을 고쳤으면 그 줄과 테스트의 상한을 함께 줄인다.
+
+한 계정의 자료를 여러 기능의 테이블에서 고치는 일(탈퇴, 만 14세 미만 계정 닫기)은 각 기능이 `feature/auth/app`의
+`AccountErasure`를 구현해 자기 테이블을 고친다. 계정을 닫는 순서는 `AccountErasureSequence`와 `AccountErasureStep`에만 있다.
+구현은 트랜잭션을 열지 않는다(`AccountErasureStructureTest`, `AccountErasureRollbackIT`). 테이블마다의 결과와 문장의 순서는
+`AccountLifecycleFreezeIT`가 기준 파일(`apps/api/src/test/resources/frozen/account-lifecycle/`)로 고정한다. 테이블을 새로 만들어
+사람을 가리키게 하면 그 테스트의 심는 자료에도 더한다.
 
 | 주인 | 테이블 |
 |---|---|
@@ -74,9 +89,9 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/consent` | `consent_documents`, `user_consents` |
 | `feature/transfer` | `guest_transfer_codes` |
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
-| `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends`, `evening_reminder_sends` |
+| `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends` |
 | `feature/video` | `videos`, `video_transcripts`, `upload_intents` |
-| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `handoff_confirmations`, `practice_reports`, `reports` |
+| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports` |
 | `feature/analysis` | `analyses`, `summaries`, `transcripts`, `anomalies` |
 | `feature/coach` | `coach_conversations`, `coach_messages`, `coach_notes`, `note_ratings`, `actor_journals` |
 | `feature/memory` | `actor_memories`, `actor_memory_entries` |

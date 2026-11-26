@@ -31,18 +31,28 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>객체 키를 잃는 자리(확정 실패·시한 만료·삭제·파기)는 <b>같은 트랜잭션에서</b> 장부에 남긴다 — 따로
  * 커밋되면 "키는 사라졌는데 장부에는 없는" 객체가 생긴다(CONTRACT §6-8).
+ *
+ * <p>{@code videos}·{@code video_transcripts} 만 쓰는 문장은 Spring Data·JPQL·HQL 이다. 은퇴한 예약 장부({@code upload_intents},
+ * 매핑을 내렸다 — CONTRACT §5-1)와 다른 기능의 표({@code users} 잠금, 목록·상세의 {@code practices}·{@code challenge_entries}
+ * 세기, 포스터 고르기)를 쓰는 문장은 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 class PostgresVideoRepository implements VideoRepository {
     private final EntityManager entityManager;
+    private final VideoJpaRepository videos;
+    private final VideoTranscriptJpaRepository transcripts;
     private final TransactionTemplate transaction;
     private final VideoObjectCleanup cleanup;
 
     PostgresVideoRepository(
             EntityManager entityManager,
+            VideoJpaRepository videos,
+            VideoTranscriptJpaRepository transcripts,
             PlatformTransactionManager transactionManager,
             VideoObjectCleanup cleanup) {
         this.entityManager = entityManager;
+        this.videos = videos;
+        this.transcripts = transcripts;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanup = cleanup;
     }
@@ -155,18 +165,8 @@ class PostgresVideoRepository implements VideoRepository {
             }
             UUID videoId = UUID.randomUUID();
             Integer durationMs = intent.get("duration_ms", Integer.class);
-            entityManager.createNativeQuery("""
-                    INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms,created_at,updated_at)
-                    VALUES (:id,:userId,:objectKey,:contentType,:byteSize,:durationMs,:now,:now)
-                    """)
-                    .setParameter("id", videoId)
-                    .setParameter("userId", userId)
-                    .setParameter("objectKey", intent.get("object_key", String.class))
-                    .setParameter("contentType", intent.get("mime_type", String.class))
-                    .setParameter("byteSize", declared)
-                    .setParameter("durationMs", durationMs == null ? 0 : durationMs)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .executeUpdate();
+            videos.insert(videoId, userId, intent.get("object_key", String.class), intent.get("mime_type", String.class),
+                    declared, durationMs == null ? 0 : durationMs, now);
             entityManager.createNativeQuery("""
                     UPDATE upload_intents
                     SET status='finalized',etag=:etag,finalized_at=:now,video_id=:videoId
@@ -286,17 +286,7 @@ class PostgresVideoRepository implements VideoRepository {
     @Override
     public VideoView setFavorite(UUID userId, UUID videoId, boolean favorite, Instant now) {
         return transaction.execute(tx -> {
-            int changed = entityManager.createNativeQuery("""
-                    UPDATE videos
-                    SET favorite=:favorite,updated_at=:now
-                    WHERE id=:videoId
-                      AND user_id=:userId
-                    """)
-                    .setParameter("favorite", favorite)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("videoId", videoId)
-                    .setParameter("userId", userId)
-                    .executeUpdate();
+            int changed = videos.setFavorite(userId, videoId, favorite, now);
             return changed == 0 ? null : find(userId, videoId);
         });
     }
@@ -304,23 +294,19 @@ class PostgresVideoRepository implements VideoRepository {
     @Override
     public Removed delete(UUID userId, UUID videoId, Instant now) {
         return transaction.execute(tx -> {
-            Tuple locked = lock(userId, videoId);
+            VideoJpaRepository.LockedVideo locked = lock(userId, videoId);
             if (locked == null) {
                 return new Removed(RemoveOutcome.NOT_FOUND, null, List.of());
             }
             if (referenced(videoId)) {
                 return new Removed(RemoveOutcome.IN_USE, null, List.of());
             }
-            boolean purged = locked.get("purged_at", Instant.class) != null;
-            entityManager.createNativeQuery("DELETE FROM video_transcripts WHERE video_id=:videoId")
-                    .setParameter("videoId", videoId)
-                    .executeUpdate();
+            boolean purged = locked.purgedAt() != null;
+            transcripts.deleteByVideo(videoId);
             entityManager.createNativeQuery("UPDATE upload_intents SET video_id=NULL WHERE video_id=:videoId")
                     .setParameter("videoId", videoId)
                     .executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM videos WHERE id=:videoId")
-                    .setParameter("videoId", videoId)
-                    .executeUpdate();
+            videos.delete(videoId);
             // 이미 파기된 영상에는 지울 객체가 없다(포스터도 파기 때 함께 갔다).
             List<UUID> scheduled = purged
                     ? List.of()
@@ -332,30 +318,24 @@ class PostgresVideoRepository implements VideoRepository {
     @Override
     public Removed purgeFile(UUID userId, UUID videoId, Instant now) {
         return transaction.execute(tx -> {
-            Tuple locked = lock(userId, videoId);
+            VideoJpaRepository.LockedVideo locked = lock(userId, videoId);
             if (locked == null) {
                 return new Removed(RemoveOutcome.NOT_FOUND, null, List.of());
             }
-            if (locked.get("purged_at", Instant.class) != null) {
+            if (locked.purgedAt() != null) {
                 return new Removed(RemoveOutcome.PURGED, find(userId, videoId), List.of());
             }
-            entityManager.createNativeQuery("DELETE FROM video_transcripts WHERE video_id=:videoId")
-                    .setParameter("videoId", videoId)
-                    .executeUpdate();
-            entityManager.createNativeQuery("""
-                    UPDATE videos
-                    SET purged_at=:now,updated_at=:now
-                    WHERE id=:videoId
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("videoId", videoId)
-                    .executeUpdate();
+            transcripts.deleteByVideo(videoId);
+            videos.markPurged(videoId, now);
             // 이 영상으로 낸 챌린지 참여작의 얼굴 모자이크본도 영상에서 나온 것이라 함께 지운다. 참여작 행은 잠그지 않는다
             // (참여작 수정은 참여작 → 영상 순서로 잡는다). 파일이 파기된 참여작은 재생 주소가 없으므로 남은 키는 쓰이지 않고,
-            // 이 뒤에 붙으려는 모자이크본은 영상 행을 잡아 파기를 보고 스스로 지운다.
+            // 이 뒤에 붙으려는 모자이크본은 영상 행을 잡아 파기를 보고 스스로 지운다. 공유 프레임 영상·미리보기(SOMA-1156)도
+            // 같다 — 목록은 비우지 않는다(파기된 참여작에는 프레임을 내주지 않는다).
             List<String> keys = new java.util.ArrayList<>(objectKeys(locked));
             keys.addAll(NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT mosaic_key FROM challenge_entries WHERE video_id=:videoId AND mosaic_key IS NOT NULL
+                    UNION
+                    SELECT unnest(share_frame_keys) FROM challenge_entries WHERE video_id=:videoId
                     """, Tuple.class)
                     .setParameter("videoId", videoId)).stream()
                     .map(row -> row.get("mosaic_key", String.class))
@@ -411,43 +391,24 @@ class PostgresVideoRepository implements VideoRepository {
             List<Tuple> owner = NativeTuples.list(entityManager.createNativeQuery(
                     "SELECT status FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
                     .setParameter("userId", job.userId()));
-            List<Tuple> video = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT purged_at
-                    FROM videos
-                    WHERE id=:videoId
-                      AND user_id=:userId
-                    FOR UPDATE
-                    """, Tuple.class)
-                    .setParameter("videoId", job.videoId())
-                    .setParameter("userId", job.userId()));
+            VideoJpaRepository.LockedVideo video = lock(job.userId(), job.videoId());
             boolean attachable = !owner.isEmpty()
                     && "active".equals(owner.getFirst().get("status", String.class))
-                    && !video.isEmpty()
-                    && video.getFirst().get("purged_at", Instant.class) == null;
+                    && video != null
+                    && video.purgedAt() == null;
             if (!attachable) {
                 // 지워졌거나 파기됐거나 주인이 바뀌었거나 탈퇴했다 — 늦게 만든 포스터를 남기지 않는다. 주인이 바뀐
                 // 영상은 포스터가 비어 있으니 다음 주기에 다시 만든다.
                 return List.of(cleanup.scheduleObjectDelete(job.userId(), List.of(posterKey), now, now));
             }
-            entityManager.createNativeQuery("UPDATE videos SET poster_key=:posterKey WHERE id=:videoId")
-                    .setParameter("posterKey", posterKey)
-                    .setParameter("videoId", job.videoId())
-                    .executeUpdate();
+            videos.attachPoster(job.videoId(), posterKey);
             return List.of();
         });
     }
 
-    /** 영상 행을 잡는다 — 회차 시작(PA2)·삭제·파기가 같은 행에서 줄을 선다. 없거나 남의 것이면 {@code null}. */
-    private Tuple lock(UUID userId, UUID videoId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,object_key,poster_key,purged_at
-                FROM videos
-                WHERE id=:videoId
-                  AND user_id=:userId
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("videoId", videoId)
-                .setParameter("userId", userId));
+    /** 영상 행을 잡는다 — 회차 시작(PA2)·삭제·파기·포스터 붙이기가 같은 행에서 줄을 선다. 없거나 남의 것이면 {@code null}. */
+    private VideoJpaRepository.LockedVideo lock(UUID userId, UUID videoId) {
+        List<VideoJpaRepository.LockedVideo> rows = videos.lockOwned(videoId, userId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
@@ -455,9 +416,9 @@ class PostgresVideoRepository implements VideoRepository {
      * 영상이 가진 객체 — 영상과, 있으면 포스터다. 포스터 키는 파기 뒤에도 행에 남지만({@code object_key} 와 같다)
      * 객체는 여기서 함께 장부로 간다.
      */
-    private static List<String> objectKeys(Tuple locked) {
-        String poster = locked.get("poster_key", String.class);
-        String video = locked.get("object_key", String.class);
+    private static List<String> objectKeys(VideoJpaRepository.LockedVideo locked) {
+        String poster = locked.posterKey();
+        String video = locked.objectKey();
         return poster == null ? List.of(video) : List.of(video, poster);
     }
 
@@ -472,15 +433,7 @@ class PostgresVideoRepository implements VideoRepository {
 
     /** 파기되지 않은 영상의 바이트 합 — 총량은 이것으로 센다(practice.record). */
     private long storedBytes(UUID userId) {
-        Number sum = (Number) entityManager.createNativeQuery("""
-                SELECT COALESCE(sum(byte_size),0) AS stored
-                FROM videos
-                WHERE user_id=:userId
-                  AND purged_at IS NULL
-                """)
-                .setParameter("userId", userId)
-                .getSingleResult();
-        return sum.longValue();
+        return videos.storedBytes(userId);
     }
 
     /** 예약을 시한 지남으로 닫고 미확정 객체의 삭제를 <b>같은 트랜잭션에서</b> 장부에 올린다. */

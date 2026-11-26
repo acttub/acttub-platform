@@ -3,17 +3,20 @@ package com.acttub.actingapi.feature.challenge.adapter.db;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.ReportRepository;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
-import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.ChallengeEntryStatus;
+import com.acttub.actingapi.platform.schema.EntryReportReason;
+import com.acttub.actingapi.platform.schema.EntryReportResolution;
+import com.acttub.actingapi.platform.schema.EntryReportStatus;
+import com.acttub.actingapi.platform.schema.EntryReportTarget;
+import com.acttub.actingapi.platform.schema.PgEnum;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,61 +28,60 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 class PostgresEntryReportRepository implements ReportRepository {
     private static final int PAGE = 50;
-    private final EntityManager em;
+    private static final EntryReportTarget.JpaConverter TARGETS = new EntryReportTarget.JpaConverter();
+    private static final EntryReportReason.JpaConverter REASONS = new EntryReportReason.JpaConverter();
+    private static final EntryReportStatus.JpaConverter STATUSES = new EntryReportStatus.JpaConverter();
+    private static final EntryReportResolution.JpaConverter RESOLUTIONS = new EntryReportResolution.JpaConverter();
+    private final EntryReportJpaRepository reports;
+    private final ChallengeEntryJpaRepository entries;
+    private final EntryCommentJpaRepository comments;
+    private final ChallengeJpaRepository challenges;
     private final EntryLocks locks;
     private final ChallengeSettlement settlement;
 
-    PostgresEntryReportRepository(EntityManager em, EntryLocks locks, ChallengeSettlement settlement) {
-        this.em = em; this.locks = locks; this.settlement = settlement;
+    PostgresEntryReportRepository(EntryReportJpaRepository reports, ChallengeEntryJpaRepository entries,
+                                  EntryCommentJpaRepository comments, ChallengeJpaRepository challenges, EntryLocks locks,
+                                  ChallengeSettlement settlement) {
+        this.reports = reports; this.entries = entries; this.comments = comments; this.challenges = challenges;
+        this.locks = locks; this.settlement = settlement;
     }
 
     @Override @Transactional
     public Filed file(UUID reporter, UUID requestId, String fingerprint, NewReport report, Instant now) {
         // 사람 행은 대상 작성자와 함께 id 순서로 잠가야 하므로(EntryLocks) 먼저 잠그지 않고 재전송을 본 뒤, 대상을 잠그고
         // 나서 재전송·하루 한도를 다시 본다.
-        Filed prior = prior(reporter, requestId, fingerprint, report);
+        EntryReportTarget type = TARGETS.convertToEntityAttribute(report.targetType());
+        Filed prior = prior(reporter, requestId, fingerprint, type, report.targetId());
         if (prior != null) return prior;
         UUID id = UUID.randomUUID();
         String text;
-        switch (report.targetType()) {
-            case "entry" -> {
+        switch (type) {
+            case ENTRY -> {
                 var target = locks.entry(reporter, report.targetId(), now, true, false);
-                if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
+                if ((prior = guarded(reporter, requestId, fingerprint, type, report.targetId(), now)) != null) return prior;
                 if (reporter.equals(target.author())) throw new ApiException(422, "self_report");
                 text = target.caption();
-                insert(id, reporter, requestId, fingerprint, report, target.contentVersion(), text, now);
-                if (hidesEntry(report.targetId())) {
-                    em.createNativeQuery("UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'")
-                            .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", report.targetId()).executeUpdate();
-                }
+                insert(id, reporter, requestId, fingerprint, type, report, target.contentVersion(), text, now);
+                if (hidesEntry(report.targetId())) entries.hideByReport(report.targetId(), now);
             }
-            case "comment" -> {
+            case COMMENT -> {
                 var comment = lockVisibleComment(reporter, report.targetId());
-                if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
-                if (reporter.equals(comment.get("user_id", UUID.class))) throw new ApiException(422, "self_report");
-                text = comment.get("body", String.class);
-                insert(id, reporter, requestId, fingerprint, report, 1, text, now);
-                em.createNativeQuery("UPDATE entry_comments SET status='hidden' WHERE id=:id")
-                        .setParameter("id", report.targetId()).executeUpdate();
+                if ((prior = guarded(reporter, requestId, fingerprint, type, report.targetId(), now)) != null) return prior;
+                if (reporter.equals(comment.userId())) throw new ApiException(422, "self_report");
+                text = comment.body();
+                insert(id, reporter, requestId, fingerprint, type, report, 1, text, now);
+                comments.hide(report.targetId());
             }
             default -> {
                 locks.people(reporter, reporter, false);
-                var challenge = NativeTuples.list(em.createNativeQuery("""
-                        SELECT host_user_id,line FROM challenges
-                        WHERE id=:id AND deleted_at IS NULL AND moderation='visible' AND starts_at<=:now FOR UPDATE
-                        """, Tuple.class).setParameter("id", report.targetId()).setParameter("now", now.atOffset(ZoneOffset.UTC)));
-                if (challenge.isEmpty()) throw new ApiException(404, "challenge_not_found");
-                if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
-                if (reporter.equals(challenge.getFirst().get("host_user_id", UUID.class))) throw new ApiException(422, "self_report");
-                text = challenge.getFirst().get("line", String.class);
-                insert(id, reporter, requestId, fingerprint, report, 1, text, now);
-                long reporters = ((Number) em.createNativeQuery("""
-                        SELECT count(DISTINCT reporter_id) FROM entry_reports
-                        WHERE target_type='challenge' AND target_id=:id AND status='received'
-                        """).setParameter("id", report.targetId()).getSingleResult()).longValue();
-                if (reporters >= ChallengeRules.CHALLENGE_REPORT_THRESHOLD) {
-                    em.createNativeQuery("UPDATE challenges SET moderation='review' WHERE id=:id")
-                            .setParameter("id", report.targetId()).executeUpdate();
+                var challenge = challenges.lockReportable(report.targetId(), now)
+                        .orElseThrow(() -> new ApiException(404, "challenge_not_found"));
+                if ((prior = guarded(reporter, requestId, fingerprint, type, report.targetId(), now)) != null) return prior;
+                if (reporter.equals(challenge.hostUserId())) throw new ApiException(422, "self_report");
+                text = challenge.line();
+                insert(id, reporter, requestId, fingerprint, type, report, 1, text, now);
+                if (reports.countOpenReporters(type, report.targetId()) >= ChallengeRules.CHALLENGE_REPORT_THRESHOLD) {
+                    challenges.sendToReview(report.targetId());
                 }
             }
         }
@@ -92,42 +94,30 @@ class PostgresEntryReportRepository implements ReportRepository {
      * 내려가지 않게. 검사 전·실패·애매 판정은 지금처럼 신고 하나에 숨긴다.
      */
     private boolean hidesEntry(UUID entryId) {
-        String moderation = (String) em.createNativeQuery("SELECT moderation_status FROM challenge_entries WHERE id=:id")
-                .setParameter("id", entryId).getSingleResult();
-        if (!"passed".equals(moderation)) return true;
-        long reporters = ((Number) em.createNativeQuery("""
-                SELECT count(DISTINCT reporter_id) FROM entry_reports
-                WHERE target_type='entry' AND target_id=:id AND status='received' AND source='user'
-                """).setParameter("id", entryId).getSingleResult()).longValue();
-        return reporters >= ChallengeRules.PASSED_ENTRY_REPORT_THRESHOLD;
+        if (!"passed".equals(entries.findModerationStatus(entryId).orElse(null))) return true;
+        return reports.countOpenUserReporters(EntryReportTarget.ENTRY, entryId) >= ChallengeRules.PASSED_ENTRY_REPORT_THRESHOLD;
     }
 
     /** 같은 요청의 재전송, 또는 같은 사람의 같은 대상 재신고(처리 뒤라도 다시 숨기지 않는다). 없으면 {@code null}. */
-    private Filed prior(UUID reporter, UUID requestId, String fingerprint, NewReport report) {
-        var byRequest = NativeTuples.list(em.createNativeQuery(
-                "SELECT id,status,request_fingerprint FROM entry_reports WHERE reporter_id=:reporter AND request_id=:request", Tuple.class)
-                .setParameter("reporter", reporter).setParameter("request", requestId));
+    private Filed prior(UUID reporter, UUID requestId, String fingerprint, EntryReportTarget type, UUID targetId) {
+        var byRequest = reports.findByRequest(reporter, requestId);
         if (!byRequest.isEmpty()) {
-            if (!fingerprint.equals(byRequest.getFirst().get("request_fingerprint", String.class).strip())) {
+            if (!fingerprint.equals(byRequest.getFirst().requestFingerprint().strip())) {
                 throw new ApiException(422, "request_fingerprint_mismatch");
             }
             return new Filed(receipt(byRequest.getFirst()), false);
         }
-        var byTarget = NativeTuples.list(em.createNativeQuery("""
-                SELECT id,status FROM entry_reports WHERE target_type=:type AND target_id=:target AND reporter_id=:reporter
-                """, Tuple.class).setParameter("type", report.targetType()).setParameter("target", report.targetId())
-                .setParameter("reporter", reporter));
+        var byTarget = reports.findByTarget(type, targetId, reporter);
         return byTarget.isEmpty() ? null : new Filed(receipt(byTarget.getFirst()), false);
     }
 
     /** 신고자 행을 잠근 뒤: 그 사이 들어온 같은 요청을 먼저 돌려주고, 아니면 하루 한도를 본다. */
-    private Filed guarded(UUID reporter, UUID requestId, String fingerprint, NewReport report, Instant now) {
-        Filed prior = prior(reporter, requestId, fingerprint, report);
+    private Filed guarded(UUID reporter, UUID requestId, String fingerprint, EntryReportTarget type, UUID targetId, Instant now) {
+        Filed prior = prior(reporter, requestId, fingerprint, type, targetId);
         if (prior != null) return prior;
-        Instant midnight = ChallengeRules.koreanMidnight(now);
-        long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_reports WHERE reporter_id=:reporter AND created_at>=:since")
-                .setParameter("reporter", reporter).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
-        if (today >= ChallengeRules.DAILY_REPORTS) throw new ApiException(429, "daily_report_limit");
+        if (reports.countSince(reporter, ChallengeRules.koreanMidnight(now)) >= ChallengeRules.DAILY_REPORTS) {
+            throw new ApiException(429, "daily_report_limit");
+        }
         return null;
     }
 
@@ -145,15 +135,14 @@ class PostgresEntryReportRepository implements ReportRepository {
                 throw ApiValidationException.valueError(List.of("query", "cursor"), "Value error, invalid cursor", cursor);
             }
         }
-        var query = em.createNativeQuery(ADMIN + " WHERE r.status=:status" + (at == null ? "" : " AND (r.created_at,r.id)>(:at,:after)")
-                + " ORDER BY r.created_at,r.id", Tuple.class).setParameter("status", status).setMaxResults(PAGE + 1);
-        if (at != null) query.setParameter("at", at.atOffset(ZoneOffset.UTC)).setParameter("after", after);
-        var rows = NativeTuples.list(query);
+        EntryReportStatus wanted = STATUSES.convertToEntityAttribute(status);
+        var rows = at == null ? reports.adminPage(wanted, Limit.of(PAGE + 1))
+                : reports.adminPageAfter(wanted, at, after, Limit.of(PAGE + 1));
         boolean more = rows.size() > PAGE;
-        var reports = rows.subList(0, Math.min(rows.size(), PAGE)).stream().map(PostgresEntryReportRepository::admin).toList();
-        String next = more ? Base64.getUrlEncoder().withoutPadding().encodeToString((status + "|" + reports.getLast().createdAt() + "|"
-                + reports.getLast().id()).getBytes(StandardCharsets.UTF_8)) : null;
-        return new AdminReportPage(reports, next);
+        var page = rows.subList(0, Math.min(rows.size(), PAGE)).stream().map(PostgresEntryReportRepository::admin).toList();
+        String next = more ? Base64.getUrlEncoder().withoutPadding().encodeToString((status + "|" + page.getLast().createdAt() + "|"
+                + page.getLast().id()).getBytes(StandardCharsets.UTF_8)) : null;
+        return new AdminReportPage(page, next);
     }
 
     /**
@@ -163,123 +152,83 @@ class PostgresEntryReportRepository implements ReportRepository {
      */
     @Override @Transactional
     public AdminReport resolve(UUID id, String resolution, String reviewer, String note, Instant now) {
-        var found = NativeTuples.list(em.createNativeQuery("SELECT target_type,target_id,status FROM entry_reports WHERE id=:id", Tuple.class)
-                .setParameter("id", id));
-        if (found.isEmpty()) throw new ApiException(404, "report_not_found");
-        String type = found.getFirst().get("target_type", String.class);
-        UUID target = found.getFirst().get("target_id", UUID.class);
+        var found = reports.findTarget(id).orElseThrow(() -> new ApiException(404, "report_not_found"));
+        EntryReportTarget type = found.targetType();
+        UUID target = found.targetId();
         UUID challenge = switch (type) {
-            case "entry" -> lockEntryTarget(target, now);
-            case "comment" -> { lockRow("entry_comments", target); yield null; }
-            default -> { lockRow("challenges", target); yield target; }
+            case ENTRY -> lockEntryTarget(target, now);
+            case COMMENT -> { comments.lockRow(target); yield null; }
+            case CHALLENGE -> { challenges.lockRow(target); yield target; }
         };
-        var report = NativeTuples.list(em.createNativeQuery("SELECT status FROM entry_reports WHERE id=:id FOR UPDATE", Tuple.class)
-                .setParameter("id", id)).getFirst();
-        if (!"received".equals(report.get("status", String.class))) throw new ApiException(422, "report_already_reviewed");
-        em.createNativeQuery("""
-                UPDATE entry_reports SET status='reviewed',resolution=:resolution,reviewed_by=:reviewer,reviewed_at=:now,
-                    resolution_note=:note WHERE id=:id
-                """).setParameter("resolution", resolution).setParameter("reviewer", reviewer)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("note", note).setParameter("id", id).executeUpdate();
-        long open = ((Number) em.createNativeQuery(
-                "SELECT count(*) FROM entry_reports WHERE target_type=:type AND target_id=:target AND status='received'")
-                .setParameter("type", type).setParameter("target", target).getSingleResult()).longValue();
+        if (reports.lockStatus(id).orElseThrow() != EntryReportStatus.RECEIVED) throw new ApiException(422, "report_already_reviewed");
+        EntryReportResolution decided = RESOLUTIONS.convertToEntityAttribute(resolution);
+        reports.review(id, decided, reviewer, note, now);
+        long open = reports.countOpen(type, target);
         // kept_hidden 은 지금 상태(참여작·댓글의 숨김, 챌린지의 검토)를 그대로 둔다. 챌린지를 아예 내릴지는 운영이
         // moderation 경로로 따로 정한다. 참여작은 아직 보이는 채 올라온 것(AI 확인 필요·검사 실패, 검사 통과 뒤 신고 하나)도
         // 있으므로 숨김 유지는 숨긴다.
-        if ("kept_hidden".equals(resolution) && "entry".equals(type)) {
-            em.createNativeQuery("UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'")
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", target).executeUpdate();
-        }
-        if (!"kept_hidden".equals(resolution) && open == 0) {
-            String release = switch (type) {
+        if (decided == EntryReportResolution.KEPT_HIDDEN && type == EntryReportTarget.ENTRY) entries.hideByReport(target, now);
+        if (decided != EntryReportResolution.KEPT_HIDDEN && open == 0) {
+            switch (type) {
                 // 운영이 풀었으면 사람이 본 것이다 — AI 판정(숨김·확인 필요·실패)은 통과로 바꾼다.
-                case "entry" -> """
-                        UPDATE challenge_entries SET status=CASE WHEN status='hidden_by_report' THEN 'visible' ELSE status END,
-                            moderation_status=CASE WHEN moderation_status IN ('flagged','review','failed') THEN 'passed'
-                                                   ELSE moderation_status END
-                        WHERE id=:id AND status<>'deleted'
-                        """;
-                case "comment" -> "UPDATE entry_comments SET status='visible' WHERE id=:id AND status='hidden'";
-                default -> "UPDATE challenges SET moderation='visible' WHERE id=:id AND moderation='review'";
-            };
-            em.createNativeQuery(release).setParameter("id", target).executeUpdate();
+                case ENTRY -> entries.releaseFromReports(target, ChallengeEntryStatus.VISIBLE);
+                case COMMENT -> comments.unhide(target);
+                case CHALLENGE -> challenges.releaseFromReview(target);
+            }
         }
         if (challenge != null) settlement.settle(challenge, now);
-        return admin(NativeTuples.list(em.createNativeQuery(ADMIN + " WHERE r.id=:id", Tuple.class).setParameter("id", id)).getFirst());
+        return admin(reports.adminRow(id).orElseThrow());
     }
 
-    private void insert(UUID id, UUID reporter, UUID requestId, String fingerprint, NewReport report, int version, String text,
-                        Instant now) {
-        em.createNativeQuery("""
-                INSERT INTO entry_reports(id,target_type,target_id,reporter_id,reason,note,status,target_version,target_text,
-                    request_id,request_fingerprint,created_at)
-                VALUES (:id,:type,:target,:reporter,:reason,:note,'received',:version,:text,:request,:fingerprint,:now)
-                """).setParameter("id", id).setParameter("type", report.targetType()).setParameter("target", report.targetId())
-                .setParameter("reporter", reporter).setParameter("reason", report.reason()).setParameter("note", report.note())
-                .setParameter("version", version).setParameter("text", text).setParameter("request", requestId)
-                .setParameter("fingerprint", fingerprint).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+    private void insert(UUID id, UUID reporter, UUID requestId, String fingerprint, EntryReportTarget type, NewReport report,
+                        int version, String text, Instant now) {
+        reports.insert(id, type, report.targetId(), reporter, "user", REASONS.convertToEntityAttribute(report.reason()), report.note(),
+                EntryReportStatus.RECEIVED, version, text, requestId, fingerprint, now);
     }
 
     /** 신고자에게 보이는 댓글(부모 참여작 노출 + 댓글 노출)을 잠근다. 본인 숨김 댓글은 이미 숨겨져 신고할 것이 없다. */
-    private Tuple lockVisibleComment(UUID reporter, UUID commentId) {
-        var found = NativeTuples.list(em.createNativeQuery("SELECT entry_id,user_id FROM entry_comments WHERE id=:id", Tuple.class)
-                .setParameter("id", commentId));
-        if (found.isEmpty()) throw new ApiException(404, "comment_not_found");
-        locks.people(reporter, found.getFirst().get("user_id", UUID.class), false);
-        var rows = NativeTuples.list(em.createNativeQuery("""
-                SELECT cm.user_id,cm.body FROM entry_comments cm
-                WHERE cm.id=:id AND cm.status='visible' AND %s FOR UPDATE
-                """.formatted(ChallengeVisibility.VISIBLE_COMMENT), Tuple.class).setParameter("id", commentId).setParameter("viewer", reporter));
-        if (rows.isEmpty() || !locks.visible(reporter, found.getFirst().get("entry_id", UUID.class), false)) {
-            throw new ApiException(404, "comment_not_found");
-        }
-        return rows.getFirst();
+    private EntryCommentJpaRepository.Reported lockVisibleComment(UUID reporter, UUID commentId) {
+        var found = comments.findParent(commentId).orElseThrow(() -> new ApiException(404, "comment_not_found"));
+        locks.people(reporter, found.userId(), false);
+        var locked = comments.lockVisibleTo(commentId, reporter);
+        if (locked.isEmpty() || !locks.visible(reporter, found.entryId(), false)) throw new ApiException(404, "comment_not_found");
+        return locked.get();
     }
 
     /** 참여작 판정은 챌린지 → 참여작 순서로 잠근다(마감 집계가 먼저다). */
     private UUID lockEntryTarget(UUID entryId, Instant now) {
-        var parent = NativeTuples.list(em.createNativeQuery("SELECT challenge_id FROM challenge_entries WHERE id=:id", Tuple.class)
-                .setParameter("id", entryId));
+        var parent = entries.findChallengeId(entryId);
         if (parent.isEmpty()) return null;
-        UUID challenge = parent.getFirst().get("challenge_id", UUID.class);
-        settlement.settle(challenge, now);
-        lockRow("challenge_entries", entryId);
-        return challenge;
+        settlement.settle(parent.get(), now);
+        entries.lockRow(entryId);
+        return parent.get();
     }
 
-    private void lockRow(String table, UUID id) {
-        NativeTuples.list(em.createNativeQuery("SELECT id FROM " + table + " WHERE id=:id FOR UPDATE", Tuple.class).setParameter("id", id));
-    }
+    private static Receipt receipt(EntryReportJpaRepository.Prior row) { return new Receipt(row.id(), row.status().dbValue()); }
 
-    private static Receipt receipt(Tuple row) { return new Receipt(row.get("id", UUID.class), row.get("status", String.class)); }
-
-    private static final String ADMIN = """
-            SELECT r.*,
-                   CASE r.target_type WHEN 'entry' THEN te.content_version WHEN 'comment' THEN CASE WHEN tc.id IS NULL THEN NULL ELSE 1 END
-                        ELSE CASE WHEN tch.id IS NULL THEN NULL ELSE 1 END END AS current_version,
-                   CASE r.target_type WHEN 'entry' THEN te.caption WHEN 'comment' THEN tc.body ELSE tch.line END AS current_text,
-                   CASE r.target_type
-                        WHEN 'entry' THEN CASE WHEN te.status='visible' THEN te.visibility ELSE te.status END
-                        WHEN 'comment' THEN CASE WHEN tc.deleted_at IS NOT NULL THEN 'deleted' ELSE tc.status END
-                        ELSE CASE WHEN tch.deleted_at IS NOT NULL THEN 'deleted' ELSE tch.moderation END END AS target_state,
-                   (SELECT count(*) FROM entry_reports o WHERE o.target_type=r.target_type AND o.target_id=r.target_id
-                      AND o.status='received') AS open_reports
-            FROM entry_reports r
-            LEFT JOIN challenge_entries te ON r.target_type='entry' AND te.id=r.target_id
-            LEFT JOIN entry_comments tc ON r.target_type='comment' AND tc.id=r.target_id
-            LEFT JOIN challenges tch ON r.target_type='challenge' AND tch.id=r.target_id
-            """;
-
-    private static AdminReport admin(Tuple row) {
-        Instant created = row.get("created_at", Instant.class);
-        return new AdminReport(row.get("id", UUID.class), row.get("target_type", String.class), row.get("target_id", UUID.class),
-                row.get("reason", String.class), row.get("note", String.class), row.get("status", String.class),
-                row.get("resolution", String.class), row.get("reviewed_by", String.class), row.get("reviewed_at", Instant.class),
-                row.get("resolution_note", String.class), ((Number) row.get("target_version")).intValue(),
-                row.get("current_version") == null ? null : ((Number) row.get("current_version")).intValue(),
-                row.get("target_text", String.class), row.get("current_text", String.class),
-                row.get("target_state") == null ? "deleted" : row.get("target_state", String.class),
-                ((Number) row.get("open_reports")).longValue(), created, created.plus(Duration.ofHours(24)), created.plus(Duration.ofHours(72)));
+    /** 운영 화면의 한 건. 대상의 지금 버전·글·상태는 대상 종류에 맞는 표에서 온다. 대상 행이 없으면 지운 것으로 본다. */
+    private static AdminReport admin(EntryReportJpaRepository.AdminRow row) {
+        var report = row.report();
+        Integer currentVersion = switch (report.getTargetType()) {
+            case ENTRY -> row.entryVersion();
+            case COMMENT -> row.commentId() == null ? null : 1;
+            case CHALLENGE -> row.challengeId() == null ? null : 1;
+        };
+        String currentText = switch (report.getTargetType()) {
+            case ENTRY -> row.entryCaption();
+            case COMMENT -> row.commentBody();
+            case CHALLENGE -> row.challengeLine();
+        };
+        PgEnum state = switch (report.getTargetType()) {
+            case ENTRY -> row.entryStatus() == ChallengeEntryStatus.VISIBLE ? row.entryVisibility() : row.entryStatus();
+            case COMMENT -> row.commentDeletedAt() != null ? null : row.commentStatus();
+            case CHALLENGE -> row.challengeDeletedAt() != null ? null : row.challengeModeration();
+        };
+        Instant created = report.getCreatedAt();
+        return new AdminReport(report.getId(), report.getTargetType().dbValue(), report.getTargetId(), report.getReason().dbValue(),
+                report.getNote(), report.getStatus().dbValue(), report.getResolution() == null ? null : report.getResolution().dbValue(),
+                report.getReviewedBy(), report.getReviewedAt(), report.getResolutionNote(), report.getTargetVersion(), currentVersion,
+                report.getTargetText(), currentText, state == null ? "deleted" : state.dbValue(), row.openReports(), created,
+                created.plus(Duration.ofHours(24)), created.plus(Duration.ofHours(72)));
     }
 }

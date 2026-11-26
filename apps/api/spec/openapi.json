@@ -2704,6 +2704,59 @@
         } ]
       }
     },
+    "/v2/entries/{id}/share-frames" : {
+      "post" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Request Challenge Entry Share Frame",
+        "description" : "본인 참여작 영상에 공유 프레임(1080×1920)을 씌운다. 만들어 둔 것이 있으면 ready(200)와 받을 주소, 만드는\n중이면 rendering(202)이라 같은 요청을 다시 보낸다. 실패는 failed(200)로 한 번 알리고 다음 요청이 다시 만든다.\n영상은 본인 재생과 같다(모자이크본이 준비됐으면 모자이크본). 남의·삭제된 참여작 404 entry_not_found, 파일\n파기 422 video_not_ready, 얼굴 가림을 켰는데 모자이크본이 아직 없음 422 mosaic_not_ready(원본에 씌우지 않는다),\n저장소 없음 503 storage_not_configured.",
+        "operationId" : "request_share_frame_v2_entries__id__share_frames_post",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChallengeEntryShareFrameRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Ready or failed",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeEntryShareFrameVideo"
+                }
+              }
+            }
+          },
+          "202" : {
+            "description" : "Rendering",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeEntryShareFrameVideo"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/entries/{id}/comments" : {
       "get" : {
         "tags" : [ "v2-challenges" ],
@@ -5598,6 +5651,48 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/BlockedUsers"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/entries/{id}/share-frames/{frame}/preview" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Get Challenge Entry Share Frame Preview",
+        "description" : "공유 프레임 미리보기 JPEG(폭 540)의 주소. 영상 한 장면에 서버 영상과 같은 틀을 씌운다. frame 은 white·blue·black\n이고 none 은 틀 없이 장면만이다. 오류는 프레임 요청과 같다. 단 none 은 mosaic_not_ready 없이 본인 재생과 같은\n장면을 보인다.",
+        "operationId" : "get_share_frame_preview_v2_entries__id__share_frames__frame__preview_get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        }, {
+          "name" : "frame",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "white", "blue", "black", "none" ],
+            "title" : "Frame"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeEntryShareFramePreview"
                 }
               }
             }
@@ -10041,6 +10136,42 @@
         "required" : [ "event_id" ],
         "title" : "ChallengeEntryViewRequest"
       },
+      "ChallengeEntryShareFrameRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "frame" : {
+            "type" : "string",
+            "enum" : [ "white", "blue", "black" ],
+            "title" : "Frame"
+          }
+        },
+        "required" : [ "frame" ],
+        "title" : "ChallengeEntryShareFrameRequest"
+      },
+      "ChallengeEntryShareFrameVideo" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "status" : {
+            "type" : "string",
+            "description" : "rendering 이면 만드는 중이라 같은 요청을 다시 보낸다. failed 는 한 번만 알리고, 그다음 요청이 다시\n만든다.",
+            "enum" : [ "rendering", "ready", "failed" ],
+            "title" : "Status"
+          },
+          "video_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "ready 일 때만. 10분 동안 받을 수 있는 mp4 주소"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Video Url"
+          }
+        },
+        "required" : [ "status", "video_url" ],
+        "title" : "ChallengeEntryShareFrameVideo"
+      },
       "EntryCommentCreateRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -13645,6 +13776,19 @@
         },
         "required" : [ "users" ],
         "title" : "BlockedUsers"
+      },
+      "ChallengeEntryShareFramePreview" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "image_url" : {
+            "type" : "string",
+            "description" : "10분 동안 받을 수 있는 JPEG 주소(폭 540)",
+            "title" : "Image Url"
+          }
+        },
+        "required" : [ "image_url" ],
+        "title" : "ChallengeEntryShareFramePreview"
       },
       "EntryCommentPage" : {
         "type" : "object",

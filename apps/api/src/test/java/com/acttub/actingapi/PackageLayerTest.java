@@ -59,11 +59,13 @@ class PackageLayerTest {
      * {@link #everyRuleActuallyHasSomethingToCheck}가 양쪽을 다 본다.
      */
     private static final Map<String, Set<String>> FEATURE_LAYERS = Map.ofEntries(
-            // 옛 연습 흐름의 Schema Entity 를 걷어낸 뒤(SOMA-589) 연습·코치는 옛 표를 native SQL 로만 읽는다.
-            // 리포트는 저장소도 함께 내려 app 의 노트 조립·공개 투영과 domain 규칙만 남았다.
-            Map.entry("practice", Set.of("domain", "app", "adapter")),
+            // 옛 연습 흐름의 Schema Entity 를 걷어낸 뒤(SOMA-589) 연습·코치는 옛 표를 native SQL 로만 읽는다. 0.1.0 회차
+            // (practices)는 JPA 로 옮기며 매핑을 새로 세웠다(SOMA-1159). 리포트는 저장소도 함께 내려 app 의 노트 조립·공개
+            // 투영과 domain 규칙만 남았다. 코치는 0.1.0 대화(coach_conversations·coach_messages)를 JPA 로 옮기며 매핑을 새로
+            // 세웠다(SOMA-1168).
+            Map.entry("practice", FOUR_LAYERS),
             Map.entry("report", Set.of("domain", "app")),
-            Map.entry("coach", Set.of("domain", "app", "adapter")),
+            Map.entry("coach", FOUR_LAYERS),
             // 분석의 Domain Model 은 받아쓴 대사를 문장으로 자르던 `TranscriptSegments` 하나였고,
             // 받아쓰기를 걷어내면서(SOMA-490) 그 규칙이 함께 사라졌다. 관찰은 영상을 보는 모델이
             // 통째로 내주는 것이라 우리가 걸 행위 규칙이 없다 — 남은 층이 셋이다.
@@ -97,20 +99,19 @@ class PackageLayerTest {
             // 새 표는 native SQL 로 읽고 쓴다(V14 의 다른 연습 표들과 같다, EntityMappingIT 의 대기 목록).
             Map.entry("feedback", Set.of("app", "adapter")),
             // 웹 문의하기(SOMA-834). 값 규칙은 app 의 상수 묶음이고 새 표는 native SQL 로 읽고 쓴다(Schema Entity 없음).
-            Map.entry("support", Set.of("app", "adapter")),
+            Map.entry("support", Set.of("app", "adapter", "schema")),
             // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
             // domain 에 넣을 것을 지어내야 하는 형태다(ADR-017, admissions 와 같은 판별).
             Map.entry("push", Set.of("app", "adapter", "schema")),
-            // 앱 공지 포스터(SOMA-599). 값 규칙·판 비교·고르기가 domain 에 산다. 표는 행이 적고 플랫폼이 배열 칸이라
-            // Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
-            Map.entry("poster", Set.of("domain", "app", "adapter")),
-            // 웹 블로그(SOMA-834 2차). 값 규칙·읽는 시간 계산이 domain 에 산다. 행이 적어 Schema Entity 없이 native SQL 로만 읽고 쓴다.
-            Map.entry("blog", Set.of("domain", "app", "adapter")),
+            // 앱 공지 포스터(SOMA-599). 값 규칙·앱 버전 비교·고르기가 domain 에 산다. 표는 JPA 로 읽고 쓴다(SOMA-1157).
+            Map.entry("poster", FOUR_LAYERS),
+            // 웹 블로그(SOMA-834 2차). 값 규칙·읽는 시간 계산이 domain 에 산다. 표는 JPA 로 읽고 쓴다(SOMA-1157).
+            Map.entry("blog", FOUR_LAYERS),
             // 오디션 공고 모아보기(SOMA-564). 열림·마감 표시·연락처 모양·정렬 규칙이 domain 에 산다. 쓰기가 전부
             // ON CONFLICT upsert 와 조건 삭제라 Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
-            Map.entry("audition", Set.of("domain", "app", "adapter")),
+            Map.entry("audition", Set.of("domain", "app", "adapter", "schema")),
             // PG 심사 전용 테스트 결제(SOMA-620). 메모리 세션과 토스 호출뿐이라 DB·Schema Entity·Domain Model 이 없다.
-            Map.entry("billing", Set.of("app", "adapter")),
+            Map.entry("billing", Set.of("app", "adapter", "schema")),
             // 앱 광고 칸(SOMA-876). 칸 목록·고르는 순서·A/B 배정이 domain 에 산다. 표는 native SQL 로만 읽고 쓴다.
             Map.entry("ads", Set.of("domain", "app", "adapter")),
             // 앱 설정(SOMA-939). 운영 값 묶음과 칸 검사만 있어 저장소·규칙 층이 없다 — 파일을 읽어 내려준다.

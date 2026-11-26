@@ -389,69 +389,14 @@
       ]
     },
     {
-      "id": 10,
-      "title": "성공·실패 종료 사건 / 5분",
-      "type": "timeseries",
-      "description": "Expected Rejection은 장애 알림에서 제외. unclassified는 관측 정보 누락. 실패 조건 해제는 해당 실행 성공을 의미하지 않습니다.",
-      "gridPos": {
-        "x": 0,
-        "y": 11,
-        "w": 12,
-        "h": 7
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "수집 전·중단",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${local_uid}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(sum by(kind,outcome,classification)(increase(acttub_external_operations_terminal_total{environment=~\"$environment\"}[5m]))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-          "legendFormat": "__auto",
-          "range": true,
-          "instant": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          }
-        }
-      ]
-    },
-    {
       "id": 19,
       "title": "진행 중 코치 최장 HTTP 경과",
       "type": "timeseries",
       "description": "서버 요청 시작부터 응답 종료까지. 모델 호출·멱등 응답 대기와 구분하며 브라우저 취소 후 처리가 계속될 수 있습니다.",
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 11,
-        "w": 12,
+        "w": 24,
         "h": 7
       },
       "fieldConfig": {
@@ -501,7 +446,7 @@
     {
       "id": 90,
       "type": "row",
-      "title": "처리량 (접수·시도·외부 호출·재시도·현재 상태)",
+      "title": "현재 상태",
       "collapsed": true,
       "gridPos": {
         "x": 0,
@@ -511,233 +456,13 @@
       },
       "panels": [
         {
-          "id": 6,
-          "title": "새 고유 External Operation / 5분",
-          "type": "timeseries",
-          "description": "",
-          "gridPos": {
-            "x": 0,
-            "y": 19,
-            "w": 8,
-            "h": 7
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "noValue": "수집 전·중단",
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "(sum by(kind)(increase(acttub_external_operations_accepted_total{environment=~\"$environment\"}[5m]))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-              "legendFormat": "__auto",
-              "range": true,
-              "instant": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${local_uid}"
-              }
-            }
-          ]
-        },
-        {
-          "id": 7,
-          "title": "External Operation 실행 시도 / 5분",
-          "type": "timeseries",
-          "description": "",
-          "gridPos": {
-            "x": 8,
-            "y": 19,
-            "w": 8,
-            "h": 7
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "noValue": "수집 전·중단",
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "(sum by(kind)(increase(acttub_external_operations_attempts_total{environment=~\"$environment\"}[5m]))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-              "legendFormat": "__auto",
-              "range": true,
-              "instant": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${local_uid}"
-              }
-            }
-          ]
-        },
-        {
-          "id": 8,
-          "title": "실제 외부 호출 / 5분",
-          "type": "timeseries",
-          "description": "storage·observation·speech·model Port의 실제 호출 횟수. 모델 재생성은 다시 세며 SDK 내부 wire-level 재시도는 세지 않습니다.",
-          "gridPos": {
-            "x": 16,
-            "y": 19,
-            "w": 8,
-            "h": 7
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "noValue": "수집 전·중단",
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "(sum by(kind,dependency)(increase(acttub_external_operations_external_calls_total{environment=~\"$environment\"}[5m]))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-              "legendFormat": "__auto",
-              "range": true,
-              "instant": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${local_uid}"
-              }
-            }
-          ]
-        },
-        {
-          "id": 9,
-          "title": "재시도 대기 전환 / 5분",
-          "type": "timeseries",
-          "description": "",
-          "gridPos": {
-            "x": 0,
-            "y": 26,
-            "w": 8,
-            "h": 7
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "noValue": "수집 전·중단",
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "(sum by(kind)(increase(acttub_external_operations_requeues_total{environment=~\"$environment\"}[5m]))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-              "legendFormat": "__auto",
-              "range": true,
-              "instant": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${local_uid}"
-              }
-            }
-          ]
-        },
-        {
           "id": 11,
           "title": "최초 대기·재시도 대기·실행 중",
           "type": "timeseries",
           "description": "",
           "gridPos": {
-            "x": 8,
-            "y": 26,
+            "x": 0,
+            "y": 19,
             "w": 8,
             "h": 7
           },
@@ -855,208 +580,13 @@
           ]
         },
         {
-          "id": 15,
-          "title": "분석 대기시간 p95",
-          "type": "timeseries",
-          "description": "",
-          "gridPos": {
-            "x": 8,
-            "y": 20,
-            "w": 8,
-            "h": 7
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "noValue": "수집 전·중단",
-              "mappings": [
-                {
-                  "type": "special",
-                  "options": {
-                    "match": "nan",
-                    "result": {
-                      "text": "표본 없음"
-                    }
-                  }
-                }
-              ],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "((histogram_quantile(0.95,sum by(le,waiting)(rate(acttub_external_operations_wait_seconds_bucket{environment=~\"$environment\",kind=\"analyze\"}[5m])))) or on() ((0/0) * max(up{job=\"api\",environment=~\"$environment\"}))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-              "legendFormat": "__auto",
-              "range": true,
-              "instant": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${local_uid}"
-              }
-            }
-          ]
-        },
-        {
-          "id": 16,
-          "title": "실제 실행시간 p95 (영상 길이 아님)",
-          "type": "timeseries",
-          "description": "",
-          "gridPos": {
-            "x": 16,
-            "y": 20,
-            "w": 8,
-            "h": 7
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "noValue": "수집 전·중단",
-              "mappings": [
-                {
-                  "type": "special",
-                  "options": {
-                    "match": "nan",
-                    "result": {
-                      "text": "표본 없음"
-                    }
-                  }
-                }
-              ],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "((histogram_quantile(0.95,sum by(le,kind,outcome)(rate(acttub_external_operations_execution_seconds_bucket{environment=~\"$environment\"}[5m])))) or ((0/0) * max(up{job=\"api\",environment=~\"$environment\"}))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-              "legendFormat": "__auto",
-              "range": true,
-              "instant": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${local_uid}"
-              }
-            }
-          ]
-        },
-        {
-          "id": 17,
-          "title": "최초 접수부터 종료까지 p95",
-          "type": "timeseries",
-          "description": "",
-          "gridPos": {
-            "x": 0,
-            "y": 27,
-            "w": 8,
-            "h": 7
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "noValue": "수집 전·중단",
-              "mappings": [
-                {
-                  "type": "special",
-                  "options": {
-                    "match": "nan",
-                    "result": {
-                      "text": "표본 없음"
-                    }
-                  }
-                }
-              ],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${local_uid}"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "((histogram_quantile(0.95,sum by(le,kind,outcome)(rate(acttub_external_operations_elapsed_seconds_bucket{environment=~\"$environment\"}[5m])))) or ((0/0) * max(up{job=\"api\",environment=~\"$environment\"}))) and on() ((max(up{job=\"api\",environment=~\"$environment\"}) == 1) and on() (time()-max(timestamp(up{job=\"api\",environment=~\"$environment\"})) < 90))",
-              "legendFormat": "__auto",
-              "range": true,
-              "instant": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${local_uid}"
-              }
-            }
-          ]
-        },
-        {
           "id": 18,
           "title": "진행 중 코치 HTTP 요청 수",
           "type": "timeseries",
           "description": "",
           "gridPos": {
             "x": 8,
-            "y": 27,
+            "y": 20,
             "w": 8,
             "h": 7
           },
@@ -1111,7 +641,7 @@
           "description": "",
           "gridPos": {
             "x": 16,
-            "y": 27,
+            "y": 20,
             "w": 8,
             "h": 7
           },
@@ -1176,7 +706,7 @@
           "description": "이전 앱이 갱신한 행 또는 실행 시각이 없는 행입니다. 이 값이 있으면 시간 gauge의 0을 0초 처리·정상으로 해석하지 않습니다.",
           "gridPos": {
             "x": 0,
-            "y": 34,
+            "y": 27,
             "w": 8,
             "h": 7
           },
@@ -1273,7 +803,7 @@
           },
           "options": {
             "mode": "markdown",
-            "content": "환경과 기간은 상단에서 선택합니다. **수집 중**일 때 요청량 0은 요청 없음, p95의 **표본 없음**은 완료 표본 없음입니다. **수집 실패·수집 전**을 정상으로 해석하지 않습니다. 조회 Error는 PDC/데이터 소스 알림을 확인합니다. Sentry·Langfuse에서는 같은 환경과 기간을 선택합니다. External Operation 고유 접수는 멱등 응답 재사용을 제외하며 HTTP 요청량은 폴링·재사용을 포함합니다. 시도는 재시도를 포함합니다. 종료 사건은 고유 실행과 상호 배타적 합계가 아닙니다. 카운터 재시작·수집 공백 사이의 사건은 누락될 수 있습니다."
+            "content": "환경과 기간은 상단에서 선택합니다. **수집 중**일 때 요청량 0은 요청 없음, p95의 **표본 없음**은 완료 표본 없음입니다. **수집 실패·수집 전**을 정상으로 해석하지 않습니다. 조회 Error는 PDC/데이터 소스 알림을 확인합니다. Sentry·Langfuse에서는 같은 환경과 기간을 선택합니다. HTTP 요청량은 폴링·재사용을 포함합니다."
           }
         }
       ]

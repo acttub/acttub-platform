@@ -20,6 +20,7 @@ import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.ReminderContent;
 import com.acttub.actingapi.feature.push.app.ReminderCopy;
 import com.acttub.actingapi.feature.push.app.ReminderTextTrimmer;
+import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -31,6 +32,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>연습 사건은 저녁 리마인드와 같은 목록에서 대본(scripts)만 뺀 것이다 — 대본을 올리는 것은 연습이 아니다.
  * 코칭 = 영상·연습·코치 메시지, 리딩 = 리딩 회차·리딩 녹음·암기 상태.
+ *
+ * <p>자기 표({@code practice_reminder_sends}·{@code push_tokens})만 쓰는 문장은 Spring Data·HQL 이다. 후보·연속 일수·이어 하기·
+ * 숙제·잠금 화면에서 지울 말·올려 둔 영상·안 읽은 대본은 다른 기능의 표를 한 질의로 읽어 native SQL 로 둔다 — 그 기능들에 이
+ * 조회를 내주는 Port 가 없고, 다른 feature 의 Schema Entity 를 import 하지 않는다(apps/api/CONTRACT.md §5-1·§5-9).
  */
 @Repository
 class PostgresPracticeReminderRepository implements PracticeReminderRepository {
@@ -39,10 +44,15 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
     private static final int LINE_LIMIT = 2000;
 
     private final EntityManager entityManager;
+    private final PracticeReminderSendJpaRepository sends;
+    private final PushTokenJpaRepository tokens;
     private final TransactionTemplate transaction;
 
-    PostgresPracticeReminderRepository(EntityManager entityManager, PlatformTransactionManager manager) {
+    PostgresPracticeReminderRepository(EntityManager entityManager, PracticeReminderSendJpaRepository sends,
+            PushTokenJpaRepository tokens, PlatformTransactionManager manager) {
         this.entityManager = entityManager;
+        this.sends = sends;
+        this.tokens = tokens;
         this.transaction = new TransactionTemplate(manager);
         this.transaction.setReadOnly(false);
     }
@@ -105,15 +115,11 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
             if (rows.isEmpty()) return List.<Candidate>of();
 
             List<UUID> ids = rows.stream().map(row -> row.get("user_id", UUID.class)).toList();
-            List<Tuple> tokenRows = list(entityManager.createNativeQuery("""
-                    SELECT user_id, token, locale, app_version FROM push_tokens
-                    WHERE user_id IN (:ids) ORDER BY user_id, created_at
-                    """, Tuple.class).setParameter("ids", ids));
             Map<UUID, List<PushTarget>> targets = new LinkedHashMap<>();
-            for (Tuple row : tokenRows) {
-                if (!AppVersion.atLeast(row.get("app_version", String.class), minimumAppVersion)) continue;
-                targets.computeIfAbsent(row.get("user_id", UUID.class), ignored -> new ArrayList<>())
-                        .add(new PushTarget(row.get("token", String.class), row.get("locale", String.class)));
+            for (PushTokenEntity token : tokens.findByUserIdInOrderByUserIdAscCreatedAtAsc(ids)) {
+                if (!AppVersion.atLeast(token.getAppVersion(), minimumAppVersion)) continue;
+                targets.computeIfAbsent(token.getUserId(), ignored -> new ArrayList<>())
+                        .add(new PushTarget(token.getToken(), token.getLocale()));
             }
 
             List<Candidate> candidates = new ArrayList<>();
@@ -289,11 +295,8 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
     public Map<String, Integer> sentCountsByKind(UUID userId, LocalDate since) {
         return transaction.execute(status -> {
             Map<String, Integer> counts = new HashMap<>();
-            for (Tuple row : list(entityManager.createNativeQuery("""
-                    SELECT kind, count(*) AS n FROM practice_reminder_sends
-                    WHERE user_id=:userId AND day>=CAST(:since AS date) GROUP BY kind
-                    """, Tuple.class).setParameter("userId", userId).setParameter("since", since.toString()))) {
-                counts.put(row.get("kind", String.class), row.get("n", Number.class).intValue());
+            for (PracticeReminderSendJpaRepository.KindCount row : sends.countByKindSince(userId, since)) {
+                counts.put(row.kind(), row.sent().intValue());
             }
             return Map.copyOf(counts);
         });
@@ -303,31 +306,18 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
     public Map<String, LocalDate> recentTemplates(UUID userId, LocalDate since) {
         return transaction.execute(status -> {
             Map<String, LocalDate> used = new HashMap<>();
-            for (Tuple row : list(entityManager.createNativeQuery("""
-                    SELECT template_id, to_char(max(day),'YYYY-MM-DD') AS day FROM practice_reminder_sends
-                    WHERE user_id=:userId AND day>=CAST(:since AS date) GROUP BY template_id
-                    """, Tuple.class).setParameter("userId", userId).setParameter("since", since.toString()))) {
-                used.put(row.get("template_id", String.class), LocalDate.parse(row.get("day", String.class)));
+            for (PracticeReminderSendJpaRepository.TemplateDay row : sends.lastDayByTemplateSince(userId, since)) {
+                used.put(row.templateId(), row.day());
             }
             return Map.copyOf(used);
         });
     }
 
+    /** 영향 행 수가 1 이면 선점했다. 겹치면(같은 회원·날·칸, 또는 같은 대화) 0 이다. */
     @Override
     public boolean claim(UUID userId, LocalDate day, ReminderCopy copy) {
-        List<Tuple> inserted = transaction.execute(status -> list(entityManager.createNativeQuery("""
-                WITH claimed AS (
-                    INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id,conversation_id)
-                    VALUES (:userId,CAST(:day AS date),:slot,:kind,:skipped,:templateId,CAST(:conversationId AS uuid))
-                    ON CONFLICT DO NOTHING
-                    RETURNING user_id
-                )
-                SELECT user_id FROM claimed
-                """, Tuple.class)
-                .setParameter("userId", userId).setParameter("day", day.toString())
-                .setParameter("slot", copy.kind().slot()).setParameter("kind", copy.kind().wire())
-                .setParameter("conversationId", copy.conversationId() == null ? null : copy.conversationId().toString())
-                .setParameter("skipped", copy.skippedDays()).setParameter("templateId", copy.templateId())));
-        return inserted != null && !inserted.isEmpty();
+        Integer inserted = transaction.execute(status -> sends.claim(userId, day, copy.kind().slot(), copy.kind().wire(),
+                copy.skippedDays(), copy.templateId(), copy.conversationId()));
+        return inserted != null && inserted == 1;
     }
 }
