@@ -47,6 +47,23 @@ class PronunciationReportFixtureTest {
         }
     }
 
+    @Test
+    void 짚음을_보내지_않는_새_채점_서비스의_응답으로도_같은_보고서다() throws IOException {
+        JsonNode sessions = mapper.readTree(RESPONSES.toFile());
+        for (JsonNode session : sessions) {
+            for (JsonNode line : session.path("lines")) {
+                ObjectNode response = (ObjectNode) line.path("response");
+                response.remove("threshold");
+                for (JsonNode word : response.path("words")) {
+                    for (JsonNode phone : word.path("phones")) {
+                        ((ObjectNode) phone).remove("flagged");
+                    }
+                }
+            }
+        }
+        assertThat(reports(sessions)).isEqualTo(mapper.readTree(REPORTS.toFile()));
+    }
+
     /** 회차마다 줄 응답을 api 가 읽는 길(HttpPronunciationScorer.parse)로 읽어 보고서를 만든다. */
     private ObjectNode reports(JsonNode sessions) {
         ObjectNode out = mapper.createObjectNode();

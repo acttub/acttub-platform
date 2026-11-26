@@ -8,7 +8,7 @@
      비교 범위(SOMA-967): 강제 정렬로 그 음소가 난 프레임을 찾고, 앞뒤 GOP_WINDOW 개 음소가 난 구간 안에서만 비교한다.
      문장 전체로 비교하면 음소 수 × 바꿔 볼 소리 수 × 녹음 길이만큼 계산·메모리가 커져 24초 줄이 26초·21GB 를 썼다.
      구간으로 바꾸면 같은 줄이 1.2초·2.7GB(대부분 모델 자체), 평가 세트 169개에서 짚은 어절은 168개가 같았다.
-  4) 짚는 규칙: lpr < THRESHOLD, 모음↔모음·자음↔자음으로 바뀐 것만, 같은 계열(ㄱ/ㅋ/ㄲ 등)과 자연스러운 변이는 제외
+  4) 어느 소리를 짚을지는 api(PronunciationRules.flagged)가 정한다. 여기는 음소마다 원래 값(대본 소리·가장 그럴듯한 다른 소리·lpr)만 낸다
 """
 import os
 import re
@@ -27,7 +27,6 @@ MODEL = os.environ.get("PRON_MODEL", "slplab/wav2vec2-xls-r-300m_phone-mfa_korea
 # 0 이면 예전처럼 문장 전체로 비교한다(되돌리기용).
 GOP_WINDOW = int(os.environ.get("PRON_GOP_WINDOW", "2"))
 MODEL_VERSION = MODEL.rsplit("/", 1)[-1] + ("+ctc-gop-2" if GOP_WINDOW > 0 else "+ctc-gop-1")
-THRESHOLD = -3.0   # 낮출수록(-4, -5) 덜 짚고 더 확실한 것만
 
 # ── 표준 발음 → 음소 ────────────────────────────────────────────────────────
 ONSET = {"ㄱ": "G", "ㄲ": "GG", "ㄴ": "N", "ㄷ": "D", "ㄸ": "DD", "ㄹ": "R", "ㅁ": "M", "ㅂ": "B", "ㅃ": "BB", "ㅅ": "S",
@@ -161,24 +160,10 @@ for _fam in (("G", "Kh", "GG", "k"), ("D", "Th", "DD", "t"), ("B", "Ph", "BB", "
         FAMILY[_x] = _fam[0]
 fam = lambda p: FAMILY.get(p, p)
 VOWELS = set("A E EO EU I O U iA iE iEO iO iU oA oE uEO uI euI".split())
-SONOR = VOWELS | {"N", "M", "L", "NG"}
-# 정답 낭독에서만 나오던 자연스러운 변이 — 짚지 않는다
-TOLERATED = {("R", "H"), ("L", "H"), ("iEO", "iO"), ("GG", "DD"), ("EU", "E")}
-# ㅘ·ㅙ·ㅝ·ㅟ·ㅢ 는 표준 발음 낭독(맥 합성 음성 40줄 + Zeroth 공개 낭독 37줄)에서도 12~33% 를 짚었다. ㅢ→ㅣ(희망→히망),
-# ㅙ→ㅔ 처럼 표준 발음이 원래 그렇게 나는 경우도 있다. 이 모델로는 가를 수 없어 짚지 않는다.
-DIPHTHONGS = {"oA", "oE", "uEO", "uI", "euI"}
 JAMO = {"G": "ㄱ", "GG": "ㄲ", "Kh": "ㅋ", "k": "ㄱ", "N": "ㄴ", "D": "ㄷ", "DD": "ㄸ", "Th": "ㅌ", "t": "ㄷ", "R": "ㄹ", "L": "ㄹ",
         "M": "ㅁ", "B": "ㅂ", "BB": "ㅃ", "Ph": "ㅍ", "p": "ㅂ", "S": "ㅅ", "SS": "ㅆ", "J": "ㅈ", "JJ": "ㅉ", "CHh": "ㅊ", "H": "ㅎ",
         "NG": "ㅇ", "A": "ㅏ", "E": "ㅔ", "EO": "ㅓ", "EU": "ㅡ", "I": "ㅣ", "O": "ㅗ", "U": "ㅜ", "iA": "ㅑ", "iE": "ㅖ",
         "iEO": "ㅕ", "iO": "ㅛ", "iU": "ㅠ", "oA": "ㅘ", "oE": "ㅙ", "uEO": "ㅝ", "uI": "ㅟ", "euI": "ㅢ"}
-
-
-def flagged(p, threshold=THRESHOLD):
-    if p["weak"] or p["lpr"] >= threshold:
-        return False
-    if (p["ph"], p["alt"]) in TOLERATED or p["ph"] in DIPHTHONGS:
-        return False
-    return (p["ph"] in VOWELS) == (p["alt"] in VOWELS)
 
 
 # ── 채점 ─────────────────────────────────────────────────────────────────────
@@ -253,10 +238,8 @@ def gop(path, text, logp=None):
     for j, tok in enumerate(seq):
         if owner[j] is None:
             continue
-        p = inv[tok]
-        weak = p == "H" and j > 0 and seq[j - 1] != vocab["|"] and inv[seq[j - 1]] in SONOR
         lpr, alt = lprs[j]
-        out.append({"w": owner[j], "ph": p, "lpr": round(lpr, 2), "alt": alt, "weak": weak})
+        out.append({"w": owner[j], "ph": inv[tok], "lpr": round(lpr, 2), "alt": alt})
     return {"words": [w for w, _ in words], "phones": out}
 
 
@@ -430,8 +413,8 @@ def _ms(since):
     return int((time.perf_counter() - since) * 1000)
 
 
-def score_line(path, script_text, threshold=THRESHOLD):
-    """한 줄 녹음을 채점한다. 어절마다 음소의 lpr·바뀐 소리·음절 자리·시각(ms)·짚음 여부를 돌려준다.
+def score_line(path, script_text):
+    """한 줄 녹음을 채점한다. 어절마다 음소의 lpr·바뀐 소리·음절 자리·시각(ms)을, 어절마다 숫자가 들었는지를 돌려준다.
 
     timings_ms: 녹음 풀기(decode: ffmpeg·소리 없는 앞뒤 자르기), 모델 계산(model), 음소 비교·시각 정렬·대본 닮음(gop)에 쓴 ms."""
     text = normalize(script_text)
@@ -480,8 +463,7 @@ def score_line(path, script_text, threshold=THRESHOLD):
             "vowel": p["ph"] in VOWELS, "syllable": syl[j],
             "start_ms": None if s0 is None else offset_ms + int(s0 * FRAME_SECONDS * 1000),
             "end_ms": None if s0 is None else offset_ms + int(((s1 if s1 is not None else s0) + 1) * FRAME_SECONDS * 1000),
-            "flagged": flagged(p, threshold) and o not in numw,
         })
     match = script_match(logp, text)
     timings = {"decode": decode_ms, "model": model_ms, "gop": _ms(started)}
-    return {"scored_text": text, "threshold": threshold, "words": out_words, "script_match": match, "timings_ms": timings}
+    return {"scored_text": text, "words": out_words, "script_match": match, "timings_ms": timings}
