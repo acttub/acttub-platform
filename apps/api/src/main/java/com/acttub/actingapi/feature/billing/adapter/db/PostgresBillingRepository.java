@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.billing.app.BillingRepository;
 import com.acttub.actingapi.feature.billing.app.BillingRules;
 import com.acttub.actingapi.feature.billing.schema.BillingCheckoutEntity;
@@ -43,9 +44,13 @@ class PostgresBillingRepository implements BillingRepository {
     private final BillingProGrantJpaRepository grants;
     private final TransactionTemplate transaction;
 
+    private final AccountRowLock accountRows;
+
     PostgresBillingRepository(EntityManager entityManager, BillingSubscriptionJpaRepository subscriptions,
             BillingCheckoutJpaRepository checkouts, BillingPaymentJpaRepository payments, BillingProGrantJpaRepository grants,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.subscriptions = subscriptions;
         this.checkouts = checkouts;
@@ -199,10 +204,7 @@ class PostgresBillingRepository implements BillingRepository {
 
     /** 탈퇴와 같은 users 행을 잡고 아직 활성인지 본다 — 탈퇴가 먼저 끝났으면 쓰지 않는다(CONTRACT 32, common 「탈퇴와 겹친 쓰기」). */
     private boolean lockActiveUser(UUID userId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                        "SELECT status FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
-        return !rows.isEmpty() && "active".equals(rows.getFirst().get("status", String.class));
+        return accountRows.lockActive(userId);
     }
 
     @Override

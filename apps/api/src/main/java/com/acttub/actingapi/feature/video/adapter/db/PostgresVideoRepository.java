@@ -7,6 +7,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.feature.video.app.VideoRepository;
 import com.acttub.actingapi.feature.video.app.VideoRepository.PosterJob;
@@ -44,12 +45,16 @@ class PostgresVideoRepository implements VideoRepository {
     private final TransactionTemplate transaction;
     private final VideoObjectCleanup cleanup;
 
+    private final AccountRowLock accountRows;
+
     PostgresVideoRepository(
             EntityManager entityManager,
             VideoJpaRepository videos,
             VideoTranscriptJpaRepository transcripts,
             PlatformTransactionManager transactionManager,
-            VideoObjectCleanup cleanup) {
+            VideoObjectCleanup cleanup,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.videos = videos;
         this.transcripts = transcripts;
@@ -128,9 +133,7 @@ class PostgresVideoRepository implements VideoRepository {
     public Completed complete(UUID userId, UUID intentId, VideoStorage.Stored stored, long quotaBytes, Instant now) {
         return transaction.execute(tx -> {
             // 사용자 행을 잡는다 — 겹쳐 온 확정 둘이 여기서 줄을 서므로 총량이 정확하다.
-            NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId));
+            accountRows.lockRow(userId);
             List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT status,object_key,mime_type,size_bytes,duration_ms,expires_at,video_id
                     FROM upload_intents
@@ -388,12 +391,9 @@ class PostgresVideoRepository implements VideoRepository {
         return transaction.execute(tx -> {
             // 탈퇴·3년 파기와 같은 순서로 사람 행을 먼저 잡는다 — 탈퇴가 영상 키를 모으기 전에 붙였거나, 탈퇴가 끝난
             // 뒤라 붙이지 않거나 둘 중 하나다.
-            List<Tuple> owner = NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT status FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", job.userId()));
+            boolean ownerActive = accountRows.lockActive(job.userId());
             VideoJpaRepository.LockedVideo video = lock(job.userId(), job.videoId());
-            boolean attachable = !owner.isEmpty()
-                    && "active".equals(owner.getFirst().get("status", String.class))
+            boolean attachable = ownerActive
                     && video != null
                     && video.purgedAt() == null;
             if (!attachable) {

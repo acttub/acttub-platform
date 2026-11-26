@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.challenge.adapter.db;
 
 import java.time.Instant;
 import java.util.UUID;
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.persistence.EntityManager;
@@ -20,15 +21,16 @@ class EntryLocks {
     private final EntityManager em;
     private final ChallengeEntryJpaRepository entries;
     private final ChallengeSettlement settlement;
-    EntryLocks(EntityManager em, ChallengeEntryJpaRepository entries, ChallengeSettlement settlement) {
+    private final AccountRowLock accountRows;
+
+    EntryLocks(EntityManager em, ChallengeEntryJpaRepository entries, ChallengeSettlement settlement, AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.em = em; this.entries = entries; this.settlement = settlement;
     }
 
     /** 쓰는 사람 하나를 쓰기로 잠근다(챌린지 만들기·참여작 쓰기). 활성이 아니면 403. */
     void active(UUID owner) {
-        var owners = NativeTuples.list(em.createNativeQuery("SELECT status FROM users WHERE id=:owner FOR UPDATE", Tuple.class)
-                .setParameter("owner", owner));
-        if (owners.isEmpty() || !"active".equals(owners.getFirst().get("status", String.class))) {
+        if (!accountRows.lockActive(owner)) {
             throw new ApiException(403, "account_deactivated");
         }
     }

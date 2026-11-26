@@ -5,6 +5,7 @@ import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.push.app.AppVersion;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
@@ -22,10 +23,14 @@ class PostgresPushTokenRepository implements PushTokenRepository, PushTokenRevoc
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
 
+    private final AccountRowLock accountRows;
+
     PostgresPushTokenRepository(
             PushTokenJpaRepository tokens,
             EntityManager entityManager,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.tokens = tokens;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -50,14 +55,7 @@ class PostgresPushTokenRepository implements PushTokenRepository, PushTokenRevoc
     @Override
     public void register(UUID userId, String token, String platform, String appVersion) {
         transaction.executeWithoutResult(status -> {
-            boolean active = !list(entityManager.createNativeQuery("""
-                    SELECT id
-                    FROM users
-                    WHERE id=:userId
-                      AND status='active'
-                    FOR UPDATE
-                    """, Tuple.class)
-                    .setParameter("userId", userId)).isEmpty();
+            boolean active = accountRows.lockActive(userId);
             if (!active) {
                 return;
             }

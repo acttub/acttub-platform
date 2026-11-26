@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.coach.app.NoteRatingStore;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
@@ -28,8 +29,12 @@ class PostgresNoteRatingStore implements NoteRatingStore, NoteRatingOwnership {
     private final NoteRatingJpaRepository ratings;
     private final TransactionTemplate transaction;
 
+    private final AccountRowLock accountRows;
+
     PostgresNoteRatingStore(EntityManager entityManager, NoteRatingJpaRepository ratings,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.ratings = ratings;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -38,9 +43,7 @@ class PostgresNoteRatingStore implements NoteRatingStore, NoteRatingOwnership {
     @Override
     public Saved save(UUID userId, UUID practiceId, UUID requestId, String rating, String comment, Instant now) {
         return transaction.execute(tx -> {
-            if (NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT id FROM users WHERE id=:userId AND status='active' FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId)).isEmpty()) {
+            if (!accountRows.lockActive(userId)) {
                 return new Saved(Outcome.INACTIVE, null);
             }
             // 노트 조회와 같은 소유권이다 — 회차의 주인이 이 사람이고 그 회차의 대화에 0.1.0 노트가 있어야 한다.

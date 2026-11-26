@@ -5,11 +5,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.reading.app.SessionRatingStore;
 import com.acttub.actingapi.feature.reading.schema.ReadingSessionRatingEntity;
-import com.acttub.actingapi.platform.persistence.NativeTuples;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -34,12 +33,16 @@ class PostgresSessionRatingStore implements SessionRatingStore {
     private final ReadingSessionRatingJpaRepository ratings;
     private final TransactionTemplate transaction;
 
+    private final AccountRowLock accountRows;
+
     PostgresSessionRatingStore(
             EntityManager entityManager,
             ScriptJpaRepository scripts,
             ReadingSessionJpaRepository sessions,
             ReadingSessionRatingJpaRepository ratings,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.scripts = scripts;
         this.sessions = sessions;
@@ -50,9 +53,7 @@ class PostgresSessionRatingStore implements SessionRatingStore {
     @Override
     public Saved save(UUID userId, UUID sessionId, UUID requestId, String rating, String comment, Instant now) {
         return transaction.execute(tx -> {
-            if (NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT id FROM users WHERE id=:userId AND status='active' FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId)).isEmpty()) {
+            if (!accountRows.lockActive(userId)) {
                 return new Saved(Outcome.INACTIVE, null);
             }
             // 회차 조회와 같은 소유권이다 — 회차의 주인이 이 사람이어야 한다.

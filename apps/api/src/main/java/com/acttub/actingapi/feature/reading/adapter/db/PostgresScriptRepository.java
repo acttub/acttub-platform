@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
@@ -67,6 +68,8 @@ class PostgresScriptRepository implements ScriptRepository {
     private final ReadingRecordingCleanup cleanup;
     private final ScriptFileCleanup sources;
 
+    private final AccountRowLock accountRows;
+
     PostgresScriptRepository(
             EntityManager entityManager,
             ScriptJpaRepository scriptRows,
@@ -78,7 +81,9 @@ class PostgresScriptRepository implements ScriptRepository {
             ReadingSessionRatingJpaRepository ratingRows,
             PlatformTransactionManager transactionManager,
             ReadingRecordingCleanup cleanup,
-            ScriptFileCleanup sources) {
+            ScriptFileCleanup sources,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.scriptRows = scriptRows;
         this.characterRows = characterRows;
@@ -427,18 +432,11 @@ class PostgresScriptRepository implements ScriptRepository {
     }
 
     /**
-     * 탈퇴·이관과 같은 {@code users} 행을 잡고 활성인지 본다. ⚠ {@code users} 의 주인은 {@code auth} 지만 이
-     * 확인은 쓰는 트랜잭션 안에 있어야 뜻이 있어 native SQL 로 잠금만 잡는다(Schema Entity 를 import 하지 않는다).
+     * 탈퇴·이관과 같은 {@code users} 행을 잡고 활성인지 본다. {@code users} 는 {@code auth} 의 테이블이라 잠금은
+     * {@code AccountRowLock} 이 잡는다. 이 확인은 쓰는 트랜잭션 안에 있어야 뜻이 있다.
      */
     private void lockActive(UUID userId) {
-        boolean active = !NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id
-                FROM users
-                WHERE id=:userId
-                  AND status='active'
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
+        boolean active = accountRows.lockActive(userId);
         if (!active) {
             throw new OwnerNotActive();
         }

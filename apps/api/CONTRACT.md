@@ -720,7 +720,9 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **탈퇴와 겹친 쓰기**: 게이트의 계정 상태 확인은 요청의 앞머리에서 끝나므로, 회원 자료를 쓰는 트랜잭션
   (프로필 저장·알림 토글·프로필 사진·포트폴리오·푸시 토큰 등록)은 **탈퇴가 잡는 것과 같은 `users` 행을
   `FOR UPDATE` 로 잡고 활성인지 다시 본다**(`PostgresProfileRepository#lockActive`,
-  `PostgresPortfolioRepository#lockOrCreate`, `PostgresPushTokenRepository#register`). 탈퇴는 `users` 행을 남기므로
+  `PostgresPortfolioRepository#lockOrCreate`, `PostgresPushTokenRepository#register`). 잠그는 문장은 한 곳에 있다:
+  `feature/auth/app` 의 `AccountRowLock`(구현 `PostgresAccountDeactivation`, 계정을 닫는 쪽과 같은 문장)을 각 기능이 부른다.
+  탈퇴한 계정의 행도 잠근 뒤 활성이 아님을 본다. 탈퇴는 `users` 행을 남기므로
   FK 는 뒤늦은 쓰기를 막지 못한다 — 이 확인이 없으면 파기한 이름·생년월일이 다시 차고 지운 포트폴리오 행이
   되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않는다(응답은 [common.md 「탈퇴와 겹친 쓰기」](../../docs/specs/common.md#탈퇴와-겹친-쓰기)).
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
