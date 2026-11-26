@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
+import com.acttub.actingapi.feature.reading.app.PronunciationScorer.ServerTime;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Phone;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.ScoredLine;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
@@ -78,7 +79,16 @@ public class HttpPronunciationScorer implements PronunciationScorer {
         JsonNode match = root.get("script_match");
         Double scriptMatch = match == null || match.isNull() ? null : LenientJson.asDouble(match);
         return new Scored(new ScoredLine(LenientJson.asText(root.path("scored_text"), null), words, scriptMatch),
-                LenientJson.asText(root.path("model_version"), null));
+                LenientJson.asText(root.path("model_version"), null), serverTime(root.get("timings_ms")));
+    }
+
+    /** {@code timings_ms}(SOMA-1171). 옛 채점 서비스는 보내지 않는다. */
+    private static ServerTime serverTime(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        return new ServerTime(LenientJson.asLong(node.path("decode")), LenientJson.asLong(node.path("model")),
+                LenientJson.asLong(node.path("gop")), LenientJson.asLong(node.path("total")));
     }
 
     private static Integer intOrNull(JsonNode node) {

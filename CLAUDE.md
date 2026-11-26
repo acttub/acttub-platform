@@ -16,7 +16,7 @@
 | `apps/web` | Next.js 화면과 API 프록시. API·서버 로직은 `apps/api`에 둡니다([서버 경계](apps/web/CLAUDE.md#서버-경계)). |
 | `apps/api` | dev·운영이 함께 쓰는 유일한 Spring Boot 백엔드. |
 | `apps/mobile` | Expo 앱. npm/EAS로 자립하며 pnpm 워크스페이스 밖에 있습니다. |
-| `apps/pron` | 리딩 발음 채점 실험 서비스(파이썬). api만 내부망으로 부르고, compose의 `pron` 프로필을 켠 dev에서만 뜹니다. CI가 이 앱의 테스트를 돌리지 않습니다([README](apps/pron/README.md)). |
+| `apps/pron` | 리딩 발음 채점 실험 서비스(파이썬). api만 내부망으로 부르고, compose의 `pron` 프로필로 dev·운영에 띄웁니다. CI가 이 앱의 테스트를 돌리지 않습니다([README](apps/pron/README.md)). |
 | `packages/*` | 실제 두 번째 사용처가 생긴 뒤에만 공유 패키지로 분리합니다. |
 
 ## 조건부 정본

@@ -9,11 +9,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.logging.Logger;
 
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository.Claimed;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository.LineSource;
+import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository.ReportOwner;
+import com.acttub.actingapi.feature.reading.app.PronunciationMetrics.LineStage;
+import com.acttub.actingapi.feature.reading.app.PronunciationMetrics.ReportTiming;
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer.Scored;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.LineInput;
@@ -29,6 +33,9 @@ import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Report;
  *
  * <p>처음 요청부터 {@code notifyAfter}(기본 1분) 넘게 걸려 {@code done} 으로 닫은 보고서는 주인에게 알린다(SOMA-1169) — 긴 리딩은
  * 채점이 몇 분 걸려 배우가 그동안 화면을 떠난다. 금방 끝난 것은 화면에서 이미 봤으니 알리지 않는다.
+ *
+ * <p>보고서를 닫을 때 줄마다 쓴 시간을 단계별로 모아 로그 한 줄({@code pronunciation report timing:})과 지표로 남긴다
+ * ({@link PronunciationMetrics}). 줄 수는 {@code lines}(회차의 녹음 줄)·{@code sent}(채점 서비스에 보냄)·{@code failed}(그중 실패)다.
  */
 public class PronunciationWorker {
     private static final Logger LOGGER = Logger.getLogger(PronunciationWorker.class.getName());
@@ -42,10 +49,12 @@ public class PronunciationWorker {
     private final Clock clock;
     private final PronunciationReportListener listener;
     private final Duration notifyAfter;
+    private final PronunciationMetrics metrics;
 
     /** @param listener 다 된 보고서를 알릴 곳. 없으면 {@code null} */
     public PronunciationWorker(PronunciationReportRepository reports, PronunciationScorer scorer, PronunciationAudio audio,
-            PronunciationSettings settings, Clock clock, PronunciationReportListener listener, Duration notifyAfter) {
+            PronunciationSettings settings, Clock clock, PronunciationReportListener listener, Duration notifyAfter,
+            PronunciationMetrics metrics) {
         this.reports = reports;
         this.scorer = scorer;
         this.audio = audio;
@@ -53,27 +62,33 @@ public class PronunciationWorker {
         this.clock = clock;
         this.listener = listener;
         this.notifyAfter = notifyAfter;
+        this.metrics = metrics;
     }
 
     /** @return 하나를 집었으면 {@code true} */
     public boolean runOnce() {
         UUID token = UUID.randomUUID();
-        Claimed claimed = reports.claimNext(token, settings.lease(), settings.maxAttempts(), clock.instant());
+        Instant claimedAt = clock.instant();
+        Claimed claimed = reports.claimNext(token, settings.lease(), settings.maxAttempts(), claimedAt);
         if (claimed == null) {
             return false;
         }
+        ReportTiming timing = metrics.start();
         try {
             List<LineInput> inputs = new ArrayList<>();
             String model = null;
             int scoredLines = 0;
+            int sent = 0;
             Exception lastFailure = null;
-            for (LineSource line : reports.lines(claimed.sessionId())) {
+            List<LineSource> lines = reports.lines(claimed.sessionId());
+            for (LineSource line : lines) {
                 if (line.transcript() == null || line.transcript().isBlank() || tooLong(line)) {
                     inputs.add(new LineInput(line.lineNo(), line.text(), null, null));
                     continue;
                 }
+                sent += 1;
                 try {
-                    Scored scored = score(line);
+                    Scored scored = score(line, timing);
                     model = scored.modelVersion();
                     scoredLines += 1;
                     inputs.add(new LineInput(line.lineNo(), line.text(), line.transcript(), scored.line()));
@@ -94,8 +109,15 @@ public class PronunciationWorker {
             String status = report.empty() ? "skipped" : "done";
             if (!reports.complete(claimed.reportId(), token, status, model, report, clock.instant())) {
                 LOGGER.warning("pronunciation lease ownership was lost: " + claimed.reportId());
-            } else if ("done".equals(status)) {
-                notifyIfSlow(claimed);
+            } else {
+                Optional<ReportOwner> owner = owner(claimed);
+                Duration wait = owner.map(o -> Duration.between(o.requestedAt(), claimedAt)).orElse(null);
+                LOGGER.info("pronunciation report timing: report=" + claimed.reportId() + " status=" + status
+                        + " attempt=" + claimed.attempt() + " lines=" + lines.size() + " sent=" + sent
+                        + " failed=" + (sent - scoredLines) + " " + timing.close(wait));
+                if ("done".equals(status)) {
+                    notifyIfSlow(claimed, owner);
+                }
             }
         } catch (RuntimeException | IOException failure) {
             boolean retry = claimed.attempt() < settings.maxAttempts();
@@ -110,16 +132,25 @@ public class PronunciationWorker {
         return true;
     }
 
+    /** 닫은 보고서의 주인과 처음 요청한 시각. 못 읽으면 로그만 남기고 비운다 — 보고서는 이미 닫혔다. */
+    private Optional<ReportOwner> owner(Claimed claimed) {
+        try {
+            return reports.owner(claimed.reportId());
+        } catch (RuntimeException failure) {
+            LOGGER.warning("pronunciation report owner lookup failed: report=" + claimed.reportId() + " cause=" + failure);
+            return Optional.empty();
+        }
+    }
+
     /** 처음 요청부터 {@code notifyAfter} 넘게 걸렸으면 주인에게 알린다. 알림 실패는 로그만 남긴다 — 보고서는 이미 닫혔다. */
-    private void notifyIfSlow(Claimed claimed) {
+    private void notifyIfSlow(Claimed claimed, Optional<ReportOwner> owner) {
         if (listener == null) {
             return;
         }
         try {
             Instant now = clock.instant();
-            reports.owner(claimed.reportId())
-                    .filter(owner -> !owner.requestedAt().plus(notifyAfter).isAfter(now))
-                    .ifPresent(owner -> listener.onPronunciationReportReady(owner.userId(), claimed.sessionId()));
+            owner.filter(o -> !o.requestedAt().plus(notifyAfter).isAfter(now))
+                    .ifPresent(o -> listener.onPronunciationReportReady(o.userId(), claimed.sessionId()));
         } catch (RuntimeException failure) {
             LOGGER.warning("pronunciation report notice failed: report=" + claimed.reportId() + " cause=" + failure);
         }
@@ -129,15 +160,25 @@ public class PronunciationWorker {
         return line.durationMs() != null && line.durationMs() > MAX_LINE_MS;
     }
 
-    private Scored score(LineSource line) throws IOException {
-        // 배우의 목소리라 주인만 읽고 쓰게 만든다.
-        Path temp = Files.createTempFile("pron-", ".m4a",
-                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+    private Scored score(LineSource line, ReportTiming timing) throws IOException {
+        timing.beginLine();
         try {
-            audio.download(line.objectKey(), temp);
-            return scorer.score(temp, line.contentType(), line.text());
+            // 배우의 목소리라 주인만 읽고 쓰게 만든다.
+            Path temp = Files.createTempFile("pron-", ".m4a",
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+            try {
+                timing.time(LineStage.DOWNLOAD, () -> {
+                    audio.download(line.objectKey(), temp);
+                    return null;
+                });
+                Scored scored = timing.time(LineStage.SCORE, () -> scorer.score(temp, line.contentType(), line.text()));
+                timing.server(scored.serverTime());
+                return scored;
+            } finally {
+                Files.deleteIfExists(temp);
+            }
         } finally {
-            Files.deleteIfExists(temp);
+            timing.endLine();
         }
     }
 }

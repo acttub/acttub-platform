@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from functools import lru_cache
 
 import soundfile as sf
@@ -423,18 +424,29 @@ def script_match(logp, text):
     return round(max(0.0, 1 - _edit_distance(expected, heard) / len(expected)), 3)
 
 
+def _ms(since):
+    return int((time.perf_counter() - since) * 1000)
+
+
 def score_line(path, script_text, threshold=THRESHOLD):
-    """한 줄 녹음을 채점한다. 어절마다 음소의 lpr·바뀐 소리·음절 자리·시각(ms)·짚음 여부를 돌려준다."""
+    """한 줄 녹음을 채점한다. 어절마다 음소의 lpr·바뀐 소리·음절 자리·시각(ms)·짚음 여부를 돌려준다.
+
+    timings_ms: 녹음 풀기(decode: ffmpeg·소리 없는 앞뒤 자르기), 모델 계산(model), 음소 비교·시각 정렬·대본 닮음(gop)에 쓴 ms."""
     text = normalize(script_text)
     numw = number_words(script_text)
     proc, m = model()
     vocab = proc.tokenizer.get_vocab()
     blank = proc.tokenizer.pad_token_id
+    started = time.perf_counter()
     wav, offset = voiced(load(path))
+    decode_ms = _ms(started)
     if len(wav) / 16000 > MAX_SECONDS:
         raise TooLong(f"{len(wav) / 16000:.1f}s > {MAX_SECONDS:.0f}s")
     offset_ms = int(offset * 1000 / 16000)
+    started = time.perf_counter()
     logp = log_probs(wav)
+    model_ms = _ms(started)
+    started = time.perf_counter()
     g = gop(path, text, logp)
     words = phonemes(text)
     seq, owner, syl = [], [], []
@@ -468,4 +480,6 @@ def score_line(path, script_text, threshold=THRESHOLD):
             "end_ms": None if s0 is None else offset_ms + int(((s1 if s1 is not None else s0) + 1) * FRAME_SECONDS * 1000),
             "flagged": flagged(p, threshold) and o not in numw,
         })
-    return {"scored_text": text, "threshold": threshold, "words": out_words, "script_match": script_match(logp, text)}
+    match = script_match(logp, text)
+    timings = {"decode": decode_ms, "model": model_ms, "gop": _ms(started)}
+    return {"scored_text": text, "threshold": threshold, "words": out_words, "script_match": match, "timings_ms": timings}

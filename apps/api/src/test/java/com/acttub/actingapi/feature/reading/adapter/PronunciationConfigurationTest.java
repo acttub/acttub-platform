@@ -53,6 +53,6 @@ class PronunciationConfigurationTest {
                 10_000)).isNotNull();
         assertThat(configuration.pronunciationWorker(reports, scorer, (key, path) -> { }, settings, Clock.systemUTC(),
                 new StaticListableBeanFactory().getBeanProvider(com.acttub.actingapi.feature.reading.app.PronunciationReportListener.class),
-                60)).isNotNull();
+                60, new io.micrometer.core.instrument.simple.SimpleMeterRegistry())).isNotNull();
     }
 }
