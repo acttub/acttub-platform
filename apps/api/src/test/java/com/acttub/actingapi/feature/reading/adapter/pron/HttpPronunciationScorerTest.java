@@ -83,7 +83,6 @@ class HttpPronunciationScorerTest {
         assertThat(first.lpr()).isEqualTo(-5.2);
         assertThat(first.syllable()).isEqualTo(1);
         assertThat(first.startMs()).isEqualTo(120);
-        assertThat(first.flagged()).isTrue();
         var second = scored.line().words().get(0).phones().get(1);
         assertThat(second.syllable()).isNull();
         assertThat(second.startMs()).isNull();

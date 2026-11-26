@@ -16,12 +16,61 @@ import org.junit.jupiter.api.Test;
 
 class PronunciationRulesTest {
 
+    /**
+     * 짚는 기준을 옮기기 전 채점 서비스가 낸 응답({@code pron/pron-responses.json}, SOMA-1171)의 음소마다 {@link PronunciationRules#flagged}
+     * 가 그 응답의 {@code flagged} 와 같다. lpr 이 문턱 아래인 소리를 갈래별로 다 담았다 — 짚음, 모음↔자음, 이중 모음, 허용 변이, 숫자,
+     * 울림소리 뒤 ㅎ.
+     */
+    @Test
+    void 옮긴_짚는_기준이_옮기기_전_채점_서비스와_음소마다_같다() throws java.io.IOException {
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        var sessions = mapper.readTree(java.nio.file.Path.of("src/test/resources/pron/pron-responses.json").toFile());
+        java.util.Map<String, Integer> kinds = new java.util.TreeMap<>();
+        for (var session : sessions) {
+            for (var line : session.path("lines")) {
+                for (var w : line.path("response").path("words")) {
+                    List<Phone> phones = new java.util.ArrayList<>();
+                    for (var p : w.path("phones")) {
+                        phones.add(new Phone(p.path("expected").asString(), p.path("heard").asString(), p.path("lpr").asDouble(),
+                                p.path("vowel").asBoolean(), null, null, null));
+                    }
+                    Word word = new Word(w.path("index").asInt(), w.path("word").asString(), w.path("number").asBoolean(), phones);
+                    for (int at = 0; at < phones.size(); at += 1) {
+                        boolean expected = w.path("phones").get(at).path("flagged").asBoolean();
+                        assertThat(PronunciationRules.flagged(word, at))
+                                .as(session.path("session").asString() + " " + word.word() + " " + phones.get(at)).isEqualTo(expected);
+                        if (phones.get(at).lpr() < PronunciationRules.FLAG_MAX_LPR) {
+                            kinds.merge(expected ? "flagged" : "not", 1, Integer::sum);
+                        }
+                    }
+                }
+            }
+        }
+        assertThat(kinds).as("문턱 아래 소리 중 짚은 것과 안 짚은 것이 모두 있다").containsOnlyKeys("flagged", "not");
+    }
+
+    @Test
+    void 울림소리_뒤_ㅎ_허용_변이_이중_모음_모음과_자음_사이_숫자_어절은_짚지_않는다() {
+        Word hu = word(0, "오후", ok("ㅗ", true, 0), bad("ㅎ", "ㅋ", -6, false, 1), ok("ㅜ", true, 1));
+        Word ha = word(0, "하늘", bad("ㅎ", "ㅍ", -6, false, 0), ok("ㅏ", true, 0));
+        assertThat(PronunciationRules.flagged(hu, 1)).as("모음 뒤 ㅎ").isFalse();
+        assertThat(PronunciationRules.flagged(ha, 0)).as("어절 첫 ㅎ").isTrue();
+        assertThat(PronunciationRules.flagged(word(0, "말해", ok("ㅁ", false, 0), ok("ㅏ", true, 0), ok("ㄹ", false, 0),
+                bad("ㅎ", "ㄱ", -6, false, 1)), 3)).as("받침 ㄹ 뒤 ㅎ").isFalse();
+        assertThat(PronunciationRules.flagged(word(0, "역", bad("ㅕ", "ㅛ", -6, true, 0)), 0)).as("ㅕ→ㅛ").isFalse();
+        assertThat(PronunciationRules.flagged(word(0, "의자", bad("ㅢ", "ㅣ", -6, true, 0)), 0)).as("이중 모음").isFalse();
+        assertThat(PronunciationRules.flagged(word(0, "강", bad("ㄱ", "ㅏ", -6, false, 0)), 0)).as("자음→모음").isFalse();
+        assertThat(PronunciationRules.flagged(new Word(0, "3시", true, List.of(bad("ㅅ", "ㅈ", -6, false, 0))), 0)).as("숫자").isFalse();
+        assertThat(PronunciationRules.flagged(word(0, "다", bad("ㅏ", "ㅓ", -3.0, true, 0)), 0)).as("문턱과 같으면 짚지 않는다").isFalse();
+        assertThat(PronunciationRules.flagged(word(0, "다", bad("ㅏ", "ㅓ", -3.01, true, 0)), 0)).isTrue();
+    }
+
     private static Phone ok(String jamo, boolean vowel, int syl) {
-        return new Phone(jamo, jamo, 1.0, vowel, syl, 0, 100, false);
+        return new Phone(jamo, jamo, 1.0, vowel, syl, 0, 100);
     }
 
     private static Phone bad(String expected, String heard, double lpr, boolean vowel, int syl) {
-        return new Phone(expected, heard, lpr, vowel, syl, 200, 300, true);
+        return new Phone(expected, heard, lpr, vowel, syl, 200, 300);
     }
 
     private static Word word(int i, String w, Phone... phones) {
@@ -223,7 +272,7 @@ class PronunciationRulesTest {
 
     @Test
     void 음절_자리가_없거나_그_자리에_올_수_없는_소리면_들린_말을_만들지_않는다() {
-        Word noSyllable = new Word(0, "다리", false, List.of(new Phone("ㄹ", "ㄴ", -5, false, null, 0, 100, true)));
+        Word noSyllable = new Word(0, "다리", false, List.of(new Phone("ㄹ", "ㄴ", -5, false, null, 0, 100)));
         assertThat(PronunciationRules.heard(noSyllable, noSyllable.phones().get(0))).isNull();
         Phone toTense = bad("ㅂ", "ㄸ", -5, false, 0);
         Word coda = word(0, "밥", ok("ㅂ", false, 0), ok("ㅏ", true, 0), toTense);

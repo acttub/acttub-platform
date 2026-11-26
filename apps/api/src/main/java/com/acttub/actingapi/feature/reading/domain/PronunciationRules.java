@@ -8,7 +8,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 리딩 발음 보고서 규칙(SOMA-606, 실험) — 줄마다 받은 채점 결과(apps/pron)와 받아쓴 글로 보고서를 만든다.
+ * 리딩 발음 보고서 규칙(SOMA-606, 실험) — 줄마다 받은 채점 결과(apps/pron)와 받아쓴 글로 보고서를 만든다. 채점 서비스는 음소마다
+ * 원래 값(대본 소리·들린 소리·lpr)만 주고, 어느 소리를 짚을지는 여기서 정한다({@link #flagged}, SOMA-1171).
  *
  * <p>보고서는 세 부분이다(10/21 시안 v4 — 소리 목록이 아니라 전달 중심):
  * <ol>
@@ -30,11 +31,20 @@ public final class PronunciationRules {
     public static final int MAX_MISHEARD = 3;
     public static final int MIN_HABIT_COUNT = 2;
     /**
-     * 줄 색 표시(주황)로 칠할 만큼 다른 소리. 같은 배우가 같은 줄을 두 번 읽은 2,419어절에서 -3 이하로 짚힌 어절이 다시
-     * 읽어도 짚힌 비율은 52~60%(아무 어절 28%)였고, 문턱을 -5·-7·-9로 올려도 거의 오르지 않았다(10/22). 그래서 강도로
-     * 빨강을 정하지 않고, 주황만 이 문턱으로 칠한다.
+     * 짚을 만큼 다른 소리 — lpr(대본대로 읽은 소리 − 가장 그럴듯한 다른 소리의 로그 확률)이 이보다 낮다. 줄 색 표시(주황)도 짚힌
+     * 소리로 칠한다. 같은 배우가 같은 줄을 두 번 읽은 2,419어절에서 -3 아래로 짚힌 어절이 다시 읽어도 짚힌 비율은 52~60%(아무 어절
+     * 28%)였고, 문턱을 -5·-7·-9로 올려도 거의 오르지 않았다(10/22). 그래서 강도로 빨강을 정하지 않고, 주황만 이 문턱으로 칠한다.
      */
-    public static final double MARK_MAX_LPR = -3.0;
+    public static final double FLAG_MAX_LPR = -3.0;
+    /** 정답 낭독에서만 나오던 자연스러운 변이(대본 소리→들린 소리) — 짚지 않는다. */
+    private static final Set<String> TOLERATED = Set.of("ㄹ→ㅎ", "ㅕ→ㅛ", "ㄲ→ㄸ", "ㅡ→ㅔ");
+    /**
+     * ㅘ·ㅙ·ㅝ·ㅟ·ㅢ 는 표준 발음 낭독(맥 합성 음성 40줄 + Zeroth 공개 낭독 37줄)에서도 12~33% 를 짚었다. ㅢ→ㅣ(희망→히망),
+     * ㅙ→ㅔ 처럼 표준 발음이 원래 그렇게 나는 경우도 있다. 이 모델로는 가를 수 없어 짚지 않는다.
+     */
+    private static final Set<String> DIPHTHONGS = Set.of("ㅘ", "ㅙ", "ㅝ", "ㅟ", "ㅢ");
+    /** 모음과 함께 울림소리다. 그 뒤의 ㅎ은 실제 말에서 약해져(말해→마래) 짚지 않는다. */
+    private static final Set<String> SONORANT_CONSONANTS = Set.of("ㄴ", "ㅁ", "ㄹ", "ㅇ");
     public static final int MAX_MARKS_PER_LINE = 2;
     /**
      * 습관으로 셀 만큼 확실히 다른 소리. 표준 발음 낭독 77줄로 6줄 리딩을 2,000번 뽑아 보니, 짚힌 소리를 자리(첫소리·받침·모음)로만
@@ -52,8 +62,9 @@ public final class PronunciationRules {
     private PronunciationRules() {
     }
 
+    /** 채점 서비스가 준 음소 하나. {@code vowel} 은 대본 소리가 모음인가다. */
     public record Phone(String expected, String heard, double lpr, boolean vowel, Integer syllable,
-            Integer startMs, Integer endMs, boolean flagged) {
+            Integer startMs, Integer endMs) {
     }
 
     public record Word(int index, String word, boolean number, List<Phone> phones) {
@@ -179,16 +190,18 @@ public final class PronunciationRules {
                     continue;
                 }
                 Phone worst = null;
-                for (Phone phone : word.phones()) {
+                List<Phone> phones = word.phones();
+                for (int at = 0; at < phones.size(); at += 1) {
+                    Phone phone = phones.get(at);
                     sounds += 1;
-                    boolean counts = phone.flagged() && !informalGoyo(word, phone);
+                    boolean counts = flagged(word, at) && !informalGoyo(word, phone);
                     if (!counts) {
                         clear += 1;
                     } else if (worst == null || phone.lpr() < worst.lpr()) {
                         worst = phone;
                     }
                 }
-                if (worst != null && worst.lpr() <= MARK_MAX_LPR) {
+                if (worst != null) {
                     Heard heard = heard(word, worst);
                     PronunciationAdvice.Detail detail = heard == null ? null : PronunciationAdvice.of(clean(word.word()),
                             heard.word(), heard.slot(), worst.expected(), worst.heard(), heard.syllable(), heard.open());
@@ -251,6 +264,34 @@ public final class PronunciationRules {
         }
         Double match = line.scored().scriptMatch();
         return match != null && match >= MIN_SCRIPT_MATCH ? Use.AUDIO : Use.NO;
+    }
+
+    /**
+     * 짚을 소리인가. lpr 이 {@link #FLAG_MAX_LPR} 보다 낮고 모음↔모음·자음↔자음으로 바뀐 것만 짚는다. 숫자가 든 어절(읽는 법이
+     * 갈린다), 울림소리 뒤 ㅎ, 자연스러운 변이({@link #TOLERATED}), 이중 모음({@link #DIPHTHONGS})은 짚지 않는다.
+     * 채점 서비스(apps/pron)가 정하던 것을 그대로 옮겼다 — 옛 채점 서비스가 보내는 {@code flagged} 는 읽지 않는다.
+     */
+    static boolean flagged(Word word, int at) {
+        Phone phone = word.phones().get(at);
+        if (word.number() || !(phone.lpr() < FLAG_MAX_LPR)) {
+            return false;
+        }
+        if ("ㅎ".equals(phone.expected()) && at > 0 && sonorant(word.phones().get(at - 1))) {
+            return false;
+        }
+        if (TOLERATED.contains(phone.expected() + "→" + phone.heard()) || DIPHTHONGS.contains(phone.expected())) {
+            return false;
+        }
+        return phone.vowel() == vowel(phone.heard());
+    }
+
+    private static boolean sonorant(Phone phone) {
+        return phone.vowel() || SONORANT_CONSONANTS.contains(phone.expected());
+    }
+
+    /** 채점 서비스가 준 소리(자모 하나)가 모음인가. 자모로 옮기지 못한 소리는 자음으로 본다. */
+    private static boolean vowel(String jamo) {
+        return jamo != null && jamo.length() == 1 && VOWELS.indexOf(jamo) >= 0;
     }
 
     static boolean excluded(Word word) {

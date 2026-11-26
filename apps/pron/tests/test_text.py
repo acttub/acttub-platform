@@ -22,11 +22,3 @@ def test_standard_pronunciation_rules():
     assert ph[2] == "NG"  # 비음화: 국→궁
     _, ph = P.phonemes("신라")[0]
     assert ph[2] == "L" and ph[3] == "R"  # 유음화: 신라→실라
-
-
-def test_flag_rules():
-    base = {"weak": False, "lpr": -5.0}
-    assert P.flagged({**base, "ph": "R", "alt": "N"})
-    assert not P.flagged({**base, "ph": "R", "alt": "H"})  # 자연스러운 변이
-    assert not P.flagged({**base, "ph": "A", "alt": "N"})  # 모음↔자음
-    assert not P.flagged({**base, "ph": "R", "alt": "N", "lpr": -2.0})

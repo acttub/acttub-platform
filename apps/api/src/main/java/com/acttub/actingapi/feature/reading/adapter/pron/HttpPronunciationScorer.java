@@ -74,9 +74,10 @@ public class HttpPronunciationScorer implements PronunciationScorer {
         for (JsonNode w : root.path("words")) {
             List<Phone> phones = new ArrayList<>();
             for (JsonNode p : w.path("phones")) {
+                // 옛 채점 서비스가 보내는 flagged 는 읽지 않는다 — 짚는 기준은 PronunciationRules 가 정한다(SOMA-1171).
                 phones.add(new Phone(LenientJson.asText(p.path("expected")), LenientJson.asText(p.path("heard")), LenientJson.asDouble(p.path("lpr")),
                         LenientJson.asBoolean(p.path("vowel")), intOrNull(p.get("syllable")), intOrNull(p.get("start_ms")),
-                        intOrNull(p.get("end_ms")), LenientJson.asBoolean(p.path("flagged"))));
+                        intOrNull(p.get("end_ms"))));
             }
             words.add(new Word(LenientJson.asInt(w.path("index")), LenientJson.asText(w.path("word")), LenientJson.asBoolean(w.path("number")), phones));
         }

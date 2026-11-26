@@ -92,7 +92,7 @@ class ReadingPronunciationIT {
                     throw new IllegalStateException("pronunciation scorer returned 503");
                 }
                 SCORED.add(text);
-                Phone phone = new Phone("ㄷ", "ㄷ", 1.0, false, 0, 0, 100, false);
+                Phone phone = new Phone("ㄷ", "ㄷ", 1.0, false, 0, 0, 100);
                 return new PronunciationScorer.Scored(new ScoredLine(text, List.of(new Word(0, text, false, List.of(phone)))),
                         "pron-fake");
             };
