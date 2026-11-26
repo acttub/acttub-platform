@@ -36,6 +36,66 @@ class PostgresAiJobLedger implements AiJobLedger {
     }
 
     @Override
+    public UUID enqueue(UUID userId, String kind, UUID targetId, UUID requestId, String fingerprint, Instant now) {
+        UUID id = UUID.randomUUID();
+        entityManager.createNativeQuery("""
+                INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,status,attempt_count,created_at,updated_at)
+                VALUES (:id,:userId,:kind,:targetId,:requestId,:fingerprint,'pending',0,:now,:now)
+                """)
+                .setParameter("id", id)
+                .setParameter("userId", userId)
+                .setParameter("kind", kind)
+                .setParameter("targetId", targetId)
+                .setParameter("requestId", requestId)
+                .setParameter("fingerprint", fingerprint)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .executeUpdate();
+        return id;
+    }
+
+    /** {@code INSERT … SELECT FROM users} 인 것은 탈퇴한 계정에 작업이 다시 생기지 않게 하려는 것이다. */
+    @Override
+    public boolean enqueueForActiveAccount(
+            UUID userId, String kind, UUID targetId, UUID requestId, String fingerprint, Instant now) {
+        return !NativeTuples.list(entityManager.createNativeQuery("""
+                WITH inserted AS (
+                    INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,
+                                        status,memory_epoch,created_at,updated_at)
+                    SELECT :id,u.id,:kind,:targetId,:requestId,CAST(:fingerprint AS bpchar),
+                           'pending',u.memory_epoch,:now,:now
+                    FROM users u
+                    WHERE u.id=:userId AND u.status='active'
+                    ON CONFLICT (user_id,request_id) DO NOTHING
+                    RETURNING id
+                )
+                SELECT id FROM inserted
+                """, Tuple.class)
+                .setParameter("id", UUID.randomUUID())
+                .setParameter("kind", kind)
+                .setParameter("targetId", targetId)
+                .setParameter("requestId", requestId)
+                .setParameter("fingerprint", fingerprint)
+                .setParameter("userId", userId)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))).isEmpty();
+    }
+
+    @Override
+    public int cancel(String kind, UUID targetId, Instant now) {
+        return entityManager.createNativeQuery("""
+                UPDATE ai_jobs
+                SET status='failed',failure_reason='cancelled',
+                    lease_token=NULL,lease_expires_at=NULL,updated_at=:now
+                WHERE target_id=:targetId
+                  AND kind=:kind
+                  AND status IN ('pending','running')
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("targetId", targetId)
+                .setParameter("kind", kind)
+                .executeUpdate();
+    }
+
+    @Override
     public Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now, boolean reclaimExpired) {
         return transaction.execute(tx -> {
             List<Tuple> claimed = NativeTuples.list(entityManager.createNativeQuery("""

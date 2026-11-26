@@ -28,6 +28,7 @@ import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
+import com.acttub.actingapi.platform.schema.AiJobKind;
 import com.acttub.actingapi.platform.web.Hashing;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -279,25 +280,8 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 return false;
             }
             UUID requestId = uuid5(MEMORY_UPDATE_NAMESPACE, practiceId.toString());
-            return !NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH inserted AS (
-                        INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,
-                                            status,memory_epoch,created_at,updated_at)
-                        SELECT :id,u.id,'memory_update',:practiceId,:requestId,CAST(:fingerprint AS bpchar),
-                               'pending',u.memory_epoch,:now,:now
-                        FROM users u
-                        WHERE u.id=:userId AND u.status='active'
-                        ON CONFLICT (user_id,request_id) DO NOTHING
-                        RETURNING id
-                    )
-                    SELECT id FROM inserted
-                    """, Tuple.class)
-                    .setParameter("id", UUID.randomUUID())
-                    .setParameter("practiceId", practiceId)
-                    .setParameter("requestId", requestId)
-                    .setParameter("fingerprint", Hashing.sha256Hex("memory_update:" + practiceId))
-                    .setParameter("userId", userId)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))).isEmpty();
+            return jobs.enqueueForActiveAccount(
+                    userId, AiJobKind.MEMORY_UPDATE.dbValue(), practiceId, requestId, Hashing.sha256Hex("memory_update:" + practiceId), now);
         }));
     }
 

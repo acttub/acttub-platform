@@ -1162,6 +1162,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `reclaimExpired=true` 로 부른다(SOMA-1105). 집은 워커가 죽어도 작업이 running 으로 남지 않는다. 시도 수는 선점마다 오르고
   `release` 는 `attempt_count` 를 되돌리지 않는다. 3회 뒤 `sweepMaxAttempts` 가 닫고, 시도를 다 쓴 채 lease 가 지난 `running` 은
   각 기능의 정리가 `failExpired` 로 닫는다. `failure_reason` 에는 CHECK 가 없다(분류가 열린 목록이다).
+  이 표에 쓰는 것은 이 장부뿐이다. 다른 기능은 작업을 넣을 때 `enqueue`(기억 갱신은 활성 계정에만 넣고 기억 세대를 적는
+  `enqueueForActiveAccount`), 대상을 지우거나 취소할 때 `cancel` 을 부른다. 셋 다 부르는 쪽의 트랜잭션에 참여해, 작업과 그 대상이
+  함께 생기거나 함께 없다(`AiJobLedgerIT`). 탈퇴와 연습 삭제의 닫기는 §6-8·§6-15 의 자리가 한다.
 - **분석 결과**(`analyses`, `feature/analysis`): 워커는 **한 클래스**(`AnalysisWorker`)이고 원장마다 저장소·빈이
   하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 0.1.0 `PracticeAnalysisStore`
   (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는
