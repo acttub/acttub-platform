@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 public interface AccountErasure {
 
-    /** 이 구현이 맡는 자리들. 자리마다 구현은 하나다. */
+    /** 이 구현이 맡는 자리들. 자리마다 구현은 하나다. 탈퇴에서 고칠 것이 없는 기능은 비어 있다. */
     Set<AccountErasureStep> steps();
 
     /**
@@ -31,4 +31,11 @@ public interface AccountErasure {
      * 것(신원, 토큰, 프로필처럼 계정 그 자체인 것)은 자료로 세지 않는다.
      */
     boolean hasRecords(UUID userId);
+
+    /**
+     * 자료가 없는 계정을 행째 지울 때(만 14세 미만 계정 닫기) 그 앞에 부른다. 계정 행을 가리키는 자기 행 가운데 외래 키가 따라
+     * 지워 주지 않는 것(신원, 토큰, 동의 기록)을 지운다. {@code ON DELETE CASCADE} 로 따라 지워지는 행뿐이면 할 일이 없다.
+     */
+    default void eraseWithAccountRow(UUID userId) {
+    }
 }

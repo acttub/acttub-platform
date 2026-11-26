@@ -80,7 +80,8 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 `AccountErasure`를 구현해 자기 테이블을 고친다. 계정을 닫는 순서는 `AccountErasureSequence`와 `AccountErasureStep`에만 있다.
 구현은 트랜잭션을 열지 않는다(`AccountErasureStructureTest`, `AccountErasureRollbackIT`). 테이블마다의 결과와 문장의 순서는
 `AccountLifecycleFreezeIT`가 기준 파일(`apps/api/src/test/resources/frozen/account-lifecycle/`)로 고정한다. 테이블을 새로 만들어
-사람을 가리키게 하면 그 테스트의 심는 자료에도 더한다.
+사람을 가리키게 하면 그 테스트의 심는 자료에도 더한다. 그 외래 키가 계정 행을 지우지 못하게 막으면(`ON DELETE` 없음) 주인의
+`AccountErasure`가 그 칸을 `hasRecords`에서 세거나 `eraseWithAccountRow`에서 지운다. 빠지면 같은 테스트가 실패한다.
 
 연습 삭제(묶음 하나를 여러 기능의 테이블에서 고치는 일)도 같다. 순서는 `feature/practice/app`의 `PracticeGroupErasureSequence`와
 `PracticeGroupErasureStep`에만 있고, 각 기능이 `PracticeGroupErasurePart`를 구현해 자기 테이블을 고친다. 영상은 video의
