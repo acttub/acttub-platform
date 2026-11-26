@@ -86,6 +86,7 @@ feature/community/adapter/db/PostgresCommunityImageRepository.java users
 feature/community/adapter/db/PostgresCommunityRepository.java user_profiles
 feature/community/adapter/db/PostgresCommunityRepository.java users
 feature/feedback/adapter/db/PostgresExitSurveyStore.java practices
+feature/feedback/adapter/db/PostgresExitSurveyStore.java users
 feature/memory/adapter/db/PostgresActorMemoryStore.java ai_jobs
 feature/memory/adapter/db/PostgresActorMemoryStore.java analyses
 feature/memory/adapter/db/PostgresActorMemoryStore.java coach_conversations
@@ -93,6 +94,7 @@ feature/memory/adapter/db/PostgresActorMemoryStore.java coach_messages
 feature/memory/adapter/db/PostgresActorMemoryStore.java coach_notes
 feature/memory/adapter/db/PostgresActorMemoryStore.java note_ratings
 feature/memory/adapter/db/PostgresActorMemoryStore.java practices
+feature/memory/adapter/db/PostgresActorMemoryStore.java users
 feature/memory/adapter/db/PostgresActorMemoryStore.java video_transcripts
 feature/memory/adapter/db/PostgresMemoryRepository.java coach_conversations
 feature/memory/adapter/db/PostgresMemoryRepository.java coach_messages

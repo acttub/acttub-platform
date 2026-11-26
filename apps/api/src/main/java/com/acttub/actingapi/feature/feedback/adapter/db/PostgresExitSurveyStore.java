@@ -5,6 +5,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.ExitSurveyAsk;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyStore;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
@@ -15,18 +16,21 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 이탈 설문의 Postgres 구현 — {@code practice_feedback} 와 {@code users.exit_survey_asked_at} (V14).
+ * 이탈 설문의 Postgres 구현 — {@code practice_feedback} (V14). 노출 표식({@code users.exit_survey_asked_at})은 계정 행의 칸이라
+ * {@code auth} 의 {@link ExitSurveyAsk} 가 고친다.
  *
- * <p>접수는 {@code (user_id, request_id)} 로 멱등하다. 노출 표식의 선점은 한 문장이다
- * ({@code UPDATE … WHERE exit_survey_asked_at IS NULL}) — 두 기기가 동시에 물어도 하나만 이긴다.
+ * <p>접수는 {@code (user_id, request_id)} 로 멱등하다. 노출 표식의 선점은 한 문장이다 — 두 기기가 동시에 물어도 하나만 이긴다.
  */
 @Repository
 class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
+    private final ExitSurveyAsk asks;
 
-    PostgresExitSurveyStore(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    PostgresExitSurveyStore(
+            EntityManager entityManager, PlatformTransactionManager transactionManager, ExitSurveyAsk asks) {
+        this.asks = asks;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
     }
@@ -93,16 +97,7 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
     /** 한 문장으로 선점한다 — 이긴 쪽만 1행을 갱신하고 진 쪽은 0행이다. */
     @Override
     public boolean claimAsk(UUID userId, Instant now) {
-        return Boolean.TRUE.equals(transaction.execute(tx -> entityManager.createNativeQuery("""
-                UPDATE users
-                SET exit_survey_asked_at=:now,updated_at=:now
-                WHERE id=:userId
-                  AND status='active'
-                  AND exit_survey_asked_at IS NULL
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate() > 0));
+        return asks.claim(userId, now);
     }
 
     @Override
@@ -174,19 +169,6 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
                 .setParameter("to", to)
                 .setParameter("from", from)
                 .executeUpdate();
-        entityManager.createNativeQuery("""
-                UPDATE users member
-                SET exit_survey_asked_at=LEAST(
-                        COALESCE(member.exit_survey_asked_at, guest.exit_survey_asked_at),
-                        COALESCE(guest.exit_survey_asked_at, member.exit_survey_asked_at)),
-                    updated_at=now()
-                FROM users guest
-                WHERE member.id=:to
-                  AND guest.id=:from
-                  AND guest.exit_survey_asked_at IS NOT NULL
-                """)
-                .setParameter("to", to)
-                .setParameter("from", from)
-                .executeUpdate();
+        asks.carryOver(from, to);
     }
 }
