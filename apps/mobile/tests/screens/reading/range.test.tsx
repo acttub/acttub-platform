@@ -7,6 +7,7 @@ import { ApiError } from '@/lib/api-request';
 import { getCurrent, getCurrentSession, resetReadingState } from '@/lib/reading/store';
 import { isFirstReadingSession } from '@/lib/reading/first-reading';
 import * as engine from '@/lib/reading/tts/engine';
+import { logEvent } from '@/lib/analytics';
 
 import { openFixtureScript, scriptDetail, sessionCard, TWO_ROLE_LINES } from './fixtures';
 
@@ -21,6 +22,7 @@ jest.mock('@/hooks/use-reading-mic', () => ({ micPermissionState: jest.fn(), req
 const mockAskFirstReading = jest.fn(async (_scriptId: string) => undefined);
 jest.mock('@/hooks/use-cloud-voice', () => ({ useCloudVoice: () => ({ askFirstReading: mockAskFirstReading, consentSheet: null }) }));
 jest.mock('@/lib/reading/tts/engine', () => ({ prepareInBackground: jest.fn(async () => undefined) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 
 const TWO_SCENES = scriptDetail(
   [...TWO_ROLE_LINES, ['scene', '2장 거리'], ['dialogue', '서연', '어디 가?'], ['dialogue', '민재', '집에.']],
@@ -81,12 +83,12 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
   expect(screen.getByText('구간')).toBeOnTheScreen();
   expect(screen.getByText('전체 듣기 · 대사 5개')).toBeOnTheScreen();
   expect(screen.queryByLabelText('내 대사 가리기')).not.toBeOnTheScreen();
-  expect(screen.queryByLabelText('자동 넘김')).not.toBeOnTheScreen();
+  expect(screen.queryByText('내 차례 넘기기')).not.toBeOnTheScreen();
   expect(engine.prepareInBackground).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText('전체 듣기 · 대사 5개')).not.toBeOnTheScreen();
-  expect(screen.getByLabelText('자동 넘김')).toBeOnTheScreen();
+  expect(screen.getByText('내 차례 넘기기')).toBeOnTheScreen();
   expect(startButton(5)).toBeOnTheScreen();
 });
 
@@ -100,12 +102,62 @@ test('전체 듣기: 내 배역 없이 마이크를 묻지 않고 녹음 없는 
   expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: [], advance: 'manual', record: false }));
 });
 
-test('자동 넘김·쉬는 시간·읽는 속도: 고른 값을 기억하고, 자동 넘김 회차는 마이크 없이 timed 로 시작한다', async () => {
+test('내 차례 넘기기(SOMA-1053): 셋 중 기본은 목소리로 넘기기이고, 고른 것의 설명만 한 줄 보인다', async () => {
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+  expect(screen.getByRole('radio', { name: '목소리로 넘기기' })).toBeSelected();
+  expect(screen.getByText('말을 마치면 다음 대사로 넘어가요')).toBeOnTheScreen();
+  expect(screen.queryByText('[다음]을 눌러야 넘어가요. 녹음은 그대로 해요')).not.toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByRole('radio', { name: '[다음]으로만 넘기기' }));
+  expect(screen.getByRole('radio', { name: '[다음]으로만 넘기기' })).toBeSelected();
+  expect(screen.getByText('[다음]을 눌러야 넘어가요. 녹음은 그대로 해요')).toBeOnTheScreen();
+  expect(screen.queryByText('말을 마치면 다음 대사로 넘어가요')).not.toBeOnTheScreen();
+  expect(screen.queryByLabelText('쉬는 시간')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('radio', { name: '목소리로 넘기기' }));
+
+  await fireEvent.press(startButton(5));
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ advance: 'silence', record: true })));
+  expect(logEvent).toHaveBeenCalledWith('reading_advance_mode', { mode: 'voice' });
+});
+
+test('[다음]으로만 넘기기: 마이크를 묻고 녹음하는 manual 회차로 시작하며, 고른 값을 기억한다(SOMA-1053)', async () => {
+  jest.mocked(micPermissionState).mockResolvedValue('ask');
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(screen.getByRole('radio', { name: '[다음]으로만 넘기기' }));
+  await fireEvent.press(startButton(5));
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(requestMicPermission).toHaveBeenCalled();
+  expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], advance: 'manual', record: true }));
+  expect(logEvent).toHaveBeenCalledWith('reading_advance_mode', { mode: 'manual' });
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual(expect.objectContaining({ advanceMode: 'manual', handsFree: false }));
+});
+
+test('예전 판이 남긴 자동 넘김(handsFree=true)은 「정한 시간 쉬고 넘기기」로 골라 둔다(SOMA-1053)', async () => {
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.setItem('acttub.reading.listenPrefs', JSON.stringify({ handsFree: true, rate: 1, pauseSec: 4 }));
+  await show();
+  await fireEvent.press(screen.getByText('민재'));
+  await waitFor(() => expect(screen.getByRole('radio', { name: '정한 시간 쉬고 넘기기' })).toBeSelected());
+  expect(screen.getByLabelText('쉬는 시간')).toHaveDisplayValue('4');
+});
+
+test('전체 듣기는 넘김 방식 이벤트를 남기지 않는다', async () => {
+  await show();
+  await fireEvent.press(screen.getByText('전체 듣기 · 대사 5개'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(logEvent).not.toHaveBeenCalledWith('reading_advance_mode', expect.anything());
+});
+
+test('정한 시간 쉬고 넘기기·쉬는 시간·읽는 속도: 고른 값을 기억하고, 그 회차는 마이크 없이 timed 로 시작한다', async () => {
   jest.mocked(micPermissionState).mockResolvedValue('ask');
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByLabelText('쉬는 시간')).not.toBeOnTheScreen();
-  await fireEvent(screen.getByLabelText('자동 넘김'), 'valueChange', true);
+  await fireEvent.press(screen.getByRole('radio', { name: '정한 시간 쉬고 넘기기' }));
   // 켜면 쉬는 시간 입력칸이 보이고 기본은 2초다. 범위 밖은 안내만 하고 받지 않는다.
   expect(screen.getByLabelText('쉬는 시간')).toHaveDisplayValue('2');
   await fireEvent.changeText(screen.getByLabelText('쉬는 시간'), '40');
@@ -120,7 +172,8 @@ test('자동 넘김·쉬는 시간·읽는 속도: 고른 값을 기억하고, �
   expect(requestMicPermission).not.toHaveBeenCalled();
   expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], advance: 'timed', record: false }));
   const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual({ handsFree: true, rate: 1.2, pauseSec: 3.5 });
+  expect(JSON.parse(await AsyncStorage.getItem('acttub.reading.listenPrefs'))).toEqual({ advanceMode: 'timed', handsFree: true, rate: 1.2, pauseSec: 3.5 });
+  expect(logEvent).toHaveBeenCalledWith('reading_advance_mode', { mode: 'timed' });
 });
 
 test('시작하기 전에 대본의 첫 리딩 고품질 목소리 동의를 먼저 확인한다(SOMA-917)', async () => {

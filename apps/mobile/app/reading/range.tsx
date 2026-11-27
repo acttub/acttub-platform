@@ -42,7 +42,7 @@ import { newRequestId } from '@/lib/request-id';
 import { relativeDay } from '@/lib/reading/script-cards';
 import { translate as t } from '@/lib/i18n';
 import { logEvent } from '@/lib/analytics';
-import { DEFAULT_LISTEN_PREFS, PAUSE_MAX_SEC, PAUSE_MIN_SEC, READING_RATES, loadListenPrefs, parsePause, rateLabel, saveListenPrefs, type ListenPrefs } from '@/lib/reading/listen-prefs';
+import { ADVANCE_MODES, DEFAULT_LISTEN_PREFS, PAUSE_MAX_SEC, PAUSE_MIN_SEC, READING_RATES, loadListenPrefs, parsePause, rateLabel, saveListenPrefs, type AdvanceMode, type ListenPrefs } from '@/lib/reading/listen-prefs';
 import { TextField } from '@/components/ui/text-field';
 import { UnderlineTabs } from '@/components/ui/underline-tabs';
 
@@ -62,6 +62,9 @@ const tabLabel = (k: Tab): string => ({
 })[k];
 
 const NO_LINES: ScriptLine[] = [];
+
+const ADVANCE_LABEL = { voice: 'reading.advanceVoice', timed: 'reading.advanceTimed', manual: 'reading.advanceManual' } as const;
+const ADVANCE_DESC = { voice: 'reading.advanceVoiceDesc', timed: 'reading.advanceTimedDesc', manual: 'reading.advanceManualDesc' } as const;
 
 export default function ReadingRange() {
   const router = useRouter();
@@ -201,9 +204,11 @@ export default function ReadingRange() {
   const loadingDefault = !firstMode && picked === null && sessions === null;
   // 내 배역을 하나도 고르지 않으면 「전체 듣기」 — 앱이 모든 대사를 읽는다(1.1.1). 첫 리딩은 지금처럼 배역을 고른다.
   const listenAll = !firstMode && selected.length === 0;
-  // 핸즈프리는 상대 대사가 있는 대본에서만 — 독백은 내 대사뿐이라 쉬기만 하게 된다.
-  const handsFree = !firstMode && !listenAll && cast.length > 1 && listen.handsFree;
-  // 전체 듣기·핸즈프리는 마이크를 열지 않는다 — 권한을 묻지 않는다.
+  // 넘김 방식(SOMA-1053)은 상대 대사가 있는 대본에서만 고른다 — 독백은 내 대사뿐이라 쉬기만 하게 된다. 그 밖은 목소리로 넘긴다.
+  const canPickAdvance = !firstMode && !listenAll && cast.length > 1;
+  const advanceMode: AdvanceMode = canPickAdvance ? listen.advanceMode : 'voice';
+  const handsFree = advanceMode === 'timed';
+  // 전체 듣기·정한 시간 넘김은 마이크를 열지 않는다 — 권한을 묻지 않는다. [다음]으로만 넘기기는 녹음하므로 묻는다.
   const needsMic = !listenAll && !handsFree;
   const gate = startGate({
     roleCount: listenAll ? 1 : selected.length,
@@ -266,12 +271,14 @@ export default function ReadingRange() {
           myCharacterIds: selected,
           startLineId: script.lineIds[range.startIndex],
           endLineId: script.lineIds[range.endIndex],
-          // 전체 듣기·핸즈프리는 말하지 않으니 녹음도 하지 않는다. 핸즈프리는 대사 길이만큼 쉬고 넘어간다(timed).
-          advance: listenAll ? 'manual' : handsFree ? 'timed' : 'silence',
+          // 전체 듣기·정한 시간 넘김은 말하지 않으니 녹음도 하지 않는다. [다음]으로만 넘기기는 녹음·받아쓰기를 하고 버튼만 기다린다.
+          advance: listenAll || advanceMode === 'manual' ? 'manual' : handsFree ? 'timed' : 'silence',
           record: needsMic,
         }),
       );
       logEvent('reading_listen_options', { listen_all: listenAll, hands_free: handsFree, rate: listen.rate, pause_sec: handsFree ? listen.pauseSec : 0 });
+      // 고른 넘김 방식(SOMA-1053) — 전체 듣기는 내 차례가 없어 남기지 않는다.
+      if (!listenAll) logEvent('reading_advance_mode', { mode: advanceMode });
       await updateCurrent({ maskMode: mask });
       setFirstReadingSession(firstMode ? (getCurrentSession()?.id ?? null) : null);
       router.replace('/reading/play');
@@ -440,21 +447,27 @@ export default function ReadingRange() {
             />
           </View>
         )}
-        {/* 자동 넘김(SOMA-954) — 걸으면서 듣게. 내 차례에 마이크를 열지 않고 고른 시간만큼 쉬고 넘어간다. 팝업 없이 스위치 한 줄. */}
-        {!listenAll && cast.length > 1 && (
-          <View style={styles.maskRow}>
-            <View style={styles.rowBody}>
-              <Text style={styles.maskLabel}>{t('reading.handsFreeSwitch')}</Text>
-              <Text style={styles.hint}>{t('reading.handsFreeDesc')}</Text>
+        {/* 내 차례 넘기기(SOMA-1053) — 예전 「자동 넘김」 스위치(SOMA-954)는 끄면 목소리로 넘겨서 「껐는데 넘어간다」로 읽혔다.
+            셋 중 하나를 칩으로 고르고 고른 것의 설명만 한 줄 보인다. 팝업·시트 없이 같은 자리. */}
+        {canPickAdvance && (
+          <View style={styles.advanceBox}>
+            <Text style={styles.maskLabel}>{t('reading.advanceLabel')}</Text>
+            <View style={styles.advanceRow}>
+              {ADVANCE_MODES.map((m) => (
+                <Chip
+                  key={m}
+                  size="sm"
+                  label={t(ADVANCE_LABEL[m])}
+                  role="radio"
+                  selected={advanceMode === m}
+                  onPress={() => updateListen({ advanceMode: m })}
+                />
+              ))}
             </View>
-            <BlueSwitch
-              value={listen.handsFree}
-              onValueChange={(on) => updateListen({ handsFree: on })}
-              accessibilityLabel={t('reading.handsFreeSwitch')}
-            />
+            <Text style={styles.hint}>{t(ADVANCE_DESC[advanceMode])}</Text>
           </View>
         )}
-        {/* 자동 넘김을 켜면 쉬는 시간을 적는다(기본 2초, 0.5~30초, 11/1 사용자 결정: 버튼 말고 입력). */}
+        {/* 정한 시간 쉬고 넘기기면 쉬는 시간을 적는다(기본 2초, 0.5~30초, 11/1 사용자 결정: 버튼 말고 입력). */}
         {handsFree && (
           <View style={styles.maskRow}>
             <Text style={styles.maskLabel}>{t('reading.pauseLabel')}</Text>
@@ -615,6 +628,8 @@ const styles = StyleSheet.create({
   maskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 },
   maskLabel: { ...type.body1, color: palette.text },
   rateRow: { flexDirection: 'row', gap: space[1.5] },
+  advanceBox: { gap: space[2], paddingVertical: space[1] },
+  advanceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
   pauseInput: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   pauseField: { width: 72, minHeight: 40, textAlign: 'center' },
   pauseFieldError: { borderWidth: 1.5, borderColor: palette.danger },

@@ -1293,6 +1293,33 @@ test('버튼으로 넘기는 옛 회차에는 자동 넘김 안내가 없고 말
   expect(await screen.findByText('서연')).toBeOnTheScreen();
 });
 
+test('[다음]으로만 넘기기 회차(manual·녹음)는 받아쓰기·녹음을 하되 말 끝·보조 넘김·늦은 넘김으로 넘어가지 않고 [다음]으로만 넘긴다(SOMA-1053)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
+  await startPlay({ advance: 'manual', record: true }, undefined, { begin: false });
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: true, locale: 'ko-KR' });
+  const listener = recognizer!;
+  await withFakeTimers(async () => {
+    // 늦은 넘김의 조건(말 끝에 글이 모자람 → 뒤에 찬 글)과 보조 넘김의 조건(글이 찬 채 조용함)을 모두 만든다.
+    await act(async () => listener.onInterim!('오늘'));
+    await act(async () => listener.onEvent('speech_end'));
+    await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
+    await tick(10_000);
+    await act(async () => listener.onEvent('speech_end'));
+    await tick(10_000);
+  });
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  expect(screen.getByText(ME)).toBeOnTheScreen();
+  expect(screen.queryByText('괜찮아.')).toBeNull();
+
+  mockStt.finish.mockResolvedValueOnce('오늘 왔구나');
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('서연')).toBeOnTheScreen();
+  await waitFor(() => expect(enqueueLineRecording).toHaveBeenCalledWith(expect.objectContaining({ lineId: 'l2', transcript: '오늘 왔구나' })));
+});
+
 test('대사 보기 줄이 펼쳐진 동안 말이 끝나면 넘김을 미뤘다가, 줄을 접고 침묵이 이어지면 넘긴다', async () => {
   await startPlay();
   await screen.findByText('듣는 중');
