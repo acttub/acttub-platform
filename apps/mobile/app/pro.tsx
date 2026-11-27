@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +16,7 @@ import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useStorePurchase } from '@/hooks/use-store-purchase';
+import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
   paywallState,
@@ -73,15 +74,17 @@ const CONTEXT: Record<ProFrom, Context> = {
 export default function ProScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ from?: string }>();
-  const context = CONTEXT[proFrom(params.from)];
+  const from = proFrom(params.from);
+  const context = CONTEXT[from];
   const [me, setMe] = useState<BillingMe | null>(null);
   const reload = useCallback(() => {
     void api.billingMe().then(setMe).catch(() => undefined);
   }, []);
   useEffect(reload, [reload]);
-  const [plan, setPlan] = useState<StorePlan>('monthly');
+  const [plan, setPlan] = useState<StorePlan>('yearly');
   const purchase = useStorePurchase({
     enabled: purchaseOpen(me),
+    onPurchased: (bought) => logEvent('pro_purchase_done', { from, plan: bought }),
     onConfirmed: (confirmed) => {
       setMe(confirmed);
       router.replace('/pro-done');
@@ -89,6 +92,20 @@ export default function ProScreen() {
   });
   const state = paywallState(me, purchase);
   const selling = state.kind !== 'already_pro' && state.kind !== 'closed';
+  // 판매할 수 있는 상태(앱 결제가 열려 있고 아직 Pro 가 아님)로 처음 확인됐을 때 한 번만 남긴다.
+  const viewed = useRef(false);
+  const canSell = purchaseOpen(me);
+  useEffect(() => {
+    if (!canSell || viewed.current) return;
+    viewed.current = true;
+    logEvent('pro_view', { from });
+  }, [canSell, from]);
+  // 연 구독이 기본이지만, 가격을 받아 보니 월만 있으면 월로 바꾼다.
+  const { monthly: monthlyPrice, yearly: yearlyPrice } = purchase.prices;
+  useEffect(() => {
+    if (monthlyPrice && !yearlyPrice) setPlan('monthly');
+  }, [monthlyPrice, yearlyPrice]);
+  const planPrice = purchase.prices[plan];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -143,10 +160,13 @@ export default function ProScreen() {
         <CtaBar>
           {state.kind === 'failed' && <InlineErrorLine message={state.message} />}
           <PrimaryButton
-            label={t('pro.start')}
+            label={planPrice ? t(plan === 'yearly' ? 'pro.startYearly' : 'pro.startMonthly', { price: planPrice }) : t('pro.start')}
             loading={state.kind === 'busy'}
             loadingLabel={state.kind === 'busy' ? state.label : undefined}
-            onPress={() => purchase.begin(plan)}
+            onPress={() => {
+              logEvent('pro_purchase_tap', { from, plan });
+              purchase.begin(plan);
+            }}
             disabled={(state.kind !== 'ready' && state.kind !== 'failed' && state.kind !== 'busy') || !purchase.prices[plan]}
             phLabel={plan === 'yearly' ? 'pro_start_yearly' : 'pro_start'}
           />
@@ -165,14 +185,24 @@ function LegalLink({ label, onPress, disabled }: { label: string; onPress: () =>
   );
 }
 
-const PLANS: { key: StorePlan; title: string; desc: string; unit: string }[] = [
-  { key: 'monthly', title: 'pro.planMonthly', desc: 'pro.planMonthlyDesc', unit: 'pro.unitMonth' },
-  { key: 'yearly', title: 'pro.planYearly', desc: 'pro.planYearlyDesc', unit: 'pro.unitYear' },
+const PLANS: { key: StorePlan; title: string; desc: string }[] = [
+  { key: 'yearly', title: 'pro.planYearly', desc: 'pro.planYearlyDesc' },
+  { key: 'monthly', title: 'pro.planMonthly', desc: 'pro.planMonthlyDesc' },
 ];
 
 /**
- * 월·연 요금제 고르기(기본 월). 가격은 스토어가 준 현지화 값이고, 받는 동안은 가격 자리에 뼈대를 둔다. 가격을 받았는데 오퍼링에 없는
- * 요금제는 흐리게 두고 고를 수 없다.
+ * 요금제 오른쪽 큰 글씨·작은 글씨. 연 구독은 월 환산을 크게 두되, 실제 청구액(1년 가격)은 설명 줄에 늘 보인다(iOS 심사).
+ * 월 환산을 모르면 1년 가격과 「1년」을 보인다.
+ */
+function planAmount(key: StorePlan, price: string, perMonth: string | null): { main: string; sub: string } {
+  if (key === 'monthly') return { main: t('pro.perMonth', { price }), sub: t('pro.billedMonthly') };
+  if (perMonth) return { main: t('pro.perMonth', { price: perMonth }), sub: t('pro.billedYearly') };
+  return { main: price, sub: t('pro.unitYear') };
+}
+
+/**
+ * 연·월 요금제 고르기(기본 연, 연 가격이 없으면 월). 가격은 스토어가 준 현지화 값이고, 받는 동안은 가격 자리에 뼈대를 둔다. 가격을
+ * 받았는데 오퍼링에 없는 요금제는 흐리게 두고 고를 수 없다.
  */
 function PlanPicker({ plan, prices, deal, onPick, disabled }: {
   plan: StorePlan;
@@ -188,6 +218,7 @@ function PlanPicker({ plan, prices, deal, onPick, disabled }: {
         const selected = plan === o.key;
         const price = prices[o.key];
         const off = disabled || !price;
+        const amount = price ? planAmount(o.key, price, deal.perMonth) : null;
         return (
           <Pressable key={o.key} onPress={() => onPick(o.key)} disabled={off} accessibilityRole="radio"
             accessibilityState={{ selected, disabled: off }}
@@ -197,17 +228,17 @@ function PlanPicker({ plan, prices, deal, onPick, disabled }: {
               <View style={styles.planHead}>
                 <Text style={[styles.planTitle, selected && styles.planTitleOn]}>{t(o.title)}</Text>
                 {o.key === 'yearly' && deal.off !== null && (
-                  <Text style={[styles.planTag, selected && styles.planTagOn]}>{t('pro.planYearlyBadge', { off: deal.off })}</Text>
+                  <Text style={styles.planTag}>{t('pro.planYearlyBadge', { off: deal.off })}</Text>
                 )}
               </View>
               <Text style={styles.planDesc}>
-                {o.key === 'yearly' && price && deal.perMonth ? t('pro.planYearlyPerMonth', { price: deal.perMonth }) : t(o.desc)}
+                {o.key === 'yearly' && price ? t('pro.planYearlyPriceDesc', { price }) : t(o.desc)}
               </Text>
             </View>
-            {price ? (
+            {amount ? (
               <View style={styles.planPrice}>
-                <Text style={[styles.planTitle, selected && styles.planTitleOn]}>{price}</Text>
-                <Text style={styles.planUnit}>{t(o.unit)}</Text>
+                <Text style={[styles.planTitle, selected && styles.planTitleOn]}>{amount.main}</Text>
+                <Text style={styles.planUnit}>{amount.sub}</Text>
               </View>
             ) : (
               !priced && <SkeletonBlock width={72} height={14} radius={radius.xs} />
@@ -275,16 +306,16 @@ const styles = StyleSheet.create({
   planHead: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   planTitle: { ...type.body1Bold, color: palette.text },
   planTitleOn: { color: palette.blueDeep },
+  // 고른 줄의 연한 파랑 바탕 위에서도 묻히지 않게 진한 파랑에 흰 글씨로 둔다.
   planTag: {
     ...type.micro,
-    color: palette.blueDeep,
-    backgroundColor: palette.blueSoft,
+    color: palette.onAccent,
+    backgroundColor: palette.blueDeep,
     borderRadius: radius.full,
     paddingHorizontal: space[2],
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  planTagOn: { backgroundColor: palette.bg },
   planDesc: { ...type.body2, color: palette.textSub },
   planPrice: { alignItems: 'flex-end', gap: space[1] },
   planUnit: { ...type.caption, color: palette.textMeta },

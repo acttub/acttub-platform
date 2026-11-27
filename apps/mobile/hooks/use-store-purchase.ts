@@ -80,9 +80,11 @@ type Options = {
   enabled: boolean;
   /** 서버가 Pro 를 확인했을 때. */
   onConfirmed: (me: BillingMe) => void;
+  /** 결제(복원 제외)를 서버가 Pro 로 확인했을 때. onConfirmed 바로 앞에 한 번 부른다. */
+  onPurchased?: (plan: StorePlan) => void;
 };
 
-export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurchase {
+export function useStorePurchase({ enabled, onConfirmed, onPurchased }: Options): StorePurchase {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const platform = storePlatform();
@@ -95,6 +97,8 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
   const packages = useRef<Record<StorePlan, PurchasesPackage | null>>({ monthly: null, yearly: null });
   const confirmed = useRef(onConfirmed);
   confirmed.current = onConfirmed;
+  const purchased = useRef(onPurchased);
+  purchased.current = onPurchased;
   const running = useRef(false);
 
   const settle = useCallback((result: ConfirmResult) => {
@@ -151,7 +155,9 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
           return;
         }
         setStatus(t('pro.confirming'));
-        settle(await syncStore(true));
+        const result = await syncStore(true);
+        if (result.outcome === 'confirmed' && result.me) purchased.current?.(plan);
+        settle(result);
       })();
     },
     [ready, userId, settle, fail],
