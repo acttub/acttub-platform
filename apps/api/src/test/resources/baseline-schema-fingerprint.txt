@@ -314,6 +314,10 @@ COLUMN coaching_handoffs.created_at ord=4 type=timestamptz len=- null=NO default
 COLUMN coaching_handoffs.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN coaching_handoffs.practice_session_id ord=3 type=uuid len=- null=NO default=-
 COLUMN coaching_handoffs.state_revision ord=5 type=int8 len=- null=YES default=-
+COLUMN coaching_rewards.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN coaching_rewards.request_id ord=3 type=uuid len=- null=NO default=-
+COLUMN coaching_rewards.transaction_id ord=1 type=text len=- null=NO default=-
+COLUMN coaching_rewards.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN community_anonymous_aliases.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN community_anonymous_aliases.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN community_anonymous_aliases.ordinal ord=4 type=int4 len=- null=NO default=-
@@ -1309,6 +1313,12 @@ CONSTRAINT coaching_handoffs coaching_handoffs_id_not_null NOT NULL id
 CONSTRAINT coaching_handoffs coaching_handoffs_pkey PRIMARY KEY (id)
 CONSTRAINT coaching_handoffs coaching_handoffs_practice_session_id_fkey FOREIGN KEY (practice_session_id) REFERENCES practice_sessions(id) ON DELETE CASCADE
 CONSTRAINT coaching_handoffs coaching_handoffs_practice_session_id_not_null NOT NULL practice_session_id
+CONSTRAINT coaching_rewards coaching_rewards_created_at_not_null NOT NULL created_at
+CONSTRAINT coaching_rewards coaching_rewards_pkey PRIMARY KEY (transaction_id)
+CONSTRAINT coaching_rewards coaching_rewards_request_id_not_null NOT NULL request_id
+CONSTRAINT coaching_rewards coaching_rewards_transaction_id_not_null NOT NULL transaction_id
+CONSTRAINT coaching_rewards coaching_rewards_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT coaching_rewards coaching_rewards_user_id_not_null NOT NULL user_id
 CONSTRAINT community_anonymous_aliases community_anonymous_aliases_created_at_not_null NOT NULL created_at
 CONSTRAINT community_anonymous_aliases community_anonymous_aliases_id_not_null NOT NULL id
 CONSTRAINT community_anonymous_aliases community_anonymous_aliases_ordinal_not_null NOT NULL ordinal
@@ -2215,6 +2225,7 @@ INDEX CREATE UNIQUE INDEX coach_notes_pkey ON public.coach_notes USING btree (id
 INDEX CREATE UNIQUE INDEX coach_sessions_pkey ON public.coach_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_turns_pkey ON public.coach_turns USING btree (id)
 INDEX CREATE UNIQUE INDEX coaching_handoffs_pkey ON public.coaching_handoffs USING btree (id)
+INDEX CREATE UNIQUE INDEX coaching_rewards_pkey ON public.coaching_rewards USING btree (transaction_id)
 INDEX CREATE UNIQUE INDEX community_anonymous_aliases_pkey ON public.community_anonymous_aliases USING btree (id)
 INDEX CREATE UNIQUE INDEX community_blocks_pkey ON public.community_blocks USING btree (id)
 INDEX CREATE UNIQUE INDEX community_categories_pkey ON public.community_categories USING btree (id)
@@ -2301,6 +2312,7 @@ INDEX CREATE UNIQUE INDEX uq_coach_messages_request ON public.coach_messages USI
 INDEX CREATE UNIQUE INDEX uq_coach_messages_turn ON public.coach_messages USING btree (conversation_id, turn_index)
 INDEX CREATE UNIQUE INDEX uq_coach_notes_conversation ON public.coach_notes USING btree (conversation_id)
 INDEX CREATE UNIQUE INDEX uq_coach_turns_session_index ON public.coach_turns USING btree (session_id, turn_index)
+INDEX CREATE UNIQUE INDEX uq_coaching_rewards_request ON public.coaching_rewards USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_ordinal ON public.community_anonymous_aliases USING btree (post_id, ordinal)
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_user ON public.community_anonymous_aliases USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_blocks_pair ON public.community_blocks USING btree (blocker_id, blocked_id)
@@ -2391,6 +2403,7 @@ TABLE coach_notes
 TABLE coach_sessions
 TABLE coach_turns
 TABLE coaching_handoffs
+TABLE coaching_rewards
 TABLE community_anonymous_aliases
 TABLE community_blocks
 TABLE community_categories

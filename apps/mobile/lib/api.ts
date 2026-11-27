@@ -457,6 +457,16 @@ export const api = {
     return request(`/v2/ads?${new URLSearchParams({ slot }).toString()}`, {}, { auth: true, timeoutMs: 8_000 });
   },
 
+  /** 무료 코칭 한도 뒤 「광고 보고 1회 더」를 지금 보일까(SOMA-1067). 서버 스위치가 꺼져 있거나 대상이 아니면 false. */
+  coachingRewardStatus(): Promise<{ available: boolean }> {
+    return request('/v2/coaching-rewards', {}, { auth: true, timeoutMs: 8_000 });
+  },
+
+  /** 광고를 띄울 때 만든 요청 id 로 서버가 1회를 더했는가(SOMA-1067). */
+  coachingRewardGranted(requestId: string): Promise<{ granted: boolean }> {
+    return request(`/v2/coaching-rewards/requests/${encodeURIComponent(requestId)}`, {}, { auth: true, timeoutMs: 5_000 });
+  },
+
   /** 직접·자체 광고 노출(한 사람·광고·하루 1회는 서버가 거른다)·클릭 기록. */
   recordAdEvent(adId: string, slot: string, event: 'impression' | 'click'): Promise<void> {
     return request<void>(`/v2/ads/${encodeURIComponent(adId)}/events`, jsonInit({ slot, event }), { timeoutMs: 8_000 });

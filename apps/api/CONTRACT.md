@@ -1500,6 +1500,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   첫 결제 직전 `choosePlan` 이 expired 토스 줄에만 plan·amount 를 적는 조건부 UPDATE 다. `POST /v2/billing/checkout` 의 `plan`·`GET /v2/billing/me`
   의 `plan` 은 더하기만 하는 필드이고(`@Hidden`, OpenAPI 변화 없음), 새 오류 `422 invalid_plan`·`422 plan_unavailable` 은 `WebYearlyPlanTest` 가 지킨다.
   서버 스위치 `BILLING_WEB_YEARLY_ENABLED`(기본 false).
+- 보상형 광고 1회 더(SOMA-1067): 행동은 [app.ads 「보상형 광고」](../../docs/specs/app/ads.md#보상형-광고-soma-1067)가 정본이다. 스위치
+  `COACHING_REWARDED_AD_ENABLED`(기본 false) 뒤라 `@Hidden` 이다. V103 `coaching_rewards` 는 `CoachingRewardEntity` 가 매핑한다. 세기·확인·탈퇴 파기는 HQL 이고
+  넣기만 `ON CONFLICT DO NOTHING` 이라 native 다. `transaction_id` PK 와 `(user_id, request_id)` UNIQUE 가 멱등의 바닥이다. 지급은 회차 시작의
+  한도 세기와 같은 계정 행을 `AccountRowLock#lockActive` 로 잡고 하루 상한을 센다(`PostgresCoachingRewardRepository`). 활성이 아닌 계정에는 주지 않는다. 한도는 `practice.app.CoachingBonus` 로 무료 한도에 더하고, 꺼져 있으면 0 이라 DB 를 읽지 않는다.
+  AdMob 콜백 `GET /v2/coaching-rewards/ssv` 는 ClientVersionFilter·AccessTokenFilter·ConsentGateInterceptor 밖이고
+  (`CoachingRewardGateExemptionTest`), 서명 검사는 `integration/admob/AdMobRewardVerifier` 다. 탈퇴는 행을 지운다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

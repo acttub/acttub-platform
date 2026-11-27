@@ -43,6 +43,7 @@ public class PracticeService {
     private final Clock clock;
     private ReadingVoice readingVoice = ReadingVoice.OFF;
     private PracticeGroupErasure groupErasure;
+    private CoachingBonus bonus = CoachingBonus.NONE;
 
     public PracticeService(
             PracticeRepository practices,
@@ -95,6 +96,12 @@ public class PracticeService {
     /** 연습 삭제(SOMA-985)를 맡을 자리를 끼운다. 없으면(좁은 조립) 삭제는 404 다. */
     public PracticeService withGroupErasure(PracticeGroupErasure groupErasure) {
         this.groupErasure = groupErasure;
+        return this;
+    }
+
+    /** 무료 코칭 한도에 더할 회차(SOMA-1067, 보상형 광고)를 끼운다. 없으면 더하지 않는다. */
+    public PracticeService withCoachingBonus(CoachingBonus bonus) {
+        this.bonus = bonus == null ? CoachingBonus.NONE : bonus;
         return this;
     }
 
@@ -307,7 +314,9 @@ public class PracticeService {
             return null;
         }
         Instant midnight = LocalDate.now(clock.withZone(SEOUL)).atStartOfDay(SEOUL).toInstant();
-        return new Quota(PracticeRules.FREE_DAILY_COACHING_SESSIONS, midnight, Quota.Kind.SESSIONS);
+        // 보상형 광고로 받은 회차(SOMA-1067)만큼 오늘 한도가 늘어난다. 기능이 꺼져 있으면 0 이다.
+        int limit = PracticeRules.FREE_DAILY_COACHING_SESSIONS + bonus.extraSessions(userId, midnight);
+        return new Quota(limit, midnight, Quota.Kind.SESSIONS);
     }
 
     /** 게스트만 하루 한도가 있다. 하루는 한국 시간 자정에 끊는다. */

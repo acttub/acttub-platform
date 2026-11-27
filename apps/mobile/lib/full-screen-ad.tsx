@@ -115,8 +115,83 @@ export function showInterstitial(
   });
 }
 
+/** 보상형 광고 결과(SOMA-1067). earned 는 끝까지 봤다(보상 받음), closed 는 보상 전에 닫았다, failed 는 못 불러왔거나 못 띄웠다. */
+export type RewardedResult = 'earned' | 'closed' | 'failed';
 
-export function useFullScreenAd(): (slot: FullScreenSlotKey) => Promise<FullScreenResult> {
+/**
+ * AdMob 보상형 광고를 불러와 띄운다(SOMA-1067). 서버 측 확인 옵션(userId = 회원 id, customData = 1회용 요청 id)을 실어
+ * AdMob 이 서버 콜백에 그대로 넘기게 한다. 보상은 서버가 콜백을 받아야 들어간다 — earned 는 앱 쪽 신호일 뿐이다.
+ * loadTimeoutMs 안에 못 불러오면 failed 이고 그 뒤에 불러와져도 띄우지 않는다.
+ */
+export function showRewarded(
+  unitId: string,
+  nonPersonalized: boolean,
+  verification: { userId: string; customData: string },
+  loadTimeoutMs = 8000,
+  hooks: {
+    /** 불러온 뒤 띄우기 직전. 돌려준 약속이 끝나야 띄운다(확인창을 먼저 내릴 때). */
+    beforeShow?: () => Promise<void>;
+    onOpened?: () => void;
+  } = {},
+): Promise<RewardedResult> {
+  return new Promise((resolve) => {
+    let module: any;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      module = require('react-native-google-mobile-ads');
+    } catch {
+      resolve('failed');
+      return;
+    }
+    const { RewardedAd, RewardedAdEventType, AdEventType } = module;
+    let settled = false;
+    let loaded = false;
+    let earned = false;
+    const unsubscribers: (() => void)[] = [];
+    const finish = (result: RewardedResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribers.forEach((unsubscribe) => {
+        try {
+          unsubscribe();
+        } catch {
+          // 구독 해제가 실패해도 결과는 돌려준다
+        }
+      });
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      if (!loaded) finish('failed');
+    }, loadTimeoutMs);
+    try {
+      const ad = RewardedAd.createForAdRequest(unitId, {
+        requestNonPersonalizedAdsOnly: nonPersonalized,
+        serverSideVerificationOptions: { userId: verification.userId, customData: verification.customData },
+      });
+      unsubscribers.push(
+        ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
+          if (settled) return;
+          loaded = true;
+          Promise.resolve(hooks.beforeShow?.())
+            .then(() => (settled ? undefined : ad.show()))
+            .catch(() => finish('failed'));
+        }),
+        ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
+          earned = true;
+        }),
+        ad.addAdEventListener(AdEventType.OPENED, () => hooks.onOpened?.()),
+        ad.addAdEventListener(AdEventType.CLOSED, () => finish(earned ? 'earned' : 'closed')),
+        ad.addAdEventListener(AdEventType.ERROR, () => finish('failed')),
+      );
+      ad.load();
+    } catch {
+      finish('failed');
+    }
+  });
+}
+
+export function useFullScreenAd():(slot: FullScreenSlotKey) => Promise<FullScreenResult> {
   const firstTimeAtStart = useRef(getFirstTimeState());
   return useCallback(
     async (slot: FullScreenSlotKey) => {

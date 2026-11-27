@@ -28,7 +28,7 @@ public enum AccountErasureStep {
     PRACTICE_FEEDBACK,
     /** 노트 평가의 한 줄. */
     NOTE_RATINGS,
-    /** 앞서 지운 연습의 무료 횟수 표시와 보관하던 영상. */
+    /** 앞서 지운 연습의 무료 횟수 표시와 보관하던 영상, 보상형 광고로 받은 코칭 1회의 기록. */
     DELETED_PRACTICES,
     /** 주최한 챌린지, 참여작(영상을 남기지 않을 때 모자이크본·공유 프레임 객체도), 차단, 저장, 알림, AI 리포트. */
     CHALLENGE,

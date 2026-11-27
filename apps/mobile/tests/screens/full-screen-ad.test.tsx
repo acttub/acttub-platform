@@ -10,8 +10,37 @@ type Listener = () => void;
 let mockAds: { listeners: Map<string, Listener>; load: jest.Mock; show: jest.Mock; options: unknown }[] = [];
 let mockBehavior: 'close' | 'error' | 'never' | 'show-fails' | 'open-only' = 'close';
 
+let mockRewarded: { listeners: Map<string, Listener>; load: jest.Mock; show: jest.Mock; unit: string; options: unknown }[] = [];
+let mockRewardBehavior: 'earn' | 'close-early' | 'error' | 'never' = 'earn';
+
 jest.mock('react-native-google-mobile-ads', () => ({
   AdEventType: { LOADED: 'loaded', OPENED: 'opened', CLICKED: 'clicked', CLOSED: 'closed', ERROR: 'error' },
+  RewardedAdEventType: { LOADED: 'rewarded_loaded', EARNED_REWARD: 'rewarded_earned_reward' },
+  RewardedAd: {
+    createForAdRequest: (unit: string, options: unknown) => {
+      const ad = {
+        listeners: new Map<string, Listener>(),
+        unit,
+        options,
+        load: jest.fn(() => {
+          if (mockRewardBehavior === 'error') ad.listeners.get('error')?.();
+          else if (mockRewardBehavior !== 'never') ad.listeners.get('rewarded_loaded')?.();
+        }),
+        show: jest.fn(() => {
+          ad.listeners.get('opened')?.();
+          if (mockRewardBehavior === 'earn') ad.listeners.get('rewarded_earned_reward')?.();
+          ad.listeners.get('closed')?.();
+          return Promise.resolve();
+        }),
+        addAdEventListener: (type: string, listener: Listener) => {
+          ad.listeners.set(type, listener);
+          return () => ad.listeners.delete(type);
+        },
+      };
+      mockRewarded.push(ad);
+      return ad;
+    },
+  },
   InterstitialAd: {
     createForAdRequest: (_unit: string, options: unknown) => {
       const ad = {
@@ -42,13 +71,58 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({ api: { getAdSlot: jest.fn() } }));
 
 const native = jest.requireActual('@/lib/ads-native') as typeof import('@/lib/ads-native');
-const { showInterstitial } = jest.requireActual('@/lib/full-screen-ad') as typeof import('@/lib/full-screen-ad');
+const { showInterstitial, showRewarded } = jest.requireActual('@/lib/full-screen-ad') as typeof import('@/lib/full-screen-ad');
 const pick = (kind: string) => ({ kind, slot: 'reading_done_full', size: 'MEDIUM_RECTANGLE', width: 300, height: 250, ad: null });
 
 beforeEach(() => {
   mockAds = [];
   mockBehavior = 'close';
+  mockRewarded = [];
+  mockRewardBehavior = 'earn';
   jest.mocked(api.getAdSlot).mockReset();
+});
+
+describe('showRewarded (SOMA-1067)', () => {
+  const verification = { userId: '11111111-1111-4111-8111-111111111111', customData: 'req-1' };
+
+  test('서버 측 확인 옵션(userId·customData)을 실어 요청하고, 끝까지 보면 earned — 띄우기 전에 beforeShow 를 기다린다', async () => {
+    const order: string[] = [];
+    const result = showRewarded('rewarded-unit', true, verification, 8000, {
+      beforeShow: async () => {
+        order.push('before');
+      },
+      onOpened: () => order.push('opened'),
+    });
+    await expect(result).resolves.toBe('earned');
+    expect(mockRewarded[0].unit).toBe('rewarded-unit');
+    expect(mockRewarded[0].options).toEqual({
+      requestNonPersonalizedAdsOnly: true,
+      serverSideVerificationOptions: { userId: verification.userId, customData: 'req-1' },
+    });
+    expect(order).toEqual(['before', 'opened']);
+    expect(mockRewarded[0].listeners.size).toBe(0);
+  });
+
+  test('보상 전에 닫으면 closed, 못 불러오면 failed', async () => {
+    mockRewardBehavior = 'close-early';
+    await expect(showRewarded('u', false, verification)).resolves.toBe('closed');
+    mockRewardBehavior = 'error';
+    await expect(showRewarded('u', false, verification)).resolves.toBe('failed');
+  });
+
+  test('시간 안에 못 불러오면 failed, 그 뒤에 불러와져도 띄우지 않는다', async () => {
+    jest.useFakeTimers();
+    try {
+      mockRewardBehavior = 'never';
+      const result = showRewarded('u', false, verification, 1000);
+      jest.advanceTimersByTime(1000);
+      await expect(result).resolves.toBe('failed');
+      mockRewarded[0].listeners.get('rewarded_loaded')?.();
+      expect(mockRewarded[0].show).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe('showInterstitial', () => {
