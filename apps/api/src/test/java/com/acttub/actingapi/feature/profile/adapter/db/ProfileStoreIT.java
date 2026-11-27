@@ -26,8 +26,12 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
 import com.acttub.actingapi.feature.profile.app.AirbridgeLookupStore.Lookup;
+import com.acttub.actingapi.feature.profile.app.ProfileRepository.PhotoUpload;
 import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
+import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
+import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
+import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +50,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * profile 의 저장소가 자기 표에 보내는 문장의 결과·경계·잠금·문장 수를 실제 PostgreSQL 에서 고정한다. 네이티브 SQL 을 JPA 로
  * 옮기기 전에 네이티브 구현에서 먼저 통과시킨다(apps/api/CONTRACT.md §5-9).
  *
- * <p>HTTP 쪽 응답과 값 검증은 {@code SignupAttributionIT}·{@code AirbridgeDeviceIT}·{@code DiscoveryAnswerIT} 가, 탈퇴·이관의
+ * <p>HTTP 쪽 응답과 값 검증은 {@code SignupAttributionIT}·{@code AirbridgeDeviceIT}·{@code DiscoveryAnswerIT}·
+ * {@code AccountProfileIT} 가, 사진 올리기와 정리 장부의 재시도는 {@code AccountWritesAndPhotoCleanupIT} 가, 탈퇴·이관의
  * 표별 결과와 문장 차례는 {@code AccountLifecycleFreezeIT} 가 본다. 여기서는 그 테스트가 밟지 않는 모든 칸, 시각의 경계와 정밀도,
  * 처음 값만 남기기, 지우는 범위, 트랜잭션 없이 부를 때, 포트 메서드마다 나가는 문장을 본다.
  */
@@ -87,6 +92,12 @@ class ProfileStoreIT {
 
     @Autowired
     PostgresProfileAccountErasure erasure;
+
+    @Autowired
+    PostgresObjectCleanupLedger cleanups;
+
+    @Autowired
+    AccountSecrets secrets;
 
     @Autowired
     PlatformTransactionManager transactionManager;
@@ -287,6 +298,98 @@ class ProfileStoreIT {
         assertThat(owners()).containsExactlyInAnyOrder("lookup:" + other, "answer:" + other, "attribution:" + other);
     }
 
+    // ---- 프로필 방향·알림 읽기·올리던 사진 읽기(PostgresProfileRepository) ----
+
+    @Test
+    @DisplayName("saveProfile 은 방향을 통째로 갈아 끼운다 — 지우고 고른 것마다 한 줄(id 는 줄마다 다르다). 탈퇴했거나 없는 계정은 null 이고 아무것도 바꾸지 않는다")
+    void saveProfileReplacesDirections() {
+        profileRow(other);
+        jdbc.update("INSERT INTO user_profile_directions(user_id,direction) VALUES (?,'stage')", other);
+
+        assertThat(profiles.saveProfile(user, profile(List.of("stage", "media")), "app/0.1.4").profile().directions())
+                .containsExactly("media", "stage");
+        assertThat(directions(user)).containsExactly("media", "stage");
+        assertThat(jdbc.queryForObject("SELECT count(DISTINCT id) FROM user_profile_directions", Integer.class)).isEqualTo(3);
+
+        assertThat(profiles.saveProfile(user, profile(List.of("media")), null).profile().directions()).containsExactly("media");
+        assertThat(directions(user)).containsExactly("media");
+        assertThat(profiles.saveProfile(user, profile(List.of()), null).profile().directions()).isEmpty();
+        assertThat(directions(user)).isEmpty();
+        assertThat(directions(other)).containsExactly("stage");
+
+        UUID closed = user("deactivated");
+        profileRow(closed);
+        jdbc.update("INSERT INTO user_profile_directions(user_id,direction) VALUES (?,'media')", closed);
+        assertThat(profiles.saveProfile(closed, profile(List.of("stage")), null)).isNull();
+        assertThat(directions(closed)).containsExactly("media");
+        assertThat(profiles.saveProfile(UUID.randomUUID(), profile(List.of("stage")), null)).isNull();
+    }
+
+    @Test
+    @DisplayName("notificationSettings 는 프로필이 없으면 null, 있으면 세 토글을 읽는다")
+    void notificationSettingsReadsTheToggles() {
+        assertThat(profiles.notificationSettings(user)).isNull();
+        profileRow(user);
+        assertThat(profiles.notificationSettings(user)).isEqualTo(new NotificationSettings(true, true, true));
+        jdbc.update("UPDATE user_profiles SET notify_analysis_done=false, notify_evening_reminder=false WHERE user_id=?", user);
+        assertThat(profiles.notificationSettings(user)).isEqualTo(new NotificationSettings(false, true, false));
+    }
+
+    @Test
+    @DisplayName("pendingPhotoUpload 는 올리던 사진이 있을 때만 네 칸을 돌려준다(크기는 long, 시한은 마이크로초)")
+    void pendingPhotoUploadReadsTheUpload() {
+        assertThat(profiles.pendingPhotoUpload(user)).isNull();
+        profileRow(user);
+        assertThat(profiles.pendingPhotoUpload(user)).isNull();
+        jdbc.update("""
+                UPDATE user_profiles
+                SET photo_upload_key='users/u/profile/p.jpg', photo_upload_mime_type='image/jpeg',
+                    photo_upload_size_bytes=3000000000, photo_upload_expires_at=?
+                WHERE user_id=?
+                """, timestamp(now.plusNanos(123_000)), user);
+        assertThat(profiles.pendingPhotoUpload(user))
+                .isEqualTo(new PhotoUpload("users/u/profile/p.jpg", "image/jpeg", 3_000_000_000L, now.plusNanos(123_000)));
+    }
+
+    // ---- 정리 장부 넣기(PostgresObjectCleanupLedger) ----
+
+    @Test
+    @DisplayName("정리 장부 넣기는 종류마다 모든 칸을 적는다 — 첫 시도는 지금과 미룰 시각 가운데 늦은 쪽, 기한은 그 7일 뒤, 시각은 마이크로초로 반올림한다")
+    void cleanupLedgerWritesEveryColumn() {
+        Instant at = now.plusNanos(1_500);
+        UUID later = inTransaction(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), at, at.plusSeconds(3600)));
+        UUID earlier = inTransaction(() -> cleanups.schedule(user, List.of("users/a/1.mp4", "users/a/1.jpg"), at,
+                at.minusSeconds(60)));
+        UUID recording = inTransaction(() -> cleanups.schedule(user, List.of("users/a/r.m4a"), at));
+        UUID video = inTransaction(() -> cleanups.scheduleObjectDelete(other, List.of("users/b/v.mp4"), at, at.plusSeconds(60)));
+        UUID provider = inTransaction(() -> cleanups.enqueue(user, "kakao_unlink", "d1:kakao", at));
+        UUID customer = inTransaction(() -> cleanups.enqueueCustomerDeletion(user, "d1:customer", at));
+
+        assertThat(cleanupRow(later)).isEqualTo(user + "|object_delete|0|04:00:00.000002|12-04 04:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(secrets.decrypt(payload(later))).isEqualTo("[\"users/a/photo.jpg\"]");
+        assertThat(cleanupRow(earlier)).isEqualTo(user + "|object_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(secrets.decrypt(payload(earlier))).isEqualTo("[\"users/a/1.mp4\",\"users/a/1.jpg\"]");
+        assertThat(cleanupRow(recording)).isEqualTo(user + "|reading_recording_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(secrets.decrypt(payload(recording))).isEqualTo("[\"users/a/r.m4a\"]");
+        assertThat(cleanupRow(video)).isEqualTo(other + "|object_delete|0|03:01:00.000002|12-04 03:01:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(cleanupRow(provider)).isEqualTo(user + "|kakao_unlink|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(payload(provider)).isEqualTo("d1:kakao");
+        assertThat(cleanupRow(customer)).isEqualTo(user + "|revenuecat_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(payload(customer)).isEqualTo("d1:customer");
+    }
+
+    @Test
+    @DisplayName("정리 장부 넣기는 부르는 쪽의 트랜잭션에 얹힌다 — 트랜잭션 없이 부르면 거절하고, 부르는 쪽이 되돌리면 줄도 없다")
+    void cleanupLedgerJoinsTheCallersTransaction() {
+        assertThatThrownBy(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now))
+                .isInstanceOf(InvalidDataAccessApiUsageException.class);
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now);
+            tx.setRollbackOnly();
+        });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations", Integer.class)).isZero();
+    }
+
     // ---- 문장 ----
 
     @Test
@@ -320,6 +423,19 @@ class ProfileStoreIT {
                 .containsExactly("delete user_signup_attributions", "delete user_airbridge_device_lookups");
         assertThat(statementsOf(() -> inTransaction(() -> erasure.erase(AccountErasureStep.DISCOVERY_ANSWER, closing(user)))))
                 .containsExactly("delete user_discovery_answers");
+    }
+
+    @Test
+    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류(프로필 방향·알림 읽기·올리던 사진 읽기·정리 장부 넣기)")
+    void eachProfileAndLedgerMethodSendsTheseStatements() {
+        assertThat(statementsOf(() -> profiles.saveProfile(user, profile(List.of("stage", "media")), null)))
+                .containsExactly("select users for update", "insert user_profiles users on conflict",
+                        "delete user_profile_directions", "insert user_profile_directions", "insert user_profile_directions",
+                        "select user_identities user_profile_directions user_profiles users");
+        assertThat(statementsOf(() -> profiles.notificationSettings(user))).containsExactly("select user_profiles");
+        assertThat(statementsOf(() -> profiles.pendingPhotoUpload(user))).containsExactly("select user_profiles");
+        assertThat(statementsOf(() -> inTransaction(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now))))
+                .containsExactly("insert account_cleanup_operations");
     }
 
     // ---- 도움 ----
@@ -388,6 +504,35 @@ class ProfileStoreIT {
         attribution(userId, "airbridge", "ios", now);
         lookup(userId, "ios", DEVICE, now, 0, now);
         jdbc.update("INSERT INTO user_discovery_answers(user_id,source) VALUES (?,'friend')", userId);
+    }
+
+    private void profileRow(UUID userId) {
+        jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'이름')", userId);
+    }
+
+    private static Profile profile(List<String> directions) {
+        return new Profile("김배우", "female", LocalDate.of(2001, 3, 14), directions, "exam_prep", "audition", null, "소개");
+    }
+
+    private List<String> directions(UUID userId) {
+        return jdbc.queryForList("SELECT direction FROM user_profile_directions WHERE user_id=? ORDER BY direction",
+                String.class, userId);
+    }
+
+    /** 정리 장부 한 줄의 값 칸 말고 전부. 시각은 UTC 마이크로초. */
+    private String cleanupRow(UUID id) {
+        return jdbc.queryForObject("""
+                SELECT user_id || '|' || kind || '|' || attempt_count || '|'
+                       || to_char(next_attempt_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|'
+                       || to_char(expires_at AT TIME ZONE 'UTC', 'MM-DD HH24:MI:SS.US') || '|'
+                       || to_char(created_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|'
+                       || to_char(updated_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|' || coalesce(last_error, '-')
+                FROM account_cleanup_operations WHERE id=?
+                """, String.class, id);
+    }
+
+    private String payload(UUID id) {
+        return jdbc.queryForObject("SELECT payload_encrypted FROM account_cleanup_operations WHERE id=?", String.class, id);
     }
 
     /** 세 표의 줄을 "표:주인" 으로. */
