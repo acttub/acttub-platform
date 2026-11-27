@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Test;
  * <p>표는 문서에만 있고 이 테스트가 그 문서를 읽는다. 지금 어긋난 곳은 두 목록에 나뉘어 있다(ADR-040).
  *
  * <ul>
- *   <li>쓰기 예외 목록({@code table-owner-write-exceptions.txt}): 주인이 아닌 기능이 그 테이블에 <b>쓰는</b> 곳. 0 이 될 때까지
- *       줄기만 한다({@link #WRITE_EXCEPTION_CEILING}).</li>
+ *   <li>쓰기 예외 목록({@code table-owner-write-exceptions.txt}): 주인이 아닌 기능이 그 테이블에 <b>쓰는</b> 곳. 비었고 줄을 더하지
+ *       않는다({@link #WRITE_EXCEPTION_CEILING}).</li>
  *   <li>읽기 전용 목록({@code table-owner-read-only.txt}): 주인이 아닌 기능이 그 테이블을 <b>읽기만</b> 하는 곳. 줄을 더하지
  *       않는다. 0 으로 줄일 대상은 아니다.</li>
  * </ul>
@@ -67,10 +67,10 @@ class TableOwnerTest {
      *
      * <p>늘려야 할 것 같으면 먼저 주인의 {@code app} 층에 Port 를 두거나 주인을 다시 정한다.
      */
-    private static final int EXCEPTION_CEILING = 197;
+    private static final int EXCEPTION_CEILING = 196;
 
-    /** 쓰기 예외 목록의 줄 수. 0 이 될 때까지 줄기만 한다. 줄을 빼거나 읽기 전용 목록으로 옮겼으면 이 수도 같이 내린다. */
-    private static final int WRITE_EXCEPTION_CEILING = 1;
+    /** 쓰기 예외 목록의 줄 수. 0 이 됐다. 늘리지 않는다 — 남의 테이블에 쓰는 문장은 주인의 app 층 Port 로 옮긴다. */
+    private static final int WRITE_EXCEPTION_CEILING = 0;
 
     private static final Pattern OWNER_ROW = Pattern.compile("^\\| `((?:feature|platform)/[a-z]+)` \\| (.+) \\|$");
 

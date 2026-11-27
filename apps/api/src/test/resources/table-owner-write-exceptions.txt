@@ -1,6 +1,5 @@
-# 주인이 아닌 기능이 테이블에 쓰는 곳. 0 이 될 때까지 줄기만 한다(ADR-040). TableOwnerTest 가 대조한다.
+# 주인이 아닌 기능이 테이블에 쓰는 곳. 비었고 줄을 더하지 않는다(ADR-040). TableOwnerTest 가 대조한다.
 # 줄 모양은 <파일> <테이블>이다. 파일은 src/main/java/com/acttub/actingapi 아래 경로이고, resources/ 로 시작하면 src/main 아래 경로다.
 # 그 파일에 그 테이블을 쓰는 문장이 하나라도 있으면 여기 줄이다(같은 파일이 읽기도 해도). 줄을 더하지 않는다.
 # 쓰는 문장을 주인에게 옮겼으면 그 줄을 빼고 TableOwnerTest.WRITE_EXCEPTION_CEILING 을 내린다. 그 파일이 그 테이블을 아직 읽으면
 # 그 줄을 table-owner-read-only.txt 로 옮기고, 읽지도 않으면 TableOwnerTest.EXCEPTION_CEILING 도 같이 내린다.
-platform/schema/ExternalOperationEntity.java external_operations
