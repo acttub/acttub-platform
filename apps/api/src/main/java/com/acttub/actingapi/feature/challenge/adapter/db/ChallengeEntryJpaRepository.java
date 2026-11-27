@@ -160,13 +160,19 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
             """)
     long countLiveWithVideo(UUID challengeId, UUID videoId);
 
-    /** 그 회원이 그 시각부터 올린 참여작 수(지운 것 포함 — 하루 한도). */
-    @Query("select count(*) from ChallengeEntryEntity e where e.userId = :userId and e.createdAt >= :since")
-    long countCreatedSince(UUID userId, Instant since);
+    /** 그 회원이 그 시각부터 올린 참여작 수. 시도는 지운 것을 포함하고, 살아 있는 것은 아직 지우지 않은 것이다(하루 한도). */
+    interface CreatedSince {
+        long getAttempts();
 
-    /** 그 회원이 그 시각부터 올리고 아직 지우지 않은 참여작 수(하루 한도). */
-    @Query("select count(*) from ChallengeEntryEntity e where e.userId = :userId and e.createdAt >= :since and e.deletedAt is null")
-    long countLiveCreatedSince(UUID userId, Instant since);
+        long getLive();
+    }
+
+    @Query("""
+            select count(*) as attempts, count(*) filter (where e.deletedAt is null) as live
+            from ChallengeEntryEntity e
+            where e.userId = :userId and e.createdAt >= :since
+            """)
+    CreatedSince countCreatedSince(UUID userId, Instant since);
 
     /** 내용 버전·조회수·시도 수는 표의 기본값에 맡긴다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

@@ -88,7 +88,7 @@ class EntryWriteStoreIT {
     }
 
     @Test
-    @DisplayName("create: 같은 요청의 재전송은 그 참여작을 돌려주고(지문이 다르면 422), 같은 영상은 한 챌린지에 한 번이며(422), 한국 날짜로 오늘 올린 것이 셋이면 429 다. 지운 것도 하루 수에 든다")
+    @DisplayName("create: 같은 요청의 재전송은 그 참여작을 돌려주고(지문이 다르면 422), 같은 영상은 한 챌린지에 한 번이며(422), 한국 날짜로 오늘 올린 것 가운데 살아 있는 것이 셋이거나 지운 것까지 센 시도가 여섯이면 429 다")
     void createReplaysAndLimits() {
         UUID request = UUID.randomUUID();
         UUID video = db.video(owner);
@@ -105,19 +105,38 @@ class EntryWriteStoreIT {
         assertRefused(() -> entries.create(owner, challenge, UUID.randomUUID(), "a".repeat(64), new NewEntry(video, null, "private", false),
                 now), 422, "duplicate_entry");
         UUID otherChallenge = db.challenge(now.minus(Duration.ofDays(1)), now.plus(Duration.ofDays(6)));
-        assertThat(entries.create(owner, otherChallenge, UUID.randomUUID(), "a".repeat(64), new NewEntry(video, null, "public", false),
-                now).created()).as("다른 챌린지에는 같은 영상을 낼 수 있다").isTrue();
+        Creation second = entries.create(owner, otherChallenge, UUID.randomUUID(), "a".repeat(64),
+                new NewEntry(video, null, "public", false), now);
+        assertThat(second.created()).as("다른 챌린지에는 같은 영상을 낼 수 있다").isTrue();
 
-        UUID yesterday = db.entry(challenge, owner, Instant.parse("2026-11-24T14:59:59.999999Z"));
-        UUID todayDeleted = db.entry(challenge, owner, Instant.parse("2026-11-24T15:00:00Z"));
-        db.jdbc.update("UPDATE challenge_entries SET status='deleted',deleted_at=now(),video_id=NULL WHERE id=?", todayDeleted);
+        // 한국 날짜의 경계: 어제의 마지막 순간과 오늘 0시.
+        Instant lastOfYesterday = Instant.parse("2026-11-24T14:59:59.999999Z");
+        Instant midnight = Instant.parse("2026-11-24T15:00:00Z");
+        UUID yesterday = db.entry(challenge, owner, lastOfYesterday);
+        UUID todayDeleted = db.entry(challenge, owner, midnight);
+        deleteEntry(todayDeleted);
+        Creation third = entries.create(owner, challenge, UUID.randomUUID(), "a".repeat(64),
+                new NewEntry(db.video(owner), null, "public", false), now);
+        assertThat(third.created()).as("지운 참여작은 살아 있는 수에 들지 않는다(살아 있는 셋, 시도 넷)").isTrue();
         assertRefused(() -> entries.create(owner, challenge, UUID.randomUUID(), "a".repeat(64),
                 new NewEntry(db.video(owner), null, "public", false), now), 429, "daily_entry_limit");
-        db.jdbc.update("UPDATE challenge_entries SET created_at=? WHERE id=?",
-                ChallengeStoreFixture.utc(Instant.parse("2026-11-24T14:59:59.999999Z")), todayDeleted);
+
+        // 살아 있는 둘을 지우고 오늘 지운 것 둘을 더하면 살아 있는 하나, 시도 여섯이다.
+        deleteEntry(first.entry().id());
+        deleteEntry(second.entry().id());
+        deleteEntry(db.entry(challenge, owner, midnight));
+        deleteEntry(db.entry(challenge, owner, midnight));
+        assertRefused(() -> entries.create(owner, challenge, UUID.randomUUID(), "a".repeat(64),
+                new NewEntry(db.video(owner), null, "public", false), now), 429, "daily_entry_limit");
+
+        db.jdbc.update("UPDATE challenge_entries SET created_at=? WHERE id=?", ChallengeStoreFixture.utc(lastOfYesterday), todayDeleted);
         assertThat(entries.create(owner, challenge, UUID.randomUUID(), "a".repeat(64), new NewEntry(db.video(owner), null, "public", false),
-                now).created()).as("어제 것은 세지 않는다").isTrue();
+                now).created()).as("어제 것은 세지 않는다(시도 다섯)").isTrue();
         assertThat(db.jdbc.queryForObject("SELECT status FROM challenge_entries WHERE id=?", String.class, yesterday)).isEqualTo("visible");
+    }
+
+    private void deleteEntry(UUID entry) {
+        db.jdbc.update("UPDATE challenge_entries SET status='deleted',deleted_at=now(),video_id=NULL WHERE id=?", entry);
     }
 
     // ---- 고치기 ----
