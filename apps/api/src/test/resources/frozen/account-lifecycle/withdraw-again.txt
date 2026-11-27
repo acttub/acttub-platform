@@ -50,6 +50,8 @@ coach_notes: 2행 → 2행
 coach_sessions: 2행 → 2행
 coach_turns: 2행 → 2행
 coaching_handoffs: 2행 → 2행
+coaching_rewards: 1행 → 1행
+  user_id=남: 1 → 1
 community_anonymous_aliases: 2행 → 2행
   user_id=본인: 1 → 1
   user_id=남: 1 → 1
@@ -107,6 +109,10 @@ external_operations: 4행 → 4행
   user_id=남: 2 → 2
 guest_transfer_codes: 1행 → 1행
   user_id=남: 1 → 1
+invite_codes: 1행 → 1행
+  user_id=남: 1 → 1
+invite_redemptions: 1행 → 1행
+  invitee_id=남: 1 → 1
 line_memorization: 1행 → 1행
   user_id=남: 1 → 1
 note_ratings: 2행 → 2행
@@ -229,6 +235,7 @@ BEGIN
   update practice_feedback
   update note_ratings
   delete practice_deletion_marks
+  delete coaching_rewards
   select deleted_practice_videos, videos for update
   select challenge_entries
   insert account_cleanup_operations
@@ -246,6 +253,9 @@ BEGIN
   update billing_subscriptions
   delete billing_pro_grants
   update billing_checkouts
+  delete invite_codes
+  delete invite_redemptions
+  update invite_redemptions
   delete user_discovery_answers
   select user_identities for update
   insert account_cleanup_operations

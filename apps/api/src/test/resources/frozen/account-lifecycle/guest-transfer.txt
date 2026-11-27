@@ -78,6 +78,10 @@ coach_notes: 3행 → 3행
 coach_sessions: 3행 → 3행
 coach_turns: 3행 → 3행
 coaching_handoffs: 3행 → 3행
+coaching_rewards: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
 community_anonymous_aliases: 4행 → 4행
   user_id=게스트: 1 → 1
   user_id=회원: 1 → 1
@@ -166,6 +170,16 @@ guest_transfer_codes: 3행 → 3행
   user_id=남: 1 → 1
   ~ <새 id>
       used_at: NULL → <now>
+invite_codes: 3행 → 3행
+  user_id=게스트: 1 → 1
+  user_id=회원: 1 → 1
+  user_id=남: 1 → 1
+invite_redemptions: 3행 → 3행
+  invitee_id=게스트: 1 → 1
+  invitee_id=회원: 1 → 1
+  invitee_id=남: 1 → 1
+  inviter_id=게스트: 1 → 1
+  inviter_id=남: 2 → 2
 line_memorization: 3행 → 3행
   user_id=게스트: 1 → 0
   user_id=회원: 1 → 2

@@ -92,7 +92,7 @@ class AccountLifecycleFreezeIT {
     private static final Instant NOW = Instant.parse("1998-11-20T03:00:00Z");
 
     /** 사람을 가리키는 칸의 이름. {@code users} 를 가리키는 외래 키의 칸은 모두 이 모양이어야 한다. */
-    private static final Pattern USER_COLUMN = Pattern.compile("(\\w+_)?user_id|(author|uploader|reporter|blocker|blocked|viewer)_id");
+    private static final Pattern USER_COLUMN = Pattern.compile("(\\w+_)?user_id|(author|uploader|reporter|blocker|blocked|viewer|inviter|invitee)_id");
 
     /** 이름은 사람을 가리키는데 {@code users} 로 가는 외래 키가 없는 칸. 카탈로그에서 이름으로 찾은 것과 같아야 한다. */
     private static final List<UserColumn> WITHOUT_FOREIGN_KEY = List.of(

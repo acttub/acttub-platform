@@ -46,6 +46,10 @@ coach_notes: 1행 → 1행
 coach_sessions: 1행 → 1행
 coach_turns: 1행 → 1행
 coaching_handoffs: 1행 → 1행
+coaching_rewards: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - 'reward-본인'
 community_post_images: 2행 → 2행
   uploader_id=남: 2 → 2
 community_posts: 1행 → 1행
@@ -64,6 +68,10 @@ guest_transfer_codes: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/이전 코드/살아 있음>
+invite_codes: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>
 line_memorization: 1행 → 1행
   user_id=남: 1 → 1
 note_ratings: 1행 → 1행

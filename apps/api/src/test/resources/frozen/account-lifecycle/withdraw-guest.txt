@@ -83,6 +83,10 @@ coach_notes: 2행 → 2행
 coach_sessions: 2행 → 2행
 coach_turns: 2행 → 2행
 coaching_handoffs: 2행 → 2행
+coaching_rewards: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - 'reward-본인'
 community_anonymous_aliases: 2행 → 2행
   user_id=본인: 1 → 1
   user_id=남: 1 → 1
@@ -159,6 +163,18 @@ guest_transfer_codes: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/이전 코드/살아 있음>
+invite_codes: 2행 → 1행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 1
+  - <본인>
+invite_redemptions: 2행 → 1행
+  invitee_id=본인: 1 → 0
+  invitee_id=남: 1 → 1
+  inviter_id=본인: 1 → 0
+  inviter_id=남: 1 → 0
+  - <본인>
+  ~ <남>
+      inviter_id: <본인> → NULL
 line_memorization: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
@@ -386,6 +402,7 @@ BEGIN
   update practice_feedback
   update note_ratings
   delete practice_deletion_marks
+  delete coaching_rewards
   select deleted_practice_videos, videos for update
   delete video_transcripts
   update videos
@@ -408,6 +425,9 @@ BEGIN
   update billing_subscriptions
   delete billing_pro_grants
   update billing_checkouts
+  delete invite_codes
+  delete invite_redemptions
+  update invite_redemptions
   delete user_discovery_answers
   select user_identities for update
   delete user_identities

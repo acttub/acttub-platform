@@ -46,6 +46,9 @@ coach_notes: 2행 → 2행
 coach_sessions: 2행 → 2행
 coach_turns: 2행 → 2행
 coaching_handoffs: 2행 → 2행
+coaching_rewards: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
 community_anonymous_aliases: 2행 → 2행
   user_id=본인: 1 → 1
   user_id=남: 1 → 1
@@ -107,6 +110,14 @@ external_operations: 4행 → 4행
 guest_transfer_codes: 2행 → 2행
   user_id=본인: 1 → 1
   user_id=남: 1 → 1
+invite_codes: 2행 → 2행
+  user_id=본인: 1 → 1
+  user_id=남: 1 → 1
+invite_redemptions: 2행 → 2행
+  invitee_id=본인: 1 → 1
+  invitee_id=남: 1 → 1
+  inviter_id=본인: 1 → 1
+  inviter_id=남: 1 → 1
 line_memorization: 2행 → 2행
   user_id=본인: 1 → 1
   user_id=남: 1 → 1
