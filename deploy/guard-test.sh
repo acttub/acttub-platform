@@ -22,6 +22,8 @@ check_failure() {
 check_success GITHUB_EVENT_NAME=push INPUT_ENV=
 grep -qx 'environment=prod' "$WORK/output"
 grep -qx 'web_image=ghcr.io/acttub/acttub-platform/web:prod-0123456789abcdef0123456789abcdef01234567' "$WORK/output"
+# 채점 서비스 태그는 커밋이 아니라 apps/pron 트리다 — GITHUB_SHA 가 달라도 같다.
+grep -qx "pron_image=ghcr.io/acttub/acttub-platform/pron:$(git -C "$ROOT" rev-parse HEAD:apps/pron)" "$WORK/output"
 check_success GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/dev INPUT_ENV=
 grep -qx 'environment=dev' "$WORK/output"
 check_success INPUT_ENV=dev GITHUB_REF=refs/heads/feat/SOMA-489

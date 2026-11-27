@@ -3,15 +3,16 @@
 # 거기에 compose.yml·proxy/nginx.conf 와 사람이 채운 .env 가 있고, 이 스크립트가 release.env·proxy/active.conf 를 쓴다.
 #
 #   cd /svc/acttub/dev
-#   ./deploy.sh <sha> <api 이미지> <web 이미지> [backup 이미지]
+#   ./deploy.sh <sha> <api 이미지> <web 이미지> [backup 이미지] [pron 이미지]
 #   예) ./deploy.sh 3f2a9c1e… ghcr.io/acttub/acttub-platform/api:3f2a9c1e… ghcr.io/acttub/acttub-platform/web:dev-3f2a9c1e…
-#   값은 환경변수 SHA·API_IMAGE·WEB_IMAGE·BACKUP_IMAGE 로 줘도 된다(인자가 우선) — 워크플로가 ssh 로 넘길 때 어느 쪽이든 되게.
+#   값은 환경변수 SHA·API_IMAGE·WEB_IMAGE·BACKUP_IMAGE·PRON_IMAGE 로 줘도 된다(인자가 우선) — 워크플로가 ssh 로 넘길 때 어느 쪽이든 되게.
 #   sha 는 7~40자 16진수.
 #
 # 하는 일 — 어느 단계든 실패하면 exit≠0 이다. 새 판으로 넘어간 것을 확인하기 전의 실패는 새 컨테이너를 지우고
 # release.env 를 되돌린다 — 옛 판이 계속 응답한다. 롤백의 전환·요청 마무리를 확인하지 못하면 새 판도 남긴다.
-#   1. 입력과 compose 를 점검한 뒤 release.env 를 새로 쓴다: API_IMAGE·WEB_IMAGE·BACKUP_IMAGE(선택)·RENDER_GIT_COMMIT·SENTRY_RELEASE.
-#      사람이 관리하는 .env 는 읽기만 한다. 어느 프로필을 띄울지(cloudflared=edge·backup)도 .env 의
+#   1. 입력과 compose 를 점검한 뒤 release.env 를 새로 쓴다: API_IMAGE·WEB_IMAGE·BACKUP_IMAGE(선택)·PRON_IMAGE(선택)·
+#      RENDER_GIT_COMMIT·SENTRY_RELEASE. release.env 를 뒤에 읽으므로 .env 에 같은 이름이 있으면 release.env 가 이긴다.
+#      사람이 관리하는 .env 는 읽기만 한다. 어느 프로필을 띄울지(cloudflared=edge·backup·pron)도 .env 의
 #      COMPOSE_PROFILES 가 정하고 이 스크립트는 그대로 따른다.
 #   2. docker compose pull        DEPLOY_PULL_POLICY=always(기본)|missing — 로컬 태그로 스모크할 때 missing
 #   3. db 를 띄운다. api·web 은 맨손 compose up 으로 건드리지 않는다 — Compose 는 옛 컨테이너를 먼저 내리고 새 것을 띄운다.
@@ -22,7 +23,8 @@
 #      옛 컨테이너로 되돌리고 실패.
 #   7. 터널(cloudflared, edge 프로필)을 맞춘다. 평소에는 바뀔 것이 없다.
 #   8. 옛 nginx worker 가 처리 중이던 요청을 다 끝내면(최대 DRAIN_SECONDS) 옛 api·web 을 멈추고 지운다.
-#   9. backup 프로필을 맞추고 compose 에서 빠진 서비스의 컨테이너를 지운다(--remove-orphans).
+#   9. backup·pron 프로필을 맞추고 compose 에서 빠진 서비스의 컨테이너를 지운다(--remove-orphans). 채점 서비스(pron)는
+#      새 api 가 응답한 뒤에 바꾼다 — 새 채점 서비스가 새 api 를 요구할 수 있다. 바꾸는 동안 채점 요청은 실패한다.
 #  10. 기능 스위치가 api 컨테이너에 실제로 들어갔는지 대조한다.
 #  11. 컨테이너가 쓰지 않는 옛 릴리스 이미지를 지운다. 이 단계의 실패는 배포를 실패시키지 않는다.
 #
@@ -39,6 +41,7 @@ SHA="${1:-${SHA:-}}"
 API_IMAGE="${2:-${API_IMAGE:-}}"
 WEB_IMAGE="${3:-${WEB_IMAGE:-}}"
 BACKUP_IMAGE="${4:-${BACKUP_IMAGE:-}}"
+PRON_IMAGE="${5:-${PRON_IMAGE:-}}"
 PULL_POLICY="${DEPLOY_PULL_POLICY:-always}"
 WAIT_SECONDS="${DEPLOY_WAIT_SECONDS:-180}"
 THREE_LAYERS_ENABLED="${DEPLOY_THREE_LAYERS_ENABLED:-}"
@@ -53,12 +56,12 @@ ACTIVE=proxy/active.conf
 step() { printf '▶ %s\n' "$*"; }
 fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
 
-[ "$#" -le 4 ] || fail "인자는 sha·api·web·backup(선택) 넷까지 받는다"
+[ "$#" -le 5 ] || fail "인자는 sha·api·web·backup(선택)·pron(선택) 다섯까지 받는다"
 [[ "$SHA" =~ ^[0-9a-f]{7,40}$ ]] || fail "sha 가 7~40자 16진수가 아니다: '$SHA' (사용법: deploy.sh <sha> <api 이미지> <web 이미지>)"
 [ -n "$API_IMAGE" ] || fail "API 이미지가 없다 — 2번째 인자 또는 API_IMAGE"
 [ -n "$WEB_IMAGE" ] || fail "web 이미지가 없다 — 3번째 인자 또는 WEB_IMAGE"
 # 이미지 이름은 release.env 값으로 쓴다. 공백·개행·쉘 치환을 거부해 다른 설정이 주입되지 않게 한다.
-for image in "$API_IMAGE" "$WEB_IMAGE" "${BACKUP_IMAGE:-unused}"; do
+for image in "$API_IMAGE" "$WEB_IMAGE" "${BACKUP_IMAGE:-unused}" "${PRON_IMAGE:-unused}"; do
   [[ "$image" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/@:-]*$ ]] || fail "이미지 이름에 허용하지 않는 문자가 있다"
 done
 case "$PULL_POLICY" in always|missing) ;; *) fail "DEPLOY_PULL_POLICY 는 always 또는 missing: '$PULL_POLICY'" ;; esac
@@ -187,6 +190,7 @@ RENDER_GIT_COMMIT=$SHA
 SENTRY_RELEASE=$SHA
 EOF
 [ -z "$BACKUP_IMAGE" ] || printf 'BACKUP_IMAGE=%s\n' "$BACKUP_IMAGE" >> "$RELEASE_FILE"
+[ -z "$PRON_IMAGE" ] || printf 'PRON_IMAGE=%s\n' "$PRON_IMAGE" >> "$RELEASE_FILE"
 # 명시한 환경만 새 연습 경로를 전환한다. .env 는 유지하고 릴리스 설정에 기록한다.
 [ -z "$THREE_LAYERS_ENABLED" ] || printf 'ACTTUB_THREE_LAYERS_ENABLED=%s\n' "$THREE_LAYERS_ENABLED" >> "$RELEASE_FILE"
 [ -z "$GUEST_DAILY_LIMIT_ENABLED" ] || printf 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=%s\n' "$GUEST_DAILY_LIMIT_ENABLED" >> "$RELEASE_FILE"
@@ -200,9 +204,14 @@ if grep -qx backup <<< "$services"; then
   [ -n "$BACKUP_IMAGE" ] || fail "backup 프로필에는 4번째 인자 또는 BACKUP_IMAGE 가 필요하다"
   release_services+=(backup)
 fi
-tunnel=false backup_service=""
+if grep -qx pron <<< "$services"; then
+  [ -n "$PRON_IMAGE" ] || fail "pron 프로필에는 5번째 인자 또는 PRON_IMAGE 가 필요하다"
+  release_services+=(pron)
+fi
+tunnel=false backup_service="" pron_service=""
 if grep -qx cloudflared <<< "$services"; then tunnel=true; fi
 if grep -qx backup <<< "$services"; then backup_service=backup; fi
+if grep -qx pron <<< "$services"; then pron_service=pron; fi
 # 새 판으로 넘어가기 전에 실패하면 이 사본으로 되돌린다(undo).
 if [ -f release.env ]; then cp -p release.env release.env.prev; else rm -f release.env.prev; fi
 mv -f "$RELEASE_FILE" release.env
@@ -210,7 +219,7 @@ release_tmp=""
 RELEASE_FILE=release.env
 
 # ── 2. 이미지 확보 ─────────────────────────────────────────────────────────────
-# 이번 릴리스의 api·web 과 활성화된 backup 이미지만 당긴다. db(postgres:18-alpine)·cloudflared·proxy 는 여기서 당기지 않는다 —
+# 이번 릴리스의 api·web 과 활성화된 backup·pron 이미지만 당긴다. db(postgres:18-alpine)·cloudflared·proxy 는 여기서 당기지 않는다 —
 # always 로 당기면 상류 태그가 움직인 날 앱 배포에 그 컨테이너의 재생성이 섞인다. 없을 때는 아래 up 이 받는다(up 의 기본
 # pull 정책이 missing). 그것들을 올리는 것은 compose.yml 의 태그를 바꾸는 별개의 일이고, 그 배포는 그 컨테이너를 다시 만든다.
 phase=rolling
@@ -338,11 +347,11 @@ for id in $([ "$old_api" = "$new_api" ] || echo "$old_api") $([ "$old_web" = "$n
   { docker stop "$id" >/dev/null && docker rm "$id" >/dev/null; } || fail "옛 컨테이너를 내리지 못했다: $id — web·api 는 이미 새 판이다"
 done
 
-# ── 9. backup·남은 컨테이너 ────────────────────────────────────────────────────
-step "backup·고아 컨테이너 맞추기 (compose up -d --no-deps --remove-orphans --wait db${backup_service:+ $backup_service})"
-# shellcheck disable=SC2086 # backup_service 는 비었거나 서비스 이름 하나다.
-compose up -d --no-deps --remove-orphans --wait --wait-timeout "$WAIT_SECONDS" db $backup_service \
-  || fail "backup 이 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — web·api 는 이미 새 판이다"
+# ── 9. backup·pron·남은 컨테이너 ───────────────────────────────────────────────
+step "backup·pron·고아 컨테이너 맞추기 (compose up -d --no-deps --remove-orphans --wait db${backup_service:+ $backup_service}${pron_service:+ $pron_service})"
+# shellcheck disable=SC2086 # backup_service·pron_service 는 비었거나 서비스 이름 하나다.
+compose up -d --no-deps --remove-orphans --wait --wait-timeout "$WAIT_SECONDS" db $backup_service $pron_service \
+  || fail "backup 이나 pron 이 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — web·api 는 이미 새 판이다"
 
 # ── 10. 기능 스위치 대조 ────────────────────────────────────────────────────────
 if [ -n "$THREE_LAYERS_ENABLED" ]; then
@@ -370,12 +379,12 @@ if [ -n "$PRACTICE_REMINDER_ENABLED" ]; then
 fi
 
 # ── 11. 옛 릴리스 이미지 정리 ──────────────────────────────────────────────────
-# 배포마다 sha 태그 이미지가 남아 디스크를 채운다. 이번 이미지와 같은 저장소에서 릴리스 태그(<sha>·<env>-<sha>)만
-# 지우고, smoke.sh 의 로컬 태그(옆 실행이 쓰는 중일 수 있다)는 건드리지 않는다. -f 없는 rm 은 컨테이너가 쓰는
+# 배포마다 sha 태그 이미지가 남아 디스크를 채운다. 이번 이미지와 같은 저장소에서 릴리스 태그(<sha>·<env>-<sha>, 채점 서비스는
+# apps/pron 트리 해시)만 지우고, smoke.sh 의 로컬 태그(옆 실행이 쓰는 중일 수 있다)는 건드리지 않는다. -f 없는 rm 은 컨테이너가 쓰는
 # 이미지를 거부하므로 같은 데몬의 다른 환경이 띄운 이미지는 남는다. 다른 환경이 pull 한 뒤 up 전에 지워져도
 # up 이 없는 이미지를 다시 받는다.
 step "옛 릴리스 이미지 정리"
-for image in "$API_IMAGE" "$WEB_IMAGE" ${BACKUP_IMAGE:+"$BACKUP_IMAGE"}; do
+for image in "$API_IMAGE" "$WEB_IMAGE" ${BACKUP_IMAGE:+"$BACKUP_IMAGE"} ${PRON_IMAGE:+"$PRON_IMAGE"}; do
   repo="${image%:*}"
   docker image ls --format '{{.Repository}}:{{.Tag}}' "$repo" 2>/dev/null | while read -r old; do
     [[ "$old" =~ ^"$repo":([a-z]+-)?[0-9a-f]{7,40}$ ]] && [ "$old" != "$image" ] || continue
