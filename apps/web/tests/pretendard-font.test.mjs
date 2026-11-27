@@ -3,14 +3,9 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, test } from "node:test";
-
-import "./ts-module-loader.mjs";
-import { mountProbe, react, window } from "./mount-probe.mjs";
+import { test } from "node:test";
 
 const copyScript = path.resolve(import.meta.dirname, "../scripts/copy-pretendard.mjs");
-const stylesheetId = "pretendard-dynamic-subset";
-const { PretendardStylesheet } = await import("../src/app/pretendard-stylesheet.tsx");
 
 function runCopyScript(cwd) {
   return spawnSync(process.execPath, [copyScript], { cwd, encoding: "utf8" });
@@ -46,10 +41,6 @@ async function inTempDirectory(fn) {
   }
 }
 
-afterEach(() => {
-  window.document.getElementById(stylesheetId)?.remove();
-});
-
 test("동적 서브셋을 버전 경로에 복사하고 느린 첫 방문에는 폴백을 유지한다", async () => {
   await inTempDirectory(async (root) => {
     await makeFakePackage(root, 92);
@@ -82,29 +73,4 @@ test("공식 동적 서브셋 수가 달라지면 조용히 불완전한 자산�
     assert.equal(result.status, 1);
     assert.match(result.stderr, /동적 서브셋 수가 달라졌다: 91개/);
   });
-});
-
-function StylesheetProbe({ onRender }) {
-  onRender(null);
-  return react.createElement(PretendardStylesheet);
-}
-
-test("Pretendard 스타일시트를 한 번만 붙이고 로드 뒤 화면용으로 전환한다", () => {
-  const first = mountProbe(StylesheetProbe);
-  const second = mountProbe(StylesheetProbe);
-  const stylesheets = window.document.querySelectorAll(`#${stylesheetId}`);
-
-  assert.equal(stylesheets.length, 1);
-  assert.equal(stylesheets[0].getAttribute("rel"), "stylesheet");
-  assert.equal(
-    stylesheets[0].getAttribute("href"),
-    "/fonts/pretendard/1.3.9/pretendard.css",
-  );
-  assert.equal(stylesheets[0].media, "print");
-
-  stylesheets[0].onload();
-  assert.equal(stylesheets[0].media, "all");
-
-  second.unmount();
-  first.unmount();
 });

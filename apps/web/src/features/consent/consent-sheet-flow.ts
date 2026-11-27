@@ -1,6 +1,7 @@
 import { recordConsent } from "@/lib/api/v2/consents";
 import { ApiError, errorMessage } from "@/lib/api/v2/errors";
 import type { ConsentDocument } from "@/lib/api/v2/types";
+import { isMemberSession } from "@/lib/auth/token-store";
 
 import {
   clearAgeConfirmed,
@@ -16,6 +17,8 @@ export type ConsentSheet = {
   documents: ConsentDocument[];
   /** "만 14세 이상이에요" 확인 줄을 두는가. 게스트의 첫 시트에만 있다. */
   askAge: boolean;
+  /** 회원의 재동의 시트인가. 회원에게는 선택 문서도 묻고 나이 확인 줄은 두지 않는다. */
+  member: boolean;
 };
 
 export type ConsentSheetResult =
@@ -25,12 +28,23 @@ export type ConsentSheetResult =
   | { kind: "age_required" }
   | { kind: "failed"; message: string };
 
-export function openSheet(pending: ConsentDocument[]): ConsentSheet {
+export function openSheet(
+  pending: ConsentDocument[],
+  member: boolean = isMemberSession(),
+): ConsentSheet {
   return {
     // 선택 문서는 회원에게만 묻는다. 게스트가 보내면 서버가 member_only 로 거절한다.
-    documents: pending.filter((document) => document.required),
-    askAge: needsAgeConfirmation(),
+    // 회원의 게이트는 선택 문서의 미결정도 막으므로(account.consent) 회원에게는 빠진 문서를 전부
+    // 묻는다. 거르면 선택 문서만 빠진 회원(새 data_sharing 판 등)은 시트 없이 막힌다(2026-11-27 QA).
+    documents: member ? pending : pending.filter((document) => document.required),
+    askAge: !member && needsAgeConfirmation(),
+    member,
   };
+}
+
+/** 이 문서에 보낼 결정. 필수 문서는 동의뿐이고, 선택 문서는 체크하지 않으면 거절로 남긴다(account.consent). */
+function decisionOf(document: ConsentDocument, grantedOptional: ReadonlySet<string>) {
+  return document.required || grantedOptional.has(document.id) ? "granted" : "declined";
 }
 
 export function canAgree(sheet: ConsentSheet, ageChecked: boolean): boolean {
@@ -52,15 +66,18 @@ function isStaleDocument(cause: unknown): boolean {
 export async function submitSheet(
   sheet: ConsentSheet,
   ageChecked: boolean,
+  grantedOptional: ReadonlySet<string> = new Set(),
 ): Promise<ConsentSheetResult> {
-  if (needsAgeConfirmation() && !ageChecked) return { kind: "age_required" };
+  // 나이 확인은 게스트의 첫 동의에만 싣는다. 회원은 가입 때 이미 확인했다.
+  const needsAge = () => !sheet.member && needsAgeConfirmation();
+  if (needsAge() && !ageChecked) return { kind: "age_required" };
 
   for (const document of sheet.documents) {
     try {
       await recordConsent({
         document_id: document.id,
-        action: "granted",
-        ...(needsAgeConfirmation() ? { age_confirmed: true as const } : {}),
+        action: decisionOf(document, grantedOptional),
+        ...(needsAge() ? { age_confirmed: true as const } : {}),
       });
     } catch (cause) {
       // 그 사이 새 판이 나왔다. 다시 보낸 요청이 현재 판을 빠진 문서로 받아 오므로 넘어간다.
@@ -78,7 +95,7 @@ export async function submitSheet(
         message: errorMessage(cause, "동의를 저장하지 못했어요. 다시 시도해 주세요."),
       };
     }
-    markAgeConfirmed();
+    if (!sheet.member) markAgeConfirmed();
   }
   return { kind: "decided" };
 }

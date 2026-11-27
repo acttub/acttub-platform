@@ -9,7 +9,6 @@ import { HeroAppInstall } from "@/features/app-download/hero-app-install";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { findFaq } from "@/features/help/help-content";
-import { useScrollSettle } from "@/features/site/scroll-settle";
 import { LandingHeroB } from "@/features/site/landing-hero-b";
 import { DEFAULT_HERO_MEDIA, type HeroMedia } from "@/features/site/landing-hero-media";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
@@ -77,31 +76,8 @@ export default function LandingClient({
 }) {
   const isB = variant === "b";
   const appSectionHref = useAppDownloadHref("landing_app_section");
-  // 데스크톱: 스크롤을 멈췄을 때 구간(data-snap) 윗부분이 머리 근처에 걸쳐 있으면 그 구간에 맞춘다.
-  useScrollSettle();
-  // 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
-  // 숨김은 이 효과가 붙은 뒤(html.reveal-ready)에만 걸어서, 스크립트가 늦거나 없으면 그냥 보인다.
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const root = document.documentElement;
-    const targets = [...document.querySelectorAll<HTMLElement>("[data-reveal]")];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          (entry.target as HTMLElement).dataset.shown = "";
-          observer.unobserve(entry.target);
-        }
-      },
-      { rootMargin: "0px 0px -10% 0px" },
-    );
-    for (const el of targets) observer.observe(el);
-    root.classList.add("reveal-ready");
-    return () => {
-      observer.disconnect();
-      root.classList.remove("reveal-ready");
-    };
-  }, []);
+  // 스크롤 뒤 구간 맞춤과 화면에 들어올 때 나타나기는 뺐다. 멈춘 뒤 페이지가 튀고 글이 늦게
+  // 보인다는 QA(2026-11-27) 때문이다. 스크롤은 브라우저 기본 그대로, 내용은 처음부터 보인다.
 
   // 어느 안이 보였는지, 어느 안에서 다운로드·웹 체험을 눌렀는지 GA4 에 남긴다(SOMA-918).
   // 클릭은 문서 캡처 단계에서 듣는다 — 다운로드 가로채기 스크립트가 곧바로 이동시키기 전에 먼저 받는다.
@@ -165,7 +141,7 @@ export default function LandingClient({
       <SiteHeader current="home" />
       <main>
         {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
-        <div data-snap className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
+        <div className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
           {isB ? (
             <LandingHeroB media={heroMedia} />
           ) : (
@@ -208,17 +184,15 @@ export default function LandingClient({
         </div>
 
         {/* 기능 셋. 모든 구간이 같은 방식으로 내려가도록 고정·스크롤 연동 없이 글과 휴대폰을 나란히 둔다.
-            데스크톱은 기능마다 좌우를 번갈아 두고, 화면에 들어올 때 스르륵 나타난다. */}
+            데스크톱은 기능마다 좌우를 번갈아 둔다. */}
         {features.map((f, i) => (
           <section
             key={f.id}
             id={f.id}
             aria-labelledby={`${f.id}-title`}
-            data-snap
             className={`scroll-mt-20 ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
           >
             <div
-              data-reveal
               className={`mx-auto flex max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
             >
               <div className="w-full flex-1">
@@ -252,8 +226,8 @@ export default function LandingClient({
           </section>
         ))}
 
-        <section data-snap aria-labelledby="price-title" className="bg-[#f9fafb]">
-          <div data-reveal className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
+        <section aria-labelledby="price-title" className="bg-[#f9fafb]">
+          <div className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
             <h2 id="price-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">
               무료로 시작하고, 더 하고 싶을 때 Pro
             </h2>
@@ -289,8 +263,8 @@ export default function LandingClient({
           </div>
         </section>
 
-        <section data-snap aria-labelledby="faq-title">
-          <div data-reveal className="mx-auto flex max-w-[1200px] flex-col gap-8 px-5 py-16 sm:px-8 lg:flex-row lg:gap-20 lg:py-24">
+        <section aria-labelledby="faq-title">
+          <div className="mx-auto flex max-w-[1200px] flex-col gap-8 px-5 py-16 sm:px-8 lg:flex-row lg:gap-20 lg:py-24">
             <div className="lg:w-[340px]">
               <h2 id="faq-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">자주 묻는 질문</h2>
               <div className="mt-6 rounded-[18px] bg-[#f9fafb] p-[22px]">
@@ -321,7 +295,7 @@ export default function LandingClient({
       </main>
       <div>
         <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
-          <div data-reveal className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
+          <div className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
             <div className="flex-1">
               <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">
                 오늘 찍은 연기,

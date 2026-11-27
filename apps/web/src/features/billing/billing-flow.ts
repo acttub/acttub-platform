@@ -29,7 +29,17 @@ export type StartOutcome =
   | { kind: "already_subscribed" }
   | { kind: "payment_pending" }
   | { kind: "plan_unavailable" }
+  | { kind: "consent_required" }
   | { kind: "error" };
+
+/** 새 약관 결정 전이라 막혔고 배우가 시트를 닫았을 때 보이는 말. 다시 누르면 시트가 다시 뜬다. */
+export const CONSENT_REQUIRED_MESSAGE = "새 약관 동의가 필요해요.";
+
+/** 서버가 403 consent_required 로 막았나. 시트를 닫았거나 띄우지 못한 경우다. */
+export function isConsentRequired(error: unknown): boolean {
+  const e = (error ?? {}) as ErrorLike;
+  return e.status === 403 && e.code === "consent_required";
+}
 
 type ErrorLike = { status?: number; code?: string; message?: string };
 
@@ -42,6 +52,7 @@ export function startOutcomeOf(error: unknown): StartOutcome {
   if (code === "already_subscribed") return { kind: "already_subscribed" };
   if (code === "payment_pending") return { kind: "payment_pending" };
   if (code === "plan_unavailable") return { kind: "plan_unavailable" };
+  if (isConsentRequired(error)) return { kind: "consent_required" };
   return { kind: "error" };
 }
 
@@ -120,6 +131,8 @@ export function startMessage(outcome: StartOutcome): string | null {
       return "앞선 결제의 결과를 확인하고 있어요. 잠시 뒤 다시 시도해 주세요.";
     case "plan_unavailable":
       return "연 구독은 아직 웹에서 결제할 수 없어요. 월 구독으로 시작해 주세요.";
+    case "consent_required":
+      return `${CONSENT_REQUIRED_MESSAGE} 다시 누르면 동의 문서를 볼 수 있어요.`;
     case "error":
       return "결제 창을 열지 못했어요. 잠시 뒤 다시 시도해 주세요.";
     default:

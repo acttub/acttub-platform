@@ -81,6 +81,8 @@ function ConsentSheetDialog({
   const [ageChecked, setAgeChecked] = useState(false);
   const [askAge, setAskAge] = useState(sheet.askAge);
   const [viewing, setViewing] = useState<ConsentDocument | null>(null);
+  // 회원 시트의 선택 문서 가운데 체크한 것. 체크하지 않은 선택 문서는 거절로 남는다.
+  const [grantedOptional, setGrantedOptional] = useState<ReadonlySet<string>>(() => new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -113,7 +115,7 @@ function ConsentSheetDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const result = await submitSheet({ ...sheet, askAge }, ageChecked);
+      const result = await submitSheet({ ...sheet, askAge }, ageChecked, grantedOptional);
       if (result.kind === "decided") {
         // 동의 제출 직후 서버에 다시 묻는다. 켜졌다면 그 뒤의 첫 이벤트가 이것이다.
         await analyticsConsentGate.check();
@@ -151,7 +153,9 @@ function ConsentSheetDialog({
               계속하려면 동의가 필요해요
             </h2>
             <p className="mt-1.5 text-sm font-semibold leading-6 text-[#6b7684]">
-              이 기능에 필요한 문서만 확인해요.
+              {sheet.member
+                ? "새로 나온 문서를 확인해 주세요. 선택 문서는 체크하지 않으면 동의하지 않은 것으로 남아요."
+                : "이 기능에 필요한 문서만 확인해요."}
             </p>
           </div>
           <button
@@ -173,10 +177,34 @@ function ConsentSheetDialog({
                 key={document.id}
                 className="flex items-center justify-between gap-3 px-4 py-3.5"
               >
-                <span className="min-w-0 text-sm font-bold leading-5">
-                  <span className="mr-1.5 text-[#3182f6]">필수</span>
-                  {document.title}
-                </span>
+                {document.required ? (
+                  <span className="min-w-0 text-sm font-bold leading-5">
+                    <span className="mr-1.5 text-[#3182f6]">필수</span>
+                    {document.title}
+                  </span>
+                ) : (
+                  <label className="flex min-w-0 cursor-pointer items-center gap-2.5 text-sm font-bold leading-5">
+                    <input
+                      type="checkbox"
+                      checked={grantedOptional.has(document.id)}
+                      disabled={submitting}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+                        setGrantedOptional((previous) => {
+                          const next = new Set(previous);
+                          if (checked) next.add(document.id);
+                          else next.delete(document.id);
+                          return next;
+                        });
+                      }}
+                      className="h-5 w-5 shrink-0 accent-[#3182f6]"
+                    />
+                    <span>
+                      <span className="mr-1.5 text-[#8b95a1]">선택</span>
+                      {document.title}
+                    </span>
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => setViewing(document)}
