@@ -13,7 +13,7 @@ import com.acttub.actingapi.platform.web.ApiException;
  * 리딩 발음 보고서 조회(SOMA-606, 실험). 끝난 회차를 처음 조회하면 채점을 큐에 넣는다 — 리딩 흐름(진행 저장)은 건드리지 않는다.
  * 앱은 리딩이 끝나면 이 조회를 부르고 {@code queued}·{@code running} 이면 잠시 뒤 다시 부른다.
  *
- * <p>발음 보고서는 Pro 혜택이다. 결제했거나 서버가 준 Pro 기간(출시 주간 Pro 포함) 안인 회원과, 허용 사용자 목록에 있는
+ * <p>발음 보고서는 Pro 혜택이다. 결제했거나 서버가 준 Pro 기간 안인 회원과, 허용 사용자 목록에 있는
  * 사람만 받는다. 그 밖은 404 {@code pronunciation_not_available}.
  *
  * <p><b>만드는 중이면 답을 잠시 붙잡는다</b>(SOMA-1169). 앱(1.1.x)은 4초마다 45번(약 3분)만 묻고 멈추는데, 긴 리딩은 채점이
