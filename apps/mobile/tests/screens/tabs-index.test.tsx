@@ -743,8 +743,8 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     (api.practiceDays as jest.Mock).mockResolvedValue({ days: [kstDay(40), kstDay(30), kstDay(0)] });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('1일째! · 누적 3일')).toBeOnTheScreen();
-    expect(screen.getByLabelText('1일 연속 연습, 지금까지 3일 연습')).toBeOnTheScreen();
+    expect(await screen.findByText('이번 주 1일 · 누적 3일')).toBeOnTheScreen();
+    expect(screen.getByLabelText('이번 주 1일 연습, 지금까지 3일 연습')).toBeOnTheScreen();
   });
 
   test('연속이 끊겼어도 누적 일수는 보인다 (SOMA-1003)', async () => {
@@ -752,7 +752,8 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     (api.practiceDays as jest.Mock).mockResolvedValue({ days: [kstDay(20), kstDay(10), kstDay(5)] });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('누적 3일')).toBeOnTheScreen();
+    // 5일 전만 이번 주 7칸 안이다.
+    expect(await screen.findByText('이번 주 1일 · 누적 3일')).toBeOnTheScreen();
     expect(screen.queryByText(/일째!/)).not.toBeOnTheScreen();
   });
 
@@ -769,7 +770,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     (mockAuth.profile as { status?: string }).status = 'complete';
     await view.rerender(<HomeScreen />);
     await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+    expect(await screen.findByText('이번 주 1일 · 누적 1일')).toBeOnTheScreen();
   });
 
   // 11/3 측정 — 앱을 켤 때마다 동의 확인이 끝나는 순간 같은 기록(묶음·대본·참여작·연습일)을 한 번 더 받았다.
@@ -778,13 +779,13 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     (mockAuth.profile as { status?: string }).status = 'complete';
     listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
     const view = await render(<HomeScreen />);
-    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+    expect(await screen.findByText('이번 주 1일 · 누적 1일')).toBeOnTheScreen();
 
     mockAuth.consentEntry = { status: 'allowed' };
     await view.rerender(<HomeScreen />);
     await act(async () => new Promise((r) => setTimeout(r, 50)));
     expect(listPracticeGroups).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('1일째! · 누적 1일')).toBeOnTheScreen();
+    expect(screen.getByText('이번 주 1일 · 누적 1일')).toBeOnTheScreen();
   });
 
   test('게이트가 열릴 때 기록을 받는 중이면 끝나기를 기다렸다가, 실패했을 때만 다시 읽는다', async () => {
@@ -803,7 +804,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
     await act(async () => fail(new Error('consent required')));
     await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+    expect(await screen.findByText('이번 주 1일 · 누적 1일')).toBeOnTheScreen();
   });
 
   test('연습일 목록을 못 받아도 홈은 그대로 연다 (SOMA-1003)', async () => {
@@ -811,18 +812,25 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     (api.practiceDays as jest.Mock).mockRejectedValue(new Error('down'));
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+    expect(await screen.findByText('이번 주 1일 · 누적 1일')).toBeOnTheScreen();
   });
 
-  test('연속 일수와 이번 주 요일 점 일곱 개를 보이고, 연습한 날은 체크로 채운다', async () => {
+  test('이번 주·누적 일수와 요일 원 일곱 개를 보이고, 연습한 날은 그날 횟수를 보인다', async () => {
     listPracticeGroups.mockResolvedValue({ groups: [coachingGroup(isoDaysAgo(0))] });
     (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e1', created_at: isoDaysAgo(0) }], next_cursor: null });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('1일째! · 누적 1일')).toBeOnTheScreen();
+    expect(await screen.findByText('이번 주 1일 · 누적 1일')).toBeOnTheScreen();
+    expect(screen.queryByText(/일째!/)).not.toBeOnTheScreen();
     expect(screen.getByText('오늘')).toBeOnTheScreen();
     expect(screen.getAllByTestId(/^home-week-/)).toHaveLength(7);
-    expect(screen.getAllByTestId('home-week-done').length).toBeGreaterThanOrEqual(1);
+    // 오늘 코칭 1번 + 챌린지 1번 = 2번.
+    const done = screen.getAllByTestId('home-week-done');
+    expect(done).toHaveLength(1);
+    expect(done[0]).toHaveTextContent('2');
+    expect(screen.getByLabelText('오늘 연습 2번')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('home-week-empty')).toHaveLength(6);
+    expect(screen.getAllByLabelText(/연습 없음$/)).toHaveLength(6);
   });
 });
 
