@@ -37,10 +37,8 @@ feature/consent/adapter/db/PostgresConsentRepository.java 2 남김: 현행 동�
 feature/feedback/adapter/db/PostgresExitSurveyStore.java 1 남김: 접수(submit)는 활성 계정에만 넣는 한 문장이다. 다른 기능(auth)의 users 에서 고르는 INSERT … SELECT … ON CONFLICT DO NOTHING RETURNING 이고, auth 에 활성 여부를 내주는 Port 가 없다. 나눠 읽으면 문장이 하나 늘고 확인과 넣기가 다른 스냅숏이 된다
 feature/memory/adapter/db/PostgresActorMemoryStore.java 14 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 화면 목록·재료·예약 판정·장면 찾기·맞춤 코칭 재료는 연습(practices)·코치 대화와 노트(coach_*·note_ratings)·분석(analyses)을 읽고, 배우 쓰기·덧붙이기·완료는 auth 의 users 행을 거르거나 잠그며, 밀린 예약 찾기와 재료는 platform 의 ai_jobs 를 읽는다. 이를 내주는 Port 가 없고, DISTINCT ON·JSON 연산·LATERAL·INSERT … SELECT … ON CONFLICT DO UPDATE … RETURNING 이 든다
 feature/memory/adapter/db/PostgresMemoryRepository.java 8 남김: 다른 기능의 표만 읽는다(practices·coach_conversations·coach_messages·coach_notes, 매핑을 내린 옛 practice_sessions·coach_sessions·coach_turns·practice_reports). 이를 내주는 Port 가 없고 JSON 연산·LATERAL 이 든다
-feature/practice/adapter/db/DeletedPracticeVideoPurge.java 3
 feature/practice/adapter/db/DeletedPracticeVideoPurge.java 2 남김: 파기할 지운 영상을 고르는 두 조회(purgeExpired·purgeAllOf)는 한 문장에서 다른 기능(video)의 videos 행을 함께 잠그고(FOR UPDATE OF d,v) 객체 키를 읽으며, 매일 정리 쪽은 consent 의 동의 결정도 행마다 본다. 나누면 문장이 늘고 잠금이 한 번에 잡히지 않는다
 feature/practice/adapter/db/PostgresPracticeAccountErasure.java 2 남김: 탈퇴가 분석 중이던 옛 연습을 닫는 문장과 이 계정의 옛 연습이 있는지 읽는 문장. practice_sessions 는 매핑을 내린 옛 연습 흐름 표다(§5-1)
-feature/practice/adapter/db/PostgresPracticeGroupErasure.java 2
 feature/practice/adapter/db/PostgresPracticeGroupErasure.java 1 남김: 영상을 다른 묶음·챌린지 참여작이 쓰는지 한 문장으로 읽는 조회(usedOutsideGroup, challenge 의 challenge_entries)
 feature/practice/adapter/db/PostgresPracticeOwnership.java 1 남김: 매핑을 내린 옛 practice_sessions(§5-1)의 주인을 바꾼다
 feature/practice/adapter/db/PostgresPracticeRepository.java 9 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 회차를 화면에 싣는 조회(하나·묶음·목록)는 영상(videos)·분석(analyses)·대화와 노트(coach_*)·작업(ai_jobs)을 LATERAL 로 조인하고, 연습한 날은 옛 practice_sessions·practice_reports 와 reading_sessions·challenge_entries 를 합친다. 시작은 videos 행을 잠근다. 이 조회·잠금을 내주는 Port 가 없다(분석 작업을 넣고 닫고 하루 요청 수를 세는 것은 AiJobLedger 가 한다)
