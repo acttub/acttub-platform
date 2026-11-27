@@ -102,6 +102,18 @@ export async function flushRecordingUploads(): Promise<void> {
   }
 }
 
+/** 완료 화면이 떠 있는 동안 못 올린 녹음을 다시 보내는 간격. */
+export const RECORDING_RETRY_MS = 5_000;
+
+/**
+ * 밀린 녹음을 RECORDING_RETRY_MS 마다 다시 보낸다. 돌려준 함수로 멈춘다. 큐는 한 번에 하나씩만 돌아, 앞 올리기가
+ * 길어지면 새로 보내지 않고 그 결과를 함께 기다린다 — 같은 요청 id 를 겹쳐 보내지 않는다.
+ */
+export function retryRecordingUploads(): () => void {
+  const timer = setInterval(() => void flushRecordingUploads().catch(() => undefined), RECORDING_RETRY_MS);
+  return () => clearInterval(timer);
+}
+
 export function pendingRecordingUploads(): Promise<number> {
   return instance()
     .pending()
