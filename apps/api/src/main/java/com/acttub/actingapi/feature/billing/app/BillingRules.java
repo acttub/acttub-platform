@@ -28,18 +28,10 @@ public final class BillingRules {
 
     /**
      * 출시 주간 Pro(SOMA-899, 10/26 대표 결정) — 11/1 0시(한국) 전에 가입한 사람은 11/1 0시부터 11/8 0시 전까지(11/1~11/7) 카드 없이
-     * Pro 다. 운영 DB 에 줄을 넣지 않고 가입 시각으로 판정하므로, 11/1 직전까지 가입한 사람도 빠지지 않는다.
+     * Pro 였다. 그 주간이 끝나 Pro 판정에서는 뺐고, 지금은 ops 구독 화면(/v2/admin/subscribers 의 launch_week)이 기간과 인원을 보이는 데만 쓴다.
      */
     public static final Instant LAUNCH_WEEK_START = Instant.parse("2026-10-31T15:00:00Z");
     public static final Instant LAUNCH_WEEK_END = Instant.parse("2026-11-07T15:00:00Z");
-
-    /** 출시 주간 Pro 의 끝 — 지금이 그 주간이고 가입이 시작 전이면 끝 시각, 아니면 null. 가입 시각을 모르면 null. */
-    public static Instant launchWeekEnd(Instant signedUpAt, Instant now) {
-        if (signedUpAt == null || now.isBefore(LAUNCH_WEEK_START) || !now.isBefore(LAUNCH_WEEK_END)) {
-            return null;
-        }
-        return signedUpAt.isBefore(LAUNCH_WEEK_START) ? LAUNCH_WEEK_END : null;
-    }
     public static final String ORDER_NAME = "ACTTUB Pro 월 구독";
     public static final String YEARLY_ORDER_NAME = "ACTTUB Pro 연 구독";
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -116,56 +108,6 @@ public final class BillingRules {
         public static Plan ofStoreProduct(String productId) {
             return STORE_PRODUCT_YEARLY_ID.equals(productId) ? YEARLY : MONTHLY;
         }
-    }
-
-    /** 웹 결제의 청약철회 기간 — 결제 후 이 기간 안이고 유료 기능을 쓰지 않았으면 전액 환불(약관 제14조). */
-    public static final Duration REFUND_FULL_WINDOW = Duration.ofDays(7);
-
-    /**
-     * 웹(토스) 결제 한 건의 환불액(약관 제14조 제1항·제2항). 결제주기의 길이(월 28~31일, 연 365·366일)를 그대로 쓰므로 월·연 구독에 같은
-     * 규칙이 맞는다.
-     *
-     * <ul>
-     *   <li>결제 후 7일 이내이고 유료 기능을 쓰지 않았다 → 전액</li>
-     *   <li>결제 후 7일 이내이고 썼다 → 이용한 날짜만큼 뺀다</li>
-     *   <li>결제 후 7일이 지났다 → 이용한 날짜만큼 빼고, 남은 금액의 10%를 더 뺀다</li>
-     * </ul>
-     *
-     * 이용일수는 기간 시작부터 요청 시각까지이고 24시간이 안 되는 시간도 1일이다. 하루 이용료는 결제금액 ÷ 결제주기 전체 일수이며, 1원
-     * 미만은 올려서 환불하고 결제금액을 넘지 않는다. 회사 잘못으로 해지하는 경우(남은 금액의 10%를 더함)는 사람이 판정하므로 여기에 없다.
-     *
-     * @param amount      실제 결제금액(원)
-     * @param periodStart 이 결제로 열린 이용 기간의 시작(= 결제 시각)
-     * @param periodEnd   이용 기간의 끝(= 다음 결제일)
-     * @param requestedAt 환불 요청을 받은 시각
-     * @param usedPaidFeatures 이 기간에 유료 기능을 썼는가
-     */
-    public static long refundAmount(long amount, Instant periodStart, Instant periodEnd, Instant requestedAt,
-            boolean usedPaidFeatures) {
-        if (amount <= 0 || !periodEnd.isAfter(periodStart)) {
-            return 0L;
-        }
-        Duration elapsed = Duration.between(periodStart, requestedAt);
-        if (elapsed.isNegative()) {
-            elapsed = Duration.ZERO;
-        }
-        boolean withinWindow = elapsed.compareTo(REFUND_FULL_WINDOW) <= 0;
-        if (withinWindow && !usedPaidFeatures) {
-            return amount;
-        }
-        long totalDays = ceilDays(Duration.between(periodStart, periodEnd));
-        long usedDays = Math.min(ceilDays(elapsed), totalDays);
-        long leftDays = totalDays - usedDays;
-        // 남은 금액 = amount × leftDays / totalDays. 7일이 지났으면 그 90%.
-        long refund = withinWindow
-                ? Math.ceilDiv(amount * leftDays, totalDays)
-                : Math.ceilDiv(amount * leftDays * 9, totalDays * 10);
-        return Math.min(refund, amount);
-    }
-
-    private static long ceilDays(Duration duration) {
-        long millis = duration.toMillis();
-        return Math.ceilDiv(millis, Duration.ofDays(1).toMillis());
     }
 
     public enum Status {

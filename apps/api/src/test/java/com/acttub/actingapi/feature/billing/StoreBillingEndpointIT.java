@@ -79,7 +79,6 @@ class StoreBillingEndpointIT {
         }
         clock.set(Instant.parse("2026-11-03T01:00:00Z"));
         for (UUID id : List.of(USER, OTHER)) {
-            // 가입 시각을 시계(11/3)에 맞춘다 — 11/1 전 가입이면 출시 주간 Pro(SOMA-899)가 붙어 구독 판정 시험이 흐려진다.
             jdbc.update("INSERT INTO users(id,status,created_at) VALUES (?,'active',?)", id, java.sql.Timestamp.from(clock.instant()));
             jdbc.update("INSERT INTO user_identities(id,user_id,provider,provider_uid) VALUES (?,?,'google',?)",
                     UUID.randomUUID(), id, "g-" + id);
