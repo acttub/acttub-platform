@@ -201,6 +201,13 @@ class PracticeRollbackCompatibilityTest {
                     + "(ARRAY['spam'::text, 'abuse'::text, 'sexual'::text, 'privacy'::text, 'other'::text, "
                     + "'copyright'::text, 'inappropriate'::text, 'duplicate'::text])))");
         }
+        // V105 가 게시판 신고 대상에 1:1 대화(conversation)를 더했다(SOMA-1039). 넓히기만 했고 옛 서버는 그 행을 읽지 않는다.
+        String communityTargetsBefore = "CONSTRAINT community_reports ck_community_reports_target_type CHECK ((target_type = ANY "
+                + "(ARRAY['post'::text, 'comment'::text])))";
+        if (expected.remove(communityTargetsBefore)) {
+            expected.add("CONSTRAINT community_reports ck_community_reports_target_type CHECK ((target_type = ANY "
+                    + "(ARRAY['post'::text, 'comment'::text, 'conversation'::text])))");
+        }
         // V93 이 동의 결정 값에서 revoked 를 뺐다(SOMA-1130). 좁히기지만 옛 서버도 이 값을 쓰지 않는다(입력은 granted·declined).
         String consentActionsBefore = "CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY "
                 + "(ARRAY['granted'::text, 'declined'::text, 'revoked'::text])))";
