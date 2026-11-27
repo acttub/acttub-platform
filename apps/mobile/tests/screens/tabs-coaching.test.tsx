@@ -170,6 +170,67 @@ test('대화 중인 묶음이 있으면 맨 위 「하던 코칭 · 이어서 �
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });
 });
 
+describe('진행 횟수·태그·영상 길이(SOMA-810)', () => {
+  const withDuration = (r: PracticeRound, ms: number | null) => ({ ...r, video_duration_ms: ms }) as PracticeRound;
+
+  test('값이 있으면 장면 카드에 「n/3번 해 봤어요」와 채운 점 n개, 최근 코칭 줄에 태그 칩과 영상 길이', async () => {
+    listPracticeGroups.mockResolvedValue({
+      groups: [
+        group({
+          title: '이별 장면',
+          practice_count: 2,
+          practice_goal: 3,
+          tags: ['emotion_memory', 'resolved', 'unknown'],
+          practices: [withDuration(round('p1', '2026-10-01T00:00:00Z', true), 72_000)],
+        }),
+      ],
+    });
+    await render(<CoachingTab />);
+    await screen.findByText('저번 코치 메모');
+
+    expect(screen.getByText('2/3번 해 봤어요')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('coaching-progress-dot-on')).toHaveLength(2);
+    expect(screen.getAllByTestId('coaching-progress-dot-off')).toHaveLength(1);
+    expect(screen.getAllByTestId('coaching-recent-tag').map((n) => n.props.children)).toEqual(['감정 기억', '해결']);
+    expect(screen.getByTestId('coaching-recent-duration')).toHaveTextContent('1:12');
+  });
+
+  test('3을 넘으면 점 3개를 다 채우고 글은 「n번 해 봤어요」', async () => {
+    listPracticeGroups.mockResolvedValue({
+      groups: [group({ practice_count: 5, practice_goal: 3, practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
+    });
+    await render(<CoachingTab />);
+    await screen.findByText('저번 코치 메모');
+
+    expect(screen.getByText('5번 해 봤어요')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('coaching-progress-dot-on')).toHaveLength(3);
+    expect(screen.queryByTestId('coaching-progress-dot-off')).not.toBeOnTheScreen();
+  });
+
+  test('하던 코칭 카드에도 같은 진행 표시가 붙는다', async () => {
+    listPracticeGroups.mockResolvedValue({
+      groups: [group({ in_progress_practice_id: 'open-1', practice_count: 1, practices: [round('open-1', '2026-10-01T00:00:00Z', false)] })],
+    });
+    await render(<CoachingTab />);
+    await screen.findByText('코치와 하던 대화가 남아 있어요.');
+    expect(screen.getByText('1/3번 해 봤어요')).toBeOnTheScreen();
+  });
+
+  test.each([
+    ['필드 없음(서버 스위치 꺼짐)', {}, round('p1', '2026-10-01T00:00:00Z', true)],
+    ['null(옛 연습)', { practice_count: null, tags: [] }, withDuration(round('p1', '2026-10-01T00:00:00Z', true), null)],
+  ])('값이 %s이면 진행 글·점·태그·길이를 모두 숨긴다', async (_name, extra, practice) => {
+    listPracticeGroups.mockResolvedValue({ groups: [group({ ...extra, practices: [practice] })] });
+    await render(<CoachingTab />);
+    await screen.findByText('저번 코치 메모');
+
+    expect(screen.queryByTestId('coaching-progress')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/번 해 봤어요/)).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('coaching-recent-tag')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('coaching-recent-duration')).not.toBeOnTheScreen();
+  });
+});
+
 test('탭바가 보이면 하단 탭으로 홈에 가므로 뒤로 꺾쇠를 두지 않는다(10/22 피드백)', async () => {
   listPracticeGroups.mockRejectedValue(new Error('down'));
   await render(<CoachingTab />);

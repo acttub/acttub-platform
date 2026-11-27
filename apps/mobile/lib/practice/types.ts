@@ -145,6 +145,9 @@ export type PracticeGroup = {
   /** 가장 최근 회차 중 사진이 있는 회차의 첫 장면 사진. */
   poster_url?: string | null;
   practices: PracticeRound[];
+  /** 서버 묶음 응답의 값을 그대로 옮긴다(SOMA-810). 스위치가 꺼져 있으면 없다. */
+  practice_count?: number | null;
+  practice_goal?: number;
 };
 
 export type PracticeGroupFilter = 'all' | 'favorite' | 'recent30';
@@ -322,6 +325,8 @@ export type PracticeRound = {
   note: { id: string; title: string | null; kind: NoteKind } | null;
   conversation_id: string | null;
   previous_conversations: PreviousConversation[];
+  /** 그 회차 영상의 길이(밀리초). 서버 스위치가 꺼져 있으면 없고, 모르면 null이다(SOMA-810). */
+  video_duration_ms?: number | null;
 };
 
 export type PracticeGroupDetail = PracticeGroup & {

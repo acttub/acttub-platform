@@ -157,6 +157,10 @@ const en: DeepStringShape<typeof ko> = {
     next: 'Next',
   },
   coachingTab: {
+    progress: 'Tried {{n}}/{{goal}} times',
+    progressOver: 'Tried {{n}} times',
+    tag: { emotionMemory: 'Emotion memory', resolved: 'Resolved' },
+    durationA11y: 'Video length {{d}}',
     linkTalk: 'Talk, no video',
     linkScript: 'Write lines together',
     otherWaysTile: 'Other ways\nto get coaching',

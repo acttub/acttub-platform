@@ -21,6 +21,8 @@ export function practiceGroupFromResponse(group: PracticeGroupResponse): Practic
       note: p.note_id && p.note_kind ? { id: p.note_id, title: p.note_title, kind: p.note_kind } : null,
       conversation_id: p.conversation_id,
       previous_conversations: p.previous_conversations,
+      // 스위치가 꺼진 서버는 키가 없다 — 없는 키는 옮기지 않는다(SOMA-810).
+      ...(p.video_duration_ms !== undefined && { video_duration_ms: p.video_duration_ms }),
     })),
   };
 }
