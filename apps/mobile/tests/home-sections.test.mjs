@@ -31,9 +31,9 @@ test('입시생인데 생년월일을 모르면 둘 다 보인다(숨기는 쪽�
   assert.deepEqual(homeDeadlineSections(examPrep(null), TODAY), { admissions: true, auditions: true });
 });
 
-test('홈 마감 구역(연기 입시·오디션 마감 임박)은 이 규칙으로 구역을 고른다', () => {
-  const home = readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8');
-  assert.match(home, /homeDeadlineSections\(/);
-  assert.match(home, /sections\.admissions && admissions/);
-  assert.match(home, /sections\.auditions && auditions/);
+test('마감 구역(연기 입시·오디션 마감 임박)은 이 규칙으로 구역을 고른다 — 홈에서 커뮤니티 탭 「오디션·입시」 입구로 옮겼다(SOMA-1121)', () => {
+  const preview = readFileSync(new URL('../components/deadline-preview.tsx', import.meta.url), 'utf8');
+  assert.match(preview, /homeDeadlineSections\(/);
+  assert.match(preview, /wantsAdmissions && admissions/);
+  assert.match(preview, /wantsAuditions && auditions/);
 });

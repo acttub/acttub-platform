@@ -26,12 +26,13 @@ test('challenge.browse: 목업과 예시 데이터를 걷어내고 서버에서 
   assert.match(read('app/challenge-detail.tsx'), /api\.listChallengeEntries/);
 });
 
-test('challenge.browse: 대사 목록은 네 탭이고 오늘의 챌린지는 칩과 상관없이 고정한다', () => {
+test('challenge.browse: 칩 없이 인기 목록을 세 구역으로 나누고 지난 챌린지는 종료 탭으로 받으며, 오늘의 챌린지를 고정한다(SOMA-1122)', () => {
   const list = read('app/(tabs)/challenges.tsx');
 
-  for (const tab of ['popular', 'latest', 'ended', 'mine']) {
-    assert.match(list, new RegExp(`'${tab}'`), `${tab} 탭이 없다`);
-  }
+  assert.doesNotMatch(list, /challenge_tab_|challenges\.tabLatest|challenges\.tabMineShort/);
+  assert.match(list, /useState<ChallengeTab>\('popular'\)/);
+  assert.match(list, /switchList\('ended'\)/);
+  assert.match(list, /c\.origin === 'team'/);
   assert.match(list, /officialPick \?\? previous/);
   assert.match(list, /pinFeatured\(result, featuredRef\.current\)/);
   assert.match(list, /challenges\.featuredLabel/);
@@ -94,8 +95,8 @@ test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게
   const layout = read('app/(tabs)/_layout.tsx');
   assert.doesNotMatch(layout, /isKorean/);
   // 탭 제목·읽어 줄 이름은 tab() 묶음이 t(`tabs.<키>`)로 채운다(SOMA-770).
-  // SOMA-873: 라우트는 challenges 그대로, 탭 이름은 커뮤니티이고 누름 기록 이름만 예전(tab_challenge)이다.
-  assert.match(layout, /name="challenges"\s*options=\{\{\s*\.\.\.tab\('community', 'challenge'\)/);
+  // SOMA-1120: 라우트는 challenges 그대로, 탭 이름은 다시 챌린지이고 누름 기록 이름도 예전(tab_challenge) 그대로다.
+  assert.match(layout, /name="challenges"\s*options=\{\{\s*\.\.\.tab\('challenge'\)/);
   assert.match(layout, /title: t\(`tabs\.\$\{key\}`\)/);
   assert.match(read('app/(tabs)/challenges.tsx'), /browseFailureMessage/);
   const { default: ko } = await import('../locales/ko.ts');

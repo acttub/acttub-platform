@@ -41,6 +41,9 @@ jest.mock('@/lib/guide-state', () => ({
   markTutorialSeen: jest.fn(async () => undefined),
 }));
 jest.mock('@/hooks/use-cloud-voice', () => ({ useCloudVoice: jest.fn() }));
+// 머리 알림 종(SOMA-1120)이 읽는 안 읽은 알림 수.
+const mockUnread = { count: 0, badge: null };
+jest.mock('@/hooks/use-unread-notifications', () => ({ useUnreadNotifications: () => mockUnread }));
 
 const voice = {
   status: null as null | { available: boolean; consent: string; free_until: string | null },
@@ -116,6 +119,30 @@ test('이어 읽을 회차가 있으면 pen R1.3처럼 「이전에 하던 데�
   expect(screen.getByText('「이어서 읽기」를 누르면 멈춘 대목부터 읽어요.')).toBeOnTheScreen();
   expect(screen.getByText('이어서 읽기')).toBeOnTheScreen();
   expect(screen.queryByText('한 번 더 하기')).not.toBeOnTheScreen();
+});
+
+test('순서는 이어 하기 → 새 대본 → 지난 기록(업로드한 대본)이고, 이어 할 회차가 없으면 새 대본이 맨 위다(SOMA-1123)', async () => {
+  (listSessions as jest.Mock).mockResolvedValue([{ id: 'r1', status: 'in_progress', progress: { done: 8, total: 15 } }]);
+  const view = await render(<ReadingList />);
+  await screen.findByText('이전에 하던 대본부터');
+  const indexOf = () => {
+    const hosts = screen.container.queryAll((node) => typeof node.type === 'string');
+    return (el: unknown) => hosts.indexOf(el as (typeof hosts)[number]);
+  };
+  let at = indexOf();
+  const resume = at(screen.getByText('이전에 하던 대본부터'));
+  const fresh = at(screen.getByTestId('reading-new-entry'));
+  const past = at(screen.getByText('업로드한 대본'));
+  expect(resume).toBeLessThan(fresh);
+  expect(fresh).toBeLessThan(past);
+  await view.unmount();
+
+  (listSessions as jest.Mock).mockResolvedValue([]);
+  await render(<ReadingList />);
+  await screen.findByText('업로드한 대본');
+  expect(screen.queryByText('이전에 하던 대본부터')).not.toBeOnTheScreen();
+  at = indexOf();
+  expect(at(screen.getByTestId('reading-new-entry'))).toBeLessThan(at(screen.getByText('업로드한 대본')));
 });
 
 test('대본이 없으면 새 대본으로 시작하라고 안내한다', async () => {
@@ -441,21 +468,23 @@ describe('처음 온 사람', () => {
   });
 });
 
-describe('첫 사용자라 탭바가 숨으면', () => {
+describe('머리', () => {
   afterEach(() => setFirstTimeState('unknown'));
 
-  test('머리에 홈으로 돌아가는 꺾쇠를 둔다', async () => {
-    setFirstTimeState('first');
+  test('오른쪽에 알림 종을 두고, 안 읽은 알림이 있으면 점을 단다 — 누르면 알림함(SOMA-1120, 예전 홈 종)', async () => {
+    mockUnread.count = 3;
     await render(<ReadingList />);
     await screen.findByText('옥상 장면');
 
-    const back = screen.getByRole('button', { name: '뒤로' });
-    expect(back.props['ph-label']).toBe('reading_back_home');
-    await fireEvent.press(back);
-    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+    const bell = screen.getByRole('button', { name: '알림함, 안 읽은 알림 있음' });
+    expect(bell.props['ph-label']).toBe('reading_bell');
+    expect(screen.getByTestId('bell-unread-dot')).toBeOnTheScreen();
+    await fireEvent.press(bell);
+    expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
+    mockUnread.count = 0;
   });
 
-  test('머리 오른쪽에 설정 버튼을 둔다 — 탭바가 없어도 로그아웃·탈퇴로 갈 수 있다', async () => {
+  test('첫 사용자에게는 설정 버튼을 두고, 홈으로 가는 꺾쇠는 두지 않는다 — 탭바가 늘 보인다(SOMA-1120)', async () => {
     setFirstTimeState('first');
     await render(<ReadingList />);
     await screen.findByText('옥상 장면');
@@ -464,9 +493,10 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     expect(gear.props['ph-label']).toBe('reading_first_settings');
     await fireEvent.press(gear);
     expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
   });
 
-  test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
+  test('첫 사용자가 아니면 꺾쇠도 설정도 두지 않는다', async () => {
     setFirstTimeState('practiced');
     await render(<ReadingList />);
     await screen.findByText('옥상 장면');

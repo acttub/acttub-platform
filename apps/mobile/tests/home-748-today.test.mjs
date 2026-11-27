@@ -117,16 +117,14 @@ test('챌린지 마감 D-day는 한국 날짜로 센다', () => {
   assert.equal(challengeDaysLeft('nope', NOW), null);
 });
 
-test('홈 화면: 첫 사용자 질문 3개·오늘 할 것 카드·알림 종을 그리고 일정 D-day는 없다', () => {
-  const home = src('app/(tabs)/index.tsx');
-  // 첫 사용자 판단은 lib/practice/first-time(안에서 isFirstUser)이 탭바 숨김과 함께 한 번 한다.
-  assert.match(home, /firstTimeStateFrom\(/);
-  assert.match(home, /pickToday\(/);
-  assert.match(home, /t\('home\.firstQuestion'\)/);
-  assert.match(home, /router\.push\('\/notifications'\)/);
-  // 오늘 할 것 카드가 첫 가이드가 비추는 자리다.
-  // 카드 전체가 누르는 곳이라 첫 가이드 자리(ref)를 카드에 넘긴다(10/28).
-  assert.match(home, /cardRef=\{startTarget\.ref\}/);
+test('홈 탭을 없앤 뒤(SOMA-1120): 첫 사용자 판정은 탭 레이아웃의 기록 공급자, 질문은 첫 사용자 안내, 알림 종은 공용 부품이다', () => {
+  assert.match(src('hooks/use-practice-records.tsx'), /firstTimeStateFrom\(/);
+  assert.match(src('components/first-use-intro.tsx'), /t\('home\.firstQuestion'\)/);
+  assert.match(src('components/notification-bell.tsx'), /router\.push\('\/notifications'\)/);
+  // 「오늘 할 것」 카드는 리딩·코칭의 이어 하기와 겹쳐 뺐다 — 어떤 탭도 pickToday 를 쓰지 않는다.
+  for (const tab of ['reading', 'coaching', 'community', 'challenges', 'profile', 'index']) {
+    assert.doesNotMatch(src(`app/(tabs)/${tab}.tsx`), /pickToday\(/, tab);
+  }
 });
 
 test('primaryFeature: 최근 2주에 센 연습이 가장 많은 기능, 같으면 더 최근, 없으면 null', async () => {

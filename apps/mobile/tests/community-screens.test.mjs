@@ -10,18 +10,19 @@ const read = (rel) => readFileSync(path.join(appRoot, rel), 'utf8');
  * 커뮤니티 탭·배우 게시판(SOMA-873) 배선 잠그기. 값·규칙은 tests/community.test.mjs, 그림과 동작은 tests/screens/community-*.test.tsx 가 본다.
  */
 
-test('챌린지 탭 라우트는 그대로 두고 탭 이름·아이콘만 커뮤니티(users)로 바꾼다', () => {
+test('커뮤니티는 독립 탭(community, users 아이콘)이고 챌린지 탭은 예전 라우트(challenges)에 트로피 아이콘이다(SOMA-1120)', () => {
   const layout = read('app/(tabs)/_layout.tsx');
-  assert.match(layout, /name="challenges"/);
+  assert.match(layout, /name="community"/);
   assert.match(layout, /tabIcon\(\{ feather: 'users' \}, t\('tabs\.community'\)/);
-  assert.doesNotMatch(layout, /trophy-outline/);
+  assert.match(layout, /name="challenges" options=\{\{ \.\.\.tab\('challenge'\).*tabIcon\('trophy-outline', t\('tabs\.challenge'\)\)/);
 });
 
-test('커뮤니티 탭 머리는 큰 제목 없이 챌린지·게시판 밑줄 탭이다', () => {
-  const tab = read('app/(tabs)/challenges.tsx');
-  assert.match(tab, /<CommunityTabs/);
-  assert.doesNotMatch(tab, /t\('challenges\.title'\)/);
-  assert.match(tab, /<CommunityBoard/);
+test('커뮤니티 탭은 맨 위 「오디션·입시」 입구 아래 게시판이고, 챌린지 탭에는 게시판 전환이 없다(SOMA-1121)', () => {
+  const community = read('app/(tabs)/community.tsx');
+  assert.match(community, /<CommunityBoard/);
+  assert.match(community, /top=\{<DeadlinePreview \/>\}/);
+  const challenges = read('app/(tabs)/challenges.tsx');
+  assert.doesNotMatch(challenges, /CommunityTabs|CommunityBoard/);
 });
 
 test('게시판 화면들은 서버 /v2/community 를 읽고 아래 시트를 쓰지 않는다', () => {

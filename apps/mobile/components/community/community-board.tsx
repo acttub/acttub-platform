@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -44,15 +44,18 @@ import { translate as t } from '@/lib/i18n';
  * 한 줄로 알린다. 네 상태: 불러오는 중 Skeleton 행, 비었음 액티 96 + title2 + 「첫 글 쓰기」, 실패 InlineError, 채움.
  * 당겨서 새로고침, 끝에서 이어 받기.
  * `onSeen` 은 첫 쪽을 받을 때마다 가장 최근 글 시각을 알린다(「게시판」 빨간 점 끄기).
+ * `top` 은 공지 위, 목록과 함께 스크롤되는 맨 위 칸이다(커뮤니티 탭의 「오디션·입시」 입구, SOMA-1121).
  */
 export function CommunityBoard({
   bottomSpace,
   onWrite,
   onSeen,
+  top,
 }: {
   bottomSpace: number;
   onWrite: () => void;
   onSeen: (latestCreatedAt: string | null) => void;
+  top?: ReactNode;
 }) {
   const router = useRouter();
   const { alert, dialog } = useAppDialog();
@@ -148,6 +151,7 @@ export function CommunityBoard({
 
   const header = (
     <View style={styles.head}>
+      {top}
       <Pressable
         style={({ pressed }) => [styles.notice, pressed && styles.pressed]}
         onPress={showRules}

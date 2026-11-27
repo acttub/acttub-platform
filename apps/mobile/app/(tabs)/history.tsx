@@ -183,7 +183,8 @@ export default function HistoryScreen() {
     return out;
   }, [rows]);
 
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  // 돌아갈 곳이 없으면 '/'(마지막에 쓴 탭)로 — 탭 안에서 replace 는 탭 묶음을 통째로 갈아 끼워 navigate 로 간다(SOMA-1120).
+  const goBack = () => (router.canGoBack() ? router.back() : router.navigate('/'));
   const roundTotal = groups.reduce((sum, g) => sum + g.ordinal_count, 0);
 
   return (

@@ -14,7 +14,9 @@ test('대본 탭 — 목록을 받기 전에는 「내 대본」 머리·고품�
   assert.match(src, /const listSkeleton = listPending && skeletonHints\.reading === 'list';/);
   assert.match(src, /const entrySkeleton = listPending && !listSkeleton && !entryHint;/);
   assert.match(src, /title=\{showEntry \|\| entrySkeleton \? '' : t\('reading\.listTitle'\)\}/);
-  assert.match(src, /\{!showEntry && !entrySkeleton && \(\s*<FloatingAdd\b/);
+  // 「새 대본」은 떠 있는 버튼 대신 목록 화면 안 이어 하기 아래에 둔다(SOMA-1123) — 입구·입구 뼈대에는 없다.
+  assert.doesNotMatch(src, /<FloatingAdd\b/);
+  assert.match(src, /testID="reading-new-entry"/);
   assert.match(src, /\{!showEntry && !entrySkeleton && voiceBar\}/);
   // 몸통은 받기 전 → 뼈대, 비었으면 입구, 아니면 목록 순서로 고른다.
   const pending = src.indexOf('{listPending && !showEntry ? (');
@@ -31,10 +33,9 @@ test('챌린지 탭 — 첫 고르기를 띄울지 정하고 첫 목록을 받�
   assert.match(src, /const deciding = !pickDecided \|\| !firstLoadDone;/);
   // 다시 들어올 때 기록을 새로 따져도(firstPickChecked 가 잠깐 false) 이미 정한 화면을 유지한다.
   assert.match(src, /const selectMode = pickDecided && showGuide/);
-  // SOMA-873: 게시판일 때는 다른 머리 버튼을 두므로 이 조건은 「: 」 뒤 분기다.
-  assert.match(src, /: !selectMode && !deciding && \(/);
-  // SOMA-873: 게시판 분기 다음이라 「) : deciding ? (」 모양이다.
-  const deciding = src.indexOf(') : deciding ? (');
+  // 정하기 전·첫 고르기에는 머리 검색·알림 버튼을 두지 않는다(게시판 분기는 SOMA-1121에서 커뮤니티 탭으로 나갔다).
+  assert.match(src, /\{!selectMode && !deciding && \(/);
+  const deciding = src.indexOf('{deciding ? (');
   const select = src.indexOf(') : selectMode && featured ? (');
   assert.ok(deciding > 0 && select > deciding, '정하기 전 뼈대 분기가 첫 고르기 분기보다 앞에 있어야 한다');
 });

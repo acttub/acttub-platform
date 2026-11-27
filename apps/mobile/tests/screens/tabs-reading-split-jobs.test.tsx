@@ -42,6 +42,8 @@ jest.mock('@/hooks/use-cloud-voice', () => ({
   useCloudVoice: () => ({ status: null, enabled: false, busy: false, enable: jest.fn(), disable: jest.fn(), refresh: jest.fn(async () => null), consentSheet: null }),
 }));
 jest.mock('@/components/ad-slot', () => ({ AdSlot: () => null }));
+// 머리 알림 종(SOMA-1120)이 읽는 안 읽은 알림 수.
+jest.mock('@/hooks/use-unread-notifications', () => ({ useUnreadNotifications: () => ({ count: 0, badge: null }) }));
 
 const script: ScriptCard = {
   id: 's1',

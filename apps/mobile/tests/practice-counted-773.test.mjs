@@ -71,9 +71,9 @@ test('프로필 이번 달 연습도 같은 기준이다(노트 없는 회차·�
   assert.deepEqual(counts, { coaching: 1, reading: 1, challenge: 2, total: 4 });
 });
 
-test('홈·프로필·리딩이 이 기준 하나를 쓴다', () => {
+test('탭 묶음 기록(예전 홈)·프로필·리딩이 이 기준 하나를 쓴다', () => {
   assert.match(read('lib/profile-month-stats.ts'), /countedPractices\(/);
-  const home = read('app/(tabs)/index.tsx');
+  const home = read('hooks/use-practice-records.tsx');
   assert.match(home, /countedPractices\(/);
   assert.match(read('app/reading/play.tsx'), /readingRunCompleted\(/);
 });

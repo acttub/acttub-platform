@@ -18,11 +18,24 @@ jest.mock('expo-image', () => ({ Image: () => null }));
 jest.mock('@/lib/api', () => ({ api: { listPracticeGroups: jest.fn(), getPracticeNote: jest.fn() } }));
 const mockListScripts = jest.fn();
 jest.mock('@/lib/reading/store', () => ({ listScripts: () => mockListScripts() }));
+// 영상 올리는 중 카드(예전 홈 맨 위, SOMA-1120) — 카드 자체는 tests/components/home-upload-card 가 본다.
+const mockWaiting = { card: null as null | { state: 'uploading'; waiting: { scene: { situation: string } } }, error: null, busy: false, retry: jest.fn(), begin: jest.fn() };
+jest.mock('@/hooks/use-waiting-upload', () => ({ useWaitingUpload: () => mockWaiting }));
 
 const listPracticeGroups = api.listPracticeGroups as jest.Mock;
 
 beforeEach(() => {
   mockListScripts.mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
+  mockWaiting.card = null;
+});
+
+test('영상을 올리는 중이면 맨 위에 그 카드를 둔다 — 코칭 이어 하기(SOMA-1120, 예전 홈)', async () => {
+  mockWaiting.card = { state: 'uploading', waiting: { scene: { situation: '카페 이별 장면' } } };
+  listPracticeGroups.mockResolvedValue({ groups: [] });
+  await render(<CoachingTab />);
+  await screen.findByText('코칭이 처음이죠?');
+  expect(screen.getByTestId('home-upload-card')).toBeOnTheScreen();
+  expect(screen.getByText('카페 이별 장면')).toBeOnTheScreen();
 });
 const getPracticeNote = api.getPracticeNote as jest.Mock;
 
@@ -117,6 +130,20 @@ test('노트가 있는 묶음이 있으면 저번 코치 메모 카드와 입구
   expect(screen.queryByRole('button', { name: '전체 보기' })).not.toBeOnTheScreen();
 });
 
+test('순서는 이어 하기(저번 코치 메모) → 새 코칭 → 지난 기록(최근 코칭·연습 기록 화면)이다(SOMA-1123)', async () => {
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ title: '이별 장면', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
+  });
+  await render(<CoachingTab />);
+  await screen.findByText('저번 코치 메모');
+
+  const hosts = screen.container.queryAll((node) => typeof node.type === 'string');
+  const at = (el: unknown) => hosts.indexOf(el as (typeof hosts)[number]);
+  const order = [at(screen.getByText('저번 코치 메모')), at(screen.getByRole('button', { name: '새 영상으로 코칭 받기' })), at(screen.getByText('최근 코칭'))];
+  expect(order.every((i) => i >= 0)).toBe(true);
+  expect([...order].sort((a, b) => a - b)).toEqual(order);
+});
+
 test('저장한 대본이 있어도 코칭 탭에는 「내 대본으로 찍기」 줄을 따로 두지 않는다(SOMA-984)', async () => {
   mockListScripts.mockResolvedValue({ scripts: [{ id: 's1' }], total_count: 1, in_progress_count: 0 });
   listPracticeGroups.mockResolvedValue({
@@ -161,7 +188,7 @@ test('탭바가 보이면 하단 탭으로 홈에 가므로 뒤로 꺾쇠를 두
   expect(await screen.findByText('코칭이 처음이죠?')).toBeOnTheScreen();
 });
 
-describe('첫 사용자라 탭바가 숨으면', () => {
+describe('첫 사용자', () => {
   afterEach(() => setFirstTimeState('unknown'));
 
   test('처음 화면 머리 오른쪽에 설정 버튼을 둔다 — 탭바가 없어도 로그아웃·탈퇴로 갈 수 있다', async () => {
@@ -175,9 +202,8 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     await fireEvent.press(gear);
     expect(mockRouter.push).toHaveBeenCalledWith('/settings');
 
-    // 탭바가 없으니 꺾쇠로 홈(뭐부터 해 볼까요?)에 돌아가 다른 길을 고를 수 있다.
-    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+    // 홈 탭이 없어져 탭바가 늘 보인다 — 홈으로 가는 꺾쇠는 두지 않는다(SOMA-1120).
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
   });
 
   test('탭바가 보이면(시작했거나 아직 모르면) 설정 버튼을 두지 않는다', async () => {
