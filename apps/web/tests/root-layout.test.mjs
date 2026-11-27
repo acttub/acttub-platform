@@ -31,7 +31,6 @@ const { cleanup, fireEvent, render, screen } = await import("@testing-library/re
 const { default: RootLayout, metadata: rootMetadata } = await import("../src/app/layout.tsx");
 const { default: GlobalError } = await import("../src/app/global-error.tsx");
 const { default: NotFound, metadata: notFoundMetadata } = await import("../src/app/not-found.tsx");
-const { PretendardStylesheet } = await import("../src/app/pretendard-stylesheet.tsx");
 const { version: pretendardVersion } = (
   await import("pretendard/package.json", { with: { type: "json" } })
 ).default;
@@ -39,7 +38,6 @@ const { version: pretendardVersion } = (
 afterEach(() => {
   cleanup();
   captured.length = 0;
-  window.document.getElementById("pretendard-dynamic-subset")?.remove();
 });
 
 /** 루트 레이아웃의 첫 인라인 스크립트(인앱 탈출)를 주어진 브라우저 상태에서 돌린다. */
@@ -47,7 +45,8 @@ function runInAppEscape({ userAgent, href, webdriver = false }) {
   const markup = renderToStaticMarkup(
     react.createElement(RootLayout, null, react.createElement("p", null, "본문")),
   );
-  const script = markup.match(/<head><script>([\s\S]*?)<\/script>/)[1];
+  // 글꼴 preload 가 <head> 앞쪽으로 올라올 수 있어 <head> 바로 뒤가 아니라 첫 <script> 를 찾는다.
+  const script = markup.match(/<head>(?:<link\b[^>]*>)*<script>([\s\S]*?)<\/script>/)[1];
   const url = new URL(href);
   const replaced = [];
   runInNewContext(script, {
@@ -130,15 +129,30 @@ test("404 는 색인하지 않고 다시 시작할 링크를 준다", () => {
   );
 });
 
-test("글꼴 시트는 한 번만 붙이고, 내려받기가 끝나면 모든 매체에 적용한다", () => {
-  render(react.createElement(PretendardStylesheet));
-  render(react.createElement(PretendardStylesheet));
-
-  const sheets = window.document.head.querySelectorAll("#pretendard-dynamic-subset");
-  assert.equal(sheets.length, 1);
-  const [sheet] = sheets;
-  assert.equal(sheet.getAttribute("href"), `/fonts/pretendard/${pretendardVersion}/pretendard.css`);
-  assert.equal(sheet.media, "print");
-  sheet.onload();
-  assert.equal(sheet.media, "all");
+test("글꼴 시트와 자주 쓰는 서브셋 미리 받기는 서버 렌더 <head> 에 실린다", () => {
+  const fontRoot = `/fonts/pretendard/${pretendardVersion}`;
+  for (const element of [
+    react.createElement(RootLayout, null, react.createElement("p", null, "본문")),
+    react.createElement(GlobalError, { error: new Error("레이아웃이 깨졌다"), reset: () => {} }),
+  ]) {
+    const head = renderToStaticMarkup(element).match(/<head>([\s\S]*?)<\/head>/)[1];
+    // React 가 preload 를 <head> 앞쪽으로 끌어올릴 수 있어 태그 순서와 속성 순서는 보지 않는다.
+    const links = [...head.matchAll(/<link\b([^>]*?)\/?>/g)].map(([, attributes]) =>
+      Object.fromEntries([...attributes.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, name, value]) => [name, value])),
+    );
+    // 하이드레이션 뒤에 붙이던 media=print 우회는 첫 페인트를 시스템 글꼴로 내보냈다.
+    const sheets = links.filter((link) => link.rel === "stylesheet");
+    assert.deepEqual(sheets.map((link) => link.href), [`${fontRoot}/pretendard.css`]);
+    assert.equal(sheets[0].media, undefined);
+    const preloads = links.filter((link) => link.rel === "preload");
+    assert.deepEqual(
+      preloads.map((link) => link.href).sort(),
+      [89, 90, 91].map((subset) => `${fontRoot}/woff2-dynamic-subset/PretendardVariable.subset.${subset}.woff2`),
+    );
+    for (const link of preloads) {
+      assert.equal(link.as, "font");
+      assert.equal(link.type, "font/woff2");
+      assert.equal(link.crossorigin, "anonymous");
+    }
+  }
 });
