@@ -58,8 +58,11 @@ public interface VideoRepository {
      */
     IntentView findIntent(UUID userId, UUID intentId);
 
-    /** @param videoId 이미 확정된 예약이면 그 영상. 아직이면 {@code null} */
-    record IntentView(String objectKey, Instant expiresAt, UUID videoId) {
+    /**
+     * @param videoId 이미 확정된 예약이면 그 영상. 아직이면 {@code null}
+     * @param etag 확정 때 저장소에서 확인한 검증값. 분석·코치가 내려받은 파일과 이 값을 견준다. 아직이면 {@code null}
+     */
+    record IntentView(String objectKey, Instant expiresAt, UUID videoId, String etag) {
     }
 
     /**
@@ -91,6 +94,14 @@ public interface VideoRepository {
         /** 올라온 객체의 크기가 예약과 다르다. */
         SIZE_MISMATCH
     }
+
+    /**
+     * 확정된 예약의 검증값과 영상 크기를 저장소에서 다시 확인한 값으로 고쳐 적는다 — 예약을 다시 받은 기기가 같은 키에
+     * 다른 파일을 올린 뒤의 마무리 재전송이다. 크기가 총량에 들어가므로 사용자 행을 잠근다. 파기된 영상의 크기는 고치지 않는다.
+     *
+     * @return 고친 뒤의 영상. 없거나 남의 예약이거나 아직 확정 전이면 {@code null}
+     */
+    VideoView restamp(UUID userId, UUID intentId, VideoStorage.Stored stored, Instant now);
 
     /**
      * 시한이 지난 예약 하나를 치우고 그 객체의 삭제를 장부에 올린다 — 마무리가 늦게 왔을 때다.

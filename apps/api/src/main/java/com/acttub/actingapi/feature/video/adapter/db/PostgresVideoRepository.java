@@ -112,7 +112,7 @@ class PostgresVideoRepository implements VideoRepository {
     @Override
     public IntentView findIntent(UUID userId, UUID intentId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT object_key,expires_at,video_id
+                SELECT object_key,expires_at,video_id,etag
                 FROM upload_intents
                 WHERE id=:intentId
                   AND user_id=:userId
@@ -126,7 +126,8 @@ class PostgresVideoRepository implements VideoRepository {
         return new IntentView(
                 row.get("object_key", String.class),
                 row.get("expires_at", Instant.class),
-                row.get("video_id", UUID.class));
+                row.get("video_id", UUID.class),
+                row.get("etag", String.class));
     }
 
     @Override
@@ -181,6 +182,31 @@ class PostgresVideoRepository implements VideoRepository {
                     .setParameter("intentId", intentId)
                     .executeUpdate();
             return new Completed(CompleteOutcome.CREATED, find(userId, videoId), List.of());
+        });
+    }
+
+    @Override
+    public VideoView restamp(UUID userId, UUID intentId, VideoStorage.Stored stored, Instant now) {
+        return transaction.execute(tx -> {
+            // 크기는 총량에 든다 — 확정과 같은 사용자 행에서 줄을 선다.
+            accountRows.lockRow(userId);
+            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                    UPDATE upload_intents
+                    SET etag=:etag
+                    WHERE id=:intentId
+                      AND user_id=:userId
+                      AND video_id IS NOT NULL
+                    RETURNING video_id
+                    """, Tuple.class)
+                    .setParameter("etag", stored.etag())
+                    .setParameter("intentId", intentId)
+                    .setParameter("userId", userId));
+            if (rows.isEmpty()) {
+                return null;
+            }
+            UUID videoId = rows.getFirst().get("video_id", UUID.class);
+            videos.resize(videoId, userId, stored.byteSize(), now);
+            return find(userId, videoId);
         });
     }
 

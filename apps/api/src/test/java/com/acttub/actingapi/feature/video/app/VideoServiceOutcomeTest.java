@@ -47,7 +47,7 @@ class VideoServiceOutcomeTest {
     }
 
     void completesWith(CompleteOutcome outcome, VideoView video) {
-        when(videos.findIntent(user, intent)).thenReturn(new IntentView("videos/u/r.mp4", clock.instant().plusSeconds(60), null));
+        when(videos.findIntent(user, intent)).thenReturn(new IntentView("videos/u/r.mp4", clock.instant().plusSeconds(60), null, null));
         when(storage.head("videos/u/r.mp4")).thenReturn(new VideoStorage.Stored(100, "etag"));
         when(videos.complete(eq(user), eq(intent), any(), anyLong(), any())).thenReturn(new Completed(outcome, video, List.of()));
     }
@@ -74,12 +74,52 @@ class VideoServiceOutcomeTest {
 
     @Test void anIntentWhoseVideoWasRemovedIsCompletedAgain() {
         UUID gone = UUID.randomUUID();
-        when(videos.findIntent(user, intent)).thenReturn(new IntentView("videos/u/r.mp4", clock.instant().plusSeconds(60), gone));
+        when(videos.findIntent(user, intent)).thenReturn(new IntentView("videos/u/r.mp4", clock.instant().plusSeconds(60), gone, null));
         when(videos.find(user, gone)).thenReturn(null);
         when(storage.head("videos/u/r.mp4")).thenReturn(new VideoStorage.Stored(100, "etag"));
         VideoView created = video(null, null);
         when(videos.complete(eq(user), eq(intent), any(), anyLong(), any())).thenReturn(new Completed(CompleteOutcome.CREATED, created, List.of()));
         assertThat(service.completeIntent(user, false, intent, false).created()).isTrue();
+    }
+
+    /** 시한이 지난 뒤의 재전송이다 — 앱 큐가 자리를 다시 받아 다시 올리는 때가 그렇다(SOMA-1137). */
+    void finalized(VideoView video, VideoStorage.Stored object) {
+        when(videos.findIntent(user, intent))
+                .thenReturn(new IntentView("videos/u/r.mp4", clock.instant().minusSeconds(60), video.id(), "etag"));
+        when(videos.find(user, video.id())).thenReturn(video);
+        when(storage.head("videos/u/r.mp4")).thenReturn(object);
+    }
+
+    @Test void aReplayOfTheSameObjectWritesNothing() {
+        VideoView video = video(null, null);
+        finalized(video, new VideoStorage.Stored(100, "etag"));
+        assertThat(service.completeIntent(user, false, intent, false)).isEqualTo(new VideoService.Completion(false, video));
+        verify(videos, never()).restamp(any(), any(), any(), any());
+    }
+
+    @Test void aReplayAfterTheSameKeyGotAnotherFileRestampsTheEtagOrTheSize() {
+        VideoView video = video(null, null);
+        VideoView restamped = new VideoView(video.id(), "videos/u/r.mp4", "video/mp4", 120, 9000, false, null, clock.instant(),
+                0, 0, null, null, null, null);
+        for (VideoStorage.Stored object : List.of(new VideoStorage.Stored(100, "etag-2"), new VideoStorage.Stored(120, "etag"))) {
+            finalized(video, object);
+            when(videos.restamp(user, intent, object, clock.instant())).thenReturn(restamped);
+            assertThat(service.completeIntent(user, false, intent, false))
+                    .isEqualTo(new VideoService.Completion(false, restamped));
+            verify(videos).restamp(user, intent, object, clock.instant());
+        }
+    }
+
+    @Test void aPurgedVideoOrAMissingObjectIsLeftAsItIs() {
+        VideoView purged = video(null, clock.instant());
+        finalized(purged, new VideoStorage.Stored(100, "etag-2"));
+        assertThat(service.completeIntent(user, false, intent, false).video()).isEqualTo(purged);
+        verify(storage, never()).head(any());
+
+        VideoView video = video(null, null);
+        finalized(video, null);
+        assertThat(service.completeIntent(user, false, intent, false).video()).isEqualTo(video);
+        verify(videos, never()).restamp(any(), any(), any(), any());
     }
 
     @Test void purgingAFileInUseOrMissingIsRejected() {
