@@ -10,7 +10,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 import { noteRatings } from '@/lib/note-rating';
-import { buildNoteRatingBody, NOTE_RATING_COMMENT_MAX, ratingCommentWithReasons } from '@/lib/practice/note-rating';
+import { buildNoteRatingBody, NOTE_RATING_COMMENT_MAX, noteRatingCommentText, ratingCommentWithReasons } from '@/lib/practice/note-rating';
 import type { NoteRating, NoteRatingValue } from '@/lib/practice/types';
 import { newRequestId } from '@/lib/request-id';
 
@@ -79,6 +79,8 @@ export function RatingBox<Value extends string>({
   const [comment, setComment] = useState<string | null>(initial?.comment ?? null);
   // 그 한 줄에 붙은 이유 코드 — 평가 칩을 바꿔 다시 보낼 때 기록에도 그대로 남긴다.
   const [commentReasons, setCommentReasons] = useState<readonly string[]>([]);
+  // 그 한 줄 중 배우가 직접 쓴 글(이유 문구를 뺀 것). 이유 칩이 없는 평가로 바꾸면 이 글만 다시 보낸다.
+  const [commentText, setCommentText] = useState<string | null>(initial?.comment ?? null);
   const [draft, setDraft] = useState(initial?.comment ?? '');
   const [picked, setPicked] = useState<readonly string[]>([]);
   const [thanked, setThanked] = useState(false);
@@ -91,7 +93,7 @@ export function RatingBox<Value extends string>({
     next: Value,
     nextComment: string | null,
     nextReasons: readonly string[],
-    previous: { rating: Value | null; comment: string | null; reasons: readonly string[] },
+    previous: { rating: Value | null; comment: string | null; reasons: readonly string[]; text: string | null },
   ) => {
     const requestId = newRequestId();
     latest.current = requestId;
@@ -101,16 +103,24 @@ export function RatingBox<Value extends string>({
       setRating(previous.rating);
       setComment(previous.comment);
       setCommentReasons(previous.reasons);
+      setCommentText(previous.text);
       setThanked(false);
     }
   };
 
   const choose = (next: Value) => {
     if (next === rating) return;
-    const previous = { rating, comment, reasons: commentReasons };
+    const previous = { rating, comment, reasons: commentReasons, text: commentText };
     setRating(next);
     // 처음 고르면 한 줄 칸이 새로 생긴다 — 아래 광고·버튼에 가리지 않게 부른 화면이 칸까지 올린다.
     if (!previous.rating) onInputFocus?.();
+    // 「아쉬웠어요」의 이유 문구는 그 평가에만 붙는다 — 다른 평가로 바꾸면 이유를 떼고 직접 쓴 글만 함께 보낸다.
+    if (reasons && next !== reasons.for && commentReasons.length > 0) {
+      setComment(commentText);
+      setCommentReasons([]);
+      void save(next, commentText, [], previous);
+      return;
+    }
     void save(next, comment, commentReasons, previous);
   };
 
@@ -123,12 +133,17 @@ export function RatingBox<Value extends string>({
     const chosen = (reasonOptions ?? []).filter(([code]) => picked.includes(code));
     const codes = chosen.map(([code]) => code);
     const text = ratingCommentWithReasons(chosen.map(([, label]) => label), draft, commentMax);
-    const previous = { rating, comment, reasons: commentReasons };
+    const previous = { rating, comment, reasons: commentReasons, text: commentText };
     setComment(text);
     setCommentReasons(codes);
+    setCommentText(noteRatingCommentText(draft));
     setThanked(true);
     void save(rating, text, codes, previous);
   };
+
+  // 고른 이유 문구가 한 줄 앞에 붙는 만큼(「문구, 문구 / 」) 칸에 쓸 수 있는 글자 수를 줄인다 — 보낼 때 배우가 쓴 글이 몰래 잘리지 않게.
+  const pickedLabels = (reasonOptions ?? []).filter(([code]) => picked.includes(code)).map(([, label]) => label);
+  const inputMax = pickedLabels.length > 0 ? Math.max(0, commentMax - pickedLabels.join(', ').length - 3) : commentMax;
 
   return (
     <View style={styles.box}>
@@ -166,7 +181,7 @@ export function RatingBox<Value extends string>({
         <View style={styles.inputRow}>
           {/* 허용 범위 밖 글자는 TextField 가 거르고 칸 아래에 알린다. */}
           <View style={styles.inputCell}>
-            <TextField value={draft} onChangeText={setDraft} placeholder={placeholder} maxLength={commentMax} onFocus={() => onInputFocus?.()} />
+            <TextField value={draft} onChangeText={setDraft} placeholder={placeholder} maxLength={inputMax} onFocus={() => onInputFocus?.()} />
           </View>
           <Button size="sm" label={sendLabel} onPress={send} style={styles.send} />
         </View>

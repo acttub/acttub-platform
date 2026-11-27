@@ -250,3 +250,29 @@ test('좋았어요로 바꿔 보내면 고른 이유를 붙이지 않는다', as
   expect(readingBodies()[2]).toEqual(['s1', { request_id: 'string', rating: 'good', comment: '좋아요' }]);
   expect(log.mock.calls[2][1]).toEqual(expect.objectContaining({ reasons: '' }));
 });
+
+test('이유를 고르면 붙는 문구 길이만큼 한 줄 칸의 글자 수를 줄인다(쓴 글이 몰래 잘리지 않게)', async () => {
+  await render(<ReadingRating sessionId="s1" />);
+  await fireEvent.press(screen.getByRole('button', { name: /아쉬웠어요/ }));
+  const input = () => screen.getByPlaceholderText('한 줄 더 남겨주실래요? (선택)');
+  expect(input().props.maxLength).toBe(100);
+  await fireEvent.press(reason('느려요'));
+  // 「느려요 / 」 = 3 + 3
+  expect(input().props.maxLength).toBe(94);
+  await fireEvent.press(reason('상대 목소리가 어색해요'));
+  // 「상대 목소리가 어색해요, 느려요 / 」
+  expect(input().props.maxLength).toBe(100 - '상대 목소리가 어색해요, 느려요'.length - 3);
+});
+
+test('이유를 붙여 보낸 뒤 좋았어요로 바꾸면 이유 문구를 떼고 쓴 글만 함께 보낸다', async () => {
+  await render(<ReadingRating sessionId="s1" />);
+  await fireEvent.press(screen.getByRole('button', { name: /아쉬웠어요/ }));
+  await fireEvent.press(reason('느려요'));
+  await fireEvent.changeText(screen.getByPlaceholderText('한 줄 더 남겨주실래요? (선택)'), '끝부분이 빨라요');
+  await fireEvent.press(screen.getByRole('button', { name: '보내기' }));
+  expect(readingBodies()[1]).toEqual(['s1', { request_id: 'string', rating: 'bad', comment: '느려요 / 끝부분이 빨라요' }]);
+
+  await fireEvent.press(screen.getByRole('button', { name: /좋았어요/ }));
+  expect(readingBodies()[2]).toEqual(['s1', { request_id: 'string', rating: 'good', comment: '끝부분이 빨라요' }]);
+  expect(log.mock.calls[2][1]).toEqual(expect.objectContaining({ rating: 'good', reasons: '' }));
+});
