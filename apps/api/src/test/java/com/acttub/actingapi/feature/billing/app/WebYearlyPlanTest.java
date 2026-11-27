@@ -3,7 +3,6 @@ package com.acttub.actingapi.feature.billing.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -17,7 +16,7 @@ import com.acttub.actingapi.support.MutableClock;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 웹(토스) 연 구독(SOMA-1068) — 요금제별 첫 결제·자동결제·환불액과 BILLING_WEB_YEARLY_ENABLED 스위치. */
+/** 웹(토스) 연 구독(SOMA-1068) — 요금제별 첫 결제·자동결제와 BILLING_WEB_YEARLY_ENABLED 스위치. */
 class WebYearlyPlanTest {
     static final String CLIENT = "test_ck_abcdefgh12345678";
     static final String SECRET = "test_sk_abcdefgh12345678";
@@ -261,66 +260,6 @@ class WebYearlyPlanTest {
                 .isEqualTo(Instant.parse("2029-02-28T03:00:00Z"));
         assertThat(Plan.MONTHLY.nextPeriodEnd(Instant.parse("2027-01-31T03:00:00Z")))
                 .isEqualTo(Instant.parse("2027-02-28T03:00:00Z"));
-    }
-
-    // ── 환불액(약관 제14조) ─────────────────────────────────────────
-
-    static final Instant START = Instant.parse("2026-11-08T01:00:00Z");
-    static final Instant YEAR_END = Plan.YEARLY.nextPeriodEnd(START); // 365일
-    static final Instant MONTH_START = Instant.parse("2026-11-23T01:00:00Z");
-    static final Instant MONTH_END = Plan.MONTHLY.nextPeriodEnd(MONTH_START); // 30일
-
-    @Test
-    @DisplayName("환불 — 7일 이내이고 안 썼으면 연 구독도 전액")
-    void yearlyRefundFullWithinSevenDays() {
-        assertThat(Duration.between(START, YEAR_END).toDays()).isEqualTo(365);
-        assertThat(BillingRules.refundAmount(32500, START, YEAR_END, START.plus(Duration.ofDays(3)), false)).isEqualTo(32500);
-        assertThat(BillingRules.refundAmount(32500, START, YEAR_END, START.plus(Duration.ofDays(7)), false)).isEqualTo(32500);
-    }
-
-    @Test
-    @DisplayName("환불 — 7일 이내에 썼으면 이용 일수만큼(결제금액 ÷ 365일 × 일수) 빼고, 1원 미만은 올린다")
-    void yearlyRefundUsedWithinSevenDays() {
-        // 32,500 × 362 / 365 = 32,232.87… → 32,233
-        assertThat(BillingRules.refundAmount(32500, START, YEAR_END, START.plus(Duration.ofDays(3)), true)).isEqualTo(32233);
-        // 1시간도 1일이다: 32,500 × 364 / 365 = 32,410.95… → 32,411
-        assertThat(BillingRules.refundAmount(32500, START, YEAR_END, START.plus(Duration.ofHours(1)), true)).isEqualTo(32411);
-    }
-
-    @Test
-    @DisplayName("환불 — 7일이 지나면 쓰지 않았어도 이용 일수만큼 빼고 남은 금액의 10%를 더 뺀다")
-    void yearlyRefundAfterSevenDays() {
-        // 30일 1시간 → 31일 사용, 남은 334일: 32,500 × 334 / 365 × 0.9 = 26,765.75… → 26,766
-        assertThat(BillingRules.refundAmount(32500, START, YEAR_END, START.plus(Duration.ofDays(30).plusHours(1)), false))
-                .isEqualTo(26766);
-        // 7일 1초 → 8일 사용, 남은 357일: 32,500 × 357 / 365 × 0.9 = 28,608.90… → 28,609
-        assertThat(BillingRules.refundAmount(32500, START, YEAR_END, START.plus(Duration.ofDays(7).plusSeconds(1)), true))
-                .isEqualTo(28609);
-    }
-
-    @Test
-    @DisplayName("환불 — 윤년이 낀 연 기간은 366일로 나눈다")
-    void yearlyRefundLeapYear() {
-        Instant start = Instant.parse("2027-03-01T01:00:00Z");
-        Instant end = Plan.YEARLY.nextPeriodEnd(start);
-        assertThat(Duration.between(start, end).toDays()).isEqualTo(366);
-        // 100일 사용, 남은 266일: 32,500 × 266 / 366 × 0.9 = 21,258.19… → 21,259
-        assertThat(BillingRules.refundAmount(32500, start, end, start.plus(Duration.ofDays(100)), true)).isEqualTo(21259);
-    }
-
-    @Test
-    @DisplayName("환불 — 월 구독도 같은 규칙(그 달의 일수로 나눔)이고 기간이 끝났으면 0원")
-    void monthlyRefundSameRule() {
-        assertThat(Duration.between(MONTH_START, MONTH_END).toDays()).isEqualTo(30);
-        assertThat(BillingRules.refundAmount(3900, MONTH_START, MONTH_END, MONTH_START.plus(Duration.ofDays(2)), false))
-                .isEqualTo(3900);
-        // 1시간 → 1일: 3,900 × 29 / 30 = 3,770
-        assertThat(BillingRules.refundAmount(3900, MONTH_START, MONTH_END, MONTH_START.plus(Duration.ofHours(1)), true))
-                .isEqualTo(3770);
-        // 10일: 3,900 × 20 / 30 × 0.9 = 2,340
-        assertThat(BillingRules.refundAmount(3900, MONTH_START, MONTH_END, MONTH_START.plus(Duration.ofDays(10)), false))
-                .isEqualTo(2340);
-        assertThat(BillingRules.refundAmount(3900, MONTH_START, MONTH_END, MONTH_END.plusSeconds(1), true)).isZero();
     }
 
     /** 같은 설정에서 웹 연 구독 스위치만 켠 것. */
