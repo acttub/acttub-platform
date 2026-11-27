@@ -219,22 +219,6 @@ DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영
 6. 하루 뒤 Cloud의 로그 사용량(하루 GB × 31이 50GB 안인지)과 `docker stats`의 Alloy 메모리를 잰다. 괜찮으면
    `environments`에 `prod`를 더해 같은 순서로 적용한다.
 
-### 이미 켠 서버에 호스트 저널 더하기
-
-SOMA-1095 구성(Alloy가 root, `alloy` 볼륨)으로 켠 서버에 이 버전을 반영할 때 사람이 한다.
-
-1. `getent group systemd-journal`의 숫자를 `monitoring.json`의 `logs.journal_gid`에 넣고 새 버전으로 `render` → `check` → `apply`한다.
-2. 위치 볼륨이 `alloy-data`로 바뀌어 Alloy가 컨테이너 로그를 처음부터 다시 읽는다. 같은 시각·같은 줄은 Loki가 한 번만 두지만
-   다시 보낸 양은 그날 사용량에 더해진다.
-3. `docker exec <프로젝트>-alloy-1 id`가 `uid=473`이고 그룹에 위 숫자가 있는지 본다.
-4. Grafana Explore에서 `{environment="shared"}`의 `service` 값이 `kernel`·`docker.service` 둘뿐인지 본다. 대상 밖 단위가 없는지
-   `{environment="shared"} |~ "sshd|CRON|hermes|langfuse"`가 비어 있는지로 확인한다.
-5. 하루 뒤 서버에서 `sudo journalctl -k --since yesterday --until today | wc -c`와
-   `sudo journalctl -u docker.service --since yesterday --until today | wc -c`로 하루 양을 재고 Cloud 사용량 증가와 맞춘다.
-6. 새 Alloy가 잘 돌면 옛 위치 볼륨 `<프로젝트>_alloy`를 `docker volume rm`으로 지운다. 지우면 되돌릴 수 없으므로 4번 확인 뒤에 한다.
-   지우기 전까지는 `rollback`으로 `journal_gid` 없는 이전 릴리스(root Alloy, `alloy` 볼륨)에 돌아갈 수 있다. 지운 뒤 되돌리면
-   그 릴리스의 Alloy는 빈 `alloy` 볼륨으로 시작해 컨테이너 로그를 처음부터 다시 읽는다.
-
 ## 지표 계약
 
 | job | environment | 의미 |
