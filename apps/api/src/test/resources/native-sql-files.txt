@@ -34,9 +34,7 @@ feature/coach/adapter/db/PostgresJournalRepository.java 1 남김: 일지를 화�
 feature/coach/adapter/db/PostgresNoteRatingStore.java 1 남김: 회차의 주인을 다른 기능(practice)의 practices 로 확인하며 노트를 찾는다. practice 에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/community/adapter/db/PostgresCommunityRepository.java 3 남김: 다른 기능의 표를 읽는 문장. 글·댓글 조회(목록·하나·방금 쓴 댓글)는 작성자 이름과 탈퇴 여부(auth 의 users, profile 의 user_profiles)와 차단(challenge 의 user_blocks)을 한 문장에서 조인하고 이를 내주는 Port 가 없다(Port 로 나누면 목록 읽기의 문장이 는다). 차단하기의 대상 확인은 users 를 읽는다(탈퇴한 계정도 차단할 수 있어 활성 확인과 뜻이 다르다)
 feature/consent/adapter/db/PostgresConsentRepository.java 2 남김: 현행 동의 문서 목록(listLatestDocuments)은 종류마다 정본(한국어) 판을 고르고 그 판의 요청 말 번역을 고르는 두 단계 DISTINCT ON 이고, 회원의 문서별 마지막 결정(currentConsentsOf)도 DISTINCT ON 이다. HQL 에 DISTINCT ON 이 없다(§5-9). 창 함수나 상관 서브쿼리로 풀면 다른 문장이 된다
-feature/feedback/adapter/db/PostgresExitSurveyStore.java 6
-feature/feedback/adapter/db/PostgresFeedbackAccountErasure.java 2
-feature/feedback/adapter/db/PostgresFeedbackPracticeGroupPart.java 1
+feature/feedback/adapter/db/PostgresExitSurveyStore.java 1 남김: 접수(submit)는 활성 계정에만 넣는 한 문장이다. 다른 기능(auth)의 users 에서 고르는 INSERT … SELECT … ON CONFLICT DO NOTHING RETURNING 이고, auth 에 활성 여부를 내주는 Port 가 없다. 나눠 읽으면 문장이 하나 늘고 확인과 넣기가 다른 스냅숏이 된다
 feature/memory/adapter/db/PostgresActorMemoryStore.java 14 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 화면 목록·재료·예약 판정·장면 찾기·맞춤 코칭 재료는 연습(practices)·코치 대화와 노트(coach_*·note_ratings)·분석(analyses)을 읽고, 배우 쓰기·덧붙이기·완료는 auth 의 users 행을 거르거나 잠그며, 밀린 예약 찾기와 재료는 platform 의 ai_jobs 를 읽는다. 이를 내주는 Port 가 없고, DISTINCT ON·JSON 연산·LATERAL·INSERT … SELECT … ON CONFLICT DO UPDATE … RETURNING 이 든다
 feature/memory/adapter/db/PostgresMemoryRepository.java 8 남김: 다른 기능의 표만 읽는다(practices·coach_conversations·coach_messages·coach_notes, 매핑을 내린 옛 practice_sessions·coach_sessions·coach_turns·practice_reports). 이를 내주는 Port 가 없고 JSON 연산·LATERAL 이 든다
 feature/practice/adapter/db/DeletedPracticeVideoPurge.java 3
