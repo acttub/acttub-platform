@@ -227,7 +227,9 @@ class PracticeDeletionStoreIT {
                         "delete deleted_practice_videos");
         assertThat(statementsOf(() -> new TransactionTemplate(transactionManager).execute(tx ->
                 accountErasure.erase(AccountErasureStep.DELETED_PRACTICES, closing(other, false)))))
-                .containsExactly("delete practice_deletion_marks", "select deleted_practice_videos videos for update");
+                .as("무료 횟수 표시, 보상형 광고로 받은 코칭 1회의 기록(SOMA-1067), 지운 영상 줄 순서다")
+                .containsExactly("delete practice_deletion_marks", "delete coaching_rewards",
+                        "select deleted_practice_videos videos for update");
     }
 
     // ---- 도움 ----

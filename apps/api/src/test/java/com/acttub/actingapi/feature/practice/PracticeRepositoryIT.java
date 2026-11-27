@@ -423,7 +423,9 @@ class PracticeRepositoryIT {
                 .containsExactly(practices1, practices1, "select practices for update", practices1, "select videos for update",
                         practices1, "insert practices", "insert ai_jobs", FIND);
         assertThat(statementsOf(() -> practices.updateGroup(actor, id, true, true, "제목", now)))
-                .containsExactly("select practices for update", "update practices", FIND, "select coach_conversations,practices");
+                .as("묶음 속성은 노트가 생긴 회차 수(practiced_count, SOMA-810)와 함께 읽는다")
+                .containsExactly("select practices for update", "update practices", FIND,
+                        "select coach_conversations,coach_notes,practices");
         assertThat(statementsOf(() -> inTransaction(() -> {
             ownership.reassign(actor, guest);
             return null;

@@ -24,8 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 친구 초대 장부(V104, SOMA-865). 자기 표 둘({@code invite_codes}·{@code invite_redemptions})은 HQL 이 기본이고, PostgreSQL 의미가
- * 필요한 문장(코드 붙이기의 {@code ON CONFLICT … RETURNING}, 넣기의 {@code ON CONFLICT DO NOTHING}, 지급 시각 채우기의
- * {@code UPDATE … RETURNING})만 native 다(CONTRACT §5-2).
+ * 필요한 문장(코드 붙이기의 {@code ON CONFLICT … RETURNING}, 지급 시각 채우기의 {@code UPDATE … RETURNING})만 native 다
+ * (CONTRACT §5-2). 코드 넣기의 {@code on conflict do nothing} 은 HQL 이다.
  *
  * <p>남의 표는 주인의 Port 로만 닿는다(ADR-040): 계정 행 잠금은 {@link AccountRowLock}, 가입 시각·활성 회원 판정은
  * {@link AccountFacts}, 「센 연습」은 {@link CompletedReadings}·{@link NotedPractices}, Pro 기간은 {@link ProGrants}. Port 들은
@@ -139,15 +139,15 @@ class PostgresInviteRepository implements InviteRepository {
             if (inviterId.equals(inviteeId)) {
                 return RedeemOutcome.OWN_CODE;
             }
-            entityManager.createNativeQuery("""
-                            INSERT INTO invite_redemptions(invitee_id,inviter_id,code,created_at)
-                            VALUES (:invitee,:inviter,:code,CAST(:now AS timestamptz))
-                            ON CONFLICT (invitee_id) DO NOTHING
+            entityManager.createQuery("""
+                            insert into InviteRedemptionEntity(inviteeId, inviterId, code, createdAt)
+                            values (:invitee, :inviter, :code, :now)
+                            on conflict (inviteeId) do nothing
                             """)
                     .setParameter("invitee", inviteeId)
                     .setParameter("inviter", inviterId)
                     .setParameter("code", code)
-                    .setParameter("now", at(now))
+                    .setParameter("now", now)
                     .executeUpdate();
             return RedeemOutcome.REDEEMED;
         });
