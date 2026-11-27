@@ -31,9 +31,8 @@
 |---|---|---|
 | active | 가입 제출 통과 | account.login |
 | active(게스트) | 웹 게스트 만들기 | account.guest |
-| deactivated(`deactivated_at`) | 탈퇴, users를 참조하는 기록이 있는 계정의 만 14세 미만 입력([account.profile](profile.md#규칙제약)), 게스트 옮기기 완료, 옮기지 않은 게스트의 30일 파기 | account.withdraw, account.profile, account.guest |
+| deactivated(`deactivated_at`) | 탈퇴, 가입 게이트의 만 14세 미만 입력([account.profile](profile.md#규칙제약)), 게스트 옮기기 완료, 옮기지 않은 게스트의 30일 파기 | account.withdraw, account.profile, account.guest |
 | deactivated + `retention_purged_at` | 탈퇴 3년 뒤 보관 파기를 마침 | account.withdraw |
-| 행 없음 | users를 참조하는 기록이 없는 계정의 만 14세 미만 가입 게이트 입력 | account.profile |
 | deactivated + `retention_purged_at`, `deactivated_at` 없음 | 지운 연습 보관 계정. 연습 삭제가 처음 돌 때 고정 id로 한 번 만든다. 신원·프로필이 없다([practice.library](../practice/library.md#규칙제약)) | practice.library |
 
 `refresh_tokens`:
@@ -46,7 +45,7 @@
 | 만료 | 발급 30일 뒤 `expires_at` 지남. 만료된 토큰으로 갱신하면 JWT 검사(`JwtService`)에서 401로 끊겨 행은 그대로 만료 상태다 | — |
 | 행 없음 | 만료·폐기 30일 뒤 매일 정리 | account.login |
 
-불변 조건: deactivated 계정의 행은 지우지 않는다(만 14세 미만 가입 게이트만 예외). 탈퇴가 진행 중 작업에 일으키는
+불변 조건: deactivated 계정의 행은 지우지 않는다. 탈퇴가 진행 중 작업에 일으키는
 전이는 [account.withdraw](withdraw.md#상태)에 있다. 끝 상태는 users가 deactivated + `retention_purged_at`, refresh_tokens가
 행 없음이다.
 

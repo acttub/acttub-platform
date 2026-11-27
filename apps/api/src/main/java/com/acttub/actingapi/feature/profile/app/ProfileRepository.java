@@ -44,7 +44,8 @@ public interface ProfileRepository {
      *
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>하고 파기만 다시 돈다.
      *
-     * @param destroyMediaRegardless 보관 동의와 무관하게 영상을 파기한다(만 14세 미만으로 드러난 회원)
+     * @param destroyMediaRegardless 보관 동의와 무관하게 영상을 파기한다(가입 중에 만 14세 미만으로 드러난 계정.
+     *        아동의 동의는 법정대리인 없이 효력이 없다)
      * @param today 한국 시간의 오늘 — 생년월일을 5세 단위 연령대로 뭉갤 때의 기준
      */
     Withdrawn withdraw(UUID userId, boolean destroyMediaRegardless, Instant now, LocalDate today);
@@ -54,29 +55,6 @@ public interface ProfileRepository {
      * @param cleanupOperationIds 이번에 장부에 올린 바깥 정리들
      */
     record Withdrawn(Instant deactivatedAt, List<UUID> cleanupOperationIds) {
-    }
-
-    /**
-     * 만 14세 미만으로 드러난 가입 중의 계정을 닫는다.
-     *
-     * <p>아직 아무 자료도 없는 계정은 <b>행째 지운다</b> — 탈퇴와 달리 아무것도 남기지 않는다.
-     * 법정대리인 동의 없이 아동의 정보를 들고 있지 않기 위해서다. 연습 같은 자료가 이미 있는
-     * 0.1.0 이전 회원은 지울 수 없어(남의 화면에 얽힌 행이 깨진다) 탈퇴와 같은 절차로 닫고,
-     * <b>보관 동의와 무관하게</b> 영상을 파기한다.
-     *
-     * @return 어느 쪽으로 닫았는가. 없는 사용자면 {@code null}
-     */
-    Closed closeUnderage(UUID userId, Instant now, LocalDate today);
-
-    /** @param cleanupOperationIds 탈퇴와 같은 절차로 닫았을 때 장부에 올린 바깥 정리들. 행째 지웠으면 비어 있다 */
-    record Closed(Closure closure, List<UUID> cleanupOperationIds) {
-    }
-
-    enum Closure {
-        /** 계정의 모든 행을 지웠다. */
-        ERASED,
-        /** 자료가 있어 탈퇴와 같은 절차로 닫았다. */
-        DEACTIVATED
     }
 
     // ---- 매일 도는 일 (AccountHousekeeping) ----

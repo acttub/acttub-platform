@@ -40,10 +40,4 @@ class PostgresTransferAccountErasure implements AccountErasure {
                 .executeUpdate();
         return List.of();
     }
-
-    /** 이관 코드는 계정 행과 함께 지워진다({@code ON DELETE CASCADE}). */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return false;
-    }
 }

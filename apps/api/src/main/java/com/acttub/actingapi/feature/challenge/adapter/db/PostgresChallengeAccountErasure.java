@@ -28,21 +28,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PostgresChallengeAccountErasure implements AccountErasure {
 
-    /** 이 계정을 가리키는 챌린지 자료. 한 줄이라도 있으면 계정 행을 지울 수 없다(외래 키에 ON DELETE 가 없다). */
-    private static final List<String> RECORDS = List.of(
-            "select c.hostUserId from ChallengeEntity c where c.hostUserId = :userId",
-            "select e.userId from ChallengeEntryEntity e where e.userId = :userId",
-            "select l.userId from EntryLikeEntity l where l.userId = :userId",
-            "select c.userId from EntryCommentEntity c where c.userId = :userId",
-            "select r.reporterId from EntryReportEntity r where r.reporterId = :userId",
-            "select s.userId from EntrySaveEntity s where s.userId = :userId",
-            "select v.userId from EntryViewEventEntity v where v.userId = :userId",
-            "select b.blockerId from UserBlockEntity b where b.blockerId = :userId or b.blockedId = :userId",
-            "select n.userId from NotificationEntity n where n.userId = :userId or n.actorUserId = :userId",
-            "select r.userId from EntryAiReportEntity r where r.userId = :userId",
-            "select s.viewerId from EntryRankingSnapshotEntity s where s.viewerId = :userId",
-            "select p.userId from NotificationPushEntity p where p.userId = :userId");
-
     private final EntityManager entityManager;
     private final EntryMediaPurge entryMedia;
 
@@ -91,14 +76,5 @@ class PostgresChallengeAccountErasure implements AccountErasure {
                 .setParameter("userId", userId)
                 .executeUpdate();
         return scheduled;
-    }
-
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return RECORDS.stream().anyMatch(query -> !entityManager.createQuery(query, UUID.class)
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty());
     }
 }

@@ -371,7 +371,6 @@ videos: 8행 → 8행
   select user_identities, user_profile_directions, users, user_profiles
 BEGIN
   select users for update
-  select challenges
   select challenges, challenge_entries
   update users
   select scripts for update

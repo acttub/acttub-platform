@@ -1,41 +1,50 @@
 == 표 ==
-account_cleanup_operations: 1행 → 1행
+account_cleanup_operations: 1행 → 8행
+  user_id=본인: 0 → 7
   user_id=남: 1 → 1
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='apple_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: apple-grant:본인>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='kakao_unlink', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: kakao-본인>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='naver_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: naver-refresh:본인>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/portfolio/1.jpg","users/본인/portfolio/pending.jpg"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/profile/pending.jpg","users/본인/profile/photo.jpg"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/videos/deleted.jpg","users/본인/videos/deleted.mp4"]>, updated_at=<now>, user_id=<본인>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='revenuecat_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: <본인>>, updated_at=<now>, user_id=<본인>
 actor_journals: 1행 → 1행
   user_id=남: 1 → 1
 actor_memories: 2행 → 2행
   user_id=남: 2 → 2
 actor_memory_entries: 1행 → 1행
   user_id=남: 1 → 1
-ad_events: 2행 → 1행
-  user_id=본인: 1 → 0
+ad_events: 2행 → 2행
+  user_id=본인: 1 → 1
   user_id=남: 1 → 1
-  - <본인/광고 노출>
-ad_serves: 2행 → 1행
-  user_id=본인: 1 → 0
+ad_serves: 2행 → 2행
+  user_id=본인: 1 → 1
   user_id=남: 1 → 1
-  - <본인/광고 내보냄>
 ai_jobs: 5행 → 5행
   user_id=남: 5 → 5
 analyses: 1행 → 1행
 anomalies: 1행 → 1행
-billing_checkouts: 4행 → 2행
-  user_id=본인: 2 → 0
+billing_checkouts: 4행 → 4행
+  user_id=본인: 2 → 2
   user_id=남: 2 → 2
-  - <본인/결제창/done>
-  - <본인/결제창/open>
-billing_payments: 2행 → 1행
-  user_id=본인: 1 → 0
+  ~ <본인/결제창/open>
+      status: 'open' → 'failed'
+billing_payments: 2행 → 2행
+  user_id=본인: 1 → 1
   user_id=남: 1 → 1
-  - <본인/결제>
 billing_pro_grants: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/Pro 지급>
-billing_subscriptions: 2행 → 1행
-  user_id=본인: 1 → 0
+billing_subscriptions: 2행 → 2행
+  user_id=본인: 1 → 1
   user_id=남: 1 → 1
-  - <본인/구독>
+  ~ <본인/구독>
+      billing_key: 'billing-key-본인' → NULL
+      next_retry_at: <now+PT24H> → NULL
+      status: 'active' → 'expired'
+      updated_at: <DB 시각> → <DB 시각>
 challenge_entries: 1행 → 1행
   user_id=남: 1 → 1
 challenges: 2행 → 2행
@@ -121,11 +130,11 @@ reading_voice_usage: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>, 1998-11-19
-refresh_tokens: 4행 → 2행
-  user_id=본인: 2 → 0
+refresh_tokens: 4행 → 4행
+  user_id=본인: 2 → 2
   user_id=남: 2 → 2
-  - <본인/리프레시 토큰/살아 있음>
-  - <본인/리프레시 토큰/폐기됨>
+  ~ <본인/리프레시 토큰/살아 있음>
+      revoked_at: NULL → <now>
 script_characters: 1행 → 1행
 script_cocreations: 2행 → 1행
   user_id=본인: 1 → 0
@@ -153,43 +162,69 @@ user_airbridge_device_lookups: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>
-user_consents: 8행 → 4행
-  user_id=본인: 4 → 0
+user_consents: 8행 → 8행
+  user_id=본인: 4 → 4
   user_id=남: 4 → 4
-  - <본인/동의/ai_analysis>
-  - <본인/동의/privacy>
-  - <본인/동의/retention>
-  - <본인/동의/terms>
 user_discovery_answers: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>
-user_identities: 8행 → 4행
-  user_id=본인: 4 → 0
+user_identities: 8행 → 8행
+  user_id=본인: 4 → 4
   user_id=남: 4 → 4
-  - <본인/신원/apple>
-  - <본인/신원/google>
-  - <본인/신원/kakao>
-  - <본인/신원/naver>
-user_profile_directions: 4행 → 2행
-  user_id=본인: 2 → 0
+  ~ <본인/신원/apple>
+      apple_token_encrypted: <암호문: apple-grant:본인> → NULL
+      provider_uid: 'apple-본인' → NULL
+      uid_hash: NULL → '<해시 apple:apple-본인>'
+  ~ <본인/신원/google>
+      provider_uid: 'google-본인' → NULL
+      uid_hash: NULL → '<해시 google:google-본인>'
+  ~ <본인/신원/kakao>
+      provider_uid: 'kakao-본인' → NULL
+      uid_hash: NULL → '<해시 kakao:kakao-본인>'
+  ~ <본인/신원/naver>
+      naver_token_encrypted: <암호문: naver-refresh:본인> → NULL
+      provider_uid: 'naver-본인' → NULL
+      uid_hash: NULL → '<해시 naver:naver-본인>'
+user_profile_directions: 4행 → 4행
+  user_id=본인: 2 → 2
   user_id=남: 2 → 2
-  - <본인/방향/media>
-  - <본인/방향/stage>
-user_profiles: 2행 → 1행
-  user_id=본인: 1 → 0
+user_profiles: 2행 → 2행
+  user_id=본인: 1 → 1
   user_id=남: 1 → 1
-  - <본인>
+  ~ <본인>
+      age_band: NULL → 25
+      bio: '입시 준비 중입니다' → NULL
+      birth_date: 1971-03-02 → NULL
+      name: '본인 배우' → NULL
+      notify_analysis_done: true → false
+      notify_challenge: true → false
+      notify_evening_reminder: true → false
+      photo_key: 'users/본인/profile/photo.jpg' → NULL
+      photo_upload_expires_at: <now+PT1H> → NULL
+      photo_upload_key: 'users/본인/profile/pending.jpg' → NULL
+      photo_upload_mime_type: 'image/jpeg' → NULL
+      photo_upload_size_bytes: 10 → NULL
+      updated_at: <now-PT1440H> → <DB 시각>
 user_signup_attributions: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>
-users: 3행 → 2행
-  - <본인>
-video_transcripts: 3행 → 3행
+users: 3행 → 3행
+  ~ <본인>
+      deactivated_at: NULL → <now>
+      email: '본인@example.test' → NULL
+      nickname: '옛닉네임' → NULL
+      status: 'active' → 'deactivated'
+      updated_at: <now-PT1440H> → <now>
+video_transcripts: 3행 → 2행
+  - <본인/지운 연습의 영상/받아쓰기>
 videos: 5행 → 5행
   user_id=지운 연습 보관 계정: 2 → 2
   user_id=남: 3 → 3
+  ~ <본인/지운 연습의 영상>
+      purged_at: NULL → <now>
+      updated_at: <DB 시각> → <now>
 == 문장 ==
   select user_identities, users
   select consent_documents
@@ -197,46 +232,99 @@ videos: 5행 → 5행
   select user_identities, user_profile_directions, users, user_profiles
 BEGIN
   select users for update
-  select challenges
+  select challenges, challenge_entries
+  update users
+  select scripts for update
+  select reading_sessions for update
+  delete script_uploads returning
+  delete reading_recordings returning
+  delete line_memorization
+  delete reading_session_ratings (읽기 reading_sessions)
+  delete reading_sessions
+  delete script_lines (읽기 scripts)
+  delete script_characters (읽기 scripts)
+  delete scripts
+  delete script_imports
+  delete script_cocreations
+  select videos for update
+  select upload_intents, videos
+  update videos
+  update ai_jobs
+  delete actor_journals
+  update practice_feedback
+  update note_ratings
+  delete practice_deletion_marks
+  select deleted_practice_videos, videos for update
+  delete video_transcripts
+  update videos
+  insert account_cleanup_operations
+  delete deleted_practice_videos
   select challenge_entries
-  select entry_likes
-  select entry_comments
-  select entry_reports
-  select entry_saves
-  select entry_view_events
-  select user_blocks
-  select notifications
-  select entry_ai_reports
-  select entry_ranking_snapshots
-  select notification_pushes
-  select note_ratings
-  select community_posts
-  select community_comments
-  select community_post_likes
+  update challenges
+  delete user_blocks
+  delete entry_saves
+  delete notifications
+  update challenge_entries
+  update entry_ai_reports
   select community_post_images
-  select community_anonymous_aliases
-  select community_reports
-  select community_blocks
-  select practice_feedback
-  select actor_memories
-  select actor_memory_entries
-  select practices
-  select practice_sessions
-  select account_cleanup_operations
-  select scripts
-  select reading_sessions
-  select reading_recordings
-  select reading_session_ratings
-  select line_memorization
-  select script_imports
-  select script_uploads
-  select videos
-  select upload_intents
-  select ai_jobs
-  select external_operations
-  delete refresh_tokens
-  delete user_identities
-  delete user_consents
+  delete community_post_images
+  delete reading_voice_usage
+  delete user_signup_attributions
+  delete user_airbridge_device_lookups
+  update billing_subscriptions
+  delete billing_pro_grants
+  update billing_checkouts
+  delete user_discovery_answers
+  select user_identities for update
+  update user_identities
+  insert account_cleanup_operations
+  update user_identities
+  insert account_cleanup_operations
+  update user_identities
+  insert account_cleanup_operations
+  update user_identities
+  insert account_cleanup_operations
+  update users
+  select user_profiles for update
+  insert account_cleanup_operations
+  update user_profiles
+  select portfolio_photos
+  insert account_cleanup_operations
+  delete portfolios
+  delete guest_transfer_codes
+  update refresh_tokens
+  delete user_active_days
+  delete practice_reminder_sends
+  delete push_opens
   delete push_tokens
-  delete users
+  update practice_sessions
+  update external_operations
+  select users
+COMMIT
+BEGIN
+  update account_cleanup_operations returning for update skip locked
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+  set local synchronous_commit = off
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
+COMMIT
+BEGIN
+  update account_cleanup_operations returning
 COMMIT

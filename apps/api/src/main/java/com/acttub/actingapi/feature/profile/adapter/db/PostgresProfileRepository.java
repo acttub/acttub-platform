@@ -576,21 +576,6 @@ class PostgresProfileRepository
     }
 
     /**
-     * 가입 중에 만 14세 미만으로 드러난 계정. 여기서 트랜잭션을 열고, 자료가 있는지와 무엇을 지우는지는 각 표의 주인이 답한다
-     * ({@link AccountErasureSequence#closeUnderage}).
-     */
-    @Override
-    public Closed closeUnderage(UUID userId, Instant now, LocalDate today) {
-        return transaction.execute(status -> {
-            AccountErasureSequence.ClosedUnderage closed = closing.closeUnderage(userId, now, today);
-            if (closed == null) {
-                return null;
-            }
-            return new Closed(closed.erased() ? Closure.ERASED : Closure.DEACTIVATED, closed.cleanupOperationIds());
-        });
-    }
-
-    /**
      * 탈퇴 트랜잭션 (account.withdraw, ADR-029).
      *
      * <p>행을 지우지 않는다 — 연습 기록과 남의 화면에 얽힌 행이 {@code user_id} 를 참조하므로 지우면

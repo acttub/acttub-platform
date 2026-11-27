@@ -12,11 +12,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AccountErasure;
-import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.practice.app.PracticeGroupErasurePart;
@@ -73,9 +71,6 @@ class AccountErasureRollbackIT {
     @Autowired
     AccountSecrets secrets;
 
-    @Autowired
-    AccountErasureSequence sequence;
-
     /** {@code auth} 의 구현. 맡은 자리가 순서의 뒤쪽에 흩어져 있어, 여기서 던지면 앞의 여러 기능이 이미 지운 뒤다. */
     @MockitoSpyBean(name = "postgresAuthAccountErasure")
     AccountErasure authErasure;
@@ -118,12 +113,6 @@ class AccountErasureRollbackIT {
 
     @MockitoSpyBean(name = "postgresCoachAccountErasure")
     AccountErasure coachErasure;
-
-    @MockitoSpyBean(name = "postgresMemoryAccountErasure")
-    AccountErasure memoryErasure;
-
-    @MockitoSpyBean(name = "postgresConsentAccountErasure")
-    AccountErasure consentErasure;
 
     @MockitoSpyBean(name = "postgresOperationPracticeGroupPart")
     PracticeGroupErasurePart operationPart;
@@ -199,12 +188,12 @@ class AccountErasureRollbackIT {
     }
 
     @Test
-    @DisplayName("만 14세 미만 계정을 행째 지우다 구현 하나가 예외를 던지면 전체가 되돌아간다: 앞선 구현이 지운 신원·토큰·동의 기록도 남는다")
-    void aFailingOwnerRollsTheWholeUnderageErasureBack() throws Exception {
+    @DisplayName("만 14세 미만 계정을 닫다 구현 하나가 예외를 던지면 전체가 되돌아간다: 자료가 없는 계정도 탈퇴와 같은 한 트랜잭션이다")
+    void aFailingOwnerRollsTheWholeUnderageClosureBack() throws Exception {
         UUID self = seed.light("본인", Identity.MEMBER, "granted");
         jdbc.update("UPDATE user_profiles SET goal=NULL WHERE user_id=?", self);
-        // 푸시는 클래스 이름 순으로 auth·consent 뒤다. 여기서 던지면 신원·토큰·동의 기록은 이미 지운 뒤다.
-        doThrow(new IllegalStateException("erasure failed")).when(pushErasure).eraseWithAccountRow(self);
+        // 푸시는 신원 해시·토큰 폐기(auth)보다 뒤 자리다. 여기서 던지면 계정은 이미 닫히고 신원은 해시로 바뀐 뒤다.
+        doThrow(new IllegalStateException("erasure failed")).when(pushErasure).erase(eq(AccountErasureStep.PUSH), any());
         DatabaseChanges changes = new DatabaseChanges(jdbc);
         DatabaseChanges.Snapshot before = changes.read();
 
@@ -218,9 +207,8 @@ class AccountErasureRollbackIT {
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(500);
-        verify(authErasure).eraseWithAccountRow(self);
-        verify(consentErasure).eraseWithAccountRow(self);
-        verify(pushErasure).eraseWithAccountRow(self);
+        verify(authErasure).erase(eq(AccountErasureStep.IDENTITIES), any());
+        verify(pushErasure).erase(eq(AccountErasureStep.PUSH), any());
         assertThat(changes.read()).isEqualTo(before);
     }
 
@@ -269,32 +257,5 @@ class AccountErasureRollbackIT {
             case PRACTICE_FEEDBACK -> feedbackPart;
             case ACTOR_MEMORIES -> memoryPart;
         };
-    }
-
-    @Test
-    @DisplayName("자료가 있는가: 계정과 함께 지워지는 것만 가진 계정은 없다고, 연습·리딩·챌린지·게시판 자료가 있는 계정은 있다고 답한다")
-    void hasRecordsTellsHistoryFromWhatGoesWithTheAccount() {
-        UUID light = seed.light("자료 없음", Identity.MEMBER, "granted");
-        UUID full = seed.full("자료 있음", Identity.MEMBER, "granted");
-
-        assertThat(sequence.hasRecords(light)).isFalse();
-        assertThat(sequence.hasRecords(full)).isTrue();
-        // 주인마다의 답. 게시판 자료와 정리 장부의 일은 계정 행을 지우지 못하게 하고, 나머지 주인의 표는 계정과 함께 지워진다.
-        assertThat(communityErasure.hasRecords(light)).isFalse();
-        assertThat(communityErasure.hasRecords(full)).isTrue();
-        assertThat(profileErasure.hasRecords(light)).isFalse();
-        assertThat(profileErasure.hasRecords(full)).isTrue();
-        assertThat(videoErasure.hasRecords(light)).isFalse();
-        assertThat(videoErasure.hasRecords(full)).isTrue();
-        for (AccountErasure withHistory : List.of(
-                feedbackErasure, operationErasure, practiceErasure, readingErasure, challengeErasure, coachErasure,
-                memoryErasure)) {
-            assertThat(withHistory.hasRecords(light)).isFalse();
-            assertThat(withHistory.hasRecords(full)).isTrue();
-        }
-        for (AccountErasure accountOnly : List.of(
-                authErasure, portfolioErasure, transferErasure, pushErasure, billingErasure, consentErasure)) {
-            assertThat(accountOnly.hasRecords(full)).isFalse();
-        }
     }
 }

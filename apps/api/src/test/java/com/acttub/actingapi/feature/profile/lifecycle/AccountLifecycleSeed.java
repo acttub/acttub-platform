@@ -103,8 +103,8 @@ final class AccountLifecycleSeed {
     }
 
     /**
-     * 「자료가 없는」 계정이 가질 수 있는 것만 심는다: 계정 행과 함께 지워지는 표({@code ON DELETE CASCADE}), 동의·토큰·신원,
-     * 그리고 외래 키 없이 사용자를 가리키는 표다. 만 14세 미만 닫기가 계정 행을 지우는 갈래를 본다.
+     * 연습·리딩·챌린지·게시판 자료가 없는 계정이 가질 수 있는 것만 심는다: 계정 행에 매달린 표({@code ON DELETE CASCADE}),
+     * 동의·토큰·신원, 그리고 외래 키 없이 사용자를 가리키는 표다. 가입 중에 만 14세 미만으로 닫히는 흔한 계정의 모양이다.
      */
     UUID light(String who, Identity identity, String retention) {
         UUID user = id(who);

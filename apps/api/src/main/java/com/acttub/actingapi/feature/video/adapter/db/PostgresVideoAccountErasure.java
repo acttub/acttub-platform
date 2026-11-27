@@ -47,19 +47,4 @@ class PostgresVideoAccountErasure implements AccountErasure {
                 .getResultList();
         return account.retainMedia() ? List.of() : retention.purgeFilesOf(account.userId(), account.now());
     }
-
-    /** 영상과 올리기 예약의 행은 계정 행을 가리킨 채 남는다(외래 키에 ON DELETE 가 없다). */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        boolean videos = !entityManager.createQuery("select v.id from VideoEntity v where v.userId = :userId", UUID.class)
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty();
-        // 은퇴한 예약 장부(upload_intents)는 Schema Entity 가 없어 native 로 둔다(CONTRACT §5-1).
-        return videos || !entityManager.createNativeQuery("SELECT 1 FROM upload_intents WHERE user_id=:userId LIMIT 1")
-                .setParameter("userId", userId)
-                .getResultList()
-                .isEmpty();
-    }
 }

@@ -111,9 +111,10 @@ public class ProfileService implements ProfileGate {
             if (before.profileComplete()) {
                 throw new ApiException(422, "under_14");
             }
-            // 연습이 있는 0.1.0 이전 회원은 탈퇴와 같은 절차로 닫히고, 보관 동의와 무관하게 영상을
-            // 파기한다. 객체 삭제와 제공자 해제는 탈퇴와 같이 트랜잭션 밖에서 시도한다.
-            ProfileRepository.Closed closed = profiles.closeUnderage(userId, clock.instant(), today());
+            // 탈퇴와 같은 절차로 닫되 보관 동의와 무관하게 영상·녹음을 파기한다. 자료가 없는 계정도 같다 — 행째
+            // 지우면 제공자 해제(애플 토큰 폐기)와 사진 객체 삭제를 정리 장부에 올릴 수 없다(SOMA-1166).
+            // 객체 삭제와 제공자 해제는 탈퇴와 같이 트랜잭션 밖에서 시도한다.
+            ProfileRepository.Withdrawn closed = profiles.withdraw(userId, true, clock.instant(), today());
             if (closed != null) {
                 cleanup.attempt(closed.cleanupOperationIds());
             }

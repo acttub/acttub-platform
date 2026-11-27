@@ -283,46 +283,7 @@ class AccountLifecycleFreezeIT {
     }
 
     @Test
-    @DisplayName("만 14세 미만: users 를 지우기 막는 외래 키(ON DELETE 없음)의 칸마다 그 칸에 자료가 있는지 보거나 그 행을 지우는 주인이 있다")
-    void everyForeignKeyBlockingTheAccountRowHasAnOwner() throws Exception {
-        UUID self = seed.light("본인", Identity.MEMBER, "granted");
-        jdbc.update("UPDATE user_profiles SET goal=NULL WHERE user_id=?", self);
-        List<String> statements;
-        StatementTrace.start();
-        try {
-            assertThat(expect(422, underageProfile(), self)).contains("under_14_account_closed");
-            statements = StatementTrace.sql();
-        } finally {
-            StatementTrace.stop();
-        }
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id=?", Integer.class, self))
-                .as("자료가 없는 계정이라 모든 주인에게 묻고 행째 지운다")
-                .isZero();
-
-        List<UserColumn> blocking = jdbc.query("""
-                SELECT child.relname,att.attname
-                FROM pg_constraint con
-                JOIN pg_class child ON child.oid = con.conrelid
-                JOIN pg_class parent ON parent.oid = con.confrelid
-                JOIN pg_namespace ns ON ns.oid = child.relnamespace
-                JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = con.conkey[1]
-                WHERE con.contype = 'f' AND parent.relname = 'users' AND ns.nspname = current_schema()
-                  AND con.confdeltype IN ('a', 'r')
-                ORDER BY 1,2
-                """, (row, n) -> new UserColumn(row.getString(1), row.getString(2)));
-        assertThat(blocking).as("질의가 비면 아래 비교가 조용히 통과한다").hasSizeGreaterThan(30);
-        for (UserColumn reference : blocking) {
-            Pattern asked = Pattern.compile("\\bfrom " + reference.table() + "\\b.*\\b" + reference.column() + "\\s*=");
-            assertThat(statements)
-                    .as("%s.%s 를 보는 주인이 없다. 그 표에 행이 있는 계정의 만 14세 미만 닫기가 외래 키로 실패한다. "
-                            + "그 표의 주인이 AccountErasure#hasRecords 에서 세거나(남기는 자료) eraseWithAccountRow 에서 지운다(계정과 함께 지우는 행)",
-                            reference.table(), reference.column())
-                    .anyMatch(statement -> asked.matcher(statement).find());
-        }
-    }
-
-    @Test
-    @DisplayName("만 14세 미만(자료 없음): 계정 행을 지운다")
+    @DisplayName("만 14세 미만(자료 없음): 자료가 있을 때와 같이 탈퇴 절차로 닫고 제공자 해제와 사진 객체 삭제를 장부에 올린다")
     void underageWithoutHistory() throws Exception {
         UUID self = seed.light("본인", Identity.MEMBER, "granted");
         people.put("본인", self);
